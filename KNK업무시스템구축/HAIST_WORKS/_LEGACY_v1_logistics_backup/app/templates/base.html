@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?{{ css_ver }}">
+</head>
+<body>
+
+  <!-- ── 다크 헤더 (HAIST WORKS) ─────────────────────────── -->
+  <header class="topbar">
+    <div class="tb-left">
+      <a href="/" class="tb-brand">
+        <span class="tb-logo">KNK</span>
+        <span class="tb-title-group">
+          <span class="tb-title">{{ app_name }}</span>
+          <span class="tb-subtitle">{{ app_subtitle }}</span>
+        </span>
+      </a>
+      <span class="tb-badge">{{ brand }}</span>
+    </div>
+    <nav class="tb-nav">
+      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">대시보드</a>
+      <a href="#" class="muted">일일업무</a>
+      <a href="#" class="muted">부서피드</a>
+      <div class="tb-divider"></div>
+      <a href="/parts" class="{% if request.url.path.startswith('/parts') %}active{% endif %}">부품</a>
+      <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}">관리코드</a>
+      <a href="#" class="muted">발주</a>
+      <a href="#" class="muted">입고</a>
+      <a href="#" class="muted">재고</a>
+    </nav>
+    <div class="tb-right">
+      <span class="tb-lang">🇰🇷 KO</span>
+      <span class="tb-user">㈜케이엔케이</span>
+    </div>
+  </header>
+
+  <main class="main">
+    {% block body %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    {{ company }} | {{ brand }} | <em>{{ slogan }}</em>
+  </footer>
+
+</body>
+</html>

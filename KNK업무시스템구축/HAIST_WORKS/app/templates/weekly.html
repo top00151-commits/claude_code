@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% set active = 'weekly' %}
+{% block title %}{{ i.wk_title|default('주간 요약') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.wk_title|default('주간 요약') }}</h1>
+    <div class="page-sub">{{ wk_mon }} ~ {{ wk_sun }} · {{ user.name }} {{ user.rank }}</div>
+  </div>
+  <div class="date-nav">
+    <a href="/weekly/{{ prev_mon }}" class="btn-sm">{{ i.wk_prev|default('◀ 전주') }}</a>
+    <a href="/weekly" class="btn-sm btn-today">{{ i.wk_this|default('이번 주') }}</a>
+    <a href="/weekly/{{ next_mon }}" class="btn-sm">{{ i.wk_next|default('다음 주 ▶') }}</a>
+    {% if user.role in ['ceo','admin','executive'] %}
+    <a href="/export/weekly?wk_mon={{ wk_mon }}" class="btn-primary">📥 Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-head"><h2>{{ i.wk_my_summary|default('내 주간 요약') }}</h2></div>
+<div class="summary-grid">
+  <div class="sum-card"><div class="sum-num">{{ my_stats.total }}</div><div class="sum-lab">{{ i.wk_total_cards|default('총 카드수') }}</div></div>
+  <div class="sum-card st-done"><div class="sum-num">{{ my_stats.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
+  <div class="sum-card st-progress"><div class="sum-num">{{ my_stats.progress }}</div><div class="sum-lab">{{ i.wk_progress|default('진행중') }}</div></div>
+  <div class="sum-card st-delay"><div class="sum-num">{{ my_stats.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ '%.1f'|format(my_stats.hours) }}h</div><div class="sum-lab">{{ i.wk_hours|default('누적 공수') }}</div></div>
+</div>
+
+{% if my_by_cat %}
+<div class="cat-grid">
+  {% for k, v in my_by_cat.items() %}
+  <div class="cat-card">
+    <div class="cat-name">{{ k }}</div>
+    <div class="cat-num">{{ v.cnt }}{{ i.unit_count|default('건') }}</div>
+    <div class="cat-hr">{{ '%.1f'|format(v.hours) }}h</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if my_tasks %}
+<table class="hist-tbl">
+  <thead><tr><th>{{ i.col_date|default('일자') }}</th><th>{{ i.col_title|default('제목') }}</th><th>{{ i.col_category|default('분류') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_status|default('상태') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+  <tbody>
+    {% for t in my_tasks %}
+    <tr>
+      <td>{{ t.work_date }}</td>
+      <td><b>{{ t.title }}</b>{% if t.notes %}<div class="small">{{ t.notes }}</div>{% endif %}</td>
+      <td>{{ t.category or '' }}</td>
+      <td>{{ t.project_name or '' }}</td>
+      <td>{{ t.customer_name or '' }}</td>
+      <td><span class="tag tag-{{ t.status }}">{{ t.status }}</span></td>
+      <td class="num">{{ t.hours }}h</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">{{ i.wk_no_cards|default('이번 주 카드가 없습니다.') }}</div>
+{% endif %}
+
+{% if team_data %}
+<div class="section-head"><h2>{{ i.wk_team_summary|default('팀 요약') }} — {{ team_data.team.name }}</h2></div>
+<div class="summary-grid">
+  <div class="sum-card"><div class="sum-num">{{ team_data.total }}</div><div class="sum-lab">{{ i.wk_team_cards|default('팀 카드수') }}</div></div>
+  <div class="sum-card st-done"><div class="sum-num">{{ team_data.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
+  <div class="sum-card st-delay"><div class="sum-num">{{ team_data.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(team_data.hours) }}h</div><div class="sum-lab">{{ i.wk_team_hours|default('팀 누적 공수') }}</div></div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="section-head"><h2>{{ i.wk_per_member|default('팀원별 실적') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for uid, m in team_data.per_user.items() %}
+        <tr><td><b>{{ m.name }}</b> <span class="small">{{ m.rank }}</span></td>
+            <td class="num">{{ m.total }}</td>
+            <td class="num st-done">{{ m.done }}</td>
+            <td class="num">{{ '%.1f'|format(m.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-head"><h2>{{ i.wk_per_project|default('프로젝트별') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for k, v in team_data.pj_agg %}
+        <tr><td>{{ k }}</td><td class="num">{{ v.cnt }}</td><td class="num st-done">{{ v.done }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if all_data %}
+<div class="section-head"><h2>{{ i.wk_all_summary|default('전사 주간 요약') }}</h2></div>
+<div class="summary-grid">
+  <div class="sum-card"><div class="sum-num">{{ all_data.total }}</div><div class="sum-lab">{{ i.wk_all_cards|default('전사 카드') }}</div></div>
+  <div class="sum-card st-done"><div class="sum-num">{{ all_data.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
+  <div class="sum-card st-delay"><div class="sum-num">{{ all_data.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(all_data.hours) }}h</div><div class="sum-lab">{{ i.wk_all_hours|default('전사 공수') }}</div></div>
+</div>
+<div class="two-col">
+  <div>
+    <div class="section-head"><h2>{{ i.wk_by_team|default('팀별') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for k, v in all_data.by_team %}
+        <tr><td><b>{{ k }}</b></td><td class="num">{{ v.cnt }}</td><td class="num st-done">{{ v.done }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-head"><h2>{{ i.wk_by_cust_top10|default('고객사별 TOP 10') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for k, v in all_data.by_cust %}
+        <tr><td><a href="#">{{ k }}</a></td><td class="num">{{ v.cnt }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

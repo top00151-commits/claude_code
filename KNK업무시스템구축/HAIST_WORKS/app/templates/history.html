@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set active = 'history' %}
+{% block title %}{{ i.hist_page_title|default('내 기록') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.hist_title|default('내가 한 일') }}{% if status %} <span style="color:var(--p-red)">— {{ status }} {{ i.only|default('만') }}</span>{% endif %}</h1>
+    <div class="page-sub">{{ user.name }} {{ user.rank }} · {{ i.hist_sub|default('검색·조회') }}</div>
+  </div>
+</div>
+
+<form class="history-form" method="get" action="/history">
+  <label>{{ i.hist_period|default('기간') }}</label>
+  <input type="date" name="frm" value="{{ frm }}">
+  <span>~</span>
+  <input type="date" name="to" value="{{ to }}">
+  <label>{{ i.hist_query|default('검색어') }}</label>
+  <input type="text" name="q" value="{{ q }}" placeholder="{{ i.hist_search|default('제목·메모 검색') }}">
+  <label>{{ i.col_status|default('상태') }}</label>
+  <select name="status">
+    <option value="" {% if not status %}selected{% endif %}>{{ i.all_statuses|default('전체') }}</option>
+    <option value="완료" {% if status == '완료' %}selected{% endif %}>{{ i.kpi_done|default('완료') }}</option>
+    <option value="진행중" {% if status == '진행중' %}selected{% endif %}>{{ i.kpi_progress|default('진행중') }}</option>
+    <option value="지연" {% if status == '지연' %}selected{% endif %}>{{ i.kpi_delay|default('지연') }}</option>
+    <option value="대기" {% if status == '대기' %}selected{% endif %}>{{ i.kpi_wait|default('대기') }}</option>
+  </select>
+  <button type="submit" class="btn-primary">{{ i.hist_submit|default('조회') }}</button>
+  {% if status or q %}<a href="/history" class="btn-sm">{{ i.reset|default('초기화') }}</a>{% endif %}
+</form>
+
+<div class="summary-grid">
+  <div class="sum-card"><div class="sum-num">{{ summary.total }}</div><div class="sum-lab">{{ i.hist_total|default('총 카드수') }}</div></div>
+  <div class="sum-card st-done"><div class="sum-num">{{ summary.done }}</div><div class="sum-lab">{{ i.hist_done|default('완료') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ '%.1f'|format(summary.hours or 0) }}h</div><div class="sum-lab">{{ i.hist_hours|default('누적 공수') }}</div></div>
+</div>
+
+{% if by_category %}
+<div class="section-head"><h2>{{ i.hist_by_cat|default('분류별') }}</h2></div>
+<div class="cat-grid">
+  {% for c in by_category %}
+  <div class="cat-card">
+    <div class="cat-name">{{ c.category or i.hist_etc|default('기타') }}</div>
+    <div class="cat-num">{{ c.cnt }}{{ i.unit_count|default('건') }}</div>
+    <div class="cat-hr">{{ '%.1f'|format(c.hrs) }}h</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="section-head"><h2>{{ i.hist_cards|default('카드 리스트') }} ({{ tasks|length }})</h2></div>
+{% if not tasks %}
+<div class="empty">{{ i.hist_empty|default('조회된 카드가 없습니다.') }}</div>
+{% else %}
+<table class="hist-tbl">
+  <thead><tr><th>{{ i.col_date|default('일자') }}</th><th>{{ i.col_title|default('제목') }}</th><th>{{ i.col_category|default('분류') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_status|default('상태') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
+  <tbody>
+    {% for t in tasks %}
+    <tr>
+      <td>{{ t.work_date }}</td>
+      <td><b>{{ t.title }}</b>{% if t.notes %}<div class="small">{{ t.notes }}</div>{% endif %}</td>
+      <td>{{ t.category }}</td>
+      <td>{{ t.project_name or '' }}</td>
+      <td>{{ t.customer_name or '' }}</td>
+      <td><span class="tag tag-{{ t.status }}">{{ t.status }}</span></td>
+      <td class="num">{{ t.hours }}h</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

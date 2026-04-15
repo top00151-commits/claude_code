@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ i.login_title|default('로그인') }} · {{ i.app_title|default('KNK 데일리허브') }}{% endblock %}
+{% block body %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/logo.png?v=20260414b" alt="KNK HAIST Innovation" class="login-logo-img">
+    <div class="login-title">{{ i.app_title|default('KNK 데일리허브') }}</div>
+    {% if error %}<div class="login-err">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="login-form">
+      <label>{{ i.login_id|default('아이디') }}</label>
+      <input type="text" name="login_id" autofocus required>
+      <label>{{ i.login_pw|default('비밀번호') }}</label>
+      <input type="password" name="password" required>
+      <button type="submit">{{ i.login_btn|default('로그인') }}</button>
+    </form>
+    <div class="login-hint">
+      초기 비밀번호: <b>knk1234</b><br>
+      관리자: admin / admin1234<br>
+      대표이사: kjr(김정락) / kdh(김동후)
+    </div>
+  </div>
+</div>
+{% endblock %}

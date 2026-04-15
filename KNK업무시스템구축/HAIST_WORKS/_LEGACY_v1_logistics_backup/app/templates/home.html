@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}대시보드 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>HAIST WORKS 대시보드</h1>
+  <p class="muted">㈜케이엔케이 통합 업무 플랫폼 — 일일업무 · 부서협업 · 매출흐름(완성품/자재/소모품) 통합 관리</p>
+</div>
+
+<div class="kpi-row">
+  <a href="/parts" class="kpi">
+    <div class="kpi-label">등록 부품</div>
+    <div class="kpi-value">{{ parts_stats.total }}</div>
+    <div class="kpi-sub">활성 {{ parts_stats.active }}건</div>
+  </a>
+  <a href="/projects" class="kpi">
+    <div class="kpi-label">관리코드</div>
+    <div class="kpi-value">{{ proj_stats.with_code }}</div>
+    <div class="kpi-sub">전체 {{ proj_stats.total }}건 · 진행중 {{ proj_stats.in_progress }}</div>
+  </a>
+  <div class="kpi muted-card">
+    <div class="kpi-label">미입고 발주</div>
+    <div class="kpi-value">—</div>
+    <div class="kpi-sub">3단계 예정</div>
+  </div>
+  <div class="kpi muted-card">
+    <div class="kpi-label">현재고 항목</div>
+    <div class="kpi-value">—</div>
+    <div class="kpi-sub">5단계 예정</div>
+  </div>
+</div>
+
+<div class="grid-2-card">
+  <div class="card">
+    <h2>사업부별 부품 분포</h2>
+    {% if parts_stats.by_div %}
+    <table class="table">
+      <thead><tr><th>사업부</th><th>건수</th></tr></thead>
+      <tbody>
+        {% for k, v in parts_stats.by_div.items() %}
+        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">아직 등록된 부품이 없습니다. <a href="/parts/new">부품 등록</a>으로 시작하세요.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>영업단계별 프로젝트</h2>
+    {% if proj_stats.by_stage %}
+    <table class="table">
+      <thead><tr><th>단계</th><th>건수</th></tr></thead>
+      <tbody>
+        {% for k, v in proj_stats.by_stage.items() %}
+        <tr>
+          <td>
+            {% if k in ['수주확정','납품','개조','A/S'] %}
+              <span class="tag tag-ok">{{ k }}</span>
+            {% elif k in ['제안작성','제안제출'] %}
+              <span class="tag tag-warn">{{ k }}</span>
+            {% else %}{{ k }}{% endif %}
+          </td>
+          <td>{{ v }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">아직 등록된 프로젝트가 없습니다. <a href="/projects/new">프로젝트 등록</a>으로 시작하세요.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>구축 로드맵</h2>
+  <ol class="roadmap">
+    <li><strong>1단계 — 부품 등록</strong> <span class="tag tag-ok">완료</span></li>
+    <li><strong>2단계 — 관리번호 매칭 (KNK PMS 8자리)</strong> <span class="tag tag-ok">완료</span></li>
+    <li>3단계 — 발주 등록</li>
+    <li>4단계 — 입고 처리</li>
+    <li>5단계 — 재고 흐름 추적</li>
+  </ol>
+</div>
+
+{% endblock %}

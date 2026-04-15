@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}관리코드 발행대장 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>관리코드 발행대장</h1>
+    <p class="muted">KNK PMS 표준 8자리 — <code class="mono">[일련3]+[T/M]+[YYMM]</code> · 영업단계 <strong>수주확정</strong> 이상이면 자동 채번</p>
+  </div>
+  <a href="/projects/new" class="btn btn-primary">+ 프로젝트 등록</a>
+</div>
+
+<form method="get" action="/projects" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="관리코드 / 프로젝트명 / 고객사 / 모델 / PM / 영업">
+  <select name="biz_div">
+    <option value="">전체 사업부</option>
+    <option value="T" {% if biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
+    <option value="M" {% if biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
+  </select>
+  <select name="stage">
+    <option value="">전체 단계</option>
+    {% for s in STAGES %}
+    <option value="{{ s }}" {% if stage == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="status">
+    <option value="">전체 상태</option>
+    {% for s in STATUSES %}
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn">검색</button>
+  <a href="/projects" class="btn btn-ghost">초기화</a>
+</form>
+
+<div class="card no-pad">
+  <table class="table table-data">
+    <thead>
+      <tr>
+        <th>NO</th>
+        <th>관리코드</th>
+        <th>사업부</th>
+        <th>프로젝트명</th>
+        <th>고객사</th>
+        <th>모델</th>
+        <th>영업단계</th>
+        <th>PO유형</th>
+        <th>상태</th>
+        <th class="ta-right">수주금액</th>
+        <th>수주일</th>
+        <th>납기</th>
+        <th>PM</th>
+        <th>영업</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono">
+          {% if p.mgmt_code %}
+            <strong style="color:#A5282C">{{ p.mgmt_code }}</strong>
+          {% else %}
+            <span class="muted">미발급</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if p.biz_div == 'T' %}검사기{% elif p.biz_div == 'M' %}자동화{% else %}{{ p.biz_div or '-' }}{% endif %}
+        </td>
+        <td class="ta-left"><strong>{{ p.project_name }}</strong></td>
+        <td class="ta-left">{{ p.customer or '-' }}</td>
+        <td class="ta-left">{{ p.model or '-' }}</td>
+        <td>
+          {% set stg = p.stage or '' %}
+          {% if stg in ['수주확정','납품','개조','A/S'] %}
+            <span class="tag tag-ok">{{ stg }}</span>
+          {% elif stg in ['제안작성','제안제출'] %}
+            <span class="tag tag-warn">{{ stg }}</span>
+          {% else %}
+            {{ stg or '-' }}
+          {% endif %}
+        </td>
+        <td>{{ p.po_type or '-' }}</td>
+        <td>
+          {% if p.status == '진행중' %}<span class="tag tag-warn">{{ p.status }}</span>
+          {% elif p.status == '납품완료' %}<span class="tag tag-ok">{{ p.status }}</span>
+          {% elif p.status == '취소' %}<span class="tag tag-danger">{{ p.status }}</span>
+          {% else %}<span class="tag tag-off">{{ p.status or '-' }}</span>{% endif %}
+        </td>
+        <td class="ta-right mono">
+          {% if p.order_amount %}
+            {% if p.currency == 'USD' %}${{ '{:,.2f}'.format(p.order_amount) }}{% else %}₩{{ '{:,.0f}'.format(p.order_amount) }}{% endif %}
+          {% else %}-{% endif %}
+        </td>
+        <td class="mono">{{ p.order_date or '-' }}</td>
+        <td class="mono">{{ p.due_date or '-' }}</td>
+        <td>{{ p.pm or '-' }}</td>
+        <td>{{ p.sales or '-' }}</td>
+        <td class="actions">
+          <a href="/projects/{{ p.id }}/edit" class="btn-sm">수정</a>
+          <form method="post" action="/projects/{{ p.id }}/delete" style="display:inline" onsubmit="return confirm('정말 삭제하시겠습니까?\n프로젝트: {{ p.project_name }}');">
+            <button type="submit" class="btn-sm btn-danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="15" class="empty">등록된 프로젝트가 없습니다. <a href="/projects/new">+ 프로젝트 등록</a>으로 시작하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted ta-right">총 {{ projects|length }}건</p>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 88" width="260" height="88">
+  <!-- K (first) - geometric block style -->
+  <polygon fill="#A5282C" points="0,6 16,6 16,30 42,6 62,6 32,34 64,66 43,66 16,36 16,66 0,66"/>
+
+  <!-- N - geometric block style -->
+  <polygon fill="#A5282C" points="70,6 86,6 116,50 116,6 132,6 132,66 116,66 86,22 86,66 70,66"/>
+
+  <!-- Vertical bars (3 lines) -->
+  <rect fill="#A5282C" x="142" y="6" width="4.5" height="60" rx="1"/>
+  <rect fill="#A5282C" x="151" y="6" width="4.5" height="60" rx="1"/>
+  <rect fill="#A5282C" x="160" y="6" width="4.5" height="60" rx="1"/>
+
+  <!-- K (second) - geometric block style -->
+  <polygon fill="#A5282C" points="174,6 190,6 190,30 216,6 236,6 206,34 238,66 217,66 190,36 190,66 174,66"/>
+
+  <!-- HAIST Innovation -->
+  <text x="1" y="84" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="16" fill="#808080" letter-spacing="2.5">HAIST Innovation</text>
+</svg>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}부품 마스터 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>부품 마스터</h1>
+    <p class="muted">완성품 · 자재 · 소모품 통합 등록 · 검색 · 수정</p>
+  </div>
+  <a href="/parts/new" class="btn btn-primary">+ 부품 등록</a>
+</div>
+
+<form method="get" action="/parts" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="부품번호 / 품명 / 규격 / 메이커 검색">
+  <select name="biz_div">
+    <option value="">전체 사업부</option>
+    <option value="T" {% if biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
+    <option value="M" {% if biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
+    <option value="공통" {% if biz_div == '공통' %}selected{% endif %}>공통</option>
+  </select>
+  <select name="category">
+    <option value="">전체 분류</option>
+    <option value="완성품" {% if category == '완성품' %}selected{% endif %}>완성품</option>
+    <option value="자재" {% if category == '자재' %}selected{% endif %}>자재</option>
+    <option value="소모품" {% if category == '소모품' %}selected{% endif %}>소모품</option>
+  </select>
+  <button type="submit" class="btn">검색</button>
+  <a href="/parts" class="btn btn-ghost">초기화</a>
+</form>
+
+<div class="card no-pad">
+  <table class="table table-data">
+    <thead>
+      <tr>
+        <th>NO</th>
+        <th>부품번호</th>
+        <th>품명</th>
+        <th>규격</th>
+        <th>메이커</th>
+        <th>원산지</th>
+        <th>단위</th>
+        <th>통화</th>
+        <th class="ta-right">표준단가</th>
+        <th>사업부</th>
+        <th>분류</th>
+        <th>상태</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in parts %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono">{{ p.part_no }}</td>
+        <td class="ta-left"><strong>{{ p.part_name }}</strong></td>
+        <td class="ta-left">{{ p.spec or '-' }}</td>
+        <td>{{ p.maker or '-' }}</td>
+        <td>{{ p.origin or '-' }}</td>
+        <td>{{ p.unit }}</td>
+        <td>{{ p.currency }}</td>
+        <td class="ta-right mono">
+          {% if p.currency == 'USD' %}${{ '{:,.2f}'.format(p.std_price) }}{% else %}₩{{ '{:,.0f}'.format(p.std_price) }}{% endif %}
+        </td>
+        <td>{{ p.biz_div or '-' }}</td>
+        <td>{{ p.category or '-' }}</td>
+        <td>
+          {% if p.is_active %}
+            <span class="tag tag-ok">사용</span>
+          {% else %}
+            <span class="tag tag-off">중지</span>
+          {% endif %}
+        </td>
+        <td class="actions">
+          <a href="/parts/{{ p.id }}/edit" class="btn-sm">수정</a>
+          <form method="post" action="/parts/{{ p.id }}/delete" style="display:inline" onsubmit="return confirm('정말 삭제하시겠습니까?\n부품번호: {{ p.part_no }}');">
+            <button type="submit" class="btn-sm btn-danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="13" class="empty">등록된 부품이 없습니다. <a href="/parts/new">+ 부품 등록</a>으로 시작하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted ta-right">총 {{ parts|length }}건</p>
+
+{% endblock %}

@@ -1,0 +1,808 @@
+{% extends "base.html" %}
+{% set active = 'home' %}
+{% block title %}{{ i.sb_home|default('업무현황') }} · KNK{% endblock %}
+
+{% block top_fixed %}
+<!-- ====== 고정 영역: 타이틀+날짜 + 빠른입력 ====== -->
+<div class="hm2-fixed">
+  <!-- Page Head -->
+  <div class="hm2-head">
+    <div class="hm2-head-left">
+      <h1 class="hm2-title">{{ i.welcome_prefix|default('안녕하세요') }}, {{ user.name }} {{ user.rank }}{{ i.welcome_suffix|default('님 👋') }}</h1>
+      <div class="hm2-sub">
+        <a href="/home/{{ prev_date }}" class="hm2-date-nav">‹</a>
+        <span class="hm2-date">{{ sel_date }}</span>
+        {% if sel_date != today %}<a href="/home" class="hm2-today-pill">{{ i.go_today|default('오늘로') }}</a>{% endif %}
+        <a href="/home/{{ next_date }}" class="hm2-date-nav">›</a>
+      </div>
+    </div>
+    <div class="hm2-actions">
+      <a href="/notifications" class="hm2-bell {% if unread_notif and unread_notif > 0 %}active{% endif %}" title="{{ i.sb_notif|default('알림') }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        {% if unread_notif and unread_notif > 0 %}<span class="hm2-bell-badge">{{ unread_notif }}</span>{% endif %}
+      </a>
+      <button class="hm2-btn-primary" onclick="document.getElementById('newTitle').focus()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        {{ i.new_task|default('새 업무 등록') }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Add -->
+  <div class="hm2-quick">
+    <div class="hm2-quick-ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </div>
+    <input type="text" id="newTitle" class="hm2-quick-input"
+           placeholder="{{ i.quick_placeholder|default('지금 무슨 업무를 하고 계신가요? 입력 후 Enter ↵') }}"
+           onkeydown="if(event.key==='Enter')addTask()"
+           onfocus="document.getElementById('quickExtras').style.display='flex'">
+    <div class="hm2-quick-extras" id="quickExtras" style="display:none">
+      <select id="newProject" class="hm2-quick-sel">
+        <option value="">{{ i.quick_project|default('프로젝트') }}</option>
+        {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+      <select id="newCustomer" class="hm2-quick-sel">
+        <option value="">{{ i.quick_customer|default('고객사') }}</option>
+        {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <input type="number" id="newHours" class="hm2-quick-hrs" placeholder="{{ i.quick_hours|default('공수(h)') }}" step="0.5" min="0">
+    </div>
+    <button onclick="addTask()" class="hm2-btn-primary">{{ i.btn_register|default('등록') }}</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block body %}
+<div class="hm2">
+
+<!-- ====== KPI Grid ====== -->
+{% set total_my = my_tasks|length %}
+{% set done_my = my_tasks|selectattr('status','equalto','완료')|list|length %}
+{% set prog_my = my_tasks|selectattr('status','equalto','진행중')|list|length %}
+{% set delay_my = my_tasks|selectattr('status','equalto','지연')|list|length %}
+{% set wait_my = my_tasks|selectattr('status','equalto','대기')|list|length %}
+{% set hours_my = my_tasks|sum(attribute='hours') %}
+{% set rate_my = ((done_my*100/total_my)|round(0,'floor')|int) if total_my else 0 %}
+
+<div class="hm2-kpi-grid">
+  <a href="/history" class="hm2-kpi" title="{{ i.kpi_link_daily|default('내 전체 업무 기록') }}">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">{{ i.kpi_my_tasks|default('내 업무') }}</span>
+      <div class="hm2-kpi-ico red">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ total_my }}</div>
+    <div class="hm2-kpi-delta up">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+      {{ i.kpi_total|default('전체 카드') }}
+    </div>
+    <div class="hm2-kpi-spark-bars">
+      <div class="hm2-spk-bar" style="height:30%;background:#FEE8E8"></div>
+      <div class="hm2-spk-bar" style="height:50%;background:#FEE8E8"></div>
+      <div class="hm2-spk-bar" style="height:40%;background:#FCA5A5"></div>
+      <div class="hm2-spk-bar" style="height:65%;background:#FCA5A5"></div>
+      <div class="hm2-spk-bar" style="height:55%;background:#F87171"></div>
+      <div class="hm2-spk-bar" style="height:80%;background:#EF4444"></div>
+      <div class="hm2-spk-bar" style="height:100%;background:#A5282C"></div>
+    </div>
+  </a>
+
+  <a href="/history?status=완료" class="hm2-kpi" title="{{ i.kpi_link_rate|default('완료 카드만 보기') }}">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">{{ i.kpi_rate|default('완료율') }}</span>
+      <div class="hm2-kpi-ico green">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ rate_my }}<span class="hm2-kpi-unit">%</span></div>
+    <div class="hm2-kpi-delta up">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+      {{ done_my }} / {{ total_my }} {{ i.kpi_done|default('완료') }}
+    </div>
+    <div class="hm2-kpi-spark-bars">
+      <div class="hm2-spk-bar" style="height:40%;background:#D1FAE5"></div>
+      <div class="hm2-spk-bar" style="height:55%;background:#D1FAE5"></div>
+      <div class="hm2-spk-bar" style="height:50%;background:#A7F3D0"></div>
+      <div class="hm2-spk-bar" style="height:70%;background:#6EE7B7"></div>
+      <div class="hm2-spk-bar" style="height:65%;background:#34D399"></div>
+      <div class="hm2-spk-bar" style="height:85%;background:#10B981"></div>
+      <div class="hm2-spk-bar" style="height:95%;background:#059669"></div>
+    </div>
+  </a>
+
+  <a href="/history?status=진행중" class="hm2-kpi" title="{{ i.kpi_link_hours|default('진행중 카드만 보기') }}">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">{{ i.kpi_hours|default('누적 공수') }}</span>
+      <div class="hm2-kpi-ico blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ '%.1f'|format(hours_my or 0) }}<span class="hm2-kpi-unit">h</span></div>
+    <div class="hm2-kpi-delta neutral">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      {{ prog_my }} {{ i.kpi_progress|default('진행중') }}
+    </div>
+    <div class="hm2-kpi-spark-bars">
+      <div class="hm2-spk-bar" style="height:30%;background:#DBEAFE"></div>
+      <div class="hm2-spk-bar" style="height:55%;background:#BFDBFE"></div>
+      <div class="hm2-spk-bar" style="height:45%;background:#93C5FD"></div>
+      <div class="hm2-spk-bar" style="height:70%;background:#60A5FA"></div>
+      <div class="hm2-spk-bar" style="height:80%;background:#3B82F6"></div>
+      <div class="hm2-spk-bar" style="height:75%;background:#2563EB"></div>
+      <div class="hm2-spk-bar" style="height:90%;background:#1D4ED8"></div>
+    </div>
+  </a>
+
+  <a href="/history?status=지연" class="hm2-kpi" title="{{ i.kpi_link_delay|default('지연 카드만 보기') }}">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">{{ i.kpi_delay|default('지연 카드') }}</span>
+      <div class="hm2-kpi-ico purple">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ delay_my }}</div>
+    <div class="hm2-kpi-delta {% if delay_my == 0 %}up{% else %}down{% endif %}">
+      {% if delay_my == 0 %}
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      {{ i.no_delay|default('지연 없음') }}
+      {% else %}
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {{ i.check_needed|default('확인 필요') }}
+      {% endif %}
+    </div>
+    <div class="hm2-kpi-spark-bars">
+      <div class="hm2-spk-bar" style="height:80%;background:#EDE9FE"></div>
+      <div class="hm2-spk-bar" style="height:95%;background:#DDD6FE"></div>
+      <div class="hm2-spk-bar" style="height:75%;background:#C4B5FD"></div>
+      <div class="hm2-spk-bar" style="height:60%;background:#A78BFA"></div>
+      <div class="hm2-spk-bar" style="height:50%;background:#8B5CF6"></div>
+      <div class="hm2-spk-bar" style="height:40%;background:#7C3AED"></div>
+      <div class="hm2-spk-bar" style="height:35%;background:#6D28D9"></div>
+    </div>
+  </a>
+</div>
+
+<!-- ====== 3. 이월 배너 ====== -->
+{% if pending_yday %}
+<div class="hm2-carry">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="14 21 17 18 20 21"/><line x1="17" y1="14" x2="17" y2="21"/></svg>
+  <span>{{ i.carry_prefix|default('어제 미완료 업무') }} <b>{{ pending_yday|length }}{{ i.unit_items|default('건') }}</b></span>
+  <button onclick="carryAll()" class="hm2-btn-ghost">{{ i.carry_btn|default('전부 오늘로 이월') }}</button>
+</div>
+{% endif %}
+
+<!-- ====== HAIST WORKS · 매출흐름 KPI (물류 모듈) ====== -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
+  <div>
+    <h2 style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:#1A1A1A;margin:0;">
+      <span style="color:#A5282C">●</span> 매출흐름 · 물류
+    </h2>
+    <div style="font-size:11px;color:#6B7280;margin-top:2px;">완성품 / 자재 / 소모품 통합 흐름</div>
+  </div>
+  <a href="/logistics" style="font-size:12px;color:#A5282C;font-weight:600;text-decoration:none;">물류 대시보드 →</a>
+</div>
+<div class="hm2-kpi-grid">
+  <a href="/parts" class="hm2-kpi" title="부품 마스터">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">등록 부품</span>
+      <div class="hm2-kpi-ico blue">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ logi_parts_stats.total }}</div>
+    <div class="hm2-kpi-delta up">
+      <span>활성 {{ logi_parts_stats.active }}건</span>
+    </div>
+  </a>
+  <a href="/projects" class="hm2-kpi" title="관리코드 발행대장">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">관리코드</span>
+      <div class="hm2-kpi-ico red">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ logi_proj_stats.with_code }}</div>
+    <div class="hm2-kpi-delta up">
+      <span>전체 {{ logi_proj_stats.total }} · 진행 {{ logi_proj_stats.in_progress }}</span>
+    </div>
+  </a>
+  <div class="hm2-kpi" style="opacity:.5;pointer-events:none">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">미입고 발주</span>
+      <div class="hm2-kpi-ico" style="background:#F3F4F6;color:#9CA3AF">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">—</div>
+    <div class="hm2-kpi-delta"><span>3단계 예정</span></div>
+  </div>
+  <div class="hm2-kpi" style="opacity:.5;pointer-events:none">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">현재고 항목</span>
+      <div class="hm2-kpi-ico" style="background:#F3F4F6;color:#9CA3AF">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">—</div>
+    <div class="hm2-kpi-delta"><span>5단계 예정</span></div>
+  </div>
+</div>
+
+<!-- ====== Dashboard Charts (리더/경영진만) ====== -->
+{% if user.role in ['leader','executive','ceo','admin'] and team_data %}
+<div class="hm2-grid-2">
+
+  <!-- Left: Weekly trend line chart -->
+  <div class="hm2-panel">
+    <div class="hm2-panel-head">
+      <div>
+        <div class="hm2-panel-title">{{ i.panel_trend|default('주간 업무 트렌드') }}</div>
+        <div class="hm2-panel-sub">{{ i.panel_trend_sub|default('최근 7일 카드 수 & 완료 현황') }}</div>
+      </div>
+      <a href="/summary?scope=team&period=weekly" class="hm2-panel-link">{{ i.view_all|default('전체보기') }} →</a>
+    </div>
+    <div class="hm2-trend-chart">
+      <svg viewBox="0 0 600 240" width="100%" height="100%" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#A5282C" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#A5282C" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="gradDone" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#10B981" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1="40" y1="40" x2="580" y2="40" stroke="#F1F5F9" stroke-width="1"/>
+        <line x1="40" y1="90" x2="580" y2="90" stroke="#F1F5F9" stroke-width="1"/>
+        <line x1="40" y1="140" x2="580" y2="140" stroke="#F1F5F9" stroke-width="1"/>
+        <line x1="40" y1="190" x2="580" y2="190" stroke="#F1F5F9" stroke-width="1"/>
+        <text x="30" y="44" text-anchor="end" fill="#94A3B8" font-size="10">300</text>
+        <text x="30" y="94" text-anchor="end" fill="#94A3B8" font-size="10">200</text>
+        <text x="30" y="144" text-anchor="end" fill="#94A3B8" font-size="10">100</text>
+        <text x="30" y="194" text-anchor="end" fill="#94A3B8" font-size="10">0</text>
+        <path d="M 60 130 L 140 110 L 220 120 L 300 80 L 380 100 L 460 70 L 540 50 L 540 190 L 60 190 Z" fill="url(#gradTotal)"/>
+        <path d="M 60 130 L 140 110 L 220 120 L 300 80 L 380 100 L 460 70 L 540 50" fill="none" stroke="#A5282C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M 60 160 L 140 150 L 220 155 L 300 130 L 380 140 L 460 115 L 540 95 L 540 190 L 60 190 Z" fill="url(#gradDone)"/>
+        <path d="M 60 160 L 140 150 L 220 155 L 300 130 L 380 140 L 460 115 L 540 95" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="60" cy="130" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="140" cy="110" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="220" cy="120" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="300" cy="80" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="380" cy="100" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="460" cy="70" r="4" fill="#fff" stroke="#A5282C" stroke-width="2"/>
+        <circle cx="540" cy="50" r="5" fill="#A5282C" stroke="#fff" stroke-width="2"/>
+        <text x="60" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_mon|default('월') }}</text>
+        <text x="140" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_tue|default('화') }}</text>
+        <text x="220" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_wed|default('수') }}</text>
+        <text x="300" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_thu|default('목') }}</text>
+        <text x="380" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_fri|default('금') }}</text>
+        <text x="460" y="215" text-anchor="middle" fill="#94A3B8" font-size="11">{{ i.day_sat|default('토') }}</text>
+        <text x="540" y="215" text-anchor="middle" fill="#94A3B8" font-size="11" font-weight="700">{{ i.today|default('오늘') }}</text>
+      </svg>
+    </div>
+    <div class="hm2-legend">
+      <div class="hm2-lg-item"><div class="hm2-lg-dot" style="background:#A5282C"></div>{{ i.legend_total|default('전체 카드') }}</div>
+      <div class="hm2-lg-item"><div class="hm2-lg-dot" style="background:#10B981"></div>{{ i.legend_done|default('완료 카드') }}</div>
+    </div>
+  </div>
+
+  <!-- Right: Status distribution donut -->
+  <div class="hm2-panel">
+    <div class="hm2-panel-head">
+      <div>
+        <div class="hm2-panel-title">{{ i.panel_my_dist|default('내 업무 분포') }}</div>
+        <div class="hm2-panel-sub">{{ i.panel_status|default('상태별 카드 수') }}</div>
+      </div>
+      <a href="/history" class="hm2-panel-link">{{ i.view_all|default('전체보기') }} →</a>
+    </div>
+    <div class="hm2-donut-wrap">
+      {% set circ = 389.56 %}
+      {% set done_pct = (done_my*100/total_my) if total_my else 0 %}
+      {% set prog_pct = (prog_my*100/total_my) if total_my else 0 %}
+      {% set delay_pct = (delay_my*100/total_my) if total_my else 0 %}
+      {% set wait_pct = (wait_my*100/total_my) if total_my else 0 %}
+      {% set done_dash = (circ*done_pct/100) %}
+      {% set prog_dash = (circ*prog_pct/100) %}
+      {% set delay_dash = (circ*delay_pct/100) %}
+      {% set wait_dash = (circ*wait_pct/100) %}
+      <svg class="hm2-donut" viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r="62" fill="none" stroke="#F1F5F9" stroke-width="20"/>
+        {% if total_my %}
+        <circle cx="80" cy="80" r="62" fill="none" stroke="#10B981" stroke-width="20"
+          stroke-dasharray="{{ done_dash }} {{ circ }}" stroke-dashoffset="0" transform="rotate(-90 80 80)"/>
+        <circle cx="80" cy="80" r="62" fill="none" stroke="#F59E0B" stroke-width="20"
+          stroke-dasharray="{{ prog_dash }} {{ circ }}" stroke-dashoffset="-{{ done_dash }}" transform="rotate(-90 80 80)"/>
+        <circle cx="80" cy="80" r="62" fill="none" stroke="#EF4444" stroke-width="20"
+          stroke-dasharray="{{ delay_dash }} {{ circ }}" stroke-dashoffset="-{{ done_dash + prog_dash }}" transform="rotate(-90 80 80)"/>
+        <circle cx="80" cy="80" r="62" fill="none" stroke="#94A3B8" stroke-width="20"
+          stroke-dasharray="{{ wait_dash }} {{ circ }}" stroke-dashoffset="-{{ done_dash + prog_dash + delay_dash }}" transform="rotate(-90 80 80)"/>
+        {% endif %}
+      </svg>
+      <div class="hm2-donut-center">
+        <div class="hm2-donut-num">{{ total_my }}</div>
+        <div class="hm2-donut-lab">{{ i.donut_total|default('총 카드') }}</div>
+      </div>
+      <div class="hm2-donut-legend">
+        <div class="hm2-dl-row"><span class="hm2-dl-dot" style="background:#10B981"></span><span class="hm2-dl-name">{{ i.kpi_done|default('완료') }}</span><span class="hm2-dl-val">{{ done_my }}</span></div>
+        <div class="hm2-dl-row"><span class="hm2-dl-dot" style="background:#F59E0B"></span><span class="hm2-dl-name">{{ i.kpi_progress|default('진행중') }}</span><span class="hm2-dl-val">{{ prog_my }}</span></div>
+        <div class="hm2-dl-row"><span class="hm2-dl-dot" style="background:#EF4444"></span><span class="hm2-dl-name">{{ i.kpi_delay|default('지연') }}</span><span class="hm2-dl-val">{{ delay_my }}</span></div>
+        <div class="hm2-dl-row"><span class="hm2-dl-dot" style="background:#94A3B8"></span><span class="hm2-dl-name">{{ i.kpi_wait|default('대기') }}</span><span class="hm2-dl-val">{{ wait_my }}</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== 6. 실시간 피드 + 팀 작성률 ====== -->
+<div class="hm2-grid-2">
+
+  <!-- Left: Real-time feed (from team_data.member_tasks) -->
+  <div class="hm2-panel">
+    <div class="hm2-panel-head">
+      <div>
+        <div class="hm2-panel-title">{{ i.panel_feed|default('실시간 피드') }}</div>
+        <div class="hm2-panel-sub">{{ i.panel_feed_sub|default('방금 등록된 업무') }}</div>
+      </div>
+      <a href="/feed" class="hm2-panel-link">{{ i.view_all|default('전체보기') }} →</a>
+    </div>
+    <div class="hm2-feed-list">
+      {% set feed_items = [] %}
+      {% for td in team_data %}
+        {% for m in td.members %}
+          {% set mt = td.member_tasks[m.id] %}
+          {% if mt %}
+            {% for t in mt[:2] %}
+              {% if feed_items|length < 8 %}
+                {% set _ = feed_items.append({'task': t, 'member': m, 'team': td.team}) %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+      {% if not feed_items %}
+      <div class="hm2-empty-mini">{{ i.empty_feed|default('오늘 등록된 업무가 없습니다') }}</div>
+      {% endif %}
+      {% for f in feed_items[:6] %}
+      {% set grad_idx = (loop.index0 % 5) + 1 %}
+      <div class="hm2-feed-item" onclick="openModal({{ f.task.id }})">
+        <div class="hm2-feed-avatar av{{ grad_idx }}">{{ f.member.name[:2] }}</div>
+        <div class="hm2-feed-body">
+          <div class="hm2-feed-head">
+            <span class="hm2-feed-name">{{ f.member.name }}</span>
+            <span class="hm2-feed-role">{{ f.member.rank or '' }}</span>
+          </div>
+          <div class="hm2-feed-title">{{ f.task.title }}</div>
+          <div class="hm2-feed-meta">
+            <span class="tag tag-{{ f.task.status|replace(' ','') }}">{{ f.task.status }}</span>
+            {% if f.task.project_name %}<span class="tag tag-pj">📋 {{ f.task.project_name }}</span>{% endif %}
+            <span class="hm2-feed-team">{{ f.team.name }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Right: Team participation list -->
+  <div class="hm2-panel">
+    <div class="hm2-panel-head">
+      <div>
+        <div class="hm2-panel-title">{{ i.panel_team_rate|default('팀별 작성률') }}</div>
+        <div class="hm2-panel-sub">{{ sel_date }}</div>
+      </div>
+    </div>
+    <div class="hm2-team-list">
+      {% for td in team_data %}
+      {% set pct = ((td.reported*100/td.total_members)|round(0,'floor')|int) if td.total_members else 0 %}
+      {% set ico_idx = (loop.index0 % 5) %}
+      <a href="/team?team_id={{ td.team.id }}" class="hm2-tl-row" title="{{ td.team.name }} {{ i.view_team|default('팀 상세 보기') }}">
+        <div class="hm2-tl-ico c{{ ico_idx }}">
+          {% if ico_idx == 0 %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          {% elif ico_idx == 1 %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          {% elif ico_idx == 2 %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          {% elif ico_idx == 3 %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          {% else %}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          {% endif %}
+        </div>
+        <div class="hm2-tl-info">
+          <div class="hm2-tl-name">{{ td.team.name }}{% if td.team.id == user.team_id %}<span class="hm2-tl-my">{{ i.my_team|default('내 팀') }}</span>{% endif %}</div>
+          <div class="hm2-tl-stat">{{ td.reported }} / {{ td.total_members }}{{ i.unit_people|default('명') }} {{ i.written|default('작성') }}</div>
+        </div>
+        <div class="hm2-tl-bar"><div class="hm2-tl-bar-fill" style="width:{{ pct }}%"></div></div>
+        <div class="hm2-tl-pct">{{ pct }}%</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+<!-- ====== 6. 나의 업무 카드 ====== -->
+<div class="hm-my-section">
+  <div class="hm-section-title">
+    <h2>{{ i.my_tasks_title|default('나의 업무') }}</h2>
+    <span class="hm-section-count">{{ my_tasks|length }}{{ i.unit_items|default('건') }}</span>
+  </div>
+
+  {% if not my_tasks %}
+  <div class="hm-empty-state">
+    <div class="hm-empty-icon">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <div class="hm-empty-msg">{{ i.empty_no_task|default('오늘 등록된 업무가 없습니다') }}</div>
+    <div class="hm-empty-sub">{{ i.empty_add_hint|default('위 입력창에서 업무를 추가해 보세요') }}</div>
+  </div>
+  {% endif %}
+
+  <div class="hm-cards">
+    {% for t in my_tasks %}
+    <div class="hm-card hm-card-{{ t.status|replace(' ','') }}" id="card-{{ t.id }}" data-status="{{ t.status }}">
+      <div class="hm-card-top">
+        <div class="hm-card-status-wrap">
+          <button class="hm-status-btn hm-sbtn-{{ t.status|replace(' ','') }}"
+                  onclick="cycleStatus({{ t.id }}, '{{ t.status }}')">
+            {{ t.status }}
+          </button>
+        </div>
+        <div class="hm-card-body" onclick="toggleCard({{ t.id }})">
+          <div class="hm-card-title">{{ t.title }}</div>
+          <div class="hm-card-meta">
+            {% if t.project_name %}<span class="hm-chip project">📋 {{ t.project_name }}</span>{% endif %}
+            {% if t.customer_name %}<span class="hm-chip customer">🏢 {{ t.customer_name }}</span>{% endif %}
+            {% if t.hours %}<span class="hm-chip hours">⏱ {{ t.hours }}h</span>{% endif %}
+            {% if t.comment_count %}<span class="hm-chip comment">💬 {{ t.comment_count }}</span>{% endif %}
+          </div>
+        </div>
+        <button class="hm-card-expand" onclick="toggleCard({{ t.id }})" title="{{ i.expand|default('상세보기') }}">⋯</button>
+      </div>
+      <!-- 상세 펼침 -->
+      <div class="hm-card-detail" id="cdtl-{{ t.id }}">
+        <div class="hm-cdtl-grid">
+          <div class="hm-cdtl-field">
+            <label>{{ i.category|default('카테고리') }}</label>
+            <select id="cat-{{ t.id }}">
+              {% for cat in categories %}<option {% if cat == t.category %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="hm-cdtl-field">
+            <label>{{ i.hours|default('공수') }}</label>
+            <input type="number" id="hrs-{{ t.id }}" value="{{ t.hours }}" step="0.5" min="0">
+          </div>
+          <div class="hm-cdtl-field">
+            <label>{{ i.project|default('프로젝트') }}</label>
+            <select id="pj-{{ t.id }}">
+              <option value="">-</option>
+              {% for p in projects %}<option value="{{ p.id }}" {% if p.id == t.project_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="hm-cdtl-field">
+            <label>{{ i.customer|default('고객사') }}</label>
+            <select id="cu-{{ t.id }}">
+              <option value="">-</option>
+              {% for c in customers %}<option value="{{ c.id }}" {% if c.id == t.customer_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="hm-cdtl-field">
+            <label>{{ i.status|default('상태') }}</label>
+            <select id="st-{{ t.id }}">
+              {% for s in statuses %}<option {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <textarea id="note-{{ t.id }}" class="hm-cdtl-note" placeholder="{{ i.notes_placeholder|default('진행 내용, 이슈, 특이사항...') }}" rows="2">{{ t.notes or '' }}</textarea>
+        <textarea id="next-{{ t.id }}" class="hm-cdtl-note hm-cdtl-next" placeholder="{{ i.next_placeholder|default('📌 다음 계획 / 내일 할 일') }}" rows="1">{{ t.next_plan or '' }}</textarea>
+        <div class="hm-cdtl-actions">
+          <button onclick="saveTask({{ t.id }})" class="hm-btn-save">{{ i.btn_save|default('💾 저장') }}</button>
+          <button onclick="deleteTask({{ t.id }})" class="hm-btn-del">{{ i.btn_delete|default('🗑 삭제') }}</button>
+        </div>
+        <div class="hm-cdtl-cm" id="cm-{{ t.id }}"></div>
+        <div class="hm-cm-write">
+          <input type="text" id="cmIn-{{ t.id }}" placeholder="{{ i.comment_input|default('코멘트 입력...') }}"
+                 onkeydown="if(event.key==='Enter')addComment({{ t.id }})">
+          <button onclick="addComment({{ t.id }})">{{ i.btn_send|default('전송') }}</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ====== 7. 팀/전사 현황 (리더/CEO) ====== -->
+{% if user.role in ['leader','executive','ceo','admin'] %}
+<div class="hm-team-zone">
+  <div class="hm-section-title">
+    <h2>{% if user.role in ['ceo','admin'] %}{{ i.team_zone_all|default('전사') }}{% else %}{{ i.team_zone_team|default('팀') }}{% endif %} {{ i.team_zone_suffix|default('현황') }}</h2>
+    <span class="hm-section-count">{{ team_data|length }}{{ i.team_count|default('개 팀') }} · {{ today_reporters }}/{{ total_users }}{{ i.member_count|default('명 참여') }}</span>
+  </div>
+
+  <div class="hm-teams-grid">
+    {% for td in team_data %}
+    {% set is_my_team = (td.team.id == user.team_id) %}
+    <div class="hm-team-card hm-tc-{{ td.signal }} {% if is_my_team %}hm-tc-mine{% endif %}"
+         onclick="toggleTeam('tm-{{ td.team.id }}')">
+      <div class="hm-tc-head">
+        <span class="hm-tc-signal">●</span>
+        <span class="hm-tc-name">{{ td.team.name }}</span>
+        {% if is_my_team %}<span class="hm-tc-my">{{ i.my_team|default('내 팀') }}</span>{% endif %}
+      </div>
+      <div class="hm-tc-stats">
+        <div class="hm-tc-bar">
+          {% set pct = (td.reported * 100 / td.total_members) if td.total_members else 0 %}
+          <div class="hm-tc-fill" style="width:{{ pct }}%"></div>
+        </div>
+        <span class="hm-tc-part">{{ td.reported }}/{{ td.total_members }}{{ i.unit_people|default('명') }}</span>
+      </div>
+      <div class="hm-tc-nums">
+        {% if td.delay %}<span class="hm-tc-n red">{{ i.kpi_delay|default('지연') }} {{ td.delay }}</span>{% endif %}
+        {% if td.progress %}<span class="hm-tc-n orange">{{ i.kpi_progress|default('진행') }} {{ td.progress }}</span>{% endif %}
+        {% if td.done %}<span class="hm-tc-n green">{{ i.kpi_done|default('완료') }} {{ td.done }}</span>{% endif %}
+        {% if td.total == 0 %}<span class="hm-tc-n gray">{{ i.no_report|default('미작성') }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% for td in team_data %}
+  <div class="hm-team-detail" id="tm-{{ td.team.id }}">
+    <div class="hm-td-head">
+      <h3>{{ td.team.name }}</h3>
+      <span>{{ td.reported }}/{{ td.total_members }}{{ i.unit_people|default('명') }} · {{ i.unit_total|default('총') }} {{ td.total }}{{ i.unit_items|default('건') }}</span>
+      <button onclick="toggleTeam('tm-{{ td.team.id }}')" class="hm-td-close">✕</button>
+    </div>
+    <div class="hm-td-members">
+      {% for m in td.members %}
+      {% set mt = td.member_tasks[m.id] %}
+      <div class="hm-td-member">
+        <div class="hm-td-mhead" onclick="this.nextElementSibling.classList.toggle('open')">
+          <div class="hm-td-avatar">{{ m.name[:1] }}</div>
+          <div class="hm-td-minfo">
+            <span class="hm-td-mname">{{ m.name }}</span>
+            <span class="hm-td-mrank">{{ m.rank or '' }}</span>
+          </div>
+          <div class="hm-td-mstats">
+            {% if mt %}
+              {% set md = mt|selectattr('status','equalto','지연')|list|length %}
+              {% set mp = mt|selectattr('status','equalto','진행중')|list|length %}
+              {% set mc = mt|selectattr('status','equalto','완료')|list|length %}
+              <span class="hm-td-mn">{{ mt|length }}{{ i.unit_items|default('건') }}</span>
+              {% if md %}<span class="hm-tc-n red">{{ md }}</span>{% endif %}
+              {% if mp %}<span class="hm-tc-n orange">{{ mp }}</span>{% endif %}
+              {% if mc %}<span class="hm-tc-n green">{{ mc }}</span>{% endif %}
+            {% else %}
+              <span class="hm-td-noreport">{{ i.no_report|default('미작성') }}</span>
+            {% endif %}
+          </div>
+          <span class="hm-td-arrow">▸</span>
+        </div>
+        <div class="hm-td-tasks">
+          {% for t in mt %}
+          <div class="hm-td-task hm-td-task-{{ t.status|replace(' ','') }}"
+               onclick="event.stopPropagation(); openModal({{ t.id }})">
+            <span class="hm-td-ts">{{ t.status }}</span>
+            <span class="hm-td-tt">{{ t.title }}</span>
+            {% if t.project_name %}<span class="hm-chip project sm">{{ t.project_name }}</span>{% endif %}
+            {% if t.hours %}<span class="hm-td-th">{{ t.hours }}h</span>{% endif %}
+            {% if t.comment_count %}<span class="hm-td-tc">💬{{ t.comment_count }}</span>{% endif %}
+          </div>
+          {% endfor %}
+          {% if not mt %}
+          <div class="hm-td-notask">{{ i.no_tasks|default('등록된 업무 없음') }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+</div><!-- // hm2 -->
+
+<!-- ====== 모달 ====== -->
+<div class="hm-modal-bg" id="modalBg" onclick="closeModal()">
+  <div class="hm-modal" onclick="event.stopPropagation()">
+    <div class="hm-modal-top">
+      <h3 id="mTitle">-</h3>
+      <button onclick="closeModal()" class="hm-modal-x">✕</button>
+    </div>
+    <div id="mBody" class="hm-modal-body"></div>
+    <div class="hm-modal-cm-zone">
+      <div id="mComments" class="hm-modal-cms"></div>
+      <div class="hm-cm-write">
+        <input type="text" id="mCmIn" placeholder="{{ i.comment_input|default('코멘트...') }}"
+               onkeydown="if(event.key==='Enter')addModalCm()">
+        <button onclick="addModalCm()">{{ i.btn_send|default('전송') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+const SEL_DATE = '{{ sel_date }}';
+const MY_ID = {{ user.id if user else 0 }};
+const CARRY_IDS = [{{ pending_yday|map(attribute='id')|join(',') }}];
+const STATUS_CYCLE = ['진행중','완료','지연','대기'];
+const HI = {
+  toast_saved: "{{ i.toast_saved|default('저장 완료 ✓') }}",
+  toast_deleted: "{{ i.toast_deleted|default('삭제 완료') }}",
+  toast_registered: "{{ i.toast_registered|default('업무 등록 완료') }}",
+  toast_carried: "{{ i.toast_carried|default('이월 완료') }}",
+  toast_comment: "{{ i.toast_comment|default('코멘트 등록') }}",
+  toast_status: "{{ i.toast_status|default('으로 변경') }}",
+  confirm_delete: "{{ i.confirm_delete|default('이 업무를 삭제할까요?') }}",
+  no_comment: "{{ i.no_comment|default('아직 코멘트가 없습니다') }}",
+};
+
+function cycleStatus(tid, current) {
+  const idx = STATUS_CYCLE.indexOf(current);
+  const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+  changeStatus(tid, next);
+}
+
+async function changeStatus(tid, status) {
+  const r = await fetch(`/api/task/${tid}/status`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  if (r.ok) {
+    const card = document.getElementById('card-' + tid);
+    card.className = 'hm-card hm-card-' + status.replace(/\s/g,'');
+    const btn = card.querySelector('.hm-status-btn');
+    btn.className = 'hm-status-btn hm-sbtn-' + status.replace(/\s/g,'');
+    btn.textContent = status;
+    btn.setAttribute('onclick', `cycleStatus(${tid}, '${status}')`);
+    const sel = document.getElementById('st-' + tid);
+    if (sel) sel.value = status;
+    showToast(`${status}${HI.toast_status}`);
+  }
+}
+
+function toggleCard(tid) {
+  const el = document.getElementById('cdtl-' + tid);
+  const isOpen = el.classList.toggle('open');
+  if (isOpen) loadComments(tid);
+}
+
+async function addTask() {
+  const title = document.getElementById('newTitle').value.trim();
+  if (!title) return;
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, work_date: SEL_DATE, status: '진행중',
+      hours: parseFloat(document.getElementById('newHours').value) || 0,
+      category: '기타',
+      project_id: document.getElementById('newProject').value || null,
+      customer_id: document.getElementById('newCustomer').value || null,
+    })
+  });
+  if (r.ok) { showToast(HI.toast_registered); setTimeout(() => location.reload(), 500); }
+}
+
+async function saveTask(tid) {
+  const card = document.getElementById('card-' + tid);
+  const data = {
+    title: card.querySelector('.hm-card-title').textContent.trim(),
+    category: document.getElementById('cat-' + tid).value,
+    hours: parseFloat(document.getElementById('hrs-' + tid).value) || 0,
+    project_id: document.getElementById('pj-' + tid).value || null,
+    customer_id: document.getElementById('cu-' + tid).value || null,
+    status: document.getElementById('st-' + tid).value,
+    notes: document.getElementById('note-' + tid).value,
+    next_plan: document.getElementById('next-' + tid).value,
+  };
+  const r = await fetch(`/api/task/${tid}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  if (r.ok) showToast(HI.toast_saved);
+}
+
+async function deleteTask(tid) {
+  if (!confirm(HI.confirm_delete)) return;
+  const r = await fetch(`/api/task/${tid}`, {method: 'DELETE'});
+  if (r.ok) {
+    document.getElementById('card-' + tid).style.display = 'none';
+    showToast(HI.toast_deleted);
+  }
+}
+
+async function carryAll() {
+  const r = await fetch('/api/carry-forward', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({date: SEL_DATE, ids: CARRY_IDS})
+  });
+  if (r.ok) { showToast(HI.toast_carried); setTimeout(() => location.reload(), 500); }
+}
+
+async function loadComments(tid) {
+  const r = await fetch(`/api/task/${tid}/comments`);
+  const data = await r.json();
+  document.getElementById('cm-' + tid).innerHTML = data.map(c =>
+    `<div class="hm-cm ${c.is_ceo_request?'ceo':''}">
+       <b>${c.author_name}</b> <small>${c.author_rank||''} · ${(c.created_at||'').slice(11,16)}</small>
+       <p>${c.body}</p>
+     </div>`
+  ).join('') || `<div class="hm-cm-empty">${HI.no_comment}</div>`;
+}
+async function addComment(tid) {
+  const inp = document.getElementById('cmIn-' + tid);
+  const body = inp.value.trim();
+  if (!body) return;
+  await fetch(`/api/task/${tid}/comment`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({body})
+  });
+  inp.value = '';
+  loadComments(tid);
+  showToast(HI.toast_comment);
+}
+
+function toggleTeam(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+let MODAL_TID = 0;
+async function openModal(tid) {
+  MODAL_TID = tid;
+  const r = await fetch(`/api/task/${tid}/detail`);
+  const d = await r.json();
+  document.getElementById('mTitle').textContent = d.title || '-';
+  document.getElementById('mBody').innerHTML = `
+    <div class="hm-mi-row">
+      <span class="hm-sbtn-${(d.status||'').replace(/\\s/g,'')}" style="padding:4px 10px;border-radius:999px;font-weight:700;font-size:11px">${d.status}</span>
+      <b>${d.user_name||''}</b> ${d.user_rank||''}
+      · ${d.hours||0}h
+      ${d.project_name ? '· 📋 '+d.project_name : ''}
+      ${d.customer_name ? '· 🏢 '+d.customer_name : ''}
+    </div>
+    ${d.notes ? '<div class="hm-mi-notes">'+d.notes+'</div>' : ''}
+    ${d.next_plan ? '<div class="hm-mi-next">📌 '+d.next_plan+'</div>' : ''}
+  `;
+  const cms = d.comments || [];
+  document.getElementById('mComments').innerHTML = cms.map(c =>
+    `<div class="hm-cm ${c.is_ceo_request?'ceo':''}">
+       <b>${c.author_name}</b> <small>${c.author_rank||''} · ${(c.created_at||'').slice(11,16)}</small>
+       <p>${c.body}</p>
+     </div>`
+  ).join('') || '<div class="hm-cm-empty">코멘트 없음</div>';
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
+async function addModalCm() {
+  const inp = document.getElementById('mCmIn');
+  const body = inp.value.trim();
+  if (!body) return;
+  await fetch(`/api/task/${MODAL_TID}/comment`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({body})
+  });
+  inp.value = '';
+  openModal(MODAL_TID);
+}
+
+function showToast(msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'hm-toast';
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2000);
+}
+
+</script>
+{% endblock %}

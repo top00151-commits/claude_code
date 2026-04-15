@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>📋 {{ p.name }}</h1>
+    <div class="page-sub">
+      {{ p.code or '' }} · {{ p.customer_name or '-' }} · {{ p.type or '' }} ·
+      <span class="tag tag-{{ p.status }}">{{ p.status }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="summary-grid">
+  <div class="sum-card"><div class="sum-num">{{ total_tasks }}</div><div class="sum-lab">{{ i.pd_total_cards|default('누적 카드') }}</div></div>
+  <div class="sum-card st-done"><div class="sum-num">{{ stats.done }}</div><div class="sum-lab">{{ i.pd_done|default('완료') }}</div></div>
+  <div class="sum-card st-progress"><div class="sum-num">{{ stats.progress }}</div><div class="sum-lab">{{ i.pd_progress|default('진행중') }}</div></div>
+  <div class="sum-card st-delay"><div class="sum-num">{{ stats.delay }}</div><div class="sum-lab">{{ i.pd_delay|default('지연') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(stats.hours) }}h</div><div class="sum-lab">{{ i.pd_hours|default('누적 공수') }}</div></div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="section-head"><h2>{{ i.pd_teams|default('참여 팀') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th><th>{{ i.col_members_list|default('멤버') }}</th></tr></thead>
+      <tbody>
+        {% for k, v in by_team %}
+        <tr>
+          <td><b>{{ k }}</b></td>
+          <td class="num">{{ v.cnt }}</td>
+          <td class="num">{{ '%.0f'|format(v.hours) }}h</td>
+          <td class="small">{{ v.members|join(', ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-head"><h2>{{ i.pd_top_users|default('주요 참여자 TOP 20') }}</h2></div>
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th><th>{{ i.col_last_date|default('최근 참여') }}</th></tr></thead>
+      <tbody>
+        {% for k, v in by_user %}
+        <tr><td><b>{{ k }}</b></td><td class="num">{{ v.cnt }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td><td class="small">{{ v.last }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section-head"><h2>{{ i.pd_timeline|default('📅 프로젝트 타임라인 (최근 30일)') }}</h2></div>
+{% if timeline %}
+<div class="pj-timeline">
+  {% for d, items in timeline %}
+  <div class="pj-tl-day">
+    <div class="pj-tl-date">{{ d }}</div>
+    <div class="pj-tl-items">
+      {% for t in items %}
+      <div class="pj-tl-card status-{{ t.status }}" onclick="openCardModal({{ t.id }})">
+        <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
+        <b>{{ t.title }}</b>
+        <span class="small">· {{ t.user_name }} {{ t.user_rank }} · {{ t.team_name or '-' }} · {{ t.hours }}h</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if all_comments %}
+<div class="section-head"><h2>{{ i.pd_comments|default('💬 프로젝트 코멘트 흐름 (최근 30개)') }}</h2></div>
+<div class="pj-comments">
+  {% for c in all_comments %}
+  <div class="pj-cm {% if c.is_ceo_request %}cm-ceo{% endif %}" onclick="openCardModal({{ c.tid }})">
+    {% if c.is_ceo_request %}<span class="tag tag-ceo">{{ i.pd_ceo_req|default('대표 요청') }}</span>{% endif %}
+    <b>{{ c.author_name }}</b> <span class="cm-time">{{ c.created_at }}</span>
+    <div class="cm-text">{{ c.body }}</div>
+    <div class="small">→ {{ c.task_title }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="section-head"><h2>{{ i.pd_retro_title|default('📖 프로젝트 회고 (Lessons Learned)') }}</h2></div>
+<div class="retro-card">
+  <div class="retro-row">
+    <label>{{ i.pd_went_well|default('잘된 점 (What went well)') }}</label>
+    <textarea id="rWell" rows="2">{{ retro.went_well if retro else '' }}</textarea>
+  </div>
+  <div class="retro-row">
+    <label>{{ i.pd_went_bad|default('아쉬운 점 (What went wrong)') }}</label>
+    <textarea id="rBad" rows="2">{{ retro.went_bad if retro else '' }}</textarea>
+  </div>
+  <div class="retro-row">
+    <label>{{ i.pd_next_action|default('다음 프로젝트 액션') }}</label>
+    <textarea id="rAct" rows="2">{{ retro.next_action if retro else '' }}</textarea>
+  </div>
+  <div class="retro-row">
+    <label>{{ i.pd_risk_note|default('리스크 메모') }}</label>
+    <textarea id="rRisk" rows="2">{{ retro.risk_note if retro else '' }}</textarea>
+  </div>
+  <button class="btn-primary" onclick="saveRetro({{ p.id }})">{{ i.pd_save_retro|default('💾 회고 저장') }}</button>
+  {% if retro %}<span class="cm-time" style="margin-left:12px">{{ i.pd_last_update|default('최종:') }} {{ retro.author_name }} · {{ retro.updated_at }}</span>{% endif %}
+</div>
+<script>
+const PDI = {
+  saved: "{{ i.pd_retro_saved|default('회고가 저장되었습니다.') }}",
+  fail: "{{ i.pd_retro_fail|default('실패:') }}"
+};
+async function saveRetro(pid){
+  const r = await fetch(`/api/project/${pid}/retro`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      went_well:document.getElementById('rWell').value,
+      went_bad:document.getElementById('rBad').value,
+      next_action:document.getElementById('rAct').value,
+      risk_note:document.getElementById('rRisk').value
+    })});
+  const j = await r.json();
+  if (j.ok) alert(PDI.saved);
+  else alert(PDI.fail+' '+(j.error||''));
+}
+</script>
+{% endblock %}

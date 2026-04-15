@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ i.now_title|default('⚡ 지금 — 실시간 활동 피드') }}{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.now_title|default('⚡ 지금 — 실시간 활동 피드') }}</h1>
+    <div class="page-sub">{{ i.now_sub|default('회사 전체에서 일어나는 모든 업무 활동이 실시간으로 흐릅니다 · 30초마다 자동 갱신') }}</div>
+  </div>
+  <div class="scope-toggle">
+    <a href="/now?scope=all" class="btn-sm {% if scope=='all' %}btn-active{% endif %}">{{ i.scope_all|default('전사') }}</a>
+    {% if can_team %}<a href="/now?scope=team" class="btn-sm {% if scope=='team' %}btn-active{% endif %}">{{ i.scope_team|default('우리 팀') }}</a>{% endif %}
+    <a href="/now?scope=me" class="btn-sm {% if scope=='me' %}btn-active{% endif %}">{{ i.scope_me|default('내 활동') }}</a>
+  </div>
+</div>
+
+<div id="liveFeed" class="live-feed">
+  {% for it in items %}
+  <div class="lf-item lf-{{ it.kind }} {% if it.task_id %}lf-clickable{% endif %}" data-id="{{ it.id }}" {% if it.task_id %}onclick="openCardModal({{ it.task_id }})"{% endif %}>
+    <div class="lf-time">{{ it.created_at[5:16] }}</div>
+    <div class="lf-icon">
+      {% if it.kind=='task_create' %}🆕
+      {% elif it.kind=='task_status' %}🔄
+      {% elif it.kind=='comment' %}💬
+      {% elif it.kind=='reaction' %}👍
+      {% elif it.kind=='retro' %}📖
+      {% else %}•{% endif %}
+    </div>
+    <div class="lf-body">
+      <div class="lf-title">
+        {% if it.team_name %}<span class="lf-team">{{ it.team_name }}</span>{% endif %}
+        {{ it.title }}
+      </div>
+      {% if it.body %}<div class="lf-text">{{ it.body }}</div>{% endif %}
+      {% if it.project_name %}<span class="tag tag-pj">{{ it.project_name }}</span>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">{{ i.now_empty|default('아직 활동이 없습니다') }}</div>
+  {% endfor %}
+</div>
+
+<script>
+let lastId = {{ items[0].id if items else 0 }};
+async function pollFeed(){
+  try {
+    const r = await fetch(`/api/activities?scope={{ scope }}&since_id=${lastId}`);
+    const j = await r.json();
+    if (!j.ok || !j.items.length) return;
+    const feed = document.getElementById('liveFeed');
+    j.items.forEach(it=>{
+      if (it.id <= lastId) return;
+      lastId = Math.max(lastId, it.id);
+      const icons = {task_create:'🆕',task_status:'🔄',comment:'💬',reaction:'👍',retro:'📖'};
+      const ico = icons[it.kind] || '•';
+      const teamHtml = it.team_name ? `<span class="lf-team">${it.team_name}</span>` : '';
+      const bodyHtml = it.body ? `<div class="lf-text">${it.body}</div>` : '';
+      const projHtml = it.project_name ? `<span class="tag tag-pj">${it.project_name}</span>` : '';
+      const clickable = it.task_id ? 'lf-clickable' : '';
+      const clickAttr = it.task_id ? `onclick="openCardModal(${it.task_id})"` : '';
+      const div = document.createElement('div');
+      div.className = 'lf-item lf-'+it.kind+' lf-new '+clickable;
+      if (it.task_id) div.setAttribute('onclick', `openCardModal(${it.task_id})`);
+      div.innerHTML = `<div class="lf-time">${it.created_at.substring(5,16)}</div>
+        <div class="lf-icon">${ico}</div>
+        <div class="lf-body"><div class="lf-title">${teamHtml} ${it.title}</div>
+        ${bodyHtml} ${projHtml}</div>`;
+      feed.insertBefore(div, feed.firstChild);
+    });
+  } catch(e) {}
+}
+setInterval(pollFeed, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% set active = 'feed' %}
+{% block title %}{{ i.feed_title|default('부서 피드') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.feed_title|default('부서 피드') }}</h1>
+    <div class="page-sub">{{ sel_date }} · {{ i.feed_sub|default('전사 액션 카드 보드') }}</div>
+  </div>
+  <div class="date-nav">
+    <a href="/feed/{{ prev_date }}" class="btn-sm">{{ i.prev_day|default('◀ 전일') }}</a>
+    <a href="/feed" class="btn-sm btn-today">{{ i.today|default('오늘') }}</a>
+    <a href="/feed/{{ next_date }}" class="btn-sm">{{ i.next_day_feed|default('다음일 ▶') }}</a>
+  </div>
+</div>
+
+{% if summaries %}
+<div class="section-head"><h2>{{ i.leader_summary|default('팀장 한 줄 요약') }} ({{ summaries|length }}/14)</h2></div>
+<div class="headline-grid">
+  {% for s in summaries %}
+  <a href="/team?team_id={{ s.team_id }}" class="headline-card" title="{{ s.team_name }} 팀 상세">
+    <div class="hl-top">
+      <span class="hl-team">{{ s.team_name }}</span>
+      {% if s.is_lab %}<span class="lab-badge">{{ i.lab_badge|default('연구소') }}</span>{% endif %}
+      <span class="hl-author">— {{ s.author_name or '' }}</span>
+    </div>
+    <div class="hl-body">{{ s.headline }}</div>
+    {% if s.notes %}<div class="hl-notes">{{ s.notes }}</div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="alert-band">
+  <div class="ab-title">{{ user.name }} {{ user.rank or '' }}{{ i.welcome_suffix|default('님') }}, {{ i.look_now|default('지금 봐야 할 것:') }}</div>
+  <button class="ab-chip ab-delay {% if all_delay==0 %}ab-zero{% endif %}" data-filter="지연">
+    🔴 {{ i.delay_label|default('지연') }} <b>{{ all_delay }}</b>
+  </button>
+  <button class="ab-chip ab-risk {% if all_risk==0 %}ab-zero{% endif %}" data-filter="hasrisk">
+    ⚠️ {{ i.risk_label|default('리스크') }} <b>{{ all_risk }}</b>
+  </button>
+  <button class="ab-chip ab-ment {% if all_mentioned==0 %}ab-zero{% endif %}" data-filter="mentionme">
+    ❓ {{ i.mention_me|default('내게 멘션') }} <b>{{ all_mentioned }}</b>
+  </button>
+  {% if all_delay==0 and all_risk==0 and all_mentioned==0 %}
+  <span class="ab-allgreen">{{ i.all_green|default('✅ 긴급건 없음 — 오늘 진행 순항') }}</span>
+  {% endif %}
+</div>
+
+<div class="view-tabs" id="viewTabs">
+  <button class="vtab vtab-on" data-view="list">{{ i.view_list|default('☰ 리스트') }}</button>
+  <button class="vtab" data-view="kanban">{{ i.view_kanban|default('▥ 칸반보드') }}</button>
+  <button class="vtab" data-view="calendar">{{ i.view_calendar|default('📅 캘린더') }}</button>
+</div>
+
+<div class="filter-bar">
+  <div class="filter-chips" id="fchips">
+    <button class="chip chip-all chip-on" data-filter="all">{{ i.all_filter|default('전체') }} <b>{{ all_total }}</b></button>
+    <button class="chip chip-delay" data-filter="지연">{{ i.delay_label|default('지연') }} <b>{{ all_delay }}</b></button>
+    <button class="chip chip-progress" data-filter="진행중">{{ i.kpi_progress|default('진행중') }} <b>{{ all_progress }}</b></button>
+    <button class="chip chip-done" data-filter="완료">{{ i.kpi_done|default('완료') }} <b>{{ all_done }}</b></button>
+    <button class="chip chip-wait" data-filter="대기">{{ i.status_wait|default('대기') }} <b>{{ all_wait }}</b></button>
+    <button class="chip chip-cm" data-filter="hascm">{{ i.has_comment|default('💬 댓글있음') }}</button>
+    <button class="chip chip-rk" data-filter="hasrisk">⚠️ {{ i.risk_label|default('리스크') }}</button>
+    <button class="chip chip-ment" data-filter="mentionme">❓ {{ i.mention_me|default('내게 멘션') }}</button>
+    <button class="chip chip-reset" data-filter="all" style="margin-left:auto">{{ i.reset_filter|default('↺ 초기화') }}</button>
+  </div>
+  <div class="filter-search">
+    <input id="fsearch" type="text" placeholder="{{ i.search_instant|default('🔍 카드 제목/담당자/프로젝트 즉시 검색…') }}">
+  </div>
+</div>
+
+{% if not by_team %}
+<div class="empty">{{ i.no_cards|default('카드 없음') }}</div>
+{% else %}
+<div class="dense-list" id="actionBoard">
+  <div class="dl-header">
+    <div class="dl-col dl-c-status">{{ i.col_status|default('상태') }}</div>
+    <div class="dl-col dl-c-owner">{{ i.col_owner|default('담당자') }}</div>
+    <div class="dl-col dl-c-title">{{ i.col_content|default('업무 내용') }}</div>
+    <div class="dl-col dl-c-ref">{{ i.col_ref|default('프로젝트 / 고객') }}</div>
+    <div class="dl-col dl-c-hr">{{ i.col_time|default('시간') }}</div>
+    <div class="dl-col dl-c-badge">{{ i.col_reaction|default('반응') }}</div>
+  </div>
+{% for tname, data in by_team %}
+  {% set is_my_team = (data.tasks and data.tasks[0].team_id == my_team_id) %}
+  {% if user.role in ['ceo','executive','admin'] %}
+    {% set default_open = data.has_urgent %}
+  {% else %}
+    {% set default_open = data.has_urgent or is_my_team %}
+  {% endif %}
+  <div class="dl-team {% if not default_open %}collapsed{% endif %}{% if data.has_urgent %} urgent{% endif %}" data-team="{{ tname }}">
+    <div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dl-chevron">▾</span>
+      <span class="dl-team-name">{{ tname }}</span>
+      {% if data.has_urgent %}<span class="dl-urgent-dot" title="{{ i.urgent_exists|default('긴급건 있음') }}">●</span>{% endif %}
+      {% if is_my_team %}<span class="dl-my-team">{{ i.my_team|default('내 팀') }}</span>{% endif %}
+      <span class="dl-team-count">{{ data.tasks|length }}</span>
+    </div>
+    <div class="dl-rows">
+      {% for t in data.tasks %}
+      <div class="dl-row status-{{ t.status }}{% if t.meta_has_activity %} has-activity{% endif %}{% if t.meta_risk %} has-risk{% endif %}{% if t.meta_mentioned_me %} mentioned-me{% endif %}"
+           data-status="{{ t.status }}"
+           data-search="{{ t.title }} {{ t.user_name }} {{ t.project_name or '' }} {{ t.customer_name or '' }}"
+           data-cm="{{ t.meta_comments }}"
+           data-risk="{{ t.meta_risk }}"
+           data-mention="{{ t.meta_mentioned_me }}"
+           onclick="openCardModal({{ t.id }})"
+           title="{{ t.title }}">
+        <div class="dl-col dl-c-status"><span class="tag tag-{{ t.status }}">{{ t.status }}</span></div>
+        <div class="dl-col dl-c-owner">{{ t.user_name }}<span class="dl-rank"> {{ t.user_rank or '' }}</span></div>
+        <div class="dl-col dl-c-title">
+          <span class="dl-title-txt">{{ t.title }}</span>
+          {% if t.meta_last_comment %}<span class="dl-last">↳ {{ t.meta_last_comment }}</span>{% endif %}
+        </div>
+        <div class="dl-col dl-c-ref">
+          {% if t.project_name %}<span class="dl-pj">📋 {{ t.project_name }}</span>{% endif %}
+          {% if t.customer_name %}<span class="dl-cu">🏢 {{ t.customer_name }}</span>{% endif %}
+        </div>
+        <div class="dl-col dl-c-hr">{{ t.hours or 0 }}h</div>
+        <div class="dl-col dl-c-badge">
+          {% if t.meta_comments %}<span class="ac-badge ac-bd-cm">💬{{ t.meta_comments }}</span>{% endif %}
+          {% if t.meta_risk %}<span class="ac-badge ac-bd-risk">⚠️{{ t.meta_risk }}</span>{% endif %}
+          {% if t.meta_question %}<span class="ac-badge ac-bd-q">❓{{ t.meta_question }}</span>{% endif %}
+          {% if t.meta_ack %}<span class="ac-badge ac-bd-ack">👍{{ t.meta_ack }}</span>{% endif %}
+          {% if t.meta_ok %}<span class="ac-badge ac-bd-ok">✅{{ t.meta_ok }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+<div id="kanbanView" class="kanban-board" style="display:none"></div>
+<div id="calendarView" class="cal-board" style="display:none"></div>
+{% endif %}
+
+<script>
+const ALL_TASKS = {{ flat_tasks_json|safe }};
+const SEL_DATE = "{{ sel_date }}";
+
+(function(){
+  const board = document.getElementById('actionBoard');
+  if (!board) return;
+  const chips = document.querySelectorAll('#fchips .chip');
+  const search = document.getElementById('fsearch');
+  let curFilter = 'all';
+  let curSearch = '';
+
+  function applyFilters(){
+    const rows = board.querySelectorAll('.dl-row');
+    rows.forEach(c=>{
+      let show = true;
+      if (curFilter === 'hascm') show = parseInt(c.dataset.cm)>0;
+      else if (curFilter === 'hasrisk') show = parseInt(c.dataset.risk)>0;
+      else if (curFilter === 'mentionme') show = parseInt(c.dataset.mention)>0;
+      else if (curFilter !== 'all') show = c.dataset.status === curFilter;
+      if (show && curSearch){
+        show = c.dataset.search.toLowerCase().includes(curSearch);
+      }
+      c.style.display = show ? '' : 'none';
+    });
+    board.querySelectorAll('.dl-team').forEach(t=>{
+      const visible = t.querySelectorAll('.dl-row:not([style*="none"])').length;
+      t.style.display = visible ? '' : 'none';
+      if (curFilter !== 'all' && visible > 0) t.classList.remove('collapsed');
+      const cnt = t.querySelector('.dl-team-count');
+      if (cnt) cnt.textContent = visible;
+    });
+  }
+
+  function setFilter(f){
+    curFilter = f;
+    chips.forEach(x=>{
+      x.classList.toggle('chip-on', x.dataset.filter === f);
+    });
+    applyFilters();
+  }
+
+  chips.forEach(ch=>{
+    ch.addEventListener('click', ()=> setFilter(ch.dataset.filter));
+  });
+  document.querySelectorAll('.alert-band .ab-chip').forEach(ch=>{
+    ch.addEventListener('click', ()=> setFilter(ch.dataset.filter));
+  });
+  search.addEventListener('input', e=>{
+    curSearch = e.target.value.trim().toLowerCase();
+    applyFilters();
+  });
+
+  const vtabs = document.querySelectorAll('#viewTabs .vtab');
+  const listEl = document.getElementById('actionBoard');
+  const kanbanEl = document.getElementById('kanbanView');
+  const calEl = document.getElementById('calendarView');
+
+  function switchView(view){
+    vtabs.forEach(t=>t.classList.toggle('vtab-on', t.dataset.view===view));
+    if(listEl) listEl.style.display = view==='list' ? '' : 'none';
+    kanbanEl.style.display = view==='kanban' ? '' : 'none';
+    calEl.style.display = view==='calendar' ? '' : 'none';
+    if (view==='kanban' && !kanbanEl.innerHTML) renderKanban();
+    if (view==='calendar' && !calEl.innerHTML) renderCalendar();
+  }
+  vtabs.forEach(t=> t.addEventListener('click', ()=> switchView(t.dataset.view)));
+
+  function renderKanban(){
+    const statuses = ['지연','진행중','대기','보류','완료'];
+    const colors = {'지연':'#A5282C','진행중':'#F57F17','대기':'#9E9E9E','보류':'#9E9E9E','완료':'#2E7D32'};
+    let html = '<div class="kb-columns">';
+    for (const st of statuses){
+      const items = ALL_TASKS.filter(t=> t.status===st);
+      html += `<div class="kb-col">
+        <div class="kb-col-head" style="border-top:3px solid ${colors[st]}">${st} <b>${items.length}</b></div>
+        <div class="kb-cards">`;
+      for (const t of items){
+        const badges = [];
+        if(t.cm) badges.push(`<span class="ac-badge ac-bd-cm">💬${t.cm}</span>`);
+        if(t.risk) badges.push(`<span class="ac-badge ac-bd-risk">⚠️${t.risk}</span>`);
+        if(t.question) badges.push(`<span class="ac-badge ac-bd-q">❓${t.question}</span>`);
+        html += `<div class="kb-card" onclick="openCardModal(${t.id})">
+          <div class="kb-team">${t.team_name}</div>
+          <div class="kb-title">${t.title}</div>
+          <div class="kb-info">${t.user_name} ${t.user_rank} · ${t.hours}h</div>
+          ${t.project_name?`<div class="kb-pj">📋 ${t.project_name}</div>`:''}
+          <div class="kb-badges">${badges.join(' ')}</div>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+    html += '</div>';
+    kanbanEl.innerHTML = html;
+  }
+
+  function renderCalendar(){
+    const d = new Date(SEL_DATE);
+    const dow = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() - (dow===0?6:dow-1));
+    const days = [];
+    for (let i=0;i<7;i++){
+      const dd = new Date(mon); dd.setDate(mon.getDate()+i);
+      days.push(dd.toISOString().slice(0,10));
+    }
+    const dayNames = ['{{ i.day_mon|default("월") }}','{{ i.day_tue|default("화") }}','{{ i.day_wed|default("수") }}','{{ i.day_thu|default("목") }}','{{ i.day_fri|default("금") }}','{{ i.day_sat|default("토") }}','{{ i.day_sun|default("일") }}'];
+    let html = '<div class="cal-week">';
+    for (let i=0;i<7;i++){
+      const isToday = days[i]===SEL_DATE;
+      html += `<div class="cal-day ${isToday?'cal-today':'cal-other'}">
+        <div class="cal-day-head">${dayNames[i]} ${days[i].slice(5)}</div>`;
+      if (isToday) {
+        const st = {};
+        ALL_TASKS.forEach(t=>{ st[t.status]=(st[t.status]||0)+1; });
+        html += '<div class="cal-summary">';
+        for (const [k,v] of Object.entries(st)){
+          html += `<span class="cal-st tag-${k}">${k} ${v}</span>`;
+        }
+        html += `</div><div class="cal-cards">`;
+        const top10 = ALL_TASKS.filter(t=>t.status==='지연').concat(
+          ALL_TASKS.filter(t=>t.status==='진행중')).slice(0,10);
+        for (const t of top10){
+          html += `<div class="cal-item" onclick="openCardModal(${t.id})">
+            <span class="tag tag-${t.status}" style="font-size:9px">${t.status}</span>
+            <span class="cal-t-title">${t.title}</span>
+          </div>`;
+        }
+        if (ALL_TASKS.length > 10) html += `<div class="cal-more">+${ALL_TASKS.length-10}...</div>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="cal-empty"><a href="/feed/${days[i]}" class="cal-link">{{ i.see_this_day|default('→ 이날 보기') }}</a></div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    calEl.innerHTML = html;
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active = 'profile' %}
+{% block title %}{{ i.profile_title|default('내 계정 · 비밀번호 변경') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.profile_title|default('내 계정 · 비밀번호 변경') }}</h1>
+    <div class="page-sub">{{ user.name }} {{ user.rank }} · {{ user.team_name or '경영진' }} · {{ user.login_id }}</div>
+  </div>
+</div>
+
+{% if msg %}<div class="flash flash-ok">✅ {{ msg }}</div>{% endif %}
+{% if err %}<div class="flash flash-err">❌ {{ err }}</div>{% endif %}
+
+<div class="profile-card">
+  <div class="profile-head">
+    <b>{{ i.profile_pw_title|default('🔐 비밀번호 변경') }}</b>
+    <div class="profile-sub">{{ i.profile_pw_hint|default('초기 비밀번호(knk+4자리)를 받으신 분은 반드시 본인만 아는 비밀번호로 변경해 주세요.') }}</div>
+  </div>
+  <form method="post" action="/profile/change-password" class="profile-form">
+    <label>{{ i.current_pw|default('현재 비밀번호') }}</label>
+    <input type="password" name="current_pw" required autocomplete="current-password">
+    <label>{{ i.new_pw|default('새 비밀번호') }} <span class="hint">{{ i.pw_min_hint|default('(6자 이상)') }}</span></label>
+    <input type="password" name="new_pw" required minlength="6" autocomplete="new-password">
+    <label>{{ i.new_pw_confirm|default('새 비밀번호 확인') }}</label>
+    <input type="password" name="confirm_pw" required minlength="6" autocomplete="new-password">
+    <div class="profile-btns">
+      <button type="submit" class="btn-primary">{{ i.change_btn|default('변경하기') }}</button>
+      <a href="/daily/{{ '' }}" class="btn-sm">{{ i.cancel|default('취소') }}</a>
+    </div>
+  </form>
+</div>
+
+<div class="profile-info">
+  <div class="pi-row"><span class="pi-k">{{ i.admin_name|default('이름') }}</span><span class="pi-v">{{ user.name }}</span></div>
+  <div class="pi-row"><span class="pi-k">{{ i.admin_rank|default('직급') }}</span><span class="pi-v">{{ user.rank or '-' }}</span></div>
+  <div class="pi-row"><span class="pi-k">{{ i.ck_col_team|default('팀') }}</span><span class="pi-v">{{ user.team_name or '경영진' }}</span></div>
+  <div class="pi-row"><span class="pi-k">{{ i.admin_login_id|default('로그인ID') }}</span><span class="pi-v">{{ user.login_id }}</span></div>
+  <div class="pi-row"><span class="pi-k">{{ i.admin_role|default('권한') }}</span><span class="pi-v">{{ user.role }}</span></div>
+</div>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}{{ i.dash_title|default('전사 대시보드') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.dash_title|default('전사 대시보드') }}</h1>
+    <div class="page-sub">{{ i.this_week|default('이번 주') }} {{ mon }} ~ {{ sun }} | {{ i.today|default('오늘') }} {{ today_s }}</div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <a href="/admin/reminders" class="kpi-card kpi-primary kpi-link">
+    <div class="kpi-num">{{ participation_rate }}%</div>
+    <div class="kpi-lab">{{ i.today_rate|default('오늘 참여율') }}</div>
+    <div class="kpi-sub">{{ today_reporters }}{{ i.member_count|default('명') }} / {{ total_users }}{{ i.member_count|default('명') }}</div>
+  </a>
+  <a href="/summary?scope=all&period=weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ total_stats.total }}</div>
+    <div class="kpi-lab">{{ i.week_cards|default('주간 카드수') }}</div>
+  </a>
+  <a href="/history?status=완료" class="kpi-card st-done kpi-link">
+    <div class="kpi-num">{{ total_stats.done }}</div>
+    <div class="kpi-lab">{{ i.week_done|default('주간 완료') }}</div>
+  </a>
+  <a href="/history?status=진행중" class="kpi-card st-progress kpi-link">
+    <div class="kpi-num">{{ total_stats.progress }}</div>
+    <div class="kpi-lab">{{ i.week_progress|default('주간 진행중') }}</div>
+  </a>
+  <a href="/bottlenecks" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ total_stats.delay }}</div>
+    <div class="kpi-lab">{{ i.week_delay|default('주간 지연') }}</div>
+  </a>
+  <a href="/weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '%.0f'|format(total_stats.hours) }}h</div>
+    <div class="kpi-lab">{{ i.week_hours|default('주간 누적 공수') }}</div>
+  </a>
+</div>
+
+{% if narratives %}
+<div class="section-head"><h2>{{ i.narrative_title|default('📖 지금 전사에서 진행중인 핵심 업무') }}</h2></div>
+<div class="narrative-grid">
+  {% for n in narratives %}
+  <div class="narr-card">
+    <div class="narr-team">{{ n.team.name }}</div>
+    {% for c in n.cards %}
+    <div class="narr-item {% if c.status=='지연' %}narr-delay{% endif %}" {% if c.id %}onclick="openCardModal({{ c.id }})" style="cursor:pointer"{% endif %}>
+      <span class="tag tag-{{ c.status }}">{{ c.status }}</span>
+      <b>{{ c.user_name }}</b> <span class="narr-rank">{{ c.rank or '' }}</span> —
+      <span class="narr-title">{{ c.title }}</span>
+      {% if c.project_name %}<div class="narr-pj">📋 {{ c.project_name }}</div>{% endif %}
+      {% if c.next_plan %}<div class="narr-next">📌 {{ c.next_plan }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="section-head"><h2>{{ i.teams_status|default('14개 팀 현황 (주간)') }}</h2></div>
+<div class="team-tbl">
+  <table>
+    <colgroup>
+      <col style="width:6%"><col style="width:16%"><col style="width:12%"><col style="width:5%">
+      <col style="width:8%"><col style="width:13%"><col style="width:7%"><col style="width:6%">
+      <col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:8%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>{{ i.col_code|default('코드') }}</th><th>{{ i.col_team_name|default('팀명') }}</th><th>{{ i.col_leader|default('팀장') }}</th><th>{{ i.col_members|default('인원') }}</th>
+        <th>{{ i.col_today_report|default('오늘 작성') }}</th><th>{{ i.col_participation|default('참여율') }}</th>
+        <th>{{ i.col_week_cards|default('주간 카드') }}</th><th class="st-done">{{ i.kpi_done|default('완료') }}</th><th class="st-progress">{{ i.kpi_progress|default('진행') }}</th><th class="st-delay">{{ i.kpi_delay|default('지연') }}</th>
+        <th>{{ i.hours|default('공수') }}</th><th>{{ i.col_view|default('바로가기') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in teams %}
+      <tr>
+        <td>{{ t.code }}</td>
+        <td>
+          <b>{{ t.name }}</b>
+          {% if t.is_lab %}<span class="lab-badge">{{ i.lab_badge|default('연구소') }}</span>{% endif %}
+          <div class="team-sector">{{ t.sector }}</div>
+        </td>
+        <td>{{ t.leader_name or '-' }} <span class="small">{{ t.leader_rank or '' }}</span></td>
+        <td class="num">{{ t.member_count }}</td>
+        <td class="num">{{ t.reported }}/{{ t.member_count }}</td>
+        <td class="num">
+          <div class="part-bar"><div class="part-fill" style="width:{{ t.participation }}%"></div></div>
+          <span>{{ t.participation }}%</span>
+        </td>
+        <td class="num">{{ t.week_stats.total }}</td>
+        <td class="num st-done">{{ t.week_stats.done }}</td>
+        <td class="num st-progress">{{ t.week_stats.progress }}</td>
+        <td class="num st-delay">{{ t.week_stats.delay }}</td>
+        <td class="num">{{ '%.0f'|format(t.week_stats.hours) }}h</td>
+        <td><a href="/team/{{ today_s }}?team_id={{ t.id }}" class="btn-xs">{{ i.view_btn|default('보기') }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="section-head"><h2>{{ i.delay_top10|default('이번 주 지연 업무 TOP 10') }}</h2></div>
+    {% if not delays %}
+    <div class="empty">{{ i.no_delay|default('지연 업무 없음') }}</div>
+    {% else %}
+    <div class="delay-list">
+      {% for d in delays %}
+      <div class="delay-item" onclick="openCardModal({{ d.id }})" style="cursor:pointer">
+        <div class="d-top">
+          <span class="tag tag-지연">{{ i.kpi_delay|default('지연') }}</span>
+          <b>{{ d.title }}</b>
+        </div>
+        <div class="d-meta">
+          {{ d.team_name }} · {{ d.user_name }}
+          {% if d.project_name %} · 📋 {{ d.project_name }}{% endif %}
+          {% if d.customer_name %} · 🏢 {{ d.customer_name }}{% endif %}
+          · {{ d.work_date }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <div class="section-head"><h2>{{ i.customer_hours|default('고객사별 주간 공수 TOP 10') }}</h2></div>
+    {% if not customers %}
+    <div class="empty">{{ i.no_data|default('데이터 없음') }}</div>
+    {% else %}
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.customer|default('고객사') }}</th><th>{{ i.card_label|default('카드') }}</th><th>{{ i.hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for c in customers %}
+        <tr onclick="location.href='/customer/{{ c.customer_id }}'" style="cursor:pointer"><td><b>{{ c.customer_name }}</b></td><td class="num">{{ c.cnt }}</td><td class="num">{{ '%.0f'|format(c.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

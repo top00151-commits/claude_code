@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ i.search_title|default('🔎 통합 검색') }}{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.search_title|default('🔎 통합 검색') }}</h1>
+    <div class="page-sub">{{ i.search_sub|default('카드 · 댓글 · 회고를 한 번에 검색합니다') }}</div>
+  </div>
+</div>
+
+<form class="search-form" method="get" action="/search">
+  <input type="text" name="q" value="{{ q }}" placeholder="{{ i.search_placeholder|default('키워드 입력') }}" autofocus>
+  <button class="btn-primary" type="submit">{{ i.search_btn|default('검색') }}</button>
+</form>
+
+{% if q %}
+  <div class="search-meta">"{{ q }}" {{ i.search_result|default('검색 결과') }} — {{ i.search_cards|default('📋 카드') }} {{ res.tasks|length }}{{ i.total_count|default('건') }} · {{ i.search_comments|default('💬 댓글') }} {{ res.comments|length }}{{ i.total_count|default('건') }} · {{ i.search_retros|default('📖 프로젝트 회고') }} {{ res.retros|length }}{{ i.total_count|default('건') }}</div>
+
+  {% if res.tasks %}
+  <div class="section-head"><h2>{{ i.search_cards|default('📋 카드') }}</h2></div>
+  <div class="search-list">
+    {% for t in res.tasks %}
+    <div class="search-row" onclick="openCardModal({{ t.id }})">
+      <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
+      <b>{{ t.title }}</b>
+      <span class="sr-meta">{{ t.user_name }} · {{ t.work_date }}{% if t.project_name %} · 🛠 {{ t.project_name }}{% endif %}</span>
+      {% if t.next_plan %}<div class="sr-next">📌 {{ t.next_plan }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if res.comments %}
+  <div class="section-head"><h2>{{ i.search_comments|default('💬 댓글') }}</h2></div>
+  <div class="search-list">
+    {% for c in res.comments %}
+    <div class="search-row" onclick="openCardModal({{ c.task_id }})">
+      <b>{{ c.author_name }}</b> <span class="cm-time">{{ c.created_at }}</span>
+      <div class="sr-text">{{ c.body }}</div>
+      <span class="sr-meta">→ {{ c.task_title }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if res.retros %}
+  <div class="section-head"><h2>{{ i.search_retros|default('📖 프로젝트 회고') }}</h2></div>
+  <div class="search-list">
+    {% for r in res.retros %}
+    <div class="search-row" onclick="location.href='/project/{{ r.project_id }}'" style="cursor:pointer">
+      <b>{{ r.project_name }}</b> <span class="cm-time">{{ r.updated_at }}</span>
+      {% if r.went_well %}<div class="sr-text"><b>{{ i.went_well|default('잘된 점:') }}</b> {{ r.went_well }}</div>{% endif %}
+      {% if r.went_bad %}<div class="sr-text"><b>{{ i.went_bad|default('아쉬운 점:') }}</b> {{ r.went_bad }}</div>{% endif %}
+      {% if r.next_action %}<div class="sr-text"><b>{{ i.next_action|default('향후 액션:') }}</b> {{ r.next_action }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not res.tasks and not res.comments and not res.retros %}
+  <div class="empty">{{ i.no_results|default('검색 결과가 없습니다.') }}</div>
+  {% endif %}
+{% endif %}
+{% endblock %}

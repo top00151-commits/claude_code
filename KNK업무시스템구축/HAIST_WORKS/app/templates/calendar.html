@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set active = 'calendar' %}
+{% block title %}{{ i.cal_my|default('내 달력') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>📅 {% if scope=='team' %}{{ i.cal_dept|default('부서 달력') }}{% else %}{{ i.cal_my|default('내 달력') }}{% endif %} — {{ month }}</h1>
+    <div class="page-sub">
+      {% if scope=='team' %}{{ user.team_name }} {{ i.cal_all|default('전체') }}{% else %}{{ user.name }} {{ user.rank }}{% endif %} · {{ i.cal_click_hint|default('날짜 클릭 → 해당일 업무') }}
+    </div>
+  </div>
+  <div class="date-nav">
+    {% if can_team %}
+    <div class="scope-toggle">
+      <a href="/calendar/{{ month }}?scope=me" class="btn-sm {% if scope=='me' %}btn-today{% endif %}">{{ i.cal_my_schedule|default('내 일정') }}</a>
+      <a href="/calendar/{{ month }}?scope=team" class="btn-sm {% if scope=='team' %}btn-today{% endif %}">{{ i.cal_dept_all|default('부서 전체') }}</a>
+    </div>
+    {% endif %}
+    <a href="/calendar/{{ prev_m }}?scope={{ scope }}" class="btn-sm">{{ i.prev_month|default('◀ 이전달') }}</a>
+    <a href="/calendar?scope={{ scope }}" class="btn-sm btn-today">{{ i.this_month|default('이번달') }}</a>
+    <a href="/calendar/{{ next_m }}?scope={{ scope }}" class="btn-sm">{{ i.next_month|default('다음달 ▶') }}</a>
+  </div>
+</div>
+
+<div class="summary-grid">
+  <a href="/summary?scope=me&period=monthly" class="sum-card kpi-link"><div class="sum-num">{{ month_total }}</div><div class="sum-lab">{{ i.month_cards|default('월간 카드') }}</div></a>
+  <a href="/summary?scope=me&period=monthly" class="sum-card st-done kpi-link"><div class="sum-num">{{ month_done }}</div><div class="sum-lab">{{ i.month_done|default('월간 완료') }}</div></a>
+  <a href="/summary?scope=me&period=monthly" class="sum-card kpi-link"><div class="sum-num">{{ '%.0f'|format(month_hours) }}h</div><div class="sum-lab">{{ i.month_hours|default('월간 공수') }}</div></a>
+</div>
+
+<table class="cal-tbl">
+  <thead><tr>
+    <th class="wd-sun">{{ i.day_sun|default('일') }}</th><th>{{ i.day_mon|default('월') }}</th><th>{{ i.day_tue|default('화') }}</th><th>{{ i.day_wed|default('수') }}</th><th>{{ i.day_thu|default('목') }}</th><th>{{ i.day_fri|default('금') }}</th><th class="wd-sat">{{ i.day_sat|default('토') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for week in weeks %}
+    <tr>
+      {% for c in week %}
+      {% set col = (c.wd + 1) % 7 %}
+      {% endfor %}
+      {% set ordered = [] %}
+      {% for c in week %}{% if c.wd == 6 %}{% set _ = ordered.append(c) %}{% endif %}{% endfor %}
+      {% for c in week %}{% if c.wd != 6 %}{% set _ = ordered.append(c) %}{% endif %}{% endfor %}
+      {% for c in ordered %}
+      <td class="cal-cell {% if c.day==0 %}cal-empty{% elif c.is_today %}cal-today{% endif %}"
+          {% if c.day > 0 %}onclick="location.href='/daily/{{ c.date }}'"{% endif %}>
+        {% if c.day > 0 %}
+        <div class="cal-d {% if c.wd==6 %}sun{% elif c.wd==5 %}sat{% endif %}">{{ c.day }}</div>
+        {% if c.d %}
+        <div class="cal-stat">
+          <span class="cal-total">{{ c.d.total }}{{ i.total_count|default('건') }}</span>
+          {% if c.d.done %}<span class="tag tag-완료">{{ c.d.done }}</span>{% endif %}
+          {% if c.d.delay %}<span class="tag tag-지연">{{ c.d.delay }}</span>{% endif %}
+        </div>
+        <div class="cal-hr">{{ '%.1f'|format(c.d.hours) }}h</div>
+        {% endif %}
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

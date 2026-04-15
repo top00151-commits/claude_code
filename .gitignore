@@ -4,3 +4,32 @@
 # OS
 Thumbs.db
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# SQLite / 실데이터 (KNK 관리코드 등 민감 데이터 포함)
+*.db
+*.sqlite
+*.sqlite3
+
+# 배포용 비밀번호 파일
+*비밀번호*.xlsx
+*password*.xlsx
+
+# 로그
+*.log
+logs/
+
+# 에디터/IDE
+.vscode/
+.idea/
+*.swp
+.claude-code-history

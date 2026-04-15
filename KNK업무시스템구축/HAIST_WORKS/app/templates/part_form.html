@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{% if part %}부품 수정{% else %}부품 등록{% endif %} — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>{% if part %}부품 수정{% else %}부품 등록{% endif %}</h1>
+  <p class="muted">
+    {% if part %}부품번호 <strong class="mono">{{ part.part_no }}</strong> 정보를 수정합니다.
+    {% else %}새 부품을 마스터에 등록합니다. 부품번호는 고유해야 합니다.{% endif %}
+  </p>
+</div>
+
+<form method="post"
+      action="{% if part %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}"
+      class="card form">
+
+  <div class="grid-2">
+    <div class="field">
+      <label>부품번호 <span class="req">*</span></label>
+      <input type="text" name="part_no" required class="mono"
+             value="{{ part.part_no if part else '' }}"
+             placeholder="예: PRT-2026-0001">
+    </div>
+    <div class="field">
+      <label>품명 <span class="req">*</span></label>
+      <input type="text" name="part_name" required
+             value="{{ part.part_name if part else '' }}"
+             placeholder="예: 검사기 모터 브라켓">
+    </div>
+
+    <div class="field">
+      <label>규격</label>
+      <input type="text" name="spec"
+             value="{{ part.spec if part else '' }}"
+             placeholder="예: 200×150×30 SUS304">
+    </div>
+    <div class="field">
+      <label>메이커</label>
+      <input type="text" name="maker"
+             value="{{ part.maker if part else '' }}"
+             placeholder="예: SMC, Mitsubishi">
+    </div>
+
+    <div class="field">
+      <label>원산지</label>
+      <select name="origin">
+        {% set ORIGINS = ['', 'KOREA', 'JAPAN', 'CHINA', 'TAIWAN', 'USA', 'GERMANY', 'FRANCE', '기타'] %}
+        {% for o in ORIGINS %}
+        <option value="{{ o }}" {% if part and part.origin == o %}selected{% endif %}>{{ o or '(선택)' }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>단위</label>
+      <select name="unit">
+        {% set UNITS = ['EA', 'SET', 'M', 'KG', 'BOX', 'ROLL', 'PAIR', '기타'] %}
+        {% for u in UNITS %}
+        <option value="{{ u }}" {% if (part and part.unit == u) or (not part and u == 'EA') %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>통화</label>
+      <select name="currency">
+        <option value="KRW" {% if not part or part.currency == 'KRW' %}selected{% endif %}>KRW (₩)</option>
+        <option value="USD" {% if part and part.currency == 'USD' %}selected{% endif %}>USD ($)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>표준단가</label>
+      <input type="number" name="std_price" step="0.01" min="0"
+             value="{{ part.std_price if part else 0 }}">
+    </div>
+
+    <div class="field">
+      <label>사업부</label>
+      <select name="biz_div">
+        <option value="">(선택)</option>
+        <option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
+        <option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
+        <option value="공통" {% if part and part.biz_div == '공통' %}selected{% endif %}>공통</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>분류</label>
+      <select name="category">
+        <option value="">(선택)</option>
+        <option value="완성품" {% if part and part.category == '완성품' %}selected{% endif %}>완성품</option>
+        <option value="자재" {% if part and part.category == '자재' %}selected{% endif %}>자재</option>
+        <option value="소모품" {% if part and part.category == '소모품' %}selected{% endif %}>소모품</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>비고</label>
+    <textarea name="note" rows="3" placeholder="자유 입력 (메모, 특이사항)">{{ part.note if part else '' }}</textarea>
+  </div>
+
+  <div class="field">
+    <label class="check-row">
+      <input type="checkbox" name="is_active" value="1"
+             {% if not part or part.is_active %}checked{% endif %}>
+      사용 중 (체크 해제 시 비활성)
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <a href="/parts" class="btn btn-ghost">취소</a>
+    <button type="submit" class="btn btn-primary">
+      {% if part %}저장{% else %}등록{% endif %}
+    </button>
+  </div>
+</form>
+
+{% endblock %}

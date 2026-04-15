@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% set active = 'daily' %}
+{% block title %}{{ i.daily_title|default('일일업무') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.daily_title|default('일일 업무카드') }}</h1>
+    <div class="page-sub">{{ user.name }} {{ user.rank }} · {{ user.team_name or '경영진' }}</div>
+  </div>
+  <div class="date-nav">
+    <a href="/daily/{{ prev_date }}" class="btn-sm">{{ i.prev_day|default('◀ 전일') }}</a>
+    <input type="date" id="dateSel" value="{{ sel_date }}" onchange="location.href='/daily/'+this.value">
+    <a href="/daily/{{ next_date }}" class="btn-sm">{{ i.next_day|default('익일 ▶') }}</a>
+    <a href="/daily/{{ today }}" class="btn-sm btn-today">{{ i.today|default('오늘') }}</a>
+  </div>
+</div>
+
+{% if sel_date == today and not tasks %}
+<div class="reminder-banner">
+  <div class="rb-ico">🔔</div>
+  <div class="rb-body">
+    <b>{{ user.name }} {{ user.rank }}{{ i.welcome_suffix|default('님') }}, {{ i.daily_reminder|default('오늘 아직 업무카드를 작성하지 않으셨습니다.') }}</b>
+    <div class="rb-sub">{{ i.daily_reminder_sub|default('하루 한 번, 오늘 무엇을 했는지 기록하는 것이 KNK 일일업무일지의 시작입니다.') }}</div>
+  </div>
+  <button class="btn-primary" onclick="openAdd()">{{ i.write_now|default('+ 지금 카드 작성') }}</button>
+</div>
+{% endif %}
+
+<div class="week-stats">
+  <div class="ws-label">{{ i.this_week|default('이번 주') }} {{ week_range }}</div>
+  <div class="ws-nums">
+    <a href="/history" class="ws-item ws-link-item" title="{{ i.all_filter|default('전체 기록 보기') }}"><b>{{ week_stats.total or 0 }}</b> {{ i.total_count|default('건') }}</a>
+    <a href="/history?status=완료" class="ws-item st-done ws-link-item" title="{{ i.kpi_done|default('완료') }} 목록"><b>{{ week_stats.done or 0 }}</b> {{ i.kpi_done|default('완료') }}</a>
+    <a href="/history?status=진행중" class="ws-item st-progress ws-link-item" title="{{ i.kpi_progress|default('진행중') }} 목록"><b>{{ week_stats.progress or 0 }}</b> {{ i.kpi_progress|default('진행중') }}</a>
+    <a href="/history?status=지연" class="ws-item st-delay ws-link-item" title="{{ i.kpi_delay|default('지연') }} 목록"><b>{{ week_stats.delay or 0 }}</b> {{ i.kpi_delay|default('지연') }}</a>
+    <a href="/weekly" class="ws-item ws-weekly-link" title="{{ i.view_weekly|default('주간 요약 보기') }}"><b>{{ '%.1f'|format(week_stats.hours or 0) }}h</b> {{ i.accumulated|default('누적') }} →</a>
+  </div>
+</div>
+
+{% if pending_yday %}
+<div class="carry-box">
+  <div class="carry-head">
+    <b>⚠ {{ i.yday_pending|default('어제 미완료 업무') }} {{ pending_yday|length }}{{ i.total_count|default('건') }}</b> — {{ i.carry_today|default('오늘로 이월할까요?') }}
+    <button class="btn-primary" onclick="carryAll()">{{ i.carry_all|default('전체 이월') }}</button>
+  </div>
+  <div class="carry-list">
+    {% for t in pending_yday %}
+    <div class="carry-item">
+      <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
+      <span class="carry-title">{{ t.title }}</span>
+      {% if t.project_name %}<span class="tag tag-pj">{{ t.project_name }}</span>{% endif %}
+      <button class="btn-xs" onclick="carryOne({{ t.id }})">{{ i.carry_one|default('이월') }}</button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="section-head">
+  <h2>{{ sel_date }} {{ i.task_cards|default('업무카드') }} <span class="count">{{ tasks|length }}</span></h2>
+  <button class="btn-primary" onclick="openAdd()">{{ i.add_card|default('+ 업무카드 추가') }}</button>
+</div>
+
+{% if not tasks %}
+<div class="empty">{{ i.no_cards_today|default('오늘 입력된 업무카드가 없습니다.') }} <b>{{ i.add_card|default('+ 업무카드 추가') }}</b> {{ i.start_btn|default('버튼으로 시작하세요.') }}</div>
+{% else %}
+<div class="task-grid">
+  {% for t in tasks %}
+  <div class="task-card status-{{ t.status }}" data-id="{{ t.id }}" data-status="{{ t.status }}">
+    <div class="tc-head">
+      <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
+      {% if t.category %}<span class="tag tag-cat">{{ t.category }}</span>{% endif %}
+      {% if t.carry_from_id %}<span class="tag tag-carry">{{ i.carried_tag|default('이월') }}</span>{% endif %}
+      <div class="tc-actions">
+        <button class="btn-xs" onclick='openEdit({{ t|tojson }})'>{{ i.edit|default('편집') }}</button>
+        <button class="btn-xs btn-del" onclick="delTask({{ t.id }})">{{ i.delete|default('삭제') }}</button>
+      </div>
+    </div>
+    <div class="tc-title">{{ t.title }}</div>
+    <div class="tc-meta">
+      {% if t.project_name %}<span class="tag tag-pj">📋 {{ t.project_name }}</span>{% endif %}
+      {% if t.customer_name %}<span class="tag tag-cu">🏢 {{ t.customer_name }}</span>{% endif %}
+      {% if t.hours %}<span class="tag tag-hr">⏱ {{ t.hours }}h</span>{% endif %}
+      {% if t.due_date %}<span class="tag tag-due">⏰ {{ t.due_date }}</span>{% endif %}
+    </div>
+    {% if t.notes %}<div class="tc-notes"><b>{{ i.today_work|default('오늘 한 일') }}</b><div>{{ t.notes }}</div></div>{% endif %}
+    {% if t.next_plan %}<div class="tc-nextplan"><b>{{ i.next_plan|default('📌 다음 계획') }}</b><div>{{ t.next_plan }}</div></div>{% endif %}
+    <div class="tc-quickstat">
+      {% for s in statuses %}
+      <button class="qs-btn {% if t.status==s %}active{% endif %}" onclick="quickStatus({{ t.id }},'{{ s }}')">{{ s }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- 댓글/요청 영역 -->
+    <div class="tc-comments" id="cm-{{ t.id }}">
+      <div class="cm-head">
+        {{ i.requests_comments|default('💬 요청·코멘트') }} <span class="count">{{ t.comment_count or 0 }}</span>
+        {% if t.has_ceo_req %}<span class="tag tag-ceo">{{ i.ceo_request|default('대표 요청') }}</span>{% endif %}
+        <button class="btn-xs" onclick="toggleComments({{ t.id }})">{{ i.toggle_expand|default('펼치기/접기') }}</button>
+      </div>
+      <div class="cm-body" style="display:{% if t.comments %}block{% else %}none{% endif %}">
+        {% for cm in t.comments %}
+        <div class="cm-item {% if cm.is_ceo_request %}cm-ceo{% endif %}">
+          <div class="cm-meta">
+            {% if cm.is_ceo_request %}<span class="tag tag-ceo">{{ i.ceo_request|default('대표 요청') }}</span>{% endif %}
+            <b>{{ cm.author_name }}</b> <span class="cm-rank">{{ cm.author_rank or '' }}</span>
+            <span class="cm-time">{{ cm.created_at }}</span>
+            {% if cm.author_id == user.id or user.role in ['ceo','admin'] %}
+            <button class="btn-xs btn-del" onclick="delComment({{ cm.id }},{{ t.id }})">🗑</button>
+            {% endif %}
+          </div>
+          <div class="cm-text">{{ cm.body }}</div>
+        </div>
+        {% endfor %}
+        <form class="cm-form" onsubmit="addComment(event,{{ t.id }})">
+          <input type="text" placeholder="{{ i.comment_write|default('요청사항·답글·코멘트 작성...') }}" required>
+          <button class="btn-primary" type="submit">{{ i.btn_register|default('등록') }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- 모달 -->
+<div class="modal" id="modal" style="display:none">
+  <div class="modal-bg" onclick="closeModal()"></div>
+  <div class="modal-card">
+    <div class="modal-title"><span id="mTitle">{{ i.add_card_title|default('업무카드 추가') }}</span>
+      <button class="btn-xs" onclick="closeModal()">✕</button>
+    </div>
+    <form id="taskForm" onsubmit="saveTask(event)">
+      <input type="hidden" id="f_id">
+      <label>{{ i.title_label|default('제목') }} *</label>
+      <input type="text" id="f_title" required placeholder="예) 갤럭시 S27 ICT 1차 셋업 점검">
+      <div class="form-row">
+        <div>
+          <label>{{ i.category_label|default('분류') }}</label>
+          <select id="f_category">
+            {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>{{ i.status|default('상태') }}</label>
+          <select id="f_status">
+            {% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>{{ i.hours_label|default('공수(h)') }}</label>
+          <input type="number" id="f_hours" step="0.5" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>{{ i.project|default('프로젝트') }}</label>
+          <select id="f_project">
+            <option value="">{{ i.select|default('(선택)') }}</option>
+            {% for p in projects %}<option value="{{ p.id }}">[{{ p.code }}] {{ p.name }} · {{ p.customer_name or '' }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>{{ i.customer|default('고객사') }}</label>
+          <select id="f_customer">
+            <option value="">{{ i.select|default('(선택)') }}</option>
+            {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>{{ i.due_date|default('기한/약속일') }}</label>
+          <input type="date" id="f_due">
+        </div>
+      </div>
+      <label>{{ i.notes_label|default('오늘 한 일 (메모)') }}</label>
+      <textarea id="f_notes" rows="2" placeholder="{{ i.notes_hint|default('오늘 무엇을 했는지 핵심만 1~2줄') }}"></textarea>
+      <label>{{ i.next_label|default('📌 다음 계획 (내일 할 일)') }} <span style="color:#A5282C">*</span></label>
+      <textarea id="f_next_plan" rows="2" required placeholder="{{ i.next_hint|default('내일/다음 단계로 무엇을 할 계획인지 1~2줄') }}"></textarea>
+      <div class="modal-btns">
+        <button type="button" class="btn-sm" onclick="closeModal()">{{ i.cancel|default('취소') }}</button>
+        <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const SEL_DATE = "{{ sel_date }}";
+const DI = {
+  add_title: "{{ i.add_card_title|default('업무카드 추가') }}",
+  edit_title: "{{ i.edit_card_title|default('업무카드 편집') }}",
+  save_fail: "{{ i.save_fail|default('저장 실패') }}",
+  confirm_del: "{{ i.confirm_del_task|default('삭제하시겠습니까?') }}",
+  register_fail: "{{ i.register_fail|default('등록 실패') }}",
+  confirm_del_cm: "{{ i.confirm_del_comment|default('댓글을 삭제하시겠습니까?') }}",
+};
+function openAdd(){
+  document.getElementById('mTitle').textContent=DI.add_title;
+  ['f_id','f_title','f_hours','f_notes','f_next_plan','f_due'].forEach(k=>document.getElementById(k).value='');
+  document.getElementById('f_category').value='기타';
+  document.getElementById('f_status').value='진행중';
+  document.getElementById('f_project').value='';
+  document.getElementById('f_customer').value='';
+  document.getElementById('f_hours').value='0';
+  document.getElementById('modal').style.display='flex';
+}
+function openEdit(t){
+  document.getElementById('mTitle').textContent=DI.edit_title;
+  document.getElementById('f_id').value=t.id;
+  document.getElementById('f_title').value=t.title||'';
+  document.getElementById('f_category').value=t.category||'기타';
+  document.getElementById('f_status').value=t.status||'진행중';
+  document.getElementById('f_hours').value=t.hours||0;
+  document.getElementById('f_project').value=t.project_id||'';
+  document.getElementById('f_customer').value=t.customer_id||'';
+  document.getElementById('f_due').value=t.due_date||'';
+  document.getElementById('f_notes').value=t.notes||'';
+  document.getElementById('f_next_plan').value=t.next_plan||'';
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(){ document.getElementById('modal').style.display='none'; }
+async function saveTask(e){
+  e.preventDefault();
+  const id=document.getElementById('f_id').value;
+  const body={
+    work_date:SEL_DATE,
+    title:document.getElementById('f_title').value,
+    category:document.getElementById('f_category').value,
+    status:document.getElementById('f_status').value,
+    hours:parseFloat(document.getElementById('f_hours').value||0),
+    project_id:document.getElementById('f_project').value||null,
+    customer_id:document.getElementById('f_customer').value||null,
+    due_date:document.getElementById('f_due').value||null,
+    notes:document.getElementById('f_notes').value,
+    next_plan:document.getElementById('f_next_plan').value
+  };
+  const url = id ? '/api/task/'+id : '/api/task';
+  const method = id ? 'PUT' : 'POST';
+  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok) location.reload();
+  else alert(DI.save_fail);
+}
+async function delTask(id){
+  if(!confirm(DI.confirm_del)) return;
+  const r = await fetch('/api/task/'+id,{method:'DELETE'});
+  if(r.ok) location.reload();
+}
+async function quickStatus(id,status){
+  const r = await fetch('/api/task/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  if(r.ok) location.reload();
+}
+async function carryAll(){
+  const r = await fetch('/api/carry-forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:SEL_DATE})});
+  if(r.ok) location.reload();
+}
+function toggleComments(id){
+  const b = document.querySelector('#cm-'+id+' .cm-body');
+  b.style.display = (b.style.display==='none' ? 'block' : 'none');
+}
+async function addComment(e,tid){
+  e.preventDefault();
+  const inp = e.target.querySelector('input');
+  const body = inp.value.trim();
+  if(!body) return;
+  const r = await fetch('/api/task/'+tid+'/comment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body})});
+  if(r.ok) location.reload();
+  else alert(DI.register_fail);
+}
+async function delComment(cid,tid){
+  if(!confirm(DI.confirm_del_cm)) return;
+  const r = await fetch('/api/comment/'+cid,{method:'DELETE'});
+  if(r.ok) location.reload();
+}
+async function carryOne(id){
+  const r = await fetch('/api/carry-forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:SEL_DATE,ids:[id]})});
+  if(r.ok) location.reload();
+}
+
+</script>
+{% endblock %}
