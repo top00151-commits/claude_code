@@ -83,7 +83,7 @@
   <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
 </form>
 <table class="mini-tbl">
-  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_login_id|default('로그인ID') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.admin_rank|default('직급') }}</th><th>{{ i.admin_role|default('역할') }}</th><th>{{ i.admin_state|default('상태') }}</th></tr></thead>
+  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_login_id|default('로그인ID') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.admin_rank|default('직급') }}</th><th>{{ i.admin_role|default('역할') }}</th><th>{{ i.admin_state|default('상태') }}</th><th style="color:#A5282C">물류</th></tr></thead>
   <tbody>
     {% for u2 in users %}
     <tr>
@@ -93,6 +93,17 @@
       <td>{{ u2.rank or '' }}</td>
       <td>{{ u2.role }}</td>
       <td>{% if u2.is_active %}{{ i.admin_active|default('활성') }}{% else %}{{ i.admin_inactive|default('비활성') }}{% endif %}</td>
+      <td>
+        {% if u2.role in ['ceo','admin','executive'] %}
+          <span style="font-size:11px;color:#6B7280" title="역할 기반 자동 허용">자동</span>
+        {% else %}
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
+            <input type="checkbox" {% if u2.can_use_logistics %}checked{% endif %}
+                   onchange="toggleLogi({{ u2.id }}, this.checked)">
+            <span>{% if u2.can_use_logistics %}허용{% else %}없음{% endif %}</span>
+          </label>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
@@ -155,6 +166,13 @@
 function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'flex':'none';}
 async function post(url,fd){const r=await fetch(url,{method:'POST',body:fd});if(r.ok)location.reload();else alert('{{ i.save_fail|default("저장 실패") }}');return false;}
 function saveUser(e){e.preventDefault();return post('/api/admin/user',new FormData(e.target));}
+async function toggleLogi(userId, on){
+  const fd = new FormData();
+  fd.append('user_id', userId);
+  fd.append('can_use_logistics', on ? '1' : '0');
+  const r = await fetch('/api/admin/user-logistics', {method:'POST', body: fd});
+  if(r.ok){ location.reload(); } else { alert('권한 변경 실패'); }
+}
 function saveProject(e){e.preventDefault();return post('/api/admin/project',new FormData(e.target));}
 function saveCustomer(e){e.preventDefault();return post('/api/admin/customer',new FormData(e.target));}
 async function regenPw(){

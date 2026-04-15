@@ -173,18 +173,20 @@
 </div>
 {% endif %}
 
-<!-- ====== HAIST WORKS · 매출흐름 KPI (물류 모듈) ====== -->
+{% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
+<!-- ====== HAIST WORKS · 매출흐름 KPI (물류 모듈, 권한자만) ====== -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
   <div>
     <h2 style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:#1A1A1A;margin:0;">
       <span style="color:#A5282C">●</span> 매출흐름 · 물류
+      <span style="background:#FFE8EA;color:#A5282C;font-size:9px;letter-spacing:0.06em;padding:2px 8px;border-radius:999px;margin-left:6px;font-weight:700;">권한 제한</span>
     </h2>
     <div style="font-size:11px;color:#6B7280;margin-top:2px;">완성품 / 자재 / 소모품 통합 흐름</div>
   </div>
-  <a href="/logistics" style="font-size:12px;color:#A5282C;font-weight:600;text-decoration:none;">물류 대시보드 →</a>
+  <a href="/logistics" target="_blank" rel="noopener" style="font-size:12px;color:#A5282C;font-weight:600;text-decoration:none;">물류 대시보드 ↗</a>
 </div>
 <div class="hm2-kpi-grid">
-  <a href="/parts" class="hm2-kpi" title="부품 마스터">
+  <a href="/parts" target="_blank" rel="noopener" class="hm2-kpi" title="부품 마스터 (새 창)">
     <div class="hm2-kpi-top">
       <span class="hm2-kpi-lab">등록 부품</span>
       <div class="hm2-kpi-ico blue">
@@ -196,7 +198,7 @@
       <span>활성 {{ logi_parts_stats.active }}건</span>
     </div>
   </a>
-  <a href="/projects" class="hm2-kpi" title="관리코드 발행대장">
+  <a href="/projects" target="_blank" rel="noopener" class="hm2-kpi" title="관리코드 발행대장 (새 창)">
     <div class="hm2-kpi-top">
       <span class="hm2-kpi-lab">관리코드</span>
       <div class="hm2-kpi-ico red">
@@ -229,6 +231,7 @@
     <div class="hm2-kpi-delta"><span>5단계 예정</span></div>
   </div>
 </div>
+{% endif %}
 
 <!-- ====== Dashboard Charts (리더/경영진만) ====== -->
 {% if user.role in ['leader','executive','ceo','admin'] and team_data %}

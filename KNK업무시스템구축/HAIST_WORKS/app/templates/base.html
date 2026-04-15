@@ -128,17 +128,18 @@
       </a>
       {% endif %}
     </div>
+    {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
     <div class="sb-section">
-      <div class="sb-head">매출흐름 · 물류</div>
-      <a href="/logistics" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
+      <div class="sb-head">매출흐름 · 물류 <span class="sb-badge" style="background:#FFE8EA;color:#A5282C;font-size:9px;letter-spacing:0.04em;">제한</span></div>
+      <a href="/logistics" target="_blank" rel="noopener" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
-        물류 대시보드
+        물류 대시보드 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:4px;opacity:.5"><path d="M15 3h6v6M10 14 21 3M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg>
       </a>
-      <a href="/parts" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
+      <a href="/parts" target="_blank" rel="noopener" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg></span>
         부품 마스터
       </a>
-      <a href="/projects" class="sb-item {% if active=='logi_projects' %}sb-active{% endif %}">
+      <a href="/projects" target="_blank" rel="noopener" class="sb-item {% if active=='logi_projects' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
         관리코드 대장
       </a>
@@ -155,6 +156,7 @@
         재고 <span class="sb-badge" style="background:#F5F5F5;color:#9CA3AF">5단계</span>
       </a>
     </div>
+    {% endif %}
     <div class="sb-section sb-tree-section">
       <div class="sb-head">{{ i.sb_team_project|default('팀 / 프로젝트') }}</div>
       <div id="sbTree" class="sb-tree">불러오는 중...</div>

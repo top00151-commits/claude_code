@@ -105,6 +105,20 @@ def require(req: Request, roles=None):
     return u
 
 
+def can_use_logistics(user) -> bool:
+    """HAIST WORKS 물류 모듈 접근 권한.
+    - admin / ceo / executive: 항상 허용
+    - 그 외: users.can_use_logistics 플래그가 1일 때만
+    """
+    if not user:
+        return False
+    role = user.get("role") if isinstance(user, dict) else user["role"]
+    if role in ("admin", "ceo", "executive"):
+        return True
+    flag = user.get("can_use_logistics") if isinstance(user, dict) else user["can_use_logistics"]
+    return bool(flag)
+
+
 def status_color(s):
     return {
         "진행중": ("#FFF8E1", "#F57F17"),
@@ -2291,12 +2305,31 @@ async def export_weekly(req: Request, wk_mon: str = ""):
 from . import database as _logi
 
 
+# ── 관리자: 물류 권한 토글 ─────────────────────────────
+@app.post("/api/admin/user-logistics")
+async def admin_toggle_logistics(request: Request,
+                                 user_id: int = Form(...),
+                                 can_use_logistics: str = Form("0")):
+    me = require(request, roles=["admin", "ceo"])
+    if not me:
+        return JSONResponse({"ok": False, "error": "관리자 권한 필요"}, status_code=403)
+    flag = 1 if can_use_logistics == "1" else 0
+    with db_session() as c:
+        c.execute(
+            "UPDATE users SET can_use_logistics = ? WHERE id = ?",
+            (flag, user_id),
+        )
+    return JSONResponse({"ok": True, "user_id": user_id, "can_use_logistics": flag})
+
+
 # ── 물류 대시보드 ─────────────────────────────────────────
 @app.get("/logistics", response_class=HTMLResponse)
 async def logi_dashboard(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     parts_stats = _logi.parts_count()
     proj_stats = _logi.projects_count_logi()
     return ctx(request, "logistics_home.html",
@@ -2311,6 +2344,8 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     rows = _logi.parts_list(q=q, biz_div=biz_div, category=category)
     return ctx(request, "parts.html",
                user=u, active="parts",
@@ -2322,6 +2357,8 @@ async def parts_new_form(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     return ctx(request, "part_form.html", user=u, active="parts", part=None)
 
 
@@ -2334,8 +2371,11 @@ async def parts_new_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
 ):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.parts_create({
         "part_no": part_no, "part_name": part_name, "spec": spec,
         "maker": maker, "origin": origin, "unit": unit,
@@ -2351,6 +2391,8 @@ async def parts_edit_form(request: Request, pid: int):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     p = _logi.parts_get(pid)
     if not p:
         return RedirectResponse("/parts", status_code=303)
@@ -2366,8 +2408,11 @@ async def parts_edit_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
 ):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.parts_update(pid, {
         "part_no": part_no, "part_name": part_name, "spec": spec,
         "maker": maker, "origin": origin, "unit": unit,
@@ -2380,8 +2425,11 @@ async def parts_edit_submit(
 
 @app.post("/parts/{pid}/delete")
 async def parts_delete_submit(request: Request, pid: int):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.parts_delete(pid)
     return RedirectResponse("/parts", status_code=303)
 
@@ -2393,6 +2441,8 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status)
     return ctx(request, "projects.html",
                user=u, active="logi_projects",
@@ -2405,6 +2455,8 @@ async def projects_new_form(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     return ctx(request, "project_form.html",
                user=u, active="logi_projects",
                project=None,
@@ -2423,8 +2475,11 @@ async def projects_new_submit(
     order_date: str = Form(""), due_date: str = Form(""),
     pm: str = Form(""), sales: str = Form(""), note: str = Form(""),
 ):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.projects_create_logi({
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": model, "stage": stage, "po_type": po_type, "status": status,
@@ -2440,6 +2495,8 @@ async def projects_edit_form(request: Request, pid: int):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
     p = _logi.projects_get_logi(pid)
     if not p:
         return RedirectResponse("/projects", status_code=303)
@@ -2461,8 +2518,11 @@ async def projects_edit_submit(
     order_date: str = Form(""), due_date: str = Form(""),
     pm: str = Form(""), sales: str = Form(""), note: str = Form(""),
 ):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.projects_update_logi(pid, {
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": model, "stage": stage, "po_type": po_type, "status": status,
@@ -2475,7 +2535,10 @@ async def projects_edit_submit(
 
 @app.post("/projects/{pid}/delete")
 async def projects_delete_submit(request: Request, pid: int):
-    if not get_user(request):
+    _u = get_user(request)
+    if not _u:
         return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
     _logi.projects_delete_logi(pid)
     return RedirectResponse("/projects", status_code=303)

@@ -420,6 +420,12 @@ def init_db():
                 c.execute("ALTER TABLE users ADD COLUMN lang TEXT DEFAULT 'ko'")
             except Exception:
                 pass
+        # 마이그레이션: 물류 모듈 접근 권한 (HAIST WORKS)
+        if "can_use_logistics" not in ucols:
+            try:
+                c.execute("ALTER TABLE users ADD COLUMN can_use_logistics INTEGER DEFAULT 0")
+            except Exception:
+                pass
         # 마이그레이션: projects에 물류 모듈 컬럼 추가 (HAIST WORKS)
         pcols = [r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()]
         _logi_adds = [
