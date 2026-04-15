@@ -174,63 +174,30 @@
 {% endif %}
 
 {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
-<!-- ====== HAIST WORKS · 매출흐름 KPI (물류 모듈, 권한자만) ====== -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
-  <div>
-    <h2 style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:#1A1A1A;margin:0;">
-      <span style="color:#A5282C">●</span> 매출흐름 · 물류
-      <span style="background:#FFE8EA;color:#A5282C;font-size:9px;letter-spacing:0.06em;padding:2px 8px;border-radius:999px;margin-left:6px;font-weight:700;">권한 제한</span>
-    </h2>
-    <div style="font-size:11px;color:#6B7280;margin-top:2px;">완성품 / 자재 / 소모품 통합 흐름</div>
+<!-- ====== 매출흐름 · 물류 시스템 진입 버튼 (권한자만, 새 창) ====== -->
+<a href="/logistics" target="_blank" rel="noopener" class="logi-entry-card" title="매출흐름 · 물류 시스템을 새 창에서 엽니다">
+  <div class="logi-entry-icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>
   </div>
-  <a href="/logistics" target="_blank" rel="noopener" style="font-size:12px;color:#A5282C;font-weight:600;text-decoration:none;">물류 대시보드 ↗</a>
-</div>
-<div class="hm2-kpi-grid">
-  <a href="/parts" target="_blank" rel="noopener" class="hm2-kpi" title="부품 마스터 (새 창)">
-    <div class="hm2-kpi-top">
-      <span class="hm2-kpi-lab">등록 부품</span>
-      <div class="hm2-kpi-ico blue">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
-      </div>
+  <div class="logi-entry-body">
+    <div class="logi-entry-title">
+      매출흐름 · 물류 시스템
+      <span class="logi-entry-badge">권한 제한</span>
     </div>
-    <div class="hm2-kpi-val">{{ logi_parts_stats.total }}</div>
-    <div class="hm2-kpi-delta up">
-      <span>활성 {{ logi_parts_stats.active }}건</span>
+    <div class="logi-entry-sub">완성품 · 자재 · 소모품 통합 관리 — 부품 · 관리코드 · 공급사 · 발주 · 입고 · 재고</div>
+    <div class="logi-entry-stats">
+      <span>부품 <b>{{ logi_parts_stats.total }}</b></span>
+      <span class="dot">·</span>
+      <span>관리코드 <b>{{ logi_proj_stats.with_code }}</b> / 전체 {{ logi_proj_stats.total }}</span>
+      <span class="dot">·</span>
+      <span>진행중 <b>{{ logi_proj_stats.in_progress }}</b></span>
     </div>
-  </a>
-  <a href="/projects" target="_blank" rel="noopener" class="hm2-kpi" title="관리코드 발행대장 (새 창)">
-    <div class="hm2-kpi-top">
-      <span class="hm2-kpi-lab">관리코드</span>
-      <div class="hm2-kpi-ico red">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-      </div>
-    </div>
-    <div class="hm2-kpi-val">{{ logi_proj_stats.with_code }}</div>
-    <div class="hm2-kpi-delta up">
-      <span>전체 {{ logi_proj_stats.total }} · 진행 {{ logi_proj_stats.in_progress }}</span>
-    </div>
-  </a>
-  <div class="hm2-kpi" style="opacity:.5;pointer-events:none">
-    <div class="hm2-kpi-top">
-      <span class="hm2-kpi-lab">미입고 발주</span>
-      <div class="hm2-kpi-ico" style="background:#F3F4F6;color:#9CA3AF">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-      </div>
-    </div>
-    <div class="hm2-kpi-val">—</div>
-    <div class="hm2-kpi-delta"><span>3단계 예정</span></div>
   </div>
-  <div class="hm2-kpi" style="opacity:.5;pointer-events:none">
-    <div class="hm2-kpi-top">
-      <span class="hm2-kpi-lab">현재고 항목</span>
-      <div class="hm2-kpi-ico" style="background:#F3F4F6;color:#9CA3AF">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg>
-      </div>
-    </div>
-    <div class="hm2-kpi-val">—</div>
-    <div class="hm2-kpi-delta"><span>5단계 예정</span></div>
+  <div class="logi-entry-cta">
+    새 창에서 열기
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg>
   </div>
-</div>
+</a>
 {% endif %}
 
 <!-- ====== Dashboard Charts (리더/경영진만) ====== -->

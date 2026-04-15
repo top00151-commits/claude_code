@@ -235,6 +235,69 @@ CREATE TABLE IF NOT EXISTS parts (
 CREATE INDEX IF NOT EXISTS idx_parts_part_no ON parts(part_no);
 CREATE INDEX IF NOT EXISTS idx_parts_biz_div ON parts(biz_div);
 CREATE INDEX IF NOT EXISTS idx_parts_category ON parts(category);
+
+-- 공급사 마스터 (발주 대상 거래처)
+CREATE TABLE IF NOT EXISTS suppliers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    code            TEXT UNIQUE,
+    contact         TEXT,
+    email           TEXT,
+    phone           TEXT,
+    country         TEXT,
+    currency        TEXT DEFAULT 'KRW',
+    payment_terms   TEXT,             -- 선금/현금/30일/60일
+    note            TEXT,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sup_name ON suppliers(name);
+
+-- 발주 헤더
+CREATE TABLE IF NOT EXISTS purchase_orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_number       TEXT NOT NULL UNIQUE,           -- PO-YYMMDD-NNN
+    project_id      INTEGER REFERENCES projects(id),-- 관리코드 연결 (선택)
+    supplier_id     INTEGER REFERENCES suppliers(id),
+    order_date      TEXT NOT NULL,                   -- YYYY-MM-DD
+    expected_date   TEXT,                            -- 예상 입고일
+    currency        TEXT DEFAULT 'KRW',
+    exchange_rate   REAL DEFAULT 1,
+    total_amount    REAL DEFAULT 0,                  -- 라인 합계 (자동)
+    status          TEXT DEFAULT '작성중',            -- 작성중/발주완료/부분입고/입고완료/취소
+    shipping_terms  TEXT,                            -- EXW/FOB/CIF/DDP/국내
+    payment_terms   TEXT,                            -- 선금/현금/30일/60일
+    po_type         TEXT DEFAULT '일반',              -- 일반/긴급/정기
+    created_by      INTEGER REFERENCES users(id),
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_po_number ON purchase_orders(po_number);
+CREATE INDEX IF NOT EXISTS idx_po_project ON purchase_orders(project_id);
+CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_status ON purchase_orders(status);
+
+-- 발주 라인
+CREATE TABLE IF NOT EXISTS po_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_id               INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    line_no             INTEGER DEFAULT 0,
+    part_id             INTEGER REFERENCES parts(id),
+    part_no_snapshot    TEXT,       -- 발주 시점 부품번호
+    part_name_snapshot  TEXT,
+    spec_snapshot       TEXT,
+    unit                TEXT DEFAULT 'EA',
+    quantity            REAL NOT NULL DEFAULT 0,
+    unit_price          REAL NOT NULL DEFAULT 0,
+    amount              REAL DEFAULT 0,    -- quantity * unit_price
+    received_qty        REAL DEFAULT 0,    -- 누적 입고 수량 (4단계)
+    delivery_date       TEXT,
+    note                TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_poitem_po ON po_items(po_id);
+CREATE INDEX IF NOT EXISTS idx_poitem_part ON po_items(part_id);
 """
 
 # =====================================================
@@ -1857,5 +1920,315 @@ def projects_count_logi() -> dict:
         "by_div": {(BIZ_NAME.get(r["biz_div"]) or r["biz_div"] or "(미지정)"): r["n"]
                    for r in by_div},
         "by_stage": {r["stage"] or "(미지정)": r["n"] for r in by_stage},
+    }
+
+
+# =====================================================
+# HAIST WORKS — 발주 모듈 (공급사 + PO 헤더/라인)
+# =====================================================
+PO_STATUSES = ["작성중", "발주완료", "부분입고", "입고완료", "취소"]
+PO_TYPES_KIND = ["일반", "긴급", "정기"]
+SHIPPING_TERMS = ["EXW", "FOB", "CIF", "DDP", "국내"]
+PAYMENT_TERMS = ["선금", "현금", "30일", "60일", "기타"]
+
+
+# ── 공급사 (suppliers) CRUD ──────────────────────────────
+def suppliers_list(q: str = "", active_only: bool = False):
+    sql = "SELECT * FROM suppliers WHERE 1=1"
+    params = []
+    if q:
+        sql += " AND (name LIKE ? OR code LIKE ? OR contact LIKE ? OR country LIKE ?)"
+        like = f"%{q}%"
+        params += [like] * 4
+    if active_only:
+        sql += " AND is_active = 1"
+    sql += " ORDER BY is_active DESC, name"
+    with db_session() as c:
+        return c.execute(sql, params).fetchall()
+
+
+def supplier_get(sid: int):
+    with db_session() as c:
+        return c.execute("SELECT * FROM suppliers WHERE id = ?", (sid,)).fetchone()
+
+
+def supplier_create(data: dict) -> int:
+    now = _logi_now()
+    with db_session() as c:
+        cur = c.execute("""
+            INSERT INTO suppliers
+            (name, code, contact, email, phone, country, currency,
+             payment_terms, note, is_active, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            (data.get("name") or "").strip(),
+            (data.get("code") or "").strip() or None,
+            (data.get("contact") or "").strip(),
+            (data.get("email") or "").strip(),
+            (data.get("phone") or "").strip(),
+            (data.get("country") or "").strip(),
+            (data.get("currency") or "KRW").strip() or "KRW",
+            (data.get("payment_terms") or "").strip(),
+            (data.get("note") or "").strip(),
+            1 if data.get("is_active", 1) else 0,
+            now, now,
+        ))
+        return cur.lastrowid
+
+
+def supplier_update(sid: int, data: dict) -> None:
+    with db_session() as c:
+        c.execute("""
+            UPDATE suppliers SET
+              name=?, code=?, contact=?, email=?, phone=?, country=?,
+              currency=?, payment_terms=?, note=?, is_active=?, updated_at=?
+            WHERE id=?
+        """, (
+            (data.get("name") or "").strip(),
+            (data.get("code") or "").strip() or None,
+            (data.get("contact") or "").strip(),
+            (data.get("email") or "").strip(),
+            (data.get("phone") or "").strip(),
+            (data.get("country") or "").strip(),
+            (data.get("currency") or "KRW").strip() or "KRW",
+            (data.get("payment_terms") or "").strip(),
+            (data.get("note") or "").strip(),
+            1 if data.get("is_active", 1) else 0,
+            _logi_now(), sid,
+        ))
+
+
+def supplier_delete(sid: int) -> None:
+    with db_session() as c:
+        c.execute("DELETE FROM suppliers WHERE id = ?", (sid,))
+
+
+def suppliers_count() -> dict:
+    with db_session() as c:
+        total = c.execute("SELECT COUNT(*) FROM suppliers").fetchone()[0]
+        active = c.execute("SELECT COUNT(*) FROM suppliers WHERE is_active = 1").fetchone()[0]
+    return {"total": total, "active": active}
+
+
+# ── 발주번호 자동 채번 ─────────────────────────────────
+def generate_po_number(today=None) -> str:
+    """발주번호 채번: PO-YYMMDD-NNN (같은 날짜 내 순차)"""
+    today = today or _date.today()
+    yymmdd = today.strftime("%y%m%d")
+    prefix = f"PO-{yymmdd}-"
+    with db_session() as c:
+        rows = c.execute(
+            "SELECT po_number FROM purchase_orders WHERE po_number LIKE ?",
+            (f"{prefix}%",),
+        ).fetchall()
+    max_seq = 0
+    for r in rows:
+        tail = (r["po_number"] or "")[len(prefix):]
+        if tail.isdigit():
+            max_seq = max(max_seq, int(tail))
+    return f"{prefix}{max_seq + 1:03d}"
+
+
+# ── 발주 (purchase_orders + po_items) CRUD ─────────────
+def po_list(q: str = "", status: str = "", supplier_id: int = 0,
+            project_id: int = 0):
+    sql = """
+      SELECT po.*, s.name AS supplier_name, p.name AS project_name,
+             p.mgmt_code AS mgmt_code, u.name AS creator_name
+      FROM purchase_orders po
+      LEFT JOIN suppliers s ON po.supplier_id = s.id
+      LEFT JOIN projects p ON po.project_id = p.id
+      LEFT JOIN users u ON po.created_by = u.id
+      WHERE 1=1
+    """
+    params = []
+    if q:
+        sql += """ AND (po.po_number LIKE ? OR s.name LIKE ?
+                   OR p.mgmt_code LIKE ? OR p.name LIKE ?)"""
+        like = f"%{q}%"
+        params += [like] * 4
+    if status:
+        sql += " AND po.status = ?"
+        params.append(status)
+    if supplier_id:
+        sql += " AND po.supplier_id = ?"
+        params.append(supplier_id)
+    if project_id:
+        sql += " AND po.project_id = ?"
+        params.append(project_id)
+    sql += " ORDER BY po.id DESC"
+    with db_session() as c:
+        return c.execute(sql, params).fetchall()
+
+
+def po_get(po_id: int):
+    """발주 헤더 + 라인 + 관련 마스터"""
+    with db_session() as c:
+        header = c.execute("""
+            SELECT po.*, s.name AS supplier_name, s.contact AS supplier_contact,
+                   s.email AS supplier_email, s.country AS supplier_country,
+                   p.name AS project_name, p.mgmt_code, p.customer_name AS customer,
+                   u.name AS creator_name
+            FROM purchase_orders po
+            LEFT JOIN suppliers s ON po.supplier_id = s.id
+            LEFT JOIN projects p ON po.project_id = p.id
+            LEFT JOIN users u ON po.created_by = u.id
+            WHERE po.id = ?
+        """, (po_id,)).fetchone()
+        if not header:
+            return None, []
+        items = c.execute("""
+            SELECT * FROM po_items WHERE po_id = ?
+            ORDER BY line_no, id
+        """, (po_id,)).fetchall()
+    return header, items
+
+
+def po_create(data: dict, items: list[dict], created_by: int = 0) -> tuple[int, str]:
+    """발주 헤더 + 라인 일괄 생성. 발주번호는 자동 채번."""
+    po_number = generate_po_number()
+    order_date = (data.get("order_date") or "").strip() or _date.today().isoformat()
+    now = _logi_now()
+    total = 0.0
+
+    with db_session() as c:
+        cur = c.execute("""
+            INSERT INTO purchase_orders
+            (po_number, project_id, supplier_id, order_date, expected_date,
+             currency, exchange_rate, total_amount, status, shipping_terms,
+             payment_terms, po_type, created_by, note, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            po_number,
+            int(data.get("project_id") or 0) or None,
+            int(data.get("supplier_id") or 0) or None,
+            order_date,
+            (data.get("expected_date") or "").strip() or None,
+            (data.get("currency") or "KRW").strip() or "KRW",
+            float(data.get("exchange_rate") or 1),
+            0,  # total 임시
+            (data.get("status") or "작성중").strip() or "작성중",
+            (data.get("shipping_terms") or "").strip(),
+            (data.get("payment_terms") or "").strip(),
+            (data.get("po_type") or "일반").strip() or "일반",
+            int(created_by or 0) or None,
+            (data.get("note") or "").strip(),
+            now, now,
+        ))
+        po_id = cur.lastrowid
+
+        # 라인 삽입
+        for idx, it in enumerate(items, start=1):
+            qty = float(it.get("quantity") or 0)
+            price = float(it.get("unit_price") or 0)
+            amt = round(qty * price, 2)
+            total += amt
+
+            # 부품 스냅샷 채우기
+            part_id = int(it.get("part_id") or 0) or None
+            part_no = it.get("part_no_snapshot") or ""
+            part_name = it.get("part_name_snapshot") or ""
+            spec = it.get("spec_snapshot") or ""
+            unit = it.get("unit") or "EA"
+            if part_id:
+                p = c.execute(
+                    "SELECT part_no, part_name, spec, unit FROM parts WHERE id=?",
+                    (part_id,)
+                ).fetchone()
+                if p:
+                    part_no = part_no or p["part_no"] or ""
+                    part_name = part_name or p["part_name"] or ""
+                    spec = spec or p["spec"] or ""
+                    unit = unit or p["unit"] or "EA"
+
+            c.execute("""
+                INSERT INTO po_items
+                (po_id, line_no, part_id, part_no_snapshot, part_name_snapshot,
+                 spec_snapshot, unit, quantity, unit_price, amount,
+                 delivery_date, note)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (po_id, idx, part_id, part_no, part_name, spec, unit,
+                  qty, price, amt,
+                  (it.get("delivery_date") or "").strip() or None,
+                  (it.get("note") or "").strip()))
+
+        # total 업데이트
+        c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?",
+                  (round(total, 2), po_id))
+
+    return po_id, po_number
+
+
+def po_update(po_id: int, data: dict, items: list[dict]) -> None:
+    """발주 헤더 + 라인 전체 교체 방식 (단순화)"""
+    now = _logi_now()
+    total = 0.0
+    with db_session() as c:
+        # 헤더 업데이트
+        c.execute("""
+            UPDATE purchase_orders SET
+              project_id=?, supplier_id=?, order_date=?, expected_date=?,
+              currency=?, exchange_rate=?, status=?, shipping_terms=?,
+              payment_terms=?, po_type=?, note=?, updated_at=?
+            WHERE id=?
+        """, (
+            int(data.get("project_id") or 0) or None,
+            int(data.get("supplier_id") or 0) or None,
+            (data.get("order_date") or "").strip(),
+            (data.get("expected_date") or "").strip() or None,
+            (data.get("currency") or "KRW").strip() or "KRW",
+            float(data.get("exchange_rate") or 1),
+            (data.get("status") or "작성중").strip() or "작성중",
+            (data.get("shipping_terms") or "").strip(),
+            (data.get("payment_terms") or "").strip(),
+            (data.get("po_type") or "일반").strip() or "일반",
+            (data.get("note") or "").strip(),
+            now, po_id,
+        ))
+        # 라인 전체 삭제 후 재삽입 (received_qty 보존은 4단계에서 처리)
+        c.execute("DELETE FROM po_items WHERE po_id = ?", (po_id,))
+        for idx, it in enumerate(items, start=1):
+            qty = float(it.get("quantity") or 0)
+            price = float(it.get("unit_price") or 0)
+            amt = round(qty * price, 2)
+            total += amt
+            part_id = int(it.get("part_id") or 0) or None
+            c.execute("""
+                INSERT INTO po_items
+                (po_id, line_no, part_id, part_no_snapshot, part_name_snapshot,
+                 spec_snapshot, unit, quantity, unit_price, amount,
+                 delivery_date, note)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (po_id, idx, part_id,
+                  it.get("part_no_snapshot") or "",
+                  it.get("part_name_snapshot") or "",
+                  it.get("spec_snapshot") or "",
+                  it.get("unit") or "EA",
+                  qty, price, amt,
+                  (it.get("delivery_date") or "").strip() or None,
+                  (it.get("note") or "").strip()))
+        c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?",
+                  (round(total, 2), po_id))
+
+
+def po_delete(po_id: int) -> None:
+    with db_session() as c:
+        c.execute("DELETE FROM purchase_orders WHERE id = ?", (po_id,))
+
+
+def po_count() -> dict:
+    with db_session() as c:
+        total = c.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0]
+        by_status = c.execute(
+            "SELECT status, COUNT(*) AS n FROM purchase_orders GROUP BY status"
+        ).fetchall()
+        sum_amt = c.execute(
+            "SELECT currency, SUM(total_amount) AS s FROM purchase_orders "
+            "WHERE status != '취소' GROUP BY currency"
+        ).fetchall()
+    return {
+        "total": total,
+        "by_status": {r["status"] or "(미지정)": r["n"] for r in by_status},
+        "amount_by_currency": {r["currency"] or "KRW": r["s"] or 0 for r in sum_amt},
     }
 

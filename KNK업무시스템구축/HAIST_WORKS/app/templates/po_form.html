@@ -1,0 +1,280 @@
+{% extends "base_logi.html" %}
+{% block title %}{% if po %}발주 수정{% else %}발주 작성{% endif %} — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>{% if po %}발주 수정 <span class="mono" style="color:#A5282C">{{ po.po_number }}</span>{% else %}발주 작성{% endif %}</h1>
+  <p class="muted">헤더 정보 입력 후 라인을 추가하세요. 저장 시 발주번호가 자동 발급됩니다 (<code class="mono">PO-YYMMDD-NNN</code>).</p>
+</div>
+
+<form method="post"
+      action="{% if po %}/po/{{ po.id }}/edit{% else %}/po/new{% endif %}"
+      class="card form" id="poForm">
+
+  <h2 style="font-size:14px;margin:0 0 14px;color:#4A4A4A;letter-spacing:0.02em">헤더 정보</h2>
+  <div class="grid-2">
+    <div class="field">
+      <label>공급사 <span class="req">*</span></label>
+      <select name="supplier_id" required>
+        <option value="">(선택)</option>
+        {% for s in suppliers %}
+        <option value="{{ s.id }}" data-currency="{{ s.currency or 'KRW' }}"
+          {% if po and po.supplier_id == s.id %}selected{% endif %}>
+          {{ s.name }}{% if s.country %} · {{ s.country }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% if not suppliers %}
+      <div style="font-size:11px;color:#A5282C;margin-top:4px">
+        ⚠ 등록된 공급사가 없습니다. <a href="/suppliers/new" target="_blank">공급사 먼저 등록</a>
+      </div>
+      {% endif %}
+    </div>
+    <div class="field">
+      <label>관리코드 (프로젝트 연결)</label>
+      <select name="project_id">
+        <option value="">(없음 / 일반 구매)</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}"
+          {% if po and po.project_id == p.id %}selected{% endif %}>
+          {{ p.mgmt_code }} · {{ p.project_name }}{% if p.customer_name %} · {{ p.customer_name }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>발주일 <span class="req">*</span></label>
+      <input type="text" name="order_date" required pattern="\d{4}-\d{2}-\d{2}"
+             value="{{ po.order_date if po else '' }}" placeholder="YYYY-MM-DD">
+    </div>
+    <div class="field">
+      <label>예상 입고일</label>
+      <input type="text" name="expected_date" pattern="\d{4}-\d{2}-\d{2}"
+             value="{{ po.expected_date if po else '' }}" placeholder="YYYY-MM-DD">
+    </div>
+
+    <div class="field">
+      <label>통화</label>
+      <select name="currency" id="hdrCurrency">
+        {% set cur = (po.currency if po else 'KRW') %}
+        <option value="KRW" {% if cur == 'KRW' %}selected{% endif %}>KRW (₩)</option>
+        <option value="USD" {% if cur == 'USD' %}selected{% endif %}>USD ($)</option>
+        <option value="JPY" {% if cur == 'JPY' %}selected{% endif %}>JPY (¥)</option>
+        <option value="CNY" {% if cur == 'CNY' %}selected{% endif %}>CNY (¥)</option>
+        <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>환율 (KRW 기준)</label>
+      <input type="number" name="exchange_rate" step="0.0001" min="0"
+             value="{{ po.exchange_rate if po else '1' }}">
+    </div>
+
+    <div class="field">
+      <label>PO 유형</label>
+      <select name="po_type">
+        {% for t in PO_TYPES_KIND %}
+        <option value="{{ t }}"
+          {% if (po and po.po_type == t) or (not po and t == '일반') %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>상태</label>
+      <select name="status">
+        {% for s in PO_STATUSES %}
+        <option value="{{ s }}"
+          {% if (po and po.status == s) or (not po and s == '작성중') %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>운송조건 (Incoterms)</label>
+      <select name="shipping_terms">
+        <option value="">(선택)</option>
+        {% for t in SHIPPING_TERMS %}
+        <option value="{{ t }}" {% if po and po.shipping_terms == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>결제조건</label>
+      <select name="payment_terms">
+        <option value="">(선택)</option>
+        {% for t in PAYMENT_TERMS %}
+        <option value="{{ t }}" {% if po and po.payment_terms == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>비고</label>
+    <textarea name="note" rows="2">{{ po.note if po else '' }}</textarea>
+  </div>
+
+  <!-- 라인 영역 -->
+  <div style="margin-top:20px;padding-top:18px;border-top:1px solid #E5E7EB;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h2 style="font-size:14px;margin:0;color:#4A4A4A;letter-spacing:0.02em">발주 라인 · 부품 선택</h2>
+      <button type="button" class="btn" onclick="addLine()">+ 라인 추가</button>
+    </div>
+
+    <div class="card no-pad" style="margin:0;box-shadow:none;border:1px solid #E5E7EB">
+      <table class="table table-data" id="lineTbl">
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th style="min-width:240px">부품</th>
+            <th style="width:80px">단위</th>
+            <th style="width:90px">수량</th>
+            <th style="width:120px">단가</th>
+            <th style="width:130px" class="ta-right">금액</th>
+            <th style="width:120px">납기</th>
+            <th style="width:180px">비고</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="lineBody">
+          {% if items %}
+            {% for it in items %}
+            <tr class="line-row">
+              <td class="line-no">{{ loop.index }}</td>
+              <td>
+                <select name="item_part_id" class="part-sel" onchange="onPartChange(this)">
+                  <option value="">(직접입력)</option>
+                  {% for p in parts_all %}
+                  <option value="{{ p.id }}" data-unit="{{ p.unit }}" data-price="{{ p.std_price }}"
+                    {% if it.part_id == p.id %}selected{% endif %}>
+                    {{ p.part_no }} · {{ p.part_name }}{% if p.spec %} · {{ p.spec }}{% endif %}
+                  </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="text" class="line-unit" value="{{ it.unit or 'EA' }}" style="width:100%"></td>
+              <td><input type="number" name="item_qty" class="line-qty" step="0.01" min="0"
+                         value="{{ it.quantity }}" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
+              <td><input type="number" name="item_price" class="line-price" step="0.01" min="0"
+                         value="{{ it.unit_price }}" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
+              <td class="ta-right line-amt mono">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+              <td><input type="text" name="item_delivery" value="{{ it.delivery_date or '' }}"
+                         placeholder="YYYY-MM-DD" style="width:100%" class="mono"></td>
+              <td><input type="text" name="item_note" value="{{ it.note or '' }}" style="width:100%"></td>
+              <td><button type="button" class="btn-sm btn-danger" onclick="removeLine(this)">삭제</button></td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+        <tfoot>
+          <tr style="background:#F9FAFB;font-weight:700">
+            <td colspan="5" class="ta-right" style="padding:14px 12px">합계</td>
+            <td class="ta-right mono" id="totalAmt" style="color:#A5282C;font-size:16px">0</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <a href="/po" class="btn btn-ghost">취소</a>
+    <button type="submit" class="btn btn-primary">
+      {% if po %}저장{% else %}발주 생성{% endif %}
+    </button>
+  </div>
+</form>
+
+<!-- 부품 옵션 HTML 템플릿 (라인 추가용) -->
+<template id="partOptsTpl">
+  <select name="item_part_id" class="part-sel" onchange="onPartChange(this)">
+    <option value="">(직접입력)</option>
+    {% for p in parts_all %}
+    <option value="{{ p.id }}" data-unit="{{ p.unit }}" data-price="{{ p.std_price }}">
+      {{ p.part_no }} · {{ p.part_name }}{% if p.spec %} · {{ p.spec }}{% endif %}
+    </option>
+    {% endfor %}
+  </select>
+</template>
+
+<script>
+function addLine(){
+  const tbody = document.getElementById('lineBody');
+  const tr = document.createElement('tr');
+  tr.className = 'line-row';
+  const partSelHtml = document.getElementById('partOptsTpl').innerHTML;
+  tr.innerHTML = `
+    <td class="line-no"></td>
+    <td>${partSelHtml}</td>
+    <td><input type="text" class="line-unit" value="EA" style="width:100%"></td>
+    <td><input type="number" name="item_qty" class="line-qty" step="0.01" min="0" value="0" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
+    <td><input type="number" name="item_price" class="line-price" step="0.01" min="0" value="0" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
+    <td class="ta-right line-amt mono">0</td>
+    <td><input type="text" name="item_delivery" placeholder="YYYY-MM-DD" style="width:100%" class="mono"></td>
+    <td><input type="text" name="item_note" style="width:100%"></td>
+    <td><button type="button" class="btn-sm btn-danger" onclick="removeLine(this)">삭제</button></td>
+  `;
+  tbody.appendChild(tr);
+  renumber();
+}
+
+function removeLine(btn){
+  btn.closest('tr').remove();
+  renumber();
+  recalcTotal();
+}
+
+function renumber(){
+  document.querySelectorAll('#lineBody .line-row').forEach((tr,i) => {
+    tr.querySelector('.line-no').textContent = i + 1;
+  });
+}
+
+function onPartChange(sel){
+  const opt = sel.options[sel.selectedIndex];
+  const tr = sel.closest('tr');
+  const unit = opt.dataset.unit || 'EA';
+  const price = opt.dataset.price || '0';
+  tr.querySelector('.line-unit').value = unit;
+  const priceInput = tr.querySelector('.line-price');
+  if (priceInput.value == '0' || priceInput.value === '') {
+    priceInput.value = price;
+  }
+  recalcLine(priceInput);
+}
+
+function recalcLine(el){
+  const tr = el.closest('tr');
+  const q = parseFloat(tr.querySelector('.line-qty').value) || 0;
+  const p = parseFloat(tr.querySelector('.line-price').value) || 0;
+  const amt = q * p;
+  tr.querySelector('.line-amt').textContent = amt.toLocaleString('en-US', {maximumFractionDigits: 2});
+  recalcTotal();
+}
+
+function recalcTotal(){
+  let t = 0;
+  document.querySelectorAll('#lineBody .line-row').forEach(tr => {
+    const q = parseFloat(tr.querySelector('.line-qty').value) || 0;
+    const p = parseFloat(tr.querySelector('.line-price').value) || 0;
+    t += q * p;
+  });
+  const sym = {KRW:'₩',USD:'$',JPY:'¥',CNY:'¥',EUR:'€'}[document.getElementById('hdrCurrency').value] || '';
+  document.getElementById('totalAmt').textContent = sym + t.toLocaleString('en-US', {maximumFractionDigits: 2});
+}
+
+document.getElementById('hdrCurrency').addEventListener('change', recalcTotal);
+
+// 초기화
+document.addEventListener('DOMContentLoaded', () => {
+  {% if not items %}
+  addLine();
+  addLine();
+  addLine();
+  {% else %}
+  recalcTotal();
+  {% endif %}
+});
+</script>
+{% endblock %}

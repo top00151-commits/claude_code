@@ -2542,3 +2542,270 @@ async def projects_delete_submit(request: Request, pid: int):
         return RedirectResponse("/home", 303)
     _logi.projects_delete_logi(pid)
     return RedirectResponse("/projects", status_code=303)
+
+
+# =====================================================
+# HAIST WORKS — 공급사 (suppliers) 라우트
+# =====================================================
+@app.get("/suppliers", response_class=HTMLResponse)
+async def suppliers_list_page(request: Request, q: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    rows = _logi.suppliers_list(q=q)
+    return ctx(request, "suppliers.html",
+               user=u, active="suppliers",
+               suppliers=rows, q=q)
+
+
+@app.get("/suppliers/new", response_class=HTMLResponse)
+async def suppliers_new_form(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    return ctx(request, "supplier_form.html",
+               user=u, active="suppliers", supplier=None,
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS)
+
+
+@app.post("/suppliers/new")
+async def suppliers_new_submit(
+    request: Request,
+    name: str = Form(...), code: str = Form(""), contact: str = Form(""),
+    email: str = Form(""), phone: str = Form(""), country: str = Form(""),
+    currency: str = Form("KRW"), payment_terms: str = Form(""),
+    note: str = Form(""), is_active: str = Form("1"),
+):
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
+    _logi.supplier_create({
+        "name": name, "code": code, "contact": contact, "email": email,
+        "phone": phone, "country": country, "currency": currency,
+        "payment_terms": payment_terms, "note": note, "is_active": is_active,
+    })
+    return RedirectResponse("/suppliers", status_code=303)
+
+
+@app.get("/suppliers/{sid}/edit", response_class=HTMLResponse)
+async def suppliers_edit_form(request: Request, sid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    s = _logi.supplier_get(sid)
+    if not s:
+        return RedirectResponse("/suppliers", 303)
+    return ctx(request, "supplier_form.html",
+               user=u, active="suppliers", supplier=s,
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS)
+
+
+@app.post("/suppliers/{sid}/edit")
+async def suppliers_edit_submit(
+    request: Request, sid: int,
+    name: str = Form(...), code: str = Form(""), contact: str = Form(""),
+    email: str = Form(""), phone: str = Form(""), country: str = Form(""),
+    currency: str = Form("KRW"), payment_terms: str = Form(""),
+    note: str = Form(""), is_active: str = Form("1"),
+):
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
+    _logi.supplier_update(sid, {
+        "name": name, "code": code, "contact": contact, "email": email,
+        "phone": phone, "country": country, "currency": currency,
+        "payment_terms": payment_terms, "note": note, "is_active": is_active,
+    })
+    return RedirectResponse("/suppliers", status_code=303)
+
+
+@app.post("/suppliers/{sid}/delete")
+async def suppliers_delete_submit(request: Request, sid: int):
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
+    _logi.supplier_delete(sid)
+    return RedirectResponse("/suppliers", status_code=303)
+
+
+# =====================================================
+# HAIST WORKS — 발주 (purchase_orders) 라우트
+# =====================================================
+@app.get("/po", response_class=HTMLResponse)
+async def po_list_page(request: Request, q: str = "", status: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    rows = _logi.po_list(q=q, status=status)
+    return ctx(request, "po_list.html",
+               user=u, active="po",
+               orders=rows, q=q, status=status,
+               PO_STATUSES=_logi.PO_STATUSES)
+
+
+@app.get("/po/new", response_class=HTMLResponse)
+async def po_new_form(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    # 드롭다운용 데이터
+    suppliers = _logi.suppliers_list(active_only=True)
+    # 관리코드 발급된 프로젝트만 선택 가능
+    projects = _logi.projects_list_logi()
+    projects_with_code = [p for p in projects if p["mgmt_code"]]
+    parts_all = _logi.parts_list()
+    return ctx(request, "po_form.html",
+               user=u, active="po", po=None, items=[],
+               suppliers=suppliers, projects=projects_with_code,
+               parts_all=parts_all,
+               PO_STATUSES=_logi.PO_STATUSES,
+               SHIPPING_TERMS=_logi.SHIPPING_TERMS,
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS,
+               PO_TYPES_KIND=_logi.PO_TYPES_KIND)
+
+
+@app.post("/po/new")
+async def po_new_submit(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    header = {
+        "project_id": form.get("project_id", ""),
+        "supplier_id": form.get("supplier_id", ""),
+        "order_date": form.get("order_date", ""),
+        "expected_date": form.get("expected_date", ""),
+        "currency": form.get("currency", "KRW"),
+        "exchange_rate": form.get("exchange_rate", "1"),
+        "status": form.get("status", "작성중"),
+        "shipping_terms": form.get("shipping_terms", ""),
+        "payment_terms": form.get("payment_terms", ""),
+        "po_type": form.get("po_type", "일반"),
+        "note": form.get("note", ""),
+    }
+    # 라인 파싱: item_part_id[], item_qty[], item_price[], item_delivery[], item_note[]
+    part_ids = form.getlist("item_part_id")
+    qtys = form.getlist("item_qty")
+    prices = form.getlist("item_price")
+    delivs = form.getlist("item_delivery")
+    notes = form.getlist("item_note")
+    items = []
+    for i, pid in enumerate(part_ids):
+        if not pid and not (qtys[i] if i < len(qtys) else ""):
+            continue
+        items.append({
+            "part_id": pid,
+            "quantity": qtys[i] if i < len(qtys) else "0",
+            "unit_price": prices[i] if i < len(prices) else "0",
+            "delivery_date": delivs[i] if i < len(delivs) else "",
+            "note": notes[i] if i < len(notes) else "",
+        })
+    po_id, po_num = _logi.po_create(header, items, created_by=u["id"])
+    return RedirectResponse(f"/po/{po_id}", status_code=303)
+
+
+@app.get("/po/{po_id}", response_class=HTMLResponse)
+async def po_detail(request: Request, po_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    header, items = _logi.po_get(po_id)
+    if not header:
+        return RedirectResponse("/po", 303)
+    return ctx(request, "po_detail.html",
+               user=u, active="po", po=header, items=items)
+
+
+@app.get("/po/{po_id}/edit", response_class=HTMLResponse)
+async def po_edit_form(request: Request, po_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    header, items = _logi.po_get(po_id)
+    if not header:
+        return RedirectResponse("/po", 303)
+    suppliers = _logi.suppliers_list(active_only=True)
+    projects = [p for p in _logi.projects_list_logi() if p["mgmt_code"]]
+    parts_all = _logi.parts_list()
+    return ctx(request, "po_form.html",
+               user=u, active="po", po=header, items=items,
+               suppliers=suppliers, projects=projects,
+               parts_all=parts_all,
+               PO_STATUSES=_logi.PO_STATUSES,
+               SHIPPING_TERMS=_logi.SHIPPING_TERMS,
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS,
+               PO_TYPES_KIND=_logi.PO_TYPES_KIND)
+
+
+@app.post("/po/{po_id}/edit")
+async def po_edit_submit(request: Request, po_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    header = {
+        "project_id": form.get("project_id", ""),
+        "supplier_id": form.get("supplier_id", ""),
+        "order_date": form.get("order_date", ""),
+        "expected_date": form.get("expected_date", ""),
+        "currency": form.get("currency", "KRW"),
+        "exchange_rate": form.get("exchange_rate", "1"),
+        "status": form.get("status", "작성중"),
+        "shipping_terms": form.get("shipping_terms", ""),
+        "payment_terms": form.get("payment_terms", ""),
+        "po_type": form.get("po_type", "일반"),
+        "note": form.get("note", ""),
+    }
+    part_ids = form.getlist("item_part_id")
+    qtys = form.getlist("item_qty")
+    prices = form.getlist("item_price")
+    delivs = form.getlist("item_delivery")
+    notes = form.getlist("item_note")
+    items = []
+    for i, pid in enumerate(part_ids):
+        if not pid and not (qtys[i] if i < len(qtys) else ""):
+            continue
+        items.append({
+            "part_id": pid,
+            "quantity": qtys[i] if i < len(qtys) else "0",
+            "unit_price": prices[i] if i < len(prices) else "0",
+            "delivery_date": delivs[i] if i < len(delivs) else "",
+            "note": notes[i] if i < len(notes) else "",
+        })
+    _logi.po_update(po_id, header, items)
+    return RedirectResponse(f"/po/{po_id}", status_code=303)
+
+
+@app.post("/po/{po_id}/delete")
+async def po_delete_submit(request: Request, po_id: int):
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
+    _logi.po_delete(po_id)
+    return RedirectResponse("/po", status_code=303)

@@ -2816,3 +2816,327 @@ a.kpi:hover {
   .kpi-row { grid-template-columns: 1fr; }
   .row-between { flex-direction: column; align-items: stretch; }
 }
+
+
+/* ============================================================
+   HAIST WORKS - 물류 전용 레이아웃 (base_logi.html)
+   ============================================================ */
+
+/* 홈 페이지 진입 버튼 카드 */
+.logi-entry-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 22px 0;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #A5282C 100%);
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(15,23,42,.16), 0 2px 4px rgba(15,23,42,.08);
+  color: #fff;
+  text-decoration: none;
+  transition: all .25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.logi-entry-card::before {
+  content: " ";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 85% 50%, rgba(255,255,255,.08), transparent 50%);
+  pointer-events: none;
+}
+.logi-entry-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(165,40,44,.32), 0 4px 10px rgba(15,23,42,.18);
+}
+.logi-entry-icon {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.18);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.logi-entry-body { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.logi-entry-title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logi-entry-badge {
+  background: rgba(255,255,255,.16);
+  border: 1px solid rgba(255,255,255,.24);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.logi-entry-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,.72);
+  margin-top: 4px;
+  font-weight: 500;
+}
+.logi-entry-stats {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,.88);
+  font-weight: 500;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.logi-entry-stats b { color: #fff; font-size: 13px; font-weight: 800; }
+.logi-entry-stats .dot { color: rgba(255,255,255,.35); }
+.logi-entry-cta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.26);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: all .2s;
+}
+.logi-entry-card:hover .logi-entry-cta {
+  background: rgba(255,255,255,.24);
+  transform: translateX(2px);
+}
+
+/* 물류 전용 body/layout */
+body.logi-body {
+  background: #F7F8FA;
+  margin: 0;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+  color: #1A1A1A;
+}
+.logi-main {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+}
+.logi-main .page-head { margin-bottom: 22px; }
+.logi-main .page-head h1 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+  color: #1A1A1A;
+}
+.logi-main .page-head p { margin: 0; font-size: 12px; }
+.logi-main .row-between {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* 물류 전용 topbar */
+.topbar.topbar-logi {
+  background: linear-gradient(135deg, #0B1020 0%, #16213E 50%, #1E293B 100%) !important;
+  border-bottom: 2px solid #A5282C;
+}
+.topbar-logi .tb-logo {
+  background: linear-gradient(135deg, #A5282C, #8B1E22) !important;
+  box-shadow: 0 2px 8px rgba(165,40,44,.55), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.topbar-logi .tb-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.16);
+  color: #E5E7EB;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all .18s;
+}
+.topbar-logi .tb-home-link:hover {
+  background: rgba(255,255,255,.16);
+  color: #fff;
+}
+.topbar-logi .tb-nav-muted { opacity: 0.35; cursor: not-allowed; }
+.topbar-logi .tb-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94A3B8;
+  text-decoration: none;
+  transition: all .18s;
+}
+.topbar-logi .tb-nav-item:hover {
+  background: rgba(255,255,255,.06);
+  color: #fff;
+}
+.topbar-logi .tb-nav-active {
+  background: linear-gradient(135deg, #A5282C, #8B1E22) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(165,40,44,.4);
+}
+.topbar-logi .tb-divider {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,.16);
+  margin: 0 6px;
+}
+.tb-spacer { flex: 1; }
+
+/* 물류 컨텍스트 테이블/카드 */
+.logi-main .card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  margin-bottom: 18px;
+}
+.logi-main .card.no-pad { padding: 0; overflow: hidden; }
+.logi-main .card h2 { font-size: 14px; font-weight: 700; margin: 0 0 14px; color: #1A1A1A; }
+.logi-main .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.logi-main .filter-bar input[type=text],
+.logi-main .filter-bar select,
+.logi-main .field input[type=text],
+.logi-main .field input[type=number],
+.logi-main .field select,
+.logi-main .field textarea {
+  height: 38px; padding: 0 12px;
+  border: 1px solid #D1D5DB; border-radius: 10px;
+  background: #fff; font-size: 13px; font-family: inherit; color: #1A1A1A;
+}
+.logi-main .filter-bar input[type=text] { flex: 1; min-width: 220px; }
+.logi-main .field textarea { height: auto; padding: 10px 12px; }
+.logi-main .field { display: flex; flex-direction: column; gap: 6px; }
+.logi-main .field label {
+  font-size: 11px; font-weight: 700; color: #6B7280; letter-spacing: 0.02em;
+}
+.logi-main .field .req { color: #A5282C; }
+.logi-main .grid-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; margin-bottom: 16px;
+}
+.logi-main .btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 38px; padding: 0 18px;
+  border: 1px solid #D1D5DB; background: #fff; border-radius: 10px;
+  font-size: 13px; font-weight: 600; font-family: inherit; color: #1A1A1A;
+  cursor: pointer; transition: all .15s; text-decoration: none;
+}
+.logi-main .btn:hover { background: #F3F4F6; }
+.logi-main .btn-primary {
+  background: linear-gradient(135deg, #A5282C, #8B1E22) !important;
+  border-color: #8B1E22 !important; color: #fff !important;
+  box-shadow: 0 2px 6px rgba(165,40,44,.32);
+}
+.logi-main .btn-primary:hover { transform: translateY(-1px); }
+.logi-main .btn-ghost { background: transparent; border-color: #E5E7EB; }
+.logi-main .btn-sm {
+  display: inline-block; padding: 4px 10px; font-size: 12px;
+  border: 1px solid #D1D5DB; background: #fff; border-radius: 6px;
+  color: #1A1A1A; cursor: pointer; font-family: inherit; margin-right: 4px;
+  text-decoration: none;
+}
+.logi-main .btn-sm:hover { background: #F3F4F6; }
+.logi-main .btn-danger { color: #A5282C; border-color: rgba(165,40,44,.3); }
+.logi-main .btn-danger:hover { background: #FFEBEE; }
+.logi-main .table { width: 100%; border-collapse: collapse; }
+.logi-main .table th {
+  background: #F9FAFB;
+  text-align: center; font-size: 11px; font-weight: 700;
+  color: #6B7280; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 12px 10px; border-bottom: 1px solid #E5E7EB;
+}
+.logi-main .table td {
+  padding: 11px 10px; border-bottom: 1px solid #F1F2F4;
+  font-size: 13px; text-align: center; vertical-align: middle;
+}
+.logi-main .table tr:last-child td { border-bottom: none; }
+.logi-main .table tr:hover td { background: #FAFBFC; }
+.logi-main .table-data .ta-left { text-align: left; }
+.logi-main .table-data .ta-right { text-align: right; }
+.logi-main .table-data .actions { white-space: nowrap; }
+.logi-main .table-data .empty { text-align: center; color: #6B7280; padding: 40px 20px; }
+.logi-main .mono {
+  font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px;
+}
+.logi-main .tag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+}
+.logi-main .tag-ok { background: #E8F5E9; color: #2E7D32; }
+.logi-main .tag-off { background: #F3F4F6; color: #6B7280; }
+.logi-main .tag-warn { background: #FFF8E1; color: #F57F17; }
+.logi-main .tag-danger { background: #FFEBEE; color: #A5282C; }
+.logi-main .form-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid #E5E7EB;
+}
+.logi-main .muted { color: #6B7280; }
+.logi-main .ta-right { text-align: right; }
+.logi-main .kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;
+}
+.logi-main .kpi {
+  display: block; background: #fff; border: 1px solid #E5E7EB;
+  border-radius: 14px; padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: all .2s;
+  text-decoration: none; color: inherit;
+}
+.logi-main a.kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(15,23,42,.08);
+  border-color: rgba(165,40,44,.3);
+}
+.logi-main .kpi-label { font-size: 12px; color: #6B7280; font-weight: 600; }
+.logi-main .kpi-value {
+  font-size: 28px; font-weight: 800; color: #A5282C;
+  letter-spacing: -0.02em; margin: 4px 0 2px;
+}
+.logi-main .kpi-sub { font-size: 11px; color: #9CA3AF; }
+.logi-main .kpi.muted-card { opacity: .55; }
+.logi-main .grid-2-card { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.logi-main code {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  background: #F3F4F6; padding: 1px 6px; border-radius: 4px; font-size: 11px;
+}
+.logi-main .roadmap {
+  margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9;
+}
+.logi-main .roadmap li { color: #6B7280; }
+.logi-main .roadmap li strong { color: #1A1A1A; }
+.logi-main .check-row {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  color: #1A1A1A; font-weight: 500 !important; cursor: pointer;
+}
+.logi-main .footer {
+  text-align: center; padding: 24px 20px; color: #9CA3AF;
+  font-size: 11px; letter-spacing: 0.02em;
+}
+
+@media (max-width: 1024px) {
+  .logi-main .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .logi-main .grid-2 { grid-template-columns: 1fr; }
+  .logi-main .grid-2-card { grid-template-columns: 1fr; }
+  .logi-entry-card { flex-direction: column; text-align: center; }
+}

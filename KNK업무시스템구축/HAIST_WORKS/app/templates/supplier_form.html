@@ -1,0 +1,92 @@
+{% extends "base_logi.html" %}
+{% block title %}{% if supplier %}공급사 수정{% else %}공급사 등록{% endif %} — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>{% if supplier %}공급사 수정{% else %}공급사 등록{% endif %}</h1>
+  <p class="muted">발주 대상 거래처 정보를 입력합니다.</p>
+</div>
+
+<form method="post"
+      action="{% if supplier %}/suppliers/{{ supplier.id }}/edit{% else %}/suppliers/new{% endif %}"
+      class="card form">
+
+  <div class="grid-2">
+    <div class="field">
+      <label>공급사명 <span class="req">*</span></label>
+      <input type="text" name="name" required
+             value="{{ supplier.name if supplier else '' }}"
+             placeholder="예: SMC Korea">
+    </div>
+    <div class="field">
+      <label>공급사 코드</label>
+      <input type="text" name="code" class="mono"
+             value="{{ supplier.code if supplier else '' }}"
+             placeholder="예: SUP-0001 (선택)">
+    </div>
+
+    <div class="field">
+      <label>담당자</label>
+      <input type="text" name="contact"
+             value="{{ supplier.contact if supplier else '' }}">
+    </div>
+    <div class="field">
+      <label>이메일</label>
+      <input type="text" name="email"
+             value="{{ supplier.email if supplier else '' }}">
+    </div>
+
+    <div class="field">
+      <label>전화번호</label>
+      <input type="text" name="phone"
+             value="{{ supplier.phone if supplier else '' }}">
+    </div>
+    <div class="field">
+      <label>국가</label>
+      <input type="text" name="country"
+             value="{{ supplier.country if supplier else '' }}"
+             placeholder="KOREA / JAPAN / CHINA / ...">
+    </div>
+
+    <div class="field">
+      <label>기본 통화</label>
+      <select name="currency">
+        <option value="KRW" {% if not supplier or supplier.currency == 'KRW' %}selected{% endif %}>KRW (₩)</option>
+        <option value="USD" {% if supplier and supplier.currency == 'USD' %}selected{% endif %}>USD ($)</option>
+        <option value="JPY" {% if supplier and supplier.currency == 'JPY' %}selected{% endif %}>JPY (¥)</option>
+        <option value="CNY" {% if supplier and supplier.currency == 'CNY' %}selected{% endif %}>CNY (¥)</option>
+        <option value="EUR" {% if supplier and supplier.currency == 'EUR' %}selected{% endif %}>EUR (€)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>결제 조건</label>
+      <select name="payment_terms">
+        <option value="">(선택)</option>
+        {% for t in PAYMENT_TERMS %}
+        <option value="{{ t }}" {% if supplier and supplier.payment_terms == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>비고</label>
+    <textarea name="note" rows="3">{{ supplier.note if supplier else '' }}</textarea>
+  </div>
+
+  <div class="field">
+    <label class="check-row">
+      <input type="checkbox" name="is_active" value="1"
+             {% if not supplier or supplier.is_active %}checked{% endif %}>
+      사용 중
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <a href="/suppliers" class="btn btn-ghost">취소</a>
+    <button type="submit" class="btn btn-primary">
+      {% if supplier %}저장{% else %}등록{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

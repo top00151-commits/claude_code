@@ -1,0 +1,88 @@
+{% extends "base_logi.html" %}
+{% block title %}발주 목록 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>발주 (Purchase Order)</h1>
+    <p class="muted">발주 헤더 · 라인 · 공급사 · 관리코드 통합 관리</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="/suppliers" class="btn btn-ghost">공급사</a>
+    <a href="/po/new" class="btn btn-primary">+ 발주 작성</a>
+  </div>
+</div>
+
+<form method="get" action="/po" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="발주번호 / 공급사 / 관리코드 / 프로젝트명">
+  <select name="status">
+    <option value="">전체 상태</option>
+    {% for s in PO_STATUSES %}
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn">검색</button>
+  <a href="/po" class="btn btn-ghost">초기화</a>
+</form>
+
+<div class="card no-pad">
+  <table class="table table-data">
+    <thead>
+      <tr>
+        <th>NO</th>
+        <th>발주번호</th>
+        <th>발주일</th>
+        <th>공급사</th>
+        <th>관리코드</th>
+        <th>프로젝트</th>
+        <th>통화</th>
+        <th class="ta-right">합계</th>
+        <th>상태</th>
+        <th>납기</th>
+        <th>작성자</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono"><a href="/po/{{ o.id }}" style="color:#A5282C;font-weight:700">{{ o.po_number }}</a></td>
+        <td class="mono">{{ o.order_date or '-' }}</td>
+        <td class="ta-left">{{ o.supplier_name or '-' }}</td>
+        <td class="mono">{% if o.mgmt_code %}<strong style="color:#A5282C">{{ o.mgmt_code }}</strong>{% else %}-{% endif %}</td>
+        <td class="ta-left">{{ o.project_name or '-' }}</td>
+        <td>{{ o.currency or 'KRW' }}</td>
+        <td class="ta-right mono">
+          {% if o.currency == 'USD' %}${{ '{:,.2f}'.format(o.total_amount or 0) }}
+          {% elif o.currency == 'JPY' %}¥{{ '{:,.0f}'.format(o.total_amount or 0) }}
+          {% else %}₩{{ '{:,.0f}'.format(o.total_amount or 0) }}{% endif %}
+        </td>
+        <td>
+          {% if o.status == '발주완료' %}<span class="tag tag-ok">{{ o.status }}</span>
+          {% elif o.status == '작성중' %}<span class="tag tag-off">{{ o.status }}</span>
+          {% elif o.status == '부분입고' %}<span class="tag tag-warn">{{ o.status }}</span>
+          {% elif o.status == '입고완료' %}<span class="tag tag-ok">{{ o.status }}</span>
+          {% elif o.status == '취소' %}<span class="tag tag-danger">{{ o.status }}</span>
+          {% else %}{{ o.status }}{% endif %}
+        </td>
+        <td class="mono">{{ o.expected_date or '-' }}</td>
+        <td>{{ o.creator_name or '-' }}</td>
+        <td class="actions">
+          <a href="/po/{{ o.id }}" class="btn-sm">보기</a>
+          <a href="/po/{{ o.id }}/edit" class="btn-sm">수정</a>
+          <form method="post" action="/po/{{ o.id }}/delete" style="display:inline"
+                onsubmit="return confirm('삭제하시겠습니까?\n발주번호: {{ o.po_number }}');">
+            <button type="submit" class="btn-sm btn-danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="empty">등록된 발주가 없습니다. <a href="/po/new">+ 발주 작성</a>으로 시작하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted ta-right">총 {{ orders|length }}건</p>
+{% endblock %}

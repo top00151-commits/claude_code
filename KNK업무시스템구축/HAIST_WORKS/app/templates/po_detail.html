@@ -1,0 +1,120 @@
+{% extends "base_logi.html" %}
+{% block title %}{{ po.po_number }} — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>발주 상세 <span class="mono" style="color:#A5282C">{{ po.po_number }}</span></h1>
+    <p class="muted">작성자 {{ po.creator_name or '-' }} · 작성일 {{ po.created_at or '-' }}</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="/po" class="btn btn-ghost">← 목록</a>
+    <a href="/po/{{ po.id }}/edit" class="btn">수정</a>
+    <button onclick="window.print()" class="btn">인쇄</button>
+    <form method="post" action="/po/{{ po.id }}/delete" style="display:inline"
+          onsubmit="return confirm('정말 삭제하시겠습니까?\n발주번호: {{ po.po_number }}');">
+      <button type="submit" class="btn btn-danger" style="background:#fff;color:#A5282C;border-color:#A5282C">삭제</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    <div>
+      <h2 style="font-size:13px;color:#6B7280;margin:0 0 8px;letter-spacing:0.04em;font-weight:700">공급사</h2>
+      <div style="font-size:18px;font-weight:700;color:#1A1A1A">{{ po.supplier_name or '(미지정)' }}</div>
+      {% if po.supplier_country %}<div class="muted" style="font-size:12px">{{ po.supplier_country }}</div>{% endif %}
+      {% if po.supplier_contact %}<div style="font-size:12px;margin-top:4px">담당: {{ po.supplier_contact }}</div>{% endif %}
+      {% if po.supplier_email %}<div style="font-size:12px">이메일: {{ po.supplier_email }}</div>{% endif %}
+    </div>
+    <div>
+      <h2 style="font-size:13px;color:#6B7280;margin:0 0 8px;letter-spacing:0.04em;font-weight:700">관리코드 / 프로젝트</h2>
+      {% if po.mgmt_code %}
+        <div class="mono" style="font-size:18px;font-weight:800;color:#A5282C">{{ po.mgmt_code }}</div>
+        <div style="font-size:13px;margin-top:2px">{{ po.project_name or '-' }}</div>
+        {% if po.customer %}<div class="muted" style="font-size:12px">고객: {{ po.customer }}</div>{% endif %}
+      {% else %}
+        <div class="muted">(일반 구매 · 프로젝트 연결 없음)</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:22px;padding-top:18px;border-top:1px solid #E5E7EB">
+    <div><div class="muted" style="font-size:11px">발주일</div><div class="mono" style="font-size:13px;font-weight:600">{{ po.order_date or '-' }}</div></div>
+    <div><div class="muted" style="font-size:11px">예상 입고</div><div class="mono" style="font-size:13px;font-weight:600">{{ po.expected_date or '-' }}</div></div>
+    <div><div class="muted" style="font-size:11px">통화</div><div style="font-size:13px;font-weight:600">{{ po.currency }} · {{ po.exchange_rate }}</div></div>
+    <div><div class="muted" style="font-size:11px">운송조건</div><div style="font-size:13px;font-weight:600">{{ po.shipping_terms or '-' }}</div></div>
+    <div><div class="muted" style="font-size:11px">결제조건</div><div style="font-size:13px;font-weight:600">{{ po.payment_terms or '-' }}</div></div>
+    <div><div class="muted" style="font-size:11px">상태</div>
+      <div>
+        {% if po.status == '발주완료' %}<span class="tag tag-ok">{{ po.status }}</span>
+        {% elif po.status == '작성중' %}<span class="tag tag-off">{{ po.status }}</span>
+        {% elif po.status == '부분입고' %}<span class="tag tag-warn">{{ po.status }}</span>
+        {% elif po.status == '입고완료' %}<span class="tag tag-ok">{{ po.status }}</span>
+        {% elif po.status == '취소' %}<span class="tag tag-danger">{{ po.status }}</span>
+        {% else %}{{ po.status }}{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card no-pad">
+  <div style="padding:14px 18px;border-bottom:1px solid #E5E7EB;font-size:13px;font-weight:700;color:#4A4A4A">
+    발주 라인 <span class="muted" style="font-weight:500">· {{ items|length }}건</span>
+  </div>
+  <table class="table table-data">
+    <thead>
+      <tr>
+        <th>#</th><th>부품번호</th><th>품명</th><th>규격</th>
+        <th>단위</th><th class="ta-right">수량</th>
+        <th class="ta-right">단가</th><th class="ta-right">금액</th>
+        <th>납기</th><th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono">{{ it.part_no_snapshot or '-' }}</td>
+        <td class="ta-left"><strong>{{ it.part_name_snapshot or '-' }}</strong></td>
+        <td class="ta-left">{{ it.spec_snapshot or '-' }}</td>
+        <td>{{ it.unit or 'EA' }}</td>
+        <td class="ta-right mono">{{ '{:,.2f}'.format(it.quantity or 0) }}</td>
+        <td class="ta-right mono">
+          {% if po.currency == 'USD' %}${{ '{:,.2f}'.format(it.unit_price or 0) }}
+          {% elif po.currency == 'JPY' %}¥{{ '{:,.0f}'.format(it.unit_price or 0) }}
+          {% else %}₩{{ '{:,.0f}'.format(it.unit_price or 0) }}{% endif %}
+        </td>
+        <td class="ta-right mono" style="font-weight:700">
+          {% if po.currency == 'USD' %}${{ '{:,.2f}'.format(it.amount or 0) }}
+          {% elif po.currency == 'JPY' %}¥{{ '{:,.0f}'.format(it.amount or 0) }}
+          {% else %}₩{{ '{:,.0f}'.format(it.amount or 0) }}{% endif %}
+        </td>
+        <td class="mono">{{ it.delivery_date or '-' }}</td>
+        <td class="ta-left">{{ it.note or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty">라인이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:#FAFBFC;font-weight:800">
+        <td colspan="7" class="ta-right" style="padding:14px 12px">합계</td>
+        <td class="ta-right mono" style="color:#A5282C;font-size:16px">
+          {% if po.currency == 'USD' %}${{ '{:,.2f}'.format(po.total_amount or 0) }}
+          {% elif po.currency == 'JPY' %}¥{{ '{:,.0f}'.format(po.total_amount or 0) }}
+          {% else %}₩{{ '{:,.0f}'.format(po.total_amount or 0) }}{% endif %}
+        </td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% if po.note %}
+<div class="card">
+  <h2 style="font-size:13px;color:#6B7280;margin:0 0 8px;letter-spacing:0.04em;font-weight:700">비고</h2>
+  <div style="white-space:pre-wrap">{{ po.note }}</div>
+</div>
+{% endif %}
+{% endblock %}
