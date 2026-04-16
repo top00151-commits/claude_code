@@ -2300,6 +2300,208 @@ async def export_weekly(req: Request, wk_mon: str = ""):
 
 
 # =====================================================
+# HAIST WORKS — 게시판 라우트
+# =====================================================
+from .database import (board_get_or_create_company, board_get_or_create_team,
+                        board_posts_list, board_posts_pending, board_post_get,
+                        board_post_create, board_post_update, board_post_delete,
+                        board_post_approve, board_post_reject, board_post_toggle_pin,
+                        board_post_increment_view,
+                        board_comments_list, board_comment_create, board_comment_delete,
+                        BOARD_CATEGORIES)
+
+
+def _is_team_leader(user, team_id):
+    """사용자가 해당 팀의 팀장인지 확인"""
+    if not user:
+        return False
+    if user.get("role") in ("admin", "ceo", "executive"):
+        return True
+    if user.get("role") == "leader" and user.get("team_id") == team_id:
+        return True
+    return False
+
+
+@app.get("/board/company", response_class=HTMLResponse)
+async def board_company(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    bid = board_get_or_create_company()
+    posts = board_posts_list(bid)
+    can_write = u["role"] in ("admin", "ceo", "executive")
+    return ctx(req, "board_list.html", user=u, active="board_company",
+               board_id=bid, board_name="전사 게시판", board_type="company",
+               posts=posts, can_write=can_write, is_leader=False,
+               pending_count=0, CATEGORIES=BOARD_CATEGORIES)
+
+
+@app.get("/board/team", response_class=HTMLResponse)
+async def board_team_my(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    tid = u.get("team_id")
+    if not tid:
+        return RedirectResponse("/home", 303)
+    bid = board_get_or_create_team(tid)
+    is_leader = _is_team_leader(u, tid)
+    posts = board_posts_list(bid, include_pending=is_leader)
+    pending = board_posts_pending(bid) if is_leader else []
+    return ctx(req, "board_list.html", user=u, active="board_team",
+               board_id=bid, board_name=f"{u.get('team_name','')} 게시판",
+               board_type="team", team_id=tid,
+               posts=posts, can_write=True, is_leader=is_leader,
+               pending_count=len(pending), pending_posts=pending,
+               CATEGORIES=BOARD_CATEGORIES)
+
+
+@app.get("/board/team/{team_id}", response_class=HTMLResponse)
+async def board_team_specific(req: Request, team_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    bid = board_get_or_create_team(team_id)
+    is_leader = _is_team_leader(u, team_id)
+    with db_session() as c:
+        t = c.execute("SELECT name FROM teams WHERE id=?", (team_id,)).fetchone()
+    team_name = t["name"] if t else f"팀{team_id}"
+    posts = board_posts_list(bid, include_pending=is_leader)
+    pending = board_posts_pending(bid) if is_leader else []
+    can_write = (u.get("team_id") == team_id) or u["role"] in ("admin", "ceo", "executive")
+    return ctx(req, "board_list.html", user=u, active="board_team",
+               board_id=bid, board_name=f"{team_name} 게시판",
+               board_type="team", team_id=team_id,
+               posts=posts, can_write=can_write, is_leader=is_leader,
+               pending_count=len(pending), pending_posts=pending,
+               CATEGORIES=BOARD_CATEGORIES)
+
+
+@app.get("/board/new", response_class=HTMLResponse)
+async def board_new_form(req: Request, board_id: int = 0):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "board_form.html", user=u, active="board",
+               board_id=board_id, post=None, CATEGORIES=BOARD_CATEGORIES)
+
+
+@app.post("/board/new")
+async def board_new_submit(req: Request,
+                           board_id: int = Form(...),
+                           title: str = Form(...),
+                           body: str = Form(""),
+                           category: str = Form("일반")):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    # 전사 게시판: admin/ceo/executive만 → 바로 approved
+    # 부서 게시판: 팀장/경영진 → approved, 일반 부서원 → pending
+    with db_session() as c:
+        board = c.execute("SELECT type, team_id FROM boards WHERE id=?", (board_id,)).fetchone()
+    if not board:
+        return RedirectResponse("/home", 303)
+
+    if board["type"] == "company":
+        status = "approved"
+        redirect_url = "/board/company"
+    else:
+        if _is_team_leader(u, board["team_id"]):
+            status = "approved"
+        else:
+            status = "pending"
+        redirect_url = f"/board/team/{board['team_id']}"
+
+    board_post_create(board_id, u["id"], title, body, category, status)
+    return RedirectResponse(redirect_url, 303)
+
+
+@app.get("/board/post/{post_id}", response_class=HTMLResponse)
+async def board_post_detail(req: Request, post_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    post = board_post_get(post_id)
+    if not post:
+        return RedirectResponse("/home", 303)
+    board_post_increment_view(post_id)
+    comments = board_comments_list(post_id)
+    is_leader = _is_team_leader(u, post.get("board_team_id"))
+    is_author = post["author_id"] == u["id"]
+    return ctx(req, "board_detail.html", user=u, active="board",
+               post=post, comments=comments,
+               is_leader=is_leader, is_author=is_author)
+
+
+@app.post("/board/post/{post_id}/comment")
+async def board_add_comment(req: Request, post_id: int, body: str = Form(...)):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    board_comment_create(post_id, u["id"], body)
+    return RedirectResponse(f"/board/post/{post_id}", 303)
+
+
+@app.post("/board/post/{post_id}/approve")
+async def board_approve(req: Request, post_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    post = board_post_get(post_id)
+    if post and _is_team_leader(u, post.get("board_team_id")):
+        board_post_approve(post_id, u["id"])
+    return RedirectResponse(f"/board/team/{post['board_team_id']}" if post else "/home", 303)
+
+
+@app.post("/board/post/{post_id}/reject")
+async def board_reject(req: Request, post_id: int, reason: str = Form("")):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    post = board_post_get(post_id)
+    if post and _is_team_leader(u, post.get("board_team_id")):
+        board_post_reject(post_id, u["id"], reason)
+    return RedirectResponse(f"/board/team/{post['board_team_id']}" if post else "/home", 303)
+
+
+@app.post("/board/post/{post_id}/pin")
+async def board_pin(req: Request, post_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    post = board_post_get(post_id)
+    if post and _is_team_leader(u, post.get("board_team_id")):
+        board_post_toggle_pin(post_id)
+    redir = f"/board/team/{post['board_team_id']}" if post and post["board_type"] == "team" else "/board/company"
+    return RedirectResponse(redir, 303)
+
+
+@app.post("/board/post/{post_id}/delete")
+async def board_delete(req: Request, post_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    post = board_post_get(post_id)
+    if post and (post["author_id"] == u["id"] or _is_team_leader(u, post.get("board_team_id"))):
+        board_post_delete(post_id)
+    redir = f"/board/team/{post['board_team_id']}" if post and post["board_type"] == "team" else "/board/company"
+    return RedirectResponse(redir, 303)
+
+
+@app.post("/board/comment/{cid}/delete")
+async def board_del_comment(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        cm = c.execute("SELECT bc.post_id, bc.author_id FROM board_comments bc WHERE bc.id=?", (cid,)).fetchone()
+    if cm and (cm["author_id"] == u["id"] or u["role"] in ("admin", "ceo")):
+        board_comment_delete(cid)
+        return RedirectResponse(f"/board/post/{cm['post_id']}", 303)
+    return RedirectResponse("/home", 303)
+
+
+# =====================================================
 # HAIST WORKS — 물류 모듈 라우트
 # =====================================================
 from . import database as _logi

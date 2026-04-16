@@ -298,6 +298,48 @@ CREATE TABLE IF NOT EXISTS po_items (
 );
 CREATE INDEX IF NOT EXISTS idx_poitem_po ON po_items(po_id);
 CREATE INDEX IF NOT EXISTS idx_poitem_part ON po_items(part_id);
+
+-- ============ 게시판 (HAIST WORKS) ============
+-- 게시판 마스터: 전사 / 부서별
+CREATE TABLE IF NOT EXISTS boards (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    name      TEXT NOT NULL,          -- '전사 게시판' / '검사기팀 게시판' 등
+    type      TEXT NOT NULL,          -- 'company' 전사 / 'team' 부서
+    team_id   INTEGER REFERENCES teams(id),  -- 부서 게시판일 때
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(type, team_id)
+);
+
+-- 게시글
+CREATE TABLE IF NOT EXISTS board_posts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id        INTEGER NOT NULL REFERENCES boards(id),
+    author_id       INTEGER NOT NULL REFERENCES users(id),
+    title           TEXT NOT NULL,
+    body            TEXT,
+    category        TEXT DEFAULT '일반',       -- 공지/일반/자료/질문
+    is_pinned       INTEGER DEFAULT 0,         -- 고정 (관리자/팀장만)
+    view_count      INTEGER DEFAULT 0,
+    approval_status TEXT DEFAULT 'approved',    -- approved/pending/rejected
+    approved_by     INTEGER REFERENCES users(id),
+    approved_at     TEXT,
+    reject_reason   TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bp_board ON board_posts(board_id);
+CREATE INDEX IF NOT EXISTS idx_bp_author ON board_posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_bp_approval ON board_posts(approval_status);
+
+-- 댓글
+CREATE TABLE IF NOT EXISTS board_comments (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id   INTEGER NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+    author_id INTEGER NOT NULL REFERENCES users(id),
+    body      TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bc_post ON board_comments(post_id);
 """
 
 # =====================================================
@@ -489,6 +531,14 @@ def init_db():
                 c.execute("ALTER TABLE users ADD COLUMN can_use_logistics INTEGER DEFAULT 0")
             except Exception:
                 pass
+        # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
+        board_cnt = c.execute("SELECT COUNT(*) FROM boards").fetchone()[0]
+        if board_cnt == 0:
+            c.execute("INSERT OR IGNORE INTO boards (name, type, team_id) VALUES ('전사 게시판', 'company', NULL)")
+            teams_rows = c.execute("SELECT id, name FROM teams ORDER BY display_order").fetchall()
+            for t in teams_rows:
+                c.execute("INSERT OR IGNORE INTO boards (name, type, team_id) VALUES (?, 'team', ?)",
+                          (f"{t['name']} 게시판", t["id"]))
         # 마이그레이션: projects에 물류 모듈 컬럼 추가 (HAIST WORKS)
         pcols = [r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()]
         _logi_adds = [
@@ -2231,4 +2281,159 @@ def po_count() -> dict:
         "by_status": {r["status"] or "(미지정)": r["n"] for r in by_status},
         "amount_by_currency": {r["currency"] or "KRW": r["s"] or 0 for r in sum_amt},
     }
+
+
+# =====================================================
+# 게시판 (boards / board_posts / board_comments)
+# =====================================================
+
+BOARD_CATEGORIES = ["공지", "일반", "자료", "질문"]
+
+
+def board_get_or_create_company():
+    """전사 게시판 ID 반환 (없으면 생성)"""
+    with db_session() as c:
+        row = c.execute("SELECT id FROM boards WHERE type='company' LIMIT 1").fetchone()
+        if row:
+            return row["id"]
+        c.execute("INSERT INTO boards (name,type) VALUES ('전사 게시판','company')")
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def board_get_or_create_team(team_id):
+    """부서 게시판 ID 반환 (없으면 생성)"""
+    with db_session() as c:
+        row = c.execute("SELECT id FROM boards WHERE type='team' AND team_id=?", (team_id,)).fetchone()
+        if row:
+            return row["id"]
+        t = c.execute("SELECT name FROM teams WHERE id=?", (team_id,)).fetchone()
+        name = f"{t['name']} 게시판" if t else f"팀{team_id} 게시판"
+        c.execute("INSERT INTO boards (name,type,team_id) VALUES (?,'team',?)", (name, team_id))
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def board_list_all():
+    """전체 게시판 목록"""
+    with db_session() as c:
+        return c.execute(
+            "SELECT b.*, t.name AS team_name FROM boards b LEFT JOIN teams t ON b.team_id=t.id ORDER BY b.type, b.id"
+        ).fetchall()
+
+
+def board_posts_list(board_id, include_pending=False):
+    """게시글 목록. include_pending=True면 대기 글도 포함"""
+    sql = """SELECT p.*, u.name AS author_name, u.rank AS author_rank,
+                    t.name AS author_team,
+                    (SELECT COUNT(*) FROM board_comments WHERE post_id=p.id) AS comment_count
+             FROM board_posts p
+             JOIN users u ON p.author_id=u.id
+             LEFT JOIN teams t ON u.team_id=t.id
+             WHERE p.board_id=?"""
+    if not include_pending:
+        sql += " AND p.approval_status='approved'"
+    sql += " ORDER BY p.is_pinned DESC, p.created_at DESC"
+    with db_session() as c:
+        return c.execute(sql, (board_id,)).fetchall()
+
+
+def board_posts_pending(board_id):
+    """승인 대기 글 (팀장용)"""
+    sql = """SELECT p.*, u.name AS author_name, u.rank AS author_rank
+             FROM board_posts p JOIN users u ON p.author_id=u.id
+             WHERE p.board_id=? AND p.approval_status='pending'
+             ORDER BY p.created_at DESC"""
+    with db_session() as c:
+        return c.execute(sql, (board_id,)).fetchall()
+
+
+def board_post_get(post_id):
+    with db_session() as c:
+        row = c.execute(
+            """SELECT p.*, u.name AS author_name, u.rank AS author_rank,
+                      t.name AS author_team, b.type AS board_type, b.team_id AS board_team_id,
+                      b.name AS board_name
+               FROM board_posts p
+               JOIN users u ON p.author_id=u.id
+               LEFT JOIN teams t ON u.team_id=t.id
+               JOIN boards b ON p.board_id=b.id
+               WHERE p.id=?""",
+            (post_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def board_post_create(board_id, author_id, title, body, category="일반",
+                      approval_status="approved"):
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO board_posts (board_id,author_id,title,body,category,approval_status)
+               VALUES (?,?,?,?,?,?)""",
+            (board_id, author_id, title.strip(), body.strip(), category, approval_status),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def board_post_update(post_id, title, body, category):
+    with db_session() as c:
+        c.execute(
+            "UPDATE board_posts SET title=?, body=?, category=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (title.strip(), body.strip(), category, post_id),
+        )
+
+
+def board_post_delete(post_id):
+    with db_session() as c:
+        c.execute("DELETE FROM board_posts WHERE id=?", (post_id,))
+
+
+def board_post_approve(post_id, approver_id):
+    with db_session() as c:
+        c.execute(
+            "UPDATE board_posts SET approval_status='approved', approved_by=?, approved_at=datetime('now','localtime') WHERE id=?",
+            (approver_id, post_id),
+        )
+
+
+def board_post_reject(post_id, approver_id, reason=""):
+    with db_session() as c:
+        c.execute(
+            "UPDATE board_posts SET approval_status='rejected', approved_by=?, approved_at=datetime('now','localtime'), reject_reason=? WHERE id=?",
+            (approver_id, reason, post_id),
+        )
+
+
+def board_post_toggle_pin(post_id):
+    with db_session() as c:
+        cur = c.execute("SELECT is_pinned FROM board_posts WHERE id=?", (post_id,)).fetchone()
+        if cur:
+            c.execute("UPDATE board_posts SET is_pinned=? WHERE id=?",
+                      (0 if cur["is_pinned"] else 1, post_id))
+
+
+def board_post_increment_view(post_id):
+    with db_session() as c:
+        c.execute("UPDATE board_posts SET view_count=view_count+1 WHERE id=?", (post_id,))
+
+
+def board_comments_list(post_id):
+    with db_session() as c:
+        return c.execute(
+            """SELECT c.*, u.name AS author_name, u.rank AS author_rank
+               FROM board_comments c JOIN users u ON c.author_id=u.id
+               WHERE c.post_id=? ORDER BY c.created_at""",
+            (post_id,),
+        ).fetchall()
+
+
+def board_comment_create(post_id, author_id, body):
+    with db_session() as c:
+        c.execute(
+            "INSERT INTO board_comments (post_id,author_id,body) VALUES (?,?,?)",
+            (post_id, author_id, body.strip()),
+        )
+
+
+def board_comment_delete(comment_id):
+    with db_session() as c:
+        c.execute("DELETE FROM board_comments WHERE id=?", (comment_id,))
 

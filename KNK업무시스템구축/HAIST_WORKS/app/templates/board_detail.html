@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% set active = 'board' %}
+{% block title %}{{ post.title }} · {{ app_name|default('HAIST WORKS') }}{% endblock %}
+
+{% block body %}
+{# ===== 브레드크럼 ===== #}
+<div style="font-size:13px;color:var(--g);margin-bottom:14px">
+  <a href="/board/{{ post.board_id }}" style="color:var(--r)">{{ post.board_name }}</a>
+  <span style="margin:0 6px;color:#CBD5E1">&gt;</span>
+  <span>{{ post.title }}</span>
+</div>
+
+{# ===== 승인 상태 배너 ===== #}
+{% if post.approval_status == 'pending' %}
+<div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div style="display:flex;align-items:center;gap:8px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F57F17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span style="font-weight:700;color:#F57F17">{{ i.pending_notice|default('승인 대기 중') }}</span>
+    <span style="font-size:13px;color:#F57F17">{{ i.pending_desc|default('팀장 승인 후 게시됩니다') }}</span>
+  </div>
+  {% if is_leader %}
+  <div style="display:flex;gap:8px;align-items:center">
+    <form action="/board/post/{{ post.id }}/approve" method="POST" style="display:inline">
+      <button type="submit" class="btn-primary" style="padding:6px 16px;font-size:14px">{{ i.btn_approve|default('승인') }}</button>
+    </form>
+    <form action="/board/post/{{ post.id }}/reject" method="POST" style="display:inline-flex;align-items:center;gap:4px">
+      <input type="text" name="reject_reason" placeholder="{{ i.reject_reason_ph|default('반려 사유 입력') }}" required style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:180px">
+      <button type="submit" class="btn-xs" style="color:var(--r);border-color:var(--r);padding:6px 12px">{{ i.btn_reject|default('반려') }}</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% elif post.approval_status == 'rejected' %}
+<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A5282C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+  <div>
+    <span style="font-weight:700;color:#A5282C">{{ i.rejected_notice|default('반려됨') }}</span>
+    {% if post.reject_reason %}
+    <span style="font-size:13px;color:#A5282C;margin-left:8px">{{ post.reject_reason }}</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ===== 게시글 본문 카드 ===== #}
+<div style="background:#fff;border-radius:10px;box-shadow:var(--sh);padding:24px 28px;margin-bottom:20px;border-top:3px solid var(--r)">
+  {# 헤더 #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;color:var(--t);margin-bottom:8px;line-height:1.4">
+        {% if post.is_pinned %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F57F17" stroke="#F57F17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>
+        {% endif %}
+        {{ post.title }}
+      </h1>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        {% if post.category %}<span class="tag tag-cat">{{ post.category }}</span>{% endif %}
+        <span style="font-weight:600;font-size:14px">{{ post.author_name }}</span>
+        {% if post.author_rank %}<span style="color:var(--g);font-size:13px">{{ post.author_rank }}</span>{% endif %}
+        {% if post.author_team %}<span style="color:var(--g);font-size:13px">&middot; {{ post.author_team }}</span>{% endif %}
+        <span style="color:var(--g);font-size:13px">&middot; {{ post.created_at }}</span>
+        <span style="color:var(--g);font-size:13px">&middot; {{ i.views|default('조회') }} {{ post.view_count|default(0) }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# 본문 #}
+  <div style="border-top:1px solid var(--bd);padding-top:20px;font-size:15px;line-height:1.8;white-space:pre-wrap;word-break:break-word;min-height:120px">{{ post.body }}</div>
+
+  {# 관리 버튼 #}
+  {% if is_leader or is_author %}
+  <div style="display:flex;gap:8px;margin-top:20px;padding-top:14px;border-top:1px solid var(--bd)">
+    {% if is_leader %}
+    {% if post.is_pinned %}
+    <form action="/board/post/{{ post.id }}/unpin" method="POST">
+      <button type="submit" class="btn-sm" style="display:inline-flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>
+        {{ i.btn_unpin|default('고정 해제') }}
+      </button>
+    </form>
+    {% else %}
+    <form action="/board/post/{{ post.id }}/pin" method="POST">
+      <button type="submit" class="btn-sm" style="display:inline-flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>
+        {{ i.btn_pin|default('상단 고정') }}
+      </button>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if is_author %}
+    <a href="/board/edit/{{ post.id }}" class="btn-sm" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      {{ i.btn_edit|default('수정') }}
+    </a>
+    {% endif %}
+    {% if is_leader or is_author %}
+    <form action="/board/post/{{ post.id }}/delete" method="POST" onsubmit="return confirm('{{ i.confirm_delete_post|default('이 글을 삭제하시겠습니까?') }}')">
+      <button type="submit" class="btn-sm" style="color:var(--r);border-color:var(--r);display:inline-flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        {{ i.btn_delete|default('삭제') }}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# ===== 댓글 섹션 ===== #}
+<div style="background:#fff;border-radius:10px;box-shadow:var(--sh);padding:20px 24px">
+  <div style="font-weight:700;font-size:16px;color:var(--t);margin-bottom:14px;display:flex;align-items:center;gap:6px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    {{ i.comments_title|default('댓글') }} ({{ comments|length }})
+  </div>
+
+  {% if comments %}
+  <div style="display:flex;flex-direction:column;gap:0">
+    {% for c in comments %}
+    <div style="padding:12px 0;border-bottom:1px solid #F1F5F9;{% if loop.last %}border-bottom:none{% endif %}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--r);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">{{ c.author_name[:1] }}</div>
+          <span style="font-weight:600;font-size:14px">{{ c.author_name }}</span>
+          {% if c.author_rank %}<span style="color:var(--g);font-size:12px">{{ c.author_rank }}</span>{% endif %}
+          <span style="color:#94A3B8;font-size:12px">{{ c.created_at }}</span>
+        </div>
+        {% if (user.id == c.author_id) or (user.role in ['admin','ceo']) %}
+        <form action="/board/comment/{{ c.id }}/delete" method="POST" onsubmit="return confirm('{{ i.confirm_delete_comment|default('이 댓글을 삭제할까요?') }}')">
+          <button type="submit" class="btn-xs" style="color:var(--g);font-size:12px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      <div style="font-size:14px;line-height:1.7;color:var(--t);padding-left:34px;white-space:pre-wrap;word-break:break-word">{{ c.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:20px;color:var(--g);font-size:14px">{{ i.no_comments|default('아직 댓글이 없습니다') }}</div>
+  {% endif %}
+
+  {# 댓글 입력 폼 #}
+  <form action="/board/post/{{ post.id }}/comment" method="POST" style="margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9">
+    <textarea name="body" rows="3" required placeholder="{{ i.comment_placeholder|default('댓글을 입력하세요...') }}" style="width:100%;padding:12px 14px;border:1px solid var(--bd);border-radius:8px;font-size:14px;resize:vertical;font-family:inherit;line-height:1.6"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button type="submit" class="btn-primary" style="font-size:14px;padding:6px 18px">{{ i.btn_comment_submit|default('댓글 등록') }}</button>
+    </div>
+  </form>
+</div>
+
+{# 목록으로 돌아가기 #}
+<div style="margin-top:18px">
+  <a href="/board/{{ post.board_id }}" style="color:var(--g);font-size:14px;display:inline-flex;align-items:center;gap:4px;text-decoration:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    {{ i.back_to_list|default('목록으로') }}
+  </a>
+</div>
+
+{% endblock %}
