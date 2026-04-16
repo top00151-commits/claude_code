@@ -2342,8 +2342,23 @@ async def board_team_my(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     tid = u.get("team_id")
+    # 팀 미소속 (admin/ceo 등) → 전체 부서 게시판 목록
     if not tid:
-        return RedirectResponse("/home", 303)
+        with db_session() as c:
+            teams = c.execute(
+                """SELECT t.id, t.name, t.sector,
+                          (SELECT COUNT(*) FROM board_posts bp
+                           JOIN boards b ON bp.board_id=b.id
+                           WHERE b.type='team' AND b.team_id=t.id
+                           AND bp.approval_status='approved') AS post_count,
+                          (SELECT COUNT(*) FROM board_posts bp
+                           JOIN boards b ON bp.board_id=b.id
+                           WHERE b.type='team' AND b.team_id=t.id
+                           AND bp.approval_status='pending') AS pending_count
+                   FROM teams t ORDER BY t.display_order"""
+            ).fetchall()
+        return ctx(req, "board_teams.html", user=u, active="board_team",
+                   teams=teams)
     bid = board_get_or_create_team(tid)
     is_leader = _is_team_leader(u, tid)
     posts = board_posts_list(bid, include_pending=is_leader)
