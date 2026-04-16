@@ -110,7 +110,16 @@
       </a>
       {% endif %}
     </div>
-    {# 매출흐름·물류 섹션은 사이드바에서 제거됨. 홈의 메인 진입 버튼 + 새 창으로 접근 #}
+    {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
+    <div class="sb-section">
+      <div class="sb-head">매출흐름 · 물류</div>
+      <a href="/logistics" target="_blank" rel="noopener" class="sb-item sb-logi-entry">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
+        <span class="sb-logi-label">물류 시스템</span>
+        <span class="sb-logi-badge">↗</span>
+      </a>
+    </div>
+    {% endif %}
     <div class="sb-section sb-tree-section">
       <div class="sb-head">{{ i.sb_team_project|default('팀 / 프로젝트') }}</div>
       <div id="sbTree" class="sb-tree">불러오는 중...</div>
@@ -182,13 +191,23 @@ async function loadSidebarTree(){
 }
 document.addEventListener('DOMContentLoaded', loadSidebarTree);
 
-/* ===== 사이드바 드래그 리사이즈 ===== */
+/* ===== 사이드바 드래그 리사이즈 + 폰트 자동 조정 ===== */
 (function(){
   const sb = document.getElementById('sidebar');
   const handle = document.getElementById('sbResize');
   if (!sb || !handle) return;
-  const MIN_W = 160, MAX_W = 420;
+  const MIN_W = 180, MAX_W = 520;
+  const MIN_F = 13, MAX_F = 24;   // sb-item 폰트 크기 (넓게)
+  const MIN_H = 11, MAX_H = 18;   // sb-head 폰트 크기
   let dragging = false, startX = 0, startW = 0;
+
+  function applyFont(w){
+    const ratio = Math.max(0, Math.min(1, (w - MIN_W) / (MAX_W - MIN_W)));
+    const f = MIN_F + (MAX_F - MIN_F) * ratio;
+    const h = MIN_H + (MAX_H - MIN_H) * ratio;
+    sb.style.setProperty('--sb-font-size', f.toFixed(1) + 'px');
+    sb.style.setProperty('--sb-head-size', h.toFixed(1) + 'px');
+  }
 
   // 저장된 너비 복원
   const saved = localStorage.getItem('sb-width');
@@ -196,7 +215,10 @@ document.addEventListener('DOMContentLoaded', loadSidebarTree);
     const w = parseInt(saved);
     if (w >= MIN_W && w <= MAX_W) {
       sb.style.width = w + 'px';
+      applyFont(w);
     }
+  } else {
+    applyFont(sb.getBoundingClientRect().width || 240);
   }
 
   handle.addEventListener('mousedown', function(e) {
@@ -215,6 +237,7 @@ document.addEventListener('DOMContentLoaded', loadSidebarTree);
     if (newW < MIN_W) newW = MIN_W;
     if (newW > MAX_W) newW = MAX_W;
     sb.style.width = newW + 'px';
+    applyFont(newW);
   });
 
   document.addEventListener('mouseup', function() {

@@ -173,32 +173,7 @@
 </div>
 {% endif %}
 
-{% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
-<!-- ====== 매출흐름 · 물류 시스템 진입 버튼 (권한자만, 새 창) ====== -->
-<a href="/logistics" target="_blank" rel="noopener" class="logi-entry-card" title="매출흐름 · 물류 시스템을 새 창에서 엽니다">
-  <div class="logi-entry-icon">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>
-  </div>
-  <div class="logi-entry-body">
-    <div class="logi-entry-title">
-      매출흐름 · 물류 시스템
-      <span class="logi-entry-badge">권한 제한</span>
-    </div>
-    <div class="logi-entry-sub">완성품 · 자재 · 소모품 통합 관리 — 부품 · 관리코드 · 공급사 · 발주 · 입고 · 재고</div>
-    <div class="logi-entry-stats">
-      <span>부품 <b>{{ logi_parts_stats.total }}</b></span>
-      <span class="dot">·</span>
-      <span>관리코드 <b>{{ logi_proj_stats.with_code }}</b> / 전체 {{ logi_proj_stats.total }}</span>
-      <span class="dot">·</span>
-      <span>진행중 <b>{{ logi_proj_stats.in_progress }}</b></span>
-    </div>
-  </div>
-  <div class="logi-entry-cta">
-    새 창에서 열기
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg>
-  </div>
-</a>
-{% endif %}
+{# 매출흐름·물류 진입은 사이드바 메뉴에서 접근 (권한자만 보임) #}
 
 <!-- ====== Dashboard Charts (리더/경영진만) ====== -->
 {% if user.role in ['leader','executive','ceo','admin'] and team_data %}
