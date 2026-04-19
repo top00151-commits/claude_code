@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ change.change_no }} {{ change.title }} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/changes" style="font-size:13px;color:#6B7280;text-decoration:none;">← 변경 목록</a>
+</div>
+
+<!-- 헤더 카드 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #A5282C;">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+    <div style="flex:1;min-width:300px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="font-family:'JetBrains Mono',Consolas,monospace;font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ change.change_no }}</span>
+        {% if change.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 긴급</span>
+        {% elif change.urgency == '예약' %}<span style="background:#E3F2FD;color:#1565C0;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">📅 예약</span>{% endif %}
+        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;">{{ change.change_type }}</span>
+        {% if change.biz_div == 'T' %}<span style="color:#6B7280;font-size:11px;">검사기</span>
+        {% elif change.biz_div == 'M' %}<span style="color:#6B7280;font-size:11px;">자동화</span>{% endif %}
+        {% if change.status == '확인완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">✓ 모두 확인</span>
+        {% else %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ change.status }}</span>{% endif %}
+      </div>
+      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.02em;">{{ change.title }}</h1>
+      {% if change.target_label %}
+      <div style="margin-top:6px;font-size:13px;color:#6B7280;">대상: <span style="font-family:monospace;color:#1A1A1A;font-weight:700;">{{ change.target_label }}</span></div>
+      {% endif %}
+      <div style="margin-top:6px;font-size:12px;color:#9CA3AF;">
+        작성: <strong>{{ change.author_name }}</strong>
+        {% if change.author_team %}({{ change.author_team }}){% endif %}
+        · {{ change.created_at }}
+      </div>
+    </div>
+    {% if is_author or user.role in ['admin','ceo'] %}
+    <form method="post" action="/changes/{{ change.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?\n변경번호: {{ change.change_no }}');">
+      <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">삭제</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 변경 전/후 비교 -->
+{% if change.description or change.before_value or change.after_value %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
+  {% if change.description %}
+  <div style="margin-bottom:18px;">
+    <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">설명</div>
+    <div style="font-size:14px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ change.description }}</div>
+  </div>
+  {% endif %}
+
+  {% if change.before_value or change.after_value %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div style="background:#FFEBEE;border:1px solid #FCA5A5;border-radius:10px;padding:16px;">
+      <div style="font-size:11px;font-weight:800;color:#A5282C;letter-spacing:0.04em;margin-bottom:8px;">⏪ 변경 전</div>
+      <div style="font-size:13px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;font-family:'JetBrains Mono',monospace;">{{ change.before_value or '(없음)' }}</div>
+    </div>
+    <div style="background:#E8F5E9;border:1px solid #86EFAC;border-radius:10px;padding:16px;">
+      <div style="font-size:11px;font-weight:800;color:#2E7D32;letter-spacing:0.04em;margin-bottom:8px;">⏩ 변경 후</div>
+      <div style="font-size:13px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;font-family:'JetBrains Mono',monospace;">{{ change.after_value or '(없음)' }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- 영향 부서 + 확인 현황 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">📊 영향 부서 확인 현황</h2>
+  {% if impacts %}
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    {% for imp in impacts %}
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#F9FAFB;border-radius:8px;">
+      {% if imp.ack_users == imp.total_users and imp.total_users > 0 %}
+      <span style="background:#E8F5E9;color:#2E7D32;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;">✓</span>
+      {% else %}
+      <span style="background:#FFF8E1;color:#F57F17;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;">⏳</span>
+      {% endif %}
+      <span style="font-weight:700;font-size:14px;flex:1;">{{ imp.team_name }}</span>
+      <span style="font-size:12px;color:#6B7280;">{{ imp.ack_users }}/{{ imp.total_users }}</span>
+      <div style="width:120px;height:6px;background:#E5E7EB;border-radius:3px;overflow:hidden;">
+        <div style="width:{{ (imp.ack_users * 100 / imp.total_users)|round|int if imp.total_users > 0 else 0 }}%;height:100%;background:linear-gradient(90deg,#A5282C,#8B1E22);"></div>
+      </div>
+      {% if imp.auto_detected %}<span style="font-size:10px;color:#9CA3AF;">자동</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:#6B7280;font-size:13px;">영향 부서가 없습니다 (사업부 미지정).</p>
+  {% endif %}
+</div>
+
+<!-- 내가 영향자라면 — 확인 버튼 -->
+{% if is_impacted and not (my_ack and my_ack.ack_at) %}
+<div style="background:linear-gradient(135deg,#FFF8E1,#FFEBC7);border:2px solid #F57F17;border-radius:14px;padding:22px;margin-bottom:18px;">
+  <h2 style="margin:0 0 12px;font-size:16px;font-weight:800;color:#F57F17;">⚠️ 확인이 필요합니다</h2>
+  <p style="margin:0 0 14px;font-size:13px;color:#6B7280;">이 변경이 당신의 부서에 영향을 줍니다. 확인 후 아래 버튼을 클릭해주세요.</p>
+  <form method="post" action="/changes/{{ change.id }}/ack">
+    <textarea name="note" rows="2" placeholder="(선택) 영향 평가 메모"
+              style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-bottom:10px;"></textarea>
+    <button type="submit" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 10px rgba(46,125,50,.3);">
+      ✓ 확인했습니다
+    </button>
+  </form>
+</div>
+{% elif my_ack and my_ack.ack_at %}
+<div style="background:#E8F5E9;border:1px solid #86EFAC;border-radius:10px;padding:14px 18px;margin-bottom:18px;">
+  <span style="color:#2E7D32;font-weight:700;">✓ {{ my_ack.ack_at }} 에 확인 완료</span>
+  {% if my_ack.ack_note %}<div style="margin-top:6px;font-size:12px;color:#6B7280;">메모: {{ my_ack.ack_note }}</div>{% endif %}
+</div>
+{% endif %}
+
+<!-- 확인 이력 -->
+{% if reads %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;">
+  <h2 style="margin:0 0 14px;font-size:14px;font-weight:800;">확인 이력 ({{ reads|selectattr('ack_at')|list|length }} / {{ reads|length }})</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid #E5E7EB;">
+        <th style="padding:8px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.04em;">사용자</th>
+        <th style="padding:8px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">팀</th>
+        <th style="padding:8px;text-align:center;font-size:11px;color:#6B7280;text-transform:uppercase;">읽음</th>
+        <th style="padding:8px;text-align:center;font-size:11px;color:#6B7280;text-transform:uppercase;">확인</th>
+        <th style="padding:8px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">메모</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reads %}
+      <tr style="border-bottom:1px solid #F1F2F4;">
+        <td style="padding:8px;font-weight:600;">{{ r.user_name }}</td>
+        <td style="padding:8px;color:#6B7280;font-size:12px;">{{ r.team_name or '-' }}</td>
+        <td style="padding:8px;text-align:center;font-size:11px;font-family:monospace;color:#9CA3AF;">{{ r.read_at[5:16] if r.read_at else '-' }}</td>
+        <td style="padding:8px;text-align:center;font-size:11px;font-family:monospace;">
+          {% if r.ack_at %}<span style="color:#2E7D32;font-weight:700;">✓ {{ r.ack_at[5:16] }}</span>
+          {% else %}<span style="color:#9CA3AF;">대기</span>{% endif %}
+        </td>
+        <td style="padding:8px;font-size:12px;color:#6B7280;">{{ r.ack_note or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

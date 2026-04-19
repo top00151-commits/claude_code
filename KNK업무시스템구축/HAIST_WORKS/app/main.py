@@ -2300,6 +2300,195 @@ async def export_weekly(req: Request, wk_mon: str = ""):
 
 
 # =====================================================
+# HAIST WORKS — 변경 Inform 시스템 (1순위 ② / 6팀 + 제조2 사고 사례)
+# 설계: HAIST_WORKS/_DESIGN_변경_Inform.md
+# =====================================================
+from .database import (changes_list, change_get, change_create,
+                        change_get_impacts, change_get_reads,
+                        change_mark_read, change_ack, change_delete,
+                        change_unread_count, change_recent_count,
+                        CHANGE_TYPES, CHANGE_URGENCIES, CHANGE_STATUSES,
+                        detect_impact_teams, kakao_webhook_send)
+
+
+@app.get("/changes", response_class=HTMLResponse)
+async def changes_page(req: Request, q: str = "", change_type: str = "",
+                       urgency: str = "", status: str = "", scope: str = "all"):
+    """변경 목록 (필터 + scope=me/all)"""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    scope_user_id = u["id"] if scope == "me" else None
+    rows = changes_list(q=q, change_type=change_type, urgency=urgency,
+                         status=status, scope_user_id=scope_user_id)
+    return ctx(req, "changes_list.html", user=u, active="changes",
+               changes=rows, q=q, change_type=change_type, urgency=urgency,
+               status=status, scope=scope,
+               CHANGE_TYPES=CHANGE_TYPES, CHANGE_URGENCIES=CHANGE_URGENCIES,
+               CHANGE_STATUSES=CHANGE_STATUSES)
+
+
+@app.get("/changes/new", response_class=HTMLResponse)
+async def changes_new_form(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    # 활성 프로젝트 (관리코드 발급된 것)
+    with db_session() as c:
+        projects = c.execute(
+            """SELECT id, mgmt_code, name, biz_div, customer_name
+               FROM projects
+               WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
+               ORDER BY id DESC LIMIT 200"""
+        ).fetchall()
+    return ctx(req, "change_form.html", user=u, active="changes",
+               change=None, projects=projects,
+               CHANGE_TYPES=CHANGE_TYPES, CHANGE_URGENCIES=CHANGE_URGENCIES)
+
+
+@app.post("/changes/new")
+async def changes_new_submit(
+    req: Request,
+    change_type: str = Form(...),
+    biz_div: str = Form(""),
+    target_kind: str = Form(""),
+    target_label: str = Form(""),
+    project_id: str = Form(""),
+    title: str = Form(...),
+    description: str = Form(""),
+    before_value: str = Form(""),
+    after_value: str = Form(""),
+    urgency: str = Form("일반"),
+):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+
+    # 프로젝트 ID에서 사업부 자동 추출 (없으면 폼 입력 사용)
+    pid = None
+    if project_id:
+        try:
+            pid = int(project_id)
+            with db_session() as c:
+                p = c.execute(
+                    "SELECT biz_div, mgmt_code, name FROM projects WHERE id=?", (pid,)
+                ).fetchone()
+            if p:
+                if not biz_div:
+                    biz_div = p["biz_div"] or ""
+                if not target_label:
+                    target_label = f"{p['mgmt_code']} {p['name']}"
+        except (ValueError, TypeError):
+            pid = None
+
+    cid, change_no = change_create({
+        "change_type": change_type, "biz_div": biz_div,
+        "target_kind": target_kind, "target_label": target_label,
+        "project_id": pid, "title": title, "description": description,
+        "before_value": before_value, "after_value": after_value,
+        "urgency": urgency,
+    }, author_id=u["id"])
+
+    # 알림 발송 (web 게시판 자동 글 + 카카오워크 stub)
+    try:
+        notify_change_impacts(cid, change_no, change_type, title, urgency, u)
+    except Exception as e:
+        print(f"[NOTIFY ERROR] {e}")
+
+    return RedirectResponse(f"/changes/{cid}", 303)
+
+
+def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
+    """변경 등록 후 통합 알림 발송"""
+    impacts = change_get_impacts(cid)
+    icon = "🔴" if urgency == "긴급" else "🟡"
+
+    # 카카오워크 webhook stub (영향 부서별로)
+    for imp in impacts:
+        if imp.get("team_name"):
+            kakao_webhook_send(
+                channel_id=f"team-{imp['impact_team_id']}",
+                text=f"{icon} [{change_type}] {title}\n변경번호: {change_no}\n작성자: {author['name']}\n→ http://localhost:8081/changes/{cid}",
+            )
+
+    # 게시판 자동 글 (이력 보존, 전사 게시판)
+    try:
+        bid = board_get_or_create_company()
+        impact_names = ", ".join([imp["team_name"] for imp in impacts if imp.get("team_name")])
+        body = (f"종류: {change_type}\n"
+                f"긴급도: {urgency}\n"
+                f"영향 부서: {impact_names}\n"
+                f"변경번호: {change_no}\n\n"
+                f"상세: /changes/{cid}")
+        board_post_create(bid, author["id"],
+                          f"[변경공지] {title}", body, category="공지",
+                          approval_status="approved")
+    except Exception as e:
+        print(f"[BOARD POST ERROR] {e}")
+
+
+@app.get("/changes/{cid}", response_class=HTMLResponse)
+async def changes_detail(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    change = change_get(cid)
+    if not change:
+        return RedirectResponse("/changes", 303)
+    impacts = change_get_impacts(cid)
+    reads = change_get_reads(cid)
+    # 자동 read 기록 (영향자인 경우만)
+    is_impacted = any(
+        r["user_id"] == u["id"] for r in reads
+    )
+    if is_impacted:
+        change_mark_read(cid, u["id"])
+    # 내 ack 상태
+    my_ack = next((r for r in reads if r["user_id"] == u["id"]), None)
+    return ctx(req, "change_detail.html", user=u, active="changes",
+               change=change, impacts=impacts, reads=reads,
+               is_impacted=is_impacted, my_ack=my_ack,
+               is_author=(change["author_id"] == u["id"]))
+
+
+@app.post("/changes/{cid}/ack")
+async def changes_ack(req: Request, cid: int, note: str = Form("")):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    change_ack(cid, u["id"], note)
+    return RedirectResponse(f"/changes/{cid}", 303)
+
+
+@app.post("/changes/{cid}/delete")
+async def changes_delete_submit(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    change = change_get(cid)
+    if change and (change["author_id"] == u["id"] or u["role"] in ("admin", "ceo")):
+        change_delete(cid)
+    return RedirectResponse("/changes", 303)
+
+
+@app.get("/api/changes/unread")
+async def api_changes_unread(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"count": 0})
+    return JSONResponse({"count": change_unread_count(u["id"])})
+
+
+@app.get("/api/changes/recent")
+async def api_changes_recent(req: Request, scope: str = "me", days: int = 1):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"count": 0})
+    uid = u["id"] if scope == "me" else None
+    return JSONResponse({"count": change_recent_count(uid, days)})
+
+
+# =====================================================
 # HAIST WORKS — 게시판 라우트
 # =====================================================
 from .database import (board_get_or_create_company, board_get_or_create_team,

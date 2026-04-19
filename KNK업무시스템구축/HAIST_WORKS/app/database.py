@@ -340,6 +340,62 @@ CREATE TABLE IF NOT EXISTS board_comments (
     created_at TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_bc_post ON board_comments(post_id);
+
+-- ============ 변경 Inform 시스템 (HAIST WORKS) ============
+-- 변경 사건 본체
+CREATE TABLE IF NOT EXISTS changes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    change_no       TEXT NOT NULL UNIQUE,         -- CHG-YYMMDD-NNN
+    change_type     TEXT NOT NULL,                 -- 기구설계/전장설계/소프트웨어/BOM/도면/Concept/사양
+    biz_div         TEXT,                          -- T 검사기 / M 자동화 (영향 부서 자동 판별용)
+    target_kind     TEXT,                          -- project / part / document
+    target_id       INTEGER,
+    target_label    TEXT,                          -- 사람이 읽는 라벨 (예: "001T2604 검사기")
+    project_id      INTEGER REFERENCES projects(id),
+    title           TEXT NOT NULL,
+    description     TEXT,
+    before_value    TEXT,
+    after_value     TEXT,
+    attached_files  TEXT,                          -- JSON 배열
+    urgency         TEXT DEFAULT '일반',            -- 일반/긴급/예약
+    author_id       INTEGER NOT NULL REFERENCES users(id),
+    status          TEXT DEFAULT '공지중',          -- 작성중/공지중/확인완료/취소
+    notified_at     TEXT,
+    completed_at    TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_chg_no ON changes(change_no);
+CREATE INDEX IF NOT EXISTS idx_chg_project ON changes(project_id);
+CREATE INDEX IF NOT EXISTS idx_chg_status ON changes(status);
+CREATE INDEX IF NOT EXISTS idx_chg_author ON changes(author_id);
+CREATE INDEX IF NOT EXISTS idx_chg_created ON changes(created_at DESC);
+
+-- 영향 부서/사용자
+CREATE TABLE IF NOT EXISTS change_impacts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    change_id       INTEGER NOT NULL REFERENCES changes(id) ON DELETE CASCADE,
+    impact_kind     TEXT NOT NULL,                 -- team / user
+    impact_team_id  INTEGER REFERENCES teams(id),
+    impact_user_id  INTEGER REFERENCES users(id),
+    auto_detected   INTEGER DEFAULT 1,              -- 1=자동, 0=수동 추가
+    impact_reason   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cimp_change ON change_impacts(change_id);
+CREATE INDEX IF NOT EXISTS idx_cimp_team ON change_impacts(impact_team_id);
+
+-- 확인 추적
+CREATE TABLE IF NOT EXISTS change_reads (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    change_id       INTEGER NOT NULL REFERENCES changes(id) ON DELETE CASCADE,
+    user_id         INTEGER NOT NULL REFERENCES users(id),
+    read_at         TEXT,
+    ack_at          TEXT,
+    ack_note        TEXT,
+    UNIQUE(change_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cread_change ON change_reads(change_id);
+CREATE INDEX IF NOT EXISTS idx_cread_user ON change_reads(user_id);
 """
 
 # =====================================================
@@ -2436,4 +2492,346 @@ def board_comment_create(post_id, author_id, body):
 def board_comment_delete(comment_id):
     with db_session() as c:
         c.execute("DELETE FROM board_comments WHERE id=?", (comment_id,))
+
+
+# =====================================================
+# 변경 Inform 시스템 — 사전 준비 (2026-04-20)
+# 정식 구현은 Research 세션 v2 문서 도착 후
+# 설계 청사진: HAIST_WORKS/_DESIGN_변경_Inform.md
+# =====================================================
+
+CHANGE_TYPES = ["기구설계", "전장설계", "소프트웨어", "BOM", "도면", "Concept", "사양"]
+CHANGE_URGENCIES = ["일반", "긴급", "예약"]
+CHANGE_STATUSES = ["작성중", "공지중", "확인완료", "취소"]
+
+# 변경 종류 × 사업부 → 영향 부서 자동 판별 규칙
+IMPACT_RULES = {
+    "기구설계": {
+        "T": ["전장설계팀", "소프트웨어팀", "가공팀", "제조기술1팀", "구매팀"],
+        "M": ["전장설계팀", "소프트웨어팀", "가공팀", "제조기술2팀", "구매팀"],
+    },
+    "전장설계": {
+        "T": ["소프트웨어팀", "제조기술1팀", "구매팀"],
+        "M": ["소프트웨어팀", "제조기술2팀", "구매팀"],
+    },
+    "소프트웨어": {
+        "T": ["검사기팀", "제조기술1팀"],
+        "M": ["제조기술2팀"],
+    },
+    "BOM": {
+        "T": ["구매팀", "제조기술1팀", "가공팀"],
+        "M": ["구매팀", "제조기술2팀", "가공팀"],
+    },
+    "도면": {
+        "T": ["가공팀", "제조기술1팀", "품질팀"],
+        "M": ["가공팀", "제조기술2팀", "품질팀"],
+    },
+    "Concept": {"T": "ALL", "M": "ALL"},
+    "사양": {
+        "T": ["기술영업팀", "검사기팀", "설계팀", "품질팀"],
+        "M": ["기술영업팀", "설계팀", "품질팀"],
+    },
+}
+
+
+def detect_impact_teams(change_type: str, biz_div: str) -> list[int]:
+    """변경 종류 + 사업부 → 영향 받는 팀 ID 리스트.
+    biz_div 'T'(검사기) / 'M'(자동화). Concept는 전 팀.
+    """
+    rule = IMPACT_RULES.get(change_type, {}).get(biz_div, [])
+    if not rule:
+        return []
+    if rule == "ALL":
+        with db_session() as c:
+            return [r["id"] for r in c.execute("SELECT id FROM teams").fetchall()]
+    placeholders = ",".join(["?"] * len(rule))
+    with db_session() as c:
+        rows = c.execute(
+            f"SELECT id FROM teams WHERE name IN ({placeholders})",
+            tuple(rule),
+        ).fetchall()
+    return [r["id"] for r in rows]
+
+
+def detect_impact_users(team_ids: list[int]) -> list[dict]:
+    """영향 팀들의 활성 사용자 목록 (알림 발송 대상)"""
+    if not team_ids:
+        return []
+    placeholders = ",".join(["?"] * len(team_ids))
+    with db_session() as c:
+        rows = c.execute(
+            f"""SELECT u.id, u.name, u.team_id, t.name AS team_name
+                FROM users u JOIN teams t ON u.team_id = t.id
+                WHERE u.team_id IN ({placeholders}) AND u.is_active = 1""",
+            tuple(team_ids),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def gen_change_no(today=None) -> str:
+    """변경번호 자동 채번: CHG-YYMMDD-NNN (해당 날짜 +1)"""
+    today = today or _date.today()
+    yymmdd = today.strftime("%y%m%d")
+    prefix = f"CHG-{yymmdd}-"
+    # NOTE: changes 테이블이 아직 없으면 001부터 시작
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                "SELECT change_no FROM changes WHERE change_no LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for r in rows:
+            try:
+                seq = int(r["change_no"].rsplit("-", 1)[-1])
+                max_seq = max(max_seq, seq)
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}{max_seq + 1:03d}"
+    except sqlite3.OperationalError:
+        # changes 테이블 미존재 시
+        return f"{prefix}001"
+
+
+# 카카오워크 Webhook 더미 (실제 URL은 사용자 발급 후 config로)
+def kakao_webhook_send(channel_id: str, text: str, blocks: list = None) -> bool:
+    """카카오워크 Webhook 메시지 발송. 정식 구현 전 stub.
+    Phase 2에서 사용자가 webhook URL 발급한 후 실제 호출 코드로 교체."""
+    # TODO: requests.post(KAKAO_WEBHOOK_URL[channel_id], json={...})
+    print(f"[KAKAO STUB] channel={channel_id} text={text[:80]}...")
+    return True
+
+
+# ── 변경 Inform CRUD ─────────────────────────────────────────
+def changes_list(q="", change_type="", urgency="", status="", scope_user_id=None):
+    """변경 목록 조회. scope_user_id 주면 그 사용자가 영향자인 것만"""
+    base = """SELECT c.*, u.name AS author_name, u.rank AS author_rank,
+                     t.name AS author_team,
+                     (SELECT COUNT(*) FROM change_impacts WHERE change_id=c.id) AS impact_count,
+                     (SELECT COUNT(*) FROM change_reads WHERE change_id=c.id AND ack_at IS NOT NULL) AS ack_count
+              FROM changes c
+              JOIN users u ON c.author_id = u.id
+              LEFT JOIN teams t ON u.team_id = t.id
+              WHERE 1=1"""
+    params = []
+    if q:
+        base += " AND (c.change_no LIKE ? OR c.title LIKE ? OR c.description LIKE ? OR c.target_label LIKE ?)"
+        like = f"%{q}%"
+        params += [like] * 4
+    if change_type:
+        base += " AND c.change_type = ?"
+        params.append(change_type)
+    if urgency:
+        base += " AND c.urgency = ?"
+        params.append(urgency)
+    if status:
+        base += " AND c.status = ?"
+        params.append(status)
+    if scope_user_id:
+        base += """ AND c.id IN (
+            SELECT change_id FROM change_impacts ci
+            LEFT JOIN users u2 ON u2.team_id = ci.impact_team_id
+            WHERE u2.id = ? OR ci.impact_user_id = ?
+        )"""
+        params += [scope_user_id, scope_user_id]
+    base += " ORDER BY c.created_at DESC"
+    with db_session() as c:
+        return c.execute(base, params).fetchall()
+
+
+def change_get(cid: int) -> dict | None:
+    with db_session() as c:
+        row = c.execute(
+            """SELECT c.*, u.name AS author_name, u.rank AS author_rank,
+                      t.name AS author_team
+               FROM changes c
+               JOIN users u ON c.author_id = u.id
+               LEFT JOIN teams t ON u.team_id = t.id
+               WHERE c.id = ?""",
+            (cid,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def change_create(data: dict, author_id: int) -> tuple[int, str]:
+    """변경 등록 + 영향 자동 판별 + change_reads 미리 생성"""
+    change_no = gen_change_no()
+    biz_div = (data.get("biz_div") or "").strip()
+    change_type = (data.get("change_type") or "").strip()
+
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO changes
+               (change_no, change_type, biz_div, target_kind, target_id, target_label,
+                project_id, title, description, before_value, after_value,
+                attached_files, urgency, author_id, status)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                change_no, change_type, biz_div,
+                data.get("target_kind"), data.get("target_id"),
+                data.get("target_label", "").strip(),
+                data.get("project_id"),
+                data.get("title", "").strip(),
+                data.get("description", "").strip(),
+                data.get("before_value", "").strip(),
+                data.get("after_value", "").strip(),
+                data.get("attached_files", ""),
+                data.get("urgency", "일반"),
+                author_id,
+                "공지중",
+            ),
+        )
+        change_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # 영향 부서 자동 판별
+        impact_teams = detect_impact_teams(change_type, biz_div) if biz_div in ("T", "M") else []
+        for team_id in impact_teams:
+            c.execute(
+                """INSERT INTO change_impacts
+                   (change_id, impact_kind, impact_team_id, auto_detected, impact_reason)
+                   VALUES (?, 'team', ?, 1, ?)""",
+                (change_id, team_id, f"{change_type} 변경 → 자동 판별"),
+            )
+
+        # change_reads 미리 생성 (영향 부서원 전원)
+        if impact_teams:
+            placeholders = ",".join(["?"] * len(impact_teams))
+            users = c.execute(
+                f"SELECT id FROM users WHERE team_id IN ({placeholders}) AND is_active = 1",
+                tuple(impact_teams),
+            ).fetchall()
+            for u in users:
+                try:
+                    c.execute(
+                        "INSERT INTO change_reads (change_id, user_id) VALUES (?, ?)",
+                        (change_id, u["id"]),
+                    )
+                except sqlite3.IntegrityError:
+                    pass
+
+        # 작성자에게도 read 행 (보낸 사람도 본인이 다 봤다는 의미)
+        try:
+            c.execute(
+                "INSERT INTO change_reads (change_id, user_id, read_at, ack_at) VALUES (?, ?, ?, ?)",
+                (change_id, author_id, _logi_now(), _logi_now()),
+            )
+        except sqlite3.IntegrityError:
+            pass
+
+        # notified_at 표시
+        c.execute("UPDATE changes SET notified_at=? WHERE id=?", (_logi_now(), change_id))
+
+    return change_id, change_no
+
+
+def change_get_impacts(cid: int) -> list[dict]:
+    """영향 부서/사용자 + 부서별 확인 현황"""
+    with db_session() as c:
+        impacts = c.execute(
+            """SELECT ci.*, t.name AS team_name
+               FROM change_impacts ci
+               LEFT JOIN teams t ON ci.impact_team_id = t.id
+               WHERE ci.change_id = ?""",
+            (cid,),
+        ).fetchall()
+        result = []
+        for imp in impacts:
+            d = dict(imp)
+            if imp["impact_team_id"]:
+                # 부서원 확인 현황
+                stats = c.execute(
+                    """SELECT COUNT(*) AS total,
+                              SUM(CASE WHEN cr.ack_at IS NOT NULL THEN 1 ELSE 0 END) AS ack
+                       FROM users u
+                       LEFT JOIN change_reads cr ON cr.user_id = u.id AND cr.change_id = ?
+                       WHERE u.team_id = ? AND u.is_active = 1""",
+                    (cid, imp["impact_team_id"]),
+                ).fetchone()
+                d["total_users"] = stats["total"] or 0
+                d["ack_users"] = stats["ack"] or 0
+            result.append(d)
+    return result
+
+
+def change_get_reads(cid: int) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT cr.*, u.name AS user_name, u.rank AS user_rank, t.name AS team_name
+               FROM change_reads cr
+               JOIN users u ON cr.user_id = u.id
+               LEFT JOIN teams t ON u.team_id = t.id
+               WHERE cr.change_id = ?
+               ORDER BY cr.ack_at DESC NULLS LAST, cr.read_at DESC""",
+            (cid,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def change_mark_read(cid: int, user_id: int):
+    """페이지 열람 기록"""
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO change_reads (change_id, user_id, read_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(change_id, user_id) DO UPDATE SET read_at = COALESCE(read_at, excluded.read_at)""",
+            (cid, user_id, _logi_now()),
+        )
+
+
+def change_ack(cid: int, user_id: int, note: str = ""):
+    """확인 응답"""
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO change_reads (change_id, user_id, read_at, ack_at, ack_note)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(change_id, user_id) DO UPDATE SET
+                   read_at = COALESCE(read_at, excluded.read_at),
+                   ack_at = excluded.ack_at,
+                   ack_note = excluded.ack_note""",
+            (cid, user_id, _logi_now(), _logi_now(), note),
+        )
+        # 모든 영향자 확인 시 status=확인완료
+        remaining = c.execute(
+            """SELECT COUNT(*) FROM change_reads
+               WHERE change_id = ? AND ack_at IS NULL""",
+            (cid,),
+        ).fetchone()[0]
+        if remaining == 0:
+            c.execute(
+                "UPDATE changes SET status='확인완료', completed_at=? WHERE id=?",
+                (_logi_now(), cid),
+            )
+
+
+def change_delete(cid: int):
+    with db_session() as c:
+        c.execute("DELETE FROM changes WHERE id=?", (cid,))
+
+
+def change_unread_count(user_id: int) -> int:
+    """내가 영향자인데 아직 ack 안 한 변경 카운트 (사이드바 뱃지)"""
+    with db_session() as c:
+        row = c.execute(
+            """SELECT COUNT(*) FROM change_reads
+               WHERE user_id = ? AND ack_at IS NULL""",
+            (user_id,),
+        ).fetchone()
+    return row[0] if row else 0
+
+
+def change_recent_count(user_id: int = None, days: int = 1) -> int:
+    """홈 KPI용 — 최근 N일 변경 (전체 또는 내 관련)"""
+    sql = """SELECT COUNT(*) FROM changes
+             WHERE created_at >= datetime('now', '-' || ? || ' day', 'localtime')"""
+    params = [days]
+    if user_id:
+        sql += """ AND id IN (
+            SELECT change_id FROM change_impacts ci
+            LEFT JOIN users u ON u.team_id = ci.impact_team_id
+            WHERE u.id = ? OR ci.impact_user_id = ?
+        )"""
+        params += [user_id, user_id]
+    with db_session() as c:
+        return c.execute(sql, params).fetchone()[0]
+
 

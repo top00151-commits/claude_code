@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}변경 등록 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>변경 등록 <span style="font-size:13px;color:#6B7280;font-weight:500;margin-left:8px;">매뉴얼 0 — 순서대로 따라가면 끝</span></h1>
+  <p class="muted">기구·전장·SW·BOM·도면 변경을 영향 부서에 자동 공지합니다. 작성 시 영향 부서가 자동으로 판별됩니다.</p>
+</div>
+
+<form method="post" action="/changes/new" id="changeForm" style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:0;overflow:hidden;">
+
+  <!-- 진행 표시 바 -->
+  <div style="display:flex;background:#F9FAFB;border-bottom:1px solid #E5E7EB;">
+    <div class="step-indicator active" data-step="1" style="flex:1;padding:14px 8px;text-align:center;font-size:12px;font-weight:700;color:#A5282C;border-bottom:3px solid #A5282C;background:#fff;">① 종류</div>
+    <div class="step-indicator" data-step="2" style="flex:1;padding:14px 8px;text-align:center;font-size:12px;font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">② 대상</div>
+    <div class="step-indicator" data-step="3" style="flex:1;padding:14px 8px;text-align:center;font-size:12px;font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">③ 변경 내용</div>
+    <div class="step-indicator" data-step="4" style="flex:1;padding:14px 8px;text-align:center;font-size:12px;font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">④ 확인 + 공지</div>
+  </div>
+
+  <!-- Step 1: 종류 -->
+  <div class="step step-1 active" style="padding:28px;">
+    <h2 style="font-size:18px;font-weight:800;margin:0 0 8px;">무엇이 바뀌었나요?</h2>
+    <p style="color:#6B7280;font-size:13px;margin:0 0 20px;">변경 종류를 선택하면 영향 부서가 자동으로 결정됩니다.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+      {% for t in CHANGE_TYPES %}
+      <label class="type-card" style="cursor:pointer;display:block;padding:18px;border:2px solid #E5E7EB;border-radius:12px;text-align:center;background:#fff;transition:all .15s;">
+        <input type="radio" name="change_type" value="{{ t }}" required style="display:none;" onchange="selectType(this)">
+        <div style="font-size:14px;font-weight:700;color:#1A1A1A;">{{ t }}</div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Step 2: 대상 -->
+  <div class="step step-2" style="padding:28px;display:none;">
+    <h2 style="font-size:18px;font-weight:800;margin:0 0 8px;">어떤 대상인가요?</h2>
+    <p style="color:#6B7280;font-size:13px;margin:0 0 20px;">관리코드를 선택하면 사업부도 자동 판별됩니다.</p>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">관리코드 (선택)</label>
+        <select name="project_id" id="projectSelect" onchange="onProjectChange(this)" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
+          <option value="">— 관리코드 선택 (또는 아래 직접 입력) —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-biz="{{ p.biz_div }}" data-label="{{ p.mgmt_code }} {{ p.name }}">
+            {{ p.mgmt_code }} · {{ p.name }} {% if p.customer_name %}({{ p.customer_name }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">사업부 <span style="color:#A5282C">*</span></label>
+        <select name="biz_div" id="bizDivSelect" required onchange="updateImpactPreview()" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
+          <option value="">선택</option>
+          <option value="T">검사기 (T)</option>
+          <option value="M">자동화 (M)</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">대상 라벨 (자유 입력)</label>
+        <input type="text" name="target_label" id="targetLabel" placeholder="예: PRT-2026-0001 또는 DWG-T-001-Rev3 또는 자유 텍스트"
+               style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
+      </div>
+
+      <input type="hidden" name="target_kind" value="">
+    </div>
+
+    <!-- 영향 부서 미리보기 -->
+    <div id="impactPreview" style="margin-top:20px;padding:16px;background:#FFF8E1;border:1px dashed #F57F17;border-radius:10px;display:none;">
+      <div style="font-size:12px;font-weight:700;color:#F57F17;margin-bottom:8px;">📢 영향 받을 부서 (자동 판별)</div>
+      <div id="impactList" style="font-size:13px;color:#1A1A1A;"></div>
+    </div>
+  </div>
+
+  <!-- Step 3: 변경 내용 -->
+  <div class="step step-3" style="padding:28px;display:none;">
+    <h2 style="font-size:18px;font-weight:800;margin:0 0 8px;">무엇이 어떻게 바뀌었나요?</h2>
+    <p style="color:#6B7280;font-size:13px;margin:0 0 20px;">변경 전/후를 비교할 수 있도록 작성하세요. 도면이나 사진은 텍스트로 경로 기록 가능.</p>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">제목 <span style="color:#A5282C">*</span></label>
+        <input type="text" name="title" required placeholder="예: 검사기 ICT 푸시블럭 위치 변경"
+               style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;margin-top:6px;font-weight:600;">
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">상세 설명</label>
+        <textarea name="description" rows="3" placeholder="변경 사유, 영향 범위, 후속 조치 등"
+                  style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;resize:vertical;"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#6B7280;">변경 전</label>
+          <textarea name="before_value" rows="5" placeholder="이전 값 / 도면 경로 / 사진 링크"
+                    style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;background:#FFEBEE;resize:vertical;"></textarea>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#6B7280;">변경 후</label>
+          <textarea name="after_value" rows="5" placeholder="새 값 / 도면 경로 / 사진 링크"
+                    style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;background:#E8F5E9;resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#6B7280;">긴급도</label>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          {% for u_ in CHANGE_URGENCIES %}
+          <label style="flex:1;cursor:pointer;padding:10px;border:1px solid #D1D5DB;border-radius:8px;text-align:center;background:#fff;">
+            <input type="radio" name="urgency" value="{{ u_ }}" {% if u_ == '일반' %}checked{% endif %} style="margin-right:6px;">
+            {% if u_ == '긴급' %}🔴 긴급{% elif u_ == '예약' %}📅 예약{% else %}일반{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: 확인 + 공지 -->
+  <div class="step step-4" style="padding:28px;display:none;">
+    <h2 style="font-size:18px;font-weight:800;margin:0 0 8px;">최종 확인 후 공지</h2>
+    <p style="color:#6B7280;font-size:13px;margin:0 0 20px;">자동 판별된 영향 부서를 확인하고, 필요 시 공지하기를 누르세요.</p>
+
+    <div id="finalSummary" style="padding:18px;background:#F9FAFB;border-radius:10px;font-size:13px;line-height:1.8;">
+      불러오는 중...
+    </div>
+
+    <div style="margin-top:20px;padding:16px;background:#FFF8E1;border-radius:10px;">
+      <div style="font-size:12px;font-weight:700;color:#F57F17;margin-bottom:8px;">📡 알림 채널 (자동)</div>
+      <div style="font-size:13px;color:#1A1A1A;line-height:1.8;">
+        ✅ HAIST WORKS 내 알림 (영향 부서원 모두)<br>
+        ✅ 카카오워크 채널 푸시 (Webhook 발송)<br>
+        ✅ 전사 게시판 자동 글 등록 (이력 보존)<br>
+        ⏳ 하이웍스 메일 (Phase 2 추가 예정)
+      </div>
+    </div>
+  </div>
+
+  <!-- 네비게이션 버튼 -->
+  <div style="padding:20px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;display:flex;justify-content:space-between;align-items:center;">
+    <a href="/changes" style="font-size:13px;color:#6B7280;text-decoration:none;">← 취소하고 목록으로</a>
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="prevBtn" onclick="goPrev()" style="display:none;padding:10px 20px;border:1px solid #D1D5DB;background:#fff;border-radius:8px;cursor:pointer;font-weight:600;">← 이전</button>
+      <button type="button" id="nextBtn" onclick="goNext()" style="padding:10px 24px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;">다음 →</button>
+      <button type="submit" id="submitBtn" style="display:none;padding:10px 32px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:15px;box-shadow:0 4px 12px rgba(165,40,44,.32);">📢 공지하기</button>
+    </div>
+  </div>
+</form>
+
+<script>
+let currentStep = 1;
+const totalSteps = 4;
+
+function selectType(input) {
+  document.querySelectorAll('.type-card').forEach(c => {
+    c.style.borderColor = '#E5E7EB';
+    c.style.background = '#fff';
+  });
+  const card = input.closest('.type-card');
+  card.style.borderColor = '#A5282C';
+  card.style.background = '#FFEBEE';
+  // 자동 다음
+  setTimeout(() => goNext(), 250);
+}
+
+function onProjectChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (opt.value && opt.dataset.biz) {
+    document.getElementById('bizDivSelect').value = opt.dataset.biz;
+    document.getElementById('targetLabel').value = opt.dataset.label || '';
+    updateImpactPreview();
+  }
+}
+
+const IMPACT_RULES = {
+  "기구설계": {"T": ["전장설계팀","소프트웨어팀","가공팀","제조기술1팀","구매팀"],
+              "M": ["전장설계팀","소프트웨어팀","가공팀","제조기술2팀","구매팀"]},
+  "전장설계": {"T": ["소프트웨어팀","제조기술1팀","구매팀"],
+              "M": ["소프트웨어팀","제조기술2팀","구매팀"]},
+  "소프트웨어": {"T": ["검사기팀","제조기술1팀"], "M": ["제조기술2팀"]},
+  "BOM": {"T": ["구매팀","제조기술1팀","가공팀"], "M": ["구매팀","제조기술2팀","가공팀"]},
+  "도면": {"T": ["가공팀","제조기술1팀","품질팀"], "M": ["가공팀","제조기술2팀","품질팀"]},
+  "Concept": {"T": ["전 부서"], "M": ["전 부서"]},
+  "사양": {"T": ["기술영업팀","검사기팀","설계팀","품질팀"], "M": ["기술영업팀","설계팀","품질팀"]},
+};
+
+function updateImpactPreview() {
+  const ct = document.querySelector('input[name=change_type]:checked')?.value;
+  const bd = document.getElementById('bizDivSelect').value;
+  const preview = document.getElementById('impactPreview');
+  const list = document.getElementById('impactList');
+  if (!ct || !bd) {
+    preview.style.display = 'none';
+    return;
+  }
+  const teams = IMPACT_RULES[ct]?.[bd] || [];
+  if (teams.length === 0) {
+    preview.style.display = 'none';
+    return;
+  }
+  list.innerHTML = teams.map(t => `<span style="display:inline-block;background:#fff;border:1px solid #F57F17;color:#F57F17;padding:4px 12px;border-radius:999px;font-weight:700;margin:3px;">${t}</span>`).join('');
+  preview.style.display = 'block';
+}
+
+function goNext() {
+  // Step 1 검증
+  if (currentStep === 1 && !document.querySelector('input[name=change_type]:checked')) {
+    alert('변경 종류를 선택하세요');
+    return;
+  }
+  // Step 2 검증
+  if (currentStep === 2 && !document.getElementById('bizDivSelect').value) {
+    alert('사업부를 선택하세요');
+    return;
+  }
+  // Step 3 검증
+  if (currentStep === 3 && !document.querySelector('input[name=title]').value.trim()) {
+    alert('제목을 입력하세요');
+    return;
+  }
+  if (currentStep < totalSteps) {
+    currentStep++;
+    showStep(currentStep);
+    if (currentStep === 4) buildSummary();
+  }
+}
+
+function goPrev() {
+  if (currentStep > 1) {
+    currentStep--;
+    showStep(currentStep);
+  }
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.style.display = 'none');
+  document.querySelector(`.step-${n}`).style.display = 'block';
+  document.querySelectorAll('.step-indicator').forEach(ind => {
+    const sn = parseInt(ind.dataset.step);
+    if (sn === n) {
+      ind.style.color = '#A5282C';
+      ind.style.borderBottomColor = '#A5282C';
+      ind.style.background = '#fff';
+    } else {
+      ind.style.color = '#9CA3AF';
+      ind.style.borderBottomColor = 'transparent';
+      ind.style.background = '#F9FAFB';
+    }
+  });
+  document.getElementById('prevBtn').style.display = n > 1 ? 'inline-block' : 'none';
+  document.getElementById('nextBtn').style.display = n < totalSteps ? 'inline-block' : 'none';
+  document.getElementById('submitBtn').style.display = n === totalSteps ? 'inline-block' : 'none';
+}
+
+function buildSummary() {
+  const ct = document.querySelector('input[name=change_type]:checked')?.value || '-';
+  const bd = document.getElementById('bizDivSelect').value;
+  const bdName = bd === 'T' ? '검사기' : (bd === 'M' ? '자동화' : '-');
+  const target = document.getElementById('targetLabel').value || '-';
+  const title = document.querySelector('input[name=title]').value || '-';
+  const urg = document.querySelector('input[name=urgency]:checked')?.value || '일반';
+  const teams = IMPACT_RULES[ct]?.[bd] || [];
+  const teamsStr = teams.map(t => `<span style="display:inline-block;background:#A5282C;color:#fff;padding:3px 10px;border-radius:999px;font-size:11px;margin:2px;font-weight:700;">${t}</span>`).join(' ');
+
+  document.getElementById('finalSummary').innerHTML = `
+    <div><strong>종류:</strong> ${ct} <span style="color:#9CA3AF">|</span> <strong>사업부:</strong> ${bdName}</div>
+    <div><strong>대상:</strong> <span style="font-family:monospace;color:#6B7280;">${target}</span></div>
+    <div><strong>제목:</strong> ${title}</div>
+    <div><strong>긴급도:</strong> ${urg === '긴급' ? '🔴 긴급' : (urg === '예약' ? '📅 예약' : '일반')}</div>
+    <div style="margin-top:10px;"><strong>영향 부서 (${teams.length}개):</strong><br>${teamsStr || '-'}</div>
+  `;
+}
+
+showStep(1);
+</script>
+
+{% endblock %}

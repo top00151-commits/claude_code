@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}변경 알림 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>변경 알림 <span style="font-size:13px;color:#6B7280;font-weight:500;margin-left:8px;">Change Inform</span></h1>
+      <p class="muted">기구·전장·SW·BOM·도면 변경을 영향 부서에 자동 공지. 카톡·메일·게시판 동시 알림.</p>
+    </div>
+    <a href="/changes/new" class="btn btn-primary" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:700;">
+      + 변경 등록
+    </a>
+  </div>
+</div>
+
+<!-- Scope 탭 -->
+<div style="display:flex;gap:8px;margin-bottom:16px;">
+  <a href="?scope=all" class="btn {% if scope != 'me' %}btn-primary{% else %}btn-ghost{% endif %}"
+     style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope != 'me' %}background:#A5282C;color:#fff;{% else %}background:transparent;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">
+    🌐 전체 변경 ({{ changes|length if scope != 'me' else '...' }})
+  </a>
+  <a href="?scope=me" class="btn {% if scope == 'me' %}btn-primary{% else %}btn-ghost{% endif %}"
+     style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope == 'me' %}background:#A5282C;color:#fff;{% else %}background:transparent;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">
+    👤 내 관련 변경
+  </a>
+</div>
+
+<!-- 필터 -->
+<form method="get" class="filter-bar" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
+  <input type="hidden" name="scope" value="{{ scope }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="변경번호 / 제목 / 대상 검색" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+  <select name="change_type" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+    <option value="">전체 종류</option>
+    {% for t in CHANGE_TYPES %}
+    <option value="{{ t }}" {% if change_type == t %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  <select name="urgency" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+    <option value="">전체 긴급도</option>
+    {% for u_ in CHANGE_URGENCIES %}
+    <option value="{{ u_ }}" {% if urgency == u_ %}selected{% endif %}>{{ u_ }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+    <option value="">전체 상태</option>
+    {% for s in CHANGE_STATUSES %}
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" style="padding:8px 18px;border:1px solid #D1D5DB;background:#fff;border-radius:8px;font-weight:600;cursor:pointer;">검색</button>
+  <a href="/changes?scope={{ scope }}" style="padding:8px 18px;border:1px solid #E5E7EB;background:transparent;border-radius:8px;text-decoration:none;color:#6B7280;">초기화</a>
+</form>
+
+<!-- 목록 테이블 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;">
+<table style="width:100%;border-collapse:collapse;">
+  <thead style="background:#F9FAFB;">
+    <tr style="font-size:11px;text-transform:uppercase;color:#6B7280;letter-spacing:0.04em;">
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">번호</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">긴급</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">종류</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;text-align:left;">제목</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">대상</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">작성자</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">확인</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">상태</th>
+      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">작성일</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ch in changes %}
+    <tr style="font-size:13px;cursor:pointer;" onclick="location.href='/changes/{{ ch.id }}'" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''">
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-family:'JetBrains Mono',Consolas,monospace;font-size:12px;color:#A5282C;font-weight:700;">{{ ch.change_no }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
+        {% if ch.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">🔴 긴급</span>
+        {% elif ch.urgency == '예약' %}<span style="background:#E3F2FD;color:#1565C0;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">예약</span>
+        {% else %}<span style="color:#9CA3AF;font-size:11px;">일반</span>{% endif %}
+      </td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
+        <span style="background:#F3F4F6;color:#374151;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;">{{ ch.change_type }}</span>
+      </td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-weight:600;">{{ ch.title }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-family:'JetBrains Mono',Consolas,monospace;font-size:11px;color:#6B7280;">{{ ch.target_label or '-' }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:12px;">{{ ch.author_name }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
+        {% if ch.impact_count > 0 %}
+        <span style="font-size:11px;color:#374151;">
+          {{ ch.ack_count }}/{{ ch.impact_count * 5 }}
+        </span>
+        <div style="width:50px;height:4px;background:#F3F4F6;border-radius:2px;margin:4px auto 0;">
+          <div style="width:{{ (ch.ack_count * 100 / (ch.impact_count * 5))|round|int if (ch.impact_count * 5) > 0 else 0 }}%;height:100%;background:#A5282C;border-radius:2px;"></div>
+        </div>
+        {% else %}<span style="color:#9CA3AF;font-size:11px;">-</span>{% endif %}
+      </td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
+        {% if ch.status == '확인완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">✓ 완료</span>
+        {% elif ch.status == '공지중' %}<span style="background:#FFF8E1;color:#F57F17;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">공지중</span>
+        {% elif ch.status == '취소' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">취소</span>
+        {% else %}<span style="color:#9CA3AF;font-size:11px;">{{ ch.status }}</span>{% endif %}
+      </td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:11px;color:#6B7280;font-family:'JetBrains Mono',Consolas,monospace;">{{ ch.created_at[:10] if ch.created_at else '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" style="padding:40px 20px;text-align:center;color:#6B7280;">
+      등록된 변경이 없습니다. <a href="/changes/new" style="color:#A5282C;font-weight:700;">+ 변경 등록</a>으로 시작하세요.
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p style="text-align:right;margin-top:8px;font-size:12px;color:#6B7280;">총 {{ changes|length }}건</p>
+
+{% endblock %}
