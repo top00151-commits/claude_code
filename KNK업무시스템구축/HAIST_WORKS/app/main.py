@@ -2416,26 +2416,54 @@ async def changes_new_submit(
 
 
 def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
-    """변경 등록 후 통합 알림 발송"""
+    """변경 등록 후 통합 알림 발송 — 영향 강도별 차별화 (알림 피로 방지)
+    - high: 즉시 카톡 푸시 + web 알림 + 게시판
+    - medium: web 알림 + 게시판 (카톡 안 보냄)
+    - low: 게시판 글에만 노출 (직접 알림 X)
+    - 긴급(urgency=긴급): 강도 무시하고 모두 high로 격상
+    """
+    from .database import get_impact_intensity
     impacts = change_get_impacts(cid)
     icon = "🔴" if urgency == "긴급" else "🟡"
+    biz_div = ""  # 변경 본체에서 가져와야 함
+    with db_session() as c:
+        row = c.execute("SELECT biz_div FROM changes WHERE id=?", (cid,)).fetchone()
+        biz_div = row["biz_div"] if row else ""
 
-    # 카카오워크 webhook stub (영향 부서별로)
+    # 영향 부서별 강도 분류
+    high_teams, medium_teams, low_teams = [], [], []
     for imp in impacts:
-        if imp.get("team_name"):
-            kakao_webhook_send(
-                channel_id=f"team-{imp['impact_team_id']}",
-                text=f"{icon} [{change_type}] {title}\n변경번호: {change_no}\n작성자: {author['name']}\n→ http://localhost:8081/changes/{cid}",
-            )
+        if not imp.get("team_name"):
+            continue
+        intensity = "high" if urgency == "긴급" else \
+                    get_impact_intensity(change_type, biz_div, imp["team_name"])
+        if intensity == "high":
+            high_teams.append(imp)
+        elif intensity == "medium":
+            medium_teams.append(imp)
+        else:
+            low_teams.append(imp)
 
-    # 게시판 자동 글 (이력 보존, 전사 게시판)
+    # 1. high 강도 → 카톡 즉시 알림
+    for imp in high_teams:
+        kakao_webhook_send(
+            channel_id=f"team_{imp['impact_team_id']}",
+            text=f"{icon} [{change_type}·직접영향] {title}\n변경번호: {change_no}\n작성자: {author['name']}\n→ /changes/{cid}",
+        )
+
+    # 2. 게시판 자동 글 — 모든 영향 부서 표시 (강도별 분류)
     try:
         bid = board_get_or_create_company()
-        impact_names = ", ".join([imp["team_name"] for imp in impacts if imp.get("team_name")])
+        high_names = ", ".join([imp["team_name"] for imp in high_teams]) or "없음"
+        medium_names = ", ".join([imp["team_name"] for imp in medium_teams]) or "없음"
+        low_names = ", ".join([imp["team_name"] for imp in low_teams]) or "없음"
         body = (f"종류: {change_type}\n"
                 f"긴급도: {urgency}\n"
-                f"영향 부서: {impact_names}\n"
-                f"변경번호: {change_no}\n\n"
+                f"━━ 영향 강도 ━━\n"
+                f"🔴 직접 영향: {high_names}\n"
+                f"🟡 일정 영향: {medium_names}\n"
+                f"⚪ 참고: {low_names}\n\n"
+                f"변경번호: {change_no}\n"
                 f"상세: /changes/{cid}")
         board_post_create(bid, author["id"],
                           f"[변경공지] {title}", body, category="공지",

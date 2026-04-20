@@ -2885,6 +2885,66 @@ def change_unread_count(user_id: int) -> int:
     return row[0] if row else 0
 
 
+# === 영향 강도 분류 (알림 피로 방지) ===
+# high: 직접 작업 영향 → 즉시 알림 (web + 카톡)
+# medium: 일정 협의 필요 → web 알림만
+# low: 참고용 → daily digest로 묶기
+IMPACT_INTENSITY = {
+    # 변경 종류별 직접 영향(high) 부서 — 변경 작업이 직접 부서 일정·산출물에 영향
+    ("기구설계", "T"): {"high": ["전장설계팀", "가공팀"], "medium": ["소프트웨어팀", "제조기술1팀"], "low": ["구매팀"]},
+    ("기구설계", "M"): {"high": ["전장설계팀", "가공팀"], "medium": ["소프트웨어팀", "제조기술2팀"], "low": ["구매팀"]},
+    ("전장설계", "T"): {"high": ["소프트웨어팀"], "medium": ["제조기술1팀"], "low": ["구매팀"]},
+    ("전장설계", "M"): {"high": ["소프트웨어팀"], "medium": ["제조기술2팀"], "low": ["구매팀"]},
+    ("소프트웨어", "T"): {"high": ["검사기팀"], "medium": ["제조기술1팀"], "low": []},
+    ("소프트웨어", "M"): {"high": ["제조기술2팀"], "medium": [], "low": []},
+    ("BOM", "T"): {"high": ["구매팀"], "medium": ["제조기술1팀", "가공팀"], "low": []},
+    ("BOM", "M"): {"high": ["구매팀"], "medium": ["제조기술2팀", "가공팀"], "low": []},
+    ("도면", "T"): {"high": ["가공팀", "제조기술1팀"], "medium": ["품질팀"], "low": []},
+    ("도면", "M"): {"high": ["가공팀", "제조기술2팀"], "medium": ["품질팀"], "low": []},
+    ("Concept", "T"): {"high": [], "medium": ["기술영업팀", "검사기팀"], "low": "ALL_OTHERS"},
+    ("Concept", "M"): {"high": [], "medium": ["기술영업팀"], "low": "ALL_OTHERS"},
+    ("사양", "T"): {"high": ["기술영업팀", "검사기팀"], "medium": ["설계팀", "품질팀"], "low": []},
+    ("사양", "M"): {"high": ["기술영업팀"], "medium": ["설계팀", "품질팀"], "low": []},
+}
+
+
+def get_impact_intensity(change_type: str, biz_div: str, team_name: str) -> str:
+    """변경 종류 + 사업부 + 팀명 → 영향 강도 (high/medium/low)"""
+    rule = IMPACT_INTENSITY.get((change_type, biz_div), {})
+    if team_name in rule.get("high", []):
+        return "high"
+    if team_name in rule.get("medium", []):
+        return "medium"
+    if rule.get("low") == "ALL_OTHERS" and team_name not in rule.get("high", []) + rule.get("medium", []):
+        return "low"
+    if team_name in rule.get("low", []):
+        return "low"
+    return "medium"  # default
+
+
+def changes_user_unread_by_intensity(user_id: int, team_name: str = None) -> dict:
+    """미확인 변경을 강도별로 분류 (high/medium/low)"""
+    if not team_name:
+        with db_session() as c:
+            row = c.execute(
+                """SELECT t.name FROM users u LEFT JOIN teams t ON u.team_id=t.id
+                   WHERE u.id=?""", (user_id,)).fetchone()
+            team_name = row["name"] if row and row["name"] else ""
+
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT c.change_type, c.biz_div FROM changes c
+               JOIN change_reads cr ON cr.change_id = c.id
+               WHERE cr.user_id = ? AND cr.ack_at IS NULL""",
+            (user_id,),
+        ).fetchall()
+    result = {"high": 0, "medium": 0, "low": 0}
+    for r in rows:
+        intensity = get_impact_intensity(r["change_type"], r["biz_div"] or "", team_name)
+        result[intensity] += 1
+    return result
+
+
 def change_recent_count(user_id: int = None, days: int = 1) -> int:
     """홈 KPI용 — 최근 N일 변경 (전체 또는 내 관련)"""
     sql = """SELECT COUNT(*) FROM changes

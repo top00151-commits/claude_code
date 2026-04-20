@@ -637,6 +637,170 @@ async function resolveDelegation(did, tid){
   const j = await r.json();
   if (j.ok) openCardModal(tid); else alert(j.error||'실패');
 }
+
+/* ===== 부서별 첫 사용 가이드 (실패 사례 회피 — 변경 관리 미흡 73% 실패 1위) ===== */
+{% if user %}
+(function(){
+  const KEY = 'haist_works_dept_guide_v1_{{ user.id }}';
+  if (localStorage.getItem(KEY)) return;
+
+  // 부서명별 맞춤 가이드 (없으면 일반 가이드)
+  const team = "{{ user.team_name|default('') }}";
+  const role = "{{ user.role|default('member') }}";
+
+  const GUIDES = {
+    "구매팀": {
+      icon: "📦",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "카톡 자재요청을 자동 라우팅으로 받음 (누락 0)"],
+        ["진행률 대시보드", "/progress", "발주 → 입고 → 조립 공정 진척 한눈"],
+        ["변경 알림", "/changes?scope=me", "BOM 변경 → 영향 자재 즉시 인지"]
+      ]
+    },
+    "관리팀": {
+      icon: "📊",
+      key_features: [
+        ["전사 게시판", "/board/company", "공지사항·증빙 요청 일원화"],
+        ["진행률 대시보드", "/progress", "전사 매출 흐름 모니터"],
+        ["요청 티켓", "/tickets?scope=all", "전산·비품 요청 추적"]
+      ]
+    },
+    "기술영업팀": {
+      icon: "💼",
+      key_features: [
+        ["진행률 대시보드", "/progress", "수주 → 출하 12공정 매트릭스 (Set Up 진행률 %)"],
+        ["변경 알림", "/changes?scope=me", "고객 사양 변경 즉시 인지"],
+        ["요청 티켓", "/tickets?scope=team", "포장·출하 요청 추적"]
+      ]
+    },
+    "전장설계팀": {
+      icon: "⚡",
+      key_features: [
+        ["변경 알림", "/changes?scope=me", "기구 설계 변경 1~3일 대기 → 즉시 알림으로 해소"],
+        ["진행률 대시보드", "/progress", "기구→전장→SW 일정 의존성 시각화"],
+        ["요청 티켓", "/tickets/new", "BOM 변경 사유 등록"]
+      ]
+    },
+    "설계팀": {
+      icon: "📐",
+      key_features: [
+        ["변경 알림 등록", "/changes/new", "기구 변경 시 즉시 등록 → 하류 부서 자동 알림"],
+        ["진행률 대시보드", "/progress", "본사-법인 진행 공유"],
+        ["요청 티켓", "/tickets?scope=team", "설계 MODIFY 요청 접수"]
+      ]
+    },
+    "검사기팀": {
+      icon: "🔬",
+      key_features: [
+        ["변경 알림", "/changes?scope=me", "SW·BOM 변경 즉시 인지"],
+        ["진행률 대시보드", "/progress", "검사기 프로젝트별 공정"],
+        ["요청 티켓", "/tickets?scope=team", "AS 요청 접수"]
+      ]
+    },
+    "가공팀": {
+      icon: "🔨",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "긴급 가공 요청 자동 우선순위"],
+        ["변경 알림", "/changes?scope=me", "도면 변경 저녁 통보 → 즉시 알림으로 해소"],
+        ["진행률 대시보드", "/progress", "가공 공정 진척"]
+      ]
+    },
+    "품질팀": {
+      icon: "✓",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "검수 요청 자동 라우팅"],
+        ["변경 알림", "/changes?scope=me", "도면 변경 → 검수 기준 변경"],
+        ["진행률 대시보드", "/progress", "검수 공정 (qc) 모니터"]
+      ]
+    },
+    "제조기술1팀": {
+      icon: "🛠",
+      key_features: [
+        ["진행률 대시보드", "/progress", "검사기 조립 공정 진척"],
+        ["요청 티켓", "/tickets?scope=team", "자재·도면 요청"],
+        ["변경 알림", "/changes?scope=me", "BOM·도면 변경 즉시 인지"]
+      ]
+    },
+    "제조기술2팀": {
+      icon: "🛠",
+      key_features: [
+        ["변경 알림", "/changes?scope=me", "도면 30일 link 만료 사고 예방 (지난 실사고)"],
+        ["진행률 대시보드", "/progress", "자동화 조립 공정 진척"],
+        ["요청 티켓", "/tickets?scope=team", "자재·기구 요청"]
+      ]
+    },
+    "소프트웨어팀": {
+      icon: "💻",
+      key_features: [
+        ["변경 알림", "/changes?scope=me", "I/O Map·BOM 변경 즉시 인지"],
+        ["진행률 대시보드", "/progress", "SW 공정 (sw)"],
+        ["요청 티켓", "/tickets?scope=team", "MODIFY 접수"]
+      ]
+    },
+    "개발혁신팀": {
+      icon: "🚀",
+      key_features: [
+        ["진행률 대시보드", "/progress", "공정별 진행 실시간 가시화"],
+        ["변경 알림", "/changes?scope=all", "전사 변경 모니터"],
+        ["전사 게시판", "/board/company", "혁신 사례 공유"]
+      ]
+    }
+  };
+
+  const guide = GUIDES[team] || {
+    icon: "👋",
+    key_features: [
+      ["진행률 대시보드", "/progress", "프로젝트 진행 한눈에"],
+      ["변경 알림", "/changes", "프로젝트 변경 자동 알림"],
+      ["요청 티켓", "/tickets", "카톡 대신 추적 가능한 요청"]
+    ]
+  };
+
+  // 모달 생성
+  const modal = document.createElement('div');
+  modal.id = 'deptFirstUseModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:600px;margin:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:36px;">${guide.icon}</span>
+        <div>
+          <div style="font-size:11px;color:#A5282C;font-weight:800;letter-spacing:0.04em;">HAIST WORKS 처음 시작</div>
+          <h2 style="margin:0;font-size:22px;font-weight:800;">{{ user.name }}님, ${team || '환영'}!</h2>
+        </div>
+      </div>
+      <p style="color:#6B7280;font-size:14px;line-height:1.6;margin:0 0 18px;">${team ? `${team}에서 가장 자주 쓰실 기능 3가지를 골랐어요. 30초만 봐주세요.` : '당신의 부서에 맞는 핵심 3가지'}</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        ${guide.key_features.map((f, i) => `
+          <a href="${f[1]}" style="display:flex;gap:14px;padding:14px;background:#F9FAFB;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent;transition:all .15s;" onmouseover="this.style.borderColor='#A5282C';this.style.background='#FFEBEE'" onmouseout="this.style.borderColor='transparent';this.style.background='#F9FAFB'">
+            <span style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;">${i+1}</span>
+            <div style="flex:1;">
+              <strong style="font-size:14px;color:#1A1A1A;">${f[0]} →</strong>
+              <div style="font-size:12px;color:#6B7280;margin-top:2px;line-height:1.5;">${f[2]}</div>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+
+      <div style="background:#FFF8E1;border-left:3px solid #F57F17;padding:10px 14px;border-radius:6px;margin-bottom:18px;">
+        <div style="font-size:11px;color:#F57F17;font-weight:800;margin-bottom:4px;">💡 도움이 더 필요하면</div>
+        <div style="font-size:12px;color:#6B7280;line-height:1.6;">사이드바에 모든 메뉴가 있어요. 메뉴 옆 빨간 뱃지는 미처리 항목 수입니다.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
+        <button onclick="dismissDeptGuide(false)" style="padding:8px 16px;background:transparent;border:none;color:#9CA3AF;font-size:12px;cursor:pointer;text-decoration:underline;">나중에</button>
+        <button onclick="dismissDeptGuide(true)" style="padding:10px 24px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;">확인 (다시 안 보기)</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  window.dismissDeptGuide = function(remember) {
+    if (remember) localStorage.setItem(KEY, '1');
+    modal.remove();
+  };
+})();
+{% endif %}
 </script>
 {% endif %}
 </body>
