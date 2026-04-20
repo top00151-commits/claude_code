@@ -299,6 +299,38 @@ CREATE TABLE IF NOT EXISTS po_items (
 CREATE INDEX IF NOT EXISTS idx_poitem_po ON po_items(po_id);
 CREATE INDEX IF NOT EXISTS idx_poitem_part ON po_items(part_id);
 
+-- =====================================================
+-- STOCK MOVEMENTS — 입출고 원장 (수불부) (2026-04-20)
+-- 모든 재고 증감은 여기 기록 → parts.stock_qty는 합계 결과
+-- =====================================================
+CREATE TABLE IF NOT EXISTS stock_movements (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    movement_no     TEXT UNIQUE,                 -- SM-YYMMDD-NNN 자동 채번
+    part_id         INTEGER NOT NULL REFERENCES parts(id),
+    kind            TEXT NOT NULL,               -- IN(입고) / OUT(출고) / ADJUST(실사조정) / TRANSFER(이동)
+    quantity        REAL NOT NULL,               -- 부호 있는 수량: IN=+, OUT=-, ADJUST=±
+    unit            TEXT DEFAULT 'EA',
+    unit_price      REAL DEFAULT 0,              -- 스냅샷 단가
+    amount          REAL DEFAULT 0,              -- qty * unit_price (절대값 기준)
+    -- 참조 연결
+    po_id           INTEGER REFERENCES purchase_orders(id),    -- 입고 시 발주 참조
+    po_item_id      INTEGER REFERENCES po_items(id),           -- 입고 시 라인 참조
+    project_id      INTEGER REFERENCES projects(id),           -- 출고 시 프로젝트
+    customer_id     INTEGER REFERENCES customers(id),          -- 출고 시 고객사
+    -- 메타
+    reason          TEXT,                        -- 사유 (출고 목적, 조정 사유)
+    location        TEXT,                        -- 창고/위치 (선택)
+    occurred_at     TEXT NOT NULL,               -- 실제 발생 시각 (YYYY-MM-DD HH:MM)
+    note            TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sm_part ON stock_movements(part_id);
+CREATE INDEX IF NOT EXISTS idx_sm_kind ON stock_movements(kind);
+CREATE INDEX IF NOT EXISTS idx_sm_po ON stock_movements(po_id);
+CREATE INDEX IF NOT EXISTS idx_sm_project ON stock_movements(project_id);
+CREATE INDEX IF NOT EXISTS idx_sm_occurred ON stock_movements(occurred_at);
+
 -- ============ 게시판 (HAIST WORKS) ============
 -- 게시판 마스터: 전사 / 부서별
 CREATE TABLE IF NOT EXISTS boards (
@@ -732,6 +764,17 @@ def init_db():
             tkcols = [r[1] for r in c.execute("PRAGMA table_info(tickets)").fetchall()]
             if tkcols and "approval_url" not in tkcols:
                 c.execute("ALTER TABLE tickets ADD COLUMN approval_url TEXT")
+        except Exception:
+            pass
+        # 마이그레이션: parts에 재고 컬럼 추가 (2026-04-20 — 입출고 기능)
+        try:
+            prcols = [r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()]
+            if prcols and "stock_qty" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN stock_qty REAL DEFAULT 0")
+            if prcols and "safety_stock" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN safety_stock REAL DEFAULT 0")
+            if prcols and "location" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN location TEXT")
         except Exception:
             pass
         # 시드: app_settings 기본값 (하이웍스 통합 — 카카오워크 미사용)
@@ -1976,7 +2019,7 @@ def parts_get(pid: int):
 def parts_create(data: dict) -> int:
     cols = ["part_no", "part_name", "spec", "maker", "origin", "unit",
             "currency", "std_price", "biz_div", "category", "note",
-            "is_active", "created_at", "updated_at"]
+            "is_active", "safety_stock", "location", "created_at", "updated_at"]
     now = _logi_now()
     values = [
         (data.get("part_no") or "").strip(),
@@ -1991,6 +2034,8 @@ def parts_create(data: dict) -> int:
         (data.get("category") or "").strip(),
         (data.get("note") or "").strip(),
         1 if data.get("is_active", 1) else 0,
+        float(data.get("safety_stock") or 0),
+        (data.get("location") or "").strip() or None,
         now, now,
     ]
     placeholders = ",".join(["?"] * len(cols))
@@ -2004,7 +2049,8 @@ def parts_create(data: dict) -> int:
 
 def parts_update(pid: int, data: dict) -> None:
     fields = ["part_no", "part_name", "spec", "maker", "origin", "unit",
-              "currency", "std_price", "biz_div", "category", "note", "is_active"]
+              "currency", "std_price", "biz_div", "category", "note", "is_active",
+              "safety_stock", "location"]
     sets = ", ".join([f"{f} = ?" for f in fields]) + ", updated_at = ?"
     values = [
         (data.get("part_no") or "").strip(),
@@ -2019,6 +2065,8 @@ def parts_update(pid: int, data: dict) -> None:
         (data.get("category") or "").strip(),
         (data.get("note") or "").strip(),
         1 if data.get("is_active", 1) else 0,
+        float(data.get("safety_stock") or 0),
+        (data.get("location") or "").strip() or None,
         _logi_now(),
     ]
     with db_session() as c:
@@ -2506,6 +2554,306 @@ def po_count() -> dict:
         "by_status": {r["status"] or "(미지정)": r["n"] for r in by_status},
         "amount_by_currency": {r["currency"] or "KRW": r["s"] or 0 for r in sum_amt},
     }
+
+
+# =====================================================
+# STOCK MOVEMENTS — 입출고 원장 (수불부) 2026-04-20
+# 설계: 모든 재고 변동은 stock_movements에 기록, parts.stock_qty는 결과 캐시
+# =====================================================
+MOVEMENT_KINDS = ["IN", "OUT", "ADJUST", "TRANSFER"]
+MOVEMENT_KIND_LABEL = {
+    "IN": "입고", "OUT": "출고", "ADJUST": "실사조정", "TRANSFER": "이동",
+}
+
+
+def gen_movement_no(today=None) -> str:
+    """수불 번호 자동 채번: SM-YYMMDD-NNN"""
+    today = today or _date.today()
+    yymmdd = today.strftime("%y%m%d")
+    prefix = f"SM-{yymmdd}-"
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                "SELECT movement_no FROM stock_movements WHERE movement_no LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for r in rows:
+            try:
+                seq = int(r["movement_no"].rsplit("-", 1)[-1])
+                max_seq = max(max_seq, seq)
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}{max_seq + 1:03d}"
+    except sqlite3.OperationalError:
+        return f"{prefix}001"
+
+
+def _recalc_part_stock(part_id: int, c):
+    """stock_movements 합산 → parts.stock_qty 동기화"""
+    total = c.execute(
+        "SELECT COALESCE(SUM(quantity), 0) FROM stock_movements WHERE part_id=?",
+        (part_id,),
+    ).fetchone()[0] or 0
+    c.execute(
+        "UPDATE parts SET stock_qty=?, updated_at=? WHERE id=?",
+        (total, _logi_now(), part_id),
+    )
+
+
+def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
+    """재고 이동 1건 생성 + parts.stock_qty 자동 갱신
+
+    data 필수:
+      - part_id, kind (IN/OUT/ADJUST/TRANSFER), quantity (부호 있는 값: IN=+, OUT=-)
+    선택:
+      - unit_price, po_id, po_item_id, project_id, customer_id, reason, location,
+        occurred_at, note, unit
+    """
+    kind = (data.get("kind") or "IN").upper()
+    if kind not in MOVEMENT_KINDS:
+        raise ValueError(f"Invalid movement kind: {kind}")
+    part_id = int(data["part_id"])
+    qty = float(data.get("quantity") or 0)
+    # 자동 부호 보정 (OUT이면 음수로)
+    if kind == "OUT" and qty > 0:
+        qty = -qty
+    elif kind == "IN" and qty < 0:
+        qty = -qty
+    unit_price = float(data.get("unit_price") or 0)
+    amount = abs(qty) * unit_price
+    movement_no = gen_movement_no()
+    occurred_at = data.get("occurred_at") or _logi_now()
+
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO stock_movements
+               (movement_no, part_id, kind, quantity, unit, unit_price, amount,
+                po_id, po_item_id, project_id, customer_id,
+                reason, location, occurred_at, note, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                movement_no, part_id, kind, qty,
+                data.get("unit") or "EA",
+                unit_price, amount,
+                data.get("po_id"), data.get("po_item_id"),
+                data.get("project_id"), data.get("customer_id"),
+                (data.get("reason") or "").strip() or None,
+                (data.get("location") or "").strip() or None,
+                occurred_at,
+                (data.get("note") or "").strip() or None,
+                user_id,
+            ),
+        )
+        mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        _recalc_part_stock(part_id, c)
+    return mid, movement_no
+
+
+def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
+               occurred_at: str = "") -> dict:
+    """발주서 입고 처리 — 라인별 입고 수량 기록
+
+    receive_lines: [{po_item_id, receive_qty, note?}]
+    - stock_movements에 IN 생성
+    - po_items.received_qty 누적
+    - purchase_orders.status 자동 갱신 (부분입고/입고완료)
+    """
+    created = []
+    with db_session() as c:
+        po = c.execute(
+            "SELECT * FROM purchase_orders WHERE id=?", (po_id,)
+        ).fetchone()
+        if not po:
+            return {"ok": False, "error": "발주서를 찾을 수 없습니다."}
+
+        for line in receive_lines:
+            item_id = int(line.get("po_item_id"))
+            qty = float(line.get("receive_qty") or 0)
+            if qty <= 0:
+                continue
+            item = c.execute(
+                "SELECT * FROM po_items WHERE id=? AND po_id=?",
+                (item_id, po_id),
+            ).fetchone()
+            if not item or not item["part_id"]:
+                continue
+            # po_items.received_qty 누적
+            new_recv = (item["received_qty"] or 0) + qty
+            c.execute(
+                "UPDATE po_items SET received_qty=? WHERE id=?",
+                (new_recv, item_id),
+            )
+            # stock_movement 생성 + stock_qty 재계산
+            mid, mno = stock_movement_create({
+                "part_id": item["part_id"],
+                "kind": "IN",
+                "quantity": qty,
+                "unit": item["unit"] or "EA",
+                "unit_price": item["unit_price"] or 0,
+                "po_id": po_id,
+                "po_item_id": item_id,
+                "project_id": po["project_id"],
+                "reason": f"발주 {po['po_number']} 입고",
+                "occurred_at": occurred_at or _logi_now(),
+                "note": (line.get("note") or "").strip() or None,
+            }, user_id)
+            created.append({"movement_id": mid, "movement_no": mno,
+                            "po_item_id": item_id, "qty": qty})
+
+        # PO 상태 자동 갱신
+        items_all = c.execute(
+            "SELECT quantity, received_qty FROM po_items WHERE po_id=?",
+            (po_id,),
+        ).fetchall()
+        total_ord = sum(r["quantity"] or 0 for r in items_all)
+        total_rcv = sum(r["received_qty"] or 0 for r in items_all)
+        if total_rcv <= 0:
+            new_status = po["status"]
+        elif total_rcv >= total_ord:
+            new_status = "입고완료"
+        else:
+            new_status = "부분입고"
+        c.execute(
+            "UPDATE purchase_orders SET status=?, updated_at=? WHERE id=?",
+            (new_status, _logi_now(), po_id),
+        )
+    return {"ok": True, "created": created, "count": len(created)}
+
+
+def stock_issue(data: dict, user_id: int) -> tuple[int, str] | None:
+    """출고 처리 — 프로젝트/고객사 지정, parts.stock_qty 감소
+
+    data 필수:
+      - part_id, quantity (양수로 입력 — 내부에서 음수화)
+    """
+    qty = float(data.get("quantity") or 0)
+    if qty <= 0:
+        raise ValueError("출고 수량은 양수여야 합니다.")
+    return stock_movement_create({
+        "part_id": data["part_id"],
+        "kind": "OUT",
+        "quantity": qty,  # 내부에서 음수화됨
+        "unit_price": data.get("unit_price") or 0,
+        "unit": data.get("unit") or "EA",
+        "project_id": data.get("project_id"),
+        "customer_id": data.get("customer_id"),
+        "reason": (data.get("reason") or "현장 출고").strip(),
+        "location": data.get("location"),
+        "occurred_at": data.get("occurred_at"),
+        "note": data.get("note"),
+    }, user_id)
+
+
+def stock_adjust(data: dict, user_id: int) -> tuple[int, str]:
+    """실사 조정 — 실사 결과와 시스템 재고 차이를 조정
+
+    data 필수:
+      - part_id, quantity (+/- 조정값)
+      - reason (실사 사유, 필수)
+    """
+    return stock_movement_create({
+        "part_id": data["part_id"],
+        "kind": "ADJUST",
+        "quantity": float(data.get("quantity") or 0),
+        "reason": (data.get("reason") or "실사 조정").strip(),
+        "note": data.get("note"),
+        "occurred_at": data.get("occurred_at"),
+    }, user_id)
+
+
+def stock_movements_list(part_id: int = 0, kind: str = "", since: str = "",
+                         until: str = "", po_id: int = 0, project_id: int = 0,
+                         q: str = "", limit: int = 200) -> list[dict]:
+    """수불부 조회. 최근 순."""
+    sql = """SELECT sm.*,
+                    p.part_no, p.part_name, p.unit AS part_unit, p.category,
+                    po.po_number,
+                    pr.mgmt_code, pr.name AS project_name,
+                    cu.name AS customer_name,
+                    u.name AS created_by_name
+             FROM stock_movements sm
+             LEFT JOIN parts p ON sm.part_id = p.id
+             LEFT JOIN purchase_orders po ON sm.po_id = po.id
+             LEFT JOIN projects pr ON sm.project_id = pr.id
+             LEFT JOIN customers cu ON sm.customer_id = cu.id
+             LEFT JOIN users u ON sm.created_by = u.id
+             WHERE 1=1"""
+    params: list = []
+    if part_id:
+        sql += " AND sm.part_id = ?"
+        params.append(part_id)
+    if kind and kind.upper() in MOVEMENT_KINDS:
+        sql += " AND sm.kind = ?"
+        params.append(kind.upper())
+    if since:
+        sql += " AND sm.occurred_at >= ?"
+        params.append(since)
+    if until:
+        sql += " AND sm.occurred_at <= ?"
+        params.append(until + " 23:59:59")
+    if po_id:
+        sql += " AND sm.po_id = ?"
+        params.append(po_id)
+    if project_id:
+        sql += " AND sm.project_id = ?"
+        params.append(project_id)
+    if q:
+        like = f"%{q}%"
+        sql += """ AND (sm.movement_no LIKE ? OR p.part_no LIKE ? OR p.part_name LIKE ?
+                        OR sm.reason LIKE ? OR sm.note LIKE ?)"""
+        params += [like, like, like, like, like]
+    sql += " ORDER BY sm.occurred_at DESC, sm.id DESC LIMIT ?"
+    params.append(limit)
+    with db_session() as c:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
+def stock_kpi() -> dict:
+    """물류 홈 대시보드용 KPI"""
+    today = _date.today().isoformat()
+    since_30 = (_date.today() - _td(days=30)).isoformat()
+    with db_session() as c:
+        parts_total = c.execute("SELECT COUNT(*) FROM parts WHERE is_active=1").fetchone()[0]
+        # 재고 금액 (std_price * stock_qty)
+        row_val = c.execute(
+            "SELECT COALESCE(SUM(stock_qty * std_price),0) FROM parts WHERE is_active=1"
+        ).fetchone()
+        stock_value = row_val[0] if row_val else 0
+        # 안전재고 미달
+        low_stock = c.execute(
+            """SELECT COUNT(*) FROM parts
+               WHERE is_active=1 AND safety_stock > 0 AND stock_qty < safety_stock"""
+        ).fetchone()[0]
+        # 미입고 발주 (작성중/발주완료/부분입고)
+        po_pending = c.execute(
+            """SELECT COUNT(*) FROM purchase_orders
+               WHERE status IN ('작성중','발주완료','부분입고')"""
+        ).fetchone()[0]
+        # 30일 입/출고 합계
+        in_30 = c.execute(
+            """SELECT COALESCE(SUM(quantity),0) FROM stock_movements
+               WHERE kind='IN' AND occurred_at >= ?""",
+            (since_30,),
+        ).fetchone()[0] or 0
+        out_30 = c.execute(
+            """SELECT COALESCE(SUM(quantity),0) FROM stock_movements
+               WHERE kind='OUT' AND occurred_at >= ?""",
+            (since_30,),
+        ).fetchone()[0] or 0
+    return {
+        "parts_total": parts_total,
+        "stock_value": stock_value,
+        "low_stock": low_stock,
+        "po_pending": po_pending,
+        "in_30d": in_30,
+        "out_30d": abs(out_30),  # 음수 저장 → 절대값 표시
+    }
+
+
+def part_stock_history(part_id: int, limit: int = 50) -> list[dict]:
+    """특정 부품의 입출고 이력 (파트 상세에서 사용)"""
+    return stock_movements_list(part_id=part_id, limit=limit)
 
 
 # =====================================================

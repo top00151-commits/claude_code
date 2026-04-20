@@ -3257,9 +3257,15 @@ async def logi_dashboard(request: Request):
         return RedirectResponse("/home", 303)
     parts_stats = _logi.parts_count()
     proj_stats = _logi.projects_count_logi()
+    from .database import stock_kpi as _stock_kpi
+    try:
+        s_kpi = _stock_kpi()
+    except Exception:
+        s_kpi = None
     return ctx(request, "logistics_home.html",
                user=u, active="logistics",
-               parts_stats=parts_stats, proj_stats=proj_stats)
+               parts_stats=parts_stats, proj_stats=proj_stats,
+               stock_kpi=s_kpi)
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────
@@ -3295,6 +3301,7 @@ async def parts_new_submit(
     unit: str = Form("EA"), currency: str = Form("KRW"),
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
+    safety_stock: str = Form("0"), location: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -3307,6 +3314,7 @@ async def parts_new_submit(
         "currency": currency, "std_price": std_price,
         "biz_div": biz_div, "category": category, "note": note,
         "is_active": is_active,
+        "safety_stock": safety_stock, "location": location,
     })
     return RedirectResponse("/parts", status_code=303)
 
@@ -3332,6 +3340,7 @@ async def parts_edit_submit(
     unit: str = Form("EA"), currency: str = Form("KRW"),
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
+    safety_stock: str = Form("0"), location: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -3344,6 +3353,7 @@ async def parts_edit_submit(
         "currency": currency, "std_price": std_price,
         "biz_div": biz_div, "category": category, "note": note,
         "is_active": is_active,
+        "safety_stock": safety_stock, "location": location,
     })
     return RedirectResponse("/parts", status_code=303)
 
@@ -3734,6 +3744,210 @@ async def po_delete_submit(request: Request, po_id: int):
         return RedirectResponse("/home", 303)
     _logi.po_delete(po_id)
     return RedirectResponse("/po", status_code=303)
+
+
+# =====================================================
+# 입고·출고·수불부 (2026-04-20 물류 본질 완성)
+# =====================================================
+from .database import (stock_movement_create, po_receive, stock_issue,
+                        stock_adjust, stock_movements_list, stock_kpi,
+                        part_stock_history, MOVEMENT_KINDS, MOVEMENT_KIND_LABEL,
+                        gen_movement_no)
+
+
+@app.get("/po/{po_id}/receive", response_class=HTMLResponse)
+async def po_receive_form(request: Request, po_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    header, items = _logi.po_get(po_id)
+    if not header:
+        return RedirectResponse("/po", 303)
+    po_ctx = dict(header)
+    po_ctx["items"] = [dict(r) for r in items]
+    return ctx(request, "po_receive.html", user=u, po=po_ctx, active="po")
+
+
+@app.post("/po/{po_id}/receive")
+async def po_receive_submit(request: Request, po_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    occurred = form.get("occurred_at", "") or ""
+    item_ids = form.getlist("po_item_id")
+    qtys = form.getlist("receive_qty")
+    notes = form.getlist("item_note")
+    lines = []
+    for i, iid in enumerate(item_ids):
+        try:
+            q = float(qtys[i]) if i < len(qtys) and qtys[i] else 0
+        except ValueError:
+            q = 0
+        if q > 0:
+            lines.append({
+                "po_item_id": int(iid),
+                "receive_qty": q,
+                "note": notes[i] if i < len(notes) else "",
+            })
+    if not lines:
+        return RedirectResponse(f"/po/{po_id}/receive?error=empty", 303)
+    result = po_receive(po_id, lines, u["id"], occurred_at=occurred)
+    if not result.get("ok"):
+        return RedirectResponse(f"/po/{po_id}/receive?error=1", 303)
+    return RedirectResponse(f"/po/{po_id}?received={result['count']}", 303)
+
+
+@app.get("/stock/issue", response_class=HTMLResponse)
+async def stock_issue_form(request: Request, part_id: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        parts = c.execute(
+            """SELECT id, part_no, part_name, unit, stock_qty, std_price, safety_stock
+               FROM parts WHERE is_active=1 ORDER BY part_name"""
+        ).fetchall()
+        projects = c.execute(
+            """SELECT id, mgmt_code, name FROM projects
+               WHERE status IN ('active','진행중','planning','수주확정','납품')
+               ORDER BY mgmt_code DESC LIMIT 200"""
+        ).fetchall()
+        customers = c.execute(
+            "SELECT id, name FROM customers ORDER BY tier DESC, name"
+        ).fetchall()
+    return ctx(request, "stock_issue.html", user=u,
+               parts=[dict(r) for r in parts],
+               projects=[dict(r) for r in projects],
+               customers=[dict(r) for r in customers],
+               default_part_id=part_id, active="stock")
+
+
+@app.post("/stock/issue")
+async def stock_issue_submit(
+    request: Request,
+    part_id: str = Form(...),
+    quantity: str = Form(...),
+    project_id: str = Form(""),
+    customer_id: str = Form(""),
+    unit_price: str = Form("0"),
+    reason: str = Form("현장 출고"),
+    location: str = Form(""),
+    occurred_at: str = Form(""),
+    note: str = Form(""),
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    try:
+        pid = int(part_id)
+        qty = float(quantity)
+    except ValueError:
+        return RedirectResponse("/stock/issue?error=invalid", 303)
+    if qty <= 0:
+        return RedirectResponse("/stock/issue?error=qty", 303)
+    try:
+        mid, mno = stock_issue({
+            "part_id": pid,
+            "quantity": qty,
+            "project_id": int(project_id) if project_id.isdigit() else None,
+            "customer_id": int(customer_id) if customer_id.isdigit() else None,
+            "unit_price": float(unit_price or 0),
+            "reason": reason,
+            "location": location,
+            "occurred_at": occurred_at or None,
+            "note": note,
+        }, u["id"])
+    except ValueError as e:
+        return RedirectResponse(f"/stock/issue?error={e}", 303)
+    return RedirectResponse(f"/stock/movements?success={mno}", 303)
+
+
+@app.get("/stock/adjust", response_class=HTMLResponse)
+async def stock_adjust_form(request: Request, part_id: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        parts = c.execute(
+            """SELECT id, part_no, part_name, unit, stock_qty
+               FROM parts WHERE is_active=1 ORDER BY part_name"""
+        ).fetchall()
+    return ctx(request, "stock_adjust.html", user=u,
+               parts=[dict(r) for r in parts],
+               default_part_id=part_id, active="stock")
+
+
+@app.post("/stock/adjust")
+async def stock_adjust_submit(
+    request: Request,
+    part_id: str = Form(...),
+    quantity: str = Form(...),
+    reason: str = Form(...),
+    note: str = Form(""),
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    try:
+        pid = int(part_id)
+        qty = float(quantity)
+    except ValueError:
+        return RedirectResponse("/stock/adjust?error=invalid", 303)
+    stock_adjust({
+        "part_id": pid,
+        "quantity": qty,
+        "reason": reason,
+        "note": note,
+    }, u["id"])
+    return RedirectResponse("/stock/movements?success=adjust", 303)
+
+
+@app.get("/stock/movements", response_class=HTMLResponse)
+async def stock_movements_page(
+    request: Request,
+    part_id: str = "",
+    kind: str = "",
+    since: str = "",
+    until: str = "",
+    po_id: str = "",
+    project_id: str = "",
+    q: str = "",
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    items = stock_movements_list(
+        part_id=int(part_id) if part_id.isdigit() else 0,
+        kind=kind,
+        since=since, until=until,
+        po_id=int(po_id) if po_id.isdigit() else 0,
+        project_id=int(project_id) if project_id.isdigit() else 0,
+        q=q,
+        limit=300,
+    )
+    kpi = stock_kpi()
+    part_filter = None
+    if part_id.isdigit():
+        part_filter = _logi.parts_get(int(part_id))
+    return ctx(request, "stock_movements.html", user=u, items=items, kpi=kpi,
+               part_filter=part_filter, filter_kind=kind, filter_since=since,
+               filter_until=until, q=q, MOVEMENT_KIND_LABEL=MOVEMENT_KIND_LABEL,
+               active="stock")
 
 
 # =====================================================

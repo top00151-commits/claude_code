@@ -189,29 +189,29 @@ def h_inventory(u, db, query: str = ""):
     total_cnt = 0
     try:
         with db() as c:
-            # parts 테이블 존재 여부 먼저 확인
             try:
                 if search_term:
                     like = f"%{search_term}%"
                     rows = c.execute(
-                        """SELECT part_no, name, spec, stock_qty, safety_stock, unit
+                        """SELECT part_no, part_name, spec, stock_qty, safety_stock, unit, id
                            FROM parts
-                           WHERE is_active=1 AND (name LIKE ? OR part_no LIKE ? OR spec LIKE ?)
-                           ORDER BY name LIMIT 10""",
+                           WHERE is_active=1 AND (part_name LIKE ? OR part_no LIKE ? OR spec LIKE ?)
+                           ORDER BY part_name LIMIT 10""",
                         (like, like, like),
                     ).fetchall()
                 else:
                     rows = c.execute(
-                        """SELECT part_no, name, spec, stock_qty, safety_stock, unit
+                        """SELECT part_no, part_name, spec, stock_qty, safety_stock, unit, id
                            FROM parts WHERE is_active=1
-                           ORDER BY (stock_qty < COALESCE(safety_stock,0)) DESC, name
+                           ORDER BY (stock_qty < COALESCE(safety_stock,0)) DESC, part_name
                            LIMIT 10"""
                     ).fetchall()
                 items = [dict(r) for r in rows]
                 total_cnt = c.execute(
                     "SELECT COUNT(*) FROM parts WHERE is_active=1"
                 ).fetchone()[0]
-            except Exception:
+            except Exception as e:
+                print(f"[VICTOR inventory] {e}")
                 items = []
                 total_cnt = 0
     except Exception:
@@ -238,17 +238,23 @@ def h_inventory(u, db, query: str = ""):
         stock = r.get("stock_qty") or 0
         safe = r.get("safety_stock") or 0
         mark = " 🔴 안전재고↓" if safe and stock < safe else ""
-        lines.append(f"  • [{r.get('part_no','')}] {r.get('name','')} — {stock}{r.get('unit') or ''}{mark}")
+        lines.append(f"  • [{r.get('part_no','')}] {r.get('part_name','')} — {stock}{r.get('unit') or ''}{mark}")
     label = f"'{search_term}' 검색 결과" if search_term else "전체"
     text = f"{label} {len(items)}건:\n" + "\n".join(lines)
+    links = [
+        _link("부품 목록 →", "/parts", "primary"),
+        _link("수불부 →", "/stock/movements", "secondary"),
+        _link("출고 등록 →", "/stock/issue", "secondary"),
+    ]
+    # 단일 품목이면 해당 부품 이력 링크 추가
+    if len(items) == 1 and items[0].get("id"):
+        links.insert(1, _link(f"{items[0]['part_name']} 이력 →",
+                              f"/stock/movements?part_id={items[0]['id']}", "primary"))
     return {
         "type": "data",
         "title": "📦 자재 재고",
         "text": text,
-        "links": [
-            _link("자재 관리 →", "/logistics/parts", "primary"),
-            _link("발주 현황 →", "/logistics/po", "secondary"),
-        ],
+        "links": links,
     }
 
 
@@ -511,7 +517,7 @@ INTENTS = [
 
     # 데이터 조회 — 구체적 키워드
     ("sales",         ["매출", "수주", "오더", "매출현황", "실적", "주문금액"], h_sales),
-    ("inventory",     ["재고", "자재", "입고", "부품", "파트", "발주", "납품"], h_inventory),
+    ("inventory",     ["재고", "자재", "부품", "파트", "납품"], h_inventory),
     ("attendance",    ["출근", "근태", "휴가현황", "오늘출근", "누구출근"], h_attendance_today),
     ("issues",        ["이슈", "AS", "불량", "클레임", "결함", "미해결이슈", "심각"], h_issues_recent),
     ("changes",       ["변경", "ECN", "Inform", "공지", "미확인변경", "확인안한"], h_changes_recent),
@@ -559,6 +565,26 @@ INTENTS = [
     ("logistics",     ["물류", "매출흐름", "공급"],
                       _simple_route("📦 매출흐름·물류", "물류 모듈로 이동합니다.",
                                     "/logistics", "물류 시스템 ↗")),
+    ("stock_mv",      ["수불부", "입출고", "재고이력", "원장", "재고변동"],
+                      _simple_route("📒 수불부 (입출고 원장)",
+                                    "모든 재고 변동 이력을 봅니다.",
+                                    "/stock/movements", "수불부 →")),
+    ("stock_in",      ["입고", "입고처리", "받았"],
+                      _simple_route("📥 입고 처리",
+                                    "발주서에서 입고 처리를 진행하세요.\n(발주 상세 → '입고 처리' 버튼)",
+                                    "/po", "발주 목록 →")),
+    ("stock_out",     ["출고", "출고등록", "자재출고", "현장출고"],
+                      _simple_route("📤 출고 등록",
+                                    "프로젝트/고객사에 자재를 출고합니다.",
+                                    "/stock/issue", "출고 등록 →")),
+    ("stock_adjust",  ["실사", "실사조정", "재고조정"],
+                      _simple_route("⚖️ 재고 실사 조정",
+                                    "실사 결과와 시스템 재고 차이를 조정합니다.",
+                                    "/stock/adjust", "실사 조정 →")),
+    ("po_list",       ["발주", "발주서", "PO", "주문서"],
+                      _simple_route("📋 발주 관리",
+                                    "발주서 목록을 봅니다. 발주 상세에서 '입고 처리' 가능.",
+                                    "/po", "발주 목록 →")),
     ("search",        ["검색", "찾기", "find", "search"],
                       _simple_route("🔍 전체 검색",
                                     "업무·코멘트·회고 통합 검색으로 이동합니다.",

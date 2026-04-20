@@ -18,15 +18,36 @@
     <div class="kpi-value">{{ proj_stats.with_code }}</div>
     <div class="kpi-sub">전체 {{ proj_stats.total }}건 · 진행중 {{ proj_stats.in_progress }}</div>
   </a>
-  <div class="kpi muted-card">
+  <a href="/po?status=발주완료" class="kpi">
     <div class="kpi-label">미입고 발주</div>
-    <div class="kpi-value">—</div>
-    <div class="kpi-sub">3단계 예정</div>
-  </div>
-  <div class="kpi muted-card">
-    <div class="kpi-label">현재고 항목</div>
-    <div class="kpi-value">—</div>
-    <div class="kpi-sub">5단계 예정</div>
+    <div class="kpi-value">{{ stock_kpi.po_pending if stock_kpi else 0 }}</div>
+    <div class="kpi-sub">발주완료·부분입고 상태</div>
+  </a>
+  <a href="/stock/movements?kind=&scope=low" class="kpi" style="{% if stock_kpi and stock_kpi.low_stock > 0 %}background:#FEF2F2;border-color:#FCA5A5;{% endif %}">
+    <div class="kpi-label">안전재고 미달</div>
+    <div class="kpi-value" style="{% if stock_kpi and stock_kpi.low_stock > 0 %}color:#DC2626;{% endif %}">{{ stock_kpi.low_stock if stock_kpi else 0 }}</div>
+    <div class="kpi-sub">긴급 발주 필요</div>
+  </a>
+  <a href="/stock/movements" class="kpi">
+    <div class="kpi-label">재고 금액</div>
+    <div class="kpi-value" style="font-size:20px;">{{ "{:,.0f}".format(stock_kpi.stock_value if stock_kpi else 0) }}원</div>
+    <div class="kpi-sub">(표준단가 × 현재고)</div>
+  </a>
+</div>
+
+<div class="card" style="margin-top:12px;padding:14px 20px;background:linear-gradient(135deg,#F0FDF4,#DCFCE7);border:1px solid #86EFAC;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div style="font-weight:800;color:#166534;">📊 최근 30일 재고 흐름</div>
+      <div style="font-size:13px;color:#374151;margin-top:4px;">
+        <span style="color:#2E7D32;font-weight:700;">입고 +{{ "%g"|format(stock_kpi.in_30d if stock_kpi else 0) }}</span> ·
+        <span style="color:#DC2626;font-weight:700;">출고 -{{ "%g"|format(stock_kpi.out_30d if stock_kpi else 0) }}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="/stock/movements" class="btn btn-ghost" style="font-weight:700;">📒 수불부</a>
+      <a href="/stock/issue" class="btn" style="background:#DC2626;color:#fff;border:none;">📤 출고</a>
+    </div>
   </div>
 </div>
 

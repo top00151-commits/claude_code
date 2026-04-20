@@ -9,6 +9,9 @@
   </div>
   <div style="display:flex;gap:8px">
     <a href="/po" class="btn btn-ghost">← 목록</a>
+    {% if po.status in ('발주완료', '부분입고', '작성중') %}
+    <a href="/po/{{ po.id }}/receive" class="btn" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;font-weight:800;">📥 입고 처리</a>
+    {% endif %}
     <a href="/po/{{ po.id }}/edit" class="btn">수정</a>
     <button onclick="window.print()" class="btn">인쇄</button>
     <form method="post" action="/po/{{ po.id }}/delete" style="display:inline"

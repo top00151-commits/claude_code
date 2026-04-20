@@ -93,6 +93,39 @@
     </div>
   </div>
 
+  {# 재고 관리 필드 (2026-04-20 신규) #}
+  {% if part %}
+  <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+    <div class="field">
+      <label>현재고 <small style="color:#9CA3AF;">(입출고로 자동 관리)</small></label>
+      <input type="text" readonly value="{{ '%g'|format(part.stock_qty or 0) }}"
+             style="background:#F9FAFB;color:#6B7280;font-family:monospace;">
+    </div>
+    <div class="field">
+      <label>안전재고</label>
+      <input type="number" name="safety_stock" step="0.01" min="0"
+             value="{{ part.safety_stock or 0 }}"
+             placeholder="0 = 알림 없음">
+    </div>
+    <div class="field">
+      <label>보관 위치</label>
+      <input type="text" name="location" value="{{ part.location or '' }}"
+             placeholder="예: A창고-3선반">
+    </div>
+  </div>
+  {% else %}
+  <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="field">
+      <label>안전재고 <small style="color:#9CA3AF;">(미달 시 경고)</small></label>
+      <input type="number" name="safety_stock" step="0.01" min="0" value="0">
+    </div>
+    <div class="field">
+      <label>보관 위치</label>
+      <input type="text" name="location" placeholder="예: A창고-3선반">
+    </div>
+  </div>
+  {% endif %}
+
   <div class="field">
     <label>비고</label>
     <textarea name="note" rows="3" placeholder="자유 입력 (메모, 특이사항)">{{ part.note if part else '' }}</textarea>

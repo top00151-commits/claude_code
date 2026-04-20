@@ -72,14 +72,18 @@
     </div>
 
     <div class="sb-section">
-      <div class="sb-head">입고 · 재고 (예정)</div>
-      <a href="#" class="sb-item sb-muted-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M5 12l7 7 7-7"/><path d="M5 21h14"/></svg></span>
-        입고 처리 <span class="sb-phase">4단계</span>
-      </a>
-      <a href="#" class="sb-item sb-muted-item">
+      <div class="sb-head">재고 · 입출고 <span style="background:#E8F5E9;color:#2E7D32;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
+      <a href="/stock/movements" class="sb-item {% if active=='stock' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
-        재고 흐름 <span class="sb-phase">5단계</span>
+        수불부 (입출고 원장)
+      </a>
+      <a href="/stock/issue" class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
+        출고 등록
+      </a>
+      <a href="/stock/adjust" class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/></svg></span>
+        실사 조정
       </a>
     </div>
 
