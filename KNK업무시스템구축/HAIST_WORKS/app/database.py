@@ -2589,8 +2589,18 @@ def gen_movement_no(today=None) -> str:
         return f"{prefix}001"
 
 
-def _recalc_part_stock(part_id: int, c):
-    """stock_movements 합산 → parts.stock_qty 동기화"""
+def _recalc_part_stock(part_id: int, c) -> dict:
+    """stock_movements 합산 → parts.stock_qty 동기화.
+    반환: {prev_qty, new_qty, safety_stock, crossed_low (정상→미달로 전환된 경우 True)}
+    """
+    # 이전 상태 조회
+    prev = c.execute(
+        "SELECT stock_qty, safety_stock, part_no, part_name FROM parts WHERE id=?",
+        (part_id,),
+    ).fetchone()
+    prev_qty = (prev["stock_qty"] or 0) if prev else 0
+    safety = (prev["safety_stock"] or 0) if prev else 0
+
     total = c.execute(
         "SELECT COALESCE(SUM(quantity), 0) FROM stock_movements WHERE part_id=?",
         (part_id,),
@@ -2599,6 +2609,65 @@ def _recalc_part_stock(part_id: int, c):
         "UPDATE parts SET stock_qty=?, updated_at=? WHERE id=?",
         (total, _logi_now(), part_id),
     )
+
+    # 정상 → 미달로 전환 판별 (안전재고 > 0 설정된 품목만)
+    was_ok = safety > 0 and prev_qty >= safety
+    is_low = safety > 0 and total < safety
+    crossed_low = was_ok and is_low
+
+    return {
+        "prev_qty": prev_qty,
+        "new_qty": total,
+        "safety_stock": safety,
+        "crossed_low": crossed_low,
+        "part_no": prev["part_no"] if prev else "",
+        "part_name": prev["part_name"] if prev else "",
+    }
+
+
+def _auto_ticket_low_stock(part_info: dict, user_id: int):
+    """안전재고 미달 전환 시 구매팀에 자동 티켓 생성.
+    중복 방지: 동일 부품에 대해 24시간 내 미완료 자재요청 티켓이 있으면 스킵.
+    """
+    try:
+        part_no = part_info.get("part_no", "")
+        part_name = part_info.get("part_name", "")
+        new_qty = part_info.get("new_qty", 0)
+        safety = part_info.get("safety_stock", 0)
+
+        title = f"[자동] 안전재고 미달 — {part_name} ({part_no})"
+        with db_session() as c:
+            # 중복 방지: 24시간 내 동일 제목 미완료 티켓
+            existing = c.execute(
+                """SELECT id FROM tickets
+                   WHERE title = ? AND status NOT IN ('완료','반려')
+                   AND created_at >= datetime('now','-1 day','localtime')""",
+                (title,),
+            ).fetchone()
+            if existing:
+                return None
+        # 구매팀 id
+        recipient_team_id = _team_id_by_name("구매팀") or None
+        body = (
+            f"안전재고 미달 — 긴급 발주 검토 요청\n\n"
+            f"• 부품: [{part_no}] {part_name}\n"
+            f"• 현재고: {new_qty}\n"
+            f"• 안전재고: {safety}\n"
+            f"• 부족 수량: {max(0, safety - new_qty)}\n\n"
+            f"※ 이 티켓은 출고/실사 조정으로 재고가 안전재고 아래로 떨어질 때 자동 생성됩니다."
+        )
+        tid, tno = ticket_create({
+            "category": "자재요청",
+            "title": title,
+            "description": body,
+            "urgency": "긴급",
+            "source": "auto-stock",
+            "recipient_team_id": recipient_team_id,
+        }, requester_id=user_id)
+        return tid
+    except Exception as e:
+        print(f"[AUTO-TICKET stock] {e}")
+        return None
 
 
 def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
@@ -2646,7 +2715,11 @@ def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
             ),
         )
         mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        _recalc_part_stock(part_id, c)
+        stock_info = _recalc_part_stock(part_id, c)
+
+    # 정상 → 미달 전환 시 구매팀에 자동 티켓 (트랜잭션 밖에서 별도)
+    if stock_info.get("crossed_low"):
+        _auto_ticket_low_stock(stock_info, user_id)
     return mid, movement_no
 
 
