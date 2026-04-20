@@ -156,6 +156,19 @@
         부서 게시판
       </a>
     </div>
+    <div class="sb-section">
+      <div class="sb-head">외부 시스템 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">하이웍스</span></div>
+      <a href="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="전자결제는 하이웍스에서 계속 사용">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        전자결제
+        <span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+      </a>
+      <a href="{{ hiworks_mail_url|default('https://mail.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="메일은 하이웍스에서 계속 사용">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+        메일
+        <span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+      </a>
+    </div>
     {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
     <div class="sb-section">
       <div class="sb-head">매출흐름 · 물류</div>

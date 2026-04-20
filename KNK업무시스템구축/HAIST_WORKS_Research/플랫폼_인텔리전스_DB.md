@@ -814,10 +814,364 @@ Inventor는 **AnyCAD** 기능 내장:
 
 ---
 
-**최종 갱신**: 2026-04-20 (초기 생성, Batch 1+2+3+Multi-CAD)
-**다음 리서치 계획** (세션3 또는 대표님 요청 시):
-- SolidWorks Electrical (만약 KNK가 전환 고려 시)
-- Inventor ↔ SolidWorks 실제 이관 고충 심화
-- 한국어 CAD 커뮤니티 AutoCAD+SolidWorks+Inventor 혼용 후기
-- 제조 3도메인 변경 관리 Git-like 버전 관리 방법론
-- FastAPI + pgvector 기반 자체 MCP 서버 사례 (세션3 자체 구축 참고용)
+**최종 갱신**: 2026-04-20 (Batch 1+2+3+Multi-CAD+§7~§12 신규 추가)
+
+---
+
+## 7. SolidWorks Electrical 전환 연구
+
+**출처**: Javelin-tech, GoEngineer, Capterra, TriMech, SolidWorks 공식, Autodesk Community
+
+### 7.1 SolidWorks Electrical 2026 공식 기능 (팩트)
+
+- 스마트 커넥터 도구
+- 3D 라우팅 개선
+- 협업 기능 향상
+- 시간 절약·병목 제거 목적
+
+### 7.2 AutoCAD Electrical → SolidWorks Electrical 전환 시 알려진 두려움 요소
+
+| # | 두려움 | 출처 |
+|---|---|---|
+| 1 | 레거시 프로젝트 데이터 손실 | SolidWorks 공식 migration 가이드 |
+| 2 | 생산성 손실 (학습·적응 기간) | 공식 |
+| 3 | 학습 곡선 | 공식 |
+| 4 | 워크플로우 유연성 | 공식 |
+| 5 | 산출물 품질·포맷 | 공식 |
+
+### 7.3 성공적 전환 권장 패턴 (사실)
+
+- **레거시 문서 버전 관리 하에 보존**
+- **AutoCAD/AutoCAD Electrical은 기존 편집 용도로 유지**
+- **신규 프로젝트부터 SolidWorks Electrical로 시작**
+- **SolidWorks 전환 유틸리티** 확인 → 완전 재작도 회피
+
+### 7.4 공개 구체 케이스 스터디
+
+**검색 결과**: 2025~2026 AutoCAD Electrical → SolidWorks Electrical로 전환한 **구체 회사 케이스 스터디 공개 자료는 제한적** (공급사 마케팅 자료가 대부분).
+
+### 7.5 세션3 참조 포인트
+
+**흡수할 패턴**:
+- "레거시 유지 + 신규는 신 도구" 분리 전략 (빅뱅 전환 회피)
+- 2D 도면 양방향 참조 유지 개념
+
+**피할 함정**:
+- 구체 성공/실패 케이스 자료 부족 → 실제 효과 검증 어려움
+- 공급사 마케팅 자료와 실사용자 경험 갭
+
+---
+
+## 8. Inventor ↔ SolidWorks 이관 심화
+
+**출처**: Autodesk Community, Javelin-tech, Hawk Ridge Systems, SWYFT Solutions, Ketiv, TransMagic, GSC, CAD Exchanger
+
+### 8.1 핵심 사실 (반복 확인)
+
+- **Feature tree는 이관 시 완전 손실** — 각 시스템으로 전송 시마다
+- **STEP·Parasolid·IGES 등 중립 포맷은 'dumb solid'만** 전달 (피처·스케치 없음)
+- **2D 도면은 호환 불가** — Inventor는 SolidWorks 부품·어셈블리만 열고 도면은 못 열음
+- **iPart/iAssemble ↔ SolidWorks configurations**는 개념 유사하나 변환 까다로움
+
+### 8.2 실제 사용자 포럼 질의·결론 (원문 인용)
+
+**Autodesk Community 질의**: 부서 1은 SolidWorks, 부서 2는 Inventor 사용 — 모델 전송 방법?
+
+**경험자 결론 (원문 요약)**:
+> "SolidWorks 파일을 Inventor에서 native 'feature tree'로 수정할 수 있는 능력은 **존재하지 않는다**. 한 시스템에서 다른 시스템으로 전송 시 feature tree는 essentially lost."
+
+> "부서 간 왕복 수정 필요 시, **하나의 프로그램으로 통합**하는 것이 권장."
+
+### 8.3 AnyCAD (Inventor 기능)의 한계
+
+- **양방향 associativity** — 원본 변경 시 참조본 자동 업데이트
+- **하지만 Inventor에서 직접 편집은 여전히 불가** (원본 SolidWorks 파일을 SolidWorks에서 편집해야)
+- 공급사-본사 협업 시나리오에 적합 (편집 없는 참조)
+
+### 8.4 3rd Party 변환 도구 (TransMagic 등)
+
+- TransMagic, CAD Exchanger 등 변환 도구 존재
+- **"full editing capability" 약속은 신중 검토 필요** — 피처 트리 복원은 여전히 제한적
+- 일부 스마트 변환은 가능하나 완벽한 네이티브 편집은 보장 안 됨
+
+### 8.5 데이터 손실 리스크
+
+| 구분 | 내용 |
+|---|---|
+| 숨김 파일 | "일부 파일은 손실되거나 의도적으로 숨겨질 수 있음" |
+| 폴리곤 메시만 전송 | 모든 파일이 함께 전송 안 되면 근사 지오메트리만 남음 |
+| 정확 지오메트리·설계 정보 손실 | 전체 디자인 인텐트 파악 불가 |
+
+### 8.6 세션3 참조 포인트
+
+**팩트**:
+- KNK가 Inventor + SolidWorks 둘 다 유지 시 **네이티브 편집 왕복은 불가** — 원본 도구에서만 편집
+- 메타데이터·참조·BOM 통합은 가능 (편집 분리 정책 필수)
+
+**세션3 설계 시 고려 사항 (사실 기반)**:
+- "어느 CAD가 원본(source of truth)인지" 파일별 명시 필요
+- BOM 통합은 메타데이터만 — 피처 트리 불가능
+- 부서 간 편집 왕복 시나리오는 기술적으로 불가 → 프로세스로 해결
+
+---
+
+## 9. 한국 CAD 커뮤니티 현실
+
+**출처**: JobKorea, 고캐드, 나무위키, 클리앙, Decre Yellow
+
+### 9.1 한국 제조업 CAD 보급률 (팩트 요약)
+
+| 구분 | 주 사용 도구 |
+|---|---|
+| **2D 도면** | AutoCAD (지배적) |
+| **3D 기구 설계** | Creo · Inventor · CATIA · Solid Edge |
+| **3D 기계 설계** | NX UG · CATIA · SolidWorks |
+| **업계 전반** | SolidWorks가 Inventor보다 **실무 보급률 높음** |
+
+### 9.2 커뮤니티에서 반복되는 조언 (원문)
+
+> "일단 어디로 갈건지 회사부터 정하고 익히라. 가고자 하는 회사가 어느 소프트웨어를 사용하는지 파악하고 결정하는 게 좋다."
+
+— 여러 JobKorea 답변자·고캐드 답변자 공통 의견
+
+### 9.3 CAD 혼용의 한국 현실 (팩트)
+
+- **업종에 따라 달라짐** · **2개 이상 혼용 흔함**
+- 클리앙 CATIA/Creo/SolidWorks 사용기: "극히 개인적" 후기도 존재
+- 기계기사 실기: Inventor / SolidWorks / CATIA / NX UG 차이점 질문 다수
+
+### 9.4 한국 커뮤니티에서 명확히 부족한 자료
+
+- **AutoCAD + SolidWorks + Inventor 4개 혼용** 구체 회사 운영 후기: **검색 결과 빈약**
+- **한국 제조업의 자체 BOM·PLM 구축** 기술 블로그: 극소
+- 대부분 질문은 "취업용 어느 걸 배울까" 수준
+
+### 9.5 세션3 참조 포인트
+
+**팩트**:
+- KNK의 4개 CAD 혼용은 **한국 중소 제조업 일반 패턴과 부합** (업종별 혼용 흔함)
+- 커뮤니티는 "통일" 권하지만 실무는 "혼용" 현실
+- 한국어 기술 자료는 희박 → **KNK 구축 경험 자체가 한국 업계 선도 자료가 될 수 있음** (팩트 기반 관찰)
+
+**피할 함정**:
+- 한국 커뮤니티 "통일 권장" 조언을 실무에 그대로 적용 시 비현실적 (이관 비용·인력 재교육)
+- 공급사 추천 의존 → 공급사마다 자사 제품 권장
+
+---
+
+## 10. 하드웨어 Git-like 버전 관리
+
+**출처**: Onshape 공식 블로그, AllSpice, CADLAB.io, Altium 공식, Wevolver, Michael Kafarowski
+
+### 10.1 "Git for Hardware" 개념 (2026 기성 개념)
+
+**정의**: Git 생태계를 **기구 설계 · PCB 설계 · 펌웨어 · 문서** 등 모든 하드웨어 설계 요소에 확장.
+
+**핵심 가치**:
+- 모든 설계 요소를 **코드처럼 관리**
+- 스키매틱·PCB 레이아웃·BOM·기구 파일·펌웨어 → 단일 버전 관리
+- 협업 플랫폼 간 원활
+- 추적성 있는 변경 이력
+
+### 10.2 대표 도구 (팩트)
+
+| 도구 | 특징 | URL |
+|---|---|---|
+| **Onshape** | Git-스타일 branching/merging을 CAD에 직접 도입. 분기 간 차이 시각화, 병합 선택 가능. 브랜치 실험 가능 | onshape.com |
+| **AllSpice** | "Git for hardware" 특화. 하드웨어 워크플로우 최적화 | allspice.io |
+| **CADLAB.io** | Git 기반 PCB 비주얼 버전 관리. 하드웨어 최적화 비주얼 레이어 | cadlab.io |
+| **Altium 365 + Git** | Altium 공식 Git 통합 가이드·소개 제공 | altium.com |
+
+### 10.3 통합 리포지토리 패턴 (사실)
+
+- PCB 프로젝트는 기구·문서·임베디드 SW/펌웨어 포함 복잡
+- PCB 프로젝트 데이터는 sync, 나머지는 외부 리포지토리 유지 권장
+- 부서간 협업: 기구 엔지니어가 인클로저 간섭 검토, 펌웨어/클라우드 개발자가 전기 엔지니어가 놓친 부분 입력
+
+### 10.4 한계·논쟁 (사실)
+
+**"SVN or Git with SolidWorks"** (Gotomation 2020 논쟁):
+- 대형 바이너리 파일 (SLDPRT, SLDASM)에 Git 직접 적용 시 리포 비대화
+- Git LFS (Large File Storage) 또는 SVN 선호론 존재
+
+**하드웨어 Git 30일 구현 ebook** 존재 → **실행 자체가 무시할 수 없는 프로젝트**임을 시사
+
+### 10.5 통합 사례 (팩트)
+
+- Onshape: CAD 내장 Git 스타일 제공 (외부 Git 필요 없음)
+- CADLAB.io + KiCad: 오픈소스 PCB의 Git 버전 관리
+- Altium 365 + Git: 엔터프라이즈 PCB Git 워크플로우
+
+### 10.6 세션3 참조 포인트
+
+**흡수할 패턴**:
+- 브랜치·머지 개념을 변경 관리에 적용
+- "모든 설계 요소를 코드처럼" 철학
+- 변경 전후 시각적 diff 개념
+
+**피할 함정**:
+- CAD 바이너리는 Git 단순 적용이 비효율 — Git LFS 또는 외부 파일 시스템 + 메타데이터만 Git 권장
+- 하드웨어 Git 도입은 "30일 프로젝트" 수준 — 가벼운 작업 아님
+
+**세션3 설계 시 참고 가능 방향 (사실 기반)**:
+- 메타데이터(JSON·DB)만 버전 관리, 실제 CAD 파일은 파일 서버·NAS에 보관
+- PostgreSQL에 변경 이력·브랜치 상태·담당자 추적 가능
+- Onshape의 diff UI 개념 → 변경 시 AI가 자연어 diff 생성
+
+---
+
+## 11. 자체 MCP 서버 구축 도구·사례
+
+**출처**: GitHub tadata-org/fastapi_mcp, GitHub jlowin/fastmcp, MintMCP, Speakeasy, fast.io, apxml
+
+### 11.1 핵심 오픈소스 프레임워크 (팩트)
+
+| 프레임워크 | 제작자 | 특징 | 라이선스 |
+|---|---|---|---|
+| **fastapi_mcp** | tadata-org | FastAPI 엔드포인트를 **MCP 도구로 자동 노출**, auth 내장. 기존 FastAPI dependencies 그대로 사용 가능. 별도 배포 또는 동일 앱에 mount | MIT (GitHub) |
+| **FastMCP** | jlowin (PrefectHQ) | Pythonic MCP 서버·클라이언트 빌더. "fast, Pythonic way" | MIT |
+| **Speakeasy** | Speakeasy | FastMCP + Speakeasy 통합 가이드 제공 | — |
+
+### 11.2 구축 패턴 (팩트, 공식 문서 기준)
+
+**fastapi_mcp 예시**:
+- 기존 FastAPI 앱에 **한 줄 추가**로 MCP 서버 전환
+- 인증은 기존 FastAPI dependency 재활용 (별도 구성 불필요)
+- 유연한 배포: 앱 내부 mount 또는 별도 배포
+
+**FastMCP 예시**:
+- 기존 FastAPI에서 일반적 MCP 서버 부트스트랩 방법
+- FastAPI 엔드포인트 → MCP 컴포넌트(도구 기본)로 자동 노출
+- LLM 클라이언트에 API 공개
+
+### 11.3 엔터프라이즈 요건 대응 (팩트)
+
+- **보안**: 기존 FastAPI 인증 체계 그대로
+- **확장성**: FastAPI의 비동기·고성능 기반
+- **거버넌스**: API 레벨 권한 + 감사 로그
+
+### 11.4 Claude Agent SDK와 MCP (팩트)
+
+- Anthropic Claude Agent SDK (구 Claude Code SDK 이름 변경)
+- **Full MCP 지원** — 모든 MCP 서버 연결 가능 (DB·API·파일 시스템·클라우드)
+- Python · TypeScript 지원
+- 에이전트 자율 수행: 파일 읽기·명령 실행·웹 검색·코드 편집
+
+### 11.5 용도별 적합성 (Anthropic 가이드)
+
+> "AI employee built on this stack perform best on tasks with clear input data, defined decision rule, downstream API to write results to — anything that looks like 'when X happens, decide Y, then write Z' is a strong candidate."
+
+### 11.6 세션3 참조 포인트
+
+**흡수할 패턴**:
+- `fastapi_mcp` 한 줄 업그레이드 패턴 → 세션3 기존 FastAPI 앱 (HAIST_WORKS)에 즉시 적용 가능
+- 인증 재활용 구조
+- Anthropic Claude Agent SDK로 에이전트 루프 빌드
+
+**피할 함정**:
+- MCP 자체는 프로토콜일 뿐 — **에이전트 품질은 프롬프트·컨텍스트 엔지니어링에 달림** (Nike 재고 예측 실패 교훈)
+- "when X → Y → Z" 명확한 사례에 먼저 적용, 애매한 판단은 human-in-the-loop
+
+---
+
+## 12. 통합 시스템 유사 사례 — 업계 포지션
+
+**출처**: MODEX 2026, IIoT-World, MachineMetrics, Infor, Max AI, Dataiku 2026 manufacturing AI trends, Anthropic
+
+### 12.1 2026 제조업 트렌드 (사실)
+
+- **MODEX 2026 최대 트렌드 = Agentic AI** (Co-pilot보다 능동적)
+- 2024~2025 = Generative AI → 2026 현실 = Agentic AI
+- AI 에이전트가 능동적 관찰·추론·실행
+
+### 12.2 Agentic AI 특징 (사실)
+
+| 기능 | 동작 |
+|---|---|
+| 센서가 기계 성능 저하 감지 | AI가 자동으로 유지보수 티켓 생성 |
+| 동시에 | 재고 확인 |
+| 동시에 | 다른 활성 기계로 생산 스케줄 재라우팅 |
+
+### 12.3 2026 주목할 제조업 AI 아키텍처 (사실)
+
+**MCP 채택**:
+- 기존 "custom-coded integrations" (비싸고 커스텀) → **MCP "zero-code universal protocol"**
+- AI 에이전트가 기존 MES·ERP에 "plug and play"
+
+**Unified Namespace (UNS)**:
+- "spaghetti mess" 통합에서 이탈
+- 데이터 생산자는 한 번만 발행 → AI·MES·ERP가 구독
+
+**Max AI**:
+- 기계 + ERP + tribal knowledge 통합
+- "agentic digital workforce" for discrete manufacturers
+
+### 12.4 MachineMetrics 사례 (사실)
+
+블로그 제목: **"What Happens When Manufacturers Build Their Own MES Applications in Two Days"**
+- 제조사가 2일 안에 자체 MES 앱 제작하는 Production Lab 사례
+- 즉 자체 구축 + AI 보조 트렌드가 업계 공인
+
+### 12.5 KNK 방향과 업계 사례 일치도 (팩트 비교)
+
+| KNK 진행 방향 | 2026 업계 트렌드 | 일치도 |
+|---|---|---|
+| FastAPI 자체 구축 | 커스텀 제조업 시스템의 기본 선택지 | ✅ 일치 |
+| Claude + MCP 통합 | MCP가 2026 표준 프로토콜 | ✅ 일치 |
+| Agentic AI (변경 Inform 에이전트 등) | MODEX 2026 최대 트렌드 | ✅ 일치 |
+| baby 엑셀 + HAIST_WORKS 웹 + Claude 조합 | UNS 아키텍처와 유사 철학 | ✅ 일치 |
+| 점진적 부서 확장 (빅뱅 회피) | Hershey·Revlon·Lidl 실패 교훈 | ✅ 일치 |
+| Human-in-the-loop 강제 | Nike 재고 예측 실패 교훈 | ✅ 일치 |
+
+### 12.6 공개 자료로 확인된 "동일 조합 성공 사례"
+
+- **Custom FastAPI + Claude API + MCP + 한국 중소 제조업 (장비 제조·CAD 혼용)** 의 **완전 동일 케이스**는 검색으로 **미발견**
+- 개별 구성 요소 성공 사례는 모두 존재:
+  - FastAPI + Claude API 제조업 사례: Syntora 등 (미국)
+  - Claude Managed Agents 엔터프라이즈 배포: Block·Apollo·Zed·Replit
+  - 제조업 Agentic AI: MODEX 2026 다수 사례
+  - 한국 스마트공장 AI 지원사업: 중기부·삼성 파트너십 (2026)
+
+### 12.7 세션3 의미 (사실 기반 관찰)
+
+**관찰**:
+- KNK가 구축 중인 조합(자체 FastAPI + Claude + MCP + AutoCAD·SolidWorks·Inventor·AutoCAD 전장 메타 통합)의 **구체 공개 케이스는 확인 안 됨**
+- 개별 구성 요소는 모두 검증된 2026 트렌드 일치
+- 즉 **KNK는 "조합의 선도자" 포지션**에 있음 (사실만 관찰)
+
+**피할 함정** (업계 트렌드 전반):
+- MCP 자체가 만능 아님 — "plug and play" 마케팅 문구
+- Agentic AI는 명확한 의사결정 규칙에 효과적, 애매한 판단에 실패 (Nike·Microsoft Copilot 5K 배포 사례)
+- UNS·MCP 도입 후에도 현장 부서원 적응 부족하면 실패
+
+### 12.8 세션3 참조 포인트
+
+**흡수할 패턴**:
+- MCP 기반 zero-code 통합 철학
+- UNS 개념 (한 번 발행·다수 구독)
+- Agentic AI의 "관찰 → 추론 → 실행" 루프
+
+**피할 함정**:
+- "제조사가 2일 만에 MES 만듦" 마케팅 문구는 현실적 단순화 — 실제 품질·안정·사용자 수용은 별도
+- 공개 케이스 부족 = 선도 이점 + 레퍼런스 부족 동시
+- Max AI 같은 벤더 의존형 에이전트 솔루션은 락인 재발 가능성
+
+---
+
+## 📌 이 문서의 규칙 (재확인)
+
+1. **사실만 기록**: 사용자 인용·출처·통계·사례
+2. **구매 추천 금지**: "KNK는 X를 도입해야" 표현 없음
+3. **아키텍처 제안 금지**: 세션3 결정 사항
+4. **지속 갱신**: 신규 리서치 추가될 때마다 섹션 확장
+5. **세션3 친화**: "흡수할 패턴 / 피할 함정" 형식으로 참조 포인트 제공
+
+---
+
+**최종 갱신**: 2026-04-20 (Batch 1+2+3+Multi-CAD+§7~§12)
+**다음 리서치 후보**:
+- 한국 제조업 구체 경쟁사(테크윙·이오·코세스·원익IPS) 채용 공고 기반 기술 스택 역공학
+- Claude Agent SDK 실전 구축 패턴 심화 (Python 코드 예시·eval 세트)
+- 제조업 오픈소스 ERP·MES 대안 (ERPNext·Dolibarr 등)
+- BOM 변경 알림 UX 패턴 (원티드·인스턴트 등 실시간 앱 사례 참고)
+- 한국 중소 제조업 AI 도입 실패 사례 (정부 지원사업 선정 후 중단 케이스)
