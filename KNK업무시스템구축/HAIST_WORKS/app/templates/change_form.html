@@ -132,6 +132,13 @@
           <input type="text" name="source_ref" placeholder="예: SolidWorks PDM 체크인 #4521" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
         </div>
       </div>
+
+      {# B: 하이웍스 전자결재 URL 첨부 (자체 결재 X, 외부 링크만) #}
+      <div style="margin-top:14px;padding:12px 14px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;">
+        <label style="font-size:12px;font-weight:800;color:#312E81;display:block;margin-bottom:4px;">📋 하이웍스 결재 URL <span style="font-weight:500;color:#6B7280;">(선택 — 결재가 필요한 변경에만)</span></label>
+        <input type="url" name="approval_url" placeholder="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}..." style="width:100%;padding:10px 12px;border:1px solid #C7D2FE;border-radius:8px;font-size:13px;font-family:monospace;background:#fff;">
+        <div style="font-size:11px;color:#6B7280;margin-top:4px;">결재는 <strong>하이웍스</strong>에서 진행 후, 결재 문서 URL을 여기 붙여넣으면 영향 부서가 한 번에 확인합니다.</div>
+      </div>
     </div>
   </div>
 

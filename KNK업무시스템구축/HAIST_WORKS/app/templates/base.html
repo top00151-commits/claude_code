@@ -133,6 +133,19 @@
     </div>
 
     <div class="sb-section">
+      <div class="sb-head">이슈 · AS <span style="background:#FEE2E2;color:#991B1B;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">학습</span></div>
+      <a href="/issues" class="sb-item {% if active=='issues' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        이슈 목록
+        <span id="issues-open-badge" style="display:none;margin-left:auto;background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/issues/new" class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        이슈 등록
+      </a>
+    </div>
+
+    <div class="sb-section">
       <div class="sb-head">변경 알림 <span style="background:#FFEBEE;color:#A5282C;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">실시간</span></div>
       <a href="/changes" class="sb-item {% if active=='changes' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
@@ -286,6 +299,25 @@ async function loadPendingTickets() {
 }
 document.addEventListener('DOMContentLoaded', loadPendingTickets);
 setInterval(loadPendingTickets, 60000);
+
+/* 이슈 미해결 뱃지 폴링 (1분마다) */
+async function loadOpenIssues() {
+  try {
+    const r = await fetch('/api/issues/count');
+    const j = await r.json();
+    const badge = document.getElementById('issues-open-badge');
+    if (!badge) return;
+    if ((j.open || 0) > 0) {
+      badge.textContent = j.open + (j.critical > 0 ? ' (' + j.critical + '심각)' : '');
+      badge.style.display = 'inline-block';
+      if (j.critical > 0) badge.style.background = '#7F1D1D';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadOpenIssues);
+setInterval(loadOpenIssues, 60000);
 
 /* 진행률 지연 뱃지 폴링 */
 async function loadProgressDelayed() {

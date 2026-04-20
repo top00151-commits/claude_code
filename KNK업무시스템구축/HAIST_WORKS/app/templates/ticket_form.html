@@ -112,6 +112,12 @@
           <option value="전화">전화</option>
         </select>
       </div>
+
+      {# B: 하이웍스 결재 URL 첨부 (선택) #}
+      <div style="margin-top:14px;padding:12px 14px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;">
+        <label style="font-size:12px;font-weight:800;color:#312E81;display:block;margin-bottom:4px;">📋 하이웍스 결재 URL <span style="font-weight:500;color:#6B7280;">(선택 — 구매요청·휴가 등 결재 동반 시)</span></label>
+        <input type="url" name="approval_url" placeholder="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}..." style="width:100%;padding:10px 12px;border:1px solid #C7D2FE;border-radius:8px;font-size:13px;font-family:monospace;background:#fff;">
+      </div>
     </div>
   </div>
 

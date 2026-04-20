@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}이슈·AS DB — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #DC2626;">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+    <div>
+      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🔥 이슈 · AS DB</h1>
+      <div style="font-size:13px;color:#6B7280;margin-top:4px;">고객사 이슈/AS 추적 → 원인분석 → 재발방지 학습. <strong>같은 실수를 반복하지 않기 위한 회사 자산.</strong></div>
+    </div>
+    <a href="/issues/new" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:800;font-size:14px;box-shadow:0 4px 10px rgba(220,38,38,.3);">+ 이슈 등록</a>
+  </div>
+</div>
+
+<!-- KPI -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:#6B7280;font-weight:700;letter-spacing:0.04em;">전체</div>
+    <div style="font-size:28px;font-weight:800;margin-top:4px;">{{ kpi.total }}</div>
+  </div>
+  <div style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);border:1px solid #F59E0B;border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:#92400E;font-weight:800;letter-spacing:0.04em;">미해결</div>
+    <div style="font-size:28px;font-weight:800;color:#92400E;margin-top:4px;">{{ kpi.open }}</div>
+  </div>
+  <div style="background:linear-gradient(135deg,#FEE2E2,#FECACA);border:1px solid #DC2626;border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:#991B1B;font-weight:800;letter-spacing:0.04em;">치명·심각 미해결</div>
+    <div style="font-size:28px;font-weight:800;color:#991B1B;margin-top:4px;">{{ kpi.critical }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:#6B7280;font-weight:700;letter-spacing:0.04em;">최근 30일 신규</div>
+    <div style="font-size:28px;font-weight:800;margin-top:4px;">{{ kpi.recent_30d }}</div>
+  </div>
+</div>
+
+<!-- 필터 -->
+<form method="get" action="/issues" style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+  <select name="scope" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+    {% for s, lbl in [('open','미해결'),('all','전체'),('mine_owned','내 담당'),('team','우리 부서')] %}
+    <option value="{{ s }}" {% if scope==s %}selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
+  <select name="severity" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+    <option value="">심각도 전체</option>
+    {% for s in ISSUE_SEVERITIES %}<option value="{{ s }}" {% if severity==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="status" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+    <option value="">상태 전체</option>
+    {% for s in ISSUE_STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="issue_type" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+    <option value="">종류 전체</option>
+    {% for s in ISSUE_TYPES %}<option value="{{ s }}" {% if issue_type==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <input type="text" name="q" value="{{ q }}" placeholder="검색 (제목/설명/번호/관리코드)" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+  <button type="submit" style="background:#374151;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;">검색</button>
+</form>
+
+<!-- 리스트 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;">
+  {% if items %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="background:#F9FAFB;border-bottom:1px solid #E5E7EB;">
+        <th style="padding:10px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">번호</th>
+        <th style="padding:10px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">제목</th>
+        <th style="padding:10px;text-align:center;font-size:11px;color:#6B7280;text-transform:uppercase;">심각도</th>
+        <th style="padding:10px;text-align:center;font-size:11px;color:#6B7280;text-transform:uppercase;">종류</th>
+        <th style="padding:10px;text-align:center;font-size:11px;color:#6B7280;text-transform:uppercase;">상태</th>
+        <th style="padding:10px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">고객사</th>
+        <th style="padding:10px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">담당부서</th>
+        <th style="padding:10px;text-align:left;font-size:11px;color:#6B7280;text-transform:uppercase;">발생일</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr style="border-bottom:1px solid #F1F2F4;cursor:pointer;" onclick="location.href='/issues/{{ it.id }}'">
+        <td style="padding:10px;font-family:monospace;font-size:12px;color:#DC2626;font-weight:700;">{{ it.issue_no }}</td>
+        <td style="padding:10px;font-weight:600;">{{ it.title }}
+          {% if it.mgmt_code %}<span style="font-family:monospace;font-size:10px;color:#9CA3AF;margin-left:6px;">{{ it.mgmt_code }}</span>{% endif %}
+        </td>
+        <td style="padding:10px;text-align:center;">
+          {% if it.severity == '치명' %}<span style="background:#7F1D1D;color:#fff;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">치명</span>
+          {% elif it.severity == '심각' %}<span style="background:#DC2626;color:#fff;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">심각</span>
+          {% elif it.severity == '중' %}<span style="background:#F59E0B;color:#fff;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">중</span>
+          {% else %}<span style="background:#9CA3AF;color:#fff;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">{{ it.severity }}</span>{% endif %}
+        </td>
+        <td style="padding:10px;text-align:center;font-size:11px;color:#6B7280;">{{ it.issue_type }}</td>
+        <td style="padding:10px;text-align:center;">
+          {% if it.status in ('해결','종결') %}<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">{{ it.status }}</span>
+          {% elif it.status == '재발방지등록' %}<span style="background:#E3F2FD;color:#1565C0;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">{{ it.status }}</span>
+          {% else %}<span style="background:#FFF8E1;color:#F57F17;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">{{ it.status }}</span>{% endif %}
+        </td>
+        <td style="padding:10px;font-size:12px;">{{ it.customer_full_name or it.customer_name or '-' }}</td>
+        <td style="padding:10px;font-size:12px;color:#6B7280;">{{ it.owner_team_name or '미지정' }}{% if it.owner_user_name %} · {{ it.owner_user_name }}{% endif %}</td>
+        <td style="padding:10px;font-family:monospace;font-size:11px;color:#9CA3AF;">{{ it.occurred_at or it.created_at[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:40px;text-align:center;color:#9CA3AF;">조건에 맞는 이슈가 없습니다.</div>
+  {% endif %}
+</div>
+
+{% if kpi.by_team %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:18px;margin-top:14px;">
+  <h3 style="margin:0 0 12px;font-size:13px;font-weight:800;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;">📊 부서별 미해결 이슈</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for r in kpi.by_team %}
+    <div style="background:#F9FAFB;padding:8px 14px;border-radius:8px;font-size:13px;">
+      <strong>{{ r.team_name or '미지정' }}</strong> <span style="color:#DC2626;font-weight:800;">{{ r.cnt }}건</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

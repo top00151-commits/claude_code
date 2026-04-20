@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}시스템 설정 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin" style="font-size:13px;color:#6B7280;text-decoration:none;">← 관리자 홈</a>
+</div>
+
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #4338CA;">
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">⚙️ 시스템 설정</h1>
+  <div style="font-size:13px;color:#6B7280;">하이웍스 외부 시스템 URL과 카카오워크 Webhook 등을 관리합니다.</div>
+  {% if request.query_params.get('saved') %}
+  <div style="margin-top:12px;background:#E8F5E9;border:1px solid #86EFAC;color:#2E7D32;padding:10px 14px;border-radius:8px;font-weight:700;">
+    ✓ {{ request.query_params.get('saved') }}개 설정이 저장되었습니다.
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" action="/admin/settings">
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:#4338CA;">🔗 하이웍스 (외부 시스템)</h2>
+    <p style="margin:0 0 16px;font-size:12px;color:#6B7280;background:#FEF3C7;border-left:3px solid #F59E0B;padding:8px 12px;border-radius:6px;">
+      <strong>정책:</strong> 전자결제·메일은 하이웍스에서 계속 사용합니다. 자체 결재/메일 모듈은 만들지 않습니다.
+    </p>
+
+    {% set hw_keys = [
+      ('hiworks_approval_url', '전자결제 URL', 'https://office.hiworks.com/', '예: https://office.hiworks.com/knk.co.kr/approval'),
+      ('hiworks_mail_url',     '메일 URL',     'https://mail.hiworks.com/',   '예: https://mail.hiworks.com/knk.co.kr'),
+      ('hiworks_domain',       '회사 도메인',   '',                              '예: knk.co.kr (선택, 미래 자동 조합용)'),
+    ] %}
+    {% for key, label, default, hint in hw_keys %}
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">{{ label }}
+        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">{{ key }}</span>
+      </label>
+      <input type="text" name="k_{{ key }}"
+             value="{{ settings.get(key, {}).get('value', default) }}"
+             placeholder="{{ hint }}"
+             style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:monospace;">
+      <div style="font-size:11px;color:#9CA3AF;margin-top:3px;">{{ hint }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:#1565C0;">💬 카카오워크 Webhook</h2>
+    <p style="margin:0 0 16px;font-size:12px;color:#6B7280;">변경 Inform '긴급'/'high 영향' 부서에 자동 푸시. 비워두면 카톡 알림 비활성 (게시판·웹 알림은 동작).</p>
+    <div>
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">Webhook URL
+        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">kakaowork_webhook</span>
+      </label>
+      <input type="text" name="k_kakaowork_webhook"
+             value="{{ settings.get('kakaowork_webhook', {}).get('value', '') }}"
+             placeholder="https://api.kakaowork.com/v1/webhook/..."
+             style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:monospace;">
+      <div style="font-size:11px;color:#9CA3AF;margin-top:3px;">발급 가이드: <code>HAIST_WORKS/_GUIDE_카카오워크_Webhook_발급.md</code></div>
+    </div>
+  </div>
+
+  {# 그 외 설정 자동 표시 (위에서 안 다룬 키만) #}
+  {% set known = ['hiworks_approval_url','hiworks_mail_url','hiworks_domain','kakaowork_webhook'] %}
+  {% set others = [] %}
+  {% for k, v in settings.items() %}
+    {% if k not in known %}{% set _ = others.append((k, v)) %}{% endif %}
+  {% endfor %}
+  {% if others %}
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:#6B7280;">기타 설정</h2>
+    {% for k, v in others %}
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">{{ v.description or k }}
+        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;">{{ k }}</span>
+      </label>
+      <input type="text" name="k_{{ k }}" value="{{ v.value }}"
+             style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:monospace;">
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:30px;">
+    <a href="/admin" style="padding:10px 20px;border:1px solid #D1D5DB;border-radius:8px;color:#6B7280;text-decoration:none;font-weight:700;">취소</a>
+    <button type="submit" style="background:linear-gradient(135deg,#4338CA,#312E81);color:#fff;border:none;padding:10px 28px;border-radius:8px;font-weight:800;cursor:pointer;box-shadow:0 4px 10px rgba(67,56,202,.3);">
+      저장
+    </button>
+  </div>
+</form>
+
+{% endblock %}

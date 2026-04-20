@@ -462,6 +462,68 @@ CREATE TABLE IF NOT EXISTS project_phases (
 CREATE INDEX IF NOT EXISTS idx_pp_project ON project_phases(project_id);
 CREATE INDEX IF NOT EXISTS idx_pp_status ON project_phases(status);
 CREATE INDEX IF NOT EXISTS idx_pp_assignee ON project_phases(assignee_id);
+
+-- =====================================================
+-- APP SETTINGS (key-value, admin/ceo만 변경) — 2026-04-20
+-- 하이웍스 URL 등 운영 설정 저장
+-- =====================================================
+CREATE TABLE IF NOT EXISTS app_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT,
+    description TEXT,
+    updated_at  TEXT DEFAULT (datetime('now','localtime')),
+    updated_by  INTEGER REFERENCES users(id)
+);
+
+-- =====================================================
+-- ISSUES · AS DB (3순위 ⑦) — 2026-04-20
+-- 고객사 이슈/AS 발생 → 부서 추적 → 재발 방지 학습
+-- =====================================================
+CREATE TABLE IF NOT EXISTS issues (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_no        TEXT UNIQUE,                       -- ISS-2604-001 자동 채번
+    title           TEXT NOT NULL,
+    severity        TEXT DEFAULT '중',                 -- 치명/심각/중/경
+    issue_type      TEXT DEFAULT 'AS',                 -- AS/품질/설계결함/SW버그/기타
+    status          TEXT DEFAULT '접수',                -- 접수/원인분석/조치중/해결/재발방지등록/종결
+    customer_id     INTEGER REFERENCES customers(id),
+    customer_name   TEXT,                              -- 백업 텍스트
+    project_id      INTEGER REFERENCES projects(id),
+    mgmt_code       TEXT,                              -- KNK PMS 8자리
+    biz_div         TEXT,                              -- T/M
+    occurred_at     TEXT,                              -- 발생일
+    detected_by     TEXT,                              -- 발견자 (고객사 담당 or 사내)
+    description     TEXT,                              -- 증상 설명
+    root_cause      TEXT,                              -- 원인 분석 결과
+    action_taken    TEXT,                              -- 조치 내역
+    prevention      TEXT,                              -- 재발방지 대책
+    owner_team_id   INTEGER REFERENCES teams(id),      -- 책임 부서
+    owner_user_id   INTEGER REFERENCES users(id),      -- 담당자
+    resolved_at     TEXT,                              -- 해결 시각
+    cost_estimate   REAL DEFAULT 0,                    -- 손실/조치 비용 (원)
+    related_change_id INTEGER REFERENCES changes(id),  -- 연관 변경 (재발방지로 변경 발생 시)
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_iss_status ON issues(status);
+CREATE INDEX IF NOT EXISTS idx_iss_owner_team ON issues(owner_team_id);
+CREATE INDEX IF NOT EXISTS idx_iss_customer ON issues(customer_id);
+CREATE INDEX IF NOT EXISTS idx_iss_project ON issues(project_id);
+CREATE INDEX IF NOT EXISTS idx_iss_severity ON issues(severity);
+
+-- 이슈 진행 로그 (코멘트/상태 변경 이력)
+CREATE TABLE IF NOT EXISTS issue_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id    INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    user_id     INTEGER REFERENCES users(id),
+    action      TEXT,                                  -- 코멘트/상태변경/원인추가/조치/재발방지
+    content     TEXT,
+    old_status  TEXT,
+    new_status  TEXT,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ilog_issue ON issue_logs(issue_id);
 """
 
 # =====================================================
@@ -660,6 +722,27 @@ def init_db():
                 c.execute("ALTER TABLE changes ADD COLUMN source TEXT DEFAULT '수동'")
             if ccols and "source_ref" not in ccols:
                 c.execute("ALTER TABLE changes ADD COLUMN source_ref TEXT")
+            # B: 하이웍스 결재 URL 첨부 (자체 결재 X, 외부 결재 링크만)
+            if ccols and "approval_url" not in ccols:
+                c.execute("ALTER TABLE changes ADD COLUMN approval_url TEXT")
+        except Exception:
+            pass
+        # 마이그레이션: tickets에 approval_url 추가
+        try:
+            tkcols = [r[1] for r in c.execute("PRAGMA table_info(tickets)").fetchall()]
+            if tkcols and "approval_url" not in tkcols:
+                c.execute("ALTER TABLE tickets ADD COLUMN approval_url TEXT")
+        except Exception:
+            pass
+        # 시드: app_settings 기본값 (하이웍스 URL)
+        try:
+            for k, v, desc in [
+                ("hiworks_approval_url", "https://office.hiworks.com/", "하이웍스 전자결제 URL"),
+                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL"),
+                ("hiworks_domain",       "",                              "회사 하이웍스 도메인 (예: knk.co.kr)"),
+                ("kakaowork_webhook",    "",                              "카카오워크 Webhook URL (선택)"),
+            ]:
+                c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
         except Exception:
             pass
         # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
@@ -2578,6 +2661,25 @@ def board_comment_delete(comment_id):
 CHANGE_TYPES = ["기구설계", "전장설계", "소프트웨어", "BOM", "도면", "Concept", "사양"]
 CHANGE_URGENCIES = ["일반", "긴급", "예약"]
 CHANGE_STATUSES = ["작성중", "공지중", "확인완료", "취소"]
+
+# =====================================================
+# ISSUES · AS DB — 분류/라우팅 상수 (3순위 ⑦)
+# =====================================================
+ISSUE_SEVERITIES = ["치명", "심각", "중", "경"]
+ISSUE_TYPES      = ["AS", "품질", "설계결함", "SW버그", "기구결함", "전장결함", "기타"]
+ISSUE_STATUSES   = ["접수", "원인분석", "조치중", "해결", "재발방지등록", "종결"]
+
+# 이슈 종류 × 사업부 → 기본 책임 부서 (자동 라우팅)
+ISSUE_OWNER_RULES = {
+    "AS":      {"T": "제조기술1팀", "M": "제조기술2팀"},
+    "품질":     {"T": "품질팀",      "M": "품질팀"},
+    "설계결함": {"T": "설계팀",      "M": "설계팀"},
+    "SW버그":   {"T": "소프트웨어팀", "M": "소프트웨어팀"},
+    "기구결함": {"T": "설계팀",      "M": "설계팀"},
+    "전장결함": {"T": "전장설계팀",   "M": "전장설계팀"},
+    "기타":     {"T": "기술영업팀",   "M": "기술영업팀"},
+}
+
 # Abram Scientific 모델 — 외부 도구 출처 (향후 자동 import 대비)
 CHANGE_SOURCES = [
     "수동",            # 직원 직접 등록 (현재 기본)
@@ -2683,6 +2785,78 @@ def gen_change_no(today=None) -> str:
         return f"{prefix}001"
 
 
+def gen_issue_no(today=None) -> str:
+    """이슈번호 자동 채번: ISS-YYMM-NNN (월별 누적)"""
+    today = today or _date.today()
+    yymm = today.strftime("%y%m")
+    prefix = f"ISS-{yymm}-"
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                "SELECT issue_no FROM issues WHERE issue_no LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for r in rows:
+            try:
+                seq = int(r["issue_no"].rsplit("-", 1)[-1])
+                max_seq = max(max_seq, seq)
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}{max_seq + 1:03d}"
+    except sqlite3.OperationalError:
+        return f"{prefix}001"
+
+
+# =====================================================
+# APP SETTINGS — 헬퍼 (key-value 저장)
+# =====================================================
+def get_setting(key: str, default: str = "") -> str:
+    """app_settings에서 단일 값 조회. 없으면 default 반환."""
+    try:
+        with db_session() as c:
+            row = c.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+            if row and row["value"] is not None:
+                return row["value"]
+    except sqlite3.OperationalError:
+        pass
+    return default
+
+
+def get_settings_all() -> dict:
+    """모든 설정을 dict로 반환 (admin 페이지용)."""
+    out = {}
+    try:
+        with db_session() as c:
+            for r in c.execute("SELECT key, value, description FROM app_settings ORDER BY key").fetchall():
+                out[r["key"]] = {"value": r["value"] or "", "description": r["description"] or ""}
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
+def set_setting(key: str, value: str, user_id: int = None, description: str = None):
+    """설정 값 갱신. 없으면 생성."""
+    with db_session() as c:
+        existing = c.execute("SELECT key FROM app_settings WHERE key=?", (key,)).fetchone()
+        if existing:
+            if description is not None:
+                c.execute(
+                    "UPDATE app_settings SET value=?, description=?, updated_at=datetime('now','localtime'), updated_by=? WHERE key=?",
+                    (value, description, user_id, key),
+                )
+            else:
+                c.execute(
+                    "UPDATE app_settings SET value=?, updated_at=datetime('now','localtime'), updated_by=? WHERE key=?",
+                    (value, user_id, key),
+                )
+        else:
+            c.execute(
+                "INSERT INTO app_settings(key, value, description, updated_by) VALUES(?,?,?,?)",
+                (key, value, description or "", user_id),
+            )
+
+
 # 카카오워크 Webhook 더미 (실제 URL은 사용자 발급 후 config로)
 def kakao_webhook_send(channel_id: str, text: str, blocks: list = None) -> bool:
     """카카오워크 Webhook 메시지 발송. 정식 구현 전 stub.
@@ -2754,8 +2928,8 @@ def change_create(data: dict, author_id: int) -> tuple[int, str]:
             """INSERT INTO changes
                (change_no, change_type, biz_div, target_kind, target_id, target_label,
                 project_id, title, description, before_value, after_value,
-                attached_files, urgency, author_id, status, source, source_ref)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                attached_files, urgency, author_id, status, source, source_ref, approval_url)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 change_no, change_type, biz_div,
                 data.get("target_kind"), data.get("target_id"),
@@ -2771,6 +2945,7 @@ def change_create(data: dict, author_id: int) -> tuple[int, str]:
                 "공지중",
                 data.get("source", "수동"),
                 data.get("source_ref", "").strip() if data.get("source_ref") else None,
+                data.get("approval_url"),
             ),
         )
         change_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -3119,8 +3294,8 @@ def ticket_create(data: dict, requester_id: int) -> tuple[int, str]:
             """INSERT INTO tickets
                (ticket_no, category, title, description, requester_id,
                 recipient_team_id, recipient_user_id, project_id, target_label,
-                urgency, status, source, due_date, hours_estimated)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                urgency, status, source, due_date, hours_estimated, approval_url)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 ticket_no, category,
                 data.get("title", "").strip(),
@@ -3135,6 +3310,7 @@ def ticket_create(data: dict, requester_id: int) -> tuple[int, str]:
                 data.get("source", "web"),
                 data.get("due_date", ""),
                 float(data.get("hours_estimated") or 0) or None,
+                (data.get("approval_url") or "").strip() or None,
             ),
         )
         tid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -3212,6 +3388,256 @@ def tickets_count_for_user(user_id: int, team_id: int = None) -> dict:
             (user_id, team_id or 0),
         ).fetchone()[0]
     return {"my_open": my_open, "recv_pending": recv_pending}
+
+
+# =====================================================
+# ISSUES · AS DB (3순위 ⑦) — 헬퍼 함수
+# =====================================================
+def _team_id_by_name(name: str) -> int | None:
+    """팀명 → id (없으면 None)"""
+    if not name:
+        return None
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT id FROM teams WHERE name=?", (name,)).fetchone()
+            return r["id"] if r else None
+    except Exception:
+        return None
+
+
+def route_issue_team(issue_type: str, biz_div: str) -> int | None:
+    """이슈 종류 × 사업부 → 책임 팀 id 자동 판별"""
+    rule = ISSUE_OWNER_RULES.get(issue_type, {})
+    team_name = rule.get(biz_div) or rule.get("T") or rule.get("M")
+    return _team_id_by_name(team_name) if team_name else None
+
+
+def issue_create(data: dict, created_by: int) -> tuple[int, str]:
+    """이슈 등록 + 자동 라우팅 + 접수 로그"""
+    issue_no = gen_issue_no()
+    issue_type = (data.get("issue_type") or "AS").strip()
+    biz_div = (data.get("biz_div") or "").strip()
+    owner_team_id = data.get("owner_team_id") or route_issue_team(issue_type, biz_div)
+
+    pid = data.get("project_id")
+    mgmt_code = data.get("mgmt_code") or ""
+    customer_id = data.get("customer_id")
+    customer_name = (data.get("customer_name") or "").strip()
+
+    # 프로젝트가 있으면 mgmt_code/biz_div/customer 백필
+    if pid:
+        try:
+            with db_session() as c:
+                p = c.execute(
+                    """SELECT p.biz_div, p.mgmt_code, p.name, p.customer_id, cu.name AS cu_name
+                       FROM projects p LEFT JOIN customers cu ON p.customer_id=cu.id
+                       WHERE p.id=?""",
+                    (pid,),
+                ).fetchone()
+                if p:
+                    if not biz_div:
+                        biz_div = p["biz_div"] or ""
+                    if not mgmt_code:
+                        mgmt_code = p["mgmt_code"] or ""
+                    if not customer_id and p["customer_id"]:
+                        customer_id = p["customer_id"]
+                    if not customer_name and p["cu_name"]:
+                        customer_name = p["cu_name"]
+        except Exception:
+            pass
+
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO issues
+               (issue_no, title, severity, issue_type, status,
+                customer_id, customer_name, project_id, mgmt_code, biz_div,
+                occurred_at, detected_by, description,
+                owner_team_id, owner_user_id, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                issue_no,
+                (data.get("title") or "").strip(),
+                data.get("severity") or "중",
+                issue_type,
+                "접수",
+                customer_id,
+                customer_name,
+                pid,
+                mgmt_code,
+                biz_div,
+                (data.get("occurred_at") or "").strip() or _logi_now()[:10],
+                (data.get("detected_by") or "").strip(),
+                (data.get("description") or "").strip(),
+                owner_team_id,
+                data.get("owner_user_id"),
+                created_by,
+            ),
+        )
+        iid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # 접수 로그
+        c.execute(
+            """INSERT INTO issue_logs (issue_id, user_id, action, content, new_status)
+               VALUES (?, ?, '접수', ?, '접수')""",
+            (iid, created_by, f"이슈 접수 — {issue_type} / {data.get('severity') or '중'}"),
+        )
+    return iid, issue_no
+
+
+def issues_list(scope: str = "all", user_id: int = None, team_id: int = None,
+                status: str = "", severity: str = "", issue_type: str = "",
+                customer_id: int = None, q: str = "") -> list[dict]:
+    """이슈 목록 (필터 지원)"""
+    where = []
+    params = []
+    if scope == "mine_owned" and user_id:
+        where.append("(i.owner_user_id = ? OR i.owner_team_id = ?)")
+        params += [user_id, team_id or 0]
+    elif scope == "team" and team_id:
+        where.append("i.owner_team_id = ?")
+        params.append(team_id)
+    elif scope == "open":
+        where.append("i.status NOT IN ('해결','종결')")
+    if status:
+        where.append("i.status = ?")
+        params.append(status)
+    if severity:
+        where.append("i.severity = ?")
+        params.append(severity)
+    if issue_type:
+        where.append("i.issue_type = ?")
+        params.append(issue_type)
+    if customer_id:
+        where.append("i.customer_id = ?")
+        params.append(customer_id)
+    if q:
+        where.append("(i.title LIKE ? OR i.description LIKE ? OR i.issue_no LIKE ? OR i.mgmt_code LIKE ?)")
+        like = f"%{q}%"
+        params += [like, like, like, like]
+    sql = """SELECT i.*, t.name AS owner_team_name, u.name AS owner_user_name,
+                    cu.name AS customer_full_name, cb.name AS created_by_name
+             FROM issues i
+             LEFT JOIN teams t ON i.owner_team_id = t.id
+             LEFT JOIN users u ON i.owner_user_id = u.id
+             LEFT JOIN customers cu ON i.customer_id = cu.id
+             LEFT JOIN users cb ON i.created_by = cb.id"""
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += """ ORDER BY
+                CASE i.severity WHEN '치명' THEN 1 WHEN '심각' THEN 2 WHEN '중' THEN 3 ELSE 4 END,
+                CASE WHEN i.status IN ('해결','종결') THEN 9 ELSE 0 END,
+                i.created_at DESC"""
+    with db_session() as c:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
+def issue_get(iid: int) -> dict | None:
+    with db_session() as c:
+        r = c.execute(
+            """SELECT i.*, t.name AS owner_team_name, u.name AS owner_user_name,
+                      cu.name AS customer_full_name, cb.name AS created_by_name,
+                      ch.change_no AS related_change_no, ch.title AS related_change_title
+               FROM issues i
+               LEFT JOIN teams t ON i.owner_team_id = t.id
+               LEFT JOIN users u ON i.owner_user_id = u.id
+               LEFT JOIN customers cu ON i.customer_id = cu.id
+               LEFT JOIN users cb ON i.created_by = cb.id
+               LEFT JOIN changes ch ON i.related_change_id = ch.id
+               WHERE i.id = ?""",
+            (iid,),
+        ).fetchone()
+        return dict(r) if r else None
+
+
+def issue_logs_get(iid: int) -> list[dict]:
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            """SELECT il.*, u.name AS user_name
+               FROM issue_logs il LEFT JOIN users u ON il.user_id = u.id
+               WHERE il.issue_id = ? ORDER BY il.created_at""",
+            (iid,),
+        ).fetchall()]
+
+
+def issue_update(iid: int, data: dict, user_id: int) -> bool:
+    """이슈 갱신 (원인/조치/재발방지/상태/책임자) + 로그"""
+    with db_session() as c:
+        cur = c.execute("SELECT * FROM issues WHERE id=?", (iid,)).fetchone()
+        if not cur:
+            return False
+        old_status = cur["status"]
+        sets = []
+        params = []
+        log_actions = []
+        for col in ("title", "severity", "issue_type", "root_cause", "action_taken",
+                    "prevention", "owner_team_id", "owner_user_id", "cost_estimate",
+                    "related_change_id", "resolved_at"):
+            if col in data and data[col] is not None and data[col] != "":
+                sets.append(f"{col} = ?")
+                params.append(data[col])
+                if col in ("root_cause", "action_taken", "prevention"):
+                    log_actions.append((col, data[col]))
+        new_status = data.get("status")
+        if new_status and new_status != old_status:
+            sets.append("status = ?")
+            params.append(new_status)
+            if new_status in ("해결", "종결") and not cur["resolved_at"]:
+                sets.append("resolved_at = ?")
+                params.append(_logi_now())
+        if not sets:
+            return False
+        sets.append("updated_at = ?")
+        params.append(_logi_now())
+        params.append(iid)
+        c.execute(f"UPDATE issues SET {', '.join(sets)} WHERE id=?", params)
+        # 로그
+        if new_status and new_status != old_status:
+            c.execute(
+                """INSERT INTO issue_logs (issue_id, user_id, action, content, old_status, new_status)
+                   VALUES (?, ?, '상태변경', ?, ?, ?)""",
+                (iid, user_id, f"{old_status} → {new_status}" + (f" / {data.get('note','')}" if data.get('note') else ""),
+                 old_status, new_status),
+            )
+        for action_col, content in log_actions:
+            label = {"root_cause": "원인분석", "action_taken": "조치", "prevention": "재발방지"}[action_col]
+            c.execute(
+                """INSERT INTO issue_logs (issue_id, user_id, action, content)
+                   VALUES (?, ?, ?, ?)""",
+                (iid, user_id, label, content),
+            )
+        if data.get("comment"):
+            c.execute(
+                """INSERT INTO issue_logs (issue_id, user_id, action, content)
+                   VALUES (?, ?, '코멘트', ?)""",
+                (iid, user_id, data["comment"]),
+            )
+    return True
+
+
+def issue_delete(iid: int) -> bool:
+    with db_session() as c:
+        c.execute("DELETE FROM issues WHERE id=?", (iid,))
+    return True
+
+
+def issues_kpi() -> dict:
+    """이슈 KPI: 미해결/심각도/평균 해결시간"""
+    with db_session() as c:
+        total = c.execute("SELECT COUNT(*) FROM issues").fetchone()[0]
+        open_cnt = c.execute("SELECT COUNT(*) FROM issues WHERE status NOT IN ('해결','종결')").fetchone()[0]
+        critical = c.execute("SELECT COUNT(*) FROM issues WHERE severity IN ('치명','심각') AND status NOT IN ('해결','종결')").fetchone()[0]
+        recent = c.execute(
+            """SELECT COUNT(*) FROM issues
+               WHERE created_at >= date('now','-30 day','localtime')"""
+        ).fetchone()[0]
+        # 부서별 미해결
+        by_team = [dict(r) for r in c.execute(
+            """SELECT t.name AS team_name, COUNT(*) AS cnt
+               FROM issues i LEFT JOIN teams t ON i.owner_team_id = t.id
+               WHERE i.status NOT IN ('해결','종결')
+               GROUP BY i.owner_team_id ORDER BY cnt DESC"""
+        ).fetchall()]
+    return {"total": total, "open": open_cnt, "critical": critical,
+            "recent_30d": recent, "by_team": by_team}
 
 
 # =====================================================

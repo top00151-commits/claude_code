@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}이슈 등록 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/issues" style="font-size:13px;color:#6B7280;text-decoration:none;">← 이슈 목록</a>
+</div>
+
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px 28px;border-top:4px solid #DC2626;">
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🔥 이슈 · AS 등록</h1>
+  <div style="font-size:13px;color:#6B7280;margin-bottom:20px;">고객사 이슈/내부 발견 결함을 등록합니다. 종류/사업부에 따라 책임 부서가 자동 배정됩니다.</div>
+
+  <form method="post" action="/issues/new" style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">제목 <span style="color:#DC2626;">*</span></label>
+      <input type="text" name="title" required placeholder="예: SK하이닉스 #2호기 비전 인식률 저하" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">심각도 <span style="color:#DC2626;">*</span></label>
+        <select name="severity" required style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          {% for s in ISSUE_SEVERITIES %}<option value="{{ s }}" {% if s=='중' %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">종류 <span style="color:#DC2626;">*</span></label>
+        <select name="issue_type" required style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          {% for s in ISSUE_TYPES %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">사업부</label>
+        <select name="biz_div" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          <option value="">자동 (프로젝트에서)</option>
+          <option value="T">T (검사기)</option>
+          <option value="M">M (자동화)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">관련 프로젝트</label>
+        <select name="project_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          <option value="">선택 (선택사항 — 자동으로 사업부/고객 채움)</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" {% if default_project_id and (default_project_id|string)==(p.id|string) %}selected{% endif %}>
+            [{{ p.mgmt_code }}] {{ p.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">고객사</label>
+        <select name="customer_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          <option value="">선택</option>
+          {% for cu in customers %}<option value="{{ cu.id }}">{{ cu.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">발생일</label>
+        <input type="date" name="occurred_at" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">발견자</label>
+        <input type="text" name="detected_by" placeholder="고객사 담당 or 사내 직원" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">책임 부서 (수동 지정)</label>
+        <select name="owner_team_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+          <option value="">자동 라우팅 (종류 × 사업부)</option>
+          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">증상 설명</label>
+      <textarea name="description" rows="6" placeholder="현상, 재현 조건, 영향 범위 등 자세히" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:inherit;"></textarea>
+    </div>
+
+    <div style="background:#FEF3C7;border-left:3px solid #F59E0B;padding:10px 14px;border-radius:6px;font-size:12px;color:#92400E;">
+      💡 등록 후 상세 화면에서 <strong>원인분석 → 조치 → 재발방지 대책</strong>을 단계별로 입력하세요. 재발방지 대책은 자산이 됩니다.
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <a href="/issues" style="padding:10px 20px;border:1px solid #D1D5DB;border-radius:8px;color:#6B7280;text-decoration:none;font-weight:700;">취소</a>
+      <button type="submit" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border:none;padding:10px 28px;border-radius:8px;font-weight:800;cursor:pointer;box-shadow:0 4px 10px rgba(220,38,38,.3);">접수 등록</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

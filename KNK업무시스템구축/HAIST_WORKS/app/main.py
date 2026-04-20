@@ -20,7 +20,8 @@ from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw
                         add_reaction, get_reactions, get_reactions_bulk, get_meta_bulk,
                         notify_status_change, get_user_search,
                         upsert_retro, get_retro, search_all, detect_bottlenecks,
-                        delegate_task, get_delegations, resolve_delegation)
+                        delegate_task, get_delegations, resolve_delegation,
+                        get_setting, get_settings_all, set_setting)
 
 BASE = os.path.dirname(os.path.dirname(__file__))
 app = FastAPI(title="KNK 일일업무일지 v2")
@@ -67,6 +68,10 @@ def ctx(request, name, **kwargs):
         "app_name": "HAIST WORKS",
         "app_subtitle": "KNK 통합 업무 플랫폼",
         "brand_slogan": "Human & AI create the Best",
+        # 하이웍스 외부 시스템 URL (admin 설정에서 변경 가능)
+        "hiworks_approval_url": get_setting("hiworks_approval_url", "https://office.hiworks.com/"),
+        "hiworks_mail_url":     get_setting("hiworks_mail_url",     "https://mail.hiworks.com/"),
+        "hiworks_domain":       get_setting("hiworks_domain", ""),
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None
@@ -2109,6 +2114,34 @@ async def api_regen_pw(req: Request):
                          "download": "/admin/download-passwords"})
 
 
+@app.get("/admin/settings", response_class=HTMLResponse)
+async def admin_settings_page(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    settings = get_settings_all()
+    return ctx(req, "admin_settings.html", user=u, settings=settings, active="admin")
+
+
+@app.post("/admin/settings")
+async def admin_settings_save(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    # form 키는 "k_<key>" 형식 (XSS/주입 방지)
+    saved = 0
+    for k, v in form.items():
+        if not k.startswith("k_"):
+            continue
+        key = k[2:].strip()
+        if not key:
+            continue
+        set_setting(key, (v or "").strip(), user_id=u["id"])
+        saved += 1
+    return RedirectResponse(f"/admin/settings?saved={saved}", 303)
+
+
 @app.get("/admin/download-passwords")
 async def dl_passwords(req: Request):
     u = require(req, ["admin", "ceo"])
@@ -2380,6 +2413,7 @@ async def changes_new_submit(
     urgency: str = Form("일반"),
     source: str = Form("수동"),
     source_ref: str = Form(""),
+    approval_url: str = Form(""),
 ):
     u = get_user(req)
     if not u:
@@ -2409,6 +2443,7 @@ async def changes_new_submit(
         "before_value": before_value, "after_value": after_value,
         "urgency": urgency,
         "source": source, "source_ref": source_ref,
+        "approval_url": approval_url.strip() or None,
     }, author_id=u["id"])
 
     # 알림 발송 (web 게시판 자동 글 + 카카오워크 stub)
@@ -2686,6 +2721,7 @@ async def tickets_new_submit(
     due_date: str = Form(""),
     hours_estimated: str = Form(""),
     source: str = Form("web"),
+    approval_url: str = Form(""),
 ):
     u = get_user(req)
     if not u:
@@ -2720,6 +2756,7 @@ async def tickets_new_submit(
         "target_label": target_label, "recipient_team_id": rtid,
         "urgency": urgency, "due_date": due_date,
         "hours_estimated": hours_estimated, "source": source,
+        "approval_url": approval_url,
     }, requester_id=u["id"])
 
     # 카카오워크 stub 알림 (수신 부서 채널)
@@ -2792,6 +2829,165 @@ async def api_tickets_count(req: Request):
     if not u:
         return JSONResponse({"my_open": 0, "recv_pending": 0})
     return JSONResponse(tickets_count_for_user(u["id"], u.get("team_id")))
+
+
+# =====================================================
+# HAIST WORKS — 이슈·AS DB (3순위 ⑦)
+# 고객사 이슈 추적 → 원인분석 → 재발방지 학습 → 변경 연계
+# =====================================================
+from .database import (issues_list, issue_get, issue_create, issue_update,
+                        issue_delete, issue_logs_get, issues_kpi,
+                        ISSUE_SEVERITIES, ISSUE_TYPES, ISSUE_STATUSES,
+                        route_issue_team)
+
+
+@app.get("/issues", response_class=HTMLResponse)
+async def issues_page(req: Request, scope: str = "open", q: str = "",
+                      status: str = "", severity: str = "", issue_type: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    items = issues_list(scope=scope, user_id=u["id"], team_id=u.get("team_id"),
+                        status=status, severity=severity, issue_type=issue_type, q=q)
+    kpi = issues_kpi()
+    return ctx(req, "issues_list.html", user=u, items=items, kpi=kpi,
+               scope=scope, q=q, status=status, severity=severity, issue_type=issue_type,
+               ISSUE_STATUSES=ISSUE_STATUSES, ISSUE_SEVERITIES=ISSUE_SEVERITIES,
+               ISSUE_TYPES=ISSUE_TYPES, active="issues")
+
+
+@app.get("/issues/new", response_class=HTMLResponse)
+async def issues_new_form(req: Request, project_id: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, name FROM teams ORDER BY display_order"
+        ).fetchall()]
+        projects = [dict(r) for r in c.execute(
+            """SELECT id, mgmt_code, name, biz_div, customer_id
+               FROM projects WHERE status IN ('active','진행중','planning')
+               ORDER BY mgmt_code DESC LIMIT 200"""
+        ).fetchall()]
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY tier DESC, name"
+        ).fetchall()]
+    return ctx(req, "issue_form.html", user=u, teams=teams, projects=projects,
+               customers=customers, default_project_id=project_id,
+               ISSUE_SEVERITIES=ISSUE_SEVERITIES, ISSUE_TYPES=ISSUE_TYPES,
+               active="issues")
+
+
+@app.post("/issues/new")
+async def issues_new_submit(
+    req: Request,
+    title: str = Form(...),
+    severity: str = Form("중"),
+    issue_type: str = Form("AS"),
+    biz_div: str = Form(""),
+    project_id: str = Form(""),
+    customer_id: str = Form(""),
+    customer_name: str = Form(""),
+    occurred_at: str = Form(""),
+    detected_by: str = Form(""),
+    description: str = Form(""),
+    owner_team_id: str = Form(""),
+):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    pid = int(project_id) if project_id and project_id.isdigit() else None
+    cid = int(customer_id) if customer_id and customer_id.isdigit() else None
+    otid = int(owner_team_id) if owner_team_id and owner_team_id.isdigit() else None
+    iid, issue_no = issue_create({
+        "title": title, "severity": severity, "issue_type": issue_type,
+        "biz_div": biz_div, "project_id": pid, "customer_id": cid,
+        "customer_name": customer_name,
+        "occurred_at": occurred_at, "detected_by": detected_by,
+        "description": description, "owner_team_id": otid,
+    }, created_by=u["id"])
+    return RedirectResponse(f"/issues/{iid}", 303)
+
+
+@app.get("/issues/{iid}", response_class=HTMLResponse)
+async def issues_detail(req: Request, iid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    issue = issue_get(iid)
+    if not issue:
+        return RedirectResponse("/issues", 303)
+    logs = issue_logs_get(iid)
+    with db_session() as c:
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, name FROM teams ORDER BY display_order"
+        ).fetchall()]
+    is_owner = (issue["owner_user_id"] == u["id"]
+                or (issue["owner_team_id"] and issue["owner_team_id"] == u.get("team_id")))
+    can_edit = is_owner or issue["created_by"] == u["id"] or u["role"] in ("admin", "ceo")
+    return ctx(req, "issue_detail.html", user=u, issue=issue, logs=logs,
+               teams=teams, can_edit=can_edit,
+               ISSUE_STATUSES=ISSUE_STATUSES, ISSUE_SEVERITIES=ISSUE_SEVERITIES,
+               ISSUE_TYPES=ISSUE_TYPES, active="issues")
+
+
+@app.post("/issues/{iid}/update")
+async def issues_update_submit(
+    req: Request, iid: int,
+    status: str = Form(""),
+    root_cause: str = Form(""),
+    action_taken: str = Form(""),
+    prevention: str = Form(""),
+    owner_team_id: str = Form(""),
+    cost_estimate: str = Form(""),
+    related_change_id: str = Form(""),
+    comment: str = Form(""),
+    note: str = Form(""),
+):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    data = {"note": note, "comment": comment.strip() or None}
+    if status:
+        data["status"] = status
+    if root_cause.strip():
+        data["root_cause"] = root_cause.strip()
+    if action_taken.strip():
+        data["action_taken"] = action_taken.strip()
+    if prevention.strip():
+        data["prevention"] = prevention.strip()
+    if owner_team_id and owner_team_id.isdigit():
+        data["owner_team_id"] = int(owner_team_id)
+    if cost_estimate:
+        try:
+            data["cost_estimate"] = float(cost_estimate)
+        except ValueError:
+            pass
+    if related_change_id and related_change_id.isdigit():
+        data["related_change_id"] = int(related_change_id)
+    issue_update(iid, data, user_id=u["id"])
+    return RedirectResponse(f"/issues/{iid}", 303)
+
+
+@app.post("/issues/{iid}/delete")
+async def issues_delete_submit(req: Request, iid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    issue = issue_get(iid)
+    if issue and (issue["created_by"] == u["id"] or u["role"] in ("admin", "ceo")):
+        issue_delete(iid)
+    return RedirectResponse("/issues", 303)
+
+
+@app.get("/api/issues/count")
+async def api_issues_count(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"open": 0, "critical": 0})
+    kpi = issues_kpi()
+    return JSONResponse({"open": kpi["open"], "critical": kpi["critical"]})
 
 
 # =====================================================
