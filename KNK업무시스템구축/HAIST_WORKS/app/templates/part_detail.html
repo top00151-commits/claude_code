@@ -113,6 +113,136 @@
   {% endif %}
 </div>
 
+<!-- 적용일자 단가 (동적 변수 ②) -->
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">
+    🗓 적용일자 단가 (Date-Sensitive Pricing)
+    <span style="font-size:11px;color:#6B7280;font-weight:500;">· 한국 ERP 표준 · 확정/가/견적 승인 워크플로</span>
+  </h2>
+
+  {% if active_price %}
+  <div style="background:#E8F5E9;border-left:3px solid #16A34A;padding:10px 14px;border-radius:6px;margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:700;color:#166534;">✓ 현재 유효 단가 ({{ today }} 기준)</div>
+    <div style="font-size:15px;font-weight:800;margin-top:4px;">
+      {{ "{:,.2f}".format(active_price.unit_price) }} {{ active_price.currency }}
+      <span style="background:#fff;color:#166534;padding:2px 10px;border-radius:999px;font-size:11px;margin-left:8px;">{{ active_price.price_type }}</span>
+      {% if active_price.supplier_name %}<span style="color:#6B7280;font-size:12px;font-weight:500;">· {{ active_price.supplier_name }}</span>{% endif %}
+    </div>
+    <div style="font-size:11px;color:#6B7280;margin-top:3px;">
+      적용 기간: {{ active_price.effective_from }} ~ {{ active_price.effective_to or '무기한' }}
+    </div>
+  </div>
+  {% else %}
+  <div style="background:#FEF3C7;border-left:3px solid #F59E0B;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#92400E;">
+    ⚠️ 현재 유효한 관리 단가가 없습니다. 표준단가 또는 PO 이력을 사용합니다.
+  </div>
+  {% endif %}
+
+  <!-- 단가 등록 폼 (접기/펼치기) -->
+  <details style="margin-bottom:14px;">
+    <summary style="cursor:pointer;padding:10px 14px;background:#F9FAFB;border-radius:6px;font-weight:700;">+ 새 단가 등록</summary>
+    <form method="post" action="/parts/{{ part.id }}/prices/new" style="margin-top:10px;padding:14px;background:#F9FAFB;border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">공급사 (선택)</label>
+        <select name="supplier_id" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+          <option value="">공급사 무관</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">단가 성격 *</label>
+        <select name="price_type" required style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+          {% for p in PRICE_TYPES %}<option value="{{ p }}" {% if p=='견적' %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">단가 *</label>
+        <input type="number" name="unit_price" step="0.01" required style="width:100%;padding:8px 10px;border:2px solid #4338CA;border-radius:6px;font-size:12px;font-family:monospace;">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">통화</label>
+        <select name="currency" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+          {% for c in CURRENCIES %}<option value="{{ c }}" {% if c==part.currency %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">적용 시작일 *</label>
+        <input type="date" name="effective_from" value="{{ today }}" required style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">적용 종료일</label>
+        <input type="date" name="effective_to" placeholder="비우면 무기한" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">협의일자</label>
+        <input type="date" name="negotiated_at" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#6B7280;">비고</label>
+        <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      </div>
+      <div style="grid-column:span 4;text-align:right;">
+        <button type="submit" class="btn" style="background:linear-gradient(135deg,#4338CA,#312E81);color:#fff;border:none;font-weight:800;padding:8px 24px;">+ 단가 등록</button>
+      </div>
+    </form>
+  </details>
+
+  {% if managed_prices %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>적용 시작</th>
+        <th>적용 종료</th>
+        <th>공급사</th>
+        <th>성격</th>
+        <th style="text-align:right;">단가</th>
+        <th>통화</th>
+        <th>협의일</th>
+        <th>승인</th>
+        <th>비고</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in managed_prices %}
+      <tr>
+        <td style="font-family:monospace;">{{ p.effective_from }}</td>
+        <td style="font-family:monospace;color:#6B7280;">{{ p.effective_to or '무기한' }}</td>
+        <td style="font-size:12px;">{{ p.supplier_name or '공급사 무관' }}</td>
+        <td>
+          {% if p.price_type == '확정' %}<span style="background:#E8F5E9;color:#166534;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;">확정</span>
+          {% elif p.price_type == '가' %}<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">가</span>
+          {% else %}<span style="background:#E0E7FF;color:#4338CA;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">견적</span>{% endif %}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.2f}".format(p.unit_price) }}</td>
+        <td>{{ p.currency }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#6B7280;">{{ p.negotiated_at or '-' }}</td>
+        <td style="font-size:11px;">
+          {% if p.approved_at %}<span style="color:#166534;">✓ {{ p.approved_by_name }}<br>{{ p.approved_at[:10] }}</span>
+          {% else %}<span style="color:#9CA3AF;">대기</span>{% endif %}
+        </td>
+        <td style="font-size:11px;color:#6B7280;">{{ p.note or '-' }}</td>
+        <td>
+          {% if not p.approved_at and user.role in ['admin','ceo','leader','executive'] %}
+          <form method="post" action="/parts/prices/{{ p.id }}/approve" style="display:inline;">
+            <button type="submit" style="background:#16A34A;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-weight:700;">승인</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:#9CA3AF;font-size:12px;">등록된 관리 단가 없음. 위 폼에서 추가하세요.</div>
+  {% endif %}
+
+  <div style="margin-top:10px;padding:8px 12px;background:#EEF2FF;border-left:3px solid #4338CA;border-radius:4px;font-size:11px;color:#312E81;">
+    💡 적용일자 단가는 <strong>공급사 협상 이력</strong>을 보존합니다. 발주 시 해당 날짜의 확정 단가가 자동 제안됩니다.
+    <br>&nbsp;&nbsp;&nbsp;(한국 ERP 표준 — Decomsoft/emaxit Frame7 모델)
+  </div>
+</div>
+
 <!-- 공급사별 단가 비교 -->
 {% if by_supplier %}
 <div class="card" style="margin-top:14px;">

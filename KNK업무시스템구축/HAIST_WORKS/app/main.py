@@ -3538,8 +3538,11 @@ async def suppliers_edit_form(request: Request, sid: int):
     s = _logi.supplier_get(sid)
     if not s:
         return RedirectResponse("/suppliers", 303)
+    # 리드타임 통계 자동 계산 (동적 변수 ⑤)
+    leadtime = supplier_leadtime_stats(sid)
     return ctx(request, "supplier_form.html",
                user=u, active="suppliers", supplier=s,
+               leadtime=leadtime,
                PAYMENT_TERMS=_logi.PAYMENT_TERMS)
 
 
@@ -3753,12 +3756,115 @@ from .database import (stock_movement_create, po_receive, stock_issue,
                         stock_adjust, stock_movements_list, stock_kpi,
                         part_stock_history, part_fifo_layers, part_price_history,
                         MOVEMENT_KINDS, MOVEMENT_KIND_LABEL,
-                        gen_movement_no)
+                        gen_movement_no,
+                        exchange_rate_create, exchange_rates_list, exchange_rates_latest,
+                        get_exchange_rate, CURRENCIES,
+                        part_price_create, part_price_approve, part_prices_list,
+                        part_active_price, PRICE_TYPES,
+                        supplier_leadtime_stats)
+
+
+# =====================================================
+# 환율 관리 (동적 변수 ③)
+# =====================================================
+@app.get("/rates", response_class=HTMLResponse)
+async def rates_page(request: Request, currency: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    items = exchange_rates_list(limit=200, currency=currency)
+    latest = exchange_rates_latest()
+    return ctx(request, "rates.html", user=u, items=items, latest=latest,
+               currency=currency, CURRENCIES=CURRENCIES, active="rates")
+
+
+@app.post("/rates/new")
+async def rates_create_submit(
+    request: Request,
+    rate_date: str = Form(...),
+    from_currency: str = Form(...),
+    to_currency: str = Form("KRW"),
+    rate: str = Form(...),
+    source: str = Form("수동"),
+    note: str = Form(""),
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    try:
+        exchange_rate_create({
+            "rate_date": rate_date,
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "rate": float(rate),
+            "source": source,
+            "note": note,
+        }, user_id=u["id"])
+    except Exception as e:
+        return RedirectResponse(f"/rates?error={e}", 303)
+    return RedirectResponse("/rates?success=1", 303)
+
+
+# =====================================================
+# 적용일자 단가 (동적 변수 ②)
+# =====================================================
+@app.post("/parts/{pid}/prices/new")
+async def parts_price_create_submit(
+    request: Request, pid: int,
+    supplier_id: str = Form(""),
+    price_type: str = Form("견적"),
+    unit_price: str = Form(...),
+    currency: str = Form("KRW"),
+    effective_from: str = Form(...),
+    effective_to: str = Form(""),
+    negotiated_at: str = Form(""),
+    min_qty: str = Form("0"),
+    max_qty: str = Form(""),
+    note: str = Form(""),
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    try:
+        part_price_create({
+            "part_id": pid,
+            "supplier_id": int(supplier_id) if supplier_id.isdigit() else None,
+            "price_type": price_type,
+            "unit_price": float(unit_price),
+            "currency": currency,
+            "effective_from": effective_from,
+            "effective_to": effective_to or None,
+            "negotiated_at": negotiated_at or None,
+            "min_qty": float(min_qty or 0),
+            "max_qty": float(max_qty) if max_qty else None,
+            "note": note,
+        }, user_id=u["id"])
+    except Exception as e:
+        return RedirectResponse(f"/parts/{pid}?error={e}", 303)
+    return RedirectResponse(f"/parts/{pid}?price_added=1", 303)
+
+
+@app.post("/parts/prices/{price_id}/approve")
+async def parts_price_approve_submit(request: Request, price_id: int):
+    u = get_user(request)
+    if not u or u["role"] not in ("admin", "ceo", "leader", "executive"):
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        row = c.execute("SELECT part_id FROM part_prices WHERE id=?", (price_id,)).fetchone()
+    part_price_approve(price_id, user_id=u["id"])
+    pid = row["part_id"] if row else 0
+    return RedirectResponse(f"/parts/{pid}?approved=1", 303)
 
 
 @app.get("/parts/{pid}", response_class=HTMLResponse)
 async def parts_detail_page(request: Request, pid: int):
-    """부품 상세 — FIFO 레이어, 공급사 단가 이력, 입출고 이력 통합"""
+    """부품 상세 — FIFO 레이어, 공급사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -3770,14 +3876,25 @@ async def parts_detail_page(request: Request, pid: int):
     layers = part_fifo_layers(pid)
     price_hist = part_price_history(pid, limit=30)
     recent_moves = part_stock_history(pid, limit=30)
-    # 레이어 기반 재고 금액
     stock_value = sum((l.get("remaining_qty") or 0) * (l.get("unit_price") or 0) for l in layers)
+    # 적용일자 단가 (동적 변수 ②)
+    managed_prices = part_prices_list(pid)
+    active_price = part_active_price(pid)
+    # 공급사 선택지 (단가 등록 폼용)
+    with db_session() as c:
+        suppliers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
+        ).fetchall()]
     return ctx(request, "part_detail.html", user=u,
                part=dict(part), layers=layers,
                price_history=price_hist["history"],
                by_supplier=price_hist["by_supplier"],
+               managed_prices=managed_prices,
+               active_price=active_price,
                recent_moves=recent_moves,
                stock_value=stock_value,
+               suppliers=suppliers,
+               CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")
 
 

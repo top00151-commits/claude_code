@@ -335,6 +335,52 @@ CREATE INDEX IF NOT EXISTS idx_sm_po ON stock_movements(po_id);
 CREATE INDEX IF NOT EXISTS idx_sm_project ON stock_movements(project_id);
 CREATE INDEX IF NOT EXISTS idx_sm_occurred ON stock_movements(occurred_at);
 
+-- =====================================================
+-- 환율 · 시간별 단가 · 리드타임 (2026-04-21 동적 변수 리서치)
+-- 근거: 자재관리_동적변수_대응시스템.md §3·§4·§6
+-- =====================================================
+
+-- 환율 테이블 — 날짜별 통화 환산 (FXLoader 패턴)
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    rate_date       TEXT NOT NULL,                -- YYYY-MM-DD
+    from_currency   TEXT NOT NULL,                -- USD / VND / JPY / CNY 등
+    to_currency     TEXT NOT NULL DEFAULT 'KRW',  -- 기본 KRW
+    rate            REAL NOT NULL,                -- 1 from = rate * to
+    source          TEXT DEFAULT '수동',          -- 수동 / 한국은행 / 기타
+    note            TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(rate_date, from_currency, to_currency)
+);
+CREATE INDEX IF NOT EXISTS idx_fx_date ON exchange_rates(rate_date);
+CREATE INDEX IF NOT EXISTS idx_fx_from ON exchange_rates(from_currency);
+
+-- 적용일자 기반 단가 관리 — 한국 ERP 표준 (Decomsoft/emaxit)
+-- 기존 parts.std_price는 "기본 단가"로 유지, 이 테이블은 시간별 변동 관리
+CREATE TABLE IF NOT EXISTS part_prices (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id         INTEGER NOT NULL REFERENCES parts(id),
+    supplier_id     INTEGER REFERENCES suppliers(id),  -- NULL = 공급사 무관 기본
+    price_type      TEXT DEFAULT '견적',          -- 확정 / 가 / 견적 (한국 표준 3종)
+    unit_price      REAL NOT NULL,
+    currency        TEXT DEFAULT 'KRW',
+    effective_from  TEXT NOT NULL,                -- 적용 시작일 (YYYY-MM-DD)
+    effective_to    TEXT,                          -- 적용 종료일 (NULL = 무기한)
+    negotiated_at   TEXT,                          -- 협의일자 (공급사와 합의)
+    min_qty         REAL DEFAULT 0,                -- 수량 할인 준비 (④ 변수용 P1)
+    max_qty         REAL,
+    note            TEXT,
+    approved_by     INTEGER REFERENCES users(id),
+    approved_at     TEXT,                          -- NULL이면 대기중
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ppr_part ON part_prices(part_id);
+CREATE INDEX IF NOT EXISTS idx_ppr_supplier ON part_prices(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ppr_effective ON part_prices(effective_from, effective_to);
+CREATE INDEX IF NOT EXISTS idx_ppr_type ON part_prices(price_type);
+
 -- ============ 게시판 (HAIST WORKS) ============
 -- 게시판 마스터: 전사 / 부서별
 CREATE TABLE IF NOT EXISTS boards (
@@ -3053,6 +3099,220 @@ def part_fifo_layers(part_id: int) -> list[dict]:
             (part_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# =====================================================
+# 환율 관리 (FXLoader 패턴, 수동 입력 시작)
+# =====================================================
+CURRENCIES = ["KRW", "USD", "VND", "JPY", "CNY", "EUR"]
+
+
+def get_exchange_rate(date_str: str, from_currency: str, to_currency: str = "KRW") -> float:
+    """특정 날짜의 환율 조회. 가장 가까운 과거 레이트 사용 (없으면 1.0 폴백).
+    같은 통화면 1.0.
+    """
+    if from_currency == to_currency:
+        return 1.0
+    try:
+        with db_session() as c:
+            r = c.execute(
+                """SELECT rate FROM exchange_rates
+                   WHERE from_currency=? AND to_currency=? AND rate_date <= ?
+                   ORDER BY rate_date DESC LIMIT 1""",
+                (from_currency, to_currency, date_str),
+            ).fetchone()
+            if r:
+                return float(r["rate"])
+    except Exception:
+        pass
+    return 1.0  # 환율 없으면 1.0 (운영 시작 전 안전 기본)
+
+
+def exchange_rate_create(data: dict, user_id: int) -> int:
+    """환율 등록 (수동). 같은 날짜·통화쌍은 UPSERT."""
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO exchange_rates(rate_date, from_currency, to_currency, rate, source, note, created_by)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(rate_date, from_currency, to_currency)
+               DO UPDATE SET rate=excluded.rate, source=excluded.source,
+                             note=excluded.note, created_by=excluded.created_by,
+                             created_at=datetime('now','localtime')""",
+            (data["rate_date"], data["from_currency"].upper(),
+             data.get("to_currency", "KRW").upper(),
+             float(data["rate"]),
+             data.get("source") or "수동",
+             data.get("note"),
+             user_id),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def exchange_rates_list(limit: int = 100, currency: str = "") -> list[dict]:
+    sql = """SELECT er.*, u.name AS created_by_name
+             FROM exchange_rates er LEFT JOIN users u ON er.created_by=u.id
+             WHERE 1=1"""
+    params = []
+    if currency:
+        sql += " AND (from_currency=? OR to_currency=?)"
+        params += [currency.upper(), currency.upper()]
+    sql += " ORDER BY rate_date DESC, from_currency LIMIT ?"
+    params.append(limit)
+    with db_session() as c:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
+def exchange_rates_latest() -> dict:
+    """통화별 가장 최근 환율 (to KRW). 대시보드용."""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT er.* FROM exchange_rates er
+               INNER JOIN (
+                 SELECT from_currency, to_currency, MAX(rate_date) AS mx
+                 FROM exchange_rates WHERE to_currency='KRW'
+                 GROUP BY from_currency, to_currency
+               ) m ON er.from_currency=m.from_currency
+                   AND er.to_currency=m.to_currency
+                   AND er.rate_date=m.mx"""
+        ).fetchall()
+        return {r["from_currency"]: dict(r) for r in rows}
+
+
+# =====================================================
+# 적용일자 단가 관리 (한국 ERP 표준 — emaxit Frame7 참조)
+# =====================================================
+PRICE_TYPES = ["확정", "가", "견적"]
+
+
+def part_price_create(data: dict, user_id: int) -> int:
+    """적용일자 단가 등록. effective_from 필수."""
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO part_prices
+               (part_id, supplier_id, price_type, unit_price, currency,
+                effective_from, effective_to, negotiated_at, min_qty, max_qty, note,
+                created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                int(data["part_id"]),
+                data.get("supplier_id"),
+                data.get("price_type") or "견적",
+                float(data["unit_price"]),
+                data.get("currency") or "KRW",
+                data["effective_from"],
+                data.get("effective_to"),
+                data.get("negotiated_at"),
+                float(data.get("min_qty") or 0),
+                data.get("max_qty"),
+                data.get("note"),
+                user_id,
+            ),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def part_price_approve(price_id: int, user_id: int):
+    """단가 승인 → 확정 전환"""
+    with db_session() as c:
+        c.execute(
+            """UPDATE part_prices
+               SET price_type='확정', approved_by=?, approved_at=?
+               WHERE id=?""",
+            (user_id, _logi_now(), price_id),
+        )
+
+
+def part_prices_list(part_id: int, supplier_id: int = 0,
+                     include_inactive: bool = True) -> list[dict]:
+    """부품의 단가 이력."""
+    sql = """SELECT pp.*, s.name AS supplier_name, u.name AS approved_by_name,
+                    cu.name AS created_by_name
+             FROM part_prices pp
+             LEFT JOIN suppliers s ON pp.supplier_id = s.id
+             LEFT JOIN users u ON pp.approved_by = u.id
+             LEFT JOIN users cu ON pp.created_by = cu.id
+             WHERE pp.part_id = ?"""
+    params = [part_id]
+    if supplier_id:
+        sql += " AND pp.supplier_id = ?"
+        params.append(supplier_id)
+    if not include_inactive:
+        today = _date.today().isoformat()
+        sql += " AND pp.effective_from <= ? AND (pp.effective_to IS NULL OR pp.effective_to >= ?)"
+        params += [today, today]
+    sql += " ORDER BY pp.effective_from DESC, pp.id DESC"
+    with db_session() as c:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
+def part_active_price(part_id: int, supplier_id: int = 0,
+                      date_str: str = "", qty: float = 0) -> dict | None:
+    """특정 날짜에 유효한 확정/가 단가 조회. 없으면 None.
+    우선순위: 승인된 확정 > 가격 타입 우선순위 > 가장 최신 effective_from
+    """
+    date_s = date_str or _date.today().isoformat()
+    sql = """SELECT pp.*, s.name AS supplier_name
+             FROM part_prices pp
+             LEFT JOIN suppliers s ON pp.supplier_id = s.id
+             WHERE pp.part_id = ?
+               AND pp.effective_from <= ?
+               AND (pp.effective_to IS NULL OR pp.effective_to >= ?)"""
+    params = [part_id, date_s, date_s]
+    if supplier_id:
+        sql += " AND (pp.supplier_id = ? OR pp.supplier_id IS NULL)"
+        params.append(supplier_id)
+    if qty > 0:
+        sql += " AND (pp.min_qty <= ? AND (pp.max_qty IS NULL OR pp.max_qty >= ?))"
+        params += [qty, qty]
+    # 확정 > 가 > 견적 순서 우선
+    sql += """ ORDER BY
+                CASE pp.price_type WHEN '확정' THEN 1 WHEN '가' THEN 2 ELSE 3 END,
+                pp.effective_from DESC, pp.id DESC LIMIT 1"""
+    with db_session() as c:
+        r = c.execute(sql, params).fetchone()
+        return dict(r) if r else None
+
+
+# =====================================================
+# 공급사 리드타임 자동 집계 (§6.4 업계 공통)
+# =====================================================
+def supplier_leadtime_stats(supplier_id: int) -> dict:
+    """공급사별 PO 리드타임 통계: order_date → 최초 입고일 평균
+    IN 수불이 있는 PO만 계산. 없으면 None.
+    """
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT po.id, po.order_date,
+                      MIN(sm.occurred_at) AS first_receive
+               FROM purchase_orders po
+               JOIN stock_movements sm ON sm.po_id = po.id AND sm.kind = 'IN'
+               WHERE po.supplier_id = ?
+                 AND po.order_date IS NOT NULL
+               GROUP BY po.id""",
+            (supplier_id,),
+        ).fetchall()
+        diffs = []
+        for r in rows:
+            try:
+                od = _date.fromisoformat(r["order_date"][:10])
+                rd = _date.fromisoformat(r["first_receive"][:10])
+                days = (rd - od).days
+                if 0 <= days <= 365:
+                    diffs.append(days)
+            except Exception:
+                continue
+        if not diffs:
+            return {"count": 0, "avg_days": None, "min_days": None,
+                    "max_days": None, "recent": []}
+        diffs.sort()
+        return {
+            "count": len(diffs),
+            "avg_days": round(sum(diffs) / len(diffs), 1),
+            "min_days": min(diffs),
+            "max_days": max(diffs),
+            "median_days": diffs[len(diffs) // 2],
+            "recent": diffs[-5:],  # 최근 5건
+        }
 
 
 def part_price_history(part_id: int, limit: int = 30) -> list[dict]:
