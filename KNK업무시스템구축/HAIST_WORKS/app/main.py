@@ -3734,3 +3734,35 @@ async def po_delete_submit(request: Request, po_id: int):
         return RedirectResponse("/home", 303)
     _logi.po_delete(po_id)
     return RedirectResponse("/po", status_code=303)
+
+
+# =====================================================
+# HAIST Victor — 사내 AI 컨시어지 (Phase 1)
+# 자연어 질문 → 데이터/페이지 자동 라우팅
+# =====================================================
+from .victor import ask as victor_ask
+
+
+@app.post("/api/victor/ask")
+async def api_victor_ask(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        data = await req.json()
+        query = (data.get("query") or "").strip()
+    except Exception:
+        query = ""
+    result = victor_ask(query, u, db_session)
+    return JSONResponse({"ok": True, "result": result})
+
+
+@app.get("/api/victor/ask")
+async def api_victor_ask_get(req: Request, q: str = ""):
+    """GET 방식 지원 (간단한 테스트/디버깅용)"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    result = victor_ask(q, u, db_session)
+    return JSONResponse({"ok": True, "result": result})
+
