@@ -28,6 +28,12 @@
         작성: <strong>{{ change.author_name }}</strong>
         {% if change.author_team %}({{ change.author_team }}){% endif %}
         · {{ change.created_at }}
+        {% if change.source and change.source != '수동' %}
+        <span style="margin-left:10px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;">{{ change.source }}</span>
+        {% endif %}
+        {% if change.source_ref %}
+        <span style="margin-left:6px;font-family:monospace;font-size:11px;color:#6B7280;">{{ change.source_ref }}</span>
+        {% endif %}
       </div>
     </div>
     {% if is_author or user.role in ['admin','ceo'] %}

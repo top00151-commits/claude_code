@@ -2325,6 +2325,7 @@ from .database import (changes_list, change_get, change_create,
                         change_mark_read, change_ack, change_delete,
                         change_unread_count, change_recent_count,
                         CHANGE_TYPES, CHANGE_URGENCIES, CHANGE_STATUSES,
+                        CHANGE_SOURCES,
                         detect_impact_teams, kakao_webhook_send)
 
 
@@ -2360,7 +2361,8 @@ async def changes_new_form(req: Request):
         ).fetchall()
     return ctx(req, "change_form.html", user=u, active="changes",
                change=None, projects=projects,
-               CHANGE_TYPES=CHANGE_TYPES, CHANGE_URGENCIES=CHANGE_URGENCIES)
+               CHANGE_TYPES=CHANGE_TYPES, CHANGE_URGENCIES=CHANGE_URGENCIES,
+               CHANGE_SOURCES=CHANGE_SOURCES)
 
 
 @app.post("/changes/new")
@@ -2376,6 +2378,8 @@ async def changes_new_submit(
     before_value: str = Form(""),
     after_value: str = Form(""),
     urgency: str = Form("일반"),
+    source: str = Form("수동"),
+    source_ref: str = Form(""),
 ):
     u = get_user(req)
     if not u:
@@ -2404,6 +2408,7 @@ async def changes_new_submit(
         "project_id": pid, "title": title, "description": description,
         "before_value": before_value, "after_value": after_value,
         "urgency": urgency,
+        "source": source, "source_ref": source_ref,
     }, author_id=u["id"])
 
     # 알림 발송 (web 게시판 자동 글 + 카카오워크 stub)

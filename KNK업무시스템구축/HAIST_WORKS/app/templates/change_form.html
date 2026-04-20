@@ -116,6 +116,22 @@
           {% endfor %}
         </div>
       </div>
+
+      {# Abram Scientific 모델 — 외부 도구 출처 추적 #}
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:10px;align-items:end;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#6B7280;">출처 (어디서 변경?)</label>
+          <select name="source" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
+            {% for s in CHANGE_SOURCES|default(['수동','Altium 365','SolidWorks PDM','Git','OpenBOM','카톡','메일','기타']) %}
+            <option value="{{ s }}" {% if s == '수동' %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#6B7280;">출처 참조 (선택, 예: PR #123, Rev3, BOM v2.1)</label>
+          <input type="text" name="source_ref" placeholder="예: SolidWorks PDM 체크인 #4521" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
+        </div>
+      </div>
     </div>
   </div>
 

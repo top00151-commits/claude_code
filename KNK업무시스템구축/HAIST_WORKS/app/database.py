@@ -653,6 +653,15 @@ def init_db():
                 c.execute("ALTER TABLE users ADD COLUMN can_use_logistics INTEGER DEFAULT 0")
             except Exception:
                 pass
+        # 마이그레이션: changes에 source 컬럼 (Abram Scientific 모델 — 외부 도구 출처)
+        try:
+            ccols = [r[1] for r in c.execute("PRAGMA table_info(changes)").fetchall()]
+            if ccols and "source" not in ccols:
+                c.execute("ALTER TABLE changes ADD COLUMN source TEXT DEFAULT '수동'")
+            if ccols and "source_ref" not in ccols:
+                c.execute("ALTER TABLE changes ADD COLUMN source_ref TEXT")
+        except Exception:
+            pass
         # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
         board_cnt = c.execute("SELECT COUNT(*) FROM boards").fetchone()[0]
         if board_cnt == 0:
@@ -2569,6 +2578,17 @@ def board_comment_delete(comment_id):
 CHANGE_TYPES = ["기구설계", "전장설계", "소프트웨어", "BOM", "도면", "Concept", "사양"]
 CHANGE_URGENCIES = ["일반", "긴급", "예약"]
 CHANGE_STATUSES = ["작성중", "공지중", "확인완료", "취소"]
+# Abram Scientific 모델 — 외부 도구 출처 (향후 자동 import 대비)
+CHANGE_SOURCES = [
+    "수동",            # 직원 직접 등록 (현재 기본)
+    "Altium 365",      # Push to MCAD/ECAD 이벤트
+    "SolidWorks PDM",  # Check-in 이벤트
+    "Git",             # 커밋·태그
+    "OpenBOM",         # BOM 변경
+    "카톡",            # 카톡 메시지 변환
+    "메일",
+    "기타",
+]
 
 # 변경 종류 × 사업부 → 영향 부서 자동 판별 규칙
 IMPACT_RULES = {
@@ -2730,8 +2750,8 @@ def change_create(data: dict, author_id: int) -> tuple[int, str]:
             """INSERT INTO changes
                (change_no, change_type, biz_div, target_kind, target_id, target_label,
                 project_id, title, description, before_value, after_value,
-                attached_files, urgency, author_id, status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                attached_files, urgency, author_id, status, source, source_ref)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 change_no, change_type, biz_div,
                 data.get("target_kind"), data.get("target_id"),
@@ -2745,6 +2765,8 @@ def change_create(data: dict, author_id: int) -> tuple[int, str]:
                 data.get("urgency", "일반"),
                 author_id,
                 "공지중",
+                data.get("source", "수동"),
+                data.get("source_ref", "").strip() if data.get("source_ref") else None,
             ),
         )
         change_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
