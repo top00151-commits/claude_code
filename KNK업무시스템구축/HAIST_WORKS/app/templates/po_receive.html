@@ -30,10 +30,12 @@
       <tr>
         <th>#</th>
         <th>부품</th>
-        <th style="text-align:right;">발주수량</th>
+        <th style="text-align:right;">발주</th>
         <th style="text-align:right;">누적입고</th>
         <th style="text-align:right;">잔량</th>
-        <th style="text-align:right;width:130px;">입고수량 ⬇</th>
+        <th style="text-align:right;width:100px;">입고수량 ⬇</th>
+        <th style="width:140px;">Lot 번호 <span style="color:#4338CA;font-size:10px;">⭐</span></th>
+        <th style="width:120px;">유효기한</th>
         <th>비고</th>
       </tr>
     </thead>
@@ -48,14 +50,22 @@
           {% if it.spec_snapshot %}<div style="font-size:11px;color:#6B7280;">{{ it.spec_snapshot }}</div>{% endif %}
           <input type="hidden" name="po_item_id" value="{{ it.id }}">
         </td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(it.quantity or 0) }} {{ it.unit or 'EA' }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(it.quantity or 0) }}{{ it.unit or 'EA' }}</td>
         <td style="text-align:right;font-family:monospace;color:#6B7280;">{{ "%g"|format(it.received_qty or 0) }}</td>
         <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if remaining > 0 %}#2E7D32{% else %}#9CA3AF{% endif %};">{{ "%g"|format(remaining) }}</td>
         <td style="text-align:right;">
           <input type="number" name="receive_qty" step="0.01" min="0" max="{{ remaining }}"
                  value="{{ remaining if remaining > 0 else '' }}"
                  {% if remaining <= 0 %}disabled{% endif %}
-                 style="width:100px;padding:8px 10px;border:2px solid #86EFAC;border-radius:6px;text-align:right;font-family:monospace;font-weight:700;background:#F0FDF4;">
+                 style="width:80px;padding:8px 10px;border:2px solid #86EFAC;border-radius:6px;text-align:right;font-family:monospace;font-weight:700;background:#F0FDF4;">
+        </td>
+        <td>
+          <input type="text" name="lot_no" placeholder="예: LOT-2604A" {% if remaining <= 0 %}disabled{% endif %}
+                 style="width:100%;padding:6px 10px;border:1px solid #C7D2FE;border-radius:6px;font-size:12px;font-family:monospace;background:#EEF2FF;">
+        </td>
+        <td>
+          <input type="date" name="expiry_date" {% if remaining <= 0 %}disabled{% endif %}
+                 style="width:100%;padding:6px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:11px;">
         </td>
         <td>
           <input type="text" name="item_note" placeholder="(선택)" style="width:100%;padding:6px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
@@ -64,6 +74,11 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <div style="margin-top:10px;padding:10px 14px;background:#EEF2FF;border-left:3px solid #4338CA;border-radius:6px;font-size:12px;color:#312E81;">
+    ⭐ <strong>Lot 번호</strong>는 불량 발생 시 역추적의 핵심입니다. 공급사 lot 또는 입고일자 기반 자체 코드로 반드시 입력해 주세요.
+    <br>&nbsp;&nbsp;&nbsp;(이슈·AS 발생 시 "이 lot이 어느 고객사에 출하됐나" 즉시 조회 가능)
+  </div>
 
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
     <a href="/po/{{ po.id }}" class="btn btn-ghost">취소</a>

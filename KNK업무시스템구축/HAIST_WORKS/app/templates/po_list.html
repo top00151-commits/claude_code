@@ -66,7 +66,12 @@
           {% elif o.status == '취소' %}<span class="tag tag-danger">{{ o.status }}</span>
           {% else %}{{ o.status }}{% endif %}
         </td>
-        <td class="mono">{{ o.expected_date or '-' }}</td>
+        {% set pending = o.status in ('작성중','발주완료','부분입고') %}
+        {% set overdue = pending and o.expected_date and o.expected_date < today %}
+        <td class="mono" style="{% if overdue %}color:#DC2626;font-weight:800;{% endif %}">
+          {{ o.expected_date or '-' }}
+          {% if overdue %}<span style="font-size:10px;background:#FEE2E2;padding:1px 6px;border-radius:3px;margin-left:4px;">⏰ 지연</span>{% endif %}
+        </td>
         <td>{{ o.creator_name or '-' }}</td>
         <td class="actions">
           <a href="/po/{{ o.id }}" class="btn-sm">보기</a>

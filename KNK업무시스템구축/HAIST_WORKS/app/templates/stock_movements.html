@@ -60,7 +60,7 @@
   <input type="date" name="since" value="{{ filter_since }}" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
   <span style="color:#6B7280;">~</span>
   <input type="date" name="until" value="{{ filter_until }}" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-  <input type="text" name="q" value="{{ q }}" placeholder="부품명·번호·사유 검색" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+  <input type="text" name="q" value="{{ q }}" placeholder="부품명·번호·사유·Lot 검색" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
   <button type="submit" class="btn btn-ghost">검색</button>
   {% if part_filter %}
   <a href="/stock/movements" style="color:#6B7280;font-size:12px;text-decoration:none;">× 부품 필터 해제</a>
@@ -78,6 +78,8 @@
         <th>종류</th>
         <th>부품</th>
         <th style="text-align:right;">수량</th>
+        <th style="text-align:right;">단가</th>
+        <th>Lot</th>
         <th>참조</th>
         <th>사유</th>
         <th>담당</th>
@@ -103,6 +105,16 @@
         </td>
         <td style="text-align:right;font-family:monospace;font-weight:800;color:{% if m.quantity > 0 %}#2E7D32{% elif m.quantity < 0 %}#DC2626{% else %}#6B7280{% endif %};">
           {{ "%+g"|format(m.quantity) }} {{ m.part_unit or m.unit }}
+          {% if m.kind == 'IN' and m.remaining_qty is not none and m.remaining_qty < m.quantity %}
+            <div style="font-size:9px;color:#9CA3AF;">남은 {{ "%g"|format(m.remaining_qty) }}</div>
+          {% endif %}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-size:11px;color:#6B7280;">
+          {% if m.unit_price and m.unit_price > 0 %}{{ "{:,.0f}".format(m.unit_price) }}{% else %}-{% endif %}
+        </td>
+        <td style="font-family:monospace;font-size:10px;color:#4338CA;">
+          {% if m.lot_no %}<span style="background:#EEF2FF;padding:2px 6px;border-radius:4px;">{{ m.lot_no }}</span>{% else %}-{% endif %}
+          {% if m.expiry_date %}<div style="color:#9CA3AF;font-size:9px;">~{{ m.expiry_date }}</div>{% endif %}
         </td>
         <td style="font-size:11px;">
           {% if m.po_number %}<a href="/po/{{ m.po_id }}" style="color:#4338CA;font-family:monospace;">{{ m.po_number }}</a>{% endif %}

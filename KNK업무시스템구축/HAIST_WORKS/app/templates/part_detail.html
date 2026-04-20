@@ -1,0 +1,220 @@
+{% extends "base_logi.html" %}
+{% block title %}{{ part.part_name }} — 부품 상세{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1 style="margin-bottom:4px;">{{ part.part_name }}</h1>
+    <p class="muted">
+      <span class="mono" style="color:#A5282C;font-weight:700;">{{ part.part_no }}</span>
+      {% if part.spec %} · {{ part.spec }}{% endif %}
+      {% if part.maker %} · {{ part.maker }}{% endif %}
+      {% if part.origin %} ({{ part.origin }}){% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="/parts" class="btn btn-ghost">← 부품 목록</a>
+    <a href="/stock/movements?part_id={{ part.id }}" class="btn">📒 이력</a>
+    <a href="/stock/issue?part_id={{ part.id }}" class="btn" style="background:#DC2626;color:#fff;border:none;">📤 출고</a>
+    <a href="/stock/adjust?part_id={{ part.id }}" class="btn" style="background:#F59E0B;color:#fff;border:none;">⚖️ 실사</a>
+    <a href="/parts/{{ part.id }}/edit" class="btn">수정</a>
+  </div>
+</div>
+
+<!-- 재고 요약 -->
+<div class="kpi-row">
+  {% set stock = part.stock_qty or 0 %}
+  {% set safety = part.safety_stock or 0 %}
+  {% set low = safety > 0 and stock < safety %}
+  <div class="kpi" style="{% if low %}background:#FEF2F2;border-color:#FCA5A5;{% endif %}">
+    <div class="kpi-label">현재고</div>
+    <div class="kpi-value" style="{% if low %}color:#DC2626;{% endif %}">{{ "%g"|format(stock) }} {{ part.unit or 'EA' }}</div>
+    {% if low %}<div class="kpi-sub" style="color:#DC2626;font-weight:700;">🔴 안전재고 미달</div>{% endif %}
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">안전재고</div>
+    <div class="kpi-value">{% if safety > 0 %}{{ "%g"|format(safety) }}{% else %}-{% endif %}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">재고 금액 (FIFO)</div>
+    <div class="kpi-value" style="font-size:18px;">{{ "{:,.0f}".format(stock_value) }}원</div>
+    <div class="kpi-sub">실 입고 단가 기반</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">표준단가</div>
+    <div class="kpi-value" style="font-size:18px;">
+      {% if part.currency == 'USD' %}${{ '{:,.2f}'.format(part.std_price or 0) }}
+      {% else %}₩{{ '{:,.0f}'.format(part.std_price or 0) }}{% endif %}
+    </div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">보관 위치</div>
+    <div class="kpi-value" style="font-size:16px;">{{ part.location or '-' }}</div>
+  </div>
+</div>
+
+<!-- FIFO 레이어 -->
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">
+    📦 FIFO 재고 레이어 <span style="font-size:11px;color:#6B7280;font-weight:500;">(오래된 것부터 출고됨)</span>
+  </h2>
+  {% if layers %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>순번</th>
+        <th>입고일</th>
+        <th>공급사</th>
+        <th>발주번호</th>
+        <th style="text-align:right;">남은 수량</th>
+        <th style="text-align:right;">단가</th>
+        <th style="text-align:right;">레이어 금액</th>
+        <th>Lot</th>
+        <th>유효기한</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in layers %}
+      <tr style="{% if loop.index == 1 %}background:#FEF3C7;{% endif %}">
+        <td>{{ loop.index }}{% if loop.index == 1 %} 🔜{% endif %}</td>
+        <td style="font-family:monospace;font-size:11px;">{{ l.occurred_at[:10] if l.occurred_at else '-' }}</td>
+        <td style="font-size:12px;">{{ l.supplier_name or '-' }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#4338CA;">
+          {% if l.po_number %}<a href="/po/{{ l.po_id if l.po_id else '' }}" style="text-decoration:none;color:#4338CA;">{{ l.po_number }}</a>{% else %}-{% endif %}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:800;color:#2E7D32;">{{ "%g"|format(l.remaining_qty) }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.0f}".format(l.unit_price or 0) }}원</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.0f}".format((l.remaining_qty or 0) * (l.unit_price or 0)) }}원</td>
+        <td style="font-family:monospace;font-size:11px;">
+          {% if l.lot_no %}<span style="background:#EEF2FF;color:#4338CA;padding:2px 8px;border-radius:4px;">{{ l.lot_no }}</span>{% else %}-{% endif %}
+        </td>
+        <td style="font-family:monospace;font-size:11px;color:#6B7280;">{{ l.expiry_date or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #E5E7EB;font-weight:800;background:#F9FAFB;">
+        <td colspan="4">합계 (FIFO 레이어)</td>
+        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(layers|sum(attribute='remaining_qty')) }}</td>
+        <td></td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.0f}".format(stock_value) }}원</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+  <div style="margin-top:10px;padding:8px 12px;background:#FEF3C7;border-left:3px solid #F59E0B;border-radius:4px;font-size:11px;color:#92400E;">
+    🔜 표시된 첫 레이어가 다음 출고 시 <strong>가장 먼저 소비</strong>됩니다. (Fishbowl 반면교사 — 평균 원가 대신 FIFO 사용)
+  </div>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:#9CA3AF;">
+    <div>아직 입고된 레이어가 없습니다.</div>
+    <div style="margin-top:10px;"><a href="/po" class="btn btn-ghost">발주 → 입고 처리</a></div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 공급사별 단가 비교 -->
+{% if by_supplier %}
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">
+    💰 공급사별 단가 비교 <span style="font-size:11px;color:#6B7280;font-weight:500;">(최근 30건 발주 이력 기반)</span>
+  </h2>
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>공급사</th>
+        <th style="text-align:right;">최저</th>
+        <th style="text-align:right;">최고</th>
+        <th style="text-align:right;">최신</th>
+        <th>최신일</th>
+        <th style="text-align:right;">건수</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in by_supplier %}
+      <tr>
+        <td style="font-weight:700;">{{ s.supplier_name }}</td>
+        <td style="text-align:right;font-family:monospace;color:#2E7D32;">{{ "{:,.0f}".format(s.min_price or 0) }}</td>
+        <td style="text-align:right;font-family:monospace;color:#DC2626;">{{ "{:,.0f}".format(s.max_price or 0) }}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.0f}".format(s.latest_price or 0) }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#6B7280;">{{ s.latest_date or '-' }}</td>
+        <td style="text-align:right;">{{ s.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">📈 최근 발주 단가 추이</h2>
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>발주일</th>
+        <th>발주번호</th>
+        <th>공급사</th>
+        <th style="text-align:right;">수량</th>
+        <th style="text-align:right;">단가</th>
+        <th style="text-align:right;">금액</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in price_history %}
+      <tr>
+        <td style="font-family:monospace;font-size:11px;">{{ h.order_date or '-' }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#4338CA;">{{ h.po_number or '-' }}</td>
+        <td style="font-size:12px;">{{ h.supplier_name or '-' }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(h.quantity or 0) }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.0f}".format(h.unit_price or 0) }} {{ h.currency or 'KRW' }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.0f}".format(h.amount or 0) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="margin-top:14px;padding:30px;text-align:center;color:#9CA3AF;">
+  아직 이 부품에 대한 발주 이력이 없습니다.
+</div>
+{% endif %}
+
+<!-- 최근 입출고 이력 (간략) -->
+{% if recent_moves %}
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;">
+    📜 최근 입출고 이력 (최대 30건)
+    <a href="/stock/movements?part_id={{ part.id }}" style="float:right;font-size:11px;color:#6B7280;text-decoration:none;font-weight:500;">전체 보기 →</a>
+  </h2>
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>일시</th>
+        <th>번호</th>
+        <th>종류</th>
+        <th style="text-align:right;">수량</th>
+        <th>Lot</th>
+        <th>사유</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in recent_moves %}
+      <tr>
+        <td style="font-family:monospace;font-size:11px;">{{ m.occurred_at[:16] if m.occurred_at else '-' }}</td>
+        <td style="font-family:monospace;font-size:11px;color:#A5282C;">{{ m.movement_no }}</td>
+        <td>
+          {% if m.kind == 'IN' %}<span style="background:#E8F5E9;color:#2E7D32;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;">IN</span>
+          {% elif m.kind == 'OUT' %}<span style="background:#FEE2E2;color:#991B1B;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;">OUT</span>
+          {% elif m.kind == 'ADJUST' %}<span style="background:#FEF3C7;color:#92400E;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;">실사</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if m.quantity > 0 %}#2E7D32{% elif m.quantity < 0 %}#DC2626{% endif %};">{{ "%+g"|format(m.quantity) }}</td>
+        <td style="font-family:monospace;font-size:11px;">{% if m.lot_no %}{{ m.lot_no }}{% else %}-{% endif %}</td>
+        <td style="font-size:11px;color:#6B7280;">{{ m.reason or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

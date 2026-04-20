@@ -3751,8 +3751,34 @@ async def po_delete_submit(request: Request, po_id: int):
 # =====================================================
 from .database import (stock_movement_create, po_receive, stock_issue,
                         stock_adjust, stock_movements_list, stock_kpi,
-                        part_stock_history, MOVEMENT_KINDS, MOVEMENT_KIND_LABEL,
+                        part_stock_history, part_fifo_layers, part_price_history,
+                        MOVEMENT_KINDS, MOVEMENT_KIND_LABEL,
                         gen_movement_no)
+
+
+@app.get("/parts/{pid}", response_class=HTMLResponse)
+async def parts_detail_page(request: Request, pid: int):
+    """부품 상세 — FIFO 레이어, 공급사 단가 이력, 입출고 이력 통합"""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    part = _logi.parts_get(pid)
+    if not part:
+        return RedirectResponse("/parts", 303)
+    layers = part_fifo_layers(pid)
+    price_hist = part_price_history(pid, limit=30)
+    recent_moves = part_stock_history(pid, limit=30)
+    # 레이어 기반 재고 금액
+    stock_value = sum((l.get("remaining_qty") or 0) * (l.get("unit_price") or 0) for l in layers)
+    return ctx(request, "part_detail.html", user=u,
+               part=dict(part), layers=layers,
+               price_history=price_hist["history"],
+               by_supplier=price_hist["by_supplier"],
+               recent_moves=recent_moves,
+               stock_value=stock_value,
+               active="parts")
 
 
 @app.get("/po/{po_id}/receive", response_class=HTMLResponse)
@@ -3782,6 +3808,8 @@ async def po_receive_submit(request: Request, po_id: int):
     item_ids = form.getlist("po_item_id")
     qtys = form.getlist("receive_qty")
     notes = form.getlist("item_note")
+    lots = form.getlist("lot_no")
+    expiries = form.getlist("expiry_date")
     lines = []
     for i, iid in enumerate(item_ids):
         try:
@@ -3793,6 +3821,8 @@ async def po_receive_submit(request: Request, po_id: int):
                 "po_item_id": int(iid),
                 "receive_qty": q,
                 "note": notes[i] if i < len(notes) else "",
+                "lot_no": lots[i] if i < len(lots) else "",
+                "expiry_date": expiries[i] if i < len(expiries) else "",
             })
     if not lines:
         return RedirectResponse(f"/po/{po_id}/receive?error=empty", 303)

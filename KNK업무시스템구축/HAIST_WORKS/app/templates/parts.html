@@ -53,7 +53,8 @@
       <tr {% if low %}style="background:#FEF2F2;"{% endif %}>
         <td>{{ loop.index }}</td>
         <td class="mono">{{ p.part_no }}</td>
-        <td class="ta-left"><strong>{{ p.part_name }}</strong>
+        <td class="ta-left">
+          <a href="/parts/{{ p.id }}" style="text-decoration:none;color:#1A1A1A;"><strong>{{ p.part_name }}</strong></a>
           {% if p.spec %}<div style="font-size:10px;color:#6B7280;">{{ p.spec }}</div>{% endif %}
         </td>
         <td class="ta-left" style="font-size:11px;color:#6B7280;">{{ p.maker or '-' }}{% if p.origin %} · {{ p.origin }}{% endif %}</td>

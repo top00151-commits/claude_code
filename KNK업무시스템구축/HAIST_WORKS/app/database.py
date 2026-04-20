@@ -310,8 +310,12 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     kind            TEXT NOT NULL,               -- IN(입고) / OUT(출고) / ADJUST(실사조정) / TRANSFER(이동)
     quantity        REAL NOT NULL,               -- 부호 있는 수량: IN=+, OUT=-, ADJUST=±
     unit            TEXT DEFAULT 'EA',
-    unit_price      REAL DEFAULT 0,              -- 스냅샷 단가
+    unit_price      REAL DEFAULT 0,              -- 스냅샷 단가 (출고는 FIFO 가중평균)
     amount          REAL DEFAULT 0,              -- qty * unit_price (절대값 기준)
+    -- FIFO·로트 추적 (2026-04-21, 자재_물류 리서치 §4·§6·§12 반영)
+    remaining_qty   REAL DEFAULT 0,              -- IN 행 전용: 아직 소비되지 않은 수량 (FIFO)
+    lot_no          TEXT,                        -- 로트/배치 번호 (공급사 lot or 자체 채번)
+    expiry_date     TEXT,                        -- 유효기한 (선택)
     -- 참조 연결
     po_id           INTEGER REFERENCES purchase_orders(id),    -- 입고 시 발주 참조
     po_item_id      INTEGER REFERENCES po_items(id),           -- 입고 시 라인 참조
@@ -775,6 +779,22 @@ def init_db():
                 c.execute("ALTER TABLE parts ADD COLUMN safety_stock REAL DEFAULT 0")
             if prcols and "location" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN location TEXT")
+        except Exception:
+            pass
+        # 마이그레이션: stock_movements에 FIFO/lot 컬럼 (2026-04-21 리서치 반영)
+        try:
+            smcols = [r[1] for r in c.execute("PRAGMA table_info(stock_movements)").fetchall()]
+            if smcols and "remaining_qty" not in smcols:
+                c.execute("ALTER TABLE stock_movements ADD COLUMN remaining_qty REAL DEFAULT 0")
+                # 기존 IN 행에 대해 remaining_qty = quantity (완전소비 가정 후 OUT 차감은 스킵)
+                # → 처음 배포 시점에는 IN 전량이 아직 있다고 가정 (안전)
+                c.execute(
+                    "UPDATE stock_movements SET remaining_qty = quantity WHERE kind='IN'"
+                )
+            if smcols and "lot_no" not in smcols:
+                c.execute("ALTER TABLE stock_movements ADD COLUMN lot_no TEXT")
+            if smcols and "expiry_date" not in smcols:
+                c.execute("ALTER TABLE stock_movements ADD COLUMN expiry_date TEXT")
         except Exception:
             pass
         # 시드: app_settings 기본값 (하이웍스 통합 — 카카오워크 미사용)
@@ -2670,54 +2690,132 @@ def _auto_ticket_low_stock(part_info: dict, user_id: int):
         return None
 
 
+def _consume_fifo(c, part_id: int, qty: float) -> tuple[float, list[dict]]:
+    """FIFO로 IN 레이어 소비.
+    반환: (가중평균 단가, 소비한 레이어 리스트)
+    레이어가 부족하면 가능한 만큼만 소비 (남은 건 0원으로 처리).
+    """
+    if qty <= 0:
+        return 0.0, []
+    layers = c.execute(
+        """SELECT id, remaining_qty, unit_price, lot_no, occurred_at
+           FROM stock_movements
+           WHERE part_id=? AND kind='IN' AND remaining_qty > 0
+           ORDER BY occurred_at ASC, id ASC""",
+        (part_id,),
+    ).fetchall()
+
+    remaining_to_consume = qty
+    total_cost = 0.0
+    consumed_layers = []
+    for r in layers:
+        if remaining_to_consume <= 0:
+            break
+        avail = float(r["remaining_qty"] or 0)
+        take = min(avail, remaining_to_consume)
+        if take <= 0:
+            continue
+        price = float(r["unit_price"] or 0)
+        total_cost += take * price
+        remaining_to_consume -= take
+        c.execute(
+            "UPDATE stock_movements SET remaining_qty = remaining_qty - ? WHERE id=?",
+            (take, r["id"]),
+        )
+        consumed_layers.append({
+            "layer_id": r["id"],
+            "lot_no": r["lot_no"],
+            "taken": take,
+            "unit_price": price,
+        })
+    # 가중평균 (실 소비량 기준)
+    consumed_qty = qty - remaining_to_consume
+    avg_price = (total_cost / consumed_qty) if consumed_qty > 0 else 0.0
+    return avg_price, consumed_layers
+
+
 def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
-    """재고 이동 1건 생성 + parts.stock_qty 자동 갱신
+    """재고 이동 1건 생성 + parts.stock_qty 자동 갱신 + FIFO 원가 계산
 
     data 필수:
-      - part_id, kind (IN/OUT/ADJUST/TRANSFER), quantity (부호 있는 값: IN=+, OUT=-)
+      - part_id, kind (IN/OUT/ADJUST/TRANSFER), quantity (부호 있는 값)
     선택:
       - unit_price, po_id, po_item_id, project_id, customer_id, reason, location,
-        occurred_at, note, unit
+        occurred_at, note, unit, lot_no, expiry_date
+
+    FIFO 동작:
+      - IN: remaining_qty = quantity 로 레이어 생성
+      - OUT: _consume_fifo() 로 IN 레이어 소비, 출고 단가 = 가중평균
+      - ADJUST(-): 레이어 소비 (동일)
+      - ADJUST(+): 새 IN 레이어로 등록 (조정 사유를 단가 0으로 보존)
     """
     kind = (data.get("kind") or "IN").upper()
     if kind not in MOVEMENT_KINDS:
         raise ValueError(f"Invalid movement kind: {kind}")
     part_id = int(data["part_id"])
     qty = float(data.get("quantity") or 0)
-    # 자동 부호 보정 (OUT이면 음수로)
     if kind == "OUT" and qty > 0:
         qty = -qty
     elif kind == "IN" and qty < 0:
         qty = -qty
     unit_price = float(data.get("unit_price") or 0)
-    amount = abs(qty) * unit_price
     movement_no = gen_movement_no()
     occurred_at = data.get("occurred_at") or _logi_now()
 
     with db_session() as c:
+        # FIFO: 소비가 필요한 경우 먼저 계산
+        fifo_avg_price = None
+        fifo_layers_info = None
+        if qty < 0:  # OUT or ADJUST 음수
+            fifo_avg_price, consumed = _consume_fifo(c, part_id, abs(qty))
+            if consumed:
+                # unit_price가 명시적으로 주어지지 않은 경우 FIFO 단가 사용
+                if unit_price == 0 and fifo_avg_price > 0:
+                    unit_price = fifo_avg_price
+                # 소비 레이어 정보를 note에 간단 기록 (감사 추적)
+                lot_summary = ", ".join(
+                    f"lot={l['lot_no'] or '#' + str(l['layer_id'])}×{l['taken']:g}@{l['unit_price']:,.0f}"
+                    for l in consumed[:5]
+                )
+                fifo_layers_info = f"FIFO: {lot_summary}" + ("..." if len(consumed) > 5 else "")
+
+        amount = abs(qty) * unit_price
+
+        # IN 이거나 ADJUST 양수면 remaining_qty = |qty|, 아니면 0
+        remaining = abs(qty) if qty > 0 else 0
+
+        # note에 FIFO 소비 정보 자동 추가 (기존 note 유지)
+        final_note = (data.get("note") or "").strip() or None
+        if fifo_layers_info:
+            final_note = (final_note + " | " if final_note else "") + fifo_layers_info
+
         c.execute(
             """INSERT INTO stock_movements
                (movement_no, part_id, kind, quantity, unit, unit_price, amount,
+                remaining_qty, lot_no, expiry_date,
                 po_id, po_item_id, project_id, customer_id,
                 reason, location, occurred_at, note, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 movement_no, part_id, kind, qty,
                 data.get("unit") or "EA",
                 unit_price, amount,
+                remaining,
+                (data.get("lot_no") or "").strip() or None,
+                (data.get("expiry_date") or "").strip() or None,
                 data.get("po_id"), data.get("po_item_id"),
                 data.get("project_id"), data.get("customer_id"),
                 (data.get("reason") or "").strip() or None,
                 (data.get("location") or "").strip() or None,
                 occurred_at,
-                (data.get("note") or "").strip() or None,
+                final_note,
                 user_id,
             ),
         )
         mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
         stock_info = _recalc_part_stock(part_id, c)
 
-    # 정상 → 미달 전환 시 구매팀에 자동 티켓 (트랜잭션 밖에서 별도)
+    # 정상 → 미달 전환 시 구매팀에 자동 티켓
     if stock_info.get("crossed_low"):
         _auto_ticket_low_stock(stock_info, user_id)
     return mid, movement_no
@@ -2757,7 +2855,7 @@ def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
                 "UPDATE po_items SET received_qty=? WHERE id=?",
                 (new_recv, item_id),
             )
-            # stock_movement 생성 + stock_qty 재계산
+            # stock_movement 생성 + stock_qty 재계산 (lot_no는 라인에서)
             mid, mno = stock_movement_create({
                 "part_id": item["part_id"],
                 "kind": "IN",
@@ -2770,6 +2868,8 @@ def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
                 "reason": f"발주 {po['po_number']} 입고",
                 "occurred_at": occurred_at or _logi_now(),
                 "note": (line.get("note") or "").strip() or None,
+                "lot_no": (line.get("lot_no") or "").strip() or None,
+                "expiry_date": (line.get("expiry_date") or "").strip() or None,
             }, user_id)
             created.append({"movement_id": mid, "movement_no": mno,
                             "po_item_id": item_id, "qty": qty})
@@ -2874,8 +2974,8 @@ def stock_movements_list(part_id: int = 0, kind: str = "", since: str = "",
     if q:
         like = f"%{q}%"
         sql += """ AND (sm.movement_no LIKE ? OR p.part_no LIKE ? OR p.part_name LIKE ?
-                        OR sm.reason LIKE ? OR sm.note LIKE ?)"""
-        params += [like, like, like, like, like]
+                        OR sm.reason LIKE ? OR sm.note LIKE ? OR sm.lot_no LIKE ?)"""
+        params += [like, like, like, like, like, like]
     sql += " ORDER BY sm.occurred_at DESC, sm.id DESC LIMIT ?"
     params.append(limit)
     with db_session() as c:
@@ -2888,11 +2988,20 @@ def stock_kpi() -> dict:
     since_30 = (_date.today() - _td(days=30)).isoformat()
     with db_session() as c:
         parts_total = c.execute("SELECT COUNT(*) FROM parts WHERE is_active=1").fetchone()[0]
-        # 재고 금액 (std_price * stock_qty)
+        # 재고 금액 = FIFO 남은 레이어의 실단가 합 (정확)
+        # Fishbowl 반면교사: 평균 원가 금지 → 실 입고 단가 기반
         row_val = c.execute(
-            "SELECT COALESCE(SUM(stock_qty * std_price),0) FROM parts WHERE is_active=1"
+            """SELECT COALESCE(SUM(remaining_qty * unit_price),0)
+               FROM stock_movements
+               WHERE kind='IN' AND remaining_qty > 0"""
         ).fetchone()
         stock_value = row_val[0] if row_val else 0
+        # 폴백: FIFO 데이터 없고 std_price만 있는 경우
+        if stock_value == 0:
+            row_fb = c.execute(
+                "SELECT COALESCE(SUM(stock_qty * std_price),0) FROM parts WHERE is_active=1"
+            ).fetchone()
+            stock_value = row_fb[0] if row_fb else 0
         # 안전재고 미달
         low_stock = c.execute(
             """SELECT COUNT(*) FROM parts
@@ -2927,6 +3036,67 @@ def stock_kpi() -> dict:
 def part_stock_history(part_id: int, limit: int = 50) -> list[dict]:
     """특정 부품의 입출고 이력 (파트 상세에서 사용)"""
     return stock_movements_list(part_id=part_id, limit=limit)
+
+
+def part_fifo_layers(part_id: int) -> list[dict]:
+    """특정 부품의 남아있는 FIFO 레이어 조회 (재고 상세 분석)"""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT sm.id, sm.movement_no, sm.remaining_qty, sm.unit_price,
+                      sm.lot_no, sm.expiry_date, sm.occurred_at,
+                      po.po_number, s.name AS supplier_name
+               FROM stock_movements sm
+               LEFT JOIN purchase_orders po ON sm.po_id = po.id
+               LEFT JOIN suppliers s ON po.supplier_id = s.id
+               WHERE sm.part_id=? AND sm.kind='IN' AND sm.remaining_qty > 0
+               ORDER BY sm.occurred_at ASC, sm.id ASC""",
+            (part_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def part_price_history(part_id: int, limit: int = 30) -> list[dict]:
+    """부품별 공급사 단가 이력 (Abram/OpenBOM 모델 §12.4 #9)
+    같은 부품에 대한 과거 발주 라인의 단가 추이 조회."""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT pi.unit_price, pi.quantity, pi.amount, po.order_date,
+                      po.po_number, po.currency, s.name AS supplier_name,
+                      s.id AS supplier_id
+               FROM po_items pi
+               JOIN purchase_orders po ON pi.po_id = po.id
+               LEFT JOIN suppliers s ON po.supplier_id = s.id
+               WHERE pi.part_id=? AND po.status != '취소'
+               ORDER BY po.order_date DESC, po.id DESC
+               LIMIT ?""",
+            (part_id, limit),
+        ).fetchall()
+        items = [dict(r) for r in rows]
+
+        # 공급사별 최저·최고·최신 단가 집계
+        suppliers = {}
+        for r in items:
+            sid = r.get("supplier_id")
+            if not sid:
+                continue
+            if sid not in suppliers:
+                suppliers[sid] = {
+                    "supplier_id": sid,
+                    "supplier_name": r.get("supplier_name"),
+                    "min_price": r["unit_price"],
+                    "max_price": r["unit_price"],
+                    "latest_price": r["unit_price"],
+                    "latest_date": r.get("order_date"),
+                    "count": 0,
+                }
+            s = suppliers[sid]
+            s["min_price"] = min(s["min_price"], r["unit_price"] or 0)
+            s["max_price"] = max(s["max_price"], r["unit_price"] or 0)
+            if (r.get("order_date") or "") > (s.get("latest_date") or ""):
+                s["latest_price"] = r["unit_price"]
+                s["latest_date"] = r["order_date"]
+            s["count"] += 1
+        return {"history": items, "by_supplier": list(suppliers.values())}
 
 
 # =====================================================
