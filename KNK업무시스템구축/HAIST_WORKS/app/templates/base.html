@@ -111,6 +111,15 @@
       {% endif %}
     </div>
     <div class="sb-section">
+      <div class="sb-head">진행률 <span style="background:#E8F5E9;color:#2E7D32;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">매트릭스</span></div>
+      <a href="/progress" class="sb-item {% if active=='progress' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        진행률 대시보드
+        <span id="progress-delayed-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+    </div>
+
+    <div class="sb-section">
       <div class="sb-head">요청 티켓 <span style="background:#E3F2FD;color:#1565C0;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">카톡 대체</span></div>
       <a href="/tickets" class="sb-item {% if active=='tickets' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg></span>
@@ -264,6 +273,24 @@ async function loadPendingTickets() {
 }
 document.addEventListener('DOMContentLoaded', loadPendingTickets);
 setInterval(loadPendingTickets, 60000);
+
+/* 진행률 지연 뱃지 폴링 */
+async function loadProgressDelayed() {
+  try {
+    const r = await fetch('/api/progress/summary');
+    const j = await r.json();
+    const badge = document.getElementById('progress-delayed-badge');
+    if (!badge) return;
+    if (j.delayed > 0) {
+      badge.textContent = j.delayed;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadProgressDelayed);
+setInterval(loadProgressDelayed, 60000);
 
 /* ===== 사이드바 드래그 리사이즈 + 폰트 자동 조정 ===== */
 (function(){

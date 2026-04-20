@@ -2489,6 +2489,93 @@ async def api_changes_recent(req: Request, scope: str = "me", days: int = 1):
 
 
 # =====================================================
+# HAIST WORKS — 진행률 대시보드 (1순위 ① / 8팀 공통 요구)
+# =====================================================
+from .database import (PHASE_DEFS, PHASE_CODE_TO_LABEL, PHASE_STATUSES,
+                        ensure_phases_for_project, progress_matrix,
+                        project_phases_get, project_phase_update,
+                        progress_summary_for_user)
+
+
+@app.get("/progress", response_class=HTMLResponse)
+async def progress_dashboard(req: Request, biz_div: str = "", customer: str = "",
+                              status: str = "", limit: int = 50):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    matrix = progress_matrix(biz_div=biz_div, customer=customer, status=status, limit=limit)
+    return ctx(req, "progress_matrix.html", user=u, active="progress",
+               matrix=matrix, biz_div=biz_div, customer=customer, status=status,
+               PHASE_DEFS=PHASE_DEFS, PHASE_STATUSES=PHASE_STATUSES)
+
+
+@app.get("/progress/{project_id}", response_class=HTMLResponse)
+async def progress_project_detail(req: Request, project_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        proj = c.execute(
+            """SELECT p.*, p.name AS project_name FROM projects p WHERE p.id=?""",
+            (project_id,)
+        ).fetchone()
+    if not proj:
+        return RedirectResponse("/progress", 303)
+    project = dict(proj)
+    phases = project_phases_get(project_id)
+    return ctx(req, "progress_detail.html", user=u, active="progress",
+               project=project, phases=phases,
+               PHASE_DEFS=PHASE_DEFS, PHASE_CODE_TO_LABEL=PHASE_CODE_TO_LABEL,
+               PHASE_STATUSES=PHASE_STATUSES)
+
+
+@app.post("/progress/phase/{phase_id}/update")
+async def progress_phase_update(
+    req: Request,
+    phase_id: int,
+    status: str = Form(""),
+    progress_pct: str = Form(""),
+    note: str = Form(""),
+    project_id: str = Form(""),
+):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    data = {}
+    if status:
+        data["status"] = status
+        # 완료 시 자동 100% / 진행 시 0%면 50%로
+        if status == "완료":
+            data["progress_pct"] = 100
+            data["actual_end"] = _logi_now()[:10]
+        elif status == "진행":
+            try:
+                cur = float(progress_pct) if progress_pct else 0
+                if cur == 0:
+                    data["progress_pct"] = 50
+            except (ValueError, TypeError):
+                pass
+            data["actual_start"] = _logi_now()[:10]
+    if progress_pct:
+        try:
+            data["progress_pct"] = float(progress_pct)
+        except (ValueError, TypeError):
+            pass
+    if note:
+        data["note"] = note
+    project_phase_update(phase_id, data, u["id"])
+    return RedirectResponse(f"/progress/{project_id}" if project_id else "/progress", 303)
+
+
+@app.get("/api/progress/summary")
+async def api_progress_summary(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"my_open": 0, "delayed": 0})
+    return JSONResponse(progress_summary_for_user(u["id"], u.get("team_id")))
+
+
+# =====================================================
 # HAIST WORKS — 요청 티켓 시스템 (1순위 ③ / 10팀 카톡 누락 해결)
 # =====================================================
 from .database import (tickets_list, ticket_get, ticket_create,

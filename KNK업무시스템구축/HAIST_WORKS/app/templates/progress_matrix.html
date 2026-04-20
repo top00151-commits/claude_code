@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}진행률 대시보드 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>진행률 대시보드 <span style="font-size:13px;color:#6B7280;font-weight:500;margin-left:8px;">관리코드 × 12공정 매트릭스</span></h1>
+  <p class="muted">8팀 공통 요구 — 모든 프로젝트의 공정별 상태·담당·지연 한눈에 (매일 아침 1순위 정보)</p>
+</div>
+
+<form method="get" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+  <select name="biz_div" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+    <option value="">전체 사업부</option>
+    <option value="T" {% if biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
+    <option value="M" {% if biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
+  </select>
+  <input type="text" name="customer" value="{{ customer }}" placeholder="고객사 검색" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;flex:1;min-width:180px;">
+  <select name="status" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
+    <option value="">전체 상태</option>
+    <option value="진행중" {% if status == '진행중' %}selected{% endif %}>진행중</option>
+    <option value="수주예정" {% if status == '수주예정' %}selected{% endif %}>수주예정</option>
+    <option value="납품완료" {% if status == '납품완료' %}selected{% endif %}>납품완료</option>
+  </select>
+  <button type="submit" style="padding:8px 18px;background:#fff;border:1px solid #D1D5DB;border-radius:8px;font-weight:600;cursor:pointer;">필터</button>
+  <a href="/progress" style="padding:8px 18px;border:1px solid #E5E7EB;border-radius:8px;text-decoration:none;color:#6B7280;">초기화</a>
+</form>
+
+<!-- 범례 -->
+<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+  <strong style="color:#6B7280;">범례:</strong>
+  <span><span style="display:inline-block;width:14px;height:14px;background:#E5E7EB;border-radius:3px;vertical-align:middle;"></span> 예정</span>
+  <span><span style="display:inline-block;width:14px;height:14px;background:#FFF8E1;border:1px solid #F57F17;border-radius:3px;vertical-align:middle;"></span> 진행</span>
+  <span><span style="display:inline-block;width:14px;height:14px;background:#E8F5E9;border:1px solid #2E7D32;border-radius:3px;vertical-align:middle;"></span> 완료</span>
+  <span><span style="display:inline-block;width:14px;height:14px;background:#FFEBEE;border:1px solid #A5282C;border-radius:3px;vertical-align:middle;"></span> 지연</span>
+  <span><span style="display:inline-block;width:14px;height:14px;background:#F3F4F6;border-radius:3px;vertical-align:middle;"></span> 보류/미설정</span>
+</div>
+
+<!-- 매트릭스 테이블 (가로 스크롤) -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;min-width:1400px;">
+  <thead style="background:#F9FAFB;position:sticky;top:0;">
+    <tr style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.04em;">
+      <th style="padding:10px;border-bottom:1px solid #E5E7EB;text-align:left;min-width:140px;">관리코드</th>
+      <th style="padding:10px;border-bottom:1px solid #E5E7EB;text-align:left;min-width:200px;">프로젝트</th>
+      <th style="padding:10px;border-bottom:1px solid #E5E7EB;min-width:80px;">전체</th>
+      {% for code, label, _ in PHASE_DEFS %}
+      <th style="padding:10px 6px;border-bottom:1px solid #E5E7EB;min-width:70px;font-size:10px;">{{ label }}</th>
+      {% endfor %}
+      <th style="padding:10px;border-bottom:1px solid #E5E7EB;min-width:90px;">납기</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in matrix %}
+    <tr style="font-size:13px;cursor:pointer;border-bottom:1px solid #F1F2F4;" onclick="location.href='/progress/{{ p.id }}'" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''">
+      <td style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#A5282C;font-weight:800;">{{ p.mgmt_code }}</td>
+      <td style="padding:10px;">
+        <div style="font-weight:600;">{{ p.name }}</div>
+        <div style="font-size:11px;color:#9CA3AF;">{{ p.customer_name or '-' }} · {% if p.biz_div == 'T' %}검사기{% elif p.biz_div == 'M' %}자동화{% endif %}</div>
+      </td>
+      <td style="padding:10px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:{% if p.delayed_count > 0 %}#A5282C{% else %}#1A1A1A{% endif %};">{{ p.overall_pct }}%</div>
+        {% if p.delayed_count > 0 %}<div style="font-size:10px;color:#A5282C;">⚠ 지연 {{ p.delayed_count }}</div>{% endif %}
+      </td>
+      {% for ph in p.phases %}
+      <td style="padding:6px 4px;text-align:center;">
+        {% if ph %}
+          {% set bg = '#E5E7EB' %}{% set border = 'transparent' %}{% set color = '#6B7280' %}
+          {% if ph.status == '진행' %}{% set bg = '#FFF8E1' %}{% set border = '#F57F17' %}{% set color = '#F57F17' %}{% endif %}
+          {% if ph.status == '완료' %}{% set bg = '#E8F5E9' %}{% set border = '#2E7D32' %}{% set color = '#2E7D32' %}{% endif %}
+          {% if ph.status == '지연' %}{% set bg = '#FFEBEE' %}{% set border = '#A5282C' %}{% set color = '#A5282C' %}{% endif %}
+          {% if ph.status == '보류' %}{% set bg = '#F3F4F6' %}{% set border = '#9CA3AF' %}{% set color = '#9CA3AF' %}{% endif %}
+          <div style="background:{{ bg }};border:1px solid {{ border }};border-radius:6px;padding:6px 4px;font-size:11px;font-weight:700;color:{{ color }};">
+            {{ ph.progress_pct|int }}%
+            {% if ph.team_name %}<div style="font-size:9px;color:{{ color }};opacity:.7;margin-top:2px;">{{ ph.team_name[:3] }}</div>{% endif %}
+          </div>
+        {% else %}
+          <div style="background:#F9FAFB;border:1px dashed #E5E7EB;border-radius:6px;padding:6px 4px;font-size:11px;color:#D1D5DB;">-</div>
+        {% endif %}
+      </td>
+      {% endfor %}
+      <td style="padding:10px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7280;">{{ p.due_date or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ PHASE_DEFS|length + 4 }}" style="padding:40px;text-align:center;color:#6B7280;">
+      관리코드 발급된 프로젝트가 없습니다.
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p style="text-align:right;margin-top:8px;font-size:12px;color:#6B7280;">총 {{ matrix|length }}건 · 셀 클릭 시 공정 상세</p>
+
+{% endblock %}

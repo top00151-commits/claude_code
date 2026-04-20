@@ -438,6 +438,30 @@ CREATE TABLE IF NOT EXISTS ticket_comments (
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_tcm_ticket ON ticket_comments(ticket_id);
+
+-- ============ 진행률 대시보드 (HAIST WORKS — 1순위 ① / 8팀) ============
+-- 프로젝트 × 12공정 진척률
+CREATE TABLE IF NOT EXISTS project_phases (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    phase_code      TEXT NOT NULL,                  -- order/concept/design/elec/sw/machining/buying/assembly/qc/ship/setup/knkvn
+    phase_order     INTEGER NOT NULL,
+    status          TEXT DEFAULT '예정',             -- 예정/진행/완료/지연/보류
+    progress_pct    REAL DEFAULT 0,                  -- 0-100
+    assignee_id     INTEGER REFERENCES users(id),
+    assignee_team_id INTEGER REFERENCES teams(id),
+    planned_start   TEXT,
+    planned_end     TEXT,
+    actual_start    TEXT,
+    actual_end      TEXT,
+    note            TEXT,
+    updated_by      INTEGER REFERENCES users(id),
+    updated_at      TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(project_id, phase_code)
+);
+CREATE INDEX IF NOT EXISTS idx_pp_project ON project_phases(project_id);
+CREATE INDEX IF NOT EXISTS idx_pp_status ON project_phases(status);
+CREATE INDEX IF NOT EXISTS idx_pp_assignee ON project_phases(assignee_id);
 """
 
 # =====================================================
@@ -3102,5 +3126,176 @@ def tickets_count_for_user(user_id: int, team_id: int = None) -> dict:
             (user_id, team_id or 0),
         ).fetchone()[0]
     return {"my_open": my_open, "recv_pending": recv_pending}
+
+
+# =====================================================
+# 진행률 대시보드 (HAIST WORKS — 1순위 ① / 8팀 공통 요구)
+# 12공정 매트릭스 — 베이비 V2 진척과 통합 가능 구조
+# =====================================================
+
+# 12공정 정의 (관리코드 단위 진척 추적)
+PHASE_DEFS = [
+    ("order",     "수주",       1),
+    ("concept",   "컨셉",       2),
+    ("design",    "기구설계",   3),
+    ("elec",      "전장설계",   4),
+    ("sw",        "소프트웨어", 5),
+    ("machining", "가공",       6),
+    ("buying",    "구매",       7),
+    ("assembly",  "조립",       8),
+    ("qc",        "검수",       9),
+    ("ship",      "출하",       10),
+    ("setup",    "Set-Up",     11),
+    ("knkvn",    "KNKVN 이관", 12),
+]
+PHASE_CODE_TO_LABEL = {c: l for c, l, _ in PHASE_DEFS}
+PHASE_STATUSES = ["예정", "진행", "완료", "지연", "보류"]
+
+# 공정 → 담당 부서 자동 매핑 (사업부별)
+PHASE_TEAM_RULES = {
+    "order":     {"T": "기술영업팀", "M": "기술영업팀"},
+    "concept":   {"T": "기술영업팀", "M": "기술영업팀"},
+    "design":    {"T": "설계팀",     "M": "설계팀"},
+    "elec":      {"T": "전장설계팀", "M": "전장설계팀"},
+    "sw":        {"T": "소프트웨어팀","M": "소프트웨어팀"},
+    "machining": {"T": "가공팀",     "M": "가공팀"},
+    "buying":    {"T": "구매팀",     "M": "구매팀"},
+    "assembly":  {"T": "제조기술1팀","M": "제조기술2팀"},
+    "qc":        {"T": "품질팀",     "M": "품질팀"},
+    "ship":      {"T": "기술영업팀", "M": "기술영업팀"},
+    "setup":     {"T": "검사기팀",   "M": "기술영업팀"},
+    "knkvn":     {"T": "기술영업팀", "M": "기술영업팀"},
+}
+
+
+def ensure_phases_for_project(project_id: int):
+    """프로젝트에 12공정 자동 시드 (없는 경우만)"""
+    with db_session() as c:
+        # 사업부 가져오기
+        proj = c.execute("SELECT biz_div FROM projects WHERE id=?", (project_id,)).fetchone()
+        biz_div = proj["biz_div"] if proj and proj["biz_div"] in ("T", "M") else "T"
+        # 기존 phase 확인
+        exist = {r["phase_code"] for r in c.execute(
+            "SELECT phase_code FROM project_phases WHERE project_id=?", (project_id,)
+        ).fetchall()}
+        for code, _label, order in PHASE_DEFS:
+            if code in exist:
+                continue
+            # 자동 담당 부서
+            team_name = PHASE_TEAM_RULES.get(code, {}).get(biz_div)
+            team_id = None
+            if team_name:
+                row = c.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
+                team_id = row["id"] if row else None
+            c.execute(
+                """INSERT INTO project_phases
+                   (project_id, phase_code, phase_order, status, progress_pct,
+                    assignee_team_id, updated_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (project_id, code, order, "예정", 0, team_id, _logi_now()),
+            )
+
+
+def progress_matrix(biz_div: str = "", customer: str = "", status: str = "",
+                    limit: int = 50):
+    """진행률 매트릭스 — 프로젝트 × 12공정"""
+    sql = """SELECT id, mgmt_code, name, biz_div, customer_name, status, due_date
+             FROM projects
+             WHERE mgmt_code IS NOT NULL AND mgmt_code != ''"""
+    params = []
+    if biz_div:
+        sql += " AND biz_div = ?"
+        params.append(biz_div)
+    if customer:
+        sql += " AND customer_name LIKE ?"
+        params.append(f"%{customer}%")
+    if status:
+        sql += " AND status = ?"
+        params.append(status)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    with db_session() as c:
+        projects = [dict(r) for r in c.execute(sql, params).fetchall()]
+        # 각 프로젝트의 phase 가져오기
+        for p in projects:
+            phases = c.execute(
+                """SELECT pp.*, t.name AS team_name, u.name AS assignee_name
+                   FROM project_phases pp
+                   LEFT JOIN teams t ON pp.assignee_team_id = t.id
+                   LEFT JOIN users u ON pp.assignee_id = u.id
+                   WHERE pp.project_id = ?
+                   ORDER BY pp.phase_order""",
+                (p["id"],),
+            ).fetchall()
+            phase_map = {ph["phase_code"]: dict(ph) for ph in phases}
+            # 12공정 모두 노출 (없는 건 None)
+            p["phases"] = [phase_map.get(code) for code, _, _ in PHASE_DEFS]
+            # 전체 진척률 (12공정 평균)
+            valid = [ph for ph in phase_map.values() if ph]
+            p["overall_pct"] = round(sum(ph["progress_pct"] or 0 for ph in valid) / 12, 1) if valid else 0
+            p["delayed_count"] = sum(1 for ph in valid if ph["status"] == "지연")
+    return projects
+
+
+def project_phases_get(project_id: int) -> list[dict]:
+    ensure_phases_for_project(project_id)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT pp.*, t.name AS team_name, u.name AS assignee_name
+               FROM project_phases pp
+               LEFT JOIN teams t ON pp.assignee_team_id = t.id
+               LEFT JOIN users u ON pp.assignee_id = u.id
+               WHERE pp.project_id = ?
+               ORDER BY pp.phase_order""",
+            (project_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def project_phase_update(phase_id: int, data: dict, user_id: int):
+    """공정 업데이트 — 1~2 클릭 변경 가능"""
+    sets = []
+    vals = []
+    for f in ["status", "progress_pct", "planned_start", "planned_end",
+              "actual_start", "actual_end", "note", "assignee_id"]:
+        if f in data:
+            sets.append(f"{f} = ?")
+            v = data[f]
+            if f == "progress_pct" and v not in (None, ""):
+                try:
+                    v = float(v)
+                except (ValueError, TypeError):
+                    v = 0
+            vals.append(v if v != "" else None)
+    if not sets:
+        return
+    sets.append("updated_by = ?")
+    sets.append("updated_at = ?")
+    vals += [user_id, _logi_now(), phase_id]
+    with db_session() as c:
+        c.execute(f"UPDATE project_phases SET {', '.join(sets)} WHERE id = ?", vals)
+
+
+def progress_summary_for_user(user_id: int, team_id: int = None) -> dict:
+    """홈 KPI / 사이드바용 — 내 부서 담당 미완료 공정 카운트"""
+    with db_session() as c:
+        if team_id:
+            my = c.execute(
+                """SELECT COUNT(*) FROM project_phases
+                   WHERE assignee_team_id = ? AND status NOT IN ('완료', '보류')""",
+                (team_id,),
+            ).fetchone()[0]
+            delayed = c.execute(
+                """SELECT COUNT(*) FROM project_phases
+                   WHERE assignee_team_id = ? AND status = '지연'""",
+                (team_id,),
+            ).fetchone()[0]
+        else:
+            my = 0
+            delayed = c.execute(
+                "SELECT COUNT(*) FROM project_phases WHERE status = '지연'"
+            ).fetchone()[0]
+    return {"my_open": my, "delayed": delayed}
 
 
