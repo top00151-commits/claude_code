@@ -324,6 +324,22 @@ async def home_page(req: Request, sel_date: str = ""):
         logi_proj_stats = {"total": 0, "with_code": 0, "in_progress": 0,
                            "by_div": {}, "by_stage": {}}
 
+    # 1순위 신규 기능 카운트 (변경/티켓/진행률 지연)
+    hw_counts = {"changes_unread": 0, "tickets_pending": 0, "phases_delayed": 0,
+                 "changes_recent": 0}
+    try:
+        from .database import (change_unread_count, change_recent_count,
+                                tickets_count_for_user, progress_summary_for_user)
+        hw_counts["changes_unread"] = change_unread_count(u["id"])
+        hw_counts["changes_recent"] = change_recent_count(days=1)
+        tk = tickets_count_for_user(u["id"], u.get("team_id"))
+        hw_counts["tickets_pending"] = tk["my_open"] + tk["recv_pending"]
+        pg = progress_summary_for_user(u["id"], u.get("team_id"))
+        hw_counts["phases_delayed"] = pg["delayed"]
+        hw_counts["phases_my_open"] = pg["my_open"]
+    except Exception as e:
+        print(f"[HW COUNTS ERROR] {e}")
+
     return ctx(
         req, "home.html",
         user=u, sel_date=sel_date, prev_date=prev_d, next_date=next_d,
@@ -333,6 +349,7 @@ async def home_page(req: Request, sel_date: str = ""):
         today_reporters=today_reporters, total_users=total_users,
         all_delay=all_delay, all_tasks=all_tasks,
         logi_parts_stats=logi_parts_stats, logi_proj_stats=logi_proj_stats,
+        hw_counts=hw_counts,
     )
 
 

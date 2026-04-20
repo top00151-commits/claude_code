@@ -175,6 +175,68 @@
 
 {# 매출흐름·물류 진입은 사이드바 메뉴에서 접근 (권한자만 보임) #}
 
+{% if hw_counts is defined %}
+{# HAIST WORKS 신규 기능 KPI — 1순위 3개 (진행률/변경/티켓) #}
+<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
+  <div>
+    <h2 style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:#1A1A1A;margin:0;">
+      <span style="color:#A5282C">●</span> HAIST WORKS 협업 핵심
+    </h2>
+    <div style="font-size:11px;color:#6B7280;margin-top:2px;">설문 1순위 — 매일 아침 가장 보고 싶다는 정보</div>
+  </div>
+</div>
+<div class="hm2-kpi-grid">
+  <a href="/progress" class="hm2-kpi" title="프로젝트 공정 진행률 매트릭스">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">진행률 매트릭스</span>
+      <div class="hm2-kpi-ico green">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ hw_counts.phases_my_open|default(0) }}</div>
+    <div class="hm2-kpi-delta {% if hw_counts.phases_delayed > 0 %}up{% endif %}">
+      <span>내 부서 미완료 공정{% if hw_counts.phases_delayed > 0 %} · 지연 {{ hw_counts.phases_delayed }}{% endif %}</span>
+    </div>
+  </a>
+  <a href="/changes" class="hm2-kpi" title="변경 알림">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">변경 알림</span>
+      <div class="hm2-kpi-ico red">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ hw_counts.changes_unread|default(0) }}</div>
+    <div class="hm2-kpi-delta">
+      <span>내 미확인 · 어제 발생 {{ hw_counts.changes_recent|default(0) }}</span>
+    </div>
+  </a>
+  <a href="/tickets" class="hm2-kpi" title="요청 티켓 (카톡 대체)">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">요청 티켓</span>
+      <div class="hm2-kpi-ico blue">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">{{ hw_counts.tickets_pending|default(0) }}</div>
+    <div class="hm2-kpi-delta">
+      <span>미처리 (요청+받음)</span>
+    </div>
+  </a>
+  <a href="/board/company" class="hm2-kpi" title="전사 게시판">
+    <div class="hm2-kpi-top">
+      <span class="hm2-kpi-lab">게시판</span>
+      <div class="hm2-kpi-ico purple">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+    </div>
+    <div class="hm2-kpi-val">→</div>
+    <div class="hm2-kpi-delta">
+      <span>전사 · 부서 게시판</span>
+    </div>
+  </a>
+</div>
+{% endif %}
+
 <!-- ====== Dashboard Charts (리더/경영진만) ====== -->
 {% if user.role in ['leader','executive','ceo','admin'] and team_data %}
 <div class="hm2-grid-2">
