@@ -43,22 +43,58 @@
   </div>
 
   <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;">
-    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:#1565C0;">💬 카카오워크 Webhook</h2>
-    <p style="margin:0 0 16px;font-size:12px;color:#6B7280;">변경 Inform '긴급'/'high 영향' 부서에 자동 푸시. 비워두면 카톡 알림 비활성 (게시판·웹 알림은 동작).</p>
-    <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">Webhook URL
-        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">kakaowork_webhook</span>
+    <h2 style="margin:0 0 6px;font-size:16px;font-weight:800;color:#16A34A;">📡 하이웍스 API 토큰</h2>
+    <p style="margin:0 0 14px;font-size:12px;color:#6B7280;">
+      <strong>발급 위치</strong>: 하이웍스 오피스 → 오피스 관리 → 환경 설정 → API 관리<br>
+      <strong>참조 가이드</strong>: <code>HAIST_WORKS_Research/외부연결_가이드_하이웍스_카카오워크.md</code><br>
+      토큰을 비워두면 해당 기능은 자동 OFF (게시판·웹 알림은 정상 동작).
+    </p>
+
+    {% set hw_tokens = [
+      ('hiworks_messenger_token', '메신저 알림 토큰 ⭐', '변경/이슈/티켓 푸시 — 카카오워크 대체'),
+      ('hiworks_hr_token',        '인사관리 토큰',       '근태/조직도 조회 (Phase 2)'),
+      ('hiworks_approval_token',  '전자결재 토큰',       '외부에서 자동 기안 (Phase 2)'),
+    ] %}
+    {% for key, label, desc in hw_tokens %}
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">{{ label }}
+        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">{{ key }}</span>
       </label>
-      <input type="text" name="k_kakaowork_webhook"
-             value="{{ settings.get('kakaowork_webhook', {}).get('value', '') }}"
-             placeholder="https://api.kakaowork.com/v1/webhook/..."
+      <input type="password" name="k_{{ key }}"
+             value="{{ settings.get(key, {}).get('value', '') }}"
+             placeholder="(미발급 시 비워두기)"
+             autocomplete="off"
              style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:monospace;">
-      <div style="font-size:11px;color:#9CA3AF;margin-top:3px;">발급 가이드: <code>HAIST_WORKS/_GUIDE_카카오워크_Webhook_발급.md</code></div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:3px;">{{ desc }}</div>
+    </div>
+    {% endfor %}
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E5E7EB;">
+      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">알림 채널 마스터 스위치
+        <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">notify_channel</span>
+      </label>
+      {% set ch = settings.get('notify_channel', {}).get('value', 'hiworks') %}
+      <select name="k_notify_channel" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>hiworks — 하이웍스 메신저로 발송 (기본)</option>
+        <option value="off"     {% if ch=='off' %}selected{% endif %}>off — 푸시 알림 끔 (콘솔 로그만)</option>
+        <option value="smtp"    {% if ch=='smtp' %}selected{% endif %}>smtp — 메일 발송 (Phase 2)</option>
+      </select>
     </div>
   </div>
 
+  {# 카카오워크 섹션은 비활성 안내로 축소 #}
+  <div style="background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:14px;padding:18px 22px;margin-bottom:18px;opacity:0.75;">
+    <h3 style="margin:0 0 6px;font-size:14px;font-weight:700;color:#9CA3AF;">💬 카카오워크 (미사용)</h3>
+    <p style="margin:0;font-size:12px;color:#6B7280;">
+      KNK는 <strong>하이웍스 메신저 API</strong>로 통합합니다. 카카오워크는 추가 비용·도구 분산 회피를 위해 사용하지 않습니다.
+      <br>(과거 설정값은 DB에 보존되며, 필요 시 코드 수정으로 재활성 가능)
+    </p>
+  </div>
+
   {# 그 외 설정 자동 표시 (위에서 안 다룬 키만) #}
-  {% set known = ['hiworks_approval_url','hiworks_mail_url','hiworks_domain','kakaowork_webhook'] %}
+  {% set known = ['hiworks_approval_url','hiworks_mail_url','hiworks_domain',
+                   'hiworks_messenger_token','hiworks_hr_token','hiworks_approval_token',
+                   'notify_channel','kakaowork_webhook'] %}
   {% set others = [] %}
   {% for k, v in settings.items() %}
     {% if k not in known %}{% set _ = others.append((k, v)) %}{% endif %}

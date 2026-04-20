@@ -734,15 +734,26 @@ def init_db():
                 c.execute("ALTER TABLE tickets ADD COLUMN approval_url TEXT")
         except Exception:
             pass
-        # 시드: app_settings 기본값 (하이웍스 URL)
+        # 시드: app_settings 기본값 (하이웍스 통합 — 카카오워크 미사용)
         try:
             for k, v, desc in [
-                ("hiworks_approval_url", "https://office.hiworks.com/", "하이웍스 전자결제 URL"),
-                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL"),
+                # 외부 링크 (사이드바)
+                ("hiworks_approval_url", "https://office.hiworks.com/", "하이웍스 전자결제 URL (사이드바 외부 링크)"),
+                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL (사이드바 외부 링크)"),
                 ("hiworks_domain",       "",                              "회사 하이웍스 도메인 (예: knk.co.kr)"),
-                ("kakaowork_webhook",    "",                              "카카오워크 Webhook URL (선택)"),
+                # 하이웍스 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
+                ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용 (카카오워크 대체)"),
+                ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
+                ("hiworks_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
+                # 알림 채널 마스터 스위치
+                ("notify_channel",       "hiworks", "알림 채널: hiworks (기본) / off (개발/일시 정지) / smtp (메일)"),
             ]:
                 c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
+            # 마이그레이션: 기존 카카오워크 키가 있으면 description만 갱신 (값 유지)
+            c.execute(
+                "UPDATE app_settings SET description=? WHERE key='kakaowork_webhook'",
+                ("(미사용) 카카오워크는 하이웍스 메신저 API로 대체됨 — 필요 시 수동 활성",),
+            )
         except Exception:
             pass
         # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
@@ -2857,13 +2868,35 @@ def set_setting(key: str, value: str, user_id: int = None, description: str = No
             )
 
 
-# 카카오워크 Webhook 더미 (실제 URL은 사용자 발급 후 config로)
+# =====================================================
+# 통합 푸시 알림 — 하이웍스 메신저 우선 (카카오워크 제거)
+# 정책 (system_scope_policy.md): 카카오워크 추가 비용·도구 회피.
+#   세션3 가이드 기반 → 하이웍스 메신저 알림 API로 통합.
+# =====================================================
 def kakao_webhook_send(channel_id: str, text: str, blocks: list = None) -> bool:
-    """카카오워크 Webhook 메시지 발송. 정식 구현 전 stub.
-    Phase 2에서 사용자가 webhook URL 발급한 후 실제 호출 코드로 교체."""
-    # TODO: requests.post(KAKAO_WEBHOOK_URL[channel_id], json={...})
-    print(f"[KAKAO STUB] channel={channel_id} text={text[:80]}...")
-    return True
+    """[DEPRECATED 함수명 유지 — 호출처 호환]
+    실제 발송은 하이웍스 메신저로 라우팅.
+
+    notify_channel 설정에 따라:
+      - 'hiworks' (기본): 하이웍스 메신저 API
+      - 'off':            개발 모드 (콘솔 로그만)
+      - 'smtp':           Phase 2 SMTP 메일 발송 (TBD)
+    """
+    channel = get_setting("notify_channel", "hiworks").lower()
+    if channel == "off":
+        print(f"[NOTIFY OFF] channel={channel_id} text={text[:80]}")
+        return True
+    if channel == "hiworks":
+        try:
+            from .hiworks_client import notify as hw_notify
+            # channel_id (예: 'team_5')는 하이웍스 수신자 매핑용 — 향후 확장
+            # 지금은 단순 텍스트 발송 (수신자 미지정 시 기본 채널)
+            return hw_notify(text, recipients=channel_id)
+        except Exception as e:
+            print(f"[HIWORKS NOTIFY ERR] {e}")
+            return False
+    print(f"[NOTIFY UNKNOWN channel={channel}] {text[:80]}")
+    return False
 
 
 # ── 변경 Inform CRUD ─────────────────────────────────────────

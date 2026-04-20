@@ -2484,9 +2484,9 @@ def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
         else:
             low_teams.append(imp)
 
-    # 1. high 강도 → 카톡 즉시 알림
+    # 1. high 강도 → 하이웍스 메신저 즉시 푸시 (토큰 없으면 silent skip)
     for imp in high_teams:
-        kakao_webhook_send(
+        kakao_webhook_send(  # 함수명 호환 유지 — 내부적으로 하이웍스 메신저 라우팅
             channel_id=f"team_{imp['impact_team_id']}",
             text=f"{icon} [{change_type}·직접영향] {title}\n변경번호: {change_no}\n작성자: {author['name']}\n→ /changes/{cid}",
         )
@@ -2759,12 +2759,12 @@ async def tickets_new_submit(
         "approval_url": approval_url,
     }, requester_id=u["id"])
 
-    # 카카오워크 stub 알림 (수신 부서 채널)
+    # 하이웍스 메신저 푸시 (수신 부서) — 토큰 없으면 silent skip
     try:
         ticket = ticket_get(tid)
         if ticket and ticket.get("recipient_team_id"):
             icon = "🔴" if urgency == "긴급" else "🎫"
-            kakao_webhook_send(
+            kakao_webhook_send(  # 함수명 호환 — 내부 하이웍스 메신저로 라우팅
                 channel_id=f"team-{ticket['recipient_team_id']}",
                 text=f"{icon} [{category}] {title}\n티켓: {ticket_no}\n요청: {u['name']}\n→ http://localhost:8081/tickets/{tid}",
             )
@@ -2907,6 +2907,23 @@ async def issues_new_submit(
         "occurred_at": occurred_at, "detected_by": detected_by,
         "description": description, "owner_team_id": otid,
     }, created_by=u["id"])
+
+    # 치명/심각 이슈 → 하이웍스 메신저 즉시 푸시
+    if severity in ("치명", "심각"):
+        try:
+            issue = issue_get(iid)
+            recip = f"team-{issue['owner_team_id']}" if issue and issue.get("owner_team_id") else None
+            from .database import kakao_webhook_send as _push
+            icon = "🚨" if severity == "치명" else "⚠️"
+            _push(
+                channel_id=recip or "all",
+                text=(f"{icon} [{severity}·{issue_type}] {title}\n"
+                      f"이슈번호: {issue_no}\n고객사: {customer_name or '-'}\n"
+                      f"발견: {detected_by or u['name']}\n→ /issues/{iid}"),
+            )
+        except Exception as e:
+            print(f"[ISSUE NOTIFY ERROR] {e}")
+
     return RedirectResponse(f"/issues/{iid}", 303)
 
 
