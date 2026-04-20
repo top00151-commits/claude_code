@@ -2581,10 +2581,14 @@ CHANGE_STATUSES = ["작성중", "공지중", "확인완료", "취소"]
 # Abram Scientific 모델 — 외부 도구 출처 (향후 자동 import 대비)
 CHANGE_SOURCES = [
     "수동",            # 직원 직접 등록 (현재 기본)
-    "Altium 365",      # Push to MCAD/ECAD 이벤트
-    "SolidWorks PDM",  # Check-in 이벤트
+    # KNK 실제 사용 CAD (2026-04 기준): AutoCAD(2D) + SolidWorks(3D) + Inventor(3D), 전장은 AutoCAD
+    "AutoCAD",         # 2D 도면 변경 (기구·전장 공용)
+    "SolidWorks",      # 3D 모델 변경
+    "SolidWorks PDM",  # Check-in 이벤트 (도입 시 자동)
+    "Inventor",        # 3D 모델 변경 (AnyCAD로 SW/CATIA/NX/Creo 호환)
+    "Altium 365",      # Push to MCAD/ECAD 이벤트 (향후)
     "Git",             # 커밋·태그
-    "OpenBOM",         # BOM 변경
+    "OpenBOM",         # BOM 변경 (Phase 2)
     "카톡",            # 카톡 메시지 변환
     "메일",
     "기타",

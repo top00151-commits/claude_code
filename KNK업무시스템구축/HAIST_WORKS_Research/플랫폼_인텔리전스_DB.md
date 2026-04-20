@@ -38,6 +38,12 @@
 5. [CAD 협업](#5-cad-협업)
    - 5.1 [Altium 365](#51-altium-365)
 6. [⭐ KNK CAD 환경 분석 (AutoCAD+SolidWorks+Inventor+AutoCAD 전장)](#6-knk-cad-환경-분석)
+7. [SolidWorks Electrical 전환 연구](#7-solidworks-electrical-전환-연구)
+8. [Inventor ↔ SolidWorks 이관 심화](#8-inventor--solidworks-이관-심화)
+9. [한국 CAD 커뮤니티 현실](#9-한국-cad-커뮤니티-현실)
+10. [하드웨어 Git-like 버전 관리](#10-하드웨어-git-like-버전-관리)
+11. [자체 MCP 서버 구축 도구·사례](#11-자체-mcp-서버-구축-도구사례)
+12. [통합 시스템 유사 사례 — 업계 포지션](#12-통합-시스템-유사-사례)
 
 ---
 

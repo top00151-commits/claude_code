@@ -122,7 +122,7 @@
         <div>
           <label style="font-size:12px;font-weight:700;color:#6B7280;">출처 (어디서 변경?)</label>
           <select name="source" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-top:6px;">
-            {% for s in CHANGE_SOURCES|default(['수동','Altium 365','SolidWorks PDM','Git','OpenBOM','카톡','메일','기타']) %}
+            {% for s in CHANGE_SOURCES|default(['수동','AutoCAD','SolidWorks','SolidWorks PDM','Inventor','Altium 365','Git','OpenBOM','카톡','메일','기타']) %}
             <option value="{{ s }}" {% if s == '수동' %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
