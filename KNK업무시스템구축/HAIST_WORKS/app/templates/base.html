@@ -111,6 +111,19 @@
       {% endif %}
     </div>
     <div class="sb-section">
+      <div class="sb-head">요청 티켓 <span style="background:#E3F2FD;color:#1565C0;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">카톡 대체</span></div>
+      <a href="/tickets" class="sb-item {% if active=='tickets' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg></span>
+        티켓 목록
+        <span id="tickets-pending-badge" style="display:none;margin-left:auto;background:#1565C0;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/tickets/new" class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        티켓 등록
+      </a>
+    </div>
+
+    <div class="sb-section">
       <div class="sb-head">변경 알림 <span style="background:#FFEBEE;color:#A5282C;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">실시간</span></div>
       <a href="/changes" class="sb-item {% if active=='changes' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
@@ -232,6 +245,25 @@ async function loadUnreadChanges() {
 }
 document.addEventListener('DOMContentLoaded', loadUnreadChanges);
 setInterval(loadUnreadChanges, 60000);
+
+/* 티켓 미처리 뱃지 폴링 (1분마다) */
+async function loadPendingTickets() {
+  try {
+    const r = await fetch('/api/tickets/count');
+    const j = await r.json();
+    const badge = document.getElementById('tickets-pending-badge');
+    if (!badge) return;
+    const total = (j.my_open || 0) + (j.recv_pending || 0);
+    if (total > 0) {
+      badge.textContent = total;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadPendingTickets);
+setInterval(loadPendingTickets, 60000);
 
 /* ===== 사이드바 드래그 리사이즈 + 폰트 자동 조정 ===== */
 (function(){

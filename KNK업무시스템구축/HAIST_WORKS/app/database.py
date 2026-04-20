@@ -396,6 +396,48 @@ CREATE TABLE IF NOT EXISTS change_reads (
 );
 CREATE INDEX IF NOT EXISTS idx_cread_change ON change_reads(change_id);
 CREATE INDEX IF NOT EXISTS idx_cread_user ON change_reads(user_id);
+
+-- ============ 요청 티켓 시스템 (HAIST WORKS — 카톡 누락 해결) ============
+CREATE TABLE IF NOT EXISTS tickets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_no       TEXT NOT NULL UNIQUE,           -- TKT-YYMMDD-NNN
+    category        TEXT NOT NULL,                   -- 자재요청/긴급가공/MODIFY/검수요청/AS/기타
+    title           TEXT NOT NULL,
+    description     TEXT,
+    requester_id    INTEGER NOT NULL REFERENCES users(id),
+    recipient_team_id INTEGER REFERENCES teams(id),
+    recipient_user_id INTEGER REFERENCES users(id),
+    project_id      INTEGER REFERENCES projects(id),
+    target_label    TEXT,
+    urgency         TEXT DEFAULT '일반',
+    status          TEXT DEFAULT '요청',
+    source          TEXT DEFAULT 'web',
+    source_chat_id  TEXT,
+    due_date        TEXT,
+    completed_at    TEXT,
+    hours_estimated REAL,
+    hours_actual    REAL,
+    accept_note     TEXT,
+    complete_note   TEXT,
+    reject_reason   TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_tkt_no ON tickets(ticket_no);
+CREATE INDEX IF NOT EXISTS idx_tkt_requester ON tickets(requester_id);
+CREATE INDEX IF NOT EXISTS idx_tkt_recipient_team ON tickets(recipient_team_id);
+CREATE INDEX IF NOT EXISTS idx_tkt_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tkt_category ON tickets(category);
+
+CREATE TABLE IF NOT EXISTS ticket_comments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id   INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    author_id   INTEGER NOT NULL REFERENCES users(id),
+    body        TEXT NOT NULL,
+    is_status_change INTEGER DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_tcm_ticket ON ticket_comments(ticket_id);
 """
 
 # =====================================================
@@ -2833,5 +2875,232 @@ def change_recent_count(user_id: int = None, days: int = 1) -> int:
         params += [user_id, user_id]
     with db_session() as c:
         return c.execute(sql, params).fetchone()[0]
+
+
+# =====================================================
+# 요청 티켓 시스템 (HAIST WORKS)
+# 설문 1순위 ③ / 10팀 카톡 누락 해결
+# =====================================================
+
+TICKET_CATEGORIES = ["자재요청", "긴급가공", "MODIFY", "검수요청", "AS", "기타"]
+TICKET_URGENCIES = ["일반", "긴급", "지연"]
+TICKET_STATUSES = ["요청", "접수", "처리중", "완료", "반려", "지연"]
+TICKET_SOURCES = ["web", "카톡", "메일", "전화"]
+
+# 카테고리별 자동 라우팅 (수신 부서)
+TICKET_ROUTING = {
+    "자재요청": "구매팀",
+    "긴급가공": "가공팀",
+    "MODIFY": "설계팀",       # 또는 변경 발생 부서. 일단 기본
+    "검수요청": "품질팀",
+    "AS": None,               # 사업부에 따라 다름 → 라우팅 함수에서 결정
+    "기타": None,
+}
+
+
+def gen_ticket_no(today=None) -> str:
+    today = today or _date.today()
+    yymmdd = today.strftime("%y%m%d")
+    prefix = f"TKT-{yymmdd}-"
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                "SELECT ticket_no FROM tickets WHERE ticket_no LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for r in rows:
+            try:
+                seq = int(r["ticket_no"].rsplit("-", 1)[-1])
+                max_seq = max(max_seq, seq)
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}{max_seq + 1:03d}"
+    except sqlite3.OperationalError:
+        return f"{prefix}001"
+
+
+def route_ticket_team(category: str, biz_div: str = None) -> int | None:
+    """카테고리 → 수신 부서 자동 결정"""
+    team_name = TICKET_ROUTING.get(category)
+    if category == "AS":
+        # AS는 사업부에 따라
+        team_name = "검사기팀" if biz_div == "T" else ("자동화팀" if biz_div == "M" else None)
+    if not team_name:
+        return None
+    with db_session() as c:
+        row = c.execute("SELECT id FROM teams WHERE name=?", (team_name,)).fetchone()
+    return row["id"] if row else None
+
+
+def tickets_list(scope_user_id=None, scope_team_id=None, status="", category="",
+                 urgency="", q=""):
+    """목록 조회. scope:
+    - scope_user_id: 내가 요청한 + 내가 받은
+    - scope_team_id: 특정 팀이 받은
+    - 둘 다 없으면 전체"""
+    base = """SELECT t.*,
+                     u_req.name AS requester_name, u_req.rank AS requester_rank,
+                     team_req.name AS requester_team,
+                     team_recv.name AS recipient_team_name,
+                     u_recv.name AS recipient_user_name,
+                     (SELECT COUNT(*) FROM ticket_comments WHERE ticket_id=t.id) AS comment_count
+              FROM tickets t
+              JOIN users u_req ON t.requester_id = u_req.id
+              LEFT JOIN teams team_req ON u_req.team_id = team_req.id
+              LEFT JOIN teams team_recv ON t.recipient_team_id = team_recv.id
+              LEFT JOIN users u_recv ON t.recipient_user_id = u_recv.id
+              WHERE 1=1"""
+    params = []
+    if scope_user_id:
+        base += " AND (t.requester_id = ? OR t.recipient_user_id = ?)"
+        params += [scope_user_id, scope_user_id]
+    if scope_team_id:
+        base += " AND t.recipient_team_id = ?"
+        params.append(scope_team_id)
+    if status:
+        base += " AND t.status = ?"
+        params.append(status)
+    if category:
+        base += " AND t.category = ?"
+        params.append(category)
+    if urgency:
+        base += " AND t.urgency = ?"
+        params.append(urgency)
+    if q:
+        base += " AND (t.ticket_no LIKE ? OR t.title LIKE ? OR t.description LIKE ? OR t.target_label LIKE ?)"
+        like = f"%{q}%"
+        params += [like] * 4
+    base += " ORDER BY CASE t.urgency WHEN '긴급' THEN 1 WHEN '지연' THEN 2 ELSE 3 END, t.created_at DESC"
+    with db_session() as c:
+        return c.execute(base, params).fetchall()
+
+
+def ticket_get(tid: int) -> dict | None:
+    with db_session() as c:
+        row = c.execute(
+            """SELECT t.*,
+                      u_req.name AS requester_name, u_req.rank AS requester_rank,
+                      team_req.name AS requester_team,
+                      team_recv.name AS recipient_team_name,
+                      u_recv.name AS recipient_user_name,
+                      p.mgmt_code AS project_mgmt_code, p.name AS project_name
+               FROM tickets t
+               JOIN users u_req ON t.requester_id = u_req.id
+               LEFT JOIN teams team_req ON u_req.team_id = team_req.id
+               LEFT JOIN teams team_recv ON t.recipient_team_id = team_recv.id
+               LEFT JOIN users u_recv ON t.recipient_user_id = u_recv.id
+               LEFT JOIN projects p ON t.project_id = p.id
+               WHERE t.id = ?""",
+            (tid,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def ticket_create(data: dict, requester_id: int) -> tuple[int, str]:
+    """티켓 생성 + 자동 라우팅"""
+    ticket_no = gen_ticket_no()
+    category = (data.get("category") or "기타").strip()
+    biz_div = (data.get("biz_div") or "").strip()
+    recipient_team_id = data.get("recipient_team_id") or route_ticket_team(category, biz_div)
+
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO tickets
+               (ticket_no, category, title, description, requester_id,
+                recipient_team_id, recipient_user_id, project_id, target_label,
+                urgency, status, source, due_date, hours_estimated)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                ticket_no, category,
+                data.get("title", "").strip(),
+                data.get("description", "").strip(),
+                requester_id,
+                recipient_team_id,
+                data.get("recipient_user_id"),
+                data.get("project_id"),
+                data.get("target_label", "").strip(),
+                data.get("urgency", "일반"),
+                "요청",
+                data.get("source", "web"),
+                data.get("due_date", ""),
+                float(data.get("hours_estimated") or 0) or None,
+            ),
+        )
+        tid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return tid, ticket_no
+
+
+def ticket_change_status(tid: int, new_status: str, user_id: int, note: str = ""):
+    """상태 변경 + 시스템 코멘트 자동 등록"""
+    valid = TICKET_STATUSES
+    if new_status not in valid:
+        return
+    extra_sql = ""
+    params = [new_status, _logi_now()]
+    if new_status == "완료":
+        extra_sql = ", completed_at = ?, complete_note = ?"
+        params += [_logi_now(), note]
+    elif new_status == "접수":
+        extra_sql = ", accept_note = ?"
+        params += [note]
+    elif new_status == "반려":
+        extra_sql = ", reject_reason = ?"
+        params += [note]
+    sql = f"UPDATE tickets SET status = ?, updated_at = ? {extra_sql} WHERE id = ?"
+    params.append(tid)
+    with db_session() as c:
+        c.execute(sql, params)
+        # 시스템 코멘트
+        sys_msg = f"[상태 변경] → {new_status}" + (f"\n메모: {note}" if note else "")
+        c.execute(
+            "INSERT INTO ticket_comments (ticket_id, author_id, body, is_status_change) VALUES (?,?,?,1)",
+            (tid, user_id, sys_msg),
+        )
+
+
+def ticket_comments_list(tid: int) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT tc.*, u.name AS author_name, u.rank AS author_rank, t.name AS author_team
+               FROM ticket_comments tc
+               JOIN users u ON tc.author_id = u.id
+               LEFT JOIN teams t ON u.team_id = t.id
+               WHERE tc.ticket_id = ?
+               ORDER BY tc.created_at""",
+            (tid,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def ticket_add_comment(tid: int, author_id: int, body: str):
+    with db_session() as c:
+        c.execute(
+            "INSERT INTO ticket_comments (ticket_id, author_id, body) VALUES (?,?,?)",
+            (tid, author_id, body.strip()),
+        )
+
+
+def ticket_delete(tid: int):
+    with db_session() as c:
+        c.execute("DELETE FROM tickets WHERE id=?", (tid,))
+
+
+def tickets_count_for_user(user_id: int, team_id: int = None) -> dict:
+    """홈 KPI / 사이드바 뱃지용 — 미처리 카운트"""
+    with db_session() as c:
+        # 내가 요청한 것 중 미완료
+        my_open = c.execute(
+            "SELECT COUNT(*) FROM tickets WHERE requester_id = ? AND status NOT IN ('완료','반려')",
+            (user_id,),
+        ).fetchone()[0]
+        # 내가 받은 것 중 미처리 (요청·접수만)
+        recv_pending = c.execute(
+            """SELECT COUNT(*) FROM tickets
+               WHERE (recipient_user_id = ? OR (recipient_team_id = ? AND recipient_user_id IS NULL))
+               AND status IN ('요청', '접수')""",
+            (user_id, team_id or 0),
+        ).fetchone()[0]
+    return {"my_open": my_open, "recv_pending": recv_pending}
 
 

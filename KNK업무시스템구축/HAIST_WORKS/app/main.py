@@ -2489,6 +2489,175 @@ async def api_changes_recent(req: Request, scope: str = "me", days: int = 1):
 
 
 # =====================================================
+# HAIST WORKS — 요청 티켓 시스템 (1순위 ③ / 10팀 카톡 누락 해결)
+# =====================================================
+from .database import (tickets_list, ticket_get, ticket_create,
+                        ticket_change_status, ticket_comments_list,
+                        ticket_add_comment, ticket_delete,
+                        tickets_count_for_user, route_ticket_team,
+                        TICKET_CATEGORIES, TICKET_URGENCIES, TICKET_STATUSES,
+                        TICKET_SOURCES)
+
+
+@app.get("/tickets", response_class=HTMLResponse)
+async def tickets_page(req: Request, scope: str = "me", q: str = "",
+                       category: str = "", urgency: str = "", status: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    suid = u["id"] if scope == "me" else None
+    stid = u.get("team_id") if scope == "team" else None
+    rows = tickets_list(scope_user_id=suid, scope_team_id=stid,
+                        status=status, category=category, urgency=urgency, q=q)
+    return ctx(req, "tickets_list.html", user=u, active="tickets",
+               tickets=rows, scope=scope, q=q,
+               category=category, urgency=urgency, status=status,
+               TICKET_CATEGORIES=TICKET_CATEGORIES,
+               TICKET_URGENCIES=TICKET_URGENCIES,
+               TICKET_STATUSES=TICKET_STATUSES)
+
+
+@app.get("/tickets/new", response_class=HTMLResponse)
+async def tickets_new_form(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        projects = c.execute(
+            """SELECT id, mgmt_code, name, biz_div, customer_name FROM projects
+               WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
+               ORDER BY id DESC LIMIT 200"""
+        ).fetchall()
+        teams = c.execute("SELECT id, name FROM teams ORDER BY display_order").fetchall()
+    return ctx(req, "ticket_form.html", user=u, active="tickets",
+               ticket=None, projects=projects, teams=teams,
+               TICKET_CATEGORIES=TICKET_CATEGORIES,
+               TICKET_URGENCIES=TICKET_URGENCIES)
+
+
+@app.post("/tickets/new")
+async def tickets_new_submit(
+    req: Request,
+    category: str = Form(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    biz_div: str = Form(""),
+    project_id: str = Form(""),
+    target_label: str = Form(""),
+    recipient_team_id: str = Form(""),
+    urgency: str = Form("일반"),
+    due_date: str = Form(""),
+    hours_estimated: str = Form(""),
+    source: str = Form("web"),
+):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+
+    pid = None
+    if project_id:
+        try:
+            pid = int(project_id)
+            with db_session() as c:
+                p = c.execute(
+                    "SELECT biz_div, mgmt_code, name FROM projects WHERE id=?", (pid,)
+                ).fetchone()
+            if p:
+                if not biz_div:
+                    biz_div = p["biz_div"] or ""
+                if not target_label:
+                    target_label = f"{p['mgmt_code']} {p['name']}"
+        except (ValueError, TypeError):
+            pid = None
+
+    rtid = None
+    if recipient_team_id:
+        try:
+            rtid = int(recipient_team_id)
+        except (ValueError, TypeError):
+            rtid = None
+
+    tid, ticket_no = ticket_create({
+        "category": category, "title": title, "description": description,
+        "biz_div": biz_div, "project_id": pid,
+        "target_label": target_label, "recipient_team_id": rtid,
+        "urgency": urgency, "due_date": due_date,
+        "hours_estimated": hours_estimated, "source": source,
+    }, requester_id=u["id"])
+
+    # 카카오워크 stub 알림 (수신 부서 채널)
+    try:
+        ticket = ticket_get(tid)
+        if ticket and ticket.get("recipient_team_id"):
+            icon = "🔴" if urgency == "긴급" else "🎫"
+            kakao_webhook_send(
+                channel_id=f"team-{ticket['recipient_team_id']}",
+                text=f"{icon} [{category}] {title}\n티켓: {ticket_no}\n요청: {u['name']}\n→ http://localhost:8081/tickets/{tid}",
+            )
+    except Exception as e:
+        print(f"[TICKET NOTIFY ERROR] {e}")
+
+    return RedirectResponse(f"/tickets/{tid}", 303)
+
+
+@app.get("/tickets/{tid}", response_class=HTMLResponse)
+async def tickets_detail(req: Request, tid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    ticket = ticket_get(tid)
+    if not ticket:
+        return RedirectResponse("/tickets", 303)
+    comments = ticket_comments_list(tid)
+    is_requester = ticket["requester_id"] == u["id"]
+    is_recipient = (ticket.get("recipient_user_id") == u["id"]) or \
+                   (ticket.get("recipient_team_id") == u.get("team_id"))
+    return ctx(req, "ticket_detail.html", user=u, active="tickets",
+               ticket=ticket, comments=comments,
+               is_requester=is_requester, is_recipient=is_recipient,
+               TICKET_STATUSES=TICKET_STATUSES)
+
+
+@app.post("/tickets/{tid}/status")
+async def tickets_status_change(req: Request, tid: int,
+                                 new_status: str = Form(...),
+                                 note: str = Form("")):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    ticket_change_status(tid, new_status, u["id"], note)
+    return RedirectResponse(f"/tickets/{tid}", 303)
+
+
+@app.post("/tickets/{tid}/comment")
+async def tickets_add_comment(req: Request, tid: int, body: str = Form(...)):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    ticket_add_comment(tid, u["id"], body)
+    return RedirectResponse(f"/tickets/{tid}", 303)
+
+
+@app.post("/tickets/{tid}/delete")
+async def tickets_delete_submit(req: Request, tid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    ticket = ticket_get(tid)
+    if ticket and (ticket["requester_id"] == u["id"] or u["role"] in ("admin", "ceo")):
+        ticket_delete(tid)
+    return RedirectResponse("/tickets", 303)
+
+
+@app.get("/api/tickets/count")
+async def api_tickets_count(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"my_open": 0, "recv_pending": 0})
+    return JSONResponse(tickets_count_for_user(u["id"], u.get("team_id")))
+
+
+# =====================================================
 # HAIST WORKS — 게시판 라우트
 # =====================================================
 from .database import (board_get_or_create_company, board_get_or_create_team,

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.ticket_no }} {{ ticket.title }} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/tickets" style="font-size:13px;color:#6B7280;text-decoration:none;">← 티켓 목록</a>
+</div>
+
+<!-- 헤더 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #A5282C;">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+    <div style="flex:1;min-width:300px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ ticket.ticket_no }}</span>
+        {% if ticket.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 긴급</span>
+        {% elif ticket.urgency == '지연' %}<span style="background:#FEF3C7;color:#92400E;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">⏰ 지연</span>{% endif %}
+        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;">{{ ticket.category }}</span>
+        {% set st = ticket.status %}
+        {% if st == '완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">✓ 완료</span>
+        {% elif st == '처리중' %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">처리중</span>
+        {% elif st == '접수' %}<span style="background:#E3F2FD;color:#1565C0;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">접수</span>
+        {% elif st == '반려' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">반려</span>
+        {% else %}<span style="background:#F3F4F6;color:#6B7280;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ st }}</span>{% endif %}
+      </div>
+      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.02em;">{{ ticket.title }}</h1>
+      {% if ticket.target_label %}<div style="margin-top:6px;font-size:13px;color:#6B7280;">대상: <span style="font-family:monospace;color:#1A1A1A;font-weight:700;">{{ ticket.target_label }}</span></div>{% endif %}
+      {% if ticket.project_mgmt_code %}<div style="margin-top:4px;font-size:12px;color:#9CA3AF;">관리코드: <span style="color:#A5282C;font-weight:700;font-family:monospace;">{{ ticket.project_mgmt_code }}</span> · {{ ticket.project_name }}</div>{% endif %}
+      <div style="margin-top:6px;font-size:12px;color:#9CA3AF;">
+        요청: <strong>{{ ticket.requester_name }}</strong>{% if ticket.requester_team %} ({{ ticket.requester_team }}){% endif %}
+        → 수신: <strong>{{ ticket.recipient_user_name or ticket.recipient_team_name or '미지정' }}</strong>
+        · {{ ticket.created_at }}
+        {% if ticket.due_date %}<span style="margin-left:10px;color:#A5282C;">납기: {{ ticket.due_date }}</span>{% endif %}
+        {% if ticket.source != 'web' %}<span style="margin-left:10px;color:#9CA3AF;">출처: {{ ticket.source }}</span>{% endif %}
+      </div>
+    </div>
+    {% if is_requester or user.role in ['admin','ceo'] %}
+    <form method="post" action="/tickets/{{ ticket.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+      <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">삭제</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 설명 -->
+{% if ticket.description %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
+  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">상세 설명</div>
+  <div style="font-size:14px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ ticket.description }}</div>
+</div>
+{% endif %}
+
+<!-- 상태 변경 (수신자만) -->
+{% if is_recipient and ticket.status != '완료' %}
+<div style="background:linear-gradient(135deg,#E3F2FD,#BBDEFB);border:2px solid #1565C0;border-radius:14px;padding:22px;margin-bottom:18px;">
+  <h2 style="margin:0 0 12px;font-size:16px;font-weight:800;color:#1565C0;">📥 수신자 액션</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    {% if ticket.status == '요청' %}
+    <form method="post" action="/tickets/{{ ticket.id }}/status" style="display:flex;gap:8px;flex:1;">
+      <input type="hidden" name="new_status" value="접수">
+      <input type="text" name="note" placeholder="수락 메모 (선택)" style="flex:1;padding:8px 12px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+      <button type="submit" style="background:#1565C0;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">접수</button>
+    </form>
+    <form method="post" action="/tickets/{{ ticket.id }}/status">
+      <input type="hidden" name="new_status" value="반려">
+      <input type="hidden" name="note" value="">
+      <button type="submit" onclick="if(!confirm('반려하시겠습니까?')) return false;" style="background:#FFEBEE;color:#A5282C;border:1px solid #FCA5A5;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">반려</button>
+    </form>
+    {% elif ticket.status == '접수' %}
+    <form method="post" action="/tickets/{{ ticket.id }}/status">
+      <input type="hidden" name="new_status" value="처리중">
+      <button type="submit" style="background:#F57F17;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">처리 시작</button>
+    </form>
+    {% elif ticket.status == '처리중' %}
+    <form method="post" action="/tickets/{{ ticket.id }}/status" style="display:flex;gap:8px;flex:1;">
+      <input type="hidden" name="new_status" value="완료">
+      <input type="text" name="note" placeholder="완료 메모 (선택)" style="flex:1;padding:8px 12px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+      <button type="submit" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:800;cursor:pointer;">✓ 완료</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 대화 -->
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
+  <h2 style="margin:0 0 14px;font-size:14px;font-weight:800;">💬 대화 ({{ comments|length }})</h2>
+  {% if comments %}
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+    {% for cm in comments %}
+    <div style="padding:12px 14px;background:{% if cm.is_status_change %}#FFF8E1{% else %}#F9FAFB{% endif %};border-radius:8px;border-left:3px solid {% if cm.is_status_change %}#F57F17{% elif cm.author_id == user.id %}#A5282C{% else %}#D1D5DB{% endif %};">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:4px;">
+        <strong style="color:#1A1A1A;">{{ cm.author_name }} {% if cm.author_team %}<span style="color:#9CA3AF;font-weight:500;">({{ cm.author_team }})</span>{% endif %}</strong>
+        <span>{{ cm.created_at }}</span>
+      </div>
+      <div style="font-size:13px;color:#1A1A1A;line-height:1.6;white-space:pre-wrap;">{{ cm.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:#9CA3AF;font-size:13px;margin-bottom:16px;">아직 대화가 없습니다.</p>
+  {% endif %}
+  <form method="post" action="/tickets/{{ ticket.id }}/comment">
+    <textarea name="body" rows="2" required placeholder="댓글 입력..."
+              style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-bottom:8px;resize:vertical;"></textarea>
+    <button type="submit" style="background:#A5282C;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">댓글 등록</button>
+  </form>
+</div>
+
+{% endblock %}
