@@ -126,11 +126,16 @@
     <h2 style="font-size:18px;font-weight:800;margin:0 0 8px;">최종 확인 후 등록</h2>
     <div id="finalSummary" style="padding:18px;background:#F9FAFB;border-radius:10px;font-size:13px;line-height:1.8;">불러오는 중...</div>
     <div style="margin-top:20px;padding:16px;background:#FFF8E1;border-radius:10px;">
-      <div style="font-size:12px;font-weight:700;color:#F57F17;margin-bottom:8px;">📡 알림 채널</div>
+      <div style="font-size:12px;font-weight:700;color:#F57F17;margin-bottom:8px;">📡 자동 처리 (확실히 동작)</div>
       <div style="font-size:13px;color:#1A1A1A;line-height:1.8;">
-        ✅ 수신 부서원 web 알림<br>
-        ✅ 카카오워크 채널 푸시 (Webhook stub)<br>
-        ✅ 상태 변경 시 요청자에게 자동 알림
+        ✅ 자동 라우팅: 카테고리·사업부 → 적합 부서 자동 배정<br>
+        ✅ 수신 부서원 web 알림 (사이드바 🔔 뱃지)<br>
+        ✅ 상태 변경 시 요청자에게 자동 알림<br>
+        ✅ 티켓번호 자동 채번 (TKT-YYMMDD-NNN)
+      </div>
+      <div style="margin-top:10px;padding:10px 12px;background:#FFF;border-left:3px solid #6B7280;border-radius:4px;font-size:12px;color:#6B7280;">
+        <strong>⚠️ 외부 메신저 푸시는 현재 OFF</strong>
+        — <a href="/admin/settings" style="color:#4338CA;font-weight:700;">관리자 설정</a>에서 하이웍스 토큰 입력 시 활성화됩니다.
       </div>
     </div>
   </div>

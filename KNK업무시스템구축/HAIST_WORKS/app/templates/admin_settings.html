@@ -73,12 +73,27 @@
       <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">알림 채널 마스터 스위치
         <span style="font-family:monospace;font-size:10px;color:#9CA3AF;font-weight:500;">notify_channel</span>
       </label>
-      {% set ch = settings.get('notify_channel', {}).get('value', 'hiworks') %}
+      {% set ch = settings.get('notify_channel', {}).get('value', 'off') %}
+      {% set mtoken = settings.get('hiworks_messenger_token', {}).get('value', '') %}
       <select name="k_notify_channel" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
-        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>hiworks — 하이웍스 메신저로 발송 (기본)</option>
-        <option value="off"     {% if ch=='off' %}selected{% endif %}>off — 푸시 알림 끔 (콘솔 로그만)</option>
-        <option value="smtp"    {% if ch=='smtp' %}selected{% endif %}>smtp — 메일 발송 (Phase 2)</option>
+        <option value="off"     {% if ch=='off' %}selected{% endif %}>off — 푸시 끔 (안전 기본값)</option>
+        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>hiworks — 하이웍스 메신저로 발송</option>
+        <option value="smtp"    {% if ch=='smtp' %}selected{% endif %}>smtp — 메일 발송 (Phase 2 미구현)</option>
       </select>
+      {% if ch == 'hiworks' and not mtoken %}
+      <div style="margin-top:8px;padding:10px 12px;background:#FEE2E2;border-left:3px solid #DC2626;border-radius:4px;font-size:12px;color:#991B1B;">
+        🚨 <strong>경고</strong>: hiworks 채널 선택했지만 <code>hiworks_messenger_token</code>이 비어있습니다.
+        <strong>실제 푸시는 발송되지 않습니다</strong> (silent skip). 토큰을 발급해 입력하거나 채널을 off로 변경하세요.
+      </div>
+      {% elif ch == 'smtp' %}
+      <div style="margin-top:8px;padding:10px 12px;background:#FEF3C7;border-left:3px solid #F59E0B;border-radius:4px;font-size:12px;color:#92400E;">
+        ⚠️ smtp 채널은 아직 구현되지 않았습니다. 발송 시 콘솔 로그만 남습니다.
+      </div>
+      {% elif ch == 'off' %}
+      <div style="margin-top:8px;padding:10px 12px;background:#F3F4F6;border-left:3px solid #6B7280;border-radius:4px;font-size:12px;color:#374151;">
+        ℹ️ 푸시 알림 OFF 상태입니다. 사이트 내 알림(🔔)·게시판 자동 글은 정상 동작합니다.
+      </div>
+      {% endif %}
     </div>
   </div>
 

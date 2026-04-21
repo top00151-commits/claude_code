@@ -2114,6 +2114,27 @@ async def api_regen_pw(req: Request):
                          "download": "/admin/download-passwords"})
 
 
+@app.get("/admin/health", response_class=HTMLResponse)
+async def admin_health_page(req: Request):
+    """건전성 점검 — 어떤 기능이 진짜 동작하는지 한눈에"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from .database import health_check
+    checks = health_check()
+    # 레벨별 그룹
+    by_level = {"core": [], "data": [], "external": [], "ops": []}
+    for c in checks:
+        by_level.setdefault(c.get("level", "ops"), []).append(c)
+    # 상태별 카운트
+    counts = {"ok": 0, "warn": 0, "error": 0, "info": 0}
+    for c in checks:
+        counts[c.get("status", "info")] += 1
+    return ctx(req, "admin_health.html", user=u,
+               checks=checks, by_level=by_level, counts=counts,
+               active="admin")
+
+
 @app.get("/admin/settings", response_class=HTMLResponse)
 async def admin_settings_page(req: Request):
     u = require(req, ["admin", "ceo"])

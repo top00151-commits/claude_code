@@ -855,7 +855,7 @@ def init_db():
                 ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
                 ("hiworks_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
                 # 알림 채널 마스터 스위치
-                ("notify_channel",       "hiworks", "알림 채널: hiworks (기본) / off (개발/일시 정지) / smtp (메일)"),
+                ("notify_channel",       "off",     "알림 채널: off (기본 — 토큰 미설정 시 안전) / hiworks (메신저) / smtp (메일)"),
             ]:
                 c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
             # 마이그레이션: 기존 카카오워크 키가 있으면 description만 갱신 (값 유지)
@@ -3276,6 +3276,184 @@ def part_active_price(part_id: int, supplier_id: int = 0,
 # =====================================================
 # 공급사 리드타임 자동 집계 (§6.4 업계 공통)
 # =====================================================
+def health_check() -> list[dict]:
+    """시스템 건전성 점검. 각 기능이 진짜 동작하는지 확인.
+    반환: [{name, status, detail, level}] — status: ok/warn/error/info
+    """
+    checks = []
+
+    # 1. DB 연결
+    try:
+        with db_session() as c:
+            c.execute("SELECT 1").fetchone()
+        checks.append({"name": "DB 연결", "status": "ok",
+                       "detail": "knk.db 정상 응답", "level": "core"})
+    except Exception as e:
+        checks.append({"name": "DB 연결", "status": "error",
+                       "detail": f"치명: {e}", "level": "core"})
+        return checks  # DB 안 되면 다른 검증 의미 없음
+
+    # 2. 테이블 존재 확인
+    expected_tables = [
+        "users", "teams", "tasks", "projects", "customers",
+        "changes", "change_impacts", "change_reads",
+        "tickets", "ticket_comments",
+        "issues", "issue_logs",
+        "parts", "suppliers", "purchase_orders", "po_items",
+        "stock_movements", "exchange_rates", "part_prices",
+        "boards", "board_posts",
+        "app_settings",
+    ]
+    with db_session() as c:
+        existing = {r["name"] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        missing = [t for t in expected_tables if t not in existing]
+    if missing:
+        checks.append({"name": "DB 스키마",
+                       "status": "error",
+                       "detail": f"누락 테이블: {missing}",
+                       "level": "core"})
+    else:
+        checks.append({"name": "DB 스키마",
+                       "status": "ok",
+                       "detail": f"{len(expected_tables)}개 테이블 모두 정상",
+                       "level": "core"})
+
+    # 3. 부서명 매칭 (IMPACT_RULES)
+    with db_session() as c:
+        db_teams = {r["name"] for r in c.execute("SELECT name FROM teams").fetchall()}
+    impact_teams = set()
+    for ct, biz_map in IMPACT_RULES.items():
+        for biz, team_list in biz_map.items():
+            if isinstance(team_list, list):
+                impact_teams.update(team_list)
+    missing_t = impact_teams - db_teams
+    if missing_t:
+        checks.append({"name": "변경 영향 부서 매핑",
+                       "status": "error",
+                       "detail": f"DB에 없는 팀명: {sorted(missing_t)} → 영향 부서 0건 발생",
+                       "level": "core"})
+    else:
+        checks.append({"name": "변경 영향 부서 매핑",
+                       "status": "ok",
+                       "detail": f"{len(impact_teams)}개 팀명 모두 DB에 존재",
+                       "level": "core"})
+
+    # 4. 사용자 / 팀 / 프로젝트 데이터
+    with db_session() as c:
+        n_users = c.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0]
+        n_teams = c.execute("SELECT COUNT(*) FROM teams").fetchone()[0]
+        n_projects = c.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        n_parts = c.execute("SELECT COUNT(*) FROM parts WHERE is_active=1").fetchone()[0]
+    if n_users < 2:
+        checks.append({"name": "사용자 데이터",
+                       "status": "warn",
+                       "detail": f"활성 사용자 {n_users}명 (운영 시작 전이거나 비밀번호 미배포)",
+                       "level": "data"})
+    else:
+        checks.append({"name": "사용자 데이터",
+                       "status": "ok",
+                       "detail": f"활성 사용자 {n_users}명, 팀 {n_teams}개, 프로젝트 {n_projects}건, 부품 {n_parts}건",
+                       "level": "data"})
+
+    # 5. 알림 채널 마스터 스위치
+    notify_ch = get_setting("notify_channel", "off")
+    msg_token = get_setting("hiworks_messenger_token", "")
+    if notify_ch == "off":
+        checks.append({"name": "외부 푸시 알림",
+                       "status": "info",
+                       "detail": "OFF — 사이트 내 알림 / 게시판은 정상. 외부 메신저 푸시 없음.",
+                       "level": "external"})
+    elif notify_ch == "hiworks":
+        if msg_token:
+            checks.append({"name": "외부 푸시 알림 (하이웍스)",
+                           "status": "warn",
+                           "detail": "하이웍스 토큰 설정됨. ⚠️ 실제 엔드포인트 동작은 첫 호출 시 확인 필요 (Postman 검증 권장).",
+                           "level": "external"})
+        else:
+            checks.append({"name": "외부 푸시 알림 (하이웍스)",
+                           "status": "error",
+                           "detail": "🚨 채널은 hiworks지만 토큰 비어있음 → 발송 시 silent skip (실제 발송 0)",
+                           "level": "external"})
+    elif notify_ch == "smtp":
+        checks.append({"name": "외부 푸시 알림 (SMTP)",
+                       "status": "warn",
+                       "detail": "SMTP 채널은 미구현 (Phase 2). 콘솔 로그만 발생.",
+                       "level": "external"})
+
+    # 6. 하이웍스 외부 링크
+    apv_url = get_setting("hiworks_approval_url", "")
+    mail_url = get_setting("hiworks_mail_url", "")
+    domain = get_setting("hiworks_domain", "")
+    if not domain:
+        checks.append({"name": "하이웍스 외부 링크",
+                       "status": "warn",
+                       "detail": f"기본 URL 사용 중 (회사 도메인 미설정). 결재: {apv_url}",
+                       "level": "external"})
+    else:
+        checks.append({"name": "하이웍스 외부 링크",
+                       "status": "ok",
+                       "detail": f"회사 도메인 {domain} 설정됨",
+                       "level": "external"})
+
+    # 7. 백업
+    import os as _os
+    backup_dir = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "data", "backups"
+    )
+    if _os.path.exists(backup_dir):
+        backups = [f for f in _os.listdir(backup_dir) if f.endswith(".db")]
+        if backups:
+            backups.sort(reverse=True)
+            last = backups[0]
+            try:
+                ts = last.replace("knk_", "").replace(".db", "")
+                from datetime import datetime as _dtdt
+                lt = _dtdt.strptime(ts, "%Y%m%d_%H%M%S")
+                age_days = (_dtdt.now() - lt).days
+                if age_days > 7:
+                    status = "warn"
+                    detail = f"마지막 백업 {age_days}일 전 ({last}) — 1주일 초과"
+                else:
+                    status = "ok"
+                    detail = f"{len(backups)}개 백업, 최신 {age_days}일 전 ({last})"
+            except Exception:
+                status, detail = "ok", f"{len(backups)}개 백업 파일 존재"
+            checks.append({"name": "DB 백업", "status": status,
+                           "detail": detail, "level": "ops"})
+        else:
+            checks.append({"name": "DB 백업", "status": "warn",
+                           "detail": "백업 디렉토리는 있지만 파일 없음. scripts/backup_db.py 실행 권장",
+                           "level": "ops"})
+    else:
+        checks.append({"name": "DB 백업", "status": "warn",
+                       "detail": "data/backups/ 미존재. scripts/backup_db.py 실행 권장",
+                       "level": "ops"})
+
+    # 8. 시드/실 데이터 진척도
+    with db_session() as c:
+        recent_changes = c.execute(
+            "SELECT COUNT(*) FROM changes WHERE created_at >= date('now','-7 day')"
+        ).fetchone()[0]
+        recent_tickets = c.execute(
+            "SELECT COUNT(*) FROM tickets WHERE created_at >= date('now','-7 day')"
+        ).fetchone()[0]
+    if recent_changes == 0 and recent_tickets == 0:
+        checks.append({"name": "최근 7일 활동",
+                       "status": "info",
+                       "detail": "변경/티켓 활동 없음 (운영 시작 전 정상)",
+                       "level": "ops"})
+    else:
+        checks.append({"name": "최근 7일 활동",
+                       "status": "ok",
+                       "detail": f"변경 {recent_changes}건, 티켓 {recent_tickets}건",
+                       "level": "ops"})
+
+    return checks
+
+
 def supplier_leadtime_stats(supplier_id: int) -> dict:
     """공급사별 PO 리드타임 통계: order_date → 최초 입고일 평균
     IN 수불이 있는 PO만 계산. 없으면 None.
