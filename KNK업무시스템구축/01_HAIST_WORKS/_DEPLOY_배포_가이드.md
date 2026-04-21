@@ -40,7 +40,7 @@
 
 **Windows 서버 실행**:
 ```bat
-cd C:\path\to\HAIST_WORKS
+cd C:\path\to\01_HAIST_WORKS
 python run.py
 ```
 
@@ -114,7 +114,7 @@ server {
 **매일 02:00 자동 백업** (60일 보관):
 ```bat
 # Windows 작업 스케줄러
-python C:\path\to\HAIST_WORKS\scripts\backup_db.py --keep 60
+python C:\path\to\01_HAIST_WORKS\scripts\backup_db.py --keep 60
 ```
 ```bash
 # Linux cron
@@ -172,7 +172,7 @@ sudo systemctl start haist
 
 - 시스템 오너: 김정락 대표
 - GitHub: `top00151-commits/claude_code`
-- 문서 인덱스: `HAIST_WORKS/_README.md` (있으면)
+- 문서 인덱스: `01_HAIST_WORKS/_README.md` (있으면)
 - Victor 도움말: 사이트 우상단 🤖 "빅터에게 물어보기" 클릭
 
 ---

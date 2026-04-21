@@ -10,7 +10,7 @@ HAIST WORKS — knk.db 자동 백업 스크립트
 
 권장 운영:
   Windows 작업 스케줄러 (매일 02:00):
-    cmd /c python "C:\\...\\HAIST_WORKS\\scripts\\backup_db.py" --keep 60
+    cmd /c python "C:\\...\\01_HAIST_WORKS\\scripts\\backup_db.py" --keep 60
   Linux cron:
     0 2 * * * cd /opt/haist_works && python scripts/backup_db.py --keep 60
 """

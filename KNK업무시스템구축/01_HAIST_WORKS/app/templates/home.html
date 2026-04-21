@@ -34,7 +34,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     </div>
     <input type="text" id="newTitle" class="hm2-quick-input"
-           placeholder="{{ i.quick_placeholder|default('지금 무슨 업무를 하고 계신가요? 입력 후 Enter ↵') }}"
+           placeholder="{{ i.quick_placeholder|default('업무 입력 ↵') }}"
            onkeydown="if(event.key==='Enter')addTask()"
            onfocus="document.getElementById('quickExtras').style.display='flex'">
     <div class="hm2-quick-extras" id="quickExtras" style="display:none">
@@ -55,6 +55,21 @@
 
 {% block body %}
 <div class="hm2">
+
+{# 05 디자인팀: 3탭 분할 — 한 화면 9 섹션 → 탭별 핵심만 #}
+<div class="hm-tabs" role="tablist" aria-label="홈 보기 모드">
+  <a href="?tab=my" class="hm-tab {% if tab=='my' %}is-active{% endif %}" role="tab" aria-selected="{{ 'true' if tab=='my' else 'false' }}">
+    <span class="hm-tab-icon">👤</span>{{ i.tab_my|default('내 업무') }}
+  </a>
+  <a href="?tab=team" class="hm-tab {% if tab=='team' %}is-active{% endif %}" role="tab" aria-selected="{{ 'true' if tab=='team' else 'false' }}">
+    <span class="hm-tab-icon">👥</span>{{ i.tab_team|default('우리 팀') }}
+  </a>
+  {% if user.role in ['ceo','admin','executive','leader'] %}
+  <a href="?tab=all" class="hm-tab {% if tab=='all' %}is-active{% endif %}" role="tab" aria-selected="{{ 'true' if tab=='all' else 'false' }}">
+    <span class="hm-tab-icon">🏢</span>{{ i.tab_all|default('전사') }}
+  </a>
+  {% endif %}
+</div>
 
 <!-- ====== KPI Grid ====== -->
 {% set total_my = my_tasks|length %}
@@ -78,15 +93,6 @@
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
       {{ i.kpi_total|default('전체 카드') }}
     </div>
-    <div class="hm2-kpi-spark-bars">
-      <div class="hm2-spk-bar" style="height:30%;background:#FEE8E8"></div>
-      <div class="hm2-spk-bar" style="height:50%;background:#FEE8E8"></div>
-      <div class="hm2-spk-bar" style="height:40%;background:#FCA5A5"></div>
-      <div class="hm2-spk-bar" style="height:65%;background:#FCA5A5"></div>
-      <div class="hm2-spk-bar" style="height:55%;background:#F87171"></div>
-      <div class="hm2-spk-bar" style="height:80%;background:#EF4444"></div>
-      <div class="hm2-spk-bar" style="height:100%;background:#A5282C"></div>
-    </div>
   </a>
 
   <a href="/history?status=완료" class="hm2-kpi" title="{{ i.kpi_link_rate|default('완료 카드만 보기') }}">
@@ -101,15 +107,6 @@
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
       {{ done_my }} / {{ total_my }} {{ i.kpi_done|default('완료') }}
     </div>
-    <div class="hm2-kpi-spark-bars">
-      <div class="hm2-spk-bar" style="height:40%;background:#D1FAE5"></div>
-      <div class="hm2-spk-bar" style="height:55%;background:#D1FAE5"></div>
-      <div class="hm2-spk-bar" style="height:50%;background:#A7F3D0"></div>
-      <div class="hm2-spk-bar" style="height:70%;background:#6EE7B7"></div>
-      <div class="hm2-spk-bar" style="height:65%;background:#34D399"></div>
-      <div class="hm2-spk-bar" style="height:85%;background:#10B981"></div>
-      <div class="hm2-spk-bar" style="height:95%;background:#059669"></div>
-    </div>
   </a>
 
   <a href="/history?status=진행중" class="hm2-kpi" title="{{ i.kpi_link_hours|default('진행중 카드만 보기') }}">
@@ -123,15 +120,6 @@
     <div class="hm2-kpi-delta neutral">
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
       {{ prog_my }} {{ i.kpi_progress|default('진행중') }}
-    </div>
-    <div class="hm2-kpi-spark-bars">
-      <div class="hm2-spk-bar" style="height:30%;background:#DBEAFE"></div>
-      <div class="hm2-spk-bar" style="height:55%;background:#BFDBFE"></div>
-      <div class="hm2-spk-bar" style="height:45%;background:#93C5FD"></div>
-      <div class="hm2-spk-bar" style="height:70%;background:#60A5FA"></div>
-      <div class="hm2-spk-bar" style="height:80%;background:#3B82F6"></div>
-      <div class="hm2-spk-bar" style="height:75%;background:#2563EB"></div>
-      <div class="hm2-spk-bar" style="height:90%;background:#1D4ED8"></div>
     </div>
   </a>
 
@@ -151,15 +139,6 @@
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       {{ i.check_needed|default('확인 필요') }}
       {% endif %}
-    </div>
-    <div class="hm2-kpi-spark-bars">
-      <div class="hm2-spk-bar" style="height:80%;background:#EDE9FE"></div>
-      <div class="hm2-spk-bar" style="height:95%;background:#DDD6FE"></div>
-      <div class="hm2-spk-bar" style="height:75%;background:#C4B5FD"></div>
-      <div class="hm2-spk-bar" style="height:60%;background:#A78BFA"></div>
-      <div class="hm2-spk-bar" style="height:50%;background:#8B5CF6"></div>
-      <div class="hm2-spk-bar" style="height:40%;background:#7C3AED"></div>
-      <div class="hm2-spk-bar" style="height:35%;background:#6D28D9"></div>
     </div>
   </a>
 </div>
@@ -455,10 +434,14 @@
     <div class="hm-card hm-card-{{ t.status|replace(' ','') }}" id="card-{{ t.id }}" data-status="{{ t.status }}">
       <div class="hm-card-top">
         <div class="hm-card-status-wrap">
-          <button class="hm-status-btn hm-sbtn-{{ t.status|replace(' ','') }}"
-                  onclick="cycleStatus({{ t.id }}, '{{ t.status }}')">
-            {{ t.status }}
-          </button>
+          {# 05 디자인팀: cycle → segment 4버튼 (1-클릭 직접 지정) #}
+          <div class="hm-status-seg" role="group" aria-label="{{ i.status|default('상태') }}">
+            {% for s in ['진행중','완료','지연','대기'] %}
+            <button type="button"
+                    class="hm-status-seg-btn{% if s == t.status %} on-{{ {'진행중':'progress','완료':'done','지연':'delay','대기':'wait'}[s] }}{% endif %}"
+                    onclick="setStatus({{ t.id }}, '{{ s }}', this)">{{ s }}</button>
+            {% endfor %}
+          </div>
         </div>
         <div class="hm-card-body" onclick="toggleCard({{ t.id }})">
           <div class="hm-card-title">{{ t.title }}</div>
@@ -652,13 +635,20 @@ const HI = {
   no_comment: "{{ i.no_comment|default('아직 코멘트가 없습니다') }}",
 };
 
+/* 05 디자인팀: cycle → segment 4버튼 (1-클릭 직접 지정).
+   기존 cycleStatus는 호환을 위해 유지 — 다른 페이지 호출 가능. */
 function cycleStatus(tid, current) {
   const idx = STATUS_CYCLE.indexOf(current);
   const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
   changeStatus(tid, next);
 }
+function setStatus(tid, status, btnEl) {
+  changeStatus(tid, status, btnEl);
+}
 
-async function changeStatus(tid, status) {
+const ST_CLASS_MAP = {'진행중':'on-progress','완료':'on-done','지연':'on-delay','대기':'on-wait'};
+
+async function changeStatus(tid, status, btnEl) {
   const r = await fetch(`/api/task/${tid}/status`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({status})
@@ -666,10 +656,23 @@ async function changeStatus(tid, status) {
   if (r.ok) {
     const card = document.getElementById('card-' + tid);
     card.className = 'hm-card hm-card-' + status.replace(/\s/g,'');
-    const btn = card.querySelector('.hm-status-btn');
-    btn.className = 'hm-status-btn hm-sbtn-' + status.replace(/\s/g,'');
-    btn.textContent = status;
-    btn.setAttribute('onclick', `cycleStatus(${tid}, '${status}')`);
+    card.dataset.status = status;
+    // 세그먼트 버튼 4개 활성 상태 갱신
+    const seg = card.querySelector('.hm-status-seg');
+    if (seg) {
+      seg.querySelectorAll('.hm-status-seg-btn').forEach(b => {
+        b.className = 'hm-status-seg-btn';
+      });
+      const target = btnEl || Array.from(seg.querySelectorAll('button')).find(b => b.textContent.trim() === status);
+      if (target) target.className = 'hm-status-seg-btn ' + (ST_CLASS_MAP[status] || '');
+    }
+    // 구식 단일 버튼 호환 (다른 페이지에서 사용 시)
+    const old = card.querySelector('.hm-status-btn');
+    if (old) {
+      old.className = 'hm-status-btn hm-sbtn-' + status.replace(/\s/g,'');
+      old.textContent = status;
+      old.setAttribute('onclick', `cycleStatus(${tid}, '${status}')`);
+    }
     const sel = document.getElementById('st-' + tid);
     if (sel) sel.value = status;
     showToast(`${status}${HI.toast_status}`);

@@ -11,7 +11,7 @@
   <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
     <div style="flex:1;min-width:300px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ project.mgmt_code }}</span>
+        <span style="font-family:var(--font-mono);font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ project.mgmt_code }}</span>
         {% if project.biz_div == 'T' %}<span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;">검사기</span>
         {% elif project.biz_div == 'M' %}<span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;">자동화</span>{% endif %}
         {% if project.status %}<span style="background:#E3F2FD;color:#1565C0;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ project.status }}</span>{% endif %}

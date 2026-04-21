@@ -11,7 +11,7 @@
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
     <div style="flex:1;min-width:300px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <span style="font-family:'JetBrains Mono',Consolas,monospace;font-size:13px;color:#DC2626;font-weight:800;background:#FEE2E2;padding:4px 12px;border-radius:6px;">{{ issue.issue_no }}</span>
+        <span style="font-family:var(--font-mono);font-size:13px;color:#DC2626;font-weight:800;background:#FEE2E2;padding:4px 12px;border-radius:6px;">{{ issue.issue_no }}</span>
         {% if issue.severity == '치명' %}<span style="background:#7F1D1D;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 치명</span>
         {% elif issue.severity == '심각' %}<span style="background:#DC2626;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🟠 심각</span>
         {% elif issue.severity == '중' %}<span style="background:#F59E0B;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">🟡 중</span>

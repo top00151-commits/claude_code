@@ -198,12 +198,22 @@ async def root(req: Request):
 # =====================================================
 @app.get("/home", response_class=HTMLResponse)
 @app.get("/home/{sel_date}", response_class=HTMLResponse)
-async def home_page(req: Request, sel_date: str = ""):
+async def home_page(req: Request, sel_date: str = "", tab: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     if not sel_date:
         sel_date = date.today().isoformat()
+    # 05 디자인팀: 3탭 분할 (내 업무 / 우리 팀 / 전사)
+    # role 기반 기본값 — leader 는 team, 경영진은 all, 그 외는 my
+    if tab not in ("my", "team", "all"):
+        role = (u.get("role") or "member").lower()
+        if role in ("ceo", "admin", "executive"):
+            tab = "all"
+        elif role == "leader":
+            tab = "team"
+        else:
+            tab = "my"
 
     prev_d = (datetime.strptime(sel_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
     next_d = (datetime.strptime(sel_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -355,6 +365,7 @@ async def home_page(req: Request, sel_date: str = ""):
         all_delay=all_delay, all_tasks=all_tasks,
         logi_parts_stats=logi_parts_stats, logi_proj_stats=logi_proj_stats,
         hw_counts=hw_counts,
+        tab=tab,  # 05 디자인팀 3탭
     )
 
 
@@ -837,19 +848,34 @@ async def api_reaction(req: Request, tid: int):
 # =====================================================
 # 번역 API
 # =====================================================
-@app.post("/api/set-lang")
+@app.api_route("/api/set-lang", methods=["GET", "POST"])
 async def api_set_lang(req: Request):
-    """사용자 UI 언어 변경"""
+    """사용자 UI 언어 변경.
+    - POST(JSON body): 기존 프런트 fetch 호출용 (base.html changeLang)
+    - GET(쿼리스트링 ?lang=vi): 주소창·북마크·테스트 호출용
+    """
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
-    data = await req.json()
-    lang = data.get("lang", "ko")
+    # lang 값 획득: GET 은 쿼리, POST 는 JSON body
+    lang = None
+    if req.method == "POST":
+        try:
+            data = await req.json()
+            lang = (data or {}).get("lang")
+        except Exception:
+            lang = None
+    if not lang:
+        lang = req.query_params.get("lang") or "ko"
     if lang not in LANGS:
         lang = "ko"
     with db_session() as c:
         c.execute("UPDATE users SET lang=? WHERE id=?", (lang, u["id"]))
     req.session["lang"] = lang
+    # GET 이면 이전 페이지로 303 리다이렉트(주소창/북마크 UX), POST 는 JSON
+    if req.method == "GET":
+        back = req.headers.get("referer") or "/home"
+        return RedirectResponse(back, status_code=303)
     return JSONResponse({"ok": True, "lang": lang})
 
 

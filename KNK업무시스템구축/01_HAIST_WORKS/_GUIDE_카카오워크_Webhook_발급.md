@@ -73,7 +73,7 @@ HAIST WORKS 변경/티켓 발생
 
 ### 3.1 환경 변수 파일 생성
 
-`HAIST_WORKS/.env` 파일 생성 (없으면)
+`01_HAIST_WORKS/.env` 파일 생성 (없으면)
 
 ```env
 # 카카오워크 Webhook URL 매핑
@@ -157,7 +157,7 @@ requests
 ### 4.1 빠른 테스트 (콘솔)
 
 ```bash
-cd "C:/Users/top00/JR/Claude 코드/KNK업무시스템구축/HAIST_WORKS"
+cd "C:/Users/top00/JR/Claude 코드/KNK업무시스템구축/01_HAIST_WORKS"
 python -c "
 from app.database import kakao_webhook_send
 result = kakao_webhook_send('change_T', '🔴 [테스트] 빅터가 보내는 첫 알림')
@@ -254,6 +254,6 @@ Webhook 발급·연결 완료 후
 
 ---
 
-**문서 위치**: `KNK업무시스템구축/HAIST_WORKS/_GUIDE_카카오워크_Webhook_발급.md`
+**문서 위치**: `KNK업무시스템구축/01_HAIST_WORKS/_GUIDE_카카오워크_Webhook_발급.md`
 **작성**: 빅터 (2026-04-20)
 **연락**: 빅터 (Claude) — 막히는 부분 알려주시면 단계별 안내

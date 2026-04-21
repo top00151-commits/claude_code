@@ -71,7 +71,7 @@
   <tbody>
     {% for ch in changes %}
     <tr style="font-size:13px;cursor:pointer;" onclick="location.href='/changes/{{ ch.id }}'" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''">
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-family:'JetBrains Mono',Consolas,monospace;font-size:12px;color:#A5282C;font-weight:700;">{{ ch.change_no }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-family:var(--font-mono);font-size:12px;color:#A5282C;font-weight:700;">{{ ch.change_no }}</td>
       <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
         {% if ch.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">🔴 긴급</span>
         {% elif ch.urgency == '예약' %}<span style="background:#E3F2FD;color:#1565C0;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">예약</span>
@@ -81,7 +81,7 @@
         <span style="background:#F3F4F6;color:#374151;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;">{{ ch.change_type }}</span>
       </td>
       <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-weight:600;">{{ ch.title }}</td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-family:'JetBrains Mono',Consolas,monospace;font-size:11px;color:#6B7280;">{{ ch.target_label or '-' }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ ch.target_label or '-' }}</td>
       <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:12px;">{{ ch.author_name }}</td>
       <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
         {% if ch.impact_count > 0 %}
@@ -99,7 +99,7 @@
         {% elif ch.status == '취소' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">취소</span>
         {% else %}<span style="color:#9CA3AF;font-size:11px;">{{ ch.status }}</span>{% endif %}
       </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:11px;color:#6B7280;font-family:'JetBrains Mono',Consolas,monospace;">{{ ch.created_at[:10] if ch.created_at else '-' }}</td>
+      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:11px;color:#6B7280;font-family:var(--font-mono);">{{ ch.created_at[:10] if ch.created_at else '-' }}</td>
     </tr>
     {% else %}
     <tr><td colspan="9" style="padding:40px 20px;text-align:center;color:#6B7280;">

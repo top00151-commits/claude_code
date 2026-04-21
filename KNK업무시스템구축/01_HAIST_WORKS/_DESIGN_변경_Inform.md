@@ -473,6 +473,6 @@ Research 세션이 v2 작성 완료하면 이 청사진을 v2와 대조
 
 ---
 
-**문서 위치**: `KNK업무시스템구축/HAIST_WORKS/_DESIGN_변경_Inform.md`
+**문서 위치**: `KNK업무시스템구축/01_HAIST_WORKS/_DESIGN_변경_Inform.md`
 **작성**: 2026-04-20 (메인 세션 빅터, B안 진행)
 **다음 검증**: Research 세션 v2 도착 후 대조

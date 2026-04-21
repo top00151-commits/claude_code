@@ -11,7 +11,7 @@
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
     <div style="flex:1;min-width:300px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ ticket.ticket_no }}</span>
+        <span style="font-family:var(--font-mono);font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ ticket.ticket_no }}</span>
         {% if ticket.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 긴급</span>
         {% elif ticket.urgency == '지연' %}<span style="background:#FEF3C7;color:#92400E;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">⏰ 지연</span>{% endif %}
         <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;">{{ ticket.category }}</span>

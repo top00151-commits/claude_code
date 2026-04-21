@@ -111,7 +111,7 @@
   <tbody>
     {% for p in matrix %}
     <tr style="font-size:13px;cursor:pointer;border-bottom:1px solid #F1F2F4;" onclick="location.href='/progress/{{ p.id }}'" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''">
-      <td style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#A5282C;font-weight:800;">{{ p.mgmt_code }}</td>
+      <td style="padding:10px;font-family:var(--font-mono);font-size:12px;color:#A5282C;font-weight:800;">{{ p.mgmt_code }}</td>
       <td style="padding:10px;">
         <div style="font-weight:600;">{{ p.name }}</div>
         <div style="font-size:11px;color:#9CA3AF;">{{ p.customer_name or '-' }} · {% if p.biz_div == 'T' %}검사기{% elif p.biz_div == 'M' %}자동화{% endif %}</div>
@@ -137,7 +137,7 @@
         {% endif %}
       </td>
       {% endfor %}
-      <td style="padding:10px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#6B7280;">{{ p.due_date or '-' }}</td>
+      <td style="padding:10px;text-align:center;font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ p.due_date or '-' }}</td>
     </tr>
     {% else %}
     <tr><td colspan="{{ PHASE_DEFS|length + 4 }}" style="padding:40px;text-align:center;color:#6B7280;">
