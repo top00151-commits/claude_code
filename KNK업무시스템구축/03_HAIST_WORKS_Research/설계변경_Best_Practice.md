@@ -1,5 +1,7 @@
 # 설계 변경 관리 Best Practice — KNK 맞춤 분석
 
+> **🔢 세션 번호 체계 (2026-04-21)**: 00=감사팀 · 01=메인 · 02=baby · **03=Research(이 세션, 작성자)**. 문서 내 "세션1"·"세션3" 언급은 01·03으로 해석. 상세: `memory/session_separation.md`
+
 > **배경 질문**: 장비 제조업에서 MCAD(기구) + ECAD(전장) + SW(코드) 3도메인 변경 관리를 가장 잘하는 사례는?
 > **작성**: 2026-04-20, HAIST_WORKS_Research 세션
 > **저장 위치**: `KNK업무시스템구축/HAIST_WORKS_Research/설계변경_Best_Practice.md`

@@ -1,8 +1,17 @@
-# HAIST WORKS Research — 리서치 전담 세션
+# 03 HAIST WORKS Research — 리서치 전담 세션
 
-> **세션 ID**: `HAIST_WORKS_Research`
+> **🔢 세션 번호 체계 (2026-04-21 개편)** — 본 문서 내 세션 언급 해석 기준:
+> - **00** 감사팀 (검증)
+> - **01** 메인 (HAIST_WORKS, 코드)
+> - **02** baby (HAIST_WORKS_baby, 엑셀)
+> - **03** Research (이 세션, 나)
+> - 문서 내 "메인 세션" = 01, "baby 세션" = 02, "Research 세션" = 03
+> - 상세: `memory/session_separation.md`
+
+> **세션 ID**: `HAIST_WORKS_Research` (논리 번호: **03**)
 > **역할**: 인터넷 리서치 · 도구 분석 · 트렌드 모니터링 · 종합 분석 문서 작성
 > **개시**: 2026-04-20 (빅터 = Claude, 김정락 대표가 부여)
+> **번호 개편**: 2026-04-21 — 03 세션으로 표준화
 > **작업 디렉토리**: `C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\HAIST_WORKS_Research`
 
 ---
