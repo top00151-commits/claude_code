@@ -858,11 +858,8 @@ def init_db():
                 ("notify_channel",       "off",     "알림 채널: off (기본 — 토큰 미설정 시 안전) / hiworks (메신저) / smtp (메일)"),
             ]:
                 c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
-            # 마이그레이션: 기존 카카오워크 키가 있으면 description만 갱신 (값 유지)
-            c.execute(
-                "UPDATE app_settings SET description=? WHERE key='kakaowork_webhook'",
-                ("(미사용) 카카오워크는 하이웍스 메신저 API로 대체됨 — 필요 시 수동 활성",),
-            )
+            # 2026-04-22 대표 결재(D01-06): 카카오워크 완전 폐기 — kakaowork_webhook 키 완전 삭제
+            c.execute("DELETE FROM app_settings WHERE key='kakaowork_webhook'")
         except Exception:
             pass
         # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
@@ -3898,28 +3895,23 @@ def set_setting(key: str, value: str, user_id: int = None, description: str = No
 
 
 # =====================================================
-# 통합 푸시 알림 — 하이웍스 메신저 우선 (카카오워크 제거)
-# 정책 (system_scope_policy.md): 카카오워크 추가 비용·도구 회피.
-#   세션3 가이드 기반 → 하이웍스 메신저 알림 API로 통합.
+# 통합 푸시 알림 — 하이웍스 메신저 (2026-04-22 대표 결재: 카카오워크 완전 폐기)
 # =====================================================
-def kakao_webhook_send(channel_id: str, text: str, blocks: list = None) -> bool:
-    """[DEPRECATED 함수명 유지 — 호출처 호환]
-    실제 발송은 하이웍스 메신저로 라우팅.
+def hiworks_notify(channel_id: str, text: str) -> bool:
+    """하이웍스 메신저 알림 발송.
 
     notify_channel 설정에 따라:
       - 'hiworks' (기본): 하이웍스 메신저 API
       - 'off':            개발 모드 (콘솔 로그만)
       - 'smtp':           Phase 2 SMTP 메일 발송 (TBD)
     """
-    channel = get_setting("notify_channel", "hiworks").lower()
+    channel = get_setting("notify_channel", "off").lower()
     if channel == "off":
         print(f"[NOTIFY OFF] channel={channel_id} text={text[:80]}")
         return True
     if channel == "hiworks":
         try:
             from .hiworks_client import notify as hw_notify
-            # channel_id (예: 'team_5')는 하이웍스 수신자 매핑용 — 향후 확장
-            # 지금은 단순 텍스트 발송 (수신자 미지정 시 기본 채널)
             return hw_notify(text, recipients=channel_id)
         except Exception as e:
             print(f"[HIWORKS NOTIFY ERR] {e}")

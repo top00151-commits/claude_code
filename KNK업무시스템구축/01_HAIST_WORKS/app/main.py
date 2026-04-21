@@ -113,12 +113,17 @@ def require(req: Request, roles=None):
 def can_use_logistics(user) -> bool:
     """HAIST WORKS 물류 모듈 접근 권한.
     - admin / ceo / executive: 항상 허용
+    - team_id == 7 (제조팀): 읽기 허용 (2026-04-22 대표 결재 D01-02 안B)
     - 그 외: users.can_use_logistics 플래그가 1일 때만
     """
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
     if role in ("admin", "ceo", "executive"):
+        return True
+    # 제조팀(team_id=7) 읽기 허용 — 쓰기·발주·단가수정은 구매팀 권한 그대로 유지
+    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
+    if team_id == 7:
         return True
     flag = user.get("can_use_logistics") if isinstance(user, dict) else user["can_use_logistics"]
     return bool(flag)
@@ -198,7 +203,8 @@ async def root(req: Request):
 # =====================================================
 @app.get("/home", response_class=HTMLResponse)
 @app.get("/home/{sel_date}", response_class=HTMLResponse)
-async def home_page(req: Request, sel_date: str = "", tab: str = ""):
+async def home_page(req: Request, sel_date: str = "", tab: str = "",
+                    no_perm: str = ""):  # D01-NEW-BANNER: 권한 없음 안내 파라미터
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -365,7 +371,8 @@ async def home_page(req: Request, sel_date: str = "", tab: str = ""):
         all_delay=all_delay, all_tasks=all_tasks,
         logi_parts_stats=logi_parts_stats, logi_proj_stats=logi_proj_stats,
         hw_counts=hw_counts,
-        tab=tab,  # 05 디자인팀 3탭
+        tab=tab,           # 05 디자인팀 3탭
+        no_perm=no_perm,   # D01-NEW-BANNER: 권한 없음 안내 배너
     )
 
 
@@ -2406,7 +2413,7 @@ from .database import (changes_list, change_get, change_create,
                         change_unread_count, change_recent_count,
                         CHANGE_TYPES, CHANGE_URGENCIES, CHANGE_STATUSES,
                         CHANGE_SOURCES,
-                        detect_impact_teams, kakao_webhook_send)
+                        detect_impact_teams, hiworks_notify)
 
 
 @app.get("/changes", response_class=HTMLResponse)
@@ -2533,7 +2540,7 @@ def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
 
     # 1. high 강도 → 하이웍스 메신저 즉시 푸시 (토큰 없으면 silent skip)
     for imp in high_teams:
-        kakao_webhook_send(  # 함수명 호환 유지 — 내부적으로 하이웍스 메신저 라우팅
+        hiworks_notify(
             channel_id=f"team_{imp['impact_team_id']}",
             text=f"{icon} [{change_type}·직접영향] {title}\n변경번호: {change_no}\n작성자: {author['name']}\n→ /changes/{cid}",
         )
@@ -2811,7 +2818,7 @@ async def tickets_new_submit(
         ticket = ticket_get(tid)
         if ticket and ticket.get("recipient_team_id"):
             icon = "🔴" if urgency == "긴급" else "🎫"
-            kakao_webhook_send(  # 함수명 호환 — 내부 하이웍스 메신저로 라우팅
+            hiworks_notify(
                 channel_id=f"team-{ticket['recipient_team_id']}",
                 text=f"{icon} [{category}] {title}\n티켓: {ticket_no}\n요청: {u['name']}\n→ http://localhost:8081/tickets/{tid}",
             )
@@ -2960,9 +2967,8 @@ async def issues_new_submit(
         try:
             issue = issue_get(iid)
             recip = f"team-{issue['owner_team_id']}" if issue and issue.get("owner_team_id") else None
-            from .database import kakao_webhook_send as _push
             icon = "🚨" if severity == "치명" else "⚠️"
-            _push(
+            hiworks_notify(
                 channel_id=recip or "all",
                 text=(f"{icon} [{severity}·{issue_type}] {title}\n"
                       f"이슈번호: {issue_no}\n고객사: {customer_name or '-'}\n"

@@ -2,7 +2,7 @@
 
 > **목적**: v2 종합설계분석 문서 받자마자 즉시 코드 작성 시작할 수 있도록 사전 설계
 > **설문 매핑**: 1순위 ② / 6팀 공통 (전장·SW·제조2·가공·검사기·품질) + **제조2 실제 사고 사례**
-> **흡수 패턴**: Microsoft ECN + Slack Workflow Conditional Branching + Variables + 카카오워크 Webhook
+> **흡수 패턴**: Microsoft ECN + Slack Workflow Conditional Branching + Variables + 하이웍스 메신저 알림
 > **5대 원칙 적용**: ✅ 워크플로우 우선 / ✅ 매뉴얼 0 / ✅ 변수 흡수 / ✅ 자동 정리 / ✅ 기존 도구 공존
 > **작성**: 2026-04-20 (메인 세션 빅터)
 
@@ -13,16 +13,16 @@
 ### 시나리오 A — 설계자 (전장설계팀 김형렬)
 ```
 1. 기구 설계가 변경됨을 인지
-2. HAIST_WORKS 사이드바 → "변경 알림" 클릭 (또는 카톡에서 우클릭 → "HAIST 변경 등록")
+2. HAIST_WORKS 사이드바 → "변경 알림" 클릭
 3. 4단계 폼 따라 입력 (Step 1 종류 → 2 대상 → 3 전후 → 4 확인)
 4. 영향 부서 자동 표시됨 (전장·SW·가공·제조1·2·구매)
 5. [공지하기] 클릭
-6. 즉시: 영향 부서 카톡 + 메일 + web 알림
+6. 즉시: 영향 부서 하이웍스 메신저 + 메일 + web 알림
 ```
 
 ### 시나리오 B — 받는 사람 (제조기술2팀 임택훈)
 ```
-1. 카카오워크 채널 알림 수신: "🔴 변경: 검사기 001T2604 기구 도면 변경"
+1. 하이웍스 메신저 알림 수신: "🔴 변경: 검사기 001T2604 기구 도면 변경"
 2. 알림 클릭 → web 변경 상세 페이지
 3. 변경 전/후 도면 비교 (큰 이미지 + 다운로드)
 4. 영향 평가 입력 (선택) + [확인했습니다] 클릭
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS changes (
     urgency         TEXT DEFAULT '일반',           -- 긴급/일반/예약
     author_id       INTEGER NOT NULL REFERENCES users(id),
     status          TEXT DEFAULT '공지중',         -- 작성중/공지중/확인완료/취소
-    notified_at     TEXT,                         -- 카톡·메일 발송 시각
+    notified_at     TEXT,                         -- 하이웍스 메신저·메일 발송 시각
     completed_at    TEXT,                         -- 모든 영향자 확인 시각
     created_at      TEXT DEFAULT (datetime('now','localtime')),
     updated_at      TEXT DEFAULT (datetime('now','localtime'))
@@ -195,7 +195,7 @@ async def changes_new_submit(req, change_type, target_kind, target_id,
     3. change_reads 행 미리 생성 (영향 부서원 전원)
     4. 알림 발송:
        - web: notifications 테이블에 등록
-       - 카카오워크: webhook (config로 채널 매핑)
+       - 하이웍스 메신저: notify_channel 설정으로 발송
        - 메일: 하이웍스 SMTP (요약)
        - 게시판: 자동 글 등록 (해당 부서 게시판)
     """
@@ -269,7 +269,7 @@ async def api_recent_changes(req, scope="me", days=7):
 │  │             │    │             │                  │
 │  └─────────────┘    └─────────────┘                  │
 │                                                     │
-│  긴급도: ○ 일반  ○ 긴급 (즉시 카톡 푸시)             │
+│  긴급도: ○ 일반  ○ 긴급 (즉시 하이웍스 메신저 푸시)             │
 └─────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────┐
@@ -287,9 +287,9 @@ async def api_recent_changes(req, scope="me", days=7):
 │                                                     │
 │  알림 채널:                                          │
 │  ☑ HAIST WORKS web 알림                             │
-│  ☑ 카카오워크 채널 푸시                             │
+│  ☑ 하이웍스 메신저 푸시                             │
 │  ☑ 하이웍스 메일 (요약)                             │
-│  ☐ 카카오톡 알림톡 (긴급만)                         │
+│  ☐ 추가 알림 채널 (긴급만 — Phase 2)                         │
 │                                                     │
 │  [공지하기] (큰 빨간 버튼)                           │
 └─────────────────────────────────────────────────────┘
@@ -368,14 +368,11 @@ def notify_change_impacts(change_id: int):
                 body=change["title"],
                 link=f"/changes/{change_id}",
             )
-            # 2. 카카오워크 webhook (config 기반)
-            kakao_webhook_send(
-                channel_id=user.get("kakaowork_channel_id"),
+            # 2. 하이웍스 메신저 알림 (2026-04-22 대표 결재: 카카오워크 완전 폐기)
+            hiworks_notify(
+                channel_id=f"team_{imp['impact_team_id']}",
                 text=f"🔴 [{change['change_type']}] {change['title']}\n{HOST}/changes/{change_id}",
             )
-            # 3. 긴급 시 카카오톡 알림톡
-            if change["urgency"] == "긴급":
-                kakao_alimtalk_send(user_phone=user["phone"], template="change_urgent", vars={...})
 
     # 4. 게시판 자동 글 (이력 보존)
     board_post_create(
@@ -416,7 +413,7 @@ def notify_change_impacts(change_id: int):
 | 2. 매뉴얼 0 | ✅ | Step별 안내, 영향 부서 자동 미리보기, 빈 입력 시 예시 표시 |
 | 3. 변수 흡수 | ✅ | 긴급 토글, 영향 부서 수동 +/-, 모든 입력 후수정 가능 |
 | 4. 자동 정리 | ✅ | 채번 자동, 영향 부서 자동, 알림 채널 자동 분기, 게시판 자동 글 |
-| 5. 기존 도구 공존 | ✅ | 카카오워크 + 하이웍스 메일 + 게시판 동시 (대체 X) |
+| 5. 기존 도구 공존 | ✅ | 하이웍스 메신저 + 하이웍스 메일 + 게시판 동시 |
 
 ---
 
@@ -429,10 +426,10 @@ def notify_change_impacts(change_id: int):
 | 3 | 템플릿 — `changes_list.html`, `change_form.html` (4-step), `change_detail.html` | 60분 |
 | 4 | 사이드바 메뉴 + 홈 KPI 추가 | 15분 |
 | 5 | 알림 발송 로직 (web + 게시판 자동 글) | 30분 |
-| 6 | 카카오워크 webhook config (Phase 2 — 사용자에게 webhook URL 필요) | 30분 |
+| 6 | 하이웍스 메신저 토큰 설정 (admin 설정에서 hiworks_messenger_token 입력) | 10분 |
 | 7 | 검증 + 테스트 데이터 + 커밋 | 30분 |
 
-**총 예상**: 약 3시간 30분 (카카오워크 webhook은 사용자가 webhook URL 발급 후 추가)
+**총 예상**: 약 3시간 (하이웍스 메신저 토큰은 admin 설정에서 입력)
 
 ---
 
@@ -444,7 +441,7 @@ Research 세션이 v2 작성 완료하면 이 청사진을 v2와 대조
 |---|---|
 | 5대 원칙 정의가 v2와 일치하는가 | (확인) |
 | ECN 패턴 흡수 방식이 v2 권고와 일치하는가 | (확인) |
-| 카카오워크 Webhook 패턴이 v2 권고와 일치하는가 | (확인) |
+| 하이웍스 메신저 알림 패턴이 v2 권고와 일치하는가 | (확인) |
 | 영향 부서 자동 판별 규칙이 12부서 매핑과 정확한가 | (확인) |
 | 우선순위 (1주차)가 v2 로드맵과 일치하는가 | (확인) |
 
@@ -462,9 +459,9 @@ Research 세션이 v2 작성 완료하면 이 청사진을 v2와 대조
 ### 11.2 영향 부서 자동 판별 함수 (database.py에 추가)
 - `detect_impact_teams(change_type, biz_div)` → 단순 dict lookup
 
-### 11.3 카카오워크 Webhook 더미 함수 (config.py 또는 main.py)
-- 실제 URL은 사용자에게 받아야 하므로 우선 stub
-- `kakao_webhook_send(channel_id, text)` → print 또는 log만
+### 11.3 하이웍스 메신저 알림 함수 (database.py)
+- 토큰은 admin 설정에서 hiworks_messenger_token 입력
+- `hiworks_notify(channel_id, text)` → notify_channel 설정에 따라 자동 분기
 
 ### 11.4 변경 알림 통합 함수 (notify_change_impacts)
 - 위 § 6 코드 — 미리 작성해두고 Research 세션 v2 받으면 즉시 호출
