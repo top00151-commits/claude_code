@@ -110,6 +110,24 @@ def require(req: Request, roles=None):
     return u
 
 
+def role_home(user) -> str:
+    """ESC-02 (감사보고_04 2026-04-22): role별 홈 URL 반환.
+    require() 실패 + 로그인 상태인 경우 /login 대신 적절한 홈으로 리다이렉트.
+    - ceo/admin/executive → /dashboard
+    - leader → /team
+    - member/그 외 → /home
+    """
+    if not user:
+        return "/login"
+    role = (user.get("role") or "member") if isinstance(user, dict) else str(user["role"])
+    if role in ("ceo", "admin", "executive"):
+        return "/dashboard"
+    elif role == "leader":
+        return "/team"
+    else:
+        return "/home"
+
+
 def can_use_logistics(user) -> bool:
     """HAIST WORKS 물류 모듈 접근 권한.
     - admin / ceo / executive: 항상 허용
@@ -1374,9 +1392,13 @@ async def team_page(req: Request, sel_date: str = ""):
 # =====================================================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(req: Request):
+    # ESC-02: 로그인 상태 구분 — 미인증→/login, 권한 부족→role 홈
+    u_any = get_user(req)
+    if not u_any:
+        return RedirectResponse("/login", 303)
     u = require(req, ["ceo", "admin", "executive"])
     if not u:
-        return RedirectResponse("/login", 303)
+        return RedirectResponse(role_home(u_any), 303)
     today = date.today()
     mon = (today - timedelta(days=today.weekday())).isoformat()
     sun = (today - timedelta(days=today.weekday()) + timedelta(days=6)).isoformat()

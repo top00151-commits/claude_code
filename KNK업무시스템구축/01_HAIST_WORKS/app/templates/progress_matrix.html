@@ -94,8 +94,14 @@
   <span><span style="display:inline-block;width:14px;height:14px;background:#F3F4F6;border-radius:3px;vertical-align:middle;"></span> 보류/미설정</span>
 </div>
 
+<!-- 05 디자인팀 제안#02: 뷰 전환 토글 (매트릭스 ↔ 카드) + 모바일 반응형 — 2026-04-22 -->
+<div style="display:flex;gap:6px;margin-bottom:10px;" id="progViewToggle">
+  <button class="pvtab pvtab-on" data-view="matrix" onclick="switchProgressView('matrix')">📊 매트릭스</button>
+  <button class="pvtab" data-view="card" onclick="switchProgressView('card')">🃏 카드뷰</button>
+</div>
+
 <!-- 매트릭스 테이블 (가로 스크롤) -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow-x:auto;">
+<div id="progMatrixView" style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow-x:auto;">
 <table style="width:100%;border-collapse:collapse;min-width:1400px;">
   <thead style="background:#F9FAFB;position:sticky;top:0;">
     <tr style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.04em;">
@@ -149,5 +155,70 @@
 </div>
 
 <p style="text-align:right;margin-top:8px;font-size:12px;color:#6B7280;">총 {{ matrix|length }}건 · 셀 클릭 시 공정 상세</p>
+
+<!-- 카드 뷰 (모바일 기본, 데스크톱 선택) -->
+<div id="progCardView" style="display:none;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+    {% for p in matrix %}
+    <div class="prog-card" onclick="location.href='/progress/{{ p.id }}'">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:#A5282C;">{{ p.mgmt_code }}</span>
+        <span style="font-size:20px;font-weight:800;color:{% if p.delayed_count > 0 %}#A5282C{% else %}#1A1A1A{% endif %};">{{ p.overall_pct }}%</span>
+      </div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:2px;">{{ p.name }}</div>
+      <div style="font-size:11px;color:#9CA3AF;margin-bottom:6px;">{{ p.customer_name or '-' }} · {% if p.biz_div == 'T' %}검사기{% elif p.biz_div == 'M' %}자동화{% endif %}</div>
+      {% if p.delayed_count > 0 %}<div style="font-size:11px;color:#A5282C;font-weight:700;margin-bottom:6px;">⚠ 지연 {{ p.delayed_count }}건</div>{% endif %}
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;">
+        {% for ph in p.phases %}
+        {% if ph %}
+          {% set ph_st = ph.status %}
+          {% if ph_st == '진행' %}<span style="padding:2px 5px;border-radius:4px;font-size:10px;font-weight:700;background:#FFF8E1;color:#F57F17;" title="{{ ph_st }} {{ ph.progress_pct|int }}%">{{ ph.progress_pct|int }}%</span>
+          {% elif ph_st == '완료' %}<span style="padding:2px 5px;border-radius:4px;font-size:10px;font-weight:700;background:#E8F5E9;color:#2E7D32;" title="{{ ph_st }}">✓</span>
+          {% elif ph_st == '지연' %}<span style="padding:2px 5px;border-radius:4px;font-size:10px;font-weight:700;background:#FFEBEE;color:#A5282C;" title="{{ ph_st }}">⚠</span>
+          {% else %}<span style="padding:2px 5px;border-radius:4px;font-size:10px;background:#F3F4F6;color:#9CA3AF;">-</span>
+          {% endif %}
+        {% else %}
+          <span style="padding:2px 5px;border-radius:4px;font-size:10px;background:#F9FAFB;color:#D1D5DB;border:1px dashed #E5E7EB;">·</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+      <div style="font-size:11px;color:#6B7280;">납기: {{ p.due_date or '-' }}</div>
+    </div>
+    {% else %}
+    <div style="grid-column:1/-1;padding:40px;text-align:center;color:#6B7280;">관리코드 발급된 프로젝트가 없습니다.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+/* 진행률 뷰 토글 버튼 */
+.pvtab { padding:8px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#64748B;transition:all 0.15s; }
+.pvtab:hover { background:#F1F5F9; }
+.pvtab-on { background:#fff;border-color:#A5282C;color:#A5282C; }
+/* 카드 뷰 호버 */
+.prog-card { background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s; }
+.prog-card:hover { border-color:#A5282C;box-shadow:0 2px 8px rgba(165,40,44,0.08); }
+/* 모바일: 카드 뷰 자동 전환, 토글 숨김 */
+@media (max-width: 767px) {
+  #progMatrixView { display:none !important; }
+  #progCardView { display:block !important; }
+  #progViewToggle { display:none !important; }
+}
+</style>
+<script>
+function switchProgressView(view) {
+  var mat = document.getElementById('progMatrixView');
+  var card = document.getElementById('progCardView');
+  if (mat) mat.style.display = (view === 'matrix') ? '' : 'none';
+  if (card) card.style.display = (view === 'card') ? '' : 'none';
+  document.querySelectorAll('.pvtab').forEach(function(b){ b.classList.toggle('pvtab-on', b.dataset.view === view); });
+  try { localStorage.setItem('progressView_v1', view); } catch(e) {}
+}
+(function(){
+  var saved = '';
+  try { saved = localStorage.getItem('progressView_v1') || ''; } catch(e) {}
+  if (saved && saved !== 'matrix') switchProgressView(saved);
+})();
+</script>
 
 {% endblock %}

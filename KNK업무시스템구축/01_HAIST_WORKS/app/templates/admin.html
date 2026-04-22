@@ -9,50 +9,35 @@
   </div>
 </div>
 
+{# 05 디자인팀 제안#04: 3탭 분리 (대시보드 / 데이터 / 보안) — 2026-04-22 #}
+<div class="admin-tab-nav" role="tablist" style="display:flex;gap:4px;margin:0 0 16px;border-bottom:2px solid #E5E7EB;padding-bottom:0;">
+  <button class="atab atab-on" data-tab="dashboard" onclick="switchAdminTab('dashboard')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:700;font-size:14px;cursor:pointer;color:#6B7280;">
+    📊 {{ i.tab_dashboard|default('대시보드') }}
+  </button>
+  <button class="atab" data-tab="data" onclick="switchAdminTab('data')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:600;font-size:14px;cursor:pointer;color:#6B7280;">
+    📥 {{ i.tab_data|default('데이터') }}
+  </button>
+  {% if user.role in ['ceo','admin'] %}
+  <button class="atab" data-tab="security" onclick="switchAdminTab('security')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:600;font-size:14px;cursor:pointer;color:#6B7280;">
+    🔐 {{ i.tab_security|default('보안') }}
+  </button>
+  {% endif %}
+</div>
+
+<style>
+.atab-on { color:#A5282C !important; border-bottom-color:#A5282C !important; }
+.adm-panel { display:none; }
+.adm-panel.adm-panel-on { display:block; }
+</style>
+
+<!-- ===================== 대시보드 탭 ===================== -->
+<div id="adm-tab-dashboard" class="adm-panel adm-panel-on">
+
 <div class="kpi-grid">
   <div class="kpi-card kpi-primary"><div class="kpi-num">{{ teams|length }}</div><div class="kpi-lab">{{ i.admin_teams|default('팀') }}</div></div>
   <div class="kpi-card"><div class="kpi-num">{{ users|length }}</div><div class="kpi-lab">{{ i.admin_users|default('사용자') }}</div></div>
   <div class="kpi-card"><div class="kpi-num">{{ projects|length }}</div><div class="kpi-lab">{{ i.admin_projects|default('프로젝트') }}</div></div>
   <div class="kpi-card"><div class="kpi-num">{{ customers|length }}</div><div class="kpi-lab">{{ i.admin_customers|default('고객사') }}</div></div>
-</div>
-
-{% if user.role in ['ceo','admin'] %}
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">
-  <a href="/admin/settings" style="display:block;background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;">
-    <div style="font-weight:800;font-size:15px;color:#312E81;">⚙️ 시스템 설정</div>
-    <div style="font-size:12px;color:#4338CA;margin-top:2px;">하이웍스 URL/토큰, 알림 채널 마스터 스위치</div>
-  </a>
-  <a href="/admin/health" style="display:block;background:linear-gradient(135deg,#F0FDF4,#DCFCE7);border:1px solid #86EFAC;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;">
-    <div style="font-weight:800;font-size:15px;color:#166534;">🩺 시스템 건전성 점검</div>
-    <div style="font-size:12px;color:#16A34A;margin-top:2px;">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에</div>
-  </a>
-</div>
-
-<div class="section-head"><h2>🔐 초기 비밀번호 일괄 재생성</h2></div>
-<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
-  <div style="font-size:13px;color:var(--g)">
-    모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 Excel을 다운로드합니다.
-    <br>⚠ <b>주의</b>: 재생성 즉시 기존 비밀번호는 무효화됩니다. 실사용 킥오프 시 1회만 실행하세요.
-  </div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <button class="btn-primary" onclick="regenPw()">🔁 비밀번호 재생성 + Excel 다운로드</button>
-    <a href="/admin/download-passwords" class="btn-sm">📥 기존 파일 다시 받기</a>
-    <span id="pwResult" style="font-size:13px;color:var(--g)"></span>
-  </div>
-</div>
-{% endif %}
-
-<div class="section-head"><h2>📥 관리코드발행목록 업로드</h2></div>
-<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
-  <div style="font-size:13px;color:var(--g)">
-    <b>업무 고도화작업 (START-END)</b>에서 받은 <b>관리코드발행목록.xls</b> 파일을 업로드하면,
-    M(자동화)·T(검사기) 두 시트가 자동 파싱되어 프로젝트·고객사가 일괄 등록/갱신됩니다.
-  </div>
-  <form id="mgmtForm" onsubmit="return uploadMgmt(event)" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="file" name="file" accept=".xls,.xlsx" required>
-    <button type="submit" class="btn-primary">업로드 & 임포트</button>
-    <span id="mgmtResult" style="font-size:13px;color:var(--g)"></span>
-  </form>
 </div>
 
 <div class="section-head"><h2>{{ i.admin_teams|default('팀') }} ({{ teams|length }})</h2></div>
@@ -94,7 +79,7 @@
   <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
 </form>
 <table class="mini-tbl">
-  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_login_id|default('로그인ID') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.admin_rank|default('직급') }}</th><th>{{ i.admin_role|default('역할') }}</th><th>{{ i.admin_state|default('상태') }}</th><th style="color:#A5282C">물류</th></tr></thead>
+  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_login_id|default('로그인ID') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.admin_rank|default('직급') }}</th><th>{{ i.admin_role|default('역할') }}</th><th>{{ i.admin_state|default('상태') }}</th><th title="자재 모듈 접근 권한">자재 권한</th></tr></thead>
   <tbody>
     {% for u2 in users %}
     <tr>
@@ -173,7 +158,89 @@
   </tbody>
 </table>
 
+</div><!-- // 대시보드 탭 -->
+
+
+<!-- ===================== 데이터 탭 ===================== -->
+<div id="adm-tab-data" class="adm-panel">
+
+<div class="section-head"><h2>📥 관리코드발행목록 업로드</h2></div>
+<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
+  <div style="font-size:13px;color:var(--g)">
+    <b>업무 고도화작업 (START-END)</b>에서 받은 <b>관리코드발행목록.xls</b> 파일을 업로드하면,
+    M(자동화)·T(검사기) 두 시트가 자동 파싱되어 프로젝트·고객사가 일괄 등록/갱신됩니다.
+  </div>
+  <form id="mgmtForm" onsubmit="return uploadMgmt(event)" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="file" name="file" accept=".xls,.xlsx" required>
+    <button type="submit" class="btn-primary">업로드 & 임포트</button>
+    <span id="mgmtResult" style="font-size:13px;color:var(--g)"></span>
+  </form>
+</div>
+
+</div><!-- // 데이터 탭 -->
+
+
+<!-- ===================== 보안 탭 (ceo/admin 전용) ===================== -->
+{% if user.role in ['ceo','admin'] %}
+<div id="adm-tab-security" class="adm-panel">
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">
+  <a href="/admin/settings" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
+    <div style="font-weight:800;font-size:15px;color:#1E293B;">⚙️ 시스템 설정</div>
+    <div style="font-size:12px;color:#64748B;margin-top:4px;">하이웍스 URL/토큰, 알림 채널 마스터 스위치</div>
+  </a>
+  <a href="/admin/health" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
+    <div style="font-weight:800;font-size:15px;color:#1E293B;">🩺 시스템 건전성 점검</div>
+    <div style="font-size:12px;color:#64748B;margin-top:4px;">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에</div>
+  </a>
+</div>
+
+<div class="section-head"><h2>🔐 초기 비밀번호 일괄 재생성</h2></div>
+<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
+  <div style="font-size:13px;color:var(--g)">
+    모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 Excel을 다운로드합니다.
+    <br><strong style="color:#A5282C;">⚠ 주의</strong>: 재생성 즉시 기존 비밀번호는 무효화됩니다. 실사용 킥오프 시 1회만 실행하세요.
+  </div>
+  {# 2단계 확인 UI — 05 디자인팀 제안#04-D, OPS-008 보안 강화 #}
+  <div id="pwStep1">
+    <button class="btn-primary" onclick="showPwConfirm()">🔁 비밀번호 재생성 + Excel 다운로드</button>
+    <a href="/admin/download-passwords" class="btn-sm" style="margin-left:8px;">📥 기존 파일 다시 받기</a>
+  </div>
+  <div id="pwStep2" style="display:none;background:#FFF3F3;border:1px solid #FECACA;border-radius:10px;padding:16px;width:100%;max-width:520px;">
+    <div style="font-weight:800;font-size:14px;color:#A5282C;margin-bottom:8px;">⚠ 전체 비밀번호 재생성 확인</div>
+    <div style="font-size:13px;color:#6B7280;margin-bottom:12px;">이 작업은 전체 활성 사용자의 비밀번호를 즉시 변경합니다. 취소할 수 없습니다.</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+      <input type="checkbox" id="pwConfirmChk" onchange="document.getElementById('pwConfirmBtn').disabled=!this.checked;">
+      위 내용을 이해했으며, 실사용 킥오프 단계에서 의도적으로 실행합니다.
+    </label>
+    <div style="display:flex;gap:8px;">
+      <button id="pwConfirmBtn" class="btn-primary" disabled onclick="execPwRegen()">✅ 확인 — 재생성 실행</button>
+      <button class="btn-sm" onclick="document.getElementById('pwStep2').style.display='none';document.getElementById('pwStep1').style.display='';document.getElementById('pwConfirmChk').checked=false;document.getElementById('pwConfirmBtn').disabled=true;">취소</button>
+    </div>
+    <span id="pwResult" style="font-size:13px;color:var(--g);display:block;margin-top:8px;"></span>
+  </div>
+</div>
+
+</div><!-- // 보안 탭 -->
+{% endif %}
+
+
 <script>
+/* ---- 탭 전환 ---- */
+function switchAdminTab(tab) {
+  document.querySelectorAll('.adm-panel').forEach(p => { p.classList.remove('adm-panel-on'); p.style.display = 'none'; });
+  document.querySelectorAll('.atab').forEach(b => b.classList.remove('atab-on'));
+  var panel = document.getElementById('adm-tab-' + tab);
+  if (panel) { panel.classList.add('adm-panel-on'); panel.style.display = ''; }
+  document.querySelectorAll('.atab[data-tab="' + tab + '"]').forEach(function(b){ b.classList.add('atab-on'); });
+  try { localStorage.setItem('adminTab_v2', tab); } catch(e) {}
+}
+(function(){
+  var saved = '';
+  try { saved = localStorage.getItem('adminTab_v2') || ''; } catch(e) {}
+  if (saved) { switchAdminTab(saved); }
+})();
+
 function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'flex':'none';}
 async function post(url,fd){const r=await fetch(url,{method:'POST',body:fd});if(r.ok)location.reload();else alert('{{ i.save_fail|default("저장 실패") }}');return false;}
 function saveUser(e){e.preventDefault();return post('/api/admin/user',new FormData(e.target));}
@@ -186,19 +253,27 @@ async function toggleLogi(userId, on){
 }
 function saveProject(e){e.preventDefault();return post('/api/admin/project',new FormData(e.target));}
 function saveCustomer(e){e.preventDefault();return post('/api/admin/customer',new FormData(e.target));}
-async function regenPw(){
-  if(!confirm('정말 전체 사용자의 비밀번호를 재생성하시겠습니까?\n기존 비밀번호는 즉시 무효화됩니다.')) return;
-  const r=document.getElementById('pwResult');
-  r.textContent='⏳ 재생성 중...';
-  const resp=await fetch('/api/admin/regenerate-passwords',{method:'POST'});
-  const j=await resp.json();
+
+/* ---- 비번 재생성 2단계 확인 ---- */
+function showPwConfirm(){
+  document.getElementById('pwStep1').style.display = 'none';
+  document.getElementById('pwStep2').style.display = '';
+}
+async function execPwRegen(){
+  const r = document.getElementById('pwResult');
+  r.textContent = '⏳ 재생성 중...';
+  const resp = await fetch('/api/admin/regenerate-passwords', {method:'POST'});
+  const j = await resp.json();
   if(j.ok){
-    r.innerHTML=`✅ ${j.count}명 재생성 완료 · 다운로드 중...`;
-    setTimeout(()=>{window.location.href='/admin/download-passwords';},500);
+    r.innerHTML = `✅ ${j.count}명 재생성 완료 · 다운로드 중...`;
+    setTimeout(()=>{ window.location.href='/admin/download-passwords'; }, 500);
   } else {
-    r.innerHTML=`❌ ${j.error||'실패'}`;
+    r.innerHTML = `❌ ${j.error||'실패'}`;
+    document.getElementById('pwStep1').style.display = '';
+    document.getElementById('pwStep2').style.display = 'none';
   }
 }
+
 async function uploadMgmt(e){
   e.preventDefault();
   const r=document.getElementById('mgmtResult');

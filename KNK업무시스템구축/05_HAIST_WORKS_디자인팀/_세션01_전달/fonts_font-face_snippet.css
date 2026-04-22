@@ -1,0 +1,51 @@
+/* ==========================================================
+   Pretendard Variable — SIL OFL 1.1
+   https://github.com/orioncactus/pretendard
+   License: static/fonts/OFL.txt  (동봉)
+   01 세션: 본 블록을 static/style.css 최상단에 붙여넣기
+   ========================================================== */
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;      /* variable font full range */
+  font-style: normal;
+  font-display: swap;        /* 로딩 중엔 폴백으로 먼저 그림 — 빈 화면 방지 */
+  src: url("/static/fonts/PretendardVariable.woff2") format("woff2-variations");
+}
+
+/* ==========================================================
+   공통 폰트 스택
+   ========================================================== */
+:root {
+  --font-family:
+    "Pretendard Variable",
+    "Pretendard",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    sans-serif;
+
+  --font-mono:
+    "JetBrains Mono",
+    "Consolas",
+    "Courier New",
+    monospace;
+}
+
+/* ==========================================================
+   body·입력 요소 일괄 적용
+   ========================================================== */
+html, body,
+input, button, textarea, select,
+kbd, code, pre {
+  font-family: var(--font-family);
+}
+
+/* monospace 가 필요한 곳만 별도 클래스 사용 */
+.mono,
+code, pre, kbd {
+  font-family: var(--font-mono);
+}

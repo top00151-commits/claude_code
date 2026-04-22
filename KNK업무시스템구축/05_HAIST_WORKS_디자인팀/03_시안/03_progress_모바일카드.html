@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 #03 — /progress 모바일·반응형 뷰
+  상위 정책: 04_라이선스_상표권_정책.md
+  - 외부 폰트 CDN: 없음 (시스템 폴백 + 번들 Pretendard 가정)
+  - 외부 아이콘 팩: 없음 (Lucide inline SVG, ISC)
+  - 외부 이미지: 없음
+  - 타사 브랜드명: 없음
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>진행률 시안 — 반응형 / HAIST WORKS 05 디자인팀</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+/* ===== Topbar (재사용) ===== */
+.topbar { height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--ink-200); display: flex; align-items: center; padding: 0 var(--s-5); gap: var(--s-4); position: sticky; top: 0; z-index: 10; }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-lg); color: var(--knk-red); }
+.brand-badge { font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--knk-red-bg); color: var(--knk-red); padding: 2px 6px; border-radius: var(--r-pill); }
+.spacer { flex: 1; }
+
+.page { max-width: 1280px; margin: 0 auto; padding: var(--s-5); }
+
+/* ===== Page head ===== */
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-4); flex-wrap: wrap; }
+.page-title h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.page-title .hint-chip { font-size: var(--fs-xs); color: var(--ink-500); background: var(--ink-100); padding: 2px 10px; border-radius: var(--r-pill); font-weight: var(--fw-semi); }
+.help-btn { background: transparent; border: 1px solid var(--ink-200); color: var(--ink-500); font-size: var(--fs-xs); padding: 4px 10px; border-radius: var(--r-sm); }
+.help-btn:hover { border-color: var(--knk-red); color: var(--knk-red); }
+.page-sub { color: var(--ink-500); font-size: var(--fs-sm); margin-top: 4px; }
+
+/* ===== Inline coach-mark (제안 C) ===== */
+.coach {
+  background: #FFF8E1; border: 1px solid #FDE68A; color: #78350F;
+  padding: var(--s-3) var(--s-4); border-radius: var(--r-md);
+  margin-bottom: var(--s-4); font-size: var(--fs-sm);
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.coach strong { color: #92400E; font-weight: var(--fw-bold); }
+.coach .close { margin-left: auto; background: transparent; color: #78350F; opacity: .6; font-size: 18px; padding: 0 var(--s-2); }
+.coach .close:hover { opacity: 1; }
+
+/* ===== View toggle (제안 A) ===== */
+.view-toggle { display: inline-flex; background: var(--ink-100); border-radius: var(--r-sm); padding: 2px; gap: 2px; margin-right: var(--s-2); }
+.view-toggle button { padding: 6px 14px; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-500); border-radius: 4px; }
+.view-toggle button.on { background: var(--ink-900); color: #fff; }
+
+/* ===== Filter bar (제안 D) — 기본 2 요소 + 고급 토글 ===== */
+.filters { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--s-4); }
+.filters input, .filters select {
+  padding: 8px 12px; border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm); font-size: var(--fs-sm);
+  background: var(--bg-card);
+}
+.filters input { flex: 1; min-width: 180px; }
+.filters .adv-toggle {
+  font-size: var(--fs-xs); color: var(--ink-500);
+  padding: 6px 12px; border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm); background: var(--bg-card);
+}
+.filters .adv-toggle:hover { border-color: var(--ink-400); }
+.filters-adv { display: none; width: 100%; padding: var(--s-3); background: var(--ink-100); border-radius: var(--r-sm); gap: var(--s-2); flex-wrap: wrap; }
+.filters-adv.open { display: flex; }
+
+/* ===== Legend (제안 B — 3색) ===== */
+.legend {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-4); font-size: var(--fs-xs); color: var(--ink-700);
+  display: flex; gap: var(--s-4); flex-wrap: wrap; align-items: center;
+}
+.legend strong { color: var(--ink-900); }
+.legend .swatch {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.legend .dot {
+  display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+}
+.legend .dot.plan { background: var(--ink-200); }
+.legend .dot.prog { background: #FEF3C7; border: 1px solid var(--st-progress); }
+.legend .dot.done { background: #D1FAE5; border: 1px solid var(--st-done); }
+.legend .badge-delay {
+  background: var(--st-delay); color: #fff; font-size: 9px; font-weight: var(--fw-bold);
+  padding: 1px 6px; border-radius: var(--r-pill);
+}
+
+/* =====================================================
+   Matrix View (데스크톱 우선, ≥1024px 자동)
+   ===================================================== */
+.view-matrix { display: block; }
+.matrix-wrap {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-lg); overflow-x: auto;
+}
+.matrix-wrap table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+.matrix-wrap th {
+  padding: var(--s-3) var(--s-2); text-align: left;
+  font-size: var(--fs-xs); color: var(--ink-500); font-weight: var(--fw-semi);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--ink-100); border-bottom: 1px solid var(--ink-200);
+  position: sticky; top: 0;
+}
+.matrix-wrap th.center { text-align: center; }
+.matrix-wrap td { padding: var(--s-3) var(--s-2); font-size: var(--fs-sm); border-bottom: 1px solid var(--ink-100); }
+.matrix-wrap tr:hover td { background: var(--bg-page); cursor: pointer; }
+.mgmt-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs); color: var(--knk-red); font-weight: var(--fw-bold);
+}
+.proj-name { font-weight: var(--fw-semi); }
+.proj-meta { font-size: var(--fs-xs); color: var(--ink-400); margin-top: 2px; }
+.overall { text-align: center; font-weight: var(--fw-bold); font-size: var(--fs-md); }
+.overall .delay-note { font-size: 9px; color: var(--st-delay); font-weight: var(--fw-semi); display: block; }
+
+/* Cell (제안 B — 단순화: 퍼센트 + 상태 배경) */
+.cell { padding: 5px 3px; }
+.cell-inner {
+  border-radius: var(--r-sm); padding: 6px 4px; font-size: var(--fs-xs);
+  font-weight: var(--fw-bold); text-align: center;
+  position: relative;
+}
+.cell-inner.plan { background: var(--ink-100); color: var(--ink-400); }
+.cell-inner.prog { background: #FEF3C7; color: #92400E; }
+.cell-inner.done { background: #D1FAE5; color: #065F46; }
+.cell-inner.none { background: transparent; color: var(--ink-300); }
+.cell-inner .delay-dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--st-delay); border: 1.5px solid #fff;
+}
+.due { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-500); text-align: center; }
+
+/* =====================================================
+   Card View (모바일 기본, <1024px 자동)
+   ===================================================== */
+.view-cards { display: none; }
+.proj-card {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+.proj-card:hover { border-color: var(--ink-300); }
+.pc-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: var(--s-3); margin-bottom: var(--s-3);
+}
+.pc-title { flex: 1; }
+.pc-title h3 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semi); }
+.pc-meta { font-size: var(--fs-xs); color: var(--ink-500); margin-top: 2px; }
+.pc-overall {
+  text-align: right; flex-shrink: 0;
+}
+.pc-overall .pct { font-size: var(--fs-xl); font-weight: var(--fw-bold); color: var(--ink-900); }
+.pc-overall .due { font-size: var(--fs-xs); color: var(--ink-500); margin-top: 2px; font-family: var(--font-mono); }
+
+/* Phase mini-bars (12 phases horizontal scrollable if needed) */
+.phases {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 3px;
+  margin-bottom: var(--s-3);
+}
+.phase-cell {
+  height: 36px; border-radius: var(--r-sm);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-size: 9px; font-weight: var(--fw-bold);
+  position: relative; cursor: pointer;
+}
+.phase-cell .pc-pct { font-size: var(--fs-xs); line-height: 1; }
+.phase-cell .pc-label { font-size: 8px; opacity: .7; margin-top: 1px; line-height: 1; }
+.phase-cell.plan { background: var(--ink-100); color: var(--ink-400); }
+.phase-cell.prog { background: #FEF3C7; color: #92400E; }
+.phase-cell.done { background: #D1FAE5; color: #065F46; }
+.phase-cell.none { background: transparent; color: var(--ink-300); border: 1px dashed var(--ink-200); }
+.phase-cell .delay-dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--st-delay); border: 1.5px solid #fff;
+}
+.phase-labels {
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  gap: 3px; font-size: 9px; color: var(--ink-400);
+  text-align: center; margin-bottom: var(--s-2);
+}
+
+.pc-tags { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.tag-mini {
+  font-size: var(--fs-xs); padding: 2px 8px; border-radius: var(--r-pill);
+  font-weight: var(--fw-semi); background: var(--ink-100); color: var(--ink-700);
+}
+.tag-mini.delay { background: #FEE2E2; color: #991B1B; }
+
+/* =====================================================
+   Responsive auto-switch
+   ===================================================== */
+@media (max-width: 1023px) {
+  .view-matrix { display: none; }
+  .view-cards { display: block; }
+  .view-toggle [data-v="matrix"] { opacity: .5; }
+}
+@media (min-width: 1024px) {
+  .view-matrix { display: block; }
+  .view-cards { display: none; }
+}
+/* manual override when user clicks toggle */
+body.force-matrix .view-matrix { display: block !important; }
+body.force-matrix .view-cards { display: none !important; }
+body.force-cards .view-matrix { display: none !important; }
+body.force-cards .view-cards { display: block !important; }
+
+/* Note panel */
+.note-panel { position: fixed; bottom: var(--s-4); right: var(--s-4); max-width: 340px; background: var(--ink-900); color: #fff; border-radius: var(--r-md); padding: var(--s-4); font-size: var(--fs-xs); line-height: 1.6; box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 100; }
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-panel li { margin-bottom: 4px; }
+.note-close { position: absolute; top: 6px; right: 8px; color: #fff; opacity: .5; font-size: 18px; line-height: 1; }
+.note-close:hover { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안 #03</span>
+  </div>
+  <div class="spacer"></div>
+  <span style="font-size:var(--fs-xs);color:var(--ink-500);">브라우저 폭 줄여 보기 → 카드 뷰 자동 전환</span>
+</header>
+
+<div class="page">
+
+  <!-- Page head -->
+  <div class="page-head">
+    <div class="page-title">
+      <h1>
+        진행률 대시보드
+        <span class="hint-chip">관리코드 × 12공정</span>
+        <button class="help-btn" onclick="toggleCoach()">? 안내</button>
+      </h1>
+      <div class="page-sub">매일 아침 1순위 — 프로젝트 공정 상태 한눈에</div>
+    </div>
+    <div>
+      <div class="view-toggle" role="group" aria-label="뷰 전환">
+        <button class="on" data-v="matrix" onclick="setView('matrix')">매트릭스</button>
+        <button data-v="cards" onclick="setView('cards')">카드</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Coach mark (제안 C) -->
+  <div class="coach" id="coach">
+    💡 <span><strong>행 클릭</strong> = 프로젝트 상세 · <strong>셀 색</strong> = 상태 (회색 예정 / 노랑 진행 / 초록 완료) · <strong>빨간 점</strong> = 지연</span>
+    <button class="close" onclick="document.getElementById('coach').style.display='none'">×</button>
+  </div>
+
+  <!-- Filter (제안 D) -->
+  <form class="filters" onsubmit="event.preventDefault()">
+    <input type="text" placeholder="고객사·프로젝트 검색">
+    <select>
+      <option>전체 사업부</option>
+      <option>검사기 (T)</option>
+      <option>자동화 (M)</option>
+    </select>
+    <button type="button" class="adv-toggle" onclick="this.nextElementSibling.classList.toggle('open')">고급 필터 ▾</button>
+    <div class="filters-adv">
+      <select>
+        <option>전체 상태</option>
+        <option>진행중</option>
+        <option>수주예정</option>
+        <option>납품완료</option>
+      </select>
+      <button type="button" class="adv-toggle">초기화</button>
+    </div>
+  </form>
+
+  <!-- Legend (제안 B — 3색 + 지연 배지) -->
+  <div class="legend">
+    <strong>범례</strong>
+    <span class="swatch"><span class="dot plan"></span>예정</span>
+    <span class="swatch"><span class="dot prog"></span>진행</span>
+    <span class="swatch"><span class="dot done"></span>완료</span>
+    <span class="swatch"><span class="badge-delay">!</span>지연</span>
+  </div>
+
+  <!-- ============================================
+       Matrix View (desktop)
+       ============================================ -->
+  <div class="view-matrix">
+    <div class="matrix-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>관리코드</th>
+            <th>프로젝트</th>
+            <th class="center">전체</th>
+            <th class="center">수주</th>
+            <th class="center">발주</th>
+            <th class="center">입고</th>
+            <th class="center">기구</th>
+            <th class="center">전장</th>
+            <th class="center">SW</th>
+            <th class="center">조립</th>
+            <th class="center">검수</th>
+            <th class="center">시운전</th>
+            <th class="center">출하</th>
+            <th class="center">설치</th>
+            <th class="center">인수</th>
+            <th class="center">납기</th>
+          </tr>
+        </thead>
+        <tbody id="matrixBody">
+          <!-- generated by JS from sample data -->
+        </tbody>
+      </table>
+    </div>
+    <p style="text-align:right;margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--ink-400);">총 6건 · 행 클릭 = 프로젝트 상세</p>
+  </div>
+
+  <!-- ============================================
+       Card View (mobile)
+       ============================================ -->
+  <div class="view-cards">
+    <div class="phase-labels" style="padding:0 var(--s-4);margin-bottom:var(--s-2);">
+      <span>수주</span><span>발주</span><span>입고</span><span>기구</span><span>전장</span><span>SW</span>
+      <span>조립</span><span>검수</span><span>시운전</span><span>출하</span><span>설치</span><span>인수</span>
+    </div>
+    <div id="cardsBody">
+      <!-- generated by JS from sample data -->
+    </div>
+  </div>
+
+</div>
+
+<!-- Design notes overlay -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 시안 #03 주석</h4>
+  <ul>
+    <li><b>뷰 자동 전환</b>: 폭 &lt;1024px 카드, ≥1024 매트릭스 (F-20 해결)</li>
+    <li><b>셀 과밀 해소</b>: 색 5→3, 팀약자 제거, 지연은 배지 (F-21 해결)</li>
+    <li><b>첫 사용 모달 → 코치 배너</b>: 시야 안 가림 (F-22 해결)</li>
+    <li><b>필터 2단 분리</b>: 기본 2 + 고급 토글</li>
+    <li><b>JetBrains Mono → <code>var(--font-mono)</code></b> 토큰화 (정책 O-2)</li>
+    <li>브라우저 폭을 F12로 줄여보면 카드 뷰 확인 가능</li>
+  </ul>
+</div>
+
+<script>
+/* =========================================================
+   Sample data (실데이터 가정, 시드 기반 유사 패턴)
+   ========================================================= */
+const PHASES = ['수주','발주','입고','기구','전장','SW','조립','검수','시운전','출하','설치','인수'];
+
+const data = [
+  {
+    mgmtCode: 'T25-001', name: 'A사 검사기 1호기', customer: 'A전자', div: '검사기', due: '2026-06-30',
+    overall: 62, delayed: 1,
+    phases: [100,100,100,80,60,40,0,0,0,0,0,0],
+    phaseStatus: ['done','done','done','prog','prog','prog','plan','plan','plan','plan','plan','plan'],
+    delayIdx: [5],
+  },
+  {
+    mgmtCode: 'T25-002', name: 'B사 검사기 2호기', customer: 'B모터스', div: '검사기', due: '2026-07-15',
+    overall: 42, delayed: 0,
+    phases: [100,100,80,50,30,0,0,0,0,0,0,0],
+    phaseStatus: ['done','done','prog','prog','prog','plan','plan','plan','plan','plan','plan','plan'],
+    delayIdx: [],
+  },
+  {
+    mgmtCode: 'M25-001', name: 'C사 자동화 라인 #1', customer: 'C산업', div: '자동화', due: '2026-05-30',
+    overall: 88, delayed: 0,
+    phases: [100,100,100,100,100,100,100,100,90,70,30,0],
+    phaseStatus: ['done','done','done','done','done','done','done','done','prog','prog','prog','plan'],
+    delayIdx: [],
+  },
+  {
+    mgmtCode: 'M25-002', name: 'D사 물류 자동화', customer: 'D화학', div: '자동화', due: '2026-08-15',
+    overall: 23, delayed: 2,
+    phases: [100,60,30,0,0,0,0,0,0,0,0,0],
+    phaseStatus: ['done','prog','prog','plan','plan','plan','plan','plan','plan','plan','plan','plan'],
+    delayIdx: [1, 2],
+  },
+  {
+    mgmtCode: 'T25-003', name: 'E사 반도체 검사기', customer: 'E세미콘', div: '검사기', due: '2026-09-01',
+    overall: 15, delayed: 0,
+    phases: [100,40,0,0,0,0,0,0,0,0,0,0],
+    phaseStatus: ['done','prog','plan','plan','plan','plan','plan','plan','plan','plan','plan','plan'],
+    delayIdx: [],
+  },
+  {
+    mgmtCode: 'M25-003', name: 'F사 조립 로봇 3호', customer: 'F기공', div: '자동화', due: '2026-12-15',
+    overall: 8, delayed: 0,
+    phases: [60,0,0,0,0,0,0,0,0,0,0,0],
+    phaseStatus: ['prog','plan','plan','plan','plan','plan','plan','plan','plan','plan','plan','plan'],
+    delayIdx: [],
+  },
+];
+
+/* =========================================================
+   Render Matrix View
+   ========================================================= */
+function renderMatrix() {
+  const tbody = document.getElementById('matrixBody');
+  tbody.innerHTML = data.map(p => {
+    const cells = p.phases.map((pct, idx) => {
+      const cls = p.phaseStatus[idx];
+      const delayed = p.delayIdx.includes(idx);
+      return `<td class="cell">
+        <div class="cell-inner ${cls}" title="${PHASES[idx]}: ${pct}%${delayed?' (지연)':''}">
+          ${pct > 0 ? pct + '%' : '-'}
+          ${delayed ? '<span class="delay-dot"></span>' : ''}
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr>
+      <td><span class="mgmt-code">${p.mgmtCode}</span></td>
+      <td>
+        <div class="proj-name">${p.name}</div>
+        <div class="proj-meta">${p.customer} · ${p.div}</div>
+      </td>
+      <td class="overall">
+        ${p.overall}%
+        ${p.delayed > 0 ? `<span class="delay-note">⚠ 지연 ${p.delayed}</span>` : ''}
+      </td>
+      ${cells}
+      <td class="due">${p.due}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* =========================================================
+   Render Card View
+   ========================================================= */
+function renderCards() {
+  const container = document.getElementById('cardsBody');
+  container.innerHTML = data.map(p => {
+    const cells = p.phases.map((pct, idx) => {
+      const cls = p.phaseStatus[idx];
+      const delayed = p.delayIdx.includes(idx);
+      return `<div class="phase-cell ${cls}" title="${PHASES[idx]}: ${pct}%${delayed?' (지연)':''}">
+        <span class="pc-pct">${pct > 0 ? pct : '-'}</span>
+        ${pct > 0 ? '<span class="pc-label">'+PHASES[idx].slice(0,2)+'</span>' : ''}
+        ${delayed ? '<span class="delay-dot"></span>' : ''}
+      </div>`;
+    }).join('');
+    return `<div class="proj-card">
+      <div class="pc-head">
+        <div class="pc-title">
+          <h3>${p.name}</h3>
+          <div class="pc-meta"><span class="mgmt-code">${p.mgmtCode}</span> · ${p.customer} · ${p.div}</div>
+        </div>
+        <div class="pc-overall">
+          <div class="pct">${p.overall}%</div>
+          <div class="due">${p.due}</div>
+        </div>
+      </div>
+      <div class="phases">${cells}</div>
+      <div class="pc-tags">
+        ${p.delayed > 0 ? `<span class="tag-mini delay">⚠ 지연 ${p.delayed}</span>` : ''}
+        <span class="tag-mini">공정 ${p.phases.filter(x=>x>0).length}/12 착수</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+renderMatrix();
+renderCards();
+
+/* =========================================================
+   View toggle (manual override)
+   ========================================================= */
+function setView(v) {
+  document.body.classList.remove('force-matrix', 'force-cards');
+  document.body.classList.add('force-' + v);
+  document.querySelectorAll('.view-toggle button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === v);
+  });
+}
+
+function toggleCoach() {
+  const c = document.getElementById('coach');
+  c.style.display = c.style.display === 'none' ? 'flex' : 'none';
+}
+</script>
+
+</body>
+</html>

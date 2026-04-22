@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 — 외부 자산 0건 (CDN·폰트·이미지 없음)
+  상위 정책: 04_라이선스_상표권_정책.md
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상태 버튼 Before / After · HAIST WORKS 시안</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+.page { max-width: 960px; margin: 0 auto; padding: var(--s-8) var(--s-5); }
+h1 { font-size: var(--fs-xl); font-weight: var(--fw-bold); margin: 0 0 var(--s-2); }
+.sub { color: var(--ink-500); font-size: var(--fs-sm); margin-bottom: var(--s-8); }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+.panel { background: #fff; border: 1px solid var(--ink-200); border-radius: var(--r-md); padding: var(--s-5); }
+.panel h2 { margin: 0 0 var(--s-2); font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.panel h2 .bad { color: var(--st-delay); }
+.panel h2 .good { color: var(--st-done); }
+.panel p { color: var(--ink-500); font-size: var(--fs-sm); margin: 0 0 var(--s-4); }
+
+.demo-card {
+  background: var(--bg-page);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  display: flex; align-items: center; gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+.demo-card:last-child { margin-bottom: 0; }
+.demo-title { flex: 1; font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+
+/* BEFORE: cycle button */
+.cycle-btn {
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  background: var(--st-progress); color: #fff;
+}
+
+/* AFTER: segment */
+.status-seg {
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.status-seg button {
+  padding: 5px 10px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: var(--ink-500);
+  border-radius: 4px;
+  transition: all .12s;
+}
+.status-seg button:hover { background: #fff; color: var(--ink-900); }
+.status-seg button.on-progress { background: var(--st-progress); color: #fff; }
+.status-seg button.on-done     { background: var(--st-done); color: #fff; }
+.status-seg button.on-delay    { background: var(--st-delay); color: #fff; }
+.status-seg button.on-wait     { background: var(--st-wait); color: #fff; }
+
+.callout {
+  background: #FFF8E1; border-left: 3px solid #F59E0B;
+  padding: var(--s-3) var(--s-4); margin-top: var(--s-4);
+  font-size: var(--fs-xs); color: #78350F;
+  border-radius: var(--r-sm);
+}
+.callout b { color: #92400E; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>상태 버튼 — Before / After</h1>
+  <p class="sub">홈 화면 나의 업무 카드의 상태 변경 UI. 04 OPS-005 와 유사한 "실수 시 복귀 피로" 패턴. (H-4 제안)</p>
+
+  <div class="grid">
+
+    <!-- BEFORE -->
+    <div class="panel">
+      <h2><span class="bad">✗ Before</span> — cycle 버튼</h2>
+      <p>클릭할 때마다 진행중→완료→지연→대기→진행중 순환. 의도한 상태로 가려면 최대 3회 클릭.</p>
+
+      <div class="demo-card">
+        <button class="cycle-btn">진행중</button>
+        <div class="demo-title">4월 4주차 관리팀 주간보고 초안</div>
+      </div>
+      <div class="demo-card">
+        <button class="cycle-btn" style="background:var(--st-done)">완료</button>
+        <div class="demo-title">비품 재고 엑셀 업데이트</div>
+      </div>
+
+      <div class="callout">
+        <b>문제:</b> P1 엄주영(신입)이 실수로 "진행중 → 완료" 눌렀다가 되돌리려면 "지연 → 대기 → 진행중" 3번 더 눌러야 함. 카드 여러 개 관리 시 피로 누적.
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="panel">
+      <h2><span class="good">✓ After</span> — 세그먼트 4버튼</h2>
+      <p>1-클릭으로 원하는 상태 직접 지정. 실수 복귀도 1-클릭.</p>
+
+      <div class="demo-card">
+        <div class="status-seg" role="group" aria-label="상태">
+          <button class="on-progress">진행중</button>
+          <button>완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div class="demo-title">4월 4주차 관리팀 주간보고 초안</div>
+      </div>
+      <div class="demo-card">
+        <div class="status-seg">
+          <button>진행중</button>
+          <button class="on-done">완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div class="demo-title">비품 재고 엑셀 업데이트</div>
+      </div>
+
+      <div class="callout" style="background:#D1FAE5;border-left-color:var(--st-done);color:#065F46;">
+        <b>효과:</b> 클릭 수 최대 3회 → 1회. 접근성(ARIA role=group) 개선. 시각적 상태 구분 명확 (색채 대비).
+      </div>
+    </div>
+
+  </div>
+
+  <p style="text-align:center;margin-top:var(--s-8);color:var(--ink-400);font-size:var(--fs-xs);">
+    05 디자인팀 · 2026-04-21 · 시안은 `_TO_01_디자인제안_01.md` 의 수용 범위 회신에 따라 코드화
+  </p>
+</div>
+
+<script>
+document.querySelectorAll('.status-seg').forEach(seg => {
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const map = {'진행중':'on-progress','완료':'on-done','지연':'on-delay','대기':'on-wait'};
+      seg.querySelectorAll('button').forEach(b => { b.className = ''; });
+      btn.className = map[btn.textContent.trim()] || '';
+    });
+  });
+});
+</script>
+</body>
+</html>

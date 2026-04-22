@@ -61,8 +61,7 @@
     <button class="chip chip-done" data-filter="완료">{{ i.kpi_done|default('완료') }} <b>{{ all_done }}</b></button>
     <button class="chip chip-wait" data-filter="대기">{{ i.status_wait|default('대기') }} <b>{{ all_wait }}</b></button>
     <button class="chip chip-cm" data-filter="hascm">{{ i.has_comment|default('💬 댓글있음') }}</button>
-    <button class="chip chip-rk" data-filter="hasrisk">⚠️ {{ i.risk_label|default('리스크') }}</button>
-    <button class="chip chip-ment" data-filter="mentionme">❓ {{ i.mention_me|default('내게 멘션') }}</button>
+    {# 05 디자인팀 제안#03: hasrisk·mentionme 칩은 alert-band와 중복 → 제거 (2026-04-22) #}
     <button class="chip chip-reset" data-filter="all" style="margin-left:auto">{{ i.reset_filter|default('↺ 초기화') }}</button>
   </div>
   <div class="filter-search">

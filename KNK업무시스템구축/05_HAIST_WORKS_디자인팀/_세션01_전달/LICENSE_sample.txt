@@ -1,0 +1,65 @@
+HAIST WORKS — Third-Party Licenses and Notices
+================================================
+
+본 HAIST WORKS 애플리케이션은 ㈜케이엔케이 (KNK) 내부 업무용 자산으로,
+외부 공개·재배포 목적의 소프트웨어가 아닙니다. 아래 고지는 본 프로그램이
+사용하는 제3자 오픈소스 자산의 라이선스 의무를 선제적으로 준수하기 위한
+문서입니다.
+
+------------------------------------------------------------
+
+[1] Pretendard Variable (번들 폰트)
+
+  SIL Open Font License, Version 1.1
+  Copyright (c) 2021-, Kil Hyung-jin (https://github.com/orioncactus/pretendard)
+
+  라이선스 원문: 본 프로젝트의 `static/fonts/OFL.txt` 참조
+  공식 저장소 : https://github.com/orioncactus/pretendard
+
+  본 폰트는 상업적 사용이 허용된 오픈소스 글꼴로,
+  SIL OFL 1.1 의 조건에 따라 HAIST WORKS 애플리케이션에
+  번들되어 배포·사용됩니다.
+
+------------------------------------------------------------
+
+[2] Lucide Icons (inline SVG)
+
+  ISC License
+  Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022.
+  All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+  공식 저장소: https://github.com/lucide-icons/lucide
+
+  본 애플리케이션은 Lucide 의 SVG path 데이터를 Jinja 템플릿 내에
+  inline 형태로 사용합니다.
+
+------------------------------------------------------------
+
+[3] 그 외 Fallback 으로 선언된 시스템 폰트
+
+  font-family 폴백 체인에 선언된 아래 폰트들은 운영체제가 기본 제공
+  하는 자산이며, 본 프로젝트가 번들·재배포하지 않습니다.
+
+  - "Segoe UI"            © Microsoft Corporation (Windows 내장)
+  - "Apple SD Gothic Neo" © Apple Inc. (macOS 내장)
+  - "Malgun Gothic"       © Microsoft Corporation (Windows 내장)
+  - "Roboto"              Apache 2.0 / Google LLC (Android 내장)
+
+  폴백 체인에 폰트명을 선언하는 것은 CSS 표준 용법이며,
+  상표권 침해에 해당하지 않습니다.
+
+------------------------------------------------------------
+
+[4] 자사 자산
+
+  - KNK 로고 및 모든 브랜드 이미지
+  - KNK RED 색상 `#A5282C`
+  - HAIST WORKS 애플리케이션 소스코드
+
+  위 자산은 ㈜케이엔케이의 자산이며, 본 애플리케이션 외부 사용에는
+  별도 허가가 필요합니다.
+
+------------------------------------------------------------
+
+문의: ㈜케이엔케이 (HAIST Innovation)
+최종 수정: 2026-04-21

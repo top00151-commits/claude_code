@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 #04 — /feed 부서 피드 단순화
+  상위 정책: 04_라이선스_상표권_정책.md
+  외부 자산 0건 (폰트 CDN · 이미지 · 아이콘팩 모두 없음).
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>부서 피드 시안 — HAIST WORKS 05 디자인팀</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+.topbar { height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--ink-200); display: flex; align-items: center; padding: 0 var(--s-5); gap: var(--s-4); position: sticky; top: 0; z-index: 20; }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-lg); color: var(--knk-red); }
+.brand-badge { font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--knk-red-bg); color: var(--knk-red); padding: 2px 6px; border-radius: var(--r-pill); }
+.spacer { flex: 1; }
+
+.page { max-width: 1280px; margin: 0 auto; padding: var(--s-5); }
+
+.page-head { margin-bottom: var(--s-4); }
+.page-head h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.page-sub { color: var(--ink-500); font-size: var(--fs-sm); margin-top: 2px; }
+
+/* ===== Alert summary (제안 A — 칩 제거, 요약만) ===== */
+.alert-sum {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-sm); color: var(--ink-700);
+  margin-bottom: var(--s-4);
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.alert-sum .title { font-weight: var(--fw-bold); color: var(--ink-900); }
+.alert-sum b { font-weight: var(--fw-bold); }
+.alert-sum .delay { color: var(--st-delay); }
+.alert-sum .risk { color: #92400E; }
+.alert-sum .all-green { color: var(--st-done); font-weight: var(--fw-bold); margin-left: auto; }
+
+/* ===== Sticky filter bar (제안 E) ===== */
+.sticky-bar {
+  position: sticky; top: 56px; z-index: 10;
+  background: var(--bg-page);
+  padding: var(--s-3) 0;
+  margin-bottom: var(--s-3);
+  border-bottom: 1px solid var(--ink-200);
+}
+.fb-row { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+
+/* View switcher (제안 D) — 리스트 강조, 기타 축약 */
+.view-primary {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  font-weight: var(--fw-bold); font-size: var(--fs-sm);
+  color: var(--ink-900); padding: 6px 10px;
+}
+.view-other-btn {
+  font-size: var(--fs-xs); color: var(--ink-500);
+  padding: 6px 12px; border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm); background: var(--bg-card);
+}
+.view-other-btn:hover { border-color: var(--ink-400); color: var(--ink-900); }
+
+/* Filter chips (제안 B — 4 + 더보기 5) */
+.chips { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.chip {
+  padding: 5px 12px; font-size: var(--fs-xs); font-weight: var(--fw-semi);
+  border: 1px solid var(--ink-200); background: var(--bg-card);
+  color: var(--ink-700); border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.chip:hover { border-color: var(--ink-400); }
+.chip.on {
+  background: var(--ink-900); color: #fff; border-color: var(--ink-900);
+}
+.chip b { font-weight: var(--fw-bold); opacity: .7; }
+.chip.on b { opacity: 1; }
+
+.chips-more { display: none; gap: var(--s-2); flex-wrap: wrap; padding-top: var(--s-2); border-top: 1px dashed var(--ink-200); margin-top: var(--s-2); width: 100%; }
+.chips-more.open { display: flex; }
+.more-toggle {
+  font-size: var(--fs-xs); color: var(--ink-500);
+  padding: 5px 12px; background: transparent; border: none;
+}
+.more-toggle:hover { color: var(--ink-900); }
+
+/* Search */
+.fsearch {
+  margin-left: auto; padding: 8px 12px; border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm); background: var(--bg-card);
+  font-size: var(--fs-sm); min-width: 240px;
+}
+
+/* ===== Dense list ===== */
+.dl-header {
+  display: grid; grid-template-columns: 80px 120px 1fr 180px 60px 140px;
+  gap: var(--s-3); padding: var(--s-2) var(--s-4);
+  background: var(--ink-100); border: 1px solid var(--ink-200); border-bottom: none;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  font-size: var(--fs-xs); color: var(--ink-500); font-weight: var(--fw-semi);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.dl-team {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-top: none; overflow: hidden;
+}
+.dl-team:last-of-type { border-radius: 0 0 var(--r-md) var(--r-md); }
+.dl-team-head {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-3) var(--s-4); cursor: pointer;
+  border-top: 1px solid var(--ink-100);
+  font-size: var(--fs-sm);
+}
+.dl-team-head:hover { background: var(--bg-page); }
+.dl-chevron { display: inline-block; transition: transform .15s; color: var(--ink-500); }
+.dl-team.collapsed .dl-chevron { transform: rotate(-90deg); }
+.dl-team-name { font-weight: var(--fw-bold); }
+.dl-my-team {
+  font-size: var(--fs-xs); color: var(--knk-red);
+  background: var(--knk-red-bg); padding: 1px 8px;
+  border-radius: var(--r-pill); font-weight: var(--fw-bold);
+}
+.dl-team-count {
+  font-size: var(--fs-xs); color: var(--ink-500);
+  background: var(--ink-100); padding: 1px 8px;
+  border-radius: var(--r-pill); font-weight: var(--fw-bold);
+}
+.dl-urgent-badge {
+  font-size: var(--fs-xs); color: #fff;
+  background: var(--st-delay); padding: 1px 8px;
+  border-radius: var(--r-pill); font-weight: var(--fw-bold);
+  margin-left: auto;
+}
+
+.dl-rows { display: block; }
+.dl-team.collapsed .dl-rows { display: none; }
+
+.dl-row {
+  display: grid; grid-template-columns: 80px 120px 1fr 180px 60px 140px;
+  gap: var(--s-3); padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--ink-100); font-size: var(--fs-sm);
+  cursor: pointer; align-items: center;
+}
+.dl-row:hover { background: var(--bg-page); }
+
+.dl-row .dl-title-txt { font-weight: var(--fw-semi); }
+.dl-row .dl-last {
+  display: block; font-size: var(--fs-xs); color: var(--ink-500);
+  margin-top: 2px;
+}
+.dl-rank { font-size: var(--fs-xs); color: var(--ink-400); margin-left: 4px; }
+.dl-pj { display: block; font-size: var(--fs-xs); color: var(--ink-500); }
+.dl-cu { display: block; font-size: var(--fs-xs); color: var(--ink-400); }
+
+/* Badges */
+.badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.bd {
+  font-size: 10px; padding: 1px 6px; border-radius: var(--r-pill);
+  font-weight: var(--fw-bold);
+}
+.bd-cm { background: #E0F2FE; color: #075985; }
+.bd-risk { background: #FEF3C7; color: #92400E; }
+.bd-q { background: #F3E8FF; color: #6B21A8; }
+
+/* ===== View other — 추가 뷰 패널 (간단) ===== */
+.other-views {
+  display: none; background: var(--bg-card);
+  border: 1px solid var(--ink-200); border-radius: var(--r-md);
+  padding: var(--s-4); margin-bottom: var(--s-3);
+}
+.other-views.open { display: block; }
+.other-views h3 { margin: 0 0 var(--s-3); font-size: var(--fs-sm); color: var(--ink-500); font-weight: var(--fw-semi); }
+.other-views .view-links { display: flex; gap: var(--s-2); }
+.other-views .view-links button {
+  padding: 8px 16px; border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm); background: var(--bg-card);
+  font-size: var(--fs-sm); font-weight: var(--fw-semi);
+}
+.other-views .view-links button:hover { border-color: var(--knk-red); color: var(--knk-red); }
+
+/* Note panel */
+.note-panel { position: fixed; bottom: var(--s-4); right: var(--s-4); max-width: 340px; background: var(--ink-900); color: #fff; border-radius: var(--r-md); padding: var(--s-4); font-size: var(--fs-xs); line-height: 1.6; box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 100; }
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-close { position: absolute; top: 6px; right: 8px; color: #fff; opacity: .5; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안 #04</span>
+  </div>
+  <div class="spacer"></div>
+  <span style="font-size:var(--fs-xs);color:var(--ink-500);">피드 단순화 — 제안 A~E 적용</span>
+</header>
+
+<div class="page">
+
+  <!-- Page head -->
+  <div class="page-head">
+    <h1>부서 피드</h1>
+    <div class="page-sub">2026-04-21 · 전사 액션 카드 보드</div>
+  </div>
+
+  <!-- Alert summary (제안 A — 칩 제거, 요약만) -->
+  <div class="alert-sum">
+    <span class="title">지금 봐야 할 것</span>
+    <span>지연 <b class="delay">3</b></span>
+    <span>·</span>
+    <span>리스크 <b class="risk">2</b></span>
+    <span>·</span>
+    <span>내게 멘션 <b>1</b></span>
+    <span style="margin-left:auto;font-size:var(--fs-xs);color:var(--ink-400);">아래 필터에서 클릭 ↓</span>
+  </div>
+
+  <!-- Sticky filter bar -->
+  <div class="sticky-bar">
+    <div class="fb-row">
+      <!-- View switcher (제안 D) -->
+      <span class="view-primary">☰ 리스트</span>
+      <button class="view-other-btn" onclick="document.getElementById('otherViews').classList.toggle('open')">
+        다른 방식으로 보기 ▾
+      </button>
+
+      <!-- Filter chips (제안 B — 4 + 더보기) -->
+      <div class="chips" style="flex:1">
+        <button class="chip on" data-filter="all">전체 <b>42</b></button>
+        <button class="chip" data-filter="지연">지연 <b>3</b></button>
+        <button class="chip" data-filter="진행중">진행중 <b>28</b></button>
+        <button class="chip" data-filter="완료">완료 <b>8</b></button>
+        <button class="more-toggle" onclick="document.getElementById('chipsMore').classList.toggle('open')">
+          더보기 ▾
+        </button>
+      </div>
+
+      <input class="fsearch" placeholder="🔍 제목·담당자·프로젝트 검색">
+    </div>
+
+    <div class="chips-more" id="chipsMore">
+      <button class="chip" data-filter="대기">대기 <b>3</b></button>
+      <button class="chip" data-filter="hascm">💬 댓글있음</button>
+      <button class="chip" data-filter="hasrisk">⚠️ 리스크</button>
+      <button class="chip" data-filter="mentionme">❓ 내게 멘션 <b>1</b></button>
+      <button class="chip" data-filter="all" style="margin-left:auto">↺ 초기화</button>
+    </div>
+  </div>
+
+  <!-- Other views panel (제안 D) -->
+  <div class="other-views" id="otherViews">
+    <h3>다른 방식으로 보기</h3>
+    <div class="view-links">
+      <button onclick="alert('칸반 뷰 프로토타입 — 시안에서는 생략')">▥ 칸반보드</button>
+      <button onclick="alert('캘린더 뷰 프로토타입 — 시안에서는 생략')">📅 캘린더</button>
+    </div>
+  </div>
+
+  <!-- Dense list -->
+  <div class="dl-header">
+    <div>상태</div>
+    <div>담당자</div>
+    <div>업무 내용</div>
+    <div>프로젝트·고객</div>
+    <div>시간</div>
+    <div>반응</div>
+  </div>
+
+  <!-- 내 팀 (기본 펼침 — 제안 C) -->
+  <div class="dl-team" data-team="관리팀">
+    <div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dl-chevron">▾</span>
+      <span class="dl-team-name">관리팀</span>
+      <span class="dl-my-team">내 팀</span>
+      <span class="dl-team-count">3</span>
+    </div>
+    <div class="dl-rows">
+      <div class="dl-row">
+        <div><span class="tag tag-progress">진행중</span></div>
+        <div>엄주영<span class="dl-rank">사원</span></div>
+        <div>
+          <span class="dl-title-txt">5월 워크숍 참석 메일 취합</span>
+          <span class="dl-last">↳ 김부장: "마감 금요일까지"</span>
+        </div>
+        <div>
+          <span class="dl-pj">📋 2026 상반기 운영</span>
+        </div>
+        <div>1.5h</div>
+        <div class="badges">
+          <span class="bd bd-cm">💬 2</span>
+        </div>
+      </div>
+      <div class="dl-row">
+        <div><span class="tag tag-done">완료</span></div>
+        <div>엄주영<span class="dl-rank">사원</span></div>
+        <div>
+          <span class="dl-title-txt">4월 4주차 관리팀 주간보고 초안</span>
+        </div>
+        <div>
+          <span class="dl-pj">📋 주간보고</span>
+        </div>
+        <div>2.0h</div>
+        <div class="badges">
+          <span class="bd bd-cm">💬 1</span>
+        </div>
+      </div>
+      <div class="dl-row">
+        <div><span class="tag tag-wait">대기</span></div>
+        <div>김부장<span class="dl-rank">부장</span></div>
+        <div>
+          <span class="dl-title-txt">신입 OT 자료 검토</span>
+        </div>
+        <div>—</div>
+        <div>1.0h</div>
+        <div class="badges"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 다른 팀 1 — 긴급건 있음 (접혀 있어도 뱃지 보임) -->
+  <div class="dl-team collapsed" data-team="설계팀">
+    <div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dl-chevron">▾</span>
+      <span class="dl-team-name">설계팀</span>
+      <span class="dl-team-count">8</span>
+      <span class="dl-urgent-badge">긴급 2</span>
+    </div>
+    <div class="dl-rows">
+      <div class="dl-row">
+        <div><span class="tag tag-delay">지연</span></div>
+        <div>윤경호<span class="dl-rank">팀장</span></div>
+        <div>
+          <span class="dl-title-txt">검사기 3호기 기구 설계 변경 반영</span>
+          <span class="dl-last">↳ 박대리: "전장팀 대기 중"</span>
+        </div>
+        <div>
+          <span class="dl-pj">📋 T25-001</span>
+          <span class="dl-cu">🏢 A전자</span>
+        </div>
+        <div>4.0h</div>
+        <div class="badges">
+          <span class="bd bd-cm">💬 5</span>
+          <span class="bd bd-risk">⚠️ 1</span>
+        </div>
+      </div>
+      <div class="dl-row">
+        <div><span class="tag tag-delay">지연</span></div>
+        <div>박대리<span class="dl-rank">대리</span></div>
+        <div>
+          <span class="dl-title-txt">BOM 변경 검토</span>
+        </div>
+        <div>
+          <span class="dl-pj">📋 T25-001</span>
+        </div>
+        <div>2.0h</div>
+        <div class="badges">
+          <span class="bd bd-cm">💬 3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 다른 팀 2 — 긴급 없음 -->
+  <div class="dl-team collapsed" data-team="제조기술1팀">
+    <div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dl-chevron">▾</span>
+      <span class="dl-team-name">제조기술1팀</span>
+      <span class="dl-team-count">6</span>
+    </div>
+    <div class="dl-rows">
+      <div class="dl-row">
+        <div><span class="tag tag-progress">진행중</span></div>
+        <div>마준영<span class="dl-rank">반장</span></div>
+        <div>
+          <span class="dl-title-txt">조립 치구 교체</span>
+        </div>
+        <div>—</div>
+        <div>3.0h</div>
+        <div class="badges"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 다른 팀 3 — 리스크 -->
+  <div class="dl-team collapsed" data-team="소프트웨어팀">
+    <div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dl-chevron">▾</span>
+      <span class="dl-team-name">소프트웨어팀</span>
+      <span class="dl-team-count">4</span>
+      <span class="dl-urgent-badge" style="background:#F59E0B">리스크 1</span>
+    </div>
+  </div>
+
+  <!-- 나머지 팀들 생략 (접혀 있음) -->
+  <div class="dl-team collapsed"><div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="dl-chevron">▾</span><span class="dl-team-name">구매팀</span><span class="dl-team-count">5</span></div></div>
+  <div class="dl-team collapsed"><div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="dl-chevron">▾</span><span class="dl-team-name">품질팀</span><span class="dl-team-count">4</span></div></div>
+  <div class="dl-team collapsed"><div class="dl-team-head" onclick="this.parentElement.classList.toggle('collapsed')"><span class="dl-chevron">▾</span><span class="dl-team-name">가공팀</span><span class="dl-team-count">3</span></div></div>
+
+</div>
+
+<!-- Design notes overlay -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 시안 #04 주석</h4>
+  <ul>
+    <li><b>alert-band 칩 3개 제거</b> → 요약 라인만 (F-14)</li>
+    <li><b>필터 칩 9→4</b> + 더보기 5 (클릭)</li>
+    <li><b>팀 collapse 통일</b>: 내 팀 펼침, 기타 접힘. 긴급건은 <b>뱃지</b>로 시각화 (F-13)</li>
+    <li><b>리스트 기본 강조</b>, 칸반·캘린더는 "다른 방식으로 보기 ▾"로 축약 (F-12)</li>
+    <li><b>필터바 sticky</b> — 긴 리스트에서도 필터 유지</li>
+    <li>외부 자산 0건</li>
+  </ul>
+</div>
+
+<script>
+/* Filter chip toggle */
+document.querySelectorAll('.chip').forEach(ch => {
+  ch.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+    ch.classList.add('on');
+    // (실제 필터 로직은 01 세션이 서버측 query param 또는 JS로 구현)
+  });
+});
+</script>
+
+</body>
+</html>
