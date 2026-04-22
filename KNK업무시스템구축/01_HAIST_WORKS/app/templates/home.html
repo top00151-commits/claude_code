@@ -97,7 +97,7 @@
   {% endif %}
 </div>
 
-<!-- ====== KPI Grid ====== -->
+<!-- ====== 집계 변수 (전 탭 공용) ====== -->
 {% set total_my = my_tasks|length %}
 {% set done_my = my_tasks|selectattr('status','equalto','완료')|list|length %}
 {% set prog_my = my_tasks|selectattr('status','equalto','진행중')|list|length %}
@@ -106,6 +106,8 @@
 {% set hours_my = my_tasks|sum(attribute='hours') %}
 {% set rate_my = ((done_my*100/total_my)|round(0,'floor')|int) if total_my else 0 %}
 
+<!-- ====== KPI Grid (내 업무 탭 전용) ====== -->
+{% if tab == 'my' %}
 <div class="hm2-kpi-grid">
   <a href="/history" class="hm2-kpi" title="{{ i.kpi_link_daily|default('내 전체 업무 기록') }}">
     <div class="hm2-kpi-top">
@@ -168,9 +170,10 @@
     </div>
   </a>
 </div>
+{% endif %}{# /tab == 'my' — KPI Grid #}
 
-<!-- ====== 3. 이월 배너 ====== -->
-{% if pending_yday %}
+<!-- ====== 3. 이월 배너 (내 업무 탭 전용) ====== -->
+{% if tab == 'my' and pending_yday %}
 <div class="hm2-carry">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="14 21 17 18 20 21"/><line x1="17" y1="14" x2="17" y2="21"/></svg>
   <span>{{ i.carry_prefix|default('어제 미완료 업무') }} <b>{{ pending_yday|length }}{{ i.unit_items|default('건') }}</b></span>
@@ -180,8 +183,8 @@
 
 {# 매출흐름·물류 진입은 사이드바 메뉴에서 접근 (권한자만 보임) #}
 
-{% if hw_counts is defined %}
-{# HAIST WORKS 신규 기능 KPI — 1순위 3개 (진행률/변경/티켓) #}
+{% if hw_counts is defined and tab == 'my' %}
+{# HAIST WORKS 신규 기능 KPI (내 업무 탭 전용) — 1순위 3개 (진행률/변경/티켓) #}
 <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
   <div>
     <h2 style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:#1A1A1A;margin:0;">
@@ -244,6 +247,8 @@
 
 <!-- ====== Dashboard Charts (리더/경영진만) ====== -->
 {% if user.role in ['leader','executive','ceo','admin'] and team_data %}
+{# 전사 탭: 주간 트렌드 + 도넛 #}
+{% if tab == 'all' %}
 <div class="hm2-grid-2">
 
   <!-- Left: Weekly trend line chart -->
@@ -348,6 +353,10 @@
 
 </div>
 
+{% endif %}{# /tab == 'all' — trend+donut grid #}
+
+{# 팀·전사 탭: 실시간 피드 + 팀별 작성률 #}
+{% if tab in ['team', 'all'] %}
 <!-- ====== 6. 실시간 피드 + 팀 작성률 ====== -->
 <div class="hm2-grid-2">
 
@@ -435,10 +444,12 @@
     </div>
   </div>
 
-</div>
-{% endif %}
+</div>{# /hm2-grid-2 feed+team-list #}
+{% endif %}{# /tab in ['team','all'] #}
+{% endif %}{# /role check — dashboard charts #}
 
-<!-- ====== 6. 나의 업무 카드 ====== -->
+<!-- ====== 6. 나의 업무 카드 (내 업무 탭 전용) ====== -->
+{% if tab == 'my' %}
 <div class="hm-my-section">
   <div class="hm-section-title">
     <h2>{{ i.my_tasks_title|default('나의 업무') }}</h2>
@@ -531,9 +542,10 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}{# /tab == 'my' — 나의 업무 카드 #}
 
-<!-- ====== 7. 팀/전사 현황 (리더/CEO) ====== -->
-{% if user.role in ['leader','executive','ceo','admin'] %}
+<!-- ====== 7. 팀/전사 현황 (리더/CEO, 팀·전사 탭 전용) ====== -->
+{% if user.role in ['leader','executive','ceo','admin'] and tab in ['team', 'all'] %}
 <div class="hm-team-zone">
   <div class="hm-section-title">
     <h2>{% if user.role in ['ceo','admin'] %}{{ i.team_zone_all|default('전사') }}{% else %}{{ i.team_zone_team|default('팀') }}{% endif %} {{ i.team_zone_suffix|default('현황') }}</h2>
