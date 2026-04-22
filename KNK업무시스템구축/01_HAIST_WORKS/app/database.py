@@ -954,6 +954,14 @@ def seed_all():
             if ld:
                 c.execute("UPDATE teams SET leader_id=? WHERE id=?", (ld["id"], t["id"]))
 
+        # 4-ESC-04) 구매팀장 물류 모듈 초기 권한 (2026-04-22 대표 결재 D01-NEW-PERM — 구매팀장 부여 방식)
+        purch_team = c.execute("SELECT id FROM teams WHERE code=?", ("10",)).fetchone()
+        if purch_team:
+            c.execute(
+                "UPDATE users SET can_use_logistics=1 WHERE team_id=? AND role='leader'",
+                (purch_team["id"],),
+            )
+
         # 5) Customers
         for cname, tier, note in CUSTOMERS:
             c.execute(
