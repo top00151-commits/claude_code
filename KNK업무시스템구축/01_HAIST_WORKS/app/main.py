@@ -3322,16 +3322,16 @@ async def admin_toggle_logistics(request: Request,
     return JSONResponse({"ok": True, "user_id": user_id, "can_use_logistics": flag})
 
 
-# ── 물류 대시보드 ─────────────────────────────────────────
+# ── 자재·구매 홈 (기존 /logistics — 명칭 통일) ──────────────
 @app.get("/logistics", response_class=HTMLResponse)
 async def logi_dashboard(request: Request):
+    """자재·구매 센터 (부품·공급사·발주·입출고·수불·환율)"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     parts_stats = _logi.parts_count()
-    proj_stats = _logi.projects_count_logi()
     from .database import stock_kpi as _stock_kpi
     try:
         s_kpi = _stock_kpi()
@@ -3339,8 +3339,69 @@ async def logi_dashboard(request: Request):
         s_kpi = None
     return ctx(request, "logistics_home.html",
                user=u, active="logistics",
-               parts_stats=parts_stats, proj_stats=proj_stats,
+               parts_stats=parts_stats,
                stock_kpi=s_kpi)
+
+
+# ── 매출·영업 홈 (신규 · 2026-04-21 도메인 분리) ──────────────
+@app.get("/sales", response_class=HTMLResponse)
+async def sales_dashboard(request: Request):
+    """매출·영업 센터 (프로젝트·관리코드·고객사·수주·매출 KPI)"""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    proj_stats = _logi.projects_count_logi()
+    # 매출 KPI (Victor sales 핸들러와 동일 로직)
+    today = date.today()
+    ym = today.strftime("%Y-%m")
+    year = today.year
+    with db_session() as c:
+        month = c.execute(
+            """SELECT COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
+               FROM projects WHERE order_date LIKE ? AND order_amount > 0""",
+            (f"{ym}%",)).fetchone()
+        ytd = c.execute(
+            """SELECT COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
+               FROM projects WHERE order_date LIKE ? AND order_amount > 0""",
+            (f"{year}%",)).fetchone()
+        by_biz = [dict(r) for r in c.execute(
+            """SELECT biz_div, COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
+               FROM projects WHERE order_date LIKE ? AND biz_div IN ('T','M')
+               GROUP BY biz_div""",
+            (f"{year}%",)).fetchall()]
+        by_stage = [dict(r) for r in c.execute(
+            """SELECT stage, COUNT(*) AS cnt,
+                      COALESCE(SUM(order_amount),0) AS amount
+               FROM projects WHERE stage IS NOT NULL AND stage != ''
+               GROUP BY stage ORDER BY cnt DESC"""
+        ).fetchall()]
+        recent = [dict(r) for r in c.execute(
+            """SELECT id, mgmt_code, name, customer_name, stage, order_amount,
+                      order_date, due_date, biz_div
+               FROM projects
+               WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
+               ORDER BY id DESC LIMIT 10""").fetchall()]
+        customers_top = [dict(r) for r in c.execute(
+            """SELECT customer_name, COUNT(*) AS cnt,
+                      COALESCE(SUM(order_amount),0) AS total
+               FROM projects
+               WHERE customer_name IS NOT NULL AND customer_name != ''
+                 AND order_date LIKE ?
+               GROUP BY customer_name
+               ORDER BY total DESC LIMIT 5""",
+            (f"{year}%",)).fetchall()]
+    sales_kpi = {
+        "month_total": month["total"], "month_cnt": month["cnt"],
+        "ytd_total": ytd["total"], "ytd_cnt": ytd["cnt"],
+        "by_biz": by_biz, "by_stage": by_stage,
+        "recent": recent, "top_customers": customers_top,
+        "ym": ym, "year": year,
+    }
+    return ctx(request, "sales_home.html",
+               user=u, active="sales",
+               proj_stats=proj_stats, sales_kpi=sales_kpi)
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────

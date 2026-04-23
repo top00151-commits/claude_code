@@ -1,0 +1,147 @@
+{% extends "base_logi.html" %}
+{% block title %}매출·영업 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>📈 매출·영업 센터</h1>
+  <p class="muted">프로젝트 수주 · 영업단계 · 고객사별 매출. 당월/YTD 실시간 집계.</p>
+</div>
+
+{% macro won(v) %}{% if v >= 100000000 %}{{ "%.1f"|format(v/100000000) }}억원{% elif v >= 10000000 %}{{ "%.1f"|format(v/10000000) }}천만원{% else %}{{ "{:,.0f}".format(v) }}원{% endif %}{% endmacro %}
+
+<!-- KPI 6 -->
+<div class="kpi-row">
+  <a href="/admin" class="kpi">
+    <div class="kpi-label">{{ sales_kpi.ym }} 당월 수주</div>
+    <div class="kpi-value" style="font-size:20px;color:#A5282C;">{{ won(sales_kpi.month_total) }}</div>
+    <div class="kpi-sub">{{ sales_kpi.month_cnt }}건</div>
+  </a>
+  <a href="/admin" class="kpi">
+    <div class="kpi-label">{{ sales_kpi.year }} YTD 수주</div>
+    <div class="kpi-value" style="font-size:20px;">{{ won(sales_kpi.ytd_total) }}</div>
+    <div class="kpi-sub">{{ sales_kpi.ytd_cnt }}건</div>
+  </a>
+  {% for b in sales_kpi.by_biz %}
+  <div class="kpi">
+    <div class="kpi-label">{% if b.biz_div=='T' %}T (검사기){% else %}M (자동화){% endif %} YTD</div>
+    <div class="kpi-value" style="font-size:18px;">{{ won(b.total) }}</div>
+    <div class="kpi-sub">{{ b.cnt }}건</div>
+  </div>
+  {% endfor %}
+  <a href="/projects" class="kpi">
+    <div class="kpi-label">관리코드</div>
+    <div class="kpi-value">{{ proj_stats.with_code }}</div>
+    <div class="kpi-sub">진행중 {{ proj_stats.in_progress }}</div>
+  </a>
+  <a href="/dashboard" class="kpi">
+    <div class="kpi-label">전사 대시보드</div>
+    <div class="kpi-value" style="font-size:16px;">경영 뷰 →</div>
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+  <!-- 영업단계별 -->
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">📊 영업단계별 프로젝트</h2>
+    {% if sales_kpi.by_stage %}
+    <table class="table" style="width:100%;font-size:13px;">
+      <thead><tr><th>단계</th><th style="text-align:right;">건수</th><th style="text-align:right;">금액</th></tr></thead>
+      <tbody>
+        {% for s in sales_kpi.by_stage %}
+        <tr>
+          <td>
+            {% if s.stage in ['수주확정','납품','개조','A/S'] %}<span class="tag tag-ok">{{ s.stage }}</span>
+            {% elif s.stage in ['제안작성','제안제출'] %}<span class="tag tag-warn">{{ s.stage }}</span>
+            {% else %}{{ s.stage }}{% endif %}
+          </td>
+          <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ s.cnt }}</td>
+          <td style="text-align:right;font-family:var(--font-mono);">{{ won(s.amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">단계별 데이터 없음</p>
+    {% endif %}
+  </div>
+
+  <!-- 고객사 Top 5 -->
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">🏢 YTD 고객사 Top 5</h2>
+    {% if sales_kpi.top_customers %}
+    <table class="table" style="width:100%;font-size:13px;">
+      <thead><tr><th>고객사</th><th style="text-align:right;">건수</th><th style="text-align:right;">수주액</th></tr></thead>
+      <tbody>
+        {% for c in sales_kpi.top_customers %}
+        <tr>
+          <td style="font-weight:700;">{{ c.customer_name }}</td>
+          <td style="text-align:right;">{{ c.cnt }}</td>
+          <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ won(c.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">고객사 데이터 없음</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 최근 프로젝트 -->
+<div class="card" style="margin-top:14px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h2 style="margin:0;font-size:15px;font-weight:800;">🆕 최근 등록 프로젝트 (10건)</h2>
+    <div style="display:flex;gap:8px;">
+      <a href="/projects" class="btn btn-ghost">전체 목록 →</a>
+      <a href="/admin" class="btn" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;font-weight:700;">+ 신규 프로젝트</a>
+    </div>
+  </div>
+  {% if sales_kpi.recent %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>관리코드</th>
+        <th>프로젝트명</th>
+        <th>고객사</th>
+        <th>사업부</th>
+        <th>단계</th>
+        <th style="text-align:right;">수주금액</th>
+        <th>수주일</th>
+        <th>납기</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in sales_kpi.recent %}
+      <tr>
+        <td style="font-family:var(--font-mono);color:#A5282C;font-weight:700;">{{ p.mgmt_code or '-' }}</td>
+        <td style="font-weight:600;">{{ p.name }}</td>
+        <td>{{ p.customer_name or '-' }}</td>
+        <td>
+          {% if p.biz_div=='T' %}<span style="background:#E0E7FF;color:#4338CA;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">T 검사기</span>
+          {% elif p.biz_div=='M' %}<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">M 자동화</span>
+          {% else %}-{% endif %}
+        </td>
+        <td>
+          {% if p.stage in ['수주확정','납품','개조','A/S'] %}<span class="tag tag-ok">{{ p.stage }}</span>
+          {% elif p.stage in ['제안작성','제안제출'] %}<span class="tag tag-warn">{{ p.stage }}</span>
+          {% else %}{{ p.stage or '-' }}{% endif %}
+        </td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ won(p.order_amount or 0) }}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ p.order_date or '-' }}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ p.due_date or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="text-align:center;padding:20px;">등록된 프로젝트가 없습니다. <a href="/admin">관리자 페이지</a> 에서 등록 또는 <a href="/admin">관리코드발행목록 엑셀</a> 업로드.</p>
+  {% endif %}
+</div>
+
+<div style="margin-top:14px;padding:12px 16px;background:#EEF2FF;border-left:3px solid #4338CA;border-radius:6px;font-size:12px;color:#312E81;">
+  💡 <strong>매출·영업 vs 자재·구매</strong> 분리 (2026-04-21):
+  <br>&nbsp;&nbsp;• 이 페이지 = <strong>매출·영업</strong> (프로젝트 수주·관리코드·고객사)
+  <br>&nbsp;&nbsp;• <a href="/logistics" style="color:#4338CA;font-weight:700;">자재·구매 센터</a> = 부품·발주·입출고·수불부
+</div>
+
+{% endblock %}

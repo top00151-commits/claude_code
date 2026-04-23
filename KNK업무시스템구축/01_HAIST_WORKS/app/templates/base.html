@@ -188,10 +188,18 @@
     </div>
     {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
     <div class="sb-section">
-      <div class="sb-head">매출흐름 · 물류</div>
+      <div class="sb-head">매출·영업 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">📈</span></div>
+      <a href="/sales" target="_blank" rel="noopener" class="sb-item sb-logi-entry">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span class="sb-logi-label">매출·영업 센터</span>
+        <span class="sb-logi-badge">↗</span>
+      </a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">자재·구매 <span style="background:#F0FDF4;color:#166534;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">📦</span></div>
       <a href="/logistics" target="_blank" rel="noopener" class="sb-item sb-logi-entry">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
-        <span class="sb-logi-label">물류 시스템</span>
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+        <span class="sb-logi-label">자재·구매 센터</span>
         <span class="sb-logi-badge">↗</span>
       </a>
     </div>

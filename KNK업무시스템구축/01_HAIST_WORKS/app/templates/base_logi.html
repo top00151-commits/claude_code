@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}매출흐름 · 물류 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
+<title>{% block title %}매출·영업 · 자재·구매 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
 <link rel="stylesheet" href="/static/style.css?v=20260421pretendard">
 </head>
 <body class="logi-body">
@@ -17,8 +17,8 @@
     <a href="/logistics" class="tb-brand">
       <span class="tb-logo">KNK</span>
       <span class="tb-title-group">
-        <span class="tb-title">매출흐름 · 물류</span>
-        <span class="tb-subtitle">HAIST WORKS · Supply Chain</span>
+        <span class="tb-title">매출·영업 · 자재·구매</span>
+        <span class="tb-subtitle">HAIST WORKS · Sales & Procurement</span>
       </span>
     </a>
     <span class="tb-badge" style="background:rgba(165,40,44,.18);color:#FCA5A5;border-color:rgba(165,40,44,.4);">권한 제한</span>
@@ -47,19 +47,33 @@
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
     <div class="sb-resize" id="sbResize" title="드래그하여 너비 조절"></div>
 
+    {# 📈 매출·영업 (영업팀·경영진) #}
     <div class="sb-section">
-      <div class="sb-head">물류 시스템</div>
-      <a href="/logistics" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
-        대시보드
-      </a>
-      <a href="/parts" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></span>
-        부품 마스터
+      <div class="sb-head" style="color:#4338CA;">📈 매출·영업</div>
+      <a href="/sales" class="sb-item {% if active=='sales' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        매출·영업 센터
       </a>
       <a href="/projects" class="sb-item {% if active=='logi_projects' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
         관리코드 대장
+      </a>
+      <a href="/dashboard" class="sb-item {% if active=='dashboard' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        전사 대시보드
+      </a>
+    </div>
+
+    {# 📦 자재·구매 (구매팀·자재팀) #}
+    <div class="sb-section">
+      <div class="sb-head" style="color:#166534;">📦 자재·구매</div>
+      <a href="/logistics" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
+        자재·구매 센터
+      </a>
+      <a href="/parts" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></span>
+        부품 마스터
       </a>
       <a href="/suppliers" class="sb-item {% if active=='suppliers' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
@@ -107,7 +121,7 @@
   <div class="main-wrap">
     <main class="main has-sidebar logi-main">
       {% block body %}{% endblock %}
-      <footer class="footer">㈜케이엔케이 | HAIST Innovation · 매출흐름 물류 시스템 | {{ now|default('') }}</footer>
+      <footer class="footer">㈜케이엔케이 | HAIST Innovation · 매출·영업 + 자재·구매 | {{ now|default('') }}</footer>
     </main>
   </div>
 </div>

@@ -171,8 +171,9 @@ def h_sales(u, db):
         "title": "💰 매출 · 수주 현황",
         "text": text,
         "links": [
-            _link("전사 대시보드 →", "/dashboard", "primary"),
-            _link("프로젝트 목록 →", "/admin", "secondary"),
+            _link("📈 매출·영업 센터 →", "/sales", "primary"),
+            _link("전사 대시보드", "/dashboard", "secondary"),
+            _link("프로젝트 목록", "/projects", "secondary"),
         ],
     }
 
@@ -506,18 +507,19 @@ def _guide_step(title: str, intro: str, steps: list, go_url: str,
 def h_how_to_sales(u, db):
     return _guide_step(
         title="💡 매출·수주 입력 방법",
-        intro="매출은 별도 메뉴가 아닌 **프로젝트의 '수주금액' 필드**로 관리됩니다.",
+        intro="매출·수주는 **📈 매출·영업 센터** 또는 관리자 페이지에서 **프로젝트 등록**으로 입력합니다.",
         steps=[
-            "관리자 페이지로 이동",
-            "프로젝트 목록에서 '신규 등록' 클릭 (또는 기존 프로젝트 수정)",
+            "매출·영업 센터 (/sales) 또는 관리자 페이지로 이동",
+            "'신규 프로젝트' 클릭 (또는 기존 프로젝트 수정)",
             "필수 입력: 관리코드·고객사·수주금액·수주일·사업부(T/M)",
-            "저장 → 관리코드 8자리 자동 채번, 대시보드 매출 KPI에 즉시 반영",
+            "저장 → 관리코드 8자리 자동 채번, 매출 KPI에 즉시 반영",
         ],
-        go_url="/admin",
-        go_label="관리자 페이지 이동 →",
-        notes="💡 대량 등록: `관리코드발행목록.xls` 엑셀 업로드 (관리자 홈).",
+        go_url="/sales",
+        go_label="📈 매출·영업 센터 →",
+        notes="💡 대량 등록은 `관리코드발행목록.xls` 엑셀 업로드 (관리자 홈).",
         extra_links=[
-            {"label": "📊 매출 현황 보기", "href": "/dashboard", "style": "secondary"},
+            {"label": "관리자 페이지", "href": "/admin", "style": "secondary"},
+            {"label": "전사 대시보드", "href": "/dashboard", "style": "secondary"},
         ],
     )
 
@@ -792,6 +794,15 @@ INTENTS = [
     ("mail",          ["메일", "이메일", "편지함"], h_mail),
 
     # 데이터 조회 — 구체적 키워드
+    # 도메인 홈 (구체적 키워드 먼저)
+    ("sales_home",    ["매출센터", "영업센터", "매출영업", "매출홈", "영업홈", "수주현황"],
+                      _simple_route("📈 매출·영업 센터",
+                                    "프로젝트·수주·관리코드·고객사 통합.",
+                                    "/sales", "매출·영업 센터 →")),
+    ("logistics_home",["자재구매", "구매센터", "자재센터", "구매자재"],
+                      _simple_route("📦 자재·구매 센터",
+                                    "부품·공급사·발주·입출고·수불부·환율.",
+                                    "/logistics", "자재·구매 센터 →")),
     ("sales",         ["매출", "수주", "오더", "매출현황", "실적", "주문금액"], h_sales),
     ("inventory",     ["재고", "자재", "부품", "파트", "납품"], h_inventory),
     ("attendance",    ["출근", "근태", "휴가현황", "오늘출근", "누구출근"], h_attendance_today),
@@ -838,9 +849,10 @@ INTENTS = [
                       _simple_route("🚨 병목 탐지",
                                     "현재 병목 지점을 분석합니다.",
                                     "/bottlenecks", "병목 탐지 →")),
-    ("logistics",     ["물류", "매출흐름", "공급"],
-                      _simple_route("📦 매출흐름·물류", "물류 모듈로 이동합니다.",
-                                    "/logistics", "물류 시스템 ↗")),
+    ("logistics",     ["물류", "공급"],
+                      _simple_route("📦 자재·구매 센터",
+                                    "부품·공급사·발주·입출고·수불부·환율.",
+                                    "/logistics", "자재·구매 센터 →")),
     ("stock_mv",      ["수불부", "입출고", "재고이력", "원장", "재고변동"],
                       _simple_route("📒 수불부 (입출고 원장)",
                                     "모든 재고 변동 이력을 봅니다.",
