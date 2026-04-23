@@ -477,9 +477,262 @@ def _simple_route(title: str, desc: str, href: str, href_label: str):
     return handler
 
 
+# =====================================================
+# 가이드 모드 — "어떻게 해?" 류 질문에 단계별 안내 + 자동 이동
+# =====================================================
+def _guide_step(title: str, intro: str, steps: list, go_url: str,
+                go_label: str = "바로 이동 →", auto: bool = True,
+                notes: str = "", extra_links: list = None) -> dict:
+    """가이드 단계 응답 빌더."""
+    numbered = []
+    for i, s in enumerate(steps, 1):
+        if s.lstrip().startswith(("①","②","③","④","⑤","⑥","⑦","⑧","⑨","1.","2.","3.")):
+            numbered.append(s)
+        else:
+            numbered.append(f"{i}. {s}")
+    links = [{"label": go_label, "href": go_url, "style": "primary"}]
+    if extra_links:
+        links.extend(extra_links)
+    return {
+        "type": "guide_step",
+        "title": title,
+        "text": (intro + "\n\n" if intro else "") + "\n".join(numbered) + (f"\n\n{notes}" if notes else ""),
+        "links": links,
+        "auto_redirect": go_url if auto else None,
+        "step_count": len(steps),
+    }
+
+
+def h_how_to_sales(u, db):
+    return _guide_step(
+        title="💡 매출·수주 입력 방법",
+        intro="매출은 별도 메뉴가 아닌 **프로젝트의 '수주금액' 필드**로 관리됩니다.",
+        steps=[
+            "관리자 페이지로 이동",
+            "프로젝트 목록에서 '신규 등록' 클릭 (또는 기존 프로젝트 수정)",
+            "필수 입력: 관리코드·고객사·수주금액·수주일·사업부(T/M)",
+            "저장 → 관리코드 8자리 자동 채번, 대시보드 매출 KPI에 즉시 반영",
+        ],
+        go_url="/admin",
+        go_label="관리자 페이지 이동 →",
+        notes="💡 대량 등록: `관리코드발행목록.xls` 엑셀 업로드 (관리자 홈).",
+        extra_links=[
+            {"label": "📊 매출 현황 보기", "href": "/dashboard", "style": "secondary"},
+        ],
+    )
+
+
+def h_how_to_change(u, db):
+    return _guide_step(
+        title="💡 설계 변경 등록 방법",
+        intro="변경 Inform은 영향 부서에 **자동 알림**이 갑니다.",
+        steps=[
+            "변경 등록 페이지 열기",
+            "Step 1: 변경 종류 선택 (기구설계/전장/SW/BOM/도면/Concept/사양)",
+            "Step 2: 사업부(T/M) · 대상 프로젝트 선택 → 영향 부서 자동 판별",
+            "Step 3: 제목·설명·전/후 값·출처(CAD) 입력",
+            "Step 4: '📢 공지하기' 클릭 → 영향 부서원 전원 자동 통지",
+        ],
+        go_url="/changes/new",
+        go_label="변경 등록 화면으로 →",
+        notes="⚠️ 결재 필요한 변경은 하이웍스에서 결재 후 URL 첨부.",
+        extra_links=[{"label": "변경 목록", "href": "/changes", "style": "secondary"}],
+    )
+
+
+def h_how_to_ticket(u, db):
+    return _guide_step(
+        title="💡 요청 티켓 등록 방법",
+        intro="카톡·구두 요청 대신 티켓 → **자동 라우팅 + 이력 추적**.",
+        steps=[
+            "티켓 등록 페이지 열기",
+            "카테고리 선택 (자재요청/긴급가공/MODIFY/검수/AS/기타) → 담당 팀 자동 배정",
+            "제목·상세 내용 입력 + 긴급도 선택",
+            "희망 완료일·예상 공수 입력 (선택)",
+            "등록 → 수신 부서 즉시 알림, 상태 변경 시 요청자에게 피드백",
+        ],
+        go_url="/tickets/new",
+        go_label="티켓 등록 화면으로 →",
+        extra_links=[
+            {"label": "받은 티켓", "href": "/tickets?scope=recv", "style": "secondary"},
+            {"label": "보낸 티켓", "href": "/tickets?scope=me", "style": "secondary"},
+        ],
+    )
+
+
+def h_how_to_issue(u, db):
+    return _guide_step(
+        title="💡 이슈·AS 등록 방법",
+        intro="고객 이슈/AS는 **원인→조치→재발방지** 3단계로 자산화.",
+        steps=[
+            "이슈 등록 페이지 열기",
+            "심각도·종류 선택 (치명/심각/중/경 · AS/품질/설계결함/SW버그 등)",
+            "고객사·프로젝트 연결 (사업부 자동 배정)",
+            "증상 설명 입력 → 접수 등록",
+            "상세 화면에서 3단계 채우기: ① 원인분석 → ② 조치 → ③ 재발방지",
+        ],
+        go_url="/issues/new",
+        go_label="이슈 등록 화면으로 →",
+        notes="🚨 치명/심각 선택 시 담당 부서에 즉시 푸시.",
+        extra_links=[{"label": "이슈 목록", "href": "/issues", "style": "secondary"}],
+    )
+
+
+def h_how_to_stock_out(u, db):
+    return _guide_step(
+        title="💡 자재 출고 방법",
+        intro="출고는 **FIFO 원가 자동 계산** + 재고 자동 감소.",
+        steps=[
+            "출고 등록 화면 열기 (또는 부품 목록에서 '📤 출고' 버튼)",
+            "부품 선택 → 현재고/안전재고 자동 표시",
+            "출고 수량 입력",
+            "프로젝트·고객사 지정 (감사 추적용)",
+            "사유·위치·비고 입력 후 등록 → stock_qty 자동 감소, 수불부 이력",
+        ],
+        go_url="/stock/issue",
+        go_label="출고 등록 화면으로 →",
+        notes="⚠️ 안전재고 미달 시 구매팀에 자동 티켓.",
+        extra_links=[
+            {"label": "부품 목록", "href": "/parts", "style": "secondary"},
+            {"label": "수불부(이력)", "href": "/stock/movements", "style": "secondary"},
+        ],
+    )
+
+
+def h_how_to_stock_in(u, db):
+    return _guide_step(
+        title="💡 자재 입고 방법",
+        intro="입고는 **발주서 기반**으로만 가능합니다 (감사 추적).",
+        steps=[
+            "발주 목록 열기",
+            "해당 발주서 클릭 → '📥 입고 처리' 버튼",
+            "라인별 입고 수량 + Lot 번호 입력 (이슈 역추적용)",
+            "등록 → 재고 자동 증가, PO 상태 자동 전이",
+        ],
+        go_url="/po",
+        go_label="발주 목록으로 →",
+        notes="⭐ Lot 번호는 불량 역추적의 핵심입니다.",
+        extra_links=[{"label": "수불부", "href": "/stock/movements", "style": "secondary"}],
+    )
+
+
+def h_how_to_task(u, db):
+    return _guide_step(
+        title="💡 일일업무 등록 방법",
+        intro="업무 카드는 **오늘 할 일 + 진행 상태**를 5초 안에 기록.",
+        steps=[
+            "홈 또는 일일업무 페이지 열기",
+            "상단 빠른 입력창에 업무 제목 입력 후 Enter",
+            "필요 시 카드 클릭 → 공수·카테고리·프로젝트·고객사 추가 입력",
+            "상태 4버튼으로 진행중/완료/지연/대기 1-클릭 지정",
+            "부서 피드 + 팀장 뷰에 자동 반영",
+        ],
+        go_url="/daily",
+        go_label="일일업무 화면으로 →",
+        extra_links=[{"label": "홈(탭별 요약)", "href": "/home", "style": "secondary"}],
+    )
+
+
+def h_how_to_schedule(u, db):
+    return _guide_step(
+        title="💡 일정 입력 방법",
+        intro="일정은 3가지 유형으로 입력할 수 있습니다.",
+        steps=[
+            "오늘 할 일 = 일일업무 카드 (빠른 입력)",
+            "회의·출장·미팅 = 캘린더 (날짜 클릭 → 이벤트 추가)",
+            "부서 공유 = 부서 게시판",
+        ],
+        go_url="/daily",
+        go_label="일일업무로 이동 →",
+        auto=False,
+        extra_links=[
+            {"label": "📅 캘린더", "href": "/calendar", "style": "secondary"},
+            {"label": "부서 게시판", "href": "/board/team", "style": "secondary"},
+        ],
+    )
+
+
+def h_how_to_approval(u, db):
+    from .database import get_setting
+    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    return _guide_step(
+        title="💡 전자결재 진행 방법",
+        intro="결재는 **하이웍스**에서 진행 (HAIST WORKS에는 결재 기능 없음).",
+        steps=[
+            "하이웍스 전자결재 페이지 열기",
+            "문서 작성 (기안)",
+            "결재선 지정 + 제출",
+            "승인 후 결재 문서 URL 복사",
+            "관련 HAIST 변경/티켓에 결재 URL 첨부",
+        ],
+        go_url=url,
+        go_label="하이웍스 결재 열기 ↗",
+        auto=False,
+        notes="📌 결재 URL 첨부는 변경/티켓 등록 4단계에서 가능.",
+        extra_links=[
+            {"label": "변경 등록", "href": "/changes/new", "style": "secondary"},
+            {"label": "티켓 등록", "href": "/tickets/new", "style": "secondary"},
+        ],
+    )
+
+
+def h_how_to_vacation(u, db):
+    from .database import get_setting
+    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    return _guide_step(
+        title="💡 휴가 신청 방법",
+        intro="휴가는 **하이웍스 전자결재**에서 신청합니다.",
+        steps=[
+            "하이웍스 로그인",
+            "전자결재 → 휴가신청서 양식 선택",
+            "사용 일자·유형(연차/반차/월차) 선택",
+            "결재선 지정 → 제출",
+        ],
+        go_url=url,
+        go_label="하이웍스 열기 ↗",
+        auto=False,
+    )
+
+
+def h_how_to_stock_adjust(u, db):
+    return _guide_step(
+        title="💡 재고 실사 조정 방법",
+        intro="실사 결과와 시스템 재고 차이를 조정 (감사 추적 필수).",
+        steps=[
+            "실사 조정 화면 열기",
+            "부품 선택",
+            "조정 수량 입력 (+ 증가 / - 감소)",
+            "사유 입력 (필수 — 실사 차이/파손/분실)",
+            "등록 → 수불부에 ADJUST 이력",
+        ],
+        go_url="/stock/adjust",
+        go_label="실사 조정 화면으로 →",
+        notes="⚠️ 사유가 감사 핵심. 명확히 기록.",
+    )
+
+
+def h_how_to_supplier(u, db):
+    return _guide_step(
+        title="💡 공급사 등록 방법",
+        intro="공급사를 먼저 등록해야 발주서에서 선택 가능.",
+        steps=[
+            "공급사 목록 열기",
+            "'신규 등록' 클릭",
+            "필수: 회사명·담당자·연락처·통화(KRW/USD/VND)·결제조건",
+            "저장 → 발주서에서 선택 가능",
+            "수정 화면에서 **평균 리드타임 자동 통계** 확인 가능",
+        ],
+        go_url="/suppliers",
+        go_label="공급사 목록으로 →",
+    )
+
+
 # ── 도움말 (모를 때 기본) ──────────────────────────────
 def h_help(u, db):
     examples = [
+        '💡 "매출입력 어떻게 해?" (가이드 + 자동 이동)',
+        '💡 "변경 등록 방법" / "티켓 요청 어떻게"',
+        '💡 "출고 어떻게" / "입고 방법"',
         '"일정 입력 어디서해?"',
         '"이번달 매출 현황"',
         '"리니어가이드 재고"',
@@ -508,7 +761,30 @@ def h_help(u, db):
 
 # =====================================================
 # 의도 레지스트리 (순서: 구체적인 것 먼저)
+# "어떻게" 류 질문은 가이드 의도와 복합 매칭 필요 (아래 ask()에서 처리)
 # =====================================================
+
+# "어떻게 해?" 복합 키워드 — 아래 단어가 query에 있으면 how_to_* 로 라우팅
+HOWTO_TRIGGERS = ["어떻게", "어떡", "어디서", "어디에서", "방법", "하려면", "해야", "써야", "쓰려면", "시작"]
+
+# "어떻게" + 주제 → how_to 의도 매핑 (주제별 키워드)
+HOWTO_MAP = [
+    # (의도 id, 주제 키워드 리스트, 핸들러)
+    ("how_sales",     ["매출", "수주", "오더", "주문금액"],        h_how_to_sales),
+    ("how_change",    ["변경", "ECN", "ECO", "설계변경", "Inform"], h_how_to_change),
+    ("how_ticket",    ["티켓", "요청", "의뢰"],                     h_how_to_ticket),
+    ("how_issue",     ["이슈", "AS", "불량", "클레임", "결함"],     h_how_to_issue),
+    ("how_out",       ["출고", "자재출고", "현장출고"],             h_how_to_stock_out),
+    ("how_in",        ["입고", "입고처리", "받았"],                 h_how_to_stock_in),
+    ("how_adjust",    ["실사", "실사조정", "재고조정"],             h_how_to_stock_adjust),
+    ("how_supplier",  ["공급사", "거래처", "vendor"],               h_how_to_supplier),
+    ("how_schedule",  ["일정", "캘린더", "달력", "스케줄"],          h_how_to_schedule),
+    ("how_task",      ["일일업무", "업무", "할일", "일지", "카드"], h_how_to_task),
+    ("how_vacation",  ["휴가", "연차", "반차"],                     h_how_to_vacation),
+    ("how_approval",  ["결재", "기안", "승인"],                     h_how_to_approval),
+]
+
+
 INTENTS = [
     # 길 찾기 (외부 시스템)
     ("approval",      ["결재", "기안", "전자결재", "승인신청"], h_approval),
@@ -630,6 +906,25 @@ def ask(query: str, user: dict | None, db_session_func) -> dict:
 
     q = query.strip()
     q_norm = _norm(q)
+
+    # 0) "어떻게/방법/어디서" 트리거 감지 → how_to 가이드 우선 매칭
+    is_howto = _match_any(q_norm, HOWTO_TRIGGERS)
+    if is_howto:
+        for intent_id, topic_kws, handler in HOWTO_MAP:
+            if _match_any(q_norm, topic_kws):
+                try:
+                    result = handler(user, db_session_func)
+                    result["intent"] = intent_id
+                    result["query"] = q
+                    return result
+                except Exception as e:
+                    return {
+                        "type": "guide",
+                        "title": "⚠️ 처리 중 오류",
+                        "text": f"가이드 생성 중 오류: {e}",
+                        "links": [_link("홈 →", "/home", "primary")],
+                        "intent": intent_id, "query": q,
+                    }
 
     # 1) 키워드 매칭 (순서대로)
     for intent_id, kws, handler in INTENTS:

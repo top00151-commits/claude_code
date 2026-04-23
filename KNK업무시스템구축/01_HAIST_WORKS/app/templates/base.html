@@ -877,14 +877,23 @@ function victorOpen() {
         </div>
         <form onsubmit="victorSubmit(event)" style="display:flex;gap:8px;">
           <input id="victorInput" type="text" autocomplete="off"
-                 placeholder="예: 일정 입력 어디서해? / 이번달 매출 / 리니어가이드 재고 / 내 할 일"
+                 placeholder="예: 매출입력 어떻게해 / 이번달 매출 / 변경 등록 방법 / 내 할 일"
                  style="flex:1;padding:12px 14px;border:2px solid #A5282C;border-radius:10px;font-size:14px;outline:none;font-family:inherit;">
           <button type="submit" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;padding:12px 20px;border-radius:10px;font-weight:800;cursor:pointer;font-size:13px;">물어보기</button>
         </form>
-        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
-          ${['이번달 매출','내 할 일','미해결 이슈','확인 안 한 변경','지연된 공정','결재','휴가 신청','자재 재고'].map(ex =>
+        <div style="margin-top:10px;">
+          <div style="font-size:10px;color:#92400E;font-weight:700;margin-bottom:4px;">💡 단계별 안내 (자동 이동)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+          ${['매출 입력 어떻게해','변경 등록 방법','티켓 요청 어떻게','이슈 등록 방법','출고 어떻게','입고 방법'].map(ex =>
+            `<button onclick="victorQuick('${ex}')" style="background:#FFFBEB;border:1px solid #F59E0B;color:#92400E;padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer;font-weight:700;">${ex}</button>`
+          ).join('')}
+          </div>
+          <div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px;">📊 현황 조회</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${['이번달 매출','내 할 일','미해결 이슈','확인 안 한 변경','지연된 공정','자재 재고'].map(ex =>
             `<button onclick="victorQuick('${ex}')" style="background:#fff;border:1px solid #FCA5A5;color:#A5282C;padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer;font-weight:600;">${ex}</button>`
           ).join('')}
+          </div>
         </div>
       </div>
       <div id="victorResult" style="flex:1;overflow-y:auto;padding:20px 24px;">
@@ -902,6 +911,7 @@ function victorOpen() {
 function victorClose() {
   const m = document.getElementById('victorModal');
   if (m) m.style.display = 'none';
+  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
 }
 
 function victorQuick(q) {
@@ -930,32 +940,96 @@ async function victorSubmit(e) {
   }
 }
 
+let VICTOR_REDIRECT_TIMER = null;
+
 function renderVictorResult(r) {
   const res = document.getElementById('victorResult');
   if (!res) return;
+  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
+
   const typeColor = {
     route: '#1565C0', data: '#2E7D32', search: '#6B21A8',
-    guide: '#6B7280', external: '#4338CA'
+    guide: '#6B7280', external: '#4338CA', guide_step: '#F59E0B'
   };
   const color = typeColor[r.type] || '#A5282C';
-  const textHtml = (r.text || '').split('\n').map(l =>
-    l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  ).join('<br>');
+
+  const escape = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const bold = (s) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // guide_step 타입: 단계 배지 시각화
+  let textHtml;
+  if (r.type === 'guide_step') {
+    const lines = (r.text || '').split('\n');
+    const rendered = lines.map(l => {
+      const m = l.match(/^(\d+)\.\s*(.+)$/);
+      if (m) {
+        return `<div style="display:flex;gap:10px;align-items:flex-start;margin:6px 0;">
+          <div style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#A5282C;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">${m[1]}</div>
+          <div style="flex:1;font-size:13px;line-height:1.6;color:#1A1A1A;padding-top:2px;">${bold(escape(m[2]))}</div>
+        </div>`;
+      }
+      return `<div style="font-size:13px;line-height:1.7;color:#374151;margin:4px 0;">${bold(escape(l))}</div>`;
+    }).join('');
+    textHtml = rendered;
+  } else {
+    textHtml = (r.text || '').split('\n').map(escape).map(bold).join('<br>');
+  }
+
   const linksHtml = (r.links || []).map(l => {
     const primary = l.style === 'primary';
     const css = primary
-      ? 'background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;'
+      ? 'background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;box-shadow:0 2px 6px rgba(165,40,44,.25);'
       : 'background:#F3F4F6;color:#374151;border:1px solid #E5E7EB;';
-    return `<a href="${l.href}" target="_self" style="${css}padding:8px 14px;border-radius:8px;text-decoration:none;font-weight:700;font-size:12px;display:inline-block;margin:0 6px 6px 0;">${l.label}</a>`;
+    return `<a href="${l.href}" target="_self" style="${css}padding:9px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:12px;display:inline-block;margin:0 6px 6px 0;">${l.label}</a>`;
   }).join('');
+
+  // 자동 이동 카운트다운 (guide_step + auto_redirect)
+  let countdownHtml = '';
+  if (r.type === 'guide_step' && r.auto_redirect) {
+    countdownHtml = `
+      <div id="victorCountdown" style="margin-top:14px;padding:10px 14px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;">
+        <div style="color:#92400E;">
+          ⏱ <strong id="vcSec">3</strong>초 후 자동 이동합니다 →
+          <span style="color:#78350F;font-weight:700;">${escape(r.auto_redirect)}</span>
+        </div>
+        <button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;">취소</button>
+      </div>`;
+  }
+
   res.innerHTML = `
     <div style="border-left:4px solid ${color};padding:4px 0 4px 16px;margin-bottom:14px;">
-      <div style="font-size:16px;font-weight:800;color:#1A1A1A;margin-bottom:6px;">${r.title || ''}</div>
-      <div style="font-size:13px;line-height:1.7;color:#374151;white-space:pre-wrap;font-family:inherit;">${textHtml}</div>
+      <div style="font-size:16px;font-weight:800;color:#1A1A1A;margin-bottom:10px;">${escape(r.title || '')}</div>
+      ${textHtml}
     </div>
     ${linksHtml ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed #E5E7EB;">${linksHtml}</div>` : ''}
-    <div style="margin-top:16px;font-size:10px;color:#9CA3AF;text-align:right;">의도: ${r.intent || '-'}</div>
+    ${countdownHtml}
+    <div style="margin-top:16px;font-size:10px;color:#9CA3AF;text-align:right;">의도: ${escape(r.intent || '-')}</div>
   `;
+
+  // 자동 이동 타이머 시작
+  if (r.type === 'guide_step' && r.auto_redirect) {
+    let sec = 3;
+    VICTOR_REDIRECT_TIMER = setInterval(() => {
+      sec -= 1;
+      const el = document.getElementById('vcSec');
+      if (el) el.textContent = sec;
+      if (sec <= 0) {
+        clearInterval(VICTOR_REDIRECT_TIMER);
+        VICTOR_REDIRECT_TIMER = null;
+        window.location.href = r.auto_redirect;
+      }
+    }, 1000);
+  }
+}
+
+function victorCancelRedirect() {
+  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
+  const c = document.getElementById('victorCountdown');
+  if (c) {
+    c.innerHTML = '<span style="color:#6B7280;">✓ 자동 이동 취소됨 — 위 버튼으로 직접 이동하세요.</span>';
+    c.style.background = '#F3F4F6';
+    c.style.borderLeftColor = '#9CA3AF';
+  }
 }
 
 /* Ctrl+K / ⌘K 로 열기 */
