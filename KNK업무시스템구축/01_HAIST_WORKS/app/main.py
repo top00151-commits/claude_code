@@ -447,6 +447,50 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
     except Exception as e:
         print(f"[HW COUNTS ERROR] {e}")
 
+    # 힐링 #12 §8-bis — 민감 데이터 권한 분기 (매출 컨텍스트 이중 방어)
+    # 대표 지적 2026-04-24: "매출을 전직원 공개는 아닌 것 같은데…"
+    # 1) UI 조건 분기 (home.html Jinja) · 2) 컨텍스트 분기 (여기) · 3) 라우트 권한 (별도)
+    role = (u.get("role") or "member").lower()
+    is_executive = role in ("ceo", "admin", "executive")
+    is_leader_plus = role in ("ceo", "admin", "executive", "leader")
+
+    monthly_revenue = None
+    yoy_delta = None
+    if is_executive:
+        # 경영진만 매출 지표 컨텍스트 수신
+        try:
+            from datetime import date as _d
+            ym = _d.today().strftime("%Y-%m")
+            with db_session() as c:
+                r = c.execute(
+                    "SELECT COALESCE(SUM(order_amount),0) AS t "
+                    "FROM projects WHERE order_date LIKE ? AND order_amount>0",
+                    (f"{ym}%",)).fetchone()
+                monthly_revenue = r["t"] if r else 0
+                # YoY 전년 동월 대비
+                last_year_ym = f"{_d.today().year - 1}-{_d.today().strftime('%m')}"
+                r2 = c.execute(
+                    "SELECT COALESCE(SUM(order_amount),0) AS t "
+                    "FROM projects WHERE order_date LIKE ? AND order_amount>0",
+                    (f"{last_year_ym}%",)).fetchone()
+                last = r2["t"] if r2 else 0
+                if last > 0:
+                    yoy_delta = round((monthly_revenue - last) / last * 100, 1)
+        except Exception as e:
+            print(f"[REVENUE KPI ERROR] {e}")
+
+    # 시간대별 인사말 (힐링 원칙서 §7-1)
+    try:
+        _h = datetime.now().hour
+        _n = u.get("name", "")
+        if 6 <= _h < 11:   greeting = f"좋은 아침입니다, {_n}님 ☀️"
+        elif 11 <= _h < 14: greeting = f"점심은 드셨나요, {_n}님? 잠깐 쉬어가요"
+        elif 14 <= _h < 18: greeting = f"오후도 힘내세요, {_n}님 🌿"
+        elif 18 <= _h < 22: greeting = f"오늘도 수고하셨어요, {_n}님"
+        else:                greeting = f"늦은 시간까지 애쓰시네요, {_n}님"
+    except Exception:
+        greeting = f"오늘도 평안하세요, {u.get('name','')}님"
+
     return ctx(
         req, "home.html",
         user=u, sel_date=sel_date, prev_date=prev_d, next_date=next_d,
@@ -459,6 +503,12 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         hw_counts=hw_counts,
         tab=tab,           # 05 디자인팀 3탭
         no_perm=no_perm,   # D01-NEW-BANNER: 권한 없음 안내 배너
+        # 힐링 #12 §8-bis 권한 분기 컨텍스트
+        monthly_revenue=monthly_revenue,
+        yoy_delta=yoy_delta,
+        is_executive=is_executive,
+        is_leader_plus=is_leader_plus,
+        greeting=greeting,
     )
 
 

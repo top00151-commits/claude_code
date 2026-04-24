@@ -3661,40 +3661,41 @@ body.dock-open .dock-tab { right: -56px; pointer-events: none; }
 }
 body.dock-open .dock { right: 0; }
 
-/* Dock 헤더 */
+/* Dock 헤더 — 힐링 세이지 그라디언트 (#12 §5) */
 .dock-head {
   padding: var(--s-4, 16px);
-  background: var(--grad-brand-deep);
+  background: var(--grad-sage);
   color: #fff;
   position: relative; overflow: hidden;
   flex-shrink: 0;
 }
 .dock-head::after {
   content: ''; position: absolute; inset: 0;
-  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1), transparent 50%);
+  background: radial-gradient(circle at 80% 20%, rgba(212,184,118,.2), transparent 50%);
   pointer-events: none;
 }
 .dock-head-row { display: flex; align-items: center; gap: var(--s-3, 12px); position: relative; z-index: 1; }
 .dock-avatar {
-  width: 40px; height: 40px;
+  width: 44px; height: 44px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  border: 1.5px solid rgba(255,255,255,0.3);
+  background: #fff;
+  border: 1.5px solid rgba(255,255,255,.5);
   display: flex; align-items: center; justify-content: center;
   font-size: 20px; font-weight: 800;
-  position: relative; color: #fff;
+  position: relative; color: var(--sage-700);
+  box-shadow: 0 4px 14px rgba(0,0,0,.15);
 }
 .dock-avatar::after {
-  content: ''; position: absolute; bottom: -1px; right: -1px;
+  /* 힐링: 초록 pulse → 앰버 정적 (원칙서 §5) */
+  content: ''; position: absolute; bottom: 0; right: 0;
   width: 12px; height: 12px;
   border-radius: 50%;
-  background: #10B981;
-  border: 2px solid #1A0508;
-  animation: dockPulse 2.5s ease-in-out infinite;
+  background: #D4B876;
+  border: 2px solid var(--sage-600);
 }
 @keyframes dockPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
-  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,184,118,0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(212,184,118,0); }
 }
 .dock-title { flex: 1; }
 .dock-title .name { font-size: var(--fs-fluid-md); font-weight: var(--fw-bold, 800); }
@@ -3769,20 +3770,23 @@ body.dock-open .dock { right: 0; }
   line-height: 1.55;
 }
 .msg.user .bubble {
-  background: var(--grad-brand-warm); color: #fff;
-  border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
+  /* 힐링: 레드 warm → 세이지 그라디언트 + 그린 그림자 */
+  background: var(--grad-sage); color: #fff;
+  border-radius: var(--rd-lg) var(--rd-lg) 6px var(--rd-lg);
+  box-shadow: var(--sh-green);
 }
 .msg.ai .bubble {
-  background: var(--bg-card, #fff); color: var(--ink-900, #1A1A1A);
-  border: 1px solid var(--ink-200, #E5E7EB);
-  border-radius: var(--r-md) var(--r-md) var(--r-md) 4px;
+  background: #fff; color: var(--ink);
+  border: 1px solid var(--sage-200);
+  border-radius: var(--rd-lg) var(--rd-lg) var(--rd-lg) 6px;
+  box-shadow: var(--sh-sm);
   position: relative;
 }
 .msg.ai .bubble .title {
   font-size: var(--fs-fluid-sm);
   font-weight: var(--fw-bold, 800);
   margin-bottom: var(--s-2, 8px);
-  color: var(--knk-red, #A5282C);
+  color: var(--sage-700);  /* 힐링: 레드 → 세이지 */
   display: flex; align-items: center; gap: 6px;
 }
 .msg.ai .bubble .text { white-space: pre-wrap; font-family: inherit; }
