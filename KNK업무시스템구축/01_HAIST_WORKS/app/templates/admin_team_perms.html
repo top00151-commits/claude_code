@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}팀원 권한 관리 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <div class="page-title">
+    <h1>🔐 팀원 권한 관리</h1>
+    <p class="muted">
+      <strong>{{ team.name }}</strong> 팀원의 모듈 접근 권한을 토글로 설정하고 저장하세요.
+      (팀장은 본인 팀만 관리 가능 · CEO/임원은 전 팀 관리 가능)
+    </p>
+  </div>
+  <a href="/home" class="btn btn-ghost" style="font-size:12px;">← 홈</a>
+</div>
+
+{% if request.query_params.get('saved') %}
+<div class="card" style="margin-bottom:14px;padding:10px 14px;background:#E8F5E9;border-left:3px solid #2E7D32;">
+  ✓ {{ request.query_params.get('saved') }}명의 권한이 저장되었습니다.
+</div>
+{% endif %}
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <form method="post" action="/team/{{ team.id }}/permissions">
+    <div style="padding:12px 18px;background:#F9FAFB;border-bottom:1px solid #E5E7EB;font-size:12px;color:#6B7280;">
+      <strong>사용법</strong>: ① 팀원 선택 (체크박스) → ② 권한 토글 → ③ 저장 — 총 3 클릭
+      <span style="margin-left:12px;">· 총 <strong>{{ members|length }}</strong>명</span>
+    </div>
+
+    <table class="table" style="width:100%;margin:0;">
+      <thead>
+        <tr style="background:#F3F4F6;">
+          <th style="width:32px;"></th>
+          <th>이름</th>
+          <th style="width:90px;">직급</th>
+          <th style="width:80px;text-align:center;" title="can_use_sales — 매출·영업 센터 접근">📈 매출</th>
+          <th style="width:80px;text-align:center;" title="can_use_logistics — 자재·구매 센터 접근">📦 자재</th>
+          <th style="width:80px;text-align:center;" title="can_edit_changes — 변경 알림 등록/편집">✎ 변경</th>
+          <th style="width:80px;text-align:center;" title="can_close_tickets — 티켓 상태 변경·종료">✓ 티켓</th>
+          {% if user.role in ['ceo','admin'] %}
+          <th style="width:80px;text-align:center;" title="is_admin — 관리자 메뉴 접근">⚙️ 관리</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td style="text-align:center;">
+            <input type="checkbox" name="touch_{{ m.id }}" value="1" checked>
+          </td>
+          <td style="font-weight:700;">
+            {{ m.name }}
+            {% if m.role == 'leader' %}<span class="tag tag-ok" style="font-size:10px;">팀장</span>
+            {% elif m.role == 'executive' %}<span class="tag" style="background:#EEF2FF;color:#4338CA;font-size:10px;">임원</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:#6B7280;">{{ m.rank or '-' }}</td>
+          <td style="text-align:center;">
+            <input type="checkbox" name="sales_{{ m.id }}" value="1" {% if m.can_use_sales %}checked{% endif %}>
+          </td>
+          <td style="text-align:center;">
+            <input type="checkbox" name="logi_{{ m.id }}" value="1" {% if m.can_use_logistics %}checked{% endif %}>
+          </td>
+          <td style="text-align:center;">
+            <input type="checkbox" name="chg_{{ m.id }}" value="1" {% if m.can_edit_changes %}checked{% endif %}>
+          </td>
+          <td style="text-align:center;">
+            <input type="checkbox" name="tkt_{{ m.id }}" value="1" {% if m.can_close_tickets %}checked{% endif %}>
+          </td>
+          {% if user.role in ['ceo','admin'] %}
+          <td style="text-align:center;">
+            <input type="checkbox" name="adm_{{ m.id }}" value="1" {% if m.is_admin %}checked{% endif %}>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="padding:14px 18px;background:#F9FAFB;border-top:1px solid #E5E7EB;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="font-size:11px;color:#6B7280;">
+        <strong>정책</strong>:
+        CEO·임원은 자동 전권 (해제 불가 — 권한 시드 유지) ·
+        팀장은 본인 팀원만 저장 가능 ·
+        저장 시 변경 내역은 <code>notifications</code>에 기록됩니다.
+      </div>
+      <button type="submit" class="btn" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;font-weight:800;padding:8px 22px;">
+        💾 권한 저장
+      </button>
+    </div>
+  </form>
+</div>
+
+{% if user.role in ['ceo','admin','executive'] and all_teams %}
+<div class="card" style="margin-top:14px;padding:14px 18px;">
+  <h2 style="margin:0 0 10px;font-size:14px;font-weight:800;">🏢 다른 팀 관리</h2>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    {% for t in all_teams %}
+    <a href="/team/{{ t.id }}/permissions" class="btn btn-ghost" style="font-size:12px;padding:5px 11px;{% if t.id == team.id %}background:#A5282C;color:#fff;border-color:#A5282C;{% endif %}">
+      {{ t.name }} <span style="opacity:.7;">({{ t.member_count }})</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

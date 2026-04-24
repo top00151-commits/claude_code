@@ -1131,6 +1131,15 @@ async def api_retro_save(req: Request, pid: int):
 # =====================================================
 @app.get("/cockpit", response_class=HTMLResponse)
 async def cockpit_page(req: Request):
+    # Plan Y S1 대표 승인 2026-04-24: /cockpit 은 /dashboard 와 기능 중복 → 301 합병
+    # 기존 기능(조종석 지표)은 /dashboard 내 "코크핏" 탭으로 제공 예정 (S2).
+    # 기존 북마크 보호를 위해 라우트는 유지하되 리다이렉트로 전환.
+    return RedirectResponse("/dashboard?view=cockpit", 301)
+
+
+@app.get("/_cockpit_legacy", response_class=HTMLResponse)
+async def _cockpit_legacy_unused(req: Request):
+    """[DEPRECATED 2026-04-24] 합병 이전 구 /cockpit 로직 — 복원용 보관."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -1300,8 +1309,104 @@ async def history_page(req: Request, q: str = "", frm: str = "", to: str = "", s
 
 
 # =====================================================
-# TEAM — 팀장 뷰
+# TEAM — 팀장 뷰 + 팀원 권한 위임 UI (Plan Y S1)
 # =====================================================
+@app.get("/team/{team_id:int}/permissions", response_class=HTMLResponse)
+async def team_permissions_page(req: Request, team_id: int):
+    """Plan Y S1: 팀장 권한 위임 UI — 팀원별 4~5개 권한 토글 (3 클릭 원칙).
+    - 팀장: 본인 팀만 관리 가능
+    - CEO/executive/admin: 전 팀 관리 가능
+    """
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if u["role"] not in ("leader", "executive", "ceo", "admin"):
+        return RedirectResponse("/home", 303)
+    # 팀장은 본인 팀만 (감사 가드)
+    if u["role"] == "leader" and u.get("team_id") != team_id:
+        return RedirectResponse(f"/team/{u.get('team_id')}/permissions", 303)
+
+    with db_session() as c:
+        team = c.execute("SELECT * FROM teams WHERE id=?", (team_id,)).fetchone()
+        if not team:
+            return RedirectResponse("/home", 303)
+        team = dict(team)
+        members = [dict(r) for r in c.execute(
+            """SELECT id, name, rank, role,
+                      can_use_sales, can_use_logistics,
+                      can_edit_changes, can_close_tickets, is_admin
+               FROM users
+               WHERE team_id=? AND is_active=1
+               ORDER BY
+                 CASE role WHEN 'executive' THEN 0 WHEN 'leader' THEN 1 ELSE 2 END,
+                 id""",
+            (team_id,)
+        ).fetchall()]
+        all_teams = []
+        if u["role"] in ("ceo", "admin", "executive"):
+            all_teams = [dict(r) for r in c.execute(
+                """SELECT t.*, (SELECT COUNT(*) FROM users u WHERE u.team_id=t.id AND u.is_active=1) AS member_count
+                   FROM teams t ORDER BY t.display_order"""
+            ).fetchall()]
+    return ctx(req, "admin_team_perms.html", user=u, active="team_perms",
+               team=team, members=members, all_teams=all_teams)
+
+
+@app.post("/team/{team_id:int}/permissions")
+async def team_permissions_save(req: Request, team_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if u["role"] not in ("leader", "executive", "ceo", "admin"):
+        return RedirectResponse("/home", 303)
+    if u["role"] == "leader" and u.get("team_id") != team_id:
+        return RedirectResponse("/home", 303)
+
+    form = await req.form()
+    is_admin_actor = u["role"] in ("ceo", "admin")
+    saved = 0
+    with db_session() as c:
+        members = c.execute(
+            "SELECT id, role FROM users WHERE team_id=? AND is_active=1", (team_id,)
+        ).fetchall()
+        for m in members:
+            mid = m["id"]
+            if not form.get(f"touch_{mid}"):
+                continue
+            # CEO/임원은 시드 유지 (해제 불가)
+            if m["role"] in ("ceo", "executive"):
+                continue
+            sales = 1 if form.get(f"sales_{mid}") else 0
+            logi  = 1 if form.get(f"logi_{mid}")  else 0
+            chg   = 1 if form.get(f"chg_{mid}")   else 0
+            tkt   = 1 if form.get(f"tkt_{mid}")   else 0
+            # is_admin 은 ceo/admin만 변경 가능
+            if is_admin_actor:
+                adm = 1 if form.get(f"adm_{mid}") else 0
+                c.execute(
+                    "UPDATE users SET can_use_sales=?, can_use_logistics=?, "
+                    "can_edit_changes=?, can_close_tickets=?, is_admin=? WHERE id=?",
+                    (sales, logi, chg, tkt, adm, mid)
+                )
+            else:
+                c.execute(
+                    "UPDATE users SET can_use_sales=?, can_use_logistics=?, "
+                    "can_edit_changes=?, can_close_tickets=? WHERE id=?",
+                    (sales, logi, chg, tkt, mid)
+                )
+            saved += 1
+        # 감사 로그: notification 자동 기록
+        try:
+            c.execute(
+                "INSERT INTO notifications(user_id, title, body, created_at) VALUES(?,?,?,?)",
+                (u["id"], "권한 변경", f"{saved}명의 권한을 업데이트하셨습니다 (team_id={team_id})",
+                 datetime.now().isoformat(timespec="seconds"))
+            )
+        except Exception:
+            pass
+    return RedirectResponse(f"/team/{team_id}/permissions?saved={saved}", 303)
+
+
 @app.get("/team", response_class=HTMLResponse)
 @app.get("/team/{sel_date}", response_class=HTMLResponse)
 async def team_page(req: Request, sel_date: str = ""):
