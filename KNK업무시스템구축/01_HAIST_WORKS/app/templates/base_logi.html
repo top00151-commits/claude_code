@@ -199,5 +199,110 @@ function toggleSidebar(){
 })();
 </script>
 
+{# ========== Victor 사이드 도크 (제안 #08 · 매출/자재 센터에도 노출) ========== #}
+{% if user %}
+<div class="dock-tab" onclick="victorToggleDock()" title="빅터 열기 (Ctrl+K)">
+  <span class="t-ico">🤖</span>
+  <span>빅터</span>
+  <kbd>Ctrl+K</kbd>
+</div>
+
+<aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
+  <div class="dock-head">
+    <div class="dock-head-row">
+      <div class="dock-avatar">V</div>
+      <div class="dock-title">
+        <div class="name">HAIST 빅터</div>
+        <div class="state">사내 AI 컨시어지 · 온라인</div>
+      </div>
+      <div class="dock-actions">
+        <button class="dock-btn" onclick="victorClearChat()" title="대화 초기화">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+        <button class="dock-btn" onclick="victorToggleDock()" title="접기 (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    {% if victor_chips %}
+    <div class="dock-ctx">
+      <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
+      <div class="dock-ctx-chips">
+        {% for chip in victor_chips %}
+        <button class="dock-ctx-chip" onclick="victorAsk({{ chip|tojson }})">{{ chip }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="dock-body" id="dockBody">
+    <div class="dock-welcome" id="dockWelcome">
+      <span class="emoji">👋</span>
+      <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
+        {{ user.name }}님, 무엇을 도와드릴까요?
+      </div>
+      자연어로 편하게 물어보세요.<br>
+      메뉴를 찾을 필요 없습니다.
+    </div>
+  </div>
+  <div class="dock-input-wrap">
+    <div class="dock-quick">
+      <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
+      <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
+      <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
+      <button type="button" onclick="victorAsk('안전재고 미달')">안전재고</button>
+      <button type="button" onclick="victorAsk('결재')">결재</button>
+    </div>
+    <div class="dock-input-row">
+      <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
+      <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="dock-foot">
+      <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+    </div>
+  </div>
+</aside>
+
+<script>
+/* base_logi 페이지용 Victor 도크 JS — base.html 과 동일 로직 (독립 실행 페이지이므로 재정의) */
+const VICTOR_DOCK_KEY='haist_victor_dock_open';let VICTOR_REDIRECT_TIMER=null;
+function victorToggleDock(){const o=!document.body.classList.contains('dock-open');document.body.classList.toggle('dock-open',o);try{localStorage.setItem(VICTOR_DOCK_KEY,o?'1':'0');}catch(e){}if(o)setTimeout(()=>document.getElementById('dockInput')?.focus(),280);}
+(function(){try{if(localStorage.getItem(VICTOR_DOCK_KEY)==='1')document.body.classList.add('dock-open');}catch(e){}})();
+function victorAutoGrow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+async function victorAsk(q){const body=document.getElementById('dockBody');if(!body)return;const welcome=document.getElementById('dockWelcome');if(welcome)welcome.remove();if(VICTOR_REDIRECT_TIMER){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;}
+  const esc=(s)=>(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  body.insertAdjacentHTML('beforeend','<div class="msg user"><div class="bubble">'+esc(q).replace(/\n/g,'<br>')+'</div></div>');
+  const tid='typ-'+Date.now();
+  body.insertAdjacentHTML('beforeend','<div class="msg ai" id="'+tid+'"><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>');
+  body.scrollTop=body.scrollHeight;
+  try{const r=await fetch('/api/victor/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})});const j=await r.json();document.getElementById(tid)?.remove();victorAppendAi(j.ok?(j.result||{}):{type:'error',title:'오류',text:j.error||'?',links:[]});}catch(err){document.getElementById(tid)?.remove();victorAppendAi({type:'error',title:'네트워크',text:String(err),links:[]});}}
+function victorSubmit(){const inp=document.getElementById('dockInput');if(!inp)return;const q=inp.value.trim();if(!q)return;inp.value='';victorAutoGrow(inp);victorAsk(q);}
+function victorAppendAi(r){const body=document.getElementById('dockBody');if(!body)return;const esc=(s)=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');const bold=(s)=>s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');const ico={route:'🧭',data:'📊',search:'🔍',guide:'💡',external:'🔗',error:'⚠️',guide_step:'🎯'}[r.type]||'🤖';
+  let textHtml;
+  if(r.type==='guide_step'){textHtml=(r.text||'').split('\n').map(l=>{const m=l.match(/^(\d+)\.\s*(.+)$/);if(m)return'<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;"><div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+m[1]+'</div><div style="flex:1;padding-top:1px;">'+bold(esc(m[2]))+'</div></div>';return'<div style="margin:3px 0;">'+bold(esc(l))+'</div>';}).join('');}
+  else textHtml=(r.text||'').split('\n').map(esc).map(bold).join('<br>');
+  const linksHtml=(r.links||[]).map(l=>{const cls=l.style==='primary'?'primary':(l.style==='do'?'do':'secondary');const h=(l.href||'#').replace(/"/g,'&quot;');const da=l.style==='do'?' data-do="1"':'';return'<a class="link-chip '+cls+'" href="'+h+'"'+da+'>'+esc(l.label||'')+'</a>';}).join('');
+  let countdownHtml='';if(r.type==='guide_step'&&r.auto_redirect){countdownHtml='<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="color:#92400E;">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">'+esc(r.auto_redirect)+'</span></div><button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';}
+  body.insertAdjacentHTML('beforeend','<div class="msg ai"><div class="bubble"><div class="title">'+ico+' '+esc(r.title||'')+'</div><div class="text">'+textHtml+'</div>'+(linksHtml?'<div class="links">'+linksHtml+'</div>':'')+countdownHtml+'</div></div>');
+  body.scrollTop=body.scrollHeight;
+  if(r.type==='guide_step'&&r.auto_redirect){let sec=3;VICTOR_REDIRECT_TIMER=setInterval(()=>{sec--;const el=document.getElementById('vcSec');if(el)el.textContent=sec;if(sec<=0){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;window.location.href=r.auto_redirect;}},1000);}}
+function victorCancelRedirect(){if(VICTOR_REDIRECT_TIMER){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;}const c=document.getElementById('victorCountdown');if(c){c.innerHTML='<span style="color:#6B7280;">✓ 자동 이동 취소됨</span>';c.style.background='#F3F4F6';c.style.borderLeftColor='#9CA3AF';}}
+function victorClearChat(){const body=document.getElementById('dockBody');if(body)body.innerHTML='<div class="dock-welcome" id="dockWelcome"><span class="emoji">👋</span><div style="font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">대화가 초기화되었습니다</div>다시 물어보세요.</div>';}
+document.addEventListener('click',function(e){const a=e.target.closest('.link-chip');if(!a)return;if(a.dataset.do==='1'){e.preventDefault();const href=a.getAttribute('href')||'#';if(!confirm('"'+a.textContent.trim()+'" 실행하시겠습니까?'))return;if(href==='#'||href.startsWith('javascript:')){alert('실행 API가 아직 연결되지 않았습니다.');return;}fetch(href,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.ok?alert('✓ 실행 완료'):alert('실패: '+r.status)).catch(err=>alert('오류: '+err));}});
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();victorToggleDock();return;}if(e.key==='Escape'&&document.body.classList.contains('dock-open')){if(document.activeElement&&document.activeElement.id==='dockInput'&&document.activeElement.value){document.activeElement.blur();return;}victorToggleDock();}});
+document.addEventListener('DOMContentLoaded',function(){const inp=document.getElementById('dockInput');if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();victorSubmit();}});});
+</script>
+
+{# base_logi 의 layout-wrap 가 도크 열리면 margin-right 밀림 #}
+<style>
+.layout-wrap{transition:margin-right 400ms cubic-bezier(0.33,1,0.68,1);}
+body.dock-open .layout-wrap{margin-right:420px;}
+body.dock-open .topbar-logi{padding-right:420px;transition:padding-right 400ms cubic-bezier(0.33,1,0.68,1);}
+@media(max-width:1023px){body.dock-open .layout-wrap{margin-right:0;}body.dock-open .topbar-logi{padding-right:0;}}
+</style>
+{% endif %}
+
 </body>
 </html>

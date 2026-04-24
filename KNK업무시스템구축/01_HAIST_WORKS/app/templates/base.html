@@ -27,15 +27,7 @@
   <div class="tb-spacer"></div>
 
   <div class="tb-right">
-    {# HAIST Victor — 사내 AI 컨시어지 (Phase 1) #}
-    <div class="tb-victor" id="victorBox" style="position:relative;">
-      <div class="tb-victor-trigger" onclick="victorOpen()" title="빅터에게 물어보기 (Ctrl+K)"
-           style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(165,40,44,.25);white-space:nowrap;">
-        <span style="font-size:16px;">🤖</span>
-        <span>빅터에게 물어보기</span>
-        <kbd style="background:rgba(255,255,255,.18);padding:2px 6px;border-radius:4px;font-size:10px;font-family:inherit;border:1px solid rgba(255,255,255,.25);">Ctrl+K</kbd>
-      </div>
-    </div>
+    {# Victor 트리거는 우측 사이드 도크(Ctrl+K)로 이동 — 제안 #08, 2026-04-24 #}
     <a href="/notifications" class="tb-icon-btn" title="{{ i.sb_notif|default('알림') }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
       {% if unread_notif and unread_notif > 0 %}<span class="tb-icon-dot"></span>{% endif %}
@@ -838,161 +830,126 @@ async function resolveDelegation(did, tid){
 {% endif %}
 
 /* =================================================================
-   HAIST Victor — 사내 AI 컨시어지 (Phase 1: 키워드 라우팅)
+   HAIST Victor — 사이드 도크 (제안 #08, 2026-04-24 대표 승인)
    ================================================================= */
 {% if user %}
-function victorOpen() {
-  let m = document.getElementById('victorModal');
-  if (m) { m.style.display='flex'; setTimeout(()=>document.getElementById('victorInput')?.focus(), 50); return; }
-  m = document.createElement('div');
-  m.id = 'victorModal';
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:9998;display:flex;align-items:flex-start;justify-content:center;padding-top:80px;backdrop-filter:blur(4px);';
-  m.onclick = (e) => { if (e.target === m) victorClose(); };
-  m.innerHTML = `
-    <div style="background:#fff;border-radius:16px;width:min(92vw,680px);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
-      <div style="padding:20px 24px 14px;border-bottom:1px solid #E5E7EB;background:linear-gradient(135deg,#FFEBEE,#FEE2E2);">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-          <span style="font-size:22px;">🤖</span>
-          <div>
-            <div style="font-weight:800;font-size:15px;color:#A5282C;">HAIST 빅터 (Victor)</div>
-            <div style="font-size:11px;color:#6B7280;">사내 AI 컨시어지 · 페이지/데이터/외부 시스템 안내</div>
-          </div>
-          <div style="margin-left:auto;">
-            <button onclick="victorClose()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#6B7280;padding:4px 10px;border-radius:6px;">×</button>
-          </div>
-        </div>
-        <form onsubmit="victorSubmit(event)" style="display:flex;gap:8px;">
-          <input id="victorInput" type="text" autocomplete="off"
-                 placeholder="예: 매출입력 어떻게해 / 이번달 매출 / 변경 등록 방법 / 내 할 일"
-                 style="flex:1;padding:12px 14px;border:2px solid #A5282C;border-radius:10px;font-size:14px;outline:none;font-family:inherit;">
-          <button type="submit" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;padding:12px 20px;border-radius:10px;font-weight:800;cursor:pointer;font-size:13px;">물어보기</button>
-        </form>
-        <div style="margin-top:10px;">
-          <div style="font-size:10px;color:#92400E;font-weight:700;margin-bottom:4px;">💡 단계별 안내 (자동 이동)</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-          ${['매출 입력 어떻게해','변경 등록 방법','티켓 요청 어떻게','이슈 등록 방법','출고 어떻게','입고 방법'].map(ex =>
-            `<button onclick="victorQuick('${ex}')" style="background:#FFFBEB;border:1px solid #F59E0B;color:#92400E;padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer;font-weight:700;">${ex}</button>`
-          ).join('')}
-          </div>
-          <div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px;">📊 현황 조회</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${['이번달 매출','내 할 일','미해결 이슈','확인 안 한 변경','지연된 공정','자재 재고'].map(ex =>
-            `<button onclick="victorQuick('${ex}')" style="background:#fff;border:1px solid #FCA5A5;color:#A5282C;padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer;font-weight:600;">${ex}</button>`
-          ).join('')}
-          </div>
-        </div>
-      </div>
-      <div id="victorResult" style="flex:1;overflow-y:auto;padding:20px 24px;">
-        <div style="text-align:center;color:#9CA3AF;padding:40px 0;font-size:13px;">
-          위 입력창에 자연어로 물어보세요.<br>
-          <small>메뉴를 찾을 필요 없습니다. 빅터가 해당 데이터/페이지로 안내합니다.</small>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(m);
-  setTimeout(()=>document.getElementById('victorInput')?.focus(), 50);
+const VICTOR_DOCK_KEY = 'haist_victor_dock_open';
+let VICTOR_REDIRECT_TIMER = null;
+
+function victorToggleDock() {
+  const open = !document.body.classList.contains('dock-open');
+  document.body.classList.toggle('dock-open', open);
+  try { localStorage.setItem(VICTOR_DOCK_KEY, open ? '1' : '0'); } catch(e){}
+  if (open) setTimeout(() => document.getElementById('dockInput')?.focus(), 280);
 }
 
-function victorClose() {
-  const m = document.getElementById('victorModal');
-  if (m) m.style.display = 'none';
+/* 초기: 이전 세션에서 열려 있던 상태 복원 */
+(function(){
+  try {
+    if (localStorage.getItem(VICTOR_DOCK_KEY) === '1') document.body.classList.add('dock-open');
+  } catch(e){}
+})();
+
+function victorAutoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+async function victorAsk(q) {
+  const body = document.getElementById('dockBody');
+  if (!body) return;
+  const welcome = document.getElementById('dockWelcome');
+  if (welcome) welcome.remove();
   if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
-}
 
-function victorQuick(q) {
-  const inp = document.getElementById('victorInput');
-  if (inp) { inp.value = q; victorSubmit(new Event('submit')); }
-}
+  const esc = (s) => (s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg user"><div class="bubble">' + esc(q).replace(/\n/g,'<br>') + '</div></div>'
+  );
+  const typingId = 'typ-' + Date.now();
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg ai" id="'+typingId+'"><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>'
+  );
+  body.scrollTop = body.scrollHeight;
 
-async function victorSubmit(e) {
-  if (e) e.preventDefault();
-  const inp = document.getElementById('victorInput');
-  const res = document.getElementById('victorResult');
-  if (!inp || !res) return;
-  const q = inp.value.trim();
-  if (!q) return;
-  res.innerHTML = '<div style="text-align:center;color:#9CA3AF;padding:30px 0;">생각 중...</div>';
   try {
     const r = await fetch('/api/victor/ask', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({query: q})
     });
     const j = await r.json();
-    if (!j.ok) { res.innerHTML = '<div style="color:#A5282C;">오류: ' + (j.error || '알 수 없음') + '</div>'; return; }
-    renderVictorResult(j.result);
+    document.getElementById(typingId)?.remove();
+    if (!j.ok) {
+      victorAppendAi({type:'error', title:'오류', text: j.error || '알 수 없음', links:[]});
+    } else {
+      victorAppendAi(j.result || {});
+    }
   } catch (err) {
-    res.innerHTML = '<div style="color:#A5282C;">네트워크 오류: ' + err + '</div>';
+    document.getElementById(typingId)?.remove();
+    victorAppendAi({type:'error', title:'네트워크 오류', text: String(err), links:[]});
   }
 }
 
-let VICTOR_REDIRECT_TIMER = null;
+function victorSubmit() {
+  const inp = document.getElementById('dockInput');
+  if (!inp) return;
+  const q = inp.value.trim();
+  if (!q) return;
+  inp.value = '';
+  victorAutoGrow(inp);
+  victorAsk(q);
+}
 
-function renderVictorResult(r) {
-  const res = document.getElementById('victorResult');
-  if (!res) return;
-  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
-
-  const typeColor = {
-    route: '#1565C0', data: '#2E7D32', search: '#6B21A8',
-    guide: '#6B7280', external: '#4338CA', guide_step: '#F59E0B'
-  };
-  const color = typeColor[r.type] || '#A5282C';
-
+function victorAppendAi(r) {
+  const body = document.getElementById('dockBody');
+  if (!body) return;
   const escape = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const bold = (s) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const titleIco = {route:'🧭',data:'📊',search:'🔍',guide:'💡',external:'🔗',error:'⚠️',guide_step:'🎯'}[r.type] || '🤖';
 
-  // guide_step 타입: 단계 배지 시각화
+  /* guide_step 은 번호 배지 렌더 */
   let textHtml;
   if (r.type === 'guide_step') {
-    const lines = (r.text || '').split('\n');
-    const rendered = lines.map(l => {
+    textHtml = (r.text || '').split('\n').map(l => {
       const m = l.match(/^(\d+)\.\s*(.+)$/);
       if (m) {
-        return `<div style="display:flex;gap:10px;align-items:flex-start;margin:6px 0;">
-          <div style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#A5282C;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">${m[1]}</div>
-          <div style="flex:1;font-size:13px;line-height:1.6;color:#1A1A1A;padding-top:2px;">${bold(escape(m[2]))}</div>
-        </div>`;
+        return '<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;">' +
+               '<div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">' + m[1] + '</div>' +
+               '<div style="flex:1;padding-top:1px;">' + bold(escape(m[2])) + '</div></div>';
       }
-      return `<div style="font-size:13px;line-height:1.7;color:#374151;margin:4px 0;">${bold(escape(l))}</div>`;
+      return '<div style="margin:3px 0;">' + bold(escape(l)) + '</div>';
     }).join('');
-    textHtml = rendered;
   } else {
     textHtml = (r.text || '').split('\n').map(escape).map(bold).join('<br>');
   }
 
   const linksHtml = (r.links || []).map(l => {
-    const primary = l.style === 'primary';
-    const css = primary
-      ? 'background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;box-shadow:0 2px 6px rgba(165,40,44,.25);'
-      : 'background:#F3F4F6;color:#374151;border:1px solid #E5E7EB;';
-    return `<a href="${l.href}" target="_self" style="${css}padding:9px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:12px;display:inline-block;margin:0 6px 6px 0;">${l.label}</a>`;
+    const cls = l.style === 'primary' ? 'primary' : (l.style === 'do' ? 'do' : 'secondary');
+    const safeHref = (l.href || '#').replace(/"/g, '&quot;');
+    const safeLabel = escape(l.label || '');
+    const doAttr = l.style === 'do' ? ' data-do="1"' : '';
+    return '<a class="link-chip ' + cls + '" href="' + safeHref + '"' + doAttr + '>' + safeLabel + '</a>';
   }).join('');
 
-  // 자동 이동 카운트다운 (guide_step + auto_redirect)
+  /* guide_step + auto_redirect 카운트다운 */
   let countdownHtml = '';
   if (r.type === 'guide_step' && r.auto_redirect) {
-    countdownHtml = `
-      <div id="victorCountdown" style="margin-top:14px;padding:10px 14px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;">
-        <div style="color:#92400E;">
-          ⏱ <strong id="vcSec">3</strong>초 후 자동 이동합니다 →
-          <span style="color:#78350F;font-weight:700;">${escape(r.auto_redirect)}</span>
-        </div>
-        <button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;">취소</button>
-      </div>`;
+    const safeUrl = escape(r.auto_redirect);
+    countdownHtml = '<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+      '<div style="color:#92400E;">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">' + safeUrl + '</span></div>' +
+      '<button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';
   }
 
-  res.innerHTML = `
-    <div style="border-left:4px solid ${color};padding:4px 0 4px 16px;margin-bottom:14px;">
-      <div style="font-size:16px;font-weight:800;color:#1A1A1A;margin-bottom:10px;">${escape(r.title || '')}</div>
-      ${textHtml}
-    </div>
-    ${linksHtml ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed #E5E7EB;">${linksHtml}</div>` : ''}
-    ${countdownHtml}
-    <div style="margin-top:16px;font-size:10px;color:#9CA3AF;text-align:right;">의도: ${escape(r.intent || '-')}</div>
-  `;
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg ai"><div class="bubble">' +
+    '<div class="title">' + titleIco + ' ' + escape(r.title || '') + '</div>' +
+    '<div class="text">' + textHtml + '</div>' +
+    (linksHtml ? '<div class="links">' + linksHtml + '</div>' : '') +
+    countdownHtml +
+    '</div></div>'
+  );
+  body.scrollTop = body.scrollHeight;
 
-  // 자동 이동 타이머 시작
   if (r.type === 'guide_step' && r.auto_redirect) {
     let sec = 3;
     VICTOR_REDIRECT_TIMER = setInterval(() => {
@@ -1000,8 +957,7 @@ function renderVictorResult(r) {
       const el = document.getElementById('vcSec');
       if (el) el.textContent = sec;
       if (sec <= 0) {
-        clearInterval(VICTOR_REDIRECT_TIMER);
-        VICTOR_REDIRECT_TIMER = null;
+        clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null;
         window.location.href = r.auto_redirect;
       }
     }, 1000);
@@ -1011,26 +967,138 @@ function renderVictorResult(r) {
 function victorCancelRedirect() {
   if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
   const c = document.getElementById('victorCountdown');
-  if (c) {
-    c.innerHTML = '<span style="color:#6B7280;">✓ 자동 이동 취소됨 — 위 버튼으로 직접 이동하세요.</span>';
-    c.style.background = '#F3F4F6';
-    c.style.borderLeftColor = '#9CA3AF';
-  }
+  if (c) { c.innerHTML = '<span style="color:#6B7280;">✓ 자동 이동 취소됨</span>'; c.style.background = '#F3F4F6'; c.style.borderLeftColor = '#9CA3AF'; }
 }
 
-/* Ctrl+K / ⌘K 로 열기 */
+function victorClearChat() {
+  const body = document.getElementById('dockBody');
+  if (body) body.innerHTML =
+    '<div class="dock-welcome" id="dockWelcome">' +
+    '<span class="emoji">👋</span>' +
+    '<div style="font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">대화가 초기화되었습니다</div>' +
+    '다시 물어보세요.</div>';
+}
+
+/* 링크 클릭: do 스타일은 확인 후 POST, 나머지는 기본 이동 + 도크 상태 유지 */
+document.addEventListener('click', function(e){
+  const a = e.target.closest('.link-chip');
+  if (!a) return;
+  if (a.dataset.do === '1') {
+    e.preventDefault();
+    const href = a.getAttribute('href') || '#';
+    if (!confirm('"' + a.textContent.trim() + '" 실행하시겠습니까?')) return;
+    if (href === '#' || href.startsWith('javascript:')) {
+      alert('실행 API가 아직 연결되지 않은 액션입니다. 해당 페이지에서 직접 처리해주세요.');
+      return;
+    }
+    fetch(href, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+      .then(r => r.ok ? alert('✓ 실행 완료') : alert('실행 실패: ' + r.status))
+      .catch(err => alert('네트워크 오류: ' + err));
+  }
+  /* 일반 이동 링크는 그대로 진행 — localStorage 복원으로 다음 페이지에서도 도크 열림 유지 */
+});
+
+/* Ctrl+K / ⌘K 로 토글 · Esc 로 접기 · Enter 전송 · Shift+Enter 줄바꿈 */
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
-    victorOpen();
+    victorToggleDock();
+    return;
   }
-  if (e.key === 'Escape') {
-    const m = document.getElementById('victorModal');
-    if (m && m.style.display !== 'none') victorClose();
+  if (e.key === 'Escape' && document.body.classList.contains('dock-open')) {
+    /* 입력창 포커스 상태에서는 Esc로 먼저 포커스 해제만 */
+    if (document.activeElement && document.activeElement.id === 'dockInput' && document.activeElement.value) {
+      document.activeElement.blur();
+      return;
+    }
+    victorToggleDock();
   }
 });
+
+document.addEventListener('DOMContentLoaded', function(){
+  const inp = document.getElementById('dockInput');
+  if (!inp) return;
+  inp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      victorSubmit();
+    }
+  });
+});
+{% endif %}
 {% endif %}
 </script>
+
+{# =========================================================
+   HAIST Victor — 사이드 도크 (제안 #08, 대표 승인 2026-04-24)
+   시안: 05_.../03_시안/08_victor_side_dock.html
+   ========================================================= #}
+{% if user %}
+<div class="dock-tab" onclick="victorToggleDock()" title="빅터 열기 (Ctrl+K)">
+  <span class="t-ico">🤖</span>
+  <span>빅터</span>
+  <kbd>Ctrl+K</kbd>
+</div>
+
+<aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
+  <div class="dock-head">
+    <div class="dock-head-row">
+      <div class="dock-avatar">V</div>
+      <div class="dock-title">
+        <div class="name">HAIST 빅터</div>
+        <div class="state">사내 AI 컨시어지 · 온라인</div>
+      </div>
+      <div class="dock-actions">
+        <button class="dock-btn" onclick="victorClearChat()" title="대화 초기화">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+        <button class="dock-btn" onclick="victorToggleDock()" title="접기 (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    {% if victor_chips %}
+    <div class="dock-ctx">
+      <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
+      <div class="dock-ctx-chips">
+        {% for chip in victor_chips %}
+        <button class="dock-ctx-chip" onclick="victorAsk({{ chip|tojson }})">{{ chip }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="dock-body" id="dockBody">
+    <div class="dock-welcome" id="dockWelcome">
+      <span class="emoji">👋</span>
+      <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
+        {{ user.name }}님, 무엇을 도와드릴까요?
+      </div>
+      자연어로 편하게 물어보세요.<br>
+      메뉴를 찾을 필요 없습니다.
+    </div>
+  </div>
+
+  <div class="dock-input-wrap">
+    <div class="dock-quick">
+      <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
+      <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
+      <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
+      <button type="button" onclick="victorAsk('확인 안 한 변경')">미확인 변경</button>
+      <button type="button" onclick="victorAsk('결재')">결재</button>
+    </div>
+    <div class="dock-input-row">
+      <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
+      <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="dock-foot">
+      <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+    </div>
+  </div>
+</aside>
 {% endif %}
 </body>
 </html>

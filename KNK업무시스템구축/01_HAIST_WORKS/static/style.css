@@ -3481,3 +3481,327 @@ body.login-body-split {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   VICTOR SIDE DOCK — 제안 #08 (대표 승인 2026-04-24)
+   시안: 05_HAIST_WORKS_디자인팀/03_시안/08_victor_side_dock.html
+   ============================================================ */
+
+/* 메인 영역 마진 트랜지션 — 도크 열리면 우측으로 밀림 */
+.main.has-sidebar { transition: margin-right 400ms cubic-bezier(0.33, 1, 0.68, 1); }
+body.dock-open .main.has-sidebar { margin-right: 420px; }
+body.dock-open .topbar { padding-right: 420px; transition: padding-right 400ms cubic-bezier(0.33, 1, 0.68, 1); }
+
+@media (max-width: 1023px) {
+  body.dock-open .main.has-sidebar { margin-right: 0; }
+  body.dock-open .topbar { padding-right: 0; }
+}
+
+/* Dock 탭 (항상 우측에 고정) */
+.dock-tab {
+  position: fixed;
+  top: 120px; right: 0;
+  z-index: 1040;
+  background: var(--grad-brand-warm);
+  color: #fff;
+  padding: var(--s-4, 16px) var(--s-3, 12px);
+  border-radius: var(--r-md, 10px) 0 0 var(--r-md, 10px);
+  box-shadow: -2px 4px 12px rgba(165, 40, 44, 0.3);
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s-2, 8px);
+  transition: right 400ms cubic-bezier(0.33, 1, 0.68, 1),
+              transform 150ms;
+  user-select: none;
+  font-size: var(--fs-fluid-xs);
+  font-weight: var(--fw-bold, 800);
+  letter-spacing: 0.1em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.dock-tab:hover { transform: translateX(-2px); }
+.dock-tab .t-ico { writing-mode: horizontal-tb; font-size: 18px; margin-bottom: 4px; }
+.dock-tab kbd {
+  writing-mode: horizontal-tb;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: rgba(255,255,255,0.18);
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.25);
+  margin-top: 6px;
+}
+body.dock-open .dock-tab { right: -56px; pointer-events: none; }
+
+/* Dock 패널 본체 */
+.dock {
+  position: fixed; top: 0; bottom: 0; right: -420px;
+  width: 420px;
+  background: var(--bg-card, #fff);
+  border-left: 1px solid var(--ink-200, #E5E7EB);
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.08);
+  z-index: 1050;
+  transition: right 400ms cubic-bezier(0.33, 1, 0.68, 1);
+  display: flex; flex-direction: column;
+}
+body.dock-open .dock { right: 0; }
+
+/* Dock 헤더 */
+.dock-head {
+  padding: var(--s-4, 16px);
+  background: var(--grad-brand-deep);
+  color: #fff;
+  position: relative; overflow: hidden;
+  flex-shrink: 0;
+}
+.dock-head::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1), transparent 50%);
+  pointer-events: none;
+}
+.dock-head-row { display: flex; align-items: center; gap: var(--s-3, 12px); position: relative; z-index: 1; }
+.dock-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 800;
+  position: relative; color: #fff;
+}
+.dock-avatar::after {
+  content: ''; position: absolute; bottom: -1px; right: -1px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #10B981;
+  border: 2px solid #1A0508;
+  animation: dockPulse 2.5s ease-in-out infinite;
+}
+@keyframes dockPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+.dock-title { flex: 1; }
+.dock-title .name { font-size: var(--fs-fluid-md); font-weight: var(--fw-bold, 800); }
+.dock-title .state { font-size: var(--fs-fluid-xs); opacity: 0.8; }
+.dock-actions { display: flex; gap: 4px; }
+.dock-btn {
+  width: 32px; height: 32px; border-radius: var(--r-sm, 6px);
+  background: rgba(255,255,255,0.1); color: #fff; border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 150ms;
+}
+.dock-btn:hover { background: rgba(255,255,255,0.22); }
+
+/* 맥락 칩 (헤더 하단) */
+.dock-ctx {
+  padding: var(--s-3, 12px) var(--s-4, 16px);
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  font-size: var(--fs-fluid-xs); color: #fff;
+  position: relative; z-index: 1;
+}
+.dock-ctx-label {
+  opacity: 0.75; margin-bottom: 6px;
+  display: block; font-weight: var(--fw-semi, 600);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.dock-ctx-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.dock-ctx-chip {
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: var(--r-pill, 999px);
+  color: #fff;
+  font-size: var(--fs-fluid-xs); font-weight: var(--fw-semi, 600);
+  cursor: pointer;
+  transition: all 150ms;
+  font-family: inherit;
+}
+.dock-ctx-chip:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+
+/* 대화 영역 */
+.dock-body {
+  flex: 1; overflow-y: auto;
+  padding: var(--s-4, 16px);
+  background: var(--bg-page, #FAFBFC);
+}
+.dock-welcome {
+  text-align: center;
+  padding: var(--s-6, 24px) var(--s-4, 16px);
+  color: var(--ink-500, #64748B);
+  font-size: var(--fs-fluid-sm);
+  line-height: 1.6;
+}
+.dock-welcome .emoji { font-size: 40px; display: block; margin-bottom: var(--s-3, 12px); }
+
+.msg {
+  margin-bottom: var(--s-4, 16px);
+  display: flex; gap: var(--s-2, 8px);
+  animation: dockMsgIn 250ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+@keyframes dockMsgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg.user { justify-content: flex-end; }
+.msg .bubble {
+  max-width: 88%;
+  padding: var(--s-3, 12px) var(--s-4, 16px);
+  border-radius: var(--r-md, 10px);
+  font-size: var(--fs-fluid-sm);
+  line-height: 1.55;
+}
+.msg.user .bubble {
+  background: var(--grad-brand-warm); color: #fff;
+  border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
+}
+.msg.ai .bubble {
+  background: var(--bg-card, #fff); color: var(--ink-900, #1A1A1A);
+  border: 1px solid var(--ink-200, #E5E7EB);
+  border-radius: var(--r-md) var(--r-md) var(--r-md) 4px;
+  position: relative;
+}
+.msg.ai .bubble .title {
+  font-size: var(--fs-fluid-sm);
+  font-weight: var(--fw-bold, 800);
+  margin-bottom: var(--s-2, 8px);
+  color: var(--knk-red, #A5282C);
+  display: flex; align-items: center; gap: 6px;
+}
+.msg.ai .bubble .text { white-space: pre-wrap; font-family: inherit; }
+.msg.ai .bubble .links {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: var(--s-3, 12px); padding-top: var(--s-3, 12px);
+  border-top: 1px dashed var(--ink-200, #E5E7EB);
+}
+
+/* 링크 칩 (primary / secondary / do) */
+.dock .link-chip {
+  font-size: var(--fs-fluid-xs);
+  padding: 6px 12px;
+  border-radius: var(--r-sm, 6px);
+  font-weight: var(--fw-bold, 800);
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: transform 150ms cubic-bezier(0.33, 1, 0.68, 1), box-shadow 150ms;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dock .link-chip:hover { transform: translateY(-1px); }
+.dock .link-chip.primary {
+  background: var(--grad-brand-warm); color: #fff;
+  box-shadow: 0 2px 6px rgba(165,40,44,0.25);
+}
+.dock .link-chip.primary:hover { box-shadow: 0 4px 12px rgba(165,40,44,0.35); }
+.dock .link-chip.secondary {
+  background: var(--ink-100, #F1F5F9); color: var(--ink-700, #334155);
+  border: 1px solid var(--ink-200, #E5E7EB);
+}
+.dock .link-chip.do {
+  background: #D1FAE5; color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+.dock .link-chip.do::before { content: '▶ '; font-size: 9px; }
+
+/* 타이핑 인디케이터 */
+.typing-dots { display: inline-flex; gap: 4px; align-items: center; }
+.typing-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ink-400, #94A3B8);
+  animation: dockTyping 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dockTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* 입력 영역 (하단 sticky) */
+.dock-input-wrap {
+  padding: var(--s-3, 12px) var(--s-4, 16px) var(--s-4, 16px);
+  background: var(--bg-card, #fff);
+  border-top: 1px solid var(--ink-200, #E5E7EB);
+  flex-shrink: 0;
+}
+.dock-quick {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-bottom: var(--s-2, 8px);
+}
+.dock-quick button {
+  font-size: var(--fs-fluid-xs);
+  padding: 4px 10px;
+  background: var(--ink-100, #F1F5F9);
+  color: var(--ink-700, #334155);
+  border: 1px solid var(--ink-200, #E5E7EB);
+  border-radius: var(--r-pill, 999px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 150ms;
+  font-family: inherit;
+}
+.dock-quick button:hover {
+  background: var(--knk-red-bg, #FFEBEE);
+  color: var(--knk-red, #A5282C);
+  border-color: #FCA5A5;
+}
+
+.dock-input-row { display: flex; gap: var(--s-2, 8px); align-items: flex-end; }
+.dock-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: var(--fs-fluid-sm);
+  font-family: inherit;
+  color: var(--ink-900, #1A1A1A);
+  background: var(--bg-page, #FAFBFC);
+  border: 1.5px solid var(--ink-200, #E5E7EB);
+  border-radius: var(--r-md, 10px);
+  outline: none;
+  resize: none;
+  max-height: 120px; min-height: 40px;
+  transition: border-color 150ms, box-shadow 150ms;
+  box-sizing: border-box;
+}
+.dock-input:focus {
+  border-color: var(--knk-red, #A5282C);
+  box-shadow: 0 0 0 3px rgba(165,40,44,0.1);
+}
+.dock-send {
+  width: 40px; height: 40px;
+  background: var(--grad-brand-warm); color: #fff;
+  border: none; border-radius: var(--r-md, 10px);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(165,40,44,0.25);
+  transition: transform 150ms, box-shadow 150ms;
+  flex-shrink: 0;
+}
+.dock-send:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(165,40,44,0.35);
+}
+.dock-send:disabled {
+  opacity: 0.4; cursor: not-allowed;
+  transform: none; box-shadow: none;
+}
+.dock-foot {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--ink-400, #94A3B8);
+  text-align: center;
+}
+.dock-foot kbd {
+  font-family: var(--font-mono);
+  background: var(--ink-100, #F1F5F9);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--ink-200, #E5E7EB);
+  font-size: 9px;
+}
+
+/* 모바일 (<1024px): 풀스크린 오버레이 */
+@media (max-width: 1023px) {
+  .dock { width: 100%; right: -100%; }
+  .dock-tab { top: auto; bottom: 80px; }
+  body.dock-open .dock-tab { right: -56px; }
+}

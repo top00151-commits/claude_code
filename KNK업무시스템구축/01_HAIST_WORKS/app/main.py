@@ -44,6 +44,46 @@ STATUSES = ["진행중", "완료", "지연", "대기", "보류"]
 # =====================================================
 # HELPERS
 # =====================================================
+
+# Victor 사이드 도크 — 현재 페이지 기반 맥락 칩 (제안 #08)
+VICTOR_CONTEXT_CHIPS = {
+    "/home":        ["내 할 일", "오늘 등록", "팀 현황"],
+    "/daily":       ["오늘 업무 입력", "어제 업무", "이번 주 보고"],
+    "/calendar":    ["이번 달 일정", "내 휴가", "회의 등록"],
+    "/notifications": ["최신 알림", "읽지 않은 알림", "내 관련 변경"],
+    "/feed":        ["오늘 팀 현황", "지연 공정", "최근 변경"],
+    "/now":         ["실시간 누가 무엇을", "지연 공정", "최근 티켓"],
+    "/progress":    ["지연 공정", "내 미완료 공정", "납기 임박"],
+    "/tickets":     ["미처리 티켓", "내가 받은 요청", "티켓 등록 방법"],
+    "/issues":      ["미해결 이슈", "긴급 이슈", "이슈 등록 방법"],
+    "/changes":     ["미확인 변경", "내 관련 변경", "긴급 변경"],
+    "/dashboard":   ["이번달 매출", "지연 공정", "미처리 업무"],
+    "/bottlenecks": ["병목 상세", "담당자 배정", "해결 기록"],
+    "/admin":       ["사용자 추가", "권한 변경", "Excel 내보내기"],
+    "/sales":       ["이번달 수주", "고객사 Top 5", "영업 단계별"],
+    "/logistics":   ["안전재고 미달", "미입고 발주", "재고 금액"],
+    "/parts":       ["부품 검색", "FIFO 원가", "공급사 단가"],
+    "/po":          ["발주 등록", "미입고 발주", "공급사 리드타임"],
+    "/stock/movements": ["최근 출고", "재고 실사", "수불부"],
+    "/rates":       ["오늘 환율", "최근 갱신", "통화별 추세"],
+    "/board/company": ["긴급 공지", "내 관련 글", "새 글쓰기"],
+    "/board/team": ["팀 공지", "내 팀 글", "승인 대기"],
+}
+
+def _victor_chips_for_path(path: str):
+    """현재 URL 경로에 맞는 맥락 칩 반환. 매칭 없으면 기본 칩."""
+    if not path:
+        return VICTOR_CONTEXT_CHIPS["/home"]
+    # exact match 먼저
+    if path in VICTOR_CONTEXT_CHIPS:
+        return VICTOR_CONTEXT_CHIPS[path]
+    # prefix match (/changes/123 → /changes)
+    for key in VICTOR_CONTEXT_CHIPS:
+        if path.startswith(key + "/"):
+            return VICTOR_CONTEXT_CHIPS[key]
+    return VICTOR_CONTEXT_CHIPS["/home"]
+
+
 def ctx(request, name, **kwargs):
     # 사용자 언어 결정
     user = kwargs.get("user")
@@ -72,6 +112,8 @@ def ctx(request, name, **kwargs):
         "hiworks_approval_url": get_setting("hiworks_approval_url", "https://office.hiworks.com/"),
         "hiworks_mail_url":     get_setting("hiworks_mail_url",     "https://mail.hiworks.com/"),
         "hiworks_domain":       get_setting("hiworks_domain", ""),
+        # Victor 도크 맥락 칩 (제안 #08)
+        "victor_chips":         _victor_chips_for_path(str(request.url.path) if hasattr(request, "url") else ""),
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None
