@@ -147,6 +147,32 @@ def can_use_logistics(user) -> bool:
     return bool(flag)
 
 
+def can_use_sales(user) -> bool:
+    """매출·영업 모듈 접근 권한 (Plan Y S1 — 도메인 분리).
+    - admin / ceo / executive: 항상 허용
+    - 영업팀·관리팀 leader/member: 항상 허용 (현장 입력자)
+    - 그 외: users.can_use_sales 플래그가 1일 때만
+    회귀 폴백: can_use_sales 컬럼이 없거나 미설정인 경우 can_use_logistics 로 graceful 폴백.
+    """
+    if not user:
+        return False
+    role = user.get("role") if isinstance(user, dict) else user["role"]
+    if role in ("admin", "ceo", "executive"):
+        return True
+    # team_id 1·2·3 (대표직속·영업·관리) 폭넓게 허용 — 추후 팀장 위임 UI 로 정밀화 (S1-2)
+    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
+    if team_id in (1, 2, 3):
+        return True
+    try:
+        flag = user.get("can_use_sales") if isinstance(user, dict) else user["can_use_sales"]
+        if flag:
+            return True
+    except (KeyError, IndexError):
+        pass
+    # 회귀 폴백: 기존 logistics 권한자도 일단 허용 (S1 안전 모드, S2에서 분리 강화)
+    return can_use_logistics(user)
+
+
 def status_color(s):
     return {
         "진행중": ("#FFF8E1", "#F57F17"),
@@ -1398,7 +1424,12 @@ async def dashboard_page(req: Request):
         return RedirectResponse("/login", 303)
     u = require(req, ["ceo", "admin", "executive"])
     if not u:
-        return RedirectResponse(role_home(u_any), 303)
+        # Plan Y S1 회귀 #1: leader 가 /dashboard 직접 접근 → /team 폴백
+        # (이전: role_home 호출 후 leader 도 /dashboard 로 무한 루프 가능성 존재)
+        target = role_home(u_any)
+        if target == "/dashboard":
+            target = "/home"  # 안전 폴백
+        return RedirectResponse(target, 303)
     today = date.today()
     mon = (today - timedelta(days=today.weekday())).isoformat()
     sun = (today - timedelta(days=today.weekday()) + timedelta(days=6)).isoformat()
@@ -2522,7 +2553,7 @@ async def changes_new_submit(
         "approval_url": approval_url.strip() or None,
     }, author_id=u["id"])
 
-    # 알림 발송 (web 게시판 자동 글 + 카카오워크 stub)
+    # 알림 발송 (web 게시판 자동 글 + 하이웍스 메신저)
     try:
         notify_change_impacts(cid, change_no, change_type, title, urgency, u)
     except Exception as e:
@@ -3350,7 +3381,8 @@ async def sales_dashboard(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    # Plan Y S1 회귀 #2: /sales 는 can_use_sales (도메인 분리). /logistics 와 권한 독립
+    if not can_use_sales(u):
         return RedirectResponse("/home", 303)
     proj_stats = _logi.projects_count_logi()
     # 매출 KPI (Victor sales 핸들러와 동일 로직)

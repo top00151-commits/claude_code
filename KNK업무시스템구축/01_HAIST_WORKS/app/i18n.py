@@ -469,6 +469,25 @@ T = {
     "pd_retro_saved":   {"ko":"회고가 저장되었습니다.","vi":"Đã lưu hồi tưởng.",   "en":"Retrospective saved."},
     "pd_retro_fail":    {"ko":"실패:",                "vi":"Thất bại:",            "en":"Failed:"},
     "pd_last_update":   {"ko":"최종:",                "vi":"Cập nhật cuối:",       "en":"Last:"},
+
+    # ===== 게시판 (Plan Y S1 회귀 #3 — VN/EN 사용자용 i18n) =====
+    "board_team":       {"ko":"팀 게시판",        "vi":"Bảng tin nhóm",      "en":"Team Board"},
+    "board_company":    {"ko":"전사 게시판",      "vi":"Bảng tin công ty",   "en":"Company Board"},
+    "btn_write":        {"ko":"글쓰기",           "vi":"Viết bài",           "en":"Write"},
+    "btn_approve":      {"ko":"승인",             "vi":"Phê duyệt",          "en":"Approve"},
+    "btn_reject":       {"ko":"반려",             "vi":"Từ chối",            "en":"Reject"},
+    "pending_approval": {"ko":"승인 대기",        "vi":"Chờ phê duyệt",      "en":"Pending Approval"},
+    "click_expand":     {"ko":"클릭하여 펼치기",  "vi":"Nhấp để mở rộng",   "en":"Click to expand"},
+    "status_pending":   {"ko":"대기",             "vi":"Chờ",                "en":"Pending"},
+    "status_rejected":  {"ko":"반려",             "vi":"Bị từ chối",         "en":"Rejected"},
+    "reject_reason_ph": {"ko":"반려 사유",        "vi":"Lý do từ chối",      "en":"Reject reason"},
+    "col_category":     {"ko":"분류",             "vi":"Phân loại",          "en":"Category"},
+    "col_title":        {"ko":"제목",             "vi":"Tiêu đề",            "en":"Title"},
+    "col_author":       {"ko":"작성자",           "vi":"Tác giả",            "en":"Author"},
+    "col_date":         {"ko":"작성일",           "vi":"Ngày đăng",          "en":"Date"},
+    "col_views":        {"ko":"조회",             "vi":"Lượt xem",           "en":"Views"},
+    "col_comments":     {"ko":"댓글",             "vi":"Bình luận",          "en":"Comments"},
+    "empty_board":      {"ko":"등록된 글이 없습니다", "vi":"Chưa có bài viết nào", "en":"No posts yet"},
 }
 
 def t(key, lang="ko"):

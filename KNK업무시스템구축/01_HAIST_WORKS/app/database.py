@@ -797,6 +797,33 @@ def init_db():
                 c.execute("ALTER TABLE users ADD COLUMN can_use_logistics INTEGER DEFAULT 0")
             except Exception:
                 pass
+        # 마이그레이션 (Plan Y S1): 관리자 권한 + 매출/구매 분리 권한
+        for col, ddl in [
+            ("is_admin",          "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
+            ("can_use_sales",     "ALTER TABLE users ADD COLUMN can_use_sales INTEGER DEFAULT 0"),
+            ("can_edit_changes",  "ALTER TABLE users ADD COLUMN can_edit_changes INTEGER DEFAULT 0"),
+            ("can_close_tickets", "ALTER TABLE users ADD COLUMN can_close_tickets INTEGER DEFAULT 0"),
+        ]:
+            if col not in ucols:
+                try:
+                    c.execute(ddl)
+                except Exception:
+                    pass
+        # Plan Y S1 — 권한 시드 (idempotent, 매 init 실행 / seed 게이트 외부)
+        # CEO + executive 전권 자동 부여 (PS-CEO/PS-임원 페르소나 충족)
+        try:
+            c.execute(
+                "UPDATE users SET can_use_logistics=1, can_use_sales=1, "
+                "is_admin=1, can_edit_changes=1, can_close_tickets=1 "
+                "WHERE role IN ('ceo','executive') AND is_active=1"
+            )
+            # leader: 본인 영역 변경/티켓 처리 권한 기본 ON
+            c.execute(
+                "UPDATE users SET can_edit_changes=1, can_close_tickets=1 "
+                "WHERE role='leader' AND is_active=1"
+            )
+        except Exception:
+            pass
         # 마이그레이션: changes에 source 컬럼 (Abram Scientific 모델 — 외부 도구 출처)
         try:
             ccols = [r[1] for r in c.execute("PRAGMA table_info(changes)").fetchall()]
@@ -851,7 +878,7 @@ def init_db():
                 ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL (사이드바 외부 링크)"),
                 ("hiworks_domain",       "",                              "회사 하이웍스 도메인 (예: knk.co.kr)"),
                 # 하이웍스 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
-                ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용 (카카오워크 대체)"),
+                ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용"),
                 ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
                 ("hiworks_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
                 # 알림 채널 마스터 스위치
@@ -961,6 +988,8 @@ def seed_all():
                 "UPDATE users SET can_use_logistics=1 WHERE team_id=? AND role='leader'",
                 (purch_team["id"],),
             )
+
+        # (Plan Y S1 권한 시드는 마이그레이션 블록으로 이동 — 매 init idempotent 적용)
 
         # 5) Customers
         for cname, tier, note in CUSTOMERS:
