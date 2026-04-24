@@ -1,30 +1,132 @@
-{% extends "base.html" %}
-{% block title %}{{ i.login_title|default('로그인') }} · {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
-<div class="login-wrap">
-  <div class="login-card">
-    <img src="/static/logo.png?v=20260414b" alt="KNK HAIST Innovation" class="login-logo-img">
-    <div class="login-title">{{ app_name|default('HAIST WORKS') }}</div>
-    <div class="login-subtitle" style="font-size:12px;color:#6B7280;margin-top:-4px;margin-bottom:14px;font-weight:500;letter-spacing:0.02em;">
-      {{ app_subtitle|default('KNK 통합 업무 플랫폼') }}
+{# Plan Y S1 + 디자인 제안 #07 — 로그인 브랜드 스플릿 재설계
+   05 디자인팀 시안: 03_시안/06_login_브랜드스플릿.html
+   대표 승인: 2026-04-24 ("좋아~")
+   - base.html 미사용 (login은 사이드바·topbar 無 · 독립 레이아웃)
+   - 외부 자산 0건 · Lucide SVG 인라인 · KNK 로고 인라인 #}
+<!DOCTYPE html>
+<html lang="{{ lang|default('ko') }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ i.login_title|default('로그인') }} · {{ app_name|default('HAIST WORKS') }}</title>
+<link rel="stylesheet" href="/static/style.css?v=20260424design-v4">
+</head>
+<body class="login-body-split">
+
+<div class="split">
+
+  <!-- ===== LEFT: 브랜드 패널 ===== -->
+  <aside class="brand-panel">
+    <div class="bg-dots"></div>
+    <div class="bg-shapes">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
     </div>
-    {% if error %}<div class="login-err">{{ error }}</div>{% endif %}
-    <form method="post" action="/login" class="login-form">
-      <label>{{ i.login_id|default('아이디') }}</label>
-      <input type="text" name="login_id" autofocus required>
-      <label>{{ i.login_pw|default('비밀번호') }}</label>
-      <input type="password" name="password" required>
-      <button type="submit">{{ i.login_btn|default('로그인') }}</button>
-    </form>
-    <div class="login-hint">
-      초기 비밀번호: <b>knk1234</b><br>
-      관리자: admin / admin1234<br>
-      대표이사: kjr(김정락) / kdh(김동후)
+
+    <div class="brand-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 88" aria-label="KNK HAIST Innovation">
+        <polygon points="0,6 16,6 16,30 42,6 62,6 32,34 64,66 43,66 16,36 16,66 0,66"/>
+        <polygon points="70,6 86,6 116,50 116,6 132,6 132,66 116,66 86,22 86,66 70,66"/>
+        <rect x="142" y="6" width="4.5" height="60" rx="1"/>
+        <rect x="151" y="6" width="4.5" height="60" rx="1"/>
+        <rect x="160" y="6" width="4.5" height="60" rx="1"/>
+        <polygon points="174,6 190,6 190,30 216,6 236,6 206,34 238,66 217,66 190,36 190,66 174,66"/>
+        <text x="1" y="84" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="16" letter-spacing="2.5">HAIST Innovation</text>
+      </svg>
     </div>
-    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:rgba(255,255,255,.45);text-align:center;letter-spacing:0.04em;">
-      ㈜케이엔케이 · HAIST Innovation<br>
-      <em style="font-style:italic;color:rgba(255,255,255,.55);">Human &amp; AI create the Best</em>
+
+    <div class="brand-msg">
+      <div class="eyebrow">{{ app_name|default('HAIST WORKS') }}</div>
+      <h1>
+        {{ i.login_hero_1|default('오늘 하루,') }}<br>
+        <span class="accent">{{ i.login_hero_2|default('한 화면에서') }}</span><br>
+        {{ i.login_hero_3|default('일이 흐릅니다.') }}
+      </h1>
+      <p class="lede">
+        {{ i.login_lede|default('업무 · 프로젝트 · 변경 · 요청까지 — 뛰어다니지 않고 한 곳에서 처리하는 KNK 통합 업무 플랫폼.') }}
+      </p>
     </div>
-  </div>
+
+    <div class="promises">
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <b>{{ i.login_promise_1_t|default('3 클릭 이내') }}</b>
+        <span>{{ i.login_promise_1_d|default('어떤 업무든') }}</span>
+      </div>
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <b>{{ i.login_promise_2_t|default('실시간 공유') }}</b>
+        <span>{{ i.login_promise_2_d|default('14개 팀 연결') }}</span>
+      </div>
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 8.84 8.56 21.19a4.5 4.5 0 1 1-6.36-6.36L14.56 2.47a3 3 0 1 1 4.24 4.24L6.44 19.07a1.5 1.5 0 1 1-2.12-2.12l12.02-12.02"/></svg>
+        </div>
+        <b>{{ i.login_promise_3_t|default('한국어·영어·베트남어') }}</b>
+        <span>{{ i.login_promise_3_d|default('135명 동시 사용') }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== RIGHT: 로그인 폼 ===== -->
+  <section class="form-panel">
+
+    <div class="lang-sel" role="group" aria-label="언어 선택">
+      <a href="?lang=ko" class="{% if (lang|default('ko')) == 'ko' %}on{% endif %}">KO</a>
+      <a href="?lang=en" class="{% if lang == 'en' %}on{% endif %}">EN</a>
+      <a href="?lang=vi" class="{% if lang == 'vi' %}on{% endif %}">VI</a>
+    </div>
+
+    <div class="form-inner">
+      <div class="form-head">
+        <span class="label">Sign In</span>
+        <h2>{{ i.login_welcome|default('환영합니다') }}</h2>
+        <p>{{ i.login_subtitle|default('KNK 계정으로 로그인하세요') }}</p>
+      </div>
+
+      {% if error %}
+      <div class="err">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <form method="post" action="/login">
+        <div class="field with-icon">
+          <span class="field-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <input type="text" id="loginId" name="login_id" placeholder=" " autocomplete="username" autofocus required>
+          <label for="loginId">{{ i.login_id|default('아이디') }}</label>
+        </div>
+
+        <div class="field with-icon">
+          <span class="field-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </span>
+          <input type="password" id="loginPw" name="password" placeholder=" " autocomplete="current-password" required>
+          <label for="loginPw">{{ i.login_pw|default('비밀번호') }}</label>
+        </div>
+
+        <button type="submit" class="btn-login">
+          {{ i.login_btn|default('로그인') }}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
+
+      <div class="form-foot">
+        ㈜케이엔케이 · HAIST Innovation
+        <span class="sep">·</span>
+        {{ i.login_foot_contact|default('비밀번호 문의는 관리자에게') }}
+      </div>
+    </div>
+  </section>
 </div>
-{% endblock %}
+
+</body>
+</html>

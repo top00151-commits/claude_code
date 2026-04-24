@@ -39,6 +39,26 @@
   --st-done:#10B981;
   --st-delay:#EF4444;
   --st-wait:#94A3B8;
+  /* 반응형 유동 타이포 (05 디자인팀 v2, 제안 #07 — 2026-04-24) */
+  --fs-fluid-xs:  clamp(10px, 0.55vw + 7px, 13px);
+  --fs-fluid-sm:  clamp(12px, 0.60vw + 9px, 15px);
+  --fs-fluid-md:  clamp(13px, 0.70vw + 10px, 16px);
+  --fs-fluid-lg:  clamp(15px, 0.85vw + 11px, 19px);
+  --fs-fluid-xl:  clamp(18px, 1.25vw + 13px, 26px);
+  --fs-fluid-2xl: clamp(24px, 2.00vw + 16px, 40px);
+  --fs-fluid-hero: clamp(32px, 4.50vw + 20px, 72px);
+  /* 그라디언트 확장 (제안 #07) */
+  --grad-brand-warm: linear-gradient(135deg, #A5282C 0%, #8B1E22 70%, #5B1014 100%);
+  --grad-brand-deep: linear-gradient(145deg, #1A0508 0%, #3B0B10 35%, #8B1E22 75%, #A5282C 100%);
+  /* 중립 잉크 팔레트 (로그인 스플릿 전용 · 기존 --t/--g 와 별도) */
+  --ink-900:#1A1A1A; --ink-700:#334155; --ink-500:#64748B;
+  --ink-400:#94A3B8; --ink-300:#CBD5E1; --ink-200:#E5E7EB; --ink-100:#F1F5F9;
+  --knk-red:#A5282C; --knk-red-dark:#8B1E22; --knk-red-bg:#FFEBEE;
+  --bg-card:#FFFFFF;
+  --r-sm:6px; --r-md:10px; --r-pill:999px;
+  --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-8:32px;
+  --dur-fast:150ms; --ease-out:cubic-bezier(0.33, 1, 0.68, 1);
+  --fw-semi:600; --fw-bold:800;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font-family);color:var(--t);background:var(--bg);line-height:1.6;font-size:18px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
@@ -229,20 +249,7 @@ input,select,textarea{font-family:inherit;font-size:18px}
 .hist-tbl .small{color:var(--g);font-size:14px;margin-top:2px}
 
 /* ===== LOGIN ===== */
-.login-wrap{min-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%)}
-.login-card{background:#fff;padding:36px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.2);width:100%;max-width:380px;text-align:center}
-.login-logo{background:var(--r);color:#fff;font-size:31px;font-weight:900;padding:12px 24px;border-radius:6px;display:inline-block;letter-spacing:2px;margin-bottom:12px}
-.login-logo-img{height:82px;width:auto;display:block;margin:0 auto 18px}
-.login-title{font-size:21px;font-weight:700;color:var(--t)}
-.login-sub{font-size:14px;color:var(--g);margin-top:4px;margin-bottom:20px}
-.login-err{background:var(--s-delay-bg);color:var(--s-delay-t);padding:10px;border-radius:4px;font-size:15px;margin-bottom:12px}
-.login-form{text-align:left}
-.login-form label{display:block;font-size:15px;color:var(--g);font-weight:600;margin:12px 0 4px}
-.login-form input{width:100%;padding:10px;border:1px solid var(--bd);border-radius:4px;font-size:17px}
-.login-form input:focus{outline:none;border-color:var(--r)}
-.login-form button{width:100%;padding:12px;background:var(--r);color:#fff;border-radius:4px;font-weight:700;font-size:17px;margin-top:16px}
-.login-form button:hover{background:var(--rd)}
-.login-hint{font-size:14px;color:var(--g);margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd);line-height:1.8}
+/* 구 .login-* 기본 블록 제거 — #07 재설계로 대체. */
 
 /* ===== CALENDAR ===== */
 .cal-tbl{width:100%;background:#fff;border-collapse:collapse;box-shadow:var(--sh);border-radius:var(--rad);overflow:hidden;table-layout:fixed}
@@ -1580,43 +1587,8 @@ body{
 .hm-tc-bar{border-radius:999px !important;background:#F1F5F9 !important;height:6px !important}
 .hm-tc-part{font-size:11px !important;color:var(--p-text-2) !important;font-weight:600 !important}
 
-/* ==================== 로그인 ==================== */
-.login-wrap{
-  background:linear-gradient(135deg,#0F172A 0%,#1E293B 50%,#A5282C 100%) !important;
-}
-.login-card{
-  border-radius:20px !important;
-  padding:40px 36px !important;
-  box-shadow:0 25px 70px rgba(0,0,0,.3) !important;
-  border:1px solid rgba(255,255,255,.1) !important;
-}
-.login-logo-img{height:90px !important}
-.login-title{font-weight:800 !important;letter-spacing:-0.02em !important;color:var(--p-text) !important}
-.login-form input{
-  border:1.5px solid var(--p-border) !important;
-  border-radius:10px !important;
-  padding:12px 14px !important;
-  font-size:14px !important;
-  transition:all .15s !important;
-}
-.login-form input:focus{
-  border-color:var(--p-red) !important;
-  box-shadow:0 0 0 3px rgba(165,40,44,.1) !important;
-}
-.login-form button{
-  background:linear-gradient(135deg,var(--p-red),var(--p-red-dark)) !important;
-  border-radius:10px !important;
-  padding:14px !important;
-  box-shadow:0 4px 12px rgba(165,40,44,.3) !important;
-  font-size:14px !important;
-  font-weight:700 !important;
-  letter-spacing:0.02em !important;
-  transition:all .15s !important;
-}
-.login-form button:hover{
-  transform:translateY(-2px) !important;
-  box-shadow:0 8px 24px rgba(165,40,44,.4) !important;
-}
+/* ==================== 로그인 (deprecated — 2026-04-24 #07 재설계로 대체) ==================== */
+/* 구 .login-* 오버라이드 블록 제거 완료 — 신규 .split/.brand-panel/.form-panel 은 style.css 하단 참조 */
 
 /* ==================== 모달 ==================== */
 .card-modal-card,.modal-card,.hm-modal{
@@ -3272,3 +3244,240 @@ body.logi-body {
   margin-right: 6px;
 }
 .topbar-logi .tb-menu-btn:hover { background: rgba(255,255,255,.08); }
+
+/* ============================================================
+   LOGIN — 브랜드 스플릿 (05 디자인 제안 #07, 대표 승인 2026-04-24)
+   시안: 05_HAIST_WORKS_디자인팀/03_시안/06_login_브랜드스플릿.html
+   ============================================================ */
+body.login-body-split {
+  font-family: var(--font-family);
+  background: #FAFBFC;
+  overflow: hidden;
+  height: 100vh;
+  display: block;
+  font-size: var(--fs-fluid-md);
+}
+.login-body-split .split {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  height: 100vh;
+  position: relative;
+}
+.login-body-split .brand-panel {
+  background: var(--grad-brand-deep);
+  color: #fff;
+  padding: clamp(32px, 4vw, 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+.login-body-split .bg-shapes { position: absolute; inset: 0; opacity: 0.5; pointer-events: none; }
+.login-body-split .bg-shapes .ring {
+  position: absolute; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15);
+  animation: loginDrift 20s ease-in-out infinite;
+}
+.login-body-split .bg-shapes .r1 { width: 420px; height: 420px; top: -120px; left: -120px; animation-delay: 0s; }
+.login-body-split .bg-shapes .r2 { width: 320px; height: 320px; bottom: -80px; right: 80px; animation-delay: -7s; }
+.login-body-split .bg-shapes .r3 { width: 200px; height: 200px; top: 40%; right: -60px; animation-delay: -14s; border-color: rgba(255,200,200,0.25); }
+@keyframes loginDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(28px, -20px) scale(1.04); }
+}
+.login-body-split .bg-dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 30% 40%, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 30% 40%, black 30%, transparent 70%);
+}
+.login-body-split .brand-logo {
+  position: relative; z-index: 2;
+  display: inline-flex; align-items: center; gap: 14px; color: #fff;
+}
+.login-body-split .brand-logo svg { height: clamp(34px, 2.4vw, 48px); width: auto; }
+.login-body-split .brand-logo svg polygon,
+.login-body-split .brand-logo svg rect { fill: #fff !important; }
+.login-body-split .brand-logo svg text { fill: rgba(255,255,255,0.85) !important; }
+
+.login-body-split .brand-msg { position: relative; z-index: 2; max-width: 560px; }
+.login-body-split .brand-msg .eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: var(--fs-fluid-sm); font-weight: var(--fw-bold);
+  letter-spacing: 0.14em;
+  color: rgba(255,220,220,0.9);
+  text-transform: uppercase;
+  margin-bottom: var(--s-5);
+}
+.login-body-split .brand-msg .eyebrow::before {
+  content: ''; display: inline-block; width: 36px; height: 2px; background: rgba(255,255,255,0.5);
+}
+.login-body-split .brand-msg h1 {
+  font-size: var(--fs-fluid-hero);
+  font-weight: 800; line-height: 1.08; letter-spacing: -0.02em;
+  margin: 0 0 var(--s-5);
+}
+.login-body-split .brand-msg h1 .accent {
+  background: linear-gradient(100deg, #FFB4B8 0%, #FFE4E6 55%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.login-body-split .brand-msg .lede {
+  font-size: var(--fs-fluid-lg); line-height: 1.55;
+  color: rgba(255,255,255,0.86); font-weight: 500; max-width: 44ch;
+}
+.login-body-split .promises {
+  position: relative; z-index: 2;
+  display: flex; gap: clamp(16px, 2vw, 40px); flex-wrap: wrap;
+}
+.login-body-split .promise {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: var(--fs-fluid-sm);
+  color: rgba(255,255,255,0.8);
+}
+.login-body-split .promise b {
+  font-size: var(--fs-fluid-md); color: #fff; font-weight: var(--fw-bold);
+}
+.login-body-split .promise .ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  margin-bottom: var(--s-2);
+}
+.login-body-split .form-panel {
+  background: var(--bg-card);
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(24px, 3vw, 56px);
+  position: relative;
+}
+.login-body-split .form-inner { width: 100%; max-width: 420px; }
+.login-body-split .form-head { margin-bottom: var(--s-8); }
+.login-body-split .form-head .label {
+  display: inline-block;
+  font-size: var(--fs-fluid-xs); font-weight: var(--fw-bold);
+  letter-spacing: 0.14em; color: var(--knk-red);
+  text-transform: uppercase;
+  background: var(--knk-red-bg);
+  padding: 4px 10px; border-radius: var(--r-pill);
+  margin-bottom: var(--s-4);
+}
+.login-body-split .form-head h2 {
+  font-size: var(--fs-fluid-xl); font-weight: var(--fw-bold);
+  color: var(--ink-900); margin: 0 0 var(--s-2);
+  line-height: 1.2; letter-spacing: -0.01em;
+}
+.login-body-split .form-head p {
+  font-size: var(--fs-fluid-sm); color: var(--ink-500); margin: 0;
+}
+.login-body-split .field { position: relative; margin-bottom: var(--s-4); }
+.login-body-split .field label {
+  position: absolute; left: 16px; top: 16px;
+  font-size: var(--fs-fluid-md); color: var(--ink-400);
+  pointer-events: none;
+  transition: all var(--dur-fast) var(--ease-out);
+  background: var(--bg-card); padding: 0 6px;
+}
+.login-body-split .field input {
+  width: 100%;
+  padding: 16px 16px 16px 22px;
+  font-size: var(--fs-fluid-md); font-family: inherit;
+  color: var(--ink-900); background: var(--bg-card);
+  border: 1.5px solid var(--ink-200); border-radius: var(--r-md);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  box-sizing: border-box;
+}
+.login-body-split .field input:focus {
+  border-color: var(--knk-red);
+  box-shadow: 0 0 0 3px rgba(165,40,44,0.1);
+}
+.login-body-split .field input:focus + label,
+.login-body-split .field input:not(:placeholder-shown) + label {
+  top: -8px; left: 12px;
+  font-size: var(--fs-fluid-xs);
+  color: var(--knk-red); font-weight: var(--fw-semi);
+}
+.login-body-split .field.with-icon input { padding-left: 48px; }
+.login-body-split .field .field-ico {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  color: var(--ink-400);
+  transition: color var(--dur-fast);
+  pointer-events: none;
+}
+.login-body-split .field input:focus ~ .field-ico { color: var(--knk-red); }
+.login-body-split .btn-login {
+  width: 100%; padding: 16px 20px;
+  background: var(--grad-brand-warm);
+  color: #fff; font-size: var(--fs-fluid-md);
+  font-weight: var(--fw-bold); letter-spacing: 0.02em;
+  border: none; border-radius: var(--r-md); cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow: 0 4px 12px rgba(165,40,44,0.25);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: var(--s-5);
+}
+.login-body-split .btn-login:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(165,40,44,0.4);
+}
+.login-body-split .btn-login:active { transform: translateY(0); }
+.login-body-split .btn-login svg { transition: transform var(--dur-fast); }
+.login-body-split .btn-login:hover svg { transform: translateX(4px); }
+.login-body-split .err {
+  background: #FEE2E2; color: #991B1B;
+  padding: 12px 14px; border-radius: var(--r-sm);
+  font-size: var(--fs-fluid-sm); margin-bottom: var(--s-4);
+  display: flex; gap: 8px; align-items: center;
+}
+.login-body-split .form-foot {
+  margin-top: var(--s-6); text-align: center;
+  font-size: var(--fs-fluid-xs); color: var(--ink-400);
+}
+.login-body-split .form-foot .sep { margin: 0 8px; color: var(--ink-300); }
+.login-body-split .lang-sel {
+  position: absolute; top: var(--s-5); right: var(--s-5);
+  display: flex; gap: 4px;
+  background: var(--ink-100); border-radius: var(--r-pill); padding: 3px;
+}
+.login-body-split .lang-sel a {
+  padding: 5px 12px;
+  font-size: var(--fs-fluid-xs); font-weight: var(--fw-semi);
+  color: var(--ink-500);
+  border: none; background: none; border-radius: var(--r-pill);
+  cursor: pointer; text-decoration: none;
+  transition: all var(--dur-fast);
+}
+.login-body-split .lang-sel a.on {
+  background: var(--bg-card); color: var(--ink-900);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+@media (max-width: 768px) {
+  body.login-body-split { overflow: auto; height: auto; }
+  .login-body-split .split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto; min-height: 100vh;
+  }
+  .login-body-split .brand-panel { padding: var(--s-6) var(--s-5); min-height: 320px; }
+  .login-body-split .brand-msg h1 { margin-bottom: var(--s-3); }
+  .login-body-split .brand-msg .lede { font-size: var(--fs-fluid-md); }
+  .login-body-split .promises { gap: var(--s-4); }
+  .login-body-split .form-panel { padding: var(--s-6) var(--s-5); }
+  .login-body-split .lang-sel { top: var(--s-3); right: var(--s-3); }
+}
+
+/* ============================================================
+   Reduced motion — 접근성 (제안 #07 리스크 완화)
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
