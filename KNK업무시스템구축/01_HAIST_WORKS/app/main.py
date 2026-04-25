@@ -480,14 +480,20 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
             print(f"[REVENUE KPI ERROR] {e}")
 
     # 시간대별 인사말 (힐링 원칙서 §7-1)
+    greeting_bucket = "default"
     try:
         _h = datetime.now().hour
         _n = u.get("name", "")
-        if 6 <= _h < 11:   greeting = f"좋은 아침입니다, {_n}님 ☀️"
-        elif 11 <= _h < 14: greeting = f"점심은 드셨나요, {_n}님? 잠깐 쉬어가요"
-        elif 14 <= _h < 18: greeting = f"오후도 힘내세요, {_n}님 🌿"
-        elif 18 <= _h < 22: greeting = f"오늘도 수고하셨어요, {_n}님"
-        else:                greeting = f"늦은 시간까지 애쓰시네요, {_n}님"
+        if 6 <= _h < 11:
+            greeting = f"좋은 아침입니다, {_n}님 ☀️"; greeting_bucket = "morning"
+        elif 11 <= _h < 14:
+            greeting = f"점심은 드셨나요, {_n}님? 잠깐 쉬어가요"; greeting_bucket = "lunch"
+        elif 14 <= _h < 18:
+            greeting = f"오후도 힘내세요, {_n}님 🌿"; greeting_bucket = "afternoon"
+        elif 18 <= _h < 22:
+            greeting = f"오늘도 수고하셨어요, {_n}님"; greeting_bucket = "evening"
+        else:
+            greeting = f"늦은 시간까지 애쓰시네요, {_n}님"; greeting_bucket = "night"
     except Exception:
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
 
@@ -509,6 +515,7 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         is_executive=is_executive,
         is_leader_plus=is_leader_plus,
         greeting=greeting,
+        greeting_bucket=greeting_bucket,  # QA-H6 패치 ④
     )
 
 
