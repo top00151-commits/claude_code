@@ -4,6 +4,10 @@
 {% block body %}
 <div class="page-head">
   <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 관리 <span class="sep">/</span> <span class="current">시스템 관리</span>
+      <span class="lock-badge">🔒 P4 관리자 전용</span>
+    </div>
     <h1>{{ i.admin_title|default('관리자') }}</h1>
     <div class="page-sub">{{ i.admin_sub|default('팀 · 사용자 · 프로젝트 · 고객사 관리') }}</div>
   </div>

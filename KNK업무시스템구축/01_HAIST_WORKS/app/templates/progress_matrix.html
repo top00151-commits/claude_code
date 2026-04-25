@@ -61,10 +61,15 @@
 </script>
 
 <div class="page-head">
-  <h1>진행률 대시보드 <span style="font-size:13px;color:#6B7280;font-weight:500;margin-left:8px;">관리코드 × 12공정 매트릭스</span>
-    <button onclick="localStorage.removeItem('haist_works_progress_first_use_v1');location.reload();" style="margin-left:8px;background:transparent;border:1px solid #E5E7EB;color:#6B7280;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;" title="처음 사용 안내 다시 보기">? 안내</button>
-  </h1>
-  <p class="muted">8팀 공통 요구 — 모든 프로젝트의 공정별 상태·담당·지연 한눈에 (매일 아침 1순위 정보)</p>
+  <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 업무 추적 <span class="sep">/</span> <span class="current">진행률 매트릭스</span>
+    </div>
+    <h1>진행률 매트릭스
+      <button onclick="localStorage.removeItem('haist_works_progress_first_use_v1');location.reload();" style="margin-left:8px;background:transparent;border:1px solid var(--sage-300);color:var(--ink-3);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;" title="처음 사용 안내 다시 보기">? 안내</button>
+    </h1>
+    <div class="page-sub">관리코드 × 12공정 매트릭스 — 모든 프로젝트의 공정별 상태·담당·지연을 한눈에 (8팀 공통 1순위 정보)</div>
+  </div>
 </div>
 
 <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">

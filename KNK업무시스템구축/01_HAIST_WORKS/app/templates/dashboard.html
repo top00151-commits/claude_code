@@ -4,8 +4,20 @@
 {% block body %}
 <div class="page-head">
   <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 전사 흐름 <span class="sep">/</span> <span class="current">{{ i.dash_title|default('전사 대시보드') }}</span>
+      <span class="lock-badge">🔒 경영진 전용</span>
+    </div>
     <h1>{{ i.dash_title|default('전사 대시보드') }}</h1>
-    <div class="page-sub">{{ i.this_week|default('이번 주') }} {{ mon }} ~ {{ sun }} | {{ i.today|default('오늘') }} {{ today_s }}</div>
+    <div class="page-sub">{{ i.this_week|default('이번 주') }} {{ mon }} ~ {{ sun }} · {{ i.today|default('오늘') }} {{ today_s }}</div>
+  </div>
+</div>
+
+<div class="hello-banner">
+  <div class="hello-avatar">{{ user.name[:1] if user else 'V' }}</div>
+  <div class="hello-body">
+    <div class="hello-title">{{ i.dash_hello_title|default('오늘 회사의 흐름, 한눈에 보세요') }}</div>
+    <div class="hello-sub">{{ i.dash_hello_sub|default('전사 참여율과 진행·지연을 한 화면에서 확인하실 수 있습니다.') }}</div>
   </div>
 </div>
 

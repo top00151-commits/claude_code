@@ -4,6 +4,9 @@
 {% block body %}
 <div class="page-head">
   <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 내 업무 <span class="sep">/</span> <span class="current">일일 업무카드</span>
+    </div>
     <h1>{{ i.daily_title|default('일일 업무카드') }}</h1>
     <div class="page-sub">{{ user.name }} {{ user.rank }} · {{ user.team_name or '경영진' }}</div>
   </div>

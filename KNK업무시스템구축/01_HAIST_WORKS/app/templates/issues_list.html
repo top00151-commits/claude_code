@@ -2,13 +2,17 @@
 {% block title %}이슈·AS DB — {{ app_name|default('HAIST WORKS') }}{% endblock %}
 {% block body %}
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #DC2626;">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
-    <div>
-      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🔥 이슈 · AS DB</h1>
-      <div style="font-size:13px;color:#6B7280;margin-top:4px;">고객사 이슈/AS 추적 → 원인분석 → 재발방지 학습. <strong>같은 실수를 반복하지 않기 위한 회사 자산.</strong></div>
+<div class="page-head">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+    <div class="page-title">
+      <div class="page-breadcrumb">
+        통합 <span class="sep">/</span> 업무 추적 <span class="sep">/</span> <span class="current">이슈·AS</span>
+        <span class="lock-badge" style="background:rgba(201,169,97,.18);color:#8A6B12;">팀장+ SLA 추적</span>
+      </div>
+      <h1>이슈·AS DB</h1>
+      <div class="page-sub">고객사 이슈·AS 추적 → 원인 분석 → 재발 방지 학습. <strong>같은 실수를 반복하지 않기 위한 회사 자산.</strong></div>
     </div>
-    <a href="/issues/new" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:800;font-size:14px;box-shadow:0 4px 10px rgba(220,38,38,.3);">+ 이슈 등록</a>
+    <a href="/issues/new" class="btn btn-primary" style="background:var(--grad-brand);color:#fff;border:none;padding:10px 20px;border-radius:12px;text-decoration:none;font-weight:700;box-shadow:0 6px 18px rgba(165,40,44,.25);">+ 이슈 등록</a>
   </div>
 </div>
 
