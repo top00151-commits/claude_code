@@ -201,12 +201,7 @@ function toggleSidebar(){
 
 {# ========== Victor 사이드 도크 (제안 #08 · 매출/자재 센터에도 노출) ========== #}
 {% if user %}
-<div class="dock-tab" onclick="victorToggleDock()" title="빅터 열기 (Ctrl+K)">
-  <span class="t-ico">🤖</span>
-  <span>빅터</span>
-  <kbd>Ctrl+K</kbd>
-</div>
-
+{# .dock-tab 제거 (QA-H2 · 05 디자인팀 3차 패치 ①) #}
 <aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
   <div class="dock-head">
     <div class="dock-head-row">

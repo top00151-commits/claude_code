@@ -3613,40 +3613,8 @@ body.dock-open .topbar { padding-right: 420px; transition: padding-right 400ms c
   body.dock-open .topbar { padding-right: 0; }
 }
 
-/* Dock 탭 (항상 우측에 고정) */
-.dock-tab {
-  position: fixed;
-  top: 120px; right: 0;
-  z-index: 1040;
-  background: var(--grad-brand-warm);
-  color: #fff;
-  padding: var(--s-4, 16px) var(--s-3, 12px);
-  border-radius: var(--r-md, 10px) 0 0 var(--r-md, 10px);
-  box-shadow: -2px 4px 12px rgba(165, 40, 44, 0.3);
-  cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: var(--s-2, 8px);
-  transition: right 400ms cubic-bezier(0.33, 1, 0.68, 1),
-              transform 150ms;
-  user-select: none;
-  font-size: var(--fs-fluid-xs);
-  font-weight: var(--fw-bold, 800);
-  letter-spacing: 0.1em;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
-.dock-tab:hover { transform: translateX(-2px); }
-.dock-tab .t-ico { writing-mode: horizontal-tb; font-size: 18px; margin-bottom: 4px; }
-.dock-tab kbd {
-  writing-mode: horizontal-tb;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  background: rgba(255,255,255,0.18);
-  padding: 2px 5px;
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.25);
-  margin-top: 6px;
-}
-body.dock-open .dock-tab { right: -56px; pointer-events: none; }
+/* Dock 탭 제거됨 (QA-H2 · 05 디자인팀 3차 패치 ① · 2026-04-25)
+   헤더 .tb-icon-btn.victor 가 유일한 트리거 — "신규 작성" 버튼과의 충돌 방지 */
 
 /* Dock 패널 본체 */
 .dock {
@@ -3922,6 +3890,4 @@ body.dock-open .dock { right: 0; }
 /* 모바일 (<1024px): 풀스크린 오버레이 */
 @media (max-width: 1023px) {
   .dock { width: 100%; right: -100%; }
-  .dock-tab { top: auto; bottom: 80px; }
-  body.dock-open .dock-tab { right: -56px; }
 }

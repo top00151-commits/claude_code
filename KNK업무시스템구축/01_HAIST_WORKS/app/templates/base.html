@@ -401,12 +401,10 @@ async function changeLang(lang) {
       <span id="cmTitle">{{ i.modal_close|default('로딩') }}...</span>
       <div class="tr-lang-sel">
         <label>🌐</label>
-        <select id="trLang">
-          <option value="vi">🇻🇳 베트남어</option>
-          <option value="en">🇺🇸 영어</option>
-          <option value="ko">🇰🇷 한국어</option>
-          <option value="ja">🇯🇵 일본어</option>
-          <option value="zh-CN">🇨🇳 중국어</option>
+        <select id="trLang">{# QA-H3·H4·H5 패치 ③ (2026-04-25): LANGS 동적 — ko/vi/en 만 #}
+          {% for code, label in LANGS.items() %}
+          <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
         </select>
       </div>
     </div>
@@ -579,7 +577,7 @@ async function translateFromDom(btn) {
     });
     const j = await r.json();
     if (j.ok) {
-      const langNames = {vi:'🇻🇳 베트남어',en:'🇺🇸 영어',ko:'🇰🇷 한국어',ja:'🇯🇵 일본어','zh-CN':'🇨🇳 중국어'};
+      const langNames = {ko:'🇰🇷 한국어', vi:'🇻🇳 Tiếng Việt', en:'🇺🇸 English'}; /* QA-H3·H4·H5 패치 ③ */
       resultDiv.innerHTML = `<div class="tr-label">${langNames[target]||target} 번역</div><div class="tr-text">${escHtml(j.translated)}</div>`;
     } else {
       resultDiv.innerHTML = `<span class="tr-error">${j.error||'번역 실패'}</span>`;
@@ -1034,12 +1032,7 @@ document.addEventListener('DOMContentLoaded', function(){
    시안: 05_.../03_시안/08_victor_side_dock.html
    ========================================================= #}
 {% if user %}
-<div class="dock-tab" onclick="victorToggleDock()" title="빅터 열기 (Ctrl+K)">
-  <span class="t-ico">🤖</span>
-  <span>빅터</span>
-  <kbd>Ctrl+K</kbd>
-</div>
-
+{# .dock-tab 제거 (QA-H2 · 05 디자인팀 3차 패치 ①) — 헤더 .tb-icon-btn.victor 가 유일한 트리거 #}
 <aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
   <div class="dock-head">
     <div class="dock-head-row">
