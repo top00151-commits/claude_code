@@ -616,11 +616,7 @@ input,select,textarea{font-family:inherit;font-size:18px}
    ============================================================ */
 .layout-wrap{display:flex;height:calc(100vh - 57px);overflow:hidden}
 .sidebar{position:relative;width:260px;min-width:0;background:#fff;border-right:1px solid var(--bd);padding:10px 0;overflow-y:auto;height:calc(100vh - 57px);z-index:10;flex-shrink:0;--sb-font-size:17px;--sb-head-size:14px}
-.sb-resize{position:absolute;top:0;right:-5px;width:10px;height:100%;cursor:col-resize;z-index:20;background:linear-gradient(to right,transparent 40%,rgba(165,40,44,.08) 50%,transparent 60%);transition:background .15s}
-.sb-resize::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:36px;background:rgba(165,40,44,.18);border-radius:2px}
-.sb-resize:hover{background:rgba(165,40,44,.14)}
-.sb-resize:hover::after{background:rgba(165,40,44,.5);width:4px;height:48px}
-.sb-resize:active{background:rgba(165,40,44,.25)}
+/* C안 §3·§7-2 — .sb-resize 5블록 제거 (드래그 리사이즈 폐지 · 시안 12B 고정 264px) */
 .sidebar.sb-collapsed{width:0;min-width:0;padding:0;overflow:hidden;border:none}
 .main.has-sidebar{padding:14px 20px}
 .main-wide{padding:16px 20px}
@@ -4252,4 +4248,320 @@ body.dock-open .dock { right: 0; }
   padding: 28px;
   border-radius: 14px;
   font-size: var(--fs-fluid-sm);
+}
+
+/* ============================================================
+   C안 (시안 12B 통째 이식) overrides — 2026-04-25 healing-c
+   §6 회귀 검증 12종 PASS 목표
+   ============================================================ */
+
+:root{
+  --topbar-h: clamp(84px, 5vw + 52px, 108px);   /* §8-6 */
+  --dur-fast: .15s;
+  --dur-med:  .25s;
+  --dur-slow: .4s;
+  --grad-amber: linear-gradient(135deg, #D4B876 0%, #A38635 100%);
+}
+
+/* §8-6 — topbar 유동 height + grad-header 배경 */
+.topbar{
+  height: var(--topbar-h) !important;
+  background: var(--grad-header) !important;
+  color: #fff !important;
+  padding: 0 28px !important;
+  border-bottom: 0 !important;
+  box-shadow: 0 8px 32px rgba(45,62,46,.20) !important;
+  gap: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* §8-8 — tb-menu-btn 데스크톱 숨김, 1024px 이하만 표시 */
+.topbar .tb-menu-btn{
+  display: none !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.topbar .tb-menu-btn:hover{ background: rgba(255,255,255,.20) !important; }
+.topbar .tb-menu-btn svg{ width: 20px; height: 20px; stroke-width: 1.8; }
+@media (max-width: 1024px){
+  .topbar .tb-menu-btn{ display: flex !important; }
+}
+
+/* §8-7 — brand-logo-wrap (시안 12B) */
+.topbar .brand{
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  text-decoration: none !important;
+  color: #fff !important;
+}
+.brand-logo-wrap{
+  height: clamp(64px, 4.2vw + 42px, 88px);
+  min-width: clamp(64px, 4.2vw + 42px, 88px);
+  padding: 10px 16px;
+  border-radius: 18px;
+  flex-shrink: 0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(0,0,0,.20), 0 0 0 1px rgba(255,255,255,.30) inset;
+}
+.brand-logo-wrap img{
+  height: clamp(52px, 3.6vw + 32px, 76px);
+  width: auto;
+  max-width: 280px;
+  object-fit: contain;
+}
+.brand-logo-wrap .fallback{
+  font-size: clamp(30px, 2.5vw + 20px, 44px);
+  font-weight: 900;
+  color: var(--accent);
+  padding: 0 6px;
+}
+.topbar .brand-text{ display: flex; flex-direction: column; line-height: 1.15; }
+.topbar .brand-name{
+  font-size: var(--fs-fluid-lg, 1rem);
+  font-weight: 900;
+  color: #fff !important;
+  letter-spacing: .4px;
+  text-shadow: 0 2px 6px rgba(0,0,0,.20);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.topbar .brand-name .dot{
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #D4B876;
+  box-shadow: 0 0 14px rgba(212,184,118,.9);
+}
+.topbar .brand-sub{
+  font-size: var(--fs-fluid-xs, .8rem);
+  color: rgba(255,255,255,.80);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* tb-divider */
+.topbar .tb-divider{
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,.20);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* §8-4 — ws-switcher + ws-menu (워크스페이스 스위처) */
+.ws-wrap{ position: relative; flex-shrink: 0; }
+.ws-switcher{
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.10);
+  color: #fff;
+  font-size: var(--fs-fluid-sm);
+  font-weight: 600;
+  border: 1px solid rgba(255,255,255,.18);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.ws-switcher:hover{ background: rgba(255,255,255,.20); }
+.ws-wrap.open .ws-switcher{ background: rgba(255,255,255,.25); }
+.ws-switcher .ws-ico{ width: 20px; height: 20px; color: #D4B876; flex-shrink: 0; stroke-width: 1.8; }
+.ws-switcher .ws-caret{ font-size: 10px; opacity: .8; transition: transform var(--dur-fast); }
+.ws-wrap.open .ws-caret{ transform: rotate(180deg); }
+.ws-menu{
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 320px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 28px 60px rgba(63,92,68,.18);
+  padding: 10px;
+  display: none;
+  z-index: 250;
+  border: 1px solid var(--sage-300);
+}
+.ws-menu.open{ display: block; }
+.ws-opt{
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  color: var(--ink) !important;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--dur-fast);
+}
+.ws-opt + .ws-opt{ margin-top: 3px; }
+.ws-opt:hover{ background: var(--sage-100); }
+.ws-opt.active{ background: var(--sage-200); }
+.ws-opt.active .opt-name{ color: var(--sage-700); }
+.ws-opt .opt-ico{
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: var(--sage-100);
+  color: var(--sage-600);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.ws-opt .opt-meta{ flex: 1; min-width: 0; }
+.ws-opt .opt-name{ font-size: var(--fs-fluid-sm); font-weight: 700; }
+.ws-opt .opt-desc{ font-size: var(--fs-fluid-xs); color: var(--ink-3); margin-top: 3px; }
+.ws-opt .opt-check{ color: var(--sage-600); font-weight: 800; }
+.ws-opt .opt-ext{ color: var(--ink-4); font-size: var(--fs-fluid-xs); }
+
+/* §8-5 — 글로벌 검색바 */
+.topbar .tb-center{
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.g-search{
+  display: flex; align-items: center; gap: 12px;
+  width: min(560px, 100%);
+  padding: 10px 18px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.18);
+  color: #fff;
+  cursor: text;
+  transition: all var(--dur-fast);
+}
+.g-search:hover{ background: rgba(255,255,255,.16); }
+.g-search:focus-within{
+  background: rgba(255,255,255,.20);
+  border-color: rgba(212,184,118,.60);
+  box-shadow: 0 0 0 4px rgba(212,184,118,.15);
+}
+.g-search svg{ width: 18px; height: 18px; opacity: .85; stroke-width: 1.8; flex-shrink: 0; }
+.g-search input{
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  font-size: var(--fs-fluid-sm);
+  font-weight: 500;
+  min-width: 0;
+}
+.g-search input::placeholder{ color: rgba(255,255,255,.60); }
+.g-search .shortcut{
+  background: rgba(255,255,255,.14);
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  border: 1px solid rgba(255,255,255,.18);
+  flex-shrink: 0;
+}
+
+/* tb-icon-btn 시안 12B 톤 (헤더 우측 아이콘 버튼) */
+.topbar .tb-right{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.topbar .tb-icon-btn{
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  transition: all var(--dur-fast);
+  text-decoration: none;
+}
+.topbar .tb-icon-btn:hover{ background: rgba(255,255,255,.20) !important; transform: translateY(-1px); }
+.topbar .tb-icon-btn svg{ width: 20px; height: 20px; stroke-width: 1.8; }
+.topbar .tb-icon-btn .dot{
+  position: absolute;
+  top: 9px; right: 10px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #D4B876;
+  box-shadow: 0 0 0 2px var(--sage-700);
+}
+.topbar .tb-icon-btn.victor{
+  background: var(--grad-amber) !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 18px rgba(201,169,97,.35);
+}
+.topbar .tb-icon-btn.victor:hover{ filter: brightness(1.05); }
+
+/* lang-sel 시안 12B */
+.topbar .lang-sel{
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: var(--fs-fluid-xs);
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+.topbar .lang-sel option{ background: var(--sage-700); color: #fff; }
+
+/* user-chip + logout-btn 시안 12B */
+.topbar .user-chip{
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 16px 6px 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.20);
+  text-decoration: none;
+  transition: all var(--dur-fast);
+}
+.topbar .user-chip:hover{ background: rgba(255,255,255,.22); }
+.topbar .user-avatar{
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--sage-700);
+  font-weight: 800;
+  font-size: var(--fs-fluid-sm);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 8px rgba(0,0,0,.18);
+}
+.topbar .user-info{ display: flex; flex-direction: column; line-height: 1.2; }
+.topbar .user-name{ font-size: var(--fs-fluid-sm); font-weight: 700; color: #fff !important; }
+.topbar .user-role{ font-size: 11px; color: rgba(255,255,255,.75); }
+.topbar .logout-btn{
+  width: 36px; height: 36px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.10);
+  color: #fff !important;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,.15);
+  transition: all var(--dur-fast);
+  text-decoration: none;
+}
+.topbar .logout-btn:hover{ background: var(--accent); border-color: transparent; }
+.topbar .logout-btn svg{ width: 16px; height: 16px; stroke-width: 1.8; }
+
+/* 사이드바 고정 264px (시안 12B) — 드래그·rep 정책 폐기 */
+.sidebar{
+  width: 264px !important;
+}
+@media (max-width: 1280px){ .sidebar{ width: 240px !important; } }
+@media (max-width: 1024px){
+  .sidebar{ width: 280px !important; }
 }

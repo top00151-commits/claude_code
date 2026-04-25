@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}매출·영업 · 자재·구매 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260425healing-v2">
+<link rel="stylesheet" href="/static/style.css?v=20260425healing-c">
 </head>
 <body class="logi-body">
 
@@ -45,7 +45,7 @@
 <div class="layout-wrap">
   <aside class="sidebar sidebar-logi" id="sidebar">
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
-    <div class="sb-resize" id="sbResize" title="드래그하여 너비 조절"></div>
+    {# C안 §3·§7-2 — sb-resize 핸들 제거 #}
 
     {# 📈 매출·영업 (영업팀·경영진) #}
     <div class="sb-section">
@@ -142,61 +142,7 @@ function toggleSidebar(){
   if (btn) btn.textContent = (sb.classList.contains('sb-collapsed') || (!isMobile && !sb.classList.contains('sb-open'))) ? '▶' : '◀';
 }
 
-/* ===== 사이드바 드래그 리사이즈 + 폰트 자동 조정 ===== */
-(function(){
-  const sb = document.getElementById('sidebar');
-  const handle = document.getElementById('sbResize');
-  if (!sb || !handle) return;
-  const MIN_W = 180, MAX_W = 520;
-  const MIN_F = 13, MAX_F = 24;   // sb-item (넓은 범위)
-  const MIN_H = 11, MAX_H = 18;   // sb-head
-  let dragging = false, startX = 0, startW = 0;
-
-  function applyFont(w){
-    const ratio = Math.max(0, Math.min(1, (w - MIN_W) / (MAX_W - MIN_W)));
-    const f = MIN_F + (MAX_F - MIN_F) * ratio;
-    const h = MIN_H + (MAX_H - MIN_H) * ratio;
-    sb.style.setProperty('--sb-font-size', f.toFixed(1) + 'px');
-    sb.style.setProperty('--sb-head-size', h.toFixed(1) + 'px');
-  }
-
-  const saved = localStorage.getItem('sb-width');
-  if (saved) {
-    const w = parseInt(saved);
-    if (w >= MIN_W && w <= MAX_W) {
-      sb.style.width = w + 'px';
-      applyFont(w);
-    }
-  } else {
-    applyFont(sb.getBoundingClientRect().width || 240);
-  }
-
-  handle.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-    dragging = true;
-    startX = e.clientX;
-    startW = sb.getBoundingClientRect().width;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    sb.style.transition = 'none';
-  });
-  document.addEventListener('mousemove', function(e) {
-    if (!dragging) return;
-    let newW = startW + (e.clientX - startX);
-    if (newW < MIN_W) newW = MIN_W;
-    if (newW > MAX_W) newW = MAX_W;
-    sb.style.width = newW + 'px';
-    applyFont(newW);
-  });
-  document.addEventListener('mouseup', function() {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    sb.style.transition = '';
-    localStorage.setItem('sb-width', Math.round(sb.getBoundingClientRect().width));
-  });
-})();
+/* C안 §7-2 — base_logi.html 사이드바 드래그 리사이즈/applyFont/MIN_W/MAX_W 전부 제거 */
 </script>
 
 {# ========== Victor 사이드 도크 (제안 #08 · 매출/자재 센터에도 노출) ========== #}

@@ -1,0 +1,42 @@
+{# C안 §8-10 — 페이지 헤더 partial (시안 12B/14/15/16~20 공통 패턴)
+
+   사용:
+     {% include "_page_header_healing.html" with context %}
+
+   파라미터 (호출 측에서 set):
+     {% set ph_breadcrumb = ["통합", "전사 흐름", "전사 대시보드"] %}
+     {% set ph_title       = "오늘 회사의 흐름, 한눈에 보세요" %}
+     {% set ph_sub         = "이번 주 04-21 ~ 04-27" %}
+     {% set ph_lock        = "🔒 경영진 전용" %}      (선택)
+     {% set ph_lock_color  = "accent" %}              (선택: accent|amber|sage)
+     {% set ph_actions     = '<a class="btn btn-primary">+ 등록</a>' | safe %}  (선택)
+#}
+<div class="page-head">
+  <div class="page-title">
+    {% if ph_breadcrumb %}
+    <div class="page-breadcrumb">
+      {% for crumb in ph_breadcrumb %}
+        {% if loop.last %}
+        <span class="current">{{ crumb }}</span>
+        {% else %}
+        {{ crumb }} <span class="sep">/</span>
+        {% endif %}
+      {% endfor %}
+      {% if ph_lock %}
+        {% set _lc = ph_lock_color|default('accent') %}
+        <span class="lock-badge"
+          {% if _lc == 'amber' %}style="background:rgba(201,169,97,.18);color:#8A6E1D"
+          {% elif _lc == 'sage' %}style="background:var(--sage-100);color:var(--sage-700)"
+          {% endif %}>{{ ph_lock }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+    <h1>{{ ph_title|default('') }}</h1>
+    {% if ph_sub %}<div class="page-sub">{{ ph_sub }}</div>{% endif %}
+  </div>
+  {% if ph_actions %}
+  <div class="ph-right" style="display:flex;gap:10px;align-items:center;">
+    {{ ph_actions }}
+  </div>
+  {% endif %}
+</div>

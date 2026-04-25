@@ -84,6 +84,36 @@ def _victor_chips_for_path(path: str):
     return VICTOR_CONTEXT_CHIPS["/home"]
 
 
+# C안 §4 — 워크스페이스 스위처 (시안 12B 헤더)
+WORKSPACES = [
+    {"key": "hub",   "name": "통합",          "desc": "HAIST WORKS 메인 (업무·진행·이슈·요청)", "icon": "🏢", "href": "/home",      "external": False},
+    {"key": "sales", "name": "매출·영업 센터", "desc": "Sales Hub · 영업·수주·고객사",          "icon": "📈", "href": "/sales",     "external": True},
+    {"key": "logi",  "name": "자재·구매 센터", "desc": "Logistics Hub · 자재·구매·재고",         "icon": "📦", "href": "/logistics", "external": True},
+]
+
+def workspaces_for(user):
+    """권한 기반 워크스페이스 목록 (시안 12B 상단 ws-switcher 용)"""
+    if not user:
+        return [WORKSPACES[0]]
+    out = [WORKSPACES[0]]
+    role = (user.get("role") or "").lower() if isinstance(user, dict) else ""
+    is_exec = role in ("ceo", "admin", "executive")
+    can_sales = bool(user.get("can_use_sales")) if isinstance(user, dict) else False
+    can_logi  = bool(user.get("can_use_logistics")) if isinstance(user, dict) else False
+    if is_exec or can_sales:
+        out.append(WORKSPACES[1])
+    if is_exec or can_logi:
+        out.append(WORKSPACES[2])
+    return out
+
+def current_workspace_for(path: str):
+    """현재 path 기반 워크스페이스 매핑"""
+    p = path or ""
+    if p.startswith("/sales"):     return WORKSPACES[1]
+    if p.startswith("/logistics") or p.startswith("/parts") or p.startswith("/po") or p.startswith("/stock"): return WORKSPACES[2]
+    return WORKSPACES[0]
+
+
 def ctx(request, name, **kwargs):
     # 사용자 언어 결정
     user = kwargs.get("user")
@@ -114,6 +144,9 @@ def ctx(request, name, **kwargs):
         "hiworks_domain":       get_setting("hiworks_domain", ""),
         # Victor 도크 맥락 칩 (제안 #08)
         "victor_chips":         _victor_chips_for_path(str(request.url.path) if hasattr(request, "url") else ""),
+        # C안 §4 — 워크스페이스 스위처
+        "workspaces":          workspaces_for(user) if user else [],
+        "current_workspace":   current_workspace_for(str(request.url.path) if hasattr(request, "url") else ""),
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None

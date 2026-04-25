@@ -4,48 +4,85 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260425healing-v2">
+<link rel="stylesheet" href="/static/style.css?v=20260425healing-c">
 </head>
 <body>
 {% if user %}
+{# C안 §3 — 시안 12B topbar 이식 (brand-logo-wrap + ws-switcher + g-search + tb-icon-btn) #}
 <header class="topbar">
   <div class="tb-left">
-    <button class="tb-menu-btn" onclick="toggleSidebar()" title="{{ i.menu|default('메뉴') }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <button class="tb-menu-btn" onclick="toggleSidebar()" title="{{ i.menu|default('메뉴') }}" aria-label="{{ i.menu|default('메뉴') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
+
     <a href="/home" class="brand">
-      <img src="/static/logo.png?v=20260414b" alt="KNK HAIST Innovation" class="brand-logo">
+      <div class="brand-logo-wrap">
+        <img src="/static/logo.png?v=20260425healing" alt="KNK HAIST Innovation" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">{{ app_name|default('HAIST WORKS') }} <span class="dot"></span></div>
+        <div class="brand-sub">{{ app_subtitle|default('KNK 통합 업무 플랫폼') }}</div>
+      </div>
     </a>
-    <div class="brand-divider"></div>
-    <div class="brand-product">
-      <div class="brand-product-title">{{ app_name|default('HAIST WORKS') }} <span class="brand-product-badge">KNK</span></div>
-      <div class="brand-product-sub">{{ app_subtitle|default('KNK 통합 업무 플랫폼') }}</div>
+
+    {% if workspaces and workspaces|length > 1 %}
+    <div class="tb-divider"></div>
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn" type="button" aria-haspopup="true" aria-expanded="false">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">{{ (current_workspace.name if current_workspace else '통합') }}</span>
+        <span class="ws-caret">▾</span>
+      </button>
+      <div class="ws-menu" id="wsMenu" role="menu">
+        {% for w in workspaces %}
+        <a class="ws-opt {% if current_workspace and w.key == current_workspace.key %}active{% endif %}"
+           href="{{ w.href }}"
+           {% if w.external %}target="_blank" rel="noopener"{% endif %}>
+          <div class="opt-ico">{{ w.icon }}</div>
+          <div class="opt-meta">
+            <div class="opt-name">{{ w.name }}</div>
+            <div class="opt-desc">{{ w.desc }}</div>
+          </div>
+          {% if current_workspace and w.key == current_workspace.key %}<span class="opt-check">✓</span>
+          {% elif w.external %}<span class="opt-ext">↗</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
     </div>
+    {% endif %}
   </div>
 
-  <!-- 메인 헤더는 브랜드만 표시. 모든 메뉴는 사이드바에서 -->
-  <div class="tb-spacer"></div>
+  <div class="tb-center">
+    <form class="g-search" action="/search" method="get" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" name="q" id="gSearchInput" placeholder="{{ i.search_ph|default('업무·사람·문서 검색...') }}" autocomplete="off">
+      <span class="shortcut">/</span>
+    </form>
+  </div>
 
   <div class="tb-right">
-    {# Victor 트리거는 우측 사이드 도크(Ctrl+K)로 이동 — 제안 #08, 2026-04-24 #}
+    <button class="tb-icon-btn victor" id="victorTrigger" type="button" onclick="victorToggleDock()" title="{{ i.victor|default('빅터') }} (Ctrl+K)" aria-label="{{ i.victor|default('빅터') }}" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg>
+    </button>
     <a href="/notifications" class="tb-icon-btn" title="{{ i.sb_notif|default('알림') }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-      {% if unread_notif and unread_notif > 0 %}<span class="tb-icon-dot"></span>{% endif %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      {% if unread_notif and unread_notif > 0 %}<span class="dot"></span>{% endif %}
     </a>
     <select id="langSel" class="lang-sel" onchange="changeLang(this.value)">
       {% for code, label in LANGS.items() %}
       <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
-    <a href="/profile" class="tb-user-chip" title="{{ i.my_account|default('내 계정') }}">
-      <div class="tb-avatar">{{ user.name[:1] }}</div>
-      <div class="tb-user-info">
-        <div class="tb-user-name">{{ user.name }}</div>
-        <div class="tb-user-role">{{ user.rank or user.team_name or '경영진' }}</div>
+    <a href="/profile" class="user-chip" title="{{ i.my_account|default('내 계정') }}">
+      <div class="user-avatar">{{ user.name[:1] }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ user.name }}</div>
+        <div class="user-role">{{ user.rank or user.team_name or '경영진' }}</div>
       </div>
     </a>
-    <a href="/logout" class="logout" title="{{ i.logout|default('로그아웃') }}">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <a href="/logout" class="logout-btn" title="{{ i.logout|default('로그아웃') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </a>
   </div>
 </header>
@@ -54,7 +91,7 @@
 <div class="layout-wrap">
   <aside class="sidebar" id="sidebar">
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
-    <div class="sb-resize" id="sbResize" title="드래그하여 너비 조절"></div>
+    {# C안 §3·§7-2 — 드래그 리사이즈 핸들 제거 (sb-resize/applyFont/MIN_W/MAX_W 폐지) #}
     {# ===== Plan Y S1 네비 5 그룹 (2026-04-24 대표 승인) ===== #}
     {# 그룹 1: 내 업무 (개인) #}
     <div class="sb-section">
@@ -136,26 +173,7 @@
       </a>
     </div>
 
-    {# 그룹 4: 도메인 (매출·영업 / 자재·구매 — 권한자만) #}
-    {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics or user.can_use_sales %}
-    <div class="sb-section">
-      <div class="sb-head">도메인 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">📈📦</span></div>
-      {% if user.role in ['ceo','admin','executive'] or user.can_use_sales %}
-      <a href="/sales" target="_blank" rel="noopener" class="sb-item sb-logi-entry">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        <span class="sb-logi-label">매출·영업 센터</span>
-        <span class="sb-logi-badge">↗</span>
-      </a>
-      {% endif %}
-      {% if user.role in ['ceo','admin','executive'] or user.can_use_logistics %}
-      <a href="/logistics" target="_blank" rel="noopener" class="sb-item sb-logi-entry">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
-        <span class="sb-logi-label">자재·구매 센터</span>
-        <span class="sb-logi-badge">↗</span>
-      </a>
-      {% endif %}
-    </div>
-    {% endif %}
+    {# C안 §3-3 — 도메인 그룹 제거 (매출·영업 / 자재·구매 → 상단 워크스페이스 스위처로 이전) #}
 
     {# 그룹 5: 외부 · 관리 (하이웍스·팀트리·관리자) #}
     <div class="sb-section">
@@ -319,64 +337,32 @@ async function loadProgressDelayed() {
 document.addEventListener('DOMContentLoaded', loadProgressDelayed);
 setInterval(loadProgressDelayed, 60000);
 
-/* ===== 사이드바 드래그 리사이즈 + 폰트 자동 조정 ===== */
+/* C안 §7-2 — 사이드바 드래그 리사이즈/applyFont/MIN_W/MAX_W 전부 제거 (시안 12B 고정 264px 정책) */
+
+/* C안 §7-1 — 워크스페이스 스위처 토글 */
 (function(){
-  const sb = document.getElementById('sidebar');
-  const handle = document.getElementById('sbResize');
-  if (!sb || !handle) return;
-  const MIN_W = 180, MAX_W = 520;
-  const MIN_F = 13, MAX_F = 24;   // sb-item 폰트 크기 (넓게)
-  const MIN_H = 11, MAX_H = 18;   // sb-head 폰트 크기
-  let dragging = false, startX = 0, startW = 0;
-
-  function applyFont(w){
-    const ratio = Math.max(0, Math.min(1, (w - MIN_W) / (MAX_W - MIN_W)));
-    const f = MIN_F + (MAX_F - MIN_F) * ratio;
-    const h = MIN_H + (MAX_H - MIN_H) * ratio;
-    sb.style.setProperty('--sb-font-size', f.toFixed(1) + 'px');
-    sb.style.setProperty('--sb-head-size', h.toFixed(1) + 'px');
+  const wsWrap = document.getElementById('wsWrap');
+  const wsBtn  = document.getElementById('wsBtn');
+  const wsMenu = document.getElementById('wsMenu');
+  if (!wsWrap || !wsBtn || !wsMenu) return;
+  function setOpen(open){
+    wsWrap.classList.toggle('open', open);
+    wsMenu.classList.toggle('open', open);
+    wsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-
-  // 저장된 너비 복원
-  const saved = localStorage.getItem('sb-width');
-  if (saved) {
-    const w = parseInt(saved);
-    if (w >= MIN_W && w <= MAX_W) {
-      sb.style.width = w + 'px';
-      applyFont(w);
-    }
-  } else {
-    applyFont(sb.getBoundingClientRect().width || 240);
-  }
-
-  handle.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-    dragging = true;
-    startX = e.clientX;
-    startW = sb.getBoundingClientRect().width;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    sb.style.transition = 'none';
-  });
-
-  document.addEventListener('mousemove', function(e) {
-    if (!dragging) return;
-    let newW = startW + (e.clientX - startX);
-    if (newW < MIN_W) newW = MIN_W;
-    if (newW > MAX_W) newW = MAX_W;
-    sb.style.width = newW + 'px';
-    applyFont(newW);
-  });
-
-  document.addEventListener('mouseup', function() {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    sb.style.transition = '';
-    localStorage.setItem('sb-width', Math.round(sb.getBoundingClientRect().width));
-  });
+  wsBtn.addEventListener('click', e => { e.stopPropagation(); setOpen(!wsWrap.classList.contains('open')); });
+  document.addEventListener('click', e => { if (!wsWrap.contains(e.target)) setOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
 })();
+
+/* C안 §7-1 — "/" 키 → 글로벌 검색 포커스 (한글 IME 안전) */
+document.addEventListener('keydown', function(e){
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  const t = (e.target.tagName || '').toLowerCase();
+  if (t === 'input' || t === 'textarea' || t === 'select' || e.target.isContentEditable) return;
+  const i = document.getElementById('gSearchInput');
+  if (i) { e.preventDefault(); i.focus(); i.select(); }
+});
 
 /* ===== 언어 변경 ===== */
 async function changeLang(lang) {
