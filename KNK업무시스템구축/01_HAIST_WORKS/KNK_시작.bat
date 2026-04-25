@@ -1,12 +1,17 @@
 @echo off
+REM ============================================================
+REM   LAST UPDATE: 2026-04-25 (C안 v2 §3 2차 시안 본문 이식 사이클)
+REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
+REM ============================================================
 chcp 65001 > nul
-title KNK 물류허브 - HAIST Innovation
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-25]
 cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo    KNK 물류허브  ^|  HAIST Innovation
+echo    HAIST WORKS  ^|  KNK 통합 업무 플랫폼
 echo    Human ^& AI create the Best
+echo    [Last Update: 2026-04-25]
 echo ============================================================
 echo.
 

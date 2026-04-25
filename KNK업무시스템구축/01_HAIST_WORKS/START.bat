@@ -1,11 +1,16 @@
 @echo off
+REM ============================================================
+REM   LAST UPDATE: 2026-04-25 (C-Plan v2 §3 page body transplant cycle)
+REM   Rule: 01 session bumps this line every time code is modified
+REM ============================================================
 cd /d "%~dp0"
-title KNK Logistics Hub - HAIST Innovation
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-25]
 
 echo.
 echo ============================================================
-echo    KNK Logistics Hub  ^|  HAIST Innovation
+echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
+echo    [Last Update: 2026-04-25]
 echo ============================================================
 echo.
 
