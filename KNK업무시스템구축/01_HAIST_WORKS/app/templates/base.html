@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260425healing-c">
+<link rel="stylesheet" href="/static/style.css?v=20260425healing-c2">
 </head>
 <body>
 {% if user %}
@@ -91,7 +91,7 @@
 <div class="layout-wrap">
   <aside class="sidebar" id="sidebar">
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
-    {# C안 §3·§7-2 — 드래그 리사이즈 핸들 제거 (sb-resize/applyFont/MIN_W/MAX_W 폐지) #}
+    {# C안 §3·§7-2 — 드래그 리사이즈 핸들 폐지 (시안 12B 고정 264px) #}
     {# ===== Plan Y S1 네비 5 그룹 (2026-04-24 대표 승인) ===== #}
     {# 그룹 1: 내 업무 (개인) #}
     <div class="sb-section">
@@ -337,7 +337,7 @@ async function loadProgressDelayed() {
 document.addEventListener('DOMContentLoaded', loadProgressDelayed);
 setInterval(loadProgressDelayed, 60000);
 
-/* C안 §7-2 — 사이드바 드래그 리사이즈/applyFont/MIN_W/MAX_W 전부 제거 (시안 12B 고정 264px 정책) */
+/* C안 §7-2 — 사이드바 드래그 리사이즈 IIFE 전부 폐지 (시안 12B 고정 264px 정책) */
 
 /* C안 §7-1 — 워크스페이스 스위처 토글 */
 (function(){
@@ -1018,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', function(){
    시안: 05_.../03_시안/08_victor_side_dock.html
    ========================================================= #}
 {% if user %}
-{# .dock-tab 제거 (QA-H2 · 05 디자인팀 3차 패치 ①) — 헤더 .tb-icon-btn.victor 가 유일한 트리거 #}
+{# 우측 세로 탭 폐지 (QA-H2 · 05 디자인팀 3차) — 헤더 .tb-icon-btn.victor 가 유일한 트리거 #}
 <aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
   <div class="dock-head">
     <div class="dock-head-row">

@@ -616,7 +616,7 @@ input,select,textarea{font-family:inherit;font-size:18px}
    ============================================================ */
 .layout-wrap{display:flex;height:calc(100vh - 57px);overflow:hidden}
 .sidebar{position:relative;width:260px;min-width:0;background:#fff;border-right:1px solid var(--bd);padding:10px 0;overflow-y:auto;height:calc(100vh - 57px);z-index:10;flex-shrink:0;--sb-font-size:17px;--sb-head-size:14px}
-/* C안 §3·§7-2 — .sb-resize 5블록 제거 (드래그 리사이즈 폐지 · 시안 12B 고정 264px) */
+/* C안 §3·§7-2 — 드래그 리사이즈 핸들 5블록 폐지 (시안 12B 고정 264px) */
 .sidebar.sb-collapsed{width:0;min-width:0;padding:0;overflow:hidden;border:none}
 .main.has-sidebar{padding:14px 20px}
 .main-wide{padding:16px 20px}

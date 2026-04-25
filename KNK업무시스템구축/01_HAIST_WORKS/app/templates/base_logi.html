@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}매출·영업 · 자재·구매 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260425healing-c">
+<link rel="stylesheet" href="/static/style.css?v=20260425healing-c2">
 </head>
 <body class="logi-body">
 
@@ -45,7 +45,7 @@
 <div class="layout-wrap">
   <aside class="sidebar sidebar-logi" id="sidebar">
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
-    {# C안 §3·§7-2 — sb-resize 핸들 제거 #}
+    {# C안 §3·§7-2 — 드래그 핸들 폐지 #}
 
     {# 📈 매출·영업 (영업팀·경영진) #}
     <div class="sb-section">
@@ -142,7 +142,7 @@ function toggleSidebar(){
   if (btn) btn.textContent = (sb.classList.contains('sb-collapsed') || (!isMobile && !sb.classList.contains('sb-open'))) ? '▶' : '◀';
 }
 
-/* C안 §7-2 — base_logi.html 사이드바 드래그 리사이즈/applyFont/MIN_W/MAX_W 전부 제거 */
+/* C안 §7-2 — base_logi.html 사이드바 드래그 리사이즈 IIFE 전부 폐지 */
 </script>
 
 {# ========== Victor 사이드 도크 (제안 #08 · 매출/자재 센터에도 노출) ========== #}

@@ -144,9 +144,10 @@ def ctx(request, name, **kwargs):
         "hiworks_domain":       get_setting("hiworks_domain", ""),
         # Victor 도크 맥락 칩 (제안 #08)
         "victor_chips":         _victor_chips_for_path(str(request.url.path) if hasattr(request, "url") else ""),
-        # C안 §4 — 워크스페이스 스위처
+        # C안 v2 §2-4 — 워크스페이스 스위처 (uppercase + lowercase 양쪽 노출)
         "workspaces":          workspaces_for(user) if user else [],
         "current_workspace":   current_workspace_for(str(request.url.path) if hasattr(request, "url") else ""),
+        "WORKSPACES":          workspaces_for(user) if user else [],
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None
