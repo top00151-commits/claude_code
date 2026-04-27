@@ -2827,6 +2827,19 @@ async def admin_health_page(req: Request):
 
 
 # =====================================================
+# 사이클 73 (2026-04-27): 사용 가이드 페이지
+# 대표 16:20 직접 지시 — "내가 직접 사용해볼려고 하는데 사용 가이드가 있어야할것 같은데"
+# 모든 로그인 사용자 접근 가능 (admin/ceo/sales/finance/etc.)
+# =====================================================
+@app.get("/guide", response_class=HTMLResponse)
+async def guide_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "guide.html", user=u, active="guide")
+
+
+# =====================================================
 # 외부자산 점검 (대표 직접 판단용 spike, 2026-04-27)
 # 출처: 00_HAIST_WORKS_감사팀/_TO_09팀장_2026-04-27_긴급감사_openpyxl외부자산.md
 # =====================================================
