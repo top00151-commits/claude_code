@@ -2268,79 +2268,27 @@ def regenerate_user_passwords(exclude_logins=("admin",)):
     return rows
 
 
-def build_password_xlsx(rows, out_path):
+def build_password_csv(rows, out_path):
     """
-    비밀번호 배포용 Excel 생성 (KNK CI 적용)
+    비밀번호 배포용 CSV 생성 (UTF-8 BOM · Excel 한글 호환)
+    사이클 68 (2026-04-27): openpyxl 제거 → csv 표준 모듈 (대표 결정 이행).
+    Excel/구글시트에서 .csv 열면 자동 표 형식 — 사용자 영향 거의 없음.
     """
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "초기비밀번호_배포용"
-
-    R = "A5282C"  # KNK RED
-    RD = "8B1E22"
-    LG = "F5F5F5"
-    W = "FFFFFF"
-
-    thin = Side(border_style="thin", color="E0E0E0")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    header_font = Font(name="맑은 고딕", bold=True, color=W, size=11)
-    title_font = Font(name="맑은 고딕", bold=True, color=W, size=14)
-    cell_font = Font(name="맑은 고딕", size=10)
-    pw_font = Font(name="Consolas", bold=True, size=11, color=RD)
-    center = Alignment(horizontal="center", vertical="center")
-    left = Alignment(horizontal="left", vertical="center", indent=1)
-    header_fill = PatternFill("solid", start_color=R, end_color=R)
-    title_fill = PatternFill("solid", start_color=RD, end_color=RD)
-    alt_fill = PatternFill("solid", start_color=LG, end_color=LG)
-
-    # 타이틀
-    ws.merge_cells("A1:G2")
-    ws["A1"] = "㈜케이엔케이 일일업무일지 · 초기 비밀번호 배포용"
-    ws["A1"].font = title_font
-    ws["A1"].alignment = center
-    ws["A1"].fill = title_fill
-    ws.row_dimensions[1].height = 22
-    ws.row_dimensions[2].height = 22
-
-    # 안내
-    ws.merge_cells("A3:G3")
-    ws["A3"] = "첫 로그인 후 반드시 [비밀번호 변경] 메뉴에서 개인 비밀번호로 변경해 주세요. · HAIST Innovation"
-    ws["A3"].font = Font(name="맑은 고딕", italic=True, size=9, color="4A4A4A")
-    ws["A3"].alignment = center
-    ws.row_dimensions[3].height = 18
-
-    # 헤더
-    headers = ["No", "팀", "이름", "직급", "로그인ID", "초기 비밀번호", "권한"]
-    for i, h in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=i, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = center
-        cell.border = border
-    ws.row_dimensions[4].height = 24
-
-    # 데이터
-    for idx, r in enumerate(rows, 1):
-        row = 4 + idx
-        vals = [idx, r["team_name"], r["name"], r["rank"],
-                r["login_id"], r["password"], r["role"]]
-        for ci, v in enumerate(vals, 1):
-            cell = ws.cell(row=row, column=ci, value=v)
-            cell.font = pw_font if ci == 6 else cell_font
-            cell.alignment = center if ci in (1, 4, 5, 6, 7) else left
-            cell.border = border
-            if idx % 2 == 0:
-                cell.fill = alt_fill
-
-    widths = [5, 22, 12, 10, 14, 14, 10]
-    for i, w in enumerate(widths, 1):
-        ws.column_dimensions[chr(64+i)].width = w
-
-    ws.freeze_panes = "A5"
-    wb.save(out_path)
+    import csv as _csv
+    with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
+        # 첫 행 메타 안내 (Excel에서 1행에 표기되어도 무방)
+        f.write("# ㈜케이엔케이 일일업무일지 · 초기 비밀번호 배포용\n")
+        f.write("# 첫 로그인 후 반드시 [비밀번호 변경] 메뉴에서 개인 비밀번호로 변경해 주세요. · HAIST Innovation\n")
+        w = _csv.writer(f)
+        w.writerow(["No", "팀", "이름", "직급", "로그인ID", "초기 비밀번호", "권한"])
+        for idx, r in enumerate(rows, 1):
+            w.writerow([idx, r["team_name"], r["name"], r["rank"],
+                        r["login_id"], r["password"], r["role"]])
     return out_path
+
+
+# 사이클 69 (2026-04-27): 호환 alias `build_password_xlsx = build_password_csv` 제거.
+# 호출자 0건 (grep 검증) — main.py:15·2794는 이미 build_password_csv 직접 호출.
 
 # =====================================================
 # COMMENTS & NOTIFICATIONS

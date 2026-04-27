@@ -24,7 +24,7 @@
 ### 3. 서버 환경
 - [ ] Python 3.10+ 설치 확인
 - [ ] 필요 패키지: `pip install -r requirements.txt`
-  - fastapi, uvicorn, jinja2, openpyxl, python-multipart, itsdangerous
+  - fastapi, uvicorn, jinja2, python-multipart, itsdangerous, deep-translator
 - [ ] 포트 8081 방화벽 개방 (또는 Nginx 리버스 프록시)
 - [ ] DB 파일 (`data/knk.db`) 쓰기 권한
 

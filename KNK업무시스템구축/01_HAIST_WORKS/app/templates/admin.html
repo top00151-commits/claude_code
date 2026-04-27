@@ -207,12 +207,12 @@
 <div class="section-head"><h2>🔐 초기 비밀번호 일괄 재생성</h2></div>
 <div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
   <div style="font-size:13px;color:var(--g)">
-    모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 Excel을 다운로드합니다.
+    모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 CSV(엑셀에서 자동 표 형식)를 다운로드합니다.
     <br><strong style="color:#A5282C;">⚠ 주의</strong>: 재생성 즉시 기존 비밀번호는 무효화됩니다. 실사용 킥오프 시 1회만 실행하세요.
   </div>
   {# 2단계 확인 UI — 05 디자인팀 제안#04-D, OPS-008 보안 강화 #}
   <div id="pwStep1">
-    <button class="btn-primary" onclick="showPwConfirm()">🔁 비밀번호 재생성 + Excel 다운로드</button>
+    <button class="btn-primary" onclick="showPwConfirm()">🔁 비밀번호 재생성 + CSV 다운로드</button>
     <a href="/admin/download-passwords" class="btn-sm" style="margin-left:8px;">📥 기존 파일 다시 받기</a>
   </div>
   <div id="pwStep2" style="display:none;background:#FFF3F3;border:1px solid #FECACA;border-radius:10px;padding:16px;width:100%;max-width:520px;">

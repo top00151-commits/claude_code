@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
 from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw,
                         parse_mgmt_xls, import_mgmt_rows,
-                        regenerate_user_passwords, build_password_xlsx,
+                        regenerate_user_passwords, build_password_csv,
                         add_comment, get_task_comments, delete_comment,
                         get_notifications, count_unread, mark_notification_read,
                         mark_all_read, notify_user,
@@ -1070,46 +1070,50 @@ async def api_set_lang(req: Request):
 
 @app.post("/api/translate")
 async def api_translate(req: Request):
+    """
+    사내 사전 번역 (외부 API 0건).
+    사이클 69 (2026-04-27): deep_translator + Google Translate URL 직접 호출 제거.
+    오리엔테이션 §3.1 외부 자산 0건 정책 이행. 대표 14:19 "부분 처리" 결정.
+    동작: app/i18n.py T 사전(약 472키 / ko·vi·en)에서 입력 텍스트와 매칭되는 항목을 찾아 응답.
+    매칭 실패 시 "사내 사전 미등록" 안내 + 빅터AI 등록 기능(사이클 70+) 예고.
+    """
     u = get_user(req)
     if not u:
-        return JSONResponse({"error":"로그인 필요"}, 401)
+        return JSONResponse({"error": "로그인 필요"}, 401)
     d = await req.json()
     text = (d.get("text") or "").strip()
     target = d.get("target") or "vi"  # 기본: 베트남어
     if not text:
-        return JSONResponse({"error":"텍스트 없음"}, 400)
-    # 방법1: deep_translator
+        return JSONResponse({"error": "텍스트 없음"}, 400)
+    if target not in ("ko", "vi", "en"):
+        return JSONResponse({"error": "지원 언어: ko/vi/en"}, 400)
+
+    # 사내 사전 lookup — i18n.py T 사전 정/역방향 모두 시도
     try:
-        from deep_translator import GoogleTranslator
-        result = GoogleTranslator(source='auto', target=target).translate(text)
-        if result:
-            return JSONResponse({"ok": True, "translated": result, "target": target})
-    except Exception as e1:
-        print(f"[번역] GoogleTranslator 실패: {e1}")
-    # 방법2: MyMemoryTranslator (fallback)
-    try:
-        from deep_translator import MyMemoryTranslator
-        src = 'ko-KR'
-        # P1-3 (2026-04-25 09팀장 지시): 언어 셀렉터 정리 — ko/vi/en 3종만 유지 (ja, zh-CN 제거)
-        tgt_map = {'vi':'vi-VN','en':'en-GB','ko':'ko-KR'}
-        result = MyMemoryTranslator(source=src, target=tgt_map.get(target,'en-GB')).translate(text)
-        if result:
-            return JSONResponse({"ok": True, "translated": result, "target": target})
-    except Exception as e2:
-        print(f"[번역] MyMemoryTranslator 실패: {e2}")
-    # 방법3: urllib로 직접 Google Translate 호출
-    try:
-        import urllib.request, urllib.parse, json as _json
-        encoded = urllib.parse.quote(text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target}&dt=t&q={encoded}"
-        req2 = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0"})
-        with urllib.request.urlopen(req2, timeout=10) as resp:
-            data = _json.loads(resp.read().decode())
-            translated = "".join(seg[0] for seg in data[0] if seg[0])
-            return JSONResponse({"ok": True, "translated": translated, "target": target})
-    except Exception as e3:
-        print(f"[번역] urllib 직접호출 실패: {e3}")
-    return JSONResponse({"ok": False, "error": "번역 서비스에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."}, 500)
+        from .i18n import T as _T
+    except Exception:
+        return JSONResponse({"ok": False,
+                             "error": "사내 사전 모듈 로드 실패"}, 500)
+
+    norm = text.strip()
+    # 1) value(원문 문구) → 다른 언어 value 매칭
+    for _key, entry in _T.items():
+        if not isinstance(entry, dict):
+            continue
+        for _src_lang, _src_text in entry.items():
+            if isinstance(_src_text, str) and _src_text.strip() == norm:
+                tgt_text = entry.get(target)
+                if tgt_text:
+                    return JSONResponse({"ok": True,
+                                         "translated": tgt_text,
+                                         "target": target,
+                                         "source": "사내 사전"})
+    # 2) 매칭 실패 — 빅터AI 등록 안내
+    return JSONResponse({
+        "ok": False,
+        "error": "사내 사전 미등록 — 빅터AI 단어 등록 기능(예정)으로 추가 가능합니다.",
+        "source": "사내 사전",
+    }, 200)
 
 
 # =====================================================
@@ -2789,8 +2793,9 @@ async def api_regen_pw(req: Request):
     rows = regenerate_user_passwords()
     out_dir = os.path.join(BASE, "data")
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, "초기비밀번호_배포용.xlsx")
-    build_password_xlsx(rows, out_path)
+    # 사이클 68 (2026-04-27): openpyxl 제거 → CSV (UTF-8 BOM · 대표 결정 이행)
+    out_path = os.path.join(out_dir, "초기비밀번호_배포용.csv")
+    build_password_csv(rows, out_path)
     return JSONResponse({"ok": True, "count": len(rows),
                          "download": "/admin/download-passwords"})
 
@@ -2824,25 +2829,27 @@ EXTERNAL_ASSETS_REVIEW = [
     {
         "name": "openpyxl",
         "type": "PyPI 라이브러리 (엑셀 파일 생성)",
+        "status": "removed_2026-04-27_cycle68",
         "usage": [
-            {"file": "app/main.py", "lines": "3102~3105",
-             "purpose": "주간 요약 엑셀 다운로드 (/export/weekly)"},
-            {"file": "app/database.py", "lines": "2257~2258",
-             "purpose": "초기 비밀번호 배포용 xlsx 생성 (admin 1회성)"},
+            {"file": "app/main.py", "lines": "(제거됨)",
+             "purpose": "사이클 68: 주간 요약 CSV 라우트로 대체 (line 3300~)",
+             "deprecated": True},
+            {"file": "app/database.py", "lines": "2271~2287",
+             "purpose": "사이클 68: build_password_csv 로 교체 (csv 표준 모듈)",
+             "deprecated": True},
             {"file": "scripts/migrate_baby_v2.py", "lines": "79",
-             "purpose": "baby Excel → web SQLite 마이그레이션 (운영 외 1회성)"},
+             "purpose": "baby Excel → web SQLite 마이그레이션 (운영 외 1회성, baby 폐기 시 자연 제거)"},
             {"file": "scripts/baby_web_sync_check.py", "lines": "38",
-             "purpose": "baby/web 정합성 체크 (운영 외 스크립트)"},
+             "purpose": "baby/web 정합성 체크 (운영 외 스크립트, baby 폐기 시 자연 제거)"},
         ],
         "alternatives": [
-            "CSV 다운로드 (csv 표준 모듈)",
+            "CSV 다운로드 (csv 표준 모듈) — 사이클 68 적용",
             "HTML 인쇄 view (브라우저 인쇄 기능)",
         ],
         "impact_summary": (
-            "엑셀 다운로드 → CSV 다운로드로 대체 가능. "
-            "관리자 비밀번호 1회성 배포는 CSV/HTML 인쇄 view 충분. "
-            "마이그레이션 스크립트는 baby 폐기 시 자연 제거. "
-            "KNK 일상 사용자(11+1) 영향 거의 없음."
+            "사이클 68 (2026-04-27 대표 결정 Remove) 적용 완료. "
+            "운영 라우트에서 openpyxl import 0건. "
+            "scripts/ 2개 파일은 baby 폐기 시 자연 제거 예정."
         ),
         "risk_security": 1,
         "risk_dependency": 3,
@@ -2852,8 +2859,9 @@ EXTERNAL_ASSETS_REVIEW = [
     {
         "name": "pandas",
         "type": "PyPI 라이브러리 (데이터 분석, numpy 의존)",
+        "status": "pending_decision",
         "usage": [
-            {"file": "app/database.py", "lines": "2090",
+            {"file": "app/database.py", "lines": "2108",
              "purpose": "관리코드발행목록.xls 파싱 (구포맷 .xls 읽기)"},
         ],
         "alternatives": [
@@ -2873,22 +2881,23 @@ EXTERNAL_ASSETS_REVIEW = [
     {
         "name": "deep_translator",
         "type": "PyPI 라이브러리 + 외부 번역 API (Google Translate / MyMemory)",
+        "status": "removed_2026-04-27_cycle69",
         "usage": [
-            {"file": "app/main.py", "lines": "1083",
-             "purpose": "GoogleTranslator 호출 (deep_translator 경유)"},
-            {"file": "app/main.py", "lines": "1091",
-             "purpose": "MyMemoryTranslator 폴백"},
-            {"file": "app/main.py", "lines": "1104",
-             "purpose": "translate.googleapis.com 직접 URL 호출"},
+            {"file": "app/main.py", "lines": "(제거됨)",
+             "purpose": "사이클 69: api_translate() 사내 i18n 사전 lookup으로 교체",
+             "deprecated": True},
+            {"file": "requirements.txt", "lines": "(제거됨)",
+             "purpose": "사이클 69: deep-translator 의존성 제거",
+             "deprecated": True},
         ],
         "alternatives": [
-            "사내 i18n 사전 강화 (app/i18n.py 이미 ko/vi/en 403키 보유)",
-            "미사전어 입력 시 '번역 미지원' 안내 처리",
+            "사내 i18n 사전 lookup (app/i18n.py 약 472키 ko/vi/en) — 사이클 69 적용",
+            "빅터AI 단어 등록 기능 (사이클 70+ 신설 예정, 대표 결재 후)",
         ],
         "impact_summary": (
-            "외부 번역 API 호출은 오리엔테이션 1항이 명시 금지한 '외부 환율 API'와 동급 위반. "
-            "P11 베트남 수출 실무자 영향 분석 필요. "
-            "사내 i18n 사전(403키)으로 대체 가능."
+            "사이클 69 (2026-04-27 대표 결정 Partial 부분처리) 적용 완료. "
+            "외부 API 호출 0건. "
+            "/api/translate 라우트는 i18n.py T 사전 lookup 기반으로 동작 (외부 자산 0)."
         ),
         "risk_security": 4,
         "risk_dependency": 3,
@@ -3045,19 +3054,24 @@ async def dl_passwords(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    out_path = os.path.join(BASE, "data", "초기비밀번호_배포용.xlsx")
+    # 사이클 68 (2026-04-27): openpyxl 제거 → CSV 다운로드 (UTF-8 BOM · 대표 결정 이행)
+    out_path = os.path.join(BASE, "data", "초기비밀번호_배포용.csv")
+    # 구버전 .xlsx 파일이 남아있다면 호환을 위해 폴백
     if not os.path.exists(out_path):
+        legacy_xlsx = os.path.join(BASE, "data", "초기비밀번호_배포용.xlsx")
+        if os.path.exists(legacy_xlsx):
+            return JSONResponse({"error": "구버전 .xlsx 파일이 존재합니다. [비밀번호 재생성]을 1회 다시 실행하면 .csv로 자동 갱신됩니다."}, 410)
         return JSONResponse({"error": "먼저 재생성을 수행하세요"}, 404)
     with open(out_path, "rb") as f:
         data = f.read()
     from urllib.parse import quote
-    fn = "KNK_초기비밀번호_배포용.xlsx"
+    fn = "KNK_초기비밀번호_배포용.csv"
     headers = {
-        "Content-Disposition": f"attachment; filename=KNK_passwords.xlsx; filename*=UTF-8''{quote(fn)}"
+        "Content-Disposition": f"attachment; filename=KNK_passwords.csv; filename*=UTF-8''{quote(fn)}"
     }
     return StreamingResponse(
         io.BytesIO(data),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type="text/csv; charset=utf-8-sig",
         headers=headers,
     )
 
@@ -3287,53 +3301,42 @@ async def reminders_page(req: Request, sel_date: str = ""):
 
 
 # =====================================================
-# EXCEL EXPORT — 주간 요약 엑셀
+# EXPORT — 주간 요약 CSV (사이클 68: openpyxl 제거 → csv 표준 모듈)
+# 대표 결정 (2026-04-27 14:20:16): openpyxl 제거(Remove)
+# 출처: 99_DISPATCH/외부자산_결정_2026-04-27.md
+# 단일 .csv 안에 [전사 요약] 섹션 + [카드 상세] 섹션 2개를 빈 줄로 분리해 출력.
+# UTF-8 BOM 으로 Excel/구글시트 한글 호환.
 # =====================================================
 @app.get("/export/weekly")
 async def export_weekly(req: Request, wk_mon: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    except ImportError:
-        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    import csv as _csv
     if not wk_mon:
         td = date.today()
         wk_mon = (td - timedelta(days=td.weekday())).isoformat()
     mon = datetime.strptime(wk_mon, "%Y-%m-%d").date()
     sun = mon + timedelta(days=6)
 
-    wb = Workbook()
-    red_fill = PatternFill(start_color="A5282C", end_color="A5282C", fill_type="solid")
-    head_font = Font(name="맑은 고딕", size=11, bold=True, color="FFFFFF")
-    body_font = Font(name="맑은 고딕", size=10)
-    thin = Side(border_style="thin", color="D0D0D0")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    buf = io.StringIO()
+    buf.write("﻿")  # UTF-8 BOM (Excel 한글 호환)
+    w = _csv.writer(buf)
+
+    # 헤더 메타
+    w.writerow([f"㈜케이엔케이 주간 업무 요약  {mon} ~ {sun}"])
+    w.writerow([])
 
     with db_session() as c:
-        # Sheet 1: 전사 요약
-        ws = wb.active
-        ws.title = "전사 요약"
-        ws["A1"] = f"㈜케이엔케이 주간 업무 요약"
-        ws["A1"].font = Font(name="맑은 고딕", size=14, bold=True, color="A5282C")
-        ws["A2"] = f"{mon} ~ {sun}"
-        ws["A2"].font = Font(name="맑은 고딕", size=10, color="4A4A4A")
-        headers = ["팀코드", "팀명", "팀장", "인원", "카드수", "완료", "지연", "공수(h)"]
-        for col, h in enumerate(headers, start=1):
-            cell = ws.cell(row=4, column=col, value=h)
-            cell.font = head_font
-            cell.fill = red_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = border
+        # 섹션 1: 전사 요약
+        w.writerow(["[전사 요약]"])
+        w.writerow(["팀코드", "팀명", "팀장", "인원", "카드수", "완료", "지연", "공수(h)"])
         teams = [dict(r) for r in c.execute(
             """SELECT t.*, u.name AS leader_name,
                       (SELECT COUNT(*) FROM users WHERE team_id=t.id AND is_active=1) AS mc
                FROM teams t LEFT JOIN users u ON t.leader_id=u.id
                ORDER BY t.display_order"""
         ).fetchall()]
-        row = 5
         for t in teams:
             s = c.execute(
                 """SELECT COUNT(*) AS total,
@@ -3344,27 +3347,18 @@ async def export_weekly(req: Request, wk_mon: str = ""):
                    WHERE u.team_id=? AND tk.work_date>=? AND tk.work_date<=?""",
                 (t["id"], mon.isoformat(), sun.isoformat()),
             ).fetchone()
-            vals = [t["code"], t["name"], t["leader_name"] or "-", t["mc"],
-                    s["total"] or 0, s["done"] or 0, s["delay"] or 0, round(s["hours"] or 0, 1)]
-            for col, v in enumerate(vals, start=1):
-                cell = ws.cell(row=row, column=col, value=v)
-                cell.font = body_font
-                cell.border = border
-                if col >= 4:
-                    cell.alignment = Alignment(horizontal="right")
-            row += 1
-        for col, w in enumerate([8, 18, 14, 8, 10, 10, 10, 12], start=1):
-            ws.column_dimensions[chr(64 + col)].width = w
+            w.writerow([t["code"], t["name"], t["leader_name"] or "-", t["mc"],
+                        s["total"] or 0, s["done"] or 0, s["delay"] or 0,
+                        round(s["hours"] or 0, 1)])
 
-        # Sheet 2: 카드 상세
-        ws2 = wb.create_sheet("카드 상세")
-        headers2 = ["날짜", "팀", "이름", "직급", "제목", "분류", "프로젝트", "고객사", "상태", "공수(h)"]
-        for col, h in enumerate(headers2, start=1):
-            cell = ws2.cell(row=1, column=col, value=h)
-            cell.font = head_font
-            cell.fill = red_fill
-            cell.alignment = Alignment(horizontal="center")
-            cell.border = border
+        # 섹션 사이 공백
+        w.writerow([])
+        w.writerow([])
+
+        # 섹션 2: 카드 상세
+        w.writerow(["[카드 상세]"])
+        w.writerow(["날짜", "팀", "이름", "직급", "제목", "분류", "프로젝트",
+                    "고객사", "상태", "공수(h)"])
         rows = c.execute(
             """SELECT tk.work_date, t.name AS team_name, u.name AS user_name, u.rank,
                       tk.title, tk.category, p.name AS pj, cu.name AS cu,
@@ -3377,23 +3371,17 @@ async def export_weekly(req: Request, wk_mon: str = ""):
                ORDER BY tk.work_date, t.display_order, u.id""",
             (mon.isoformat(), sun.isoformat()),
         ).fetchall()
-        for ri, r in enumerate(rows, start=2):
-            for col, v in enumerate(r, start=1):
-                cell = ws2.cell(row=ri, column=col, value=v)
-                cell.font = body_font
-                cell.border = border
-        for col, w in enumerate([12, 14, 10, 10, 40, 10, 24, 14, 10, 10], start=1):
-            ws2.column_dimensions[chr(64 + col)].width = w
-        ws2.freeze_panes = "A2"
+        for r in rows:
+            w.writerow([r["work_date"], r["team_name"] or "", r["user_name"] or "",
+                        r["rank"] or "", r["title"] or "", r["category"] or "",
+                        r["pj"] or "", r["cu"] or "", r["status"] or "",
+                        r["hours"] or 0])
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    fname = f"KNK_주간요약_{mon}_{sun}.xlsx"
+    fname = f"KNK_주간요약_{mon}_{sun}.csv"
     from urllib.parse import quote
     return StreamingResponse(
-        buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        io.BytesIO(buf.getvalue().encode("utf-8")),
+        media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"},
     )
 

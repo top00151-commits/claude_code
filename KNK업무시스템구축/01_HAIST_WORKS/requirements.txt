@@ -3,5 +3,3 @@ uvicorn[standard]
 jinja2
 python-multipart
 itsdangerous
-deep-translator
-openpyxl

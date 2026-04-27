@@ -437,7 +437,7 @@ const LANG = "{{ lang|default('ko') }}";
 const I = {
   modal_today: "{{ i.modal_today|default('📝 오늘 한 일') }}",
   modal_next: "{{ i.modal_next|default('📌 다음 계획') }}",
-  translate_btn: "{{ i.translate_btn|default('🌐 번역') }}",
+  translate_btn: "{{ i.translate_btn|default('🌐 사내 사전') }}",
   comment_title: "{{ i.comment_title|default('💬 코멘트') }}",
   no_comment: "{{ i.no_comment|default('아직 코멘트가 없습니다') }}",
   ceo_request: "{{ i.ceo_request|default('대표 요청') }}",
@@ -597,7 +597,8 @@ async function translateFromDom(btn) {
     const j = await r.json();
     if (j.ok) {
       const langNames = {ko:'🇰🇷 한국어', vi:'🇻🇳 Tiếng Việt', en:'🇺🇸 English'}; /* QA-H3·H4·H5 패치 ③ */
-      resultDiv.innerHTML = `<div class="tr-label">${langNames[target]||target} 번역</div><div class="tr-text">${escHtml(j.translated)}</div>`;
+      const srcLabel = j.source ? ` · ${escHtml(j.source)}` : '';
+      resultDiv.innerHTML = `<div class="tr-label">${langNames[target]||target} 번역${srcLabel}</div><div class="tr-text">${escHtml(j.translated)}</div>`;
     } else {
       resultDiv.innerHTML = `<span class="tr-error">${j.error||'번역 실패'}</span>`;
     }
