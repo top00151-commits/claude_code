@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-04-27 사이클77-가공팀작업지시서WO모듈신설
+REM   LAST UPDATE: 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-27 사이클77-가공팀작업지시서WO모듈신설]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK 통합 업무 플랫폼
 echo    Human ^& AI create the Best
-echo    [Last Update: 2026-04-27 사이클77-가공팀작업지시서WO모듈신설]
+echo    [Last Update: 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구]
 echo ============================================================
 echo.
 
