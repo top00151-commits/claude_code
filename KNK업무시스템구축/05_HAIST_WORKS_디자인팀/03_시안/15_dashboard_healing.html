@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #15 — 전사 대시보드 · 힐링 (B-2)</title>
+<style>
+/* ============================================================
+   HAIST WORKS · 힐링 시안 15 (12B 마스터 base 동기화 v2)
+   2026-04-25 14:30 — 헤더·사이드바·도크 12B 마스터와 1:1 일치
+   ============================================================ */
+:root{
+  --sage-50:#F7FAF4; --sage-100:#F0F5EB; --sage-200:#E4ECD9; --sage-300:#CAD9B8;
+  --sage-400:#A8BD8F; --sage-500:#7FA183; --sage-600:#5D7F61; --sage-700:#3F5C44; --sage-800:#2B3E2E;
+  --ink:#2B3E2E; --ink-2:#3F5C44; --ink-3:#5D7F61; --ink-4:#8FA594;
+  --rose:#A5282C; --rose-dk:#8B1E22; --rose-soft:#F5E4E2;
+  --accent:#A5282C; --accent-dk:#8B1E22; --accent-soft:#F5E4E2;
+  --amber:#C9A961; --amber-dk:#A38635;
+  --teal:#6BA394; --peach:#D4967A;
+  --r:#A5282C; --r-soft:#F5E4E2;
+
+  --fs-xs:clamp(10px,0.55vw + 7px,13px);
+  --fs-sm:clamp(12px,0.60vw + 9px,15px);
+  --fs-md:clamp(13px,0.70vw + 10px,16px);
+  --fs-lg:clamp(15px,0.85vw + 11px,19px);
+  --fs-xl:clamp(18px,1.25vw + 13px,26px);
+  --fs-2xl:clamp(24px,2.00vw + 16px,40px);
+  --fs-3xl:clamp(30px,3vw + 18px,56px);
+
+  --grad-header:linear-gradient(135deg,#3F5C44 0%,#5D7F61 60%,#7FA183 100%);
+  --grad-sage:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);
+  --grad-rose:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-brand:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-amber:linear-gradient(135deg,#D4B876 0%,#A38635 100%);
+  --grad-teal:linear-gradient(135deg,#8BBFAE 0%,#5B8A7B 100%);
+  --grad-peach:linear-gradient(135deg,#E5B89F 0%,#C08672 100%);
+
+  --sh-xs:0 1px 2px rgba(63,92,68,.05);
+  --sh-sm:0 4px 14px rgba(63,92,68,.08);
+  --sh-md:0 14px 36px rgba(63,92,68,.10);
+  --sh-lg:0 28px 60px rgba(63,92,68,.14);
+  --sh-green:0 10px 32px rgba(127,161,131,.28);
+
+  --ease:cubic-bezier(0.25,0.8,0.25,1);
+  --dur-fast:200ms;--dur-med:350ms;--dur-slow:500ms;
+
+  --topbar-h:clamp(84px,5vw + 52px,108px);
+  --sidebar-w:264px;
+  --dock-w:360px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:var(--fs-md);color:var(--ink);background:var(--sage-100);line-height:1.7;letter-spacing:.1px;overflow-x:hidden}
+button{cursor:pointer;border:0;background:none;color:inherit;font-family:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:var(--sage-800);color:var(--sage-100);padding:10px 20px;display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700}
+.demo-banner .tag{background:var(--sage-500);color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.demo-banner .hint{color:rgba(247,250,244,.65);font-size:var(--fs-xs)}
+
+/* ============= 헤더 (12B 마스터 동기화) ============= */
+.topbar{position:sticky;top:41px;z-index:150;height:var(--topbar-h);background:var(--grad-header);color:#fff;display:flex;align-items:center;gap:16px;padding:0 28px;box-shadow:0 8px 32px rgba(45,62,46,.2)}
+.topbar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.topbar-bg::before{content:"";position:absolute;top:-40%;left:10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08), transparent 70%)}
+.topbar-bg::after{content:"";position:absolute;bottom:-60%;right:5%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(201,169,97,.12), transparent 70%)}
+
+.tb-left{display:flex;align-items:center;gap:18px;flex-shrink:0;position:relative;z-index:1}
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 28px;position:relative;z-index:1}
+.tb-right{display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:1}
+
+.tb-menu-btn{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;display:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.tb-menu-btn:hover{background:rgba(255,255,255,.2)}
+.tb-menu-btn svg{width:20px;height:20px;stroke-width:1.8}
+@media (max-width:1024px){.tb-menu-btn{display:flex}}
+
+.brand{display:flex;align-items:center;gap:18px;padding:6px 14px 6px 6px;border-radius:18px;transition:background var(--dur-fast)}
+.brand:hover{background:rgba(255,255,255,.08)}
+.brand-logo-wrap{height:clamp(64px,4.2vw + 42px,88px);min-width:clamp(64px,4.2vw + 42px,88px);padding:10px 16px;border-radius:18px;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.3) inset}
+.brand-logo-wrap img{height:clamp(52px,3.6vw + 32px,76px);width:auto;max-width:280px;object-fit:contain}
+.brand-logo-wrap .fallback{font-size:clamp(30px,2.5vw + 20px,44px);font-weight:900;color:var(--rose);padding:0 6px}
+.brand-text{display:flex;flex-direction:column;line-height:1.15}
+.brand-name{font-size:var(--fs-xl);font-weight:900;color:#fff;letter-spacing:.4px;text-shadow:0 2px 6px rgba(0,0,0,.2);display:flex;align-items:baseline;gap:10px}
+.brand-name .dot{width:6px;height:6px;border-radius:50%;background:#D4B876;box-shadow:0 0 14px rgba(212,184,118,.9)}
+.brand-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.8);font-weight:500;margin-top:4px}
+
+.tb-divider{width:1px;height:36px;background:rgba(255,255,255,.2);margin:0 4px}
+
+.ws-wrap{position:relative;flex-shrink:0}
+.ws-switcher{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:14px;background:rgba(255,255,255,.1);color:#fff;font-size:var(--fs-sm);font-weight:600;border:1px solid rgba(255,255,255,.18);cursor:pointer;transition:all var(--dur-fast)}
+.ws-switcher:hover{background:rgba(255,255,255,.2)}
+.ws-wrap.open .ws-switcher{background:rgba(255,255,255,.25)}
+.ws-switcher .ws-ico{width:20px;height:20px;color:#D4B876;flex-shrink:0;stroke-width:1.8}
+.ws-switcher .ws-caret{font-size:10px;opacity:.8;transition:transform var(--dur-fast)}
+.ws-wrap.open .ws-caret{transform:rotate(180deg)}
+
+.ws-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:#fff;border-radius:18px;box-shadow:var(--sh-lg);padding:10px;display:none;z-index:250;border:1px solid var(--sage-300)}
+.ws-menu.open{display:block}
+.ws-opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;color:var(--ink);font-weight:500;transition:background var(--dur-fast)}
+.ws-opt + .ws-opt{margin-top:3px}
+.ws-opt:hover{background:var(--sage-100)}
+.ws-opt.active{background:var(--sage-200)}
+.ws-opt.active .opt-name{color:var(--sage-700)}
+.ws-opt .opt-ico{width:40px;height:40px;border-radius:12px;background:var(--sage-100);color:var(--sage-600);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ws-opt.active .opt-ico{background:#fff;color:var(--sage-700)}
+.ws-opt .opt-ico svg{width:20px;height:20px;stroke-width:1.7}
+.ws-opt .opt-meta{flex:1;min-width:0}
+.ws-opt .opt-name{font-size:var(--fs-sm);font-weight:700}
+.ws-opt .opt-desc{font-size:var(--fs-xs);color:var(--ink-3);margin-top:3px}
+.ws-opt .opt-check{color:var(--sage-600);font-weight:800}
+.ws-opt .opt-ext{color:var(--ink-4);font-size:var(--fs-xs)}
+
+.g-search{display:flex;align-items:center;gap:12px;width:min(560px,100%);padding:12px 18px;border-radius:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;cursor:text;transition:all var(--dur-fast)}
+.g-search:hover{background:rgba(255,255,255,.16)}
+.g-search:focus-within{background:rgba(255,255,255,.2);border-color:rgba(212,184,118,.6);box-shadow:0 0 0 4px rgba(212,184,118,.15)}
+.g-search svg{width:18px;height:18px;opacity:.85;stroke-width:1.8}
+.g-search input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:var(--fs-sm);font-weight:500}
+.g-search input::placeholder{color:rgba(255,255,255,.6)}
+.g-search .shortcut{background:rgba(255,255,255,.14);padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;border:1px solid rgba(255,255,255,.18)}
+
+.tb-icon-btn{position:relative;width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.tb-icon-btn:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px;stroke-width:1.8}
+.tb-icon-btn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#D4B876;box-shadow:0 0 0 2px var(--sage-700)}
+.tb-icon-btn.victor{background:var(--grad-amber);border-color:transparent;box-shadow:0 6px 18px rgba(201,169,97,.35)}
+.tb-icon-btn.victor:hover{filter:brightness(1.05)}
+
+.lang-sel{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;outline:none}
+.lang-sel option{background:var(--sage-700);color:#fff}
+
+.user-chip{display:flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);transition:all var(--dur-fast)}
+.user-chip:hover{background:rgba(255,255,255,.22)}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:#fff;color:var(--sage-700);font-weight:800;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:var(--fs-sm);font-weight:700;color:#fff}
+.user-role{font-size:11px;color:rgba(255,255,255,.75)}
+.logout-btn{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.logout-btn:hover{background:var(--rose);border-color:transparent}
+.logout-btn svg{width:16px;height:16px;stroke-width:1.8}
+
+/* ============= 레이아웃 ============= */
+.layout{display:flex;height:calc(100vh - 41px - var(--topbar-h));position:relative;background:var(--sage-100)}
+.layout::before{content:"";position:absolute;top:-50px;left:40%;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle, rgba(127,161,131,.08), transparent 70%);pointer-events:none}
+
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--sage-50);border-right:1px solid var(--sage-200);padding:22px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+@media (max-width:1280px){.sidebar{width:240px}}
+@media (max-width:1024px){.sidebar{display:none}}
+
+.sb-section{padding:4px 0}
+.sb-section + .sb-section{border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-head{font-size:11px;font-weight:800;color:var(--ink-4);text-transform:uppercase;letter-spacing:.12em;padding:0 14px 12px;display:flex;align-items:center}
+.sb-head-tag{margin-left:auto;background:var(--sage-200);color:var(--sage-700);font-size:9px;font-weight:800;padding:3px 9px;border-radius:999px;text-transform:none}
+
+.sb-item{position:relative;display:flex;align-items:center;gap:12px;padding:11px 14px;margin-bottom:3px;font-size:var(--fs-md);color:var(--ink-2);border-radius:14px;transition:all var(--dur-fast) var(--ease);white-space:nowrap;overflow:hidden;font-weight:500}
+.sb-item:hover{background:var(--sage-200);color:var(--ink)}
+.sb-item.active{background:var(--grad-sage);color:#fff;font-weight:700;box-shadow:var(--sh-green)}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{width:20px;height:20px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--sage-600);transition:color var(--dur-fast)}
+.sb-ico svg{width:18px;height:18px;stroke-width:1.7}
+.sb-item:hover .sb-ico{color:var(--sage-700)}
+.sb-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-badge{background:var(--sage-200);color:var(--sage-700);padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;flex-shrink:0}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.3);color:#fff}
+.sb-badge.warn{background:rgba(201,169,97,.2);color:#8A6E1D}
+.sb-badge.err{background:var(--rose-soft);color:var(--rose-dk)}
+.sb-ext{font-size:11px;color:var(--ink-4);font-weight:700;margin-left:auto}
+
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-tree{overflow-y:auto;flex:1}
+.sb-team-head{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:var(--fs-md);font-weight:600;color:var(--ink-2);border-radius:10px;cursor:pointer;transition:background var(--dur-fast)}
+.sb-team-head:hover{background:var(--sage-200)}
+.sb-team-head .chev{width:14px;color:var(--ink-4);transition:transform var(--dur-fast)}
+.sb-team-head.open .chev{transform:rotate(90deg)}
+.sb-sub{display:block;padding:6px 14px 6px 30px;font-size:var(--fs-sm);color:var(--ink-3);border-radius:8px;margin-left:20px;border-left:2px solid var(--sage-200)}
+.sb-sub:hover{background:var(--sage-100);color:var(--sage-700);border-left-color:var(--sage-500)}
+
+/* ============= 빅터 도크 ============= */
+.dock{width:var(--dock-w);flex-shrink:0;background:var(--sage-50);border-left:1px solid var(--sage-200);display:flex;flex-direction:column;overflow:hidden;transition:width var(--dur-slow),opacity var(--dur-med);position:relative;z-index:1}
+@media (max-width:1280px){.dock{--dock-w:320px}}
+@media (max-width:1024px){.dock{display:none}}
+body.dock-collapsed .dock{width:0;opacity:0;border-left:0}
+
+.dock-head{position:relative;overflow:hidden;background:var(--grad-sage);color:#fff;padding:18px 20px;display:flex;align-items:center;gap:14px}
+.dock-head::before{content:"";position:absolute;top:-30%;right:-10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(212,184,118,.2), transparent 70%);pointer-events:none}
+.dock-head > *{position:relative;z-index:1}
+.dock-avatar{width:44px;height:44px;border-radius:50%;background:#fff;color:var(--sage-700);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.15);position:relative}
+.dock-avatar svg{width:24px;height:24px;stroke-width:1.8}
+.dock-avatar::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#D4B876;border:2px solid var(--sage-600)}
+.dock-head-text{flex:1;min-width:0;line-height:1.3}
+.dock-title{font-size:var(--fs-md);font-weight:800}
+.dock-sub{font-size:11px;color:rgba(255,255,255,.8);margin-top:3px}
+.dock-head-actions{display:flex;gap:6px}
+.dock-btn{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast)}
+.dock-btn:hover{background:rgba(255,255,255,.24)}
+.dock-btn svg{width:14px;height:14px;stroke-width:1.8}
+
+.dock-ctx{padding:16px 20px 12px;border-bottom:1px solid var(--sage-200);background:var(--sage-100)}
+.dock-ctx-label{font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.dock-ctx-chips{display:flex;gap:6px;flex-wrap:wrap}
+.dock-chip{padding:7px 14px;border-radius:999px;background:#fff;color:var(--sage-700);font-size:var(--fs-xs);font-weight:700;border:1px solid var(--sage-300);cursor:pointer;transition:all var(--dur-fast)}
+.dock-chip:hover{background:var(--sage-500);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:var(--sh-green)}
+
+.dock-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--sage-50)}
+.dock-msg{max-width:92%;padding:12px 16px;border-radius:16px;font-size:var(--fs-sm);line-height:1.65}
+.dock-msg.user{align-self:flex-end;background:var(--grad-sage);color:#fff;border-bottom-right-radius:6px;box-shadow:var(--sh-green)}
+.dock-msg.ai{align-self:flex-start;background:#fff;color:var(--ink);border:1px solid var(--sage-200);border-bottom-left-radius:6px;box-shadow:var(--sh-sm)}
+.dock-msg b{color:var(--sage-700)}
+.dock-msg ul{margin:8px 0 0;padding-left:4px;list-style:none}
+.dock-msg li{padding:5px 0 5px 20px;position:relative;color:var(--ink-2);font-size:13px}
+.dock-msg li::before{content:"·";position:absolute;left:6px;color:var(--sage-500);font-weight:900;font-size:18px;line-height:1}
+.dock-msg li.warn::before{color:var(--amber)}
+.dock-msg li.err::before{color:var(--rose)}
+
+.dock-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--sage-200)}
+.dock-action{padding:7px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;transition:all var(--dur-fast)}
+.dock-action.primary{background:var(--rose);color:#fff}
+.dock-action.primary:hover{background:var(--rose-dk);transform:translateY(-1px)}
+.dock-action.do{background:var(--sage-200);color:var(--sage-700);border:1px solid var(--sage-300)}
+.dock-action.do:hover{background:var(--sage-500);color:#fff;border-color:transparent}
+.dock-action.secondary{background:var(--sage-100);color:var(--ink-2)}
+
+.dock-foot{border-top:1px solid var(--sage-200);padding:14px;background:var(--sage-100)}
+.dock-quick{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.dock-quick button{flex-shrink:0;padding:6px 12px;border-radius:999px;background:#fff;color:var(--ink-2);border:1px solid var(--sage-300);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--dur-fast)}
+.dock-quick button:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.dock-input{display:flex;align-items:flex-end;gap:8px;background:#fff;border:1.5px solid var(--sage-300);border-radius:14px;padding:10px 12px;transition:all var(--dur-fast)}
+.dock-input:focus-within{border-color:var(--sage-500);box-shadow:0 0 0 4px rgba(127,161,131,.15)}
+.dock-input textarea{flex:1;border:0;outline:0;resize:none;font-family:inherit;font-size:var(--fs-sm);color:var(--ink);min-height:22px;max-height:100px;background:transparent;line-height:1.5}
+.dock-send{width:36px;height:36px;border-radius:11px;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast);box-shadow:var(--sh-green)}
+.dock-send:hover{transform:translateY(-1px)}
+.dock-send svg{width:16px;height:16px;stroke-width:1.8}
+.dock-hint{font-size:10px;color:var(--ink-4);margin-top:8px;text-align:center}
+.dock-hint kbd{background:var(--sage-200);padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;color:var(--ink-3)}
+
+/* ============= 메인 ============= */
+.main{flex:1;overflow-y:auto;background:var(--sage-100);min-width:0;position:relative}
+.main::before{content:"";position:absolute;top:-80px;right:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(212,184,118,.1), transparent 70%);pointer-events:none}
+.main::after{content:"";position:absolute;bottom:200px;left:-120px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle, rgba(127,161,131,.12), transparent 70%);pointer-events:none}
+
+.page-header{background:var(--sage-50);border-bottom:1px solid var(--sage-200);padding:26px 36px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;position:sticky;top:0;z-index:40}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--ink-4);font-weight:700;text-transform:uppercase;letter-spacing:.09em;flex-wrap:wrap}
+.breadcrumb a{color:var(--ink-4)}
+.breadcrumb a:hover{color:var(--sage-600)}
+.breadcrumb .sep{color:var(--sage-300)}
+.breadcrumb .current{color:var(--ink-2)}
+.page-title{font-size:var(--fs-xl);font-weight:800;color:var(--ink);line-height:1.2;display:flex;align-items:center;gap:14px}
+.page-title .accent{display:inline-block;width:5px;height:clamp(22px,1.8vw + 14px,30px);border-radius:3px;background:var(--grad-sage)}
+.page-sub{font-size:var(--fs-sm);color:var(--ink-3);margin-top:6px;max-width:760px;font-weight:500}
+.ph-right{display:flex;gap:10px;align-items:center}
+
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:14px;font-size:var(--fs-sm);font-weight:700;transition:all var(--dur-fast);white-space:nowrap}
+.btn svg{width:16px;height:16px;stroke-width:2}
+.btn-primary{background:var(--grad-rose);color:#fff;box-shadow:0 6px 18px rgba(165,40,44,.25)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(165,40,44,.35)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--sage-300)}
+.btn-ghost:hover{border-color:var(--sage-500);color:var(--sage-700)}
+
+.page-body{padding:32px 36px 80px;position:relative;z-index:1}
+
+/* ============= 페이지별 컴포넌트 (15: 전사 대시보드) ============= */
+.hello-banner{background:linear-gradient(135deg, #fff 0%, var(--sage-50) 100%);border:1px solid var(--sage-200);border-radius:24px;padding:24px 28px;margin-bottom:24px;display:flex;align-items:center;gap:20px;overflow:hidden;position:relative;box-shadow:var(--sh-xs)}
+.hello-banner::before{content:"";position:absolute;right:-40px;top:-40px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(201,169,97,.18),transparent 70%)}
+.hello-avatar{width:56px;height:56px;border-radius:50%;flex-shrink:0;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-green);position:relative;z-index:1}
+.hello-avatar svg{width:28px;height:28px;stroke-width:1.7}
+.hello-body{flex:1;position:relative;z-index:1}
+.hello-title{font-size:var(--fs-xl);font-weight:800;color:var(--ink);line-height:1.3}
+.hello-sub{font-size:var(--fs-sm);color:var(--ink-3);margin-top:4px;font-weight:500}
+.hello-actions{display:flex;gap:10px;position:relative;z-index:1;flex-shrink:0}
+
+.hero-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-bottom:24px}
+.hero-kpi{background:#fff;border:1px solid var(--sage-200);border-radius:22px;padding:22px 24px;transition:all .3s var(--ease);box-shadow:var(--sh-xs);position:relative;overflow:hidden}
+.hero-kpi::before{content:"";position:absolute;bottom:-30px;right:-30px;width:140px;height:140px;border-radius:50%;background:var(--bg-deco, radial-gradient(circle, rgba(127,161,131,.1), transparent 70%));transition:transform .4s var(--ease)}
+.hero-kpi:hover{transform:translateY(-4px);box-shadow:var(--sh-md);border-color:var(--sage-300)}
+.hero-kpi:hover::before{transform:scale(1.2)}
+.hk-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;position:relative;z-index:1}
+.hk-lab{font-size:var(--fs-sm);color:var(--ink-3);font-weight:700;letter-spacing:.2px}
+.hk-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+.hk-ico svg{width:20px;height:20px;stroke-width:1.7}
+.hk-ico.a{background:var(--grad-sage)}
+.hk-ico.b{background:var(--grad-amber)}
+.hk-ico.c{background:var(--grad-teal)}
+.hk-ico.d{background:var(--grad-peach)}
+.hk-num{font-size:var(--fs-3xl);font-weight:800;color:var(--ink);line-height:1;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;position:relative;z-index:1}
+.hk-num .unit{font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px}
+.hk-meta{margin-top:10px;display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.hk-sub{font-size:var(--fs-xs);color:var(--ink-4);font-weight:500}
+.hk-trend{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;background:rgba(127,161,131,.18);color:var(--sage-700)}
+.hk-trend.down{background:var(--accent-soft);color:var(--accent)}
+
+.grid-2{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-bottom:18px}
+@media (max-width:1100px){.grid-2{grid-template-columns:1fr}}
+
+.section{background:#fff;border:1px solid var(--sage-200);border-radius:22px;padding:22px 24px;box-shadow:var(--sh-xs)}
+.sec-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--sage-100)}
+.sec-head h2{font-size:var(--fs-lg);color:var(--ink);font-weight:700;display:flex;align-items:center;gap:10px}
+.sec-head h2::before{content:"";width:4px;height:18px;border-radius:2px;background:var(--grad-sage)}
+.sec-head .count{background:var(--sage-100);color:var(--sage-700);padding:3px 11px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.sec-head .more{margin-left:auto;font-size:var(--fs-xs);color:var(--sage-700);font-weight:700;cursor:pointer;padding:5px 10px;border-radius:8px}
+.sec-head .more:hover{background:var(--sage-100)}
+
+.chart{height:260px;padding:10px 0}
+.chart-legend{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--ink-3);font-weight:600}
+.chart-legend-item{display:flex;align-items:center;gap:6px}
+.chart-legend-dot{width:10px;height:10px;border-radius:3px}
+
+.team-list{display:flex;flex-direction:column;gap:12px}
+.team-row{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--sage-50);border:1px solid var(--sage-200);border-radius:14px;transition:all .2s var(--ease)}
+.team-row:hover{background:#fff;border-color:var(--sage-400);transform:translateX(3px);box-shadow:var(--sh-sm)}
+.team-av{width:36px;height:36px;border-radius:10px;background:var(--sage-200);color:var(--sage-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0}
+.team-info{flex:1;min-width:0}
+.team-name{font-size:var(--fs-sm);font-weight:700;color:var(--ink)}
+.team-meta{font-size:var(--fs-xs);color:var(--ink-3);margin-top:2px}
+.team-bar-wrap{flex:1;max-width:140px;display:flex;align-items:center;gap:10px}
+.team-bar{flex:1;height:6px;border-radius:3px;background:var(--sage-100);overflow:hidden}
+.team-fill{height:100%;border-radius:3px;background:var(--grad-sage);transition:width .5s var(--ease)}
+.team-fill.ok{background:linear-gradient(90deg, #7FA183, #5D7F61)}
+.team-fill.warn{background:linear-gradient(90deg, #D4B876, #A38635)}
+.team-fill.err{background:var(--grad-brand)}
+.team-pct{font-size:var(--fs-sm);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+
+.feed{display:flex;flex-direction:column;gap:10px}
+.feed-item{display:flex;gap:12px;padding:10px 12px;border-radius:12px;transition:background .2s}
+.feed-item:hover{background:var(--sage-50)}
+.feed-dot{width:8px;height:8px;border-radius:50%;background:var(--sage-500);margin-top:8px;flex-shrink:0;box-shadow:0 0 0 3px rgba(127,161,131,.15)}
+.feed-dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(201,169,97,.2)}
+.feed-dot.err{background:var(--accent);box-shadow:0 0 0 3px rgba(165,40,44,.15)}
+.feed-body{flex:1;min-width:0}
+.feed-text{font-size:var(--fs-sm);color:var(--ink);line-height:1.55}
+.feed-text b{color:var(--ink-2);font-weight:700}
+.feed-time{font-size:var(--fs-xs);color:var(--ink-4);margin-top:3px;font-weight:500}
+
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+
+.dept-card{background:#fff;border:1px solid var(--sage-200);border-radius:20px;padding:20px;box-shadow:var(--sh-xs);transition:all .3s var(--ease)}
+.dept-card:hover{transform:translateY(-3px);box-shadow:var(--sh-md)}
+.dept-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.dept-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+.dept-ico svg{width:22px;height:22px;stroke-width:1.6}
+.dept-ico.sales{background:var(--grad-sage)}
+.dept-ico.logi{background:var(--grad-amber)}
+.dept-ico.admin{background:var(--grad-teal)}
+.dept-name{font-size:var(--fs-md);font-weight:700;color:var(--ink)}
+.dept-desc{font-size:var(--fs-xs);color:var(--ink-3);margin-top:2px;font-weight:500}
+.dept-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.dept-stat{background:var(--sage-50);border:1px solid var(--sage-100);border-radius:10px;padding:10px;text-align:center}
+.dept-stat-lab{font-size:10px;color:var(--ink-4);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.dept-stat-num{font-size:var(--fs-lg);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+.dept-link{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:10px 14px;background:var(--sage-100);border-radius:10px;font-size:var(--fs-xs);color:var(--sage-700);font-weight:700;transition:all .2s}
+.dept-link:hover{background:var(--sage-200)}
+.dept-link svg{width:14px;height:14px;stroke-width:2.5}
+
+@media (max-width:1024px){.tb-divider,.user-info,.brand-text{display:none}.page-header{padding:18px 20px;flex-direction:column;align-items:stretch}.page-body{padding:20px}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #15 — 전사 대시보드 · 힐링</h1>
+  <span class="tag">Sage Garden · B-2</span>
+  <span class="hint">경영진 한눈 조망 · 인사말 · 차트 · 팀별 흐름 · 부서 요약</span>
+  <button id="dockToggle" style="margin-left:auto;background:var(--sage-500);color:#fff;padding:6px 14px;border-radius:999px;font-size:var(--fs-xs);font-weight:700">빅터 도크 접기/펼치기</button>
+</div>
+
+<header class="topbar">
+  <div class="topbar-bg"></div>
+  <div class="tb-left">
+    <button class="tb-menu-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <a class="brand" href="#">
+      <div class="brand-logo-wrap">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS <span class="dot"></span></div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+    <div class="tb-divider"></div>
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">통합</span><span class="ws-caret">▾</span>
+      </button>
+      <div class="ws-menu" id="wsMenu">
+        <a class="ws-opt active" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></div><div class="opt-meta"><div class="opt-name">통합</div><div class="opt-desc">HAIST WORKS 메인</div></div><span class="opt-check">✓</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="opt-meta"><div class="opt-name">매출·영업 센터</div><div class="opt-desc">Sales Hub</div></div><span class="opt-ext">↗</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div><div class="opt-meta"><div class="opt-name">자재·구매 센터</div><div class="opt-desc">Logistics Hub</div></div><span class="opt-ext">↗</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" id="victorTrigger" title="빅터 열기/닫기 (Ctrl+K)" aria-label="빅터 AI 컨시어지" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+    <select class="lang-sel"><option value="ko">🇰🇷 한국어</option><option value="vi">🇻🇳 Tiếng Việt</option><option value="en">🇺🇸 English</option></select>
+    <a class="user-chip" href="#"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+    <a class="logout-btn" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span class="sb-label">업무 현황</span><span class="sb-badge">3</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="sb-label">일일 업무</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span class="sb-label">내 달력</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg></span><span class="sb-label">알림</span><span class="sb-badge warn">12</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span><span class="sb-label">부서 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="sb-label">실시간 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span><span class="sb-label">검색</span></a>
+      <a class="sb-item active"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-label">전사 대시보드</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/></svg></span><span class="sb-label">진행률 매트릭스</span><span class="sb-badge err">2</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></svg></span><span class="sb-label">요청 티켓</span><span class="sb-badge">5</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></span><span class="sb-label">이슈 · AS</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="sb-label">변경 알림</span><span class="sb-badge">8</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-head-tag">하이웍스</span></div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-label">전자결제</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span class="sb-label">메일</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span><span class="sb-label">팀원 권한</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg></span><span class="sb-label">관리자</span></a>
+    </div>
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head open"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>영업1팀</span></div>
+        <a class="sb-sub">K-Pharma 2차 납품</a>
+        <a class="sb-sub">2분기 신규 영업</a>
+        <div class="sb-team-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>설계팀</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb">
+          <a>통합</a><span class="sep">/</span><a>전사 흐름</a><span class="sep">/</span><span class="current">전사 대시보드</span>
+          <span style="margin-left:10px;background:rgba(165,40,44,.08);color:var(--accent);font-size:10px;font-weight:800;padding:3px 9px;border-radius:5px;letter-spacing:.3px">🔒 경영진 전용 (CEO · admin · executive)</span>
+        </div>
+        <h1 class="page-title"><span class="accent"></span>오늘 회사의 흐름, 한눈에 보세요</h1>
+        <div class="page-sub">2026-04-24 · 목요일 오후 · <code style="background:var(--sage-100);padding:1px 7px;border-radius:4px;font-size:11px;color:var(--sage-700)">main.py:1572 require(["ceo","admin","executive"])</code> 에서 접근 제한</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>리포트 저장</button>
+        <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 2v10M4.93 10.93 12 18l7.07-7.07M6 20h12"/></svg>리포트 발송</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <!-- 인사 배너 -->
+      <div class="hello-banner">
+        <div class="hello-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
+        <div class="hello-body">
+          <div class="hello-title">좋은 오후입니다, 김정락 대표님 ☀️</div>
+          <div class="hello-sub">오늘 회사 전체가 계획된 흐름으로 움직이고 있어요. 몇 군데 챙겨볼 곳만 알려드릴게요.</div>
+        </div>
+        <div class="hello-actions">
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:var(--fs-xs)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"><rect x="5" y="8" width="14" height="10" rx="2.5"/></svg>빅터에게 요약받기</button>
+        </div>
+      </div>
+
+      <!-- 주요 KPI (큰 숫자) -->
+      <div class="hero-kpis">
+        <div class="hero-kpi">
+          <div class="hk-head">
+            <div class="hk-lab">이번 달 매출</div>
+            <div class="hk-ico a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          </div>
+          <div class="hk-num">₩4.2<span class="unit">억</span></div>
+          <div class="hk-meta"><span class="hk-sub">전년 대비</span><span class="hk-trend">▲ +12%</span></div>
+        </div>
+        <div class="hero-kpi">
+          <div class="hk-head">
+            <div class="hk-lab">팀 참여율</div>
+            <div class="hk-ico c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          </div>
+          <div class="hk-num">87<span class="unit">%</span></div>
+          <div class="hk-meta"><span class="hk-sub">이번 주</span><span class="hk-trend">▲ +3%p</span></div>
+        </div>
+        <div class="hero-kpi">
+          <div class="hk-head">
+            <div class="hk-lab">진행 중 공정</div>
+            <div class="hk-ico b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          </div>
+          <div class="hk-num">43<span class="unit">건</span></div>
+          <div class="hk-meta"><span class="hk-sub">완료율 78%</span><span class="hk-trend">▲ +5건</span></div>
+        </div>
+        <div class="hero-kpi">
+          <div class="hk-head">
+            <div class="hk-lab">챙길 곳</div>
+            <div class="hk-ico d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+          </div>
+          <div class="hk-num">5<span class="unit">건</span></div>
+          <div class="hk-meta"><span class="hk-sub">어제 대비</span><span class="hk-trend down">▲ +1</span></div>
+        </div>
+      </div>
+
+      <!-- 차트 + 피드 2:1 -->
+      <div class="grid-2">
+        <div class="section">
+          <div class="sec-head">
+            <h2>주간 매출 흐름</h2>
+            <span class="count">최근 8주</span>
+            <a class="more">상세 →</a>
+          </div>
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--sage-500)"></div>실적</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--amber)"></div>목표</div>
+          </div>
+          <svg class="chart" viewBox="0 0 720 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <g stroke="#E4ECD9" stroke-width="1">
+              <line x1="40" y1="40" x2="700" y2="40"/>
+              <line x1="40" y1="100" x2="700" y2="100"/>
+              <line x1="40" y1="160" x2="700" y2="160"/>
+              <line x1="40" y1="220" x2="700" y2="220"/>
+            </g>
+            <g fill="#8FA594" font-size="10" font-family="ui-monospace" text-anchor="end">
+              <text x="32" y="44">6.0억</text>
+              <text x="32" y="104">4.5억</text>
+              <text x="32" y="164">3.0억</text>
+              <text x="32" y="224">1.5억</text>
+            </g>
+            <polyline fill="none" stroke="#C9A961" stroke-width="2" stroke-dasharray="4 4" points="60,140 150,130 240,120 330,115 420,110 510,105 600,100 690,95"/>
+            <defs>
+              <linearGradient id="areaG" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#7FA183" stop-opacity=".35"/>
+                <stop offset="100%" stop-color="#7FA183" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <polygon fill="url(#areaG)" points="60,180 150,170 240,155 330,130 420,120 510,125 600,110 690,85 690,220 60,220"/>
+            <polyline fill="none" stroke="#5D7F61" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="60,180 150,170 240,155 330,130 420,120 510,125 600,110 690,85"/>
+            <g fill="#fff" stroke="#5D7F61" stroke-width="2.5">
+              <circle cx="60" cy="180" r="4"/>
+              <circle cx="150" cy="170" r="4"/>
+              <circle cx="240" cy="155" r="4"/>
+              <circle cx="330" cy="130" r="4"/>
+              <circle cx="420" cy="120" r="4"/>
+              <circle cx="510" cy="125" r="4"/>
+              <circle cx="600" cy="110" r="4"/>
+              <circle cx="690" cy="85" r="5" fill="#A5282C" stroke="#fff"/>
+            </g>
+            <g fill="#8FA594" font-size="10" font-family="ui-monospace" text-anchor="middle">
+              <text x="60" y="245">W17</text>
+              <text x="150" y="245">W18</text>
+              <text x="240" y="245">W19</text>
+              <text x="330" y="245">W20</text>
+              <text x="420" y="245">W21</text>
+              <text x="510" y="245">W22</text>
+              <text x="600" y="245">W23</text>
+              <text x="690" y="245" fill="#A5282C" font-weight="700">W24</text>
+            </g>
+          </svg>
+          <div style="font-size:var(--fs-xs);color:var(--ink-3);margin-top:6px">이번 주 실적이 목표를 살짝 넘었어요 · 지난 4주 상승 흐름 유지</div>
+        </div>
+
+        <div class="section">
+          <div class="sec-head">
+            <h2>오늘의 흐름</h2>
+            <span class="count">12건</span>
+          </div>
+          <div class="feed">
+            <div class="feed-item"><div class="feed-dot err"></div><div class="feed-body"><div class="feed-text"><b>구매팀 · 박구매</b>이 자재 납기 지연 3일째. 담당자 확인이 필요해요.</div><div class="feed-time">10분 전</div></div></div>
+            <div class="feed-item"><div class="feed-dot warn"></div><div class="feed-body"><div class="feed-text"><b>설계팀 · 이설계</b>이 라벨링 검토를 완료했어요.</div><div class="feed-time">1시간 전</div></div></div>
+            <div class="feed-item"><div class="feed-dot"></div><div class="feed-body"><div class="feed-text"><b>생산팀</b>이 오늘 일일 업무를 모두 마감했어요.</div><div class="feed-time">2시간 전</div></div></div>
+            <div class="feed-item"><div class="feed-dot"></div><div class="feed-body"><div class="feed-text">관리팀이 이번 주 참여율 95% 달성.</div><div class="feed-time">오늘 오전</div></div></div>
+            <div class="feed-item"><div class="feed-dot warn"></div><div class="feed-body"><div class="feed-text">품질팀 시료 승인이 하루 지연되고 있어요.</div><div class="feed-time">어제</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 팀별 진행률 리스트 -->
+      <div class="section">
+        <div class="sec-head">
+          <h2>팀별 이번 주 진행률</h2>
+          <span class="count">8개 팀</span>
+          <a class="more">매트릭스 →</a>
+        </div>
+        <div class="team-list">
+          <div class="team-row"><div class="team-av">관</div><div class="team-info"><div class="team-name">관리팀</div><div class="team-meta">조관리 · 6개 공정 · 지연 0건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill ok" style="width:95%"></div></div><span class="team-pct">95%</span></div></div>
+          <div class="team-row"><div class="team-av">생</div><div class="team-info"><div class="team-name">생산팀</div><div class="team-meta">박생산 · 6개 공정 · 지연 0건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill ok" style="width:91%"></div></div><span class="team-pct">91%</span></div></div>
+          <div class="team-row"><div class="team-av">영2</div><div class="team-info"><div class="team-name">영업2팀</div><div class="team-meta">정영업 · 5개 공정 · 지연 0건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill ok" style="width:88%"></div></div><span class="team-pct">88%</span></div></div>
+          <div class="team-row"><div class="team-av">영1</div><div class="team-info"><div class="team-name">영업1팀</div><div class="team-meta">김영업 · 4개 공정 · 지연 1건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill" style="width:82%"></div></div><span class="team-pct">82%</span></div></div>
+          <div class="team-row"><div class="team-av">품</div><div class="team-info"><div class="team-name">품질팀</div><div class="team-meta">최품질 · 4개 공정 · 지연 2건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill warn" style="width:75%"></div></div><span class="team-pct">75%</span></div></div>
+          <div class="team-row"><div class="team-av">물</div><div class="team-info"><div class="team-name">물류팀</div><div class="team-meta">한물류 · 4개 공정 · 지연 0건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill warn" style="width:73%"></div></div><span class="team-pct">73%</span></div></div>
+          <div class="team-row"><div class="team-av">설</div><div class="team-info"><div class="team-name">설계팀</div><div class="team-meta">이설계 · 2개 공정 · 지연 3건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill warn" style="width:67%"></div></div><span class="team-pct">67%</span></div></div>
+          <div class="team-row"><div class="team-av">구</div><div class="team-info"><div class="team-name">구매팀</div><div class="team-meta">박구매 · 3개 공정 · 지연 3건</div></div><div class="team-bar-wrap"><div class="team-bar"><div class="team-fill err" style="width:54%"></div></div><span class="team-pct">54%</span></div></div>
+        </div>
+      </div>
+
+      <!-- 부서별 3열 -->
+      <div class="grid-3">
+        <div class="dept-card">
+          <div class="dept-head">
+            <div class="dept-ico sales"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+            <div><div class="dept-name">매출·영업 센터</div><div class="dept-desc">Sales Hub · 영업·수주·견적</div></div>
+          </div>
+          <div class="dept-stats">
+            <div class="dept-stat"><div class="dept-stat-lab">이번 달</div><div class="dept-stat-num">₩4.2억</div></div>
+            <div class="dept-stat"><div class="dept-stat-lab">수주 건수</div><div class="dept-stat-num">28</div></div>
+          </div>
+          <a class="dept-link">센터로 이동 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="dept-card">
+          <div class="dept-head">
+            <div class="dept-ico logi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div>
+            <div><div class="dept-name">자재·구매 센터</div><div class="dept-desc">Logistics Hub · 자재·발주·재고</div></div>
+          </div>
+          <div class="dept-stats">
+            <div class="dept-stat"><div class="dept-stat-lab">재고 회전</div><div class="dept-stat-num">6.2</div></div>
+            <div class="dept-stat"><div class="dept-stat-lab">발주 대기</div><div class="dept-stat-num">12</div></div>
+          </div>
+          <a class="dept-link">센터로 이동 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+        <div class="dept-card">
+          <div class="dept-head">
+            <div class="dept-ico admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09"/></svg></div>
+            <div><div class="dept-name">관리·인사</div><div class="dept-desc">사용자·권한·설정</div></div>
+          </div>
+          <div class="dept-stats">
+            <div class="dept-stat"><div class="dept-stat-lab">활성 사용자</div><div class="dept-stat-num">84</div></div>
+            <div class="dept-stat"><div class="dept-stat-lab">이번 주 가입</div><div class="dept-stat-num">3</div></div>
+          </div>
+          <a class="dept-link">관리자 이동 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="dock" id="dock">
+    <div class="dock-head">
+      <div class="dock-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></div>
+      <div class="dock-head-text"><div class="dock-title">HAIST 빅터</div><div class="dock-sub">전사 흐름 한눈 정리해드려요</div></div>
+      <div class="dock-head-actions">
+        <button class="dock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+        <button class="dock-btn" id="dockCollapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-ctx">
+      <div class="dock-ctx-label">이 화면에서 자주 묻는 것</div>
+      <div class="dock-ctx-chips"><button class="dock-chip">매출 트렌드</button><button class="dock-chip">팀 비교</button><button class="dock-chip">챙길 곳</button></div>
+    </div>
+    <div class="dock-body">
+      <div class="dock-msg user">오늘 회사 흐름 한 줄 요약</div>
+      <div class="dock-msg ai"><b>핵심 3가지</b>:
+        <ul><li>이번 주 매출이 전주 대비 <b>+12%</b> 상승했어요</li><li class="warn">설계팀 라벨링 검토 2일 지연 — 박설계 팀장 확인 필요</li><li class="err">구매팀 자재 납기 3일 지연 — 즉시 챙기시면 좋겠어요</li></ul>
+        <div class="dock-actions"><span class="dock-action primary">매출 흐름 상세</span><span class="dock-action do">✓ 구매팀 알림</span><span class="dock-action secondary">리포트 발송</span></div>
+      </div>
+    </div>
+    <div class="dock-foot">
+      <div class="dock-quick"><button>💰 매출 흐름</button><button>📊 팀별 비교</button><button>⚠ 챙길 곳</button></div>
+      <div class="dock-input"><textarea placeholder="천천히 물어보세요..." rows="1"></textarea><button class="dock-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+      <div class="dock-hint"><kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const wsWrap=document.getElementById('wsWrap'),wsBtn=document.getElementById('wsBtn'),wsMenu=document.getElementById('wsMenu');
+function wsSet(o){wsWrap.classList.toggle('open',o);wsMenu.classList.toggle('open',o)}
+wsBtn.addEventListener('click',e=>{e.stopPropagation();wsSet(!wsWrap.classList.contains('open'))});
+document.addEventListener('click',e=>{if(!wsWrap.contains(e.target))wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const t=(e.target.tagName||'').toLowerCase();if(t==='input'||t==='textarea'||t==='select'||e.target.isContentEditable)return;const i=document.getElementById('gSearchInput');if(i){e.preventDefault();i.focus();i.select()}});
+document.querySelectorAll('.sb-team-head').forEach(h=>h.addEventListener('click',()=>h.classList.toggle('open')));
+const DOCK_KEY='haist_victor_dock_open';
+function setDockOpen(open,persist){
+  document.body.classList.toggle('dock-collapsed',!open);
+  const btn=document.getElementById('victorTrigger');
+  if(btn) btn.setAttribute('aria-pressed', open?'true':'false');
+  if(persist!==false) localStorage.setItem(DOCK_KEY, open?'1':'0');
+}
+function toggleDock(){setDockOpen(document.body.classList.contains('dock-collapsed'))}
+(function(){const s=localStorage.getItem(DOCK_KEY);setDockOpen(s===null?true:s==='1',false)})();
+document.getElementById('dockToggle').addEventListener('click',toggleDock);
+document.getElementById('dockCollapse').addEventListener('click',toggleDock);
+document.getElementById('victorTrigger').addEventListener('click',toggleDock);
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();toggleDock()}});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(document.body.classList.contains('dock-collapsed')) return;
+  const a=document.activeElement;
+  if(a && a.closest && a.closest('.dock')) setDockOpen(false);
+});
+</script>
+</body></html>

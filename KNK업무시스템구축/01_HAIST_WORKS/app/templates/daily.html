@@ -109,7 +109,7 @@
             <b>{{ cm.author_name }}</b> <span class="cm-rank">{{ cm.author_rank or '' }}</span>
             <span class="cm-time">{{ cm.created_at }}</span>
             {% if cm.author_id == user.id or user.role in ['ceo','admin'] %}
-            <button class="btn-xs btn-del" onclick="delComment({{ cm.id }},{{ t.id }})">🗑</button>
+            <button class="btn-xs btn-del" onclick="delComment({{ cm.id }},{{ t.id }})" aria-label="{{ i.delete|default('댓글 삭제') }}">🗑</button>
             {% endif %}
           </div>
           <div class="cm-text">{{ cm.body }}</div>
@@ -131,7 +131,7 @@
   <div class="modal-bg" onclick="closeModal()"></div>
   <div class="modal-card">
     <div class="modal-title"><span id="mTitle">{{ i.add_card_title|default('업무카드 추가') }}</span>
-      <button class="btn-xs" onclick="closeModal()">✕</button>
+      <button class="btn-xs" onclick="closeModal()" aria-label="{{ i.modal_close|default('모달 닫기') }}">✕</button>
     </div>
     <form id="taskForm" onsubmit="saveTask(event)">
       <input type="hidden" id="f_id">

@@ -1,0 +1,115 @@
+{% extends "base_logi.html" %}
+{% block title %}재고 조정 승인 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>재고 조정 승인</h1>
+  <p class="muted">실사 차이로부터 생성된 조정 행을 승인하면 stock_movements에 ADJUST 기록이 추가되어 재고가 갱신됩니다.</p>
+</div>
+
+{% if attach_view %}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <h2 style="margin:0;font-size:14px;">조정 #{{ attach_adj_id }} — 증명서 첨부</h2>
+    <a href="/stock/adjustments" class="btn">목록으로</a>
+  </div>
+  <form method="post" action="/stock/adjustments/{{ attach_adj_id }}/attach"
+        enctype="multipart/form-data"
+        style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.xlsx"
+           style="font-size:12px;">
+    <button type="submit" class="btn btn-primary">업로드</button>
+    <span class="muted" style="font-size:11px;">허용: pdf/jpg/jpeg/png/xlsx · 최대 10MB · 외부 저장소 미사용 (로컬 디스크)</span>
+  </form>
+  <table class="data-table" style="width:100%;font-size:12px;">
+    <thead>
+      <tr><th>파일명</th><th>업로더</th><th>업로드 시각</th><th>다운로드</th></tr>
+    </thead>
+    <tbody>
+    {% for att in attachments %}
+      <tr>
+        <td>{{ att.file_name }}</td>
+        <td>{{ att.uploaded_by_name or '-' }}</td>
+        <td>{{ att.uploaded_at }}</td>
+        <td><a href="/stock/adjustments/{{ attach_adj_id }}/attachments/{{ att.id }}/download"
+               class="btn" style="padding:4px 10px;font-size:11px;">다운로드</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="muted" style="text-align:center;padding:14px;">아직 첨부 없음</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+
+<div class="card" style="margin-bottom:14px;">
+  <form method="get" action="/stock/adjustments" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:12px;font-weight:700;">상태 필터</label>
+    <select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      <option value="PENDING"  {% if filter_status=='PENDING'  %}selected{% endif %}>승인 대기</option>
+      <option value="APPROVED" {% if filter_status=='APPROVED' %}selected{% endif %}>승인 완료</option>
+      <option value="REJECTED" {% if filter_status=='REJECTED' %}selected{% endif %}>반려</option>
+      <option value=""         {% if filter_status==''         %}selected{% endif %}>전체</option>
+    </select>
+    {% if not can_approve %}
+      <span class="muted" style="font-size:11px;margin-left:auto;">읽기 전용 (승인 권한 없음 · 자재팀장/임원만 승인 가능)</span>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <table class="data-table" style="width:100%;font-size:12px;">
+    <thead>
+      <tr>
+        <th>실사</th><th>부품</th>
+        <th style="text-align:right;">시스템</th>
+        <th style="text-align:right;">실측</th>
+        <th style="text-align:right;">조정</th>
+        <th>사유</th><th>요청자</th><th>상태</th><th>증명서</th><th>처리</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for a in adjustments %}
+      <tr>
+        <td>{{ a.audit_no }}</td>
+        <td>[{{ a.part_no }}] {{ a.part_name }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.system_qty or 0) }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.counted_qty or 0) }}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if a.adjusted_qty < 0 %}#DC2626{% else %}#059669{% endif %};">{{ "%+g"|format(a.adjusted_qty) }}</td>
+        <td>{{ a.reason }}</td>
+        <td>{{ a.created_by_name or '-' }}</td>
+        <td><span class="chip">{{ a.status }}</span></td>
+        <td>
+          <a href="/stock/adjustments/{{ a.id }}/attachments" class="btn"
+             style="padding:3px 8px;font-size:11px;">
+            첨부 ({{ att_counts.get(a.id, 0) }})
+          </a>
+        </td>
+        <td>
+          {% if a.status == 'PENDING' and can_approve %}
+            <form method="post" action="/stock/adjustments/{{ a.id }}/approve" style="display:inline;">
+              <button type="submit" class="btn btn-primary" style="padding:4px 10px;font-size:11px;">승인</button>
+            </form>
+            <form method="post" action="/stock/adjustments/{{ a.id }}/reject" style="display:inline;">
+              <input type="hidden" name="note" value="">
+              <button type="submit" class="btn" style="padding:4px 10px;font-size:11px;">반려</button>
+            </form>
+          {% elif a.status == 'APPROVED' %}
+            <span class="muted" style="font-size:11px;">{{ a.approved_by_name or '' }} · 완료</span>
+          {% elif a.status == 'REJECTED' %}
+            <span class="muted" style="font-size:11px;">반려됨</span>
+          {% else %}
+            <span class="muted" style="font-size:11px;">대기</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="muted" style="text-align:center;padding:18px;">조정 행 없음</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:10px;font-size:11px;">승인 시 stock_movements 에 kind=ADJUST 행이 자동 생성되어 stock_balances 잔고가 즉시 반영됩니다. 증명서 첨부는 PDF/JPG/PNG/XLSX 10MB 이하 (외부 저장소 미사용).</p>
+</div>
+{% endif %}
+
+{% endblock %}

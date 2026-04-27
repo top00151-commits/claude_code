@@ -21,6 +21,116 @@
   </div>
 </div>
 
+{# 2026-04-26 CEO 통합 대시보드 — 9 KPI + 알림 + 빠른 액션 #}
+{% if ceo_kpis %}
+<div class="section-head"><h2>경영 KPI 한눈에</h2></div>
+<div class="kpi-grid kpi-grid-9">
+  <a href="/sales/dashboard" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '{:,.0f}'.format(ceo_kpis.sales.month) }}</div>
+    <div class="kpi-lab">당월 매출 (원)</div>
+    <div class="kpi-sub">전월비 {{ ceo_kpis.sales.growth }}% · 미수 {{ '{:,.0f}'.format(ceo_kpis.sales.unpaid) }}</div>
+  </a>
+  <a href="/stock/balances" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.stock.on_hand_kinds }}</div>
+    <div class="kpi-lab">재고 품목수</div>
+    <div class="kpi-sub">QC 부적합 {{ ceo_kpis.stock.qc_open }}</div>
+  </a>
+  <a href="/admin/permissions" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.perms.active_tokens }}</div>
+    <div class="kpi-lab">활성 위임 토큰</div>
+    <div class="kpi-sub">7일 내 만료 {{ ceo_kpis.perms.expiring_7d }}</div>
+  </a>
+  <a href="/export" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.exports.in_progress }}</div>
+    <div class="kpi-lab">수출입 진행</div>
+    <div class="kpi-sub">출하 임박 {{ ceo_kpis.exports.ship_soon }}</div>
+  </a>
+  <a href="/qms/dashboard" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.qms.open }}</div>
+    <div class="kpi-lab">QMS 오픈 이슈</div>
+    <div class="kpi-sub">SLA 위반 {{ ceo_kpis.qms.sla_violation }}</div>
+  </a>
+  <a href="/weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.weekly.rate }}%</div>
+    <div class="kpi-lab">주간 진행률</div>
+    <div class="kpi-sub">완료 {{ ceo_kpis.weekly.completed }} · 지연 {{ ceo_kpis.weekly.delayed }}</div>
+  </a>
+  <a href="/progress/gantt" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.gantt.delayed_projects }}</div>
+    <div class="kpi-lab">지연 프로젝트</div>
+  </a>
+  <a href="/rates/dashboard" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '%.0f'|format(ceo_kpis.fx.usd_rate) }}</div>
+    <div class="kpi-lab">USD/KRW</div>
+    <div class="kpi-sub">활성 알림 {{ ceo_kpis.fx.alerts_active }}</div>
+  </a>
+  <a href="/notifications" class="kpi-card kpi-primary kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.notif.unread }}</div>
+    <div class="kpi-lab">미확인 알림</div>
+  </a>
+</div>
+
+{% if unread_notifs %}
+<div class="section-head"><h2>최근 미확인 알림</h2></div>
+<div class="delay-list">
+  {% for n in unread_notifs %}
+  <div class="delay-item" {% if n.link %}onclick="location.href='{{ n.link }}'" style="cursor:pointer"{% endif %}>
+    <div class="d-top">
+      <span class="tag">{{ n.kind or '알림' }}</span>
+      <b>{{ n.title }}</b>
+    </div>
+    {% if n.body %}<div class="d-meta">{{ n.body }}</div>{% endif %}
+    <div class="d-meta">{{ n.created_at }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# 2026-04-27 사이클53 — 6번째 패널: 안전재고 알림 (Top 5) #}
+<div class="section-head"><h2>안전재고 알림 (Top 5)</h2></div>
+{% if not safety_top5 %}
+<div class="empty">부족 부품 없음 (재발주 추천 0건)</div>
+{% else %}
+<table class="mini-tbl">
+  <thead>
+    <tr>
+      <th>품번</th><th>품명</th>
+      <th class="num">현재고</th><th class="num">안전재고</th><th class="num st-delay">부족분</th>
+      <th>우선</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in safety_top5 %}
+    <tr onclick="location.href='/stock/reorder-recommendations'" style="cursor:pointer">
+      <td><b>{{ s.part_no }}</b></td>
+      <td>{{ s.part_name }}</td>
+      <td class="num">{{ '%.0f'|format(s.on_hand) }}</td>
+      <td class="num">{{ '%.0f'|format(s.safety_stock) }}</td>
+      <td class="num st-delay">{{ '%.0f'|format(s.short) }}</td>
+      <td><span class="tag">{{ s.priority }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<div class="kpi-grid">
+  <a href="/stock/safety" class="kpi-card kpi-link"><div class="kpi-lab">전체 안전재고</div></a>
+  <a href="/stock/reorder-recommendations" class="kpi-card kpi-link"><div class="kpi-lab">재발주 추천</div></a>
+</div>
+
+<div class="section-head"><h2>빠른 액션</h2></div>
+<div class="kpi-grid">
+  <a href="/sales" class="kpi-card kpi-link"><div class="kpi-lab">매출 라이프사이클</div></a>
+  <a href="/parts" class="kpi-card kpi-link"><div class="kpi-lab">재고·자재</div></a>
+  <a href="/admin/permissions" class="kpi-card kpi-link"><div class="kpi-lab">권한 위임</div></a>
+  <a href="/export" class="kpi-card kpi-link"><div class="kpi-lab">수출입</div></a>
+  <a href="/qms/dashboard" class="kpi-card kpi-link"><div class="kpi-lab">QMS 품질</div></a>
+  <a href="/progress/gantt" class="kpi-card kpi-link"><div class="kpi-lab">간트·번다운</div></a>
+  <a href="/rates/dashboard" class="kpi-card kpi-link"><div class="kpi-lab">환율</div></a>
+  <a href="/weekly" class="kpi-card kpi-link"><div class="kpi-lab">주간 보고</div></a>
+</div>
+{% endif %}
+
 <div class="kpi-grid">
   <a href="/admin/reminders" class="kpi-card kpi-primary kpi-link">
     <div class="kpi-num">{{ participation_rate }}%</div>

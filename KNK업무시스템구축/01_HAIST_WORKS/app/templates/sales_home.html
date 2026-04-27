@@ -11,12 +11,12 @@
 
 <!-- KPI 6 -->
 <div class="kpi-row">
-  <a href="/admin" class="kpi">
+  <a href="/admin" class="kpi" tabindex="0">
     <div class="kpi-label">{{ sales_kpi.ym }} 당월 수주</div>
     <div class="kpi-value" style="font-size:20px;color:#A5282C;">{{ won(sales_kpi.month_total) }}</div>
     <div class="kpi-sub">{{ sales_kpi.month_cnt }}건</div>
   </a>
-  <a href="/admin" class="kpi">
+  <a href="/admin" class="kpi" tabindex="0">
     <div class="kpi-label">{{ sales_kpi.year }} YTD 수주</div>
     <div class="kpi-value" style="font-size:20px;">{{ won(sales_kpi.ytd_total) }}</div>
     <div class="kpi-sub">{{ sales_kpi.ytd_cnt }}건</div>
@@ -28,12 +28,12 @@
     <div class="kpi-sub">{{ b.cnt }}건</div>
   </div>
   {% endfor %}
-  <a href="/projects" class="kpi">
+  <a href="/projects" class="kpi" tabindex="0">
     <div class="kpi-label">관리코드</div>
     <div class="kpi-value">{{ proj_stats.with_code }}</div>
     <div class="kpi-sub">진행중 {{ proj_stats.in_progress }}</div>
   </a>
-  <a href="/dashboard" class="kpi">
+  <a href="/dashboard" class="kpi" tabindex="0">
     <div class="kpi-label">전사 대시보드</div>
     <div class="kpi-value" style="font-size:16px;">경영 뷰 →</div>
   </a>

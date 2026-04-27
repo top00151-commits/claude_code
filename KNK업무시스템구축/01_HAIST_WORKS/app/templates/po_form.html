@@ -15,7 +15,7 @@
   <div class="grid-2">
     <div class="field">
       <label>공급사 <span class="req">*</span></label>
-      <select name="supplier_id" required>
+      <select name="supplier_id" required tabindex="0">
         <option value="">(선택)</option>
         {% for s in suppliers %}
         <option value="{{ s.id }}" data-currency="{{ s.currency or 'KRW' }}"
@@ -45,7 +45,7 @@
 
     <div class="field">
       <label>발주일 <span class="req">*</span></label>
-      <input type="text" name="order_date" required pattern="\d{4}-\d{2}-\d{2}"
+      <input type="text" name="order_date" required pattern="\d{4}-\d{2}-\d{2}" tabindex="0"
              value="{{ po.order_date if po else '' }}" placeholder="YYYY-MM-DD">
     </div>
     <div class="field">
@@ -119,7 +119,7 @@
   <div style="margin-top:20px;padding-top:18px;border-top:1px solid #E5E7EB;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h2 style="font-size:14px;margin:0;color:#4A4A4A;letter-spacing:0.02em">발주 라인 · 부품 선택</h2>
-      <button type="button" class="btn" onclick="addLine()">+ 라인 추가</button>
+      <button type="button" class="btn" onclick="addLine()" tabindex="0">+ 라인 추가</button>
     </div>
 
     <div class="card no-pad" style="margin:0;box-shadow:none;border:1px solid #E5E7EB">
@@ -179,8 +179,8 @@
   </div>
 
   <div class="form-actions">
-    <a href="/po" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn btn-primary">
+    <a href="/po" class="btn btn-ghost" tabindex="0">취소</a>
+    <button type="submit" class="btn btn-primary" tabindex="0">
       {% if po %}저장{% else %}발주 생성{% endif %}
     </button>
   </div>
@@ -211,7 +211,7 @@ function addLine(){
     <td><input type="number" name="item_qty" class="line-qty" step="0.01" min="0" value="0" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
     <td><input type="number" name="item_price" class="line-price" step="0.01" min="0" value="0" oninput="recalcLine(this)" style="width:100%;text-align:right"></td>
     <td class="ta-right line-amt mono">0</td>
-    <td><input type="text" name="item_delivery" placeholder="YYYY-MM-DD" style="width:100%" class="mono"></td>
+    <td><input type="text" name="item_delivery" placeholder="YYYY-MM-DD" aria-label="납기 (YYYY-MM-DD)" style="width:100%" class="mono"></td>
     <td><input type="text" name="item_note" style="width:100%"></td>
     <td><button type="button" class="btn-sm btn-danger" onclick="removeLine(this)">삭제</button></td>
   `;

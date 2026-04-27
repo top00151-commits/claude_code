@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}전사 프로젝트 대시 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/progress" style="font-size:13px;color:#6B7280;text-decoration:none;">← 진행률 매트릭스</a>
+  · <span style="font-size:11px;color:#9E9E9E;">URL: /progress-dashboard</span>
+</div>
+
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #6A1B9A;">
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">전사 프로젝트 대시</h1>
+  <div style="margin-top:6px;font-size:12px;color:#6B7280;">
+    P2 CEO · admin/executive 전용 · 진행 중인 프로젝트 50건 (납기 임박순)
+  </div>
+</div>
+
+{% if projects and projects|length > 0 %}
+<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;">
+  <thead>
+    <tr style="background:#F3E5F5;border-bottom:2px solid #CE93D8;">
+      <th style="padding:10px;text-align:left;font-size:12px;">관리코드</th>
+      <th style="padding:10px;text-align:left;font-size:12px;">프로젝트</th>
+      <th style="padding:10px;text-align:left;font-size:12px;width:120px;">납기</th>
+      <th style="padding:10px;text-align:left;font-size:12px;width:140px;">작업 진척</th>
+      <th style="padding:10px;text-align:left;font-size:12px;width:120px;">마일스톤</th>
+      <th style="padding:10px;text-align:left;font-size:12px;width:160px;">바로가기</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in projects %}
+    {% set pct = ((p.done_t / p.total_t * 100)|round(0)|int) if p.total_t > 0 else 0 %}
+    <tr style="border-bottom:1px solid #F1F3F4;">
+      <td style="padding:10px;font-family:var(--font-mono);font-size:11px;color:#A5282C;font-weight:700;">{{ p.mgmt_code or '-' }}</td>
+      <td style="padding:10px;font-weight:600;font-size:13px;">{{ p.name }}</td>
+      <td style="padding:10px;font-size:12px;color:#6B7280;">{{ p.end_date or '-' }}</td>
+      <td style="padding:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;height:8px;background:#F3F4F6;border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:{{ pct }}%;background:linear-gradient(90deg,#A5282C,#D33);"></div>
+          </div>
+          <span style="font-size:11px;font-variant-numeric:tabular-nums;color:#6B7280;">{{ p.done_t }}/{{ p.total_t }}</span>
+        </div>
+      </td>
+      <td style="padding:10px;font-size:12px;font-variant-numeric:tabular-nums;">{{ p.done_ms }} / {{ p.total_ms }}</td>
+      <td style="padding:10px;">
+        <a href="/progress/{{ p.id }}/gantt" style="font-size:11px;color:#A5282C;text-decoration:none;font-weight:700;margin-right:8px;">간트</a>
+        <a href="/progress/{{ p.id }}/burndown" style="font-size:11px;color:#1976D2;text-decoration:none;font-weight:700;">번다운</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:40px;text-align:center;color:#9E9E9E;">
+  진행 중인 프로젝트 없음
+</div>
+{% endif %}
+
+{% endblock %}

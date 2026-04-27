@@ -1,0 +1,97 @@
+{% extends "base_logi.html" %}
+{% block title %}환율 대시 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>💱 환율 대시 (강화 1차)</h1>
+    <p class="muted">Top10 #9 · P4 구매팀 월 1회 · 외부 API 미사용 (수동 + CSV)</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/rates" class="btn">기본 환율 페이지</a>
+    <a href="/rates/alerts" class="btn">알림 설정</a>
+  </div>
+</div>
+
+{% if request.query_params.get('upload') %}
+<div style="background:#E8F5E9;border:1px solid #86EFAC;color:#2E7D32;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+  ✓ CSV 업로드 결과: {{ request.query_params.get('upload') }}
+</div>
+{% endif %}
+
+<!-- 통화별 KPI + 알림 임계 도달 표시 -->
+<div class="kpi-row">
+  {% for code in ['USD','VND','JPY','CNY','EUR'] %}
+  {% set l = latest.get(code) %}
+  <div class="kpi">
+    <div class="kpi-label">{{ code }} → KRW</div>
+    {% if l %}
+    <div class="kpi-value" style="font-size:20px;">{{ "{:,.2f}".format(l.rate) }}</div>
+    <div class="kpi-sub">{{ l.rate_date }}</div>
+    {% else %}
+    <div class="kpi-value" style="color:#9CA3AF;">-</div>
+    <div class="kpi-sub">미등록</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 알림 활성화 -->
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">🔔 활성 환율 알림 ({{ alerts|length }}건)</h2>
+  {% if alerts %}
+  <table class="table" style="width:100%;">
+    <thead><tr><th>통화</th><th>방향</th><th style="text-align:right;">임계</th><th>등록</th><th>발동</th></tr></thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td style="font-weight:700;">{{ a.target_currency }}</td>
+        <td>{% if a.direction == 'above' %}↗ 초과{% else %}↘ 미만{% endif %}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.2f}".format(a.threshold) }}</td>
+        <td style="font-size:11px;color:#6B7280;">{{ a.created_by_name or '-' }}</td>
+        <td style="font-size:11px;color:#9CA3AF;">{{ a.triggered_at or '미발동' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:14px;color:#9CA3AF;">활성 알림 없음. <a href="/rates/alerts">알림 등록 →</a></div>
+  {% endif %}
+</div>
+
+<!-- CSV 업로드 (외부 API 미사용) -->
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">📥 환율 CSV 일괄 업로드</h2>
+  <p class="muted" style="font-size:12px;">헤더: <code>rate_date,from_currency,to_currency,rate,source,note</code> · 외부 API 미사용 · UPSERT (날짜·통화쌍)</p>
+  <form method="post" action="/rates/upload">
+    <textarea name="csv_text" rows="6" placeholder="2026-04-26,USD,KRW,1382.5,수동,&#10;2026-04-26,VND,KRW,0.057,수동," style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:6px;font-family:monospace;font-size:12px;"></textarea>
+    <div style="margin-top:8px;text-align:right;">
+      <button type="submit" class="btn" style="background:linear-gradient(135deg,#4338CA,#312E81);color:#fff;border:none;font-weight:800;padding:10px 20px;">업로드 (수동/CSV만)</button>
+    </div>
+  </form>
+</div>
+
+<!-- 최근 30일 트렌드 (테이블) -->
+<div class="card" style="margin-top:14px;padding:0;">
+  <div style="padding:14px 18px;border-bottom:1px solid #E5E7EB;">
+    <h2 style="margin:0;font-size:15px;font-weight:800;">📈 최근 30일 트렌드 ({{ trend|length }}건)</h2>
+  </div>
+  {% if trend %}
+  <table class="table" style="width:100%;">
+    <thead><tr><th>날짜</th><th>From</th><th style="text-align:right;">→ KRW</th></tr></thead>
+    <tbody>
+      {% for r in trend[:60] %}
+      <tr>
+        <td style="font-family:monospace;">{{ r.rate_date }}</td>
+        <td style="font-weight:700;">{{ r.from_currency }}</td>
+        <td style="text-align:right;font-family:monospace;">{{ "{:,.4f}".format(r.rate) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:#9CA3AF;">트렌드 데이터 없음</div>
+  {% endif %}
+</div>
+
+{% endblock %}

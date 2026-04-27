@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #10 — 상단 헤더·사이드바·메인 전체 레이아웃 재설계</title>
+<style>
+/* ============================================================
+   HAIST WORKS 디자인 원칙 v5 · 제안 #10
+   - 상단 헤더: 높이 72px, 로고+워크스페이스 스위처+글로벌 검색
+   - 좌 사이드바: 4그룹 (도메인 제거 → 상단 스위처로 이전)
+   - 메인: 페이지 헤더 표준화 (breadcrumb + title + actions)
+   ============================================================ */
+
+:root{
+  --r:#A5282C;   --rd:#8B1E22;  --rr:#5B1014;
+  --t:#1F1F1F;   --g:#6B6B6B;   --g2:#94A3B8;
+  --bg:#F7F7F8;  --bd:#E5E7EB;  --lg:#F5F5F5;  --bg2:#FAFBFC;
+
+  --fs-fluid-xs:  clamp(10px, 0.55vw + 7px, 13px);
+  --fs-fluid-sm:  clamp(12px, 0.60vw + 9px, 15px);
+  --fs-fluid-md:  clamp(13px, 0.70vw + 10px, 16px);
+  --fs-fluid-lg:  clamp(15px, 0.85vw + 11px, 19px);
+  --fs-fluid-xl:  clamp(18px, 1.25vw + 13px, 26px);
+  --fs-fluid-2xl: clamp(24px, 2.00vw + 16px, 40px);
+  --fs-fluid-hero:clamp(32px, 4.50vw + 20px, 72px);
+
+  --grad-brand:     linear-gradient(135deg,#A5282C 0%,#8B1E22 70%,#5B1014 100%);
+  --grad-brand-deep:linear-gradient(145deg,#1A0508 0%,#3B0B10 35%,#8B1E22 75%,#A5282C 100%);
+  --ease-out: cubic-bezier(0.33,1,0.68,1);
+  --sh-sm: 0 2px 8px rgba(0,0,0,.06);
+  --sh-md: 0 6px 20px rgba(0,0,0,.08);
+  --sh-glow: 0 8px 28px rgba(165,40,44,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;
+  font-size:var(--fs-fluid-md);color:var(--t);background:var(--bg);line-height:1.6;overflow-x:hidden;
+}
+button{font-family:inherit;cursor:pointer;border:0;background:none}
+a{color:inherit;text-decoration:none}
+
+/* ========================= 배너 (시안 안내) ========================= */
+.demo-banner{
+  background:#0f172a;color:#fff;padding:10px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  font-size:var(--fs-fluid-sm);position:sticky;top:0;z-index:200;
+}
+.demo-banner h1{font-size:var(--fs-fluid-md);font-weight:700;margin-right:10px}
+.demo-banner .tag{background:#1e293b;color:#fff;padding:2px 10px;border-radius:6px;font-size:var(--fs-fluid-xs)}
+.demo-banner .hint{color:#94a3b8}
+
+/* ========================= 상단 헤더 ========================= */
+.topbar{
+  height:clamp(64px, 4.5vw + 40px, 80px);
+  background:var(--grad-brand-deep);
+  color:#fff;
+  padding:0 18px;
+  display:flex;align-items:center;gap:14px;
+  box-shadow:var(--sh-md);
+  position:sticky;top:44px;z-index:150;
+}
+
+/* 좌측: 햄버거 + 로고 + 디바이더 + 브랜드 타이틀 + 워크스페이스 스위처 */
+.tb-left{display:flex;align-items:center;gap:12px;flex-shrink:0;min-width:0}
+.tb-menu-btn{
+  color:#fff;width:38px;height:38px;border-radius:10px;
+  background:rgba(255,255,255,.08);
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.tb-menu-btn:hover{background:rgba(255,255,255,.16)}
+.tb-menu-btn svg{width:20px;height:20px}
+
+.brand{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:4px 8px;border-radius:10px;transition:background .15s}
+.brand:hover{background:rgba(255,255,255,.06)}
+.brand-mark{
+  width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#fff 0%,#FFE4E6 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:var(--r);
+  box-shadow:0 2px 8px rgba(0,0,0,.2);letter-spacing:-.5px;
+}
+.brand-text{display:flex;flex-direction:column;line-height:1.1}
+.brand-name{font-size:var(--fs-fluid-lg);font-weight:900;color:#fff;letter-spacing:.5px}
+.brand-sub{font-size:var(--fs-fluid-xs);color:rgba(255,255,255,.7);font-weight:500;margin-top:2px;letter-spacing:.3px}
+
+.tb-divider{width:1px;height:32px;background:rgba(255,255,255,.2);margin:0 2px}
+
+/* 워크스페이스 스위처 */
+.ws-switcher{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-radius:10px;
+  background:rgba(255,255,255,.1);
+  color:#fff;font-size:var(--fs-fluid-sm);font-weight:600;
+  border:1px solid rgba(255,255,255,.15);
+  transition:all .15s;
+  position:relative;
+}
+.ws-switcher:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3)}
+.ws-switcher .ws-ico{width:18px;height:18px;flex-shrink:0}
+.ws-switcher .ws-name{white-space:nowrap}
+.ws-switcher .ws-caret{font-size:10px;opacity:.8;margin-left:2px}
+
+.ws-menu{
+  position:absolute;top:calc(100% + 6px);left:0;min-width:280px;
+  background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.18);
+  padding:6px;display:none;z-index:200;
+  border:1px solid var(--bd);
+}
+.ws-menu.open{display:block}
+.ws-opt{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;
+  color:var(--t);font-size:var(--fs-fluid-sm);font-weight:500;cursor:pointer;
+  transition:background .15s;
+}
+.ws-opt:hover{background:#F5F5F5}
+.ws-opt.active{background:#FFE4E6;color:var(--r);font-weight:700}
+.ws-opt .opt-ico{
+  width:36px;height:36px;border-radius:8px;background:var(--lg);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.ws-opt.active .opt-ico{background:#fff;color:var(--r)}
+.ws-opt .opt-meta{flex:1;min-width:0}
+.ws-opt .opt-name{font-size:var(--fs-fluid-sm);font-weight:700}
+.ws-opt .opt-desc{font-size:var(--fs-fluid-xs);color:var(--g);margin-top:2px}
+.ws-opt .opt-check{color:var(--r);font-size:14px;flex-shrink:0}
+.ws-opt .opt-ext{font-size:11px;color:var(--g);flex-shrink:0}
+
+/* 중앙: 글로벌 검색 */
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 20px}
+.g-search{
+  display:flex;align-items:center;gap:10px;
+  width:min(520px, 100%);
+  padding:10px 16px;border-radius:12px;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.18);
+  color:#fff;
+  transition:all .15s;
+  cursor:text;
+}
+.g-search:hover,.g-search:focus-within{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35)}
+.g-search svg{width:18px;height:18px;opacity:.8;flex-shrink:0}
+.g-search input{
+  flex:1;background:transparent;border:0;outline:0;color:#fff;
+  font-size:var(--fs-fluid-sm);font-family:inherit;min-width:0;
+}
+.g-search input::placeholder{color:rgba(255,255,255,.6)}
+.g-search .shortcut{
+  background:rgba(255,255,255,.14);padding:3px 8px;border-radius:6px;
+  font-size:var(--fs-fluid-xs);font-weight:600;color:rgba(255,255,255,.9);
+  letter-spacing:.3px;flex-shrink:0;
+}
+
+/* 우측: 빅터 · 알림 · 언어 · 사용자 */
+.tb-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.tb-icon-btn{
+  position:relative;width:40px;height:40px;border-radius:10px;
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.tb-icon-btn:hover{background:rgba(255,255,255,.18);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px}
+.tb-icon-btn .dot{
+  position:absolute;top:8px;right:10px;
+  width:8px;height:8px;border-radius:50%;background:#FFD600;
+  box-shadow:0 0 0 2px var(--rd);
+}
+.tb-icon-btn.victor{background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff}
+.tb-icon-btn.victor:hover{filter:brightness(1.1)}
+
+.lang-sel{
+  background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.15);
+  border-radius:10px;padding:8px 10px;font-size:var(--fs-fluid-xs);font-weight:600;
+  cursor:pointer;outline:none;font-family:inherit;
+}
+.lang-sel option{background:#1e293b;color:#fff}
+
+.user-chip{
+  display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;
+  border-radius:999px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.18);
+  transition:all .15s;
+}
+.user-chip:hover{background:rgba(255,255,255,.18);transform:translateY(-1px)}
+.user-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(135deg,#fff 0%,#FFE4E6 100%);
+  color:var(--r);font-weight:900;font-size:var(--fs-fluid-sm);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:var(--fs-fluid-sm);font-weight:700;color:#fff}
+.user-role{font-size:var(--fs-fluid-xs);color:rgba(255,255,255,.7)}
+.logout-btn{
+  width:34px;height:34px;border-radius:10px;
+  background:rgba(255,255,255,.1);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.logout-btn:hover{background:var(--r);transform:translateY(-1px)}
+.logout-btn svg{width:16px;height:16px}
+
+/* ========================= 레이아웃 ========================= */
+.layout{display:flex;height:calc(100vh - 44px - clamp(64px, 4.5vw + 40px, 80px))}
+
+/* ========================= 좌 사이드바 ========================= */
+.sidebar{
+  width:260px;flex-shrink:0;
+  background:#fff;border-right:1px solid var(--bd);
+  padding:14px 10px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:6px;
+  --sb-font-size: var(--fs-fluid-md);
+  --sb-head-size: var(--fs-fluid-xs);
+}
+@media (max-width:1280px){ .sidebar{ width:240px } }
+@media (max-width:1100px){ .sidebar{ width:220px } }
+
+.sb-section{padding:4px 0;border-bottom:1px solid #F3F4F6}
+.sb-section:last-child{border-bottom:0}
+.sb-head{
+  font-size:var(--sb-head-size);font-weight:800;color:var(--g2);
+  text-transform:uppercase;letter-spacing:.08em;
+  padding:10px 14px 6px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:2px;
+  font-size:var(--sb-font-size);color:#334155;border-radius:10px;
+  transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;
+}
+.sb-item:hover{background:#F1F5F9;color:var(--r)}
+.sb-item.active{
+  background:linear-gradient(135deg,var(--r),var(--rd));color:#fff;font-weight:700;
+  box-shadow:var(--sh-glow);
+}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{
+  width:calc(var(--sb-font-size) + 4px);height:calc(var(--sb-font-size) + 4px);
+  flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--g);
+}
+.sb-badge{
+  margin-left:auto;background:#FFE4E6;color:var(--r);
+  padding:2px 8px;border-radius:999px;font-size:var(--fs-fluid-xs);font-weight:800;
+}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.25);color:#fff}
+.sb-ext{margin-left:auto;font-size:var(--fs-fluid-xs);color:#9CA3AF;font-weight:700}
+.sb-hiworks-tag{
+  background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;
+  font-weight:800;margin-left:6px;vertical-align:middle;
+}
+
+/* 팀/프로젝트 트리 */
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column}
+.sb-tree{overflow-y:auto;flex:1;padding:0 4px}
+.sb-team-head{
+  display:flex;align-items:center;gap:6px;padding:6px 10px;
+  font-size:var(--sb-font-size);font-weight:700;color:#334155;
+  border-radius:6px;cursor:pointer;
+}
+.sb-team-head:hover{background:#F5F5F5}
+.sb-sub{
+  display:block;padding:5px 12px 5px 24px;font-size:var(--fs-fluid-sm);color:var(--g);
+  border-radius:4px;
+}
+.sb-sub:hover{background:#F5F5F5;color:var(--t)}
+
+/* ========================= 메인 ========================= */
+.main{flex:1;overflow-y:auto;padding:0;min-width:0;background:var(--bg)}
+
+/* 페이지 헤더 표준 */
+.page-header{
+  background:#fff;border-bottom:1px solid var(--bd);
+  padding:18px 28px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:14px;
+  position:sticky;top:0;z-index:40;
+}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{
+  display:flex;gap:6px;align-items:center;margin-bottom:4px;
+  font-size:var(--fs-fluid-xs);color:var(--g2);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.breadcrumb a{color:var(--g2);transition:color .15s}
+.breadcrumb a:hover{color:var(--r)}
+.breadcrumb .sep{color:var(--bd)}
+.page-title{
+  font-size:var(--fs-fluid-xl);font-weight:800;color:var(--t);
+  line-height:1.2;
+}
+.page-sub{font-size:var(--fs-fluid-sm);color:var(--g);margin-top:4px;max-width:520px}
+.ph-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:10px 16px;border-radius:10px;font-size:var(--fs-fluid-sm);font-weight:600;
+  border:1px solid transparent;
+  transition:all .15s;
+}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--grad-brand);color:#fff;box-shadow:0 4px 12px rgba(165,40,44,.22)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:var(--sh-glow)}
+.btn-ghost{background:#fff;color:var(--t);border-color:var(--bd)}
+.btn-ghost:hover{background:#F5F5F5;border-color:var(--r);color:var(--r)}
+
+/* 메인 본문 영역 */
+.page-body{padding:22px 28px 60px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.kpi{
+  background:#fff;border:1px solid var(--bd);border-radius:14px;padding:18px 18px;
+  position:relative;overflow:hidden;
+  transition:transform .2s var(--ease-out),box-shadow .2s var(--ease-out);
+}
+.kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad-brand)}
+.kpi:hover{transform:translateY(-4px);box-shadow:var(--sh-md)}
+.kpi-num{font-size:var(--fs-fluid-2xl);font-weight:800;color:var(--t);line-height:1}
+.kpi-lab{font-size:var(--fs-fluid-sm);color:var(--g);font-weight:600;margin-top:8px}
+.kpi-sub{font-size:var(--fs-fluid-xs);color:var(--g);margin-top:2px}
+.kpi-trend{
+  display:inline-flex;align-items:center;gap:3px;
+  margin-top:6px;padding:2px 8px;border-radius:999px;
+  font-size:var(--fs-fluid-xs);font-weight:700;
+  background:#ECFDF5;color:#10B981;
+}
+
+.section{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.section-head{
+  display:flex;align-items:baseline;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--lg);
+}
+.section-head h2{
+  font-size:var(--fs-fluid-lg);color:var(--rd);font-weight:700;
+  padding-left:10px;border-left:4px solid var(--r);
+}
+.section-head .count{
+  background:var(--lg);color:var(--g);padding:2px 10px;border-radius:999px;
+  font-size:var(--fs-fluid-xs);font-weight:600;
+}
+.section-head .more{margin-left:auto;font-size:var(--fs-fluid-sm);color:var(--r);font-weight:600;cursor:pointer}
+
+.card-list{display:flex;flex-direction:column;gap:10px}
+.card{
+  background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;
+  transition:all .15s;
+}
+.card:hover{border-color:var(--r);box-shadow:var(--sh-sm)}
+.card-title{font-size:var(--fs-fluid-md);font-weight:700}
+.card-meta{font-size:var(--fs-fluid-xs);color:var(--g);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:var(--fs-fluid-xs);font-weight:700;background:#FFE4E6;color:var(--r)}
+
+table{width:100%;border-collapse:collapse;font-size:var(--fs-fluid-sm);margin-top:4px}
+th{background:var(--bg2);color:var(--g);padding:10px;text-align:left;font-weight:700;border-bottom:2px solid var(--bd);font-size:var(--fs-fluid-xs);text-transform:uppercase;letter-spacing:.04em}
+td{padding:10px;border-bottom:1px solid var(--lg)}
+tr:hover td{background:var(--bg2)}
+
+/* 실측 메타 */
+.live-meta{
+  position:fixed;bottom:12px;left:12px;z-index:90;
+  background:rgba(0,0,0,.85);color:#fff;padding:10px 14px;border-radius:10px;
+  font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.7;pointer-events:none;
+}
+.live-meta b{color:#FFD600}
+
+/* 반응형 */
+@media (max-width:1024px){
+  .sidebar{width:200px}
+  .g-search{width:100%}
+  .user-info{display:none}
+}
+@media (max-width:768px){
+  .topbar{padding:0 10px;gap:8px}
+  .tb-divider{display:none}
+  .brand-text,.ws-switcher .ws-name{display:none}
+  .tb-center{padding:0 6px}
+  .lang-sel{display:none}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #10 — 상단 헤더·사이드바·메인 전체 레이아웃 재설계</h1>
+  <span class="tag">v5</span>
+  <span class="hint">좌측 "통합 ▾" 드롭다운 클릭 · <kbd style="background:#1e293b;padding:1px 6px;border-radius:4px">/</kbd> 키로 검색 포커스 · <kbd style="background:#1e293b;padding:1px 6px;border-radius:4px">Ctrl K</kbd> 빅터 · 창 크기 조절</span>
+</div>
+
+<!-- ==================== 상단 헤더 ==================== -->
+<header class="topbar">
+  <div class="tb-left">
+    <button class="tb-menu-btn" title="메뉴">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <a class="brand" href="#">
+      <div class="brand-mark">K</div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS</div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+
+    <div class="tb-divider"></div>
+
+    <button class="ws-switcher" id="wsBtn">
+      <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span class="ws-name">통합</span>
+      <span class="ws-caret">▾</span>
+
+      <div class="ws-menu" id="wsMenu">
+        <div class="ws-opt active">
+          <div class="opt-ico">🏢</div>
+          <div class="opt-meta">
+            <div class="opt-name">통합</div>
+            <div class="opt-desc">HAIST WORKS 메인</div>
+          </div>
+          <div class="opt-check">✓</div>
+        </div>
+        <div class="ws-opt">
+          <div class="opt-ico">📈</div>
+          <div class="opt-meta">
+            <div class="opt-name">매출·영업 센터</div>
+            <div class="opt-desc">Sales Hub · 영업·수주·견적</div>
+          </div>
+          <div class="opt-ext">↗</div>
+        </div>
+        <div class="ws-opt">
+          <div class="opt-ico">📦</div>
+          <div class="opt-meta">
+            <div class="opt-name">자재·구매 센터</div>
+            <div class="opt-desc">Logistics Hub · 자재·발주·재고</div>
+          </div>
+          <div class="opt-ext">↗</div>
+        </div>
+      </div>
+    </button>
+  </div>
+
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" title="빅터 열기 (Ctrl K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"/><circle cx="9" cy="13" r="1" fill="currentColor"/><circle cx="15" cy="13" r="1" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg>
+    </button>
+    <button class="tb-icon-btn" title="알림">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <span class="dot"></span>
+    </button>
+    <select class="lang-sel" title="언어 선택">
+      <option value="ko">🇰🇷 한국어</option>
+      <option value="vi">🇻🇳 Tiếng Việt</option>
+      <option value="en">🇺🇸 English</option>
+    </select>
+    <a class="user-chip" href="#">
+      <div class="user-avatar">김</div>
+      <div class="user-info">
+        <div class="user-name">김정락</div>
+        <div class="user-role">대표이사</div>
+      </div>
+    </a>
+    <a class="logout-btn" href="#" title="로그아웃">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </a>
+  </div>
+</header>
+
+<!-- ==================== 레이아웃 ==================== -->
+<div class="layout">
+
+  <!-- 좌 사이드바 (4그룹, 도메인 제거) -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item active"><span class="sb-ico">🏠</span>업무 현황<span class="sb-badge">3</span></a>
+      <a class="sb-item"><span class="sb-ico">📅</span>일일 업무</a>
+      <a class="sb-item"><span class="sb-ico">🗓️</span>내 달력</a>
+      <a class="sb-item"><span class="sb-ico">🔔</span>알림<span class="sb-badge">12</span></a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico">📈</span>부서 피드</a>
+      <a class="sb-item"><span class="sb-ico">⚡</span>실시간 피드</a>
+      <a class="sb-item"><span class="sb-ico">🔍</span>검색</a>
+      <a class="sb-item"><span class="sb-ico">📊</span>전사 대시보드</a>
+      <a class="sb-item"><span class="sb-ico">⚠️</span>병목 감지</a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico">📊</span>진행률 매트릭스<span class="sb-badge">2</span></a>
+      <a class="sb-item"><span class="sb-ico">🎫</span>요청 티켓<span class="sb-badge">5</span></a>
+      <a class="sb-item"><span class="sb-ico">⚠️</span>이슈 · AS</a>
+      <a class="sb-item"><span class="sb-ico">🔔</span>변경 알림<span class="sb-badge">8</span></a>
+      <a class="sb-item"><span class="sb-ico">📝</span>게시판</a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-hiworks-tag">하이웍스</span></div>
+      <a class="sb-item"><span class="sb-ico">✅</span>전자결제<span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico">📧</span>메일<span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico">👥</span>팀원 권한</a>
+      <a class="sb-item"><span class="sb-ico">⚙️</span>관리자</a>
+    </div>
+
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head"><span>▾</span><span>영업1팀</span></div>
+        <a class="sb-sub">· K-Pharma 2차 납품</a>
+        <a class="sb-sub">· 2분기 신규 영업</a>
+        <div class="sb-team-head"><span>▸</span><span>설계팀</span></div>
+        <div class="sb-team-head"><span>▸</span><span>생산팀</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="main">
+    <!-- 페이지 헤더 (표준) -->
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb">
+          <a>통합</a><span class="sep">/</span>
+          <a>내 업무</a><span class="sep">/</span>
+          <span>업무 현황</span>
+        </div>
+        <h1 class="page-title">통합 업무 현황</h1>
+        <div class="page-sub">오늘의 내 업무 · 팀 현황 · 전사 흐름을 한눈에</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          내보내기
+        </button>
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          신규 작성
+        </button>
+      </div>
+    </div>
+
+    <!-- 페이지 본문 -->
+    <div class="page-body">
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-num">12</div>
+          <div class="kpi-lab">내 할 일</div>
+          <div class="kpi-sub">오늘 마감 3건</div>
+          <span class="kpi-trend">▲ 어제 +2</span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-num">5</div>
+          <div class="kpi-lab">지연 공정</div>
+          <div class="kpi-sub">전주 대비</div>
+          <span class="kpi-trend" style="background:#FEF2F2;color:#EF4444">▲ +1</span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-num">87%</div>
+          <div class="kpi-lab">팀 참여율</div>
+          <div class="kpi-sub">이번 주</div>
+          <span class="kpi-trend">▲ +3%p</span>
+        </div>
+        <div class="kpi">
+          <div class="kpi-num">₩4.2억</div>
+          <div class="kpi-lab">이번 달 매출</div>
+          <div class="kpi-sub">전년 대비</div>
+          <span class="kpi-trend">▲ +12%</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>오늘 주요 일정</h2>
+          <span class="count">4건</span>
+          <span class="more">전체 보기 →</span>
+        </div>
+        <div class="card-list">
+          <div class="card">
+            <div class="card-title">설계 리뷰 미팅 · 영업1팀</div>
+            <div class="card-meta"><span>⏰ 오전 10:00</span><span>📍 회의실 A</span><span>👥 참여 6명</span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">자재 납기 확인 <span class="tag">긴급</span></div>
+            <div class="card-meta"><span>⏰ 오전 11:30</span><span>📍 구매팀 → 생산팀</span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">주간 대시보드 리포트 작성</div>
+            <div class="card-meta"><span>⏰ 오후 2:00</span><span>📌 마감 18:00</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>이번 주 팀별 진행률</h2>
+          <span class="count">8개 팀</span>
+        </div>
+        <table>
+          <thead><tr><th>팀</th><th>진행률</th><th>지연</th><th>담당자</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>영업1팀</td><td>82%</td><td>1건</td><td>김영업</td><td>K-Pharma 납품 진행</td></tr>
+            <tr><td>설계팀</td><td>67%</td><td>3건</td><td>이설계</td><td>라벨링 검토 2일 지연</td></tr>
+            <tr><td>생산팀</td><td>91%</td><td>0건</td><td>박생산</td><td>정상</td></tr>
+            <tr><td>품질팀</td><td>75%</td><td>2건</td><td>최품질</td><td>시료 승인 1일 지연</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="live-meta">
+  <b>시안 #10 레이아웃</b><br>
+  상단 헤더: 72px · 그라디언트<br>
+  사이드바: 고정 260px · 4그룹<br>
+  도메인: 상단 워크스페이스 스위처 (←)<br>
+  유동 타이포: 사이드바 ↔ 메인 1:1<br>
+  뷰포트: <span id="vw"></span>
+</div>
+
+<script>
+/* 워크스페이스 스위처 드롭다운 */
+const wsBtn = document.getElementById('wsBtn');
+const wsMenu = document.getElementById('wsMenu');
+wsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  wsMenu.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!wsMenu.contains(e.target)) wsMenu.classList.remove('open');
+});
+
+/* "/" 키 → 글로벌 검색 포커스 (GitHub 패턴) · Ctrl+K 는 빅터 전용 */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.isComposing) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  const editable = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+  if (editable) return;
+  const input = document.getElementById('gSearchInput');
+  if (input) { e.preventDefault(); input.focus(); input.select(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape'){
+    const input = document.getElementById('gSearchInput');
+    if (input && document.activeElement === input){ input.blur(); }
+  }
+});
+
+/* 실측 */
+function updateVw(){
+  document.getElementById('vw').textContent = window.innerWidth + ' × ' + window.innerHeight + 'px';
+}
+updateVw();
+window.addEventListener('resize', updateVw);
+</script>
+
+</body>
+</html>

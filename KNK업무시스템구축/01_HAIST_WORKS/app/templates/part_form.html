@@ -17,13 +17,13 @@
   <div class="grid-2">
     <div class="field">
       <label>부품번호 <span class="req">*</span></label>
-      <input type="text" name="part_no" required class="mono"
+      <input type="text" name="part_no" required class="mono" tabindex="0"
              value="{{ part.part_no if part else '' }}"
              placeholder="예: PRT-2026-0001">
     </div>
     <div class="field">
       <label>품명 <span class="req">*</span></label>
-      <input type="text" name="part_name" required
+      <input type="text" name="part_name" required tabindex="0"
              value="{{ part.part_name if part else '' }}"
              placeholder="예: 검사기 모터 브라켓">
     </div>
@@ -140,8 +140,8 @@
   </div>
 
   <div class="form-actions">
-    <a href="/parts" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn btn-primary">
+    <a href="/parts" class="btn btn-ghost" tabindex="0">취소</a>
+    <button type="submit" class="btn btn-primary" tabindex="0">
       {% if part %}저장{% else %}등록{% endif %}
     </button>
   </div>

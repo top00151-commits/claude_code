@@ -1,0 +1,48 @@
+{% extends "base_logi.html" %}
+{% block title %}재고 실사 — {{ app_name }}{% endblock %}
+{% block body %}
+
+{# 사이클 56 (2026-04-27) — 재고실사 목록 (분리 페이지) #}
+{# 발주서 §D.1 — stock_audits.html #}
+
+<div class="page-head">
+  <h1>재고 실사 목록</h1>
+  <p class="muted">P4 자재팀 분기 1회 — 시스템 재고와 실측 재고 차이 확인 → 자동 조정 제안</p>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:14px;">
+  <a href="/stock/audits/new" class="btn btn-primary">+ 신규 실사 시작</a>
+  <a href="/stock/adjustments" class="btn">조정 승인 화면</a>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 10px 0;font-size:14px;">실사 이력 (최근 50건)</h2>
+  <table class="data-table" style="width:100%;font-size:12px;">
+    <thead>
+      <tr>
+        <th>실사 번호</th><th>시작일</th><th>범위</th><th>상태</th><th>주관</th>
+        <th style="text-align:right;">라인</th><th style="text-align:right;">실측</th>
+        <th style="text-align:right;">차이</th><th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for a in audits %}
+      <tr>
+        <td><a href="/stock/audits/{{ a.id }}">{{ a.audit_no }}</a></td>
+        <td>{{ a.start_date }}</td>
+        <td><span class="chip">{{ a.scope or 'FULL' }}</span></td>
+        <td><span class="chip">{{ a.status }}</span></td>
+        <td>{{ a.led_by_name or '-' }}</td>
+        <td style="text-align:right;">{{ a.item_count }}</td>
+        <td style="text-align:right;">{{ a.counted_count }}</td>
+        <td style="text-align:right;font-weight:700;">{{ a.total_diff_count or 0 }}</td>
+        <td>{{ a.note or '' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="muted" style="text-align:center;padding:18px;">아직 실사 없음</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

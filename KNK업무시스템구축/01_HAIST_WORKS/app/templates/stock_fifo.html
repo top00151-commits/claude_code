@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}FIFO 레이어 — {{ summary.part_no }}{% endblock %}
+{% block body %}
+{# Top3 S2 3차 (2026-04-26) — FIFO 레이어 상세. stock_movements 잔량 기반. v2 본체 미접촉 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 잔고</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">FIFO 레이어 상세</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
+    {{ summary.part_no }} · {{ summary.part_name }} ({{ summary.unit }}) — 입고 순서대로 소진
+  </div>
+</div>
+
+{# 요약 KPI 4칸 #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;">
+  <div style="background:#fff;border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--ink-500);">레이어 수</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px;">{{ summary.layers_count }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--ink-500);">총 잔량</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px;">{{ '%.0f'|format(summary.total_qty) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--ink-500);">재고 금액</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px;">{{ '{:,.0f}'.format(summary.total_value) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--ink-500);">가중평균 단가</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px;">{{ '{:,.0f}'.format(summary.avg_unit_price) }}</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:20px;">
+  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">레이어 일람 (입고 순)</div>
+  {% if summary.layers and summary.layers|length > 0 %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--ink-200,#E5E7EB);text-align:left;">
+        <th style="padding:8px;">#</th><th style="padding:8px;">입고일</th>
+        <th style="padding:8px;">PO</th><th style="padding:8px;">공급사</th>
+        <th style="padding:8px;">LOT</th><th style="padding:8px;">유효기한</th>
+        <th style="padding:8px;text-align:right;">잔량</th>
+        <th style="padding:8px;text-align:right;">단가</th>
+        <th style="padding:8px;text-align:right;">금액</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for L in summary.layers %}
+      <tr style="border-bottom:1px solid var(--ink-100,#F3F4F6);">
+        <td style="padding:8px;font-family:monospace;color:var(--ink-500);">{{ loop.index }}</td>
+        <td style="padding:8px;">{{ (L.occurred_at or '')[:10] }}</td>
+        <td style="padding:8px;font-family:monospace;">{{ L.po_number or '-' }}</td>
+        <td style="padding:8px;">{{ L.supplier_name or '-' }}</td>
+        <td style="padding:8px;font-family:monospace;">{{ L.lot_no or '-' }}</td>
+        <td style="padding:8px;color:var(--ink-500);">{{ L.expiry_date or '-' }}</td>
+        <td style="padding:8px;text-align:right;font-weight:600;">{{ '%.0f'|format(L.remaining_qty or 0) }}</td>
+        <td style="padding:8px;text-align:right;">{{ '{:,.0f}'.format(L.unit_price or 0) }}</td>
+        <td style="padding:8px;text-align:right;font-weight:600;">{{ '{:,.0f}'.format((L.remaining_qty or 0) * (L.unit_price or 0)) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
+    현재 잔여 FIFO 레이어가 없습니다.<br>
+    <a href="/stock/receipts" style="color:var(--st-progress);">입고 (GR)</a>를 등록하면 자동으로 레이어가 생성됩니다.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

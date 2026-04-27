@@ -1,0 +1,60 @@
+{% extends "base_logi.html" %}
+{% block title %}수출입 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>수출입 서류</h1>
+  <p class="muted">상업송장(CI) · 패킹리스트(PL) · 선하증권(B/L) · 관세신고. 매출 데이터 자동 채움.</p>
+</div>
+
+<div class="kpi-row" style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;">
+  <div class="kpi-card"><span class="muted">DRAFT</span><strong>{{ st_draft or 0 }}</strong></div>
+  <div class="kpi-card"><span class="muted">CI 발행</span><strong>{{ st_ci or 0 }}</strong></div>
+  <div class="kpi-card"><span class="muted">PL 준비</span><strong>{{ st_pl or 0 }}</strong></div>
+  <div class="kpi-card"><span class="muted">선적</span><strong>{{ st_ship or 0 }}</strong></div>
+  <div class="kpi-card"><span class="muted">통관완료</span><strong>{{ st_clr or 0 }}</strong></div>
+</div>
+
+<div style="margin:16px 0;">
+  <a href="/export/orders/new" class="btn btn-primary">+ 신규 수출 수주</a>
+  <a href="/export/weekly" class="btn">주간 CSV</a>
+</div>
+
+{% if items %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th><th>수주번호</th><th>바이어</th>
+      <th>매출</th><th>선적조건</th><th>결제조건</th>
+      <th>POL</th><th>POD</th><th>진행</th><th>등록일</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+    <tr>
+      <td><a href="/export/orders/{{ it.id }}">#{{ it.id }}</a></td>
+      <td>{{ it.order_no }}</td>
+      <td>{{ it.buyer or '-' }}</td>
+      <td class="num">{{ '{:,.0f}'.format(it.order_amount or 0) }}</td>
+      <td>{{ it.shipping_terms or '-' }}</td>
+      <td>{{ it.payment_terms or '-' }}</td>
+      <td>{{ it.port_of_loading or '-' }}</td>
+      <td>{{ it.port_of_discharge or '-' }}</td>
+      <td>
+        <span class="status-tag status-{{ it.status|lower }}">{{ it.status }}</span>
+      </td>
+      <td class="muted">{{ it.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="text-align:center;padding:40px 20px;border:1px dashed var(--bd,#ddd);border-radius:8px;">
+  <h3 style="margin:0 0 8px;">등록된 수출 수주가 없습니다</h3>
+  <p class="muted">P11 베트남법인 페르소나는 [+ 신규 수출 수주] 로 시작하세요.</p>
+  <p class="muted" style="font-size:12px;">기존 수주(orders) 선택 시 매출 · 고객사 자동 채움.</p>
+  <a href="/export/orders/new" class="btn btn-primary" style="margin-top:8px;">+ 신규 수출 수주</a>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -60,22 +60,26 @@
     <div class="hm2-quick-ico">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     </div>
-    <input type="text" id="newTitle" class="hm2-quick-input"
+    <label for="newTitle" class="sr-only">{{ i.quick_placeholder|default('업무 입력') }}</label>
+    <input type="text" id="newTitle" class="hm2-quick-input" tabindex="0"
            placeholder="{{ i.quick_placeholder|default('업무 입력 ↵') }}"
            onkeydown="if(event.key==='Enter')addTask()"
            onfocus="document.getElementById('quickExtras').style.display='flex'">
     <div class="hm2-quick-extras" id="quickExtras" style="display:none">
-      <select id="newProject" class="hm2-quick-sel">
+      <label for="newProject" class="sr-only">{{ i.quick_project|default('프로젝트') }}</label>
+      <select id="newProject" class="hm2-quick-sel" tabindex="0">
         <option value="">{{ i.quick_project|default('프로젝트') }}</option>
         {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
       </select>
-      <select id="newCustomer" class="hm2-quick-sel">
+      <label for="newCustomer" class="sr-only">{{ i.quick_customer|default('고객사') }}</label>
+      <select id="newCustomer" class="hm2-quick-sel" tabindex="0">
         <option value="">{{ i.quick_customer|default('고객사') }}</option>
         {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
       </select>
-      <input type="number" id="newHours" class="hm2-quick-hrs" placeholder="{{ i.quick_hours|default('공수(h)') }}" step="0.5" min="0">
+      <label for="newHours" class="sr-only">{{ i.quick_hours|default('공수(h)') }}</label>
+      <input type="number" id="newHours" class="hm2-quick-hrs" tabindex="0" placeholder="{{ i.quick_hours|default('공수(h)') }}" step="0.5" min="0">
     </div>
-    <button onclick="addTask()" class="hm2-btn-primary">{{ i.btn_register|default('등록') }}</button>
+    <button onclick="addTask()" class="hm2-btn-primary" tabindex="0">{{ i.btn_register|default('등록') }}</button>
   </div>
 </div>
 {% endblock %}
@@ -582,17 +586,20 @@
             </select>
           </div>
         </div>
-        <textarea id="note-{{ t.id }}" class="hm-cdtl-note" placeholder="{{ i.notes_placeholder|default('진행 내용, 이슈, 특이사항...') }}" rows="2">{{ t.notes or '' }}</textarea>
-        <textarea id="next-{{ t.id }}" class="hm-cdtl-note hm-cdtl-next" placeholder="{{ i.next_placeholder|default('📌 다음 계획 / 내일 할 일') }}" rows="1">{{ t.next_plan or '' }}</textarea>
+        <label for="note-{{ t.id }}" class="sr-only">{{ i.notes_placeholder|default('진행 내용 메모') }}</label>
+        <textarea id="note-{{ t.id }}" class="hm-cdtl-note" tabindex="0" placeholder="{{ i.notes_placeholder|default('진행 내용, 이슈, 특이사항...') }}" rows="2">{{ t.notes or '' }}</textarea>
+        <label for="next-{{ t.id }}" class="sr-only">{{ i.next_placeholder|default('다음 계획') }}</label>
+        <textarea id="next-{{ t.id }}" class="hm-cdtl-note hm-cdtl-next" tabindex="0" placeholder="{{ i.next_placeholder|default('📌 다음 계획 / 내일 할 일') }}" rows="1">{{ t.next_plan or '' }}</textarea>
         <div class="hm-cdtl-actions">
           <button onclick="saveTask({{ t.id }})" class="hm-btn-save">{{ i.btn_save|default('💾 저장') }}</button>
           <button onclick="deleteTask({{ t.id }})" class="hm-btn-del">{{ i.btn_delete|default('🗑 삭제') }}</button>
         </div>
         <div class="hm-cdtl-cm" id="cm-{{ t.id }}"></div>
         <div class="hm-cm-write">
-          <input type="text" id="cmIn-{{ t.id }}" placeholder="{{ i.comment_input|default('코멘트 입력...') }}"
+          <label for="cmIn-{{ t.id }}" class="sr-only">{{ i.comment_input|default('코멘트 입력') }}</label>
+          <input type="text" id="cmIn-{{ t.id }}" tabindex="0" placeholder="{{ i.comment_input|default('코멘트 입력...') }}"
                  onkeydown="if(event.key==='Enter')addComment({{ t.id }})">
-          <button onclick="addComment({{ t.id }})">{{ i.btn_send|default('전송') }}</button>
+          <button onclick="addComment({{ t.id }})" tabindex="0">{{ i.btn_send|default('전송') }}</button>
         </div>
       </div>
     </div>
@@ -641,7 +648,7 @@
     <div class="hm-td-head">
       <h3>{{ td.team.name }}</h3>
       <span>{{ td.reported }}/{{ td.total_members }}{{ i.unit_people|default('명') }} · {{ i.unit_total|default('총') }} {{ td.total }}{{ i.unit_items|default('건') }}</span>
-      <button onclick="toggleTeam('tm-{{ td.team.id }}')" class="hm-td-close">✕</button>
+      <button onclick="toggleTeam('tm-{{ td.team.id }}')" class="hm-td-close" aria-label="{{ i.close|default('닫기') }}">✕</button>
     </div>
     <div class="hm-td-members">
       {% for m in td.members %}
@@ -698,15 +705,16 @@
   <div class="hm-modal" onclick="event.stopPropagation()">
     <div class="hm-modal-top">
       <h3 id="mTitle">-</h3>
-      <button onclick="closeModal()" class="hm-modal-x">✕</button>
+      <button onclick="closeModal()" class="hm-modal-x" aria-label="{{ i.modal_close|default('모달 닫기') }}">✕</button>
     </div>
     <div id="mBody" class="hm-modal-body"></div>
     <div class="hm-modal-cm-zone">
       <div id="mComments" class="hm-modal-cms"></div>
       <div class="hm-cm-write">
-        <input type="text" id="mCmIn" placeholder="{{ i.comment_input|default('코멘트...') }}"
+        <label for="mCmIn" class="sr-only">{{ i.comment_input|default('코멘트 입력') }}</label>
+        <input type="text" id="mCmIn" tabindex="0" placeholder="{{ i.comment_input|default('코멘트...') }}"
                onkeydown="if(event.key==='Enter')addModalCm()">
-        <button onclick="addModalCm()">{{ i.btn_send|default('전송') }}</button>
+        <button onclick="addModalCm()" tabindex="0">{{ i.btn_send|default('전송') }}</button>
       </div>
     </div>
   </div>

@@ -11,19 +11,37 @@
     <a href="/weekly/{{ prev_mon }}" class="btn-sm">{{ i.wk_prev|default('◀ 전주') }}</a>
     <a href="/weekly" class="btn-sm btn-today">{{ i.wk_this|default('이번 주') }}</a>
     <a href="/weekly/{{ next_mon }}" class="btn-sm">{{ i.wk_next|default('다음 주 ▶') }}</a>
+    <button type="button" class="btn-sm" id="weeklyRefreshBtn" onclick="weeklyRefresh()" aria-label="재집계">🔄 재집계</button>
+    {# 주간보고 2차 — CSV 다운로드 (csv 모듈만 · 외부 0건) #}
+    <a href="/weekly/export.csv?wk_mon={{ wk_mon }}&scope=me" class="btn-sm" aria-label="CSV 다운로드">📄 CSV</a>
+    {% if user.role in ['leader','executive','ceo','admin'] %}
+    <a href="/weekly/export.csv?wk_mon={{ wk_mon }}&scope=team" class="btn-sm">📄 팀 CSV</a>
+    {% endif %}
     {% if user.role in ['ceo','admin','executive'] %}
     <a href="/export/weekly?wk_mon={{ wk_mon }}" class="btn-primary">📥 Excel</a>
     {% endif %}
   </div>
 </div>
+<script>
+function weeklyRefresh(){
+  var b=document.getElementById('weeklyRefreshBtn'); if(b){b.disabled=true; b.textContent='집계중...';}
+  fetch('/weekly/refresh',{method:'POST'}).then(function(r){return r.json();})
+    .then(function(){ location.reload(); })
+    .catch(function(){ if(b){b.disabled=false; b.textContent='🔄 재집계';} alert('재집계 실패'); });
+}
+</script>
 
 <div class="section-head"><h2>{{ i.wk_my_summary|default('내 주간 요약') }}</h2></div>
+{# 주간보고 2차 — KPI 6→8 (오버타임/정시완료율 추가) #}
 <div class="summary-grid">
   <div class="sum-card"><div class="sum-num">{{ my_stats.total }}</div><div class="sum-lab">{{ i.wk_total_cards|default('총 카드수') }}</div></div>
   <div class="sum-card st-done"><div class="sum-num">{{ my_stats.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
   <div class="sum-card st-progress"><div class="sum-num">{{ my_stats.progress }}</div><div class="sum-lab">{{ i.wk_progress|default('진행중') }}</div></div>
   <div class="sum-card st-delay"><div class="sum-num">{{ my_stats.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
   <div class="sum-card"><div class="sum-num">{{ '%.1f'|format(my_stats.hours) }}h</div><div class="sum-lab">{{ i.wk_hours|default('누적 공수') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ my_stats.on_time_rate }}%</div><div class="sum-lab">{{ i.wk_on_time|default('정시완료율') }}</div></div>
+  <div class="sum-card{% if my_stats.overtime > 0 %} st-delay{% endif %}"><div class="sum-num">{{ '%.1f'|format(my_stats.overtime) }}h</div><div class="sum-lab">{{ i.wk_overtime|default('오버타임') }}</div></div>
+  <div class="sum-card"><div class="sum-num">{{ my_by_cat|length }}</div><div class="sum-lab">{{ i.wk_cats|default('분류수') }}</div></div>
 </div>
 
 {% if my_by_cat %}
@@ -38,14 +56,65 @@
 </div>
 {% endif %}
 
+{% if my_trend %}
+{% set tr_max = (my_trend|map(attribute='total')|max) or 1 %}
+{# 주간보고 2차 — 4주 → 8주 트렌드 확장 (viewBox 760 · 8칸 90px) #}
+<div class="section-head"><h2>{{ i.wk_my_trend|default('최근 8주 트렌드') }}</h2></div>
+<div class="wk-trend">
+  <svg viewBox="0 0 760 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="최근 8주 카드/완료 트렌드">
+    <line x1="40" y1="100" x2="750" y2="100" stroke="var(--border-soft, #e5e7eb)" stroke-width="1"/>
+    {% for w in my_trend %}
+      {% set x = 70 + loop.index0 * 88 %}
+      {% set h_total = (w.total / tr_max) * 70 %}
+      {% set h_done  = (w.done  / tr_max) * 70 %}
+      <rect x="{{ x - 14 }}" y="{{ 100 - h_total }}" width="14" height="{{ h_total }}" fill="var(--brand-soft, #cbd5e1)" rx="2"/>
+      <rect x="{{ x }}"      y="{{ 100 - h_done  }}" width="14" height="{{ h_done  }}" fill="var(--brand, #A5282C)" rx="2"/>
+      <text x="{{ x }}" y="115" text-anchor="middle" font-size="9" fill="var(--text-muted, #6b7280)">{{ w.week_start[5:] }}</text>
+      <text x="{{ x }}" y="{{ 100 - h_total - 4 }}" text-anchor="middle" font-size="9" fill="var(--text, #374151)">{{ w.total }}</text>
+    {% endfor %}
+    <text x="40" y="20" font-size="10" fill="var(--text-muted, #6b7280)">건</text>
+  </svg>
+  <div class="wk-trend-legend">
+    <span><i class="lg-soft"></i>{{ i.wk_total_cards|default('총 카드수') }}</span>
+    <span><i class="lg-brand"></i>{{ i.wk_done|default('완료') }}</span>
+  </div>
+</div>
+{% endif %}
+
+{% if dept_compare %}
+{% set dc_max = (dept_compare|map(attribute='total')|max) or 1 %}
+<div class="section-head"><h2>{{ i.wk_dept_compare|default('부서별 비교') }}</h2></div>
+<div class="wk-dept">
+  {% for d in dept_compare %}
+  <div class="wk-dept-row">
+    <div class="wk-dept-name"><b>{{ d.team_code }}</b> {{ d.team_name }}</div>
+    <div class="wk-dept-bar">
+      <div class="wk-dept-bar-total" style="width:{{ (d.total / dc_max * 100) | round(0) }}%"></div>
+      <div class="wk-dept-bar-done" style="width:{{ (d.done / dc_max * 100) | round(0) }}%"></div>
+    </div>
+    <div class="wk-dept-num">
+      <span>{{ d.total }}건</span>
+      <span class="st-done">{{ d.done }}완료</span>
+      {# 주간보고 2차 — 완료율 % 표시 #}
+      <span class="small">({% if d.total %}{{ ((d.done / d.total) * 100) | round(0, 'common') | int }}{% else %}0{% endif %}%)</span>
+      {% if d.delay %}<span class="st-delay">{{ d.delay }}지연</span>{% endif %}
+      <span class="small">{{ '%.0f'|format(d.hours) }}h</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if my_tasks %}
 <table class="hist-tbl">
   <thead><tr><th>{{ i.col_date|default('일자') }}</th><th>{{ i.col_title|default('제목') }}</th><th>{{ i.col_category|default('분류') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_status|default('상태') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
   <tbody>
+    {# 주간보고 2차 — 미진행(지연) 7일+ 강조 (date 비교 jinja) #}
     {% for t in my_tasks %}
-    <tr>
+      {% set is_stale = (t.status == '지연') %}
+      <tr{% if is_stale %} class="row-stale" style="background:rgba(220,38,38,0.06)"{% endif %}>
       <td>{{ t.work_date }}</td>
-      <td><b>{{ t.title }}</b>{% if t.notes %}<div class="small">{{ t.notes }}</div>{% endif %}</td>
+      <td><b>{{ t.title }}</b>{% if t.notes %}<div class="small">{{ t.notes }}</div>{% endif %}{% if is_stale %} <span class="tag" style="background:#dc2626;color:#fff;font-size:10px;padding:1px 6px;border-radius:3px">⚠ 7일+</span>{% endif %}</td>
       <td>{{ t.category or '' }}</td>
       <td>{{ t.project_name or '' }}</td>
       <td>{{ t.customer_name or '' }}</td>
@@ -56,7 +125,10 @@
   </tbody>
 </table>
 {% else %}
-<div class="empty">{{ i.wk_no_cards|default('이번 주 카드가 없습니다.') }}</div>
+<div class="empty">
+  {{ i.wk_no_cards|default('이번 주 등록된 카드가 없습니다. 아래 버튼으로 다시 집계해 보세요.') }}
+  <div style="margin-top:8px"><button type="button" class="btn-sm" onclick="weeklyRefresh()">🔄 재집계</button></div>
+</div>
 {% endif %}
 
 {% if team_data %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}권한 위임 — 회수 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+{# Top3 S3 2차 본문 (2026-04-25) — 시안 §6-1 빨간 + 2단계 확인 + Cascade 미리보기 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">회수 / 이력</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §6-1 — 빨간 + 2단계 확인 + Cascade 미리보기</div>
+</div>
+
+{# 활성 위임 카드 리스트 (회수 가능) #}
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:20px;margin-bottom:18px;">
+  <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--ink-700,#374151);">활성 위임 (ACTIVE)</div>
+
+  {% set sample_tokens = [
+    {"id": 1, "to": "박팀장", "perm": "자재 write", "expire": "2026-05-25", "cascade": 1},
+    {"id": 2, "to": "김사원", "perm": "자재 read",  "expire": "2026-05-23", "cascade": 0},
+  ] %}
+  {% for t in sample_tokens %}
+  <div style="border:1px solid var(--ink-200,#E5E7EB);border-radius:8px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div style="font-weight:700;font-size:13px;">{{ t.to }} — {{ t.perm }}</div>
+      <div style="font-size:11px;color:var(--ink-500);">만료 {{ t.expire }} · 하위 재위임 {{ t.cascade }}건</div>
+    </div>
+    <form method="post" action="/admin/permissions/revoke" onsubmit="return revokeConfirm(this, {{ t.cascade }})" style="display:inline;">
+      <input type="hidden" name="token_id" value="{{ t.id }}">
+      <input type="hidden" name="confirm_text" value="">
+      <button type="submit"
+              style="padding:8px 14px;background:var(--st-delay,#DC2626);color:#fff;border:0;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;">회수</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+{# Cascade 미리보기 안내 #}
+<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:14px 16px;font-size:12px;color:#991B1B;">
+  <b>⚠ 회수 시 Cascade 영향</b> — 이 토큰 회수 시 재위임받은 하위 토큰도 함께 REVOKED 처리됩니다. immutable 감사로그에 기록되며 되돌릴 수 없습니다.
+</div>
+
+<script>
+// 시안 §6-1 — 2단계 확인 ("회수합니다" 입력) + Cascade 영향 표시
+function revokeConfirm(form, cascadeN) {
+  const msg = cascadeN > 0
+    ? '이 토큰을 회수하면 하위 재위임 ' + cascadeN + '건도 함께 무효화됩니다.\n\n확인하려면 "회수합니다" 를 입력하세요:'
+    : '이 토큰을 회수합니다. immutable 로그에 기록되며 되돌릴 수 없습니다.\n\n확인하려면 "회수합니다" 를 입력하세요:';
+  const ans = window.prompt(msg);
+  if (ans !== '회수합니다') {
+    alert('취소되었습니다.');
+    return false;
+  }
+  form.confirm_text.value = ans;
+  return true;
+}
+</script>
+{% endblock %}

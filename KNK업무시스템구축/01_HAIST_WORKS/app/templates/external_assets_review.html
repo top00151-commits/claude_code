@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}외부자산 점검 — 대표 직접 판단 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin" style="font-size:13px;color:#6B7280;text-decoration:none;">← 관리자 홈</a>
+</div>
+
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #A5282C;">
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🔎 외부자산 점검 — 대표 직접 판단</h1>
+  <div style="font-size:13px;color:#6B7280;line-height:1.7;">
+    초기 구축(2026-04-15, commit 546fb23)부터 누적된 외부 패키지 3종에 대해<br>
+    대표가 직접 보고 <strong>제거 / 유지 / 부분 처리</strong> 중 결정합니다.
+    <span style="display:inline-block;margin-left:8px;padding:2px 8px;background:#FEE2E2;color:#991B1B;border-radius:999px;font-size:11px;font-weight:700;">12일 + 55사이클 누적 위반</span>
+  </div>
+</div>
+
+{% if saved %}
+  {% if saved == 'err' %}
+  <div style="background:#FEE2E2;border:1px solid #DC2626;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#991B1B;font-size:13px;font-weight:700;">
+    ⚠️ 입력 검증 실패. 자산명 / 결정 항목을 확인해 주세요.
+  </div>
+  {% else %}
+  <div style="background:#E8F5E9;border:1px solid #16A34A;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#166534;font-size:13px;font-weight:700;">
+    ✅ <strong>{{ saved }}</strong> 결정이 99_DISPATCH/외부자산_결정_2026-04-27.md 에 기록되었습니다. 빅터가 자동으로 후속 spike를 발주합니다.
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- 요약 카드 3개 (위험도 한눈에) -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
+  {% for a in assets %}
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px;text-align:center;border-top:3px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#F59E0B{% else %}#9CA3AF{% endif %};">
+    <div style="font-size:14px;font-weight:800;color:#1A1A1A;">{{ a.name }}</div>
+    <div style="font-size:10px;color:#6B7280;margin:3px 0 8px;">{{ a.usage|length }}개소 사용</div>
+    <div style="display:flex;justify-content:center;gap:10px;font-size:11px;">
+      <div>보안 {% for i in range(5) %}{% if i < a.risk_security %}<span style="color:#DC2626;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}</div>
+      <div>의존 {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#F59E0B;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 자산별 상세 카드 (3개) -->
+{% for a in assets %}
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px 24px;margin-bottom:16px;border-left:4px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#F59E0B{% else %}#4338CA{% endif %};">
+
+  <!-- 카드 헤더 -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0 0 4px;font-size:18px;font-weight:800;color:#1A1A1A;">📦 {{ a.name }}</h2>
+      <div style="font-size:12px;color:#6B7280;">{{ a.type }}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+      <div style="font-size:11px;color:#6B7280;">
+        보안 위험:
+        {% for i in range(5) %}{% if i < a.risk_security %}<span style="color:#DC2626;font-weight:700;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}
+        <span style="color:#9CA3AF;">({{ a.risk_security }}/5)</span>
+      </div>
+      <div style="font-size:11px;color:#6B7280;">
+        의존성 위험:
+        {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#F59E0B;font-weight:700;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}
+        <span style="color:#9CA3AF;">({{ a.risk_dependency }}/5)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 도입 시점 -->
+  <div style="background:#F9FAFB;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#374151;">
+    <strong>도입 시점:</strong> {{ a.introduced_at }} · <strong>누적:</strong> {{ a.duration }}
+  </div>
+
+  <!-- 사용 위치 표 -->
+  <div style="margin-bottom:12px;">
+    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;">📍 사용 위치 (00 감사 보고서 grep -n 인용)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #E5E7EB;border-radius:6px;overflow:hidden;">
+      <thead>
+        <tr style="background:#F3F4F6;">
+          <th style="text-align:left;padding:8px 10px;font-weight:700;color:#374151;border-bottom:1px solid #E5E7EB;width:34%;">파일</th>
+          <th style="text-align:left;padding:8px 10px;font-weight:700;color:#374151;border-bottom:1px solid #E5E7EB;width:14%;">라인</th>
+          <th style="text-align:left;padding:8px 10px;font-weight:700;color:#374151;border-bottom:1px solid #E5E7EB;">목적</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in a.usage %}
+        <tr>
+          <td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;font-family:Consolas,monospace;color:#1A1A1A;">{{ u.file }}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;font-family:Consolas,monospace;color:#6B7280;">{{ u.lines }}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#374151;">{{ u.purpose }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 영향 요약 -->
+  <div style="background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1A1A1A;line-height:1.7;">
+    <strong style="color:#92400E;">📝 영향 요약:</strong> {{ a.impact_summary }}
+  </div>
+
+  <!-- 대체 옵션 -->
+  <div style="margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;">🔁 대체 옵션</div>
+    <ul style="margin:0;padding-left:22px;font-size:13px;color:#374151;line-height:1.8;">
+      {% for alt in a.alternatives %}
+      <li>{{ alt }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- 결정 폼 -->
+  <form method="POST" action="/admin/external-assets/decision" style="background:#F9FAFB;border-radius:8px;padding:14px 16px;border:1px solid #E5E7EB;">
+    <input type="hidden" name="asset_name" value="{{ a.name }}">
+    <div style="font-size:13px;font-weight:700;color:#1A1A1A;margin-bottom:10px;">⚖️ 대표 결정</div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="decision" value="remove" required>
+        <span style="color:#991B1B;font-weight:700;">제거 (Remove)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="decision" value="keep">
+        <span style="color:#166534;font-weight:700;">유지 (Keep)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="decision" value="partial">
+        <span style="color:#92400E;font-weight:700;">부분 처리 (Partial)</span>
+      </label>
+    </div>
+
+    <textarea name="note" rows="3" placeholder="메모 (예: 운영 필수 / P11 영향 확인 후 결정 / 사이클 N에 처리 등)" style="width:100%;padding:10px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+      <button type="submit" class="btn-primary" style="padding:8px 22px;font-size:13px;font-weight:700;background:#A5282C;color:#fff;border:none;border-radius:8px;cursor:pointer;">
+        결정 제출
+      </button>
+    </div>
+  </form>
+</div>
+{% endfor %}
+
+<!-- 하단 안내 -->
+<div style="background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:18px 22px;margin-bottom:14px;font-size:13px;color:#1A1A1A;line-height:1.8;">
+  <strong style="color:#312E81;">💬 결정 처리 흐름</strong><br>
+  결정 제출 후 <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:12px;">99_DISPATCH/외부자산_결정_2026-04-27.md</code>에 자동 기록되며,
+  빅터(09 팀장)가 이를 모니터링하여 후속 spike(코드 수정 / requirements.txt 정리 / 사이클 56 외부자산 청소)를 자동 발주합니다.
+  대표가 직접 코드를 만지지 않으셔도 됩니다.
+</div>
+
+<div style="font-size:11px;color:#9CA3AF;margin-top:14px;">
+  근거: 00_HAIST_WORKS_감사팀/_TO_09팀장_2026-04-27_긴급감사_openpyxl외부자산.md ·
+  spike 발주: 2026-04-27 12:30 (대표 직접 지시) · 본 페이지는 외부 자산 0건 (인라인 CSS만 / 표준 HTML / 기존 클래스 재사용)
+</div>
+
+{% endblock %}

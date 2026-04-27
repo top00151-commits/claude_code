@@ -1,0 +1,1380 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #11 — 프리미엄 폴리시 (로고·세련미 복원)</title>
+<style>
+/* ============================================================
+   HAIST WORKS v5 · 제안 #11 (프리미엄 폴리시)
+   시안 #10 계승 + 비주얼 품질 전면 업그레이드
+   - 실제 logo.png 참조 (상대경로)
+   - 헤더 그라디언트 + noise + soft glow + sticky shrink
+   - 이모지 → Lucide SVG 아이콘 (24 stroke)
+   - 활성 메뉴 좌측 인디케이터 + glow
+   - KPI 데코 블러 + gradient number
+   - 섹션 카드 soft shadow + hover accent
+   ============================================================ */
+
+:root{
+  /* 브랜드 코어 */
+  --r:       #A5282C;
+  --rd:      #8B1E22;
+  --rr:      #5B1014;
+  --r-soft:  #FFE4E6;
+  --r-alt:   #DC2626;
+
+  /* 뉴트럴 (slate) */
+  --ink:     #0F172A;
+  --ink-2:   #1E293B;
+  --t:       #1E293B;
+  --t-2:     #475569;
+  --t-3:     #64748B;
+  --t-4:     #94A3B8;
+  --line:    #E2E8F0;
+  --line-2:  #F1F5F9;
+  --bg:      #F8FAFC;
+  --bg-2:    #F1F5F9;
+  --surf:    #FFFFFF;
+  --surf-2:  #FAFBFC;
+
+  /* 상태 */
+  --ok:      #10B981;
+  --warn:    #F59E0B;
+  --err:     #EF4444;
+  --info:    #3B82F6;
+
+  /* 유동 타이포 */
+  --fs-xs:   clamp(10px, 0.55vw + 7px, 13px);
+  --fs-sm:   clamp(12px, 0.60vw + 9px, 15px);
+  --fs-md:   clamp(13px, 0.70vw + 10px, 16px);
+  --fs-lg:   clamp(15px, 0.85vw + 11px, 19px);
+  --fs-xl:   clamp(18px, 1.25vw + 13px, 26px);
+  --fs-2xl:  clamp(24px, 2.00vw + 16px, 40px);
+  --fs-3xl:  clamp(30px, 3.00vw + 18px, 56px);
+
+  /* 그라디언트 */
+  --grad-brand:       linear-gradient(135deg, #A5282C 0%, #8B1E22 70%, #5B1014 100%);
+  --grad-brand-deep:  linear-gradient(145deg, #1A0508 0%, #3B0B10 35%, #8B1E22 75%, #A5282C 100%);
+  --grad-brand-soft:  linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
+  --grad-num:         linear-gradient(135deg, #0F172A 0%, #475569 100%);
+  --grad-num-accent:  linear-gradient(135deg, #A5282C 0%, #DC2626 55%, #EF4444 100%);
+  --grad-surface:     linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%);
+
+  /* 섀도우 */
+  --sh-xs:   0 1px 2px rgba(15,23,42,.05);
+  --sh-sm:   0 2px 8px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+  --sh-md:   0 8px 24px rgba(15,23,42,.08), 0 2px 6px rgba(15,23,42,.04);
+  --sh-lg:   0 20px 40px rgba(15,23,42,.10), 0 4px 12px rgba(15,23,42,.06);
+  --sh-glow: 0 12px 36px rgba(165,40,44,.28), 0 4px 12px rgba(165,40,44,.16);
+  --sh-ring: 0 0 0 3px rgba(165,40,44,.12);
+
+  /* 모션 */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-med:  250ms;
+  --dur-slow: 400ms;
+
+  /* 레이아웃 */
+  --topbar-h: clamp(84px, 5vw + 52px, 108px);
+  --sidebar-w: 264px;
+  --dock-w: 360px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;
+  font-size:var(--fs-md);color:var(--t);background:var(--bg);line-height:1.55;overflow-x:hidden;
+  font-feature-settings: 'ss01', 'cv01', 'cv11';
+}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+input,select,textarea{font-family:inherit}
+
+/* ========================= 배너 ========================= */
+.demo-banner{
+  background:#0F172A;color:#fff;padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  font-size:var(--fs-sm);position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700;margin-right:10px}
+.demo-banner .tag{background:linear-gradient(135deg,var(--r),var(--rd));color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.5px}
+.demo-banner .hint{color:#94A3B8;font-size:var(--fs-xs)}
+.demo-banner kbd{background:#1E293B;padding:2px 8px;border-radius:5px;font-size:11px;border:1px solid #334155;font-family:ui-monospace,Menlo,Consolas,monospace}
+
+/* ========================= 상단 헤더 ========================= */
+.topbar{
+  position:sticky;top:41px;z-index:150;
+  height:var(--topbar-h);
+  background:var(--grad-brand-deep);
+  color:#fff;
+  display:flex;align-items:center;gap:16px;
+  padding:0 24px;
+  box-shadow:0 8px 32px rgba(91,16,20,.22), 0 1px 0 rgba(255,255,255,.06) inset;
+  /* overflow:hidden 제거 — 드롭다운이 헤더 밖으로 확장되어야 함.
+     배경 장식은 별도 .topbar-bg 레이어에서 클리핑 처리 */
+}
+/* 배경 장식 레이어: 자체적으로 overflow 처리 */
+.topbar-bg{
+  position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit;z-index:0;
+}
+.topbar-bg::before{
+  content:"";position:absolute;inset:0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,.08), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(255,212,122,.06), transparent 40%),
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.03) 1px, transparent 0);
+  background-size: auto, auto, 24px 24px;
+}
+/* 하단 glow 라인 (배경 레이어 안으로 이동) */
+.topbar-bg::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+  background:linear-gradient(90deg, transparent 0%, rgba(255,180,60,.55) 30%, rgba(255,228,120,.85) 50%, rgba(255,180,60,.55) 70%, transparent 100%);
+  filter:blur(1px);opacity:.55;
+}
+
+.tb-left{display:flex;align-items:center;gap:14px;flex-shrink:0;position:relative;z-index:1}
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 28px;position:relative;z-index:1}
+.tb-right{display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:1}
+
+/* 햄버거 (모바일 전용 — 데스크톱에선 사이드바 항상 표시이므로 숨김) */
+.tb-menu-btn{
+  width:40px;height:40px;border-radius:11px;
+  background:rgba(255,255,255,.08);color:#fff;
+  display:none;   /* 기본 숨김 */
+  align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,.1);
+  transition:all var(--dur-fast) var(--ease-out);
+  backdrop-filter:blur(8px);
+}
+.tb-menu-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.22);transform:translateY(-1px)}
+.tb-menu-btn svg{width:20px;height:20px}
+@media (max-width:1024px){
+  .tb-menu-btn{display:flex}   /* 모바일/태블릿에서만 노출 (서랍 토글) */
+}
+
+/* 브랜드 블록 (실제 로고 사용 — 크게, 가로형 로고 자연스럽게) */
+.brand{
+  display:flex;align-items:center;gap:18px;padding:6px 16px 6px 6px;border-radius:16px;
+  transition:background var(--dur-fast) var(--ease-out);
+}
+.brand:hover{background:rgba(255,255,255,.06)}
+.brand-logo-wrap{
+  height:clamp(64px, 4.2vw + 42px, 88px);      /* 48~60 → 64~88 */
+  min-width:clamp(64px, 4.2vw + 42px, 88px);
+  padding:10px 16px;border-radius:14px;flex-shrink:0;
+  background:rgba(255,255,255,.98);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 22px rgba(0,0,0,.32), 0 0 0 1px rgba(255,255,255,.35) inset;
+}
+.brand-logo-wrap img{
+  height:clamp(52px, 3.6vw + 32px, 76px);      /* 36~48 → 52~76 */
+  width:auto;max-width:280px;object-fit:contain;display:block;
+}
+/* 이미지 로드 실패 시 SVG 폴백 표시 */
+.brand-logo-wrap .fallback{
+  font-size:clamp(30px, 2.5vw + 20px, 44px);
+  font-weight:900;color:var(--r);letter-spacing:-1px;line-height:1;padding:0 6px;
+}
+
+.brand-text{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+.brand-name{
+  font-size:var(--fs-xl);font-weight:900;color:#fff;letter-spacing:.6px;
+  text-shadow:0 2px 8px rgba(0,0,0,.35);
+  display:flex;align-items:baseline;gap:10px;
+}
+.brand-name .dot{width:6px;height:6px;border-radius:50%;background:#FFD67A;box-shadow:0 0 14px rgba(255,214,122,.85);display:inline-block}
+.brand-sub{
+  font-size:var(--fs-sm);color:rgba(255,255,255,.8);
+  font-weight:500;letter-spacing:.3px;margin-top:5px;
+}
+
+.tb-divider{width:1px;height:34px;background:linear-gradient(180deg, transparent, rgba(255,255,255,.2), transparent);margin:0 4px}
+
+/* 워크스페이스 스위처 */
+.ws-wrap{position:relative;flex-shrink:0}
+.ws-switcher{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px 9px 12px;border-radius:12px;
+  background:rgba(255,255,255,.08);
+  color:#fff;font-size:var(--fs-sm);font-weight:600;
+  border:1px solid rgba(255,255,255,.14);
+  transition:all var(--dur-fast) var(--ease-out);
+  backdrop-filter:blur(8px);
+  cursor:pointer;
+}
+.ws-switcher:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);transform:translateY(-1px)}
+.ws-wrap.open .ws-switcher{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.36)}
+.ws-switcher .ws-ico{width:20px;height:20px;flex-shrink:0;color:#FFD67A}
+.ws-switcher .ws-name{white-space:nowrap}
+.ws-switcher .ws-caret{font-size:10px;opacity:.8;transition:transform var(--dur-fast)}
+.ws-wrap.open .ws-caret{transform:rotate(180deg)}
+
+.ws-menu{
+  position:absolute;top:calc(100% + 10px);left:0;min-width:300px;
+  background:#fff;border-radius:16px;
+  box-shadow:0 24px 60px rgba(15,23,42,.22), 0 4px 12px rgba(15,23,42,.08);
+  padding:8px;display:none;z-index:250;
+  border:1px solid var(--line);
+  animation:ws-pop var(--dur-med) var(--ease-spring);
+}
+@keyframes ws-pop{
+  from{opacity:0;transform:translateY(-6px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.ws-menu.open{display:block}
+.ws-opt{
+  display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;
+  color:var(--t);font-weight:500;
+  transition:background var(--dur-fast) var(--ease-out);
+}
+.ws-opt + .ws-opt{margin-top:2px}
+.ws-opt:hover{background:var(--bg-2)}
+.ws-opt.active{background:var(--r-soft)}
+.ws-opt.active .opt-name{color:var(--r)}
+.ws-opt .opt-ico{
+  width:40px;height:40px;border-radius:10px;
+  background:var(--bg-2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--t-3);flex-shrink:0;
+  transition:all var(--dur-fast);
+}
+.ws-opt.active .opt-ico{background:#fff;color:var(--r);box-shadow:var(--sh-sm)}
+.ws-opt .opt-ico svg{width:20px;height:20px}
+.ws-opt .opt-meta{flex:1;min-width:0}
+.ws-opt .opt-name{font-size:var(--fs-sm);font-weight:700;color:var(--t)}
+.ws-opt .opt-desc{font-size:var(--fs-xs);color:var(--t-3);margin-top:2px}
+.ws-opt .opt-check,.ws-opt .opt-ext{flex-shrink:0;color:var(--r);font-weight:800}
+.ws-opt .opt-ext{color:var(--t-4);font-size:var(--fs-xs)}
+
+/* 글로벌 검색 */
+.g-search{
+  display:flex;align-items:center;gap:12px;
+  width:min(560px, 100%);
+  padding:11px 16px;border-radius:14px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;
+  transition:all var(--dur-fast) var(--ease-out);
+  cursor:text;
+  backdrop-filter:blur(8px);
+}
+.g-search:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.22)}
+.g-search:focus-within{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);box-shadow:0 0 0 4px rgba(255,255,255,.08)}
+.g-search svg{width:18px;height:18px;opacity:.85;flex-shrink:0}
+.g-search input{
+  flex:1;background:transparent;border:0;outline:0;color:#fff;
+  font-size:var(--fs-sm);min-width:0;font-weight:500;
+}
+.g-search input::placeholder{color:rgba(255,255,255,.6)}
+.g-search .shortcut{
+  background:rgba(255,255,255,.12);padding:3px 9px;border-radius:7px;
+  font-size:11px;font-weight:700;color:rgba(255,255,255,.95);
+  font-family:ui-monospace,Menlo,Consolas,monospace;flex-shrink:0;
+  border:1px solid rgba(255,255,255,.14);
+}
+
+/* 우측 아이콘 버튼 */
+.tb-icon-btn{
+  position:relative;width:42px;height:42px;border-radius:12px;
+  background:rgba(255,255,255,.08);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,.12);
+  transition:all var(--dur-fast) var(--ease-out);
+  backdrop-filter:blur(8px);
+}
+.tb-icon-btn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.24);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px}
+.tb-icon-btn .dot{
+  position:absolute;top:9px;right:10px;width:9px;height:9px;border-radius:50%;
+  background:#FFD67A;box-shadow:0 0 0 2px #8B1E22, 0 0 10px rgba(255,214,122,.8);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.85}}
+
+.tb-icon-btn.victor{
+  background:linear-gradient(135deg,#F59E0B 0%,#DC2626 100%);
+  border-color:rgba(255,255,255,.2);
+  box-shadow:0 4px 14px rgba(220,38,38,.35);
+}
+.tb-icon-btn.victor:hover{filter:brightness(1.08);box-shadow:0 6px 22px rgba(220,38,38,.5)}
+
+/* 언어 셀렉터 */
+.lang-sel{
+  background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.14);
+  border-radius:11px;padding:9px 12px;font-size:var(--fs-xs);font-weight:600;
+  cursor:pointer;outline:none;
+  backdrop-filter:blur(8px);
+}
+.lang-sel option{background:#1E293B;color:#fff}
+
+/* 사용자 칩 */
+.user-chip{
+  display:flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;
+  border-radius:999px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.18);
+  transition:all var(--dur-fast) var(--ease-out);
+  backdrop-filter:blur(8px);
+}
+.user-chip:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.32);transform:translateY(-1px)}
+.user-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(135deg,#fff 0%,#FFE4E6 100%);
+  color:var(--r);font-weight:900;font-size:var(--fs-sm);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 8px rgba(0,0,0,.2), 0 0 0 2px rgba(255,255,255,.2);
+}
+.user-info{display:flex;flex-direction:column;line-height:1.15}
+.user-name{font-size:var(--fs-sm);font-weight:700;color:#fff;letter-spacing:.2px}
+.user-role{font-size:11px;color:rgba(255,255,255,.72);font-weight:500}
+.logout-btn{
+  width:36px;height:36px;border-radius:10px;
+  background:rgba(255,255,255,.1);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,.14);
+  transition:all var(--dur-fast) var(--ease-out);
+}
+.logout-btn:hover{background:var(--r);border-color:var(--r);transform:translateY(-1px)}
+.logout-btn svg{width:16px;height:16px}
+
+/* ========================= 레이아웃 ========================= */
+.layout{display:flex;height:calc(100vh - 41px - var(--topbar-h));position:relative}
+
+/* 사이드바 */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--surf);border-right:1px solid var(--line);
+  padding:18px 14px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:10px;
+  --sb-font-size: var(--fs-md);
+  --sb-head-size: 11px;
+}
+@media (max-width:1280px){ .sidebar{ width:240px } }
+@media (max-width:1100px){ .sidebar{ width:220px } }
+
+.sb-section{padding:6px 0}
+.sb-section + .sb-section{border-top:1px solid var(--line-2);padding-top:14px;margin-top:4px}
+.sb-head{
+  font-size:var(--sb-head-size);font-weight:800;color:var(--t-4);
+  text-transform:uppercase;letter-spacing:.1em;
+  padding:0 14px 10px;display:flex;align-items:center;gap:8px;
+}
+.sb-head-tag{
+  margin-left:auto;background:linear-gradient(135deg,#EEF2FF,#E0E7FF);
+  color:#4338CA;font-size:9px;font-weight:800;
+  padding:3px 8px;border-radius:999px;letter-spacing:.3px;text-transform:none;
+}
+.sb-item{
+  position:relative;
+  display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:2px;
+  font-size:var(--sb-font-size);color:var(--t-2);border-radius:11px;
+  transition:all var(--dur-fast) var(--ease-out);
+  white-space:nowrap;overflow:hidden;font-weight:500;
+}
+.sb-item:hover{background:var(--bg-2);color:var(--r)}
+.sb-item:hover .sb-ico{color:var(--r)}
+.sb-item.active{
+  background:var(--grad-brand);color:#fff;font-weight:700;
+  box-shadow:var(--sh-glow);
+  transform:translateX(2px);
+}
+.sb-item.active::before{
+  content:"";position:absolute;left:-14px;top:50%;transform:translateY(-50%);
+  width:4px;height:24px;border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,#FFD67A,#A5282C);
+  box-shadow:0 0 10px rgba(255,214,122,.7);
+}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{
+  width:20px;height:20px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;color:var(--t-3);
+  transition:color var(--dur-fast);
+}
+.sb-ico svg{width:18px;height:18px;stroke-width:2}
+.sb-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+.sb-badge{
+  background:var(--r-soft);color:var(--r);
+  padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;
+  line-height:1.5;flex-shrink:0;
+}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.25);color:#fff}
+.sb-badge-warn{background:#FEF3C7;color:#B45309}
+.sb-badge-err{background:#FEE2E2;color:#B91C1C}
+.sb-badge-info{background:#DBEAFE;color:#1E40AF}
+
+.sb-ext{font-size:11px;color:var(--t-4);font-weight:700;flex-shrink:0;margin-left:auto}
+
+/* 팀/프로젝트 트리 */
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line-2);padding-top:14px;margin-top:4px}
+.sb-tree{overflow-y:auto;flex:1;padding:0 4px}
+.sb-team-head{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  font-size:var(--sb-font-size);font-weight:600;color:var(--t-2);
+  border-radius:8px;cursor:pointer;
+  transition:background var(--dur-fast);
+}
+.sb-team-head:hover{background:var(--bg-2)}
+.sb-team-head .chev{width:14px;color:var(--t-4);transition:transform var(--dur-fast)}
+.sb-team-head.open .chev{transform:rotate(90deg)}
+.sb-sub{
+  display:block;padding:5px 12px 5px 28px;font-size:var(--fs-sm);color:var(--t-3);
+  border-radius:6px;
+  border-left:2px solid transparent;margin-left:18px;
+}
+.sb-sub:hover{background:var(--bg-2);color:var(--r);border-left-color:var(--r)}
+
+/* ========================= 빅터 도크 (우) ========================= */
+.dock{
+  width:var(--dock-w);flex-shrink:0;
+  background:var(--surf);
+  border-left:1px solid var(--line);
+  display:flex;flex-direction:column;
+  position:relative;overflow:hidden;
+  transition:width var(--dur-slow) var(--ease-out), opacity var(--dur-med);
+}
+@media (max-width:1280px){ .dock{ --dock-w:320px } }
+@media (max-width:1024px){ .dock{ display:none } }
+body.dock-collapsed .dock{ width:0; opacity:0; border-left:0; }
+
+/* 도크 헤더: 그라디언트 + 글로우 */
+.dock-head{
+  position:relative;
+  background:var(--grad-brand-deep);color:#fff;
+  padding:16px 18px;display:flex;align-items:center;gap:12px;
+  overflow:hidden;
+}
+.dock-head::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,214,122,.15), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255,255,255,.08), transparent 50%);
+}
+.dock-head > *{position:relative;z-index:1}
+.dock-avatar{
+  width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#fff 0%,#FFE4E6 100%);
+  color:var(--r);display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.25), 0 0 0 2px rgba(255,255,255,.18);
+  position:relative;
+}
+.dock-avatar svg{width:24px;height:24px}
+.dock-avatar::after{
+  content:"";position:absolute;right:0;bottom:0;
+  width:12px;height:12px;border-radius:50%;
+  background:#10B981;border:2px solid var(--rd);
+  box-shadow:0 0 8px rgba(16,185,129,.7);
+  animation:pulse 2s infinite;
+}
+.dock-head-text{flex:1;min-width:0;line-height:1.2}
+.dock-title{font-size:var(--fs-md);font-weight:800;letter-spacing:.2px}
+.dock-sub{font-size:11px;color:rgba(255,255,255,.75);margin-top:3px;font-weight:500}
+.dock-head-actions{display:flex;gap:6px;flex-shrink:0}
+.dock-btn{
+  width:32px;height:32px;border-radius:9px;
+  background:rgba(255,255,255,.1);color:#fff;
+  border:1px solid rgba(255,255,255,.14);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;
+  transition:all var(--dur-fast);
+}
+.dock-btn:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+.dock-btn svg{width:14px;height:14px}
+
+/* 맥락 칩 영역 */
+.dock-ctx{
+  padding:14px 18px 10px;border-bottom:1px solid var(--line-2);
+  background:linear-gradient(180deg, var(--r-soft) 0%, transparent 100%);
+}
+.dock-ctx-label{
+  font-size:10px;font-weight:800;color:var(--t-3);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+}
+.dock-ctx-chips{display:flex;gap:6px;flex-wrap:wrap}
+.dock-chip{
+  padding:6px 12px;border-radius:999px;
+  background:#fff;color:var(--r);
+  font-size:var(--fs-xs);font-weight:700;
+  border:1px solid rgba(165,40,44,.18);
+  cursor:pointer;
+  transition:all var(--dur-fast);
+}
+.dock-chip:hover{background:var(--r);color:#fff;border-color:var(--r);transform:translateY(-1px);box-shadow:0 3px 10px rgba(165,40,44,.25)}
+
+/* 대화 바디 */
+.dock-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.dock-msg{
+  max-width:92%;
+  padding:10px 13px;border-radius:12px;
+  font-size:var(--fs-sm);line-height:1.55;
+  animation:msg-in var(--dur-med) var(--ease-out);
+}
+@keyframes msg-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.dock-msg.user{
+  align-self:flex-end;
+  background:var(--grad-brand);color:#fff;
+  border-bottom-right-radius:4px;
+  box-shadow:0 4px 14px rgba(165,40,44,.2);
+}
+.dock-msg.ai{
+  align-self:flex-start;
+  background:#fff;color:var(--t);
+  border:1px solid var(--line);border-bottom-left-radius:4px;
+  box-shadow:var(--sh-xs);
+}
+.dock-msg b{color:var(--r)}
+.dock-msg.ai b{color:var(--r)}
+.dock-msg ul{margin:6px 0 0;padding-left:4px;list-style:none}
+.dock-msg li{padding:4px 0 4px 18px;position:relative;color:var(--t-2);font-size:13px}
+.dock-msg li::before{content:"•";position:absolute;left:4px;color:var(--r);font-weight:800}
+.dock-msg li.warn::before{color:var(--warn)}
+.dock-msg li.err::before{color:var(--err)}
+
+/* 액션 버튼 (답변 하단) */
+.dock-actions{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;
+  padding-top:10px;border-top:1px dashed var(--line);
+}
+.dock-action{
+  padding:6px 11px;border-radius:8px;
+  font-size:11px;font-weight:700;
+  display:inline-flex;align-items:center;gap:4px;
+  cursor:pointer;transition:all var(--dur-fast);
+}
+.dock-action.primary{background:var(--r);color:#fff}
+.dock-action.primary:hover{background:var(--rd);transform:translateY(-1px);box-shadow:0 3px 10px rgba(165,40,44,.3)}
+.dock-action.do{background:#D1FAE5;color:#065F46;border:1px solid #6EE7B7}
+.dock-action.do:hover{background:var(--ok);color:#fff;transform:translateY(-1px)}
+.dock-action.secondary{background:var(--bg-2);color:var(--t-2);border:1px solid var(--line)}
+.dock-action.secondary:hover{background:var(--line-2);color:var(--t)}
+
+/* 도크 입력 영역 */
+.dock-foot{
+  border-top:1px solid var(--line);
+  padding:12px;background:var(--surf-2);
+}
+.dock-quick{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+.dock-quick button{
+  flex-shrink:0;padding:5px 11px;border-radius:999px;
+  background:#fff;color:var(--t-2);border:1px solid var(--line);
+  font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:all var(--dur-fast);
+}
+.dock-quick button:hover{border-color:var(--r);color:var(--r);transform:translateY(-1px)}
+.dock-input{
+  display:flex;align-items:flex-end;gap:8px;
+  background:#fff;border:1.5px solid var(--line);border-radius:12px;
+  padding:8px 10px;transition:border-color var(--dur-fast),box-shadow var(--dur-fast);
+}
+.dock-input:focus-within{border-color:var(--r);box-shadow:var(--sh-ring)}
+.dock-input textarea{
+  flex:1;border:0;outline:0;resize:none;
+  font-family:inherit;font-size:var(--fs-sm);
+  color:var(--t);line-height:1.5;
+  min-height:22px;max-height:100px;padding:4px 2px;
+  background:transparent;
+}
+.dock-send{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  background:var(--grad-brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all var(--dur-fast);
+  box-shadow:0 2px 8px rgba(165,40,44,.25);
+}
+.dock-send:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(165,40,44,.4)}
+.dock-send svg{width:16px;height:16px}
+.dock-hint{
+  font-size:10px;color:var(--t-4);margin-top:6px;text-align:center;letter-spacing:.2px;
+}
+.dock-hint kbd{background:var(--bg-2);padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;border:1px solid var(--line);color:var(--t-3)}
+
+/* ========================= 메인 ========================= */
+.main{flex:1;overflow-y:auto;background:
+  radial-gradient(circle at 0% 0%, rgba(165,40,44,.025) 0%, transparent 40%),
+  var(--bg);
+  min-width:0;
+}
+
+/* 페이지 헤더 */
+.page-header{
+  background:var(--surf);
+  border-bottom:1px solid var(--line);
+  padding:22px 32px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:20px;
+  position:sticky;top:0;z-index:40;
+  backdrop-filter:blur(8px);
+}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{
+  display:flex;gap:8px;align-items:center;margin-bottom:6px;
+  font-size:11px;color:var(--t-4);font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;
+}
+.breadcrumb a{color:var(--t-4);transition:color var(--dur-fast)}
+.breadcrumb a:hover{color:var(--r)}
+.breadcrumb .sep{color:var(--line)}
+.breadcrumb .current{color:var(--t-2)}
+.page-title{
+  font-size:var(--fs-xl);font-weight:800;color:var(--t);
+  line-height:1.15;letter-spacing:-.3px;
+  display:flex;align-items:center;gap:12px;
+}
+.page-title .accent{
+  display:inline-block;width:5px;height:clamp(22px,1.8vw+14px,30px);border-radius:3px;
+  background:var(--grad-brand);box-shadow:0 0 12px rgba(165,40,44,.4);
+}
+.page-sub{font-size:var(--fs-sm);color:var(--t-3);margin-top:5px;max-width:640px;font-weight:500}
+.ph-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:11px;font-size:var(--fs-sm);font-weight:600;
+  border:1px solid transparent;
+  transition:all var(--dur-fast) var(--ease-out);
+  white-space:nowrap;
+}
+.btn svg{width:16px;height:16px;stroke-width:2.2}
+.btn-primary{
+  background:var(--grad-brand);color:#fff;
+  box-shadow:0 4px 14px rgba(165,40,44,.28), 0 1px 0 rgba(255,255,255,.2) inset;
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:var(--sh-glow)}
+.btn-ghost{background:var(--surf);color:var(--t-2);border-color:var(--line);box-shadow:var(--sh-xs)}
+.btn-ghost:hover{border-color:var(--r);color:var(--r);transform:translateY(-1px);box-shadow:var(--sh-sm)}
+
+/* 페이지 바디 */
+.page-body{padding:24px 32px 80px}
+
+/* KPI */
+.kpi-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;
+  margin-bottom:28px;
+}
+.kpi{
+  position:relative;overflow:hidden;
+  background:var(--grad-surface);
+  border:1px solid var(--line);border-radius:18px;
+  padding:22px 22px 20px;
+  transition:all var(--dur-med) var(--ease-out);
+  box-shadow:var(--sh-xs);
+}
+.kpi::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--grad-brand);border-radius:18px 18px 0 0;
+  opacity:.9;
+}
+.kpi::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;
+  background:radial-gradient(circle, rgba(165,40,44,.08) 0%, transparent 60%);
+  transition:all var(--dur-slow) var(--ease-out);
+  pointer-events:none;
+}
+.kpi:hover{transform:translateY(-5px);box-shadow:var(--sh-md);border-color:rgba(165,40,44,.2)}
+.kpi:hover::after{right:-20px;top:-20px;transform:scale(1.1)}
+.kpi-head{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
+  position:relative;z-index:1;
+}
+.kpi-lab{font-size:var(--fs-sm);color:var(--t-3);font-weight:700;letter-spacing:.2px}
+.kpi-icon{
+  width:36px;height:36px;border-radius:10px;
+  background:var(--r-soft);color:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.kpi-icon svg{width:18px;height:18px;stroke-width:2.2}
+.kpi-num{
+  font-size:var(--fs-2xl);font-weight:800;line-height:1.05;letter-spacing:-1px;
+  background:var(--grad-num);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  font-variant-numeric:tabular-nums;
+  position:relative;z-index:1;
+}
+.kpi-num.accent{background:var(--grad-num-accent);-webkit-background-clip:text;background-clip:text;color:transparent}
+.kpi-meta{
+  margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  position:relative;z-index:1;
+}
+.kpi-sub{font-size:var(--fs-xs);color:var(--t-4);font-weight:500}
+.kpi-trend{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:3px 9px;border-radius:999px;
+  font-size:11px;font-weight:800;letter-spacing:.2px;
+  background:rgba(16,185,129,.1);color:var(--ok);
+}
+.kpi-trend.down{background:rgba(239,68,68,.1);color:var(--err)}
+.kpi-trend.warn{background:rgba(245,158,11,.1);color:var(--warn)}
+.kpi-trend svg{width:12px;height:12px;stroke-width:3}
+
+/* 섹션 카드 */
+.section{
+  background:var(--surf);
+  border:1px solid var(--line);border-radius:16px;
+  padding:20px 22px;margin-bottom:18px;
+  box-shadow:var(--sh-xs);
+  transition:all var(--dur-med) var(--ease-out);
+}
+.section:hover{box-shadow:var(--sh-sm)}
+.section-head{
+  display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;
+  border-bottom:1px solid var(--line-2);
+}
+.section-head h2{
+  font-size:var(--fs-lg);color:var(--t);font-weight:700;letter-spacing:-.1px;
+  display:flex;align-items:center;gap:10px;
+}
+.section-head h2::before{
+  content:"";display:inline-block;width:4px;height:18px;border-radius:2px;
+  background:var(--grad-brand);
+}
+.section-head .count{
+  background:var(--bg-2);color:var(--t-3);padding:3px 10px;border-radius:999px;
+  font-size:var(--fs-xs);font-weight:700;
+}
+.section-head .more{
+  margin-left:auto;font-size:var(--fs-sm);color:var(--r);font-weight:700;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:6px 10px;border-radius:8px;transition:background var(--dur-fast);
+}
+.section-head .more:hover{background:var(--r-soft)}
+.section-head .more svg{width:14px;height:14px}
+
+/* 카드 리스트 */
+.card-list{display:flex;flex-direction:column;gap:10px}
+.card{
+  display:flex;align-items:center;gap:14px;
+  background:var(--surf-2);
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  transition:all var(--dur-fast) var(--ease-out);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--grad-brand);opacity:0;transition:opacity var(--dur-fast);
+}
+.card:hover{background:var(--surf);border-color:rgba(165,40,44,.2);transform:translateX(3px);box-shadow:var(--sh-sm)}
+.card:hover::before{opacity:1}
+.card-ico{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  background:var(--r-soft);color:var(--r);
+  display:flex;align-items:center;justify-content:center;
+}
+.card-ico.urgent{background:#FEE2E2;color:var(--err)}
+.card-ico.ok{background:#D1FAE5;color:var(--ok)}
+.card-ico.warn{background:#FEF3C7;color:var(--warn)}
+.card-ico svg{width:18px;height:18px;stroke-width:2.2}
+.card-body{flex:1;min-width:0}
+.card-title{font-size:var(--fs-md);font-weight:700;color:var(--t);display:flex;align-items:center;gap:8px}
+.card-meta{font-size:var(--fs-xs);color:var(--t-3);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap}
+.card-meta span{display:inline-flex;align-items:center;gap:4px}
+.card-arrow{color:var(--t-4);flex-shrink:0;transition:all var(--dur-fast)}
+.card:hover .card-arrow{color:var(--r);transform:translateX(3px)}
+
+.tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;background:var(--r-soft);color:var(--r);letter-spacing:.3px}
+.tag.urgent{background:var(--err);color:#fff;box-shadow:0 2px 8px rgba(239,68,68,.35)}
+
+/* 테이블 */
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);background:var(--surf)}
+thead{background:var(--bg-2)}
+th{
+  padding:12px 14px;text-align:left;font-weight:800;
+  color:var(--t-3);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  border-bottom:1px solid var(--line);
+}
+td{padding:13px 14px;border-bottom:1px solid var(--line-2);color:var(--t-2);font-weight:500}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background var(--dur-fast)}
+tbody tr:hover{background:var(--bg-2)}
+
+.t-team{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--t)}
+.t-avatar{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:var(--grad-brand-soft);color:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:11px;
+}
+.progress{display:flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums}
+.progress-bar{flex:1;height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:80px}
+.progress-fill{height:100%;border-radius:3px;background:var(--grad-brand);transition:width var(--dur-slow) var(--ease-out)}
+.progress-fill.ok{background:linear-gradient(90deg, #10B981, #059669)}
+.progress-fill.warn{background:linear-gradient(90deg, #F59E0B, #D97706)}
+.progress-val{font-weight:800;color:var(--t);min-width:40px;text-align:right}
+.delay-pill{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:999px;
+  font-size:11px;font-weight:800;background:var(--bg-2);color:var(--t-3);
+}
+.delay-pill.has{background:#FEE2E2;color:#B91C1C}
+.delay-pill.none{background:#D1FAE5;color:#065F46}
+
+/* 실측 메타 */
+.live-meta{
+  position:fixed;bottom:14px;left:14px;z-index:90;
+  background:rgba(15,23,42,.94);color:#fff;padding:12px 16px;border-radius:12px;
+  font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.75;pointer-events:none;
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(10px);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.live-meta b{color:#FFD67A;letter-spacing:.3px}
+
+/* 반응형 */
+@media (max-width:1024px){
+  .sidebar{width:220px}
+  .tb-center{padding:0 16px}
+  .user-info{display:none}
+  .tb-divider{display:none}
+}
+@media (max-width:768px){
+  .topbar{padding:0 12px;gap:10px}
+  .brand-text,.ws-switcher .ws-name{display:none}
+  .tb-center{padding:0 4px}
+  .lang-sel{display:none}
+  .page-header{padding:16px 18px;flex-direction:column;align-items:stretch}
+  .page-body{padding:18px}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+</style>
+</head>
+<body>
+
+<!-- 시안 배너 -->
+<div class="demo-banner">
+  <h1>시안 #11 — 프리미엄 폴리시</h1>
+  <span class="tag">v5 · 세련미 복원</span>
+  <span class="hint">실제 로고 ✓ · 로고 확대 ✓ · 빅터 도크 동시 표시 ✓ · <kbd>/</kbd> 검색 <kbd>Ctrl K</kbd> 빅터</span>
+  <button id="dockToggle" style="margin-left:auto;background:var(--r);color:#fff;border:0;padding:6px 14px;border-radius:999px;font-size:var(--fs-xs);font-weight:700;cursor:pointer">빅터 도크 접기/펼치기</button>
+</div>
+
+<!-- ==================== 상단 헤더 ==================== -->
+<header class="topbar">
+  <div class="topbar-bg"></div>
+  <div class="tb-left">
+    <button class="tb-menu-btn" title="메뉴">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <a class="brand" href="#">
+      <div class="brand-logo-wrap">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS <span class="dot"></span></div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+
+    <div class="tb-divider"></div>
+
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn" aria-haspopup="true" aria-expanded="false">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">통합</span>
+        <span class="ws-caret">▾</span>
+      </button>
+
+      <div class="ws-menu" id="wsMenu" role="menu">
+        <a class="ws-opt active" href="#" role="menuitem">
+          <div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M9 17h1m4 0h1"/></svg></div>
+          <div class="opt-meta">
+            <div class="opt-name">통합</div>
+            <div class="opt-desc">HAIST WORKS 메인</div>
+          </div>
+          <span class="opt-check">✓</span>
+        </a>
+        <a class="ws-opt" href="#" role="menuitem">
+          <div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+          <div class="opt-meta">
+            <div class="opt-name">매출·영업 센터</div>
+            <div class="opt-desc">Sales Hub · 영업·수주·견적</div>
+          </div>
+          <span class="opt-ext">↗</span>
+        </a>
+        <a class="ws-opt" href="#" role="menuitem">
+          <div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div>
+          <div class="opt-meta">
+            <div class="opt-name">자재·구매 센터</div>
+            <div class="opt-desc">Logistics Hub · 자재·발주·재고</div>
+          </div>
+          <span class="opt-ext">↗</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" title="빅터 (Ctrl K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/><path d="M4 13h1M19 13h1"/></svg>
+    </button>
+    <button class="tb-icon-btn" title="알림">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <span class="dot"></span>
+    </button>
+    <select class="lang-sel" title="언어 선택">
+      <option value="ko">🇰🇷 한국어</option>
+      <option value="vi">🇻🇳 Tiếng Việt</option>
+      <option value="en">🇺🇸 English</option>
+    </select>
+    <a class="user-chip" href="#">
+      <div class="user-avatar">김</div>
+      <div class="user-info">
+        <div class="user-name">김정락</div>
+        <div class="user-role">대표이사</div>
+      </div>
+    </a>
+    <a class="logout-btn" href="#" title="로그아웃">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </a>
+  </div>
+</header>
+
+<!-- ==================== 레이아웃 ==================== -->
+<div class="layout">
+
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item active">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+        <span class="sb-label">업무 현황</span><span class="sb-badge">3</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></span>
+        <span class="sb-label">일일 업무</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span class="sb-label">내 달력</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+        <span class="sb-label">알림</span><span class="sb-badge sb-badge-warn">12</span>
+      </a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span class="sb-label">부서 피드</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <span class="sb-label">실시간 피드</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+        <span class="sb-label">검색</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span class="sb-label">전사 대시보드</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span class="sb-label">병목 감지</span>
+      </a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span class="sb-label">진행률 매트릭스</span><span class="sb-badge sb-badge-err">2</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg></span>
+        <span class="sb-label">요청 티켓</span><span class="sb-badge sb-badge-info">5</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <span class="sb-label">이슈 · AS</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+        <span class="sb-label">변경 알림</span><span class="sb-badge">8</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="sb-label">게시판</span>
+      </a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-head-tag">하이웍스</span></div>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <span class="sb-label">전자결제</span><span class="sb-ext">↗</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+        <span class="sb-label">메일</span><span class="sb-ext">↗</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg></span>
+        <span class="sb-label">팀원 권한</span>
+      </a>
+      <a class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="sb-label">관리자</span>
+      </a>
+    </div>
+
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head open">
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>영업1팀</span>
+        </div>
+        <a class="sb-sub">K-Pharma 2차 납품</a>
+        <a class="sb-sub">2분기 신규 영업</a>
+        <div class="sb-team-head">
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>설계팀</span>
+        </div>
+        <div class="sb-team-head">
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>생산팀</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="main">
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb">
+          <a>통합</a><span class="sep">/</span>
+          <a>내 업무</a><span class="sep">/</span>
+          <span class="current">업무 현황</span>
+        </div>
+        <h1 class="page-title"><span class="accent"></span>통합 업무 현황</h1>
+        <div class="page-sub">오늘의 내 업무 · 팀 현황 · 전사 흐름을 한눈에 파악하세요</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          내보내기
+        </button>
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          신규 작성
+        </button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-lab">내 할 일</span>
+            <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          </div>
+          <div class="kpi-num">12</div>
+          <div class="kpi-meta">
+            <span class="kpi-sub">오늘 마감 3건</span>
+            <span class="kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>2</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-lab">지연 공정</span>
+            <div class="kpi-icon" style="background:#FEE2E2;color:var(--err)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          </div>
+          <div class="kpi-num accent">5</div>
+          <div class="kpi-meta">
+            <span class="kpi-sub">어제 대비</span>
+            <span class="kpi-trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>+1</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-lab">팀 참여율</span>
+            <div class="kpi-icon" style="background:#D1FAE5;color:var(--ok)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          </div>
+          <div class="kpi-num">87<span style="font-size:60%">%</span></div>
+          <div class="kpi-meta">
+            <span class="kpi-sub">이번 주</span>
+            <span class="kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>+3%p</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-lab">이번 달 매출</span>
+            <div class="kpi-icon" style="background:#FEF3C7;color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          </div>
+          <div class="kpi-num">₩4.2<span style="font-size:60%">억</span></div>
+          <div class="kpi-meta">
+            <span class="kpi-sub">전년 대비</span>
+            <span class="kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>+12%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오늘 일정 -->
+      <div class="section">
+        <div class="section-head">
+          <h2>오늘 주요 일정</h2>
+          <span class="count">4건</span>
+          <a class="more">전체 보기
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="card-list">
+          <div class="card">
+            <div class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
+            <div class="card-body">
+              <div class="card-title">설계 리뷰 미팅 · 영업1팀</div>
+              <div class="card-meta">
+                <span>🕐 오전 10:00</span>
+                <span>📍 회의실 A</span>
+                <span>👥 참여 6명</span>
+              </div>
+            </div>
+            <svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="card">
+            <div class="card-ico urgent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+            <div class="card-body">
+              <div class="card-title">자재 납기 확인 <span class="tag urgent">긴급</span></div>
+              <div class="card-meta">
+                <span>🕐 오전 11:30</span>
+                <span>📍 구매팀 → 생산팀</span>
+              </div>
+            </div>
+            <svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="card">
+            <div class="card-ico warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+            <div class="card-body">
+              <div class="card-title">주간 대시보드 리포트 작성</div>
+              <div class="card-meta">
+                <span>🕐 오후 2:00</span>
+                <span>⏰ 마감 18:00</span>
+              </div>
+            </div>
+            <svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 진행률 -->
+      <div class="section">
+        <div class="section-head">
+          <h2>이번 주 팀별 진행률</h2>
+          <span class="count">8개 팀</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>팀</th><th>진행률</th><th>지연</th><th>담당자</th><th>비고</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="t-team"><div class="t-avatar">영1</div>영업1팀</div></td>
+                <td><div class="progress"><div class="progress-bar"><div class="progress-fill" style="width:82%"></div></div><span class="progress-val">82%</span></div></td>
+                <td><span class="delay-pill has">1건</span></td>
+                <td>김영업</td>
+                <td style="color:var(--t-3)">K-Pharma 납품 진행</td>
+              </tr>
+              <tr>
+                <td><div class="t-team"><div class="t-avatar">설</div>설계팀</div></td>
+                <td><div class="progress"><div class="progress-bar"><div class="progress-fill warn" style="width:67%"></div></div><span class="progress-val">67%</span></div></td>
+                <td><span class="delay-pill has">3건</span></td>
+                <td>이설계</td>
+                <td style="color:var(--err)">라벨링 검토 2일 지연</td>
+              </tr>
+              <tr>
+                <td><div class="t-team"><div class="t-avatar">생</div>생산팀</div></td>
+                <td><div class="progress"><div class="progress-bar"><div class="progress-fill ok" style="width:91%"></div></div><span class="progress-val">91%</span></div></td>
+                <td><span class="delay-pill none">0건</span></td>
+                <td>박생산</td>
+                <td style="color:var(--ok);font-weight:600">정상</td>
+              </tr>
+              <tr>
+                <td><div class="t-team"><div class="t-avatar">품</div>품질팀</div></td>
+                <td><div class="progress"><div class="progress-bar"><div class="progress-fill" style="width:75%"></div></div><span class="progress-val">75%</span></div></td>
+                <td><span class="delay-pill has">2건</span></td>
+                <td>최품질</td>
+                <td style="color:var(--t-3)">시료 승인 1일 지연</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==================== 빅터 도크 (우 · 열린 상태) ==================== -->
+  <aside class="dock" id="dock" aria-label="HAIST 빅터 AI 컨시어지">
+    <div class="dock-head">
+      <div class="dock-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/><path d="M4 13h1M19 13h1"/></svg>
+      </div>
+      <div class="dock-head-text">
+        <div class="dock-title">HAIST 빅터</div>
+        <div class="dock-sub">사내 AI 컨시어지 · 실시간 대기</div>
+      </div>
+      <div class="dock-head-actions">
+        <button class="dock-btn" title="대화 초기화">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <button class="dock-btn" id="dockCollapse" title="접기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="dock-ctx">
+      <div class="dock-ctx-label">이 화면에서 자주 묻는 것</div>
+      <div class="dock-ctx-chips">
+        <button class="dock-chip">내 할 일</button>
+        <button class="dock-chip">지연 공정</button>
+        <button class="dock-chip">팀 현황</button>
+      </div>
+    </div>
+
+    <div class="dock-body">
+      <div class="dock-msg user">지연된 공정 요약해줘</div>
+      <div class="dock-msg ai">
+        <b>지연 공정 3건</b> 입니다:
+        <ul>
+          <li class="warn">설계팀 · 라벨링 검토 (2일 지연)</li>
+          <li>품질팀 · 시료 승인 (1일 지연)</li>
+          <li class="err">구매팀 · 자재 납기 (3일 지연)</li>
+        </ul>
+        <div class="dock-actions">
+          <span class="dock-action primary">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            진행률 매트릭스
+          </span>
+          <span class="dock-action do">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            담당자 전체 알림
+          </span>
+          <span class="dock-action secondary">상세 로그</span>
+        </div>
+      </div>
+      <div class="dock-msg user">구매팀 자재 건 책임자 누구지?</div>
+      <div class="dock-msg ai">
+        구매팀 <b>박구매 팀장</b> 님 담당입니다.
+        <ul>
+          <li>최근 3일간 미처리 티켓 2건</li>
+          <li>공급사: ㈜한양자재 (납기 지연 2회)</li>
+        </ul>
+        <div class="dock-actions">
+          <span class="dock-action primary">티켓 상세</span>
+          <span class="dock-action do">박 팀장에게 메시지</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dock-foot">
+      <div class="dock-quick">
+        <button>📋 오늘 내 할일</button>
+        <button>💰 이번 달 매출</button>
+        <button>📊 팀 참여율</button>
+      </div>
+      <div class="dock-input">
+        <textarea placeholder="빅터에게 물어보세요..." rows="1"></textarea>
+        <button class="dock-send" title="전송">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="dock-hint">
+        <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="live-meta" id="meta">
+  <b>시안 #11 프리미엄 폴리시</b><br>
+  실제 로고 참조 ✓<br>
+  뎁스·글로우·마이크로 인터랙션 ✓<br>
+  뷰포트: <span id="vw">-</span><br>
+  본문: <span id="mMain">-</span> · 사이드바: <span id="mSide">-</span>
+</div>
+
+<script>
+/* 워크스페이스 스위처 */
+const wsWrap = document.getElementById('wsWrap');
+const wsBtn  = document.getElementById('wsBtn');
+const wsMenu = document.getElementById('wsMenu');
+function wsSetOpen(open){
+  wsWrap.classList.toggle('open', open);
+  wsMenu.classList.toggle('open', open);
+  wsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+wsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  wsSetOpen(!wsWrap.classList.contains('open'));
+});
+document.addEventListener('click', (e) => {
+  if (!wsWrap.contains(e.target)) wsSetOpen(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') wsSetOpen(false);
+});
+
+/* "/" 키 → 검색 포커스 */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.isComposing) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  const editable = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+  if (editable) return;
+  const input = document.getElementById('gSearchInput');
+  if (input) { e.preventDefault(); input.focus(); input.select(); }
+});
+
+/* 사이드바 팀 트리 토글 */
+document.querySelectorAll('.sb-team-head').forEach(h => {
+  h.addEventListener('click', () => h.classList.toggle('open'));
+});
+
+/* 빅터 도크 접기/펼치기 (배너 버튼 + 도크 내부 접기 버튼) */
+function toggleDock(){
+  document.body.classList.toggle('dock-collapsed');
+}
+document.getElementById('dockToggle').addEventListener('click', toggleDock);
+document.getElementById('dockCollapse').addEventListener('click', toggleDock);
+
+/* Ctrl+K / ⌘K → 도크 토글 (빅터 단축키) */
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){
+    e.preventDefault();
+    toggleDock();
+  }
+});
+
+/* 실측 */
+function updateMeta(){
+  const mCard = document.querySelector('.card-title');
+  const sItem = document.querySelector('.sb-item');
+  document.getElementById('vw').textContent = window.innerWidth + ' × ' + window.innerHeight + 'px';
+  document.getElementById('mMain').textContent = mCard ? getComputedStyle(mCard).fontSize : '-';
+  document.getElementById('mSide').textContent = sItem ? getComputedStyle(sItem).fontSize : '-';
+}
+updateMeta();
+window.addEventListener('resize', updateMeta);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #12-C — 힐링 · Misty Zen (미스티 젠)</title>
+<style>
+/* ============================================================
+   HAIST WORKS · 힐링 테마 시안 12-C
+   컨셉: 새벽 안개 · 수묵화 · 료칸 · 여백의 미
+   Q1:C 강-중-약 배분 · Q2:ㄷ 미스티 블루 · Q3:iii 료칸·젠
+   ============================================================ */
+:root{
+  --mist-50: #FAFBFD;
+  --mist-100:#F4F7FA;
+  --mist-200:#E6EDF4;
+  --mist-300:#CDD9E4;
+  --mist-400:#9FB2C5;
+  --mist-500:#6B839C;
+  --mist-600:#4A6279;
+  --mist-700:#2E4459;
+  --mist-800:#1A2A3B;
+
+  --ink:     #1A2A3B;
+  --ink-2:   #2E4459;
+  --ink-3:   #4A6279;
+  --ink-4:   #8FA3B7;
+
+  /* KNK 레드 — 강-중-약 배분 */
+  --r:       #A5282C;
+  --rd:      #8B1E22;
+  --r-soft:  #F5E4E2;
+
+  /* 젠 포인트 */
+  --sumi:    #1A2A3B;       /* 먹색 */
+  --indigo:  #3E5577;       /* 옅은 쪽색 */
+  --sand:    #C8B896;       /* 모래 */
+
+  --fs-xs:  clamp(10px, 0.55vw + 7px, 13px);
+  --fs-sm:  clamp(12px, 0.60vw + 9px, 15px);
+  --fs-md:  clamp(13px, 0.70vw + 10px, 16px);
+  --fs-lg:  clamp(15px, 0.85vw + 11px, 19px);
+  --fs-xl:  clamp(18px, 1.25vw + 13px, 26px);
+  --fs-2xl: clamp(24px, 2.00vw + 16px, 40px);
+
+  --grad-header:  linear-gradient(135deg, #1A2A3B 0%, #2E4459 50%, #4A6279 100%);
+  --grad-brand:   linear-gradient(135deg, #A5282C 0%, #8B1E22 100%);
+  --grad-mist:    linear-gradient(135deg, #6B839C 0%, #4A6279 100%);
+  --grad-ink:     linear-gradient(135deg, #2E4459 0%, #1A2A3B 100%);
+
+  --sh-xs: 0 1px 2px rgba(46,68,89,.05);
+  --sh-sm: 0 4px 14px rgba(46,68,89,.08);
+  --sh-md: 0 14px 36px rgba(46,68,89,.10);
+  --sh-lg: 0 28px 60px rgba(46,68,89,.14);
+  --sh-ink:0 10px 32px rgba(26,42,59,.20);
+
+  --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --dur-fast: 200ms;
+  --dur-med:  400ms;      /* 조금 더 느긋하게 */
+  --dur-slow: 600ms;
+
+  --topbar-h: clamp(84px, 5vw + 52px, 108px);
+  --sidebar-w: 268px;
+  --dock-w: 360px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:var(--fs-md);color:var(--ink);background:var(--mist-100);line-height:1.75;overflow-x:hidden;font-weight:400;letter-spacing:.2px}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:var(--sumi);color:var(--mist-100);padding:10px 20px;display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700}
+.demo-banner .tag{background:var(--r);color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.demo-banner .hint{color:rgba(244,247,250,.65);font-size:var(--fs-xs)}
+
+/* 헤더 — 먹색 그라디언트 · 브랜드 레드 강한 포인트 */
+.topbar{position:sticky;top:41px;z-index:150;height:var(--topbar-h);background:var(--grad-header);color:#fff;display:flex;align-items:center;gap:16px;padding:0 32px;box-shadow:0 8px 32px rgba(26,42,59,.25)}
+.topbar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.topbar-bg::before{content:"";position:absolute;top:-80%;left:30%;width:700px;height:500px;border-radius:50%;background:radial-gradient(ellipse, rgba(255,255,255,.06), transparent 60%);filter:blur(40px)}
+.topbar-bg::after{content:"";position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg, transparent, rgba(165,40,44,.5) 50%, transparent);opacity:.4}
+
+.tb-left{display:flex;align-items:center;gap:20px;flex-shrink:0;position:relative;z-index:1}
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 32px;position:relative;z-index:1}
+.tb-right{display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:1}
+
+.tb-menu-btn{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;display:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.12)}
+.tb-menu-btn svg{width:20px;height:20px;stroke-width:1.5}
+@media (max-width:1024px){.tb-menu-btn{display:flex}}
+
+.brand{display:flex;align-items:center;gap:20px;padding:6px 16px 6px 6px;border-radius:16px;transition:background var(--dur-fast)}
+.brand:hover{background:rgba(255,255,255,.06)}
+.brand-logo-wrap{height:clamp(64px,4.2vw + 42px,88px);min-width:clamp(64px,4.2vw + 42px,88px);padding:10px 16px;border-radius:14px;flex-shrink:0;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.2) inset}
+.brand-logo-wrap img{height:clamp(52px,3.6vw + 32px,76px);width:auto;max-width:280px;object-fit:contain}
+.brand-logo-wrap .fallback{font-size:clamp(30px,2.5vw + 20px,44px);font-weight:900;color:var(--r);padding:0 6px}
+.brand-text{display:flex;flex-direction:column;line-height:1.2}
+.brand-name{font-size:var(--fs-xl);font-weight:900;color:#fff;letter-spacing:.5px;text-shadow:0 2px 10px rgba(0,0,0,.3);display:flex;align-items:baseline;gap:10px}
+.brand-name .dot{width:6px;height:6px;border-radius:50%;background:var(--r);box-shadow:0 0 16px rgba(165,40,44,.9)}
+.brand-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.75);font-weight:400;margin-top:4px;letter-spacing:.3px}
+
+.tb-divider{width:1px;height:40px;background:linear-gradient(180deg, transparent, rgba(255,255,255,.2), transparent);margin:0 6px}
+
+.ws-wrap{position:relative;flex-shrink:0}
+.ws-switcher{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:var(--fs-sm);font-weight:600;border:1px solid rgba(255,255,255,.14);cursor:pointer;transition:all var(--dur-fast)}
+.ws-switcher:hover{background:rgba(255,255,255,.15)}
+.ws-wrap.open .ws-switcher{background:rgba(255,255,255,.2)}
+.ws-switcher .ws-ico{width:20px;height:20px;color:var(--r);flex-shrink:0;stroke-width:1.6}
+.ws-switcher .ws-caret{font-size:10px;opacity:.7;transition:transform var(--dur-fast)}
+.ws-wrap.open .ws-caret{transform:rotate(180deg)}
+
+.ws-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:#fff;border-radius:12px;box-shadow:var(--sh-lg);padding:8px;display:none;z-index:250;border:1px solid var(--mist-300)}
+.ws-menu.open{display:block}
+.ws-opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;color:var(--ink);font-weight:500;transition:background var(--dur-fast)}
+.ws-opt + .ws-opt{margin-top:2px}
+.ws-opt:hover{background:var(--mist-100)}
+.ws-opt.active{background:var(--r-soft)}
+.ws-opt.active .opt-name{color:var(--r)}
+.ws-opt .opt-ico{width:40px;height:40px;border-radius:10px;background:var(--mist-100);color:var(--ink-3);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ws-opt.active .opt-ico{background:#fff;color:var(--r)}
+.ws-opt .opt-ico svg{width:20px;height:20px;stroke-width:1.6}
+.ws-opt .opt-meta{flex:1}
+.ws-opt .opt-name{font-size:var(--fs-sm);font-weight:700}
+.ws-opt .opt-desc{font-size:var(--fs-xs);color:var(--ink-3);margin-top:3px}
+.ws-opt .opt-check{color:var(--r);font-weight:800}
+.ws-opt .opt-ext{color:var(--ink-4);font-size:var(--fs-xs)}
+
+.g-search{display:flex;align-items:center;gap:12px;width:min(560px,100%);padding:12px 18px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;cursor:text;transition:all var(--dur-fast)}
+.g-search:hover{background:rgba(255,255,255,.14)}
+.g-search:focus-within{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);box-shadow:0 0 0 4px rgba(255,255,255,.06)}
+.g-search svg{width:18px;height:18px;opacity:.75;stroke-width:1.6}
+.g-search input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:var(--fs-sm);font-weight:400;letter-spacing:.2px}
+.g-search input::placeholder{color:rgba(255,255,255,.5)}
+.g-search .shortcut{background:rgba(255,255,255,.12);padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;border:1px solid rgba(255,255,255,.12)}
+
+.tb-icon-btn{position:relative;width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.12);transition:all var(--dur-fast)}
+.tb-icon-btn:hover{background:rgba(255,255,255,.16);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px;stroke-width:1.6}
+.tb-icon-btn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--r);box-shadow:0 0 0 2px var(--sumi), 0 0 10px rgba(165,40,44,.8)}
+.tb-icon-btn.victor{background:var(--grad-brand);border-color:transparent;box-shadow:0 6px 18px rgba(165,40,44,.4)}
+.tb-icon-btn.victor:hover{filter:brightness(1.1)}
+
+.lang-sel{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer}
+.lang-sel option{background:var(--ink);color:#fff}
+
+.user-chip{display:flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16)}
+.user-chip:hover{background:rgba(255,255,255,.2)}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#fff,#E6EDF4);color:var(--r);font-weight:900;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:var(--fs-sm);font-weight:700;color:#fff}
+.user-role{font-size:11px;color:rgba(255,255,255,.7)}
+.logout-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.12)}
+.logout-btn:hover{background:var(--r);border-color:transparent}
+.logout-btn svg{width:16px;height:16px;stroke-width:1.6}
+
+/* 레이아웃 — 여백 최대 */
+.layout{display:flex;height:calc(100vh - 41px - var(--topbar-h));position:relative;background:var(--mist-100)}
+.layout::before{content:"";position:absolute;top:10%;left:30%;width:800px;height:500px;border-radius:50%;background:radial-gradient(ellipse, rgba(157,178,197,.15), transparent 70%);filter:blur(60px);pointer-events:none}
+
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--mist-50);border-right:1px solid var(--mist-200);padding:26px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;position:relative;z-index:1}
+@media (max-width:1280px){.sidebar{width:240px}}
+
+.sb-section{padding:4px 0}
+.sb-section + .sb-section{border-top:1px solid var(--mist-200);padding-top:18px;margin-top:8px}
+.sb-head{font-size:10px;font-weight:800;color:var(--ink-4);text-transform:uppercase;letter-spacing:.14em;padding:0 14px 14px;display:flex;align-items:center}
+.sb-head-tag{margin-left:auto;background:var(--mist-200);color:var(--ink-3);font-size:9px;font-weight:800;padding:3px 9px;border-radius:4px;text-transform:none;letter-spacing:0}
+
+.sb-item{position:relative;display:flex;align-items:center;gap:13px;padding:12px 16px;margin-bottom:4px;font-size:var(--fs-md);color:var(--ink-2);border-radius:10px;transition:all var(--dur-fast) var(--ease);white-space:nowrap;overflow:hidden;font-weight:500;letter-spacing:.1px}
+.sb-item:hover{background:var(--mist-200);color:var(--ink)}
+.sb-item.active{background:var(--grad-brand);color:#fff;font-weight:700;box-shadow:var(--sh-ink)}
+.sb-item.active::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:24px;border-radius:0 3px 3px 0;background:#fff}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{width:20px;height:20px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);transition:color var(--dur-fast)}
+.sb-ico svg{width:18px;height:18px;stroke-width:1.5}
+.sb-item:hover .sb-ico{color:var(--r)}
+.sb-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-badge{background:var(--mist-200);color:var(--ink-3);padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;flex-shrink:0}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.25);color:#fff}
+.sb-badge.warn{background:rgba(200,184,150,.3);color:#7A6A3F}
+.sb-badge.err{background:var(--r-soft);color:var(--r)}
+.sb-ext{font-size:11px;color:var(--ink-4);font-weight:700;margin-left:auto}
+
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--mist-200);padding-top:18px;margin-top:8px}
+.sb-tree{overflow-y:auto;flex:1}
+.sb-team-head{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:var(--fs-md);font-weight:600;color:var(--ink-2);border-radius:8px;cursor:pointer;transition:background var(--dur-fast)}
+.sb-team-head:hover{background:var(--mist-200)}
+.sb-team-head .chev{width:14px;color:var(--ink-4);transition:transform var(--dur-fast)}
+.sb-team-head.open .chev{transform:rotate(90deg)}
+.sb-sub{display:block;padding:6px 14px 6px 30px;font-size:var(--fs-sm);color:var(--ink-3);border-radius:6px;margin-left:22px;border-left:2px solid var(--mist-200)}
+.sb-sub:hover{background:var(--mist-100);color:var(--r);border-left-color:var(--r)}
+
+/* 도크 */
+.dock{width:var(--dock-w);flex-shrink:0;background:var(--mist-50);border-left:1px solid var(--mist-200);display:flex;flex-direction:column;overflow:hidden;transition:width var(--dur-slow),opacity var(--dur-med);position:relative;z-index:1}
+@media (max-width:1280px){.dock{--dock-w:320px}}
+@media (max-width:1024px){.dock{display:none}}
+body.dock-collapsed .dock{width:0;opacity:0;border-left:0}
+
+.dock-head{position:relative;overflow:hidden;background:var(--grad-ink);color:#fff;padding:20px 22px;display:flex;align-items:center;gap:14px}
+.dock-head::before{content:"";position:absolute;top:-40%;right:-10%;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle, rgba(165,40,44,.18), transparent 70%);pointer-events:none}
+.dock-head > *{position:relative;z-index:1}
+.dock-avatar{width:44px;height:44px;border-radius:50%;background:var(--grad-brand);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(165,40,44,.4);position:relative}
+.dock-avatar svg{width:24px;height:24px;stroke-width:1.6}
+.dock-avatar::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#7FA183;border:2px solid var(--ink)}
+.dock-head-text{flex:1;min-width:0;line-height:1.3}
+.dock-title{font-size:var(--fs-md);font-weight:800;letter-spacing:.3px}
+.dock-sub{font-size:11px;color:rgba(255,255,255,.7);margin-top:3px}
+.dock-head-actions{display:flex;gap:6px}
+.dock-btn{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast)}
+.dock-btn:hover{background:rgba(255,255,255,.2)}
+.dock-btn svg{width:14px;height:14px;stroke-width:1.6}
+
+.dock-ctx{padding:18px 22px 14px;border-bottom:1px solid var(--mist-200);background:var(--mist-100)}
+.dock-ctx-label{font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px}
+.dock-ctx-chips{display:flex;gap:6px;flex-wrap:wrap}
+.dock-chip{padding:7px 14px;border-radius:8px;background:#fff;color:var(--ink-2);font-size:var(--fs-xs);font-weight:700;border:1px solid var(--mist-300);cursor:pointer;transition:all var(--dur-fast)}
+.dock-chip:hover{background:var(--r);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:0 4px 12px rgba(165,40,44,.25)}
+
+.dock-body{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--mist-50)}
+.dock-msg{max-width:92%;padding:13px 17px;border-radius:12px;font-size:var(--fs-sm);line-height:1.7}
+.dock-msg.user{align-self:flex-end;background:var(--grad-brand);color:#fff;border-bottom-right-radius:3px;box-shadow:0 4px 14px rgba(165,40,44,.2)}
+.dock-msg.ai{align-self:flex-start;background:#fff;color:var(--ink);border:1px solid var(--mist-200);border-bottom-left-radius:3px;box-shadow:var(--sh-sm)}
+.dock-msg b{color:var(--r)}
+.dock-msg ul{margin:8px 0 0;padding-left:4px;list-style:none}
+.dock-msg li{padding:5px 0 5px 20px;position:relative;color:var(--ink-2);font-size:13px}
+.dock-msg li::before{content:"·";position:absolute;left:6px;color:var(--ink-3);font-weight:900;font-size:18px;line-height:1}
+.dock-msg li.warn::before{color:var(--sand)}
+.dock-msg li.err::before{color:var(--r)}
+
+.dock-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--mist-200)}
+.dock-action{padding:7px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;transition:all var(--dur-fast)}
+.dock-action.primary{background:var(--r);color:#fff}
+.dock-action.primary:hover{background:var(--rd);transform:translateY(-1px)}
+.dock-action.do{background:rgba(127,161,131,.15);color:#3F5C44;border:1px solid rgba(127,161,131,.3)}
+.dock-action.do:hover{background:#7FA183;color:#fff;border-color:transparent}
+.dock-action.secondary{background:var(--mist-200);color:var(--ink-2)}
+
+.dock-foot{border-top:1px solid var(--mist-200);padding:14px;background:var(--mist-100)}
+.dock-quick{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.dock-quick button{flex-shrink:0;padding:6px 12px;border-radius:6px;background:#fff;color:var(--ink-2);border:1px solid var(--mist-300);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--dur-fast)}
+.dock-quick button:hover{border-color:var(--r);color:var(--r)}
+.dock-input{display:flex;align-items:flex-end;gap:8px;background:#fff;border:1.5px solid var(--mist-300);border-radius:10px;padding:10px 12px;transition:all var(--dur-fast)}
+.dock-input:focus-within{border-color:var(--r);box-shadow:0 0 0 4px rgba(165,40,44,.1)}
+.dock-input textarea{flex:1;border:0;outline:0;resize:none;font-family:inherit;font-size:var(--fs-sm);color:var(--ink);min-height:22px;max-height:100px;background:transparent;line-height:1.5}
+.dock-send{width:36px;height:36px;border-radius:8px;background:var(--grad-brand);color:#fff;display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast);box-shadow:0 2px 8px rgba(165,40,44,.3)}
+.dock-send:hover{transform:translateY(-1px)}
+.dock-send svg{width:16px;height:16px;stroke-width:1.6}
+.dock-hint{font-size:10px;color:var(--ink-4);margin-top:8px;text-align:center}
+.dock-hint kbd{background:var(--mist-200);padding:1px 6px;border-radius:3px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;color:var(--ink-3)}
+
+/* 메인 — 여백 최대 */
+.main{flex:1;overflow-y:auto;background:var(--mist-100);min-width:0;position:relative}
+.main::before{content:"";position:absolute;top:-50px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle, rgba(157,178,197,.15), transparent 70%);filter:blur(40px);pointer-events:none}
+.main::after{content:"";position:absolute;bottom:200px;left:-100px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(107,131,156,.1), transparent 70%);filter:blur(30px);pointer-events:none}
+
+.page-header{background:var(--mist-50);border-bottom:1px solid var(--mist-200);padding:32px 40px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;position:sticky;top:0;z-index:40}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:11px;color:var(--ink-4);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.breadcrumb a{color:var(--ink-4)}
+.breadcrumb a:hover{color:var(--r)}
+.breadcrumb .sep{color:var(--mist-300)}
+.breadcrumb .current{color:var(--ink-2)}
+.page-title{font-size:var(--fs-xl);font-weight:800;color:var(--ink);line-height:1.25;letter-spacing:-.3px;display:flex;align-items:center;gap:14px}
+.page-title .accent{display:inline-block;width:5px;height:clamp(22px,1.8vw + 14px,30px);background:var(--grad-brand)}
+.page-sub{font-size:var(--fs-sm);color:var(--ink-3);margin-top:8px;max-width:640px;font-weight:400;letter-spacing:.2px}
+.ph-right{display:flex;gap:10px}
+
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:700;transition:all var(--dur-fast);white-space:nowrap}
+.btn svg{width:16px;height:16px;stroke-width:2}
+.btn-primary{background:var(--grad-brand);color:#fff;box-shadow:0 6px 18px rgba(165,40,44,.25)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(165,40,44,.35)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--mist-300)}
+.btn-ghost:hover{border-color:var(--r);color:var(--r)}
+
+.page-body{padding:40px 40px 80px;position:relative;z-index:1}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;margin-bottom:40px}
+.kpi{position:relative;overflow:hidden;background:#fff;border:1px solid var(--mist-200);border-radius:14px;padding:26px;transition:all var(--dur-med) var(--ease);box-shadow:var(--sh-xs)}
+.kpi:hover{transform:translateY(-3px);box-shadow:var(--sh-md);border-color:var(--mist-300)}
+.kpi-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.kpi-lab{font-size:var(--fs-sm);color:var(--ink-3);font-weight:700;letter-spacing:.3px}
+.kpi-icon{width:40px;height:40px;border-radius:10px;background:var(--mist-100);color:var(--ink-3);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.kpi-icon svg{width:20px;height:20px;stroke-width:1.5}
+.kpi-icon.r{background:var(--r-soft);color:var(--r)}
+.kpi-icon.indigo{background:rgba(62,85,119,.15);color:var(--indigo)}
+.kpi-icon.sage{background:rgba(127,161,131,.18);color:#3F5C44}
+.kpi-icon.sand{background:rgba(200,184,150,.25);color:#7A6A3F}
+.kpi-num{font-size:var(--fs-2xl);font-weight:800;color:var(--ink);line-height:1.05;letter-spacing:-1.2px;font-variant-numeric:tabular-nums}
+.kpi-meta{margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.kpi-sub{font-size:var(--fs-xs);color:var(--ink-4);font-weight:500}
+.kpi-trend{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;background:rgba(127,161,131,.15);color:#3F5C44}
+.kpi-trend.down{background:var(--r-soft);color:var(--r)}
+
+.section{background:#fff;border:1px solid var(--mist-200);border-radius:14px;padding:28px 32px;margin-bottom:24px;box-shadow:var(--sh-xs)}
+.section-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--mist-100)}
+.section-head h2{font-size:var(--fs-lg);color:var(--ink);font-weight:700;display:flex;align-items:center;gap:12px;letter-spacing:-.1px}
+.section-head h2::before{content:"";width:3px;height:20px;background:var(--grad-brand)}
+.section-head .count{background:var(--mist-100);color:var(--ink-3);padding:3px 11px;border-radius:6px;font-size:var(--fs-xs);font-weight:700}
+.section-head .more{margin-left:auto;font-size:var(--fs-sm);color:var(--r);font-weight:700;cursor:pointer;padding:6px 10px;border-radius:6px;transition:background var(--dur-fast)}
+.section-head .more:hover{background:var(--r-soft)}
+
+.card-list{display:flex;flex-direction:column;gap:14px}
+.card{display:flex;align-items:center;gap:18px;background:var(--mist-50);border:1px solid var(--mist-200);border-radius:10px;padding:18px 20px;transition:all var(--dur-fast) var(--ease)}
+.card:hover{background:#fff;border-color:var(--r);transform:translateX(4px);box-shadow:var(--sh-sm)}
+.card-ico{width:42px;height:42px;border-radius:10px;background:var(--mist-100);color:var(--ink-3);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.card-ico.urgent{background:var(--r-soft);color:var(--r)}   /* 긴급은 KNK 레드 강함 */
+.card-ico.warn{background:rgba(200,184,150,.25);color:#7A6A3F}
+.card-ico svg{width:18px;height:18px;stroke-width:1.5}
+.card-body{flex:1;min-width:0}
+.card-title{font-size:var(--fs-md);font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px;letter-spacing:-.1px}
+.card-meta{font-size:var(--fs-xs);color:var(--ink-3);margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;letter-spacing:.2px}
+.card-arrow{color:var(--ink-4);transition:all var(--dur-fast);stroke-width:1.6}
+.card:hover .card-arrow{color:var(--r);transform:translateX(3px)}
+
+.tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:800;background:var(--mist-200);color:var(--ink-2)}
+.tag.urgent{background:var(--r);color:#fff}   /* 긴급 KNK 레드 강함 */
+
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--mist-200)}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);background:#fff}
+thead{background:var(--mist-100)}
+th{padding:15px 18px;text-align:left;font-weight:800;color:var(--ink-3);font-size:11px;text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--mist-200)}
+td{padding:16px 18px;border-bottom:1px solid var(--mist-100);color:var(--ink-2);font-weight:500;letter-spacing:.2px}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--mist-50)}
+
+.t-team{display:flex;align-items:center;gap:12px;font-weight:700;color:var(--ink)}
+.t-avatar{width:32px;height:32px;border-radius:8px;background:var(--grad-mist);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px}
+.progress{display:flex;align-items:center;gap:14px;font-variant-numeric:tabular-nums}
+.progress-bar{flex:1;height:6px;border-radius:3px;background:var(--mist-200);overflow:hidden;min-width:90px}
+.progress-fill{height:100%;background:var(--grad-brand);transition:width var(--dur-slow)}
+.progress-fill.ok{background:linear-gradient(90deg, #7FA183, #5D7F61)}
+.progress-fill.warn{background:linear-gradient(90deg, #C8B896, #A0906A)}
+.progress-val{font-weight:800;color:var(--ink);min-width:44px;text-align:right}
+.delay-pill{padding:3px 10px;border-radius:5px;font-size:11px;font-weight:800;background:var(--mist-100);color:var(--ink-3)}
+.delay-pill.has{background:var(--r-soft);color:var(--r)}
+.delay-pill.none{background:rgba(127,161,131,.15);color:#3F5C44}
+
+.live-meta{position:fixed;bottom:14px;left:14px;z-index:90;background:#fff;color:var(--ink);padding:12px 16px;border-radius:10px;font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.7;pointer-events:none;border:1px solid var(--mist-300);box-shadow:var(--sh-md)}
+.live-meta b{color:var(--r)}
+
+@media (max-width:1024px){.tb-divider,.user-info,.brand-text{display:none}.page-header{padding:20px 24px;flex-direction:column;align-items:stretch}.page-body{padding:24px}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #12-C</h1>
+  <span class="tag">Misty Zen · 미스티 젠</span>
+  <span class="hint">컨셉: 새벽 안개 · 수묵화 · 료칸 · KNK 레드 강-중-약 배분</span>
+  <button id="dockToggle" style="margin-left:auto;background:var(--r);color:#fff;padding:6px 14px;border-radius:999px;font-size:var(--fs-xs);font-weight:700">빅터 도크 접기/펼치기</button>
+</div>
+
+<header class="topbar">
+  <div class="topbar-bg"></div>
+  <div class="tb-left">
+    <button class="tb-menu-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <a class="brand" href="#">
+      <div class="brand-logo-wrap">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS <span class="dot"></span></div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+    <div class="tb-divider"></div>
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">통합</span><span class="ws-caret">▾</span>
+      </button>
+      <div class="ws-menu" id="wsMenu">
+        <a class="ws-opt active" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></div><div class="opt-meta"><div class="opt-name">통합</div><div class="opt-desc">HAIST WORKS 메인</div></div><span class="opt-check">✓</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="opt-meta"><div class="opt-name">매출·영업 센터</div><div class="opt-desc">Sales Hub</div></div><span class="opt-ext">↗</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div><div class="opt-meta"><div class="opt-name">자재·구매 센터</div><div class="opt-desc">Logistics Hub</div></div><span class="opt-ext">↗</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg><span class="dot"></span></button>
+    <select class="lang-sel"><option value="ko">🇰🇷 한국어</option><option value="vi">🇻🇳 Tiếng Việt</option><option value="en">🇺🇸 English</option></select>
+    <a class="user-chip" href="#"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+    <a class="logout-btn" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/></svg></a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item active"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span class="sb-label">업무 현황</span><span class="sb-badge">3</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="sb-label">일일 업무</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span class="sb-label">내 달력</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg></span><span class="sb-label">알림</span><span class="sb-badge warn">12</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span><span class="sb-label">부서 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="sb-label">실시간 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span><span class="sb-label">검색</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/></svg></span><span class="sb-label">전사 대시보드</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/></svg></span><span class="sb-label">진행률 매트릭스</span><span class="sb-badge err">2</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></svg></span><span class="sb-label">요청 티켓</span><span class="sb-badge">5</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></span><span class="sb-label">이슈 · AS</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/></svg></span><span class="sb-label">변경 알림</span><span class="sb-badge">8</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-head-tag">하이웍스</span></div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-label">전자결제</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span class="sb-label">메일</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span><span class="sb-label">팀원 권한</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg></span><span class="sb-label">관리자</span></a>
+    </div>
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head open"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>영업1팀</span></div>
+        <a class="sb-sub">K-Pharma 2차 납품</a>
+        <div class="sb-team-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>설계팀</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb"><a>통합</a><span class="sep">/</span><a>내 업무</a><span class="sep">/</span><span class="current">업무 현황</span></div>
+        <h1 class="page-title"><span class="accent"></span>고요한 아침, 오늘도 시작합니다</h1>
+        <div class="page-sub">서두르지 않고 · 놓치지 않고 · 중요한 것을 먼저</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>내보내기</button>
+        <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>신규 작성</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-head"><span class="kpi-lab">내 할 일</span><div class="kpi-icon indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div></div><div class="kpi-num">12</div><div class="kpi-meta"><span class="kpi-sub">오늘 마감 3건</span><span class="kpi-trend">▲ 2</span></div></div>
+        <div class="kpi"><div class="kpi-head"><span class="kpi-lab">지연 공정</span><div class="kpi-icon r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div></div><div class="kpi-num">5</div><div class="kpi-meta"><span class="kpi-sub">어제 대비</span><span class="kpi-trend down">▲ +1</span></div></div>
+        <div class="kpi"><div class="kpi-head"><span class="kpi-lab">팀 참여율</span><div class="kpi-icon sage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div></div><div class="kpi-num">87<span style="font-size:60%;color:var(--ink-3)">%</span></div><div class="kpi-meta"><span class="kpi-sub">이번 주</span><span class="kpi-trend">▲ +3%p</span></div></div>
+        <div class="kpi"><div class="kpi-head"><span class="kpi-lab">이번 달 매출</span><div class="kpi-icon sand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div><div class="kpi-num">₩4.2<span style="font-size:60%;color:var(--ink-3)">억</span></div><div class="kpi-meta"><span class="kpi-sub">전년 대비</span><span class="kpi-trend">▲ +12%</span></div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>오늘 주요 일정</h2><span class="count">4건</span><a class="more">전체 보기 →</a></div>
+        <div class="card-list">
+          <div class="card"><div class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="card-body"><div class="card-title">설계 리뷰 미팅 · 영업1팀</div><div class="card-meta"><span>오전 10:00</span><span>회의실 A</span><span>참여 6명</span></div></div><svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+          <div class="card"><div class="card-ico urgent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div class="card-body"><div class="card-title">자재 납기 확인 <span class="tag urgent">긴급</span></div><div class="card-meta"><span>오전 11:30</span><span>구매팀 → 생산팀</span></div></div><svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+          <div class="card"><div class="card-ico warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="card-body"><div class="card-title">주간 대시보드 리포트</div><div class="card-meta"><span>오후 2:00</span><span>마감 18:00</span></div></div><svg class="card-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>이번 주 팀별 진행률</h2><span class="count">8개 팀</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>팀</th><th>진행률</th><th>지연</th><th>담당자</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td><div class="t-team"><div class="t-avatar">영1</div>영업1팀</div></td><td><div class="progress"><div class="progress-bar"><div class="progress-fill" style="width:82%"></div></div><span class="progress-val">82%</span></div></td><td><span class="delay-pill has">1건</span></td><td>김영업</td><td>K-Pharma 납품 진행</td></tr>
+              <tr><td><div class="t-team"><div class="t-avatar">설</div>설계팀</div></td><td><div class="progress"><div class="progress-bar"><div class="progress-fill warn" style="width:67%"></div></div><span class="progress-val">67%</span></div></td><td><span class="delay-pill has">3건</span></td><td>이설계</td><td style="color:var(--r)">라벨링 검토 2일 지연</td></tr>
+              <tr><td><div class="t-team"><div class="t-avatar">생</div>생산팀</div></td><td><div class="progress"><div class="progress-bar"><div class="progress-fill ok" style="width:91%"></div></div><span class="progress-val">91%</span></div></td><td><span class="delay-pill none">0건</span></td><td>박생산</td><td style="color:#3F5C44">정상</td></tr>
+              <tr><td><div class="t-team"><div class="t-avatar">품</div>품질팀</div></td><td><div class="progress"><div class="progress-bar"><div class="progress-fill" style="width:75%"></div></div><span class="progress-val">75%</span></div></td><td><span class="delay-pill has">2건</span></td><td>최품질</td><td>시료 승인 1일 지연</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="dock" id="dock">
+    <div class="dock-head">
+      <div class="dock-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></div>
+      <div class="dock-head-text"><div class="dock-title">HAIST 빅터</div><div class="dock-sub">말 한 마디로 · 필요한 것만</div></div>
+      <div class="dock-head-actions">
+        <button class="dock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+        <button class="dock-btn" id="dockCollapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-ctx">
+      <div class="dock-ctx-label">이 화면에서 자주 묻는 것</div>
+      <div class="dock-ctx-chips"><button class="dock-chip">내 할 일</button><button class="dock-chip">지연 공정</button><button class="dock-chip">팀 현황</button></div>
+    </div>
+    <div class="dock-body">
+      <div class="dock-msg user">지연된 공정 요약해줘</div>
+      <div class="dock-msg ai"><b>지연 공정 3건</b> 입니다:
+        <ul><li class="warn">설계팀 · 라벨링 검토 (2일 지연)</li><li>품질팀 · 시료 승인 (1일 지연)</li><li class="err">구매팀 · 자재 납기 (3일 지연)</li></ul>
+        <div class="dock-actions"><span class="dock-action primary">진행률 매트릭스 →</span><span class="dock-action do">✓ 담당자 알림</span><span class="dock-action secondary">상세</span></div>
+      </div>
+    </div>
+    <div class="dock-foot">
+      <div class="dock-quick"><button>📋 오늘 내 할일</button><button>💰 이번 달 매출</button><button>📊 팀 참여율</button></div>
+      <div class="dock-input"><textarea placeholder="한 마디로 물어보세요..." rows="1"></textarea><button class="dock-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+      <div class="dock-hint"><kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈</div>
+    </div>
+  </aside>
+</div>
+
+<div class="live-meta"><b>12-C · Misty Zen</b><br>미스티 블루 · 먹색 깊이<br>KNK 레드 강-중-약 배분<br>뷰포트: <span id="vw">-</span></div>
+
+<script>
+const wsWrap=document.getElementById('wsWrap'),wsBtn=document.getElementById('wsBtn'),wsMenu=document.getElementById('wsMenu');
+function wsSet(o){wsWrap.classList.toggle('open',o);wsMenu.classList.toggle('open',o)}
+wsBtn.addEventListener('click',e=>{e.stopPropagation();wsSet(!wsWrap.classList.contains('open'))});
+document.addEventListener('click',e=>{if(!wsWrap.contains(e.target))wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const t=(e.target.tagName||'').toLowerCase();if(t==='input'||t==='textarea'||t==='select'||e.target.isContentEditable)return;const i=document.getElementById('gSearchInput');if(i){e.preventDefault();i.focus();i.select()}});
+document.querySelectorAll('.sb-team-head').forEach(h=>h.addEventListener('click',()=>h.classList.toggle('open')));
+function toggleDock(){document.body.classList.toggle('dock-collapsed')}
+document.getElementById('dockToggle').addEventListener('click',toggleDock);
+document.getElementById('dockCollapse').addEventListener('click',toggleDock);
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();toggleDock()}});
+function uv(){document.getElementById('vw').textContent=window.innerWidth+' × '+window.innerHeight+'px'}uv();window.addEventListener('resize',uv);
+</script>
+</body></html>

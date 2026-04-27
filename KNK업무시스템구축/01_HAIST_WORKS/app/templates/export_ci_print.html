@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>COMMERCIAL INVOICE — {{ ci.invoice_no }}</title>
+<style>
+  /* 인쇄 친화 (A4 비례) — 외부 PDF 라이브러리 0건 · @media print 만 */
+  @page { size: A4; margin: 18mm 16mm; }
+  *  { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
+         color:#111; font-size:12pt; margin:0; padding:24px; background:#fafafa; }
+  .sheet { background:#fff; max-width:780px; margin:0 auto; padding:28px 32px;
+           border:1px solid #ddd; }
+  h1 { text-align:center; font-size:22pt; letter-spacing:2px; margin:0 0 4px; }
+  h2 { text-align:center; font-size:13pt; color:#555; margin:0 0 18px; font-weight:400; }
+  .meta { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:11pt; }
+  .meta td { border:1px solid #999; padding:6px 8px; vertical-align:top; }
+  .meta .lbl { background:#f3f3f3; width:25%; font-weight:600; }
+  .total-box { border:2px solid #111; padding:10px 14px; margin-top:16px;
+               text-align:right; font-size:13pt; }
+  .total-box strong { font-size:16pt; }
+  .sig { display:flex; justify-content:space-between; margin-top:36px; font-size:11pt; }
+  .sig div { width:45%; border-top:1px solid #999; padding-top:6px; text-align:center; }
+  .actions { text-align:center; margin:0 0 20px; }
+  .btn { display:inline-block; padding:8px 16px; background:#0c52d6; color:#fff;
+         border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
+  .btn-back { background:#666; margin-left:8px; }
+  @media print {
+    body { background:#fff; padding:0; }
+    .sheet { border:none; padding:0; max-width:none; }
+    .actions, .no-print { display:none !important; }
+    /* 헤더·사이드바·도크 등 base 외 요소 자동 숨김 (이 템플릿은 base 미사용) */
+  }
+</style>
+</head>
+<body>
+<div class="actions no-print">
+  <button class="btn" onclick="window.print()">인쇄</button>
+  <a class="btn btn-back" href="/export/orders/{{ ci.export_order_id }}">돌아가기</a>
+</div>
+<div class="sheet">
+  <h1>COMMERCIAL INVOICE</h1>
+  <h2>상업송장</h2>
+  <table class="meta">
+    <tr><td class="lbl">Invoice No / 송장번호</td><td><strong>{{ ci.invoice_no }}</strong></td>
+        <td class="lbl">Issue Date / 발급일</td><td>{{ ci.issue_date or today }}</td></tr>
+    <tr><td class="lbl">Buyer / 수입자</td><td colspan="3">{{ ci.buyer or '-' }}</td></tr>
+    <tr><td class="lbl">Customer / 고객사</td><td>{{ ci.customer_name }}</td>
+        <td class="lbl">Order No / 수주번호</td><td>{{ ci.order_no }}</td></tr>
+    <tr><td class="lbl">Port of Loading / 선적항</td><td>{{ ci.port_of_loading or '-' }}</td>
+        <td class="lbl">Port of Discharge / 양륙항</td><td>{{ ci.port_of_discharge or '-' }}</td></tr>
+    <tr><td class="lbl">Shipping Terms / 운송조건</td><td>{{ ci.shipping_terms or '-' }}</td>
+        <td class="lbl">Payment Terms / 결제조건</td><td>{{ ci.payment_terms or '-' }}</td></tr>
+  </table>
+  <div class="total-box">
+    Total Amount / 총액 :
+    <strong>{{ '{:,.2f}'.format(ci.total_amount or 0) }} {{ ci.currency }}</strong>
+  </div>
+  <div class="sig">
+    <div>Signed by / 서명<br><br>&nbsp;</div>
+    <div>Company Stamp / 회사 인장<br><br>&nbsp;</div>
+  </div>
+</div>
+</body>
+</html>

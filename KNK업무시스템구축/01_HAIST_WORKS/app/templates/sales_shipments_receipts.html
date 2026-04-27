@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}출하·수금 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+{# Top3 S1 2차 본문 (2026-04-25) — 시안 §1 탭4 DO+INV+RC · 1:N 부분출하·부분수금 · §5 Empty State #}
+
+<div style="margin-bottom:14px;">
+  <a href="/sales" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 매출 홈</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">매출 &gt; 주문 라이프사이클 &gt; 출하 DO · 세금계산서 INV · 수금 RC</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §1 탭4 — shipments(부분출하) + invoices(세금계산서) + receipts_payment(부분수금)</div>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
+  <a href="/sales/quotations" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[견적 QT]</a>
+  <a href="/sales/orders" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[수주 SO]</a>
+  <a href="/sales/production" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[생산 WO]</a>
+  <a href="/sales/shipments-receipts" style="padding:6px 12px;border-bottom:2px solid var(--knk-red,#E11D48);color:var(--ink-900);text-decoration:none;font-weight:700;">[출하·수금 DO/RC]</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;overflow:hidden;">
+{% if items and items|length > 0 %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead style="background:var(--ink-50,#F8FAFC);">
+      <tr>
+        <th style="padding:12px 16px;text-align:left;font-weight:700;">SO번호</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:700;">거래처</th>
+        <th style="padding:12px 16px;text-align:right;font-weight:700;">수주금액</th>
+        <th style="padding:12px 16px;text-align:right;font-weight:700;">출하수량 누적</th>
+        <th style="padding:12px 16px;text-align:right;font-weight:700;">수금 누적</th>
+        <th style="padding:12px 16px;text-align:center;font-weight:700;">세금계산서</th>
+        <th style="padding:12px 16px;text-align:center;font-weight:700;">상태</th>
+        <th style="padding:12px 16px;text-align:center;font-weight:700;">액션</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for it in items %}
+      <tr style="border-top:1px solid var(--ink-100,#F1F5F9);">
+        <td style="padding:12px 16px;">{{ it.order_no }}</td>
+        <td style="padding:12px 16px;">{{ it.customer_name }}</td>
+        <td style="padding:12px 16px;text-align:right;">{{ '{:,.0f}'.format(it.total_amount or 0) }}</td>
+        <td style="padding:12px 16px;text-align:right;">{{ '{:,.1f}'.format(it.shipped_qty_sum or 0) }}</td>
+        <td style="padding:12px 16px;text-align:right;">{{ '{:,.0f}'.format(it.paid_total or 0) }}</td>
+        <td style="padding:12px 16px;text-align:center;">
+          {% if it.invoice_issued and it.invoice_issued > 0 %}
+            <span class="tag tag-done">발행</span>
+          {% else %}
+            <span class="tag tag-wait">미발행</span>
+          {% endif %}
+        </td>
+        <td style="padding:12px 16px;text-align:center;">
+          {% if it.status == 'PAID' %}
+            <span class="tag tag-done">{{ it.status }}</span>
+          {% elif it.status in ('SHIPPED','INVOICED') %}
+            <span class="tag tag-done">{{ it.status }}</span>
+          {% else %}
+            <span class="tag tag-progress">{{ it.status }}</span>
+          {% endif %}
+        </td>
+        <td style="padding:12px 16px;text-align:center;">
+          {% if it.status != 'PAID' %}
+          <form method="post" action="/sales/receipts" style="display:inline-flex;gap:4px;align-items:center;">
+            <input type="hidden" name="order_id" value="{{ it.order_id }}">
+            <input name="amount" type="number" step="0.01" placeholder="금액" required
+                   style="width:90px;padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:12px;">
+            <button type="submit" style="background:var(--knk-red,#E11D48);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">수금</button>
+          </form>
+          {% else %}
+          <span style="color:var(--ink-400);font-size:12px;">완료</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  {# 시안 §5 Empty State 한국어 #}
+  <div style="padding:48px 24px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
+    오늘 출하 또는 수금 일정이 없습니다.<br>
+    <strong style="color:var(--ink-700);">수주/생산 탭</strong>에서 진행 중인 작업이 있을 때 여기 표시됩니다.
+  </div>
+{% endif %}
+</div>
+
+<div style="margin-top:14px;font-size:12px;color:var(--ink-400);">
+  세금계산서 발행은 회계 권한자만 (시안 §4-5 R3 연계 · S3 권한 미들웨어 차기 사이클). ·
+  부분수금 1:N 합계가 수주금액 도달 시 자동 PAID 전환.
+</div>
+{% endblock %}

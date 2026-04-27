@@ -1,0 +1,86 @@
+{% extends "base_logi.html" %}
+{% block title %}수출 수주 #{{ eo.id }} — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>수출 수주 #{{ eo.id }} · {{ eo.buyer or '-' }}</h1>
+  <p class="muted">
+    수주 {{ eo.order_no }} · 고객사 {{ eo.customer_name }} ·
+    매출 {{ '{:,.0f}'.format(eo.order_amount or 0) }}원 · 등록 {{ eo.order_date }}
+  </p>
+  <p class="muted">
+    {{ eo.shipping_terms or '-' }} / {{ eo.payment_terms or '-' }} ·
+    {{ eo.port_of_loading or '-' }} → {{ eo.port_of_discharge or '-' }}
+  </p>
+</div>
+
+{# 진행도 (5단계) — DRAFT/CI_ISSUED/PL_READY/SHIPPED/CLEARED #}
+{% set st = eo.status %}
+<div class="progress-bar" style="display:flex;gap:0;margin:16px 0;border-radius:6px;overflow:hidden;border:1px solid var(--bd,#ddd);">
+  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['DRAFT','CI_ISSUED','PL_READY','SHIPPED','CLEARED'] %}#A5282C;color:#fff{% else %}#f5f5f5{% endif %};">1. DRAFT</div>
+  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['CI_ISSUED','PL_READY','SHIPPED','CLEARED'] %}#A5282C;color:#fff{% else %}#f5f5f5{% endif %};">2. CI 발행</div>
+  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['PL_READY','SHIPPED','CLEARED'] %}#A5282C;color:#fff{% else %}#f5f5f5{% endif %};">3. PL 준비</div>
+  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['SHIPPED','CLEARED'] %}#A5282C;color:#fff{% else %}#f5f5f5{% endif %};">4. 선적</div>
+  <div style="flex:1;padding:10px;text-align:center;background:{% if st == 'CLEARED' %}#A5282C;color:#fff{% else %}#f5f5f5{% endif %};">5. 통관완료</div>
+</div>
+
+<nav class="tab-nav" style="display:flex;gap:8px;margin:16px 0;border-bottom:2px solid var(--bd,#ddd);">
+  <a href="/export/ci/{{ eo.id }}" class="tab btn">CI 상업송장 ({{ ci|length }})</a>
+  <a href="/export/pl/{{ eo.id }}" class="tab btn">PL 패킹리스트 ({{ pl|length }})</a>
+  <a href="/export/bl/{{ eo.id }}" class="tab btn">B/L 선하증권 ({{ bl|length }})</a>
+  <a href="/export/bl/{{ eo.id }}#customs" class="tab btn">관세 신고 ({{ customs|length }})</a>
+</nav>
+
+<section style="margin-top:20px;">
+  <h3>CI 상업송장 <a href="/export/ci/{{ eo.id }}" class="btn btn-sm">+ 발급</a></h3>
+  {% if ci %}
+  <table class="data-table">
+    <thead><tr><th>송장번호</th><th>발급일</th><th>금액</th><th>통화</th><th>상태</th><th>인쇄</th></tr></thead>
+    <tbody>{% for it in ci %}
+    <tr><td>{{ it.invoice_no }}</td><td>{{ it.issue_date or '-' }}</td>
+        <td class="num">{{ '{:,.2f}'.format(it.total_amount or 0) }}</td>
+        <td>{{ it.currency }}</td><td><span class="status-tag">{{ it.status }}</span></td>
+        <td><a href="/export/ci/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<p class="muted">CI 미발급</p>{% endif %}
+
+  <h3 style="margin-top:18px;">PL 패킹리스트 <a href="/export/pl/{{ eo.id }}" class="btn btn-sm">+ 작성</a></h3>
+  {% if pl %}
+  <table class="data-table">
+    <thead><tr><th>PL 번호</th><th>패키지</th><th>중량(kg)</th><th>용적(CBM)</th><th>인쇄</th></tr></thead>
+    <tbody>{% for it in pl %}
+    <tr><td>{{ it.pl_no }}</td><td>{{ it.total_packages }}</td>
+        <td class="num">{{ '{:,.2f}'.format(it.total_weight or 0) }}</td>
+        <td class="num">{{ '{:,.2f}'.format(it.total_volume or 0) }}</td>
+        <td><a href="/export/pl/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<p class="muted">PL 미작성</p>{% endif %}
+
+  <h3 style="margin-top:18px;">B/L 선하증권 <a href="/export/bl/{{ eo.id }}" class="btn btn-sm">+ 발급</a></h3>
+  {% if bl %}
+  <table class="data-table">
+    <thead><tr><th>B/L 번호</th><th>운송사</th><th>선명</th><th>출항</th><th>도착예정</th><th>상태</th><th>인쇄</th></tr></thead>
+    <tbody>{% for it in bl %}
+    <tr><td>{{ it.bl_no }}</td><td>{{ it.shipping_company or '-' }}</td>
+        <td>{{ it.vessel or '-' }}</td><td>{{ it.departure_date or '-' }}</td>
+        <td>{{ it.arrival_date or '-' }}</td><td><span class="status-tag">{{ it.status }}</span></td>
+        <td><a href="/export/bl/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<p class="muted">B/L 미발급</p>{% endif %}
+
+  <h3 style="margin-top:18px;">관세 신고</h3>
+  {% if customs %}
+  <table class="data-table">
+    <thead><tr><th>신고번호</th><th>HS</th><th>FTA</th><th>신고가액</th><th>상태</th></tr></thead>
+    <tbody>{% for it in customs %}
+    <tr><td>{{ it.declaration_no }}</td><td>{{ it.hs_code or '-' }}</td>
+        <td>{{ it.fta_origin or '-' }}</td>
+        <td class="num">{{ '{:,.2f}'.format(it.declared_value or 0) }}</td>
+        <td><span class="status-tag">{{ it.status }}</span></td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<p class="muted">관세 미신고</p>{% endif %}
+</section>
+
+<p style="margin-top:20px;"><a href="/export" class="btn">← 목록으로</a></p>
+
+{% endblock %}

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 #08 — AI 빅터 사이드 도크 (Slide-in Panel)
+  대표 지시 (2026-04-24):
+    "AI 빅터 기능을 항상 오른쪽 옆에 보일 수 있게 창을 슬라이드처럼
+     열었다가 필요없으면 다시 접고, 물어보면서 바로 옆에서 실행해볼 수 있게"
+
+  상위 정책: 04_라이선스_상표권_정책.md · 외부 자산 0건
+  기존 빅터 백엔드(POST /api/victor/ask) 그대로 사용 가능 — 프런트만 교체.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빅터 사이드 도크 · HAIST WORKS 05 디자인팀 시안</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+body { background: var(--bg-page); overflow-x: hidden; }
+
+/* =========================================================
+   Topbar (간단 더미)
+   ========================================================= */
+.topbar {
+  height: 56px; background: var(--bg-card);
+  border-bottom: 1px solid var(--ink-200);
+  display: flex; align-items: center;
+  padding: 0 var(--s-5); gap: var(--s-4);
+  position: sticky; top: 0; z-index: 30;
+}
+.brand {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-weight: var(--fw-bold); font-size: var(--fs-fluid-lg); color: var(--knk-red);
+}
+.brand-badge { font-size: var(--fs-fluid-xs); font-weight: var(--fw-bold); background: var(--knk-red-bg); color: var(--knk-red); padding: 2px 6px; border-radius: var(--r-pill); }
+.spacer { flex: 1; }
+.tb-user { display: flex; align-items: center; gap: 8px; font-size: var(--fs-fluid-sm); }
+.tb-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--grad-brand-warm); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: var(--fw-bold); }
+
+/* =========================================================
+   Main content (도크 열리면 margin-right 로 밀림)
+   ========================================================= */
+.main-wrap {
+  transition: margin-right var(--dur-slow) var(--ease-out);
+  padding: var(--s-6) var(--s-5);
+  max-width: 1280px;
+  margin-left: auto; margin-right: auto;
+}
+body.dock-open .main-wrap {
+  margin-right: 420px;   /* 도크 너비 만큼 밀림 */
+}
+
+.page-head { margin-bottom: var(--s-5); }
+.page-head h1 { margin: 0; font-size: var(--fs-fluid-xl); font-weight: var(--fw-bold); }
+.page-head .sub { font-size: var(--fs-fluid-sm); color: var(--ink-500); margin-top: 4px; }
+
+/* 더미 KPI */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-4); margin-bottom: var(--s-6); }
+.kpi {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-5);
+  position: relative; overflow: hidden;
+  transition: transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+}
+.kpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--grad-brand-warm);
+}
+.kpi:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(15,23,42,0.08); }
+.kpi .l { font-size: var(--fs-fluid-xs); color: var(--ink-500); font-weight: var(--fw-semi); text-transform: uppercase; letter-spacing: 0.08em; }
+.kpi .n { font-size: var(--fs-fluid-2xl); font-weight: 800; color: var(--ink-900); line-height: 1.1; margin-top: var(--s-3); }
+.kpi .d { font-size: var(--fs-fluid-xs); color: var(--ink-500); margin-top: var(--s-2); }
+
+/* 더미 안내 */
+.demo-callout {
+  background: var(--bg-card); border: 1px dashed var(--ink-300);
+  border-radius: var(--r-md); padding: var(--s-5);
+  font-size: var(--fs-fluid-sm); color: var(--ink-700);
+  line-height: 1.6;
+}
+.demo-callout h3 { margin: 0 0 var(--s-2); font-size: var(--fs-fluid-lg); color: var(--ink-900); }
+.demo-callout ul { margin: var(--s-2) 0 0; padding-left: var(--s-5); }
+.demo-callout kbd {
+  font-family: var(--font-mono); font-size: var(--fs-fluid-xs);
+  background: var(--ink-100); padding: 2px 6px; border-radius: 4px;
+  border: 1px solid var(--ink-200);
+}
+
+/* =========================================================
+   Dock toggle 버튼 (항상 우측 상단에 붙어 있음)
+   ========================================================= */
+.dock-tab {
+  position: fixed; top: 120px; right: 0;
+  z-index: 25;
+  background: var(--grad-brand-warm); color: #fff;
+  padding: var(--s-4) var(--s-3);
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  box-shadow: -2px 4px 12px rgba(165,40,44,0.3);
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s-2);
+  transition: right var(--dur-slow) var(--ease-out),
+              transform var(--dur-fast);
+  user-select: none;
+  font-size: var(--fs-fluid-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.1em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.dock-tab:hover { transform: translateX(-2px); }
+.dock-tab .t-ico {
+  writing-mode: horizontal-tb;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.dock-tab kbd {
+  writing-mode: horizontal-tb;
+  font-family: var(--font-mono); font-size: 9px;
+  background: rgba(255,255,255,0.18); padding: 2px 5px;
+  border-radius: 3px; border: 1px solid rgba(255,255,255,0.25);
+  margin-top: 6px;
+}
+/* 도크 열리면 탭은 우측 경계 밖으로 밀림 */
+body.dock-open .dock-tab { right: -56px; }
+
+/* =========================================================
+   Dock 패널 본체
+   ========================================================= */
+.dock {
+  position: fixed; top: 0; bottom: 0; right: -420px;
+  width: 420px; background: var(--bg-card);
+  border-left: 1px solid var(--ink-200);
+  box-shadow: -8px 0 24px rgba(15,23,42,0.08);
+  z-index: 40;
+  transition: right var(--dur-slow) var(--ease-out);
+  display: flex; flex-direction: column;
+}
+body.dock-open .dock { right: 0; }
+
+/* Dock 헤더 */
+.dock-head {
+  padding: var(--s-4) var(--s-4);
+  background: var(--grad-brand-deep);
+  color: #fff;
+  position: relative; overflow: hidden;
+  flex-shrink: 0;
+}
+.dock-head::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1), transparent 50%);
+  pointer-events: none;
+}
+.dock-head-row { display: flex; align-items: center; gap: var(--s-3); position: relative; z-index: 1; }
+.dock-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 800;
+  position: relative;
+}
+.dock-avatar::after {
+  content: ''; position: absolute; bottom: -1px; right: -1px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--st-done); border: 2px solid #1A0508;
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+.dock-title { flex: 1; }
+.dock-title .name { font-size: var(--fs-fluid-md); font-weight: var(--fw-bold); }
+.dock-title .state { font-size: var(--fs-fluid-xs); opacity: 0.8; }
+.dock-actions { display: flex; gap: 4px; }
+.dock-btn {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.1); color: #fff; border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.dock-btn:hover { background: rgba(255,255,255,0.22); }
+
+/* Dock 빠른 액션 칩 (맥락 기반) */
+.dock-ctx {
+  padding: var(--s-3) var(--s-4);
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  font-size: var(--fs-fluid-xs); color: #fff;
+  position: relative; z-index: 1;
+}
+.dock-ctx-label { opacity: 0.75; margin-bottom: 6px; display: block; font-weight: var(--fw-semi); letter-spacing: 0.08em; text-transform: uppercase; }
+.dock-ctx-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.dock-ctx-chip {
+  padding: 4px 10px; background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: var(--r-pill); color: #fff;
+  font-size: var(--fs-fluid-xs); font-weight: var(--fw-semi);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.dock-ctx-chip:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+
+/* Dock 대화 영역 */
+.dock-body {
+  flex: 1; overflow-y: auto;
+  padding: var(--s-4);
+  background: var(--bg-page);
+}
+.dock-welcome {
+  text-align: center;
+  padding: var(--s-6) var(--s-4);
+  color: var(--ink-500);
+  font-size: var(--fs-fluid-sm);
+  line-height: 1.6;
+}
+.dock-welcome .emoji { font-size: 40px; display: block; margin-bottom: var(--s-3); }
+
+/* 메시지 */
+.msg {
+  margin-bottom: var(--s-4);
+  display: flex; gap: var(--s-2);
+  animation: msgIn var(--dur-med) var(--ease-out);
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg.user { justify-content: flex-end; }
+.msg .bubble {
+  max-width: 88%;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-fluid-sm);
+  line-height: 1.55;
+}
+.msg.user .bubble {
+  background: var(--grad-brand-warm); color: #fff;
+  border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
+}
+.msg.ai .bubble {
+  background: var(--bg-card); color: var(--ink-900);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md) var(--r-md) var(--r-md) 4px;
+  position: relative;
+}
+.msg.ai .bubble .title {
+  font-size: var(--fs-fluid-sm);
+  font-weight: var(--fw-bold);
+  margin-bottom: var(--s-2);
+  color: var(--knk-red);
+  display: flex; align-items: center; gap: 6px;
+}
+.msg.ai .bubble .text { white-space: pre-wrap; font-family: inherit; }
+.msg.ai .bubble .links {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: var(--s-3); padding-top: var(--s-3);
+  border-top: 1px dashed var(--ink-200);
+}
+.link-chip {
+  font-size: var(--fs-fluid-xs);
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font-weight: var(--fw-bold);
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.link-chip:hover { transform: translateY(-1px); }
+.link-chip.primary { background: var(--grad-brand-warm); color: #fff; box-shadow: 0 2px 6px rgba(165,40,44,0.25); }
+.link-chip.secondary { background: var(--ink-100); color: var(--ink-700); border: 1px solid var(--ink-200); }
+
+/* Do 버튼 (바로 실행) */
+.link-chip.do {
+  background: #D1FAE5; color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+/* 타이핑 인디케이터 */
+.typing-dots { display: inline-flex; gap: 4px; align-items: center; }
+.typing-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ink-400);
+  animation: typing 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Dock 입력 영역 (하단 sticky) */
+.dock-input-wrap {
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  background: var(--bg-card);
+  border-top: 1px solid var(--ink-200);
+  flex-shrink: 0;
+}
+.dock-quick {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: var(--s-2);
+}
+.dock-quick button {
+  font-size: var(--fs-fluid-xs);
+  padding: 4px 10px;
+  background: var(--ink-100); color: var(--ink-700);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur-fast);
+}
+.dock-quick button:hover { background: var(--knk-red-bg); color: var(--knk-red); border-color: #FCA5A5; }
+
+.dock-input-row {
+  display: flex; gap: var(--s-2); align-items: flex-end;
+}
+.dock-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: var(--fs-fluid-sm);
+  font-family: inherit;
+  color: var(--ink-900);
+  background: var(--bg-page);
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--r-md);
+  outline: none;
+  resize: none;
+  max-height: 120px; min-height: 40px;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  box-sizing: border-box;
+}
+.dock-input:focus {
+  border-color: var(--knk-red);
+  box-shadow: 0 0 0 3px rgba(165,40,44,0.1);
+}
+.dock-send {
+  width: 40px; height: 40px;
+  background: var(--grad-brand-warm); color: #fff;
+  border: none; border-radius: var(--r-md);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(165,40,44,0.25);
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+  flex-shrink: 0;
+}
+.dock-send:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(165,40,44,0.35); }
+.dock-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.dock-foot {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--ink-400);
+  text-align: center;
+}
+
+/* =========================================================
+   모바일 (<768px): 풀스크린 오버레이
+   ========================================================= */
+@media (max-width: 767px) {
+  .dock { width: 100%; right: -100%; }
+  body.dock-open .main-wrap { margin-right: 0; }
+  .dock-tab { top: auto; bottom: 80px; }
+}
+</style>
+</head>
+<body>
+
+<!-- =======================================================
+     Topbar (더미)
+     ======================================================= -->
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안 #08</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="tb-user">
+    <div class="tb-avatar">김</div>
+    <div>
+      <div style="font-weight:var(--fw-semi)">김정락</div>
+      <div style="font-size:var(--fs-fluid-xs);color:var(--ink-500)">대표이사</div>
+    </div>
+  </div>
+</header>
+
+<!-- =======================================================
+     Main Content (빅터 열려도 이 영역은 살아있음)
+     ======================================================= -->
+<div class="main-wrap">
+
+  <div class="page-head">
+    <h1>안녕하세요, 김정락 대표이사 👋</h1>
+    <div class="sub">2026-04-24 (금) · 오늘 전사 현황</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="l">오늘 참여율</div>
+      <div class="n">62%</div>
+      <div class="d">52 / 84명 · 어제 대비 +5</div>
+    </div>
+    <div class="kpi">
+      <div class="l">미확인 변경</div>
+      <div class="n">3</div>
+      <div class="d">어제 4건 등록</div>
+    </div>
+    <div class="kpi">
+      <div class="l">지연 공정</div>
+      <div class="n">2</div>
+      <div class="d">T25-001, M25-002</div>
+    </div>
+    <div class="kpi">
+      <div class="l">미처리 티켓</div>
+      <div class="n">7</div>
+      <div class="d">긴급 1건 포함</div>
+    </div>
+  </div>
+
+  <div class="demo-callout">
+    <h3>💡 우측 빅터 탭을 눌러 보세요 (또는 <kbd>Ctrl</kbd> + <kbd>K</kbd>)</h3>
+    <p>빅터가 옆에서 항시 대기합니다. 이 화면을 떠나지 않고:</p>
+    <ul>
+      <li>"<b>이번달 매출</b>" · "<b>내 할 일</b>" · "<b>리니어가이드 재고</b>" 같은 자연어 질문</li>
+      <li>답변 아래 "<b>바로 이동</b>" · "<b>바로 실행</b>" 버튼으로 즉시 이동</li>
+      <li>빅터 창은 닫지 않아도 됩니다 — 다른 페이지 이동해도 <b>열려 있는 상태 유지</b></li>
+      <li>접기(<kbd>Esc</kbd>) 하면 우측 탭으로 접힙니다</li>
+    </ul>
+    <p style="margin-top:var(--s-4);"><b>시연 팁</b>: 지금 우측 탭 클릭 → "매출" 또는 "변경" 이라고 입력해 보세요.</p>
+  </div>
+
+</div>
+
+<!-- =======================================================
+     Dock 탭 (항상 우측)
+     ======================================================= -->
+<div class="dock-tab" onclick="toggleDock()" title="빅터 열기 (Ctrl+K)">
+  <span class="t-ico">🤖</span>
+  <span>빅터</span>
+  <kbd>⌘K</kbd>
+</div>
+
+<!-- =======================================================
+     Dock 본체 (슬라이드 인)
+     ======================================================= -->
+<aside class="dock" id="dock" aria-label="AI 빅터 어시스턴트">
+
+  <!-- 헤더 -->
+  <div class="dock-head">
+    <div class="dock-head-row">
+      <div class="dock-avatar">V</div>
+      <div class="dock-title">
+        <div class="name">HAIST 빅터</div>
+        <div class="state">사내 AI 컨시어지 · 온라인</div>
+      </div>
+      <div class="dock-actions">
+        <button class="dock-btn" onclick="clearChat()" title="대화 초기화">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+        <button class="dock-btn" onclick="toggleDock()" title="접기 (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- 맥락 기반 제안 (현재 페이지 기준) -->
+    <div class="dock-ctx">
+      <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
+      <div class="dock-ctx-chips">
+        <button class="dock-ctx-chip" onclick="ask('지연된 공정 상세')">지연된 공정 상세</button>
+        <button class="dock-ctx-chip" onclick="ask('미확인 변경 3건')">미확인 변경 3건</button>
+        <button class="dock-ctx-chip" onclick="ask('이번달 매출')">이번달 매출</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 대화 영역 -->
+  <div class="dock-body" id="dockBody">
+    <div class="dock-welcome" id="welcome">
+      <span class="emoji">👋</span>
+      <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">무엇을 도와드릴까요?</div>
+      자연어로 편하게 물어보세요.<br>
+      메뉴를 찾을 필요 없습니다.
+    </div>
+  </div>
+
+  <!-- 입력 영역 -->
+  <div class="dock-input-wrap">
+    <div class="dock-quick">
+      <button onclick="ask('내 할 일')">내 할 일</button>
+      <button onclick="ask('이번달 매출')">이번달 매출</button>
+      <button onclick="ask('리니어가이드 재고')">리니어가이드 재고</button>
+      <button onclick="ask('미처리 이슈')">미처리 이슈</button>
+      <button onclick="ask('결재')">결재</button>
+    </div>
+    <div class="dock-input-row">
+      <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="autoGrow(this)"></textarea>
+      <button class="dock-send" onclick="sendMsg()" title="보내기 (Enter)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="dock-foot">
+      <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+    </div>
+  </div>
+
+</aside>
+
+<script>
+/* =========================================================
+   상태 관리 (localStorage 로 열림/닫힘 유지)
+   ========================================================= */
+const DOCK_KEY = 'haist_victor_dock_open';
+
+function toggleDock() {
+  const open = !document.body.classList.contains('dock-open');
+  document.body.classList.toggle('dock-open', open);
+  localStorage.setItem(DOCK_KEY, open ? '1' : '0');
+  if (open) setTimeout(() => document.getElementById('dockInput').focus(), 300);
+}
+
+function openDockIfRemembered() {
+  if (localStorage.getItem(DOCK_KEY) === '1') {
+    document.body.classList.add('dock-open');
+  }
+}
+openDockIfRemembered();
+
+/* Ctrl+K / Cmd+K 단축키 */
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    toggleDock();
+  }
+  if (e.key === 'Escape' && document.body.classList.contains('dock-open')) {
+    toggleDock();
+  }
+});
+
+/* =========================================================
+   대화 처리
+   ========================================================= */
+const body = document.getElementById('dockBody');
+const input = document.getElementById('dockInput');
+
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMsg();
+  }
+});
+
+function sendMsg() {
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  autoGrow(input);
+  ask(q);
+}
+
+function ask(q) {
+  // 웰컴 제거
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  // 유저 메시지 추가
+  addMsg('user', q);
+
+  // 타이핑 인디케이터
+  const typingId = 'typ-' + Date.now();
+  body.insertAdjacentHTML('beforeend', `
+    <div class="msg ai" id="${typingId}">
+      <div class="bubble">
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  `);
+  body.scrollTop = body.scrollHeight;
+
+  // 실제 구현에서는 fetch('/api/victor/ask', ...) 호출
+  // 본 시안에서는 키워드 매칭 더미 사용
+  setTimeout(() => {
+    document.getElementById(typingId).remove();
+    const answer = victorReply(q);
+    addAiMsg(answer);
+  }, 600 + Math.random() * 400);
+}
+
+function addMsg(role, text) {
+  const esc = text.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  body.insertAdjacentHTML('beforeend', `
+    <div class="msg ${role}">
+      <div class="bubble">${esc.replace(/\n/g, '<br>')}</div>
+    </div>
+  `);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addAiMsg(r) {
+  const titleIco = {route:'🧭', data:'📊', search:'🔍', guide:'💡', external:'🔗', error:'⚠️'}[r.type] || '🤖';
+  const linksHtml = (r.links || []).map(l => {
+    const cls = l.style === 'primary' ? 'primary' : (l.style === 'do' ? 'do' : 'secondary');
+    return `<a class="link-chip ${cls}" href="${l.href}" onclick="onLinkClick(event, '${l.label}')">${l.label}</a>`;
+  }).join('');
+  body.insertAdjacentHTML('beforeend', `
+    <div class="msg ai">
+      <div class="bubble">
+        <div class="title">${titleIco} ${r.title}</div>
+        <div class="text">${r.text.replace(/\n/g, '<br>')}</div>
+        ${linksHtml ? `<div class="links">${linksHtml}</div>` : ''}
+      </div>
+    </div>
+  `);
+  body.scrollTop = body.scrollHeight;
+}
+
+function onLinkClick(e, label) {
+  e.preventDefault();
+  alert(`(시안 데모) "${label}" 클릭\n실제 구현에서는 해당 경로로 이동하고, 빅터 창은 열린 상태 유지됩니다.`);
+}
+
+function clearChat() {
+  body.innerHTML = `<div class="dock-welcome" id="welcome">
+    <span class="emoji">👋</span>
+    <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">대화가 초기화되었습니다</div>
+    다시 물어보세요.
+  </div>`;
+}
+
+/* =========================================================
+   빅터 응답 더미 (실제는 /api/victor/ask 로 이동)
+   ========================================================= */
+function victorReply(q) {
+  const norm = q.replace(/\s/g, '').toLowerCase();
+
+  if (norm.includes('지연') || norm.includes('공정')) {
+    return {
+      type: 'data',
+      title: '현재 지연 공정 2건',
+      text: '• T25-001 A전자 검사기 1호기\n  SW 공정 5일 지연 · 담당 소프트웨어팀\n\n• M25-002 D화학 물류 자동화\n  발주·입고 2건 지연 · 담당 구매팀',
+      links: [
+        { label: '진행률 대시보드 →', href: '/progress', style: 'primary' },
+        { label: '담당자에게 알림', href: '#', style: 'do' },
+        { label: '변경 이력 보기', href: '/changes', style: 'secondary' },
+      ],
+    };
+  }
+
+  if (norm.includes('변경') || norm.includes('미확인')) {
+    return {
+      type: 'data',
+      title: '내 미확인 변경 3건',
+      text: '• BOM 변경 — 검사기 3호기 전장 보드 (2시간 전)\n• 도면 변경 — 자동화 라인 조립 치구 (5시간 전)\n• 일정 변경 — M25-002 납기 2주 연기 (어제)',
+      links: [
+        { label: '변경 목록 열기 →', href: '/changes', style: 'primary' },
+        { label: '전체 확인 처리', href: '#', style: 'do' },
+      ],
+    };
+  }
+
+  if (norm.includes('매출') || norm.includes('돈') || norm.includes('수주')) {
+    return {
+      type: 'data',
+      title: '2026년 4월 매출 요약',
+      text: '누계: 18.4억원 (전월 대비 +12%)\n• 검사기 부문: 11.2억\n• 자동화 부문: 7.2억\n\n상위 고객사: A전자(5.8억) · C산업(3.1억) · E세미콘(2.4억)',
+      links: [
+        { label: '매출 대시보드 →', href: '/dashboard', style: 'primary' },
+        { label: 'Excel 다운로드', href: '#', style: 'do' },
+      ],
+    };
+  }
+
+  if (norm.includes('할일') || norm.includes('내일') || norm.includes('오늘') || norm.includes('내업무')) {
+    return {
+      type: 'route',
+      title: '오늘 김정락 대표님의 업무',
+      text: '• 주간 임원회의 자료 검토 (14:00)\n• 신규 프로젝트 T25-003 E세미콘 승인 건\n• 관리팀 주간보고 회신 (3건 대기)',
+      links: [
+        { label: '업무현황 열기 →', href: '/home', style: 'primary' },
+        { label: '캘린더', href: '/calendar', style: 'secondary' },
+      ],
+    };
+  }
+
+  if (norm.includes('리니어') || norm.includes('재고') || norm.includes('자재')) {
+    return {
+      type: 'search',
+      title: '자재 검색: 리니어가이드',
+      text: '검색 결과 3건:\n• LG-20-400 · 재고 12ea · A창고\n• LG-25-600 · 재고 5ea · A창고 (안전재고 미달)\n• LG-30-800 · 재고 0ea · 발주 필요',
+      links: [
+        { label: '자재 시스템 열기 →', href: '/logistics', style: 'primary' },
+        { label: 'LG-30-800 발주하기', href: '#', style: 'do' },
+      ],
+    };
+  }
+
+  if (norm.includes('결재') || norm.includes('휴가') || norm.includes('품의')) {
+    return {
+      type: 'external',
+      title: '전자결재는 하이웍스에서',
+      text: '현재 HAIST WORKS 는 업무·변경·프로젝트를 담당하고,\n전자결재는 기존 하이웍스를 그대로 사용합니다.',
+      links: [
+        { label: '하이웍스 전자결재 열기 ↗', href: 'https://office.hiworks.com/', style: 'primary' },
+      ],
+    };
+  }
+
+  if (norm.includes('이슈') || norm.includes('as') || norm.includes('문제')) {
+    return {
+      type: 'data',
+      title: '미처리 이슈 7건',
+      text: '• 긴급 1건: A전자 검사기 오작동 (1일 전)\n• 중요 3건: BOM 불일치·도면 에러\n• 일반 3건: AS 요청',
+      links: [
+        { label: '이슈 목록 →', href: '/issues', style: 'primary' },
+      ],
+    };
+  }
+
+  // Default: 가이드
+  return {
+    type: 'guide',
+    title: '이렇게 물어볼 수 있어요',
+    text: '"' + q + '" — 아직 이해하지 못했어요.\n\n예시 질문:\n• "지연된 공정"\n• "이번달 매출"\n• "내 할 일"\n• "리니어가이드 재고"\n• "결재 올리기"',
+    links: [
+      { label: '진행률 보기', href: '/progress', style: 'secondary' },
+      { label: '업무현황', href: '/home', style: 'secondary' },
+      { label: '전사 대시보드', href: '/dashboard', style: 'secondary' },
+    ],
+  };
+}
+</script>
+
+</body>
+</html>

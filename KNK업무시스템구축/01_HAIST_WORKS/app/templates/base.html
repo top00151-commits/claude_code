@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260425healing-c2">
+{# LAST UPDATE: 2026-04-26 사용자프로필 — 본인 프로필 강화. 헬퍼 +1 (_profile_payload — 활동 30일 집계 + 권한 매트릭스 1인 + 위임 토큰 in/out). 라우트 +2: GET /me (alias → /profile) · POST /me (이메일·언어·phone·dept 수정, 본인 한정, phone/dept는 PRAGMA 존재 시만). 기존 GET /profile 강화: 6 KPI(작성 30d/진행/완료/댓글/알림/미읽음) + 최근 task 10 + 최근 댓글 10 + 권한 D/G/T 분류 + 위임받은/위임한 토큰. 신규 템플릿 +0 (profile.html 본문 강화). 외부 자산 0건 · v2 본체 무수정 · G1~G5 핫패치 보존 #}
+<link rel="stylesheet" href="/static/style.css?v=20260426text14tok">
 </head>
 <body>
 {% if user %}
@@ -53,13 +54,42 @@
     {% endif %}
   </div>
 
-  <div class="tb-center">
+  <div class="tb-center" style="position:relative">
     <form class="g-search" action="/search" method="get" role="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="search" name="q" id="gSearchInput" placeholder="{{ i.search_ph|default('업무·사람·문서 검색...') }}" autocomplete="off">
+      <label for="gSearchInput" class="sr-only">{{ i.search_ph|default('업무·사람·문서 검색') }}</label>
+      <input type="search" name="q" id="gSearchInput" tabindex="0" placeholder="{{ i.search_ph|default('업무·사람·문서 검색...') }}" autocomplete="off" oninput="gSearchSuggest(this.value)" onblur="setTimeout(function(){var el=document.getElementById('gSearchSugg');if(el)el.style.display='none'},200)" onfocus="if(this.value.length>=2)gSearchSuggest(this.value)">
       <span class="shortcut">/</span>
     </form>
+    {# 글로벌 검색 자동완성 드롭다운 — 2026-04-26 #}
+    <div id="gSearchSugg" class="g-search-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-elev,#fff);border:1px solid var(--border,#ddd);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:380px;overflow:auto;z-index:9999;margin-top:4px"></div>
   </div>
+  <script>
+  // 글로벌 검색 자동완성 (debounce 250ms · POST /search/suggest)
+  var _gsTmr = null;
+  function gSearchSuggest(q){
+    var box = document.getElementById('gSearchSugg');
+    if (!box) return;
+    if (!q || q.trim().length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+    if (_gsTmr) clearTimeout(_gsTmr);
+    _gsTmr = setTimeout(function(){
+      fetch('/search/suggest', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({q: q.trim()})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (!d || !d.ok || !d.items || !d.items.length) { box.style.display='none'; box.innerHTML=''; return; }
+        var html = '';
+        d.items.forEach(function(it){
+          html += '<a href="'+it.link+'" style="display:block;padding:8px 12px;text-decoration:none;color:inherit;border-bottom:1px solid var(--border,#eee)"><span style="font-size:11px;color:var(--text-muted,#888);margin-right:8px">'+it.cat_label+'</span>'+(it.label||'')+'</a>';
+        });
+        html += '<a href="/search?q='+encodeURIComponent(q.trim())+'" style="display:block;padding:8px 12px;text-decoration:none;color:var(--accent,#06f);font-weight:600;text-align:center">전체 결과 보기 →</a>';
+        box.innerHTML = html;
+        box.style.display = 'block';
+      }).catch(function(){ box.style.display='none'; });
+    }, 250);
+  }
+  </script>
 
   <div class="tb-right">
     <button class="tb-icon-btn victor" id="victorTrigger" type="button" onclick="victorToggleDock()" title="{{ i.victor|default('빅터') }} (Ctrl+K)" aria-label="{{ i.victor|default('빅터') }}" aria-pressed="true">
@@ -90,7 +120,7 @@
 {% if user %}
 <div class="layout-wrap">
   <aside class="sidebar" id="sidebar">
-    <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
+    {# 핫패치 2026-04-25 17:30 — sb-toggle 화살표 버튼 제거 (C안 v2 §6-7 사이드바 264px 고정 · 시안 12B 정합) #}
     {# C안 §3·§7-2 — 드래그 리사이즈 핸들 폐지 (시안 12B 고정 264px) #}
     {# ===== Plan Y S1 네비 5 그룹 (2026-04-24 대표 승인) ===== #}
     {# 그룹 1: 내 업무 (개인) #}
@@ -197,6 +227,7 @@
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-7h-6M7 12H1m15.66-6.34-4.24 4.24M7.58 16.42l-4.24 4.24m0-16.32 4.24 4.24m8.48 8.48 4.24 4.24"/></svg></span>
         관리자
       </a>
+      <a href="/admin/external-assets" class="sb-item" title="외부 패키지 3종 직접 판단 (대표 spike 2026-04-27)"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg></span>외부자산 점검</a>
       {% endif %}
     </div>
 
@@ -515,17 +546,17 @@ function renderCardModal(t, comments, reactions, delegations){
   html += `<div class="cm-deleg-form">
     <button class="btn-sm" onclick="document.getElementById('delegForm').style.display='block'" style="font-size:11px">${I.delegate_btn}</button>
     <div id="delegForm" style="display:none;margin-top:8px">
-      <input id="delegTo" type="text" placeholder="@이름 검색" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:160px" oninput="searchDelegUser(this.value)">
+      <input id="delegTo" type="text" placeholder="@이름 검색" aria-label="위임 대상자 검색 (@이름)" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:160px" oninput="searchDelegUser(this.value)">
       <div id="delegPop" class="mention-pop" style="display:none"></div>
       <input id="delegToId" type="hidden">
-      <input id="delegMsg" type="text" placeholder="위임 메시지 (선택)" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-left:4px;width:200px">
+      <input id="delegMsg" type="text" placeholder="위임 메시지 (선택)" aria-label="위임 메시지 (선택)" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-left:4px;width:200px">
       <button class="btn-primary" onclick="submitDelegation(${t.id})" style="font-size:11px;padding:5px 12px;margin-left:4px">${I.btn_delegate}</button>
     </div>
   </div>`;
 
   // Comment form (with @mention autocomplete)
   html += `<div class="cm-form-wrap">
-    <textarea id="cmInput" placeholder="${I.comment_placeholder}" rows="2"></textarea>
+    <textarea id="cmInput" placeholder="${I.comment_placeholder}" aria-label="${I.comment_placeholder}" rows="2"></textarea>
     <div id="mentionPop" class="mention-pop" style="display:none"></div>
     <div class="cm-form-actions">
       <button class="btn-primary" onclick="submitComment(${t.id})">${I.btn_register}</button>
@@ -1028,10 +1059,10 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="state">사내 AI 컨시어지 · 온라인</div>
       </div>
       <div class="dock-actions">
-        <button class="dock-btn" onclick="victorClearChat()" title="대화 초기화">
+        <button class="dock-btn" onclick="victorClearChat()" title="대화 초기화" aria-label="대화 초기화">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
-        <button class="dock-btn" onclick="victorToggleDock()" title="접기 (Esc)">
+        <button class="dock-btn" onclick="victorToggleDock()" title="접기 (Esc)" aria-label="빅터 도크 접기">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
@@ -1068,8 +1099,9 @@ document.addEventListener('DOMContentLoaded', function(){
       <button type="button" onclick="victorAsk('결재')">결재</button>
     </div>
     <div class="dock-input-row">
-      <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
-      <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)">
+      <label for="dockInput" class="sr-only">빅터 입력</label>
+      <textarea class="dock-input" id="dockInput" rows="1" tabindex="0" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
+      <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)" aria-label="빅터에게 보내기" tabindex="0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>

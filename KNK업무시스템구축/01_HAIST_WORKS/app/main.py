@@ -3,7 +3,7 @@ KNK 일일업무일지 v2 - Phase 1 MVP
 Task Card 기반 일일업무 + 팀장 뷰 + 경영진 대시보드 + 개인 히스토리
 """
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -15,13 +15,18 @@ from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw
                         regenerate_user_passwords, build_password_xlsx,
                         add_comment, get_task_comments, delete_comment,
                         get_notifications, count_unread, mark_notification_read,
-                        mark_all_read,
+                        mark_all_read, notify_user,
                         log_activity, log_activity_standalone, get_activities,
                         add_reaction, get_reactions, get_reactions_bulk, get_meta_bulk,
                         notify_status_change, get_user_search,
                         upsert_retro, get_retro, search_all, detect_bottlenecks,
                         delegate_task, get_delegations, resolve_delegation,
-                        get_setting, get_settings_all, set_setting)
+                        get_setting, get_settings_all, set_setting,
+                        global_search, GLOBAL_SEARCH_CATEGORIES,
+                        search_orders, search_customers, search_parts,
+                        search_issues, search_tickets, search_users,
+                        search_boards, search_exports, search_audits,
+                        ceo_dashboard_kpis)
 
 BASE = os.path.dirname(os.path.dirname(__file__))
 app = FastAPI(title="KNK 일일업무일지 v2")
@@ -1085,7 +1090,8 @@ async def api_translate(req: Request):
     try:
         from deep_translator import MyMemoryTranslator
         src = 'ko-KR'
-        tgt_map = {'vi':'vi-VN','en':'en-GB','ko':'ko-KR','ja':'ja-JP','zh-CN':'zh-CN'}
+        # P1-3 (2026-04-25 09팀장 지시): 언어 셀렉터 정리 — ko/vi/en 3종만 유지 (ja, zh-CN 제거)
+        tgt_map = {'vi':'vi-VN','en':'en-GB','ko':'ko-KR'}
         result = MyMemoryTranslator(source=src, target=tgt_map.get(target,'en-GB')).translate(text)
         if result:
             return JSONResponse({"ok": True, "translated": result, "target": target})
@@ -1228,15 +1234,94 @@ async def now_feed(req: Request, scope: str = "all"):
 
 
 # =====================================================
-# 통합 검색
+# 통합 검색 (글로벌 검색 강화 — 2026-04-26)
+# 카테고리: 카드/댓글/회고 + 수주/고객/부품/이슈/티켓/사용자/게시판/수출입/재고
+# 외부 검색엔진 0건 (Elasticsearch 등 절대 금지) · LIKE parameter binding 절대.
 # =====================================================
+SEARCH_CAT_LABELS = {
+    "tasks": "📋 카드", "comments": "💬 댓글", "retros": "📖 회고",
+    "orders": "📦 수주", "customers": "🤝 고객", "parts": "🔩 부품",
+    "issues": "⚠️ 이슈", "tickets": "🎫 티켓", "users": "👤 사용자",
+    "boards": "📰 게시판", "exports": "🚢 수출입", "audits": "📊 재고실사",
+}
+
+
 @app.get("/search", response_class=HTMLResponse)
-async def search_page(req: Request, q: str = ""):
+async def search_page(req: Request, q: str = "", cat: str = "all"):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    res = search_all(q, 50) if q else {"tasks":[], "comments":[], "retros":[]}
-    return ctx(req, "search.html", user=u, q=q, res=res, active="search")
+    cat = (cat or "all").strip().lower()
+    cats = None if cat == "all" else [cat]
+    res = {"tasks":[], "comments":[], "retros":[]}
+    res_global = {}
+    if q and len(q.strip()) >= 1:
+        # 카드/댓글/회고 (기존 search_all)
+        if cat in ("all", "tasks", "comments", "retros"):
+            full = search_all(q, 50)
+            if cat == "all":
+                res = full
+            elif cat == "tasks":
+                res = {"tasks": full.get("tasks", []), "comments": [], "retros": []}
+            elif cat == "comments":
+                res = {"tasks": [], "comments": full.get("comments", []), "retros": []}
+            elif cat == "retros":
+                res = {"tasks": [], "comments": [], "retros": full.get("retros", [])}
+        # 글로벌 9개 카테고리
+        global_cats = list(GLOBAL_SEARCH_CATEGORIES.keys())
+        if cat == "all":
+            res_global = global_search(q, None, 5)
+        elif cat in global_cats:
+            res_global = global_search(q, [cat], 5)
+    return ctx(req, "search.html", user=u, q=q, cat=cat, res=res,
+               res_global=res_global, cat_labels=SEARCH_CAT_LABELS, active="search")
+
+
+@app.post("/search/suggest")
+async def api_search_suggest(req: Request):
+    """헤더 검색창 자동완성 — 카테고리별 상위 3건씩, 라벨만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error":"로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    q = (d.get("q") or "").strip()
+    if len(q) < 2:
+        return JSONResponse({"ok": True, "items": []})
+    items = []
+    # 핵심 5개 카테고리 (자동완성 부담 최소)
+    suggest_cats = ["orders", "customers", "parts", "issues", "users"]
+    res = global_search(q, suggest_cats, 3)
+    for cat in suggest_cats:
+        for r in res.get(cat, []):
+            label = ""
+            if cat == "orders":
+                label = f"{r.get('order_no','')} · {r.get('customer_name','') or ''}"
+                link = "/sales/orders"
+            elif cat == "customers":
+                label = r.get("name", "")
+                link = f"/customer/{r['id']}"
+            elif cat == "parts":
+                label = f"{r.get('part_no','')} · {r.get('part_name','')}"
+                link = f"/parts/{r['id']}"
+            elif cat == "issues":
+                label = f"{r.get('issue_no','') or ''} · {r.get('title','')}"
+                link = f"/issues/{r['id']}"
+            elif cat == "users":
+                label = f"{r.get('name','')} · {r.get('rank','') or r.get('team_name','') or ''}"
+                link = "/search?cat=users&q=" + q
+            else:
+                label = str(r.get("id", ""))
+                link = "/search?q=" + q
+            items.append({
+                "cat": cat,
+                "cat_label": SEARCH_CAT_LABELS.get(cat, cat),
+                "label": label.strip(" ·"),
+                "link": link,
+            })
+    return JSONResponse({"ok": True, "q": q, "items": items[:15]})
 
 
 # =====================================================
@@ -1386,6 +1471,34 @@ async def notifications_page(req: Request):
         return RedirectResponse("/login", 303)
     items = get_notifications(u["id"], limit=100)
     return ctx(req, "notifications.html", user=u, items=items, active="notifications")
+
+
+# 통합 알림 — 비-/api/ 경로 (사이클 2026-04-26 알림시스템-통합)
+@app.post("/notifications/{nid}/read")
+async def notifications_read(req: Request, nid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "auth"}, 401)
+    mark_notification_read(nid, u["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.post("/notifications/read-all")
+async def notifications_read_all(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "auth"}, 401)
+    mark_all_read(u["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.get("/notifications/badge")
+async def notifications_badge(req: Request):
+    """헤더 배지 카운트 (UNREAD)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"count": 0})
+    return JSONResponse({"count": count_unread(u["id"])})
 
 
 # =====================================================
@@ -1653,7 +1766,14 @@ async def team_page(req: Request, sel_date: str = ""):
 
 # =====================================================
 # DASHBOARD — 대표이사 전사 뷰
+# 2026-04-26 CEO 통합 대시보드 — /ceo 별칭 추가 (CEO·admin·executive 전용)
 # =====================================================
+@app.get("/ceo", response_class=HTMLResponse)
+async def ceo_dashboard_alias(req: Request):
+    """CEO 전용 통합 대시보드 — /dashboard 로 위임 (권한 동일)."""
+    return RedirectResponse("/dashboard", 303)
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(req: Request):
     # ESC-02: 로그인 상태 구분 — 미인증→/login, 권한 부족→role 홈
@@ -1770,12 +1890,32 @@ async def dashboard_page(req: Request):
             if cards:
                 narratives.append({"team": t, "cards": cards})
 
+    # 2026-04-26 CEO 통합 대시보드 — 9 KPI + 알림 + 빠른 액션
+    ceo_kpis = ceo_dashboard_kpis(user_id=u["id"])
+    with db_session() as c:
+        unread_notifs = [dict(r) for r in c.execute(
+            "SELECT id, kind, title, body, link, created_at "
+            "FROM notifications WHERE user_id=? AND is_read=0 "
+            "ORDER BY created_at DESC LIMIT 5",
+            (u["id"],),
+        ).fetchall()]
+
+    # 2026-04-27 사이클53 — 안전재고 알림 위젯 (6번째 패널)
+    # recommend_reorders(limit=5) 직접 호출 → safety_top5 컨텍스트 전달
+    from .database import recommend_reorders as _ceo_recommend_reorders
+    try:
+        safety_top5 = _ceo_recommend_reorders(limit=5) or []
+    except Exception:
+        safety_top5 = []
+
     return ctx(req, "dashboard.html",
                user=u, teams=teams, total_stats=total_stats,
                mon=mon, sun=sun, today_s=today_s,
                participation_rate=participation_rate,
                today_reporters=today_reporters, total_users=total_users,
-               delays=delays, customers=customers, narratives=narratives)
+               delays=delays, customers=customers, narratives=narratives,
+               ceo_kpis=ceo_kpis, unread_notifs=unread_notifs,
+               safety_top5=safety_top5)
 
 
 # =====================================================
@@ -1840,12 +1980,19 @@ async def weekly_page(req: Request, wk_mon: str = ""):
                ORDER BY t.work_date, t.id""",
             (u["id"], mon.isoformat(), sun.isoformat()),
         ).fetchall()]
+        # 주간보고 2차 — KPI 8개 (오버타임/정시완료율 포함)
+        _hours_total = sum(t["hours"] or 0 for t in my_tasks)
+        _done_cnt = sum(1 for t in my_tasks if t["status"] == "완료")
+        _overtime = max(0.0, _hours_total - 40.0)  # 주 40h 초과분
+        _on_time_rate = round((_done_cnt / len(my_tasks) * 100), 0) if my_tasks else 0
         my_stats = {
             "total": len(my_tasks),
-            "done": sum(1 for t in my_tasks if t["status"] == "완료"),
+            "done": _done_cnt,
             "progress": sum(1 for t in my_tasks if t["status"] == "진행중"),
             "delay": sum(1 for t in my_tasks if t["status"] == "지연"),
-            "hours": round(sum(t["hours"] or 0 for t in my_tasks), 1),
+            "hours": round(_hours_total, 1),
+            "overtime": round(_overtime, 1),
+            "on_time_rate": int(_on_time_rate),
         }
         # 분류별
         my_by_cat = {}
@@ -1964,12 +2111,222 @@ async def weekly_page(req: Request, wk_mon: str = ""):
             "SELECT * FROM teams ORDER BY display_order"
         ).fetchall()]
 
+        # 갭서베이 Top10 #5 — 개인 8주 트렌드 (주간보고 2차 — 4→8주 확장 · VIEW 자동 집계)
+        my_trend = []
+        for i in range(7, -1, -1):
+            wk_s = (mon - timedelta(days=7 * i)).isoformat()
+            row = c.execute(
+                """SELECT total_tasks, completed, in_progress, delayed, total_hours
+                   FROM weekly_summary
+                   WHERE user_id=? AND week_start=?""",
+                (u["id"], wk_s),
+            ).fetchone()
+            if row:
+                my_trend.append({
+                    "week_start": wk_s,
+                    "total": row["total_tasks"],
+                    "done": row["completed"],
+                    "progress": row["in_progress"],
+                    "delay": row["delayed"],
+                    "hours": row["total_hours"] or 0,
+                })
+            else:
+                my_trend.append({"week_start": wk_s, "total": 0, "done": 0,
+                                 "progress": 0, "delay": 0, "hours": 0})
+
+        # 부서별 비교 (VIEW 자동 집계 · 팀장+ 권한일 때만 의미)
+        dept_compare = []
+        if u["role"] in ("leader", "executive", "ceo", "admin"):
+            dept_compare = [dict(r) for r in c.execute(
+                """SELECT tm.id AS team_id, tm.name AS team_name, tm.code AS team_code,
+                          COALESCE(SUM(ws.total_tasks), 0)  AS total,
+                          COALESCE(SUM(ws.completed), 0)    AS done,
+                          COALESCE(SUM(ws.delayed), 0)      AS delay,
+                          COALESCE(SUM(ws.total_hours), 0)  AS hours
+                   FROM teams tm
+                   LEFT JOIN weekly_summary ws
+                          ON ws.team_id = tm.id AND ws.week_start = ?
+                   GROUP BY tm.id, tm.name, tm.code
+                   ORDER BY tm.display_order""",
+                (mon.isoformat(),),
+            ).fetchall()]
+
     return ctx(req, "weekly.html",
                user=u, my_tasks=my_tasks, my_stats=my_stats, my_by_cat=my_by_cat,
                team_data=team_data, all_data=all_data,
+               my_trend=my_trend, dept_compare=dept_compare,
                wk_mon=mon.isoformat(), wk_sun=sun.isoformat(),
                prev_mon=prev_mon, next_mon=next_mon, teams_all=teams_all,
                active="weekly")
+
+
+# 팀장 전용 — 부서별 집계 보기 (VIEW 자동 집계)
+@app.get("/weekly/team", response_class=HTMLResponse)
+async def weekly_team_page(req: Request, wk_mon: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if u["role"] not in ("leader", "executive", "ceo", "admin"):
+        return RedirectResponse("/weekly", 303)
+    if not wk_mon:
+        td = date.today()
+        wk_mon = (td - timedelta(days=td.weekday())).isoformat()
+    return RedirectResponse(f"/weekly/{wk_mon}?scope=team", 303)
+
+
+# 경영진 전용 — 전사 집계 보기
+@app.get("/weekly/company", response_class=HTMLResponse)
+async def weekly_company_page(req: Request, wk_mon: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if u["role"] not in ("ceo", "admin", "executive"):
+        return RedirectResponse("/weekly", 303)
+    if not wk_mon:
+        td = date.today()
+        wk_mon = (td - timedelta(days=td.weekday())).isoformat()
+    return RedirectResponse(f"/weekly/{wk_mon}?scope=company", 303)
+
+
+# 수동 재집계 트리거 (VIEW 기반이라 SQLite 의 ANALYZE 만 호출 — 캐시 갱신용)
+@app.post("/weekly/refresh")
+async def weekly_refresh(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "auth"}, 401)
+    with db_session() as c:
+        try:
+            c.execute("ANALYZE weekly_summary")
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "msg": "재집계 완료"})
+
+
+# 주간보고 2차 — 마감 알림 (토 18시 발동 가정)
+@app.post("/weekly/notify")
+async def weekly_notify(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "auth"}, 401)
+    td = date.today()
+    wk_mon = (td - timedelta(days=td.weekday())).isoformat()
+    sun = (td - timedelta(days=td.weekday()) + timedelta(days=6)).isoformat()
+    sent = 0
+    with db_session() as c:
+        # 본인 + 부서장 두 사람에게 INSERT
+        targets = [u["id"]]
+        if u.get("team_id"):
+            row = c.execute("SELECT leader_id FROM teams WHERE id=?", (u["team_id"],)).fetchone()
+            if row and row["leader_id"] and row["leader_id"] != u["id"]:
+                targets.append(row["leader_id"])
+    # 알림시스템 통합 (사이클 2026-04-26) — notify_user 단일 헬퍼 사용 (1시간 중복 방지 내장)
+    for uid in targets:
+        if notify_user(
+            uid, "WEEKLY",
+            f"📊 주간보고 마감 임박 ({wk_mon}~{sun})",
+            body=wk_mon, link=f"/weekly/{wk_mon}",
+        ):
+            sent += 1
+    return JSONResponse({"ok": True, "sent": sent, "wk_mon": wk_mon})
+
+
+# 주간보고 2차 — CSV 다운로드 (csv 모듈만 · 외부 라이브러리 0)
+@app.get("/weekly/export.csv")
+async def weekly_export_csv(req: Request, wk_mon: str = "", scope: str = "me"):
+    import csv as _csv
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not wk_mon:
+        td = date.today()
+        wk_mon = (td - timedelta(days=td.weekday())).isoformat()
+    mon = datetime.strptime(wk_mon, "%Y-%m-%d").date()
+    sun = mon + timedelta(days=6)
+
+    buf = io.StringIO()
+    buf.write("﻿")  # UTF-8 BOM (엑셀 한글 호환)
+    w = _csv.writer(buf)
+    w.writerow(["일자", "이름", "팀", "제목", "분류", "프로젝트", "고객사", "상태", "공수"])
+    with db_session() as c:
+        if scope == "team" and u["role"] in ("leader", "executive", "ceo", "admin"):
+            tid = u["team_id"]
+            rows = c.execute(
+                """SELECT t.work_date, u.name AS uname, tm.name AS tname,
+                          t.title, t.category, p.name AS pname, cu.name AS cname,
+                          t.status, t.hours
+                   FROM tasks t JOIN users u ON t.user_id=u.id
+                   LEFT JOIN teams tm ON u.team_id=tm.id
+                   LEFT JOIN projects p ON t.project_id=p.id
+                   LEFT JOIN customers cu ON t.customer_id=cu.id
+                   WHERE u.team_id=? AND t.work_date>=? AND t.work_date<=?
+                   ORDER BY t.work_date, u.name""",
+                (tid, mon.isoformat(), sun.isoformat())
+            ).fetchall()
+        else:
+            rows = c.execute(
+                """SELECT t.work_date, u.name AS uname, tm.name AS tname,
+                          t.title, t.category, p.name AS pname, cu.name AS cname,
+                          t.status, t.hours
+                   FROM tasks t JOIN users u ON t.user_id=u.id
+                   LEFT JOIN teams tm ON u.team_id=tm.id
+                   LEFT JOIN projects p ON t.project_id=p.id
+                   LEFT JOIN customers cu ON t.customer_id=cu.id
+                   WHERE t.user_id=? AND t.work_date>=? AND t.work_date<=?
+                   ORDER BY t.work_date""",
+                (u["id"], mon.isoformat(), sun.isoformat())
+            ).fetchall()
+        for r in rows:
+            w.writerow([r["work_date"], r["uname"], r["tname"] or "",
+                        r["title"], r["category"] or "", r["pname"] or "",
+                        r["cname"] or "", r["status"], r["hours"] or 0])
+    fn = f"weekly_{scope}_{wk_mon}.csv"
+    return StreamingResponse(
+        io.BytesIO(buf.getvalue().encode("utf-8")),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={fn}"}
+    )
+
+
+# 주간보고 2차 — 두 주 비교 (선택)
+@app.get("/weekly/compare/{wk1}/{wk2}", response_class=HTMLResponse)
+async def weekly_compare(req: Request, wk1: str, wk2: str):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        def _agg(wk):
+            row = c.execute(
+                """SELECT total_tasks, completed, in_progress, delayed, total_hours
+                   FROM weekly_summary
+                   WHERE user_id=? AND week_start=?""",
+                (u["id"], wk)
+            ).fetchone()
+            if row:
+                return {"wk": wk, "total": row["total_tasks"], "done": row["completed"],
+                        "progress": row["in_progress"], "delay": row["delayed"],
+                        "hours": row["total_hours"] or 0}
+            return {"wk": wk, "total": 0, "done": 0, "progress": 0, "delay": 0, "hours": 0}
+        a, b = _agg(wk1), _agg(wk2)
+    diff = {
+        "total": b["total"] - a["total"],
+        "done": b["done"] - a["done"],
+        "delay": b["delay"] - a["delay"],
+        "hours": round(b["hours"] - a["hours"], 1),
+    }
+    html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>주간 비교 {wk1} vs {wk2}</title>
+<style>body{{font-family:'맑은 고딕',sans-serif;padding:24px;color:#333}}
+table{{border-collapse:collapse;margin-top:12px}}th,td{{padding:8px 14px;border:1px solid #d0d0d0}}
+th{{background:#A5282C;color:#fff}}.dn{{color:#16a34a}}.up{{color:#dc2626}}</style></head>
+<body><h1>주간 비교 — {u['name']}</h1>
+<p>{wk1} → {wk2}</p>
+<table><tr><th>항목</th><th>{wk1}</th><th>{wk2}</th><th>차이</th></tr>
+<tr><td>총 카드</td><td>{a['total']}</td><td>{b['total']}</td><td class="{'up' if diff['total']>0 else 'dn'}">{diff['total']:+d}</td></tr>
+<tr><td>완료</td><td>{a['done']}</td><td>{b['done']}</td><td class="{'up' if diff['done']>0 else 'dn'}">{diff['done']:+d}</td></tr>
+<tr><td>지연</td><td>{a['delay']}</td><td>{b['delay']}</td><td class="{'dn' if diff['delay']<0 else 'up'}">{diff['delay']:+d}</td></tr>
+<tr><td>공수(h)</td><td>{a['hours']:.1f}</td><td>{b['hours']:.1f}</td><td>{diff['hours']:+.1f}</td></tr>
+</table>
+<p><a href="/weekly">← 주간 요약</a></p></body></html>"""
+    return HTMLResponse(html)
 
 
 # =====================================================
@@ -2459,6 +2816,160 @@ async def admin_health_page(req: Request):
                active="admin")
 
 
+# =====================================================
+# 외부자산 점검 (대표 직접 판단용 spike, 2026-04-27)
+# 출처: 00_HAIST_WORKS_감사팀/_TO_09팀장_2026-04-27_긴급감사_openpyxl외부자산.md
+# =====================================================
+EXTERNAL_ASSETS_REVIEW = [
+    {
+        "name": "openpyxl",
+        "type": "PyPI 라이브러리 (엑셀 파일 생성)",
+        "usage": [
+            {"file": "app/main.py", "lines": "3102~3105",
+             "purpose": "주간 요약 엑셀 다운로드 (/export/weekly)"},
+            {"file": "app/database.py", "lines": "2257~2258",
+             "purpose": "초기 비밀번호 배포용 xlsx 생성 (admin 1회성)"},
+            {"file": "scripts/migrate_baby_v2.py", "lines": "79",
+             "purpose": "baby Excel → web SQLite 마이그레이션 (운영 외 1회성)"},
+            {"file": "scripts/baby_web_sync_check.py", "lines": "38",
+             "purpose": "baby/web 정합성 체크 (운영 외 스크립트)"},
+        ],
+        "alternatives": [
+            "CSV 다운로드 (csv 표준 모듈)",
+            "HTML 인쇄 view (브라우저 인쇄 기능)",
+        ],
+        "impact_summary": (
+            "엑셀 다운로드 → CSV 다운로드로 대체 가능. "
+            "관리자 비밀번호 1회성 배포는 CSV/HTML 인쇄 view 충분. "
+            "마이그레이션 스크립트는 baby 폐기 시 자연 제거. "
+            "KNK 일상 사용자(11+1) 영향 거의 없음."
+        ),
+        "risk_security": 1,
+        "risk_dependency": 3,
+        "introduced_at": "2026-04-15 (commit 546fb23, 초기 구축)",
+        "duration": "12일 + 55사이클 누적",
+    },
+    {
+        "name": "pandas",
+        "type": "PyPI 라이브러리 (데이터 분석, numpy 의존)",
+        "usage": [
+            {"file": "app/database.py", "lines": "2090",
+             "purpose": "관리코드발행목록.xls 파싱 (구포맷 .xls 읽기)"},
+        ],
+        "alternatives": [
+            "외부 환경에서 .xls → .csv 변환 후 csv 표준 모듈로 처리",
+            "1회성 마이그레이션이라면 운영 라우트에서 import 제거",
+        ],
+        "impact_summary": (
+            "관리코드 임포트 1회성 헬퍼. "
+            "requirements.txt에 미명시 상태로 import — 정직성 측면에서도 문제. "
+            "오리엔테이션 1항이 numpy를 명시 금지 → pandas는 numpy 의존 → 이중 위반."
+        ),
+        "risk_security": 1,
+        "risk_dependency": 4,
+        "introduced_at": "2026-04-15 (commit 546fb23, 초기 구축)",
+        "duration": "12일 + 55사이클 누적",
+    },
+    {
+        "name": "deep_translator",
+        "type": "PyPI 라이브러리 + 외부 번역 API (Google Translate / MyMemory)",
+        "usage": [
+            {"file": "app/main.py", "lines": "1083",
+             "purpose": "GoogleTranslator 호출 (deep_translator 경유)"},
+            {"file": "app/main.py", "lines": "1091",
+             "purpose": "MyMemoryTranslator 폴백"},
+            {"file": "app/main.py", "lines": "1104",
+             "purpose": "translate.googleapis.com 직접 URL 호출"},
+        ],
+        "alternatives": [
+            "사내 i18n 사전 강화 (app/i18n.py 이미 ko/vi/en 403키 보유)",
+            "미사전어 입력 시 '번역 미지원' 안내 처리",
+        ],
+        "impact_summary": (
+            "외부 번역 API 호출은 오리엔테이션 1항이 명시 금지한 '외부 환율 API'와 동급 위반. "
+            "P11 베트남 수출 실무자 영향 분석 필요. "
+            "사내 i18n 사전(403키)으로 대체 가능."
+        ),
+        "risk_security": 4,
+        "risk_dependency": 3,
+        "introduced_at": "2026-04-15 (commit 546fb23, 초기 구축)",
+        "duration": "12일 + 55사이클 누적",
+    },
+]
+
+
+@app.get("/admin/external-assets", response_class=HTMLResponse)
+async def admin_external_assets(req: Request):
+    """외부자산 점검 — 대표 직접 판단 (spike 2026-04-27)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    saved = req.query_params.get("saved", "")
+    return ctx(req, "external_assets_review.html", user=u,
+               assets=EXTERNAL_ASSETS_REVIEW,
+               saved=saved,
+               active="admin")
+
+
+@app.post("/admin/external-assets/decision")
+async def admin_external_assets_decision(req: Request):
+    """대표 결정 제출 → 99_DISPATCH 폴더에 결정 .md 자동 추가"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    asset_name = (form.get("asset_name") or "").strip()
+    decision = (form.get("decision") or "").strip()
+    note = (form.get("note") or "").strip()
+
+    # 입력 화이트리스트 (XSS/주입 방지)
+    allowed_assets = {"openpyxl", "pandas", "deep_translator"}
+    allowed_decisions = {"remove", "keep", "partial"}
+    if asset_name not in allowed_assets or decision not in allowed_decisions:
+        return RedirectResponse("/admin/external-assets?saved=err", 303)
+
+    # 99_DISPATCH 폴더에 결정 추가 (append)
+    dispatch_dir = os.path.join(BASE, "..", "99_DISPATCH")
+    dispatch_dir = os.path.abspath(dispatch_dir)
+    try:
+        os.makedirs(dispatch_dir, exist_ok=True)
+    except Exception:
+        pass
+    out_path = os.path.join(dispatch_dir, "외부자산_결정_2026-04-27.md")
+
+    decision_label = {"remove": "제거(Remove)", "keep": "유지(Keep)",
+                       "partial": "부분 처리(Partial)"}[decision]
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 메모는 마크다운 안전을 위해 라인 단위로 정리
+    safe_note = "\n".join(("> " + ln) for ln in note.splitlines()) if note else "> (메모 없음)"
+
+    block = (
+        f"\n---\n\n"
+        f"## {asset_name} — {decision_label}\n\n"
+        f"- 결정 시각: {ts}\n"
+        f"- 결정자: {u.get('name','?')} (id={u.get('id','?')}, role={u.get('role','?')})\n"
+        f"- 자산: `{asset_name}`\n"
+        f"- 결정: **{decision_label}**\n"
+        f"- 메모:\n{safe_note}\n"
+    )
+    header_needed = not os.path.exists(out_path)
+    try:
+        with open(out_path, "a", encoding="utf-8") as f:
+            if header_needed:
+                f.write(
+                    "# 외부자산 점검 — 대표 결정 기록\n\n"
+                    "> 자동 생성 (POST /admin/external-assets/decision)\n"
+                    "> spike 발주: 2026-04-27 (대표 직접 지시 12:30)\n"
+                    "> 본 파일은 09 팀장(빅터)이 모니터링하여 후속 spike 발주\n"
+                )
+            f.write(block)
+    except Exception:
+        return RedirectResponse("/admin/external-assets?saved=err", 303)
+
+    return RedirectResponse(
+        f"/admin/external-assets?saved={asset_name}", 303)
+
+
 @app.get("/admin/settings", response_class=HTMLResponse)
 async def admin_settings_page(req: Request):
     u = require(req, ["admin", "ceo"])
@@ -2510,14 +3021,125 @@ async def dl_passwords(req: Request):
 
 
 # =====================================================
-# PROFILE — 비밀번호 변경
+# PROFILE — 본인 프로필 (정보 + 활동 30일 + 권한 매트릭스 1인)
 # =====================================================
+def _profile_payload(c, uid: int):
+    """본인 프로필 페이로드 — 활동/권한/위임 토큰 (단일 사용자)."""
+    out = {
+        "tasks_30d": 0, "tasks_open": 0, "tasks_done": 0,
+        "comments_30d": 0, "notifs_30d": 0, "notifs_unread": 0,
+        "recent_tasks": [], "recent_comments": [], "recent_acts": [],
+        "perms_direct": [], "perms_group": [], "perms_deleg": [],
+        "tokens_received": [], "tokens_granted": [],
+    }
+    try:
+        # 활동 집계 (최근 30일)
+        out["tasks_30d"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM tasks WHERE user_id=? AND date(work_date) >= date('now','-30 day','localtime')",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        out["tasks_open"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM tasks WHERE user_id=? AND status IN ('진행중','대기','지연','보류')",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        out["tasks_done"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM tasks WHERE user_id=? AND status='완료' AND date(work_date) >= date('now','-30 day','localtime')",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        out["comments_30d"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM task_comments WHERE author_id=? AND date(created_at) >= date('now','-30 day','localtime')",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        out["notifs_30d"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND date(created_at) >= date('now','-30 day','localtime')",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        out["notifs_unread"] = (c.execute(
+            "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND is_read=0",
+            (uid,)).fetchone() or {"n": 0})["n"]
+        # 최근 task 10건
+        out["recent_tasks"] = [dict(r) for r in c.execute(
+            "SELECT id, work_date, title, status, COALESCE(category,'') AS category "
+            "FROM tasks WHERE user_id=? ORDER BY work_date DESC, id DESC LIMIT 10",
+            (uid,)).fetchall()]
+        # 최근 댓글 10건 (task 제목 join)
+        out["recent_comments"] = [dict(r) for r in c.execute(
+            "SELECT tc.id, tc.task_id, tc.body, tc.created_at, COALESCE(t.title,'') AS task_title "
+            "FROM task_comments tc LEFT JOIN tasks t ON t.id=tc.task_id "
+            "WHERE tc.author_id=? ORDER BY tc.created_at DESC LIMIT 10",
+            (uid,)).fetchall()]
+    except Exception:
+        pass
+    # activities 본인 행 (선택)
+    try:
+        out["recent_acts"] = [dict(r) for r in c.execute(
+            "SELECT id, kind, title, created_at FROM activities WHERE actor_id=? ORDER BY id DESC LIMIT 10",
+            (uid,)).fetchall()]
+    except Exception:
+        out["recent_acts"] = []
+    # 권한 — 직접/그룹/위임 (단일 사용자 매트릭스)
+    try:
+        out["perms_direct"] = [dict(r) for r in c.execute(
+            "SELECT p.id, COALESCE(p.resource||'.'||p.action, p.name) AS label "
+            "FROM user_permissions up JOIN permissions p ON p.id=up.permission_id "
+            "WHERE up.user_id=? ORDER BY label LIMIT 60", (uid,)).fetchall()]
+    except Exception:
+        out["perms_direct"] = []
+    try:
+        out["perms_group"] = [dict(r) for r in c.execute(
+            "SELECT DISTINCT p.id, COALESCE(p.resource||'.'||p.action, p.name) AS label, g.name AS group_name "
+            "FROM user_groups ug "
+            "JOIN group_permissions gp ON gp.group_id=ug.group_id "
+            "JOIN permissions p ON p.id=gp.permission_id "
+            "JOIN permission_groups g ON g.id=ug.group_id "
+            "WHERE ug.user_id=? ORDER BY label LIMIT 60", (uid,)).fetchall()]
+    except Exception:
+        out["perms_group"] = []
+    try:
+        out["perms_deleg"] = [dict(r) for r in c.execute(
+            "SELECT dt.id, COALESCE(p.resource||'.'||p.action, p.name) AS label, "
+            "       dt.expires_at, dt.status, uf.name AS from_name "
+            "FROM delegation_tokens dt "
+            "JOIN permissions p ON p.id=dt.permission_id "
+            "LEFT JOIN users uf ON uf.id=dt.from_user "
+            "WHERE dt.to_user=? AND dt.status='ACTIVE' ORDER BY dt.id DESC LIMIT 30",
+            (uid,)).fetchall()]
+        out["tokens_received"] = out["perms_deleg"]
+        out["tokens_granted"] = [dict(r) for r in c.execute(
+            "SELECT dt.id, COALESCE(p.resource||'.'||p.action, p.name) AS label, "
+            "       dt.expires_at, dt.status, ut.name AS to_name "
+            "FROM delegation_tokens dt "
+            "JOIN permissions p ON p.id=dt.permission_id "
+            "LEFT JOIN users ut ON ut.id=dt.to_user "
+            "WHERE dt.from_user=? ORDER BY dt.id DESC LIMIT 30",
+            (uid,)).fetchall()]
+    except Exception:
+        out["perms_deleg"] = []
+        out["tokens_received"] = []
+        out["tokens_granted"] = []
+    # task_delegations (위임 받은 task)
+    try:
+        out["task_delegs_in"] = [dict(r) for r in c.execute(
+            "SELECT td.id, td.task_id, td.message, td.status, td.created_at, "
+            "       COALESCE(t.title,'') AS task_title, uf.name AS from_name "
+            "FROM task_delegations td LEFT JOIN tasks t ON t.id=td.task_id "
+            "LEFT JOIN users uf ON uf.id=td.from_user_id "
+            "WHERE td.to_user_id=? ORDER BY td.id DESC LIMIT 10",
+            (uid,)).fetchall()]
+    except Exception:
+        out["task_delegs_in"] = []
+    return out
+
+
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(req: Request, msg: str = "", err: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    return ctx(req, "profile.html", user=u, msg=msg, err=err, active="profile")
+    with db_session() as c:
+        pdata = _profile_payload(c, u["id"])
+    return ctx(req, "profile.html", user=u, msg=msg, err=err, active="profile", **pdata)
+
+
+@app.get("/me", response_class=HTMLResponse)
+async def me_alias(req: Request, msg: str = "", err: str = ""):
+    """본인 프로필 별칭 (/me → /profile)."""
+    return await profile_page(req, msg=msg, err=err)
 
 
 @app.post("/profile/change-password")
@@ -2539,6 +3161,46 @@ async def change_password(req: Request,
         c.execute("UPDATE users SET password=? WHERE id=?",
                   (hash_pw(new_pw), u["id"]))
     return RedirectResponse("/profile?msg=비밀번호가 변경되었습니다", 303)
+
+
+@app.post("/me")
+async def me_update(req: Request,
+                    email: str = Form(""),
+                    lang: str = Form("")):
+    """본인 프로필 수정 — email / lang 만 (본인 한정).
+    phone/dept 컬럼은 스키마에 따라 선택 적용 (PRAGMA로 존재 시만).
+    """
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    email = (email or "").strip()
+    lang = (lang or "").strip()
+    sets, vals = [], []
+    if email:
+        if "@" in email and len(email) <= 120:
+            sets.append("email=?"); vals.append(email)
+    if lang in ("ko", "en", "vi", "zh"):
+        sets.append("lang=?"); vals.append(lang)
+    # phone / dept (스키마에 존재할 때만)
+    try:
+        with db_session() as c:
+            ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
+    except Exception:
+        ucols = []
+    # form 에서 추가 필드 (있을 때만)
+    form = await req.form()
+    if "phone" in ucols and form.get("phone") is not None:
+        ph = (form.get("phone") or "").strip()[:30]
+        sets.append("phone=?"); vals.append(ph)
+    if "dept" in ucols and form.get("dept") is not None:
+        dp = (form.get("dept") or "").strip()[:60]
+        sets.append("dept=?"); vals.append(dp)
+    if not sets:
+        return RedirectResponse("/profile?err=변경할 항목이 없습니다", 303)
+    vals.append(u["id"])
+    with db_session() as c:
+        c.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=?", vals)
+    return RedirectResponse("/profile?msg=프로필이 갱신되었습니다", 303)
 
 
 # =====================================================
@@ -4161,13 +4823,33 @@ async def po_delete_submit(request: Request, po_id: int):
 from .database import (stock_movement_create, po_receive, stock_issue,
                         stock_adjust, stock_movements_list, stock_kpi,
                         part_stock_history, part_fifo_layers, part_price_history,
+                        # Top3 S2 3차 (2026-04-26): FIFO 강화 + ABC + 회전율
+                        fifo_layers, abc_classification, stock_turnover,
                         MOVEMENT_KINDS, MOVEMENT_KIND_LABEL,
                         gen_movement_no,
                         exchange_rate_create, exchange_rates_list, exchange_rates_latest,
                         get_exchange_rate, CURRENCIES,
                         part_price_create, part_price_approve, part_prices_list,
                         part_active_price, PRICE_TYPES,
-                        supplier_leadtime_stats)
+                        supplier_leadtime_stats,
+                        # 재고 실사·조정 (Top10 #10 — 2026-04-26)
+                        stock_audit_create, stock_audits_list, stock_audit_get,
+                        stock_audit_item_upsert, stock_adjustments_list,
+                        stock_adjustment_approve, stock_adjustment_reject,
+                        # 재고실사 2차 (2026-04-26): 첨부 + close + 효과
+                        audit_attachment_create, audit_attachments_list,
+                        audit_attachment_get, stock_audit_close,
+                        stock_audit_effect_summary,
+                        # 환율·단가 강화 (Top10 #9 — 2026-04-26)
+                        cost_simulation_create, cost_simulations_list,
+                        price_change_log, price_change_history_list,
+                        rate_alert_create, rate_alerts_list,
+                        exchange_rates_csv_upload,
+                        # 발견 3건 통합 (2026-04-26)
+                        check_rate_alerts,
+                        # 사이클 54 환율·단가 1차 (2026-04-27)
+                        get_latest_fx_rate, convert_amount,
+                        get_latest_part_price)
 
 
 # =====================================================
@@ -4210,6 +4892,8 @@ async def rates_create_submit(
             "source": source,
             "note": note,
         }, user_id=u["id"])
+        # S3-1 옵션 A: 수동 등록 시점에도 자동 알림 발동 검사
+        check_rate_alerts(from_currency, float(rate))
     except Exception as e:
         return RedirectResponse(f"/rates?error={e}", 303)
     return RedirectResponse("/rates?success=1", 303)
@@ -4237,12 +4921,17 @@ async def parts_price_create_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    sid = int(supplier_id) if supplier_id.isdigit() else None
+    new_price = float(unit_price)
+    # S4-1 옵션 A: 직전 활성 단가 조회 (애플리케이션 레벨 훅)
+    prev = part_active_price(pid, supplier_id=sid or 0) or {}
+    old_price = prev.get("unit_price")
     try:
         part_price_create({
             "part_id": pid,
-            "supplier_id": int(supplier_id) if supplier_id.isdigit() else None,
+            "supplier_id": sid,
             "price_type": price_type,
-            "unit_price": float(unit_price),
+            "unit_price": new_price,
             "currency": currency,
             "effective_from": effective_from,
             "effective_to": effective_to or None,
@@ -4251,6 +4940,12 @@ async def parts_price_create_submit(
             "max_qty": float(max_qty) if max_qty else None,
             "note": note,
         }, user_id=u["id"])
+        # S4-1 옵션 A: price_change_history 자동 INSERT (변동률 자동 계산)
+        try:
+            price_change_log(pid, sid, old_price, new_price,
+                             effective_from, u["id"], note=note or "")
+        except Exception:
+            pass  # 본 등록은 성공했으므로 훅 실패는 흡수
     except Exception as e:
         return RedirectResponse(f"/parts/{pid}?error={e}", 303)
     return RedirectResponse(f"/parts/{pid}?price_added=1", 303)
@@ -4468,6 +5163,263 @@ async def stock_adjust_submit(
     return RedirectResponse("/stock/movements?success=adjust", 303)
 
 
+# =====================================================
+# 재고 실사·조정 워크플로 (Top10 #10 — 2026-04-26 P4 자재팀 분기 1회)
+# - 자재팀(can_use_logistics) + admin/ceo: 실사 진행 가능
+# - 조정 승인: admin/ceo/executive 또는 team_id==10(구매팀) leader (자재팀장)
+# =====================================================
+def _audit_guard(u) -> bool:
+    """실사 화면 접근 권한 — 물류 권한자."""
+    return bool(u) and can_use_logistics(u)
+
+
+def _audit_approve_guard(u) -> bool:
+    """조정 승인 권한 — admin/ceo/executive 또는 자재팀장(team_id=10 leader)."""
+    if not u:
+        return False
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive"):
+        return True
+    team_id = u.get("team_id") if isinstance(u, dict) else u["team_id"]
+    if team_id == 10 and role == "leader":
+        return True
+    return False
+
+
+@app.get("/stock/audits", response_class=HTMLResponse)
+async def stock_audits_page(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    audits = stock_audits_list(limit=50)
+    return ctx(request, "stock_audits.html", user=u, audits=audits,
+               can_approve=_audit_approve_guard(u), active="stock")
+
+
+@app.post("/stock/audits/new")
+async def stock_audits_new(request: Request, note: str = Form("")):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    aid, ano = stock_audit_create(led_by=u["id"], note=note)
+    return RedirectResponse(f"/stock/audits/{aid}?success={ano}", 303)
+
+
+@app.get("/stock/audits/{audit_id}", response_class=HTMLResponse)
+async def stock_audit_detail(request: Request, audit_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    audit = stock_audit_get(audit_id)
+    if not audit:
+        return RedirectResponse("/stock/audits", 303)
+    with db_session() as c:
+        parts = c.execute(
+            """SELECT id, part_no, part_name, unit, stock_qty
+               FROM parts WHERE is_active=1 ORDER BY part_name LIMIT 500"""
+        ).fetchall()
+        # close 가능 조건 사전 계산
+        pending_lines = c.execute(
+            "SELECT COUNT(*) FROM stock_audit_items WHERE audit_id=? AND status='PENDING'",
+            (audit_id,),
+        ).fetchone()[0]
+        pending_adjs = c.execute(
+            """SELECT COUNT(*) FROM stock_adjustments adj
+               JOIN stock_audit_items ai ON adj.audit_item_id=ai.id
+               WHERE ai.audit_id=? AND adj.status='PENDING'""",
+            (audit_id,),
+        ).fetchone()[0]
+    can_close = (audit["status"] != "CLOSED" and pending_lines == 0
+                 and pending_adjs == 0 and (audit["items"] or []))
+    effect = stock_audit_effect_summary(audit_id)
+    return ctx(request, "stock_audit.html", user=u, mode="detail",
+               audits=[], audit=audit, parts=[dict(r) for r in parts],
+               can_approve=_audit_approve_guard(u),
+               can_close=bool(can_close), pending_lines=pending_lines,
+               pending_adjs=pending_adjs, effect=effect, active="stock")
+
+
+@app.post("/stock/audits/{audit_id}/items")
+async def stock_audit_item_add(
+    request: Request, audit_id: int,
+    part_id: str = Form(...),
+    counted_qty: str = Form(...),
+    variance_reason: str = Form(""),
+):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    try:
+        pid = int(part_id)
+        cq = float(counted_qty)
+    except ValueError:
+        return RedirectResponse(f"/stock/audits/{audit_id}?error=invalid", 303)
+    stock_audit_item_upsert(audit_id, pid, cq, variance_reason.strip(), u["id"])
+    return RedirectResponse(f"/stock/audits/{audit_id}?success=line", 303)
+
+
+@app.get("/stock/adjustments", response_class=HTMLResponse)
+async def stock_adjustments_page(request: Request, status: str = "PENDING"):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    items = stock_adjustments_list(status=status, limit=200)
+    # 첨부 카운트 (라인 옆 표시용)
+    att_counts = {}
+    if items:
+        with db_session() as c:
+            ids = [int(x["id"]) for x in items]
+            qmarks = ",".join("?" * len(ids))
+            rows = c.execute(
+                f"SELECT adjustment_id, COUNT(*) AS cnt FROM audit_attachments "
+                f"WHERE adjustment_id IN ({qmarks}) GROUP BY adjustment_id",
+                ids,
+            ).fetchall()
+            att_counts = {r["adjustment_id"]: r["cnt"] for r in rows}
+    return ctx(request, "stock_adjustment.html", user=u,
+               adjustments=items, filter_status=status, att_counts=att_counts,
+               can_approve=_audit_approve_guard(u), active="stock")
+
+
+@app.post("/stock/adjustments/{adj_id}/approve")
+async def stock_adjustments_approve(request: Request, adj_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_approve_guard(u):
+        return RedirectResponse("/stock/adjustments?error=denied", 303)
+    try:
+        _mid, mno = stock_adjustment_approve(adj_id, u["id"])
+    except ValueError as e:
+        return RedirectResponse(f"/stock/adjustments?error={e}", 303)
+    return RedirectResponse(f"/stock/adjustments?success={mno}", 303)
+
+
+@app.post("/stock/adjustments/{adj_id}/reject")
+async def stock_adjustments_reject(request: Request, adj_id: int,
+                                   note: str = Form("")):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_approve_guard(u):
+        return RedirectResponse("/stock/adjustments?error=denied", 303)
+    stock_adjustment_reject(adj_id, u["id"], note=note.strip())
+    return RedirectResponse("/stock/adjustments?success=rejected", 303)
+
+
+# =====================================================
+# 재고실사 2차 (2026-04-26): 증명서 첨부 + close 워크플로
+# 외부 파일 저장소 0건 — 로컬 디스크 ./uploads/audits/<adj_id>/<file>
+# =====================================================
+_AUDIT_UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "audits")
+_AUDIT_ALLOWED_EXT = {".pdf", ".jpg", ".jpeg", ".png", ".xlsx"}
+_AUDIT_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+
+
+def _audit_safe_filename(name: str) -> str:
+    """path traversal 방지 — basename만 + 영숫자/._- 외 _로 치환."""
+    base = os.path.basename((name or "").replace("\\", "/"))
+    base = base.lstrip(".") or "file"
+    out = []
+    for ch in base:
+        if ch.isalnum() or ch in "._-":
+            out.append(ch)
+        else:
+            out.append("_")
+    safe = "".join(out)[:120]
+    return safe or "file"
+
+
+@app.post("/stock/adjustments/{adj_id}/attach")
+async def stock_adjustment_attach(request: Request, adj_id: int,
+                                  file: UploadFile = File(...)):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    raw = await file.read()
+    if len(raw) > _AUDIT_MAX_BYTES:
+        return RedirectResponse(f"/stock/adjustments?error=size_over_10MB", 303)
+    if len(raw) == 0:
+        return RedirectResponse("/stock/adjustments?error=empty_file", 303)
+    safe_name = _audit_safe_filename(file.filename or "upload")
+    ext = os.path.splitext(safe_name)[1].lower()
+    if ext not in _AUDIT_ALLOWED_EXT:
+        return RedirectResponse("/stock/adjustments?error=ext_not_allowed", 303)
+    target_dir = os.path.join(_AUDIT_UPLOAD_ROOT, str(int(adj_id)))
+    os.makedirs(target_dir, exist_ok=True)
+    # 동명파일 충돌 회피 — 타임스탬프 prefix
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    final_name = f"{ts}_{safe_name}"
+    final_path = os.path.join(target_dir, final_name)
+    # path traversal 2차 검증 — 정규화 후 root 안에 있는지
+    abs_root = os.path.abspath(_AUDIT_UPLOAD_ROOT)
+    abs_final = os.path.abspath(final_path)
+    if not abs_final.startswith(abs_root + os.sep):
+        return RedirectResponse("/stock/adjustments?error=path_invalid", 303)
+    with open(final_path, "wb") as f:
+        f.write(raw)
+    audit_attachment_create(adj_id, abs_final, safe_name, u["id"])
+    return RedirectResponse(f"/stock/adjustments/{adj_id}/attachments?success=uploaded", 303)
+
+
+@app.get("/stock/adjustments/{adj_id}/attachments", response_class=HTMLResponse)
+async def stock_adjustment_attachments_page(request: Request, adj_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    atts = audit_attachments_list(adj_id)
+    return ctx(request, "stock_adjustment.html", user=u,
+               adjustments=[], filter_status="ATTACH", att_counts={},
+               attach_view=True, attach_adj_id=adj_id, attachments=atts,
+               can_approve=_audit_approve_guard(u), active="stock")
+
+
+@app.get("/stock/adjustments/{adj_id}/attachments/{att_id}/download")
+async def stock_adjustment_attachment_download(request: Request, adj_id: int, att_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_guard(u):
+        return RedirectResponse("/home", 303)
+    rec = audit_attachment_get(att_id)
+    if not rec or int(rec["adjustment_id"]) != int(adj_id):
+        return RedirectResponse(f"/stock/adjustments/{adj_id}/attachments?error=not_found", 303)
+    fp = rec["file_path"]
+    abs_root = os.path.abspath(_AUDIT_UPLOAD_ROOT)
+    abs_fp = os.path.abspath(fp)
+    if not abs_fp.startswith(abs_root + os.sep) or not os.path.exists(abs_fp):
+        return RedirectResponse(f"/stock/adjustments/{adj_id}/attachments?error=file_missing", 303)
+    return FileResponse(abs_fp, filename=rec.get("file_name") or os.path.basename(abs_fp))
+
+
+@app.post("/stock/audits/{audit_id}/close")
+async def stock_audits_close_route(request: Request, audit_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _audit_approve_guard(u):
+        return RedirectResponse(f"/stock/audits/{audit_id}?error=denied", 303)
+    ok, msg = stock_audit_close(audit_id)
+    if not ok:
+        return RedirectResponse(f"/stock/audits/{audit_id}?error={msg}", 303)
+    return RedirectResponse(f"/stock/audits/{audit_id}?success=closed", 303)
+# ===== /재고실사 2차 =====
+
+
 @app.get("/stock/movements", response_class=HTMLResponse)
 async def stock_movements_page(
     request: Request,
@@ -4532,4 +5484,3445 @@ async def api_victor_ask_get(req: Request, q: str = ""):
         return JSONResponse({"error": "로그인 필요"}, 401)
     result = victor_ask(q, u, db_session)
     return JSONResponse({"ok": True, "result": result})
+
+
+# =====================================================
+# TOP3 S3 — 권한 위임 1차 라우트 골격 (2026-04-25)
+# 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S3_v1.md
+# 1차 = 골격만 (UI 본문·토큰 발행 로직은 다음 사이클).
+# 권한 분기: CEO·admin only — 평직원/팀장 차단.
+# =====================================================
+@app.get("/admin/permissions", response_class=HTMLResponse)
+async def admin_permissions_page(req: Request):
+    """권한 위임 메인 — 보내기/회수 2탭 (시안 §0)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "admin_permissions.html", user=u, active="admin")
+
+
+@app.get("/admin/permissions/grant", response_class=HTMLResponse)
+async def admin_permissions_grant_page(req: Request):
+    """보내기 탭 — 위임 발송 폼 (시안 §1-A)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "admin_permissions_grant.html", user=u, active="admin")
+
+
+@app.post("/admin/permissions/grant")
+async def admin_permissions_grant_submit(req: Request):
+    """위임 토큰 발행 (S3 2차 본문 · 시안 §1-A 5필드)
+    트랜잭션: delegation_tokens INSERT + delegation_audit INSERT (audit 누락 0건)
+    RBAC 컬럼 분리: resource + action 셀렉터 → permissions 조회 (없으면 자동 INSERT)
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    to_user_q  = (form.get("to_user") or "").strip()
+    resource   = (form.get("resource") or "").strip()
+    action     = (form.get("action") or "").strip()
+    expires_at = (form.get("expires_at") or "").strip()
+    reason     = (form.get("reason") or "").strip()
+    can_redel  = 1 if form.get("can_redelegate") else 0
+    if not (to_user_q and resource and action and expires_at):
+        return JSONResponse({"error": "필수 항목 누락"}, 400)
+    with db_session() as c:
+        # 위임받는 자 조회 (이름 또는 이메일)
+        tu = c.execute(
+            "SELECT id, name FROM users WHERE name=? OR login_id=? LIMIT 1",
+            (to_user_q, to_user_q)
+        ).fetchone()
+        if not tu:
+            return JSONResponse({"error": "대상 사용자 없음"}, 404)
+        # 권한 카탈로그 조회/INSERT (resource/action/scope 신규 컬럼 사용 — RBAC 분리)
+        prow = c.execute(
+            "SELECT id FROM permissions WHERE resource=? AND action=? LIMIT 1",
+            (resource, action)
+        ).fetchone()
+        if prow:
+            perm_id = prow["id"]
+        else:
+            # 신규 권한 자동 등록 (name = 'resource.action' 호환 유지)
+            c.execute(
+                "INSERT INTO permissions(name, resource, action, scope, description) VALUES(?,?,?,?,?)",
+                (f"{resource}.{action}", resource, action, resource, f"{resource} {action}")
+            )
+            perm_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # delegation_tokens INSERT
+        c.execute(
+            "INSERT INTO delegation_tokens(from_user, to_user, permission_id, expires_at, can_redelegate, status) "
+            "VALUES(?,?,?,?,?,'ACTIVE')",
+            (u["id"], tu["id"], perm_id, expires_at, can_redel)
+        )
+        token_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # delegation_audit INSERT (트랜잭션 무결성 — audit 누락 0건)
+        c.execute(
+            "INSERT INTO delegation_audit(token_id, action, actor, details) VALUES(?,?,?,?)",
+            (token_id, "GRANT", u["id"], f"{resource}.{action} → {tu['name']} / 만료 {expires_at} / 사유: {reason or '-'}")
+        )
+        _grant_target = tu["id"]
+    # 알림시스템 통합 (사이클 2026-04-26) — 위임 받는 자에게 PERMISSION 알림
+    notify_user(
+        _grant_target, "PERMISSION",
+        f"🔑 권한 위임 — {resource}.{action}",
+        body=f"{u.get('name','')} 님이 권한을 위임했습니다 (만료 {expires_at})",
+        link="/admin/permissions",
+    )
+    return RedirectResponse("/admin/permissions", 303)
+
+
+@app.get("/admin/permissions/revoke", response_class=HTMLResponse)
+async def admin_permissions_revoke_page(req: Request):
+    """회수 탭 — 위임 카드 리스트 (시안 §6-1)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "admin_permissions_revoke.html", user=u, active="admin")
+
+
+@app.post("/admin/permissions/revoke")
+async def admin_permissions_revoke_submit(req: Request):
+    """위임 토큰 회수 + Cascade (S3 2차 본문 · 시안 §6-1)
+    트랜잭션: 본 토큰 UPDATE status=REVOKED + 하위 재위임 토큰 Cascade UPDATE
+              + delegation_audit INSERT (각 회수마다 1행, immutable)
+    2단계 확인: confirm_text == '회수합니다' 인 경우만 실행
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    token_id     = form.get("token_id")
+    confirm_text = (form.get("confirm_text") or "").strip()
+    if not token_id:
+        return JSONResponse({"error": "token_id 필수"}, 400)
+    if confirm_text != "회수합니다":
+        return JSONResponse({"error": "2단계 확인 실패 (회수합니다 입력 필요)"}, 400)
+    with db_session() as c:
+        # 본 토큰 회수
+        row = c.execute("SELECT to_user FROM delegation_tokens WHERE id=?", (token_id,)).fetchone()
+        if not row:
+            return JSONResponse({"error": "토큰 없음"}, 404)
+        c.execute("UPDATE delegation_tokens SET status='REVOKED' WHERE id=? AND status='ACTIVE'", (token_id,))
+        c.execute(
+            "INSERT INTO delegation_audit(token_id, action, actor, details) VALUES(?,?,?,?)",
+            (token_id, "REVOKE", u["id"], f"본 토큰 회수 (token_id={token_id})")
+        )
+        _revoke_target = row["to_user"]
+        # Cascade — 본 토큰 수령자가 재위임한 ACTIVE 하위 토큰 회수
+        children = c.execute(
+            "SELECT id FROM delegation_tokens WHERE from_user=? AND status='ACTIVE'",
+            (row["to_user"],)
+        ).fetchall()
+        _cascade_targets = []
+        for ch in children:
+            c.execute("UPDATE delegation_tokens SET status='REVOKED' WHERE id=?", (ch["id"],))
+            c.execute(
+                "INSERT INTO delegation_audit(token_id, action, actor, details) VALUES(?,?,?,?)",
+                (ch["id"], "REVOKE", u["id"], f"Cascade 회수 (parent_token_id={token_id})")
+            )
+            ct = c.execute(
+                "SELECT to_user FROM delegation_tokens WHERE id=?", (ch["id"],)
+            ).fetchone()
+            if ct and ct["to_user"]:
+                _cascade_targets.append(ct["to_user"])
+    # 알림시스템 통합 (사이클 2026-04-26) — 회수 대상자에게 PERMISSION 알림
+    notify_user(
+        _revoke_target, "PERMISSION",
+        "🔒 권한 회수",
+        body=f"위임 권한이 회수되었습니다 (token_id={token_id})",
+        link="/admin/permissions",
+    )
+    for tgt in _cascade_targets:
+        notify_user(
+            tgt, "PERMISSION", "🔒 권한 회수 (Cascade)",
+            body=f"상위 위임 회수에 따라 하위 권한이 회수되었습니다 (parent_token_id={token_id})",
+            link="/admin/permissions",
+        )
+    return RedirectResponse("/admin/permissions", 303)
+
+
+def _audit_query(c, action: str = "", date_from: str = "", date_to: str = "",
+                 actor: str = "", target: str = "", q: str = "", limit: int = 200):
+    """S3 4차 — 감사 로그 검색·필터 공용 빌더.
+    - action: GRANT/DELEGATE/REVOKE/EXPIRE/REDELEGATE (whitelist)
+    - date_from/date_to: YYYY-MM-DD (timestamp 부분일치)
+    - actor/target: 사용자명 LIKE (actor=u.name, target=tu.name via dt.to_user)
+    - q: resource·action·token_id·details LIKE
+    """
+    sql = (
+        "SELECT da.id, da.timestamp, da.action, da.details, da.actor, da.token_id, "
+        "       u.name AS actor_name, tu.name AS target_name, "
+        "       COALESCE(p.resource||'.'||p.action, p.name) AS perm_label, "
+        "       p.resource AS perm_resource, p.action AS perm_action "
+        "FROM delegation_audit da "
+        "LEFT JOIN users u ON u.id = da.actor "
+        "LEFT JOIN delegation_tokens dt ON dt.id = da.token_id "
+        "LEFT JOIN users tu ON tu.id = dt.to_user "
+        "LEFT JOIN permissions p ON p.id = dt.permission_id "
+    )
+    where, params = [], []
+    if action in ("GRANT", "DELEGATE", "REVOKE", "EXPIRE", "REDELEGATE"):
+        where.append("da.action=?"); params.append(action)
+    if date_from:
+        where.append("da.timestamp>=?"); params.append(date_from + " 00:00:00")
+    if date_to:
+        where.append("da.timestamp<=?"); params.append(date_to + " 23:59:59")
+    if actor:
+        where.append("u.name LIKE ?"); params.append(f"%{actor}%")
+    if target:
+        where.append("tu.name LIKE ?"); params.append(f"%{target}%")
+    if q:
+        where.append("(p.resource LIKE ? OR p.action LIKE ? OR CAST(da.token_id AS TEXT)=? OR da.details LIKE ?)")
+        params.extend([f"%{q}%", f"%{q}%", q, f"%{q}%"])
+    if where:
+        sql += "WHERE " + " AND ".join(where) + " "
+    sql += f"ORDER BY da.timestamp DESC, da.id DESC LIMIT {int(limit)}"
+    try:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+    except Exception:
+        return []
+
+
+@app.get("/admin/permissions/audit", response_class=HTMLResponse)
+async def admin_permissions_audit_page(req: Request, action: str = "",
+                                        date_from: str = "", date_to: str = "",
+                                        actor: str = "", target: str = "", q: str = ""):
+    """감사 로그 — 시간역순 타임라인 (시안 §6-2, append-only).
+    S3 4차 — 액션·기간·actor·target·검색(q) 필터 강화.
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    af = action if action in ("GRANT", "DELEGATE", "REVOKE", "EXPIRE", "REDELEGATE") else ""
+    with db_session() as c:
+        rows = _audit_query(c, af, date_from, date_to, actor, target, q, 200)
+    return ctx(req, "admin_permissions_audit.html", user=u, active="admin",
+               audit_rows=rows, action_filter=af,
+               date_from=date_from, date_to=date_to,
+               actor_q=actor, target_q=target, q=q)
+
+
+@app.get("/admin/permissions/audit.csv")
+async def admin_permissions_audit_csv(req: Request, action: str = "",
+                                       date_from: str = "", date_to: str = "",
+                                       actor: str = "", target: str = "", q: str = ""):
+    """감사 로그 CSV 다운로드 — csv 모듈 단독 (외부 라이브러리 0).
+    동일 필터 재사용 (LIMIT 5000 으로 상향)."""
+    import csv as _csv
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    af = action if action in ("GRANT", "DELEGATE", "REVOKE", "EXPIRE", "REDELEGATE") else ""
+    with db_session() as c:
+        rows = _audit_query(c, af, date_from, date_to, actor, target, q, 5000)
+    buf = io.StringIO()
+    buf.write("﻿")  # UTF-8 BOM
+    w = _csv.writer(buf)
+    w.writerow(["id", "timestamp", "action", "actor", "target", "permission", "token_id", "details"])
+    for r in rows:
+        w.writerow([r.get("id"), r.get("timestamp"), r.get("action"),
+                    r.get("actor_name") or r.get("actor") or "",
+                    r.get("target_name") or "",
+                    r.get("perm_label") or "",
+                    r.get("token_id") or "",
+                    (r.get("details") or "").replace("\n", " ")])
+    fn = f"audit_{date.today().isoformat()}.csv"
+    return StreamingResponse(
+        io.BytesIO(buf.getvalue().encode("utf-8")),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={fn}"}
+    )
+
+
+# =====================================================
+# TOP3 S3 — 권한 위임 3차 (2026-04-26)
+# 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S3_v1.md
+# 3차 = 권한 그룹 관리 + 매트릭스 보기 + 그룹 단위 위임.
+# 권한 분기: CEO·admin only — 평직원/팀장 차단.
+# =====================================================
+@app.get("/admin/permissions/groups", response_class=HTMLResponse)
+async def admin_permissions_groups_list(req: Request):
+    """그룹 목록 — permission_groups + 권한 카운트 + 멤버 카운트 (시안 §5 그룹 상속)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT g.id, g.name, g.description, g.created_at, "
+                "       (SELECT COUNT(*) FROM group_permissions gp WHERE gp.group_id=g.id) AS perm_count, "
+                "       (SELECT COUNT(*) FROM user_groups ug WHERE ug.group_id=g.id) AS user_count "
+                "FROM permission_groups g ORDER BY g.id ASC"
+            ).fetchall()
+            groups = [dict(r) for r in rows]
+        except Exception:
+            groups = []
+    return ctx(req, "admin_permissions_groups.html", user=u, active="admin",
+               groups=groups, group_detail=None, all_perms=[], all_users=[],
+               group_perm_ids=set(), group_user_ids=set())
+
+
+@app.post("/admin/permissions/groups")
+async def admin_permissions_groups_create(req: Request):
+    """그룹 신규 INSERT — name UNIQUE 가드"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    desc = (form.get("description") or "").strip()
+    if not name:
+        return JSONResponse({"error": "그룹명 필수"}, 400)
+    with db_session() as c:
+        exists = c.execute("SELECT id FROM permission_groups WHERE name=?", (name,)).fetchone()
+        if exists:
+            return RedirectResponse(f"/admin/permissions/groups/{exists['id']}", 303)
+        c.execute(
+            "INSERT INTO permission_groups(name, description) VALUES(?,?)",
+            (name, desc)
+        )
+        gid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return RedirectResponse(f"/admin/permissions/groups/{gid}", 303)
+
+
+@app.get("/admin/permissions/groups/{group_id}", response_class=HTMLResponse)
+async def admin_permissions_groups_detail(req: Request, group_id: int):
+    """그룹 상세 — 그룹 정보 + 권한 + 멤버 + 추가 가능한 권한/사용자 목록"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        try:
+            grow = c.execute(
+                "SELECT id, name, description, created_at FROM permission_groups WHERE id=?",
+                (group_id,)
+            ).fetchone()
+            if not grow:
+                return RedirectResponse("/admin/permissions/groups", 303)
+            group_detail = dict(grow)
+            # 전체 그룹 목록 (좌측 사이드)
+            grows = c.execute(
+                "SELECT g.id, g.name, "
+                "       (SELECT COUNT(*) FROM group_permissions gp WHERE gp.group_id=g.id) AS perm_count, "
+                "       (SELECT COUNT(*) FROM user_groups ug WHERE ug.group_id=g.id) AS user_count "
+                "FROM permission_groups g ORDER BY g.id ASC"
+            ).fetchall()
+            groups = [dict(r) for r in grows]
+            # 전체 권한 카탈로그
+            prows = c.execute(
+                "SELECT id, COALESCE(resource||'.'||action, name) AS label, scope "
+                "FROM permissions ORDER BY label"
+            ).fetchall()
+            all_perms = [dict(r) for r in prows]
+            # 전체 사용자
+            urows = c.execute(
+                "SELECT id, name, login_id FROM users ORDER BY name LIMIT 200"
+            ).fetchall()
+            all_users = [dict(r) for r in urows]
+            # 그룹에 이미 등록된 권한/사용자 ID
+            gpids = {r["permission_id"] for r in c.execute(
+                "SELECT permission_id FROM group_permissions WHERE group_id=?",
+                (group_id,)
+            ).fetchall()}
+            guids = {r["user_id"] for r in c.execute(
+                "SELECT user_id FROM user_groups WHERE group_id=?",
+                (group_id,)
+            ).fetchall()}
+        except Exception:
+            group_detail, groups, all_perms, all_users = None, [], [], []
+            gpids, guids = set(), set()
+    return ctx(req, "admin_permissions_groups.html", user=u, active="admin",
+               groups=groups, group_detail=group_detail,
+               all_perms=all_perms, all_users=all_users,
+               group_perm_ids=gpids, group_user_ids=guids)
+
+
+@app.post("/admin/permissions/groups/{group_id}/permissions")
+async def admin_permissions_groups_perms(req: Request, group_id: int):
+    """그룹↔권한 매핑 갱신 — checkbox 제출 후 전체 재기록 (트랜잭션)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    perm_ids = form.getlist("perm_id") if hasattr(form, "getlist") else form.getlist("perm_id")
+    pids = []
+    for v in perm_ids:
+        try:
+            pids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    with db_session() as c:
+        c.execute("DELETE FROM group_permissions WHERE group_id=?", (group_id,))
+        for pid in pids:
+            c.execute(
+                "INSERT OR IGNORE INTO group_permissions(group_id, permission_id) VALUES(?,?)",
+                (group_id, pid)
+            )
+    return RedirectResponse(f"/admin/permissions/groups/{group_id}", 303)
+
+
+@app.post("/admin/permissions/groups/{group_id}/users")
+async def admin_permissions_groups_users(req: Request, group_id: int):
+    """그룹↔사용자 매핑 갱신 — checkbox 제출 후 전체 재기록 (트랜잭션)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    user_ids = form.getlist("user_id") if hasattr(form, "getlist") else form.getlist("user_id")
+    uids = []
+    for v in user_ids:
+        try:
+            uids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    with db_session() as c:
+        c.execute("DELETE FROM user_groups WHERE group_id=?", (group_id,))
+        for uid in uids:
+            c.execute(
+                "INSERT OR IGNORE INTO user_groups(user_id, group_id) VALUES(?,?)",
+                (uid, group_id)
+            )
+    return RedirectResponse(f"/admin/permissions/groups/{group_id}", 303)
+
+
+@app.get("/admin/permissions/matrix", response_class=HTMLResponse)
+async def admin_permissions_matrix(req: Request, dept: str = "", q: str = ""):
+    """권한 매트릭스 — 사용자 vs 권한 (resource×action). 직접/그룹/위임 3색 (정적 CSS grid)
+    - 부서 필터 + 검색 (이름/login_id 부분일치)
+    - JS 0건 (서버 렌더링)
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    dept_filter = (dept or "").strip()
+    query = (q or "").strip()
+    matrix = []
+    perms = []
+    depts = []
+    with db_session() as c:
+        try:
+            # 권한 카탈로그
+            prows = c.execute(
+                "SELECT id, COALESCE(resource||'.'||action, name) AS label "
+                "FROM permissions ORDER BY label LIMIT 30"
+            ).fetchall()
+            perms = [dict(r) for r in prows]
+            # 부서 목록 (셀렉터)
+            try:
+                drows = c.execute("SELECT DISTINCT dept FROM users WHERE dept IS NOT NULL AND dept<>'' ORDER BY dept").fetchall()
+                depts = [r["dept"] for r in drows]
+            except Exception:
+                depts = []
+            # 사용자 목록
+            usql = "SELECT id, name, login_id, COALESCE(dept,'') AS dept FROM users WHERE 1=1 "
+            uparams = []
+            if dept_filter:
+                usql += "AND dept=? "
+                uparams.append(dept_filter)
+            if query:
+                usql += "AND (name LIKE ? OR login_id LIKE ?) "
+                uparams.extend([f"%{query}%", f"%{query}%"])
+            usql += "ORDER BY name LIMIT 60"
+            urows = c.execute(usql, uparams).fetchall()
+            # 각 사용자 × 권한 셀: 직접(D) / 그룹(G) / 위임(T) 마크
+            for ur in urows:
+                uid = ur["id"]
+                # 그룹 상속 권한
+                ginh = {r["permission_id"] for r in c.execute(
+                    "SELECT DISTINCT gp.permission_id FROM group_permissions gp "
+                    "JOIN user_groups ug ON ug.group_id=gp.group_id WHERE ug.user_id=?",
+                    (uid,)
+                ).fetchall()}
+                # 위임 토큰 (ACTIVE만)
+                tdel = {r["permission_id"] for r in c.execute(
+                    "SELECT permission_id FROM delegation_tokens WHERE to_user=? AND status='ACTIVE'",
+                    (uid,)
+                ).fetchall()}
+                # 직접 권한 — user_permissions 가 별도로 없으면 빈셋 (스키마에 따라)
+                try:
+                    drect = {r["permission_id"] for r in c.execute(
+                        "SELECT permission_id FROM user_permissions WHERE user_id=?",
+                        (uid,)
+                    ).fetchall()}
+                except Exception:
+                    drect = set()
+                cells = []
+                for p in perms:
+                    pid = p["id"]
+                    mark = ""
+                    if pid in drect:
+                        mark = "D"
+                    elif pid in ginh:
+                        mark = "G"
+                    elif pid in tdel:
+                        mark = "T"
+                    cells.append(mark)
+                matrix.append({
+                    "user_id": uid, "name": ur["name"],
+                    "login_id": ur["login_id"], "dept": ur["dept"],
+                    "cells": cells,
+                })
+        except Exception:
+            matrix, perms, depts = [], [], []
+    return ctx(req, "admin_permissions_matrix.html", user=u, active="admin",
+               matrix=matrix, perms=perms, depts=depts,
+               dept_filter=dept_filter, query=query)
+
+
+@app.post("/admin/permissions/grant-group")
+async def admin_permissions_grant_group(req: Request):
+    """그룹 단위 위임 — 그룹 전체 멤버에 동일 권한을 위임 토큰으로 발행
+    트랜잭션: 멤버별 delegation_tokens INSERT + delegation_audit INSERT (1 트랜잭션)
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    group_id   = form.get("group_id")
+    resource   = (form.get("resource") or "").strip()
+    action     = (form.get("action") or "").strip()
+    expires_at = (form.get("expires_at") or "").strip()
+    reason     = (form.get("reason") or "").strip()
+    can_redel  = 1 if form.get("can_redelegate") else 0
+    if not (group_id and resource and action and expires_at):
+        return JSONResponse({"error": "필수 항목 누락"}, 400)
+    with db_session() as c:
+        gr = c.execute("SELECT id, name FROM permission_groups WHERE id=?", (group_id,)).fetchone()
+        if not gr:
+            return JSONResponse({"error": "그룹 없음"}, 404)
+        # 권한 카탈로그 조회/INSERT
+        prow = c.execute(
+            "SELECT id FROM permissions WHERE resource=? AND action=? LIMIT 1",
+            (resource, action)
+        ).fetchone()
+        if prow:
+            perm_id = prow["id"]
+        else:
+            c.execute(
+                "INSERT INTO permissions(name, resource, action, scope, description) VALUES(?,?,?,?,?)",
+                (f"{resource}.{action}", resource, action, resource, f"{resource} {action}")
+            )
+            perm_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # 그룹 멤버 조회
+        members = c.execute(
+            "SELECT user_id FROM user_groups WHERE group_id=?", (group_id,)
+        ).fetchall()
+        if not members:
+            return JSONResponse({"error": "그룹 멤버 없음"}, 400)
+        # 멤버별 토큰 + audit 발행
+        for m in members:
+            c.execute(
+                "INSERT INTO delegation_tokens(from_user, to_user, permission_id, expires_at, can_redelegate, status) "
+                "VALUES(?,?,?,?,?,'ACTIVE')",
+                (u["id"], m["user_id"], perm_id, expires_at, can_redel)
+            )
+            tid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            c.execute(
+                "INSERT INTO delegation_audit(token_id, action, actor, details) VALUES(?,?,?,?)",
+                (tid, "GRANT", u["id"],
+                 f"[그룹위임] {gr['name']} → user_id={m['user_id']} / {resource}.{action} / 만료 {expires_at} / 사유: {reason or '-'}")
+            )
+    return RedirectResponse(f"/admin/permissions/groups/{group_id}", 303)
+
+
+# =====================================================
+# TOP3 S3 — 권한 위임 4차 (2026-04-26): 권한 리포트 + 만료 정리
+# 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S3_v1.md §7 운영 리포트
+# 4차 = 사용자/그룹/만료임박 3리포트 + 만료 토큰 자동 정리(audit immutable).
+# 권한: CEO·admin only.
+# =====================================================
+@app.get("/admin/permissions/report/users", response_class=HTMLResponse)
+async def admin_permissions_report_users(req: Request):
+    """사용자별 권한 카운트 + 활성 토큰 (시안 §7-1)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT u.id, u.name, u.role, t.name AS team_name, "
+                "       (SELECT COUNT(*) FROM delegation_tokens dt "
+                "          WHERE dt.to_user=u.id AND dt.status='ACTIVE') AS active_tokens, "
+                "       (SELECT COUNT(*) FROM delegation_tokens dt "
+                "          WHERE dt.from_user=u.id AND dt.status='ACTIVE') AS granted_tokens, "
+                "       (SELECT COUNT(DISTINCT ug.group_id) FROM user_groups ug "
+                "          WHERE ug.user_id=u.id) AS group_count "
+                "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                "ORDER BY active_tokens DESC, u.name ASC LIMIT 500"
+            ).fetchall()
+            users = [dict(r) for r in rows]
+        except Exception:
+            users = []
+    return ctx(req, "admin_permissions_report.html", user=u, active="admin",
+               report_kind="users", users=users, groups=[], expiring=[])
+
+
+@app.get("/admin/permissions/report/groups", response_class=HTMLResponse)
+async def admin_permissions_report_groups(req: Request):
+    """그룹별 멤버·권한 분포 (시안 §7-2)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT g.id, g.name, g.description, "
+                "       (SELECT COUNT(*) FROM group_permissions gp WHERE gp.group_id=g.id) AS perm_count, "
+                "       (SELECT COUNT(*) FROM user_groups ug WHERE ug.group_id=g.id) AS user_count "
+                "FROM permission_groups g ORDER BY user_count DESC, g.name ASC"
+            ).fetchall()
+            groups = [dict(r) for r in rows]
+        except Exception:
+            groups = []
+    return ctx(req, "admin_permissions_report.html", user=u, active="admin",
+               report_kind="groups", users=[], groups=groups, expiring=[])
+
+
+@app.get("/admin/permissions/report/expiring", response_class=HTMLResponse)
+async def admin_permissions_report_expiring(req: Request, days: int = 7):
+    """만료 임박 토큰 (시안 §7-3) — 기본 7일 내 ACTIVE."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    try:
+        d = max(1, min(int(days), 90))
+    except Exception:
+        d = 7
+    cutoff = (date.today() + timedelta(days=d)).isoformat()
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT dt.id AS token_id, dt.expires_at, dt.status, "
+                "       fu.name AS from_name, tu.name AS to_name, "
+                "       COALESCE(p.resource||'.'||p.action, p.name) AS perm_label "
+                "FROM delegation_tokens dt "
+                "LEFT JOIN users fu ON fu.id=dt.from_user "
+                "LEFT JOIN users tu ON tu.id=dt.to_user "
+                "LEFT JOIN permissions p ON p.id=dt.permission_id "
+                "WHERE dt.status='ACTIVE' AND dt.expires_at IS NOT NULL "
+                "  AND dt.expires_at<=? "
+                "ORDER BY dt.expires_at ASC LIMIT 500",
+                (cutoff,)
+            ).fetchall()
+            expiring = [dict(r) for r in rows]
+        except Exception:
+            expiring = []
+    return ctx(req, "admin_permissions_report.html", user=u, active="admin",
+               report_kind="expiring", users=[], groups=[], expiring=expiring,
+               expiring_days=d)
+
+
+@app.post("/admin/permissions/cleanup-expired")
+async def admin_permissions_cleanup_expired(req: Request):
+    """만료 토큰 자동 정리 — status='ACTIVE' AND expires_at<=now → status='EXPIRED'.
+    트랜잭션: UPDATE + delegation_audit INSERT (각 토큰별 1행, immutable, audit 누락 0건).
+    수동 트리거 (스케줄러 미구현).
+    """
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cleaned = 0
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT id FROM delegation_tokens "
+                "WHERE status='ACTIVE' AND expires_at IS NOT NULL AND expires_at<=?",
+                (now_str,)
+            ).fetchall()
+            ids = [r["id"] for r in rows]
+            for tid in ids:
+                c.execute(
+                    "UPDATE delegation_tokens SET status='EXPIRED' WHERE id=? AND status='ACTIVE'",
+                    (tid,)
+                )
+                c.execute(
+                    "INSERT INTO delegation_audit(token_id, action, actor, details) VALUES(?,?,?,?)",
+                    (tid, "EXPIRE", u["id"], f"수동 만료 정리 (cleanup-expired @ {now_str})")
+                )
+                cleaned += 1
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, 500)
+    return RedirectResponse(f"/admin/permissions/report/expiring?msg={cleaned}건+정리완료", 303)
+
+
+# =====================================================
+# TOP3 S2 — 재고 입출고 1차 라우트 골격 (2026-04-25)
+# 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S2_v1.md
+# 1차 = 골격만 (UI 본문 · INSERT/UPDATE 로직은 다음 사이클).
+# 권한: P4 구매팀(can_use_logistics) 또는 admin/ceo.
+# =====================================================
+def _s2_guard(req: Request):
+    """S2 권한 가드 — 구매팀 권한 OR admin/ceo. 없으면 None 반환."""
+    u = get_user(req)
+    if not u:
+        return None
+    if u.get("role") in ("admin", "ceo") or can_use_logistics(u):
+        return u
+    return None
+
+
+@app.get("/stock/balances", response_class=HTMLResponse)
+async def stock_balances_page(req: Request):
+    """재고 잔고 — stock_balances VIEW 조회 (시안 §화면 영역 잔고)"""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT part_id, part_no, part_name, on_hand, unit, last_movement_at
+               FROM stock_balances ORDER BY part_no LIMIT 200"""
+        ).fetchall()
+    balances = [dict(r) for r in rows]
+    last_update = max((r.get("last_movement_at") or "") for r in balances) if balances else "-"
+    return ctx(req, "stock_balances.html", user=u, active="stock",
+               balances=balances, last_update=last_update or "-")
+
+
+# Top3 S2 3차 (2026-04-26) — FIFO 레이어 상세 / ABC 분류 / 재고회전율 ==========
+@app.get("/stock/balances/fifo/{part_id}", response_class=HTMLResponse)
+async def stock_fifo_page(req: Request, part_id: int):
+    """FIFO 레이어 상세 — 입고일·잔량·단가 시각화 (S2-3차)."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    summary = fifo_layers(part_id)
+    return ctx(req, "stock_fifo.html", user=u, active="stock", summary=summary)
+
+
+@app.get("/stock/abc", response_class=HTMLResponse)
+async def stock_abc_page(req: Request, days: int = 90, top: int = 50):
+    """ABC 분류 — 최근 N일 출고 매출 누적 비중 기준 (A 80%, B 95%, C 나머지)."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    items = abc_classification(days=days)
+    a_cnt = sum(1 for r in items if r["abc_class"] == "A")
+    b_cnt = sum(1 for r in items if r["abc_class"] == "B")
+    c_cnt = sum(1 for r in items if r["abc_class"] == "C")
+    return ctx(req, "stock_abc.html", user=u, active="stock",
+               items=items[:top], total=len(items),
+               a_count=a_cnt, b_count=b_cnt, c_count=c_cnt, days=days)
+
+
+@app.get("/stock/turnover", response_class=HTMLResponse)
+async def stock_turnover_page(req: Request, days: int = 90):
+    """재고 회전율 — 출고량/평균재고 (FAST≥2 / NORMAL 0.5~2 / SLOW<0.5)."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    items = stock_turnover(days=days)
+    fast = sum(1 for r in items if r["band"] == "FAST")
+    normal = sum(1 for r in items if r["band"] == "NORMAL")
+    slow = sum(1 for r in items if r["band"] == "SLOW")
+    return ctx(req, "stock_turnover.html", user=u, active="stock",
+               items=items, fast=fast, normal=normal, slow=slow, days=days)
+
+
+@app.get("/stock/receipts", response_class=HTMLResponse)
+async def stock_receipts_page(req: Request):
+    """입고 목록 — receipts 테이블 (시안 §화면 영역 입고 GR)"""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, po_id, total_qty, qc_inspection_id, status, received_at, note
+               FROM receipts ORDER BY id DESC LIMIT 100"""
+        ).fetchall()
+    return ctx(req, "stock_receipts.html", user=u, active="stock",
+               receipts=[dict(r) for r in rows])
+
+
+@app.post("/stock/receipts")
+async def stock_receipts_submit(req: Request):
+    """입고 등록 (Top3-S2-2차) — INSERT receipts + INSERT stock_movements{kind=IN, qty +}.
+    receipts.status=PENDING (검수 대기). 트랜잭션 무결성: 두 INSERT 동일 db_session.
+    """
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    try:
+        po_id = int(form.get("po_id") or 0) or None
+        part_id = int(form.get("part_id") or 0)
+        qty = float(form.get("qty") or 0)
+        if part_id <= 0 or qty <= 0:
+            raise ValueError("part_id/qty invalid")
+    except Exception:
+        return RedirectResponse("/stock/receipts?error=invalid", 303)
+    # 1) receipts INSERT
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO receipts (po_id, received_by, total_qty, status, note)
+               VALUES (?,?,?,?,?)""",
+            (po_id, u.get("id"), qty, "PENDING", "S2-2차 GR")
+        )
+        gr_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # 2) stock_movements INSERT (kind=IN, qty +) — balance VIEW 자동 반영
+    try:
+        from .database import stock_movement_create
+        stock_movement_create({
+            "part_id": part_id, "kind": "IN", "quantity": qty,
+            "po_id": po_id, "reason": f"GR-{gr_id}", "note": "Top3-S2-2차 입고"
+        }, u.get("id") or 0)
+    except Exception as e:
+        return RedirectResponse(f"/stock/receipts?error=mv:{e}", 303)
+    return RedirectResponse(f"/stock/receipts?success=GR-{gr_id}", 303)
+
+
+# 라우트 등록 순서 보정 (04 V10 권고): /stock/qc/disposition 을 /stock/qc/{po_item_id} 위로
+@app.get("/stock/qc/disposition/{qc_id}", response_class=HTMLResponse)
+async def stock_qc_disposition_page(req: Request, qc_id: int):
+    """부적합 처리 모달 — RETURN/SPECIAL_ACCEPT/SCRAP (시안 §데이터 모델 qc_disposition)"""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    return ctx(req, "stock_qc.html", user=u, qc_id=qc_id, mode="disposition", active="stock")
+
+
+@app.post("/stock/qc/disposition")
+async def stock_qc_disposition_submit(req: Request):
+    """부적합 처리 — INSERT qc_disposition + UPDATE qc_inspections.status (FAIL 분기 확정)"""
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    try:
+        qc_id = int(form.get("qc_inspection_id") or 0)
+        action = (form.get("action") or "").upper()
+        note = (form.get("note") or "").strip()
+        if qc_id <= 0 or action not in ("RETURN", "SPECIAL_ACCEPT", "SCRAP"):
+            raise ValueError("invalid")
+    except Exception:
+        return RedirectResponse("/stock/receipts?error=disp_invalid", 303)
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO qc_disposition (qc_inspection_id, action, decided_by, note)
+               VALUES (?,?,?,?)""",
+            (qc_id, action, u.get("id"), note or None)
+        )
+        # SPECIAL_ACCEPT는 부분 사용 가능 → status 유지, RETURN/SCRAP는 FAIL 확정
+        if action in ("RETURN", "SCRAP"):
+            c.execute("UPDATE qc_inspections SET status='FAIL' WHERE id=?", (qc_id,))
+    return RedirectResponse(f"/stock/receipts?success=disp-{action}", 303)
+
+
+@app.get("/stock/qc/{po_item_id}", response_class=HTMLResponse)
+async def stock_qc_page(req: Request, po_item_id: int):
+    """검수 화면 — qc_inspections 작성 (시안 §화면 영역 QC 우 패널)"""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    return ctx(req, "stock_qc.html", user=u, po_item_id=po_item_id, active="stock")
+
+
+@app.post("/stock/qc/{po_item_id}")
+async def stock_qc_submit(req: Request, po_item_id: int):
+    """검수 결과 등록 (Top3-S2-2차) — INSERT qc_inspections + UPDATE receipts.qc_inspection_id.
+    status 분기: PASS / PARTIAL / HOLD / FAIL. FAIL/PARTIAL 시 부적합 모달로 redirect.
+    """
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    try:
+        pass_qty = float(form.get("pass_qty") or 0)
+        fail_qty = float(form.get("fail_qty") or 0)
+        status = (form.get("status") or "PENDING").upper()
+        if status not in ("PASS", "PARTIAL", "HOLD", "FAIL"):
+            status = "PENDING"
+        fail_reason = (form.get("fail_reason") or "").strip() or None
+    except Exception:
+        return RedirectResponse(f"/stock/qc/{po_item_id}?error=invalid", 303)
+    # po_item_id 가 receipts.id 로 들어올 수 있으므로 둘다 시도 (UI 단순화)
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO qc_inspections
+               (po_item_id, receipt_id, inspector_id, pass_qty, fail_qty, fail_reason, status)
+               VALUES (?,?,?,?,?,?,?)""",
+            (po_item_id, po_item_id, u.get("id"), pass_qty, fail_qty, fail_reason, status)
+        )
+        qc_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # receipts UPDATE: qc_inspection_id 연결 + status 동기화
+        c.execute(
+            "UPDATE receipts SET qc_inspection_id=?, status=? WHERE id=?",
+            (qc_id, status, po_item_id)
+        )
+    # FAIL/PARTIAL → 부적합 모달
+    if status in ("FAIL", "PARTIAL"):
+        return RedirectResponse(f"/stock/qc/disposition/{qc_id}", 303)
+    return RedirectResponse(f"/stock/receipts?success=qc-{status}", 303)
+
+
+@app.get("/stock/issues", response_class=HTMLResponse)
+async def stock_issues_page(req: Request):
+    """출고 목록 — issues_out 테이블 (시안 §화면 영역 출고 GI)"""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, part_id, qty, purpose, status, requested_at, issued_at
+               FROM issues_out ORDER BY id DESC LIMIT 100"""
+        ).fetchall()
+    return ctx(req, "stock_issues.html", user=u, active="stock",
+               issues=[dict(r) for r in rows])
+
+
+@app.post("/stock/issues")
+async def stock_issues_submit(req: Request):
+    """출고 등록 (Top3-S2-2차) — INSERT issues_out · status=PENDING.
+    실제 재고 차감은 /stock/issues/{id}/approve 에서 stock_movements 동시 INSERT.
+    """
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    try:
+        part_id = int(form.get("part_id") or 0)
+        qty = float(form.get("qty") or 0)
+        purpose = (form.get("purpose") or "").strip() or None
+        if part_id <= 0 or qty <= 0:
+            raise ValueError("invalid")
+    except Exception:
+        return RedirectResponse("/stock/issues?error=invalid", 303)
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO issues_out (part_id, requester_id, qty, purpose, status)
+               VALUES (?,?,?,?,?)""",
+            (part_id, u.get("id"), qty, purpose, "PENDING")
+        )
+        gi_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return RedirectResponse(f"/stock/issues?success=GI-{gi_id}", 303)
+
+
+@app.post("/stock/issues/{issue_id}/approve")
+async def stock_issues_approve(req: Request, issue_id: int):
+    """출고 승인·실행 (Top3-S2-2차) — UPDATE issues_out.status=ISSUED + INSERT stock_movements{kind=OUT, qty -}.
+    트랜잭션 무결성: stock_movement_create 가 자체 db_session 으로 balance VIEW 즉시 반영.
+    """
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    # 1) issues_out 조회 + 승인
+    with db_session() as c:
+        row = c.execute(
+            "SELECT id, part_id, qty, status FROM issues_out WHERE id=?", (issue_id,)
+        ).fetchone()
+        if not row:
+            return RedirectResponse("/stock/issues?error=notfound", 303)
+        if row["status"] != "PENDING":
+            return RedirectResponse(f"/stock/issues?error=already-{row['status']}", 303)
+        c.execute(
+            "UPDATE issues_out SET status='ISSUED', approver_id=?, issued_at=datetime('now','localtime') WHERE id=?",
+            (u.get("id"), issue_id)
+        )
+        part_id = row["part_id"]
+        qty = float(row["qty"] or 0)
+    # 2) stock_movements INSERT (kind=OUT, qty -) — balance VIEW 자동 반영 (FIFO)
+    try:
+        from .database import stock_movement_create
+        stock_movement_create({
+            "part_id": part_id, "kind": "OUT", "quantity": qty,
+            "reason": f"GI-{issue_id}", "note": "Top3-S2-2차 출고 승인"
+        }, u.get("id") or 0)
+    except Exception as e:
+        return RedirectResponse(f"/stock/issues?error=mv:{e}", 303)
+    return RedirectResponse(f"/stock/issues?success=GI-{issue_id}-ISSUED", 303)
+
+
+# =====================================================
+# TOP3 S1 — 매출 라이프사이클 1차 라우트 골격 (2026-04-25)
+# 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S1_v1.md
+# 1차 = 골격만 (UI 본문 · INSERT/UPDATE 로직은 다음 사이클).
+# 권한: P2 영업팀(can_use_sales) 또는 admin/ceo. 평직원 차단.
+# 4탭: 견적QT(탭1) / 수주SO(탭2) / 생산WO(탭3) / 출하DO·수금RC(탭4)
+# 9 enum: DRAFT/QUOTED/CONFIRMED/IN_PRODUCTION/READY_TO_SHIP/SHIPPED/INVOICED/PAID/CANCELLED
+#         (database.py orders.status CHECK constraint · invoices 추가 정합)
+# =====================================================
+def _s1_guard(req: Request):
+    """S1 권한 가드 — 영업팀 권한 OR admin/ceo. 없으면 None 반환."""
+    u = get_user(req)
+    if not u:
+        return None
+    if u.get("role") in ("admin", "ceo") or can_use_sales(u):
+        return u
+    return None
+
+
+@app.get("/sales/quotations", response_class=HTMLResponse)
+async def sales_quotations_page(req: Request):
+    """견적 탭 (시안 §1 탭1 QT) — quotations 리스트 + Empty State"""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT q.id, q.quote_no, q.customer_id,
+                      COALESCE(cu.name,'-') AS customer_name,
+                      q.total_amount, q.valid_until, q.version, q.status,
+                      q.created_at
+               FROM quotations q
+               LEFT JOIN customers cu ON cu.id = q.customer_id
+               ORDER BY q.id DESC LIMIT 200"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+    return ctx(req, "sales_quotations.html", user=u, active="sales",
+               tab="quotations", items=items)
+
+
+@app.post("/sales/quotations")
+async def sales_quotations_create(req: Request):
+    """견적 생성 (Top3-S1-2차 — quotations INSERT, status=DRAFT)"""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    customer_id = form.get("customer_id") or None
+    total_amount = float(form.get("total_amount") or 0)
+    valid_until = form.get("valid_until") or None
+    version = int(form.get("version") or 1)
+    with db_session() as c:
+        # quote_no = QT-YYYYMM-#### (월별 시퀀스)
+        ym = datetime.now().strftime("%Y%m")
+        row = c.execute(
+            "SELECT COUNT(*) FROM quotations WHERE quote_no LIKE ?",
+            (f"QT-{ym}-%",),
+        ).fetchone()
+        seq = (row[0] if row else 0) + 1
+        quote_no = f"QT-{ym}-{seq:04d}"
+        cur = c.execute(
+            """INSERT INTO quotations
+               (quote_no, customer_id, total_amount, valid_until, version,
+                status, created_by)
+               VALUES (?,?,?,?,?,'DRAFT',?)""",
+            (quote_no, customer_id, total_amount, valid_until, version, u.get("id")),
+        )
+        return JSONResponse({"ok": True, "quote_id": cur.lastrowid, "quote_no": quote_no})
+
+
+@app.get("/sales/orders", response_class=HTMLResponse)
+async def sales_orders_page(req: Request):
+    """수주 탭 (시안 §1 탭2 SO) — orders 리스트 + status tag (시안 §3)"""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT o.id, o.order_no, o.customer_id,
+                      COALESCE(cu.name,'-') AS customer_name,
+                      o.total_amount, o.due_date, o.status,
+                      o.order_date
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               ORDER BY o.id DESC LIMIT 200"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+    return ctx(req, "sales_orders.html", user=u, active="sales",
+               tab="orders", items=items)
+
+
+@app.post("/sales/orders")
+async def sales_orders_confirm(req: Request):
+    """수주 확정 (Top3-S1-2차 — quotation.CONFIRMED + orders INSERT + history)"""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    quote_id = form.get("quote_id") or None
+    due_date = form.get("due_date") or None
+    if not quote_id:
+        return JSONResponse({"error": "quote_id 누락"}, 400)
+    with db_session() as c:
+        q = c.execute(
+            "SELECT customer_id, total_amount FROM quotations WHERE id=?",
+            (quote_id,),
+        ).fetchone()
+        if not q:
+            return JSONResponse({"error": "견적 없음"}, 404)
+        # 견적 상태 CONFIRMED 로 전환
+        c.execute(
+            "UPDATE quotations SET status='CONFIRMED' WHERE id=?", (quote_id,)
+        )
+        # 수주 헤더 INSERT (status=CONFIRMED)
+        ym = datetime.now().strftime("%Y%m")
+        row = c.execute(
+            "SELECT COUNT(*) FROM orders WHERE order_no LIKE ?",
+            (f"SO-{ym}-%",),
+        ).fetchone()
+        seq = (row[0] if row else 0) + 1
+        order_no = f"SO-{ym}-{seq:04d}"
+        cur = c.execute(
+            """INSERT INTO orders
+               (order_no, quote_id, customer_id, order_date, due_date,
+                total_amount, status, created_by)
+               VALUES (?,?,?,?,?,?,'CONFIRMED',?)""",
+            (order_no, quote_id, q[0], date.today().isoformat(),
+             due_date, q[1] or 0, u.get("id")),
+        )
+        order_id = cur.lastrowid
+        # 상태 이력 (DRAFT → CONFIRMED)
+        c.execute(
+            """INSERT INTO order_status_history
+               (order_id, from_status, to_status, changed_by, note)
+               VALUES (?,?,?,?,?)""",
+            (order_id, "DRAFT", "CONFIRMED", u.get("id"), "견적→수주 전환"),
+        )
+        return JSONResponse({"ok": True, "order_id": order_id, "order_no": order_no})
+
+
+@app.get("/sales/production", response_class=HTMLResponse)
+async def sales_production_page(req: Request):
+    """생산지시 탭 (시안 §1 탭3 WO) — production_orders 리스트 + 진행률"""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT p.id, p.order_id, o.order_no,
+                      p.planned_start, p.planned_end,
+                      p.actual_start, p.actual_end, p.status
+               FROM production_orders p
+               LEFT JOIN orders o ON o.id = p.order_id
+               ORDER BY p.id DESC LIMIT 200"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+    return ctx(req, "sales_production.html", user=u, active="sales",
+               tab="production", items=items)
+
+
+@app.post("/sales/production/start")
+async def sales_production_start(req: Request):
+    """생산 시작 (Top3-S1-2차 — orders.IN_PRODUCTION + production_orders + history)"""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    order_id = form.get("order_id") or None
+    planned_start = form.get("planned_start") or date.today().isoformat()
+    planned_end = form.get("planned_end") or None
+    if not order_id:
+        return JSONResponse({"error": "order_id 누락"}, 400)
+    with db_session() as c:
+        o = c.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
+        if not o:
+            return JSONResponse({"error": "수주 없음"}, 404)
+        prev_status = o[0]
+        c.execute(
+            "UPDATE orders SET status='IN_PRODUCTION' WHERE id=?", (order_id,)
+        )
+        cur = c.execute(
+            """INSERT INTO production_orders
+               (order_id, planned_start, planned_end, actual_start, status)
+               VALUES (?,?,?,?,'IN_PRODUCTION')""",
+            (order_id, planned_start, planned_end, datetime.now().isoformat(timespec="seconds")),
+        )
+        c.execute(
+            """INSERT INTO order_status_history
+               (order_id, from_status, to_status, changed_by, note)
+               VALUES (?,?,?,?,?)""",
+            (order_id, prev_status, "IN_PRODUCTION", u.get("id"), "생산 시작"),
+        )
+        return JSONResponse({"ok": True, "production_id": cur.lastrowid})
+
+
+@app.get("/sales/shipments-receipts", response_class=HTMLResponse)
+async def sales_shipments_receipts_page(req: Request):
+    """출하·수금 탭 (시안 §1 탭4 DO+INV+RC) — shipments + receipts_payment 통합 라인"""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        # 수주별 통합 라인: 출하 합계 + 수금 합계 + 세금계산서 발행 여부
+        rows = c.execute(
+            """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
+                      COALESCE(cu.name,'-') AS customer_name,
+                      (SELECT COALESCE(SUM(s.shipped_qty),0)
+                         FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
+                      (SELECT COALESCE(SUM(r.amount),0)
+                         FROM receipts_payment r WHERE r.order_id = o.id) AS paid_total,
+                      (SELECT COUNT(*) FROM invoices i
+                         WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
+               ORDER BY o.id DESC LIMIT 200"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+    return ctx(req, "sales_shipments_receipts.html", user=u, active="sales",
+               tab="shipments", items=items)
+
+
+@app.post("/sales/shipments")
+async def sales_shipments_create(req: Request):
+    """출하 등록 (Top3-S1-2차 — shipments INSERT + orders.SHIPPED + history · 1:N 부분출하)"""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    order_id = form.get("order_id") or None
+    shipped_qty = float(form.get("shipped_qty") or 0)
+    tracking = form.get("tracking") or None
+    if not order_id:
+        return JSONResponse({"error": "order_id 누락"}, 400)
+    with db_session() as c:
+        o = c.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
+        if not o:
+            return JSONResponse({"error": "수주 없음"}, 404)
+        prev_status = o[0]
+        cur = c.execute(
+            """INSERT INTO shipments
+               (order_id, shipped_at, shipped_qty, shipped_by, tracking)
+               VALUES (?,?,?,?,?)""",
+            (order_id, datetime.now().isoformat(timespec="seconds"),
+             shipped_qty, u.get("id"), tracking),
+        )
+        # SHIPPED 으로 전환 (READY_TO_SHIP 또는 IN_PRODUCTION → SHIPPED)
+        if prev_status != "SHIPPED":
+            c.execute("UPDATE orders SET status='SHIPPED' WHERE id=?", (order_id,))
+            c.execute(
+                """INSERT INTO order_status_history
+                   (order_id, from_status, to_status, changed_by, note)
+                   VALUES (?,?,?,?,?)""",
+                (order_id, prev_status, "SHIPPED", u.get("id"),
+                 f"출하 등록 (수량 {shipped_qty})"),
+            )
+        _ship_id = cur.lastrowid
+    # 알림시스템 통합 (사이클 2026-04-26) — 출하 담당자에게 SALES 알림 (1시간 중복 방지 내장)
+    notify_user(
+        u.get("id"), "SALES",
+        f"🚚 출하 등록 — 수주 {order_id}",
+        body=f"수량 {shipped_qty} / 송장 {tracking or '-'}",
+        link=f"/sales/orders/{order_id}",
+    )
+    return JSONResponse({"ok": True, "shipment_id": _ship_id})
+
+
+@app.post("/sales/receipts")
+async def sales_receipts_create(req: Request):
+    """수금 등록 (Top3-S1-2차 — receipts_payment INSERT + 합계 비교 → PAID/유지 + history)
+    PARTIAL_RECEIPT 별도 enum 폐기 — 합계 < 수주금액이면 SHIPPED 유지, 합계 >= 이면 PAID."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    order_id = form.get("order_id") or None
+    amount = float(form.get("amount") or 0)
+    method = form.get("method") or None
+    note = form.get("note") or None
+    if not order_id:
+        return JSONResponse({"error": "order_id 누락"}, 400)
+    with db_session() as c:
+        o = c.execute(
+            "SELECT status, total_amount FROM orders WHERE id=?", (order_id,)
+        ).fetchone()
+        if not o:
+            return JSONResponse({"error": "수주 없음"}, 404)
+        prev_status, total = o[0], (o[1] or 0)
+        cur = c.execute(
+            """INSERT INTO receipts_payment
+               (order_id, received_at, amount, method, received_by, note)
+               VALUES (?,?,?,?,?,?)""",
+            (order_id, datetime.now().isoformat(timespec="seconds"),
+             amount, method, u.get("id"), note),
+        )
+        # 누적 수금 합계 → PAID 분기 (시안 §3 PAID 강조)
+        row = c.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM receipts_payment WHERE order_id=?",
+            (order_id,),
+        ).fetchone()
+        paid_total = row[0] or 0
+        new_status = "PAID" if paid_total >= total and total > 0 else prev_status
+        if new_status != prev_status:
+            c.execute(
+                "UPDATE orders SET status=? WHERE id=?", (new_status, order_id)
+            )
+            c.execute(
+                """INSERT INTO order_status_history
+                   (order_id, from_status, to_status, changed_by, note)
+                   VALUES (?,?,?,?,?)""",
+                (order_id, prev_status, new_status, u.get("id"),
+                 f"수금 누적 {paid_total}/{total}"),
+            )
+        return JSONResponse({
+            "ok": True, "receipt_id": cur.lastrowid,
+            "paid_total": paid_total, "status": new_status,
+        })
+
+
+# =====================================================
+# Top3 S1 3차 — 매출 대시 강화 + 매출 예측 (2026-04-26)
+# 외부 차트·numpy 0건. _linear_regression (line 6572) 재사용.
+# G1~G5 핫패치 보존, v2 본체 무수정.
+# =====================================================
+
+def _sales_monthly_series(c, months: int = 12):
+    """최근 N개월 매출 시계열 (orders.order_date + total_amount).
+    반환: [{ym, total, cnt}, ...] (오름차순). 빈 달은 0 채움."""
+    today = date.today()
+    out = []
+    for i in range(months - 1, -1, -1):
+        y = today.year
+        m = today.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        ym = f"{y:04d}-{m:02d}"
+        row = c.execute(
+            """SELECT COALESCE(SUM(total_amount),0) AS total, COUNT(*) AS cnt
+               FROM orders WHERE order_date LIKE ?
+                 AND status NOT IN ('CANCELLED','DRAFT')""",
+            (f"{ym}%",),
+        ).fetchone()
+        out.append({"ym": ym, "total": row[0] or 0, "cnt": row[1] or 0})
+    return out
+
+
+def _sales_forecast(series, horizon: int = 3):
+    """선형회귀 → 다음 N개월 예측. _linear_regression 재사용 (numpy 0).
+    반환: {points:[{ym,total,is_pred}], slope, intercept, r2, horizon, end_ym}."""
+    if not series or len(series) < 2:
+        return None
+    xs = list(range(len(series)))
+    ys = [float(s["total"]) for s in series]
+    slope, intercept, r2 = _linear_regression(xs, ys)
+    pts = [{"ym": s["ym"], "total": s["total"], "is_pred": False} for s in series]
+    last_ym = series[-1]["ym"]
+    ly, lm = int(last_ym[:4]), int(last_ym[5:7])
+    for k in range(1, horizon + 1):
+        lm += 1
+        if lm > 12:
+            lm -= 12
+            ly += 1
+        x = len(series) - 1 + k
+        pred = max(0.0, slope * x + intercept)
+        pts.append({"ym": f"{ly:04d}-{lm:02d}", "total": pred, "is_pred": True})
+    return {"points": pts, "slope": slope, "intercept": intercept,
+            "r_squared": r2, "horizon": horizon, "end_ym": pts[-1]["ym"],
+            "end_total": pts[-1]["total"], "sample_n": len(series)}
+
+
+def _sales_dashboard_ctx(c):
+    """대시보드 + 예측 공통 컨텍스트 (KPI 8 + 차트 데이터 + 파이프라인)."""
+    today = date.today()
+    ym = today.strftime("%Y-%m")
+    # 전월
+    py, pm = today.year, today.month - 1
+    if pm <= 0:
+        pm += 12; py -= 1
+    prev_ym = f"{py:04d}-{pm:02d}"
+    month_total = c.execute(
+        """SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT')""",
+        (f"{ym}%",),
+    ).fetchone()[0] or 0
+    prev_total = c.execute(
+        """SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT')""",
+        (f"{prev_ym}%",),
+    ).fetchone()[0] or 0
+    mom = ((month_total - prev_total) / prev_total * 100.0) if prev_total > 0 else 0.0
+    # 수금률 = 수금 합계 / INVOICED+PAID 수주 합계
+    inv_total = c.execute(
+        """SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE status IN ('INVOICED','PAID','SHIPPED')"""
+    ).fetchone()[0] or 0
+    rcv_total = c.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM receipts_payment"
+    ).fetchone()[0] or 0
+    rcv_rate = (rcv_total / inv_total * 100.0) if inv_total > 0 else 0.0
+    # 평균 결제 일수 (issue_date → 첫 수금)
+    avg_days = 0.0
+    rows = c.execute(
+        """SELECT i.order_id, MIN(i.issue_date) AS iss,
+                  MIN(rp.received_at) AS rcv
+           FROM invoices i
+           LEFT JOIN receipts_payment rp ON rp.order_id = i.order_id
+           WHERE i.issue_date IS NOT NULL AND rp.received_at IS NOT NULL
+           GROUP BY i.order_id LIMIT 200"""
+    ).fetchall()
+    if rows:
+        days_list = []
+        for r in rows:
+            try:
+                d1 = datetime.strptime(r[1][:10], "%Y-%m-%d")
+                d2 = datetime.strptime(r[2][:10], "%Y-%m-%d")
+                days_list.append((d2 - d1).days)
+            except Exception:
+                pass
+        if days_list:
+            avg_days = sum(days_list) / len(days_list)
+    # 미수금 = INVOICED 수주 합 - 수금
+    unpaid = max(0.0, inv_total - rcv_total)
+    active_orders = c.execute(
+        """SELECT COUNT(*) FROM orders
+           WHERE status IN ('CONFIRMED','IN_PRODUCTION','READY_TO_SHIP')"""
+    ).fetchone()[0] or 0
+    in_prod = c.execute(
+        "SELECT COUNT(*) FROM production_orders WHERE status='IN_PRODUCTION'"
+    ).fetchone()[0] or 0
+    # 출하 임박 = due_date 7일 이내 + status IN_PRODUCTION/READY_TO_SHIP
+    soon_end = (today + timedelta(days=7)).isoformat()
+    ship_soon = c.execute(
+        """SELECT COUNT(*) FROM orders
+           WHERE due_date IS NOT NULL AND due_date <= ? AND due_date >= ?
+             AND status IN ('IN_PRODUCTION','READY_TO_SHIP','CONFIRMED')""",
+        (soon_end, today.isoformat()),
+    ).fetchone()[0] or 0
+    # 파이프라인 9 status 분포
+    pipeline = {s: 0 for s in ["DRAFT", "QUOTED", "CONFIRMED", "IN_PRODUCTION",
+                                "READY_TO_SHIP", "SHIPPED", "INVOICED", "PAID", "CANCELLED"]}
+    for r in c.execute(
+        "SELECT status, COUNT(*) AS cnt FROM orders GROUP BY status"
+    ).fetchall():
+        if r[0] in pipeline:
+            pipeline[r[0]] = r[1]
+    # 거래처 Top 5 (Pareto)
+    top_customers = [dict(r) for r in c.execute(
+        """SELECT COALESCE(cu.name,'-') AS name,
+                  COUNT(*) AS cnt, COALESCE(SUM(o.total_amount),0) AS total
+           FROM orders o LEFT JOIN customers cu ON cu.id = o.customer_id
+           WHERE o.status NOT IN ('CANCELLED','DRAFT')
+           GROUP BY o.customer_id ORDER BY total DESC LIMIT 5"""
+    ).fetchall()]
+    grand_total = sum(t["total"] for t in top_customers) or 1
+    cum = 0.0
+    for t in top_customers:
+        cum += t["total"]
+        t["pct"] = (t["total"] / grand_total * 100.0)
+        t["cum_pct"] = (cum / grand_total * 100.0)
+    series = _sales_monthly_series(c, 12)
+    chart_max = max((s["total"] for s in series), default=1) or 1
+    return {
+        "kpi": {
+            "month_total": month_total, "mom": mom,
+            "rcv_rate": rcv_rate, "avg_days": avg_days,
+            "unpaid": unpaid, "active_orders": active_orders,
+            "in_prod": in_prod, "ship_soon": ship_soon,
+        },
+        "ym": ym, "prev_ym": prev_ym,
+        "pipeline": pipeline,
+        "top_customers": top_customers,
+        "series": series, "chart_max": chart_max,
+    }
+
+
+@app.get("/sales/dashboard", response_class=HTMLResponse)
+async def sales_dashboard_v3(req: Request):
+    """Top3-S1-3차 강화 대시 — KPI 8 + 월별 차트 + Pareto Top5 + 파이프라인 9."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        ctx_data = _sales_dashboard_ctx(c)
+    return ctx(req, "sales_dashboard.html", user=u, active="sales",
+               tab="dashboard", **ctx_data)
+
+
+@app.get("/sales/forecast", response_class=HTMLResponse)
+async def sales_forecast_page(req: Request):
+    """Top3-S1-3차 매출 예측 — 최근 12개월 → 향후 3개월 (선형회귀, R²)."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        series = _sales_monthly_series(c, 12)
+    fc_row = None  # 매출 전용 저장 테이블은 다음 사이클 (read-only)
+    forecast = _sales_forecast(series, horizon=3)
+    chart_max = max(
+        max((s["total"] for s in series), default=1),
+        max((p["total"] for p in (forecast["points"] if forecast else [])), default=1),
+    ) or 1
+    return ctx(req, "sales_forecast.html", user=u, active="sales",
+               tab="forecast", series=series, forecast=forecast,
+               chart_max=chart_max, saved_forecast=fc_row)
+
+
+@app.post("/sales/forecast/refresh")
+async def sales_forecast_refresh(req: Request):
+    """Top3-S1-3차 예측 재계산 트리거 — JSON {ok, end_ym, end_total, r2, sample_n}."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        series = _sales_monthly_series(c, 12)
+    fc = _sales_forecast(series, horizon=3)
+    if not fc:
+        return JSONResponse({"error": "insufficient_data",
+                              "sample_n": len(series)}, status_code=400)
+    return JSONResponse({
+        "ok": True, "end_ym": fc["end_ym"],
+        "end_total": fc["end_total"], "r_squared": fc["r_squared"],
+        "slope": fc["slope"], "sample_n": fc["sample_n"],
+    })
+
+
+# =====================================================
+# Top3 S1 4차 — 미수금 추적 + 수금 알림 자동 (2026-04-26)
+# 헬퍼 _outstanding_receivables / check_receivable_alerts.
+# 알림 통합 (사이클 2026-04-26 notify_user SALES) 활용 · 1시간 중복 방지 내장.
+# G1~G5 핫패치 보존 · v2 본체 무수정 · 외부 자산 0건.
+# =====================================================
+
+def _parse_terms_days(terms: str) -> int:
+    """payment_terms 문자열 → 일수. NET30/30일/선금 등 휴리스틱.
+    매칭 실패 시 30 (기본 NET30)."""
+    if not terms:
+        return 30
+    s = str(terms).upper().replace(" ", "")
+    # NET#, #일, #DAYS
+    import re
+    m = re.search(r"(\d{1,3})", s)
+    if m:
+        try:
+            d = int(m.group(1))
+            if 0 < d <= 365:
+                return d
+        except Exception:
+            pass
+    if "선금" in str(terms) or "CASH" in s or "현금" in str(terms):
+        return 0
+    return 30
+
+
+def _outstanding_receivables(c, only_overdue: bool = False):
+    """미수금 건별 집계 — orders.total_amount - SUM(receipts_payment.amount).
+    연체일 = today - (order_date + payment_terms.terms days).
+    등급: CURRENT(미만기) / D-30 / D-60 / D-90+ (연체일 기준).
+    Returns: list of dicts (overdue desc).
+    """
+    today = date.today()
+    rows = c.execute(
+        """SELECT o.id AS order_id, o.order_no, o.order_date, o.due_date,
+                  o.total_amount, o.status, o.customer_id,
+                  COALESCE(cu.name,'-') AS customer_name,
+                  COALESCE((SELECT SUM(amount) FROM receipts_payment rp
+                            WHERE rp.order_id=o.id), 0) AS paid_total,
+                  COALESCE((SELECT terms FROM payment_terms pt
+                            WHERE pt.customer_id=o.customer_id
+                            ORDER BY pt.id DESC LIMIT 1), '') AS terms
+           FROM orders o
+           LEFT JOIN customers cu ON cu.id = o.customer_id
+           WHERE o.status IN ('SHIPPED','INVOICED')
+             AND o.total_amount > 0"""
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        outstanding = (d["total_amount"] or 0) - (d["paid_total"] or 0)
+        if outstanding <= 0:
+            continue
+        # 만기일: order_date + terms일
+        days_terms = _parse_terms_days(d["terms"])
+        try:
+            od = datetime.strptime((d["order_date"] or today.isoformat())[:10], "%Y-%m-%d").date()
+        except Exception:
+            od = today
+        due = od + timedelta(days=days_terms)
+        overdue_days = (today - due).days  # 음수 = 만기 이전
+        if only_overdue and overdue_days <= 0:
+            continue
+        if overdue_days <= 0:
+            grade = "CURRENT"
+        elif overdue_days <= 30:
+            grade = "D-30"
+        elif overdue_days <= 60:
+            grade = "D-60"
+        else:
+            grade = "D-90+"
+        d["outstanding"] = outstanding
+        d["due_date_calc"] = due.isoformat()
+        d["overdue_days"] = overdue_days
+        d["grade"] = grade
+        d["terms_days"] = days_terms
+        out.append(d)
+    out.sort(key=lambda x: (-x["overdue_days"], -x["outstanding"]))
+    return out
+
+
+def _outstanding_summary(items):
+    """등급별 집계 KPI."""
+    grades = {"CURRENT": 0.0, "D-30": 0.0, "D-60": 0.0, "D-90+": 0.0}
+    counts = {"CURRENT": 0, "D-30": 0, "D-60": 0, "D-90+": 0}
+    total = 0.0
+    overdue_total = 0.0
+    for it in items:
+        g = it["grade"]
+        amt = it["outstanding"]
+        grades[g] = grades.get(g, 0.0) + amt
+        counts[g] = counts.get(g, 0) + 1
+        total += amt
+        if g != "CURRENT":
+            overdue_total += amt
+    return {
+        "by_grade": grades, "counts": counts,
+        "total": total, "overdue_total": overdue_total,
+        "n_total": len(items),
+        "overdue_rate": (overdue_total / total * 100.0) if total > 0 else 0.0,
+    }
+
+
+def check_receivable_alerts():
+    """수금 알림 트리거 — 만기 임박(D-7) + 연체(D+1, D+30, D+60).
+    notify_user(SALES, ...) 사용 (1시간 중복 방지 내장).
+    수신자: orders.created_by (수주 등록자) → can_use_sales 폴백.
+    Returns: {sent: int, skipped: int, items: int}.
+    """
+    sent = 0; skipped = 0; total_items = 0
+    with db_session() as c:
+        items = _outstanding_receivables(c)
+        total_items = len(items)
+        # 영업 권한자 폴백 (주된 알림 대상 미상시)
+        sales_uids = [r[0] for r in c.execute(
+            "SELECT id FROM users WHERE can_use_sales=1 OR role IN ('admin','ceo')"
+        ).fetchall()]
+        for it in items:
+            ov = it["overdue_days"]
+            order_no = it.get("order_no") or f"#{it['order_id']}"
+            cust = it.get("customer_name") or "-"
+            outstanding = it.get("outstanding") or 0
+            # 발송 조건: 만기 7일 임박 OR 연체 1/30/60일 도달
+            tag = None
+            if ov == -7:
+                tag = "만기 임박 (D-7)"
+            elif ov == 1:
+                tag = "연체 1일"
+            elif ov == 30:
+                tag = "연체 30일"
+            elif ov == 60:
+                tag = "연체 60일"
+            if not tag:
+                continue
+            title = f"💰 미수금 {tag} — {order_no}"
+            body = (f"거래처: {cust} / 미수금: {int(outstanding):,}원 / "
+                    f"등급: {it['grade']} / 만기: {it['due_date_calc']}")
+            link = f"/sales/orders/{it['order_id']}"
+            # 우선 created_by, 폴백 영업권한자 전체
+            recipients = []
+            cb = c.execute(
+                "SELECT created_by FROM orders WHERE id=?", (it["order_id"],)
+            ).fetchone()
+            if cb and cb[0]:
+                recipients.append(cb[0])
+            else:
+                recipients.extend(sales_uids)
+            for uid in recipients:
+                if notify_user(uid, "SALES", title, body=body, link=link):
+                    sent += 1
+                else:
+                    skipped += 1
+    return {"sent": sent, "skipped": skipped, "items": total_items}
+
+
+@app.get("/sales/outstanding", response_class=HTMLResponse)
+async def sales_outstanding_page(req: Request):
+    """Top3-S1-4차 미수금 대시 — 등급별 집계 + 상세 (D-30/D-60/D-90+/CURRENT)."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        items = _outstanding_receivables(c)
+    summary = _outstanding_summary(items)
+    return ctx(req, "sales_outstanding.html", user=u, active="sales",
+               tab="outstanding", items=items, summary=summary)
+
+
+@app.get("/sales/aging", response_class=HTMLResponse)
+async def sales_aging_page(req: Request):
+    """Top3-S1-4차 연체 분석 — 거래처별 연체 매트릭스 (히트맵 테이블)."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        items = _outstanding_receivables(c)
+    # 거래처 × 등급 매트릭스
+    matrix = {}
+    for it in items:
+        cust = it.get("customer_name") or "-"
+        if cust not in matrix:
+            matrix[cust] = {"CURRENT": 0.0, "D-30": 0.0, "D-60": 0.0,
+                             "D-90+": 0.0, "total": 0.0, "max_overdue": 0}
+        matrix[cust][it["grade"]] += it["outstanding"]
+        matrix[cust]["total"] += it["outstanding"]
+        if it["overdue_days"] > matrix[cust]["max_overdue"]:
+            matrix[cust]["max_overdue"] = it["overdue_days"]
+    rows = sorted(
+        [{"customer": k, **v} for k, v in matrix.items()],
+        key=lambda x: (-x["max_overdue"], -x["total"]),
+    )
+    summary = _outstanding_summary(items)
+    return ctx(req, "sales_aging.html", user=u, active="sales",
+               tab="aging", rows=rows, summary=summary)
+
+
+@app.post("/sales/alerts/check")
+async def sales_alerts_check(req: Request):
+    """Top3-S1-4차 수금 알림 수동 트리거 — JSON {sent, skipped, items}."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    result = check_receivable_alerts()
+    return JSONResponse({"ok": True, **result})
+
+
+# =====================================================
+# 수출입 서류 — P11 베트남 수출 실무자 1차 라우트 골격 (2026-04-25)
+# 한국 수출 표준 4단계: CI(상업송장) / PL(패킹리스트) / BL(선하증권) / 관세신고
+# 1차 = 골격만 (UI 본문 · 외부 운송사 API 미도입 · 다음 사이클).
+# 권한: P11(team_id=12 베트남법인) OR admin/ceo/executive OR can_use_sales.
+# 매출 자동 채움: orders 테이블 참조 → export_orders INSERT 시 자동 조회.
+# =====================================================
+def _export_guard(req: Request):
+    """수출입 권한 가드 — 베트남법인(team_id=12) OR admin/ceo/executive OR 영업권한자."""
+    u = get_user(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive"):
+        return u
+    team_id = u.get("team_id") if isinstance(u, dict) else u["team_id"]
+    if team_id == 12:  # 12 베트남법인 (P11)
+        return u
+    if can_use_sales(u):
+        return u
+    return None
+
+
+@app.get("/export", response_class=HTMLResponse)
+async def export_home(req: Request):
+    """수출 메인 (수주 목록 + 진행 상태 KPI) — 2차 본문."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT eo.id, eo.buyer, eo.shipping_terms, eo.payment_terms,
+                      eo.port_of_loading, eo.port_of_discharge, eo.status,
+                      eo.created_at, eo.order_id,
+                      COALESCE(o.order_no,'-') AS order_no,
+                      COALESCE(o.total_amount,0) AS order_amount
+               FROM export_orders eo
+               LEFT JOIN orders o ON o.id = eo.order_id
+               ORDER BY eo.id DESC LIMIT 200"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+        # 상태별 카운트 (KPI)
+        st_rows = c.execute(
+            "SELECT status, COUNT(*) AS n FROM export_orders GROUP BY status"
+        ).fetchall()
+        st_map = {r["status"]: r["n"] for r in st_rows}
+    return ctx(req, "export_home.html", user=u, active="export", items=items,
+               st_draft=st_map.get("DRAFT", 0),
+               st_ci=st_map.get("CI_ISSUED", 0),
+               st_pl=st_map.get("PL_READY", 0),
+               st_ship=st_map.get("SHIPPED", 0),
+               st_clr=st_map.get("CLEARED", 0))
+
+
+@app.get("/export/orders/new", response_class=HTMLResponse)
+async def export_order_new_form(req: Request):
+    """수출 수주 등록 폼 — 1차 골격 (UI 본문 다음 사이클)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        orders = [dict(r) for r in c.execute(
+            """SELECT id, order_no, customer_id, total_amount, order_date
+               FROM orders ORDER BY id DESC LIMIT 100"""
+        ).fetchall()]
+    return ctx(req, "export_order_form.html", user=u, active="export",
+               orders=orders)
+
+
+@app.post("/export/orders")
+async def export_order_create(req: Request):
+    """수출 수주 INSERT — 매출 자동 채움 가설 핸들러.
+    order_id 받으면 orders 에서 customer / total_amount / order_date 자동 조회."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    order_id = form.get("order_id") or None
+    buyer = form.get("buyer") or None
+    shipping_terms = form.get("shipping_terms") or None
+    payment_terms = form.get("payment_terms") or None
+    port_of_loading = form.get("port_of_loading") or "BUSAN"
+    port_of_discharge = form.get("port_of_discharge") or None
+    with db_session() as c:
+        # 매출 자동 채움 — order_id 검증 (orders 존재 확인)
+        if order_id:
+            o = c.execute(
+                "SELECT id, customer_id, total_amount, order_date FROM orders WHERE id=?",
+                (order_id,)
+            ).fetchone()
+            if not o:
+                return JSONResponse({"error": "수주 없음(order_id)"}, 404)
+        cur = c.execute(
+            """INSERT INTO export_orders
+               (order_id, buyer, shipping_terms, payment_terms,
+                port_of_loading, port_of_discharge, status, created_by)
+               VALUES (?,?,?,?,?,?,'DRAFT',?)""",
+            (order_id, buyer, shipping_terms, payment_terms,
+             port_of_loading, port_of_discharge, u.get("id")),
+        )
+        return JSONResponse({"ok": True, "export_order_id": cur.lastrowid})
+
+
+@app.get("/export/orders/{eo_id}", response_class=HTMLResponse)
+async def export_order_detail(req: Request, eo_id: int):
+    """수출 수주 상세 (CI/PL/BL/관세 탭) — 1차 골격."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        eo = c.execute(
+            """SELECT eo.*, COALESCE(o.order_no,'-') AS order_no,
+                      COALESCE(o.total_amount,0) AS order_amount,
+                      COALESCE(o.order_date,'-') AS order_date,
+                      COALESCE(cu.name,'-') AS customer_name
+               FROM export_orders eo
+               LEFT JOIN orders o ON o.id = eo.order_id
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               WHERE eo.id = ?""",
+            (eo_id,)
+        ).fetchone()
+        if not eo:
+            return RedirectResponse("/export", 303)
+        eo = dict(eo)
+        ci = [dict(r) for r in c.execute(
+            "SELECT * FROM commercial_invoices WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+        pl = [dict(r) for r in c.execute(
+            "SELECT * FROM packing_lists WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+        bl = [dict(r) for r in c.execute(
+            "SELECT * FROM bills_of_lading WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+        cu_decl = [dict(r) for r in c.execute(
+            "SELECT * FROM customs_declarations WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+    return ctx(req, "export_order_detail.html", user=u, active="export",
+               eo=eo, ci=ci, pl=pl, bl=bl, customs=cu_decl)
+
+
+@app.get("/export/ci/{eo_id}", response_class=HTMLResponse)
+async def export_ci_form(req: Request, eo_id: int):
+    """CI 작성/조회 (매출 자동 채움) — 2차 본문."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        eo = c.execute(
+            """SELECT eo.*, COALESCE(o.total_amount,0) AS order_amount
+               FROM export_orders eo
+               LEFT JOIN orders o ON o.id = eo.order_id
+               WHERE eo.id = ?""", (eo_id,)).fetchone()
+        if not eo:
+            return RedirectResponse("/export", 303)
+        eo = dict(eo)
+        items = [dict(r) for r in c.execute(
+            "SELECT * FROM commercial_invoices WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+    return ctx(req, "export_ci.html", user=u, active="export",
+               eo=eo, items=items, today=date.today().isoformat())
+
+
+def _next_seq_no(c, table: str, col: str, prefix: str) -> str:
+    """월별 시퀀스 발급 — `{prefix}-YYYYMM-####` (idempotent · race 방어 transaction 내).
+    예: CI-202604-0001, PL-202604-0023."""
+    ym = datetime.now().strftime("%Y%m")
+    pat = f"{prefix}-{ym}-%"
+    row = c.execute(
+        f"SELECT {col} FROM {table} WHERE {col} LIKE ? "
+        f"ORDER BY {col} DESC LIMIT 1", (pat,)
+    ).fetchone()
+    if row and row[col]:
+        try:
+            seq = int(str(row[col]).rsplit("-", 1)[-1]) + 1
+        except Exception:
+            seq = 1
+    else:
+        seq = 1
+    return f"{prefix}-{ym}-{seq:04d}"
+
+
+@app.post("/export/ci")
+async def export_ci_create(req: Request):
+    """CI INSERT — 2차 본문.
+    invoice_no = `CI-YYYYMM-####` 자동. total_amount = 폼 우선, 미입력 시 orders 자동 채움.
+    동시 UPDATE export_orders.status DRAFT/BOOKED → CI_ISSUED."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    eo_id = form.get("export_order_id")
+    if not eo_id:
+        return JSONResponse({"error": "export_order_id 필수"}, 400)
+    issue_date = form.get("issue_date") or date.today().isoformat()
+    currency = form.get("currency") or "USD"
+    raw_amt = form.get("total_amount")
+    with db_session() as c:
+        eo = c.execute(
+            """SELECT eo.id, eo.status, COALESCE(o.total_amount,0) AS auto_amt
+               FROM export_orders eo LEFT JOIN orders o ON o.id=eo.order_id
+               WHERE eo.id=?""", (eo_id,)).fetchone()
+        if not eo:
+            return JSONResponse({"error": "수출 수주 없음"}, 404)
+        # 매출 자동 채움 — 폼 미입력 시 orders.total_amount
+        try:
+            total_amount = float(raw_amt) if raw_amt not in (None, "") else float(eo["auto_amt"] or 0)
+        except Exception:
+            total_amount = float(eo["auto_amt"] or 0)
+        invoice_no = _next_seq_no(c, "commercial_invoices", "invoice_no", "CI")
+        cur = c.execute(
+            """INSERT INTO commercial_invoices
+               (invoice_no, export_order_id, issue_date, total_amount, currency,
+                signed_by, status)
+               VALUES (?,?,?,?,?,?, 'ISSUED')""",
+            (invoice_no, eo_id, issue_date, total_amount, currency, u.get("id")),
+        )
+        # 상태 전이: DRAFT/BOOKED → CI_ISSUED
+        if eo["status"] in ("DRAFT", "BOOKED"):
+            c.execute(
+                "UPDATE export_orders SET status='CI_ISSUED' WHERE id=?", (eo_id,)
+            )
+    return RedirectResponse(f"/export/orders/{eo_id}", 303)
+
+
+@app.get("/export/pl/{eo_id}", response_class=HTMLResponse)
+async def export_pl_form(req: Request, eo_id: int):
+    """PL 작성/조회 — 1차 골격."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        eo = c.execute(
+            "SELECT * FROM export_orders WHERE id=?", (eo_id,)).fetchone()
+        if not eo:
+            return RedirectResponse("/export", 303)
+        eo = dict(eo)
+        items = [dict(r) for r in c.execute(
+            "SELECT * FROM packing_lists WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+    return ctx(req, "export_pl.html", user=u, active="export",
+               eo=eo, items=items)
+
+
+@app.post("/export/pl")
+async def export_pl_create(req: Request):
+    """PL INSERT — 2차 본문 (헤더 + 다중 라인 packing_items).
+    pl_no = `PL-YYYYMM-####`. 라인 합계는 폼 total_* 우선, 라인만 있으면 서버 합산.
+    동시 UPDATE export_orders.status CI_ISSUED → PL_READY."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    eo_id = form.get("export_order_id")
+    if not eo_id:
+        return JSONResponse({"error": "export_order_id 필수"}, 400)
+    # 다중 라인 — line_qty 등 getlist
+    line_parts = form.getlist("line_part")
+    line_qtys = form.getlist("line_qty")
+    line_pkgs = form.getlist("line_pkg")
+    line_ws = form.getlist("line_weight")
+    line_vs = form.getlist("line_volume")
+    # 헤더 합계 (폼 → 미입력 시 서버 재합산)
+    def _f(x, d=0.0):
+        try: return float(x) if x not in (None, "") else d
+        except: return d
+    tot_pkg = int(_f(form.get("total_packages")))
+    tot_w = _f(form.get("total_weight"))
+    tot_v = _f(form.get("total_volume"))
+    if tot_pkg == 0 and line_qtys:
+        tot_pkg = int(sum(_f(q) for q in line_qtys))
+    if tot_w == 0 and line_ws:
+        tot_w = sum(_f(w) for w in line_ws)
+    if tot_v == 0 and line_vs:
+        tot_v = sum(_f(v) for v in line_vs)
+    with db_session() as c:
+        eo = c.execute(
+            "SELECT id, status FROM export_orders WHERE id=?", (eo_id,)).fetchone()
+        if not eo:
+            return JSONResponse({"error": "수출 수주 없음"}, 404)
+        pl_no = _next_seq_no(c, "packing_lists", "pl_no", "PL")
+        cur = c.execute(
+            """INSERT INTO packing_lists
+               (pl_no, export_order_id, total_packages, total_weight, total_volume)
+               VALUES (?,?,?,?,?)""",
+            (pl_no, eo_id, tot_pkg, tot_w, tot_v),
+        )
+        pl_id = cur.lastrowid
+        # 라인 INSERT (다중)
+        n = max(len(line_parts), len(line_qtys))
+        for i in range(n):
+            qty = _f(line_qtys[i] if i < len(line_qtys) else 0)
+            if qty <= 0:
+                continue
+            c.execute(
+                """INSERT INTO packing_items
+                   (pl_id, part_id, qty, package_type, weight, volume)
+                   VALUES (?, NULL, ?, ?, ?, ?)""",
+                (pl_id, qty,
+                 (line_pkgs[i] if i < len(line_pkgs) else "CARTON"),
+                 _f(line_ws[i] if i < len(line_ws) else 0),
+                 _f(line_vs[i] if i < len(line_vs) else 0)),
+            )
+        # 상태 전이: CI_ISSUED → PL_READY (DRAFT/BOOKED 도 허용 — 동시 진행)
+        if eo["status"] in ("DRAFT", "BOOKED", "CI_ISSUED"):
+            c.execute(
+                "UPDATE export_orders SET status='PL_READY' WHERE id=?", (eo_id,)
+            )
+    return RedirectResponse(f"/export/orders/{eo_id}", 303)
+
+
+@app.get("/export/bl/{eo_id}", response_class=HTMLResponse)
+async def export_bl_form(req: Request, eo_id: int):
+    """BL · 관세 통합 폼 — 2차 본문 (CI 자동 채움 → declared_value)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        eo = c.execute(
+            "SELECT * FROM export_orders WHERE id=?", (eo_id,)).fetchone()
+        if not eo:
+            return RedirectResponse("/export", 303)
+        eo = dict(eo)
+        bl = [dict(r) for r in c.execute(
+            "SELECT * FROM bills_of_lading WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+        customs = [dict(r) for r in c.execute(
+            "SELECT * FROM customs_declarations WHERE export_order_id=? ORDER BY id DESC",
+            (eo_id,)).fetchall()]
+        # CI 자동 채움 — 가장 최근 ISSUED CI 의 total_amount
+        ci_row = c.execute(
+            """SELECT total_amount FROM commercial_invoices
+               WHERE export_order_id=? AND status='ISSUED'
+               ORDER BY id DESC LIMIT 1""", (eo_id,)).fetchone()
+        ci_amount = ci_row["total_amount"] if ci_row else 0
+    return ctx(req, "export_bl_customs.html", user=u, active="export",
+               eo=eo, bl=bl, customs=customs, ci_amount=ci_amount,
+               today=date.today().isoformat())
+
+
+@app.post("/export/bl")
+async def export_bl_create(req: Request):
+    """BL INSERT — 2차 본문 (외부 운송사 API 미사용 · 수동 입력 그대로 저장).
+    동시 UPDATE export_orders.status PL_READY/CI_ISSUED → SHIPPED."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    eo_id = form.get("export_order_id")
+    bl_no = (form.get("bl_no") or "").strip()
+    if not eo_id or not bl_no:
+        return JSONResponse({"error": "export_order_id / bl_no 필수"}, 400)
+    with db_session() as c:
+        eo = c.execute(
+            "SELECT id, status FROM export_orders WHERE id=?", (eo_id,)).fetchone()
+        if not eo:
+            return JSONResponse({"error": "수출 수주 없음"}, 404)
+        c.execute(
+            """INSERT INTO bills_of_lading
+               (bl_no, export_order_id, shipping_company, vessel,
+                departure_date, arrival_date, tracking_no, status)
+               VALUES (?,?,?,?,?,?,?, 'ISSUED')""",
+            (bl_no, eo_id,
+             form.get("shipping_company") or None,
+             form.get("vessel") or None,
+             form.get("departure_date") or None,
+             form.get("arrival_date") or None,
+             form.get("tracking_no") or None),
+        )
+        # 상태 전이: PL_READY/CI_ISSUED/BOOKED → SHIPPED
+        if eo["status"] in ("DRAFT", "BOOKED", "CI_ISSUED", "PL_READY"):
+            c.execute(
+                "UPDATE export_orders SET status='SHIPPED' WHERE id=?", (eo_id,)
+            )
+    return RedirectResponse(f"/export/orders/{eo_id}", 303)
+
+
+@app.get("/export/customs/{eo_id}", response_class=HTMLResponse)
+async def export_customs_view(req: Request, eo_id: int):
+    """관세 신고 조회 — 1차 골격 (BL 템플릿 재사용)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    return RedirectResponse(f"/export/bl/{eo_id}", 303)
+
+
+@app.post("/export/customs")
+async def export_customs_create(req: Request):
+    """관세 신고 INSERT — 2차 본문.
+    declared_value = 폼 우선, 미입력 시 최신 CI total_amount 자동 채움.
+    동시 UPDATE export_orders.status SHIPPED → CLEARED."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    eo_id = form.get("export_order_id")
+    hs_code = (form.get("hs_code") or "").strip()
+    if not eo_id or not hs_code:
+        return JSONResponse({"error": "export_order_id / hs_code 필수"}, 400)
+    declaration_no = (form.get("declaration_no") or "").strip() or None
+    fta_origin = form.get("fta_origin") or None
+    raw_dv = form.get("declared_value")
+    with db_session() as c:
+        eo = c.execute(
+            "SELECT id, status FROM export_orders WHERE id=?", (eo_id,)).fetchone()
+        if not eo:
+            return JSONResponse({"error": "수출 수주 없음"}, 404)
+        # CI 자동 채움
+        try:
+            declared_value = float(raw_dv) if raw_dv not in (None, "") else 0.0
+        except Exception:
+            declared_value = 0.0
+        if declared_value <= 0:
+            ci_row = c.execute(
+                """SELECT total_amount FROM commercial_invoices
+                   WHERE export_order_id=? AND status='ISSUED'
+                   ORDER BY id DESC LIMIT 1""", (eo_id,)).fetchone()
+            if ci_row:
+                declared_value = float(ci_row["total_amount"] or 0)
+        c.execute(
+            """INSERT INTO customs_declarations
+               (declaration_no, export_order_id, hs_code, fta_origin,
+                declared_value, cleared_at, status)
+               VALUES (?,?,?,?,?, datetime('now','localtime'), 'CLEARED')""",
+            (declaration_no, eo_id, hs_code, fta_origin, declared_value),
+        )
+        # 상태 전이: SHIPPED → CLEARED
+        if eo["status"] in ("DRAFT", "BOOKED", "CI_ISSUED", "PL_READY", "SHIPPED"):
+            c.execute(
+                "UPDATE export_orders SET status='CLEARED' WHERE id=?", (eo_id,)
+            )
+    return RedirectResponse(f"/export/orders/{eo_id}", 303)
+
+
+# =====================================================
+# 수출입 P11 3차 — 인쇄용 view + 일정 자동 알림 (2026-04-26)
+# 외부 PDF 라이브러리 0건. HTML 인쇄 layout(@media print) 만 사용.
+# G1~G5 핫패치 보존, v2 본체 무수정.
+# =====================================================
+@app.get("/export/ci/{ci_id}/print", response_class=HTMLResponse)
+async def export_ci_print(req: Request, ci_id: int):
+    """CI 인쇄용 (한국어 + 영어 양식 · 헤더/사이드바 숨김)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        ci = c.execute(
+            """SELECT ci.*, eo.buyer, eo.shipping_terms, eo.payment_terms,
+                      eo.port_of_loading, eo.port_of_discharge,
+                      COALESCE(o.order_no,'-') AS order_no,
+                      COALESCE(cu.name,'-') AS customer_name
+               FROM commercial_invoices ci
+               JOIN export_orders eo ON eo.id = ci.export_order_id
+               LEFT JOIN orders o ON o.id = eo.order_id
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               WHERE ci.id = ?""", (ci_id,)).fetchone()
+        if not ci:
+            return RedirectResponse("/export", 303)
+        ci = dict(ci)
+    return tpl.TemplateResponse(
+        "export_ci_print.html",
+        {"request": req, "ci": ci, "today": date.today().isoformat()})
+
+
+@app.get("/export/pl/{pl_id}/print", response_class=HTMLResponse)
+async def export_pl_print(req: Request, pl_id: int):
+    """PL 인쇄용 (라인 합계 · 헤더/사이드바 숨김)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pl = c.execute(
+            """SELECT pl.*, eo.buyer, eo.shipping_terms,
+                      eo.port_of_loading, eo.port_of_discharge,
+                      COALESCE(o.order_no,'-') AS order_no
+               FROM packing_lists pl
+               JOIN export_orders eo ON eo.id = pl.export_order_id
+               LEFT JOIN orders o ON o.id = eo.order_id
+               WHERE pl.id = ?""", (pl_id,)).fetchone()
+        if not pl:
+            return RedirectResponse("/export", 303)
+        pl = dict(pl)
+        lines = [dict(r) for r in c.execute(
+            "SELECT * FROM packing_items WHERE pl_id=? ORDER BY id ASC",
+            (pl_id,)).fetchall()]
+    return tpl.TemplateResponse(
+        "export_pl_print.html",
+        {"request": req, "pl": pl, "lines": lines,
+         "today": date.today().isoformat()})
+
+
+@app.get("/export/bl/{bl_id}/print", response_class=HTMLResponse)
+async def export_bl_print(req: Request, bl_id: int):
+    """BL/관세 인쇄용 (헤더/사이드바 숨김)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        bl = c.execute(
+            """SELECT bl.*, eo.buyer, eo.shipping_terms,
+                      eo.port_of_loading, eo.port_of_discharge,
+                      COALESCE(o.order_no,'-') AS order_no
+               FROM bills_of_lading bl
+               JOIN export_orders eo ON eo.id = bl.export_order_id
+               LEFT JOIN orders o ON o.id = eo.order_id
+               WHERE bl.id = ?""", (bl_id,)).fetchone()
+        if not bl:
+            return RedirectResponse("/export", 303)
+        bl = dict(bl)
+        customs = [dict(r) for r in c.execute(
+            "SELECT * FROM customs_declarations WHERE export_order_id=? ORDER BY id DESC",
+            (bl["export_order_id"],)).fetchall()]
+    return tpl.TemplateResponse(
+        "export_bl_print.html",
+        {"request": req, "bl": bl, "customs": customs,
+         "today": date.today().isoformat()})
+
+
+def check_export_alerts():
+    """수출입 일정 자동 알림 — 출하 D-3 / CI 만료(90일) / 관세 신고 임박.
+    notify_user 1시간 중복 방지 내장. 매 호출 idempotent.
+    Returns: {'shipping': n, 'ci_expire': n, 'customs': n} 카운트."""
+    fired = {"shipping": 0, "ci_expire": 0, "customs": 0}
+    today = date.today()
+    d3 = (today + timedelta(days=3)).isoformat()
+    today_iso = today.isoformat()
+    d90 = (today - timedelta(days=90)).isoformat()
+    with db_session() as c:
+        # 베트남법인(team_id=12) + admin/ceo/executive + 영업권 사용자에게 송부
+        recipients = [r["id"] for r in c.execute(
+            "SELECT id FROM users WHERE is_active=1 AND "
+            "(team_id=12 OR role IN ('admin','ceo','executive'))"
+        ).fetchall()]
+        # 1) 출하 임박 D-3 — bills_of_lading.departure_date
+        bls = c.execute(
+            """SELECT bl.id, bl.bl_no, bl.departure_date, bl.export_order_id
+               FROM bills_of_lading bl
+               WHERE bl.departure_date IS NOT NULL
+                 AND bl.departure_date BETWEEN ? AND ?
+                 AND bl.status IN ('DRAFT','ISSUED')""",
+            (today_iso, d3)).fetchall()
+        for bl in bls:
+            for uid in recipients:
+                if notify_user(uid, "EXPORT",
+                               f"출하 임박 D-3 — B/L {bl['bl_no']}",
+                               f"출항일 {bl['departure_date']}",
+                               f"/export/orders/{bl['export_order_id']}"):
+                    fired["shipping"] += 1
+        # 2) CI 만료 — issue_date + 90일 경과 ISSUED 상태
+        cis = c.execute(
+            """SELECT id, invoice_no, issue_date, export_order_id
+               FROM commercial_invoices
+               WHERE status='ISSUED' AND issue_date IS NOT NULL
+                 AND issue_date <= ?""", (d90,)).fetchall()
+        for ci in cis:
+            for uid in recipients:
+                if notify_user(uid, "EXPORT",
+                               f"CI 만료 — {ci['invoice_no']} (90일 경과)",
+                               f"발급일 {ci['issue_date']}",
+                               f"/export/orders/{ci['export_order_id']}"):
+                    fired["ci_expire"] += 1
+        # 3) 관세 신고 임박 — SHIPPED 인데 미신고
+        ships = c.execute(
+            """SELECT eo.id FROM export_orders eo
+               WHERE eo.status='SHIPPED'
+                 AND NOT EXISTS (SELECT 1 FROM customs_declarations cd
+                                 WHERE cd.export_order_id=eo.id
+                                   AND cd.status IN ('SUBMITTED','CLEARED'))"""
+        ).fetchall()
+        for eo in ships:
+            for uid in recipients:
+                if notify_user(uid, "EXPORT",
+                               f"관세 신고 미접수 — 수출 #{eo['id']}",
+                               "출하 후 관세 신고가 누락되었습니다.",
+                               f"/export/orders/{eo['id']}"):
+                    fired["customs"] += 1
+    return fired
+
+
+@app.post("/export/alerts/check")
+async def export_alerts_check(req: Request):
+    """수출입 일정 알림 점검 트리거 (관리자/CEO 전용)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role not in ("admin", "ceo", "executive"):
+        return JSONResponse({"error": "관리자 전용"}, 403)
+    fired = check_export_alerts()
+    return JSONResponse({"ok": True, "fired": fired})
+
+
+# =====================================================
+# HAIST WORKS — 진행 간트/번다운 1차 (2026-04-26 갭서베이 Top10 #4)
+# DB: project_milestones / project_burndown_snapshots (idempotent)
+# UI: progress_gantt.html / progress_burndown.html (외부 차트 라이브러리 0)
+# 페르소나: P1 PM(주 2~3회) · P2 CEO 전사 대시
+# =====================================================
+def _progress_guard(req: Request, project_id: int = None):
+    """진행 가드 — admin/ceo/executive OR PM(pm_id) OR 프로젝트 lead OR 동일 팀."""
+    u = get_user(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive"):
+        return u
+    if project_id is None:
+        return u  # 전사 대시는 별도 분기 (대시 라우트에서 admin/ceo만 허용)
+    with db_session() as c:
+        proj = c.execute(
+            "SELECT pm_id, lead_user_id FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+    if not proj:
+        return None
+    if u["id"] in (proj["pm_id"], proj["lead_user_id"]):
+        return u
+    if role in ("leader", "pm"):
+        return u
+    return None
+
+
+def _burndown_compute(project_id: int):
+    """프로젝트의 task 기반 번다운 스냅샷 데이터 계산. 외부 라이브러리 0."""
+    with db_session() as c:
+        total = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE project_id=?", (project_id,)
+        ).fetchone()[0]
+        done = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE project_id=? AND status='완료'",
+            (project_id,),
+        ).fetchone()[0]
+        rem_h = c.execute(
+            """SELECT COALESCE(SUM(hours), 0) FROM tasks
+               WHERE project_id=? AND status != '완료'""",
+            (project_id,),
+        ).fetchone()[0]
+    return {"total_tasks": total, "completed_tasks": done,
+            "remaining_hours": float(rem_h or 0)}
+
+
+@app.get("/progress/{project_id}/gantt", response_class=HTMLResponse)
+async def progress_gantt(req: Request, project_id: int):
+    """간트 차트 — project_phases 의 planned_start/planned_end 를 CSS bar 로 렌더."""
+    u = _progress_guard(req, project_id)
+    if not u:
+        return RedirectResponse("/progress", 303)
+    with db_session() as c:
+        proj = c.execute(
+            "SELECT p.*, p.name AS project_name FROM projects p WHERE p.id=?",
+            (project_id,),
+        ).fetchone()
+        if not proj:
+            return RedirectResponse("/progress", 303)
+        phases = [dict(r) for r in c.execute(
+            """SELECT id, phase_code, phase_order, status, progress_pct,
+                      planned_start, planned_end, actual_start, actual_end, note
+               FROM project_phases WHERE project_id=? ORDER BY phase_order""",
+            (project_id,),
+        ).fetchall()]
+        milestones = [dict(r) for r in c.execute(
+            """SELECT id, name, target_date, completed_at, status
+               FROM project_milestones WHERE project_id=?
+               ORDER BY target_date ASC""",
+            (project_id,),
+        ).fetchall()]
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    return ctx(req, "progress_gantt.html", user=u, active="progress",
+               project=dict(proj), phases=phases, milestones=milestones,
+               today_str=today_str,
+               PHASE_CODE_TO_LABEL=PHASE_CODE_TO_LABEL)
+
+
+def _linear_regression(xs, ys):
+    """순수 Python 선형 회귀 (slope, intercept, r_squared). 외부 라이브러리 0."""
+    n = len(xs)
+    if n < 2:
+        return 0.0, 0.0, 0.0
+    sx = sum(xs); sy = sum(ys)
+    mx = sx / n; my = sy / n
+    num = 0.0; den = 0.0; sst = 0.0
+    for i in range(n):
+        dx = xs[i] - mx; dy = ys[i] - my
+        num += dx * dy
+        den += dx * dx
+        sst += dy * dy
+    if den == 0:
+        return 0.0, my, 0.0
+    slope = num / den
+    intercept = my - slope * mx
+    if sst == 0:
+        return slope, intercept, 1.0
+    ssr = 0.0
+    for i in range(n):
+        pred = slope * xs[i] + intercept
+        ssr += (ys[i] - pred) ** 2
+    r2 = max(0.0, 1.0 - ssr / sst)
+    return slope, intercept, r2
+
+
+def _burndown_forecast(snaps):
+    """스냅샷 리스트 → (forecast_date_str, slope, r2, days_to_zero) 또는 None.
+    snaps: [{snap_date, total_tasks, completed_tasks, ...}, ...] (날짜 오름차순)"""
+    if not snaps or len(snaps) < 2:
+        return None
+    base = datetime.strptime(snaps[0]["snap_date"], "%Y-%m-%d")
+    xs = []; ys = []
+    for s in snaps:
+        d = datetime.strptime(s["snap_date"], "%Y-%m-%d")
+        xs.append((d - base).days)
+        ys.append(float(s["total_tasks"] - s["completed_tasks"]))
+    slope, intercept, r2 = _linear_regression(xs, ys)
+    if slope >= 0:
+        return {"slope": slope, "intercept": intercept, "r_squared": r2,
+                "forecast_date": None, "days_to_zero": None,
+                "base_date": snaps[0]["snap_date"]}
+    x_zero = -intercept / slope
+    fdate = base + timedelta(days=int(round(x_zero)))
+    return {"slope": slope, "intercept": intercept, "r_squared": r2,
+            "forecast_date": fdate.strftime("%Y-%m-%d"),
+            "days_to_zero": x_zero,
+            "base_date": snaps[0]["snap_date"]}
+
+
+@app.get("/progress/{project_id}/burndown", response_class=HTMLResponse)
+async def progress_burndown(req: Request, project_id: int):
+    """번다운 — 일별 스냅샷 + 회귀 기반 예측 종료일. 외부 차트 0건 (SVG 직접)."""
+    u = _progress_guard(req, project_id)
+    if not u:
+        return RedirectResponse("/progress", 303)
+    with db_session() as c:
+        proj = c.execute(
+            "SELECT p.*, p.name AS project_name FROM projects p WHERE p.id=?",
+            (project_id,),
+        ).fetchone()
+        if not proj:
+            return RedirectResponse("/progress", 303)
+        snaps = [dict(r) for r in c.execute(
+            """SELECT snap_date, total_tasks, completed_tasks, remaining_hours
+               FROM project_burndown_snapshots WHERE project_id=?
+               ORDER BY snap_date ASC""",
+            (project_id,),
+        ).fetchall()]
+        fc_row = c.execute(
+            """SELECT computed_at, sample_n, slope, intercept, r_squared,
+                      forecast_date, planned_end
+               FROM project_forecasts WHERE project_id=?""",
+            (project_id,),
+        ).fetchone()
+    today_pt = _burndown_compute(project_id)
+    forecast = _burndown_forecast(snaps)
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    return ctx(req, "progress_burndown.html", user=u, active="progress",
+               project=dict(proj), snaps=snaps, today_pt=today_pt,
+               forecast=forecast, today_str=today_str,
+               saved_forecast=dict(fc_row) if fc_row else None)
+
+
+@app.post("/progress/{project_id}/forecast")
+async def progress_forecast(req: Request, project_id: int):
+    """선형 회귀로 예측 종료일 산출 후 project_forecasts UPSERT.
+    응답 JSON: {forecast_date, current_slope, r_squared, sample_n}."""
+    u = _progress_guard(req, project_id)
+    if not u:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    with db_session() as c:
+        proj = c.execute(
+            "SELECT id, end_date FROM projects WHERE id=?", (project_id,),
+        ).fetchone()
+        if not proj:
+            return JSONResponse({"error": "not_found"}, status_code=404)
+        snaps = [dict(r) for r in c.execute(
+            """SELECT snap_date, total_tasks, completed_tasks
+               FROM project_burndown_snapshots WHERE project_id=?
+               ORDER BY snap_date ASC""",
+            (project_id,),
+        ).fetchall()]
+    fc = _burndown_forecast(snaps)
+    if not fc:
+        return JSONResponse({"error": "insufficient_data",
+                              "sample_n": len(snaps)}, status_code=400)
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO project_forecasts
+                 (project_id, sample_n, slope, intercept, r_squared,
+                  forecast_date, planned_end, computed_at)
+               VALUES (?,?,?,?,?,?,?,datetime('now','localtime'))
+               ON CONFLICT(project_id) DO UPDATE SET
+                   sample_n=excluded.sample_n,
+                   slope=excluded.slope,
+                   intercept=excluded.intercept,
+                   r_squared=excluded.r_squared,
+                   forecast_date=excluded.forecast_date,
+                   planned_end=excluded.planned_end,
+                   computed_at=excluded.computed_at""",
+            (project_id, len(snaps), fc["slope"], fc["intercept"],
+             fc["r_squared"], fc["forecast_date"], proj["end_date"]),
+        )
+    return JSONResponse({
+        "forecast_date": fc["forecast_date"],
+        "current_slope": fc["slope"],
+        "r_squared": fc["r_squared"],
+        "sample_n": len(snaps),
+        "planned_end": proj["end_date"],
+    })
+
+
+@app.get("/progress/{project_id}/milestones", response_class=HTMLResponse)
+async def progress_milestones(req: Request, project_id: int):
+    """마일스톤 페이지 — 프로젝트별 목록 + 달성률."""
+    u = _progress_guard(req, project_id)
+    if not u:
+        return RedirectResponse("/progress", 303)
+    with db_session() as c:
+        proj = c.execute(
+            "SELECT p.*, p.name AS project_name FROM projects p WHERE p.id=?",
+            (project_id,),
+        ).fetchone()
+        if not proj:
+            return RedirectResponse("/progress", 303)
+        ms = [dict(r) for r in c.execute(
+            """SELECT id, name, target_date, completed_at, status
+               FROM project_milestones WHERE project_id=?
+               ORDER BY target_date IS NULL, target_date ASC""",
+            (project_id,),
+        ).fetchall()]
+    total = len(ms)
+    done = sum(1 for m in ms if m["status"] == "DONE")
+    pct = (done * 100.0 / total) if total else 0.0
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    return ctx(req, "progress_milestones.html", user=u, active="progress",
+               project=dict(proj), milestones=ms,
+               total_ms=total, done_ms=done, pct_ms=pct,
+               today_str=today_str)
+
+
+@app.post("/progress/{project_id}/snapshot")
+async def progress_snapshot(req: Request, project_id: int):
+    """일별 스냅샷 트리거. 같은 날 중복 시 UPDATE (UNIQUE constraint)."""
+    u = _progress_guard(req, project_id)
+    if not u:
+        return RedirectResponse("/progress", 303)
+    pt = _burndown_compute(project_id)
+    today = datetime.now().strftime("%Y-%m-%d")
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO project_burndown_snapshots
+                 (project_id, snap_date, total_tasks, completed_tasks, remaining_hours)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(project_id, snap_date) DO UPDATE SET
+                   total_tasks=excluded.total_tasks,
+                   completed_tasks=excluded.completed_tasks,
+                   remaining_hours=excluded.remaining_hours""",
+            (project_id, today, pt["total_tasks"],
+             pt["completed_tasks"], pt["remaining_hours"]),
+        )
+    return RedirectResponse(f"/progress/{project_id}/burndown", 303)
+
+
+@app.get("/progress-dashboard", response_class=HTMLResponse)
+async def progress_dashboard_company(req: Request):
+    """전사 프로젝트 대시 — admin/ceo/executive 전용. /progress/{int} 충돌 회피용 하이픈 URL."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role not in ("admin", "ceo", "executive"):
+        return RedirectResponse("/progress", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            """SELECT p.id, p.name, p.mgmt_code, p.status, p.start_date, p.end_date,
+                      (SELECT COUNT(*) FROM tasks t WHERE t.project_id=p.id) AS total_t,
+                      (SELECT COUNT(*) FROM tasks t WHERE t.project_id=p.id
+                          AND t.status='완료') AS done_t,
+                      (SELECT COUNT(*) FROM project_milestones m
+                          WHERE m.project_id=p.id AND m.status='DONE') AS done_ms,
+                      (SELECT COUNT(*) FROM project_milestones m
+                          WHERE m.project_id=p.id) AS total_ms
+               FROM projects p
+               WHERE p.status IN ('진행중','진행')
+               ORDER BY (p.end_date IS NULL), p.end_date ASC LIMIT 50"""
+        ).fetchall()]
+    return ctx(req, "progress_dashboard.html", user=u, active="progress",
+               projects=rows)
+
+
+# =====================================================
+# HAIST WORKS — QMS 강화 1차 (2026-04-26 갭서베이 Top10 #6)
+# DB: qms_audit_log / corrective_actions / preventive_actions (idempotent)
+#     + issues 5컬럼 ALTER ADD (sla_hours/detected_at/responded_at/recurrence_id/sla_breached)
+# UI: qms_dashboard.html / qms_recurrence.html (외부 차트 라이브러리 0)
+# 페르소나: P2 제조/품질팀 주2회 · P-CEO 분기 품질 KPI
+# =====================================================
+def _qms_guard(req: Request):
+    """품질 가드 — admin/ceo/executive OR 품질팀(team name LIKE %품질%) OR can_use_quality=1."""
+    u = get_user(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive"):
+        return u
+    if u.get("can_use_quality"):
+        return u
+    # 팀명 LIKE '%품질%' (is_team("quality") 대용)
+    tid = u.get("team_id")
+    if tid:
+        with db_session() as c:
+            row = c.execute(
+                "SELECT name FROM teams WHERE id=?", (tid,)
+            ).fetchone()
+        if row and "품질" in (row["name"] or ""):
+            return u
+    return None
+
+
+def _qms_sla_status(issue: dict) -> dict:
+    """SLA 현황 계산 — sla_hours 기반 elapsed/remaining/breached 계산. 외부 라이브러리 0."""
+    sla_h = issue.get("sla_hours") or 24
+    detected = issue.get("detected_at") or issue.get("occurred_at") or issue.get("created_at")
+    if not detected:
+        return {"sla_hours": sla_h, "elapsed_h": 0, "remaining_h": sla_h, "breached": False}
+    try:
+        det_dt = datetime.strptime(detected[:19], "%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        try:
+            det_dt = datetime.strptime(detected[:10], "%Y-%m-%d")
+        except (ValueError, TypeError):
+            return {"sla_hours": sla_h, "elapsed_h": 0, "remaining_h": sla_h, "breached": False}
+    resolved = issue.get("resolved_at")
+    if resolved:
+        try:
+            end_dt = datetime.strptime(resolved[:19], "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            end_dt = datetime.now()
+    else:
+        end_dt = datetime.now()
+    elapsed_h = (end_dt - det_dt).total_seconds() / 3600.0
+    remaining_h = sla_h - elapsed_h
+    return {"sla_hours": sla_h, "elapsed_h": round(elapsed_h, 1),
+            "remaining_h": round(remaining_h, 1), "breached": remaining_h < 0 and not resolved}
+
+
+@app.get("/qms", response_class=HTMLResponse)
+async def qms_dashboard(req: Request):
+    """QMS 품질 대시 — severity/SLA/재발 KPI 통합."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse("/issues", 303)
+    with db_session() as c:
+        total = c.execute("SELECT COUNT(*) FROM issues").fetchone()[0]
+        open_cnt = c.execute(
+            "SELECT COUNT(*) FROM issues WHERE status NOT IN ('해결','종결')"
+        ).fetchone()[0]
+        critical = c.execute(
+            "SELECT COUNT(*) FROM issues WHERE severity IN ('치명','심각','CRITICAL','HIGH') "
+            "AND status NOT IN ('해결','종결')"
+        ).fetchone()[0]
+        breached = c.execute(
+            "SELECT COUNT(*) FROM issues WHERE COALESCE(sla_breached,0)=1 "
+            "AND status NOT IN ('해결','종결')"
+        ).fetchone()[0]
+        recur = c.execute(
+            "SELECT COUNT(DISTINCT recurrence_id) FROM issues WHERE recurrence_id IS NOT NULL AND recurrence_id != ''"
+        ).fetchone()[0]
+        ca_open = c.execute(
+            "SELECT COUNT(*) FROM corrective_actions WHERE status IN ('OPEN','IN_PROGRESS')"
+        ).fetchone()[0]
+        # SLA 위반 위험 목록 (open + 잔여 시간 < 4h or breached)
+        rows = [dict(r) for r in c.execute(
+            """SELECT id, issue_no, title, severity, status, sla_hours,
+                      occurred_at, detected_at, resolved_at, owner_team_id, recurrence_id
+               FROM issues WHERE status NOT IN ('해결','종결')
+               ORDER BY (severity IN ('치명','심각','CRITICAL','HIGH')) DESC,
+                        occurred_at ASC LIMIT 50"""
+        ).fetchall()]
+        for r in rows:
+            r["sla"] = _qms_sla_status(r)
+    kpi = {"total": total, "open": open_cnt, "critical": critical,
+           "breached": breached, "recurrence_groups": recur, "ca_open": ca_open}
+    return ctx(req, "qms_dashboard.html", user=u, active="qms",
+               kpi=kpi, items=rows)
+
+
+@app.get("/qms/issues/{iid}/sla", response_class=HTMLResponse)
+async def qms_issue_sla(req: Request, iid: int):
+    """단일 이슈 SLA 현황 — JSON 반환."""
+    u = _qms_guard(req)
+    if not u:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    with db_session() as c:
+        row = c.execute("SELECT * FROM issues WHERE id=?", (iid,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "notfound"}, status_code=404)
+    return JSONResponse(_qms_sla_status(dict(row)))
+
+
+@app.post("/qms/issues/{iid}/corrective")
+async def qms_corrective_add(req: Request, iid: int,
+                              action: str = Form(...),
+                              responsible: str = Form(""),
+                              due_date: str = Form("")):
+    """시정조치 추가 + 감사로그 기록."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse(f"/issues/{iid}", 303)
+    resp_id = int(responsible) if responsible and responsible.isdigit() else None
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO corrective_actions
+                 (issue_id, action, responsible, due_date, created_by)
+               VALUES (?,?,?,?,?)""",
+            (iid, action.strip(), resp_id, due_date or None, u["id"]),
+        )
+        ca_id = cur.lastrowid
+        c.execute(
+            """INSERT INTO qms_audit_log (issue_id, action, actor, note)
+               VALUES (?, 'corrective_added', ?, ?)""",
+            (iid, u["id"], f"CA#{ca_id}: {action[:80]}"),
+        )
+    # 알림시스템 통합 (사이클 2026-04-26) — 시정조치 담당자에게 QMS 알림 (SLA due_date 표기)
+    if resp_id:
+        notify_user(
+            resp_id, "QMS",
+            f"⚙️ 시정조치 배정 — Issue #{iid} (CA#{ca_id})",
+            body=f"기한 {due_date or '미지정'} / {action[:80]}",
+            link=f"/issues/{iid}",
+        )
+    return RedirectResponse(f"/issues/{iid}", 303)
+
+
+@app.post("/qms/issues/{iid}/preventive")
+async def qms_preventive_add(req: Request, iid: int,
+                              corrective_id: str = Form(...),
+                              action: str = Form(...)):
+    """예방조치 추가 (특정 corrective_action 에 종속) + 감사로그."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse(f"/issues/{iid}", 303)
+    if not corrective_id.isdigit():
+        return RedirectResponse(f"/issues/{iid}", 303)
+    ca_id = int(corrective_id)
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO preventive_actions
+                 (corrective_id, action, created_by)
+               VALUES (?,?,?)""",
+            (ca_id, action.strip(), u["id"]),
+        )
+        pa_id = cur.lastrowid
+        c.execute(
+            """INSERT INTO qms_audit_log (issue_id, action, actor, note)
+               VALUES (?, 'preventive_added', ?, ?)""",
+            (iid, u["id"], f"PA#{pa_id} (CA#{ca_id}): {action[:80]}"),
+        )
+    return RedirectResponse(f"/issues/{iid}", 303)
+
+
+@app.get("/qms/recurrence", response_class=HTMLResponse)
+async def qms_recurrence(req: Request):
+    """재발 추적 — 같은 root_cause/recurrence_id 그룹화 트리."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse("/issues", 303)
+    with db_session() as c:
+        # recurrence_id 명시 그룹
+        groups_by_rid = [dict(r) for r in c.execute(
+            """SELECT recurrence_id AS gid, COUNT(*) AS cnt,
+                      MIN(occurred_at) AS first_at, MAX(occurred_at) AS last_at
+               FROM issues
+               WHERE recurrence_id IS NOT NULL AND recurrence_id != ''
+               GROUP BY recurrence_id
+               HAVING cnt >= 2
+               ORDER BY cnt DESC, last_at DESC LIMIT 50"""
+        ).fetchall()]
+        # root_cause 텍스트 그룹 (recurrence_id 없을 때 fallback)
+        groups_by_rc = [dict(r) for r in c.execute(
+            """SELECT SUBSTR(root_cause,1,60) AS gid, COUNT(*) AS cnt,
+                      MIN(occurred_at) AS first_at, MAX(occurred_at) AS last_at
+               FROM issues
+               WHERE root_cause IS NOT NULL AND TRIM(root_cause) != ''
+                     AND (recurrence_id IS NULL OR recurrence_id = '')
+               GROUP BY SUBSTR(root_cause,1,60)
+               HAVING cnt >= 2
+               ORDER BY cnt DESC, last_at DESC LIMIT 30"""
+        ).fetchall()]
+        # 각 그룹의 이슈 리스트 (recurrence_id 기준)
+        details = {}
+        for g in groups_by_rid:
+            details[g["gid"]] = [dict(r) for r in c.execute(
+                """SELECT id, issue_no, title, severity, status, occurred_at
+                   FROM issues WHERE recurrence_id = ?
+                   ORDER BY occurred_at DESC LIMIT 20""",
+                (g["gid"],),
+            ).fetchall()]
+    return ctx(req, "qms_recurrence.html", user=u, active="qms",
+               groups_rid=groups_by_rid, groups_rc=groups_by_rc, details=details)
+
+
+# =====================================================
+# QMS 2차 Pareto + CAPA 심화 (2026-04-26)
+# Pareto: root_cause 빈도 + 누적 % (80/20 법칙)
+# CAPA 라이프사이클: DRAFT → APPROVED → IN_PROGRESS → COMPLETED → VERIFIED
+# 외부 차트 라이브러리 0건 (CSS bar + SVG cumulative line)
+# =====================================================
+def _qms_capa_guard(req: Request):
+    """승인/검증 권한 — admin/ceo/executive OR 품질팀장(role 'leader')."""
+    u = _qms_guard(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive", "leader"):
+        return u
+    return None
+
+
+def _capa_kpi(c) -> dict:
+    """CAPA KPI 계산 — 평균 closure time / 검증 비율 / 부서별 분포 (외부 라이브러리 0)."""
+    # 평균 closure time: created_at(DRAFT 진입) → completed_at (단위: 일)
+    rows = c.execute(
+        """SELECT created_at, completed_at FROM corrective_actions
+           WHERE completed_at IS NOT NULL AND created_at IS NOT NULL"""
+    ).fetchall()
+    days = []
+    for r in rows:
+        try:
+            t0 = datetime.strptime(r["created_at"][:19], "%Y-%m-%d %H:%M:%S")
+            t1 = datetime.strptime(r["completed_at"][:19], "%Y-%m-%d %H:%M:%S")
+            days.append((t1 - t0).total_seconds() / 86400.0)
+        except (ValueError, TypeError):
+            continue
+    avg_closure = round(sum(days) / len(days), 1) if days else 0
+    # 검증 비율: VERIFIED / COMPLETED
+    completed = c.execute(
+        "SELECT COUNT(*) FROM corrective_actions "
+        "WHERE lifecycle_status IN ('COMPLETED','VERIFIED')"
+    ).fetchone()[0]
+    verified = c.execute(
+        "SELECT COUNT(*) FROM corrective_actions WHERE lifecycle_status='VERIFIED'"
+    ).fetchone()[0]
+    verify_rate = round(100.0 * verified / completed, 1) if completed else 0
+    # 부서별 분포 (issue.owner_team_id → teams.name 조인)
+    dept_rows = [dict(r) for r in c.execute(
+        """SELECT COALESCE(t.name,'(미지정)') AS dept, COUNT(ca.id) AS cnt
+           FROM corrective_actions ca
+           LEFT JOIN issues i ON i.id = ca.issue_id
+           LEFT JOIN teams t ON t.id = i.owner_team_id
+           GROUP BY t.name
+           ORDER BY cnt DESC LIMIT 10"""
+    ).fetchall()]
+    return {"avg_closure_days": avg_closure, "verify_rate": verify_rate,
+            "completed": completed, "verified": verified, "by_dept": dept_rows,
+            "sample_size": len(days)}
+
+
+@app.get("/qms/pareto", response_class=HTMLResponse)
+async def qms_pareto(req: Request):
+    """Pareto 차트 — root_cause 빈도 + 누적 % (80/20 법칙)."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse("/issues", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            """SELECT SUBSTR(root_cause,1,40) AS cause, COUNT(*) AS cnt
+               FROM issues
+               WHERE root_cause IS NOT NULL AND TRIM(root_cause) != ''
+               GROUP BY SUBSTR(root_cause,1,40)
+               ORDER BY cnt DESC LIMIT 20"""
+        ).fetchall()]
+    total = sum(r["cnt"] for r in rows) or 1
+    cum = 0
+    p80_idx = -1
+    for i, r in enumerate(rows):
+        cum += r["cnt"]
+        r["pct"] = round(100.0 * r["cnt"] / total, 1)
+        r["cum_pct"] = round(100.0 * cum / total, 1)
+        if p80_idx < 0 and r["cum_pct"] >= 80.0:
+            p80_idx = i
+    max_cnt = rows[0]["cnt"] if rows else 1
+    summary = {
+        "total_issues": total, "distinct_causes": len(rows),
+        "p80_cutoff_idx": p80_idx + 1 if p80_idx >= 0 else 0,
+        "p80_pct_of_causes": round(100.0 * (p80_idx + 1) / len(rows), 1) if rows and p80_idx >= 0 else 0,
+    }
+    return ctx(req, "qms_pareto.html", user=u, active="qms",
+               rows=rows, summary=summary, max_cnt=max_cnt)
+
+
+@app.get("/qms/capa", response_class=HTMLResponse)
+async def qms_capa_dashboard(req: Request):
+    """CAPA 라이프사이클 관리 — DRAFT/APPROVED/IN_PROGRESS/COMPLETED/VERIFIED 분포 + KPI."""
+    u = _qms_guard(req)
+    if not u:
+        return RedirectResponse("/issues", 303)
+    with db_session() as c:
+        # 라이프사이클 카운트 (corrective)
+        ca_buckets = {"DRAFT": 0, "APPROVED": 0, "IN_PROGRESS": 0, "COMPLETED": 0, "VERIFIED": 0}
+        for r in c.execute(
+            "SELECT COALESCE(lifecycle_status,'DRAFT') AS s, COUNT(*) AS n "
+            "FROM corrective_actions GROUP BY lifecycle_status"
+        ).fetchall():
+            ca_buckets[r["s"] if r["s"] in ca_buckets else "DRAFT"] = r["n"]
+        # 라이프사이클 카운트 (preventive)
+        pa_buckets = {"DRAFT": 0, "APPROVED": 0, "IN_PROGRESS": 0, "COMPLETED": 0, "VERIFIED": 0}
+        for r in c.execute(
+            "SELECT COALESCE(lifecycle_status,'DRAFT') AS s, COUNT(*) AS n "
+            "FROM preventive_actions GROUP BY lifecycle_status"
+        ).fetchall():
+            pa_buckets[r["s"] if r["s"] in pa_buckets else "DRAFT"] = r["n"]
+        # CAPA 목록 (최근 30개, 진행중 우선)
+        items = [dict(r) for r in c.execute(
+            """SELECT ca.id, ca.action, ca.due_date, ca.created_at,
+                      ca.completed_at, ca.verified_at,
+                      COALESCE(ca.lifecycle_status,'DRAFT') AS lifecycle_status,
+                      i.id AS issue_id, i.issue_no, i.title AS issue_title
+               FROM corrective_actions ca
+               LEFT JOIN issues i ON i.id = ca.issue_id
+               ORDER BY (ca.lifecycle_status='VERIFIED'),
+                        (ca.lifecycle_status='COMPLETED'),
+                        ca.created_at DESC
+               LIMIT 30"""
+        ).fetchall()]
+        kpi = _capa_kpi(c)
+    return ctx(req, "qms_capa.html", user=u, active="qms",
+               ca_buckets=ca_buckets, pa_buckets=pa_buckets,
+               items=items, kpi=kpi)
+
+
+def _capa_transition(req: Request, table: str, cid: int, target: str,
+                      need_admin: bool, note: str = "") -> bool:
+    """CAPA 라이프사이클 전이 헬퍼 — 가드/UPDATE/감사로그 통합. table='corrective_actions' or 'preventive_actions'."""
+    u = _qms_capa_guard(req) if need_admin else _qms_guard(req)
+    if not u:
+        return False
+    if table not in ("corrective_actions", "preventive_actions"):
+        return False
+    col_map = {
+        "APPROVED":    ("approved_by", "approved_at"),
+        "COMPLETED":   (None, "completed_at"),
+        "VERIFIED":    ("verified_by", "verified_at"),
+        "IN_PROGRESS": (None, None),
+    }
+    if target not in col_map:
+        return False
+    actor_col, ts_col = col_map[target]
+    sets = ["lifecycle_status = ?"]
+    vals = [target]
+    if actor_col:
+        sets.append(f"{actor_col} = ?")
+        vals.append(u["id"])
+    if ts_col:
+        sets.append(f"{ts_col} = datetime('now','localtime')")
+    if target == "VERIFIED" and note:
+        sets.append("effectiveness_note = ?")
+        vals.append(note.strip())
+    vals.append(cid)
+    with db_session() as c:
+        try:
+            c.execute(f"UPDATE {table} SET {', '.join(sets)} WHERE id=?", vals)
+            # 감사로그 (issue_id 조회)
+            if table == "corrective_actions":
+                row = c.execute(
+                    "SELECT issue_id FROM corrective_actions WHERE id=?", (cid,)
+                ).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT ca.issue_id FROM preventive_actions pa "
+                    "JOIN corrective_actions ca ON ca.id = pa.corrective_id "
+                    "WHERE pa.id=?", (cid,)
+                ).fetchone()
+            if row:
+                tag = "ca" if table == "corrective_actions" else "pa"
+                c.execute(
+                    """INSERT INTO qms_audit_log (issue_id, action, actor, note)
+                       VALUES (?, ?, ?, ?)""",
+                    (row["issue_id"], f"{tag}_{target.lower()}", u["id"],
+                     f"#{cid} → {target}" + (f" · {note[:60]}" if note else "")),
+                )
+        except Exception:
+            return False
+    return True
+
+
+@app.post("/qms/corrective/{cid}/approve")
+async def qms_corrective_approve(req: Request, cid: int):
+    """시정조치 승인 — DRAFT → APPROVED (admin/ceo/executive/leader)."""
+    ok = _capa_transition(req, "corrective_actions", cid, "APPROVED", need_admin=True)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/corrective/{cid}/start")
+async def qms_corrective_start(req: Request, cid: int):
+    """시정조치 진행 — APPROVED → IN_PROGRESS (담당자)."""
+    ok = _capa_transition(req, "corrective_actions", cid, "IN_PROGRESS", need_admin=False)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/corrective/{cid}/complete")
+async def qms_corrective_complete(req: Request, cid: int):
+    """시정조치 완료 — IN_PROGRESS → COMPLETED (담당자)."""
+    ok = _capa_transition(req, "corrective_actions", cid, "COMPLETED", need_admin=False)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/corrective/{cid}/verify")
+async def qms_corrective_verify(req: Request, cid: int,
+                                  effectiveness_note: str = Form("")):
+    """시정조치 효과 검증 — COMPLETED → VERIFIED (admin/leader)."""
+    ok = _capa_transition(req, "corrective_actions", cid, "VERIFIED",
+                          need_admin=True, note=effectiveness_note)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/preventive/{pid}/approve")
+async def qms_preventive_approve(req: Request, pid: int):
+    """예방조치 승인 — DRAFT → APPROVED."""
+    ok = _capa_transition(req, "preventive_actions", pid, "APPROVED", need_admin=True)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/preventive/{pid}/complete")
+async def qms_preventive_complete(req: Request, pid: int):
+    """예방조치 완료 — IN_PROGRESS → COMPLETED."""
+    ok = _capa_transition(req, "preventive_actions", pid, "COMPLETED", need_admin=False)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+@app.post("/qms/preventive/{pid}/verify")
+async def qms_preventive_verify(req: Request, pid: int,
+                                  effectiveness_note: str = Form("")):
+    """예방조치 효과 검증 — COMPLETED → VERIFIED."""
+    ok = _capa_transition(req, "preventive_actions", pid, "VERIFIED",
+                          need_admin=True, note=effectiveness_note)
+    return RedirectResponse("/qms/capa" if ok else "/qms", 303)
+
+
+# =====================================================
+# 환율·단가 강화 1차 (2026-04-26 Top10 #9 P4 구매팀 월 1회)
+# 외부 환율 API 미사용 (수동 입력 + CSV 업로드만)
+# =====================================================
+def _rates_guard(req: Request):
+    """환율·단가 가드 — can_use_logistics 위임 (구매팀 + admin/ceo/executive)."""
+    u = get_user(req)
+    if not u:
+        return None
+    if not can_use_logistics(u):
+        return None
+    return u
+
+
+@app.get("/rates/dashboard", response_class=HTMLResponse)
+async def rates_dashboard_page(request: Request):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    items = exchange_rates_list(limit=60, currency="")
+    latest = exchange_rates_latest()
+    alerts = rate_alerts_list(active_only=True)
+    # 트렌드: 통화별 최근 14일 (대시보드 KPI)
+    with db_session() as c:
+        trend_rows = [dict(r) for r in c.execute(
+            """SELECT from_currency, rate_date, rate
+               FROM exchange_rates
+               WHERE to_currency='KRW' AND rate_date >= date('now','-30 days')
+               ORDER BY rate_date DESC, from_currency"""
+        ).fetchall()]
+    return ctx(request, "rates_dashboard.html", user=u, items=items,
+               latest=latest, alerts=alerts, trend=trend_rows,
+               CURRENCIES=CURRENCIES, active="rates")
+
+
+@app.post("/rates/upload")
+async def rates_csv_upload(request: Request, csv_text: str = Form(...)):
+    """CSV 일괄 업로드 — 외부 API 미호출. 헤더 필수: rate_date,from_currency(또는 from),to_currency(또는 to),rate.
+    S2-1 헤더 가드: 첫 비주석 행을 헤더로 검증, BOM 제거, 잘못된 형식은 400 반환."""
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    raw = csv_text or ""
+    if raw.startswith("﻿"):  # S2-1: UTF-8 BOM 제거
+        raw = raw.lstrip("﻿")
+    lines = [ln.strip() for ln in raw.splitlines()]
+    lines = [ln for ln in lines if ln and not ln.startswith("#")]
+    if not lines:
+        return JSONResponse({"error": "CSV 비어있음"}, 400)
+    header_cols = [c.strip().lower().lstrip("﻿") for c in lines[0].split(",")]
+    HEADER_ALIAS = {"from": "from_currency", "to": "to_currency",
+                    "date": "rate_date", "currency": "from_currency"}
+    norm_header = [HEADER_ALIAS.get(h, h) for h in header_cols]
+    REQUIRED = {"rate_date", "from_currency", "rate"}
+    missing = REQUIRED - set(norm_header)
+    if missing:
+        return JSONResponse(
+            {"error": f"CSV 헤더 누락: {sorted(missing)} · 필수=rate_date,from_currency(또는 from),rate"},
+            400,
+        )
+    idx = {k: norm_header.index(k) for k in norm_header}
+    rows = []
+    for ln in lines[1:]:
+        cols = [c.strip() for c in ln.split(",")]
+        if not any(cols):
+            continue  # S2-1: 빈 행 정리
+        try:
+            rd = cols[idx["rate_date"]] if idx.get("rate_date", -1) >= 0 else ""
+            fc = cols[idx["from_currency"]] if idx.get("from_currency", -1) >= 0 else ""
+            rt = cols[idx["rate"]] if idx.get("rate", -1) >= 0 else ""
+        except IndexError:
+            continue
+        if not (rd and fc and rt):
+            continue  # S2-1: 필수 빈 값 정리
+        rows.append({
+            "rate_date": rd,
+            "from_currency": fc,
+            "to_currency": (cols[idx["to_currency"]] if idx.get("to_currency", -1) >= 0
+                            and idx["to_currency"] < len(cols) and cols[idx["to_currency"]]
+                            else "KRW"),
+            "rate": rt,
+            "source": (cols[idx["source"]] if idx.get("source", -1) >= 0
+                       and idx["source"] < len(cols) else "CSV"),
+            "note": (cols[idx["note"]] if idx.get("note", -1) >= 0
+                     and idx["note"] < len(cols) else ""),
+        })
+    res = exchange_rates_csv_upload(rows, user_id=u["id"])
+    # S3-1 옵션 A: 업로드 후 자동 알림 발동 검사 (통화별 평균 rate 사용)
+    fired_total = 0
+    by_cur: dict = {}
+    for r in rows:
+        try:
+            by_cur.setdefault(r["from_currency"].upper(), []).append(float(r["rate"]))
+        except Exception:
+            pass
+    for cur, vals in by_cur.items():
+        if vals:
+            fired_total += check_rate_alerts(cur, vals[-1])  # 최신 행 기준
+    msg = f"OK={res['ok']}/NG={res['ng']}/FIRED={fired_total}"
+    return RedirectResponse(f"/rates/dashboard?upload={msg}", 303)
+
+
+@app.get("/rates/cost-sim/{part_id}", response_class=HTMLResponse)
+async def rates_cost_sim_page(request: Request, part_id: int):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    part = _logi.parts_get(part_id)
+    if not part:
+        return RedirectResponse("/parts", 303)
+    sims = cost_simulations_list(part_id, limit=20)
+    latest = exchange_rates_latest()
+    active = part_active_price(part_id) or {}
+    return ctx(request, "rates_cost_sim.html", user=u,
+               part=dict(part), sims=sims, latest=latest,
+               active_price=active, CURRENCIES=CURRENCIES, active="rates")
+
+
+@app.post("/rates/cost-sim")
+async def rates_cost_sim_submit(
+    request: Request,
+    part_id: str = Form(...),
+    base_currency: str = Form("USD"),
+    target_currency: str = Form("KRW"),
+    exchange_rate: str = Form(...),
+    unit_price_base: str = Form(...),
+    margin_pct: str = Form("0"),
+    note: str = Form(""),
+):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    pid = int(part_id)
+    base = float(unit_price_base)
+    rate = float(exchange_rate)
+    margin = float(margin_pct or 0)
+    target = base * rate * (1.0 + margin / 100.0)
+    try:
+        cost_simulation_create({
+            "part_id": pid,
+            "base_currency": base_currency,
+            "target_currency": target_currency,
+            "exchange_rate": rate,
+            "unit_price_base": base,
+            "unit_price_target": target,
+            "margin_pct": margin,
+            "note": note,
+        }, user_id=u["id"])
+    except Exception as e:
+        return RedirectResponse(f"/rates/cost-sim/{pid}?error={e}", 303)
+    return RedirectResponse(f"/rates/cost-sim/{pid}?saved=1", 303)
+
+
+@app.get("/rates/price-history/{part_id}", response_class=HTMLResponse)
+async def rates_price_history_page(request: Request, part_id: int):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    part = _logi.parts_get(part_id)
+    if not part:
+        return RedirectResponse("/parts", 303)
+    history = price_change_history_list(part_id, limit=80)
+    return ctx(request, "rates_history.html", user=u,
+               part=dict(part), history=history, active="rates")
+
+
+@app.get("/rates/alerts", response_class=HTMLResponse)
+async def rates_alerts_page(request: Request):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    alerts = rate_alerts_list(active_only=False)
+    latest = exchange_rates_latest()
+    return ctx(request, "rates_alerts.html", user=u, alerts=alerts,
+               latest=latest, CURRENCIES=CURRENCIES, active="rates")
+
+
+@app.post("/rates/alerts")
+async def rates_alerts_submit(
+    request: Request,
+    target_currency: str = Form(...),
+    threshold: str = Form(...),
+    direction: str = Form("above"),
+):
+    u = _rates_guard(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    try:
+        rate_alert_create(target_currency, float(threshold), direction, u["id"])
+    except Exception as e:
+        return RedirectResponse(f"/rates/alerts?error={e}", 303)
+    # 알림시스템 통합 (사이클 2026-04-26) — 등록자에게 RATE 알림
+    notify_user(
+        u["id"], "RATE",
+        f"💱 환율 알림 등록 — {target_currency}",
+        body=f"임계 {threshold} ({direction})",
+        link="/rates/alerts",
+    )
+    return RedirectResponse("/rates/alerts?saved=1", 303)
+
+
+# =====================================================
+# 사이클 51 S2-4차 (2026-04-27) — 안전재고 / 재발주점 / 발주 추천 / 알림 자동
+# 라우트 +4: GET /stock/safety · POST /stock/safety/{part_id}
+#           GET /stock/reorder-recommendations · POST /stock/alerts/check
+# 권한: _s2_guard (구매팀 또는 admin/ceo). 알림 트리거는 admin/ceo 한정.
+# =====================================================
+@app.get("/stock/safety", response_class=HTMLResponse)
+async def stock_safety_page(req: Request, q: str = ""):
+    """안전재고 설정 페이지 — parts 별 safety_stock / reorder_point / reorder_qty."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    from .database import parts_safety_settings_list
+    items = parts_safety_settings_list(q=q)
+    return ctx(req, "stock_safety.html", user=u, active="stock",
+               items=items, q=q)
+
+
+@app.post("/stock/safety/{part_id}")
+async def stock_safety_save(req: Request, part_id: int):
+    """안전재고 등록/수정 — safety_stock / reorder_point / reorder_qty 일괄 갱신."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    form = await req.form()
+    from .database import parts_safety_update
+    ok = parts_safety_update(
+        part_id,
+        safety_stock=form.get("safety_stock") or 0,
+        reorder_point=form.get("reorder_point") or 0,
+        reorder_qty=form.get("reorder_qty") or 0,
+    )
+    suffix = "saved=1" if ok else "error=1"
+    q = form.get("q") or ""
+    qs = f"?q={q}&{suffix}" if q else f"?{suffix}"
+    return RedirectResponse(f"/stock/safety{qs}", 303)
+
+
+@app.get("/stock/reorder-recommendations", response_class=HTMLResponse)
+async def stock_reorder_page(req: Request, limit: int = 200):
+    """발주 추천 — 재발주점 미달 부품 + 권장 발주량 + 우선순위(HIGH/MID/LOW)."""
+    u = _s2_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    from .database import recommend_reorders
+    items = recommend_reorders(limit=limit)
+    high = sum(1 for r in items if r["priority"] == "HIGH")
+    mid = sum(1 for r in items if r["priority"] == "MID")
+    low = sum(1 for r in items if r["priority"] == "LOW")
+    return ctx(req, "stock_reorder.html", user=u, active="stock",
+               items=items, high_cnt=high, mid_cnt=mid, low_cnt=low)
+
+
+@app.post("/stock/alerts/check")
+async def stock_alerts_check(req: Request):
+    """알림 트리거 — 관리자 한정. check_stock_alerts() 실행 후 결과 리턴."""
+    u = _s2_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    if u.get("role") not in ("admin", "ceo"):
+        return JSONResponse({"error": "관리자 전용"}, 403)
+    from .database import check_stock_alerts
+    out = check_stock_alerts()
+    return JSONResponse({
+        "ok": True,
+        "checked": out.get("checked", 0),
+        "alerts_sent": out.get("alerts_sent", 0),
+        "low_count": len(out.get("low_parts", [])),
+    })
+
+
+# =====================================================
+# 사이클 54 환율·단가 1차 (2026-04-27)
+# 외부 API 0건. 수동 입력 + 이력 보존 + 단가 자동 적용 흐름.
+# 권한: admin / finance(team_id=3 관리팀) / ceo (+ logistics 권한자)
+# =====================================================
+def _fx_guard(user) -> bool:
+    """환율 관리 권한 — admin/ceo/executive + 관리팀(finance) + logistics 권한자"""
+    if not user:
+        return False
+    role = user.get("role") if isinstance(user, dict) else user["role"]
+    if role in ("admin", "ceo", "executive"):
+        return True
+    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
+    if team_id == 3:  # 관리팀 = finance
+        return True
+    return can_use_logistics(user)
+
+
+@app.get("/fx/rates", response_class=HTMLResponse)
+async def fx_rates_page(request: Request, currency: str = ""):
+    """
+    환율 목록 + 입력 폼 (사이클 54 1차).
+
+    외부 도메인 코드 호환용 영문 표준 경로 환율 관리 endpoint.
+    사내 사용자는 기존 /rates 사용 권장 (사이드바 링크).
+    본 endpoint는 외부 시스템·API 통합용으로 별도 운영.
+    사이클 55 (2026-04-27) S2-1 A안 적용.
+    """
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _fx_guard(u):
+        return RedirectResponse("/home", 303)
+    items = exchange_rates_list(limit=200, currency=currency)
+    latest = exchange_rates_latest()
+    return ctx(request, "fx_rates.html", user=u, items=items, latest=latest,
+               currency=currency, CURRENCIES=CURRENCIES, active="fx_rates")
+
+
+@app.post("/fx/rates")
+async def fx_rates_create(
+    request: Request,
+    rate_date: str = Form(...),
+    from_currency: str = Form(...),
+    to_currency: str = Form("KRW"),
+    rate: str = Form(...),
+    source: str = Form("수동"),
+    note: str = Form(""),
+):
+    """
+    환율 신규 등록 — 같은 날짜+통화쌍 중복 시 UPSERT (exchange_rate_create 내부 처리).
+
+    외부 도메인 코드 호환용 영문 표준 경로 환율 등록 endpoint.
+    사내 사용자는 기존 /rates 사용 권장 (사이드바 링크).
+    본 endpoint는 외부 시스템·API 통합용으로 별도 운영.
+    사이클 55 (2026-04-27) S2-1 A안 적용.
+    """
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _fx_guard(u):
+        return RedirectResponse("/home", 303)
+    try:
+        exchange_rate_create({
+            "rate_date": rate_date,
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "rate": float(rate),
+            "source": source,
+            "note": note,
+        }, user_id=u["id"])
+    except Exception as e:
+        return RedirectResponse(f"/fx/rates?error={e}", 303)
+    return RedirectResponse("/fx/rates?success=1", 303)
+
+
+@app.get("/parts/{part_id}/prices", response_class=HTMLResponse)
+async def part_prices_page(request: Request, part_id: int):
+    """부품 단가 이력 + 입력 폼 (사이클 54 1차)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (_fx_guard(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    part = _logi.parts_get(part_id)
+    if not part:
+        return RedirectResponse("/parts", 303)
+    prices = part_prices_list(part_id)
+    active = part_active_price(part_id)
+    latest_cost = get_latest_part_price(part_id, price_type="cost")
+    with db_session() as c:
+        suppliers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
+        ).fetchall()]
+    return ctx(request, "part_prices.html", user=u,
+               part=dict(part), prices=prices, active_price=active,
+               latest_cost=latest_cost, suppliers=suppliers,
+               CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
+               active="parts")
+
+
+@app.post("/parts/{part_id}/prices")
+async def part_prices_create(
+    request: Request, part_id: int,
+    supplier_id: str = Form(""),
+    price_type: str = Form("견적"),
+    unit_price: str = Form(...),
+    currency: str = Form("KRW"),
+    effective_from: str = Form(...),
+    effective_to: str = Form(""),
+    negotiated_at: str = Form(""),
+    min_qty: str = Form("0"),
+    max_qty: str = Form(""),
+    note: str = Form(""),
+):
+    """
+    부품 단가 신규 등록 (사이클 54 1차) — 이력 보존 (UPDATE 아닌 INSERT).
+    사이클 55 S4-1 보강: negotiated_at / min_qty / max_qty + price_change_log 자동 INSERT.
+    """
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (_fx_guard(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    sid = int(supplier_id) if supplier_id and supplier_id.isdigit() else None
+    new_price = float(unit_price)
+    # S4-1: 직전 활성 단가 조회 (애플리케이션 레벨 훅)
+    prev = part_active_price(part_id, supplier_id=sid or 0) or {}
+    old_price = prev.get("unit_price")
+    try:
+        part_price_create({
+            "part_id": part_id,
+            "supplier_id": sid,
+            "price_type": price_type,
+            "unit_price": new_price,
+            "currency": currency,
+            "effective_from": effective_from,
+            "effective_to": effective_to or None,
+            "negotiated_at": negotiated_at or None,
+            "min_qty": float(min_qty or 0),
+            "max_qty": float(max_qty) if max_qty else None,
+            "note": note,
+        }, user_id=u["id"])
+        # S4-1: price_change_history 자동 INSERT (변동률 자동 계산)
+        try:
+            price_change_log(part_id, sid, old_price, new_price,
+                             effective_from, u["id"], note=note or "")
+        except Exception:
+            pass  # 본 등록은 성공했으므로 훅 실패는 흡수
+    except Exception as e:
+        return RedirectResponse(f"/parts/{part_id}/prices?error={e}", 303)
+    return RedirectResponse(f"/parts/{part_id}/prices?success=1", 303)
 

@@ -606,6 +606,615 @@ CREATE TABLE IF NOT EXISTS issue_logs (
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ilog_issue ON issue_logs(issue_id);
+
+-- =====================================================
+-- TOP3 S3 — 권한 위임 1차 (DB 스키마, 2026-04-25)
+-- 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S3_v1.md §데이터모델
+-- 골격만 (UI/로직 다음 사이클). 모든 CREATE 는 idempotent 가드.
+-- =====================================================
+
+-- 권한 카탈로그 (resource·action 단위)
+-- 2026-04-25 Top3-S3-2차 RBAC 컬럼 분리 (시안 §7 원안 정합):
+--   기존: name(UNIQUE) / scope  (1차 단순화)
+--   신규: resource / action / scope / description + UNIQUE(resource, action, scope)
+--   옵션 B 채택 — name 컬럼 deprecated 유지 (호환성). ALTER TABLE ADD COLUMN 으로 보강.
+CREATE TABLE IF NOT EXISTS permissions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT UNIQUE NOT NULL,            -- [DEPRECATED 2026-04-25] 예: 'stock.write'
+    scope       TEXT,                            -- 예: 'stock' / 'sales' / 'hr'
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- 권한 묶음 (Group Inheritance ③)
+CREATE TABLE IF NOT EXISTS permission_groups (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT UNIQUE NOT NULL,
+    description  TEXT,
+    created_at   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- 그룹↔권한 다대다
+CREATE TABLE IF NOT EXISTS group_permissions (
+    group_id      INTEGER NOT NULL REFERENCES permission_groups(id) ON DELETE CASCADE,
+    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    PRIMARY KEY (group_id, permission_id)
+);
+
+-- 사용자↔그룹 다대다
+CREATE TABLE IF NOT EXISTS user_groups (
+    user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id  INTEGER NOT NULL REFERENCES permission_groups(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, group_id)
+);
+
+-- 위임 토큰 (Delegation Token ④, 시안 §3 7테이블 中 delegations)
+CREATE TABLE IF NOT EXISTS delegation_tokens (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user       INTEGER NOT NULL REFERENCES users(id),
+    to_user         INTEGER NOT NULL REFERENCES users(id),
+    permission_id   INTEGER NOT NULL REFERENCES permissions(id),
+    expires_at      TEXT,
+    can_redelegate  INTEGER DEFAULT 0,           -- 0=OFF(기본) / 1=ON
+    status          TEXT DEFAULT 'ACTIVE',       -- ACTIVE / EXPIRED / REVOKED
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_dt_to ON delegation_tokens(to_user, status);
+CREATE INDEX IF NOT EXISTS idx_dt_from ON delegation_tokens(from_user, status);
+
+-- 감사 로그 (append-only, 시안 §3 permission_audit_log)
+CREATE TABLE IF NOT EXISTS delegation_audit (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_id    INTEGER REFERENCES delegation_tokens(id),
+    action      TEXT NOT NULL,                   -- GRANT / DELEGATE / REVOKE / EXPIRE
+    actor       INTEGER REFERENCES users(id),
+    timestamp   TEXT DEFAULT (datetime('now','localtime')),
+    details     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_da_token ON delegation_audit(token_id);
+CREATE INDEX IF NOT EXISTS idx_da_actor ON delegation_audit(actor, timestamp);
+
+-- =====================================================
+-- TOP3 S2 — 재고 입출고 1차 (2026-04-25)
+-- 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S2_v1.md §데이터 모델
+-- 1차 = 스키마 골격만 (실 INSERT/UPDATE 로직은 다음 사이클).
+-- 모두 idempotent (CREATE TABLE/VIEW IF NOT EXISTS).
+-- =====================================================
+
+-- 입고 헤더 GR (시안 §데이터 모델 — goods_receipts 별칭)
+CREATE TABLE IF NOT EXISTS receipts (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_id               INTEGER REFERENCES purchase_orders(id),
+    received_at         TEXT DEFAULT (datetime('now','localtime')),
+    received_by         INTEGER REFERENCES users(id),
+    total_qty           REAL DEFAULT 0,
+    qc_inspection_id    INTEGER,                     -- qc_inspections(id) 역참조
+    status              TEXT DEFAULT 'PENDING',      -- PENDING/PASS/PARTIAL/FAIL
+    note                TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_po ON receipts(po_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
+
+-- QC 검수 (시안 §데이터 모델 — PENDING/PASS/FAIL/HOLD/PARTIAL/CONCESSION)
+CREATE TABLE IF NOT EXISTS qc_inspections (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_item_id      INTEGER REFERENCES po_items(id),
+    receipt_id      INTEGER REFERENCES receipts(id),
+    inspector_id    INTEGER REFERENCES users(id),
+    inspected_at    TEXT DEFAULT (datetime('now','localtime')),
+    pass_qty        REAL DEFAULT 0,
+    fail_qty        REAL DEFAULT 0,
+    fail_reason     TEXT,
+    status          TEXT DEFAULT 'PENDING'           -- PENDING/PASS/FAIL/HOLD/PARTIAL
+);
+CREATE INDEX IF NOT EXISTS idx_qc_poitem ON qc_inspections(po_item_id);
+CREATE INDEX IF NOT EXISTS idx_qc_status ON qc_inspections(status);
+
+-- 부적합 처리 (시안 §데이터 모델 — RETURN/SPECIAL_ACCEPT/SCRAP)
+CREATE TABLE IF NOT EXISTS qc_disposition (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    qc_inspection_id    INTEGER NOT NULL REFERENCES qc_inspections(id),
+    action              TEXT NOT NULL,                -- RETURN/SPECIAL_ACCEPT/SCRAP
+    decided_by          INTEGER REFERENCES users(id),
+    decided_at          TEXT DEFAULT (datetime('now','localtime')),
+    note                TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_qcdisp_qc ON qc_disposition(qc_inspection_id);
+
+-- 출고 GI (시안 §데이터 모델 — PENDING/APPROVED/ISSUED/REJECTED)
+CREATE TABLE IF NOT EXISTS issues_out (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id         INTEGER NOT NULL REFERENCES parts(id),
+    requester_id    INTEGER REFERENCES users(id),
+    approver_id     INTEGER REFERENCES users(id),
+    requested_at    TEXT DEFAULT (datetime('now','localtime')),
+    issued_at       TEXT,
+    qty             REAL NOT NULL DEFAULT 0,
+    purpose         TEXT,
+    status          TEXT DEFAULT 'PENDING'           -- PENDING/APPROVED/ISSUED/REJECTED
+);
+CREATE INDEX IF NOT EXISTS idx_issues_part ON issues_out(part_id);
+CREATE INDEX IF NOT EXISTS idx_issues_status ON issues_out(status);
+
+-- 재고 잔고 VIEW (시안 §데이터 모델 — stock_balances MATERIALIZED VIEW · SQLite는 일반 VIEW)
+-- on_hand = sum(IN) - sum(OUT) - sum(ADJUST 부호 합) · idempotent
+-- 사이클 52 (2026-04-27) 결함 수정: parts.name → parts.part_name (실제 컬럼명 정합).
+-- DROP VIEW IF EXISTS + CREATE VIEW 패턴으로 기존 DB도 자동 재생성 (마이그레이션 안전).
+DROP VIEW IF EXISTS stock_balances;
+CREATE VIEW stock_balances AS
+SELECT  p.id                                  AS part_id,
+        p.part_no                             AS part_no,
+        p.part_name                           AS part_name,
+        COALESCE(SUM(sm.quantity), 0)         AS on_hand,
+        p.unit                                AS unit,
+        MAX(sm.occurred_at)                   AS last_movement_at
+FROM    parts p
+LEFT JOIN stock_movements sm ON sm.part_id = p.id
+GROUP BY p.id, p.part_no, p.part_name, p.unit;
+
+-- =====================================================
+-- TOP3 S1 — 매출 라이프사이클 (2026-04-25 Top3-S1-2차 시안 정합)
+-- 시안: 05_HAIST_WORKS_디자인팀/_TO_01_정식시안_Top3_S1_v1.md §3
+-- 시안 정합 enum 9종(8 + CANCELLED):
+--   DRAFT / QUOTED / CONFIRMED / IN_PRODUCTION /
+--   READY_TO_SHIP / SHIPPED / INVOICED / PAID / CANCELLED
+-- (1차 CLOSED·PARTIAL_RECEIPT 제거 — 시안 우선 채택, PARTIAL_RECEIPT 는
+--  receipts_payment 1:N 합계 기반 분기 처리)
+-- 2차 추가 테이블: invoices(세금계산서), order_status_history(상태 이력)
+-- idempotent 가드 (CREATE TABLE IF NOT EXISTS) 전건 적용.
+-- 기존 customers 테이블은 보존 (변경 0).
+-- =====================================================
+
+-- 견적 (시안 §3 quotations — 탭 1 데이터 소스)
+CREATE TABLE IF NOT EXISTS quotations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    quote_no        TEXT UNIQUE,                             -- QT-YYYYMM-####
+    customer_id     INTEGER REFERENCES customers(id),
+    total_amount    REAL DEFAULT 0,
+    valid_until     TEXT,                                    -- YYYY-MM-DD
+    version         INTEGER DEFAULT 1,                       -- 시안 §1 탭1 Ver 노출
+    status          TEXT DEFAULT 'DRAFT'
+                    CHECK(status IN ('DRAFT','QUOTED','CONFIRMED','CANCELLED')),
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status);
+
+-- 수주 헤더 (시안 §3 orders — 탭 2 SO)
+CREATE TABLE IF NOT EXISTS orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_no        TEXT UNIQUE,                             -- SO-YYYYMM-####
+    quote_id        INTEGER REFERENCES quotations(id),
+    customer_id     INTEGER REFERENCES customers(id),
+    order_date      TEXT,                                    -- YYYY-MM-DD
+    due_date        TEXT,                                    -- 시안 §1 탭2 납기
+    total_amount    REAL DEFAULT 0,
+    status          TEXT DEFAULT 'CONFIRMED'
+                    CHECK(status IN ('DRAFT','QUOTED','CONFIRMED','IN_PRODUCTION',
+                                     'READY_TO_SHIP','SHIPPED','INVOICED','PAID','CANCELLED')),
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_due ON orders(due_date);
+
+-- 수주 라인 (시안 §3 sales_order_items 별칭 order_items)
+CREATE TABLE IF NOT EXISTS order_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    part_id         INTEGER REFERENCES parts(id),
+    qty             REAL NOT NULL DEFAULT 0,
+    unit_price      REAL NOT NULL DEFAULT 0,
+    amount          REAL NOT NULL DEFAULT 0,                 -- qty * unit_price (트리거 X · 호출자 산출)
+    allocated_qty   REAL DEFAULT 0                           -- 시안 §2 할당재고
+);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_part ON order_items(part_id);
+
+-- 생산지시 (시안 §3 work_orders 별칭 production_orders — 탭 3 WO)
+CREATE TABLE IF NOT EXISTS production_orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    planned_start   TEXT,
+    planned_end     TEXT,
+    actual_start    TEXT,
+    actual_end      TEXT,
+    status          TEXT DEFAULT 'IN_PRODUCTION'
+                    CHECK(status IN ('PLANNED','IN_PRODUCTION','READY_TO_SHIP','DONE','CANCELLED')),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_prodorders_order ON production_orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_prodorders_status ON production_orders(status);
+
+-- 출하 (시안 §3 delivery_notes 별칭 shipments — 탭 4 DO · 1:N 부분출하 지원)
+CREATE TABLE IF NOT EXISTS shipments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    shipped_at      TEXT DEFAULT (datetime('now','localtime')),
+    shipped_qty     REAL DEFAULT 0,
+    shipped_by      INTEGER REFERENCES users(id),
+    tracking        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id);
+
+-- 수금 (시안 §3 receipts 별칭 receipts_payment — 기존 receipts(입고)와 분리 · 1:N 부분수금)
+CREATE TABLE IF NOT EXISTS receipts_payment (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    received_at     TEXT DEFAULT (datetime('now','localtime')),
+    amount          REAL NOT NULL DEFAULT 0,
+    method          TEXT,                                    -- 현금/카드/이체/어음 등
+    received_by     INTEGER REFERENCES users(id),
+    note            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_payment_order ON receipts_payment(order_id);
+
+-- 결제조건 (시안 §3 payment_terms — 거래처별 NET30 등)
+CREATE TABLE IF NOT EXISTS payment_terms (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id     INTEGER REFERENCES customers(id),
+    terms           TEXT,                                    -- NET30 / NET60 / 선금50% 등
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_payment_terms_customer ON payment_terms(customer_id);
+
+-- 세금계산서 (시안 §3 invoices — 탭4 INV · 2차 시안 정합 보정)
+CREATE TABLE IF NOT EXISTS invoices (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_no      TEXT UNIQUE,                             -- INV-YYYYMM-####
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    customer_id     INTEGER REFERENCES customers(id),
+    issue_date      TEXT,                                    -- YYYY-MM-DD
+    amount_excl_vat REAL DEFAULT 0,
+    vat             REAL DEFAULT 0,
+    total_amount    REAL DEFAULT 0,
+    status          TEXT DEFAULT 'DRAFT'
+                    CHECK(status IN ('DRAFT','ISSUED','CANCELLED')),
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_invoices_order ON invoices(order_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_issue_date ON invoices(issue_date);
+
+-- 상태 이력 (시안 §2 order_status_history — 우측 타임라인 스텝퍼 데이터 소스)
+CREATE TABLE IF NOT EXISTS order_status_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id        INTEGER NOT NULL REFERENCES orders(id),
+    from_status     TEXT,
+    to_status       TEXT,
+    changed_by      INTEGER REFERENCES users(id),
+    changed_at      TEXT DEFAULT (datetime('now','localtime')),
+    note            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_changed_at ON order_status_history(changed_at);
+
+-- =====================================================
+-- 수출입 서류 — P11 베트남 수출 실무자 1차 (2026-04-25)
+-- 한국 수출 표준 6테이블: EO / CI / PL / PL_ITEM / BL / CUSTOMS
+-- 매출 자동 채움: orders 테이블 참조 (Top3 S1 완결 기반)
+-- idempotent 가드 (CREATE TABLE IF NOT EXISTS) 전건 적용.
+-- =====================================================
+
+-- 수출 수주 헤더 (orders 와 1:1 — 매출 자동 채움 소스)
+CREATE TABLE IF NOT EXISTS export_orders (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id            INTEGER REFERENCES orders(id),
+    buyer               TEXT,                                    -- 해외 바이어명
+    shipping_terms      TEXT,                                    -- FOB / CIF / EXW / DDP 등
+    payment_terms       TEXT,                                    -- T/T / L/C / D/P / D/A 등
+    port_of_loading     TEXT,                                    -- 선적항 (예: BUSAN)
+    port_of_discharge   TEXT,                                    -- 양륙항 (예: HAIPHONG)
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','BOOKED','CI_ISSUED','PL_READY','SHIPPED','CLEARED','CLOSED','CANCELLED')),
+    created_by          INTEGER REFERENCES users(id),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_export_orders_order ON export_orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_export_orders_status ON export_orders(status);
+
+-- 상업송장 (CI — Commercial Invoice)
+CREATE TABLE IF NOT EXISTS commercial_invoices (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_no          TEXT UNIQUE,                             -- CI-YYYYMM-####
+    export_order_id     INTEGER NOT NULL REFERENCES export_orders(id),
+    issue_date          TEXT,                                    -- YYYY-MM-DD
+    total_amount        REAL DEFAULT 0,
+    currency            TEXT DEFAULT 'USD',
+    signed_by           INTEGER REFERENCES users(id),
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','ISSUED','CANCELLED')),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ci_eo ON commercial_invoices(export_order_id);
+CREATE INDEX IF NOT EXISTS idx_ci_status ON commercial_invoices(status);
+
+-- 패킹리스트 (PL — Packing List 헤더)
+CREATE TABLE IF NOT EXISTS packing_lists (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    pl_no               TEXT UNIQUE,                             -- PL-YYYYMM-####
+    export_order_id     INTEGER NOT NULL REFERENCES export_orders(id),
+    total_packages      INTEGER DEFAULT 0,
+    total_weight        REAL DEFAULT 0,                          -- kg (G/W)
+    total_volume        REAL DEFAULT 0,                          -- CBM
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pl_eo ON packing_lists(export_order_id);
+
+-- 패킹 라인 (PL Item)
+CREATE TABLE IF NOT EXISTS packing_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    pl_id               INTEGER NOT NULL REFERENCES packing_lists(id),
+    part_id             INTEGER REFERENCES parts(id),
+    qty                 REAL NOT NULL DEFAULT 0,
+    package_type        TEXT,                                    -- CARTON / PALLET / WOODEN CASE 등
+    weight              REAL DEFAULT 0,                          -- kg
+    volume              REAL DEFAULT 0                           -- CBM
+);
+CREATE INDEX IF NOT EXISTS idx_pl_items_pl ON packing_items(pl_id);
+CREATE INDEX IF NOT EXISTS idx_pl_items_part ON packing_items(part_id);
+
+-- 선하증권 (B/L — Bill of Lading)
+CREATE TABLE IF NOT EXISTS bills_of_lading (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    bl_no               TEXT UNIQUE,                             -- 운송사 발급 번호
+    export_order_id     INTEGER NOT NULL REFERENCES export_orders(id),
+    shipping_company    TEXT,                                    -- 운송사명 (외부 API 미사용 · 수동 입력)
+    vessel              TEXT,                                    -- 선명 / 항공편명
+    departure_date      TEXT,                                    -- YYYY-MM-DD
+    arrival_date        TEXT,                                    -- YYYY-MM-DD (예정/실제)
+    tracking_no         TEXT,                                    -- 운송사 추적번호
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','ISSUED','IN_TRANSIT','DELIVERED','CANCELLED')),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bl_eo ON bills_of_lading(export_order_id);
+CREATE INDEX IF NOT EXISTS idx_bl_status ON bills_of_lading(status);
+
+-- 관세 신고 (Customs Declaration)
+CREATE TABLE IF NOT EXISTS customs_declarations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    declaration_no      TEXT UNIQUE,                             -- 신고번호 (수동 입력)
+    export_order_id     INTEGER NOT NULL REFERENCES export_orders(id),
+    hs_code             TEXT,                                    -- HS 코드
+    fta_origin          TEXT,                                    -- KR / VN / -- 등 (FTA 원산지)
+    declared_value      REAL DEFAULT 0,                          -- 신고가액
+    cleared_at          TEXT,                                    -- 통관 완료 일시
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','SUBMITTED','CLEARED','REJECTED','CANCELLED')),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_customs_eo ON customs_declarations(export_order_id);
+CREATE INDEX IF NOT EXISTS idx_customs_status ON customs_declarations(status);
+
+-- =====================================================
+-- PROJECT GANTT / BURNDOWN (2026-04-26 갭서베이 Top10 #4 — 1차)
+-- 마일스톤 + 일별 번다운 스냅샷. idempotent · projects 테이블 미접촉.
+-- =====================================================
+CREATE TABLE IF NOT EXISTS project_milestones (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    target_date     TEXT,
+    completed_at    TEXT,
+    status          TEXT DEFAULT 'PLANNED'
+                    CHECK(status IN ('PLANNED','IN_PROGRESS','DONE','DELAYED','CANCELLED')),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pm_project ON project_milestones(project_id);
+CREATE INDEX IF NOT EXISTS idx_pm_status ON project_milestones(status);
+
+CREATE TABLE IF NOT EXISTS project_burndown_snapshots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    snap_date       TEXT NOT NULL,
+    total_tasks     INTEGER DEFAULT 0,
+    completed_tasks INTEGER DEFAULT 0,
+    remaining_hours REAL DEFAULT 0,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(project_id, snap_date)
+);
+CREATE INDEX IF NOT EXISTS idx_pbs_project ON project_burndown_snapshots(project_id);
+CREATE INDEX IF NOT EXISTS idx_pbs_date ON project_burndown_snapshots(snap_date);
+
+-- 2차 (2026-04-26): 회귀 기반 예측 결과 저장. 외부 라이브러리 0 (순수 Python).
+CREATE TABLE IF NOT EXISTS project_forecasts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    computed_at     TEXT DEFAULT (datetime('now','localtime')),
+    sample_n        INTEGER DEFAULT 0,
+    slope           REAL DEFAULT 0,        -- 일당 잔여작업 감소량 (음수=감소)
+    intercept       REAL DEFAULT 0,
+    r_squared       REAL DEFAULT 0,
+    forecast_date   TEXT,                  -- 추세선이 0에 도달하는 일자 (YYYY-MM-DD)
+    planned_end     TEXT,                  -- 비교용 (projects.end_date 스냅샷)
+    UNIQUE(project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pf_project ON project_forecasts(project_id);
+
+-- =====================================================
+-- QMS 강화 1차 (2026-04-26 갭서베이 Top10 #6 — P2 제조/품질팀 주2회)
+-- 신규 테이블 3종 (감사로그/시정조치/예방조치) · issues 테이블 5컬럼 ALTER ADD
+-- 페르소나: P2 품질팀(주2회 SLA·재발 추적) · P-CEO(품질 KPI 분기)
+-- 모든 CREATE 는 idempotent · ALTER ADD 는 init_db() 마이그레이션 블록에서 가드
+-- =====================================================
+CREATE TABLE IF NOT EXISTS qms_audit_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id    INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    action      TEXT NOT NULL,            -- 'created' / 'severity_changed' / 'sla_breach' / 'corrective_added' / 'preventive_added' / 'closed'
+    actor       INTEGER REFERENCES users(id),
+    note        TEXT,                     -- 변경 상세 (immutable: UPDATE/DELETE 안 함)
+    timestamp   TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_qmsa_issue ON qms_audit_log(issue_id);
+CREATE INDEX IF NOT EXISTS idx_qmsa_action ON qms_audit_log(action);
+
+CREATE TABLE IF NOT EXISTS corrective_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id        INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    action          TEXT NOT NULL,
+    responsible     INTEGER REFERENCES users(id),
+    due_date        TEXT,
+    completed_at    TEXT,
+    status          TEXT DEFAULT 'OPEN'
+                    CHECK(status IN ('OPEN','IN_PROGRESS','DONE','CANCELLED')),
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ca_issue ON corrective_actions(issue_id);
+CREATE INDEX IF NOT EXISTS idx_ca_status ON corrective_actions(status);
+
+CREATE TABLE IF NOT EXISTS preventive_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    corrective_id   INTEGER NOT NULL REFERENCES corrective_actions(id) ON DELETE CASCADE,
+    action          TEXT NOT NULL,
+    completed_at    TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pa_ca ON preventive_actions(corrective_id);
+
+-- =====================================================
+-- STOCK AUDITS — 재고 실사·조정 (Top10 #10 P4 자재팀 분기 1회) (2026-04-26)
+-- 모든 CREATE 는 idempotent · ALTER ADD 는 init_db() 마이그레이션 블록에서 가드
+-- =====================================================
+CREATE TABLE IF NOT EXISTS stock_audits (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_no        TEXT UNIQUE,                  -- AUD-YYYYMM-####
+    start_date      TEXT NOT NULL,
+    end_date        TEXT,
+    status          TEXT DEFAULT 'OPEN'
+                    CHECK(status IN ('OPEN','COUNTING','REVIEW','CLOSED','CANCELLED','DRAFT','IN_PROGRESS','FINALIZED')),
+    led_by          INTEGER REFERENCES users(id), -- 자재팀장
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sa_status ON stock_audits(status);
+CREATE INDEX IF NOT EXISTS idx_sa_start ON stock_audits(start_date);
+
+CREATE TABLE IF NOT EXISTS stock_audit_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id        INTEGER NOT NULL REFERENCES stock_audits(id) ON DELETE CASCADE,
+    part_id         INTEGER NOT NULL REFERENCES parts(id),
+    system_qty      REAL NOT NULL DEFAULT 0,  -- 시스템 수량 스냅샷 (실사 시점)
+    counted_qty     REAL,                      -- 실측 수량
+    variance        REAL DEFAULT 0,            -- counted - system
+    variance_reason TEXT,                      -- 차이 사유 (필수 입력)
+    status          TEXT DEFAULT 'PENDING'
+                    CHECK(status IN ('PENDING','MATCHED','SHORT','OVER')),
+    counted_by      INTEGER REFERENCES users(id),
+    counted_at      TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sai_audit ON stock_audit_items(audit_id);
+CREATE INDEX IF NOT EXISTS idx_sai_part ON stock_audit_items(part_id);
+CREATE INDEX IF NOT EXISTS idx_sai_status ON stock_audit_items(status);
+
+CREATE TABLE IF NOT EXISTS stock_adjustments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_item_id   INTEGER NOT NULL REFERENCES stock_audit_items(id) ON DELETE CASCADE,
+    adjusted_qty    REAL NOT NULL,             -- 조정 수량 (+증가/-감소)
+    reason          TEXT NOT NULL,
+    status          TEXT DEFAULT 'PENDING'
+                    CHECK(status IN ('PENDING','APPROVED','REJECTED')),
+    approved_by     INTEGER REFERENCES users(id),
+    approved_at     TEXT,
+    movement_id     INTEGER REFERENCES stock_movements(id), -- 승인 시 생성된 SM 참조
+    note            TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sadj_item ON stock_adjustments(audit_item_id);
+CREATE INDEX IF NOT EXISTS idx_sadj_status ON stock_adjustments(status);
+
+CREATE TABLE IF NOT EXISTS audit_attachments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    adjustment_id   INTEGER NOT NULL REFERENCES stock_adjustments(id) ON DELETE CASCADE,
+    file_path       TEXT NOT NULL,
+    file_name       TEXT,
+    uploaded_by     INTEGER REFERENCES users(id),
+    uploaded_at     TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_aatt_adj ON audit_attachments(adjustment_id);
+
+-- =====================================================
+-- 환율·단가 강화 (2026-04-26 Top10 #9 P4 구매팀 월 1회) — idempotent
+-- 외부 환율 API 미사용 (수동 + CSV 업로드만)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS cost_simulations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id             INTEGER NOT NULL REFERENCES parts(id),
+    simulated_at        TEXT NOT NULL,
+    base_currency       TEXT NOT NULL DEFAULT 'USD',
+    target_currency     TEXT NOT NULL DEFAULT 'KRW',
+    exchange_rate       REAL NOT NULL,
+    unit_price_base     REAL NOT NULL,
+    unit_price_target   REAL NOT NULL,
+    margin_pct          REAL DEFAULT 0,
+    note                TEXT,
+    created_by          INTEGER REFERENCES users(id),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_csim_part ON cost_simulations(part_id);
+CREATE INDEX IF NOT EXISTS idx_csim_at ON cost_simulations(simulated_at);
+
+CREATE TABLE IF NOT EXISTS price_change_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id         INTEGER NOT NULL REFERENCES parts(id),
+    supplier_id     INTEGER REFERENCES suppliers(id),
+    old_price       REAL,
+    new_price       REAL NOT NULL,
+    change_pct      REAL,
+    effective_date  TEXT NOT NULL,
+    note            TEXT,
+    changed_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pch_part ON price_change_history(part_id);
+CREATE INDEX IF NOT EXISTS idx_pch_supplier ON price_change_history(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pch_date ON price_change_history(effective_date);
+
+CREATE TABLE IF NOT EXISTS rate_alerts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_currency TEXT NOT NULL,
+    threshold       REAL NOT NULL,
+    direction       TEXT NOT NULL DEFAULT 'above'
+                    CHECK(direction IN ('above','below')),
+    is_active       INTEGER DEFAULT 1,
+    triggered_at    TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ralert_currency ON rate_alerts(target_currency);
+CREATE INDEX IF NOT EXISTS idx_ralert_active ON rate_alerts(is_active);
+
+-- =====================================================
+-- WEEKLY SUMMARY VIEW (2026-04-26 갭서베이 Top10 #5 — 주간보고 자동 집계 1차)
+-- 자동 집계: tasks 테이블에서 (user_id, week_start) 별 GROUP BY
+-- week_start = 해당 주 월요일 (ISO weekday 1=Mon → date - (weekday-1) days)
+-- SQLite 의 strftime('%w', date) : 0=Sun..6=Sat 이므로 (weekday+6)%7 로 월요일 보정
+-- idempotent (CREATE VIEW IF NOT EXISTS) — 테이블 신설 0건
+-- =====================================================
+CREATE VIEW IF NOT EXISTS weekly_summary AS
+SELECT
+    t.user_id                                                       AS user_id,
+    u.team_id                                                       AS team_id,
+    DATE(t.work_date,
+         '-' || ((CAST(strftime('%w', t.work_date) AS INTEGER) + 6) % 7) || ' days'
+    )                                                               AS week_start,
+    DATE(t.work_date,
+         '-' || ((CAST(strftime('%w', t.work_date) AS INTEGER) + 6) % 7) || ' days',
+         '+6 days'
+    )                                                               AS week_end,
+    COUNT(*)                                                        AS total_tasks,
+    SUM(CASE WHEN t.status = '완료'  THEN 1 ELSE 0 END)               AS completed,
+    SUM(CASE WHEN t.status = '진행중' THEN 1 ELSE 0 END)              AS in_progress,
+    SUM(CASE WHEN t.status = '지연'  THEN 1 ELSE 0 END)               AS delayed,
+    ROUND(COALESCE(SUM(t.hours), 0), 1)                              AS total_hours
+FROM    tasks t
+LEFT JOIN users u ON t.user_id = u.id
+GROUP BY t.user_id, u.team_id, week_start;
 """
 
 # =====================================================
@@ -852,6 +1461,11 @@ def init_db():
                 c.execute("ALTER TABLE parts ADD COLUMN safety_stock REAL DEFAULT 0")
             if prcols and "location" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN location TEXT")
+            # 사이클 51 S2-4차 (2026-04-27): 안전재고 재발주점·권장 발주량
+            if prcols and "reorder_point" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN reorder_point REAL DEFAULT 0")
+            if prcols and "reorder_qty" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN reorder_qty REAL DEFAULT 0")
         except Exception:
             pass
         # 마이그레이션: stock_movements에 FIFO/lot 컬럼 (2026-04-21 리서치 반영)
@@ -868,6 +1482,25 @@ def init_db():
                 c.execute("ALTER TABLE stock_movements ADD COLUMN lot_no TEXT")
             if smcols and "expiry_date" not in smcols:
                 c.execute("ALTER TABLE stock_movements ADD COLUMN expiry_date TEXT")
+        except Exception:
+            pass
+        # 마이그레이션 (2026-04-25 Top3-S3-2차): permissions RBAC 컬럼 분리
+        # 시안 §7 원안 — name(UNIQUE) → resource/action/scope/description 분리
+        # 옵션 B 채택: ADD COLUMN으로 신규 컬럼 추가 + name(deprecated)/scope 유지
+        try:
+            pcols = [r[1] for r in c.execute("PRAGMA table_info(permissions)").fetchall()]
+            if pcols and "resource" not in pcols:
+                c.execute("ALTER TABLE permissions ADD COLUMN resource TEXT")
+            if pcols and "action" not in pcols:
+                c.execute("ALTER TABLE permissions ADD COLUMN action TEXT")
+            if pcols and "description" not in pcols:
+                c.execute("ALTER TABLE permissions ADD COLUMN description TEXT")
+            # UNIQUE(resource, action, scope) — 부분 인덱스 (NULL 행 제외)
+            c.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_perm_ras "
+                "ON permissions(resource, action, scope) "
+                "WHERE resource IS NOT NULL AND action IS NOT NULL"
+            )
         except Exception:
             pass
         # 시드: app_settings 기본값 (하이웍스 통합 — 카카오워크 미사용)
@@ -920,6 +1553,137 @@ def init_db():
                     c.execute(f"ALTER TABLE projects ADD COLUMN {col} {decl}")
                 except Exception:
                     pass
+
+        # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
+        # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
+        #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
+        # — SQLite CHECK 제약은 ALTER 불가 → table 재생성 idempotent 가드
+        try:
+            row = c.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='export_orders'"
+            ).fetchone()
+            if row and "CI_ISSUED" not in (row["sql"] or ""):
+                c.executescript("""
+                    BEGIN;
+                    CREATE TABLE export_orders__new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id INTEGER REFERENCES orders(id),
+                        buyer TEXT, shipping_terms TEXT, payment_terms TEXT,
+                        port_of_loading TEXT, port_of_discharge TEXT,
+                        status TEXT DEFAULT 'DRAFT'
+                            CHECK(status IN ('DRAFT','BOOKED','CI_ISSUED','PL_READY','SHIPPED','CLEARED','CLOSED','CANCELLED')),
+                        created_by INTEGER REFERENCES users(id),
+                        created_at TEXT DEFAULT (datetime('now','localtime'))
+                    );
+                    INSERT INTO export_orders__new
+                        SELECT id, order_id, buyer, shipping_terms, payment_terms,
+                               port_of_loading, port_of_discharge, status,
+                               created_by, created_at FROM export_orders;
+                    DROP TABLE export_orders;
+                    ALTER TABLE export_orders__new RENAME TO export_orders;
+                    CREATE INDEX IF NOT EXISTS idx_export_orders_order ON export_orders(order_id);
+                    CREATE INDEX IF NOT EXISTS idx_export_orders_status ON export_orders(status);
+                    COMMIT;
+                """)
+        except Exception:
+            pass
+
+        # 마이그레이션 (QMS 강화 1차 · 갭서베이 Top10 #6 · 2026-04-26):
+        # issues 테이블 +5 컬럼 (sla_hours/detected_at/responded_at/resolved_at_v2/recurrence_id)
+        # users 테이블 +1 컬럼 (can_use_quality)
+        # 기존 severity / resolved_at / root_cause / prevention 무수정 (재사용)
+        try:
+            icols = [r[1] for r in c.execute("PRAGMA table_info(issues)").fetchall()]
+            for col, decl in [
+                ("sla_hours",      "ALTER TABLE issues ADD COLUMN sla_hours INTEGER DEFAULT 24"),
+                ("detected_at",    "ALTER TABLE issues ADD COLUMN detected_at TEXT"),
+                ("responded_at",   "ALTER TABLE issues ADD COLUMN responded_at TEXT"),
+                ("recurrence_id",  "ALTER TABLE issues ADD COLUMN recurrence_id TEXT"),
+                ("sla_breached",   "ALTER TABLE issues ADD COLUMN sla_breached INTEGER DEFAULT 0"),
+            ]:
+                if col not in icols:
+                    try:
+                        c.execute(decl)
+                    except Exception:
+                        pass
+            # 기존 인덱스 1개 추가
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_iss_recurrence ON issues(recurrence_id)")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
+            if "can_use_quality" not in ucols:
+                try:
+                    c.execute("ALTER TABLE users ADD COLUMN can_use_quality INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+            # 품질팀 leader/member 자동 부여 (idempotent UPDATE)
+            try:
+                c.execute(
+                    "UPDATE users SET can_use_quality=1 "
+                    "WHERE team_id IN (SELECT id FROM teams WHERE name LIKE '%품질%') "
+                    "AND is_active=1"
+                )
+                # admin/ceo/executive 전권 자동
+                c.execute(
+                    "UPDATE users SET can_use_quality=1 "
+                    "WHERE role IN ('admin','ceo','executive') AND is_active=1"
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # 마이그레이션 (QMS 2차 Pareto·CAPA 심화 · 2026-04-26):
+        # corrective_actions / preventive_actions 라이프사이클 컬럼 6종 (CHECK 제약 없이 ALTER ADD)
+        # DRAFT → APPROVED → IN_PROGRESS → COMPLETED → VERIFIED
+        try:
+            cacols = [r[1] for r in c.execute("PRAGMA table_info(corrective_actions)").fetchall()]
+            for col, decl in [
+                ("lifecycle_status",  "ALTER TABLE corrective_actions ADD COLUMN lifecycle_status TEXT DEFAULT 'DRAFT'"),
+                ("approved_by",       "ALTER TABLE corrective_actions ADD COLUMN approved_by INTEGER REFERENCES users(id)"),
+                ("approved_at",       "ALTER TABLE corrective_actions ADD COLUMN approved_at TEXT"),
+                ("verified_by",       "ALTER TABLE corrective_actions ADD COLUMN verified_by INTEGER REFERENCES users(id)"),
+                ("verified_at",       "ALTER TABLE corrective_actions ADD COLUMN verified_at TEXT"),
+                ("effectiveness_note","ALTER TABLE corrective_actions ADD COLUMN effectiveness_note TEXT"),
+            ]:
+                if col not in cacols:
+                    try:
+                        c.execute(decl)
+                    except Exception:
+                        pass
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_ca_lifecycle ON corrective_actions(lifecycle_status)")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        try:
+            pacols = [r[1] for r in c.execute("PRAGMA table_info(preventive_actions)").fetchall()]
+            for col, decl in [
+                ("lifecycle_status",  "ALTER TABLE preventive_actions ADD COLUMN lifecycle_status TEXT DEFAULT 'DRAFT'"),
+                ("approved_by",       "ALTER TABLE preventive_actions ADD COLUMN approved_by INTEGER REFERENCES users(id)"),
+                ("approved_at",       "ALTER TABLE preventive_actions ADD COLUMN approved_at TEXT"),
+                ("verified_by",       "ALTER TABLE preventive_actions ADD COLUMN verified_by INTEGER REFERENCES users(id)"),
+                ("verified_at",       "ALTER TABLE preventive_actions ADD COLUMN verified_at TEXT"),
+                ("effectiveness_note","ALTER TABLE preventive_actions ADD COLUMN effectiveness_note TEXT"),
+            ]:
+                if col not in pacols:
+                    try:
+                        c.execute(decl)
+                    except Exception:
+                        pass
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_pa_lifecycle ON preventive_actions(lifecycle_status)")
+            except Exception:
+                pass
+        except Exception:
+            pass
 
 
 def seed_all():
@@ -1013,6 +1777,42 @@ def seed_all():
                 "INSERT INTO projects(code, name, customer_id, type, status) VALUES(?,?,?,?,?)",
                 (code, pname, cu["id"] if cu else None, ptype, "진행중"),
             )
+
+        # P1-1 (2026-04-25 09팀장 결정 §2-2 채택 · 사용자 지시 가상거래처 적용):
+        #   시연용 더미 매출 3건 — CEO /home 매출 KPI 활성화
+        #   - 외부 브랜드명 0건 (자체 가상 거래처)
+        #   - 매출액 ₩50M~₩200M 합리 범위
+        #   - 최근 3개월 분산 (당월·당월·전월)
+        import datetime as _dt
+        _today = _dt.date.today()
+        _ym = _today.strftime("%Y-%m")
+        _prev_ym = (_today.replace(day=1) - _dt.timedelta(days=1)).strftime("%Y-%m")
+        _demo_customers = [
+            ("한빛전자",   "B", "[가상·시연용] 더미 거래처"),
+            ("미래공업",   "B", "[가상·시연용] 더미 거래처"),
+            ("신한정밀",   "C", "[가상·시연용] 더미 거래처"),
+        ]
+        for _cn, _tier, _note in _demo_customers:
+            _exist = c.execute("SELECT id FROM customers WHERE name=?", (_cn,)).fetchone()
+            if not _exist:
+                c.execute(
+                    "INSERT INTO customers(name, tier, note) VALUES(?,?,?)",
+                    (_cn, _tier, _note),
+                )
+        _demo_projects = [
+            ("P-DEMO-001", "한빛전자 ICT 검사기 1차",  "한빛전자",  "검사기", 180_000_000, f"{_ym}-05"),
+            ("P-DEMO-002", "미래공업 자동화 라인",     "미래공업",  "자동화", 120_000_000, f"{_ym}-12"),
+            ("P-DEMO-003", "신한정밀 검사 지그",       "신한정밀",  "검사기",  65_000_000, f"{_prev_ym}-22"),
+        ]
+        for _code, _pn, _cust, _pt, _amt, _dt_ in _demo_projects:
+            _cu = c.execute("SELECT id FROM customers WHERE name=?", (_cust,)).fetchone()
+            _exp = c.execute("SELECT id FROM projects WHERE code=?", (_code,)).fetchone()
+            if not _exp:
+                c.execute(
+                    "INSERT INTO projects(code, name, customer_id, type, status, "
+                    "order_amount, order_date) VALUES(?,?,?,?,?,?,?)",
+                    (_code, _pn, _cu["id"] if _cu else None, _pt, "진행중", _amt, _dt_),
+                )
 
 
 # =====================================================
@@ -2074,6 +2874,52 @@ def mark_all_read(user_id):
 
 
 # =====================================================
+# 알림시스템 통합 헬퍼 (사이클 2026-04-26)
+# 단일 진입점 notify_user — 전사 영역 일관 알림.
+# 분류: TASK / SALES / STOCK / QMS / EXPORT / WEEKLY / RATE / PERMISSION / SYSTEM
+# 중복 방지: 같은 (user_id, kind, title) 1시간 내 1회.
+# v2 본체 무수정 · G1~G5 보존 · 외부 라이브러리 0건.
+# =====================================================
+NOTIFY_TYPES = {"TASK", "SALES", "STOCK", "QMS", "EXPORT",
+                "WEEKLY", "RATE", "PERMISSION", "SYSTEM"}
+
+
+def notify_user(user_id, type, title, body=None, link=None):
+    """전사 통합 알림 헬퍼.
+    Args:
+        user_id: 수신자 ID
+        type: NOTIFY_TYPES 중 하나 (대문자). 미정의 시 SYSTEM.
+        title: 알림 제목 (최대 200자 권장)
+        body: 본문 (선택)
+        link: 클릭 시 이동 경로 (선택)
+    Returns:
+        True (신규 INSERT) / False (1시간 중복 스킵)
+    """
+    if not user_id or not title:
+        return False
+    kind = (type or "SYSTEM").upper()
+    if kind not in NOTIFY_TYPES:
+        kind = "SYSTEM"
+    with db_session() as c:
+        # 중복 방지 — 같은 user+kind+title 1시간 내
+        dup = c.execute(
+            "SELECT 1 FROM notifications "
+            "WHERE user_id=? AND kind=? AND title=? "
+            "AND created_at >= datetime('now','localtime','-1 hours') "
+            "LIMIT 1",
+            (user_id, kind, title),
+        ).fetchone()
+        if dup:
+            return False
+        c.execute(
+            "INSERT INTO notifications(user_id, kind, title, body, link) "
+            "VALUES(?,?,?,?,?)",
+            (user_id, kind, title, body, link),
+        )
+        return True
+
+
+# =====================================================
 # HAIST WORKS — 물류 모듈 (parts / 관리코드 발행대장)
 # KNK PMS V3 표준 (엑셀정리스킬 §11~12 준수)
 # =====================================================
@@ -2770,6 +3616,187 @@ def _auto_ticket_low_stock(part_info: dict, user_id: int):
         return None
 
 
+# =====================================================
+# 사이클 51 S2-4차 (2026-04-27) — 안전재고 알림 자동 + 발주 추천
+# 헬퍼 +2: check_stock_alerts() / recommend_reorders()
+# v2 본체 무수정 · G1~G5 보존 · 외부 라이브러리 0건
+# =====================================================
+def check_stock_alerts() -> dict:
+    """전체 부품 stock_balances vs reorder_point 비교 → 부족 부품 STOCK 알림 발송.
+    수신자: 구매팀 멤버 + admin/ceo (멤버십 조회 실패 시 admin/ceo만).
+    반환: {"checked": N, "alerts_sent": M, "low_parts": [...]}
+    """
+    out = {"checked": 0, "alerts_sent": 0, "low_parts": []}
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                """SELECT p.id, p.part_no, p.part_name, p.unit,
+                          COALESCE(p.reorder_point,0)  AS rop,
+                          COALESCE(p.safety_stock,0)   AS safety,
+                          COALESCE(p.reorder_qty,0)    AS roq,
+                          COALESCE(sb.on_hand,0)       AS on_hand
+                   FROM parts p
+                   LEFT JOIN stock_balances sb ON sb.part_id = p.id
+                   WHERE COALESCE(p.reorder_point,0) > 0
+                     AND COALESCE(sb.on_hand,0) < COALESCE(p.reorder_point,0)
+                   ORDER BY (COALESCE(p.reorder_point,0) - COALESCE(sb.on_hand,0)) DESC"""
+            ).fetchall()
+            out["checked"] = len(rows)
+            # 수신자: 구매팀 멤버 + admin/ceo (중복 제거)
+            recipients = set()
+            try:
+                team_id = _team_id_by_name("구매팀")
+                if team_id:
+                    for r in c.execute(
+                        "SELECT user_id FROM team_members WHERE team_id=?",
+                        (team_id,),
+                    ).fetchall():
+                        if r["user_id"]:
+                            recipients.add(int(r["user_id"]))
+            except Exception:
+                pass
+            try:
+                for r in c.execute(
+                    "SELECT id FROM users WHERE role IN ('admin','ceo')"
+                ).fetchall():
+                    if r["id"]:
+                        recipients.add(int(r["id"]))
+            except Exception:
+                pass
+        # 알림 발송 (db_session 밖 — notify_user 자체가 별도 세션)
+        for row in rows:
+            part_no = row["part_no"]
+            part_name = row["part_name"] or ""
+            on_hand = row["on_hand"] or 0
+            rop = row["rop"] or 0
+            roq = row["roq"] or 0
+            short = max(0, rop - on_hand)
+            title = f"[재고알림] 재발주점 미달 — {part_name} ({part_no})"
+            body = (
+                f"• 부품: [{part_no}] {part_name}\n"
+                f"• 현재고: {on_hand}\n"
+                f"• 재발주점: {rop}\n"
+                f"• 부족: {short}\n"
+                f"• 권장 발주량: {roq}"
+            )
+            for uid in recipients:
+                if notify_user(uid, "STOCK", title, body=body,
+                               link="/stock/reorder-recommendations"):
+                    out["alerts_sent"] += 1
+            out["low_parts"].append({
+                "part_id": row["id"], "part_no": part_no,
+                "part_name": part_name, "on_hand": on_hand,
+                "reorder_point": rop, "reorder_qty": roq, "short": short,
+            })
+    except Exception as e:
+        print(f"[check_stock_alerts] {e}")
+    return out
+
+
+def recommend_reorders(limit: int = 200) -> list[dict]:
+    """발주 추천 — 부족 부품 + 권장 발주량 + 우선순위.
+    우선순위: 부족율(=(rop-on_hand)/rop) 내림차순.
+    HIGH ≥0.5 / MID 0.2~0.5 / LOW <0.2
+    """
+    items: list[dict] = []
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                """SELECT p.id              AS part_id,
+                          p.part_no         AS part_no,
+                          p.part_name       AS part_name,
+                          p.unit            AS unit,
+                          p.maker           AS maker,
+                          COALESCE(p.safety_stock,0)  AS safety,
+                          COALESCE(p.reorder_point,0) AS rop,
+                          COALESCE(p.reorder_qty,0)   AS roq,
+                          COALESCE(sb.on_hand,0)      AS on_hand
+                   FROM parts p
+                   LEFT JOIN stock_balances sb ON sb.part_id = p.id
+                   WHERE COALESCE(p.reorder_point,0) > 0
+                     AND COALESCE(sb.on_hand,0) < COALESCE(p.reorder_point,0)
+                   ORDER BY (COALESCE(p.reorder_point,0) - COALESCE(sb.on_hand,0)) DESC
+                   LIMIT ?""",
+                (int(limit),),
+            ).fetchall()
+        for r in rows:
+            rop = r["rop"] or 0
+            on_hand = r["on_hand"] or 0
+            short = max(0, rop - on_hand)
+            ratio = (short / rop) if rop > 0 else 0
+            if ratio >= 0.5:
+                pri = "HIGH"
+            elif ratio >= 0.2:
+                pri = "MID"
+            else:
+                pri = "LOW"
+            items.append({
+                "part_id":       r["part_id"],
+                "part_no":       r["part_no"],
+                "part_name":     r["part_name"],
+                "unit":          r["unit"] or "EA",
+                "maker":         r["maker"] or "",
+                "safety_stock":  r["safety"] or 0,
+                "reorder_point": rop,
+                "reorder_qty":   r["roq"] or 0,
+                "on_hand":       on_hand,
+                "short":         short,
+                "ratio":         round(ratio, 3),
+                "priority":      pri,
+            })
+    except Exception as e:
+        print(f"[recommend_reorders] {e}")
+    return items
+
+
+def parts_safety_settings_list(q: str = "") -> list[dict]:
+    """안전재고 설정 페이지용 — parts + on_hand 조회 (검색 q 지원)."""
+    out: list[dict] = []
+    try:
+        with db_session() as c:
+            sql = (
+                "SELECT p.id, p.part_no, p.part_name, p.unit, p.maker, "
+                "COALESCE(p.safety_stock,0)  AS safety_stock, "
+                "COALESCE(p.reorder_point,0) AS reorder_point, "
+                "COALESCE(p.reorder_qty,0)   AS reorder_qty, "
+                "COALESCE(sb.on_hand,0)      AS on_hand "
+                "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id = p.id "
+                "WHERE p.is_active = 1"
+            )
+            params: list = []
+            if q:
+                sql += " AND (p.part_no LIKE ? OR p.part_name LIKE ?)"
+                like = f"%{q}%"
+                params.extend([like, like])
+            sql += " ORDER BY p.part_no LIMIT 300"
+            for r in c.execute(sql, params).fetchall():
+                out.append(dict(r))
+    except Exception as e:
+        print(f"[parts_safety_settings_list] {e}")
+    return out
+
+
+def parts_safety_update(part_id: int,
+                        safety_stock: float,
+                        reorder_point: float,
+                        reorder_qty: float) -> bool:
+    """parts 안전재고 3종 컬럼 일괄 갱신 (음수 → 0 가드)."""
+    try:
+        ss = max(0.0, float(safety_stock or 0))
+        rp = max(0.0, float(reorder_point or 0))
+        rq = max(0.0, float(reorder_qty or 0))
+        with db_session() as c:
+            c.execute(
+                "UPDATE parts SET safety_stock=?, reorder_point=?, "
+                "reorder_qty=?, updated_at=? WHERE id=?",
+                (ss, rp, rq, _logi_now(), int(part_id)),
+            )
+        return True
+    except Exception as e:
+        print(f"[parts_safety_update] {e}")
+        return False
+
+
 def _consume_fifo(c, part_id: int, qty: float) -> tuple[float, list[dict]]:
     """FIFO로 IN 레이어 소비.
     반환: (가중평균 단가, 소비한 레이어 리스트)
@@ -3015,6 +4042,297 @@ def stock_adjust(data: dict, user_id: int) -> tuple[int, str]:
     }, user_id)
 
 
+# =====================================================
+# 재고 실사·조정 (Top10 #10 — 2026-04-26 P4 자재팀 분기 1회)
+# 기존 stock_movements + stock_balances 활용 / 승인 후 ADJUST 기록 생성
+# =====================================================
+def gen_audit_no(today=None) -> str:
+    """실사 번호 자동 채번: AUD-YYYYMM-####"""
+    today = today or _date.today()
+    yymm = today.strftime("%Y%m")
+    prefix = f"AUD-{yymm}-"
+    try:
+        with db_session() as c:
+            rows = c.execute(
+                "SELECT audit_no FROM stock_audits WHERE audit_no LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for r in rows:
+            try:
+                seq = int(r["audit_no"].rsplit("-", 1)[-1])
+                max_seq = max(max_seq, seq)
+            except (ValueError, IndexError):
+                pass
+        return f"{prefix}{max_seq + 1:04d}"
+    except sqlite3.OperationalError:
+        return f"{prefix}0001"
+
+
+def stock_audit_create(led_by: int, start_date: str = "", note: str = "") -> tuple[int, str]:
+    """실사 헤더 신규 생성. 시퀀스 idempotent."""
+    sd = start_date or _date.today().isoformat()
+    audit_no = gen_audit_no()
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO stock_audits (audit_no, start_date, status, led_by, note)
+               VALUES (?, ?, 'OPEN', ?, ?)""",
+            (audit_no, sd, led_by, note),
+        )
+        return cur.lastrowid, audit_no
+
+
+def stock_audits_list(limit: int = 50) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT a.*, u.name AS led_by_name,
+                      (SELECT COUNT(*) FROM stock_audit_items ai WHERE ai.audit_id=a.id) AS item_count,
+                      (SELECT COUNT(*) FROM stock_audit_items ai
+                        WHERE ai.audit_id=a.id AND ai.status<>'PENDING') AS counted_count
+               FROM stock_audits a
+               LEFT JOIN users u ON a.led_by = u.id
+               ORDER BY a.id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def stock_audit_get(audit_id: int) -> dict | None:
+    with db_session() as c:
+        a = c.execute(
+            """SELECT a.*, u.name AS led_by_name
+               FROM stock_audits a LEFT JOIN users u ON a.led_by=u.id
+               WHERE a.id=?""",
+            (audit_id,),
+        ).fetchone()
+        if not a:
+            return None
+        items = c.execute(
+            """SELECT ai.*, p.part_no, p.part_name, p.unit AS part_unit,
+                      uc.name AS counted_by_name
+               FROM stock_audit_items ai
+               LEFT JOIN parts p ON ai.part_id=p.id
+               LEFT JOIN users uc ON ai.counted_by=uc.id
+               WHERE ai.audit_id=? ORDER BY ai.id""",
+            (audit_id,),
+        ).fetchall()
+        return {**dict(a), "items": [dict(r) for r in items]}
+
+
+def stock_audit_item_upsert(audit_id: int, part_id: int, counted_qty: float,
+                            variance_reason: str, user_id: int) -> int:
+    """라인 추가/수정 — system_qty는 parts.stock_qty 스냅샷, variance 자동 계산."""
+    with db_session() as c:
+        sysq_row = c.execute("SELECT stock_qty FROM parts WHERE id=?", (part_id,)).fetchone()
+        sysq = float(sysq_row[0]) if sysq_row else 0.0
+        variance = float(counted_qty) - sysq
+        if abs(variance) < 1e-9:
+            st = "MATCHED"
+        elif variance < 0:
+            st = "SHORT"
+        else:
+            st = "OVER"
+        existing = c.execute(
+            "SELECT id FROM stock_audit_items WHERE audit_id=? AND part_id=?",
+            (audit_id, part_id),
+        ).fetchone()
+        now = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+        if existing:
+            c.execute(
+                """UPDATE stock_audit_items
+                   SET system_qty=?, counted_qty=?, variance=?, variance_reason=?,
+                       status=?, counted_by=?, counted_at=?
+                   WHERE id=?""",
+                (sysq, counted_qty, variance, variance_reason, st, user_id, now, existing[0]),
+            )
+            return existing[0]
+        cur = c.execute(
+            """INSERT INTO stock_audit_items
+               (audit_id, part_id, system_qty, counted_qty, variance,
+                variance_reason, status, counted_by, counted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (audit_id, part_id, sysq, counted_qty, variance,
+             variance_reason, st, user_id, now),
+        )
+        # 자동으로 PENDING 조정 행 생성 (차이 0 아닐 때)
+        if st != "MATCHED":
+            c.execute(
+                """INSERT INTO stock_adjustments
+                   (audit_item_id, adjusted_qty, reason, status, created_by)
+                   VALUES (?, ?, ?, 'PENDING', ?)""",
+                (cur.lastrowid, variance, variance_reason or "실사 차이", user_id),
+            )
+        return cur.lastrowid
+
+
+def stock_adjustments_list(status: str = "PENDING", limit: int = 100) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT adj.*, ai.part_id, ai.system_qty, ai.counted_qty, ai.variance,
+                      a.audit_no, p.part_no, p.part_name, p.unit AS part_unit,
+                      uc.name AS created_by_name, ua.name AS approved_by_name
+               FROM stock_adjustments adj
+               JOIN stock_audit_items ai ON adj.audit_item_id=ai.id
+               JOIN stock_audits a ON ai.audit_id=a.id
+               LEFT JOIN parts p ON ai.part_id=p.id
+               LEFT JOIN users uc ON adj.created_by=uc.id
+               LEFT JOIN users ua ON adj.approved_by=ua.id
+               WHERE (?='' OR adj.status=?)
+               ORDER BY adj.id DESC LIMIT ?""",
+            (status, status, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def stock_adjustment_approve(adj_id: int, approver_id: int) -> tuple[int, str]:
+    """조정 승인 — UPDATE adj.status=APPROVED + INSERT stock_movements{kind=ADJUST}.
+    반환: (movement_id, movement_no)
+    """
+    with db_session() as c:
+        adj = c.execute(
+            """SELECT adj.*, ai.part_id
+               FROM stock_adjustments adj
+               JOIN stock_audit_items ai ON adj.audit_item_id=ai.id
+               WHERE adj.id=?""",
+            (adj_id,),
+        ).fetchone()
+        if not adj:
+            raise ValueError("조정 행 없음")
+        if adj["status"] != "PENDING":
+            raise ValueError("이미 처리된 조정")
+    mid, mno = stock_movement_create({
+        "part_id": adj["part_id"],
+        "kind": "ADJUST",
+        "quantity": float(adj["adjusted_qty"]),
+        "reason": (adj["reason"] or "실사 조정").strip(),
+        "note": f"audit_adjustment_id={adj_id}",
+        "occurred_at": None,
+    }, approver_id)
+    with db_session() as c:
+        c.execute(
+            """UPDATE stock_adjustments
+               SET status='APPROVED', approved_by=?,
+                   approved_at=datetime('now','localtime'), movement_id=?
+               WHERE id=?""",
+            (approver_id, mid, adj_id),
+        )
+    return mid, mno
+
+
+def stock_adjustment_reject(adj_id: int, approver_id: int, note: str = "") -> None:
+    with db_session() as c:
+        c.execute(
+            """UPDATE stock_adjustments
+               SET status='REJECTED', approved_by=?,
+                   approved_at=datetime('now','localtime'), note=?
+               WHERE id=? AND status='PENDING'""",
+            (approver_id, note, adj_id),
+        )
+
+
+# ---- 재고실사 2차 (2026-04-26): 첨부 + close 워크플로 + 효과 검증 ----
+def audit_attachment_create(adjustment_id: int, file_path: str, file_name: str,
+                            user_id: int) -> int:
+    """첨부 INSERT — 파일 디스크 저장은 라우트에서 (path traversal sanitize 후)."""
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO audit_attachments
+               (adjustment_id, file_path, file_name, uploaded_by)
+               VALUES (?, ?, ?, ?)""",
+            (adjustment_id, file_path, file_name, user_id),
+        )
+        return cur.lastrowid
+
+
+def audit_attachments_list(adjustment_id: int) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT att.*, u.name AS uploaded_by_name
+               FROM audit_attachments att
+               LEFT JOIN users u ON att.uploaded_by=u.id
+               WHERE att.adjustment_id=? ORDER BY att.id DESC""",
+            (adjustment_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def audit_attachment_get(att_id: int) -> dict | None:
+    with db_session() as c:
+        r = c.execute(
+            "SELECT * FROM audit_attachments WHERE id=?", (att_id,),
+        ).fetchone()
+        return dict(r) if r else None
+
+
+def stock_audit_close(audit_id: int) -> tuple[bool, str]:
+    """실사 CLOSE — 모든 라인 PENDING 0건 + 모든 조정 APPROVED 검증.
+    반환: (ok, msg). status='CLOSED', end_date=오늘.
+    """
+    with db_session() as c:
+        a = c.execute("SELECT id, status FROM stock_audits WHERE id=?",
+                      (audit_id,)).fetchone()
+        if not a:
+            return False, "실사 없음"
+        if a["status"] == "CLOSED":
+            return False, "이미 CLOSED"
+        pending = c.execute(
+            "SELECT COUNT(*) FROM stock_audit_items WHERE audit_id=? AND status='PENDING'",
+            (audit_id,),
+        ).fetchone()[0]
+        if pending > 0:
+            return False, f"라인 PENDING {pending}건 (실측 미완)"
+        unresolved = c.execute(
+            """SELECT COUNT(*) FROM stock_adjustments adj
+               JOIN stock_audit_items ai ON adj.audit_item_id=ai.id
+               WHERE ai.audit_id=? AND adj.status='PENDING'""",
+            (audit_id,),
+        ).fetchone()[0]
+        if unresolved > 0:
+            return False, f"조정 PENDING {unresolved}건 (승인/반려 필요)"
+        c.execute(
+            """UPDATE stock_audits
+               SET status='CLOSED', end_date=date('now','localtime')
+               WHERE id=?""",
+            (audit_id,),
+        )
+        return True, "CLOSED"
+
+
+def stock_audit_effect_summary(audit_id: int) -> dict:
+    """효과 검증 KPI — 본 실사의 ADJUST stock_movements 합계 + 시스템 차이 매칭률.
+    반환: {adjust_count, adjust_qty_sum, abs_qty_sum, line_total, line_matched, match_rate}
+    """
+    with db_session() as c:
+        sm = c.execute(
+            """SELECT COUNT(sm.id) AS cnt,
+                      COALESCE(SUM(sm.quantity), 0) AS qsum,
+                      COALESCE(SUM(ABS(sm.quantity)), 0) AS absqsum
+               FROM stock_movements sm
+               JOIN stock_adjustments adj ON adj.movement_id=sm.id
+               JOIN stock_audit_items ai ON adj.audit_item_id=ai.id
+               WHERE ai.audit_id=? AND sm.kind='ADJUST'""",
+            (audit_id,),
+        ).fetchone()
+        line = c.execute(
+            """SELECT COUNT(*) AS total,
+                      SUM(CASE WHEN status='MATCHED' THEN 1 ELSE 0 END) AS matched
+               FROM stock_audit_items WHERE audit_id=?""",
+            (audit_id,),
+        ).fetchone()
+        total = int(line["total"] or 0)
+        matched = int(line["matched"] or 0)
+        rate = (matched / total * 100.0) if total > 0 else 0.0
+        return {
+            "adjust_count": int(sm["cnt"] or 0),
+            "adjust_qty_sum": float(sm["qsum"] or 0),
+            "abs_qty_sum": float(sm["absqsum"] or 0),
+            "line_total": total,
+            "line_matched": matched,
+            "match_rate": round(rate, 1),
+        }
+# ---- /재고실사 2차 ----
+
+
 def stock_movements_list(part_id: int = 0, kind: str = "", since: str = "",
                          until: str = "", po_id: int = 0, project_id: int = 0,
                          q: str = "", limit: int = 200) -> list[dict]:
@@ -3133,6 +4451,111 @@ def part_fifo_layers(part_id: int) -> list[dict]:
             (part_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# =====================================================
+# Top3 S2 3차 (2026-04-26) — FIFO 레이어 강화 + ABC 분류 + 재고회전율
+# 원칙: stock_movements 단일 진실원 활용 · 평균원가 금지 (Fishbowl 반면교사)
+# =====================================================
+def fifo_layers(part_id: int) -> dict:
+    """FIFO 레이어 상세 + 잔량/평균단가 요약. part_fifo_layers 위에 집계 추가."""
+    layers = part_fifo_layers(part_id)
+    total_qty = sum(float(r.get("remaining_qty") or 0) for r in layers)
+    total_val = sum(float(r.get("remaining_qty") or 0) * float(r.get("unit_price") or 0)
+                    for r in layers)
+    avg_price = (total_val / total_qty) if total_qty > 0 else 0.0
+    with db_session() as c:
+        p = c.execute("SELECT part_no, part_name, unit FROM parts WHERE id=?",
+                      (part_id,)).fetchone()
+    return {
+        "part_id": part_id,
+        "part_no": p["part_no"] if p else "",
+        "part_name": p["part_name"] if p else "",
+        "unit": (p["unit"] if p else "") or "EA",
+        "layers": layers,
+        "layers_count": len(layers),
+        "total_qty": total_qty,
+        "total_value": total_val,
+        "avg_unit_price": avg_price,
+    }
+
+
+def abc_classification(days: int = 90) -> list[dict]:
+    """최근 N일 (기본 90일) 출고 매출액(qty*unit_price) 기준 ABC 분류.
+    A: 누적 상위 80% (기준일 매출 약 20% 부품 — 파레토 원칙).
+    B: 80~95%. C: 나머지.
+    """
+    since = (_date.today() - _td(days=days)).isoformat()
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT sm.part_id, p.part_no, p.part_name, p.unit,
+                      SUM(ABS(sm.quantity)) AS out_qty,
+                      SUM(ABS(sm.quantity) * COALESCE(sm.unit_price, p.std_price, 0)) AS out_value
+               FROM stock_movements sm
+               LEFT JOIN parts p ON sm.part_id = p.id
+               WHERE sm.kind='OUT' AND sm.occurred_at >= ?
+               GROUP BY sm.part_id
+               ORDER BY out_value DESC""",
+            (since,),
+        ).fetchall()
+    items = [dict(r) for r in rows]
+    total = sum(float(r.get("out_value") or 0) for r in items) or 1.0
+    cum = 0.0
+    for r in items:
+        v = float(r.get("out_value") or 0)
+        cum += v
+        share = (v / total) * 100.0
+        cum_share = (cum / total) * 100.0
+        r["share_pct"] = share
+        r["cum_share_pct"] = cum_share
+        if cum_share <= 80.0:
+            r["abc_class"] = "A"
+        elif cum_share <= 95.0:
+            r["abc_class"] = "B"
+        else:
+            r["abc_class"] = "C"
+    return items
+
+
+def stock_turnover(days: int = 90) -> list[dict]:
+    """부품별 재고 회전율 = 출고량 / 평균재고. 평균재고는 (현재 on_hand + max(0, on_hand+출고량))/2
+    근사 (간이 — 일별 스냅샷 미보유 상황). 슬로우/패스트 분류 동반.
+    """
+    since = (_date.today() - _td(days=days)).isoformat()
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT p.id AS part_id, p.part_no, p.part_name, p.unit,
+                      COALESCE(sb.on_hand, 0) AS on_hand,
+                      COALESCE((SELECT SUM(ABS(sm.quantity)) FROM stock_movements sm
+                                WHERE sm.part_id=p.id AND sm.kind='OUT'
+                                  AND sm.occurred_at >= ?), 0) AS out_qty
+               FROM parts p
+               LEFT JOIN stock_balances sb ON sb.part_id = p.id
+               WHERE p.is_active=1
+               ORDER BY p.part_no""",
+            (since,),
+        ).fetchall()
+    items = []
+    for r in rows:
+        d = dict(r)
+        on_hand = float(d.get("on_hand") or 0)
+        out_qty = float(d.get("out_qty") or 0)
+        # 평균재고 근사: 현 잔고 + 시작 시점 추정(현 잔고 + 출고량) → /2
+        avg_stock = (on_hand + (on_hand + out_qty)) / 2.0 if (on_hand + out_qty) > 0 else 0.0
+        turnover = (out_qty / avg_stock) if avg_stock > 0 else 0.0
+        # 패스트(>=2.0회) / 노멀(0.5~2.0) / 슬로우(<0.5, 출고 0 포함)
+        if turnover >= 2.0:
+            band = "FAST"
+        elif turnover >= 0.5:
+            band = "NORMAL"
+        else:
+            band = "SLOW"
+        d["avg_stock"] = avg_stock
+        d["turnover"] = turnover
+        d["band"] = band
+        items.append(d)
+    items.sort(key=lambda x: x["turnover"], reverse=True)
+    return items
 
 
 # =====================================================
@@ -3305,6 +4728,87 @@ def part_active_price(part_id: int, supplier_id: int = 0,
     with db_session() as c:
         r = c.execute(sql, params).fetchone()
         return dict(r) if r else None
+
+
+# =====================================================
+# 사이클 54 환율·단가 1차 (2026-04-27) — 명시적 헬퍼 +3
+# 외부 API 0건. 기존 exchange_rates / part_prices 위에서 동작.
+# =====================================================
+def get_latest_fx_rate(currency_from: str, currency_to: str = "KRW",
+                       as_of: str = "") -> float | None:
+    """최신 유효일 환율 조회. 없으면 None.
+
+    - currency_from == currency_to: 1.0 즉시 반환
+    - as_of 미지정: 오늘 기준 가장 최근 effective rate
+    - SQL 파라미터 바인딩 의무 준수 (?)
+    """
+    cf = (currency_from or "").upper()
+    ct = (currency_to or "KRW").upper()
+    if cf == ct:
+        return 1.0
+    date_s = as_of or _date.today().isoformat()
+    try:
+        with db_session() as c:
+            r = c.execute(
+                """SELECT rate FROM exchange_rates
+                   WHERE from_currency=? AND to_currency=? AND rate_date<=?
+                   ORDER BY rate_date DESC LIMIT 1""",
+                (cf, ct, date_s),
+            ).fetchone()
+            return float(r["rate"]) if r else None
+    except Exception:
+        return None
+
+
+def convert_amount(amount: float, currency_from: str,
+                   currency_to: str = "KRW", as_of: str = "") -> float:
+    """환산값. rate 미존재 시 amount 그대로 반환 (warn은 호출측 책임).
+
+    - 같은 통화: amount 그대로
+    - rate 조회 실패: amount 그대로 (안전 폴백)
+    """
+    try:
+        amt = float(amount or 0)
+    except Exception:
+        return 0.0
+    cf = (currency_from or "").upper()
+    ct = (currency_to or "KRW").upper()
+    if cf == ct:
+        return amt
+    rate = get_latest_fx_rate(cf, ct, as_of=as_of)
+    if rate is None:
+        return amt  # rate 미존재 — 원본 통화 금액 그대로 (호출측 warn)
+    return amt * rate
+
+
+def get_latest_part_price(part_id: int, price_type: str = "cost",
+                          currency: str = "KRW",
+                          as_of: str = "") -> dict | None:
+    """최신 단가 조회. 없으면 None.
+
+    price_type 매핑 (외부 API 호환 표준 ↔ 내부 한국 ERP 용어):
+      - cost   → '확정' (원가/확정 단가)
+      - list   → '가'   (정가/가 단가)
+      - export → '견적' (수출가/견적 단가)
+    내부 표준 한국어 (확정/가/견적) 도 그대로 허용.
+    """
+    type_map = {"cost": "확정", "list": "가", "export": "견적"}
+    pt = type_map.get((price_type or "").lower(), price_type or "확정")
+    cur = (currency or "KRW").upper()
+    date_s = as_of or _date.today().isoformat()
+    try:
+        with db_session() as c:
+            r = c.execute(
+                """SELECT pp.* FROM part_prices pp
+                   WHERE pp.part_id=? AND pp.price_type=? AND pp.currency=?
+                     AND pp.effective_from<=?
+                     AND (pp.effective_to IS NULL OR pp.effective_to>=?)
+                   ORDER BY pp.effective_from DESC, pp.id DESC LIMIT 1""",
+                (int(part_id), pt, cur, date_s, date_s),
+            ).fetchone()
+            return dict(r) if r else None
+    except Exception:
+        return None
 
 
 # =====================================================
@@ -4900,5 +6404,561 @@ def progress_summary_for_user(user_id: int, team_id: int = None) -> dict:
                 "SELECT COUNT(*) FROM project_phases WHERE status = '지연'"
             ).fetchone()[0]
     return {"my_open": my, "delayed": delayed}
+
+
+# =====================================================
+# 환율·단가 강화 (2026-04-26 Top10 #9) — 외부 API 미사용
+# =====================================================
+def cost_simulation_create(data: dict, user_id: int) -> int:
+    """원가 시뮬레이션 INSERT. 외부 환율 API 미사용."""
+    base = float(data["unit_price_base"])
+    rate = float(data["exchange_rate"])
+    target = float(data.get("unit_price_target") or (base * rate))
+    margin = float(data.get("margin_pct") or 0)
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO cost_simulations
+               (part_id, simulated_at, base_currency, target_currency,
+                exchange_rate, unit_price_base, unit_price_target,
+                margin_pct, note, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (int(data["part_id"]),
+             data.get("simulated_at") or _logi_now(),
+             (data.get("base_currency") or "USD").upper(),
+             (data.get("target_currency") or "KRW").upper(),
+             rate, base, target, margin, data.get("note"), user_id),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def cost_simulations_list(part_id: int, limit: int = 30) -> list[dict]:
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            """SELECT cs.*, u.name AS created_by_name
+               FROM cost_simulations cs
+               LEFT JOIN users u ON cs.created_by = u.id
+               WHERE cs.part_id = ?
+               ORDER BY cs.simulated_at DESC, cs.id DESC LIMIT ?""",
+            (part_id, limit),
+        ).fetchall()]
+
+
+def price_change_log(part_id: int, supplier_id, old_price, new_price,
+                     effective_date: str, user_id: int, note: str = "") -> int:
+    """단가 변경 이력 자동 기록. old_price=None 가능 (최초 등록)."""
+    op = float(old_price) if old_price else None
+    np = float(new_price)
+    chg = ((np - op) / op * 100.0) if (op and op > 0) else None
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO price_change_history
+               (part_id, supplier_id, old_price, new_price, change_pct,
+                effective_date, note, changed_by)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (int(part_id),
+             int(supplier_id) if supplier_id else None,
+             op, np, chg, effective_date, note, user_id),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def price_change_history_list(part_id: int, limit: int = 50) -> list[dict]:
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            """SELECT pch.*, s.name AS supplier_name, u.name AS changed_by_name
+               FROM price_change_history pch
+               LEFT JOIN suppliers s ON pch.supplier_id = s.id
+               LEFT JOIN users u ON pch.changed_by = u.id
+               WHERE pch.part_id = ?
+               ORDER BY pch.effective_date DESC, pch.id DESC LIMIT ?""",
+            (part_id, limit),
+        ).fetchall()]
+
+
+def rate_alert_create(target_currency: str, threshold: float,
+                      direction: str, user_id: int) -> int:
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO rate_alerts
+               (target_currency, threshold, direction, created_by)
+               VALUES (?,?,?,?)""",
+            (target_currency.upper(), float(threshold),
+             direction if direction in ("above", "below") else "above",
+             user_id),
+        )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def rate_alerts_list(active_only: bool = True) -> list[dict]:
+    sql = """SELECT ra.*, u.name AS created_by_name
+             FROM rate_alerts ra LEFT JOIN users u ON ra.created_by = u.id"""
+    if active_only:
+        sql += " WHERE ra.is_active = 1"
+    sql += " ORDER BY ra.created_at DESC LIMIT 100"
+    with db_session() as c:
+        return [dict(r) for r in c.execute(sql).fetchall()]
+
+
+def exchange_rates_csv_upload(rows: list[dict], user_id: int) -> dict:
+    """CSV 일괄 업로드 (rate_date / from_currency / to_currency / rate / source / note).
+    외부 API 미호출. UPSERT (날짜·통화쌍)."""
+    ok, ng = 0, 0
+    errors = []
+    for i, r in enumerate(rows, 1):
+        try:
+            exchange_rate_create({
+                "rate_date": r["rate_date"],
+                "from_currency": r["from_currency"],
+                "to_currency": r.get("to_currency", "KRW"),
+                "rate": float(r["rate"]),
+                "source": r.get("source") or "CSV",
+                "note": r.get("note"),
+            }, user_id=user_id)
+            ok += 1
+        except Exception as e:
+            ng += 1
+            errors.append(f"행 {i}: {e}")
+    return {"ok": ok, "ng": ng, "errors": errors}
+
+
+# ----- S3-1: 환율 알림 발동 잡 (옵션 A · 자동) -----
+def check_rate_alerts(target_currency: str, rate: float) -> int:
+    """환율 등록 후 자동 검사. 활성 알림 중 임계 초과 시 triggered_at 갱신.
+    반환: 발동된 알림 건수. 외부 발송 없음 (DB 표식만)."""
+    cur = (target_currency or "").upper()
+    try:
+        v = float(rate)
+    except Exception:
+        return 0
+    fired = 0
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, threshold, direction FROM rate_alerts
+               WHERE is_active=1 AND target_currency=?""",
+            (cur,),
+        ).fetchall()
+        for r in rows:
+            th = float(r["threshold"] or 0)
+            d = r["direction"] or "above"
+            hit = (v >= th) if d == "above" else (v <= th)
+            if hit:
+                c.execute(
+                    "UPDATE rate_alerts SET triggered_at=? WHERE id=?",
+                    (_logi_now(), int(r["id"])),
+                )
+                fired += 1
+    return fired
+
+
+# =====================================================
+# 글로벌 검색 — 전사 통합 (2026-04-26 발주, 09 → 01)
+# 모든 LIKE 쿼리는 parameter binding (SQL 인젝션 방지).
+# 외부 검색엔진 0건 (Elasticsearch 등 절대 금지).
+# v2 본체 무수정 · G1~G5 핫패치 보존.
+# =====================================================
+
+def _gs_q(q):
+    """검색어 정규화 — strip + LIKE 와일드카드. 빈 문자열이면 None."""
+    s = (q or "").strip()
+    if len(s) < 2:
+        return None
+    return f"%{s}%"
+
+
+def search_orders(q, limit=5):
+    """수주 검색 — orders.order_no + customers.name + parts.part_no/part_name (order_items 조인)."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT DISTINCT o.id, o.order_no, o.order_date, o.due_date, o.total_amount, o.status,
+                      cu.name AS customer_name
+               FROM orders o
+               LEFT JOIN customers cu ON o.customer_id=cu.id
+               LEFT JOIN order_items oi ON oi.order_id=o.id
+               LEFT JOIN parts p ON oi.part_id=p.id
+               WHERE o.order_no LIKE ? OR cu.name LIKE ?
+                  OR p.part_no LIKE ? OR p.part_name LIKE ?
+               ORDER BY o.order_date DESC LIMIT ?""",
+            (qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_customers(q, limit=5):
+    """고객 검색 — customers.name + tier + note."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, name, tier, note FROM customers
+               WHERE name LIKE ? OR COALESCE(tier,'') LIKE ? OR COALESCE(note,'') LIKE ?
+               ORDER BY name ASC LIMIT ?""",
+            (qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_parts(q, limit=5):
+    """부품 검색 — parts.part_no + part_name + spec + maker."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, part_no, part_name, spec, maker, biz_div, category, std_price, currency
+               FROM parts
+               WHERE is_active=1 AND (
+                     part_no LIKE ? OR part_name LIKE ?
+                  OR COALESCE(spec,'') LIKE ? OR COALESCE(maker,'') LIKE ?)
+               ORDER BY part_no ASC LIMIT ?""",
+            (qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_issues(q, limit=5):
+    """이슈 검색 — issues.issue_no + title + description + customer_name + mgmt_code."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT i.id, i.issue_no, i.title, i.severity, i.status, i.issue_type,
+                      i.customer_name, i.mgmt_code, i.occurred_at
+               FROM issues i
+               WHERE COALESCE(i.issue_no,'') LIKE ? OR i.title LIKE ?
+                  OR COALESCE(i.description,'') LIKE ?
+                  OR COALESCE(i.customer_name,'') LIKE ?
+                  OR COALESCE(i.mgmt_code,'') LIKE ?
+               ORDER BY i.created_at DESC LIMIT ?""",
+            (qq, qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_tickets(q, limit=5):
+    """티켓 검색 — tickets.ticket_no + title + description + category + target_label."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT id, ticket_no, category, title, status, urgency, target_label,
+                      due_date, created_at
+               FROM tickets
+               WHERE ticket_no LIKE ? OR title LIKE ?
+                  OR COALESCE(description,'') LIKE ?
+                  OR COALESCE(category,'') LIKE ?
+                  OR COALESCE(target_label,'') LIKE ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (qq, qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_users(q, limit=5):
+    """사용자 검색 — users.name + login_id + email + rank (활성만)."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT u.id, u.name, u.login_id, u.email, u.rank, u.role,
+                      t.name AS team_name
+               FROM users u LEFT JOIN teams t ON u.team_id=t.id
+               WHERE u.is_active=1 AND (
+                     u.name LIKE ? OR u.login_id LIKE ?
+                  OR COALESCE(u.email,'') LIKE ? OR COALESCE(u.rank,'') LIKE ?)
+               ORDER BY u.name ASC LIMIT ?""",
+            (qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_boards(q, limit=5):
+    """게시판 검색 — board_posts.title + body (승인된 글만)."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT bp.id, bp.board_id, bp.title, bp.category, bp.created_at,
+                      u.name AS author_name, b.name AS board_name
+               FROM board_posts bp
+               LEFT JOIN users u ON bp.author_id=u.id
+               LEFT JOIN boards b ON bp.board_id=b.id
+               WHERE bp.approval_status='approved' AND (
+                     bp.title LIKE ? OR COALESCE(bp.body,'') LIKE ?)
+               ORDER BY bp.created_at DESC LIMIT ?""",
+            (qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_exports(q, limit=5):
+    """수출입 검색 — export_orders.buyer + commercial_invoices.invoice_no."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT eo.id, eo.buyer, eo.shipping_terms, eo.payment_terms,
+                      eo.port_of_loading, eo.port_of_discharge, eo.status,
+                      o.order_no, ci.invoice_no
+               FROM export_orders eo
+               LEFT JOIN orders o ON eo.order_id=o.id
+               LEFT JOIN commercial_invoices ci ON ci.export_order_id=eo.id
+               WHERE COALESCE(eo.buyer,'') LIKE ?
+                  OR COALESCE(o.order_no,'') LIKE ?
+                  OR COALESCE(ci.invoice_no,'') LIKE ?
+                  OR COALESCE(eo.port_of_loading,'') LIKE ?
+                  OR COALESCE(eo.port_of_discharge,'') LIKE ?
+               ORDER BY eo.created_at DESC LIMIT ?""",
+            (qq, qq, qq, qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def search_audits(q, limit=5):
+    """재고실사 검색 — stock_audits.audit_no + note."""
+    qq = _gs_q(q)
+    if not qq:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT sa.id, sa.audit_no, sa.start_date, sa.end_date, sa.status,
+                      sa.note, u.name AS led_by_name
+               FROM stock_audits sa
+               LEFT JOIN users u ON sa.led_by=u.id
+               WHERE COALESCE(sa.audit_no,'') LIKE ? OR COALESCE(sa.note,'') LIKE ?
+               ORDER BY sa.start_date DESC LIMIT ?""",
+            (qq, qq, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# 글로벌 검색 카테고리 → 헬퍼 매핑
+GLOBAL_SEARCH_CATEGORIES = {
+    "orders":    search_orders,
+    "customers": search_customers,
+    "parts":     search_parts,
+    "issues":    search_issues,
+    "tickets":   search_tickets,
+    "users":     search_users,
+    "boards":    search_boards,
+    "exports":   search_exports,
+    "audits":    search_audits,
+}
+
+
+def global_search(q, categories=None, limit_per=5):
+    """전사 통합 검색. categories=None 이면 전체. limit_per: 카테고리별 상한.
+    반환: dict{cat: [rows]}. 빈 카테고리도 키 포함."""
+    if categories is None:
+        cats = list(GLOBAL_SEARCH_CATEGORIES.keys())
+    else:
+        cats = [c for c in categories if c in GLOBAL_SEARCH_CATEGORIES]
+    out = {}
+    for cat in cats:
+        try:
+            out[cat] = GLOBAL_SEARCH_CATEGORIES[cat](q, limit_per)
+        except Exception:
+            # 안전 폴백: 어느 한 카테고리 실패가 전체 결과를 막지 않도록.
+            out[cat] = []
+    return out
+
+
+# =====================================================
+# CEO 통합 대시보드 KPI (2026-04-26 — Top10 9 KPI 통합)
+# 단일 헬퍼 ceo_dashboard_kpis() — 매출 / 재고 / 권한 / 수출입 /
+# QMS / 주간 / 간트 / 환율 / 알림 9개 영역.
+# 모든 쿼리 안전 폴백 (테이블 미존재 / 데이터 0 → 0 반환).
+# v2 본체(시안·UI) 미접촉 · 외부 자산 0건 · idempotent.
+# =====================================================
+def ceo_dashboard_kpis(user_id: int = 0) -> dict:
+    """CEO 통합 대시보드용 9 영역 KPI dict 반환.
+    - 키: sales / stock / perms / exports / qms / weekly / gantt / fx / notif
+    - 각 카테고리 실패 시 0/빈값으로 폴백, 전체 헬퍼는 항상 dict 반환."""
+    out = {
+        "sales":   {"month": 0.0, "prev_month": 0.0, "growth": 0.0, "unpaid": 0.0},
+        "stock":   {"on_hand_kinds": 0, "qc_open": 0},
+        "perms":   {"active_tokens": 0, "expiring_7d": 0},
+        "exports": {"in_progress": 0, "ship_soon": 0},
+        "qms":     {"open": 0, "sla_violation": 0},
+        "weekly":  {"completed": 0, "in_progress": 0, "delayed": 0, "rate": 0},
+        "gantt":   {"delayed_projects": 0},
+        "fx":      {"usd_rate": 0.0, "alerts_active": 0},
+        "notif":   {"unread": 0},
+    }
+    today = date.today() if False else None
+    # 표준 datetime import 보장 (모듈 전역 import 없을 시 보강)
+    from datetime import date as _date, timedelta as _td
+    today = _date.today()
+    mon = (today - _td(days=today.weekday())).isoformat()
+    sun = (today - _td(days=today.weekday()) + _td(days=6)).isoformat()
+    month_first = today.replace(day=1).isoformat()
+    prev_month_first = (today.replace(day=1) - _td(days=1)).replace(day=1).isoformat()
+    prev_month_last = (today.replace(day=1) - _td(days=1)).isoformat()
+    week_later = (today + _td(days=7)).isoformat()
+    today_s = today.isoformat()
+
+    with db_session() as c:
+        # 1) 매출 (orders 당월·전월 합계 + 미수금)
+        try:
+            r = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM orders "
+                "WHERE order_date>=? AND order_date<=?",
+                (month_first, today_s),
+            ).fetchone()
+            out["sales"]["month"] = float(r[0] or 0)
+            r = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM orders "
+                "WHERE order_date>=? AND order_date<=?",
+                (prev_month_first, prev_month_last),
+            ).fetchone()
+            out["sales"]["prev_month"] = float(r[0] or 0)
+            if out["sales"]["prev_month"] > 0:
+                out["sales"]["growth"] = round(
+                    (out["sales"]["month"] - out["sales"]["prev_month"])
+                    * 100 / out["sales"]["prev_month"], 1)
+            # 미수금 = 발행 invoice 합 - 수금 합
+            r = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM invoices WHERE status='ISSUED'"
+            ).fetchone()
+            issued = float(r[0] or 0)
+            r = c.execute(
+                "SELECT COALESCE(SUM(amount),0) FROM receipts_payment"
+            ).fetchone()
+            received = float(r[0] or 0)
+            out["sales"]["unpaid"] = max(0.0, issued - received)
+        except Exception:
+            pass
+
+        # 2) 재고 (잔고 품목수 + QC 부적합 진행)
+        try:
+            r = c.execute(
+                "SELECT COUNT(*) FROM stock_balances WHERE on_hand>0"
+            ).fetchone()
+            out["stock"]["on_hand_kinds"] = int(r[0] or 0)
+            r = c.execute(
+                "SELECT COUNT(*) FROM qc_inspections WHERE result='FAIL'"
+            ).fetchone()
+            out["stock"]["qc_open"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 3) 권한 (활성 위임 토큰 + 만료 임박 7일)
+        try:
+            r = c.execute(
+                "SELECT COUNT(*) FROM delegation_tokens WHERE status='ACTIVE'"
+            ).fetchone()
+            out["perms"]["active_tokens"] = int(r[0] or 0)
+            r = c.execute(
+                "SELECT COUNT(*) FROM delegation_tokens "
+                "WHERE status='ACTIVE' AND expires_at IS NOT NULL "
+                "AND expires_at<=?",
+                (week_later,),
+            ).fetchone()
+            out["perms"]["expiring_7d"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 4) 수출입 (진행 중 + 7일 내 출하 임박)
+        try:
+            r = c.execute(
+                "SELECT COUNT(*) FROM export_orders "
+                "WHERE status NOT IN ('DELIVERED','CANCELLED')"
+            ).fetchone()
+            out["exports"]["in_progress"] = int(r[0] or 0)
+            r = c.execute(
+                "SELECT COUNT(*) FROM export_orders "
+                "WHERE status NOT IN ('DELIVERED','CANCELLED') "
+                "AND ship_date IS NOT NULL AND ship_date<=?",
+                (week_later,),
+            ).fetchone()
+            out["exports"]["ship_soon"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 5) QMS (오픈 이슈 + SLA 위반 — 14일 미해결 치명/심각)
+        try:
+            r = c.execute(
+                "SELECT COUNT(*) FROM issues WHERE status NOT IN ('해결','종결')"
+            ).fetchone()
+            out["qms"]["open"] = int(r[0] or 0)
+            sla_thr = (today - _td(days=14)).isoformat()
+            r = c.execute(
+                "SELECT COUNT(*) FROM issues "
+                "WHERE status NOT IN ('해결','종결') "
+                "AND severity IN ('치명','심각') "
+                "AND COALESCE(occurred_at,'')<=?",
+                (sla_thr,),
+            ).fetchone()
+            out["qms"]["sla_violation"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 6) 주간 (이번 주 진행률)
+        try:
+            r = c.execute(
+                "SELECT "
+                "SUM(CASE WHEN status='완료' THEN 1 ELSE 0 END) AS d, "
+                "SUM(CASE WHEN status='진행중' THEN 1 ELSE 0 END) AS p, "
+                "SUM(CASE WHEN status='지연' THEN 1 ELSE 0 END) AS dl, "
+                "COUNT(*) AS tot "
+                "FROM tasks WHERE work_date>=? AND work_date<=?",
+                (mon, sun),
+            ).fetchone()
+            d, p, dl, tot = (r["d"] or 0), (r["p"] or 0), (r["dl"] or 0), (r["tot"] or 0)
+            out["weekly"]["completed"] = int(d)
+            out["weekly"]["in_progress"] = int(p)
+            out["weekly"]["delayed"] = int(dl)
+            out["weekly"]["rate"] = round(d * 100 / tot) if tot else 0
+        except Exception:
+            pass
+
+        # 7) 간트 (지연 프로젝트 — end_date 경과 & 진행중)
+        try:
+            r = c.execute(
+                "SELECT COUNT(*) FROM projects "
+                "WHERE status='진행중' AND end_date IS NOT NULL AND end_date<?",
+                (today_s,),
+            ).fetchone()
+            out["gantt"]["delayed_projects"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 8) 환율 (USD 최신 + 활성 알림)
+        try:
+            r = c.execute(
+                "SELECT rate FROM exchange_rates "
+                "WHERE from_currency='USD' AND to_currency='KRW' "
+                "ORDER BY rate_date DESC LIMIT 1"
+            ).fetchone()
+            if r:
+                out["fx"]["usd_rate"] = float(r[0] or 0)
+            r = c.execute(
+                "SELECT COUNT(*) FROM rate_alerts WHERE is_active=1"
+            ).fetchone()
+            out["fx"]["alerts_active"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+        # 9) 알림 (현재 사용자 UNREAD)
+        try:
+            if user_id:
+                r = c.execute(
+                    "SELECT COUNT(*) FROM notifications "
+                    "WHERE user_id=? AND is_read=0",
+                    (user_id,),
+                ).fetchone()
+                out["notif"]["unread"] = int(r[0] or 0)
+        except Exception:
+            pass
+
+    return out
 
 

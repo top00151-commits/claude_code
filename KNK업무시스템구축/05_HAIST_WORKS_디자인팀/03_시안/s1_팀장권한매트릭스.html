@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 S1-① — 팀장 권한 매트릭스 UI
+  상위 정책: 04_라이선스_상표권_정책.md · 외부 자산 0건
+  S1 요청 출처: _FROM_01_S1협의요청_01.md 요청 ①
+  권한 키 출처: app/database.py:795~822 (실측)
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>팀장 권한 매트릭스 · HAIST WORKS 05 디자인팀 시안</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+.topbar { height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--ink-200); display: flex; align-items: center; padding: 0 var(--s-5); gap: var(--s-4); position: sticky; top: 0; z-index: 20; }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-lg); color: var(--knk-red); }
+.brand-badge { font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--knk-red-bg); color: var(--knk-red); padding: 2px 6px; border-radius: var(--r-pill); }
+.spacer { flex: 1; }
+
+.page { max-width: 1280px; margin: 0 auto; padding: var(--s-5); }
+
+.page-head { margin-bottom: var(--s-4); }
+.page-head h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.page-head .page-sub { color: var(--ink-500); font-size: var(--fs-sm); margin-top: 2px; }
+
+/* 역할 범위 명시 배너 */
+.scope-banner {
+  background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF;
+  padding: var(--s-3) var(--s-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); margin-bottom: var(--s-4);
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.scope-banner .dot { font-size: 18px; }
+.scope-banner b { color: #1E3A8A; }
+
+/* 검색·액션 바 */
+.toolbar {
+  display: flex; gap: var(--s-2); align-items: center;
+  margin-bottom: var(--s-4); flex-wrap: wrap;
+}
+.search-in {
+  flex: 1; min-width: 200px; padding: 8px 12px;
+  border: 1px solid var(--ink-200); border-radius: var(--r-sm);
+  font-size: var(--fs-sm); background: var(--bg-card);
+}
+.btn-primary {
+  background: var(--primary-grad); color: #fff;
+  padding: 10px 20px; border-radius: var(--r-md);
+  font-weight: var(--fw-bold); font-size: var(--fs-sm);
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  box-shadow: 0 2px 8px rgba(165,40,44,0.2);
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-primary:hover:not(:disabled) { opacity: 0.95; }
+.btn-sm {
+  padding: 6px 12px; font-size: var(--fs-xs); font-weight: var(--fw-semi);
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-sm);
+}
+.btn-sm:hover { border-color: var(--ink-400); }
+.btn-sm.save { background: var(--st-done); color: #fff; border-color: var(--st-done); }
+
+/* 변경 배지 */
+.changed-badge {
+  font-size: var(--fs-xs); color: var(--st-progress);
+  background: #FEF3C7; padding: 2px 10px; border-radius: var(--r-pill);
+  font-weight: var(--fw-bold);
+}
+
+/* 매트릭스 테이블 */
+.perm-wrap {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); overflow-x: auto;
+}
+.perm-tbl { width: 100%; border-collapse: collapse; }
+.perm-tbl th {
+  padding: var(--s-3); text-align: center;
+  font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--ink-500);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--ink-100); border-bottom: 1px solid var(--ink-200);
+  position: sticky; top: 56px;
+}
+.perm-tbl th:first-child { text-align: left; }
+.perm-tbl th .perm-desc {
+  display: block; font-size: 10px; font-weight: var(--fw-regular);
+  color: var(--ink-400); text-transform: none; margin-top: 2px; letter-spacing: 0;
+}
+.perm-tbl td {
+  padding: var(--s-3); text-align: center; border-bottom: 1px solid var(--ink-100);
+  font-size: var(--fs-sm);
+}
+.perm-tbl td:first-child { text-align: left; }
+.perm-tbl tr:hover td { background: var(--bg-page); }
+
+.member {
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary-grad); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: var(--fw-bold); font-size: var(--fs-sm); flex-shrink: 0;
+}
+.avatar.exec { background: linear-gradient(135deg,#1E3A8A,#1E40AF); }
+.avatar.leader { background: linear-gradient(135deg,#92400E,#78350F); }
+.avatar.member { background: linear-gradient(135deg,#64748B,#475569); }
+
+.mname { font-weight: var(--fw-semi); }
+.mrank { font-size: var(--fs-xs); color: var(--ink-500); }
+.role-tag {
+  font-size: 10px; padding: 1px 6px; border-radius: var(--r-pill);
+  font-weight: var(--fw-bold); margin-left: 4px;
+}
+.role-tag.exec { background: #DBEAFE; color: #1E40AF; }
+.role-tag.leader { background: #FEF3C7; color: #92400E; }
+.role-tag.member { background: var(--ink-100); color: var(--ink-700); }
+
+/* 토글 스위치 (브랜드 중립, 커스텀) */
+.toggle {
+  display: inline-block; position: relative;
+  width: 40px; height: 22px;
+  background: var(--ink-200); border-radius: 11px;
+  cursor: pointer; transition: background .15s;
+}
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: left .15s;
+}
+.toggle.on { background: var(--st-done); }
+.toggle.on::after { left: 20px; }
+.toggle.disabled { opacity: 0.4; cursor: not-allowed; }
+.toggle-cell { display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 2px; }
+.toggle-cell .auto-label {
+  font-size: 9px; color: var(--ink-400); font-weight: var(--fw-semi);
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
+.toggle-cell.changed .toggle { box-shadow: 0 0 0 2px var(--st-progress); }
+
+/* 하단 액션 바 (sticky) */
+.action-bar {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  background: var(--bg-card); border-top: 1px solid var(--ink-200);
+  padding: var(--s-3) var(--s-5); margin: 0 calc(-1 * var(--s-5));
+  display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.04);
+  z-index: 10;
+}
+.action-bar .summary { font-size: var(--fs-sm); color: var(--ink-700); }
+.action-bar .summary b { color: var(--ink-900); }
+
+/* 3클릭 흐름 안내 */
+.flow-guide {
+  background: var(--bg-card); border: 1px dashed var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-4);
+  font-size: var(--fs-xs); color: var(--ink-500);
+  display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap;
+}
+.flow-step { display: inline-flex; align-items: center; gap: var(--s-2); }
+.flow-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--knk-red); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: var(--fw-bold);
+}
+
+/* Note */
+.note-panel { position: fixed; bottom: 80px; right: var(--s-4); max-width: 340px; background: var(--ink-900); color: #fff; border-radius: var(--r-md); padding: var(--s-4); font-size: var(--fs-xs); line-height: 1.6; box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 50; }
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-close { position: absolute; top: 6px; right: 8px; color: #fff; opacity: .5; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안 S1-①</span>
+  </div>
+  <div class="spacer"></div>
+  <span style="font-size:var(--fs-xs);color:var(--ink-500);">팀장 권한 위임 UI</span>
+</header>
+
+<div class="page">
+
+  <!-- Page head -->
+  <div class="page-head">
+    <h1>팀원 권한 관리 · 관리팀</h1>
+    <div class="page-sub">팀장이 팀원의 모듈별 접근 권한을 설정합니다</div>
+  </div>
+
+  <!-- 범위 명시 -->
+  <div class="scope-banner">
+    <span class="dot">ℹ️</span>
+    <span>
+      <b>윤경호 팀장 (관리팀)</b> — 관리팀 소속 <b>8명</b>의 권한만 변경할 수 있습니다.
+      타 팀원·관리자·CEO 권한은 편집 불가 (회색 비활성 표시).
+    </span>
+  </div>
+
+  <!-- 3클릭 흐름 안내 -->
+  <div class="flow-guide">
+    <span class="flow-step"><span class="flow-num">1</span> 팀원 선택(행)</span>
+    <span>→</span>
+    <span class="flow-step"><span class="flow-num">2</span> 권한 토글</span>
+    <span>→</span>
+    <span class="flow-step"><span class="flow-num">3</span> 저장</span>
+    <span style="margin-left:auto;">평균 3 클릭 이내 완료</span>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input class="search-in" placeholder="🔍 팀원 이름·직급 검색" id="search" oninput="filterRows()">
+    <button class="btn-sm" onclick="selectAll(true)">전체 허용</button>
+    <button class="btn-sm" onclick="selectAll(false)">전체 차단</button>
+    <button class="btn-sm" onclick="resetChanges()">변경 취소</button>
+  </div>
+
+  <!-- 매트릭스 테이블 -->
+  <div class="perm-wrap">
+    <table class="perm-tbl">
+      <thead>
+        <tr>
+          <th style="min-width:220px;">팀원</th>
+          <th>
+            자재 모듈
+            <span class="perm-desc">can_use_logistics<br>부품·재고·발주</span>
+          </th>
+          <th>
+            매출·영업 모듈
+            <span class="perm-desc">can_use_sales<br>프로젝트·고객사·견적</span>
+          </th>
+          <th>
+            변경 편집
+            <span class="perm-desc">can_edit_changes<br>변경 알림 등록·수정</span>
+          </th>
+          <th>
+            티켓 종료
+            <span class="perm-desc">can_close_tickets<br>요청 티켓 완료 처리</span>
+          </th>
+          <th>
+            관리자
+            <span class="perm-desc">is_admin<br>CEO·admin 전용</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="permBody">
+        <!-- generated by JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sticky action bar -->
+  <div class="action-bar">
+    <div class="summary">
+      변경: <b id="changedCount">0</b>건 ·
+      영향 받는 팀원: <b id="changedUsers">0</b>명
+    </div>
+    <div style="display:flex;gap:var(--s-2);">
+      <button class="btn-sm" onclick="resetChanges()">취소</button>
+      <button class="btn-primary" id="saveBtn" disabled onclick="saveChanges()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        변경 사항 저장
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Note -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 S1-① 시안 주석</h4>
+  <ul>
+    <li><b>3 클릭 원칙</b> 충족: 행 선택 → 토글 → 저장</li>
+    <li><b>권한 범위 명시</b>: 상단 배너 + is_admin 컬럼 비활성 (CEO·admin만)</li>
+    <li><b>권한 설명</b>: 컬럼 헤더에 DB 키 + 한 줄 설명</li>
+    <li><b>변경 추적</b>: 변경된 토글 주위 주황 테두리</li>
+    <li><b>Sticky 저장 바</b> (v2 §1-10 준수)</li>
+    <li>토큰 `00_design_tokens.css` 재사용, 외부 자산 0건</li>
+  </ul>
+</div>
+
+<script>
+/* =========================================================
+   Sample data — 관리팀 8명 (윤경호 팀장이 보는 화면)
+   ========================================================= */
+const currentUser = { id: 1, name: '윤경호', role: 'leader', team: '관리팀' };
+
+const members = [
+  { id: 10, name: '윤경호', rank: '팀장',   role: 'leader',   perms: { logistics: 1, sales: 1, changes: 1, tickets: 1, admin: 0 }, note: '본인' },
+  { id: 11, name: '김은주', rank: '과장',   role: 'member',   perms: { logistics: 1, sales: 1, changes: 0, tickets: 1, admin: 0 } },
+  { id: 12, name: '박민수', rank: '대리',   role: 'member',   perms: { logistics: 0, sales: 1, changes: 0, tickets: 0, admin: 0 } },
+  { id: 13, name: '이지영', rank: '사원',   role: 'member',   perms: { logistics: 0, sales: 1, changes: 0, tickets: 0, admin: 0 } },
+  { id: 14, name: '엄주영', rank: '사원',   role: 'member',   perms: { logistics: 0, sales: 0, changes: 0, tickets: 0, admin: 0 }, note: '신입' },
+  { id: 15, name: '최영호', rank: '주임',   role: 'member',   perms: { logistics: 1, sales: 0, changes: 0, tickets: 0, admin: 0 } },
+  { id: 16, name: '강혜원', rank: '과장',   role: 'member',   perms: { logistics: 0, sales: 1, changes: 1, tickets: 0, admin: 0 } },
+  { id: 17, name: '정태영', rank: '대리',   role: 'member',   perms: { logistics: 0, sales: 0, changes: 0, tickets: 1, admin: 0 } },
+];
+
+const changes = new Map();  // key: "userId.permKey", value: new value (0 or 1)
+
+function roleIcon(role) {
+  if (role === 'ceo' || role === 'executive') return 'exec';
+  if (role === 'leader') return 'leader';
+  return 'member';
+}
+
+function renderRows() {
+  const tbody = document.getElementById('permBody');
+  const permKeys = ['logistics','sales','changes','tickets','admin'];
+  tbody.innerHTML = members.map(m => {
+    const iconCls = roleIcon(m.role);
+    const roleLbl = m.role === 'leader' ? '팀장' : (m.role === 'executive' ? '임원' : '');
+    const roleTagHtml = roleLbl ? `<span class="role-tag ${iconCls}">${roleLbl}</span>` : '';
+    const cells = permKeys.map(k => {
+      const isAdmin = (k === 'admin');
+      const disabled = isAdmin || m.role === 'leader' || m.role === 'executive';
+      const key = `${m.id}.${k}`;
+      const curVal = changes.has(key) ? changes.get(key) : m.perms[k];
+      const changedCls = changes.has(key) && changes.get(key) !== m.perms[k] ? 'changed' : '';
+      const autoLbl = isAdmin ? '<span class="auto-label">CEO만</span>' : (disabled && curVal ? '<span class="auto-label">자동</span>' : '');
+      return `<td>
+        <div class="toggle-cell ${changedCls}">
+          <span class="toggle ${curVal ? 'on' : ''} ${disabled ? 'disabled' : ''}" data-key="${key}" onclick="toggle('${key}', ${disabled})"></span>
+          ${autoLbl}
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr data-member-id="${m.id}" data-search="${m.name} ${m.rank}">
+      <td>
+        <div class="member">
+          <div class="avatar ${iconCls}">${m.name[0]}</div>
+          <div>
+            <div class="mname">${m.name}${roleTagHtml}</div>
+            <div class="mrank">${m.rank}${m.note ? ' · '+m.note : ''}</div>
+          </div>
+        </div>
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+}
+
+function toggle(key, disabled) {
+  if (disabled) return;
+  const [memberId, permKey] = key.split('.');
+  const member = members.find(m => m.id === parseInt(memberId));
+  const origVal = member.perms[permKey];
+  const curVal = changes.has(key) ? changes.get(key) : origVal;
+  const newVal = curVal ? 0 : 1;
+  if (newVal === origVal) {
+    changes.delete(key);
+  } else {
+    changes.set(key, newVal);
+  }
+  renderRows();
+  updateSummary();
+}
+
+function updateSummary() {
+  const count = changes.size;
+  const users = new Set();
+  for (const k of changes.keys()) users.add(k.split('.')[0]);
+  document.getElementById('changedCount').textContent = count;
+  document.getElementById('changedUsers').textContent = users.size;
+  document.getElementById('saveBtn').disabled = count === 0;
+}
+
+function selectAll(val) {
+  const permKeys = ['logistics','sales','changes','tickets'];
+  for (const m of members) {
+    if (m.role === 'leader' || m.role === 'executive') continue;
+    for (const k of permKeys) {
+      const key = `${m.id}.${k}`;
+      if (val !== m.perms[k]) {
+        changes.set(key, val);
+      } else {
+        changes.delete(key);
+      }
+    }
+  }
+  renderRows();
+  updateSummary();
+}
+
+function resetChanges() {
+  changes.clear();
+  renderRows();
+  updateSummary();
+}
+
+function saveChanges() {
+  const summary = Array.from(changes.entries()).map(([k, v]) => {
+    const [mid, pk] = k.split('.');
+    const m = members.find(x => x.id === parseInt(mid));
+    return `${m.name} ${m.rank} · ${pk}: ${v ? '허용' : '차단'}`;
+  }).join('\n');
+  alert('변경 사항 저장\n\n' + summary + '\n\n(실제 구현은 01 세션에서 POST /team/{team_id}/permissions)');
+  // 실제: fetch('/team/1/permissions', { method: 'POST', body: JSON.stringify(Array.from(changes)) })
+  // 저장 성공 시 members[].perms 업데이트 및 changes.clear()
+}
+
+function filterRows() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  document.querySelectorAll('#permBody tr').forEach(tr => {
+    const s = tr.dataset.search.toLowerCase();
+    tr.style.display = (!q || s.includes(q)) ? '' : 'none';
+  });
+}
+
+renderRows();
+updateSummary();
+</script>
+
+</body>
+</html>

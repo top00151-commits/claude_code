@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>BILL OF LADING — {{ bl.bl_no }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  *  { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
+         color:#111; font-size:12pt; margin:0; padding:24px; background:#fafafa; }
+  .sheet { background:#fff; max-width:780px; margin:0 auto; padding:28px 32px;
+           border:1px solid #ddd; }
+  h1 { text-align:center; font-size:22pt; letter-spacing:2px; margin:0 0 4px; }
+  h2 { text-align:center; font-size:13pt; color:#555; margin:0 0 18px; font-weight:400; }
+  h3 { font-size:13pt; margin:18px 0 8px; border-bottom:1px solid #999; padding-bottom:3px; }
+  .meta { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:11pt; }
+  .meta td { border:1px solid #999; padding:6px 8px; vertical-align:top; }
+  .meta .lbl { background:#f3f3f3; width:25%; font-weight:600; }
+  table.cust { width:100%; border-collapse:collapse; font-size:11pt; }
+  table.cust th, table.cust td { border:1px solid #999; padding:6px 8px; }
+  table.cust th { background:#eee; }
+  table.cust td.num { text-align:right; }
+  .actions { text-align:center; margin:0 0 20px; }
+  .btn { display:inline-block; padding:8px 16px; background:#0c52d6; color:#fff;
+         border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
+  .btn-back { background:#666; margin-left:8px; }
+  @media print {
+    body { background:#fff; padding:0; }
+    .sheet { border:none; padding:0; max-width:none; }
+    .actions, .no-print { display:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="actions no-print">
+  <button class="btn" onclick="window.print()">인쇄</button>
+  <a class="btn btn-back" href="/export/orders/{{ bl.export_order_id }}">돌아가기</a>
+</div>
+<div class="sheet">
+  <h1>BILL OF LADING</h1>
+  <h2>선하증권 · 관세 신고 양식</h2>
+  <table class="meta">
+    <tr><td class="lbl">B/L No / 선하증권번호</td><td><strong>{{ bl.bl_no }}</strong></td>
+        <td class="lbl">Status</td><td>{{ bl.status }}</td></tr>
+    <tr><td class="lbl">Shipping Co. / 운송사</td><td>{{ bl.shipping_company or '-' }}</td>
+        <td class="lbl">Vessel / 선명·항공편</td><td>{{ bl.vessel or '-' }}</td></tr>
+    <tr><td class="lbl">Departure / 출항일</td><td>{{ bl.departure_date or '-' }}</td>
+        <td class="lbl">Arrival / 도착예정</td><td>{{ bl.arrival_date or '-' }}</td></tr>
+    <tr><td class="lbl">Tracking No / 추적번호</td><td>{{ bl.tracking_no or '-' }}</td>
+        <td class="lbl">Order No / 수주번호</td><td>{{ bl.order_no }}</td></tr>
+    <tr><td class="lbl">Buyer / 수입자</td><td colspan="3">{{ bl.buyer or '-' }}</td></tr>
+    <tr><td class="lbl">POL / 선적항</td><td>{{ bl.port_of_loading or '-' }}</td>
+        <td class="lbl">POD / 양륙항</td><td>{{ bl.port_of_discharge or '-' }}</td></tr>
+    <tr><td class="lbl">Shipping Terms</td><td colspan="3">{{ bl.shipping_terms or '-' }}</td></tr>
+  </table>
+
+  <h3>Customs Declaration / 관세 신고</h3>
+  <table class="cust">
+    <thead><tr>
+      <th>Decl. No / 신고번호</th><th>HS Code</th>
+      <th>FTA Origin</th><th>Declared Value</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for cd in customs %}
+      <tr><td>{{ cd.declaration_no or '-' }}</td>
+          <td>{{ cd.hs_code }}</td>
+          <td>{{ cd.fta_origin or '-' }}</td>
+          <td class="num">{{ '{:,.2f}'.format(cd.declared_value or 0) }}</td>
+          <td>{{ cd.status }}</td></tr>
+    {% else %}
+      <tr><td colspan="5" style="text-align:center;color:#888;">(미신고 / no declaration)</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:18px;font-size:10pt;color:#666;">
+    Printed on {{ today }} — HAIST WORKS / KNK Co., Ltd.
+  </p>
+</div>
+</body>
+</html>
