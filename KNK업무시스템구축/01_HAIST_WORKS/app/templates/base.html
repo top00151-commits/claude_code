@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
 {# LAST UPDATE: 2026-04-26 사용자프로필 — 본인 프로필 강화. 헬퍼 +1 (_profile_payload — 활동 30일 집계 + 권한 매트릭스 1인 + 위임 토큰 in/out). 라우트 +2: GET /me (alias → /profile) · POST /me (이메일·언어·phone·dept 수정, 본인 한정, phone/dept는 PRAGMA 존재 시만). 기존 GET /profile 강화: 6 KPI(작성 30d/진행/완료/댓글/알림/미읽음) + 최근 task 10 + 최근 댓글 10 + 권한 D/G/T 분류 + 위임받은/위임한 토큰. 신규 템플릿 +0 (profile.html 본문 강화). 외부 자산 0건 · v2 본체 무수정 · G1~G5 핫패치 보존 #}
-<link rel="stylesheet" href="/static/style.css?v=20260426text14tok">
+<link rel="stylesheet" href="/static/style.css?v=20260427cycle60-3hub">
+<link rel="stylesheet" href="/static/style_hubs.css?v=20260427cycle60-3hub">
 </head>
-<body>
+<body data-ws="{{ (current_workspace.key if current_workspace else 'hub') }}">
 {% if user %}
 {# C안 §3 — 시안 12B topbar 이식 (brand-logo-wrap + ws-switcher + g-search + tb-icon-btn) #}
 <header class="topbar">
@@ -228,6 +229,7 @@
         관리자
       </a>
       <a href="/admin/external-assets" class="sb-item" title="외부 패키지 3종 직접 판단 (대표 spike 2026-04-27)"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg></span>외부자산 점검</a>
+      <a href="/admin/company-info" class="sb-item" title="견적서·인보이스에 자동 표기되는 KNK 회사 정보 (사이클 62 메뉴 연결)"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></span>회사 정보 (KNK)</a>
       {% endif %}
     </div>
 

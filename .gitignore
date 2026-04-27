@@ -33,3 +33,7 @@ logs/
 .idea/
 *.swp
 .claude-code-history
+
+# 운영 도구 (KNK 시스템 외부 노출용 — KNK 코드 의존성 0, 외부자산 정책 미적용)
+cloudflared.exe
+config.yml

@@ -488,6 +488,66 @@ T = {
     "col_views":        {"ko":"조회",             "vi":"Lượt xem",           "en":"Views"},
     "col_comments":     {"ko":"댓글",             "vi":"Bình luận",          "en":"Comments"},
     "empty_board":      {"ko":"등록된 글이 없습니다", "vi":"Chưa có bài viết nào", "en":"No posts yet"},
+
+    # ===== 사이클 63 — 견적서 인쇄 (P11 다국어 / DB 스키마 0 / 외부 자산 0) =====
+    # 03 정찰 _TO_09팀장_2026-04-27_정찰_P11다국어견적서.md §B 옵션3 채택
+    # qp_* prefix = quotation print 표준 단어. 자유 입력(거래처명/품명/비고)은 한국어 보존.
+    # ----- 헤더/타이틀 (10) -----
+    "qp_title":         {"ko":"견 적 서",      "vi":"BÁO GIÁ",              "en":"QUOTATION"},
+    "qp_quote_no":      {"ko":"견적번호",      "vi":"Số báo giá",           "en":"Quotation No."},
+    "qp_issue_date":    {"ko":"발행일자",      "vi":"Ngày phát hành",       "en":"Issue Date"},
+    "qp_client":        {"ko":"거래처",        "vi":"Khách hàng",           "en":"Client"},
+    "qp_valid_until":   {"ko":"유효기한",      "vi":"Có hiệu lực đến",     "en":"Valid Until"},
+    "qp_owner":         {"ko":"담당자",        "vi":"Người phụ trách",      "en":"Sales Rep"},
+    "qp_version":       {"ko":"버전",          "vi":"Phiên bản",            "en":"Version"},
+    "qp_status":        {"ko":"상태",          "vi":"Trạng thái",           "en":"Status"},
+    "qp_supplier":      {"ko":"공급자",        "vi":"Nhà cung cấp",         "en":"Supplier"},
+    "qp_recipient":     {"ko":"수신자",        "vi":"Người nhận",           "en":"Recipient"},
+    # ----- 회사 식별 정보 (5) -----
+    "qp_biz_no":        {"ko":"사업자번호",    "vi":"Mã số thuế",           "en":"Tax ID"},
+    "qp_ceo":           {"ko":"대표자",        "vi":"Đại diện",             "en":"Representative"},
+    "qp_address":       {"ko":"주소",          "vi":"Địa chỉ",              "en":"Address"},
+    "qp_tel":           {"ko":"전화",          "vi":"Điện thoại",           "en":"Tel"},
+    "qp_email":         {"ko":"이메일",        "vi":"Email",                "en":"Email"},
+    # ----- 라인 표 컬럼 (8) -----
+    "qp_col_no":        {"ko":"No",            "vi":"STT",                  "en":"No."},
+    "qp_col_item":      {"ko":"품목 / 품번",   "vi":"Tên hàng / Mã hàng",  "en":"Item / Part No."},
+    "qp_col_qty":       {"ko":"수량",          "vi":"Số lượng",             "en":"Quantity"},
+    "qp_col_unit":      {"ko":"단위",          "vi":"Đơn vị",               "en":"Unit"},
+    "qp_col_unit_price":{"ko":"단가",          "vi":"Đơn giá",              "en":"Unit Price"},
+    "qp_col_amount":    {"ko":"금액",          "vi":"Thành tiền",           "en":"Amount"},
+    "qp_col_remark":    {"ko":"비고",          "vi":"Ghi chú",              "en":"Remark"},
+    "qp_empty_lines":   {"ko":"등록된 라인이 없습니다 — 견적 목록에서 라인을 추가하세요.",
+                         "vi":"Chưa có dòng nào — vui lòng thêm dòng từ danh sách báo giá.",
+                         "en":"No lines registered — please add lines from the quotation list."},
+    # ----- 합계/통화 (3) -----
+    "qp_total_label":   {"ko":"합계 금액 (VAT 별도)", "vi":"Tổng cộng (chưa VAT)", "en":"Total (VAT excluded)"},
+    "qp_currency_krw":  {"ko":"원",            "vi":"KRW",                  "en":"KRW"},
+    "qp_remarks":       {"ko":"비고",          "vi":"Ghi chú",              "en":"Remarks"},
+    # ----- 푸터 안내 3줄 (3) -----
+    "qp_foot1":         {"ko":"본 견적서는 위 유효기한까지 효력이 있습니다.",
+                         "vi":"Báo giá này có hiệu lực đến ngày hết hạn nêu trên.",
+                         "en":"This quotation is valid until the date stated above."},
+    "qp_foot2":         {"ko":"부가세는 별도 청구되며, 결제 조건은 별도 협의에 따릅니다.",
+                         "vi":"VAT sẽ được tính riêng, điều kiện thanh toán theo thỏa thuận riêng.",
+                         "en":"VAT is charged separately. Payment terms are subject to separate agreement."},
+    "qp_foot3":         {"ko":"본 견적서 내용에 동의하실 경우 수주 전환을 요청해 주십시오.",
+                         "vi":"Nếu đồng ý với báo giá này, vui lòng yêu cầu chuyển sang đơn hàng.",
+                         "en":"Upon agreement, please request order conversion."},
+    # ----- 서명/직인 (4) -----
+    "qp_sign_label":    {"ko":"담당자 서명",   "vi":"Chữ ký người phụ trách","en":"Sales Rep Signature"},
+    "qp_sign_box":      {"ko":"서명",          "vi":"Chữ ký",               "en":"Signature"},
+    "qp_seal_label":    {"ko":"회사 직인",     "vi":"Con dấu công ty",      "en":"Company Seal"},
+    "qp_seal_box":      {"ko":"(인)",          "vi":"(Dấu)",                "en":"(Seal)"},
+    # ----- 안내 라벨 (2) -----
+    "qp_pending":       {"ko":"[등록 대기]",   "vi":"[Chờ đăng ký]",        "en":"[Pending]"},
+    "qp_back":          {"ko":"← 견적 목록",   "vi":"← Danh sách báo giá", "en":"← Quotation List"},
+    # ----- 인쇄 / 언어 선택 (5) -----
+    "qp_print":         {"ko":"인쇄",          "vi":"In",                   "en":"Print"},
+    "qp_lang_label":    {"ko":"언어",          "vi":"Ngôn ngữ",             "en":"Language"},
+    "qp_lang_ko":       {"ko":"한국어",        "vi":"Tiếng Hàn",            "en":"Korean"},
+    "qp_lang_vi":       {"ko":"베트남어",      "vi":"Tiếng Việt",           "en":"Vietnamese"},
+    "qp_lang_en":       {"ko":"영문",          "vi":"Tiếng Anh",            "en":"English"},
 }
 
 def t(key, lang="ko"):

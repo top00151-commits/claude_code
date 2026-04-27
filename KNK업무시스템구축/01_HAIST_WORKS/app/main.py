@@ -2970,6 +2970,48 @@ async def admin_external_assets_decision(req: Request):
         f"/admin/external-assets?saved={asset_name}", 303)
 
 
+# =====================================================
+# 회사 정보 admin (사이클 61 U6 — 대표가 직접 입력 / 외부자산 0건)
+# 출처: 04 _TO_09팀장_2026-04-27_사이클58_UX재검증.md S2 U6
+# 저장: app_settings 테이블 (key = "company_*")
+# =====================================================
+@app.get("/admin/company-info", response_class=HTMLResponse)
+async def admin_company_info_page(req: Request):
+    """회사 식별 정보 입력 페이지 — 견적서 헤더용 (대표 직접 입력)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    saved = req.query_params.get("saved", "")
+    # 현재 입력된 값 (default 미적용 raw)
+    current = {key: (get_setting(key, "") or "") for key, _l, _d in COMPANY_INFO_KEYS}
+    return ctx(req, "admin_company_info.html", user=u,
+               keys=COMPANY_INFO_KEYS,
+               current=current,
+               saved=saved,
+               active="admin")
+
+
+@app.post("/admin/company-info")
+async def admin_company_info_save(req: Request):
+    """회사 정보 저장 → app_settings UPSERT."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    # 화이트리스트 (XSS/주입 방지) — 정의된 키만 저장
+    allowed_keys = {key for key, _l, _d in COMPANY_INFO_KEYS}
+    saved = 0
+    for k, v in form.items():
+        if not k.startswith("k_"):
+            continue
+        key = k[2:].strip()
+        if key not in allowed_keys:
+            continue
+        set_setting(key, (v or "").strip(), user_id=u["id"])
+        saved += 1
+    return RedirectResponse(f"/admin/company-info?saved={saved}", 303)
+
+
 @app.get("/admin/settings", response_class=HTMLResponse)
 async def admin_settings_page(req: Request):
     u = require(req, ["admin", "ceo"])
@@ -6470,8 +6512,23 @@ async def sales_quotations_page(req: Request):
                ORDER BY q.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
+        # 사이클 61 U5 — 각 견적의 라인 사전 로드 (삭제 UI 노출용)
+        lines_by_quote = {}
+        if items:
+            quote_ids = [it["id"] for it in items]
+            placeholders = ",".join(["?"] * len(quote_ids))
+            line_rows = c.execute(
+                f"""SELECT id, quotation_id, line_no, item_name, qty, unit,
+                          unit_price, total_price, note
+                   FROM quotation_items
+                   WHERE quotation_id IN ({placeholders})
+                   ORDER BY quotation_id, line_no""",
+                quote_ids,
+            ).fetchall()
+            for lr in line_rows:
+                lines_by_quote.setdefault(lr["quotation_id"], []).append(dict(lr))
     return ctx(req, "sales_quotations.html", user=u, active="sales",
-               tab="quotations", items=items)
+               tab="quotations", items=items, lines_by_quote=lines_by_quote)
 
 
 @app.post("/sales/quotations")
@@ -6502,6 +6559,186 @@ async def sales_quotations_create(req: Request):
             (quote_no, customer_id, total_amount, valid_until, version, u.get("id")),
         )
         return JSONResponse({"ok": True, "quote_id": cur.lastrowid, "quote_no": quote_no})
+
+
+# =====================================================
+# 회사 식별 정보 (사이클 61 — 견적서 헤더용 / 외부자산 0건)
+# 실제 값은 /admin/company-info 페이지에서 대표가 직접 입력 → app_settings 테이블
+# 미입력 시 placeholder 텍스트 노출 ("[등록 대기]")
+# =====================================================
+COMPANY_INFO_KEYS = [
+    ("company_name_ko",  "회사명 (국문)",   "주식회사 케이엔케이 (KNK)"),
+    ("company_name_en",  "Company (EN)",   "KNK Co., Ltd."),
+    ("company_biz_no",   "사업자등록번호",  ""),
+    ("company_address",  "회사 주소",       ""),
+    ("company_address_en", "Address (EN)",  ""),
+    ("company_tel",      "대표 전화",       ""),
+    ("company_fax",      "팩스",            ""),
+    ("company_email",    "대표 이메일",     ""),
+    ("company_ceo_ko",   "대표자 (국문)",   "김정락"),
+    ("company_ceo_en",   "CEO (EN)",       "Jeongrak Kim"),
+]
+
+def _company_info_dict() -> dict:
+    """app_settings 에서 회사 정보 조회. 미입력 키는 default 값 반환."""
+    out = {}
+    for key, label, default in COMPANY_INFO_KEYS:
+        val = (get_setting(key, "") or "").strip()
+        out[key] = val if val else default
+    return out
+
+
+# =====================================================
+# Sales 견적 라인 + 인쇄 + 수주 전환 (사이클 58 — 2차 보강)
+# =====================================================
+
+@app.get("/sales/quotations/{quote_id}/print", response_class=HTMLResponse)
+async def sales_quotation_print(req: Request, quote_id: int, lang: str = ""):
+    """견적서 인쇄 view — 1페이지 A4, @media print 인라인 CSS, 외부 자산 0건.
+    사이클 63 P11 — 다국어 지원 (?lang=ko|en|vi 쿼리. 미지정 시 사용자 lang)."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        h = c.execute(
+            """SELECT q.id, q.quote_no, q.customer_id,
+                      COALESCE(cu.name,'-')   AS customer_name,
+                      COALESCE(cu.tier,'')    AS customer_tier,
+                      COALESCE(cu.note,'')    AS customer_note,
+                      q.total_amount, q.valid_until, q.version, q.status,
+                      q.created_at,
+                      COALESCE(us.name,'-')   AS owner_name
+               FROM quotations q
+               LEFT JOIN customers cu ON cu.id = q.customer_id
+               LEFT JOIN users     us ON us.id = q.created_by
+               WHERE q.id = ?""",
+            (quote_id,),
+        ).fetchone()
+        if not h:
+            return RedirectResponse("/sales/quotations", 303)
+        header = dict(h)
+    # 라인 (헬퍼 호출 — 자체 db_session)
+    from .database import get_quotation_items as _gqi
+    lines = _gqi(quote_id)
+    company = _company_info_dict()  # 사이클 61 U6 — 회사 식별 정보
+    # 사이클 63 — 견적서 인쇄 언어 override (?lang=ko|en|vi 만 허용. 그 외 무시)
+    # ctx() 의 base.update(kwargs) 가 마지막에 실행 → 여기서 lang/i 덮어쓰기 가능.
+    # print_lang 미지정 시 사용자 lang 그대로 사용 (ctx 기본 동작).
+    extra = {"header": header, "lines": lines, "company": company,
+             "quote_id": quote_id}
+    if lang in ("ko", "en", "vi"):
+        extra["lang"] = lang
+        extra["i"] = get_all_translations(lang)
+    return ctx(req, "quotation_print.html", user=u, active="sales", **extra)
+
+
+@app.post("/sales/quotations/{quote_id}/items")
+async def sales_quotation_item_add(req: Request, quote_id: int):
+    """견적 라인 추가 — quotation_items INSERT + quotations.total_amount 재합계."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    item_name = (form.get("item_name") or "").strip()
+    if not item_name:
+        return JSONResponse({"error": "품목명 누락"}, 400)
+    part_id = form.get("part_id") or None
+    try:
+        part_id = int(part_id) if part_id else None
+    except (TypeError, ValueError):
+        part_id = None
+    qty = float(form.get("qty") or 0)
+    unit = (form.get("unit") or "EA").strip()
+    unit_price = float(form.get("unit_price") or 0)
+    note = (form.get("note") or "").strip()
+    total_price = qty * unit_price
+    with db_session() as c:
+        # 견적 존재 검증
+        h = c.execute("SELECT id FROM quotations WHERE id=?", (quote_id,)).fetchone()
+        if not h:
+            return JSONResponse({"error": "견적 없음"}, 404)
+        # 다음 line_no 채번
+        row = c.execute(
+            "SELECT COALESCE(MAX(line_no),0)+1 FROM quotation_items WHERE quotation_id=?",
+            (quote_id,),
+        ).fetchone()
+        line_no = row[0] if row else 1
+        cur = c.execute(
+            """INSERT INTO quotation_items
+               (quotation_id, line_no, part_id, item_name, qty, unit,
+                unit_price, total_price, note)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (quote_id, line_no, part_id, item_name, qty, unit,
+             unit_price, total_price, note or None),
+        )
+        # 헤더 total_amount 재합계
+        s = c.execute(
+            "SELECT COALESCE(SUM(total_price),0) FROM quotation_items WHERE quotation_id=?",
+            (quote_id,),
+        ).fetchone()
+        c.execute(
+            "UPDATE quotations SET total_amount=? WHERE id=?",
+            (float(s[0] or 0), quote_id),
+        )
+    return RedirectResponse(f"/sales/quotations", 303)
+
+
+@app.post("/sales/quotations/{quote_id}/items/{item_id}/delete")
+async def sales_quotation_item_delete(req: Request, quote_id: int, item_id: int):
+    """견적 라인 제거 + total_amount 재합계."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        c.execute(
+            "DELETE FROM quotation_items WHERE id=? AND quotation_id=?",
+            (item_id, quote_id),
+        )
+        s = c.execute(
+            "SELECT COALESCE(SUM(total_price),0) FROM quotation_items WHERE quotation_id=?",
+            (quote_id,),
+        ).fetchone()
+        c.execute(
+            "UPDATE quotations SET total_amount=? WHERE id=?",
+            (float(s[0] or 0), quote_id),
+        )
+    return RedirectResponse(f"/sales/quotations", 303)
+
+
+@app.post("/sales/quotations/{quote_id}/convert-to-order")
+async def sales_quotation_convert_to_order(req: Request, quote_id: int):
+    """수주 전환 — quotations.CONFIRMED + clone_quotation_to_order 헬퍼 + history."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    due_date = form.get("due_date") or None
+    from .database import clone_quotation_to_order as _clone
+    with db_session() as c:
+        q = c.execute(
+            "SELECT id, status FROM quotations WHERE id=?", (quote_id,)
+        ).fetchone()
+        if not q:
+            return JSONResponse({"error": "견적 없음"}, 404)
+        # 견적 상태 CONFIRMED 전환
+        c.execute(
+            "UPDATE quotations SET status='CONFIRMED' WHERE id=?", (quote_id,)
+        )
+    # 헬퍼는 자체 db_session — 위 트랜잭션 커밋 후 호출
+    order_id, order_no = _clone(quote_id, due_date=due_date,
+                                 created_by=u.get("id") or 0)
+    if not order_id:
+        return JSONResponse({"error": "수주 전환 실패"}, 500)
+    # 상태 이력
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO order_status_history
+               (order_id, from_status, to_status, changed_by, note)
+               VALUES (?,?,?,?,?)""",
+            (order_id, "DRAFT", "CONFIRMED", u.get("id"),
+             "견적→수주 전환 (라인 자동 복제)"),
+        )
+    return RedirectResponse("/sales/orders", 303)
 
 
 @app.get("/sales/orders", response_class=HTMLResponse)

@@ -188,7 +188,7 @@
 {% if user.role in ['ceo','admin'] %}
 <div id="adm-tab-security" class="adm-panel">
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0;">
   <a href="/admin/settings" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
     <div style="font-weight:800;font-size:15px;color:#1E293B;">⚙️ 시스템 설정</div>
     <div style="font-size:12px;color:#64748B;margin-top:4px;">하이웍스 URL/토큰, 알림 채널 마스터 스위치</div>
@@ -196,6 +196,11 @@
   <a href="/admin/health" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
     <div style="font-weight:800;font-size:15px;color:#1E293B;">🩺 시스템 건전성 점검</div>
     <div style="font-size:12px;color:#64748B;margin-top:4px;">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에</div>
+  </a>
+  {# 사이클 62 — admin.html 메뉴 연결 (S2-Y1 정정) #}
+  <a href="/admin/company-info" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
+    <div style="font-weight:800;font-size:15px;color:#1E293B;">🏢 회사 정보 (KNK)</div>
+    <div style="font-size:12px;color:#64748B;margin-top:4px;">견적서·인보이스에 자동 표기되는 사업자등록 정보 (대표 직접 입력)</div>
   </a>
 </div>
 

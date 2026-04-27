@@ -780,6 +780,24 @@ CREATE TABLE IF NOT EXISTS quotations (
 CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id);
 CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status);
 
+-- 견적 라인 (사이클 58 2차 보강 — quotation_items)
+-- 1차에서 헤더(quotations)만 있었음. 2차에서 라인 분리 — 인쇄/수주전환의 데이터 소스.
+CREATE TABLE IF NOT EXISTS quotation_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    quotation_id    INTEGER NOT NULL REFERENCES quotations(id),
+    line_no         INTEGER DEFAULT 1,
+    part_id         INTEGER REFERENCES parts(id),                -- NULL 허용 (자유 품목)
+    item_name       TEXT,
+    qty             REAL NOT NULL DEFAULT 0,
+    unit            TEXT,                                        -- EA / SET / kg 등
+    unit_price      REAL NOT NULL DEFAULT 0,
+    total_price     REAL NOT NULL DEFAULT 0,                     -- qty * unit_price (호출자 산출)
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON quotation_items(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_quotation_items_part ON quotation_items(part_id);
+
 -- 수주 헤더 (시안 §3 orders — 탭 2 SO)
 CREATE TABLE IF NOT EXISTS orders (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -6960,5 +6978,79 @@ def ceo_dashboard_kpis(user_id: int = 0) -> dict:
             pass
 
     return out
+
+
+# =====================================================
+# Sales 견적 라인 헬퍼 (사이클 58 — 2차 보강)
+# =====================================================
+
+def get_quotation_items(quotation_id: int) -> list[dict]:
+    """견적 라인 리스트 — quotation_items + parts 조인 (인쇄/수주전환 공통 소스)."""
+    if not quotation_id:
+        return []
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT qi.id, qi.quotation_id, qi.line_no, qi.part_id,
+                      qi.item_name, qi.qty, qi.unit, qi.unit_price,
+                      qi.total_price, qi.note, qi.created_at,
+                      COALESCE(p.part_no, '') AS part_no,
+                      COALESCE(p.part_name, '') AS part_name
+               FROM quotation_items qi
+               LEFT JOIN parts p ON p.id = qi.part_id
+               WHERE qi.quotation_id = ?
+               ORDER BY qi.line_no ASC, qi.id ASC""",
+            (quotation_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def clone_quotation_to_order(quotation_id: int, due_date: str | None = None,
+                              created_by: int = 0) -> tuple[int, str]:
+    """견적 + 라인 → 수주(orders) + 라인(order_items) 자동 복제.
+    반환: (order_id, order_no). 견적 없으면 (0, '').
+    호출 책임: quotations.status='CONFIRMED' 전환은 호출자 별도 처리.
+    """
+    if not quotation_id:
+        return (0, "")
+    from datetime import datetime, date
+    with db_session() as c:
+        q = c.execute(
+            """SELECT id, customer_id, total_amount FROM quotations WHERE id=?""",
+            (quotation_id,),
+        ).fetchone()
+        if not q:
+            return (0, "")
+        # order_no 시퀀스 생성 (SO-YYYYMM-####)
+        ym = datetime.now().strftime("%Y%m")
+        row = c.execute(
+            "SELECT COUNT(*) FROM orders WHERE order_no LIKE ?",
+            (f"SO-{ym}-%",),
+        ).fetchone()
+        seq = (row[0] if row else 0) + 1
+        order_no = f"SO-{ym}-{seq:04d}"
+        cur = c.execute(
+            """INSERT INTO orders
+               (order_no, quote_id, customer_id, order_date, due_date,
+                total_amount, status, created_by)
+               VALUES (?,?,?,?,?,?,'CONFIRMED',?)""",
+            (order_no, q[0], q[1], date.today().isoformat(),
+             due_date, q[2] or 0, created_by or None),
+        )
+        order_id = cur.lastrowid
+        # 라인 복제 — quotation_items → order_items
+        items = c.execute(
+            """SELECT part_id, qty, unit_price, total_price
+               FROM quotation_items WHERE quotation_id=?
+               ORDER BY line_no ASC, id ASC""",
+            (quotation_id,),
+        ).fetchall()
+        for it in items:
+            c.execute(
+                """INSERT INTO order_items
+                   (order_id, part_id, qty, unit_price, amount, allocated_qty)
+                   VALUES (?,?,?,?,?,0)""",
+                (order_id, it[0], it[1] or 0, it[2] or 0, it[3] or 0),
+            )
+        return (order_id, order_no)
 
 

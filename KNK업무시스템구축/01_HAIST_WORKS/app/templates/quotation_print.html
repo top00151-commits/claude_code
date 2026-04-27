@@ -1,0 +1,188 @@
+{% extends "base_sales.html" %}
+{% block title %}{{ i.qp_title }} {{ header.quote_no }} — {{ i.qp_print }}{% endblock %}
+{% block body %}
+{# 사이클 58 — 견적서 인쇄 view (1페이지 A4) · @media print 인라인 · 외부 자산 0건 #}
+{# 사이클 61 (2026-04-27) — U6 회사 식별 정보 헤더 + U7 서명·직인란 (외부 자산 0건) #}
+{# 사이클 63 (2026-04-27) — P11 다국어 견적서 (i18n qp_* 키 / DB 스키마 0 / 외부 자산 0) #}
+{# - 표준 단어(라벨/푸터/서명)만 i18n. 자유 입력(거래처명/품명/비고)은 한국어 보존. #}
+{# - 라디오 클릭 → ?lang=ko|en|vi 새로고침. 사용자 lang 무관 인쇄 직전 즉석 변경. #}
+
+<style>
+/* 인쇄 view 전용 — base.html 에 영향 0 */
+.qp-wrap { max-width: 800px; margin: 0 auto; padding: 24px; background: #fff; color: #111; font-size: 13px; }
+.qp-toolbar { display:flex; gap:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap; }
+.qp-toolbar button, .qp-toolbar a {
+  background: var(--knk-red, #E11D48); color:#fff; border:none; border-radius:8px;
+  padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none;
+}
+.qp-toolbar a.qp-back { background: #6B7280; }
+.qp-langbar { display:flex; gap:10px; align-items:center; margin-left: 8px; padding: 6px 10px;
+              border: 1px solid #E5E7EB; border-radius: 8px; background:#F9FAFB; font-size:12px; }
+.qp-langbar .qp-lang-label { font-weight:700; color:#374151; }
+.qp-langbar label { display:inline-flex; gap:4px; align-items:center; cursor:pointer; }
+.qp-langbar input[type="radio"] { margin: 0; }
+.qp-doc { border: 1px solid #111; padding: 24px; background:#fff; }
+.qp-title { text-align:center; font-size:24px; font-weight:800; letter-spacing:8px; margin: 0 0 18px; padding-bottom: 10px; border-bottom: 2px solid #111; }
+.qp-company { margin-bottom: 16px; padding: 12px 14px; border: 1px solid #111; background: #FAFAFA; }
+.qp-company .qp-co-name { font-size: 15px; font-weight: 800; color:#111; margin-bottom: 6px; letter-spacing:1px; }
+.qp-company .qp-co-name .qp-co-en { font-size: 11px; font-weight: 600; color:#6B7280; margin-left: 8px; letter-spacing:0; }
+.qp-company .qp-co-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; font-size: 11px; color:#374151; }
+.qp-company .qp-co-row { display:flex; gap:6px; }
+.qp-company .qp-co-label { font-weight:700; color:#6B7280; min-width:72px; }
+.qp-company .qp-co-pending { color:#DC2626; font-style: italic; }
+.qp-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 18px; font-size: 12px; }
+.qp-meta .qp-row { display:flex; gap:8px; }
+.qp-meta .qp-label { font-weight:700; min-width:72px; color:#374151; }
+.qp-table { width:100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+.qp-table th, .qp-table td { border: 1px solid #111; padding: 8px 10px; text-align: left; }
+.qp-table th { background: #F3F4F6; font-weight: 700; text-align:center; }
+.qp-table td.qp-num { text-align: right; }
+.qp-table td.qp-c { text-align:center; }
+.qp-total { display:flex; justify-content: flex-end; gap: 24px; font-size: 14px; font-weight:700; margin-bottom:18px; }
+.qp-total .qp-label { color:#374151; }
+.qp-foot { font-size: 12px; color: #374151; line-height:1.7; border-top: 1px solid #E5E7EB; padding-top: 12px; }
+.qp-foot strong { color:#111; }
+.qp-empty { text-align:center; padding: 24px; color:#6B7280; font-size:13px; }
+.qp-sign { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #E5E7EB; }
+.qp-sign .qp-sign-cell { border: 1px solid #111; padding: 10px 12px; }
+.qp-sign .qp-sign-label { font-size: 11px; font-weight:700; color:#374151; margin-bottom: 6px; }
+.qp-sign .qp-sign-box { height: 70px; border: 1px dashed #9CA3AF; display:flex; align-items:flex-end; justify-content:flex-end; padding: 6px 8px; font-size: 10px; color:#9CA3AF; }
+.qp-sign .qp-seal-box { height: 70px; border: 1px dashed #9CA3AF; display:flex; align-items:center; justify-content:center; font-size: 10px; color:#9CA3AF; }
+
+@media print {
+  body, html { background: #fff !important; margin:0; padding:0; }
+  .qp-toolbar, .qp-langbar, .header, .sidebar, .main-wrap > .header, .dock,
+  .sb-toggle, nav, footer { display: none !important; }
+  .qp-wrap { max-width: 100%; padding: 0; margin: 0; }
+  .qp-doc { border: none; padding: 0; }
+  .qp-sign { page-break-inside: avoid; }
+  .main-wrap, main, .content { margin: 0 !important; padding: 0 !important; }
+  @page { size: A4; margin: 18mm 14mm; }
+}
+</style>
+
+<div class="qp-wrap">
+
+  <div class="qp-toolbar">
+    <button type="button" onclick="window.print();">{{ i.qp_print }}</button>
+    <a href="/sales/quotations" class="qp-back">{{ i.qp_back }}</a>
+    {# 사이클 63 — P11 다국어 견적서 언어 선택 라디오 (?lang=ko|en|vi 새로고침) #}
+    <div class="qp-langbar" role="radiogroup" aria-label="{{ i.qp_lang_label }}">
+      <span class="qp-lang-label">{{ i.qp_lang_label }}:</span>
+      <label><input type="radio" name="qp-lang" value="ko"
+        {% if lang == 'ko' %}checked{% endif %}
+        onchange="location.href='/sales/quotations/{{ quote_id }}/print?lang=ko';"> {{ i.qp_lang_ko }}</label>
+      <label><input type="radio" name="qp-lang" value="en"
+        {% if lang == 'en' %}checked{% endif %}
+        onchange="location.href='/sales/quotations/{{ quote_id }}/print?lang=en';"> {{ i.qp_lang_en }}</label>
+      <label><input type="radio" name="qp-lang" value="vi"
+        {% if lang == 'vi' %}checked{% endif %}
+        onchange="location.href='/sales/quotations/{{ quote_id }}/print?lang=vi';"> {{ i.qp_lang_vi }}</label>
+    </div>
+  </div>
+
+  <div class="qp-doc">
+    <h1 class="qp-title">{{ i.qp_title }}</h1>
+
+    {# 사이클 61 U6 — 회사 식별 정보 (한국 상관행: 발행자 식별) #}
+    <div class="qp-company">
+      <div class="qp-co-name">
+        {{ company.company_name_ko or i.qp_pending }}
+        {% if company.company_name_en %}<span class="qp-co-en">{{ company.company_name_en }}</span>{% endif %}
+      </div>
+      <div class="qp-co-grid">
+        <div class="qp-co-row">
+          <span class="qp-co-label">{{ i.qp_biz_no }}</span>
+          <span class="{% if not company.company_biz_no %}qp-co-pending{% endif %}">{{ company.company_biz_no or i.qp_pending }}</span>
+        </div>
+        <div class="qp-co-row">
+          <span class="qp-co-label">{{ i.qp_ceo }}</span>
+          <span>{{ company.company_ceo_ko or i.qp_pending }}</span>
+        </div>
+        <div class="qp-co-row" style="grid-column: 1 / -1;">
+          <span class="qp-co-label">{{ i.qp_address }}</span>
+          <span class="{% if not company.company_address %}qp-co-pending{% endif %}">{{ company.company_address or i.qp_pending }}</span>
+        </div>
+        <div class="qp-co-row">
+          <span class="qp-co-label">{{ i.qp_tel }}</span>
+          <span class="{% if not company.company_tel %}qp-co-pending{% endif %}">{{ company.company_tel or i.qp_pending }}</span>
+        </div>
+        <div class="qp-co-row">
+          <span class="qp-co-label">{{ i.qp_email }}</span>
+          <span class="{% if not company.company_email %}qp-co-pending{% endif %}">{{ company.company_email or i.qp_pending }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="qp-meta">
+      <div class="qp-row"><span class="qp-label">{{ i.qp_quote_no }}</span><span>{{ header.quote_no }}</span></div>
+      <div class="qp-row"><span class="qp-label">{{ i.qp_issue_date }}</span><span>{{ header.created_at[:10] if header.created_at else '-' }}</span></div>
+      <div class="qp-row"><span class="qp-label">{{ i.qp_client }}</span><span>{{ header.customer_name }}</span></div>
+      <div class="qp-row"><span class="qp-label">{{ i.qp_valid_until }}</span><span>{{ header.valid_until or '-' }}</span></div>
+      <div class="qp-row"><span class="qp-label">{{ i.qp_owner }}</span><span>{{ header.owner_name }}</span></div>
+      <div class="qp-row"><span class="qp-label">{{ i.qp_version }}</span><span>v{{ header.version }}</span></div>
+      <div class="qp-row" style="grid-column: 1 / -1;"><span class="qp-label">{{ i.qp_status }}</span><span>{{ header.status }}</span></div>
+    </div>
+
+    <table class="qp-table">
+      <thead>
+        <tr>
+          <th style="width:40px;">{{ i.qp_col_no }}</th>
+          <th>{{ i.qp_col_item }}</th>
+          <th style="width:60px;">{{ i.qp_col_qty }}</th>
+          <th style="width:60px;">{{ i.qp_col_unit }}</th>
+          <th style="width:100px;">{{ i.qp_col_unit_price }}</th>
+          <th style="width:120px;">{{ i.qp_col_amount }}</th>
+          <th>{{ i.qp_col_remark }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if lines and lines|length > 0 %}
+          {% for ln in lines %}
+          <tr>
+            <td class="qp-c">{{ ln.line_no }}</td>
+            <td>
+              {{ ln.item_name }}
+              {% if ln.part_no %}<br><span style="color:#6B7280;font-size:11px;">{{ ln.part_no }}</span>{% endif %}
+            </td>
+            <td class="qp-num">{{ '{:,.0f}'.format(ln.qty or 0) }}</td>
+            <td class="qp-c">{{ ln.unit or '-' }}</td>
+            <td class="qp-num">{{ '{:,.0f}'.format(ln.unit_price or 0) }}</td>
+            <td class="qp-num">{{ '{:,.0f}'.format(ln.total_price or 0) }}</td>
+            <td>{{ ln.note or '' }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="qp-empty">{{ i.qp_empty_lines }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <div class="qp-total">
+      <span class="qp-label">{{ i.qp_total_label }}</span>
+      <span>{{ '{:,.0f}'.format(header.total_amount or 0) }} {{ i.qp_currency_krw }}</span>
+    </div>
+
+    <div class="qp-foot">
+      <strong>{{ i.qp_remarks }}</strong><br>
+      · {{ i.qp_foot1 }}<br>
+      · {{ i.qp_foot2 }}<br>
+      · {{ i.qp_foot3 }}
+    </div>
+
+    {# 사이클 61 U7 — 서명·직인란 (한국 상관행) / @media print 페이지 분리 회피 #}
+    <div class="qp-sign">
+      <div class="qp-sign-cell">
+        <div class="qp-sign-label">{{ i.qp_sign_label }}</div>
+        <div class="qp-sign-box">{{ i.qp_sign_box }}</div>
+      </div>
+      <div class="qp-sign-cell">
+        <div class="qp-sign-label">{{ i.qp_seal_label }}</div>
+        <div class="qp-seal-box">{{ i.qp_seal_box }}</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

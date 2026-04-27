@@ -1,0 +1,145 @@
+/* ============================================================
+   3 Hub 분리 + 힐링 색 통일 (style_hubs.css)
+   사이클 60 / 2026-04-27 / 05 디자인팀 시안 → 01 메인 반영
+   - 매출·영업 Hub (topbar-hub-sales)  : 그린 + 골드 띠 (#C9A961)
+   - 자재·구매 Hub (topbar-hub-logi)   : 그린 + 라이트 세이지 띠 (#A8BD8F)
+   - 기존 .topbar.topbar-logi (다크) 강제 무력화
+   v2 본체(style.css 4287~4574) 미접촉 / 핫패치 G1~G5 보존
+   외부 자산 0건 (CDN·폰트·이미지 import 없음)
+   ============================================================ */
+
+/* ===== 매출·영업 Hub 헤더 (그린 + 골드 식별 띠) ===== */
+.topbar.topbar-hub-sales {
+  background: linear-gradient(135deg, #3F5C44 0%, #5D7F61 60%, #7FA183 100%) !important;
+  border-bottom: 2px solid #C9A961 !important;
+  color: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+}
+.topbar.topbar-hub-sales::after {
+  content: ""; position: absolute; bottom: -60%; right: 5%;
+  width: 400px; height: 400px; border-radius: 50%;
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, rgba(201,169,97,.18), transparent 70%);
+}
+.topbar.topbar-hub-sales .tb-left,
+.topbar.topbar-hub-sales .tb-right { position: relative; z-index: 1; }
+.topbar.topbar-hub-sales .tb-logo {
+  background: linear-gradient(135deg, #C9A961, #B59145) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(201,169,97,.45), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.topbar.topbar-hub-sales .tb-title { color:#FFFFFF; font-weight:800; }
+.topbar.topbar-hub-sales .tb-subtitle { color: rgba(255,255,255,.78); font-weight:600; font-size:11px; letter-spacing:.02em; }
+.topbar.topbar-hub-sales .tb-hub-dot {
+  display:inline-block; width:7px; height:7px; border-radius:50%;
+  background:#C9A961; margin: 0 8px; vertical-align: middle;
+  box-shadow: 0 0 0 2px rgba(201,169,97,.25);
+}
+.topbar.topbar-hub-sales .tb-hub-sub { font-weight:700; color:#FFFFFF; letter-spacing:.04em; }
+
+/* ===== 자재·구매 Hub 헤더 (그린 + 라이트 세이지 식별 띠) ===== */
+.topbar.topbar-hub-logi {
+  background: linear-gradient(135deg, #3F5C44 0%, #5D7F61 60%, #7FA183 100%) !important;
+  border-bottom: 2px solid #A8BD8F !important;
+  color: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+}
+.topbar.topbar-hub-logi::after {
+  content: ""; position: absolute; bottom: -60%; right: 5%;
+  width: 400px; height: 400px; border-radius: 50%;
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, rgba(168,189,143,.20), transparent 70%);
+}
+.topbar.topbar-hub-logi .tb-left,
+.topbar.topbar-hub-logi .tb-right { position: relative; z-index: 1; }
+.topbar.topbar-hub-logi .tb-logo {
+  background: linear-gradient(135deg, #A8BD8F, #7FA183) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(168,189,143,.45), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.topbar.topbar-hub-logi .tb-title { color:#FFFFFF; font-weight:800; }
+.topbar.topbar-hub-logi .tb-subtitle { color: rgba(255,255,255,.78); font-weight:600; font-size:11px; letter-spacing:.02em; }
+.topbar.topbar-hub-logi .tb-hub-dot {
+  display:inline-block; width:7px; height:7px; border-radius:50%;
+  background:#A8BD8F; margin: 0 8px; vertical-align: middle;
+  box-shadow: 0 0 0 2px rgba(168,189,143,.30);
+}
+.topbar.topbar-hub-logi .tb-hub-sub { font-weight:700; color:#FFFFFF; letter-spacing:.04em; }
+
+/* ===== Hub 공통 우측 요소 (사용자 칩 / 통합 메인 링크 / 로그아웃) ===== */
+.topbar.topbar-hub-sales .tb-home-link,
+.topbar.topbar-hub-logi  .tb-home-link {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 12px; border-radius:999px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.22);
+  color:#FFFFFF; font-size:11px; font-weight:700; letter-spacing:.04em;
+  text-decoration:none; transition: all .18s;
+}
+.topbar.topbar-hub-sales .tb-home-link:hover,
+.topbar.topbar-hub-logi  .tb-home-link:hover {
+  background: rgba(255,255,255,.22); color:#FFFFFF;
+}
+.topbar.topbar-hub-sales .tb-user-chip,
+.topbar.topbar-hub-logi  .tb-user-chip {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:5px 12px 5px 5px; border-radius:999px;
+  background: rgba(255,255,255,.12);
+  text-decoration:none; transition: all .18s;
+}
+.topbar.topbar-hub-sales .tb-user-chip:hover,
+.topbar.topbar-hub-logi  .tb-user-chip:hover { background: rgba(255,255,255,.22); }
+.topbar.topbar-hub-sales .tb-avatar,
+.topbar.topbar-hub-logi  .tb-avatar {
+  width:30px; height:30px; border-radius:50%;
+  background:#FFFFFF; color:#3F5C44;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:13px;
+}
+.topbar.topbar-hub-sales .tb-user-name,
+.topbar.topbar-hub-logi  .tb-user-name { font-size:12px; font-weight:700; color:#FFFFFF; }
+.topbar.topbar-hub-sales .tb-user-role,
+.topbar.topbar-hub-logi  .tb-user-role { font-size:10px; color: rgba(255,255,255,.78); }
+.topbar.topbar-hub-sales .logout,
+.topbar.topbar-hub-logi  .logout {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:34px; height:34px; border-radius:8px;
+  background: linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  color:#FFFFFF; text-decoration:none;
+  box-shadow: 0 2px 6px rgba(165,40,44,.32);
+  transition: transform .15s;
+}
+.topbar.topbar-hub-sales .logout:hover,
+.topbar.topbar-hub-logi  .logout:hover { transform: translateY(-1px); }
+
+/* ===== 기존 .topbar.topbar-logi (다크 네이비) 강제 무력화 =====
+   style.css 3107~3163 의 어두운 네이비 그라디언트를 힐링 그린으로 통일.
+   v2 본체(4287~4574) 외 영역에 override 작성. */
+.topbar.topbar-logi {
+  background: linear-gradient(135deg, #3F5C44 0%, #5D7F61 60%, #7FA183 100%) !important;
+  border-bottom: 2px solid #A8BD8F !important;
+  color: #FFFFFF !important;
+}
+.topbar.topbar-logi .tb-logo {
+  background: linear-gradient(135deg, #A8BD8F, #7FA183) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(168,189,143,.45), inset 0 1px 0 rgba(255,255,255,.25) !important;
+}
+
+/* ===== Hub 로고 이미지 (S1-A1 / S2-A2) =====
+   3 Hub 로고 통일 → base_sales/base_logi 의 brand-logo-wrap img.
+   통합 base.html (4354 v2 본체 clamp 52~76px) 와 시각 정합 위해 Hub 헤더는 살짝 작게(40~52px clamp).
+   v2 본체 4287~4574 미접촉. .tb-logo-img 는 신규 클래스. */
+.topbar.topbar-hub-sales .brand-logo-wrap,
+.topbar.topbar-hub-logi  .brand-logo-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.topbar.topbar-hub-sales .tb-logo-img,
+.topbar.topbar-hub-logi  .tb-logo-img {
+  height: clamp(40px, 2.4vw + 28px, 52px);
+  width: auto; max-width: 220px;
+  object-fit: contain; display: block;
+  filter: brightness(1.08) contrast(1.02);
+}

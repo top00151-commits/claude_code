@@ -145,7 +145,7 @@ input,select,textarea{font-family:inherit;font-size:18px}
 .tb-menu-btn{color:var(--r);font-size:var(--text-xl);background:rgba(165,40,44,.08);width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .tb-menu-btn:hover{background:rgba(165,40,44,.15)}
 .brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--t);flex-shrink:0}
-.brand-logo{height:52px;width:auto;display:block}
+.brand-logo{height:44px;width:auto;display:block} /* S2-A2: 44px 단일화 (line 1213 .topbar override 와 동일) — v2 본체 4354 .brand-logo-wrap img clamp 는 별도 wrap 컨텍스트로 미충돌 */
 .brand-slogan{font-size:var(--text-xs);color:var(--r);white-space:nowrap;font-weight:700;line-height:1.3}
 .brand-sub{display:block;font-size:var(--text-xs);color:var(--g);font-weight:400;letter-spacing:.3px}
 .tb-center-title{position:absolute;left:50%;transform:translateX(-50%);font-size:var(--text-2xl);font-weight:900;color:var(--r);text-decoration:none;letter-spacing:1px;white-space:nowrap}
@@ -2560,7 +2560,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: var(--text-md); /* S2-B1: 14px → --text-md(15~17px clamp) 토큰화. line 102~107 토큰 정의 활용 / 한국어 가독성 16px 권장 */
   line-height: 1.55;
   letter-spacing: -0.01em;
 }

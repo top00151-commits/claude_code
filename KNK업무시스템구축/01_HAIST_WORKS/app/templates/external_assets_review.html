@@ -21,7 +21,7 @@
     ⚠️ 입력 검증 실패. 자산명 / 결정 항목을 확인해 주세요.
   </div>
   {% else %}
-  <div style="background:#E8F5E9;border:1px solid #16A34A;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#166534;font-size:13px;font-weight:700;">
+  <div style="background:#F0F5EB;border:1px solid #7FA183;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#3F5C44;font-size:13px;font-weight:700;"><!-- S2-D1: Tailwind green → sage (E8F5E9→F0F5EB / 16A34A→7FA183 / 166534→3F5C44) -->
     ✅ <strong>{{ saved }}</strong> 결정이 99_DISPATCH/외부자산_결정_2026-04-27.md 에 기록되었습니다. 빅터가 자동으로 후속 spike를 발주합니다.
   </div>
   {% endif %}
@@ -30,12 +30,12 @@
 <!-- 요약 카드 3개 (위험도 한눈에) -->
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
   {% for a in assets %}
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px;text-align:center;border-top:3px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#F59E0B{% else %}#9CA3AF{% endif %};">
+  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px;text-align:center;border-top:3px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#C9A961{% else %}#9CA3AF{% endif %};">
     <div style="font-size:14px;font-weight:800;color:#1A1A1A;">{{ a.name }}</div>
     <div style="font-size:10px;color:#6B7280;margin:3px 0 8px;">{{ a.usage|length }}개소 사용</div>
     <div style="display:flex;justify-content:center;gap:10px;font-size:11px;">
       <div>보안 {% for i in range(5) %}{% if i < a.risk_security %}<span style="color:#DC2626;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}</div>
-      <div>의존 {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#F59E0B;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}</div>
+      <div>의존 {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#C9A961;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}</div>
     </div>
   </div>
   {% endfor %}
@@ -43,7 +43,7 @@
 
 <!-- 자산별 상세 카드 (3개) -->
 {% for a in assets %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px 24px;margin-bottom:16px;border-left:4px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#F59E0B{% else %}#4338CA{% endif %};">
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px 24px;margin-bottom:16px;border-left:4px solid {% if a.risk_security >= 4 %}#DC2626{% elif a.risk_dependency >= 4 %}#C9A961{% else %}#7FA183{% endif %};">
 
   <!-- 카드 헤더 -->
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
@@ -59,7 +59,7 @@
       </div>
       <div style="font-size:11px;color:#6B7280;">
         의존성 위험:
-        {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#F59E0B;font-weight:700;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}
+        {% for i in range(5) %}{% if i < a.risk_dependency %}<span style="color:#C9A961;font-weight:700;">★</span>{% else %}<span style="color:#D1D5DB;">★</span>{% endif %}{% endfor %}
         <span style="color:#9CA3AF;">({{ a.risk_dependency }}/5)</span>
       </div>
     </div>
@@ -94,8 +94,8 @@
   </div>
 
   <!-- 영향 요약 -->
-  <div style="background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1A1A1A;line-height:1.7;">
-    <strong style="color:#92400E;">📝 영향 요약:</strong> {{ a.impact_summary }}
+  <div style="background:#FFFBEB;border-left:3px solid #C9A961;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1A1A1A;line-height:1.7;">
+    <strong style="color:#3F5C44;">📝 영향 요약:</strong> {{ a.impact_summary }}
   </div>
 
   <!-- 대체 옵션 -->
@@ -120,11 +120,11 @@
       </label>
       <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;">
         <input type="radio" name="decision" value="keep">
-        <span style="color:#166534;font-weight:700;">유지 (Keep)</span>
+        <span style="color:#3F5C44;font-weight:700;">유지 (Keep)<!-- S2-D1: 166534→3F5C44 sage-700 --></span>
       </label>
       <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;">
         <input type="radio" name="decision" value="partial">
-        <span style="color:#92400E;font-weight:700;">부분 처리 (Partial)</span>
+        <span style="color:#3F5C44;font-weight:700;">부분 처리 (Partial)</span>
       </label>
     </div>
 
@@ -140,7 +140,7 @@
 {% endfor %}
 
 <!-- 하단 안내 -->
-<div style="background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:18px 22px;margin-bottom:14px;font-size:13px;color:#1A1A1A;line-height:1.8;">
+<div style="background:linear-gradient(135deg,#F0F5EB,#E4ECD9);border:1px solid #C8D6BC;border-radius:14px;padding:18px 22px;margin-bottom:14px;font-size:13px;color:#1A1A1A;line-height:1.8;"><!-- S2-D1: 인디고 그라디언트 → sage 100/200 (EEF2FF→F0F5EB / DBEAFE→E4ECD9 / C7D2FE→C8D6BC) -->
   <strong style="color:#312E81;">💬 결정 처리 흐름</strong><br>
   결정 제출 후 <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:12px;">99_DISPATCH/외부자산_결정_2026-04-27.md</code>에 자동 기록되며,
   빅터(09 팀장)가 이를 모니터링하여 후속 spike(코드 수정 / requirements.txt 정리 / 사이클 56 외부자산 청소)를 자동 발주합니다.

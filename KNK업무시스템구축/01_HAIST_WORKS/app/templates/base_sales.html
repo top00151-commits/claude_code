@@ -3,34 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}자재·구매 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
+<title>{% block title %}매출·영업 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
 <link rel="stylesheet" href="/static/style.css?v=20260427cycle60-3hub">
 <link rel="stylesheet" href="/static/style_hubs.css?v=20260427cycle60-3hub">
 </head>
-<body class="logi-body" data-ws="{{ (current_workspace.key if current_workspace else 'logi') }}">
+<body class="sales-body" data-ws="{{ (current_workspace.key if current_workspace else 'sales') }}">
 
 {% if user %}
-<header class="topbar topbar-hub-logi">
+<header class="topbar topbar-hub-sales">
   <div class="tb-left">
     <button class="tb-menu-btn" onclick="toggleSidebar()" title="메뉴" aria-label="메뉴 열기">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <a href="/logistics" class="tb-brand">
+    <a href="/sales" class="tb-brand">
       <div class="brand-logo-wrap">
         <img src="/static/logo.png?v=20260427hub" alt="KNK HAIST Innovation" class="tb-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <span class="tb-logo fallback" style="display:none">KNK</span>
       </div>
       <span class="tb-title-group">
-        <span class="tb-title">HAIST WORKS<span class="tb-hub-dot"></span><span class="tb-hub-sub">Logistics Hub</span></span>
-        <span class="tb-subtitle">자재·구매 · 재고·입출고</span>
+        <span class="tb-title">HAIST WORKS<span class="tb-hub-dot"></span><span class="tb-hub-sub">Sales Hub</span></span>
+        <span class="tb-subtitle">매출·영업 · 견적·수주 · 고객사</span>
       </span>
     </a>
   </div>
   <div class="tb-spacer"></div>
   <div class="tb-right">
-    <a href="/home" target="_blank" rel="noopener" class="tb-home-link" title="HAIST WORKS 메인 창 열기">
+    <a href="/home" class="tb-home-link" title="HAIST WORKS 통합 메인">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span>HAIST WORKS</span>
+      <span>통합 메인</span>
     </a>
     <a href="/profile" class="tb-user-chip" title="내 계정">
       <div class="tb-avatar">{{ user.name[:1] }}</div>
@@ -48,58 +48,57 @@
 <div class="layout-wrap">
   <aside class="sidebar sidebar-logi" id="sidebar">
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
-    {# C안 §3·§7-2 — 드래그 핸들 폐지 #}
-    {# 사이클 60 — 매출·영업 그룹 제거 (base_sales.html 로 이전) #}
+    {# 사이클 60 — 매출·영업 Hub 전용 사이드바 (3 그룹) #}
 
-    {# 📦 자재·구매 (구매팀·자재팀) #}
+    {# 📈 매출·영업 #}
     <div class="sb-section">
-      <div class="sb-head" style="color:#166534;">📦 자재·구매</div>
-      <a href="/logistics" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
-        자재·구매 센터
+      <div class="sb-head">📈 매출·영업</div>
+      <a href="/sales" class="sb-item {% if active=='sales' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        매출·영업 센터
       </a>
-      <a href="/parts" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></span>
-        부품 마스터
+      <a href="/projects" class="sb-item {% if active=='sales_projects' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+        관리코드 대장
       </a>
-      <a href="/suppliers" class="sb-item {% if active=='suppliers' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
-        공급사
+      <a href="/sales/production" class="sb-item {% if active=='sales_production' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M9 21V11h6v10"/></svg></span>
+        생산 현황
       </a>
-      <a href="/po" class="sb-item {% if active=='po' %}sb-active{% endif %}">
+    </div>
+
+    {# 🤝 고객·견적·수주 #}
+    <div class="sb-section">
+      <div class="sb-head">🤝 고객 · 견적 · 수주</div>
+      <a href="/sales/quotations" class="sb-item {% if active=='sales_quotations' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        견적
+      </a>
+      <a href="/sales/orders" class="sb-item {% if active=='sales_orders' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        발주
+        수주
+      </a>
+      <a href="/customers" class="sb-item {% if active=='customers' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        고객사
       </a>
     </div>
 
+    {# 📊 매출 분석 #}
     <div class="sb-section">
-      <div class="sb-head">재고 · 입출고 <span style="background:#E8F5E9;color:#2E7D32;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
-      <a href="/stock/movements" class="sb-item {% if active=='stock' %}sb-active{% endif %}">
+      <div class="sb-head">📊 매출 분석</div>
+      <a href="/sales/shipments-receipts" class="sb-item {% if active=='sales_shipments' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
-        수불부 (입출고 원장)
+        출하·수금
       </a>
-      <a href="/stock/issue" class="sb-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
-        출고 등록
+      <a href="/sales/outstanding" class="sb-item {% if active=='sales_outstanding' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        미수금 현황
       </a>
-      <a href="/stock/adjust" class="sb-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/></svg></span>
-        실사 조정
+      <a href="/sales/dashboard" class="sb-item {% if active=='sales_dashboard' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        S1 매출 분석
       </a>
-    </div>
-
-    <div class="sb-section">
-      <div class="sb-head">동적 변수 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
-      <a href="/rates" class="sb-item {% if active=='rates' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-        환율 관리
-      </a>
-      {% if user.role in ['admin', 'finance', 'ceo', 'executive'] %}
-      <a href="/fx/rates" class="sb-item {% if active=='fx_rates' %}sb-active{% endif %}">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></span>
-        환율(외부)
-      </a>
-      {% endif %}
     </div>
 
     <div class="sb-section">
@@ -108,9 +107,9 @@
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
         통합 메인 ↗
       </a>
-      <a href="/sales" class="sb-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        매출·영업 Hub ↗
+      <a href="/logistics" class="sb-item">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
+        자재·구매 Hub ↗
       </a>
     </div>
   </aside>
@@ -118,7 +117,7 @@
   <div class="main-wrap">
     <main class="main has-sidebar logi-main">
       {% block body %}{% endblock %}
-      <footer class="footer">㈜케이엔케이 | HAIST Innovation · 매출·영업 + 자재·구매 | {{ now|default('') }}</footer>
+      <footer class="footer">㈜케이엔케이 | HAIST Innovation · 매출·영업 Hub | {{ now|default('') }}</footer>
     </main>
   </div>
 </div>
@@ -138,13 +137,10 @@ function toggleSidebar(){
   const btn = document.querySelector('.sb-toggle');
   if (btn) btn.textContent = (sb.classList.contains('sb-collapsed') || (!isMobile && !sb.classList.contains('sb-open'))) ? '▶' : '◀';
 }
-
-/* C안 §7-2 — base_logi.html 사이드바 드래그 리사이즈 IIFE 전부 폐지 */
 </script>
 
-{# ========== Victor 사이드 도크 (제안 #08 · 매출/자재 센터에도 노출) ========== #}
+{# ========== Victor 사이드 도크 (Sales Hub 노출) ========== #}
 {% if user %}
-{# .dock-tab 제거 (QA-H2 · 05 디자인팀 3차 패치 ①) #}
 <aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
   <div class="dock-head">
     <div class="dock-head-row">
@@ -185,11 +181,10 @@ function toggleSidebar(){
   </div>
   <div class="dock-input-wrap">
     <div class="dock-quick">
-      <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
       <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
-      <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
-      <button type="button" onclick="victorAsk('안전재고 미달')">안전재고</button>
-      <button type="button" onclick="victorAsk('결재')">결재</button>
+      <button type="button" onclick="victorAsk('견적 작성')">견적 작성</button>
+      <button type="button" onclick="victorAsk('미수금 현황')">미수금</button>
+      <button type="button" onclick="victorAsk('수주 현황')">수주 현황</button>
     </div>
     <div class="dock-input-row">
       <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
@@ -204,7 +199,7 @@ function toggleSidebar(){
 </aside>
 
 <script>
-/* base_logi 페이지용 Victor 도크 JS — base.html 과 동일 로직 (독립 실행 페이지이므로 재정의) */
+/* base_sales 페이지용 Victor 도크 JS — base_logi 와 동일 로직 (독립 실행) */
 const VICTOR_DOCK_KEY='haist_victor_dock_open';let VICTOR_REDIRECT_TIMER=null;
 function victorToggleDock(){const o=!document.body.classList.contains('dock-open');document.body.classList.toggle('dock-open',o);try{localStorage.setItem(VICTOR_DOCK_KEY,o?'1':'0');}catch(e){}if(o)setTimeout(()=>document.getElementById('dockInput')?.focus(),280);}
 (function(){try{if(localStorage.getItem(VICTOR_DOCK_KEY)==='1')document.body.classList.add('dock-open');}catch(e){}})();
@@ -233,10 +228,9 @@ document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key
 document.addEventListener('DOMContentLoaded',function(){const inp=document.getElementById('dockInput');if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();victorSubmit();}});});
 </script>
 
-{# base_logi 의 topbar 가 도크 열리면 padding-right 밀림 #}
 <style>
-body.dock-open .topbar-hub-logi{padding-right:420px;transition:padding-right 400ms cubic-bezier(0.33,1,0.68,1);}
-@media(max-width:1023px){body.dock-open .topbar-hub-logi{padding-right:0;}}
+body.dock-open .topbar-hub-sales{padding-right:420px;transition:padding-right 400ms cubic-bezier(0.33,1,0.68,1);}
+@media(max-width:1023px){body.dock-open .topbar-hub-sales{padding-right:0;}}
 </style>
 {% endif %}
 
