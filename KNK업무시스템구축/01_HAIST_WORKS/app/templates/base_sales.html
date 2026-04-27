@@ -50,9 +50,9 @@
     <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
     {# 사이클 60 — 매출·영업 Hub 전용 사이드바 (3 그룹) #}
 
-    {# 📈 매출·영업 #}
+    {# 매출·영업 (S3-C1 사이클65: 이모지 → 인라인 SVG line-chart) #}
     <div class="sb-section">
-      <div class="sb-head">📈 매출·영업</div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>매출·영업</div>
       <a href="/sales" class="sb-item {% if active=='sales' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
         매출·영업 센터
@@ -67,9 +67,9 @@
       </a>
     </div>
 
-    {# 🤝 고객·견적·수주 #}
+    {# 고객·견적·수주 (S3-C1 사이클65: 이모지 → 인라인 SVG users) #}
     <div class="sb-section">
-      <div class="sb-head">🤝 고객 · 견적 · 수주</div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>고객 · 견적 · 수주</div>
       <a href="/sales/quotations" class="sb-item {% if active=='sales_quotations' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
         견적
@@ -84,9 +84,9 @@
       </a>
     </div>
 
-    {# 📊 매출 분석 #}
+    {# 매출 분석 (S3-C1 사이클65: 이모지 → 인라인 SVG bar-chart) #}
     <div class="sb-section">
-      <div class="sb-head">📊 매출 분석</div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span>매출 분석</div>
       <a href="/sales/shipments-receipts" class="sb-item {% if active=='sales_shipments' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
         출하·수금
@@ -102,7 +102,7 @@
     </div>
 
     <div class="sb-section">
-      <div class="sb-head">이동</div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></span>이동</div>
       <a href="/home" class="sb-item">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
         통합 메인 ↗
