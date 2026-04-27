@@ -9173,3 +9173,621 @@ async def part_prices_create(
         return RedirectResponse(f"/parts/{part_id}/prices?error={e}", 303)
     return RedirectResponse(f"/parts/{part_id}/prices?success=1", 303)
 
+
+# =====================================================
+# 사이클 75 — FTA 원산지증명서 (C/O) 발급 모듈 (2026-04-27)
+# 04 시뮬 MISSING #1: 안지연 본업. KAFTA/KEUFTA/RCEP 5종 처리.
+# 외부 PDF 라이브러리 0건 (HTML 인쇄 view + window.print() 사이클 63 패턴).
+# v2 본체 미접촉 / 핫패치 130 보존 / SQL 파라미터 바인딩.
+# =====================================================
+from .database import (create_fta_certificate, get_fta_certificates,
+                       get_fta_certificate)
+
+FTA_TYPES = [
+    ("KAFTA",  "한·아세안 FTA (Korea-ASEAN)"),
+    ("KEUFTA", "한·EU FTA (Korea-EU)"),
+    ("KCFTA",  "한·중 FTA (Korea-China)"),
+    ("KVFTA",  "한·베트남 FTA (Korea-Vietnam)"),
+    ("RCEP",   "역내포괄적경제동반자협정 (RCEP)"),
+]
+FTA_TYPE_CODES = {code for code, _label in FTA_TYPES}
+ORIGIN_COUNTRIES = [("KR", "한국"), ("VN", "베트남"), ("CN", "중국")]
+
+
+@app.get("/export/fta", response_class=HTMLResponse)
+async def export_fta_list(req: Request):
+    """원산지증명서 목록 (안지연 본업 · 04 시뮬 MISSING #1)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    status = req.query_params.get("status") or None
+    fta_type = req.query_params.get("fta_type") or None
+    items = get_fta_certificates(status=status, fta_type=fta_type, limit=300)
+    return ctx(req, "fta_list.html", user=u, active="export",
+               items=items, FTA_TYPES=FTA_TYPES,
+               filter_status=status or "", filter_fta_type=fta_type or "")
+
+
+@app.get("/export/fta/new", response_class=HTMLResponse)
+async def export_fta_new_form(req: Request):
+    """원산지증명서 신규 발급 폼."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+        ).fetchall()]
+        export_orders = [dict(r) for r in c.execute(
+            """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
+               FROM export_orders eo
+               LEFT JOIN orders o ON o.id = eo.order_id
+               ORDER BY eo.id DESC LIMIT 100"""
+        ).fetchall()]
+        parts_options = [dict(r) for r in c.execute(
+            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+        ).fetchall()]
+    return ctx(req, "fta_form.html", user=u, active="export",
+               customers=customers, export_orders=export_orders,
+               parts_options=parts_options,
+               FTA_TYPES=FTA_TYPES, ORIGIN_COUNTRIES=ORIGIN_COUNTRIES,
+               cert=None)
+
+
+@app.post("/export/fta")
+async def export_fta_create(req: Request):
+    """원산지증명서 신규 등록. cert_no 자동 생성 (FTA-YYYY-####)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    fta_type = (form.get("fta_type") or "").strip().upper()
+    if fta_type not in FTA_TYPE_CODES:
+        return JSONResponse({"error": "fta_type 필수"}, 400)
+    customer_id_raw = form.get("customer_id")
+    customer_id = int(customer_id_raw) if (customer_id_raw and customer_id_raw.isdigit()) else None
+    customer_name = (form.get("customer_name") or "").strip() or None
+    customer_address = (form.get("customer_address") or "").strip() or None
+    customer_country = (form.get("customer_country") or "").strip() or None
+    eo_raw = form.get("export_order_id")
+    export_order_id = int(eo_raw) if (eo_raw and eo_raw.isdigit()) else None
+    export_invoice_no = (form.get("export_invoice_no") or "").strip() or None
+    export_date = (form.get("export_date") or "").strip() or None
+    origin_country = (form.get("origin_country") or "KR").strip() or "KR"
+    currency = (form.get("currency") or "USD").strip() or "USD"
+    remarks = (form.get("remarks") or "").strip() or None
+    # 라인 파싱 — line_part_id[], line_part_name[], line_hs[], line_qty[], line_unit[], line_unit_price[], line_origin[]
+    part_ids = form.getlist("line_part_id") if hasattr(form, "getlist") else []
+    part_names = form.getlist("line_part_name") if hasattr(form, "getlist") else []
+    hs_codes = form.getlist("line_hs") if hasattr(form, "getlist") else []
+    qtys = form.getlist("line_qty") if hasattr(form, "getlist") else []
+    units = form.getlist("line_unit") if hasattr(form, "getlist") else []
+    unit_prices = form.getlist("line_unit_price") if hasattr(form, "getlist") else []
+    origins = form.getlist("line_origin") if hasattr(form, "getlist") else []
+    items = []
+    total_value = 0.0
+    n = max(len(part_names), len(hs_codes), len(qtys))
+    for i in range(n):
+        pname = (part_names[i] if i < len(part_names) else "").strip()
+        hs = (hs_codes[i] if i < len(hs_codes) else "").strip()
+        if not pname and not hs:
+            continue
+        pid_raw = part_ids[i] if i < len(part_ids) else ""
+        try:
+            pid = int(pid_raw) if pid_raw and pid_raw.isdigit() else None
+        except Exception:
+            pid = None
+        try:
+            qv = float(qtys[i]) if i < len(qtys) and qtys[i] else 0.0
+        except Exception:
+            qv = 0.0
+        try:
+            up = float(unit_prices[i]) if i < len(unit_prices) and unit_prices[i] else 0.0
+        except Exception:
+            up = 0.0
+        line_total = round(qv * up, 2)
+        total_value += line_total
+        items.append({
+            "part_id": pid,
+            "part_name": pname or None,
+            "hs_code": hs or None,
+            "qty": qv,
+            "unit": (units[i] if i < len(units) else "") or None,
+            "unit_price": up,
+            "origin_country": (origins[i] if i < len(origins) else "") or origin_country,
+            "total": line_total,
+        })
+    issuer_id = u["id"] if isinstance(u, dict) else u["id"]
+    issuer_name = (u.get("name") if isinstance(u, dict) else u["name"]) or None
+    cert_id, cert_no = create_fta_certificate(
+        fta_type=fta_type,
+        customer_id=customer_id,
+        customer_name=customer_name,
+        customer_address=customer_address,
+        customer_country=customer_country,
+        export_order_id=export_order_id,
+        export_invoice_no=export_invoice_no,
+        export_date=export_date,
+        origin_country=origin_country,
+        total_value=total_value,
+        currency=currency,
+        issuer_id=issuer_id,
+        issuer_name=issuer_name,
+        items=items,
+        remarks=remarks,
+        created_by=issuer_id,
+    )
+    return RedirectResponse(f"/export/fta/{cert_id}", 303)
+
+
+@app.get("/export/fta/{cert_id}", response_class=HTMLResponse)
+async def export_fta_detail(req: Request, cert_id: int):
+    """원산지증명서 상세 (라인 + 발급/인쇄 액션)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    cert = get_fta_certificate(cert_id)
+    if not cert:
+        return RedirectResponse("/export/fta", 303)
+    company = _company_info_dict()
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+        ).fetchall()]
+        export_orders = [dict(r) for r in c.execute(
+            """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
+               FROM export_orders eo
+               LEFT JOIN orders o ON o.id = eo.order_id
+               ORDER BY eo.id DESC LIMIT 100"""
+        ).fetchall()]
+        parts_options = [dict(r) for r in c.execute(
+            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+        ).fetchall()]
+    return ctx(req, "fta_form.html", user=u, active="export",
+               cert=cert, company=company,
+               customers=customers, export_orders=export_orders,
+               parts_options=parts_options,
+               FTA_TYPES=FTA_TYPES, ORIGIN_COUNTRIES=ORIGIN_COUNTRIES)
+
+
+@app.post("/export/fta/{cert_id}/issue")
+async def export_fta_issue(req: Request, cert_id: int):
+    """원산지증명서 발급 확정 (DRAFT → ISSUED)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        c.execute(
+            "UPDATE fta_certificates SET status='ISSUED', "
+            "issued_at=datetime('now','localtime') "
+            "WHERE id=? AND status='DRAFT'",
+            (int(cert_id),)
+        )
+    return RedirectResponse(f"/export/fta/{cert_id}", 303)
+
+
+@app.get("/export/fta/{cert_id}/print", response_class=HTMLResponse)
+async def export_fta_print(req: Request, cert_id: int):
+    """원산지증명서 인쇄 view (HTML + window.print(), 외부 PDF 0건)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    cert = get_fta_certificate(cert_id)
+    if not cert:
+        return RedirectResponse("/export/fta", 303)
+    company = _company_info_dict()
+    fta_label_map = {code: label for code, label in FTA_TYPES}
+    return ctx(req, "fta_print.html", user=u,
+               cert=cert, company=company,
+               fta_label=fta_label_map.get(cert.get("fta_type"), cert.get("fta_type") or "FTA"))
+
+
+# =====================================================
+# 검사기 출하성적서 QC INSPECTION REPORT (사이클 76 · 2026-04-27)
+# 김정록 본업 — 검사기 반복성 검증 + 출하성적서 작성 (04 시뮬 MISSING #2)
+# 외부 PDF 라이브러리 0건 (HTML 인쇄 view + window.print() 사이클 75 패턴)
+# v2 본체 미접촉 / 핫패치 130 보존 / SQL 파라미터 바인딩
+# =====================================================
+from .database import (create_qc_inspection_report, get_qc_inspection_reports,
+                       get_qc_inspection_report, QC_STANDARD_ITEMS)
+
+QC_OVERALL_OPTIONS = [
+    ("PASS",              "합격 (PASS)"),
+    ("CONDITIONAL_PASS",  "조건부 합격 (CONDITIONAL PASS)"),
+    ("FAIL",              "불합격 (FAIL)"),
+]
+
+
+def _qcr_guard(req: Request):
+    """검사기 출하성적서 가드 — admin/ceo/executive OR 품질팀 OR 검사기팀 OR can_use_quality."""
+    u = get_user(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive"):
+        return u
+    if u.get("can_use_quality"):
+        return u
+    tid = u.get("team_id")
+    if tid:
+        with db_session() as c:
+            row = c.execute(
+                "SELECT name FROM teams WHERE id=?", (tid,)
+            ).fetchone()
+        if row:
+            tname = row["name"] or ""
+            if "품질" in tname or "검사기" in tname or "QA" in tname.upper():
+                return u
+    return None
+
+
+@app.get("/qc/inspection-reports", response_class=HTMLResponse)
+async def qc_report_list(req: Request):
+    """검사기 출하성적서 목록 (김정록 본업 · 04 시뮬 MISSING #2)."""
+    u = _qcr_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    status = req.query_params.get("status") or None
+    overall = req.query_params.get("overall") or None
+    items = get_qc_inspection_reports(status=status, overall=overall, limit=300)
+    return ctx(req, "qc_report_list.html", user=u, active="qc_reports",
+               items=items, QC_OVERALL_OPTIONS=QC_OVERALL_OPTIONS,
+               filter_status=status or "", filter_overall=overall or "")
+
+
+@app.get("/qc/inspection-reports/new", response_class=HTMLResponse)
+async def qc_report_new_form(req: Request):
+    """검사기 출하성적서 신규 발급 폼."""
+    u = _qcr_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+        ).fetchall()]
+        orders = [dict(r) for r in c.execute(
+            """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               ORDER BY o.id DESC LIMIT 100"""
+        ).fetchall()]
+        parts_options = [dict(r) for r in c.execute(
+            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+        ).fetchall()]
+    return ctx(req, "qc_report_form.html", user=u, active="qc_reports",
+               customers=customers, orders=orders, parts_options=parts_options,
+               QC_OVERALL_OPTIONS=QC_OVERALL_OPTIONS,
+               QC_STANDARD_ITEMS=QC_STANDARD_ITEMS,
+               report=None)
+
+
+@app.post("/qc/inspection-reports")
+async def qc_report_create(req: Request):
+    """검사기 출하성적서 신규 등록. report_no 자동 생성 (QCR-YYYY-####)."""
+    u = _qcr_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    customer_id_raw = form.get("customer_id")
+    customer_id = int(customer_id_raw) if (customer_id_raw and customer_id_raw.isdigit()) else None
+    customer_name = (form.get("customer_name") or "").strip() or None
+    order_id_raw = form.get("order_id")
+    order_id = int(order_id_raw) if (order_id_raw and order_id_raw.isdigit()) else None
+    order_no = (form.get("order_no") or "").strip() or None
+    part_id_raw = form.get("part_id")
+    part_id = int(part_id_raw) if (part_id_raw and part_id_raw.isdigit()) else None
+    machine_model = (form.get("machine_model") or "").strip() or None
+    machine_serial = (form.get("machine_serial") or "").strip() or None
+    inspection_date = (form.get("inspection_date") or "").strip() or None
+    overall = (form.get("overall") or "PASS").strip().upper()
+    if overall not in ("PASS", "FAIL", "CONDITIONAL_PASS"):
+        overall = "PASS"
+    qa_raw = form.get("qa_manager_id")
+    qa_manager_id = int(qa_raw) if (qa_raw and qa_raw.isdigit()) else None
+    qa_manager_name = (form.get("qa_manager_name") or "").strip() or None
+    remarks = (form.get("remarks") or "").strip() or None
+    # 라인 파싱 — line_item_name[], line_spec[], line_measured[], line_judgment[], line_remarks[]
+    item_names = form.getlist("line_item_name") if hasattr(form, "getlist") else []
+    specs = form.getlist("line_spec") if hasattr(form, "getlist") else []
+    measureds = form.getlist("line_measured") if hasattr(form, "getlist") else []
+    judgments = form.getlist("line_judgment") if hasattr(form, "getlist") else []
+    line_remarks_l = form.getlist("line_remarks") if hasattr(form, "getlist") else []
+    items = []
+    fail_seen = False
+    n = max(len(item_names), len(specs), len(measureds))
+    for i in range(n):
+        nm = (item_names[i] if i < len(item_names) else "").strip()
+        if not nm:
+            continue
+        jdg = (judgments[i] if i < len(judgments) else "PASS").strip().upper() or "PASS"
+        if jdg not in ("PASS", "FAIL", "NA"):
+            jdg = "PASS"
+        if jdg == "FAIL":
+            fail_seen = True
+        items.append({
+            "item_name": nm,
+            "spec_value": (specs[i] if i < len(specs) else "").strip() or None,
+            "measured_value": (measureds[i] if i < len(measureds) else "").strip() or None,
+            "judgment": jdg,
+            "remarks": (line_remarks_l[i] if i < len(line_remarks_l) else "").strip() or None,
+        })
+    # overall 자동 보정 — 라인 중 FAIL 있고 사용자가 PASS 만 선택했으면 CONDITIONAL_PASS 로 보정
+    if fail_seen and overall == "PASS":
+        overall = "CONDITIONAL_PASS"
+    inspector_id = u["id"] if isinstance(u, dict) else u["id"]
+    inspector_name = (u.get("name") if isinstance(u, dict) else u["name"]) or None
+    report_id, report_no = create_qc_inspection_report(
+        customer_id=customer_id,
+        customer_name=customer_name,
+        order_id=order_id,
+        order_no=order_no,
+        part_id=part_id,
+        machine_model=machine_model,
+        machine_serial=machine_serial,
+        inspection_date=inspection_date,
+        inspector_id=inspector_id,
+        inspector_name=inspector_name,
+        qa_manager_id=qa_manager_id,
+        qa_manager_name=qa_manager_name,
+        overall=overall,
+        items=items,
+        remarks=remarks,
+        created_by=inspector_id,
+    )
+    return RedirectResponse(f"/qc/inspection-reports/{report_id}", 303)
+
+
+@app.get("/qc/inspection-reports/{report_id}", response_class=HTMLResponse)
+async def qc_report_detail(req: Request, report_id: int):
+    """검사기 출하성적서 상세 (라인 + 발급/인쇄 액션)."""
+    u = _qcr_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    report = get_qc_inspection_report(report_id)
+    if not report:
+        return RedirectResponse("/qc/inspection-reports", 303)
+    company = _company_info_dict()
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+        ).fetchall()]
+        orders = [dict(r) for r in c.execute(
+            """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               ORDER BY o.id DESC LIMIT 100"""
+        ).fetchall()]
+        parts_options = [dict(r) for r in c.execute(
+            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+        ).fetchall()]
+    return ctx(req, "qc_report_form.html", user=u, active="qc_reports",
+               report=report, company=company,
+               customers=customers, orders=orders, parts_options=parts_options,
+               QC_OVERALL_OPTIONS=QC_OVERALL_OPTIONS,
+               QC_STANDARD_ITEMS=QC_STANDARD_ITEMS)
+
+
+@app.post("/qc/inspection-reports/{report_id}/issue")
+async def qc_report_issue(req: Request, report_id: int):
+    """검사기 출하성적서 발급 확정 (DRAFT → ISSUED)."""
+    u = _qcr_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        c.execute(
+            "UPDATE qc_inspection_reports SET status='ISSUED', "
+            "issued_at=datetime('now','localtime') "
+            "WHERE id=? AND status='DRAFT'",
+            (int(report_id),)
+        )
+    return RedirectResponse(f"/qc/inspection-reports/{report_id}", 303)
+
+
+@app.get("/qc/inspection-reports/{report_id}/print", response_class=HTMLResponse)
+async def qc_report_print(req: Request, report_id: int):
+    """검사기 출하성적서 인쇄 view (HTML + window.print(), 외부 PDF 0건)."""
+    u = _qcr_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    report = get_qc_inspection_report(report_id)
+    if not report:
+        return RedirectResponse("/qc/inspection-reports", 303)
+    company = _company_info_dict()
+    overall_label_map = {code: label for code, label in QC_OVERALL_OPTIONS}
+    return ctx(req, "qc_report_print.html", user=u,
+               report=report, company=company,
+               overall_label=overall_label_map.get(report.get("overall"), report.get("overall") or "PASS"))
+
+
+# =====================================================
+# WORK ORDERS — 가공팀 작업지시서 (2026-04-27 사이클77)
+# 윤영조·이수빈 본업 · 04 시뮬 MISSING #3 보완 · 외부 자산 0건
+# =====================================================
+from .database import (create_work_order, get_work_orders, get_work_order)
+
+WO_STATUS_OPTIONS = [
+    ("DRAFT",       "작성 중 (DRAFT)"),
+    ("RELEASED",    "발행 (RELEASED)"),
+    ("IN_PROGRESS", "진행 중 (IN_PROGRESS)"),
+    ("COMPLETED",   "완료 (COMPLETED)"),
+    ("CANCELLED",   "취소 (CANCELLED)"),
+]
+
+WO_STD_STEPS = [
+    ("절삭", 60),
+    ("연마", 30),
+    ("검수", 15),
+]
+
+
+def _wo_guard(req: Request):
+    """가공팀 작업지시서 가드 — admin/ceo/executive OR 가공팀(team_id=9) OR production 권한 OR leader."""
+    u = get_user(req)
+    if not u:
+        return None
+    role = u.get("role") if isinstance(u, dict) else u["role"]
+    if role in ("admin", "ceo", "executive", "production"):
+        return u
+    tid = u.get("team_id")
+    if tid:
+        with db_session() as c:
+            row = c.execute(
+                "SELECT name FROM teams WHERE id=?", (tid,)
+            ).fetchone()
+        if row:
+            tname = row["name"] or ""
+            if "가공" in tname or "machining" in tname.lower():
+                return u
+    # 팀장이면 자기 팀이 가공팀인 경우 통과
+    if u.get("is_leader"):
+        return u
+    return None
+
+
+@app.get("/production/work-orders", response_class=HTMLResponse)
+async def wo_list(req: Request):
+    """가공팀 작업지시서 목록 (윤영조·이수빈 본업 · MISSING #3)."""
+    u = _wo_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    status = req.query_params.get("status") or None
+    items = get_work_orders(status=status, limit=300)
+    return ctx(req, "wo_list.html", user=u, active="work_orders",
+               items=items, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
+               filter_status=status or "")
+
+
+@app.get("/production/work-orders/new", response_class=HTMLResponse)
+async def wo_new_form(req: Request):
+    """가공팀 작업지시서 신규 폼."""
+    u = _wo_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        orders = [dict(r) for r in c.execute(
+            """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               ORDER BY o.id DESC LIMIT 100"""
+        ).fetchall()]
+        projects = [dict(r) for r in c.execute(
+            "SELECT id, name FROM projects ORDER BY id DESC LIMIT 100"
+        ).fetchall()]
+        parts_options = [dict(r) for r in c.execute(
+            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+        ).fetchall()]
+        users_options = [dict(r) for r in c.execute(
+            "SELECT id, name FROM users WHERE active=1 ORDER BY name LIMIT 200"
+        ).fetchall()]
+    return ctx(req, "wo_form.html", user=u, active="work_orders",
+               orders=orders, projects=projects,
+               parts_options=parts_options, users_options=users_options,
+               WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
+               WO_STD_STEPS=WO_STD_STEPS,
+               wo=None)
+
+
+@app.post("/production/work-orders")
+async def wo_create(req: Request):
+    """가공팀 작업지시서 신규 등록. wo_no 자동 생성 (WO-YYYY-####)."""
+    u = _wo_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    order_id_raw = form.get("order_id")
+    order_id = int(order_id_raw) if (order_id_raw and order_id_raw.isdigit()) else None
+    project_id_raw = form.get("project_id")
+    project_id = int(project_id_raw) if (project_id_raw and project_id_raw.isdigit()) else None
+    part_id_raw = form.get("part_id")
+    part_id = int(part_id_raw) if (part_id_raw and part_id_raw.isdigit()) else None
+    try:
+        qty = float(form.get("qty") or 0)
+    except Exception:
+        qty = 0
+    assigned_raw = form.get("assigned_to")
+    assigned_to = int(assigned_raw) if (assigned_raw and assigned_raw.isdigit()) else None
+    assigned_name = (form.get("assigned_name") or "").strip() or None
+    planned_start = (form.get("planned_start") or "").strip() or None
+    planned_end = (form.get("planned_end") or "").strip() or None
+    specifications = (form.get("specifications") or "").strip() or None
+    remarks = (form.get("remarks") or "").strip() or None
+    # 라인 파싱
+    step_names = form.getlist("line_step") if hasattr(form, "getlist") else []
+    durations = form.getlist("line_duration") if hasattr(form, "getlist") else []
+    progresses = form.getlist("line_progress") if hasattr(form, "getlist") else []
+    workers = form.getlist("line_worker") if hasattr(form, "getlist") else []
+    line_remarks_l = form.getlist("line_remarks") if hasattr(form, "getlist") else []
+    items = []
+    n = max(len(step_names), len(durations), len(progresses))
+    for i in range(n):
+        nm = (step_names[i] if i < len(step_names) else "").strip()
+        if not nm:
+            continue
+        items.append({
+            "step_name": nm,
+            "duration_min": durations[i] if i < len(durations) else 0,
+            "progress": progresses[i] if i < len(progresses) else 0,
+            "worker_name": (workers[i] if i < len(workers) else "").strip() or None,
+            "remarks": (line_remarks_l[i] if i < len(line_remarks_l) else "").strip() or None,
+        })
+    creator_id = u["id"] if isinstance(u, dict) else u["id"]
+    creator_name = (u.get("name") if isinstance(u, dict) else u["name"]) or None
+    wo_id, wo_no = create_work_order(
+        order_id=order_id,
+        project_id=project_id,
+        part_id=part_id,
+        qty=qty,
+        assigned_to=assigned_to,
+        assigned_name=assigned_name,
+        created_by=creator_id,
+        created_by_name=creator_name,
+        planned_start=planned_start,
+        planned_end=planned_end,
+        specifications=specifications,
+        items=items,
+        remarks=remarks,
+    )
+    return RedirectResponse(f"/production/work-orders/{wo_id}", 303)
+
+
+@app.get("/production/work-orders/{wo_id}", response_class=HTMLResponse)
+async def wo_detail(req: Request, wo_id: int):
+    """가공팀 작업지시서 상세 (라인 + 진행률 + 발행/인쇄 액션)."""
+    u = _wo_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    wo = get_work_order(wo_id)
+    if not wo:
+        return RedirectResponse("/production/work-orders", 303)
+    return ctx(req, "wo_form.html", user=u, active="work_orders",
+               wo=wo, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
+               WO_STD_STEPS=WO_STD_STEPS)
+
+
+@app.post("/production/work-orders/{wo_id}/release")
+async def wo_release(req: Request, wo_id: int):
+    """가공팀 작업지시서 발행 확정 (DRAFT → RELEASED)."""
+    u = _wo_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    with db_session() as c:
+        c.execute(
+            "UPDATE work_orders SET status='RELEASED' "
+            "WHERE id=? AND status='DRAFT'",
+            (int(wo_id),)
+        )
+    return RedirectResponse(f"/production/work-orders/{wo_id}", 303)
+
+
+@app.get("/production/work-orders/{wo_id}/print", response_class=HTMLResponse)
+async def wo_print(req: Request, wo_id: int):
+    """가공팀 작업지시서 인쇄 view (HTML + window.print, 외부 PDF 0건)."""
+    u = _wo_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    wo = get_work_order(wo_id)
+    if not wo:
+        return RedirectResponse("/production/work-orders", 303)
+    company = _company_info_dict()
+    return ctx(req, "wo_print.html", user=u,
+               wo=wo, company=company)

@@ -1007,6 +1007,147 @@ CREATE INDEX IF NOT EXISTS idx_customs_eo ON customs_declarations(export_order_i
 CREATE INDEX IF NOT EXISTS idx_customs_status ON customs_declarations(status);
 
 -- =====================================================
+-- FTA 원산지증명서 (사이클 75 · 2026-04-27 · 04 시뮬 MISSING #1)
+-- 안지연 본업: 검사기·자동화장비 수출입 시 원산지증명서(C/O) 발급
+-- KAFTA / KEUFTA / KCFTA / KVFTA / RCEP 5종. 외부 PDF 라이브러리 0건.
+-- idempotent (CREATE TABLE IF NOT EXISTS).
+-- =====================================================
+CREATE TABLE IF NOT EXISTS fta_certificates (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    cert_no             TEXT UNIQUE,                              -- FTA-YYYY-####
+    fta_type            TEXT,                                     -- KAFTA / KEUFTA / KCFTA / KVFTA / RCEP
+    customer_id         INTEGER REFERENCES customers(id),         -- KNK 고객사 (있으면)
+    customer_name       TEXT,                                     -- 거래처명 (스냅샷)
+    customer_address    TEXT,                                     -- 거래처 주소
+    customer_country    TEXT,                                     -- 거래처 국가
+    export_order_id     INTEGER REFERENCES export_orders(id),     -- 매핑 (선택)
+    export_invoice_no   TEXT,                                     -- CI 번호 (스냅샷)
+    export_date         TEXT,                                     -- 수출일 YYYY-MM-DD
+    origin_country      TEXT DEFAULT 'KR',                        -- 한국(KR) / 베트남(VN) / 중국(CN)
+    total_value         REAL DEFAULT 0,                           -- 총액
+    currency            TEXT DEFAULT 'USD',
+    issuer_id           INTEGER REFERENCES users(id),             -- 발급자 (안지연 등)
+    issuer_name         TEXT,                                     -- 발급자명 스냅샷
+    issued_at           TEXT,                                     -- 발급일시
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','ISSUED','SENT','CANCELLED')),
+    remarks             TEXT,                                     -- 비고
+    created_by          INTEGER REFERENCES users(id),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_fta_cert_customer ON fta_certificates(customer_id);
+CREATE INDEX IF NOT EXISTS idx_fta_cert_status ON fta_certificates(status);
+CREATE INDEX IF NOT EXISTS idx_fta_cert_type ON fta_certificates(fta_type);
+
+CREATE TABLE IF NOT EXISTS fta_certificate_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    cert_id             INTEGER NOT NULL REFERENCES fta_certificates(id) ON DELETE CASCADE,
+    line_no             INTEGER DEFAULT 1,
+    part_id             INTEGER REFERENCES parts(id),
+    part_name           TEXT,                                     -- 품명 스냅샷
+    hs_code             TEXT,                                     -- HS 코드
+    qty                 REAL DEFAULT 0,
+    unit                TEXT,                                     -- EA / SET / KG 등
+    unit_price          REAL DEFAULT 0,
+    origin_country      TEXT,                                     -- 라인별 원산지
+    total               REAL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_fta_item_cert ON fta_certificate_items(cert_id);
+CREATE INDEX IF NOT EXISTS idx_fta_item_part ON fta_certificate_items(part_id);
+
+-- =====================================================
+-- 검사기 출하성적서 QC INSPECTION REPORT (사이클 76 · 2026-04-27 · 04 시뮬 MISSING #2)
+-- 김정록 본업: 검사기 반복성 검증·문제점 파악·출하성적서 작성
+-- 항목: 반복성 / 정확도 / 통신 / 외관 / 동작 / 안전 (코드측 표준 6종)
+-- 외부 PDF 라이브러리 0건 (HTML 인쇄). idempotent.
+-- =====================================================
+CREATE TABLE IF NOT EXISTS qc_inspection_reports (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_no           TEXT UNIQUE,                              -- QCR-YYYY-####
+    customer_id         INTEGER REFERENCES customers(id),
+    customer_name       TEXT,                                     -- 거래처명 스냅샷
+    order_id            INTEGER REFERENCES orders(id),            -- 매핑 (선택)
+    order_no            TEXT,                                     -- 수주번호 스냅샷
+    part_id             INTEGER REFERENCES parts(id),             -- 검사기 부품 매핑
+    machine_model       TEXT,                                     -- 검사기 모델명 (예: HAIST-INS-VX1)
+    machine_serial      TEXT,                                     -- 시리얼 번호
+    inspection_date     TEXT,                                     -- 검사일 YYYY-MM-DD
+    inspector_id        INTEGER REFERENCES users(id),             -- 검사자 (김정록 등)
+    inspector_name      TEXT,                                     -- 검사자명 스냅샷
+    qa_manager_id       INTEGER REFERENCES users(id),             -- QA 책임자 (서명자)
+    qa_manager_name     TEXT,                                     -- QA 책임자명 스냅샷
+    overall             TEXT DEFAULT 'PASS'
+                        CHECK(overall IN ('PASS','FAIL','CONDITIONAL_PASS')),
+    issued_at           TEXT,                                     -- 발급일시
+    sent_at             TEXT,                                     -- 발송일시 (SENT 전이)
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','ISSUED','SENT','CANCELLED')),
+    remarks             TEXT,                                     -- 비고
+    created_by          INTEGER REFERENCES users(id),
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_qcr_customer ON qc_inspection_reports(customer_id);
+CREATE INDEX IF NOT EXISTS idx_qcr_status ON qc_inspection_reports(status);
+CREATE INDEX IF NOT EXISTS idx_qcr_order ON qc_inspection_reports(order_id);
+
+CREATE TABLE IF NOT EXISTS qc_inspection_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id           INTEGER NOT NULL REFERENCES qc_inspection_reports(id) ON DELETE CASCADE,
+    line_no             INTEGER DEFAULT 1,
+    item_name           TEXT NOT NULL,                            -- 반복성/정확도/통신/외관/동작/안전 등
+    spec_value          TEXT,                                     -- 기준값 (≤0.5μm, 100±0.1mm 등)
+    measured_value      TEXT,                                     -- 측정값
+    judgment            TEXT DEFAULT 'PASS'
+                        CHECK(judgment IN ('PASS','FAIL','NA')),
+    remarks             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_qcr_item_report ON qc_inspection_items(report_id);
+
+-- =====================================================
+-- WORK ORDERS (2026-04-27 사이클77 — 가공팀 작업지시서 · 윤영조·이수빈 본업)
+-- 가공 단계별 라인 보유 (절삭/연마/검수). production_orders(매출-생산 연계)와 별도 테이블.
+-- 04 시뮬 MISSING #3 보완. 외부 자산 0건 (인쇄는 HTML window.print).
+-- =====================================================
+CREATE TABLE IF NOT EXISTS work_orders (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    wo_no               TEXT UNIQUE,                              -- WO-YYYY-####
+    order_id            INTEGER REFERENCES orders(id),            -- 수주 기반 (선택)
+    project_id          INTEGER REFERENCES projects(id),          -- 프로젝트 기반 (선택)
+    part_id             INTEGER REFERENCES parts(id),             -- 가공 부품
+    qty                 REAL DEFAULT 0,                           -- 가공 수량
+    assigned_to         INTEGER REFERENCES users(id),             -- 작업자 (이수빈 등)
+    assigned_name       TEXT,                                     -- 작업자명 스냅샷
+    created_by          INTEGER REFERENCES users(id),             -- 작성자 (윤영조 등)
+    created_by_name     TEXT,                                     -- 작성자명 스냅샷
+    planned_start       TEXT,                                     -- YYYY-MM-DD
+    planned_end         TEXT,
+    actual_end          TEXT,                                     -- 실제 완료일
+    specifications      TEXT,                                     -- 가공 사양 (자유 텍스트)
+    status              TEXT DEFAULT 'DRAFT'
+                        CHECK(status IN ('DRAFT','RELEASED','IN_PROGRESS','COMPLETED','CANCELLED')),
+    remarks             TEXT,
+    created_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_work_orders_status ON work_orders(status);
+CREATE INDEX IF NOT EXISTS idx_work_orders_order ON work_orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_part ON work_orders(part_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_assigned ON work_orders(assigned_to);
+
+CREATE TABLE IF NOT EXISTS work_order_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    wo_id               INTEGER NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
+    line_no             INTEGER DEFAULT 1,
+    step_name           TEXT NOT NULL,                            -- 절삭 / 연마 / 검수 등
+    duration_min        INTEGER DEFAULT 0,                        -- 작업시간 분
+    progress            INTEGER DEFAULT 0
+                        CHECK(progress BETWEEN 0 AND 100),        -- 진행률 0~100%
+    worker_id           INTEGER REFERENCES users(id),             -- 단계 작업자
+    worker_name         TEXT,
+    remarks             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_woi_wo ON work_order_items(wo_id);
+
+-- =====================================================
 -- PROJECT GANTT / BURNDOWN (2026-04-26 갭서베이 Top10 #4 — 1차)
 -- 마일스톤 + 일별 번다운 스냅샷. idempotent · projects 테이블 미접촉.
 -- =====================================================
@@ -7019,3 +7160,439 @@ def clone_quotation_to_order(quotation_id: int, due_date: str | None = None,
         return (order_id, order_no)
 
 
+# =====================================================
+# FTA 원산지증명서 헬퍼 (사이클 75 · 2026-04-27)
+# 안지연 본업 — KAFTA/KEUFTA/RCEP 등 발급 모듈
+# 외부 자산 0건 / SQL 파라미터 바인딩 의무
+# =====================================================
+def _next_fta_cert_no() -> str:
+    """FTA-YYYY-#### 패턴 자동 생성. 현재 연도 내 최대치 +1."""
+    from datetime import date as _date
+    yr = _date.today().year
+    prefix = f"FTA-{yr}-"
+    with db_session() as c:
+        row = c.execute(
+            "SELECT cert_no FROM fta_certificates WHERE cert_no LIKE ? "
+            "ORDER BY id DESC LIMIT 1",
+            (f"{prefix}%",)
+        ).fetchone()
+    nxt = 1
+    if row and row["cert_no"]:
+        try:
+            nxt = int(str(row["cert_no"]).split("-")[-1]) + 1
+        except Exception:
+            nxt = 1
+    return f"{prefix}{nxt:04d}"
+
+
+def create_fta_certificate(
+    fta_type: str,
+    customer_id: int = None,
+    customer_name: str = None,
+    customer_address: str = None,
+    customer_country: str = None,
+    export_order_id: int = None,
+    export_invoice_no: str = None,
+    export_date: str = None,
+    origin_country: str = "KR",
+    total_value: float = 0,
+    currency: str = "USD",
+    issuer_id: int = None,
+    issuer_name: str = None,
+    items: list = None,
+    remarks: str = None,
+    created_by: int = None,
+) -> tuple:
+    """원산지증명서 신규 발급. (cert_id, cert_no) 반환.
+    items: [{part_id, part_name, hs_code, qty, unit, unit_price, origin_country, total}]
+    """
+    cert_no = _next_fta_cert_no()
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO fta_certificates
+               (cert_no, fta_type, customer_id, customer_name, customer_address,
+                customer_country, export_order_id, export_invoice_no, export_date,
+                origin_country, total_value, currency, issuer_id, issuer_name,
+                issued_at, status, remarks, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                       datetime('now','localtime'), 'DRAFT', ?, ?)""",
+            (cert_no, fta_type, customer_id, customer_name, customer_address,
+             customer_country, export_order_id, export_invoice_no, export_date,
+             origin_country, total_value or 0, currency or "USD",
+             issuer_id, issuer_name, remarks, created_by),
+        )
+        cert_id = cur.lastrowid
+        if items:
+            for idx, it in enumerate(items, start=1):
+                c.execute(
+                    """INSERT INTO fta_certificate_items
+                       (cert_id, line_no, part_id, part_name, hs_code,
+                        qty, unit, unit_price, origin_country, total)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (cert_id, idx,
+                     it.get("part_id"), it.get("part_name"),
+                     it.get("hs_code"),
+                     float(it.get("qty") or 0),
+                     it.get("unit"),
+                     float(it.get("unit_price") or 0),
+                     it.get("origin_country") or origin_country,
+                     float(it.get("total") or 0)),
+                )
+    return (cert_id, cert_no)
+
+
+def get_fta_certificates(
+    status: str = None,
+    fta_type: str = None,
+    customer_id: int = None,
+    limit: int = 200,
+) -> list:
+    """원산지증명서 목록 (필터 옵션). 최신순."""
+    sql = (
+        "SELECT fc.*, COALESCE(cu.name, fc.customer_name, '-') AS cust_disp "
+        "FROM fta_certificates fc "
+        "LEFT JOIN customers cu ON cu.id = fc.customer_id WHERE 1=1"
+    )
+    args = []
+    if status:
+        sql += " AND fc.status=?"
+        args.append(status)
+    if fta_type:
+        sql += " AND fc.fta_type=?"
+        args.append(fta_type)
+    if customer_id:
+        sql += " AND fc.customer_id=?"
+        args.append(int(customer_id))
+    sql += " ORDER BY fc.id DESC LIMIT ?"
+    args.append(int(limit))
+    with db_session() as c:
+        rows = c.execute(sql, tuple(args)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_fta_certificate(cert_id: int) -> dict:
+    """원산지증명서 상세 + 라인 반환. 없으면 None."""
+    with db_session() as c:
+        row = c.execute(
+            "SELECT fc.*, COALESCE(cu.name, fc.customer_name, '-') AS cust_disp "
+            "FROM fta_certificates fc "
+            "LEFT JOIN customers cu ON cu.id = fc.customer_id "
+            "WHERE fc.id=?",
+            (int(cert_id),)
+        ).fetchone()
+        if not row:
+            return None
+        cert = dict(row)
+        items = c.execute(
+            "SELECT fi.*, COALESCE(p.name, fi.part_name, '-') AS part_disp "
+            "FROM fta_certificate_items fi "
+            "LEFT JOIN parts p ON p.id = fi.part_id "
+            "WHERE fi.cert_id=? ORDER BY fi.line_no ASC, fi.id ASC",
+            (int(cert_id),)
+        ).fetchall()
+        cert["items"] = [dict(r) for r in items]
+        return cert
+
+
+# =====================================================
+# QC INSPECTION REPORT 헬퍼 (사이클 76 · 2026-04-27)
+# 김정록 본업 — 검사기 출하성적서 (QCR-YYYY-####) 발급 모듈
+# 외부 자산 0건 / SQL 파라미터 바인딩 의무
+# =====================================================
+QC_STANDARD_ITEMS = [
+    ("반복성",   "≤ 0.5 μm (3σ)"),
+    ("정확도",   "100 ± 0.1 mm"),
+    ("통신",     "Modbus/TCP RTT < 50 ms"),
+    ("외관",     "도장·라벨·결함 없음"),
+    ("동작",     "전 사이클 정상 동작"),
+    ("안전",     "EMC·접지·인터록 OK"),
+]
+
+
+def _next_qc_report_no() -> str:
+    """QCR-YYYY-#### 패턴 자동 생성. 현재 연도 내 최대치 +1."""
+    from datetime import date as _date
+    yr = _date.today().year
+    prefix = f"QCR-{yr}-"
+    with db_session() as c:
+        row = c.execute(
+            "SELECT report_no FROM qc_inspection_reports WHERE report_no LIKE ? "
+            "ORDER BY id DESC LIMIT 1",
+            (f"{prefix}%",)
+        ).fetchone()
+    nxt = 1
+    if row and row["report_no"]:
+        try:
+            nxt = int(str(row["report_no"]).split("-")[-1]) + 1
+        except Exception:
+            nxt = 1
+    return f"{prefix}{nxt:04d}"
+
+
+def create_qc_inspection_report(
+    customer_id: int = None,
+    customer_name: str = None,
+    order_id: int = None,
+    order_no: str = None,
+    part_id: int = None,
+    machine_model: str = None,
+    machine_serial: str = None,
+    inspection_date: str = None,
+    inspector_id: int = None,
+    inspector_name: str = None,
+    qa_manager_id: int = None,
+    qa_manager_name: str = None,
+    overall: str = "PASS",
+    items: list = None,
+    remarks: str = None,
+    created_by: int = None,
+) -> tuple:
+    """검사기 출하성적서 신규 발급. (report_id, report_no) 반환.
+    items: [{item_name, spec_value, measured_value, judgment, remarks}]
+    """
+    report_no = _next_qc_report_no()
+    if overall not in ("PASS", "FAIL", "CONDITIONAL_PASS"):
+        overall = "PASS"
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO qc_inspection_reports
+               (report_no, customer_id, customer_name, order_id, order_no,
+                part_id, machine_model, machine_serial, inspection_date,
+                inspector_id, inspector_name, qa_manager_id, qa_manager_name,
+                overall, status, remarks, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'DRAFT', ?, ?)""",
+            (report_no, customer_id, customer_name, order_id, order_no,
+             part_id, machine_model, machine_serial, inspection_date,
+             inspector_id, inspector_name, qa_manager_id, qa_manager_name,
+             overall, remarks, created_by),
+        )
+        report_id = cur.lastrowid
+        if items:
+            for idx, it in enumerate(items, start=1):
+                jdg = (it.get("judgment") or "PASS").upper()
+                if jdg not in ("PASS", "FAIL", "NA"):
+                    jdg = "PASS"
+                c.execute(
+                    """INSERT INTO qc_inspection_items
+                       (report_id, line_no, item_name, spec_value,
+                        measured_value, judgment, remarks)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (report_id, idx,
+                     (it.get("item_name") or "").strip(),
+                     it.get("spec_value"),
+                     it.get("measured_value"),
+                     jdg,
+                     it.get("remarks")),
+                )
+    return (report_id, report_no)
+
+
+def get_qc_inspection_reports(
+    status: str = None,
+    overall: str = None,
+    customer_id: int = None,
+    limit: int = 200,
+) -> list:
+    """검사기 출하성적서 목록 (필터 옵션). 최신순."""
+    sql = (
+        "SELECT qr.*, COALESCE(cu.name, qr.customer_name, '-') AS cust_disp, "
+        "       COALESCE(us.name, qr.inspector_name, '-') AS inspector_disp "
+        "FROM qc_inspection_reports qr "
+        "LEFT JOIN customers cu ON cu.id = qr.customer_id "
+        "LEFT JOIN users us ON us.id = qr.inspector_id WHERE 1=1"
+    )
+    args = []
+    if status:
+        sql += " AND qr.status=?"
+        args.append(status)
+    if overall:
+        sql += " AND qr.overall=?"
+        args.append(overall)
+    if customer_id:
+        sql += " AND qr.customer_id=?"
+        args.append(int(customer_id))
+    sql += " ORDER BY qr.id DESC LIMIT ?"
+    args.append(int(limit))
+    with db_session() as c:
+        rows = c.execute(sql, tuple(args)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_qc_inspection_report(report_id: int) -> dict:
+    """검사기 출하성적서 상세 + 라인 반환. 없으면 None."""
+    with db_session() as c:
+        row = c.execute(
+            "SELECT qr.*, COALESCE(cu.name, qr.customer_name, '-') AS cust_disp, "
+            "       COALESCE(us.name, qr.inspector_name, '-') AS inspector_disp, "
+            "       COALESCE(uq.name, qr.qa_manager_name, '-') AS qa_disp, "
+            "       COALESCE(p.name, '-') AS part_disp "
+            "FROM qc_inspection_reports qr "
+            "LEFT JOIN customers cu ON cu.id = qr.customer_id "
+            "LEFT JOIN users us ON us.id = qr.inspector_id "
+            "LEFT JOIN users uq ON uq.id = qr.qa_manager_id "
+            "LEFT JOIN parts p ON p.id = qr.part_id "
+            "WHERE qr.id=?",
+            (int(report_id),)
+        ).fetchone()
+        if not row:
+            return None
+        rep = dict(row)
+        items = c.execute(
+            "SELECT * FROM qc_inspection_items "
+            "WHERE report_id=? ORDER BY line_no ASC, id ASC",
+            (int(report_id),)
+        ).fetchall()
+        rep["items"] = [dict(r) for r in items]
+        return rep
+
+
+# =====================================================
+# WORK ORDERS (가공팀 작업지시서) 헬퍼 (2026-04-27 사이클77)
+# 04 시뮬 MISSING #3 — 윤영조·이수빈 본업 모듈
+# =====================================================
+
+def _next_wo_no() -> str:
+    """WO-YYYY-#### 패턴 자동 생성. 현재 연도 내 최대치 +1."""
+    from datetime import date as _date
+    yr = _date.today().year
+    prefix = f"WO-{yr}-"
+    with db_session() as c:
+        row = c.execute(
+            "SELECT wo_no FROM work_orders WHERE wo_no LIKE ? "
+            "ORDER BY id DESC LIMIT 1",
+            (f"{prefix}%",)
+        ).fetchone()
+    nxt = 1
+    if row and row["wo_no"]:
+        try:
+            nxt = int(str(row["wo_no"]).split("-")[-1]) + 1
+        except Exception:
+            nxt = 1
+    return f"{prefix}{nxt:04d}"
+
+
+def create_work_order(
+    order_id: int = None,
+    project_id: int = None,
+    part_id: int = None,
+    qty: float = 0,
+    assigned_to: int = None,
+    assigned_name: str = None,
+    created_by: int = None,
+    created_by_name: str = None,
+    planned_start: str = None,
+    planned_end: str = None,
+    specifications: str = None,
+    items: list = None,
+    remarks: str = None,
+) -> tuple:
+    """가공팀 작업지시서 신규 발급. (wo_id, wo_no) 반환.
+    items: [{step_name, duration_min, worker_name, remarks}]
+    """
+    wo_no = _next_wo_no()
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO work_orders
+               (wo_no, order_id, project_id, part_id, qty,
+                assigned_to, assigned_name, created_by, created_by_name,
+                planned_start, planned_end, specifications,
+                status, remarks)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'DRAFT', ?)""",
+            (wo_no, order_id, project_id, part_id, qty,
+             assigned_to, assigned_name, created_by, created_by_name,
+             planned_start, planned_end, specifications, remarks),
+        )
+        wo_id = cur.lastrowid
+        if items:
+            for idx, it in enumerate(items, start=1):
+                step = (it.get("step_name") or "").strip()
+                if not step:
+                    continue
+                try:
+                    dur = int(it.get("duration_min") or 0)
+                except Exception:
+                    dur = 0
+                try:
+                    prog = int(it.get("progress") or 0)
+                except Exception:
+                    prog = 0
+                if prog < 0:
+                    prog = 0
+                if prog > 100:
+                    prog = 100
+                c.execute(
+                    """INSERT INTO work_order_items
+                       (wo_id, line_no, step_name, duration_min, progress,
+                        worker_id, worker_name, remarks)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (wo_id, idx, step, dur, prog,
+                     it.get("worker_id"),
+                     (it.get("worker_name") or "").strip() or None,
+                     it.get("remarks")),
+                )
+    return (wo_id, wo_no)
+
+
+def get_work_orders(status: str = None, limit: int = 200) -> list:
+    """가공팀 작업지시서 목록 (상태 필터). 최신순."""
+    sql = (
+        "SELECT w.*, COALESCE(o.order_no,'-') AS order_no_disp, "
+        "       COALESCE(p.name,'-') AS part_disp, "
+        "       COALESCE(ua.name, w.assigned_name, '-') AS assigned_disp, "
+        "       COALESCE(uc.name, w.created_by_name, '-') AS created_by_disp "
+        "FROM work_orders w "
+        "LEFT JOIN orders o ON o.id = w.order_id "
+        "LEFT JOIN parts p ON p.id = w.part_id "
+        "LEFT JOIN users ua ON ua.id = w.assigned_to "
+        "LEFT JOIN users uc ON uc.id = w.created_by "
+        "WHERE 1=1"
+    )
+    args = []
+    if status:
+        sql += " AND w.status=?"
+        args.append(status)
+    sql += " ORDER BY w.id DESC LIMIT ?"
+    args.append(int(limit))
+    with db_session() as c:
+        rows = c.execute(sql, tuple(args)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_work_order(wo_id: int) -> dict:
+    """가공팀 작업지시서 상세 + 라인 반환. 없으면 None."""
+    with db_session() as c:
+        row = c.execute(
+            "SELECT w.*, COALESCE(o.order_no,'-') AS order_no_disp, "
+            "       COALESCE(p.name,'-') AS part_disp, "
+            "       COALESCE(p.spec,'-') AS part_spec, "
+            "       COALESCE(p.unit,'-') AS part_unit, "
+            "       COALESCE(ua.name, w.assigned_name, '-') AS assigned_disp, "
+            "       COALESCE(uc.name, w.created_by_name, '-') AS created_by_disp, "
+            "       COALESCE(pr.name, '-') AS project_disp "
+            "FROM work_orders w "
+            "LEFT JOIN orders o ON o.id = w.order_id "
+            "LEFT JOIN projects pr ON pr.id = w.project_id "
+            "LEFT JOIN parts p ON p.id = w.part_id "
+            "LEFT JOIN users ua ON ua.id = w.assigned_to "
+            "LEFT JOIN users uc ON uc.id = w.created_by "
+            "WHERE w.id=?",
+            (int(wo_id),)
+        ).fetchone()
+        if not row:
+            return None
+        wo = dict(row)
+        items = c.execute(
+            "SELECT wi.*, COALESCE(uw.name, wi.worker_name, '-') AS worker_disp "
+            "FROM work_order_items wi "
+            "LEFT JOIN users uw ON uw.id = wi.worker_id "
+            "WHERE wi.wo_id=? ORDER BY wi.line_no ASC, wi.id ASC",
+            (int(wo_id),)
+        ).fetchall()
+        wo["items"] = [dict(r) for r in items]
+        # 평균 진행률 계산
+        if wo["items"]:
+            total = sum(int(it.get("progress") or 0) for it in wo["items"])
+            wo["avg_progress"] = total // len(wo["items"])
+        else:
+            wo["avg_progress"] = 0
+        return wo
