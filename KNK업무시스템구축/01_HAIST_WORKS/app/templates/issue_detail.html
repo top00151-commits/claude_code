@@ -3,7 +3,7 @@
 {% block body %}
 
 <div style="margin-bottom:14px;">
-  <a href="/issues" style="font-size:13px;color:#6B7280;text-decoration:none;">← 이슈 목록</a>
+  <a href="/issues" style="font-size:var(--text-sm);color:#6B7280;text-decoration:none;">← 이슈 목록</a>
 </div>
 
 <!-- 헤더 -->
@@ -11,24 +11,24 @@
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
     <div style="flex:1;min-width:300px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <span style="font-family:var(--font-mono);font-size:13px;color:#DC2626;font-weight:800;background:#FEE2E2;padding:4px 12px;border-radius:6px;">{{ issue.issue_no }}</span>
-        {% if issue.severity == '치명' %}<span style="background:#7F1D1D;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 치명</span>
-        {% elif issue.severity == '심각' %}<span style="background:#DC2626;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🟠 심각</span>
-        {% elif issue.severity == '중' %}<span style="background:#F59E0B;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">🟡 중</span>
-        {% else %}<span style="background:#9CA3AF;color:#fff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ issue.severity }}</span>{% endif %}
-        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;">{{ issue.issue_type }}</span>
-        {% if issue.status in ('해결','종결') %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">✓ {{ issue.status }}</span>
-        {% else %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ issue.status }}</span>{% endif %}
+        <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:#DC2626;font-weight:800;background:#FEE2E2;padding:4px 12px;border-radius:6px;">{{ issue.issue_no }}</span>
+        {% if issue.severity == '치명' %}<span style="background:#7F1D1D;color:#fff;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">🔴 치명</span>
+        {% elif issue.severity == '심각' %}<span style="background:#DC2626;color:#fff;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">🟠 심각</span>
+        {% elif issue.severity == '중' %}<span style="background:#F59E0B;color:#fff;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">🟡 중</span>
+        {% else %}<span style="background:#9CA3AF;color:#fff;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">{{ issue.severity }}</span>{% endif %}
+        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:var(--text-xs);font-weight:700;">{{ issue.issue_type }}</span>
+        {% if issue.status in ('해결','종결') %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">✓ {{ issue.status }}</span>
+        {% else %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">{{ issue.status }}</span>{% endif %}
       </div>
-      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">{{ issue.title }}</h1>
-      <div style="margin-top:8px;font-size:12px;color:#9CA3AF;display:flex;flex-wrap:wrap;gap:14px;">
+      <h1 style="margin:0;font-size:var(--text-2xl);font-weight:800;letter-spacing:-0.02em;">{{ issue.title }}</h1>
+      <div style="margin-top:8px;font-size:var(--text-xs);color:#9CA3AF;display:flex;flex-wrap:wrap;gap:14px;">
         <span>고객사: <strong style="color:#1A1A1A;">{{ issue.customer_full_name or issue.customer_name or '-' }}</strong></span>
         {% if issue.mgmt_code %}<span>관리코드: <strong style="font-family:monospace;color:#1A1A1A;">{{ issue.mgmt_code }}</strong></span>{% endif %}
         <span>발생일: <strong style="color:#1A1A1A;">{{ issue.occurred_at or '-' }}</strong></span>
         <span>발견자: <strong style="color:#1A1A1A;">{{ issue.detected_by or '-' }}</strong></span>
         <span>등록: {{ issue.created_by_name }} · {{ issue.created_at[:16] }}</span>
       </div>
-      <div style="margin-top:6px;font-size:12px;color:#6B7280;">담당부서: <strong>{{ issue.owner_team_name or '미지정' }}</strong>{% if issue.owner_user_name %} · {{ issue.owner_user_name }}{% endif %}
+      <div style="margin-top:6px;font-size:var(--text-xs);color:#6B7280;">담당부서: <strong>{{ issue.owner_team_name or '미지정' }}</strong>{% if issue.owner_user_name %} · {{ issue.owner_user_name }}{% endif %}
         {% if issue.resolved_at %}· <span style="color:#2E7D32;">해결: {{ issue.resolved_at[:16] }}</span>{% endif %}
       </div>
     </div>
@@ -43,24 +43,24 @@
 <!-- 증상 -->
 {% if issue.description %}
 <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <div style="font-size:11px;font-weight:800;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">📝 증상 설명</div>
-  <div style="font-size:14px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ issue.description }}</div>
+  <div style="font-size:var(--text-xs);font-weight:800;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">📝 증상 설명</div>
+  <div style="font-size:var(--text-md);line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ issue.description }}</div>
 </div>
 {% endif %}
 
 <!-- 원인 → 조치 → 재발방지 (3단계 카드) -->
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;">
   <div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:12px;padding:16px;">
-    <div style="font-size:11px;font-weight:800;color:#C2410C;letter-spacing:0.04em;margin-bottom:8px;">🔍 1. 원인분석</div>
-    <div style="font-size:13px;line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.root_cause or '(미입력)' }}</div>
+    <div style="font-size:var(--text-xs);font-weight:800;color:#C2410C;letter-spacing:0.04em;margin-bottom:8px;">🔍 1. 원인분석</div>
+    <div style="font-size:var(--text-sm);line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.root_cause or '(미입력)' }}</div>
   </div>
   <div style="background:#EFF6FF;border:1px solid #93C5FD;border-radius:12px;padding:16px;">
-    <div style="font-size:11px;font-weight:800;color:#1D4ED8;letter-spacing:0.04em;margin-bottom:8px;">🛠 2. 조치 내역</div>
-    <div style="font-size:13px;line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.action_taken or '(미입력)' }}</div>
+    <div style="font-size:var(--text-xs);font-weight:800;color:#1D4ED8;letter-spacing:0.04em;margin-bottom:8px;">🛠 2. 조치 내역</div>
+    <div style="font-size:var(--text-sm);line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.action_taken or '(미입력)' }}</div>
   </div>
   <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;padding:16px;">
-    <div style="font-size:11px;font-weight:800;color:#166534;letter-spacing:0.04em;margin-bottom:8px;">🛡 3. 재발방지 대책</div>
-    <div style="font-size:13px;line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.prevention or '(미입력)' }}</div>
+    <div style="font-size:var(--text-xs);font-weight:800;color:#166534;letter-spacing:0.04em;margin-bottom:8px;">🛡 3. 재발방지 대책</div>
+    <div style="font-size:var(--text-sm);line-height:1.6;color:#1A1A1A;white-space:pre-wrap;min-height:60px;">{{ issue.prevention or '(미입력)' }}</div>
   </div>
 </div>
 
@@ -73,55 +73,55 @@
 <!-- 갱신 폼 -->
 {% if can_edit %}
 <div style="background:#fff;border:2px solid #DC2626;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:15px;font-weight:800;color:#DC2626;">✏️ 이슈 갱신 (담당자/등록자만)</h2>
+  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;color:#DC2626;">✏️ 이슈 갱신 (담당자/등록자만)</h2>
   <form method="post" action="/issues/{{ issue.id }}/update" style="display:flex;flex-direction:column;gap:12px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
       <div>
-        <label style="font-size:11px;font-weight:700;color:#6B7280;">상태 변경</label>
-        <select name="status" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">상태 변경</label>
+        <select name="status" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
           <option value="">변경 안함</option>
           {% for s in ISSUE_STATUSES %}<option value="{{ s }}" {% if issue.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label style="font-size:11px;font-weight:700;color:#6B7280;">책임 부서 변경</label>
-        <select name="owner_team_id" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">책임 부서 변경</label>
+        <select name="owner_team_id" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
           <option value="">변경 안함</option>
           {% for t in teams %}<option value="{{ t.id }}" {% if issue.owner_team_id==t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label style="font-size:11px;font-weight:700;color:#6B7280;">손실/조치 비용 (원)</label>
-        <input type="number" name="cost_estimate" step="1000" value="{{ issue.cost_estimate or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">손실/조치 비용 (원)</label>
+        <input type="number" name="cost_estimate" step="1000" value="{{ issue.cost_estimate or '' }}" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
       </div>
     </div>
 
     <div>
-      <label style="font-size:11px;font-weight:700;color:#C2410C;">🔍 원인분석 (추가/갱신)</label>
-      <textarea name="root_cause" rows="2" placeholder="근본 원인을 명확히" style="width:100%;padding:8px 10px;border:1px solid #FDBA74;border-radius:6px;font-size:13px;font-family:inherit;">{{ issue.root_cause or '' }}</textarea>
+      <label style="font-size:var(--text-xs);font-weight:700;color:#C2410C;">🔍 원인분석 (추가/갱신)</label>
+      <textarea name="root_cause" rows="2" placeholder="근본 원인을 명확히" style="width:100%;padding:8px 10px;border:1px solid #FDBA74;border-radius:6px;font-size:var(--text-sm);font-family:inherit;">{{ issue.root_cause or '' }}</textarea>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#1D4ED8;">🛠 조치 내역 (추가/갱신)</label>
-      <textarea name="action_taken" rows="2" placeholder="실제로 무엇을 했는지" style="width:100%;padding:8px 10px;border:1px solid #93C5FD;border-radius:6px;font-size:13px;font-family:inherit;">{{ issue.action_taken or '' }}</textarea>
+      <label style="font-size:var(--text-xs);font-weight:700;color:#1D4ED8;">🛠 조치 내역 (추가/갱신)</label>
+      <textarea name="action_taken" rows="2" placeholder="실제로 무엇을 했는지" style="width:100%;padding:8px 10px;border:1px solid #93C5FD;border-radius:6px;font-size:var(--text-sm);font-family:inherit;">{{ issue.action_taken or '' }}</textarea>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#166534;">🛡 재발방지 대책 (추가/갱신) — <strong>회사 자산</strong></label>
-      <textarea name="prevention" rows="2" placeholder="앞으로 같은 문제가 발생하지 않으려면" style="width:100%;padding:8px 10px;border:1px solid #86EFAC;border-radius:6px;font-size:13px;font-family:inherit;">{{ issue.prevention or '' }}</textarea>
+      <label style="font-size:var(--text-xs);font-weight:700;color:#166534;">🛡 재발방지 대책 (추가/갱신) — <strong>회사 자산</strong></label>
+      <textarea name="prevention" rows="2" placeholder="앞으로 같은 문제가 발생하지 않으려면" style="width:100%;padding:8px 10px;border:1px solid #86EFAC;border-radius:6px;font-size:var(--text-sm);font-family:inherit;">{{ issue.prevention or '' }}</textarea>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
-        <label style="font-size:11px;font-weight:700;color:#6B7280;">연관 변경 ID (재발방지로 변경 발생 시)</label>
-        <input type="number" name="related_change_id" value="{{ issue.related_change_id or '' }}" placeholder="예: 12" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">연관 변경 ID (재발방지로 변경 발생 시)</label>
+        <input type="number" name="related_change_id" value="{{ issue.related_change_id or '' }}" placeholder="예: 12" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
       </div>
       <div>
-        <label style="font-size:11px;font-weight:700;color:#6B7280;">상태 변경 메모</label>
-        <input type="text" name="note" placeholder="예: 1차 조치 완료, 모니터링 중" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">상태 변경 메모</label>
+        <input type="text" name="note" placeholder="예: 1차 조치 완료, 모니터링 중" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
       </div>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">코멘트 (선택)</label>
-      <input type="text" name="comment" placeholder="진행 사항 메모" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
+      <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">코멘트 (선택)</label>
+      <input type="text" name="comment" placeholder="진행 사항 메모" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:var(--text-sm);">
     </div>
     <div style="text-align:right;">
       <button type="submit" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border:none;padding:10px 28px;border-radius:8px;font-weight:800;cursor:pointer;">갱신</button>
@@ -132,24 +132,24 @@
 
 <!-- 진행 로그 -->
 <div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;">
-  <h2 style="margin:0 0 14px;font-size:14px;font-weight:800;">📜 진행 로그 ({{ logs|length }})</h2>
+  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;">📜 진행 로그 ({{ logs|length }})</h2>
   {% if logs %}
   <div style="display:flex;flex-direction:column;gap:10px;">
     {% for l in logs %}
     <div style="display:flex;gap:14px;padding:12px;background:#F9FAFB;border-radius:8px;border-left:3px solid {% if l.action=='상태변경' %}#F59E0B{% elif l.action=='재발방지' %}#16A34A{% elif l.action=='조치' %}#1D4ED8{% elif l.action=='원인분석' %}#C2410C{% else %}#9CA3AF{% endif %};">
       <div style="min-width:90px;">
-        <div style="font-size:11px;font-weight:800;color:#374151;">{{ l.action }}</div>
-        <div style="font-size:10px;color:#9CA3AF;font-family:monospace;">{{ l.created_at[:16] }}</div>
+        <div style="font-size:var(--text-xs);font-weight:800;color:#374151;">{{ l.action }}</div>
+        <div style="font-size:var(--text-xs);color:#9CA3AF;font-family:monospace;">{{ l.created_at[:16] }}</div>
       </div>
       <div style="flex:1;">
-        <div style="font-size:13px;color:#1A1A1A;white-space:pre-wrap;">{{ l.content }}</div>
-        <div style="font-size:10px;color:#9CA3AF;margin-top:3px;">— {{ l.user_name }}</div>
+        <div style="font-size:var(--text-sm);color:#1A1A1A;white-space:pre-wrap;">{{ l.content }}</div>
+        <div style="font-size:var(--text-xs);color:#9CA3AF;margin-top:3px;">— {{ l.user_name }}</div>
       </div>
     </div>
     {% endfor %}
   </div>
   {% else %}
-  <p style="color:#9CA3AF;font-size:13px;">로그 없음.</p>
+  <p style="color:#9CA3AF;font-size:var(--text-sm);">로그 없음.</p>
   {% endif %}
 </div>
 

@@ -135,7 +135,7 @@
 body{font-family:var(--font-family);color:var(--ink);background:var(--sage-100);line-height:1.7;letter-spacing:.1px;font-size:var(--text-md);height:100vh;overflow:hidden;display:flex;flex-direction:column}
 a{color:var(--accent);text-decoration:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none}
-input,select,textarea{font-family:inherit;font-size:18px}
+input,select,textarea{font-family:inherit;font-size:var(--text-md)}
 .main-wrap{flex:1;min-width:0;display:flex;flex-direction:column;height:calc(100vh - var(--topbar-h))}
 .main{flex:1;min-width:0;padding:0 24px;overflow-y:auto}
 
