@@ -11,7 +11,7 @@ import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
 from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw,
-                        parse_mgmt_xls, import_mgmt_rows,
+                        parse_mgmt_xls, parse_mgmt_csv, import_mgmt_rows,
                         regenerate_user_passwords, build_password_csv,
                         add_comment, get_task_comments, delete_comment,
                         get_notifications, count_unread, mark_notification_read,
@@ -2759,16 +2759,21 @@ async def api_admin_import_mgmt(req: Request, file: UploadFile = File(...)):
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
     fn = (file.filename or "").lower()
-    if not (fn.endswith(".xls") or fn.endswith(".xlsx")):
-        return JSONResponse({"error": "xls/xlsx 파일만 업로드 가능"}, 400)
+    # 사이클 71: pandas 제거(대표 결정 2026-04-27) → .csv 만 허용. .xls/.xlsx는 안내 메시지.
+    if fn.endswith(".xls") or fn.endswith(".xlsx"):
+        return JSONResponse({"error": (
+            ".xls/.xlsx 직접 파싱은 사이클 71(2026-04-27)에서 폐기되었습니다 (외부 의존 0 정책). "
+            "Excel/LibreOffice에서 .csv (UTF-8) 로 저장 후 업로드해 주세요."
+        )}, 400)
+    if not fn.endswith(".csv"):
+        return JSONResponse({"error": "csv 파일만 업로드 가능 (.xls/.xlsx 는 .csv 변환 후 업로드)"}, 400)
     try:
         data = await file.read()
-        suffix = ".xls" if fn.endswith(".xls") else ".xlsx"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tf:
             tf.write(data)
             tmp_path = tf.name
         try:
-            rows = parse_mgmt_xls(tmp_path)
+            rows = parse_mgmt_csv(tmp_path)
             result = import_mgmt_rows(rows)
             result["parsed"] = len(rows)
             result["filename"] = file.filename
@@ -2859,19 +2864,23 @@ EXTERNAL_ASSETS_REVIEW = [
     {
         "name": "pandas",
         "type": "PyPI 라이브러리 (데이터 분석, numpy 의존)",
-        "status": "pending_decision",
+        "status": "removed_2026-04-27_cycle71",
         "usage": [
-            {"file": "app/database.py", "lines": "2108",
-             "purpose": "관리코드발행목록.xls 파싱 (구포맷 .xls 읽기)"},
+            {"file": "app/database.py", "lines": "(제거됨)",
+             "purpose": "사이클 71: parse_mgmt_xls는 NotImplementedError 안내, parse_mgmt_csv (csv 표준 모듈) 신설",
+             "deprecated": True},
+            {"file": "app/main.py", "lines": "(라우트 수정)",
+             "purpose": "사이클 71: /api/admin/import-mgmt 가 .csv 만 수용, .xls/.xlsx 업로드는 변환 안내 400",
+             "deprecated": True},
         ],
         "alternatives": [
-            "외부 환경에서 .xls → .csv 변환 후 csv 표준 모듈로 처리",
-            "1회성 마이그레이션이라면 운영 라우트에서 import 제거",
+            "외부 환경에서 .xls → .csv 변환 후 csv 표준 모듈로 처리 — 사이클 71 적용",
+            "parse_mgmt_csv (database.py) — 표준 csv 모듈 기반 새 헬퍼",
         ],
         "impact_summary": (
-            "관리코드 임포트 1회성 헬퍼. "
-            "requirements.txt에 미명시 상태로 import — 정직성 측면에서도 문제. "
-            "오리엔테이션 1항이 numpy를 명시 금지 → pandas는 numpy 의존 → 이중 위반."
+            "사이클 71 (2026-04-27 대표 결정 Remove 2회 제출 14:20:25 + 14:22:08) 적용 완료. "
+            "pandas import 0건. requirements.txt 도 0건 (이전부터 미명시였음). "
+            "관리코드 마이그레이션은 사용자가 .xls → .csv 변환 후 업로드하는 1회성 흐름으로 전환."
         ),
         "risk_security": 1,
         "risk_dependency": 4,

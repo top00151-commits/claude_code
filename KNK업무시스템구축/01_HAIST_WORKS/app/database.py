@@ -2099,57 +2099,59 @@ def _clean(v) -> str:
     return s
 
 
-def parse_mgmt_xls(file_path: str):
+def parse_mgmt_csv(file_path: str):
     """
-    관리코드발행목록.xls 파싱
+    관리코드발행목록 CSV 파싱 (사이클 71: pandas 제거 후 표준 csv 모듈 대체)
+    입력 CSV 포맷: 첫 컬럼 sheet_tag(M/T), 이후 시트별 원본 컬럼 순서대로
+      M: sheet, seq, div, ym, model, machine, _, customer, author, server_path
+      T: sheet, seq, div, ym, model, machine, customer, author
+    헤더 행 자유 (seq가 숫자가 아니면 자동 skip)
     Returns: list of dict { mgmt_code, equip_type, year_month, model_name,
                             name, customer_name, author_name, server_path }
     """
-    import pandas as pd
+    import csv as _csv
     rows = []
-    sheets = pd.read_excel(file_path, sheet_name=None, header=None)
-    for sheet_name, df in sheets.items():
-        if sheet_name not in ("M", "T"):
-            continue
-        equip_type = "자동화" if sheet_name == "M" else "검사기"
-        # 2행(idx=1)이 헤더, 3행(idx=2)부터 데이터
-        for i in range(2, len(df)):
-            row = df.iloc[i]
-            seq = _clean(row[0])
-            div = _clean(row[1])
-            ym = _clean(row[2])
+    with open(file_path, "r", encoding="utf-8-sig", newline="") as f:
+        reader = _csv.reader(f)
+        for raw in reader:
+            if not raw or len(raw) < 5:
+                continue
+            sheet_name = _clean(raw[0])
+            if sheet_name not in ("M", "T"):
+                continue
+            equip_type = "자동화" if sheet_name == "M" else "검사기"
+            seq = _clean(raw[1]) if len(raw) > 1 else ""
+            div = _clean(raw[2]) if len(raw) > 2 else ""
+            ym = _clean(raw[3]) if len(raw) > 3 else ""
             if not seq or not div or not ym:
                 continue
             if div not in ("M", "T"):
                 continue
-            # ym: '2409.0' -> '2409'
             if ym.endswith(".0"):
                 ym = ym[:-2]
             if len(ym) != 4 or not ym.isdigit():
                 continue
-            # 관리코드 형식: {seq}{div}{ym}  예) 012M2409
             try:
                 seq_int = int(float(seq))
                 seq_str = f"{seq_int:03d}"
             except Exception:
                 continue
             mgmt_code = f"{seq_str}{div}{ym}"
-            model = _clean(row[3])
+            model = _clean(raw[4]) if len(raw) > 4 else ""
             if sheet_name == "M":
-                machine = _clean(row[4])  # 명판 설비명
-                customer = _norm_customer(_clean(row[6]))
-                author = _clean(row[7])
-                server_path = _clean(row[8])
+                machine = _clean(raw[5]) if len(raw) > 5 else ""
+                customer = _norm_customer(_clean(raw[7]) if len(raw) > 7 else "")
+                author = _clean(raw[8]) if len(raw) > 8 else ""
+                server_path = _clean(raw[9]) if len(raw) > 9 else ""
             else:  # T
-                machine = _clean(row[4])  # 품명
-                customer = _norm_customer(_clean(row[5]))
-                author = _clean(row[6])
+                machine = _clean(raw[5]) if len(raw) > 5 else ""
+                customer = _norm_customer(_clean(raw[6]) if len(raw) > 6 else "")
+                author = _clean(raw[7]) if len(raw) > 7 else ""
                 server_path = ""
             if not machine and not model:
                 continue
-            # 프로젝트명 = 품명/설비명 우선, 없으면 모델명
             pj_name = machine or model
-            year_month = f"20{ym[:2]}-{ym[2:]}"  # 2409 -> 2024-09
+            year_month = f"20{ym[:2]}-{ym[2:]}"
             rows.append({
                 "mgmt_code": mgmt_code,
                 "equip_type": equip_type,
@@ -2162,6 +2164,21 @@ def parse_mgmt_xls(file_path: str):
                 "server_path": server_path,
             })
     return rows
+
+
+def parse_mgmt_xls(file_path: str):
+    """
+    [DEPRECATED 사이클 71 — pandas 제거 결정 2026-04-27]
+    구 .xls/.xlsx 파일 직접 파싱은 외부 의존(pandas/openpyxl) 필요로 폐기됨.
+    1회성 마이그레이션이므로 사용자가 .xls 를 .csv 로 외부 변환 후
+    parse_mgmt_csv(file_path) 사용 또는 import 라우트가 .csv 업로드 안내.
+    """
+    raise NotImplementedError(
+        "관리코드 .xls 직접 파싱은 사이클 71에서 폐기되었습니다 (pandas 제거 결정). "
+        ".xls 파일을 Excel 또는 LibreOffice에서 .csv (UTF-8) 로 저장 후 업로드해 주세요. "
+        "CSV 컬럼 순서: sheet_tag(M/T), seq, div, ym, model, machine, [customer/_], "
+        "[author/customer], [server_path/author], [server_path]"
+    )
 
 
 def import_mgmt_rows(rows: list) -> dict:

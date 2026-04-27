@@ -1,16 +1,16 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-04-27 사이클69+70 deep_translator제거+EXTERNAL_ASSETS상태갱신+빅터AI호출버튼Hub추가
+REM   LAST UPDATE: 2026-04-27 사이클71-pandas제거_대표결정이행
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-27 사이클69+70 deep_translator제거+EXTERNAL_ASSETS상태갱신+빅터AI호출버튼Hub추가]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-27 사이클71-pandas제거_대표결정이행]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [Last Update: 2026-04-27 사이클69+70 deep_translator제거+EXTERNAL_ASSETS상태갱신+빅터AI호출버튼Hub추가]
+echo    [Last Update: 2026-04-27 사이클71-pandas제거_대표결정이행]
 echo ============================================================
 echo.
 
