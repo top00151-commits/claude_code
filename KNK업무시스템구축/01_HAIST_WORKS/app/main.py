@@ -1562,6 +1562,29 @@ async def history_page(req: Request, q: str = "", frm: str = "", to: str = "", s
 # =====================================================
 # TEAM — 팀장 뷰 + 팀원 권한 위임 UI (Plan Y S1)
 # =====================================================
+@app.get("/team/permissions", response_class=HTMLResponse)
+async def team_permissions_index(req: Request):
+    """팀원 권한 관리 인덱스 — team_id 없는 사용자(CEO/admin/임원) 진입점.
+    - leader: 본인 팀으로 redirect
+    - 그 외 권한자: 14팀 카드 인덱스 표시
+    """
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if u["role"] not in ("leader", "executive", "ceo", "admin"):
+        return RedirectResponse("/home", 303)
+    if u["role"] == "leader" and u.get("team_id"):
+        return RedirectResponse(f"/team/{u['team_id']}/permissions", 303)
+    # CEO/임원/admin → 첫 활성 팀으로 redirect (인덱스도 페이지 구조 동일)
+    with db_session() as c:
+        first = c.execute(
+            "SELECT id FROM teams ORDER BY display_order LIMIT 1"
+        ).fetchone()
+    if first:
+        return RedirectResponse(f"/team/{first['id']}/permissions", 303)
+    return RedirectResponse("/home", 303)
+
+
 @app.get("/team/{team_id:int}/permissions", response_class=HTMLResponse)
 async def team_permissions_page(req: Request, team_id: int):
     """Plan Y S1: 팀장 권한 위임 UI — 팀원별 4~5개 권한 토글 (3 클릭 원칙).

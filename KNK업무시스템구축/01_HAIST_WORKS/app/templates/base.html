@@ -225,8 +225,14 @@
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
         메일<span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
       </a>
+      {# 사이클 79 (DEC-2) — 인사총무 하이웍스 연동 페이지 (모든 로그인 사용자, 본인 정보만) #}
+      <a href="/hr/hiworks" class="sb-item {% if active=='hr_hiworks' %}sb-active{% endif %}" title="인사총무 업무는 하이웍스 시스템에서 처리 (HAIST WORKS는 연동·조회만)">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"/></svg></span>
+        인사총무 (하이웍스)
+      </a>
       {% if user.role in ['leader','executive','ceo','admin'] %}
-      <a href="/team/{{ user.team_id }}/permissions" class="sb-item {% if active=='team_perms' %}sb-active{% endif %}" title="팀원 권한 관리">
+      {# CEO/임원/admin 은 team_id 없을 수 있음 → /team/permissions (인덱스) 로 #}
+      <a href="{% if user.team_id %}/team/{{ user.team_id }}/permissions{% else %}/team/permissions{% endif %}" class="sb-item {% if active=='team_perms' %}sb-active{% endif %}" title="팀원 권한 관리 (CEO/임원: 전 팀 / 팀장: 본인 팀)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg></span>
         팀원 권한
       </a>
@@ -236,8 +242,7 @@
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-7h-6M7 12H1m15.66-6.34-4.24 4.24M7.58 16.42l-4.24 4.24m0-16.32 4.24 4.24m8.48 8.48 4.24 4.24"/></svg></span>
         관리자
       </a>
-      <a href="/admin/external-assets" class="sb-item" title="외부 패키지 3종 직접 판단 (대표 spike 2026-04-27)"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg></span>외부자산 점검</a>
-      <a href="/admin/company-info" class="sb-item" title="견적서·인보이스에 자동 표기되는 KNK 회사 정보 (사이클 62 메뉴 연결)"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></span>회사 정보 (KNK)</a>
+      {# 사이클 80 (2026-04-27 17:30 대표 지시 메모리 #7): 1회성 페이지(외부자산 점검·회사 정보)는 사이드바 제거 → /admin 페이지 카드에서 진입 #}
       {% endif %}
     </div>
 
