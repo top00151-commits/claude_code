@@ -69,6 +69,113 @@
 </div>
 
 {# ─── ③ 권한 토글 표 (메인) ─── #}
+{# ─── 권한 5종 상세 설명 카드 (대표 직접 지시: 무엇을 할 수 있는지 자세히) ─── #}
+<details style="background:#fff;border:1px solid var(--sage-200);border-radius:14px;padding:0;margin-bottom:14px;box-shadow:var(--sh-xs);overflow:hidden;" open>
+  <summary style="cursor:pointer;padding:14px 18px;background:var(--sage-50);font-weight:800;color:var(--ink);font-size:13px;display:flex;align-items:center;gap:8px;list-style:none;">
+    <span style="color:var(--sage-700);">ⓘ</span> 권한 5종 — 부여하면 무엇을 할 수 있나요?
+    <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;">▼ 펼치기/접기</span>
+  </summary>
+  <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+
+    {# 매출 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #C9A961;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">📈</span>
+        <b style="color:var(--ink);font-size:13px;">매출 (can_use_sales)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>매출·영업 센터 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/sales</code>) 진입</li>
+        <li>견적 작성·인쇄·라인 추가</li>
+        <li>견적 → 수주 전환</li>
+        <li>수주 목록·고객사 조회</li>
+        <li>매출 KPI 대시보드 열람</li>
+        <li>워크스페이스 스위처에 "📈 매출·영업 센터" 자동 노출</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 영업팀(team_id=1)·검사기·품질 팀원은 자동 부여됨</div>
+    </div>
+
+    {# 자재 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #6BA394;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">📦</span>
+        <b style="color:var(--ink);font-size:13px;">자재 (can_use_logistics)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>자재·구매 센터 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/logistics</code>) 진입</li>
+        <li>부품 마스터 등록·편집</li>
+        <li>공급사 관리 / 발주(PO) 작성·승인</li>
+        <li>재고 입출고 등록·실사 조정</li>
+        <li>가공 작업지시서 발행</li>
+        <li>프로젝트(관리코드) 직접 등록 — <code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/projects/new</code></li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 제조기술1팀(team_id=7)은 읽기만 자동 허용</div>
+    </div>
+
+    {# 변경 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #D4967A;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">✎</span>
+        <b style="color:var(--ink);font-size:13px;">변경 (can_edit_changes)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>변경 알림 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/changes</code>) 등록·편집</li>
+        <li>기구·전장·SW·BOM·도면 변경 공지 발행</li>
+        <li>영향 부서 자동 지정 (카톡·메일·게시판 동시 알림)</li>
+        <li>기존 변경 알림의 본문·첨부 수정</li>
+        <li>변경 이력(history) 추가</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 권한 없으면 열람만 가능 (등록·편집 차단)</div>
+    </div>
+
+    {# 티켓 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #A8BD8F;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">✓</span>
+        <b style="color:var(--ink);font-size:13px;">티켓 (can_close_tickets)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>요청 티켓 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/tickets</code>) 상태 변경</li>
+        <li>자재요청·긴급가공·MODIFY·검수요청·AS 티켓 처리</li>
+        <li>대기 → 진행 → 완료 / 보류 / 종료 전환</li>
+        <li>티켓 종료 시 처리 내역 기록</li>
+        <li>이력 알림 자동 발송</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 권한 없으면 티켓 등록·조회만 (상태 변경 차단)</div>
+    </div>
+
+    {# 관리 (CEO/admin 전용 컬럼) #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #A5282C;background:rgba(165,40,44,.03);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">⚙</span>
+        <b style="color:var(--accent);font-size:13px;">관리 (is_admin) — CEO/admin 만 부여 가능</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>관리자 메뉴 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/admin</code>) 진입</li>
+        <li>팀·사용자·프로젝트·고객사 등록·편집·삭제</li>
+        <li>사용자 비밀번호 초기화</li>
+        <li>외부자산 점검 / 헬스체크 / 리마인더 설정</li>
+        <li>전사 데이터 내보내기/복원</li>
+        <li>감사 로그(audit) 열람</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--accent);font-weight:700;">⚠ 가장 강력한 권한 — 신중히 부여</div>
+    </div>
+
+    {# 비고 #}
+    <div style="border:1px dashed var(--sage-300);border-radius:12px;padding:14px;background:var(--sage-50);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">🔒</span>
+        <b style="color:var(--sage-700);font-size:13px;">자동 권한 (시드)</b>
+      </div>
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <b>CEO·임원</b> 은 위 5개 권한 모두 자동 부여 (체크박스 해제 불가).<br>
+        <b>팀장</b> 은 본인 팀원에게만 4개 권한 (매출/자재/변경/티켓) 부여 가능 — 관리⚙ 는 CEO/admin 만.<br>
+        저장 시 변경 내역은 <code style="background:#fff;padding:1px 5px;border-radius:3px;font-size:11px;border:1px solid var(--sage-200);">notifications</code> 테이블에 자동 기록됨.
+      </div>
+    </div>
+
+  </div>
+</details>
+
 <form method="post" action="/team/{{ team.id }}/permissions" id="permsForm">
 <div class="section-head" style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
   <h2>{{ team.name }} 권한 매트릭스</h2>
@@ -105,23 +212,27 @@
             <input type="checkbox" name="touch_{{ m.id }}" value="1" checked style="accent-color:var(--sage-600);width:16px;height:16px;">
             {% endif %}
           </td>
-          <td>
-            <div class="u-cell">
-              <div class="u-av {% if m.role in ['ceo','admin'] %}admin{% elif m.role == 'executive' %}exec{% endif %}">{{ m.name[:1] }}</div>
-              <div class="u-info">
-                <div class="u-name">{{ m.name }}
-                  {% if m.role == 'leader' %}<span class="role-badge lead" style="margin-left:6px;">팀장</span>
-                  {% elif m.role == 'executive' %}<span class="role-badge exec" style="margin-left:6px;">임원</span>
-                  {% elif m.role == 'ceo' %}<span class="role-badge admin" style="margin-left:6px;">CEO</span>
+          <td style="white-space:nowrap;min-width:180px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0;
+                {% if m.role in ['ceo','admin'] %}background:linear-gradient(135deg,#A5282C,#8B1E22);
+                {% elif m.role == 'executive' %}background:linear-gradient(135deg,#C9A961,#A38635);
+                {% else %}background:linear-gradient(135deg,#7FA183,#5D7F61);{% endif %}">{{ m.name[:1] }}</div>
+              <div style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">
+                <div style="font-weight:700;color:var(--ink);white-space:nowrap;">
+                  {{ m.name }}
+                  {% if m.role == 'leader' %}<span style="margin-left:6px;background:rgba(107,163,148,.2);color:#3F6B5E;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">팀장</span>
+                  {% elif m.role == 'executive' %}<span style="margin-left:6px;background:rgba(201,169,97,.22);color:var(--amber-dk);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">임원</span>
+                  {% elif m.role == 'ceo' %}<span style="margin-left:6px;background:var(--accent-soft);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">CEO</span>
                   {% endif %}
                 </div>
                 {% if is_seed %}
-                <div class="u-email" style="color:var(--sage-700);font-weight:700;">자동 권한 (시드)</div>
+                <div style="color:var(--sage-700);font-weight:700;font-size:11px;white-space:nowrap;">🔒 자동 권한 (시드)</div>
                 {% endif %}
               </div>
             </div>
           </td>
-          <td style="font-size:12px;color:var(--ink-3);">{{ m.rank or '-' }}</td>
+          <td style="font-size:12px;color:var(--ink-3);white-space:nowrap;">{{ m.rank or '-' }}</td>
 
           <td style="text-align:center;">
             {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
