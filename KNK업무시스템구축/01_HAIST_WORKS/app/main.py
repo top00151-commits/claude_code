@@ -97,17 +97,18 @@ WORKSPACES = [
 ]
 
 def workspaces_for(user):
-    """권한 기반 워크스페이스 목록 (시안 12B 상단 ws-switcher 용)"""
+    """권한 기반 워크스페이스 목록 (시안 12B 상단 ws-switcher 용).
+
+    수정 2026-04-28: 라우트 가드(can_use_sales / can_use_logistics 함수)와
+    동일한 로직 사용 — team_id 1·2·3 자동 허용 등 폴백 포함. 이전엔 컬럼
+    플래그만 봐서 안지연(team_id=1·플래그 0)에게 매출·영업 메뉴가 안 뜸.
+    """
     if not user:
         return [WORKSPACES[0]]
     out = [WORKSPACES[0]]
-    role = (user.get("role") or "").lower() if isinstance(user, dict) else ""
-    is_exec = role in ("ceo", "admin", "executive")
-    can_sales = bool(user.get("can_use_sales")) if isinstance(user, dict) else False
-    can_logi  = bool(user.get("can_use_logistics")) if isinstance(user, dict) else False
-    if is_exec or can_sales:
+    if can_use_sales(user):
         out.append(WORKSPACES[1])
-    if is_exec or can_logi:
+    if can_use_logistics(user):
         out.append(WORKSPACES[2])
     return out
 
@@ -3069,6 +3070,76 @@ async def admin_settings_save(req: Request):
         set_setting(key, (v or "").strip(), user_id=u["id"])
         saved += 1
     return RedirectResponse(f"/admin/settings?saved={saved}", 303)
+
+
+# =====================================================
+# 사이클 79 (DEC-2 · 2026-04-27) — 인사총무 하이웍스 연동 카드
+# 인사총무 업무는 하이웍스 외부 시스템 사용. HAIST WORKS는 연동 카드 + 외부 링크 + 본인 KNK 정보 조회만.
+# 외부 자산 0건 (iframe import 없음, 외부 링크만 노출)
+# =====================================================
+HIWORKS_LINK_KEYS = [
+    ("hiworks_main_url",       "하이웍스 메인",       "https://office.hiworks.com/"),
+    ("hiworks_attendance_url", "출퇴근 / 근태",       ""),
+    ("hiworks_leave_url",      "휴가 신청",           ""),
+    ("hiworks_payroll_url",    "급여 명세서",         ""),
+    ("hiworks_profile_url",    "인사 정보",           ""),
+]
+
+
+@app.get("/hr/hiworks", response_class=HTMLResponse)
+async def hr_hiworks_page(req: Request):
+    """인사총무 하이웍스 연동 페이지 — 모든 로그인 사용자, 본인 KNK 정보만 노출."""
+    u = require(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    # admin_settings 에 입력된 외부 링크 (미입력 시 빈 문자열)
+    links = [{"key": k, "label": label, "url": (get_setting(k, "") or "").strip(), "default": default}
+             for k, label, default in HIWORKS_LINK_KEYS]
+    # 본인 KNK 정보 (다른 직원 정보 노출 금지 — 개인정보 보호)
+    me = {
+        "name":       u.get("name", ""),
+        "login_id":   u.get("login_id", ""),
+        "team_name":  u.get("team_name", "") or "(미지정)",
+        "rank":       u.get("rank", "") or "(미지정)",
+        "role":       u.get("role", "member"),
+        "email":      u.get("email", "") or "",
+        "hire_date":  u.get("created_at", "") or "",
+    }
+    return ctx(req, "hr_hiworks.html", user=u,
+               links=links, me=me, active="hr_hiworks")
+
+
+@app.get("/admin/hiworks-settings", response_class=HTMLResponse)
+async def admin_hiworks_settings_page(req: Request):
+    """하이웍스 연동 URL 설정 (admin/ceo only)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    saved = req.query_params.get("saved", "")
+    current = {k: (get_setting(k, "") or "") for k, _l, _d in HIWORKS_LINK_KEYS}
+    return ctx(req, "admin_hiworks_settings.html", user=u,
+               keys=HIWORKS_LINK_KEYS, current=current,
+               saved=saved, active="admin")
+
+
+@app.post("/admin/hiworks-settings")
+async def admin_hiworks_settings_save(req: Request):
+    """하이웍스 URL 저장 → app_settings UPSERT (화이트리스트만)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    allowed = {k for k, _l, _d in HIWORKS_LINK_KEYS}
+    saved = 0
+    for k, v in form.items():
+        if not k.startswith("k_"):
+            continue
+        key = k[2:].strip()
+        if key not in allowed:
+            continue
+        set_setting(key, (v or "").strip(), user_id=u["id"])
+        saved += 1
+    return RedirectResponse(f"/admin/hiworks-settings?saved={saved}", 303)
 
 
 @app.get("/admin/download-passwords")
@@ -6762,7 +6833,9 @@ async def sales_orders_page(req: Request):
             """SELECT o.id, o.order_no, o.customer_id,
                       COALESCE(cu.name,'-') AS customer_name,
                       o.total_amount, o.due_date, o.status,
-                      o.order_date
+                      o.order_date,
+                      COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
+                      o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
                FROM orders o
                LEFT JOIN customers cu ON cu.id = o.customer_id
                ORDER BY o.id DESC LIMIT 200"""
@@ -6819,6 +6892,36 @@ async def sales_orders_confirm(req: Request):
             (order_id, "DRAFT", "CONFIRMED", u.get("id"), "견적→수주 전환"),
         )
         return JSONResponse({"ok": True, "order_id": order_id, "order_no": order_no})
+
+
+@app.post("/sales/orders/{order_id}/tax-invoice")
+async def sales_order_tax_invoice_update(order_id: int, req: Request):
+    """세금계산서 발행여부 체크 (사이클 78 DEC-1)
+    KNK 내부 회계 시스템에서 실제 발행 후, HAIST WORKS 는 발행 여부만 기록.
+    권한: admin/ceo 또는 영업 (_s1_guard)."""
+    u = _s1_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    form = await req.form()
+    issued_raw = (form.get("tax_invoice_issued") or "").strip().lower()
+    issued = 1 if issued_raw in ("1", "on", "true", "yes") else 0
+    inv_no = (form.get("tax_invoice_no") or "").strip() or None
+    inv_date = (form.get("tax_invoice_date") or "").strip() or None
+    inv_note = (form.get("tax_invoice_note") or "").strip() or None
+    with db_session() as c:
+        o = c.execute("SELECT id FROM orders WHERE id=?", (order_id,)).fetchone()
+        if not o:
+            return JSONResponse({"error": "수주 없음"}, 404)
+        c.execute(
+            """UPDATE orders
+               SET tax_invoice_issued = ?,
+                   tax_invoice_no     = ?,
+                   tax_invoice_date   = ?,
+                   tax_invoice_note   = ?
+               WHERE id = ?""",
+            (issued, inv_no, inv_date, inv_note, order_id),
+        )
+    return RedirectResponse("/sales/orders", 303)
 
 
 @app.get("/sales/production", response_class=HTMLResponse)
