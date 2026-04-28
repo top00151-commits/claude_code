@@ -4768,7 +4768,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    if not can_view_sales(u):
         return RedirectResponse("/home", 303)
     rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status)
     return ctx(request, "projects.html",
@@ -4782,7 +4782,7 @@ async def projects_new_form(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_use_sales(u):
         return RedirectResponse("/home", 303)
     return ctx(request, "project_form.html",
                user=u, active="logi_projects",
@@ -4805,7 +4805,7 @@ async def projects_new_submit(
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(_u):
+    if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
     _logi.projects_create_logi({
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
@@ -4822,7 +4822,7 @@ async def projects_edit_form(request: Request, pid: int):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_use_sales(u):
         return RedirectResponse("/home", 303)
     p = _logi.projects_get_logi(pid)
     if not p:
@@ -4848,7 +4848,7 @@ async def projects_edit_submit(
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(_u):
+    if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
     _logi.projects_update_logi(pid, {
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
@@ -4865,7 +4865,7 @@ async def projects_delete_submit(request: Request, pid: int):
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(_u):
+    if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
     _logi.projects_delete_logi(pid)
     return RedirectResponse("/projects", status_code=303)
