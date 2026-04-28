@@ -99,16 +99,15 @@ WORKSPACES = [
 def workspaces_for(user):
     """권한 기반 워크스페이스 목록 (시안 12B 상단 ws-switcher 용).
 
-    수정 2026-04-28: 라우트 가드(can_use_sales / can_use_logistics 함수)와
-    동일한 로직 사용 — team_id 1·2·3 자동 허용 등 폴백 포함. 이전엔 컬럼
-    플래그만 봐서 안지연(team_id=1·플래그 0)에게 매출·영업 메뉴가 안 뜸.
+    2026-04-28 R/W 분리: VIEW 권한자에게도 메뉴 노출 (읽기 전용 진입).
+    쓰기 권한 없으면 들어가서 등록 버튼이 비활성/숨김으로 표시.
     """
     if not user:
         return [WORKSPACES[0]]
     out = [WORKSPACES[0]]
-    if can_use_sales(user):
+    if can_view_sales(user):
         out.append(WORKSPACES[1])
-    if can_use_logistics(user):
+    if can_view_logistics(user):
         out.append(WORKSPACES[2])
     return out
 
@@ -229,8 +228,55 @@ def can_use_logistics(user) -> bool:
     return bool(flag)
 
 
+def can_view_sales(user) -> bool:
+    """매출·영업 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
+    - admin / ceo / executive / leader: 항상 허용 (전사 매출 현황 조회)
+    - team_id 1·2·3 (영업·검사기·품질): 항상 허용
+    - 그 외: users.can_view_sales 플래그 1
+    - 쓰기 권한자(can_use_sales=1)는 자동 포함
+    """
+    if not user:
+        return False
+    role = user.get("role") if isinstance(user, dict) else user["role"]
+    if role in ("admin", "ceo", "executive", "leader"):
+        return True
+    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
+    if team_id in (1, 2, 3):
+        return True
+    try:
+        if user.get("can_view_sales") or user.get("can_use_sales"):
+            return True
+    except (KeyError, IndexError):
+        pass
+    return False
+
+
+def can_view_logistics(user) -> bool:
+    """자재·구매 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
+    실무자가 부품·재고·단가·구매처를 조회해야 할 때 폭넓게 허용.
+    - admin / ceo / executive / leader: 항상 허용
+    - team_id 1,2,3,7,8,9,10 (영업·검사기·품질·생산1·생산2·가공·구매): 항상 허용
+    - 그 외: users.can_view_logistics 플래그 1
+    - 쓰기 권한자(can_use_logistics=1)는 자동 포함
+    """
+    if not user:
+        return False
+    role = user.get("role") if isinstance(user, dict) else user["role"]
+    if role in ("admin", "ceo", "executive", "leader"):
+        return True
+    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
+    if team_id in (1, 2, 3, 7, 8, 9, 10):
+        return True
+    try:
+        if user.get("can_view_logistics") or user.get("can_use_logistics"):
+            return True
+    except (KeyError, IndexError):
+        pass
+    return False
+
+
 def can_use_sales(user) -> bool:
-    """매출·영업 모듈 접근 권한 (Plan Y S1 — 도메인 분리).
+    """매출·영업 **쓰기** (등록·편집·견적·수주) 권한 (Plan Y S1).
     - admin / ceo / executive: 항상 허용
     - 영업팀·관리팀 leader/member: 항상 허용 (현장 입력자)
     - 그 외: users.can_use_sales 플래그가 1일 때만
@@ -1608,6 +1654,7 @@ async def team_permissions_page(req: Request, team_id: int):
         members = [dict(r) for r in c.execute(
             """SELECT id, name, rank, role,
                       can_use_sales, can_use_logistics,
+                      can_view_sales, can_view_logistics,
                       can_edit_changes, can_close_tickets, is_admin
                FROM users
                WHERE team_id=? AND is_active=1
@@ -1616,15 +1663,17 @@ async def team_permissions_page(req: Request, team_id: int):
                  id""",
             (team_id,)
         ).fetchall()]
-        # KPI: 권한별 부여 인원 (현재 팀)
+        # KPI: 권한별 부여 인원 (현재 팀) — 2026-04-28 view/use 분리
         kpi = {
-            "total": len(members),
-            "sales": sum(1 for m in members if m.get("can_use_sales")),
-            "logi":  sum(1 for m in members if m.get("can_use_logistics")),
-            "chg":   sum(1 for m in members if m.get("can_edit_changes")),
-            "tkt":   sum(1 for m in members if m.get("can_close_tickets")),
-            "adm":   sum(1 for m in members if m.get("is_admin")),
-            "seed":  sum(1 for m in members if m.get("role") in ("ceo", "executive")),
+            "total":      len(members),
+            "view_sales": sum(1 for m in members if m.get("can_view_sales") or m.get("can_use_sales")),
+            "sales":      sum(1 for m in members if m.get("can_use_sales")),
+            "view_logi":  sum(1 for m in members if m.get("can_view_logistics") or m.get("can_use_logistics")),
+            "logi":       sum(1 for m in members if m.get("can_use_logistics")),
+            "chg":        sum(1 for m in members if m.get("can_edit_changes")),
+            "tkt":        sum(1 for m in members if m.get("can_close_tickets")),
+            "adm":        sum(1 for m in members if m.get("is_admin")),
+            "seed":       sum(1 for m in members if m.get("role") in ("ceo", "executive")),
         }
         # 최근 7일 권한 변경 이력 (notifications 에서 "권한 변경" 항목)
         try:
@@ -1679,23 +1728,30 @@ async def team_permissions_save(req: Request, team_id: int):
             # CEO/임원은 시드 유지 (해제 불가)
             if m["role"] in ("ceo", "executive"):
                 continue
-            sales = 1 if form.get(f"sales_{mid}") else 0
-            logi  = 1 if form.get(f"logi_{mid}")  else 0
-            chg   = 1 if form.get(f"chg_{mid}")   else 0
-            tkt   = 1 if form.get(f"tkt_{mid}")   else 0
+            v_sales = 1 if form.get(f"vsales_{mid}") else 0
+            sales   = 1 if form.get(f"sales_{mid}")  else 0
+            v_logi  = 1 if form.get(f"vlogi_{mid}")  else 0
+            logi    = 1 if form.get(f"logi_{mid}")   else 0
+            chg     = 1 if form.get(f"chg_{mid}")    else 0
+            tkt     = 1 if form.get(f"tkt_{mid}")    else 0
+            # write implies read (등록 권한 있으면 보기 자동 ON)
+            if sales: v_sales = 1
+            if logi:  v_logi = 1
             # is_admin 은 ceo/admin만 변경 가능
             if is_admin_actor:
                 adm = 1 if form.get(f"adm_{mid}") else 0
                 c.execute(
-                    "UPDATE users SET can_use_sales=?, can_use_logistics=?, "
+                    "UPDATE users SET can_view_sales=?, can_use_sales=?, "
+                    "can_view_logistics=?, can_use_logistics=?, "
                     "can_edit_changes=?, can_close_tickets=?, is_admin=? WHERE id=?",
-                    (sales, logi, chg, tkt, adm, mid)
+                    (v_sales, sales, v_logi, logi, chg, tkt, adm, mid)
                 )
             else:
                 c.execute(
-                    "UPDATE users SET can_use_sales=?, can_use_logistics=?, "
+                    "UPDATE users SET can_view_sales=?, can_use_sales=?, "
+                    "can_view_logistics=?, can_use_logistics=?, "
                     "can_edit_changes=?, can_close_tickets=? WHERE id=?",
-                    (sales, logi, chg, tkt, mid)
+                    (v_sales, sales, v_logi, logi, chg, tkt, mid)
                 )
             saved += 1
         # 감사 로그: notification 자동 기록
@@ -4528,7 +4584,7 @@ async def logi_dashboard(request: Request):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     parts_stats = _logi.parts_count()
     from .database import stock_kpi as _stock_kpi
@@ -4550,7 +4606,7 @@ async def sales_dashboard(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     # Plan Y S1 회귀 #2: /sales 는 can_use_sales (도메인 분리). /logistics 와 권한 독립
-    if not can_use_sales(u):
+    if not can_view_sales(u):
         return RedirectResponse("/home", 303)
     proj_stats = _logi.projects_count_logi()
     # 매출 KPI (Victor sales 핸들러와 동일 로직)
@@ -4611,7 +4667,7 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.parts_list(q=q, biz_div=biz_div, category=category)
     return ctx(request, "parts.html",
@@ -4712,7 +4768,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status)
     return ctx(request, "projects.html",
@@ -4823,7 +4879,7 @@ async def suppliers_list_page(request: Request, q: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.suppliers_list(q=q)
     return ctx(request, "suppliers.html",
@@ -4922,7 +4978,7 @@ async def po_list_page(request: Request, q: str = "", status: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.po_list(q=q, status=status)
     return ctx(request, "po_list.html",
@@ -5323,7 +5379,7 @@ async def stock_issue_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         parts = c.execute(
@@ -5361,7 +5417,7 @@ async def stock_issue_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     try:
         pid = int(part_id)
@@ -5392,7 +5448,7 @@ async def stock_adjust_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         parts = c.execute(
@@ -5415,7 +5471,7 @@ async def stock_adjust_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     try:
         pid = int(part_id)
@@ -5702,7 +5758,7 @@ async def stock_movements_page(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
+    if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     items = stock_movements_list(
         part_id=int(part_id) if part_id.isdigit() else 0,

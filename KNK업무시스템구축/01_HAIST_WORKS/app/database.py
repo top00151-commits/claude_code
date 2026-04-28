@@ -1566,11 +1566,14 @@ def init_db():
             except Exception:
                 pass
         # 마이그레이션 (Plan Y S1): 관리자 권한 + 매출/구매 분리 권한
+        # 2026-04-28 추가: 매출/자재 읽기 전용 권한 (대표 결재 — 등록은 못해도 조회는 폭넓게)
         for col, ddl in [
             ("is_admin",          "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
             ("can_use_sales",     "ALTER TABLE users ADD COLUMN can_use_sales INTEGER DEFAULT 0"),
             ("can_edit_changes",  "ALTER TABLE users ADD COLUMN can_edit_changes INTEGER DEFAULT 0"),
             ("can_close_tickets", "ALTER TABLE users ADD COLUMN can_close_tickets INTEGER DEFAULT 0"),
+            ("can_view_sales",     "ALTER TABLE users ADD COLUMN can_view_sales INTEGER DEFAULT 0"),
+            ("can_view_logistics", "ALTER TABLE users ADD COLUMN can_view_logistics INTEGER DEFAULT 0"),
         ]:
             if col not in ucols:
                 try:
@@ -1582,13 +1585,35 @@ def init_db():
         try:
             c.execute(
                 "UPDATE users SET can_use_logistics=1, can_use_sales=1, "
+                "can_view_sales=1, can_view_logistics=1, "
                 "is_admin=1, can_edit_changes=1, can_close_tickets=1 "
                 "WHERE role IN ('ceo','executive') AND is_active=1"
             )
-            # leader: 본인 영역 변경/티켓 처리 권한 기본 ON
+            # leader: 본인 영역 변경/티켓 처리 권한 + 매출/자재 보기 기본 ON
             c.execute(
-                "UPDATE users SET can_edit_changes=1, can_close_tickets=1 "
+                "UPDATE users SET can_edit_changes=1, can_close_tickets=1, "
+                "can_view_sales=1, can_view_logistics=1 "
                 "WHERE role='leader' AND is_active=1"
+            )
+            # 2026-04-28 자재 보기 시드 (실무자 폭넓게):
+            #   - 영업팀(1), 검사기(2), 품질(3), 생산팀(7,8), 가공(9), 구매(10) 평직원 전원 자동
+            #     (재고·부품·단가·구매처 조회 필요)
+            c.execute(
+                "UPDATE users SET can_view_logistics=1 "
+                "WHERE role='member' AND is_active=1 AND team_id IN (1,2,3,7,8,9,10)"
+            )
+            # 매출 보기 시드:
+            #   - 영업(1), 검사기(2), 품질(3) 평직원 (현재 폴백과 동일 범위)
+            c.execute(
+                "UPDATE users SET can_view_sales=1 "
+                "WHERE role='member' AND is_active=1 AND team_id IN (1,2,3)"
+            )
+            # 쓰기 권한자는 보기도 자동 부여 (write implies read)
+            c.execute(
+                "UPDATE users SET can_view_sales=1 WHERE can_use_sales=1 AND is_active=1"
+            )
+            c.execute(
+                "UPDATE users SET can_view_logistics=1 WHERE can_use_logistics=1 AND is_active=1"
             )
         except Exception:
             pass

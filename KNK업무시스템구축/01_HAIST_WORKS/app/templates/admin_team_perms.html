@@ -77,38 +77,57 @@
   </summary>
   <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
 
-    {# 매출 #}
+    {# 매출 (R/W 분리) — 2026-04-28 #}
     <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #C9A961;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
         <span style="font-size:18px;">📈</span>
-        <b style="color:var(--ink);font-size:13px;">매출 (can_use_sales)</b>
+        <b style="color:var(--ink);font-size:13px;">매출·영업 (R/W 분리)</b>
       </div>
-      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
-        <li>매출·영업 센터 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/sales</code>) 진입</li>
-        <li>견적 작성·인쇄·라인 추가</li>
-        <li>견적 → 수주 전환</li>
-        <li>수주 목록·고객사 조회</li>
-        <li>매출 KPI 대시보드 열람</li>
-        <li>워크스페이스 스위처에 "📈 매출·영업 센터" 자동 노출</li>
-      </ul>
-      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 영업팀(team_id=1)·검사기·품질 팀원은 자동 부여됨</div>
+      <div style="background:rgba(127,161,131,.08);padding:8px 10px;border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--sage-700);margin-bottom:4px;">👁 보기 (can_view_sales)</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>매출·영업 센터(<code style="background:var(--sage-50);padding:1px 4px;border-radius:3px;font-size:11px;">/sales</code>) 대시보드·KPI 열람</li>
+          <li>견적·수주·고객사 조회 (등록·편집 불가)</li>
+          <li>워크스페이스 스위처 메뉴 노출</li>
+        </ul>
+      </div>
+      <div style="background:var(--accent-soft);padding:8px 10px;border-radius:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:4px;">✎ 등록 (can_use_sales) — 보기 자동 포함</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>견적 작성·인쇄·라인 추가</li>
+          <li>견적 → 수주 전환</li>
+          <li>고객사 등록·편집</li>
+        </ul>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 자동 부여: 보기 = 영업·검사기·품질팀 / 등록 = leader+ + 영업팀</div>
     </div>
 
-    {# 자재 #}
+    {# 자재 (R/W 분리) — 2026-04-28 #}
     <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #6BA394;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
         <span style="font-size:18px;">📦</span>
-        <b style="color:var(--ink);font-size:13px;">자재 (can_use_logistics)</b>
+        <b style="color:var(--ink);font-size:13px;">자재·구매 (R/W 분리)</b>
       </div>
-      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
-        <li>자재·구매 센터 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/logistics</code>) 진입</li>
-        <li>부품 마스터 등록·편집</li>
-        <li>공급사 관리 / 발주(PO) 작성·승인</li>
-        <li>재고 입출고 등록·실사 조정</li>
-        <li>가공 작업지시서 발행</li>
-        <li>프로젝트(관리코드) 직접 등록 — <code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/projects/new</code></li>
-      </ul>
-      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 제조기술1팀(team_id=7)은 읽기만 자동 허용</div>
+      <div style="background:rgba(127,161,131,.08);padding:8px 10px;border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--sage-700);margin-bottom:4px;">👁 보기 (can_view_logistics)</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>자재·구매 센터 진입 + 워크스페이스 메뉴</li>
+          <li><b>부품 마스터 조회</b> (단가·구매처·재고 확인)</li>
+          <li><b>공급사 정보 조회</b></li>
+          <li>발주·재고 잔량·수불부·실사 이력 조회</li>
+          <li>관리코드 대장 조회</li>
+        </ul>
+      </div>
+      <div style="background:var(--accent-soft);padding:8px 10px;border-radius:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:4px;">✎ 등록 (can_use_logistics) — 보기 자동 포함</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>부품·공급사 등록·편집·삭제</li>
+          <li>발주(PO) 작성·승인·입고처리</li>
+          <li>재고 출고·실사 조정·작업지시서 발행</li>
+          <li>관리코드 직접 등록 (<code style="background:var(--sage-50);padding:1px 4px;border-radius:3px;font-size:11px;">/projects/new</code>)</li>
+        </ul>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 자동 부여: 보기 = leader+ + 1·2·3·7·8·9·10팀 (실무자 폭넓게) / 등록 = ceo·임원 + 구매팀</div>
     </div>
 
     {# 변경 #}
@@ -191,17 +210,24 @@
   <div class="user-tbl" style="overflow-x:auto;">
     <table>
       <thead>
-        <tr>
-          <th style="width:36px;"></th>
-          <th>팀원</th>
-          <th style="width:90px;">직급</th>
-          <th style="width:88px;text-align:center;" title="매출·영업 센터(/sales) 접근">📈 매출</th>
-          <th style="width:88px;text-align:center;" title="자재·구매 센터(/logistics) 접근">📦 자재</th>
-          <th style="width:88px;text-align:center;" title="변경 공지 등록·편집">✎ 변경</th>
-          <th style="width:88px;text-align:center;" title="요청 티켓 상태 변경·종료">✓ 티켓</th>
+        {# 2026-04-28 — 매출·자재 R/W 분리 (보기/등록 컬럼 별도) #}
+        <tr style="background:var(--sage-50);">
+          <th style="width:32px;" rowspan="2"></th>
+          <th rowspan="2">팀원</th>
+          <th style="width:80px;" rowspan="2">직급</th>
+          <th colspan="2" style="text-align:center;background:rgba(201,169,97,.10);border-bottom:0;">📈 매출·영업</th>
+          <th colspan="2" style="text-align:center;background:rgba(107,163,148,.10);border-bottom:0;">📦 자재·구매</th>
+          <th style="width:64px;text-align:center;" rowspan="2" title="변경 공지 등록·편집">✎ 변경</th>
+          <th style="width:64px;text-align:center;" rowspan="2" title="요청 티켓 상태 변경·종료">✓ 티켓</th>
           {% if is_admin_actor %}
-          <th style="width:88px;text-align:center;" title="관리자 메뉴 접근">⚙ 관리</th>
+          <th style="width:64px;text-align:center;" rowspan="2" title="관리자 메뉴 접근">⚙ 관리</th>
           {% endif %}
+        </tr>
+        <tr style="background:var(--sage-50);">
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="매출 화면 조회만 (등록·편집 불가)">👁 보기</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="매출 등록·편집·견적·수주 전환">✎ 등록</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="자재·재고·부품·단가·구매처 조회만">👁 보기</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="부품·발주·재고 등록·편집">✎ 등록</th>
         </tr>
       </thead>
       <tbody>
@@ -237,18 +263,32 @@
           </td>
           <td style="font-size:12px;color:var(--ink-3);white-space:nowrap;">{{ m.rank or '-' }}</td>
 
-          <td style="text-align:center;">
+          {# 매출 보기 #}
+          <td style="text-align:center;background:rgba(201,169,97,.04);">
             {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
-            {% else %}<input type="checkbox" name="sales_{{ m.id }}" value="1" {% if m.can_use_sales %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+            {% else %}<input type="checkbox" name="vsales_{{ m.id }}" value="1" {% if m.can_view_sales or m.can_use_sales %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
           </td>
-          <td style="text-align:center;">
+          {# 매출 등록 #}
+          <td style="text-align:center;background:rgba(201,169,97,.04);">
             {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
-            {% else %}<input type="checkbox" name="logi_{{ m.id }}" value="1" {% if m.can_use_logistics %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+            {% else %}<input type="checkbox" name="sales_{{ m.id }}" value="1" {% if m.can_use_sales %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;" title="등록 체크 시 보기도 자동 ON">{% endif %}
           </td>
+          {# 자재 보기 #}
+          <td style="text-align:center;background:rgba(107,163,148,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="vlogi_{{ m.id }}" value="1" {% if m.can_view_logistics or m.can_use_logistics %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+          </td>
+          {# 자재 등록 #}
+          <td style="text-align:center;background:rgba(107,163,148,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="logi_{{ m.id }}" value="1" {% if m.can_use_logistics %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;" title="등록 체크 시 보기도 자동 ON">{% endif %}
+          </td>
+          {# 변경 #}
           <td style="text-align:center;">
             {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
             {% else %}<input type="checkbox" name="chg_{{ m.id }}" value="1" {% if m.can_edit_changes %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
           </td>
+          {# 티켓 #}
           <td style="text-align:center;">
             {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
             {% else %}<input type="checkbox" name="tkt_{{ m.id }}" value="1" {% if m.can_close_tickets %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
@@ -261,7 +301,7 @@
           {% endif %}
         </tr>
         {% else %}
-        <tr><td colspan="{{ 8 if is_admin_actor else 7 }}" class="empty-hint" style="padding:40px;">팀원이 없습니다.</td></tr>
+        <tr><td colspan="{{ 10 if is_admin_actor else 9 }}" class="empty-hint" style="padding:40px;">팀원이 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
