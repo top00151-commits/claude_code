@@ -15,6 +15,13 @@
   </div>
 </div>
 
+{# 두 메뉴 역할 구분 안내 (2026-04-28 대표 결재 (가)안 — 메뉴 통일 대신 명칭·설명 명확화) #}
+<div style="background:linear-gradient(135deg,rgba(127,161,131,.10),#fff);border:1px solid var(--sage-200);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <span style="background:var(--sage-600);color:#fff;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;">ⓘ 요청 티켓</span>
+  <span><b>1팀에 작업 의뢰 → 처리·완료까지 추적</b> (자재요청·긴급가공·검수·AS 등). 요청자 1명 ↔ 수신팀 1팀.</span>
+  <a href="/changes" style="margin-left:auto;color:var(--sage-700);font-weight:700;text-decoration:none;">N명에게 변경 사실 공지하려면 → 📢 변경 공지</a>
+</div>
+
 <!-- Scope 탭 -->
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
   <a href="?scope=me" style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope == 'me' %}background:#A5282C;color:#fff;{% else %}background:#fff;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">👤 내 티켓 (요청+받음)</a>

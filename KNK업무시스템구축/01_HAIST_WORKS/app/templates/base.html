@@ -203,7 +203,7 @@
       </a>
       <a href="/changes" class="sb-item {% if active=='changes' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
-        변경 알림
+        변경 공지
         <span id="changes-unread-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
       </a>
       <a href="/board/company" class="sb-item {% if active=='board_company' %}sb-active{% endif %}">
@@ -712,7 +712,7 @@ async function resolveDelegation(did, tid){
       key_features: [
         ["요청 티켓", "/tickets?scope=team", "카톡 자재요청을 자동 라우팅으로 받음 (누락 0)"],
         ["진행률 대시보드", "/progress", "발주 → 입고 → 조립 공정 진척 한눈"],
-        ["변경 알림", "/changes?scope=me", "BOM 변경 → 영향 자재 즉시 인지"]
+        ["변경 공지", "/changes?scope=me", "BOM 변경 → 영향 자재 즉시 인지"]
       ]
     },
     "관리팀": {
@@ -727,14 +727,14 @@ async function resolveDelegation(did, tid){
       icon: "💼",
       key_features: [
         ["진행률 대시보드", "/progress", "수주 → 출하 12공정 매트릭스 (Set Up 진행률 %)"],
-        ["변경 알림", "/changes?scope=me", "고객 사양 변경 즉시 인지"],
+        ["변경 공지", "/changes?scope=me", "고객 사양 변경 즉시 인지"],
         ["요청 티켓", "/tickets?scope=team", "포장·출하 요청 추적"]
       ]
     },
     "전장설계팀": {
       icon: "⚡",
       key_features: [
-        ["변경 알림", "/changes?scope=me", "기구 설계 변경 1~3일 대기 → 즉시 알림으로 해소"],
+        ["변경 공지", "/changes?scope=me", "기구 설계 변경 1~3일 대기 → 즉시 알림으로 해소"],
         ["진행률 대시보드", "/progress", "기구→전장→SW 일정 의존성 시각화"],
         ["요청 티켓", "/tickets/new", "BOM 변경 사유 등록"]
       ]
@@ -742,7 +742,7 @@ async function resolveDelegation(did, tid){
     "설계팀": {
       icon: "📐",
       key_features: [
-        ["변경 알림 등록", "/changes/new", "기구 변경 시 즉시 등록 → 하류 부서 자동 알림"],
+        ["변경 공지 등록", "/changes/new", "기구 변경 시 즉시 등록 → 하류 부서 자동 알림"],
         ["진행률 대시보드", "/progress", "본사-법인 진행 공유"],
         ["요청 티켓", "/tickets?scope=team", "설계 MODIFY 요청 접수"]
       ]
@@ -750,7 +750,7 @@ async function resolveDelegation(did, tid){
     "검사기팀": {
       icon: "🔬",
       key_features: [
-        ["변경 알림", "/changes?scope=me", "SW·BOM 변경 즉시 인지"],
+        ["변경 공지", "/changes?scope=me", "SW·BOM 변경 즉시 인지"],
         ["진행률 대시보드", "/progress", "검사기 프로젝트별 공정"],
         ["요청 티켓", "/tickets?scope=team", "AS 요청 접수"]
       ]
@@ -759,7 +759,7 @@ async function resolveDelegation(did, tid){
       icon: "🔨",
       key_features: [
         ["요청 티켓", "/tickets?scope=team", "긴급 가공 요청 자동 우선순위"],
-        ["변경 알림", "/changes?scope=me", "도면 변경 저녁 통보 → 즉시 알림으로 해소"],
+        ["변경 공지", "/changes?scope=me", "도면 변경 저녁 통보 → 즉시 알림으로 해소"],
         ["진행률 대시보드", "/progress", "가공 공정 진척"]
       ]
     },
@@ -767,7 +767,7 @@ async function resolveDelegation(did, tid){
       icon: "✓",
       key_features: [
         ["요청 티켓", "/tickets?scope=team", "검수 요청 자동 라우팅"],
-        ["변경 알림", "/changes?scope=me", "도면 변경 → 검수 기준 변경"],
+        ["변경 공지", "/changes?scope=me", "도면 변경 → 검수 기준 변경"],
         ["진행률 대시보드", "/progress", "검수 공정 (qc) 모니터"]
       ]
     },
@@ -776,13 +776,13 @@ async function resolveDelegation(did, tid){
       key_features: [
         ["진행률 대시보드", "/progress", "검사기 조립 공정 진척"],
         ["요청 티켓", "/tickets?scope=team", "자재·도면 요청"],
-        ["변경 알림", "/changes?scope=me", "BOM·도면 변경 즉시 인지"]
+        ["변경 공지", "/changes?scope=me", "BOM·도면 변경 즉시 인지"]
       ]
     },
     "제조기술2팀": {
       icon: "🛠",
       key_features: [
-        ["변경 알림", "/changes?scope=me", "도면 30일 link 만료 사고 예방 (지난 실사고)"],
+        ["변경 공지", "/changes?scope=me", "도면 30일 link 만료 사고 예방 (지난 실사고)"],
         ["진행률 대시보드", "/progress", "자동화 조립 공정 진척"],
         ["요청 티켓", "/tickets?scope=team", "자재·기구 요청"]
       ]
@@ -790,7 +790,7 @@ async function resolveDelegation(did, tid){
     "소프트웨어팀": {
       icon: "💻",
       key_features: [
-        ["변경 알림", "/changes?scope=me", "I/O Map·BOM 변경 즉시 인지"],
+        ["변경 공지", "/changes?scope=me", "I/O Map·BOM 변경 즉시 인지"],
         ["진행률 대시보드", "/progress", "SW 공정 (sw)"],
         ["요청 티켓", "/tickets?scope=team", "MODIFY 접수"]
       ]
@@ -799,7 +799,7 @@ async function resolveDelegation(did, tid){
       icon: "🚀",
       key_features: [
         ["진행률 대시보드", "/progress", "공정별 진행 실시간 가시화"],
-        ["변경 알림", "/changes?scope=all", "전사 변경 모니터"],
+        ["변경 공지", "/changes?scope=all", "전사 변경 모니터"],
         ["전사 게시판", "/board/company", "혁신 사례 공유"]
       ]
     }
@@ -809,7 +809,7 @@ async function resolveDelegation(did, tid){
     icon: "👋",
     key_features: [
       ["진행률 대시보드", "/progress", "프로젝트 진행 한눈에"],
-      ["변경 알림", "/changes", "프로젝트 변경 자동 알림"],
+      ["변경 공지", "/changes", "프로젝트 변경 자동 알림"],
       ["요청 티켓", "/tickets", "카톡 대신 추적 가능한 요청"]
     ]
   };

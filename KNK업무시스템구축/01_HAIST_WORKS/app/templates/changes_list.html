@@ -1,18 +1,25 @@
 {% extends "base.html" %}
-{% block title %}변경 알림 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block title %}변경 공지 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
 {% block body %}
 
 <div class="page-head">
   <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
     <div class="page-title">
       <div class="page-breadcrumb">
-        통합 <span class="sep">/</span> 업무 추적 <span class="sep">/</span> <span class="current">변경 알림</span>
+        통합 <span class="sep">/</span> 업무 추적 <span class="sep">/</span> <span class="current">변경 공지</span>
       </div>
-      <h1>변경 알림</h1>
+      <h1>변경 공지</h1>
       <div class="page-sub">기구·전장·SW·BOM·도면 변경을 영향 부서에 자동 공지 — 카톡·메일·게시판 동시 알림</div>
     </div>
     <a href="/changes/new" class="btn btn-primary" style="background:var(--grad-brand);color:#fff;border:none;padding:10px 20px;border-radius:12px;text-decoration:none;font-weight:700;box-shadow:0 6px 18px rgba(165,40,44,.25);">+ 변경 등록</a>
   </div>
+</div>
+
+{# 두 메뉴 역할 구분 안내 (2026-04-28 대표 결재 (가)안) #}
+<div style="background:linear-gradient(135deg,rgba(212,150,122,.12),#fff);border:1px solid var(--sage-200);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <span style="background:#A95F44;color:#fff;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;">📢 변경 공지</span>
+  <span><b>N명에게 변경 사실 알리고 각자 확인 받기</b> (BOM·도면·SW·사양). 작성자 1명 → 영향 부서 N명 멀티캐스트.</span>
+  <a href="/tickets" style="margin-left:auto;color:var(--sage-700);font-weight:700;text-decoration:none;">1팀에 작업 의뢰하려면 → ✓ 요청 티켓</a>
 </div>
 
 <!-- Scope 탭 -->
