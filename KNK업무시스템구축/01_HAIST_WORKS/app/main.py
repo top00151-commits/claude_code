@@ -1593,14 +1593,43 @@ async def team_permissions_page(req: Request, team_id: int):
                  id""",
             (team_id,)
         ).fetchall()]
+        # KPI: 권한별 부여 인원 (현재 팀)
+        kpi = {
+            "total": len(members),
+            "sales": sum(1 for m in members if m.get("can_use_sales")),
+            "logi":  sum(1 for m in members if m.get("can_use_logistics")),
+            "chg":   sum(1 for m in members if m.get("can_edit_changes")),
+            "tkt":   sum(1 for m in members if m.get("can_close_tickets")),
+            "adm":   sum(1 for m in members if m.get("is_admin")),
+            "seed":  sum(1 for m in members if m.get("role") in ("ceo", "executive")),
+        }
+        # 최근 7일 권한 변경 이력 (notifications 에서 "권한 변경" 항목)
+        try:
+            recent_changes = [dict(r) for r in c.execute(
+                """SELECT n.title, n.body, n.created_at,
+                          u.name AS actor_name, u.rank AS actor_rank
+                   FROM notifications n
+                   LEFT JOIN users u ON u.id = n.user_id
+                   WHERE n.title='권한 변경'
+                     AND n.body LIKE ?
+                     AND date(n.created_at) >= date('now', '-7 days')
+                   ORDER BY n.created_at DESC LIMIT 10""",
+                (f"%team_id={team_id}%",)
+            ).fetchall()]
+        except Exception:
+            recent_changes = []
+        # 전 팀 목록 (CEO/임원/admin 만)
         all_teams = []
         if u["role"] in ("ceo", "admin", "executive"):
             all_teams = [dict(r) for r in c.execute(
                 """SELECT t.*, (SELECT COUNT(*) FROM users u WHERE u.team_id=t.id AND u.is_active=1) AS member_count
                    FROM teams t ORDER BY t.display_order"""
             ).fetchall()]
+    is_admin_actor = u["role"] in ("ceo", "admin")
     return ctx(req, "admin_team_perms.html", user=u, active="team_perms",
-               team=team, members=members, all_teams=all_teams)
+               team=team, members=members, kpi=kpi,
+               recent_changes=recent_changes, all_teams=all_teams,
+               is_admin_actor=is_admin_actor)
 
 
 @app.post("/team/{team_id:int}/permissions")
