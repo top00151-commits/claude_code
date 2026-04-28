@@ -127,20 +127,23 @@
       <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 권한 없으면 열람만 가능 (등록·편집 차단)</div>
     </div>
 
-    {# 티켓 #}
+    {# 티켓 (2026-04-28 (나)안 정확화) #}
     <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #A8BD8F;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="font-size:18px;">✓</span>
         <b style="color:var(--ink);font-size:13px;">티켓 (can_close_tickets)</b>
       </div>
       <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
-        <li>요청 티켓 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/tickets</code>) 상태 변경</li>
-        <li>자재요청·긴급가공·MODIFY·검수요청·AS 티켓 처리</li>
-        <li>대기 → 진행 → 완료 / 보류 / 종료 전환</li>
-        <li>티켓 종료 시 처리 내역 기록</li>
-        <li>이력 알림 자동 발송</li>
+        <li>요청 티켓 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/tickets</code>) 등록·조회는 누구나</li>
+        <li><b>수신팀 본인이 받은 티켓</b>의 상태 변경 (요청→접수→처리중→완료/반려/지연)</li>
+        <li>티켓 본문 편집 (제목·내용·납기·긴급도·수신팀·대상)</li>
+        <li>완료/접수/반려 시 메모 기록</li>
+        <li>모든 변경은 자동으로 이력 코멘트 (누가/언제/무엇 → notifications 동기화)</li>
       </ul>
-      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 권한 없으면 티켓 등록·조회만 (상태 변경 차단)</div>
+      <div style="margin-top:8px;padding:6px 8px;background:var(--sage-50);border-radius:6px;font-size:10px;color:var(--ink-3);line-height:1.6;">
+        <b>편집 권한 (cascade)</b>: 작성자 본인 / 작성자와 같은 팀원 / 수신팀의 권한 보유자 / CEO·임원·admin<br>
+        <b>삭제 권한</b>: 작성자 본인 / CEO·admin (전사)
+      </div>
     </div>
 
     {# 관리 (CEO/admin 전용 컬럼) #}

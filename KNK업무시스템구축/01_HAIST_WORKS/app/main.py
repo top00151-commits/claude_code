@@ -3853,6 +3853,51 @@ from .database import (tickets_list, ticket_get, ticket_create,
                         TICKET_SOURCES)
 
 
+# ─── 티켓 권한 가드 (2026-04-28 대표 결재 (나)안) ───────────────
+def _can_edit_ticket(u, ticket) -> bool:
+    """티켓 본문 편집·상태변경 권한:
+    (a) 작성자 본인
+    (b) 작성자와 같은 팀원 (휴가·출장 시 대리)
+    (c) 수신팀의 can_close_tickets 보유자
+    (d) CEO/admin/임원 (전사)
+    """
+    if not u or not ticket:
+        return False
+    role = (u.get("role") or "").lower()
+    if role in ("ceo", "admin", "executive"):
+        return True
+    uid = u.get("id")
+    # 작성자 본인
+    if ticket.get("requester_id") == uid:
+        return True
+    utid = u.get("team_id")
+    # 작성자와 같은 팀원
+    try:
+        with db_session() as c:
+            r = c.execute(
+                "SELECT team_id FROM users WHERE id=?", (ticket.get("requester_id"),)
+            ).fetchone()
+            if r and utid and r["team_id"] == utid:
+                return True
+    except Exception:
+        pass
+    # 수신팀의 can_close_tickets 보유자
+    if (utid and ticket.get("recipient_team_id") == utid
+            and bool(u.get("can_close_tickets"))):
+        return True
+    return False
+
+
+def _can_delete_ticket(u, ticket) -> bool:
+    """티켓 삭제: 작성자 본인 + CEO/admin (전사)."""
+    if not u or not ticket:
+        return False
+    role = (u.get("role") or "").lower()
+    if role in ("ceo", "admin"):
+        return True
+    return ticket.get("requester_id") == u.get("id")
+
+
 @app.get("/tickets", response_class=HTMLResponse)
 async def tickets_page(req: Request, scope: str = "me", q: str = "",
                        category: str = "", urgency: str = "", status: str = ""):
@@ -3968,10 +4013,20 @@ async def tickets_detail(req: Request, tid: int):
     is_requester = ticket["requester_id"] == u["id"]
     is_recipient = (ticket.get("recipient_user_id") == u["id"]) or \
                    (ticket.get("recipient_team_id") == u.get("team_id"))
+    can_edit = _can_edit_ticket(u, ticket)
+    can_delete = _can_delete_ticket(u, ticket)
+    # 편집 폼용 전팀 목록
+    with db_session() as c:
+        all_teams_for_edit = [dict(r) for r in c.execute(
+            "SELECT id, name FROM teams ORDER BY display_order"
+        ).fetchall()]
     return ctx(req, "ticket_detail.html", user=u, active="tickets",
                ticket=ticket, comments=comments,
                is_requester=is_requester, is_recipient=is_recipient,
-               TICKET_STATUSES=TICKET_STATUSES)
+               can_edit=can_edit, can_delete=can_delete,
+               all_teams_for_edit=all_teams_for_edit,
+               TICKET_STATUSES=TICKET_STATUSES,
+               TICKET_URGENCIES=TICKET_URGENCIES)
 
 
 @app.post("/tickets/{tid}/status")
@@ -3981,8 +4036,43 @@ async def tickets_status_change(req: Request, tid: int,
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    ticket = ticket_get(tid)
+    if not _can_edit_ticket(u, ticket):
+        return RedirectResponse(f"/tickets/{tid}?err=no_perm", 303)
     ticket_change_status(tid, new_status, u["id"], note)
     return RedirectResponse(f"/tickets/{tid}", 303)
+
+
+# ─── 티켓 본문 편집 (2026-04-28 신설 · (나)안 · 이력 자동) ───────────
+@app.post("/tickets/{tid}/edit")
+async def tickets_edit_submit(
+    req: Request, tid: int,
+    title: str = Form(""),
+    description: str = Form(""),
+    due_date: str = Form(""),
+    urgency: str = Form(""),
+    recipient_team_id: str = Form(""),
+    target_label: str = Form(""),
+    hours_estimated: str = Form(""),
+):
+    from .database import ticket_edit as _ticket_edit
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    ticket = ticket_get(tid)
+    if not ticket:
+        return RedirectResponse("/tickets", 303)
+    if not _can_edit_ticket(u, ticket):
+        return RedirectResponse(f"/tickets/{tid}?err=no_perm", 303)
+    changes = {
+        "title": title, "description": description,
+        "due_date": due_date, "urgency": urgency,
+        "recipient_team_id": recipient_team_id or None,
+        "target_label": target_label, "hours_estimated": hours_estimated,
+    }
+    n = _ticket_edit(tid, changes, editor_id=u["id"],
+                     editor_name=f"{u.get('name','')} {u.get('rank','') or ''}".strip())
+    return RedirectResponse(f"/tickets/{tid}?edited={n}", 303)
 
 
 @app.post("/tickets/{tid}/comment")
@@ -4000,8 +4090,11 @@ async def tickets_delete_submit(req: Request, tid: int):
     if not u:
         return RedirectResponse("/login", 303)
     ticket = ticket_get(tid)
-    if ticket and (ticket["requester_id"] == u["id"] or u["role"] in ("admin", "ceo")):
-        ticket_delete(tid)
+    if not ticket:
+        return RedirectResponse("/tickets", 303)
+    if not _can_delete_ticket(u, ticket):
+        return RedirectResponse(f"/tickets/{tid}?err=no_perm_delete", 303)
+    ticket_delete(tid)
     return RedirectResponse("/tickets", 303)
 
 

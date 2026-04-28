@@ -1669,6 +1669,12 @@ def init_db():
                 ("hiworks_approval_url", "https://office.hiworks.com/", "하이웍스 전자결제 URL (사이드바 외부 링크)"),
                 ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL (사이드바 외부 링크)"),
                 ("hiworks_domain",       "",                              "회사 하이웍스 도메인 (예: knk.co.kr)"),
+                # 사이클 79 (DEC-2): 인사총무 하이웍스 연동 카드 — 외부 자산 0건, 외부 링크만
+                ("hiworks_main_url",        "https://office.hiworks.com/",   "하이웍스 메인 (인사총무 카드 — 외부 링크)"),
+                ("hiworks_attendance_url",  "",                              "하이웍스 출퇴근/근태 URL (외부 링크)"),
+                ("hiworks_leave_url",       "",                              "하이웍스 휴가 신청 URL (외부 링크)"),
+                ("hiworks_payroll_url",     "",                              "하이웍스 급여 명세서 URL (외부 링크)"),
+                ("hiworks_profile_url",     "",                              "하이웍스 인사 정보 URL (외부 링크)"),
                 # 하이웍스 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
                 ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용"),
                 ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
@@ -1841,6 +1847,24 @@ def init_db():
                 c.execute("CREATE INDEX IF NOT EXISTS idx_pa_lifecycle ON preventive_actions(lifecycle_status)")
             except Exception:
                 pass
+        except Exception:
+            pass
+
+        # 사이클 78 (2026-04-27 DEC-1) — 세금계산서 발행여부 체크박스
+        # 외부 KNK 회계 시스템에서 발행 후, HAIST WORKS는 발행 여부만 표시
+        try:
+            ocols = [r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()]
+            for col, decl in [
+                ("tax_invoice_issued", "ALTER TABLE orders ADD COLUMN tax_invoice_issued INTEGER DEFAULT 0"),
+                ("tax_invoice_no",     "ALTER TABLE orders ADD COLUMN tax_invoice_no TEXT"),
+                ("tax_invoice_date",   "ALTER TABLE orders ADD COLUMN tax_invoice_date TEXT"),
+                ("tax_invoice_note",   "ALTER TABLE orders ADD COLUMN tax_invoice_note TEXT"),
+            ]:
+                if col not in ocols:
+                    try:
+                        c.execute(decl)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -6034,6 +6058,82 @@ def ticket_create(data: dict, requester_id: int) -> tuple[int, str]:
         )
         tid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     return tid, ticket_no
+
+
+def ticket_edit(tid: int, changes: dict, editor_id: int, editor_name: str = "") -> int:
+    """티켓 본문 편집 + 변경 이력 자동 코멘트 (2026-04-28 대표 결재 (나)안).
+
+    changes dict 의 키만 UPDATE. 각 필드 변경마다 시스템 코멘트로 이력 남김:
+      "[편집] 납기 04-29 → 04-28 by 이현 매니저"
+
+    허용 필드 (화이트리스트): title, description, due_date, urgency,
+                              recipient_team_id, target_label, hours_estimated
+    """
+    EDITABLE = {"title", "description", "due_date", "urgency",
+                "recipient_team_id", "target_label", "hours_estimated"}
+    LABELS = {
+        "title": "제목", "description": "내용", "due_date": "납기",
+        "urgency": "긴급도", "recipient_team_id": "수신팀",
+        "target_label": "대상", "hours_estimated": "예상공수",
+    }
+    applied = 0
+    diffs = []
+    with db_session() as c:
+        cur = c.execute("SELECT * FROM tickets WHERE id=?", (tid,)).fetchone()
+        if not cur:
+            return 0
+        team_name = {}
+        # 수신팀 이름 표시용
+        if "recipient_team_id" in changes:
+            for r in c.execute("SELECT id, name FROM teams").fetchall():
+                team_name[r["id"]] = r["name"]
+        sets = []
+        params = []
+        for k, new_v in changes.items():
+            if k not in EDITABLE:
+                continue
+            old_v = cur[k] if k in cur.keys() else None
+            # 값 정규화
+            if k == "recipient_team_id":
+                try:
+                    new_v = int(new_v) if new_v not in (None, "") else None
+                except (ValueError, TypeError):
+                    continue
+            elif k == "hours_estimated":
+                try:
+                    new_v = float(new_v) if new_v not in (None, "") else None
+                except (ValueError, TypeError):
+                    continue
+            else:
+                new_v = (new_v or "").strip() if isinstance(new_v, str) else new_v
+            if (old_v or "") == (new_v or ""):
+                continue
+            sets.append(f"{k} = ?")
+            params.append(new_v)
+            # 표시용
+            if k == "recipient_team_id":
+                old_label = team_name.get(old_v, str(old_v) if old_v else "(없음)")
+                new_label = team_name.get(new_v, str(new_v) if new_v else "(없음)")
+            else:
+                old_label = str(old_v) if old_v not in (None, "") else "(없음)"
+                new_label = str(new_v) if new_v not in (None, "") else "(없음)"
+            diffs.append(f"{LABELS.get(k, k)}: {old_label} → {new_label}")
+        if not sets:
+            return 0
+        sets.append("updated_at = ?")
+        params.append(_logi_now())
+        params.append(tid)
+        c.execute(f"UPDATE tickets SET {', '.join(sets)} WHERE id = ?", params)
+        applied = len(diffs)
+        # 시스템 코멘트 — 이력 (누가/언제/무엇)
+        body_lines = ["[편집] " + (editor_name or f"user#{editor_id}") + " 님이 수정"]
+        body_lines += [f"  · {d}" for d in diffs]
+        c.execute(
+            "INSERT INTO ticket_comments (ticket_id, author_id, body, is_status_change) "
+            "VALUES (?,?,?,1)",
+            (tid, editor_id, "\n".join(body_lines)),
+        )
+    return applied
 
 
 def ticket_change_status(tid: int, new_status: str, user_id: int, note: str = ""):

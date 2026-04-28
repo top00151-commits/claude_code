@@ -33,13 +33,87 @@
         {% if ticket.source != 'web' %}<span style="margin-left:10px;color:#9CA3AF;">출처: {{ ticket.source }}</span>{% endif %}
       </div>
     </div>
-    {% if is_requester or user.role in ['admin','ceo'] %}
-    <form method="post" action="/tickets/{{ ticket.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?');">
-      <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">삭제</button>
-    </form>
-    {% endif %}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      {% if can_edit %}
+      <button type="button" onclick="document.getElementById('editPanel').style.display='block';this.style.display='none';" style="background:var(--sage-100);color:var(--sage-700);border:1px solid var(--sage-300);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">✎ 편집</button>
+      {% endif %}
+      {% if can_delete %}
+      <form method="post" action="/tickets/{{ ticket.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?\n\n관련 코멘트·이력도 함께 삭제됩니다.');" style="display:inline;">
+        <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">🗑 삭제</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
+
+{% if request.query_params.get('edited') %}
+<div style="background:linear-gradient(135deg,rgba(127,161,131,.15),#fff);border:1px solid var(--sage-300);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--ink);font-weight:600;" id="editedToast">
+  ✓ {{ request.query_params.get('edited') }}개 항목이 수정되었고 이력에 기록됐습니다.
+</div>
+<script>setTimeout(function(){var t=document.getElementById('editedToast');if(t)t.style.display='none';},3500);</script>
+{% endif %}
+{% if request.query_params.get('err') == 'no_perm' %}
+<div style="background:#FFEBEE;border:1px solid rgba(165,40,44,.3);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#A5282C;font-weight:700;">
+  ⛔ 권한 없음 — 본 티켓을 수정할 수 있는 사람: 작성자 본인 / 같은 팀원 / 수신팀의 티켓권한 보유자 / CEO·임원·admin
+</div>
+{% elif request.query_params.get('err') == 'no_perm_delete' %}
+<div style="background:#FFEBEE;border:1px solid rgba(165,40,44,.3);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#A5282C;font-weight:700;">
+  ⛔ 삭제 권한 없음 — 작성자 본인 또는 CEO/admin 만 삭제 가능합니다.
+</div>
+{% endif %}
+
+{# ─── 편집 패널 (권한자에게만 노출, 기본 숨김) ─── #}
+{% if can_edit %}
+<div id="editPanel" style="display:none;background:#fff;border:1px solid var(--sage-300);border-radius:14px;padding:20px 22px;margin-bottom:18px;box-shadow:0 4px 14px rgba(63,92,68,.08);">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--sage-100);">
+    <span style="font-size:18px;">✎</span>
+    <b style="color:var(--ink);font-size:14px;">티켓 본문 편집</b>
+    <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;">변경 시 자동으로 이력 기록 (누가/언제/무엇)</span>
+  </div>
+  <form method="post" action="/tickets/{{ ticket.id }}/edit">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="grid-column:1/-1;">
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">제목</label>
+        <input type="text" name="title" value="{{ ticket.title }}" required style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
+      </div>
+      <div style="grid-column:1/-1;">
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">내용</label>
+        <textarea name="description" rows="3" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;resize:vertical;font-family:inherit;">{{ ticket.description or '' }}</textarea>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">납기</label>
+        <input type="date" name="due_date" value="{{ ticket.due_date or '' }}" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">긴급도</label>
+        <select name="urgency" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;background:#fff;">
+          {% for u_opt in TICKET_URGENCIES %}
+          <option value="{{ u_opt }}" {% if ticket.urgency == u_opt %}selected{% endif %}>{{ u_opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">수신팀</label>
+        <select name="recipient_team_id" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;background:#fff;">
+          <option value="">(미지정)</option>
+          {% for t in all_teams_for_edit %}
+          <option value="{{ t.id }}" {% if ticket.recipient_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">대상 / 라벨</label>
+        <input type="text" name="target_label" value="{{ ticket.target_label or '' }}" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--sage-100);">
+      <span style="font-size:11px;color:var(--ink-3);font-weight:600;flex:1;">변경된 항목만 시스템 코멘트로 자동 기록됩니다 (작성자/수정자/시각).</span>
+      <button type="button" onclick="document.getElementById('editPanel').style.display='none';" style="padding:8px 16px;border-radius:8px;background:#fff;border:1px solid var(--sage-300);color:var(--ink-2);font-weight:700;cursor:pointer;">취소</button>
+      <button type="submit" style="padding:8px 22px;border-radius:8px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:0;font-weight:800;cursor:pointer;">💾 저장 + 이력 기록</button>
+    </div>
+  </form>
+</div>
+{% endif %}
 
 {% if ticket.approval_url %}
 <!-- 하이웍스 결재 링크 -->
