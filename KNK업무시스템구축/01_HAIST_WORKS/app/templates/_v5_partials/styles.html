@@ -80,6 +80,17 @@ button { font-family: inherit; cursor: pointer; }
 .empty .ico { font-size: 48px; margin-bottom: 12px; }
 .empty .ttl { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
 
-@media (max-width: 1280px) { .bento { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1023px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } .bento { grid-template-columns: 1fr; } }
+@media (max-width: 1280px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+  .top { gap: var(--space-3); }
+  .top-tab { padding: 9px 12px; font-size: 12px; }
+  .tb-brand div div:last-child { display: none; }  /* 서브타이틀 숨김 */
+}
+@media (max-width: 1023px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h, 80px) 1fr; }
+  .sidebar { display: none; }
+  .bento { grid-template-columns: 1fr; }
+  .top { grid-template-columns: auto 1fr auto; }
+  .tb-brand { padding: 0 var(--space-3) !important; border-right: 0 !important; }
+}
 </style>

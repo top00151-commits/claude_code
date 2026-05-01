@@ -11,7 +11,13 @@
 {% set _role = (user.role or 'member')|lower %}
 
 <header class="top">
-  <div></div>
+  <a class="tb-brand" href="/home" style="padding:0 var(--space-6);display:flex;align-items:center;gap:var(--space-3);border-right:1px solid var(--line);height:100%;text-decoration:none;color:inherit;">
+    <img src="/static/logo.png" alt="KNK" style="height:32px;" onerror="this.style.display='none'">
+    <div>
+      <div style="font-size:14px;font-weight:700;color:var(--ink);">HAIST WORKS</div>
+      <div style="font-size:9px;color:var(--amber-deep);letter-spacing:0.18em;text-transform:uppercase;font-weight:600;margin-top:2px;">Human &amp; AI create the Best</div>
+    </div>
+  </a>
   <div class="top-tabs">
     <a class="top-tab {% if _at == 'home' %}active{% endif %}" href="/home">통합 플랫폼</a>
     <a class="top-tab {% if _at == 'sales' %}active{% endif %}" href="/sales">매출영업센터</a>
@@ -30,9 +36,7 @@
 
 <aside class="sidebar">
   {% if _at == 'logi' %}
-    <div class="sb-group">자재 메인</div>
-    <a class="sb-item {% if _act == 'logistics' %}active{% endif %}" href="/logistics">🏠 자재·구매 hub <span class="menu-code">M-02-01</span></a>
-
+    {# 자재·구매 hub 항목 제거 — 토픽바 "자재구매센터" 탭과 중복 #}
     <div class="sb-group">발주 흐름</div>
     <a class="sb-item {% if _act == 'po_new' %}active{% endif %}" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
     <a class="sb-item {% if _act == 'po' %}active{% endif %}" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span></a>
@@ -48,9 +52,7 @@
     <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
 
   {% elif _at == 'sales' %}
-    <div class="sb-group">매출 메인</div>
-    <a class="sb-item {% if _act == 'sales' %}active{% endif %}" href="/sales">🏠 매출·영업 hub <span class="menu-code">M-01-01</span></a>
-
+    {# 매출·영업 hub 항목 제거 — 토픽바 "매출영업센터" 탭과 중복 #}
     <div class="sb-group">관리</div>
     <a class="sb-item {% if _act == 'projects' %}active{% endif %}" href="/projects">📊 프로젝트 <span class="menu-code">M-01-02</span></a>
     <a class="sb-item {% if _act == 'customers' %}active{% endif %}" href="/customers">🏢 고객사 <span class="menu-code">M-01-03</span></a>
@@ -67,11 +69,7 @@
     <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
 
   {% else %}
-    <div class="sb-group">워크스페이스</div>
-    <a class="sb-item {% if _act == 'home' %}active{% endif %}" href="/home">📊 통합 대시보드 <span class="menu-code">M-00-01</span></a>
-    <a class="sb-item" href="/sales">💼 매출영업센터 <span class="menu-code">M-01-01</span></a>
-    <a class="sb-item" href="/logistics">📦 자재구매센터 <span class="menu-code">M-02-01</span></a>
-
+    {# 워크스페이스 그룹 (통합/매출/자재) 제거 — 토픽바 탭과 중복 (대표 지시 2026-05-02) #}
     <div class="sb-group">빠른 시작</div>
     <a class="sb-item {% if _act == 'daily' %}active{% endif %}" href="/daily">📝 일일업무 <span class="menu-code">M-00-02</span></a>
     <a class="sb-item {% if _act == 'notifications' %}active{% endif %}" href="/notifications">📢 알림함 <span class="menu-code">M-00-09</span></a>
