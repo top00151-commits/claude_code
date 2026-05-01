@@ -106,9 +106,6 @@ td.amount { font-weight: 700; }
 
 <div class="app">
   <aside class="sidebar">
-    <div class="sb-group">자재 메인</div>
-    <a class="sb-item" href="/logistics">🏠 자재 hub <span class="menu-code">M-02-01</span></a>
-
     <div class="sb-group">발주 흐름</div>
     <a class="sb-item" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
     <a class="sb-item active" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span>{% if total_cnt %}<span class="sb-badge">{{ total_cnt }}</span>{% endif %}</a>
@@ -121,8 +118,7 @@ td.amount { font-weight: 700; }
 
     <div class="sb-group">기타</div>
     <a class="sb-item" href="/suppliers">🏢 공급사 <span class="menu-code">M-02-03</span></a>
-    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
-  </aside>
+    </aside>
 
   <main class="main">
     <header class="top">
