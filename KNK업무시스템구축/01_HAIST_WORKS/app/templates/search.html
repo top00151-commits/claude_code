@@ -1,204 +1,57 @@
-{% extends "base.html" %}
-{% block title %}{{ i.search_title|default('🔎 통합 검색') }}{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.search_title|default('🔎 통합 검색') }}</h1>
-    <div class="page-sub">{{ i.search_sub_global|default('수주·고객·부품·이슈·티켓·게시판·사용자·수출입·재고·카드·댓글·회고를 한 번에 검색합니다') }}</div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>통합 검색 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.search-box { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
+.search-input { width: 100%; padding: 14px 18px; font-size: 16px; border: 2px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+.search-input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 4px var(--amber-glow); }
+.cat-tabs { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.cat-tab { padding: 6px 14px; border-radius: var(--radius-full); font-size: 12px; background: var(--paper); border: 1px solid var(--line); color: var(--mute); text-decoration: none; cursor: pointer; }
+.cat-tab.active { background: var(--grad-amber); color: white; border-color: var(--amber); font-weight: 700; }
+.result-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; cursor: pointer; transition: all .12s; text-decoration: none; color: inherit; display: block; }
+.result-card:hover { border-color: var(--amber); background: var(--amber-glow); }
+.result-cat { font-size: 10px; font-weight: 700; color: var(--amber-deep); letter-spacing: 0.06em; text-transform: uppercase; }
+.result-ttl { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.result-meta { font-size: 11px; color: var(--mute); margin-top: 4px; }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="page-meta">통합 검색</div><h1 class="page-title">🔍 <em>검색</em></h1></div>
   </div>
-</div>
 
-<form class="search-form" method="get" action="/search">
-  <label for="searchQ" class="sr-only">{{ i.search_label|default('검색어') }}</label>
-  <input id="searchQ" type="text" name="q" value="{{ q }}" placeholder="{{ i.search_placeholder|default('키워드 입력 (2자 이상)') }}" autofocus>
-  <input type="hidden" name="cat" value="{{ cat|default('all') }}">
-  <button class="btn-primary" type="submit">{{ i.search_btn|default('검색') }}</button>
-</form>
-
-{# 카테고리 탭 — 글로벌 검색 강화 (2026-04-26) #}
-{% if q %}
-<div class="search-tabs" role="tablist" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
-  {% set _cats = [('all','전체'),('orders','📦 수주'),('customers','🤝 고객'),('parts','🔩 부품'),('issues','⚠️ 이슈'),('tickets','🎫 티켓'),('boards','📰 게시판'),('users','👤 사용자'),('exports','🚢 수출입'),('audits','📊 재고실사'),('tasks','📋 카드'),('comments','💬 댓글'),('retros','📖 회고')] %}
-  {% for code,label in _cats %}
-  <a href="/search?q={{ q|urlencode }}&cat={{ code }}" class="tag {% if cat==code %}tag-active{% endif %}" style="padding:4px 10px;border-radius:14px;text-decoration:none">{{ label }}</a>
-  {% endfor %}
-</div>
-
-<div class="search-meta">"{{ q }}" {{ i.search_result|default('검색 결과') }}</div>
-
-{# 카드 #}
-{% if res.tasks %}
-<div class="section-head"><h2>{{ cat_labels.get('tasks','📋 카드') }} ({{ res.tasks|length }})</h2></div>
-<div class="search-list">
-  {% for t in res.tasks %}
-  <div class="search-row" onclick="openCardModal({{ t.id }})">
-    <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
-    <b>{{ t.title }}</b>
-    <span class="sr-meta">{{ t.user_name }} · {{ t.work_date }}{% if t.project_name %} · 🛠 {{ t.project_name }}{% endif %}</span>
-    {% if t.next_plan %}<div class="sr-next">📌 {{ t.next_plan }}</div>{% endif %}
+  <div class="search-box">
+    <form method="get" action="/search">
+      <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="업무 / 사람 / 문서 / 자재 / 발주 / 견적..." autofocus>
+      <div class="cat-tabs">
+        <a class="cat-tab {% if not cat %}active{% endif %}" href="/search?q={{ q }}">전체</a>
+        {% for k, l in cat_labels.items() %}
+        <a class="cat-tab {% if cat == k %}active{% endif %}" href="/search?q={{ q }}&cat={{ k }}">{{ l }}</a>
+        {% endfor %}
+      </div>
+    </form>
   </div>
-  {% endfor %}
-</div>
-{% endif %}
 
-{# 댓글 #}
-{% if res.comments %}
-<div class="section-head"><h2>{{ cat_labels.get('comments','💬 댓글') }} ({{ res.comments|length }})</h2></div>
-<div class="search-list">
-  {% for c in res.comments %}
-  <div class="search-row" onclick="openCardModal({{ c.task_id }})">
-    <b>{{ c.author_name }}</b> <span class="cm-time">{{ c.created_at }}</span>
-    <div class="sr-text">{{ c.body }}</div>
-    <span class="sr-meta">→ {{ c.task_title }}</span>
+  {% if q %}
+  <div style="margin: 0 var(--content-pad);">
+    {% if res or res_global %}
+      {% set all_res = (res or []) + (res_global or []) %}
+      <div class="page-meta" style="margin-bottom: 12px;">총 <b>{{ all_res|length }}건</b> 결과</div>
+      {% for r in all_res %}
+      <a class="result-card" href="{{ r.url|default('#') }}">
+        <div class="result-cat">{{ cat_labels.get(r.cat, r.cat|default('기타')) }}</div>
+        <div class="result-ttl">{{ r.title|default(r.label|default('—')) }}</div>
+        {% if r.meta or r.body %}<div class="result-meta">{{ r.meta|default(r.body|default('')|truncate(120)) }}</div>{% endif %}
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty"><div class="ico">🔍</div><div class="ttl">"{{ q }}" 검색 결과 없음</div><div style="font-size:13px;color:var(--mute);">다른 키워드로 검색해보세요.</div></div>
+    {% endif %}
   </div>
-  {% endfor %}
-</div>
-{% endif %}
+  {% else %}
+  <div class="empty"><div class="ico">🔍</div><div class="ttl">검색어를 입력하세요</div><div style="font-size:13px;color:var(--mute);">자연어로 자유롭게 검색 가능합니다.</div></div>
+  {% endif %}
 
-{# 회고 #}
-{% if res.retros %}
-<div class="section-head"><h2>{{ cat_labels.get('retros','📖 회고') }} ({{ res.retros|length }})</h2></div>
-<div class="search-list">
-  {% for r in res.retros %}
-  <div class="search-row" onclick="location.href='/project/{{ r.project_id }}'" style="cursor:pointer">
-    <b>{{ r.project_name }}</b> <span class="cm-time">{{ r.updated_at }}</span>
-    {% if r.went_well %}<div class="sr-text"><b>{{ i.went_well|default('잘된 점:') }}</b> {{ r.went_well }}</div>{% endif %}
-    {% if r.went_bad %}<div class="sr-text"><b>{{ i.went_bad|default('아쉬운 점:') }}</b> {{ r.went_bad }}</div>{% endif %}
-    {% if r.next_action %}<div class="sr-text"><b>{{ i.next_action|default('향후 액션:') }}</b> {{ r.next_action }}</div>{% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 수주 #}
-{% if res_global and res_global.orders %}
-<div class="section-head"><h2>{{ cat_labels.get('orders','📦 수주') }} ({{ res_global.orders|length }})</h2></div>
-<div class="search-list">
-  {% for o in res_global.orders %}
-  <div class="search-row" onclick="location.href='/sales/orders'" style="cursor:pointer">
-    <span class="tag">{{ o.status }}</span>
-    <b>{{ o.order_no or ('SO #' ~ o.id) }}</b>
-    <span class="sr-meta">🤝 {{ o.customer_name or '-' }} · 주문일 {{ o.order_date or '-' }}{% if o.due_date %} · 납기 {{ o.due_date }}{% endif %} · {{ '{:,.0f}'.format(o.total_amount or 0) }}원</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 고객 #}
-{% if res_global and res_global.customers %}
-<div class="section-head"><h2>{{ cat_labels.get('customers','🤝 고객') }} ({{ res_global.customers|length }})</h2></div>
-<div class="search-list">
-  {% for cu in res_global.customers %}
-  <div class="search-row" onclick="location.href='/customer/{{ cu.id }}'" style="cursor:pointer">
-    <b>{{ cu.name }}</b>
-    <span class="sr-meta">등급 {{ cu.tier or '일반' }}</span>
-    {% if cu.note %}<div class="sr-text">{{ cu.note }}</div>{% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 부품 #}
-{% if res_global and res_global.parts %}
-<div class="section-head"><h2>{{ cat_labels.get('parts','🔩 부품') }} ({{ res_global.parts|length }})</h2></div>
-<div class="search-list">
-  {% for p in res_global.parts %}
-  <div class="search-row" onclick="location.href='/parts/{{ p.id }}'" style="cursor:pointer">
-    <b>{{ p.part_no }}</b> · {{ p.part_name }}
-    <span class="sr-meta">{{ p.spec or '' }}{% if p.maker %} · {{ p.maker }}{% endif %}{% if p.biz_div %} · {{ p.biz_div }}{% endif %} · {{ '{:,.0f}'.format(p.std_price or 0) }} {{ p.currency }}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 이슈 #}
-{% if res_global and res_global.issues %}
-<div class="section-head"><h2>{{ cat_labels.get('issues','⚠️ 이슈') }} ({{ res_global.issues|length }})</h2></div>
-<div class="search-list">
-  {% for is_ in res_global.issues %}
-  <div class="search-row" onclick="location.href='/issues/{{ is_.id }}'" style="cursor:pointer">
-    <span class="tag">{{ is_.severity }}</span>
-    <b>{{ is_.issue_no or ('ISS #' ~ is_.id) }} · {{ is_.title }}</b>
-    <span class="sr-meta">{{ is_.status }} · {{ is_.issue_type }}{% if is_.customer_name %} · 🤝 {{ is_.customer_name }}{% endif %}{% if is_.occurred_at %} · 발생 {{ is_.occurred_at }}{% endif %}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 티켓 #}
-{% if res_global and res_global.tickets %}
-<div class="section-head"><h2>{{ cat_labels.get('tickets','🎫 티켓') }} ({{ res_global.tickets|length }})</h2></div>
-<div class="search-list">
-  {% for tk in res_global.tickets %}
-  <div class="search-row" onclick="location.href='/tickets/{{ tk.id }}'" style="cursor:pointer">
-    <span class="tag">{{ tk.urgency }}</span>
-    <b>{{ tk.ticket_no }} · {{ tk.title }}</b>
-    <span class="sr-meta">{{ tk.category }} · {{ tk.status }}{% if tk.target_label %} · 🎯 {{ tk.target_label }}{% endif %}{% if tk.due_date %} · 마감 {{ tk.due_date }}{% endif %}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 게시판 #}
-{% if res_global and res_global.boards %}
-<div class="section-head"><h2>{{ cat_labels.get('boards','📰 게시판') }} ({{ res_global.boards|length }})</h2></div>
-<div class="search-list">
-  {% for bp in res_global.boards %}
-  <div class="search-row" onclick="location.href='/board/post/{{ bp.id }}'" style="cursor:pointer">
-    <b>{{ bp.title }}</b>
-    <span class="sr-meta">{{ bp.board_name or '' }} · {{ bp.category }} · {{ bp.author_name or '' }} · {{ bp.created_at }}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 사용자 #}
-{% if res_global and res_global.users %}
-<div class="section-head"><h2>{{ cat_labels.get('users','👤 사용자') }} ({{ res_global.users|length }})</h2></div>
-<div class="search-list">
-  {% for usr in res_global.users %}
-  <div class="search-row">
-    <b>{{ usr.name }}</b>
-    <span class="sr-meta">{{ usr.rank or '' }}{% if usr.team_name %} · {{ usr.team_name }}{% endif %} · {{ usr.login_id }}{% if usr.email %} · {{ usr.email }}{% endif %}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 수출입 #}
-{% if res_global and res_global.exports %}
-<div class="section-head"><h2>{{ cat_labels.get('exports','🚢 수출입') }} ({{ res_global.exports|length }})</h2></div>
-<div class="search-list">
-  {% for ex in res_global.exports %}
-  <div class="search-row" onclick="location.href='/export/orders/{{ ex.id }}'" style="cursor:pointer">
-    <span class="tag">{{ ex.status }}</span>
-    <b>{{ ex.buyer or '-' }}</b>
-    <span class="sr-meta">{{ ex.shipping_terms or '' }}{% if ex.payment_terms %} · {{ ex.payment_terms }}{% endif %}{% if ex.port_of_loading %} · {{ ex.port_of_loading }} → {{ ex.port_of_discharge or '-' }}{% endif %}{% if ex.order_no %} · 🔗 {{ ex.order_no }}{% endif %}{% if ex.invoice_no %} · CI {{ ex.invoice_no }}{% endif %}</span>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 재고실사 #}
-{% if res_global and res_global.audits %}
-<div class="section-head"><h2>{{ cat_labels.get('audits','📊 재고실사') }} ({{ res_global.audits|length }})</h2></div>
-<div class="search-list">
-  {% for a in res_global.audits %}
-  <div class="search-row" onclick="location.href='/stock/audits/{{ a.id }}'" style="cursor:pointer">
-    <span class="tag">{{ a.status }}</span>
-    <b>{{ a.audit_no or ('AUD #' ~ a.id) }}</b>
-    <span class="sr-meta">{{ a.start_date }}{% if a.end_date %} ~ {{ a.end_date }}{% endif %}{% if a.led_by_name %} · 주관 {{ a.led_by_name }}{% endif %}</span>
-    {% if a.note %}<div class="sr-text">{{ a.note }}</div>{% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# 빈 결과 #}
-{% set _has_local = res.tasks or res.comments or res.retros %}
-{% set _has_global = res_global and (res_global.orders or res_global.customers or res_global.parts or res_global.issues or res_global.tickets or res_global.boards or res_global.users or res_global.exports or res_global.audits) %}
-{% if not _has_local and not _has_global %}
-<div class="empty">{{ i.no_results|default('검색 결과가 없습니다.') }}</div>
-{% endif %}
-{% endif %}
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

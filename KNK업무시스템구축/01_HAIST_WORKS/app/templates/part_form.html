@@ -1,150 +1,47 @@
-{% extends "base_logi.html" %}
-{% block title %}{% if part %}부품 수정{% else %}부품 등록{% endif %} — {{ app_name }}{% endblock %}
-{% block body %}
-
-<div class="page-head">
-  <h1>{% if part %}부품 수정{% else %}부품 등록{% endif %}</h1>
-  <p class="muted">
-    {% if part %}부품번호 <strong class="mono">{{ part.part_no }}</strong> 정보를 수정합니다.
-    {% else %}새 부품을 마스터에 등록합니다. 부품번호는 고유해야 합니다.{% endif %}
-  </p>
-</div>
-
-<form method="post"
-      action="{% if part %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}"
-      class="card form">
-
-  <div class="grid-2">
-    <div class="field">
-      <label>부품번호 <span class="req">*</span></label>
-      <input type="text" name="part_no" required class="mono" tabindex="0"
-             value="{{ part.part_no if part else '' }}"
-             placeholder="예: PRT-2026-0001">
-    </div>
-    <div class="field">
-      <label>품명 <span class="req">*</span></label>
-      <input type="text" name="part_name" required tabindex="0"
-             value="{{ part.part_name if part else '' }}"
-             placeholder="예: 검사기 모터 브라켓">
-    </div>
-
-    <div class="field">
-      <label>규격</label>
-      <input type="text" name="spec"
-             value="{{ part.spec if part else '' }}"
-             placeholder="예: 200×150×30 SUS304">
-    </div>
-    <div class="field">
-      <label>메이커</label>
-      <input type="text" name="maker"
-             value="{{ part.maker if part else '' }}"
-             placeholder="예: SMC, Mitsubishi">
-    </div>
-
-    <div class="field">
-      <label>원산지</label>
-      <select name="origin">
-        {% set ORIGINS = ['', 'KOREA', 'JAPAN', 'CHINA', 'TAIWAN', 'USA', 'GERMANY', 'FRANCE', '기타'] %}
-        {% for o in ORIGINS %}
-        <option value="{{ o }}" {% if part and part.origin == o %}selected{% endif %}>{{ o or '(선택)' }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>단위</label>
-      <select name="unit">
-        {% set UNITS = ['EA', 'SET', 'M', 'KG', 'BOX', 'ROLL', 'PAIR', '기타'] %}
-        {% for u in UNITS %}
-        <option value="{{ u }}" {% if (part and part.unit == u) or (not part and u == 'EA') %}selected{% endif %}>{{ u }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="field">
-      <label>통화</label>
-      <select name="currency">
-        <option value="KRW" {% if not part or part.currency == 'KRW' %}selected{% endif %}>KRW (₩)</option>
-        <option value="USD" {% if part and part.currency == 'USD' %}selected{% endif %}>USD ($)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>표준단가</label>
-      <input type="number" name="std_price" step="0.01" min="0"
-             value="{{ part.std_price if part else 0 }}">
-    </div>
-
-    <div class="field">
-      <label>사업부</label>
-      <select name="biz_div">
-        <option value="">(선택)</option>
-        <option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
-        <option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
-        <option value="공통" {% if part and part.biz_div == '공통' %}selected{% endif %}>공통</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>분류</label>
-      <select name="category">
-        <option value="">(선택)</option>
-        <option value="완성품" {% if part and part.category == '완성품' %}selected{% endif %}>완성품</option>
-        <option value="자재" {% if part and part.category == '자재' %}selected{% endif %}>자재</option>
-        <option value="소모품" {% if part and part.category == '소모품' %}selected{% endif %}>소모품</option>
-      </select>
-    </div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if part %}자재 수정{% else %}자재 등록{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: span 2; }
+.field label { font-size: 12px; font-weight: 600; }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/parts">자재 마스터</a> · <b>{% if part %}수정{% else %}등록{% endif %}</b></div>
+    <h1 class="page-title">{% if part %}자재 <em>수정</em>{% else %}자재 <em>등록</em>{% endif %}</h1></div>
   </div>
-
-  {# 재고 관리 필드 (2026-04-20 신규) #}
-  {% if part %}
-  <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-    <div class="field">
-      <label>현재고 <small style="color:#9CA3AF;">(입출고로 자동 관리)</small></label>
-      <input type="text" readonly value="{{ '%g'|format(part.stock_qty or 0) }}"
-             style="background:#F9FAFB;color:#6B7280;font-family:monospace;">
+  <form method="post" action="{% if part %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}">
+    <div class="form-card">
+      <div class="field-row">
+        <div class="field"><label>자재 코드 *</label><input type="text" name="code" required value="{{ part.code|default('') }}"></div>
+        <div class="field"><label>사업부</label><select name="biz_div"><option value="">— 선택 —</option><option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>M (자재)</option><option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>T (가공)</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>자재명 *</label><input type="text" name="name" required value="{{ part.name|default('') }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>사양</label><input type="text" name="spec" value="{{ part.spec|default('') }}" placeholder="규격 / 재질 / 인증"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>분류</label><input type="text" name="category" value="{{ part.category|default('') }}" placeholder="예: 모터·구동부"></div>
+        <div class="field"><label>단위</label><input type="text" name="unit" value="{{ part.unit|default('EA') }}" placeholder="EA, m, kg..."></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>표준 단가 (원)</label><input type="number" name="unit_price" step="1" value="{{ part.unit_price|default(0) }}"></div>
+        <div class="field"><label>안전 재고</label><input type="number" name="safety_stock" step="0.01" value="{{ part.safety_stock|default(0) }}"></div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--mute);"><label><input type="checkbox" name="is_active" value="1" {% if not part or part.is_active %}checked{% endif %}> 활성</label></div>
     </div>
-    <div class="field">
-      <label>안전재고</label>
-      <input type="number" name="safety_stock" step="0.01" min="0"
-             value="{{ part.safety_stock or 0 }}"
-             placeholder="0 = 알림 없음">
+    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/parts">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if part %}저장{% else %}등록{% endif %}</button>
     </div>
-    <div class="field">
-      <label>보관 위치</label>
-      <input type="text" name="location" value="{{ part.location or '' }}"
-             placeholder="예: A창고-3선반">
-    </div>
-  </div>
-  {% else %}
-  <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div class="field">
-      <label>안전재고 <small style="color:#9CA3AF;">(미달 시 경고)</small></label>
-      <input type="number" name="safety_stock" step="0.01" min="0" value="0">
-    </div>
-    <div class="field">
-      <label>보관 위치</label>
-      <input type="text" name="location" placeholder="예: A창고-3선반">
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="field">
-    <label>비고</label>
-    <textarea name="note" rows="3" placeholder="자유 입력 (메모, 특이사항)">{{ part.note if part else '' }}</textarea>
-  </div>
-
-  <div class="field">
-    <label class="check-row">
-      <input type="checkbox" name="is_active" value="1"
-             {% if not part or part.is_active %}checked{% endif %}>
-      사용 중 (체크 해제 시 비활성)
-    </label>
-  </div>
-
-  <div class="form-actions">
-    <a href="/parts" class="btn btn-ghost" tabindex="0">취소</a>
-    <button type="submit" class="btn btn-primary" tabindex="0">
-      {% if part %}저장{% else %}등록{% endif %}
-    </button>
-  </div>
-</form>
-
-{% endblock %}
+  </form>
+</main></div></body></html>

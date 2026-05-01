@@ -1,72 +1,31 @@
-{% extends "base_logi.html" %}
-{% block title %}출고 GI — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
-{# Top3 S2 2차 (2026-04-25) — 시안 §화면 GI 워크플로 PENDING → APPROVED → ISSUED #}
-{# 출고 등록 INSERT issues_out · 승인 시 stock_movements{kind=OUT, qty -} INSERT #}
-
-<div style="margin-bottom:14px;">
-  <a href="/stock/movements" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 수불부</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;">
-  <div>
-    <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">출고 (GI)</h1>
-    <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §화면 영역 출고 — issues_out · 요청 → 승인 → 실행 워크플로</div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>출고 이력 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>출고 이력</b></div><h1 class="page-title">📤 출고 <em>이력 (GI)</em></h1></div>
+    <a class="btn btn-primary" href="/issues/new">＋ 출고 등록</a>
   </div>
-  <button type="button" onclick="document.getElementById('giForm').style.display='block';"
-          style="background:var(--st-progress,#0EA5E9);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ 출고 요청</button>
-</div>
-
-<form id="giForm" method="post" action="/stock/issues" style="display:none;background:var(--bg-card,#fff);border:1px solid var(--ink-300,#D1D5DB);border-radius:10px;padding:16px;margin-bottom:14px;">
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-    <label style="font-size:12px;">part_id<input name="part_id" type="number" required style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;"></label>
-    <label style="font-size:12px;">수량<input name="qty" type="number" step="0.01" required style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;"></label>
-    <label style="font-size:12px;">목적<input name="purpose" type="text" placeholder="생산투입/출하 등" style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;"></label>
-  </div>
-  <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
-    <button type="button" onclick="document.getElementById('giForm').style.display='none';" style="border:1px solid var(--ink-300);background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;">취소</button>
-    <button type="submit" style="background:var(--st-done,#10B981);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">요청 등록</button>
-  </div>
-</form>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:20px;">
-  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">출고 요청 일람</div>
-  {% if issues and issues|length > 0 %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead>
-      <tr style="border-bottom:1px solid var(--ink-200);text-align:left;">
-        <th style="padding:8px;">ID</th><th style="padding:8px;">part_id</th>
-        <th style="padding:8px;">수량</th><th style="padding:8px;">목적</th>
-        <th style="padding:8px;">상태</th><th style="padding:8px;">작업</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in issues %}
-      <tr style="border-bottom:1px solid var(--ink-100);">
-        <td style="padding:8px;">GI-{{ r.id }}</td>
-        <td style="padding:8px;">{{ r.part_id }}</td>
-        <td style="padding:8px;">{{ '%.0f'|format(r.qty or 0) }}</td>
-        <td style="padding:8px;color:var(--ink-500);">{{ r.purpose or '-' }}</td>
-        <td style="padding:8px;">
-          {% set badge = {'PENDING':'#F59E0B','APPROVED':'#0EA5E9','ISSUED':'#10B981','REJECTED':'#EF4444'}.get(r.status, '#6B7280') %}
-          <span style="background:{{ badge }};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">{{ r.status }}</span>
-        </td>
-        <td style="padding:8px;">
-          {% if r.status == 'PENDING' %}
-          <form method="post" action="/stock/issues/{{ r.id }}/approve" style="display:inline;">
-            <button type="submit" style="background:var(--st-done,#10B981);color:#fff;border:0;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;">승인·출고</button>
-          </form>
-          {% else %}-{% endif %}
-        </td>
-      </tr>
+  <div class="tbl-wrap">
+    {% if issues %}
+    <table class="tbl">
+      <thead><tr><th>#</th><th>자재</th><th class="num">수량</th><th>용도</th><th class="center">상태</th><th class="center">요청</th><th class="center">출고</th></tr></thead>
+      <tbody>
+      {% for i in issues %}
+        <tr><td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ i.id }}</td>
+          <td><a href="/parts/{{ i.part_id }}" style="font-weight:700;">자재 #{{ i.part_id }}</a></td>
+          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(i.qty|default(0)) }}</td>
+          <td style="font-size:12px;">{{ i.purpose|default('—') }}</td>
+          <td class="center"><span class="pill {% if i.status == '완료' %}pill-done{% elif i.status == '진행' %}pill-progress{% else %}pill-muted{% endif %}">{{ i.status|default('—') }}</span></td>
+          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ i.requested_at|default('—') }}</td>
+          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ i.issued_at|default('—') }}</td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
-    아직 출고 요청이 없습니다.<br>
-    상단 [+ 출고 요청] 버튼으로 등록하면 PENDING 상태로 워크플로에 진입합니다.
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📤</div><div class="ttl">출고 이력이 없습니다</div></div>{% endif %}
   </div>
-  {% endif %}
-</div>
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

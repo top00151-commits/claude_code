@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% set active = 'home' %}
+{% block title %}{{ i.sb_home|default('업무현황') }} · KNK{% endblock %}
+
+{#  ============================================================
+    home.html — v5H5 시안 마크업 적용 (2026-05-01)
+    시안 원본: 05_HAIST_WORKS_디자인팀/03_시안/_05_v5H5_풀세트시안/A_대시보드/master_A_dashboard_home_v5H5.html
+    구조: page-head → scope-tabs → bento(KPI) → actions → feed
+    레거시: app/templates/_legacy_home_v4.html (백업)
+    ============================================================ #}
+
+{% block top_fixed %}
+{# 권한 없음 안내 배너 (D01-NEW-BANNER) #}
+{% if no_perm %}
+<div id="no-perm-banner" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#FFF3E0;border-bottom:2px solid #FF6D00;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;color:#E65100;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+  <span>⚠ 이 메뉴는 권한이 없습니다. 구매팀장에게 요청하세요.</span>
+  <button onclick="document.getElementById('no-perm-banner').style.display='none'" style="background:none;border:none;cursor:pointer;color:#E65100;font-size:18px;line-height:1;padding:0 4px;" aria-label="닫기">&times;</button>
+</div>
+<script>setTimeout(function(){var b=document.getElementById('no-perm-banner');if(b){b.style.transition='opacity 0.5s';b.style.opacity='0';setTimeout(function(){b.style.display='none';},500);}},8000);</script>
+{% endif %}
+{% endblock %}
+
+{% block body %}
+
+{# ===== 집계 변수 ===== #}
+{% set total_my   = my_tasks|length %}
+{% set done_my    = my_tasks|selectattr('status','equalto','완료')|list|length %}
+{% set prog_my    = my_tasks|selectattr('status','equalto','진행중')|list|length %}
+{% set delay_my   = my_tasks|selectattr('status','equalto','지연')|list|length %}
+{% set wait_my    = my_tasks|selectattr('status','equalto','대기')|list|length %}
+{% set hours_my   = my_tasks|sum(attribute='hours') %}
+{% set rate_my    = ((done_my*100/total_my)|round(0,'floor')|int) if total_my else 0 %}
+{% set carry_cnt  = pending_yday|length %}
+{% set today_str  = sel_date %}
+
+{# ===== Page Head (시안 §page-head) ===== #}
+<div class="page-head">
+  <div>
+    <div class="page-meta">{{ today_str }} · {{ greeting_bucket|default('업무현황') }}</div>
+    <h1 class="page-title">
+      {{ greeting|default('안녕하세요, ' ~ user.name ~ '님') }}
+    </h1>
+    <div class="page-sub" style="margin-top:6px;display:flex;align-items:center;gap:8px;">
+      <a href="/home/{{ prev_date }}" class="hm2-date-nav" aria-label="이전 날짜">‹</a>
+      <span class="hm2-date">{{ sel_date }}</span>
+      {% if sel_date != today %}<a href="/home" class="hm2-today-pill">오늘로</a>{% endif %}
+      <a href="/home/{{ next_date }}" class="hm2-date-nav" aria-label="다음 날짜">›</a>
+    </div>
+  </div>
+  <div class="page-actions" style="display:flex;align-items:center;gap:10px;">
+    <a href="/notifications" class="tb-icon-btn" title="알림">
+      🔔
+      {% if unread_notif and unread_notif > 0 %}<span class="tb-icon-badge">{{ unread_notif }}</span>{% endif %}
+    </a>
+    <button class="btn btn-primary" onclick="document.getElementById('newTitle').focus()">
+      <span style="font-weight:700;">＋</span> 새 업무 등록
+    </button>
+  </div>
+</div>
+
+{# ===== Scope Tabs (시안 §scope-tabs) ===== #}
+{% set _sd = ('&sel_date=' ~ sel_date) if sel_date and sel_date != today else '' %}
+<div class="scope-tabs" role="tablist" aria-label="홈 보기 모드">
+  <a href="?tab=my{{ _sd }}" class="scope-tab {% if tab=='my' %}active{% endif %}" role="tab">
+    <span class="ico">👤</span><span>내 업무</span>{% if total_my %}<span class="badge">{{ total_my }}</span>{% endif %}
+  </a>
+  <a href="?tab=team{{ _sd }}" class="scope-tab {% if tab=='team' %}active{% endif %}" role="tab">
+    <span class="ico">👥</span><span>우리 팀</span>
+  </a>
+  {% if user.role in ['ceo','admin','executive','leader'] %}
+  <a href="?tab=all{{ _sd }}" class="scope-tab {% if tab=='all' %}active{% endif %}" role="tab">
+    <span class="ico">🏢</span><span>전사</span>
+  </a>
+  {% endif %}
+</div>
+
+{# ===== 빠른 입력 (Quick Add) — .card 클래스 회피 (column flex 충돌) ===== #}
+<div class="quick-add-row" style="margin-bottom:var(--space-5);padding:14px 18px;display:flex !important;flex-direction:row !important;align-items:center;gap:12px;background:var(--paper-3);border:1px solid var(--line);border-radius:14px;">
+  <div style="width:36px;height:36px;background:var(--amber-glow);border-radius:8px;display:grid;place-items:center;font-size:20px;flex-shrink:0;color:var(--amber-deep);font-weight:700;">＋</div>
+  <input type="text" id="newTitle" placeholder="지금 무슨 업무를 하고 계신가요? 입력 후 Enter ↵"
+         onkeydown="if(event.key==='Enter')addTask()"
+         onfocus="document.getElementById('quickExtras').style.display='flex'"
+         style="flex:1;min-width:0;border:0;background:transparent;font-size:14px;font-family:inherit;outline:none;color:var(--ink);">
+  <div id="quickExtras" style="display:none;gap:6px;align-items:center;flex-shrink:0;">
+    <select id="newProject" style="border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;background:var(--paper);color:var(--ink);">
+      <option value="">프로젝트</option>
+      {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+    <select id="newCustomer" style="border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;background:var(--paper);color:var(--ink);">
+      <option value="">고객사</option>
+      {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+    <input type="number" id="newHours" placeholder="공수(h)" step="0.5" min="0" max="24"
+           style="width:80px;border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;background:var(--paper);color:var(--ink);">
+  </div>
+  <button onclick="addTask()" style="background:var(--knk-red);color:white;border:0;border-radius:8px;padding:10px 22px;font-weight:700;font-size:14px;cursor:pointer;flex-shrink:0;">등록</button>
+</div>
+
+{# ===== Bento KPI Grid (시안 §bento) — 모든 탭에서 표시 ===== #}
+<div class="bento">
+  {# Hero — 내가 진행 중 #}
+  <div class="card hero">
+    <div class="card-label">내가 진행 중</div>
+    <div>
+      <div class="card-value">{{ prog_my + wait_my }} 건</div>
+      <div class="card-trend up" style="color:var(--amber-glow);">
+        ↑ 전체 {{ total_my }} · 완료 {{ done_my }} · 지연 {{ delay_my }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" onclick="location.href='/history?status=완료'" style="cursor:pointer;">
+    <div class="card-label">완료율</div>
+    <div class="card-value">{{ rate_my }}<span style="font-size:16px;color:var(--mute);">%</span></div>
+    <div class="card-trend up">{{ done_my }} / {{ total_my }}</div>
+  </div>
+
+  <div class="card" onclick="location.href='/history?status=지연'" style="cursor:pointer;">
+    <div class="card-label">지연 카드</div>
+    <div class="card-value" {% if delay_my > 0 %}style="color:var(--knk-red);"{% endif %}>{{ delay_my }}</div>
+    <div class="card-trend {% if delay_my == 0 %}up{% else %}alert{% endif %}">
+      {% if delay_my == 0 %}지연 없음{% else %}확인 필요{% endif %}
+    </div>
+  </div>
+
+  <div class="card" onclick="location.href='/daily'" style="cursor:pointer;">
+    <div class="card-label">누적 공수</div>
+    <div class="card-value">{{ '%.1f'|format(hours_my or 0) }}<span style="font-size:16px;color:var(--mute);">h</span></div>
+    <div class="card-trend">{{ prog_my }} 진행중</div>
+  </div>
+
+  <div class="card" onclick="location.href='/notifications'" style="cursor:pointer;">
+    <div class="card-label">알림</div>
+    <div class="card-value">{{ hw_counts.changes_unread or 0 }}</div>
+    <div class="card-trend {% if (hw_counts.changes_unread or 0) > 0 %}alert{% endif %}">
+      {% if (hw_counts.changes_unread or 0) > 0 %}미확인{% else %}확인 완료{% endif %}
+    </div>
+  </div>
+
+  <div class="card" onclick="location.href='/tickets'" style="cursor:pointer;">
+    <div class="card-label">내 티켓</div>
+    <div class="card-value">{{ hw_counts.tickets_pending or 0 }}</div>
+    <div class="card-trend {% if (hw_counts.tickets_pending or 0) > 0 %}alert{% endif %}">
+      {% if (hw_counts.tickets_pending or 0) > 0 %}대기{% else %}없음{% endif %}
+    </div>
+  </div>
+
+  <div class="card" onclick="location.href='/changes'" style="cursor:pointer;">
+    <div class="card-label">최근 변경</div>
+    <div class="card-value">{{ hw_counts.changes_recent or 0 }}</div>
+    <div class="card-trend">최근 24h</div>
+  </div>
+
+  {% if carry_cnt > 0 %}
+  <div class="card" onclick="location.href='/daily'" style="cursor:pointer;border-color:var(--warn);">
+    <div class="card-label">어제 미완료</div>
+    <div class="card-value" style="color:var(--warn);">{{ carry_cnt }}</div>
+    <div class="card-trend alert">이월 후보</div>
+  </div>
+  {% else %}
+  <div class="card" onclick="location.href='/daily'" style="cursor:pointer;">
+    <div class="card-label">미작성 일일업무</div>
+    <div class="card-value" {% if total_my == 0 %}style="color:var(--knk-red);"{% endif %}>{{ 1 if total_my == 0 else 0 }}</div>
+    <div class="card-trend {% if total_my == 0 %}alert{% else %}up{% endif %}">
+      {% if total_my == 0 %}16:30 알림{% else %}작성 완료{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# ===== 경영진 매출 KPI (권한 분기) ===== #}
+{% if is_executive and monthly_revenue is not none %}
+<div class="bento" style="margin-top:var(--space-4);grid-template-columns:repeat(2,1fr);grid-auto-rows:130px;">
+  <div class="card" style="position:relative;background:linear-gradient(145deg,var(--paper-3) 0%,var(--paper-2) 100%);">
+    <div style="position:absolute;top:10px;right:10px;background:rgba(165,40,44,.08);color:var(--knk-red);font-size:9px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.5px;">🔒 경영진</div>
+    <div class="card-label">이번 달 수주</div>
+    {% if monthly_revenue > 0 %}
+    <div class="card-value">{{ '{:,.0f}'.format(monthly_revenue) }}<span style="font-size:14px;color:var(--mute);">원</span></div>
+    {% if yoy_delta is not none %}
+    <div class="card-trend {% if yoy_delta >= 0 %}up{% else %}alert{% endif %}">
+      {% if yoy_delta >= 0 %}↑{% else %}↓{% endif %} 전년 동월 {{ '%.1f'|format(yoy_delta) }}%
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card-value" style="font-size:18px;color:var(--mute);">데이터 준비 중</div>
+    <div class="card-trend">/dashboard 참조</div>
+    {% endif %}
+  </div>
+  <div class="card" onclick="location.href='/dashboard'" style="cursor:pointer;">
+    <div class="card-label">전사 활동</div>
+    <div class="card-value">{{ today_reporters }}<span style="font-size:14px;color:var(--mute);"> / {{ total_users }}</span></div>
+    <div class="card-trend">참여율 {{ participation_rate }}%</div>
+  </div>
+</div>
+{% endif %}
+
+{# ===== 빠른 액션 (시안 §actions) ===== #}
+<div class="section">
+  <h2>빠른 액션</h2>
+  <div class="actions">
+    <a class="action-card" href="/daily">
+      <div class="action-icon">📝</div>
+      <div class="action-text">
+        <h4>일일업무 작성</h4>
+        <p>오늘 16:30 마감</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+    <a class="action-card" href="/sales/quotes/new">
+      <div class="action-icon">📋</div>
+      <div class="action-text">
+        <h4>새 견적 작성</h4>
+        <p>품목·단가 자동</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+    <a class="action-card" href="/tickets">
+      <div class="action-icon">🎫</div>
+      <div class="action-text">
+        <h4>티켓 발행</h4>
+        <p>관리자 요청</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+    <a class="action-card" href="/po">
+      <div class="action-icon">📦</div>
+      <div class="action-text">
+        <h4>자재 발주</h4>
+        <p>재고 자동 확인</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+  </div>
+</div>
+
+{# ===== 오늘의 업무 카드 ===== #}
+{% if my_tasks %}
+<div class="section">
+  <h2>오늘의 업무 ({{ total_my }})</h2>
+  <div class="feed">
+    {% for t in my_tasks[:6] %}
+    <div class="feed-item" onclick="location.href='/daily'">
+      <div class="feed-icon">
+        {% if t.status == '완료' %}✅
+        {% elif t.status == '진행중' %}🔄
+        {% elif t.status == '지연' %}⚠
+        {% elif t.status == '대기' %}⏸
+        {% else %}📌{% endif %}
+      </div>
+      <div class="feed-text">
+        <div class="ttl">{{ t.title }}</div>
+        <div class="body">
+          {% if t.project_name %}📋 {{ t.project_name }}{% endif %}
+          {% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}
+          {% if t.hours %} · {{ t.hours }}h{% endif %}
+        </div>
+        <div class="meta">{{ t.status }}{% if t.comment_count %} · 💬 {{ t.comment_count }}{% endif %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if total_my > 6 %}
+  <div style="text-align:center;margin-top:12px;">
+    <a href="/daily" style="font-size:12px;color:var(--amber-deep);font-weight:600;text-decoration:none;">전체 {{ total_my }}건 보기 →</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== 어제 미완료 (이월 후보) ===== #}
+{% if pending_yday %}
+<div class="section">
+  <h2>어제 미완료 ({{ carry_cnt }}) <span style="font-size:11px;color:var(--mute);font-weight:500;letter-spacing:0;text-transform:none;margin-left:6px;">— 오늘로 이월 가능</span></h2>
+  <div class="feed">
+    {% for t in pending_yday[:4] %}
+    <div class="feed-item" onclick="carryForward({{ t.id }})">
+      <div class="feed-icon">↪</div>
+      <div class="feed-text">
+        <div class="ttl">{{ t.title }}</div>
+        <div class="body">
+          {% if t.project_name %}📋 {{ t.project_name }}{% endif %}
+          {% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}
+        </div>
+        <div class="meta">{{ t.status }} · 클릭하여 오늘로 이월</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ===== 전사 / 우리 팀 탭 — 팀 신호등 요약 ===== #}
+{% if tab in ('team','all') and team_data %}
+<div class="section">
+  <h2>{% if tab == 'team' %}우리 팀{% else %}전사{% endif %} 현황</h2>
+  <div class="feed">
+    {% for td in team_data %}
+    {% if tab == 'all' or (user.team_id and td.team.id == user.team_id) %}
+    <div class="feed-item" onclick="location.href='/team/{{ td.team.id }}'">
+      <div class="feed-icon">
+        {% if td.signal == 'red' %}🔴{% elif td.signal == 'yellow' %}🟡{% else %}🟢{% endif %}
+      </div>
+      <div class="feed-text">
+        <div class="ttl">{{ td.team.name }}</div>
+        <div class="body">
+          참여 {{ td.reported }}/{{ td.total_members }}명 ·
+          진행 {{ td.progress }} · 완료 {{ td.done }}{% if td.delay > 0 %} · <b style="color:var(--knk-red);">지연 {{ td.delay }}</b>{% endif %}
+        </div>
+        <div class="meta">총 {{ td.total }}건</div>
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ===== 토스트 컨테이너 ===== #}
+<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9000;display:flex;flex-direction:column;gap:8px;"></div>
+
+<script>
+const SEL_DATE = '{{ sel_date }}';
+
+async function addTask() {
+  const title = document.getElementById('newTitle').value.trim();
+  if (!title) return;
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, work_date: SEL_DATE, status: '진행중',
+      hours: parseFloat(document.getElementById('newHours').value) || 0,
+      category: '기타',
+      project_id: document.getElementById('newProject').value || null,
+      customer_id: document.getElementById('newCustomer').value || null,
+    })
+  });
+  if (r.ok) { showToast('등록되었습니다'); setTimeout(() => location.reload(), 500); }
+  else { showToast('등록 실패'); }
+}
+
+async function carryForward(tid) {
+  if (!confirm('이 업무를 오늘로 이월하시겠습니까?')) return;
+  const r = await fetch('/api/task/' + tid + '/carry', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ work_date: SEL_DATE })
+  });
+  if (r.ok) { showToast('이월되었습니다'); setTimeout(() => location.reload(), 500); }
+  else { showToast('이월 실패'); }
+}
+
+function showToast(msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.style.cssText = 'background:var(--ink);color:white;padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:var(--shadow-lg);opacity:0;transition:opacity .2s;';
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.style.opacity = '1');
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2200);
+}
+</script>
+
+{% endblock %}

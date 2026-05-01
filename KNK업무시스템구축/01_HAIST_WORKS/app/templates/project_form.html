@@ -1,137 +1,55 @@
-{% extends "base_sales.html" %}
-{% block title %}{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %} — {{ app_name }}{% endblock %}
-{% block body %}
-
-<div class="page-head">
-  <h1>{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %}</h1>
-  <p class="muted">
-    {% if project %}
-      {% if project.mgmt_code %}
-        관리코드 <strong class="mono" style="color:#A5282C">{{ project.mgmt_code }}</strong>
-      {% else %}
-        관리코드 <span class="muted">(미발급 — 영업단계가 수주확정 이상이면 저장 시 자동 발급)</span>
-      {% endif %}
-    {% else %}
-      신규 프로젝트를 등록합니다. 영업단계가 <strong>수주확정·납품·개조·A/S</strong>이면 저장 시 KNK PMS 8자리 관리코드가 자동으로 발급됩니다.
-    {% endif %}
-  </p>
-</div>
-
-<form method="post"
-      action="{% if project %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}"
-      class="card form">
-
-  <div class="grid-2">
-    <div class="field">
-      <label>사업부 <span class="req">*</span></label>
-      <select name="biz_div" required>
-        <option value="">(선택)</option>
-        <option value="T" {% if project and project.biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
-        <option value="M" {% if project and project.biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>프로젝트명 <span class="req">*</span></label>
-      <input type="text" name="project_name" required
-             value="{{ project.project_name if project else '' }}"
-             placeholder="예: A사 검사기 라인 #3 자동화">
-    </div>
-
-    <div class="field">
-      <label>고객사</label>
-      <input type="text" name="customer"
-             value="{{ project.customer if project else '' }}"
-             placeholder="예: 삼성SDI">
-    </div>
-    <div class="field">
-      <label>모델 / 품명</label>
-      <input type="text" name="model"
-             value="{{ project.model if project else '' }}"
-             placeholder="예: KNK-INSP-2026">
-    </div>
-
-    <div class="field">
-      <label>영업단계 <span class="req">*</span></label>
-      <select name="stage" required>
-        {% for s in STAGES %}
-        <option value="{{ s }}"
-          {% if project and project.stage == s %}selected{% elif not project and s == '제안작성' %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>PO 유형</label>
-      <select name="po_type">
-        {% for t in PO_TYPES %}
-        <option value="{{ t }}"
-          {% if project and project.po_type == t %}selected{% elif not project and t == '신규' %}selected{% endif %}>{{ t }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="field">
-      <label>진행상태</label>
-      <select name="status">
-        {% for s in STATUSES %}
-        <option value="{{ s }}"
-          {% if project and project.status == s %}selected{% elif not project and s == '수주예정' %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>고객 PO번호 (원문)</label>
-      <input type="text" name="customer_po"
-             value="{{ project.customer_po if project else '' }}"
-             placeholder="고객사 발주서 번호 그대로">
-    </div>
-
-    <div class="field">
-      <label>통화</label>
-      <select name="currency">
-        <option value="KRW" {% if not project or project.currency == 'KRW' %}selected{% endif %}>KRW (₩)</option>
-        <option value="USD" {% if project and project.currency == 'USD' %}selected{% endif %}>USD ($)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>수주 금액</label>
-      <input type="number" name="order_amount" step="0.01" min="0"
-             value="{{ project.order_amount if project else 0 }}">
-    </div>
-
-    <div class="field">
-      <label>수주일</label>
-      <input type="text" name="order_date"
-             value="{{ project.order_date if project else '' }}"
-             placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
-    </div>
-    <div class="field">
-      <label>납기일</label>
-      <input type="text" name="due_date"
-             value="{{ project.due_date if project else '' }}"
-             placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
-    </div>
-
-    <div class="field">
-      <label>PM</label>
-      <input type="text" name="pm" value="{{ project.pm if project else '' }}">
-    </div>
-    <div class="field">
-      <label>담당 영업</label>
-      <input type="text" name="sales" value="{{ project.sales if project else '' }}">
-    </div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: span 2; }
+.field label { font-size: 12px; font-weight: 600; }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.field textarea { min-height: 80px; resize: vertical; }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/projects">프로젝트</a> · <b>{% if project %}수정{% else %}등록{% endif %}</b></div>
+    <h1 class="page-title">{% if project %}프로젝트 <em>수정</em>{% else %}프로젝트 <em>등록</em>{% endif %}</h1></div>
   </div>
-
-  <div class="field">
-    <label>비고</label>
-    <textarea name="note" rows="3" placeholder="자유 입력 (메모, 특이사항)">{{ project.note if project else '' }}</textarea>
-  </div>
-
-  <div class="form-actions">
-    <a href="/projects" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn btn-primary">
-      {% if project %}저장{% else %}등록{% endif %}
-    </button>
-  </div>
-</form>
-
-{% endblock %}
+  <form method="post" action="{% if project %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
+    <div class="form-card">
+      <div class="field-row">
+        <div class="field"><label>관리코드</label><input type="text" name="mgmt_code" value="{{ project.mgmt_code|default('') }}" placeholder="자동 발급 (저장 시)"></div>
+        <div class="field"><label>사업부 *</label><select name="biz_div" required><option value="">— 선택 —</option><option value="M" {% if project and project.biz_div == 'M' %}selected{% endif %}>M (자재)</option><option value="T" {% if project and project.biz_div == 'T' %}selected{% endif %}>T (가공)</option></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>프로젝트명 *</label><input type="text" name="name" required value="{{ project.name|default(project.project_name|default('')) }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>고객사명</label><input type="text" name="customer_name" value="{{ project.customer_name|default('') }}"></div>
+        <div class="field"><label>PO 유형</label><select name="po_type"><option value="">— 선택 —</option>{% for t in PO_TYPES %}<option value="{{ t }}" {% if project and project.po_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>단계</label><select name="stage"><option value="">— 선택 —</option>{% for s in STAGES %}<option value="{{ s }}" {% if project and project.stage == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        <div class="field"><label>상태</label><select name="status"><option value="">— 선택 —</option>{% for s in STATUSES %}<option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>발주일</label><input type="date" name="order_date" value="{{ project.order_date|default('') }}"></div>
+        <div class="field"><label>납기</label><input type="date" name="due_date" value="{{ project.due_date|default('') }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>수주액 (원)</label><input type="number" name="order_amount" step="1" value="{{ project.order_amount|default(0) }}"></div>
+        <div class="field"><label>통화</label><input type="text" name="currency" value="{{ project.currency|default('KRW') }}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>비고</label><textarea name="note" placeholder="프로젝트 특이사항">{{ project.note|default('') }}</textarea></div>
+      </div>
+    </div>
+    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/projects">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if project %}저장{% else %}등록{% endif %}</button>
+    </div>
+  </form>
+</main></div></body></html>

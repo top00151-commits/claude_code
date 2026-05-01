@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}원가 시뮬레이션 — {{ part.name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>비용 시뮬 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">비용 시뮬</div>
+      <h1 class="page-title">비용 시뮬</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head row-between">
   <div>
     <h1>🧮 원가 시뮬레이션 — {{ part.name }}</h1>
@@ -15,12 +31,12 @@
 </div>
 
 {% if request.query_params.get('saved') %}
-<div style="background:#E8F5E9;border:1px solid #86EFAC;color:#2E7D32;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+<div style="background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
   ✓ 시뮬 저장 완료
 </div>
 {% endif %}
 {% if request.query_params.get('error') %}
-<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+<div style="background:var(--knk-red-soft);border:1px solid var(--knk-red-soft);color:var(--knk-red-dk);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
   ⚠️ {{ request.query_params.get('error') }}
 </div>
 {% endif %}
@@ -46,44 +62,44 @@
   <form method="post" action="/rates/cost-sim" style="display:grid;grid-template-columns:repeat(6,1fr) 120px;gap:10px;align-items:end;">
     <input type="hidden" name="part_id" value="{{ part.id }}">
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">기준 통화</label>
-      <select name="base_currency" style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">기준 통화</label>
+      <select name="base_currency" style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;">
         {% for c in CURRENCIES %}<option value="{{ c }}" {% if c=='USD' %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">목표 통화</label>
-      <select name="target_currency" style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">목표 통화</label>
+      <select name="target_currency" style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;">
         {% for c in CURRENCIES %}<option value="{{ c }}" {% if c=='KRW' %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">환율</label>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">환율</label>
       <input type="number" name="exchange_rate" step="0.0001" required
              value="{{ "{:.4f}".format(latest.get('USD',{}).get('rate', 1.0)) }}"
-             style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;font-family:monospace;">
+             style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;font-family:monospace;">
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">기준 단가</label>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">기준 단가</label>
       <input type="number" name="unit_price_base" step="0.01" required placeholder="예: 100.00"
-             style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;font-family:monospace;">
+             style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;font-family:monospace;">
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">마진 %</label>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">마진 %</label>
       <input type="number" name="margin_pct" step="0.1" value="0"
-             style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;font-family:monospace;">
+             style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;font-family:monospace;">
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">메모</label>
-      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">메모</label>
+      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;">
     </div>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,#4338CA,#312E81);color:#fff;border:none;font-weight:800;padding:10px;">시뮬 저장</button>
+    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:800;padding:10px;">시뮬 저장</button>
   </form>
 </div>
 
 <!-- 시뮬 이력 -->
 <div class="card" style="padding:0;">
-  <div style="padding:14px 18px;border-bottom:1px solid #E5E7EB;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);">
     <h2 style="margin:0;font-size:15px;font-weight:800;">🧾 시뮬 이력 ({{ sims|length }}건)</h2>
   </div>
   {% if sims %}
@@ -108,14 +124,18 @@
         <td style="text-align:right;font-family:monospace;">{{ "{:,.2f}".format(s.unit_price_base) }}</td>
         <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.2f}".format(s.unit_price_target) }}</td>
         <td style="text-align:right;font-family:monospace;">{{ "{:.1f}".format(s.margin_pct or 0) }}</td>
-        <td style="font-size:11px;color:#9CA3AF;">{{ s.created_by_name or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ s.created_by_name or '-' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div style="padding:30px;text-align:center;color:#9CA3AF;">시뮬 이력 없음</div>
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">시뮬 이력 없음</div>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

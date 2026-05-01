@@ -1,49 +1,66 @@
-{% extends "base.html" %}
-{% block title %}권한 위임 — 보내기 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>권한 부여 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">권한 부여</div>
+      <h1 class="page-title">권한 부여</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# Top3 S3 2차 본문 (2026-04-25) — 시안 §1-A 5필드 폼 #}
 
 <div style="margin-bottom:14px;">
   <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임</a>
 </div>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
   <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">새 위임 — 보내기</h1>
   <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §1-A — CEO 화면 5필드 폼 · No escalation 강제</div>
 </div>
 
 <div style="display:grid;grid-template-columns:240px 1fr;gap:18px;">
   {# 좌측 트리 — Inheritance 시각화 #}
-  <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:16px;">
-    <div style="font-weight:700;font-size:12px;margin-bottom:10px;color:var(--ink-700,#374151);">▾ Inheritance 트리</div>
+  <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:16px;">
+    <div style="font-weight:700;font-size:12px;margin-bottom:10px;color:var(--ink-700,var(--ink));">▾ Inheritance 트리</div>
     <div style="font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.7;">
       <div>▼ <b>CEO</b> <span style="color:var(--knk-red,#C8161D);">[OWNER]</span></div>
-      <div style="padding-left:14px;">▼ 팀장 <span style="color:var(--ink-700,#374151);">[MANAGER]</span></div>
+      <div style="padding-left:14px;">▼ 팀장 <span style="color:var(--ink-700,var(--ink));">[MANAGER]</span></div>
       <div style="padding-left:28px;">· 팀원 <span style="color:var(--ink-500);">[MEMBER]</span></div>
     </div>
   </div>
 
   {# 우측 5필드 폼 #}
-  <form method="post" action="/admin/permissions/grant" style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:24px;">
+  <form method="post" action="/admin/permissions/grant" style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:24px;">
     {# (1) 위임받는 자 — 사용자 검색 #}
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,#374151);">(1) 누구에게 (위임받는 자)</label>
+      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,var(--ink));">(1) 누구에게 (위임받는 자)</label>
       <input type="text" name="to_user" placeholder="이름 또는 이메일 검색"
-             style="width:100%;padding:10px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:13px;" required>
+             style="width:100%;padding:10px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:13px;" required>
     </div>
 
     {# (2) 권한 — resource + action 셀렉터 (RBAC 컬럼 분리 정합) #}
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,#374151);">(2) 무엇을 (자원 + 액션)</label>
+      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,var(--ink));">(2) 무엇을 (자원 + 액션)</label>
       <div style="display:flex;gap:8px;">
-        <select name="resource" style="flex:1;padding:10px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:13px;" required>
+        <select name="resource" style="flex:1;padding:10px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:13px;" required>
           <option value="">자원 선택</option>
           <option value="stock">자재(stock)</option>
           <option value="sales">매출(sales)</option>
           <option value="hr">인사(hr)</option>
           <option value="finance">회계(finance)</option>
         </select>
-        <select name="action" style="flex:1;padding:10px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:13px;" required>
+        <select name="action" style="flex:1;padding:10px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:13px;" required>
           <option value="">액션 선택</option>
           <option value="read">read</option>
           <option value="write">write</option>
@@ -55,22 +72,22 @@
 
     {# (3) 만료일 #}
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,#374151);">(3) 언제까지 (만료일)</label>
+      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,var(--ink));">(3) 언제까지 (만료일)</label>
       <input type="date" name="expires_at"
-             style="padding:10px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:13px;" required>
+             style="padding:10px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:13px;" required>
       <span style="font-size:11px;color:var(--ink-500);margin-left:8px;">기본 30일</span>
     </div>
 
     {# (4) 사유 #}
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,#374151);">(4) 사유 (감사로그용, 선택)</label>
+      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,var(--ink));">(4) 사유 (감사로그용, 선택)</label>
       <input type="text" name="reason" placeholder="예: 출장 대체 결재"
-             style="width:100%;padding:10px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:13px;">
+             style="width:100%;padding:10px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:13px;">
     </div>
 
     {# (5) 재위임 토글 (OFF 기본) #}
     <div style="margin-bottom:20px;">
-      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,#374151);">(5) 재위임 가능</label>
+      <label style="display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--ink-700,var(--ink));">(5) 재위임 가능</label>
       <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;">
         <input type="checkbox" name="can_redelegate" value="1">
         ON (체크 시 재위임 허용 · 기본 OFF)
@@ -78,20 +95,25 @@
     </div>
 
     {# 우측 미리보기 카드 (3 배지 강제) #}
-    <div style="border:1px dashed var(--ink-300,#D1D5DB);border-radius:8px;padding:12px;margin-bottom:18px;background:var(--bg-soft,#FAFBFC);">
+    <div style="border:1px dashed var(--ink-300,var(--line-strong));border-radius:8px;padding:12px;margin-bottom:18px;background:var(--bg-soft,#FAFBFC);">
       <div style="font-size:11px;color:var(--ink-500);margin-bottom:4px;">발행 후 카드 미리보기:</div>
       <div style="display:flex;gap:6px;font-size:11px;">
         <span style="background:var(--st-progress,#FCD34D);padding:2px 6px;border-radius:4px;">⏱ 만료</span>
-        <span style="background:var(--ink-200,#E5E7EB);padding:2px 6px;border-radius:4px;">🔒 재위임OFF</span>
-        <span style="background:var(--ink-200,#E5E7EB);padding:2px 6px;border-radius:4px;">📜 감사로그</span>
+        <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">🔒 재위임OFF</span>
+        <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">📜 감사로그</span>
       </div>
     </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <a href="/admin/permissions" style="padding:10px 16px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;text-decoration:none;color:var(--ink-700,#374151);font-size:13px;">취소</a>
+      <a href="/admin/permissions" style="padding:10px 16px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;text-decoration:none;color:var(--ink-700,var(--ink));font-size:13px;">취소</a>
       <button type="submit"
               style="padding:10px 18px;background:var(--knk-red,#C8161D);color:#fff;border:0;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">위임 발송</button>
     </div>
   </form>
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
-{% endblock %}
+
+</body>
+</html>

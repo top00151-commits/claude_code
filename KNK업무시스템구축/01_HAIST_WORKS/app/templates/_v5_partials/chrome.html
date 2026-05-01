@@ -1,0 +1,102 @@
+{# ============================================================
+   _v5_partials/chrome.html — v5H5 STANDALONE 공통 chrome (header + sidebar)
+   2026-05-02 신설 — 매 페이지 200+ 줄 보일러플레이트 제거
+   사용:  {% include "_v5_partials/chrome.html" with context %}
+   필수 컨텍스트:  user, active (= 'home'|'daily'|'po'|'parts'...)
+   active_tab:  'home'|'sales'|'logi' (top-tab 활성)
+   ============================================================ #}
+
+{% set _act = active|default('home') %}
+{% set _at = active_tab|default('home') %}
+{% set _role = (user.role or 'member')|lower %}
+
+<header class="top">
+  <div></div>
+  <div class="top-tabs">
+    <a class="top-tab {% if _at == 'home' %}active{% endif %}" href="/home">통합 플랫폼</a>
+    <a class="top-tab {% if _at == 'sales' %}active{% endif %}" href="/sales">매출영업센터</a>
+    <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">자재구매센터</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a class="top-icon" href="/notifications" title="알림">🔔</a>
+    <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+    <a class="top-user" href="/profile">
+      <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
+      <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+    </a>
+    <a class="top-icon" href="/logout" title="나가기">🚪</a>
+  </div>
+</header>
+
+<aside class="sidebar">
+  {% if _at == 'logi' %}
+    <div class="sb-group">자재 메인</div>
+    <a class="sb-item {% if _act == 'logistics' %}active{% endif %}" href="/logistics">🏠 자재·구매 hub <span class="menu-code">M-02-01</span></a>
+
+    <div class="sb-group">발주 흐름</div>
+    <a class="sb-item {% if _act == 'po_new' %}active{% endif %}" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
+    <a class="sb-item {% if _act == 'po' %}active{% endif %}" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span></a>
+    <a class="sb-item {% if _act == 'receipts' %}active{% endif %}" href="/receipts">📦 입고 처리 <span class="menu-code">M-02-06</span></a>
+
+    <div class="sb-group">재고</div>
+    <a class="sb-item {% if _act == 'parts' %}active{% endif %}" href="/parts">📊 자재 마스터 <span class="menu-code">M-02-02</span></a>
+    <a class="sb-item {% if _act == 'stock' %}active{% endif %}" href="/stock">📚 수불부 <span class="menu-code">M-02-07</span></a>
+    <a class="sb-item {% if _act == 'issues' %}active{% endif %}" href="/issues">📤 출고 등록 <span class="menu-code">M-02-08</span></a>
+
+    <div class="sb-group">기타</div>
+    <a class="sb-item {% if _act == 'suppliers' %}active{% endif %}" href="/suppliers">🏢 공급사 <span class="menu-code">M-02-03</span></a>
+    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
+
+  {% elif _at == 'sales' %}
+    <div class="sb-group">매출 메인</div>
+    <a class="sb-item {% if _act == 'sales' %}active{% endif %}" href="/sales">🏠 매출·영업 hub <span class="menu-code">M-01-01</span></a>
+
+    <div class="sb-group">관리</div>
+    <a class="sb-item {% if _act == 'projects' %}active{% endif %}" href="/projects">📊 프로젝트 <span class="menu-code">M-01-02</span></a>
+    <a class="sb-item {% if _act == 'customers' %}active{% endif %}" href="/customers">🏢 고객사 <span class="menu-code">M-01-03</span></a>
+    <a class="sb-item {% if _act == 'sales_quotes' %}active{% endif %}" href="/sales/quotes">📋 견적 <span class="menu-code">M-01-04</span></a>
+    <a class="sb-item {% if _act == 'sales_orders' %}active{% endif %}" href="/orders">📑 수주 <span class="menu-code">M-01-05</span></a>
+
+    <div class="sb-group">보고</div>
+    {% if _role in ('ceo','admin','executive','leader') %}
+    <a class="sb-item {% if _act == 'dashboard' %}active{% endif %}" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
+    {% endif %}
+    <a class="sb-item {% if _act == 'weekly' %}active{% endif %}" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
+
+    <div class="sb-group">기타</div>
+    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
+
+  {% else %}
+    <div class="sb-group">워크스페이스</div>
+    <a class="sb-item {% if _act == 'home' %}active{% endif %}" href="/home">📊 통합 대시보드 <span class="menu-code">M-00-01</span></a>
+    <a class="sb-item" href="/sales">💼 매출영업센터 <span class="menu-code">M-01-01</span></a>
+    <a class="sb-item" href="/logistics">📦 자재구매센터 <span class="menu-code">M-02-01</span></a>
+
+    <div class="sb-group">빠른 시작</div>
+    <a class="sb-item {% if _act == 'daily' %}active{% endif %}" href="/daily">📝 일일업무 <span class="menu-code">M-00-02</span></a>
+    <a class="sb-item {% if _act == 'notifications' %}active{% endif %}" href="/notifications">📢 알림함 <span class="menu-code">M-00-09</span></a>
+    <a class="sb-item {% if _act == 'tickets' %}active{% endif %}" href="/tickets">🎫 티켓 <span class="menu-code">M-00-12</span></a>
+    <a class="sb-item {% if _act == 'calendar' %}active{% endif %}" href="/calendar">📅 캘린더 <span class="menu-code">M-00-08</span></a>
+
+    <div class="sb-group">팀 / 보고</div>
+    <a class="sb-item {% if _act == 'team' %}active{% endif %}" href="/team">👥 팀 대시보드 <span class="menu-code">M-00-07</span></a>
+    <a class="sb-item {% if _act == 'weekly' %}active{% endif %}" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
+    {% if _role in ('ceo','admin','executive','leader') %}
+    <a class="sb-item {% if _act == 'dashboard' %}active{% endif %}" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
+    {% endif %}
+
+    <div class="sb-group">협업·추적</div>
+    <a class="sb-item {% if _act == 'changes' %}active{% endif %}" href="/changes">📌 변경 공지 <span class="menu-code">M-00-04</span></a>
+    <a class="sb-item {% if _act == 'issues' %}active{% endif %}" href="/issues">🚨 이슈·AS <span class="menu-code">M-00-05</span></a>
+    <a class="sb-item {% if _act == 'search' %}active{% endif %}" href="/search">🔍 검색 <span class="menu-code">M-00-11</span></a>
+
+    {% if _role in ('ceo','admin') %}
+    <div class="sb-group">관리</div>
+    <a class="sb-item {% if _act == 'admin' %}active{% endif %}" href="/admin">⚙️ 관리자 <span class="menu-code">M-04-01</span></a>
+    <a class="sb-item" href="/admin/delegations">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
+    {% endif %}
+
+    <div class="sb-group">&nbsp;</div>
+    <a class="sb-item" href="/guide" target="_blank">📖 사용 가이드 ↗ <span class="menu-code">M-00-13</span></a>
+  {% endif %}
+</aside>

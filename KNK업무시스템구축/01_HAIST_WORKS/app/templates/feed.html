@@ -1,7 +1,23 @@
-{% extends "base.html" %}
-{% set active = 'feed' %}
-{% block title %}{{ i.feed_title|default('부서 피드') }} · KNK{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>피드 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">피드</div>
+      <h1 class="page-title">피드</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>{{ i.feed_title|default('부서 피드') }}</h1>
@@ -204,7 +220,7 @@ const SEL_DATE = "{{ sel_date }}";
 
   function renderKanban(){
     const statuses = ['지연','진행중','대기','보류','완료'];
-    const colors = {'지연':'#A5282C','진행중':'#F57F17','대기':'#9E9E9E','보류':'#9E9E9E','완료':'#2E7D32'};
+    const colors = {'지연':'var(--knk-red)','진행중':'var(--warn)','대기':'#9E9E9E','보류':'#9E9E9E','완료':'var(--success)'};
     let html = '<div class="kb-columns">';
     for (const st of statuses){
       const items = ALL_TASKS.filter(t=> t.status===st);
@@ -272,5 +288,10 @@ const SEL_DATE = "{{ sel_date }}";
     calEl.innerHTML = html;
   }
 })();
-</script>
-{% endblock %}
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

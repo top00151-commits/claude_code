@@ -1,0 +1,64 @@
+{% extends "base_logi.html" %}
+{% block title %}단가 변경 이력 — {{ part.name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>📊 단가 변경 이력 — {{ part.name }}</h1>
+    <p class="muted">P4 구매팀 · 부품·공급사별 단가 변동 추적 (변동률 자동 계산)</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/parts/{{ part.id }}" class="btn">부품 상세</a>
+    <a href="/rates/cost-sim/{{ part.id }}" class="btn">원가 시뮬</a>
+  </div>
+</div>
+
+<div class="card" style="padding:0;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);">
+    <h2 style="margin:0;font-size:15px;font-weight:800;">📜 변경 이력 ({{ history|length }}건)</h2>
+  </div>
+  {% if history %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>적용일</th>
+        <th>공급사</th>
+        <th style="text-align:right;">이전 단가</th>
+        <th style="text-align:right;">신규 단가</th>
+        <th style="text-align:right;">변동률</th>
+        <th>메모</th>
+        <th>변경자</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td style="font-family:monospace;">{{ h.effective_date }}</td>
+        <td>{{ h.supplier_name or '-' }}</td>
+        <td style="text-align:right;font-family:monospace;color:var(--mute);">
+          {% if h.old_price %}{{ "{:,.2f}".format(h.old_price) }}{% else %}-{% endif %}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.2f}".format(h.new_price) }}</td>
+        <td style="text-align:right;font-family:monospace;">
+          {% if h.change_pct is not none %}
+            {% if h.change_pct > 0 %}
+            <span style="color:var(--knk-red);font-weight:700;">▲ {{ "{:.2f}".format(h.change_pct) }}%</span>
+            {% elif h.change_pct < 0 %}
+            <span style="color:#2563EB;font-weight:700;">▼ {{ "{:.2f}".format(h.change_pct|abs) }}%</span>
+            {% else %}
+            <span style="color:var(--mute-2);">0.00%</span>
+            {% endif %}
+          {% else %}<span style="color:var(--mute-2);">신규</span>{% endif %}
+        </td>
+        <td style="font-size:11px;color:var(--mute);">{{ h.note or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ h.changed_by_name or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">단가 변경 이력 없음. 부품 상세에서 단가를 등록하면 자동으로 기록됩니다.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

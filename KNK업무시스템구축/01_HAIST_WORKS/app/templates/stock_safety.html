@@ -1,6 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}안전재고 설정 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>안전재고 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">안전재고</div>
+      <h1 class="page-title">안전재고</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# 사이클 51 S2-4차 (2026-04-27) — 안전재고 / 재발주점 / 권장 발주량 일괄 설정 #}
 
 <div style="margin-bottom:14px;">
@@ -9,7 +26,7 @@
   <a href="/stock/reorder-recommendations" style="font-size:13px;color:var(--st-progress);text-decoration:none;">발주 추천 →</a>
 </div>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
   <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">안전재고 설정</h1>
   <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
     부품별 안전재고(safety_stock) · 재발주점(reorder_point) · 권장 발주량(reorder_qty) 일괄 관리.
@@ -23,18 +40,18 @@
 </div>
 {% endif %}
 {% if request.query_params.get('error') %}
-<div style="padding:10px 14px;margin-bottom:14px;border-radius:8px;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;font-size:13px;">
+<div style="padding:10px 14px;margin-bottom:14px;border-radius:8px;background:#FEF2F2;border:1px solid #FECACA;color:var(--knk-red-dk);font-size:13px;">
   저장 실패. 다시 시도해주세요.
 </div>
 {% endif %}
 
 <form method="get" action="/stock/safety" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;">
   <input type="text" name="q" value="{{ q|default('') }}" placeholder="품번/품명 검색"
-         style="flex:1;max-width:320px;padding:8px 12px;border:1px solid var(--ink-300,#D1D5DB);border-radius:8px;font-size:13px;">
-  <button type="submit" style="padding:8px 16px;border:1px solid var(--ink-300,#D1D5DB);background:#fff;border-radius:8px;font-size:13px;cursor:pointer;">검색</button>
+         style="flex:1;max-width:320px;padding:8px 12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:8px;font-size:13px;">
+  <button type="submit" style="padding:8px 16px;border:1px solid var(--ink-300,var(--line-strong));background:#fff;border-radius:8px;font-size:13px;cursor:pointer;">검색</button>
 </form>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:20px;">
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
   <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:12px;">
     부품 목록 ({{ items|length }}건)
   </div>
@@ -42,7 +59,7 @@
   <div style="overflow-x:auto;">
   <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:880px;">
     <thead>
-      <tr style="border-bottom:1px solid var(--ink-200,#E5E7EB);text-align:left;background:#F9FAFB;">
+      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;background:var(--paper);">
         <th style="padding:8px;">품번</th>
         <th style="padding:8px;">품명</th>
         <th style="padding:8px;text-align:right;">현재고</th>
@@ -55,7 +72,7 @@
     </thead>
     <tbody>
       {% for r in items %}
-      <tr style="border-bottom:1px solid var(--ink-100,#F3F4F6);">
+      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
         <form method="post" action="/stock/safety/{{ r.id }}" style="display:contents;">
         <input type="hidden" name="q" value="{{ q|default('') }}">
         <td style="padding:8px;font-family:monospace;">{{ r.part_no }}</td>
@@ -66,15 +83,15 @@
         </td>
         <td style="padding:6px;text-align:right;">
           <input type="number" name="safety_stock" step="1" min="0" value="{{ '%.0f'|format(r.safety_stock or 0) }}"
-                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:12px;text-align:right;">
+                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:12px;text-align:right;">
         </td>
         <td style="padding:6px;text-align:right;">
           <input type="number" name="reorder_point" step="1" min="0" value="{{ '%.0f'|format(r.reorder_point or 0) }}"
-                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:12px;text-align:right;">
+                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:12px;text-align:right;">
         </td>
         <td style="padding:6px;text-align:right;">
           <input type="number" name="reorder_qty" step="1" min="0" value="{{ '%.0f'|format(r.reorder_qty or 0) }}"
-                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,#D1D5DB);border-radius:6px;font-size:12px;text-align:right;">
+                 style="width:80px;padding:4px 6px;border:1px solid var(--ink-300,var(--line-strong));border-radius:6px;font-size:12px;text-align:right;">
         </td>
         <td style="padding:8px;color:var(--ink-500);">{{ r.unit or 'EA' }}</td>
         <td style="padding:8px;">
@@ -98,5 +115,10 @@
   • <b>안전재고</b>: 출고 시 이 수치 미만으로 떨어지면 구매팀에 자동 티켓 발행.<br>
   • <b>재발주점(ROP)</b>: 이 수치 미달 시 발주 추천 + STOCK 알림 발송.<br>
   • <b>권장 발주량</b>: 발주 추천 화면에서 표시되는 추천 수량.
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
-{% endblock %}
+
+</body>
+</html>

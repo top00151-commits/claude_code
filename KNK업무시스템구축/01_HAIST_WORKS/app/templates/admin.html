@@ -1,303 +1,338 @@
-{% extends "base.html" %}
-{% set active = 'admin' %}
-{% block title %}{{ i.admin_title|default('관리자') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <div class="page-breadcrumb">
-      통합 <span class="sep">/</span> 관리 <span class="sep">/</span> <span class="current">시스템 관리</span>
-      <span class="lock-badge">🔒 P4 관리자 전용</span>
-    </div>
-    <h1>{{ i.admin_title|default('관리자') }}</h1>
-    <div class="page-sub">{{ i.admin_sub|default('팀 · 사용자 · 프로젝트 · 고객사 관리') }}</div>
-  </div>
-</div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>관리자 · KNK HAIST WORKS</title>
 
-{# 05 디자인팀 제안#04: 3탭 분리 (대시보드 / 데이터 / 보안) — 2026-04-22 #}
-<div class="admin-tab-nav" role="tablist" style="display:flex;gap:4px;margin:0 0 16px;border-bottom:2px solid #E5E7EB;padding-bottom:0;">
-  <button class="atab atab-on" data-tab="dashboard" onclick="switchAdminTab('dashboard')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:700;font-size:14px;cursor:pointer;color:#6B7280;">
-    📊 {{ i.tab_dashboard|default('대시보드') }}
-  </button>
-  <button class="atab" data-tab="data" onclick="switchAdminTab('data')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:600;font-size:14px;cursor:pointer;color:#6B7280;">
-    📥 {{ i.tab_data|default('데이터') }}
-  </button>
-  {% if user.role in ['ceo','admin'] %}
-  <button class="atab" data-tab="security" onclick="switchAdminTab('security')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:600;font-size:14px;cursor:pointer;color:#6B7280;">
-    🔐 {{ i.tab_security|default('보안') }}
-  </button>
-  {% endif %}
-</div>
+{# admin.html — 시안 master_H_admin_v5H5 STANDALONE (2026-05-02) #}
 
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 <style>
-.atab-on { color:#A5282C !important; border-bottom-color:#A5282C !important; }
-.adm-panel { display:none; }
-.adm-panel.adm-panel-on { display:block; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; overflow-y: auto; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--knk-red); border-radius: 2px; }
+.menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--amber-deep); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
+
+.main { background: var(--paper); display: flex; flex-direction: column; min-width: 0; }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); font-weight: 500; text-decoration: none; }
+.top-tab:hover { background: var(--paper-2); color: var(--ink); }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.top-user .avatar { width: 32px; height: 32px; background: var(--knk-red); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.top-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; font-size: 16px; color: var(--mute); text-decoration: none; }
+.top-icon:hover { background: var(--amber-glow); color: var(--amber-deep); }
+
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.crumbs b { color: var(--ink); }
+.page-title { font-size: 26px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.admin-badge { display: inline-block; background: var(--knk-red); color: white; font-size: 10px; padding: 3px 9px; border-radius: var(--radius-full); font-weight: 700; letter-spacing: 0.05em; margin-left: 8px; }
+
+/* 탭 */
+.tabs { margin: 0 var(--content-pad); display: flex; gap: 0; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 6px; }
+.tab { flex: 1; padding: 11px 14px; text-align: center; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; color: var(--mute); font-weight: 500; background: transparent; border: 0; }
+.tab:hover { background: var(--paper); color: var(--ink); }
+.tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.tab .num { font-weight: 700; margin-left: 6px; opacity: 0.85; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* KPI 4 카드 */
+.kpi-row { margin: var(--space-4) var(--content-pad) var(--space-5); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.kpi { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); transition: all .18s; }
+.kpi:hover { transform: translateY(-2px); border-color: var(--knk-red); box-shadow: var(--shadow-md); }
+.kpi-label { font-size: 11px; color: var(--mute); font-weight: 600; }
+.kpi-num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.kpi-trend { font-size: 11.5px; margin-top: 6px; color: var(--mute); }
+
+/* 테이블 */
+.table-wrap { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+.table-head { padding: var(--space-3) var(--space-4); background: var(--paper-2); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.table-head h3 { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.table-head h3::before { content: ""; width: 4px; height: 16px; background: var(--knk-red); border-radius: 2px; }
+.table-head .actions { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: var(--radius-md); border: 0; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--grad-amber); color: white; }
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-secondary { background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--amber-glow); }
+.btn-danger { background: var(--knk-red); color: white; border: 0; }
+
+table { width: 100%; font-size: 13px; border-collapse: collapse; }
+thead th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+thead th.center { text-align: center; }
+thead th.num { text-align: right; }
+tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--amber-glow); }
+.role-badge { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
+.role-ceo { background: var(--knk-red); color: white; }
+.role-admin { background: rgba(165,40,44,0.12); color: var(--knk-red); border: 1px solid var(--knk-red); }
+.role-leader { background: var(--amber-glow); color: var(--amber-deep); }
+.role-member { background: var(--paper-2); color: var(--mute); }
+.row-active { color: var(--success); font-weight: 700; }
+.row-inactive { color: var(--mute); }
+
+@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1023px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
 </style>
+</head>
+<body>
 
-<!-- ===================== 대시보드 탭 ===================== -->
-<div id="adm-tab-dashboard" class="adm-panel adm-panel-on">
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">관리자 메뉴</div>
+    <a class="sb-item active" href="/admin">⚙️ 관리자 홈 <span class="menu-code">M-04-01</span></a>
+    <a class="sb-item" href="/admin/delegations">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
+    <a class="sb-item" href="/admin/i18n">🌐 다국어</a>
+    <a class="sb-item" href="/admin/menu-permissions">📋 메뉴 권한</a>
 
-<div class="kpi-grid">
-  <div class="kpi-card kpi-primary"><div class="kpi-num">{{ teams|length }}</div><div class="kpi-lab">{{ i.admin_teams|default('팀') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{{ users|length }}</div><div class="kpi-lab">{{ i.admin_users|default('사용자') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{{ projects|length }}</div><div class="kpi-lab">{{ i.admin_projects|default('프로젝트') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{{ customers|length }}</div><div class="kpi-lab">{{ i.admin_customers|default('고객사') }}</div></div>
-</div>
+    <div class="sb-group">시스템</div>
+    <a class="sb-item" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
+    <a class="sb-item" href="/audit">📜 감사 로그</a>
 
-<div class="section-head"><h2>{{ i.admin_teams|default('팀') }} ({{ teams|length }})</h2></div>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.col_code|default('코드') }}</th><th>{{ i.col_team_name|default('팀명') }}</th><th>{{ i.admin_sector|default('섹터') }}</th><th>{{ i.lab_badge|default('연구소') }}</th><th>{{ i.col_leader|default('팀장') }}</th><th>{{ i.col_members|default('인원') }}</th></tr></thead>
-  <tbody>
-    {% for t in teams %}
-    <tr>
-      <td>{{ t.code }}</td>
-      <td><b>{{ t.name }}</b></td>
-      <td>{{ t.sector or '' }}</td>
-      <td>{% if t.is_lab %}<span class="lab-badge">{{ i.lab_badge|default('연구소') }}</span>{% endif %}</td>
-      <td>{{ t.leader_name or '-' }}</td>
-      <td class="num">{{ t.member_count }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="sb-group">↩</div>
+    <a class="sb-item" href="/home">통합 플랫폼으로</a>
+  </aside>
 
-<div class="section-head">
-  <h2>{{ i.admin_users|default('사용자') }} ({{ users|length }})</h2>
-  <button class="btn-sm" onclick="toggleForm('uf')">{{ i.admin_add|default('+ 추가') }}</button>
-</div>
-<form id="uf" class="admin-form" style="display:none" onsubmit="return saveUser(event)">
-  <input name="name" placeholder="{{ i.admin_name|default('이름') }}" required>
-  <input name="login_id" placeholder="{{ i.admin_login_id|default('로그인ID') }}" required>
-  <select name="team_id">
-    <option value="">{{ i.select|default('(선택)') }}</option>
-    {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-  </select>
-  <input name="rank" placeholder="{{ i.admin_rank|default('직급') }}">
-  <select name="role">
-    <option value="member">member</option>
-    <option value="leader">leader</option>
-    <option value="executive">executive</option>
-    <option value="ceo">ceo</option>
-  </select>
-  <input name="password" placeholder="{{ i.login_pw|default('비밀번호') }}">
-  <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
-</form>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_login_id|default('로그인ID') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.admin_rank|default('직급') }}</th><th>{{ i.admin_role|default('역할') }}</th><th>{{ i.admin_state|default('상태') }}</th><th title="자재 모듈 접근 권한">자재 권한</th></tr></thead>
-  <tbody>
-    {% for u2 in users %}
-    <tr>
-      <td><b>{{ u2.name }}</b></td>
-      <td>{{ u2.login_id }}</td>
-      <td>{{ u2.team_name or '-' }}</td>
-      <td>{{ u2.rank or '' }}</td>
-      <td>{{ u2.role }}</td>
-      <td>{% if u2.is_active %}{{ i.admin_active|default('활성') }}{% else %}{{ i.admin_inactive|default('비활성') }}{% endif %}</td>
-      <td>
-        {% if u2.role in ['ceo','admin','executive'] %}
-          <span style="font-size:11px;color:#6B7280" title="역할 기반 자동 허용">자동</span>
-        {% else %}
-          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
-            <input type="checkbox" {% if u2.can_use_logistics %}checked{% endif %}
-                   onchange="toggleLogi({{ u2.id }}, this.checked)">
-            <span>{% if u2.can_use_logistics %}허용{% else %}없음{% endif %}</span>
-          </label>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <a class="top-tab active" href="/home">통합 플랫폼</a>
+        <a class="top-tab" href="/sales">매출영업센터</a>
+        <a class="top-tab" href="/logistics">자재구매센터</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="top-icon" href="/notifications" title="알림">🔔</a>
+        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+        <a class="top-user" href="/profile">
+          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
+          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+        </a>
+        <a class="top-icon" href="/logout" title="나가기">🚪</a>
+      </div>
+    </header>
 
-<div class="section-head">
-  <h2>{{ i.admin_projects|default('프로젝트') }} ({{ projects|length }})</h2>
-  <button class="btn-sm" onclick="toggleForm('pf')">{{ i.admin_add|default('+ 추가') }}</button>
-</div>
-<form id="pf" class="admin-form" style="display:none" onsubmit="return saveProject(event)">
-  <input name="code" placeholder="{{ i.col_code|default('코드') }}">
-  <input name="name" placeholder="{{ i.admin_projects|default('프로젝트') }}" required>
-  <select name="customer_id">
-    <option value="">{{ i.select|default('(선택)') }}</option>
-    {% for cu in customers %}<option value="{{ cu.id }}">{{ cu.name }}</option>{% endfor %}
-  </select>
-  <input name="type" placeholder="{{ i.admin_type|default('유형') }}">
-  <input name="status" placeholder="{{ i.status|default('상태') }}" value="진행중">
-  <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
-</form>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.col_code|default('코드') }}</th><th>{{ i.admin_projects|default('프로젝트') }}</th><th>{{ i.customer|default('고객사') }}</th><th>{{ i.admin_type|default('유형') }}</th><th>{{ i.status|default('상태') }}</th></tr></thead>
-  <tbody>
-    {% for p in projects %}
-    <tr>
-      <td>{{ p.code or '-' }}</td>
-      <td><a href="/project/{{ p.id }}"><b>{{ p.name }}</b></a></td>
-      <td>{{ p.customer_name or '' }}</td>
-      <td>{{ p.type or '' }}</td>
-      <td><span class="tag tag-{{ p.status }}">{{ p.status }}</span></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<div class="section-head">
-  <h2>{{ i.admin_customers|default('고객사') }} ({{ customers|length }})</h2>
-  <button class="btn-sm" onclick="toggleForm('cf')">{{ i.admin_add|default('+ 추가') }}</button>
-</div>
-<form id="cf" class="admin-form" style="display:none" onsubmit="return saveCustomer(event)">
-  <input name="name" placeholder="{{ i.admin_customers|default('고객사') }}" required>
-  <input name="tier" placeholder="{{ i.admin_grade|default('등급') }}" value="일반">
-  <input name="note" placeholder="{{ i.admin_note|default('비고') }}">
-  <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
-</form>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.admin_name|default('이름') }}</th><th>{{ i.admin_grade|default('등급') }}</th><th>{{ i.admin_note|default('비고') }}</th></tr></thead>
-  <tbody>
-    {% for cu in customers %}
-    <tr>
-      <td><a href="/customer/{{ cu.id }}"><b>{{ cu.name }}</b></a></td>
-      <td>{{ cu.tier }}</td>
-      <td>{{ cu.note or '' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-</div><!-- // 대시보드 탭 -->
-
-
-<!-- ===================== 데이터 탭 ===================== -->
-<div id="adm-tab-data" class="adm-panel">
-
-<div class="section-head"><h2>📥 관리코드발행목록 업로드</h2></div>
-<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
-  <div style="font-size:13px;color:var(--g)">
-    <b>업무 고도화작업 (START-END)</b>에서 받은 <b>관리코드발행목록.xls</b> 파일을 업로드하면,
-    M(자동화)·T(검사기) 두 시트가 자동 파싱되어 프로젝트·고객사가 일괄 등록/갱신됩니다.
-  </div>
-  <form id="mgmtForm" onsubmit="return uploadMgmt(event)" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="file" name="file" accept=".xls,.xlsx" required>
-    <button type="submit" class="btn-primary">업로드 & 임포트</button>
-    <span id="mgmtResult" style="font-size:13px;color:var(--g)"></span>
-  </form>
-</div>
-
-</div><!-- // 데이터 탭 -->
-
-
-<!-- ===================== 보안 탭 (ceo/admin 전용) ===================== -->
-{% if user.role in ['ceo','admin'] %}
-<div id="adm-tab-security" class="adm-panel">
-
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:16px 0;">
-  <a href="/admin/settings" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
-    <div style="font-weight:800;font-size:15px;color:#1E293B;">⚙️ 시스템 설정</div>
-    <div style="font-size:12px;color:#64748B;margin-top:4px;">하이웍스 URL/토큰, 알림 채널 마스터 스위치</div>
-  </a>
-  <a href="/admin/health" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
-    <div style="font-weight:800;font-size:15px;color:#1E293B;">🩺 시스템 건전성 점검</div>
-    <div style="font-size:12px;color:#64748B;margin-top:4px;">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에</div>
-  </a>
-  {# 사이클 62 — admin.html 메뉴 연결 (S2-Y1 정정) #}
-  <a href="/admin/company-info" style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#94A3B8'" onmouseout="this.style.borderColor='#E2E8F0'">
-    <div style="font-weight:800;font-size:15px;color:#1E293B;">🏢 회사 정보 (KNK)</div>
-    <div style="font-size:12px;color:#64748B;margin-top:4px;">견적서·인보이스에 자동 표기되는 사업자등록 정보 (대표 직접 입력)</div>
-  </a>
-</div>
-
-<div class="section-head"><h2>🔐 초기 비밀번호 일괄 재생성</h2></div>
-<div class="admin-form" style="flex-direction:column;align-items:flex-start;gap:10px">
-  <div style="font-size:13px;color:var(--g)">
-    모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 CSV(엑셀에서 자동 표 형식)를 다운로드합니다.
-    <br><strong style="color:#A5282C;">⚠ 주의</strong>: 재생성 즉시 기존 비밀번호는 무효화됩니다. 실사용 킥오프 시 1회만 실행하세요.
-  </div>
-  {# 2단계 확인 UI — 05 디자인팀 제안#04-D, OPS-008 보안 강화 #}
-  <div id="pwStep1">
-    <button class="btn-primary" onclick="showPwConfirm()">🔁 비밀번호 재생성 + CSV 다운로드</button>
-    <a href="/admin/download-passwords" class="btn-sm" style="margin-left:8px;">📥 기존 파일 다시 받기</a>
-  </div>
-  <div id="pwStep2" style="display:none;background:#FFF3F3;border:1px solid #FECACA;border-radius:10px;padding:16px;width:100%;max-width:520px;">
-    <div style="font-weight:800;font-size:14px;color:#A5282C;margin-bottom:8px;">⚠ 전체 비밀번호 재생성 확인</div>
-    <div style="font-size:13px;color:#6B7280;margin-bottom:12px;">이 작업은 전체 활성 사용자의 비밀번호를 즉시 변경합니다. 취소할 수 없습니다.</div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
-      <input type="checkbox" id="pwConfirmChk" onchange="document.getElementById('pwConfirmBtn').disabled=!this.checked;">
-      위 내용을 이해했으며, 실사용 킥오프 단계에서 의도적으로 실행합니다.
-    </label>
-    <div style="display:flex;gap:8px;">
-      <button id="pwConfirmBtn" class="btn-primary" disabled onclick="execPwRegen()">✅ 확인 — 재생성 실행</button>
-      <button class="btn-sm" onclick="document.getElementById('pwStep2').style.display='none';document.getElementById('pwStep1').style.display='';document.getElementById('pwConfirmChk').checked=false;document.getElementById('pwConfirmBtn').disabled=true;">취소</button>
+    <div class="page-head">
+      <div>
+        <div class="crumbs"><b>관리자</b></div>
+        <h1 class="page-title"><em>관리자</em> 콘솔 <span class="admin-badge">🔐 ADMIN</span></h1>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <a class="btn btn-secondary" href="/audit">📜 감사 로그</a>
+        <a class="btn btn-primary" href="/admin/delegations">🔐 권한 위임</a>
+      </div>
     </div>
-    <span id="pwResult" style="font-size:13px;color:var(--g);display:block;margin-top:8px;"></span>
-  </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">팀</div>
+        <div class="kpi-num">{{ teams|length }}</div>
+        <div class="kpi-trend">활성 팀</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">사용자</div>
+        <div class="kpi-num">{{ users|length }}</div>
+        <div class="kpi-trend">{{ users|selectattr('is_active','equalto',1)|list|length }}명 활성</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">프로젝트</div>
+        <div class="kpi-num">{{ projects|length }}</div>
+        <div class="kpi-trend">전체 등록</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">고객사</div>
+        <div class="kpi-num">{{ customers|length }}</div>
+        <div class="kpi-trend">활성 거래처</div>
+      </div>
+    </div>
+
+    <!-- 탭 -->
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('users')">👤 사용자<span class="num">{{ users|length }}</span></button>
+      <button class="tab" onclick="showTab('teams')">👥 팀<span class="num">{{ teams|length }}</span></button>
+      <button class="tab" onclick="showTab('projects')">📊 프로젝트<span class="num">{{ projects|length }}</span></button>
+      <button class="tab" onclick="showTab('customers')">🏢 고객사<span class="num">{{ customers|length }}</span></button>
+    </div>
+
+    <div style="height: var(--space-4);"></div>
+
+    <!-- 사용자 -->
+    <div class="tab-panel active" id="panel-users">
+      <div class="table-wrap">
+        <div class="table-head">
+          <h3>사용자 ({{ users|length }})</h3>
+          <div class="actions"><a class="btn btn-primary" href="/admin/users/new">＋ 사용자 추가</a></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px;">ID</th>
+              <th>이름</th>
+              <th>사번 / 이메일</th>
+              <th>팀</th>
+              <th style="width:90px;text-align:center;">권한</th>
+              <th style="width:80px;text-align:center;">상태</th>
+              <th style="width:100px;text-align:center;">작업</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for u in users %}
+            <tr>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ u.id }}</td>
+              <td><b>{{ u.name }}</b>{% if u.rank %} {{ u.rank }}{% endif %}</td>
+              <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.login_id }}{% if u.email %}<br>{{ u.email }}{% endif %}</td>
+              <td>{{ u.team_name|default('—') }}</td>
+              <td style="text-align:center;">
+                <span class="role-badge role-{{ u.role|default('member') }}">{{ u.role|default('member') }}</span>
+              </td>
+              <td style="text-align:center;">
+                {% if u.is_active %}<span class="row-active">✓ 활성</span>{% else %}<span class="row-inactive">— 비활성</span>{% endif %}
+              </td>
+              <td style="text-align:center;">
+                <a class="btn btn-secondary" href="/admin/users/{{ u.id }}/edit">수정</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--mute);">등록된 사용자가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 팀 -->
+    <div class="tab-panel" id="panel-teams">
+      <div class="table-wrap">
+        <div class="table-head">
+          <h3>팀 ({{ teams|length }})</h3>
+          <div class="actions"><a class="btn btn-primary" href="/admin/teams/new">＋ 팀 추가</a></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px;">ID</th>
+              <th>팀명</th>
+              <th>코드</th>
+              <th>팀장</th>
+              <th style="width:80px;text-align:center;">순서</th>
+              <th style="width:100px;text-align:center;">작업</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for t in teams %}
+            <tr>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.id }}</td>
+              <td><b>{{ t.name }}</b></td>
+              <td style="font-family:monospace;font-size:12px;color:var(--amber-deep);">{{ t.code|default('—') }}</td>
+              <td>{{ t.leader_name|default('—') }}{% if t.leader_rank %} {{ t.leader_rank }}{% endif %}</td>
+              <td style="text-align:center;">{{ t.display_order|default('—') }}</td>
+              <td style="text-align:center;"><a class="btn btn-secondary" href="/admin/teams/{{ t.id }}/edit">수정</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--mute);">등록된 팀이 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 프로젝트 -->
+    <div class="tab-panel" id="panel-projects">
+      <div class="table-wrap">
+        <div class="table-head">
+          <h3>프로젝트 ({{ projects|length }})</h3>
+          <div class="actions"><a class="btn btn-primary" href="/projects/new">＋ 프로젝트 추가</a></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>관리코드</th>
+              <th>프로젝트명</th>
+              <th>고객사</th>
+              <th style="width:90px;text-align:center;">단계</th>
+              <th class="num" style="width:120px;">수주액</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for p in projects[:50] %}
+            <tr onclick="location.href='/project/{{ p.id }}'">
+              <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</td>
+              <td><b>{{ p.name }}</b></td>
+              <td>{{ p.customer_name|default('—') }}</td>
+              <td style="text-align:center;">{% if p.stage %}<span class="role-badge role-leader">{{ p.stage }}</span>{% else %}—{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--mute);">등록된 프로젝트가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if projects|length > 50 %}
+        <div style="padding:12px;text-align:center;font-size:12px;color:var(--mute);">상위 50건 표시 중 · 전체 {{ projects|length }}건은 <a href="/projects" style="color:var(--amber-deep);font-weight:700;">/projects</a> 참조</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 고객사 -->
+    <div class="tab-panel" id="panel-customers">
+      <div class="table-wrap">
+        <div class="table-head">
+          <h3>고객사 ({{ customers|length }})</h3>
+          <div class="actions"><a class="btn btn-primary" href="/customers/new">＋ 고객사 추가</a></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px;">ID</th>
+              <th>고객사명</th>
+              <th>사업자번호</th>
+              <th style="width:80px;text-align:center;">등급</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for c in customers[:50] %}
+            <tr>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
+              <td><b>{{ c.name }}</b></td>
+              <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.business_no|default('—') }}</td>
+              <td style="text-align:center;">{% if c.tier %}<span class="role-badge role-{% if c.tier == 'A' %}admin{% elif c.tier == 'B' %}leader{% else %}member{% endif %}">{{ c.tier }}</span>{% else %}—{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--mute);">등록된 고객사가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="height: var(--space-7);"></div>
+  </main>
 </div>
-
-</div><!-- // 보안 탭 -->
-{% endif %}
-
 
 <script>
-/* ---- 탭 전환 ---- */
-function switchAdminTab(tab) {
-  document.querySelectorAll('.adm-panel').forEach(p => { p.classList.remove('adm-panel-on'); p.style.display = 'none'; });
-  document.querySelectorAll('.atab').forEach(b => b.classList.remove('atab-on'));
-  var panel = document.getElementById('adm-tab-' + tab);
-  if (panel) { panel.classList.add('adm-panel-on'); panel.style.display = ''; }
-  document.querySelectorAll('.atab[data-tab="' + tab + '"]').forEach(function(b){ b.classList.add('atab-on'); });
-  try { localStorage.setItem('adminTab_v2', tab); } catch(e) {}
-}
-(function(){
-  var saved = '';
-  try { saved = localStorage.getItem('adminTab_v2') || ''; } catch(e) {}
-  if (saved) { switchAdminTab(saved); }
-})();
-
-function toggleForm(id){const f=document.getElementById(id);f.style.display=f.style.display==='none'?'flex':'none';}
-async function post(url,fd){const r=await fetch(url,{method:'POST',body:fd});if(r.ok)location.reload();else alert('{{ i.save_fail|default("저장 실패") }}');return false;}
-function saveUser(e){e.preventDefault();return post('/api/admin/user',new FormData(e.target));}
-async function toggleLogi(userId, on){
-  const fd = new FormData();
-  fd.append('user_id', userId);
-  fd.append('can_use_logistics', on ? '1' : '0');
-  const r = await fetch('/api/admin/user-logistics', {method:'POST', body: fd});
-  if(r.ok){ location.reload(); } else { alert('권한 변경 실패'); }
-}
-function saveProject(e){e.preventDefault();return post('/api/admin/project',new FormData(e.target));}
-function saveCustomer(e){e.preventDefault();return post('/api/admin/customer',new FormData(e.target));}
-
-/* ---- 비번 재생성 2단계 확인 ---- */
-function showPwConfirm(){
-  document.getElementById('pwStep1').style.display = 'none';
-  document.getElementById('pwStep2').style.display = '';
-}
-async function execPwRegen(){
-  const r = document.getElementById('pwResult');
-  r.textContent = '⏳ 재생성 중...';
-  const resp = await fetch('/api/admin/regenerate-passwords', {method:'POST'});
-  const j = await resp.json();
-  if(j.ok){
-    r.innerHTML = `✅ ${j.count}명 재생성 완료 · 다운로드 중...`;
-    setTimeout(()=>{ window.location.href='/admin/download-passwords'; }, 500);
-  } else {
-    r.innerHTML = `❌ ${j.error||'실패'}`;
-    document.getElementById('pwStep1').style.display = '';
-    document.getElementById('pwStep2').style.display = 'none';
-  }
-}
-
-async function uploadMgmt(e){
-  e.preventDefault();
-  const r=document.getElementById('mgmtResult');
-  r.textContent='⏳ 업로드 중...';
-  const fd=new FormData(e.target);
-  const resp=await fetch('/api/admin/import-mgmt',{method:'POST',body:fd});
-  const j=await resp.json();
-  if(j.ok){
-    const x=j.result;
-    r.innerHTML=`✅ <b>${x.filename}</b> — 파싱 ${x.parsed}건 · 신규 ${x.inserted} · 갱신 ${x.updated} · 신규고객사 ${x.customers_created} · 에러 ${x.errors}`;
-    setTimeout(()=>location.reload(),2000);
-  } else {
-    r.innerHTML=`❌ ${j.error||'실패'}`;
-  }
-  return false;
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  event.target.closest('.tab').classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
 }
 </script>
-{% endblock %}
+</body>
+</html>

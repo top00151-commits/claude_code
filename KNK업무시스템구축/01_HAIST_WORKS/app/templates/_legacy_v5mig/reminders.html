@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% set active = 'reminders' %}
+{% block title %}{{ i.rm_page_title|default('미작성 리마인드') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.rm_title|default('📢 오늘 미작성 팀원') }}</h1>
+    <div class="page-sub">{{ sel_date }} {{ i.rm_sub|default('기준 · 리더/경영진 전용') }}</div>
+  </div>
+  <div class="date-nav">
+    <input type="date" value="{{ sel_date }}" onchange="location.href='/admin/reminders?sel_date='+this.value">
+  </div>
+</div>
+
+{% set total_missing = namespace(n=0) %}
+{% set total_members = namespace(n=0) %}
+{% set total_reported = namespace(n=0) %}
+{% for t in teams %}
+  {% set total_missing.n = total_missing.n + (t.missing|length) %}
+  {% set total_members.n = total_members.n + t.total %}
+  {% set total_reported.n = total_reported.n + t.reported_count %}
+{% endfor %}
+{% set total_missing = total_missing.n %}
+{% set total_members = total_members.n %}
+{% set total_reported = total_reported.n %}
+
+<div class="kpi-grid">
+  <div class="kpi-card kpi-primary"><div class="kpi-num">{{ total_missing }}</div><div class="kpi-lab">{{ i.rm_missing|default('미작성 인원') }}</div></div>
+  <div class="kpi-card"><div class="kpi-num">{{ total_reported }}</div><div class="kpi-lab">{{ i.rm_written|default('작성 완료') }}</div></div>
+  <div class="kpi-card"><div class="kpi-num">{{ total_members }}</div><div class="kpi-lab">{{ i.rm_total|default('전체 대상') }}</div></div>
+  <div class="kpi-card"><div class="kpi-num">{% if total_members %}{{ (total_reported*100/total_members)|round(0,'floor')|int }}{% else %}0{% endif %}%</div><div class="kpi-lab">{{ i.rm_rate|default('작성률') }}</div></div>
+</div>
+
+{% for t in teams %}
+<div class="section-head">
+  <h2>{{ t.name }} <span class="count">{{ t.reported_count }}/{{ t.total }}</span>
+    <span class="tag {% if t.participation>=80 %}tag-완료{% elif t.participation>=50 %}tag-진행중{% else %}tag-지연{% endif %}">{{ t.participation }}%</span>
+  </h2>
+  {% if t.missing %}
+  <button class="btn-sm" onclick="copyMails('t{{ t.id }}')">{{ i.rm_copy_mail|default('📋 메일주소 복사') }}</button>
+  {% endif %}
+</div>
+{% if t.missing %}
+<table class="mini-tbl">
+  <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_rank|default('직급') }}</th><th>{{ i.col_email|default('이메일') }}</th></tr></thead>
+  <tbody>
+    {% for m in t.missing %}
+    <tr>
+      <td><b>{{ m.name }}</b></td>
+      <td>{{ m.rank or '' }}</td>
+      <td>{{ m.email or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div id="mail-t{{ t.id }}" style="display:none">{{ t.missing|map(attribute='email')|select|join(', ') }}</div>
+{% else %}
+<div class="empty-mini">{{ i.rm_all_done|default('✅ 전원 작성 완료') }}</div>
+{% endif %}
+{% endfor %}
+
+<script>
+const RI = {
+  no_email: "{{ i.rm_no_email|default('이메일 주소가 없습니다') }}",
+  copied: "{{ i.rm_copied|default('복사됨:') }}"
+};
+function copyMails(code){
+  const t=document.getElementById('mail-'+code).textContent;
+  if(!t){alert(RI.no_email);return;}
+  navigator.clipboard.writeText(t).then(()=>alert(RI.copied+'\n'+t));
+}
+</script>
+{% endblock %}

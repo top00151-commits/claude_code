@@ -1,6 +1,23 @@
-{% extends "base.html" %}
-{% block title %}{{ i.now_title|default('⚡ 지금 — 실시간 활동 피드') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>지금 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">지금</div>
+      <h1 class="page-title">지금</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>{{ i.now_title|default('⚡ 지금 — 실시간 활동 피드') }}</h1>
@@ -41,10 +58,26 @@
 
 <script>
 let lastId = {{ items[0].id if items else 0 }};
+let pollErrCount = 0;
+let pollTimer = null;
+function showPollErr(msg){
+  let b = document.getElementById('pollErrBanner');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'pollErrBanner';
+    b.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9999;background:#FFF3E0;border:1px solid #FFB74D;color:#E65100;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15);';
+    document.body.appendChild(b);
+  }
+  b.textContent = msg;
+}
 async function pollFeed(){
   try {
     const r = await fetch(`/api/activities?scope={{ scope }}&since_id=${lastId}`);
+    if (!r.ok) throw new Error('HTTP '+r.status);
     const j = await r.json();
+    pollErrCount = 0;
+    const eb = document.getElementById('pollErrBanner');
+    if (eb) eb.style.display = 'none';
     if (!j.ok || !j.items.length) return;
     const feed = document.getElementById('liveFeed');
     j.items.forEach(it=>{
@@ -66,8 +99,22 @@ async function pollFeed(){
         ${bodyHtml} ${projHtml}</div>`;
       feed.insertBefore(div, feed.firstChild);
     });
-  } catch(e) {}
+  } catch(e) {
+    /* OPS-P1-A6 [A-011]: 폴링 에러 사용자 피드백 + 5회 실패 시 중단 */
+    pollErrCount++;
+    if (pollErrCount >= 5) {
+      showPollErr('실시간 피드 연결 실패 (5회 시도). 새로고침 해주세요.');
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    } else {
+      showPollErr(`실시간 피드 일시 오류 (재시도 ${pollErrCount}/5)`);
+    }
+  }
 }
-setInterval(pollFeed, 30000);
-</script>
-{% endblock %}
+pollTimer = setInterval(pollFeed, 30000);
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

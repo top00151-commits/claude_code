@@ -1,194 +1,86 @@
-{% extends "base.html" %}
-{% block title %}{{ ticket.ticket_no }} {{ ticket.title }} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
-
-<div style="margin-bottom:14px;">
-  <a href="/tickets" style="font-size:13px;color:#6B7280;text-decoration:none;">← 티켓 목록</a>
-</div>
-
-<!-- 헤더 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #A5282C;">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
-    <div style="flex:1;min-width:300px;">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <span style="font-family:var(--font-mono);font-size:13px;color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ ticket.ticket_no }}</span>
-        {% if ticket.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">🔴 긴급</span>
-        {% elif ticket.urgency == '지연' %}<span style="background:#FEF3C7;color:#92400E;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">⏰ 지연</span>{% endif %}
-        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;">{{ ticket.category }}</span>
-        {% set st = ticket.status %}
-        {% if st == '완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;">✓ 완료</span>
-        {% elif st == '처리중' %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">처리중</span>
-        {% elif st == '접수' %}<span style="background:#E3F2FD;color:#1565C0;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">접수</span>
-        {% elif st == '반려' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">반려</span>
-        {% else %}<span style="background:#F3F4F6;color:#6B7280;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ st }}</span>{% endif %}
-      </div>
-      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.02em;">{{ ticket.title }}</h1>
-      {% if ticket.target_label %}<div style="margin-top:6px;font-size:13px;color:#6B7280;">대상: <span style="font-family:monospace;color:#1A1A1A;font-weight:700;">{{ ticket.target_label }}</span></div>{% endif %}
-      {% if ticket.project_mgmt_code %}<div style="margin-top:4px;font-size:12px;color:#9CA3AF;">관리코드: <span style="color:#A5282C;font-weight:700;font-family:monospace;">{{ ticket.project_mgmt_code }}</span> · {{ ticket.project_name }}</div>{% endif %}
-      <div style="margin-top:6px;font-size:12px;color:#9CA3AF;">
-        요청: <strong>{{ ticket.requester_name }}</strong>{% if ticket.requester_team %} ({{ ticket.requester_team }}){% endif %}
-        → 수신: <strong>{{ ticket.recipient_user_name or ticket.recipient_team_name or '미지정' }}</strong>
-        · {{ ticket.created_at }}
-        {% if ticket.due_date %}<span style="margin-left:10px;color:#A5282C;">납기: {{ ticket.due_date }}</span>{% endif %}
-        {% if ticket.source != 'web' %}<span style="margin-left:10px;color:#9CA3AF;">출처: {{ ticket.source }}</span>{% endif %}
-      </div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ ticket.title }} · 티켓</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.def { display: grid; grid-template-columns: 90px 1fr; gap: 10px 14px; font-size: 13px; }
+.def dt { color: var(--mute); font-weight: 600; }
+.def dd { color: var(--ink); }
+.cmt { padding: 10px 12px; background: var(--paper-2); border-radius: var(--radius-sm); margin-bottom: 8px; border-left: 3px solid var(--amber); }
+.cmt .who { font-weight: 700; font-size: 13px; }
+.cmt .when { font-size: 11px; color: var(--mute); margin-left: 6px; }
+.cmt .body { font-size: 13px; margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
+@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/tickets">티켓</a> · <b>#{{ ticket.id }}</b></div>
+      <h1 class="page-title" style="display:flex;align-items:center;gap:14px;">
+        <span style="font-family:monospace;color:var(--amber-deep);">#{{ ticket.id }}</span>
+        <span>{{ ticket.title }}</span>
+        <span class="pill {% if ticket.status == '완료' %}pill-done{% elif ticket.status == '진행중' %}pill-progress{% elif ticket.status in ('지연','반려') %}pill-danger{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ ticket.status }}</span>
+      </h1>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      {% if can_edit %}
-      <button type="button" onclick="document.getElementById('editPanel').style.display='block';this.style.display='none';" style="background:var(--sage-100);color:var(--sage-700);border:1px solid var(--sage-300);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">✎ 편집</button>
-      {% endif %}
-      {% if can_delete %}
-      <form method="post" action="/tickets/{{ ticket.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?\n\n관련 코멘트·이력도 함께 삭제됩니다.');" style="display:inline;">
-        <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">🗑 삭제</button>
-      </form>
-      {% endif %}
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/tickets/{{ ticket.id }}/edit">📂 수정</a>
+      <a class="btn btn-secondary" href="/tickets">↩ 목록</a>
     </div>
   </div>
-</div>
 
-{% if request.query_params.get('edited') %}
-<div style="background:linear-gradient(135deg,rgba(127,161,131,.15),#fff);border:1px solid var(--sage-300);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--ink);font-weight:600;" id="editedToast">
-  ✓ {{ request.query_params.get('edited') }}개 항목이 수정되었고 이력에 기록됐습니다.
-</div>
-<script>setTimeout(function(){var t=document.getElementById('editedToast');if(t)t.style.display='none';},3500);</script>
-{% endif %}
-{% if request.query_params.get('err') == 'no_perm' %}
-<div style="background:#FFEBEE;border:1px solid rgba(165,40,44,.3);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#A5282C;font-weight:700;">
-  ⛔ 권한 없음 — 본 티켓을 수정할 수 있는 사람: 작성자 본인 / 같은 팀원 / 수신팀의 티켓권한 보유자 / CEO·임원·admin
-</div>
-{% elif request.query_params.get('err') == 'no_perm_delete' %}
-<div style="background:#FFEBEE;border:1px solid rgba(165,40,44,.3);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#A5282C;font-weight:700;">
-  ⛔ 삭제 권한 없음 — 작성자 본인 또는 CEO/admin 만 삭제 가능합니다.
-</div>
-{% endif %}
+  <div class="detail-grid">
+    <div>
+      <div class="section-card">
+        <h3>요청 내용</h3>
+        <div style="font-size:14px;color:var(--ink);line-height:1.7;white-space:pre-wrap;">{{ ticket.description|default('(설명 없음)') }}</div>
+      </div>
 
-{# ─── 편집 패널 (권한자에게만 노출, 기본 숨김) ─── #}
-{% if can_edit %}
-<div id="editPanel" style="display:none;background:#fff;border:1px solid var(--sage-300);border-radius:14px;padding:20px 22px;margin-bottom:18px;box-shadow:0 4px 14px rgba(63,92,68,.08);">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--sage-100);">
-    <span style="font-size:18px;">✎</span>
-    <b style="color:var(--ink);font-size:14px;">티켓 본문 편집</b>
-    <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;">변경 시 자동으로 이력 기록 (누가/언제/무엇)</span>
-  </div>
-  <form method="post" action="/tickets/{{ ticket.id }}/edit">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div style="grid-column:1/-1;">
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">제목</label>
-        <input type="text" name="title" value="{{ ticket.title }}" required style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
-      </div>
-      <div style="grid-column:1/-1;">
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">내용</label>
-        <textarea name="description" rows="3" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;resize:vertical;font-family:inherit;">{{ ticket.description or '' }}</textarea>
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">납기</label>
-        <input type="date" name="due_date" value="{{ ticket.due_date or '' }}" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">긴급도</label>
-        <select name="urgency" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;background:#fff;">
-          {% for u_opt in TICKET_URGENCIES %}
-          <option value="{{ u_opt }}" {% if ticket.urgency == u_opt %}selected{% endif %}>{{ u_opt }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">수신팀</label>
-        <select name="recipient_team_id" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;background:#fff;">
-          <option value="">(미지정)</option>
-          {% for t in all_teams_for_edit %}
-          <option value="{{ t.id }}" {% if ticket.recipient_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label style="display:block;font-size:11px;color:var(--ink-3);font-weight:800;text-transform:uppercase;margin-bottom:4px;">대상 / 라벨</label>
-        <input type="text" name="target_label" value="{{ ticket.target_label or '' }}" style="width:100%;padding:9px 12px;border:1.5px solid var(--sage-300);border-radius:10px;font-size:13px;">
+      <div class="section-card">
+        <h3>댓글 / 진행 이력 ({{ comments|length if comments else 0 }})</h3>
+        {% for c in comments|default([]) %}
+        <div class="cmt">
+          <span class="who">{{ c.author_name }}</span><span class="when">{{ c.created_at }}</span>
+          <div class="body">{{ c.body }}</div>
+        </div>
+        {% else %}
+        <div style="font-size:13px;color:var(--mute);text-align:center;padding:14px;">아직 댓글이 없습니다.</div>
+        {% endfor %}
+        <form method="post" action="/tickets/{{ ticket.id }}/comment" style="margin-top:14px;">
+          <textarea name="body" required placeholder="댓글 입력 (Enter+Shift 줄바꿈)" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);color:var(--ink);min-height:70px;resize:vertical;"></textarea>
+          <div style="margin-top:8px;text-align:right;"><button type="submit" class="btn btn-primary">💬 댓글 등록</button></div>
+        </form>
       </div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--sage-100);">
-      <span style="font-size:11px;color:var(--ink-3);font-weight:600;flex:1;">변경된 항목만 시스템 코멘트로 자동 기록됩니다 (작성자/수정자/시각).</span>
-      <button type="button" onclick="document.getElementById('editPanel').style.display='none';" style="padding:8px 16px;border-radius:8px;background:#fff;border:1px solid var(--sage-300);color:var(--ink-2);font-weight:700;cursor:pointer;">취소</button>
-      <button type="submit" style="padding:8px 22px;border-radius:8px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:0;font-weight:800;cursor:pointer;">💾 저장 + 이력 기록</button>
-    </div>
-  </form>
-</div>
-{% endif %}
 
-{% if ticket.approval_url %}
-<!-- 하이웍스 결재 링크 -->
-<div style="background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-  <div>
-    <div style="font-weight:800;font-size:14px;color:#312E81;">📋 하이웍스 전자결재 진행</div>
-    <div style="font-size:12px;color:#4338CA;margin-top:3px;font-family:monospace;word-break:break-all;">{{ ticket.approval_url }}</div>
-  </div>
-  <a href="{{ ticket.approval_url }}" target="_blank" rel="noopener" style="background:#4338CA;color:#fff;padding:10px 20px;border-radius:8px;font-weight:800;text-decoration:none;font-size:13px;white-space:nowrap;">결재 열기 ↗</a>
-</div>
-{% endif %}
-
-<!-- 설명 -->
-{% if ticket.description %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">상세 설명</div>
-  <div style="font-size:14px;line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ ticket.description }}</div>
-</div>
-{% endif %}
-
-<!-- 상태 변경 (수신자만) -->
-{% if is_recipient and ticket.status != '완료' %}
-<div style="background:linear-gradient(135deg,#E3F2FD,#BBDEFB);border:2px solid #1565C0;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <h2 style="margin:0 0 12px;font-size:16px;font-weight:800;color:#1565C0;">📥 수신자 액션</h2>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    {% if ticket.status == '요청' %}
-    <form method="post" action="/tickets/{{ ticket.id }}/status" style="display:flex;gap:8px;flex:1;">
-      <input type="hidden" name="new_status" value="접수">
-      <input type="text" name="note" placeholder="수락 메모 (선택)" style="flex:1;padding:8px 12px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-      <button type="submit" style="background:#1565C0;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">접수</button>
-    </form>
-    <form method="post" action="/tickets/{{ ticket.id }}/status">
-      <input type="hidden" name="new_status" value="반려">
-      <input type="hidden" name="note" value="">
-      <button type="submit" onclick="if(!confirm('반려하시겠습니까?')) return false;" style="background:#FFEBEE;color:#A5282C;border:1px solid #FCA5A5;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">반려</button>
-    </form>
-    {% elif ticket.status == '접수' %}
-    <form method="post" action="/tickets/{{ ticket.id }}/status">
-      <input type="hidden" name="new_status" value="처리중">
-      <button type="submit" style="background:#F57F17;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">처리 시작</button>
-    </form>
-    {% elif ticket.status == '처리중' %}
-    <form method="post" action="/tickets/{{ ticket.id }}/status" style="display:flex;gap:8px;flex:1;">
-      <input type="hidden" name="new_status" value="완료">
-      <input type="text" name="note" placeholder="완료 메모 (선택)" style="flex:1;padding:8px 12px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-      <button type="submit" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:800;cursor:pointer;">✓ 완료</button>
-    </form>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-<!-- 대화 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:14px;font-weight:800;">💬 대화 ({{ comments|length }})</h2>
-  {% if comments %}
-  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
-    {% for cm in comments %}
-    <div style="padding:12px 14px;background:{% if cm.is_status_change %}#FFF8E1{% else %}#F9FAFB{% endif %};border-radius:8px;border-left:3px solid {% if cm.is_status_change %}#F57F17{% elif cm.author_id == user.id %}#A5282C{% else %}#D1D5DB{% endif %};">
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:4px;">
-        <strong style="color:#1A1A1A;">{{ cm.author_name }} {% if cm.author_team %}<span style="color:#9CA3AF;font-weight:500;">({{ cm.author_team }})</span>{% endif %}</strong>
-        <span>{{ cm.created_at }}</span>
+    <aside>
+      <div class="section-card">
+        <h3>상세 정보</h3>
+        <dl class="def">
+          <dt>분류</dt><dd>{{ ticket.category|default('—') }}</dd>
+          <dt>긴급도</dt><dd><span class="pill {% if ticket.urgency in ('긴급','매우긴급') %}pill-danger{% elif ticket.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}">{{ ticket.urgency|default('—') }}</span></dd>
+          <dt>발행자</dt><dd>{{ ticket.requester_name|default('—') }}</dd>
+          <dt>담당</dt><dd>{{ ticket.assignee_name|default('미배정') }}</dd>
+          <dt>담당 팀</dt><dd>{{ ticket.assignee_team_name|default('—') }}</dd>
+          <dt>희망기한</dt><dd>{{ ticket.deadline|default('—') }}</dd>
+          <dt>등록일</dt><dd style="font-family:monospace;font-size:12px;">{{ ticket.created_at }}</dd>
+        </dl>
       </div>
-      <div style="font-size:13px;color:#1A1A1A;line-height:1.6;white-space:pre-wrap;">{{ cm.body }}</div>
-    </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p style="color:#9CA3AF;font-size:13px;margin-bottom:16px;">아직 대화가 없습니다.</p>
-  {% endif %}
-  <form method="post" action="/tickets/{{ ticket.id }}/comment">
-    <textarea name="body" rows="2" required placeholder="댓글 입력..."
-              style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;margin-bottom:8px;resize:vertical;"></textarea>
-    <button type="submit" style="background:#A5282C;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;cursor:pointer;">댓글 등록</button>
-  </form>
-</div>
 
-{% endblock %}
+      <div class="section-card" style="background:var(--amber-glow);border-color:var(--amber);">
+        <h3>💡 빅터</h3>
+        <div style="font-size:12.5px;line-height:1.6;color:var(--ink);">
+          {% if ticket.status == '완료' %}완료된 티켓입니다.
+          {% elif ticket.status == '진행중' %}현재 <b>{{ ticket.assignee_name|default('담당자') }}</b>가 처리 중입니다.
+          {% elif ticket.status == '지연' %}⚠ 기한 초과 — 담당자 재촉 권장.
+          {% else %}배정 대기 중입니다.{% endif %}
+        </div>
+      </div>
+    </aside>
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

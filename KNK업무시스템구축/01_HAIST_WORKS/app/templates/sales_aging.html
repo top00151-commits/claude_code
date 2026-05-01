@@ -1,7 +1,23 @@
-{% extends "base_sales.html" %}
-{% block title %}연체 분석 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>매출 채권 연령 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">매출 채권 연령</div>
+      <h1 class="page-title">매출 채권 연령</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# Top3-S1-4차 연체 분석 — 거래처 × 등급 매트릭스 (히트맵 테이블) #}
 {# 외부 차트 0건 · CSS 셀 배경 농도 · v2 본체 무수정 #}
 
@@ -16,13 +32,13 @@
   <a href="/sales" class="btn btn-ghost">매출 홈</a>
   <a href="/sales/dashboard" class="btn btn-ghost">강화 대시</a>
   <a href="/sales/outstanding" class="btn btn-ghost">미수금</a>
-  <a href="/sales/aging" class="btn" style="background:#A5282C;color:#fff;border:none;">연체 분석</a>
+  <a href="/sales/aging" class="btn" style="background:var(--knk-red);color:#fff;border:none;">연체 분석</a>
 </div>
 
 {# 요약 KPI #}
 <div class="kpi-row">
   <div class="kpi"><div class="kpi-label">총 미수금</div>
-    <div class="kpi-value" style="font-size:20px;color:#DC2626;">{{ won(summary.total) }}</div>
+    <div class="kpi-value" style="font-size:20px;color:var(--knk-red);">{{ won(summary.total) }}</div>
     <div class="kpi-sub">{{ summary.n_total }}건</div></div>
   <div class="kpi"><div class="kpi-label">연체 합계</div>
     <div class="kpi-value" style="font-size:20px;color:#B91C1C;">{{ won(summary.overdue_total) }}</div>
@@ -44,47 +60,47 @@
   <div style="overflow-x:auto;">
   <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
-      <tr style="background:#F9FAFB;border-bottom:2px solid #E5E7EB;">
+      <tr style="background:var(--paper);border-bottom:2px solid var(--line);">
         <th style="text-align:left;padding:8px;">거래처</th>
         <th style="text-align:right;padding:8px;background:#DCFCE7;">CURRENT</th>
-        <th style="text-align:right;padding:8px;background:#FEF3C7;">D-30</th>
+        <th style="text-align:right;padding:8px;background:var(--amber-glow);">D-30</th>
         <th style="text-align:right;padding:8px;background:#FED7AA;">D-60</th>
         <th style="text-align:right;padding:8px;background:#FECACA;">D-90+</th>
-        <th style="text-align:right;padding:8px;border-left:2px solid #E5E7EB;">합계</th>
+        <th style="text-align:right;padding:8px;border-left:2px solid var(--line);">합계</th>
         <th style="text-align:center;padding:8px;">최대 연체일</th>
       </tr>
     </thead>
     <tbody>
     {% for r in rows %}
-      <tr style="border-bottom:1px solid #F3F4F6;">
+      <tr style="border-bottom:1px solid var(--paper-2);">
         <td style="padding:8px;font-weight:600;">{{ r.customer }}</td>
         {% for g, rgb in [('CURRENT','22,163,74'),('D-30','217,119,6'),('D-60','234,88,12'),('D-90+','185,28,28')] %}
           {% set v = r[g] %}
           {% set intensity = (v / max_total) if max_total > 0 else 0 %}
           {% set opacity = (0.1 + intensity * 0.6) if v > 0 else 0 %}
           <td style="padding:8px;text-align:right;background:rgba({{ rgb }}, {{ '%.2f'|format(opacity) }});">
-            {% if v > 0 %}{{ "{:,.0f}".format(v) }}{% else %}<span style="color:#D1D5DB;">-</span>{% endif %}
+            {% if v > 0 %}{{ "{:,.0f}".format(v) }}{% else %}<span style="color:var(--line-strong);">-</span>{% endif %}
           </td>
         {% endfor %}
-        <td style="padding:8px;text-align:right;font-weight:700;border-left:2px solid #E5E7EB;color:#DC2626;">{{ "{:,.0f}".format(r.total) }}</td>
+        <td style="padding:8px;text-align:right;font-weight:700;border-left:2px solid var(--line);color:var(--knk-red);">{{ "{:,.0f}".format(r.total) }}</td>
         <td style="padding:8px;text-align:center;">
           {% set mx = r.max_overdue %}
           {% if mx > 60 %}<span style="color:#B91C1C;font-weight:700;">+{{ mx }}일</span>
           {% elif mx > 30 %}<span style="color:#EA580C;font-weight:700;">+{{ mx }}일</span>
           {% elif mx > 0 %}<span style="color:#D97706;">+{{ mx }}일</span>
-          {% else %}<span style="color:#16A34A;">{{ mx }}일</span>{% endif %}
+          {% else %}<span style="color:var(--success);">{{ mx }}일</span>{% endif %}
         </td>
       </tr>
     {% endfor %}
     </tbody>
     <tfoot>
-      <tr style="background:#F9FAFB;border-top:2px solid #E5E7EB;font-weight:700;">
+      <tr style="background:var(--paper);border-top:2px solid var(--line);font-weight:700;">
         <td style="padding:8px;">합계</td>
         <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(summary.by_grade['CURRENT']) }}</td>
         <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(summary.by_grade['D-30']) }}</td>
         <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(summary.by_grade['D-60']) }}</td>
         <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(summary.by_grade['D-90+']) }}</td>
-        <td style="padding:8px;text-align:right;border-left:2px solid #E5E7EB;color:#DC2626;">{{ "{:,.0f}".format(summary.total) }}</td>
+        <td style="padding:8px;text-align:right;border-left:2px solid var(--line);color:var(--knk-red);">{{ "{:,.0f}".format(summary.total) }}</td>
         <td style="padding:8px;text-align:center;">-</td>
       </tr>
     </tfoot>
@@ -94,6 +110,10 @@
   {% else %}
   <p class="muted">미수금 보유 거래처 없음.</p>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

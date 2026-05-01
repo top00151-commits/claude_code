@@ -1,93 +1,231 @@
-{% extends "base_logi.html" %}
-{% block title %}발주 목록 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>발주 목록 · KNK HAIST WORKS</title>
 
-<div class="page-head row-between">
-  <div>
-    <h1>발주 (Purchase Order)</h1>
-    <p class="muted">발주 헤더 · 라인 · 공급사 · 관리코드 통합 관리</p>
-  </div>
-  <div style="display:flex;gap:8px">
-    <a href="/suppliers" class="btn btn-ghost">공급사</a>
-    <a href="/po/new" class="btn btn-primary">+ 발주 작성</a>
-  </div>
-</div>
+{# ============================================================
+   po_list.html — 시안 master_D_list_po_v5H5.html 1:1 STANDALONE
+   2026-05-01 v5H5 standalone (자재 발주 리스트)
+   원본: 05_.../D_리스트/master_D_list_po_v5H5.html
+   레거시 백업: _legacy_po_list_v4.html
+   ============================================================ #}
 
-<form method="get" action="/po" class="filter-bar">
-  <input type="text" name="q" value="{{ q }}" placeholder="발주번호 / 공급사 / 관리코드 / 프로젝트명">
-  <select name="status">
-    <option value="">전체 상태</option>
-    {% for s in PO_STATUSES %}
-    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-  <button type="submit" class="btn">검색</button>
-  <a href="/po" class="btn btn-ghost">초기화</a>
-</form>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
 
-<div class="card no-pad">
-  <table class="table table-data">
-    <thead>
-      <tr>
-        <th>NO</th>
-        <th>발주번호</th>
-        <th>발주일</th>
-        <th>공급사</th>
-        <th>관리코드</th>
-        <th>프로젝트</th>
-        <th>통화</th>
-        <th class="ta-right">합계</th>
-        <th>상태</th>
-        <th>납기</th>
-        <th>작성자</th>
-        <th>관리</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for o in orders %}
-      <tr>
-        <td>{{ loop.index }}</td>
-        <td class="mono"><a href="/po/{{ o.id }}" style="color:#A5282C;font-weight:700">{{ o.po_number }}</a></td>
-        <td class="mono">{{ o.order_date or '-' }}</td>
-        <td class="ta-left">{{ o.supplier_name or '-' }}</td>
-        <td class="mono">{% if o.mgmt_code %}<strong style="color:#A5282C">{{ o.mgmt_code }}</strong>{% else %}-{% endif %}</td>
-        <td class="ta-left">{{ o.project_name or '-' }}</td>
-        <td>{{ o.currency or 'KRW' }}</td>
-        <td class="ta-right mono">
-          {% if o.currency == 'USD' %}${{ '{:,.2f}'.format(o.total_amount or 0) }}
-          {% elif o.currency == 'JPY' %}¥{{ '{:,.0f}'.format(o.total_amount or 0) }}
-          {% else %}₩{{ '{:,.0f}'.format(o.total_amount or 0) }}{% endif %}
-        </td>
-        <td>
-          {% if o.status == '발주완료' %}<span class="tag tag-ok">{{ o.status }}</span>
-          {% elif o.status == '작성중' %}<span class="tag tag-off">{{ o.status }}</span>
-          {% elif o.status == '부분입고' %}<span class="tag tag-warn">{{ o.status }}</span>
-          {% elif o.status == '입고완료' %}<span class="tag tag-ok">{{ o.status }}</span>
-          {% elif o.status == '취소' %}<span class="tag tag-danger">{{ o.status }}</span>
-          {% else %}{{ o.status }}{% endif %}
-        </td>
-        {% set pending = o.status in ('작성중','발주완료','부분입고') %}
-        {% set overdue = pending and o.expected_date and o.expected_date < today %}
-        <td class="mono" style="{% if overdue %}color:#DC2626;font-weight:800;{% endif %}">
-          {{ o.expected_date or '-' }}
-          {% if overdue %}<span style="font-size:10px;background:#FEE2E2;padding:1px 6px;border-radius:3px;margin-left:4px;">⏰ 지연</span>{% endif %}
-        </td>
-        <td>{{ o.creator_name or '-' }}</td>
-        <td class="actions">
-          <a href="/po/{{ o.id }}" class="btn-sm">보기</a>
-          <a href="/po/{{ o.id }}/edit" class="btn-sm">수정</a>
-          <form method="post" action="/po/{{ o.id }}/delete" style="display:inline"
-                onsubmit="return confirm('삭제하시겠습니까?\n발주번호: {{ o.po_number }}');">
-            <button type="submit" class="btn-sm btn-danger">삭제</button>
-          </form>
-        </td>
-      </tr>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; overflow-y: auto; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+.sb-badge { background: var(--knk-red); color: white; font-size: 10px; padding: 1px 7px; border-radius: var(--radius-full); font-weight: 700; }
+.menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--amber-deep); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
+
+.main { background: var(--paper); display: flex; flex-direction: column; min-width: 0; }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; text-decoration: none; }
+.top-tab:hover { background: var(--paper-2); color: var(--ink); }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.top-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; font-size: 16px; color: var(--mute); cursor: pointer; text-decoration: none; }
+.top-icon:hover { background: var(--amber-glow); color: var(--amber-deep); }
+
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.crumbs b { color: var(--ink); }
+.crumbs a { color: var(--amber-deep); }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--ink); }
+.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-actions { display: flex; gap: 10px; }
+.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-amber); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-secondary:hover { background: var(--amber-glow); }
+
+.summary-row { margin: 0 var(--content-pad) var(--space-4); display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); }
+.summary-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); cursor: pointer; transition: all .18s; text-decoration: none; color: inherit; display: block; }
+.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--amber); }
+.summary-card.active { background: var(--amber-glow); border-color: var(--amber); }
+.summary-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.summary-card .num { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.summary-card.warn .num { color: var(--warn); }
+.summary-card.success .num { color: var(--success); }
+
+.toolbar { margin: 0 var(--content-pad); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.filter-btn { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 13px; font-size: 12.5px; cursor: pointer; font-weight: 500; color: var(--ink); text-decoration: none; }
+.filter-btn.active { background: var(--amber-glow); border-color: var(--amber); font-weight: 600; }
+.toolbar .spacer { flex: 1; min-width: 12px; }
+.toolbar .search { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; font-size: 13px; min-width: 220px; font-family: inherit; color: var(--ink); }
+
+.table-wrap { margin: var(--space-3) var(--content-pad) var(--space-7); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+table { width: 100%; font-size: 13px; border-collapse: collapse; }
+thead th { text-align: left; padding: var(--space-3) var(--space-4); font-weight: 700; font-size: 11px; color: var(--amber-deep); border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+thead th.num, td.num { text-align: right; }
+thead th.center, td.center { text-align: center; }
+tbody td { padding: 13px var(--space-4); border-bottom: 1px solid var(--line); color: var(--ink); }
+tbody tr { cursor: pointer; transition: background .12s; }
+tbody tr:hover { background: var(--amber-glow); }
+td.code { font-family: monospace; font-weight: 700; color: var(--amber-deep); }
+td .small { display: block; font-size: 11px; color: var(--mute); margin-top: 2px; }
+td.amount { font-weight: 700; }
+
+.pill { display: inline-block; padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
+.pill-draft { background: var(--paper-2); color: var(--mute); }
+.pill-progress { background: var(--amber-glow); color: var(--amber-deep); }
+.pill-warn { background: rgba(201,125,63,0.12); color: var(--warn); border: 1px solid var(--warn); }
+.pill-done { background: var(--success); color: white; }
+.pill-cancel { background: rgba(165,40,44,0.08); color: var(--knk-red); }
+
+.empty { padding: 60px 20px; text-align: center; color: var(--mute); }
+.empty .ico { font-size: 48px; margin-bottom: 12px; }
+.empty .ttl { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.empty .sub { font-size: 13px; }
+
+@media (max-width: 1280px) { .summary-row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1023px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } .summary-row { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+{% set total_cnt = orders|length %}
+{% set draft_cnt = orders|selectattr('status','equalto','작성중')|list|length %}
+{% set issued_cnt = orders|selectattr('status','equalto','발행')|list|length %}
+{% set shipping_cnt = orders|selectattr('status','equalto','배송중')|list|length %}
+{% set done_cnt = orders|selectattr('status','equalto','입고완료')|list|length %}
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">자재 메인</div>
+    <a class="sb-item" href="/logistics">🏠 자재 hub <span class="menu-code">M-02-01</span></a>
+
+    <div class="sb-group">발주 흐름</div>
+    <a class="sb-item" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
+    <a class="sb-item active" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span>{% if total_cnt %}<span class="sb-badge">{{ total_cnt }}</span>{% endif %}</a>
+    <a class="sb-item" href="/receipts">📦 입고 처리 <span class="menu-code">M-02-06</span></a>
+
+    <div class="sb-group">재고</div>
+    <a class="sb-item" href="/parts">📊 자재 마스터 <span class="menu-code">M-02-02</span></a>
+    <a class="sb-item" href="/stock">📚 수불부 <span class="menu-code">M-02-07</span></a>
+    <a class="sb-item" href="/issues">📤 출고 등록 <span class="menu-code">M-02-08</span></a>
+
+    <div class="sb-group">기타</div>
+    <a class="sb-item" href="/suppliers">🏢 공급사 <span class="menu-code">M-02-03</span></a>
+    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <a class="top-tab" href="/home">통합 플랫폼</a>
+        <a class="top-tab" href="/sales">매출영업센터</a>
+        <a class="top-tab active" href="/logistics">자재구매센터</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="top-icon" href="/notifications" title="알림">🔔</a>
+        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+        <a class="top-user" href="/profile">
+          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
+          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+        </a>
+        <a class="top-icon" href="/logout" title="나가기">🚪</a>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>발주 목록</b></div>
+        <h1 class="page-title">발주 <em>목록</em></h1>
+      </div>
+      <div class="page-actions">
+        <a class="btn-secondary" href="/po">↻ 새로고침</a>
+        <a class="btn-primary" href="/po/new">＋ 새 발주서 작성</a>
+      </div>
+    </div>
+
+    <div class="summary-row">
+      <a class="summary-card {% if not status %}active{% endif %}" href="/po">
+        <div class="lbl">전체</div><div class="num">{{ total_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='작성중' %}active{% endif %}" href="/po?status=작성중">
+        <div class="lbl">작성중</div><div class="num">{{ draft_cnt }}</div>
+      </a>
+      <a class="summary-card warn {% if status=='발행' %}active{% endif %}" href="/po?status=발행">
+        <div class="lbl">발행</div><div class="num">{{ issued_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='배송중' %}active{% endif %}" href="/po?status=배송중">
+        <div class="lbl">배송중</div><div class="num">{{ shipping_cnt }}</div>
+      </a>
+      <a class="summary-card success {% if status=='입고완료' %}active{% endif %}" href="/po?status=입고완료">
+        <div class="lbl">입고완료</div><div class="num">{{ done_cnt }}</div>
+      </a>
+    </div>
+
+    <form class="toolbar" method="get" action="/po">
+      {% if status %}<a class="filter-btn active" href="/po?q={{ q }}">상태 · {{ status }} <span style="color:var(--mute);margin-left:4px;">×</span></a>{% endif %}
+      <input type="hidden" name="status" value="{{ status }}">
+      <div class="spacer"></div>
+      <input class="search" type="search" name="q" value="{{ q }}" placeholder="발주번호 / 거래처 / 자재명…" />
+      <button type="submit" class="btn-secondary">검색</button>
+    </form>
+
+    <div class="table-wrap">
+      {% if orders %}
+      <table>
+        <thead>
+          <tr>
+            <th>발주번호</th>
+            <th>거래처 · 프로젝트</th>
+            <th class="center">상태</th>
+            <th class="num">금액</th>
+            <th class="center">발주일</th>
+            <th class="center">예상 입고</th>
+            <th>담당</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in orders %}
+          <tr onclick="location.href='/po/{{ o.id }}'">
+            <td class="code">{{ o.po_number|default('—') }}</td>
+            <td>
+              <b>{{ o.supplier_name|default('(거래처 없음)') }}</b>
+              {% if o.mgmt_code or o.project_name %}<span class="small">{% if o.mgmt_code %}{{ o.mgmt_code }} · {% endif %}{{ o.project_name|default('') }}</span>{% endif %}
+            </td>
+            <td class="center">
+              {% set st = o.status|default('작성중') %}
+              <span class="pill {% if st == '작성중' %}pill-draft{% elif st == '입고완료' %}pill-done{% elif st == '취소' %}pill-cancel{% elif st in ('발행','배송중') %}pill-progress{% else %}pill-warn{% endif %}">{{ st }}</span>
+            </td>
+            <td class="num amount">
+              {% if o.currency and o.currency != 'KRW' %}{{ o.currency }} {% endif %}{{ '{:,.0f}'.format(o.total_amount|default(0)) }}{% if not o.currency or o.currency == 'KRW' %}원{% endif %}
+            </td>
+            <td class="center">{{ o.order_date|default('—') }}</td>
+            <td class="center">{{ o.expected_date|default('—') }}</td>
+            <td>{{ o.creator_name|default('—') }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
       {% else %}
-      <tr><td colspan="12" class="empty">등록된 발주가 없습니다. <a href="/po/new">+ 발주 작성</a>으로 시작하세요.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      <div class="empty">
+        <div class="ico">📋</div>
+        <div class="ttl">{% if q or status %}검색 결과 없음{% else %}등록된 발주서가 없습니다{% endif %}</div>
+        <div class="sub">{% if q or status %}필터를 해제하거나 다른 조건으로 검색해보세요{% else %}우상단 <b>＋ 새 발주서 작성</b> 버튼으로 첫 발주서를 만들어보세요{% endif %}</div>
+        <div style="margin-top:16px;"><a class="btn-primary" href="/po/new">＋ 새 발주서 작성</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </main>
 </div>
-
-<p class="muted ta-right">총 {{ orders|length }}건</p>
-{% endblock %}
+</body>
+</html>

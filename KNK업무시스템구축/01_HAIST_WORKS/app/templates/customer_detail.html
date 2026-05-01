@@ -1,74 +1,97 @@
-{% extends "base_sales.html" %}
-{% block title %}{{ cu.name }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>🏢 {{ cu.name }}</h1>
-    <div class="page-sub">{{ cu.tier or '' }} · {{ cu.note or '' }}</div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ cu.name }} · 고객사</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
+.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
+@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+</style></head>
+<body>
+{% set s = stats or {} %}
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/customers">고객사</a> · <b>{{ cu.name }}</b></div>
+      <h1 class="page-title">{{ cu.name }}{% if cu.tier %} <span class="pill {% if cu.tier == 'A' %}pill-danger{% elif cu.tier == 'B' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;">등급 {{ cu.tier }}</span>{% endif %}</h1>
+    </div>
+    <a class="btn btn-secondary" href="/customers">↩ 목록</a>
   </div>
-</div>
 
-<div class="summary-grid">
-  <div class="sum-card"><div class="sum-num">{{ pjts|length }}</div><div class="sum-lab">{{ i.col_project|default('프로젝트') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ total_tasks }}</div><div class="sum-lab">{{ i.cd_last30|default('최근 30일 카드') }}</div></div>
-  <div class="sum-card st-done"><div class="sum-num">{{ stats.done }}</div><div class="sum-lab">{{ i.cd_done|default('완료') }}</div></div>
-  <div class="sum-card st-delay"><div class="sum-num">{{ stats.delay }}</div><div class="sum-lab">{{ i.cd_delay|default('지연') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(stats.hours) }}h</div><div class="sum-lab">{{ i.cd_hours|default('누적 공수') }}</div></div>
-</div>
+  <!-- KPI -->
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card"><div class="kpi-label">총 프로젝트</div><div class="kpi-num">{{ pjts|length }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-num">{{ pjts|selectattr('status','in',['진행중','진행'])|list|length }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 수주액</div><div class="kpi-num">{{ '{:,.0f}'.format(pjts|sum(attribute='order_amount')|default(0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">관련 업무</div><div class="kpi-num">{{ total_tasks }}</div></div>
+  </div>
 
-<div class="two-col">
-  <div>
-    <div class="section-head"><h2>{{ i.cd_pj_list|default('프로젝트 목록') }}</h2></div>
-    {% if not pjts %}
-    <div class="empty">{{ i.cd_no_pj|default('프로젝트 없음') }}</div>
-    {% else %}
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_code|default('코드') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_type|default('유형') }}</th><th>{{ i.col_status|default('상태') }}</th></tr></thead>
-      <tbody>
-        {% for p in pjts %}
-        <tr>
-          <td>{{ p.code or '-' }}</td>
-          <td><a href="/project/{{ p.id }}"><b>{{ p.name }}</b></a></td>
-          <td>{{ p.type or '' }}</td>
-          <td><span class="tag tag-{{ p.status }}">{{ p.status }}</span></td>
-        </tr>
+  <div class="detail-grid" style="margin-top: var(--space-5);">
+    <div>
+      <div class="section-card">
+        <h3>프로젝트 ({{ pjts|length }})</h3>
+        {% if pjts %}
+        <table class="tbl" style="border:0;">
+          <thead><tr><th>관리코드</th><th>프로젝트명</th><th class="center">단계</th><th class="center">상태</th><th class="num">수주액</th></tr></thead>
+          <tbody>
+          {% for p in pjts %}
+            <tr onclick="location.href='/project/{{ p.id }}'">
+              <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</td>
+              <td><b>{{ p.name }}</b></td>
+              <td class="center">{% if p.stage %}<span class="pill pill-progress">{{ p.stage }}</span>{% endif %}</td>
+              <td class="center">{% if p.status %}<span class="pill {% if p.status in ('완료','종료') %}pill-done{% elif p.status == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">프로젝트 없음</div>{% endif %}
+      </div>
+
+      {% if tasks %}
+      <div class="section-card">
+        <h3>최근 업무 ({{ total_tasks }})</h3>
+        <table class="tbl" style="border:0;">
+          <thead><tr><th>일자</th><th>담당</th><th>제목</th><th class="center">상태</th></tr></thead>
+          <tbody>
+          {% for t in tasks[:15] %}
+            <tr><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+
+    <aside>
+      <div class="section-card">
+        <h3>회사 정보</h3>
+        <dl class="def">
+          <dt>고객사명</dt><dd><b>{{ cu.name }}</b></dd>
+          <dt>사업자번호</dt><dd style="font-family:monospace;">{{ cu.business_no|default('—') }}</dd>
+          <dt>대표</dt><dd>{{ cu.ceo_name|default('—') }}</dd>
+          <dt>담당자</dt><dd>{{ cu.contact_person|default('—') }}</dd>
+          <dt>전화</dt><dd>{{ cu.phone|default('—') }}</dd>
+          <dt>이메일</dt><dd style="font-size:12px;">{{ cu.email|default('—') }}</dd>
+          <dt>주소</dt><dd style="font-size:12px;">{{ cu.address|default('—') }}</dd>
+        </dl>
+      </div>
+
+      {% if by_team %}
+      <div class="section-card">
+        <h3>팀별 활동</h3>
+        {% for k, v in by_team[:5] %}
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--line);">
+          <span>{{ k }}</span><b>{{ v.cnt }}건 · {{ '%.1f'|format(v.hours) }}h</b>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
+      </div>
+      {% endif %}
+    </aside>
   </div>
-  <div>
-    <div class="section-head"><h2>{{ i.cd_team_hours|default('팀별 공수 (최근 30일)') }}</h2></div>
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-      <tbody>
-        {% for k, v in by_team %}
-        <tr><td><b>{{ k }}</b></td><td class="num">{{ v.cnt }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="section-head"><h2>{{ i.cd_recent|default('최근 카드') }}</h2></div>
-{% if not tasks %}
-<div class="empty">{{ i.cd_no_cards|default('카드 없음') }}</div>
-{% else %}
-<table class="hist-tbl">
-  <thead><tr><th>{{ i.col_date|default('일자') }}</th><th>{{ i.col_title|default('제목') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_person|default('담당자') }}</th><th>{{ i.col_status|default('상태') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-  <tbody>
-    {% for t in tasks %}
-    <tr>
-      <td>{{ t.work_date }}</td>
-      <td><b>{{ t.title }}</b></td>
-      <td>{{ t.project_name or '-' }}</td>
-      <td>{{ t.team_name or '-' }}</td>
-      <td>{{ t.user_name }}</td>
-      <td><span class="tag tag-{{ t.status }}">{{ t.status }}</span></td>
-      <td class="num">{{ t.hours }}h</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

@@ -1,0 +1,79 @@
+{% extends "base_logi.html" %}
+{% block title %}ABC 분류 — 재고 분석{% endblock %}
+{% block body %}
+{# Top3 S2 3차 (2026-04-26) — ABC 분류 (파레토). 최근 N일 출고 매출 누적 비중 기준 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 잔고</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">ABC 분류</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
+    최근 {{ days }}일 출고 매출 누적 — A(상위 80%) / B(80~95%) / C(나머지) · 파레토 원칙
+  </div>
+</div>
+
+{# A/B/C 카운트 KPI 3칸 #}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
+  <div style="background:#fff;border:1px solid var(--st-done,var(--success));border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-done,var(--success));font-weight:700;">A · 핵심</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ a_count }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">매출 상위 80%</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--st-progress,#2563EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-progress,#2563EB);font-weight:700;">B · 일반</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ b_count }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">매출 80~95%</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--st-delay,var(--knk-red));border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-delay,var(--knk-red));font-weight:700;">C · 저활용</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ c_count }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">매출 95% 이하</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
+  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">분류 결과 (상위 {{ items|length }} / 전체 {{ total }})</div>
+  {% if items and items|length > 0 %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;">
+        <th style="padding:8px;">등급</th><th style="padding:8px;">품번</th>
+        <th style="padding:8px;">품명</th>
+        <th style="padding:8px;text-align:right;">출고량</th>
+        <th style="padding:8px;text-align:right;">매출액</th>
+        <th style="padding:8px;text-align:right;">비중</th>
+        <th style="padding:8px;text-align:right;">누적</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in items %}
+      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
+        <td style="padding:8px;">
+          {% if r.abc_class == 'A' %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-done,var(--success));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">A</span>
+          {% elif r.abc_class == 'B' %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-progress,#2563EB);color:#fff;border-radius:4px;font-size:11px;font-weight:700;">B</span>
+          {% else %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-delay,var(--knk-red));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">C</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px;font-family:monospace;">{{ r.part_no }}</td>
+        <td style="padding:8px;">{{ r.part_name }}</td>
+        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.out_qty or 0) }} {{ r.unit or '' }}</td>
+        <td style="padding:8px;text-align:right;font-weight:600;">{{ '{:,.0f}'.format(r.out_value or 0) }}</td>
+        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.share_pct) }}%</td>
+        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.cum_share_pct) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
+    최근 {{ days }}일 출고 이력이 없어 ABC 분류가 비어 있습니다.<br>
+    <a href="/stock/issues" style="color:var(--st-progress);">출고 (GI)</a> 발생 후 다시 조회해주세요.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

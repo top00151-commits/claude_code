@@ -1,43 +1,59 @@
-{% extends "base.html" %}
-{% set active = 'notifications' %}
-{% block title %}{{ i.notif_page_title|default('🔔 알림') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.notif_page_title|default('🔔 알림') }}</h1>
-    <div class="page-sub">{{ i.notif_recent|default('최근 100건') }} · {{ i.notif_unread|default('안 읽음') }} {{ unread_notif }}{{ i.total_count|default('건') }}</div>
-  </div>
-  <div class="date-nav">
-    <button class="btn-sm" onclick="readAll()">{{ i.notif_read_all|default('전체 읽음 처리') }}</button>
-  </div>
-</div>
-
-{% if not items %}
-<div class="empty">{{ i.notif_empty|default('아직 알림이 없습니다.') }}</div>
-{% else %}
-<div class="notif-list">
-  {% for n in items %}
-  <a href="{{ n.link or '#' }}" class="notif-item {% if not n.is_read %}unread{% endif %}"
-     onclick="markRead({{ n.id }})">
-    <div class="ni-ico">{% if n.kind=='comment' %}💬{% else %}🔔{% endif %}</div>
-    <div class="ni-body">
-      <div class="ni-title">{{ n.title }}</div>
-      {% if n.body %}<div class="ni-text">{{ n.body }}</div>{% endif %}
-      <div class="ni-time">{{ n.created_at }}</div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>알림함 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.notif-item { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; transition: all .12s; text-decoration: none; color: inherit; }
+.notif-item:hover { border-color: var(--amber); background: var(--paper-2); }
+.notif-item.unread { border-left: 4px solid var(--knk-red); background: var(--paper-2); }
+.notif-icon { font-size: 20px; flex-shrink: 0; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-ttl { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.notif-msg { font-size: 12.5px; color: var(--mute); margin-top: 4px; line-height: 1.5; }
+.notif-time { font-size: 11px; color: var(--amber-deep); margin-top: 6px; font-weight: 600; }
+</style>
+</head>
+<body>
+{% set unread = items|selectattr('is_read','equalto',0)|list|length if items else 0 %}
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">알림함</div>
+      <h1 class="page-title">📢 <em>알림</em>{% if unread %} <span style="font-size:18px;color:var(--knk-red);">({{ unread }})</span>{% endif %}</h1>
     </div>
-    {% if not n.is_read %}<div class="ni-dot"></div>{% endif %}
-  </a>
-  {% endfor %}
-</div>
-{% endif %}
+    <div style="display:flex;gap:10px;">
+      {% if unread > 0 %}
+      <form method="post" action="/notifications/read-all" style="display:inline;"><button class="btn btn-secondary">✓ 모두 읽음</button></form>
+      {% endif %}
+    </div>
+  </div>
 
-<script>
-async function markRead(id){
-  await fetch('/api/notification/'+id+'/read',{method:'POST'});
-}
-async function readAll(){
-  await fetch('/api/notifications/read-all',{method:'POST'});
-  location.reload();
-}
-</script>
-{% endblock %}
+  <div style="margin: 0 var(--content-pad);">
+    {% if items %}
+      {% for n in items %}
+      <a class="notif-item {% if not n.is_read %}unread{% endif %}" href="{{ n.link|default('/home') }}">
+        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% else %}🔔{% endif %}</div>
+        <div class="notif-body">
+          <div class="notif-ttl">{{ n.title }}</div>
+          {% if n.message %}<div class="notif-msg">{{ n.message }}</div>{% endif %}
+          <div class="notif-time">{{ n.created_at }}{% if n.from_name %} · {{ n.from_name }}{% endif %}</div>
+        </div>
+        {% if not n.is_read %}<span class="pill pill-danger">NEW</span>{% endif %}
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="card empty">
+        <div class="ico">📭</div>
+        <div class="ttl">알림이 없습니다</div>
+      </div>
+    {% endif %}
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+</body>
+</html>

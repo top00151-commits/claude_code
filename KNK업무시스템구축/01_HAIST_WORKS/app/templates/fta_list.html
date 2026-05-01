@@ -1,7 +1,23 @@
-{% extends "base_sales.html" %}
-{% block title %}원산지증명서 (FTA C/O) — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FTA 원산지 목록 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">FTA 원산지 목록</div>
+      <h1 class="page-title">FTA 원산지 목록</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>원산지증명서 (FTA C/O)</h1>
   <p class="muted">KAFTA · KEUFTA · RCEP · KCFTA · KVFTA. 안지연 본업 — 검사기·자동화장비 수출 시 발급. 외부 PDF 라이브러리 0건 (HTML 인쇄).</p>
@@ -76,6 +92,10 @@
   <p class="muted" style="font-size:12px;">증명서번호는 FTA-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
   <a href="/export/fta/new" class="btn btn-primary" style="margin-top:8px;">+ 신규 발급</a>
 </div>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

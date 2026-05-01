@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}CI 상업송장 — 수출 #{{ eo.id }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CI 작성 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">CI 작성</div>
+      <h1 class="page-title">CI 작성</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>CI 상업송장 발급 — 수출 #{{ eo.id }}</h1>
   <p class="muted">
@@ -53,6 +69,10 @@
       <td>{{ it.currency }}</td><td><span class="status-tag">{{ it.status }}</span></td></tr>
   {% endfor %}</tbody>
 </table>
-{% else %}<p class="muted">미발급</p>{% endif %}
+{% else %}<p class="muted">미발급</p>{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

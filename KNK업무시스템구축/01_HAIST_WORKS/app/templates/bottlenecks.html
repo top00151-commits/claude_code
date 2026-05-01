@@ -1,6 +1,23 @@
-{% extends "base.html" %}
-{% block title %}{{ i.bn_title|default('🚨 병목 자동 감지') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>병목 분석 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">병목 분석</div>
+      <h1 class="page-title">병목 분석</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>{{ i.bn_title|default('🚨 병목 자동 감지') }}</h1>
@@ -20,5 +37,10 @@
 </div>
 {% else %}
 <div class="empty">{{ i.bn_empty|default('감지된 병목이 없습니다 👍 — 회사 흐름이 원활합니다.') }}</div>
-{% endif %}
-{% endblock %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

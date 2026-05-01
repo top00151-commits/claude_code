@@ -1,0 +1,93 @@
+{% extends "base_sales.html" %}
+{% block title %}PL 패킹리스트 — 수출 #{{ eo.id }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>PL 패킹리스트 작성 — 수출 #{{ eo.id }}</h1>
+  <p class="muted">패키지 라인 추가 → 합계 자동 산출 (qty / weight / volume).</p>
+</div>
+
+<form method="post" action="/export/pl" class="form-card" id="pl_form">
+  <input type="hidden" name="export_order_id" value="{{ eo.id }}">
+
+  <h3>라인 항목 (다중)</h3>
+  <table class="data-table" id="pl_lines">
+    <thead><tr>
+      <th>품번</th><th>수량</th><th>패키지타입</th>
+      <th>중량(kg)</th><th>용적(CBM)</th><th></th>
+    </tr></thead>
+    <tbody>
+      <tr class="pl-line">
+        <td><input type="text" name="line_part" placeholder="예: KNK-001"></td>
+        <td><input type="number" step="0.01" name="line_qty" value="0" class="line-qty"></td>
+        <td>
+          <select name="line_pkg">
+            <option value="CARTON">CARTON</option>
+            <option value="PALLET">PALLET</option>
+            <option value="WOODEN CASE">WOODEN CASE</option>
+          </select>
+        </td>
+        <td><input type="number" step="0.01" name="line_weight" value="0" class="line-weight"></td>
+        <td><input type="number" step="0.01" name="line_volume" value="0" class="line-volume"></td>
+        <td><button type="button" class="btn btn-sm" onclick="this.closest('tr').remove();">삭제</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-sm" onclick="addPlLine()" style="margin:8px 0;">+ 라인 추가</button>
+
+  <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">
+    <div class="form-row">
+      <label>총 패키지</label>
+      <input type="number" name="total_packages" id="tot_pkg" min="0" value="0">
+    </div>
+    <div class="form-row">
+      <label>총 중량 (kg)</label>
+      <input type="number" step="0.01" name="total_weight" id="tot_w" value="0">
+    </div>
+    <div class="form-row">
+      <label>총 용적 (CBM)</label>
+      <input type="number" step="0.01" name="total_volume" id="tot_v" value="0">
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top:16px;">
+    <button type="submit" class="btn btn-primary">PL 작성</button>
+    <button type="button" class="btn" onclick="recalcPl()">합계 재계산</button>
+    <a href="/export/orders/{{ eo.id }}" class="btn">취소</a>
+  </div>
+</form>
+
+<script>
+function addPlLine(){
+  const tb = document.querySelector('#pl_lines tbody');
+  const tr = tb.querySelector('.pl-line').cloneNode(true);
+  tr.querySelectorAll('input').forEach(i => { if(i.type === 'number') i.value = 0; else i.value = ''; });
+  tb.appendChild(tr);
+}
+function recalcPl(){
+  let pkg = 0, w = 0, v = 0;
+  document.querySelectorAll('#pl_lines tbody tr').forEach(tr => {
+    pkg += Number(tr.querySelector('.line-qty').value) || 0;
+    w += Number(tr.querySelector('.line-weight').value) || 0;
+    v += Number(tr.querySelector('.line-volume').value) || 0;
+  });
+  document.getElementById('tot_pkg').value = Math.round(pkg);
+  document.getElementById('tot_w').value = w.toFixed(2);
+  document.getElementById('tot_v').value = v.toFixed(2);
+}
+</script>
+
+<h3 style="margin-top:24px;">작성 이력</h3>
+{% if items %}
+<table class="data-table">
+  <thead><tr><th>PL 번호</th><th>패키지</th><th>중량(kg)</th><th>용적(CBM)</th><th>작성일</th></tr></thead>
+  <tbody>{% for it in items %}
+  <tr><td>{{ it.pl_no }}</td><td>{{ it.total_packages }}</td>
+      <td class="num">{{ '{:,.2f}'.format(it.total_weight or 0) }}</td>
+      <td class="num">{{ '{:,.2f}'.format(it.total_volume or 0) }}</td>
+      <td class="muted">{{ it.created_at }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% else %}<p class="muted">미작성</p>{% endif %}
+
+{% endblock %}

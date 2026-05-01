@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}권한 그룹 관리 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+{# Top3 S3 3차 (2026-04-26) — 권한 그룹 관리 (시안 §5 그룹 상속 ③) · JS 0건 정적 렌더 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임 홈</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--knk-red,#C8161D);">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;letter-spacing:-0.02em;">권한 그룹 관리</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">그룹별 권한 묶음 + 멤버십 (Group Inheritance ③) · 그룹 단위 위임 가능</div>
+</div>
+
+{# 상단 탭 — 4링크 #}
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:14px 20px;margin-bottom:14px;display:flex;gap:18px;">
+  <a href="/admin/permissions/grant" style="color:var(--ink-500);text-decoration:none;">보내기</a>
+  <a href="/admin/permissions/revoke" style="color:var(--ink-500);text-decoration:none;">회수/이력</a>
+  <a href="/admin/permissions/groups" style="font-weight:700;color:var(--ink-700,var(--ink));text-decoration:none;border-bottom:2px solid var(--knk-red,#C8161D);padding-bottom:2px;">그룹 관리</a>
+  <a href="/admin/permissions/matrix" style="color:var(--ink-500);text-decoration:none;">매트릭스</a>
+  <a href="/admin/permissions/audit" style="color:var(--ink-500);text-decoration:none;">감사 로그</a>
+  <a href="/admin/permissions/report/users" style="color:var(--ink-500);text-decoration:none;">리포트</a>
+</div>
+
+<div style="display:grid;grid-template-columns:280px 1fr;gap:14px;">
+  {# 좌측 — 그룹 목록 + 신규 폼 #}
+  <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:16px;">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">그룹 목록 ({{ groups|length }})</div>
+    {% if groups %}
+      {% for g in groups %}
+      <a href="/admin/permissions/groups/{{ g.id }}" style="display:block;text-decoration:none;color:inherit;padding:8px 10px;border-radius:6px;margin-bottom:4px;{% if group_detail and group_detail.id == g.id %}background:var(--bg-soft,#FAFBFC);border:1px solid var(--knk-red,#C8161D);{% else %}border:1px solid var(--ink-200,var(--line));{% endif %}">
+        <div style="font-weight:700;font-size:12px;">{{ g.name }}</div>
+        <div style="font-size:11px;color:var(--ink-500);margin-top:2px;">권한 {{ g.perm_count }} / 멤버 {{ g.user_count }}</div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div style="font-size:12px;color:var(--ink-500);padding:10px 0;">그룹이 없습니다. 우측 상단에서 신규 등록.</div>
+    {% endif %}
+
+    <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--ink-300,var(--line-strong));">
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:var(--ink-700,var(--ink));">+ 신규 그룹</div>
+      <form method="post" action="/admin/permissions/groups">
+        <input type="text" name="name" placeholder="그룹명 (예: 구매팀_매니저)" required
+               style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;margin-bottom:6px;">
+        <input type="text" name="description" placeholder="설명"
+               style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;margin-bottom:6px;">
+        <button type="submit" style="width:100%;padding:6px;font-size:12px;font-weight:700;color:#fff;background:var(--knk-red,#C8161D);border:0;border-radius:4px;cursor:pointer;">생성</button>
+      </form>
+    </div>
+  </div>
+
+  {# 우측 — 그룹 상세 #}
+  <div>
+    {% if group_detail %}
+      <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:18px;margin-bottom:14px;">
+        <div style="font-weight:800;font-size:16px;margin-bottom:4px;">{{ group_detail.name }}</div>
+        <div style="font-size:12px;color:var(--ink-500);">{{ group_detail.description or '(설명 없음)' }} · 생성 {{ group_detail.created_at }}</div>
+      </div>
+
+      {# 권한 매핑 폼 #}
+      <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:18px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">▾ 그룹 권한 ({{ group_perm_ids|length }})</div>
+        <form method="post" action="/admin/permissions/groups/{{ group_detail.id }}/permissions">
+          <div style="max-height:240px;overflow:auto;border:1px solid var(--ink-200,var(--line));border-radius:6px;padding:10px;margin-bottom:10px;">
+            {% if all_perms %}
+              {% for p in all_perms %}
+                <label style="display:block;font-size:12px;padding:3px 0;">
+                  <input type="checkbox" name="perm_id" value="{{ p.id }}" {% if p.id in group_perm_ids %}checked{% endif %}>
+                  {{ p.label }}{% if p.scope %} <span style="color:var(--ink-500);">({{ p.scope }})</span>{% endif %}
+                </label>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:12px;color:var(--ink-500);">등록된 권한이 없습니다.</div>
+            {% endif %}
+          </div>
+          <button type="submit" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--knk-red,#C8161D);border:0;border-radius:4px;cursor:pointer;">권한 매핑 저장</button>
+        </form>
+      </div>
+
+      {# 사용자 매핑 폼 #}
+      <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:18px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">▾ 그룹 멤버 ({{ group_user_ids|length }})</div>
+        <form method="post" action="/admin/permissions/groups/{{ group_detail.id }}/users">
+          <div style="max-height:240px;overflow:auto;border:1px solid var(--ink-200,var(--line));border-radius:6px;padding:10px;margin-bottom:10px;">
+            {% if all_users %}
+              {% for usr in all_users %}
+                <label style="display:block;font-size:12px;padding:3px 0;">
+                  <input type="checkbox" name="user_id" value="{{ usr.id }}" {% if usr.id in group_user_ids %}checked{% endif %}>
+                  {{ usr.name }} <span style="color:var(--ink-500);">({{ usr.login_id }})</span>
+                </label>
+              {% endfor %}
+            {% else %}
+              <div style="font-size:12px;color:var(--ink-500);">사용자 없음.</div>
+            {% endif %}
+          </div>
+          <button type="submit" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--knk-red,#C8161D);border:0;border-radius:4px;cursor:pointer;">멤버 매핑 저장</button>
+        </form>
+      </div>
+
+      {# 그룹 단위 위임 폼 #}
+      <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:18px;border-left:4px solid var(--st-progress,#FCD34D);">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">▾ 그룹 단위 위임 (멤버 전체 토큰 발행)</div>
+        <form method="post" action="/admin/permissions/grant-group">
+          <input type="hidden" name="group_id" value="{{ group_detail.id }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <input type="text" name="resource" placeholder="resource (예: stock)" required
+                   style="padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;">
+            <input type="text" name="action" placeholder="action (예: write)" required
+                   style="padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;">
+          </div>
+          <input type="date" name="expires_at" required
+                 style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;margin-bottom:8px;">
+          <input type="text" name="reason" placeholder="사유"
+                 style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--ink-300,var(--line-strong));border-radius:4px;margin-bottom:8px;">
+          <label style="font-size:11px;color:var(--ink-500);display:block;margin-bottom:8px;">
+            <input type="checkbox" name="can_redelegate" value="1"> 재위임 허용 (기본 OFF)
+          </label>
+          <button type="submit" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--knk-red,#C8161D);border:0;border-radius:4px;cursor:pointer;">그룹 멤버 전체 위임</button>
+        </form>
+      </div>
+    {% else %}
+      <div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:36px;text-align:center;color:var(--ink-500);font-size:13px;">
+        좌측에서 그룹을 선택하거나 신규 그룹을 생성하세요.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base_logi.html" %}
+{% block title %}재고 회전율 — 분석{% endblock %}
+{% block body %}
+{# Top3 S2 3차 (2026-04-26) — 재고 회전율. 출고량/평균재고. FAST/NORMAL/SLOW 3밴드 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 잔고</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">재고 회전율</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
+    최근 {{ days }}일 — 출고량 / 평균재고 · FAST(≥2) / NORMAL(0.5~2) / SLOW(&lt;0.5)
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
+  <div style="background:#fff;border:1px solid var(--st-done,var(--success));border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-done,var(--success));font-weight:700;">FAST</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ fast }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">회전 ≥ 2.0</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--st-progress,#2563EB);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-progress,#2563EB);font-weight:700;">NORMAL</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ normal }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">0.5 ≤ 회전 &lt; 2.0</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--st-delay,var(--knk-red));border-radius:12px;padding:16px;">
+    <div style="font-size:12px;color:var(--st-delay,var(--knk-red));font-weight:700;">SLOW</div>
+    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ slow }}</div>
+    <div style="font-size:11px;color:var(--ink-500);">회전 &lt; 0.5 · 정체 의심</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
+  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">부품별 회전율 ({{ items|length }}건)</div>
+  {% if items and items|length > 0 %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;">
+        <th style="padding:8px;">밴드</th><th style="padding:8px;">품번</th>
+        <th style="padding:8px;">품명</th>
+        <th style="padding:8px;text-align:right;">현 재고</th>
+        <th style="padding:8px;text-align:right;">{{ days }}일 출고</th>
+        <th style="padding:8px;text-align:right;">평균재고</th>
+        <th style="padding:8px;text-align:right;">회전율</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in items %}
+      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
+        <td style="padding:8px;">
+          {% if r.band == 'FAST' %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-done,var(--success));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">FAST</span>
+          {% elif r.band == 'NORMAL' %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-progress,#2563EB);color:#fff;border-radius:4px;font-size:11px;font-weight:700;">NORMAL</span>
+          {% else %}
+            <span style="display:inline-block;padding:2px 8px;background:var(--st-delay,var(--knk-red));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">SLOW</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px;font-family:monospace;">{{ r.part_no }}</td>
+        <td style="padding:8px;">{{ r.part_name }}</td>
+        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.on_hand or 0) }} {{ r.unit or '' }}</td>
+        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.out_qty or 0) }}</td>
+        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.avg_stock or 0) }}</td>
+        <td style="padding:8px;text-align:right;font-weight:700;">{{ '%.2f'|format(r.turnover or 0) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
+    활성 부품이 없습니다. 부품 마스터 등록 후 다시 조회해주세요.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

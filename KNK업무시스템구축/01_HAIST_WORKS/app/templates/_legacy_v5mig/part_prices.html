@@ -1,0 +1,156 @@
+{% extends "base_logi.html" %}
+{% block title %}{{ part.part_no }} 단가 이력 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>부품 단가 이력</h1>
+    <p class="muted">사이클 54 1차 · 적용일자 기반 단가 관리 · 이력 보존 (UPDATE 아닌 INSERT)</p>
+  </div>
+  <a href="/parts/{{ part.id }}" class="btn-secondary" style="padding:8px 14px;border:1px solid var(--line-strong);border-radius:6px;text-decoration:none;color:var(--ink);">← 부품 상세</a>
+</div>
+
+{% if request.query_params.get('success') %}
+<div style="background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+  단가 등록 완료
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div style="background:var(--knk-red-soft);border:1px solid var(--knk-red-soft);color:var(--knk-red-dk);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+  오류: {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<!-- 부품 + 활성 단가 요약 -->
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;">
+    <div>
+      <div style="font-size:11px;color:var(--mute);font-weight:700;">부품</div>
+      <div style="font-size:16px;font-weight:800;">{{ part.part_no }}</div>
+      <div style="font-size:12px;color:var(--mute);">{{ part.name or '' }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--mute);font-weight:700;">기본 단가 (parts.std_price)</div>
+      <div style="font-size:14px;font-family:monospace;">{{ "{:,.0f}".format(part.std_price or 0) }} {{ part.currency or 'KRW' }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--mute);font-weight:700;">활성 단가 (오늘)</div>
+      {% if active_price %}
+      <div style="font-size:14px;font-family:monospace;font-weight:700;color:var(--info);">{{ "{:,.2f}".format(active_price.unit_price) }} {{ active_price.currency }}</div>
+      <div style="font-size:11px;color:var(--mute);">{{ active_price.price_type }} · from {{ active_price.effective_from }}</div>
+      {% else %}
+      <div style="color:var(--mute-2);">미등록</div>
+      {% endif %}
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--mute);font-weight:700;">최신 확정원가 (cost)</div>
+      {% if latest_cost %}
+      <div style="font-size:14px;font-family:monospace;">{{ "{:,.2f}".format(latest_cost.unit_price) }} {{ latest_cost.currency }}</div>
+      <div style="font-size:11px;color:var(--mute);">from {{ latest_cost.effective_from }}</div>
+      {% else %}
+      <div style="color:var(--mute-2);">미등록</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 신규 단가 등록 폼 -->
+<div class="card" style="margin-bottom:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">+ 신규 단가 등록</h2>
+  <form method="post" action="/parts/{{ part.id }}/prices" style="display:grid;grid-template-columns:140px 110px 130px 110px 130px 130px 130px 110px 110px 1fr 110px;gap:10px;align-items:end;">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">공급사</label>
+      <select name="supplier_id" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        <option value="">(공급사 무관)</option>
+        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">단가 유형</label>
+      <select name="price_type" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        {% for t in PRICE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">단가</label>
+      <input type="number" name="unit_price" step="0.0001" required placeholder="예: 12500.00" style="width:100%;padding:8px 10px;border:2px solid var(--info);border-radius:6px;font-family:monospace;font-weight:700;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">통화</label>
+      <select name="currency" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        {% for c in CURRENCIES %}<option value="{{ c }}" {% if c=='KRW' %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">적용 시작일</label>
+      <input type="date" name="effective_from" required style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">적용 종료일 (선택)</label>
+      <input type="date" name="effective_to" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">협상일 (선택)</label>
+      <input type="date" name="negotiated_at" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">최소 수량 (선택)</label>
+      <input type="number" name="min_qty" step="0.01" placeholder="0" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;font-family:monospace;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">최대 수량 (선택)</label>
+      <input type="number" name="max_qty" step="0.01" placeholder="(무제한)" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;font-family:monospace;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">비고</label>
+      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:800;padding:10px 20px;">등록</button>
+  </form>
+  <p style="margin:10px 0 0;font-size:11px;color:var(--mute);">* 단가 유형: 확정 (cost/원가) · 가 (list/정가) · 견적 (export/수출가). 이력 보존 — 기존 단가는 UPDATE 되지 않고 새 행이 INSERT 됩니다. 사이클 55 S4-1: 협상일·수량 범위 입력 + price_change_history 자동 기록.</p>
+</div>
+
+<!-- 단가 이력 테이블 -->
+<div class="card" style="padding:0;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);">
+    <h2 style="margin:0;font-size:15px;font-weight:800;">단가 이력 ({{ prices|length }}건)</h2>
+  </div>
+  {% if prices %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>적용 시작일</th>
+        <th>종료일</th>
+        <th>유형</th>
+        <th>공급사</th>
+        <th style="text-align:right;">단가</th>
+        <th>통화</th>
+        <th>승인</th>
+        <th>비고</th>
+        <th>등록자</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in prices %}
+      <tr>
+        <td style="font-family:monospace;">{{ p.effective_from }}</td>
+        <td style="font-family:monospace;color:var(--mute);">{{ p.effective_to or '무기한' }}</td>
+        <td style="font-weight:700;">{{ p.price_type }}</td>
+        <td>{{ p.supplier_name or '(무관)' }}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.2f}".format(p.unit_price) }}</td>
+        <td>{{ p.currency }}</td>
+        <td style="font-size:11px;">
+          {% if p.approved_at %}<span style="color:var(--success);font-weight:700;">승인</span> · {{ p.approved_by_name or '' }}{% else %}<span style="color:var(--mute-2);">대기</span>{% endif %}
+        </td>
+        <td style="font-size:11px;color:var(--mute);">{{ p.note or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ p.created_by_name or '-' }} · {{ p.created_at[:10] if p.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">단가 이력 없음 — 위 폼으로 등록하세요</div>
+  {% endif %}
+</div>
+
+{% endblock %}

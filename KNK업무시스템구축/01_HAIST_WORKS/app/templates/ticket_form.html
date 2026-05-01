@@ -1,200 +1,74 @@
-{% extends "base.html" %}
-{% block title %}티켓 등록 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
-
-<div class="page-head">
-  <h1>요청 티켓 등록 <span style="font-size:var(--text-sm);color:#6B7280;font-weight:500;margin-left:8px;">매뉴얼 0 — 카테고리만 고르면 자동 라우팅</span></h1>
-  <p class="muted">자재요청·긴급가공·MODIFY·검수요청·AS — 카테고리에 따라 수신 부서가 자동 결정됩니다.</p>
-</div>
-
-<form method="post" action="/tickets/new" style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:0;overflow:hidden;">
-
-  <!-- 진행 표시 -->
-  <div style="display:flex;background:#F9FAFB;border-bottom:1px solid #E5E7EB;">
-    <div data-step="1" class="step-ind active" style="flex:1;padding:14px;text-align:center;font-size:var(--text-xs);font-weight:700;color:#A5282C;border-bottom:3px solid #A5282C;background:#fff;">① 종류</div>
-    <div data-step="2" class="step-ind" style="flex:1;padding:14px;text-align:center;font-size:var(--text-xs);font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">② 내용</div>
-    <div data-step="3" class="step-ind" style="flex:1;padding:14px;text-align:center;font-size:var(--text-xs);font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">③ 수신/일정</div>
-    <div data-step="4" class="step-ind" style="flex:1;padding:14px;text-align:center;font-size:var(--text-xs);font-weight:700;color:#9CA3AF;border-bottom:3px solid transparent;">④ 등록</div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if ticket %}티켓 수정{% else %}티켓 발행{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-sm); }
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: span 2; }
+.field label { font-size: 12px; font-weight: 600; color: var(--ink); }
+.field label .req { color: var(--knk-red); }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.field textarea { min-height: 100px; resize: vertical; }
+</style>
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/tickets">티켓</a> · <b>{% if ticket %}수정{% else %}새 티켓{% endif %}</b></div>
+    <h1 class="page-title">{% if ticket %}티켓 #{{ ticket.id }} 수정{% else %}새 <em>티켓</em> 발행{% endif %}</h1></div>
   </div>
 
-  <!-- Step 1 -->
-  <div class="step step-1 active" style="padding:28px;">
-    <h2 style="font-size:var(--text-lg);font-weight:800;margin:0 0 8px;">어떤 요청인가요?</h2>
-    <p style="color:#6B7280;font-size:var(--text-sm);margin:0 0 20px;">카테고리를 선택하면 수신 부서가 자동 라우팅됩니다.</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
-      {% set RT = {'자재요청': '구매팀', '긴급가공': '가공팀', 'MODIFY': '설계팀', '검수요청': '품질팀', 'AS': '검사기/자동화팀', '기타': '미지정'} %}
-      {% for c in TICKET_CATEGORIES %}
-      <label class="cat-card" style="cursor:pointer;display:block;padding:18px;border:2px solid #E5E7EB;border-radius:12px;text-align:center;background:#fff;transition:all .15s;">
-        <input type="radio" name="category" value="{{ c }}" required style="display:none;" onchange="selectCat(this)">
-        <div style="font-size:var(--text-md);font-weight:700;color:#1A1A1A;">{{ c }}</div>
-        <div style="font-size:var(--text-xs);color:#9CA3AF;margin-top:4px;">→ {{ RT.get(c, '미지정') }}</div>
-      </label>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Step 2 -->
-  <div class="step step-2" style="padding:28px;display:none;">
-    <h2 style="font-size:var(--text-lg);font-weight:800;margin:0 0 8px;">내용을 입력하세요</h2>
-    <p style="color:#6B7280;font-size:var(--text-sm);margin:0 0 20px;">제목 한 줄 + 상세 설명이면 충분합니다.</p>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">제목 <span style="color:#A5282C">*</span></label>
-        <input type="text" name="title" required placeholder="예: 검사기 ICT 푸시블럭 5개 긴급 가공 요청"
-               style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-md);margin-top:6px;font-weight:600;">
-      </div>
-      <div>
-        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">상세 설명</label>
-        <textarea name="description" rows="4" placeholder="요청 사항, 사양, 수량, 첨부파일 경로 등"
-                  style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;resize:vertical;"></textarea>
-      </div>
-      <div>
-        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">대상 라벨 (자유 입력)</label>
-        <input type="text" name="target_label" placeholder="예: PRT-2026-0001 / DWG-T-001-Rev3 / 자유"
-               style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-      </div>
-    </div>
-  </div>
-
-  <!-- Step 3 -->
-  <div class="step step-3" style="padding:28px;display:none;">
-    <h2 style="font-size:var(--text-lg);font-weight:800;margin:0 0 8px;">수신 부서와 일정</h2>
-    <p style="color:#6B7280;font-size:var(--text-sm);margin:0 0 20px;">관리코드를 선택하면 사업부도 자동 인식됩니다.</p>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">관리코드 (선택)</label>
-        <select name="project_id" id="projectSelect" onchange="onProjectChange(this)" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-          <option value="">— 관리코드 선택 (또는 비움) —</option>
-          {% for p in projects %}
-          <option value="{{ p.id }}" data-biz="{{ p.biz_div }}">{{ p.mgmt_code }} · {{ p.name }} {% if p.customer_name %}({{ p.customer_name }}){% endif %}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div>
-          <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">사업부 (AS 라우팅용)</label>
-          <select name="biz_div" id="bizDivSelect" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-            <option value="">선택 안 함</option>
-            <option value="T">검사기 (T)</option>
-            <option value="M">자동화 (M)</option>
+  <form method="post" action="{% if ticket %}/tickets/{{ ticket.id }}/edit{% else %}/tickets/new{% endif %}">
+    <div class="form-card">
+      <div class="field-row">
+        <div class="field"><label>분류 <span class="req">*</span></label>
+          <select name="category" required>
+            <option value="">— 선택 —</option>
+            {% for c in TICKET_CATEGORIES %}<option value="{{ c }}" {% if ticket and ticket.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div>
-          <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">수신 부서 (직접 지정 - 선택)</label>
-          <select name="recipient_team_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-            <option value="">자동 라우팅</option>
-            {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        <div class="field"><label>긴급도 <span class="req">*</span></label>
+          <select name="urgency" required>
+            {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}" {% if (ticket and ticket.urgency == u_) or (not ticket and u_ == '보통') %}selected{% endif %}>{{ u_ }}</option>{% endfor %}
           </select>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
-        <div>
-          <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">긴급도</label>
-          <select name="urgency" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-            {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}">{{ u_ }}</option>{% endfor %}
+      <div class="field-row">
+        <div class="field full"><label>제목 <span class="req">*</span></label>
+          <input type="text" name="title" required value="{{ ticket.title|default('') }}" placeholder="요청 사항을 한 줄로">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>상세 설명</label>
+          <textarea name="description" placeholder="상세 내용 / 배경 / 요청 결과">{{ ticket.description|default('') }}</textarea>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>담당 팀 (선택)</label>
+          <select name="assignee_team_id">
+            <option value="">— 자동 배정 —</option>
+            {% for t in teams %}<option value="{{ t.id }}" {% if ticket and ticket.assignee_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
           </select>
         </div>
-        <div>
-          <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">희망 완료일</label>
-          <input type="date" name="due_date" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-        </div>
-        <div>
-          <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">예상 시간 (h)</label>
-          <input type="number" name="hours_estimated" step="0.5" min="0" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
+        <div class="field"><label>관련 프로젝트 (선택)</label>
+          <select name="project_id">
+            <option value="">— 없음 —</option>
+            {% for p in projects %}<option value="{{ p.id }}" {% if ticket and ticket.project_id == p.id %}selected{% endif %}>{{ p.name }}{% if p.mgmt_code %} ({{ p.mgmt_code }}){% endif %}</option>{% endfor %}
+          </select>
         </div>
       </div>
-      <div>
-        <label style="font-size:var(--text-xs);font-weight:700;color:#6B7280;">출처 (Source)</label>
-        <select name="source" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-top:6px;">
-          <option value="web">web (직접 등록)</option>
-          <option value="카톡">카톡 (수동 변환)</option>
-          <option value="메일">메일</option>
-          <option value="전화">전화</option>
-        </select>
-      </div>
-
-      {# B: 하이웍스 결재 URL 첨부 (선택) #}
-      <div style="margin-top:14px;padding:12px 14px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;">
-        <label style="font-size:var(--text-xs);font-weight:800;color:#312E81;display:block;margin-bottom:4px;">📋 하이웍스 결재 URL <span style="font-weight:500;color:#6B7280;">(선택 — 구매요청·휴가 등 결재 동반 시)</span></label>
-        <input type="url" name="approval_url" placeholder="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}..." style="width:100%;padding:10px 12px;border:1px solid #C7D2FE;border-radius:8px;font-size:var(--text-sm);font-family:monospace;background:#fff;">
+      <div class="field-row">
+        <div class="field"><label>희망 기한</label>
+          <input type="date" name="deadline" value="{{ ticket.deadline|default('') }}">
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Step 4 -->
-  <div class="step step-4" style="padding:28px;display:none;">
-    <h2 style="font-size:var(--text-lg);font-weight:800;margin:0 0 8px;">최종 확인 후 등록</h2>
-    <div id="finalSummary" style="padding:18px;background:#F9FAFB;border-radius:10px;font-size:var(--text-sm);line-height:1.8;">불러오는 중...</div>
-    <div style="margin-top:20px;padding:16px;background:#FFF8E1;border-radius:10px;">
-      <div style="font-size:var(--text-xs);font-weight:700;color:#F57F17;margin-bottom:8px;">📡 자동 처리 (확실히 동작)</div>
-      <div style="font-size:var(--text-sm);color:#1A1A1A;line-height:1.8;">
-        ✅ 자동 라우팅: 카테고리·사업부 → 적합 부서 자동 배정<br>
-        ✅ 수신 부서원 web 알림 (사이드바 🔔 뱃지)<br>
-        ✅ 상태 변경 시 요청자에게 자동 알림<br>
-        ✅ 티켓번호 자동 채번 (TKT-YYMMDD-NNN)
-      </div>
-      <div style="margin-top:10px;padding:10px 12px;background:#FFF;border-left:3px solid #6B7280;border-radius:4px;font-size:var(--text-xs);color:#6B7280;">
-        <strong>⚠️ 외부 메신저 푸시는 현재 OFF</strong>
-        — <a href="/admin/settings" style="color:#4338CA;font-weight:700;">관리자 설정</a>에서 하이웍스 토큰 입력 시 활성화됩니다.
-      </div>
+    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/tickets">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if ticket %}저장{% else %}티켓 발행{% endif %}</button>
     </div>
-  </div>
-
-  <div style="padding:20px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB;display:flex;justify-content:space-between;align-items:center;">
-    <a href="/tickets" style="font-size:var(--text-sm);color:#6B7280;text-decoration:none;">← 취소</a>
-    <div style="display:flex;gap:8px;">
-      <button type="button" id="prevBtn" onclick="goPrev()" style="display:none;padding:10px 20px;border:1px solid #D1D5DB;background:#fff;border-radius:8px;cursor:pointer;font-weight:600;">← 이전</button>
-      <button type="button" id="nextBtn" onclick="goNext()" style="padding:10px 24px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">다음 →</button>
-      <button type="submit" id="submitBtn" style="display:none;padding:10px 32px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:var(--text-md);">🎫 티켓 등록</button>
-    </div>
-  </div>
-</form>
-
-<script>
-let cs = 1, ts = 4;
-function selectCat(input) {
-  document.querySelectorAll('.cat-card').forEach(c => { c.style.borderColor='#E5E7EB'; c.style.background='#fff'; });
-  const card = input.closest('.cat-card');
-  card.style.borderColor = '#A5282C'; card.style.background = '#FFEBEE';
-  setTimeout(() => goNext(), 250);
-}
-function onProjectChange(sel) {
-  const opt = sel.options[sel.selectedIndex];
-  if (opt.value && opt.dataset.biz) document.getElementById('bizDivSelect').value = opt.dataset.biz;
-}
-function goNext() {
-  if (cs === 1 && !document.querySelector('input[name=category]:checked')) { alert('카테고리 선택'); return; }
-  if (cs === 2 && !document.querySelector('input[name=title]').value.trim()) { alert('제목 입력'); return; }
-  if (cs < ts) { cs++; show(cs); if (cs === 4) summary(); }
-}
-function goPrev() { if (cs > 1) { cs--; show(cs); } }
-function show(n) {
-  document.querySelectorAll('.step').forEach(s => s.style.display='none');
-  document.querySelector('.step-'+n).style.display='block';
-  document.querySelectorAll('.step-ind').forEach(ind => {
-    const sn = parseInt(ind.dataset.step);
-    if (sn === n) { ind.style.color='#A5282C'; ind.style.borderBottomColor='#A5282C'; ind.style.background='#fff'; }
-    else { ind.style.color='#9CA3AF'; ind.style.borderBottomColor='transparent'; ind.style.background='#F9FAFB'; }
-  });
-  document.getElementById('prevBtn').style.display = n>1 ? 'inline-block' : 'none';
-  document.getElementById('nextBtn').style.display = n<ts ? 'inline-block' : 'none';
-  document.getElementById('submitBtn').style.display = n===ts ? 'inline-block' : 'none';
-}
-function summary() {
-  const cat = document.querySelector('input[name=category]:checked')?.value || '-';
-  const title = document.querySelector('input[name=title]').value || '-';
-  const tgt = document.querySelector('input[name=target_label]').value || '-';
-  const urg = document.querySelector('select[name=urgency]').value;
-  const due = document.querySelector('input[name=due_date]').value || '미정';
-  const RT = {'자재요청':'구매팀','긴급가공':'가공팀','MODIFY':'설계팀','검수요청':'품질팀','AS':'검사기/자동화팀','기타':'미지정'};
-  document.getElementById('finalSummary').innerHTML = `
-    <div><strong>종류:</strong> ${cat} → 자동 라우팅: <strong style="color:#A5282C">${RT[cat]||'-'}</strong></div>
-    <div><strong>제목:</strong> ${title}</div>
-    <div><strong>대상:</strong> <span style="font-family:monospace;color:#6B7280">${tgt}</span></div>
-    <div><strong>긴급도:</strong> ${urg === '긴급' ? '🔴 긴급' : urg} <span style="margin-left:12px;"><strong>납기:</strong> ${due}</span></div>
-  `;
-}
-show(1);
-</script>
-
-{% endblock %}
+  </form>
+</main></div></body></html>

@@ -1,86 +1,77 @@
-{% extends "base_logi.html" %}
-{% block title %}부품 마스터 — {{ app_name }}{% endblock %}
-{% block body %}
-
-<div class="page-head row-between">
-  <div>
-    <h1>부품 마스터</h1>
-    <p class="muted">완성품 · 자재 · 소모품 통합 등록 · 검색 · 수정</p>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>자재 마스터 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>자재 마스터</b></div>
+      <h1 class="page-title">자재 <em>마스터</em></h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/parts/import">📥 일괄 등록</a>
+      <a class="btn btn-primary" href="/parts/new">＋ 자재 등록</a>
+    </div>
   </div>
-  <a href="/parts/new" class="btn btn-primary">+ 부품 등록</a>
-</div>
 
-<form method="get" action="/parts" class="filter-bar">
-  <input type="text" name="q" value="{{ q }}" placeholder="부품번호 / 품명 / 규격 / 메이커 검색">
-  <select name="biz_div">
-    <option value="">전체 사업부</option>
-    <option value="T" {% if biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
-    <option value="M" {% if biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
-    <option value="공통" {% if biz_div == '공통' %}selected{% endif %}>공통</option>
-  </select>
-  <select name="category">
-    <option value="">전체 분류</option>
-    <option value="완성품" {% if category == '완성품' %}selected{% endif %}>완성품</option>
-    <option value="자재" {% if category == '자재' %}selected{% endif %}>자재</option>
-    <option value="소모품" {% if category == '소모품' %}selected{% endif %}>소모품</option>
-  </select>
-  <button type="submit" class="btn">검색</button>
-  <a href="/parts" class="btn btn-ghost">초기화</a>
-</form>
+  <!-- 필터 -->
+  <form class="qa-bar" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);" method="get" action="/parts">
+    <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 / 사양 검색…" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
+    <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+      <option value="">사업부 전체</option>
+      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🔧 자재 (M)</option>
+      <option value="T" {% if biz_div=='T' %}selected{% endif %}>⚙ 가공 (T)</option>
+    </select>
+    <button type="submit" class="btn btn-primary">🔍 검색</button>
+    {% if q or biz_div or category %}<a class="btn btn-secondary" href="/parts">초기화</a>{% endif %}
+  </form>
 
-<div class="card no-pad">
-  <table class="table table-data">
-    <thead>
-      <tr>
-        <th>NO</th>
-        <th>부품번호</th>
-        <th>품명</th>
-        <th>규격</th>
-        <th class="ta-right">현재고 ⭐</th>
-        <th class="ta-right">안전재고</th>
-        <th>단위</th>
-        <th class="ta-right">표준단가</th>
-        <th>사업부</th>
-        <th>분류</th>
-        <th>관리</th>
-      </tr>
-    </thead>
-    <tbody>
+  <!-- 테이블 -->
+  <div class="tbl-wrap">
+    {% if parts %}
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>자재명 · 사양</th>
+          <th class="center">사업부</th>
+          <th class="center">분류</th>
+          <th class="num">단가</th>
+          <th class="center">단위</th>
+          <th class="center">상태</th>
+        </tr>
+      </thead>
+      <tbody>
       {% for p in parts %}
-      {% set stock = p.stock_qty or 0 %}
-      {% set safety = p.safety_stock or 0 %}
-      {% set low = safety > 0 and stock < safety %}
-      <tr {% if low %}style="background:#FEF2F2;"{% endif %}>
-        <td>{{ loop.index }}</td>
-        <td class="mono">{{ p.part_no }}</td>
-        <td class="ta-left">
-          <a href="/parts/{{ p.id }}" style="text-decoration:none;color:#1A1A1A;"><strong>{{ p.part_name }}</strong></a>
-          {% if p.spec %}<div style="font-size:10px;color:#6B7280;">{{ p.spec }}</div>{% endif %}
-        </td>
-        <td class="ta-left" style="font-size:11px;color:#6B7280;">{{ p.maker or '-' }}{% if p.origin %} · {{ p.origin }}{% endif %}</td>
-        <td class="ta-right mono" style="font-weight:800;color:{% if low %}#DC2626{% elif stock > 0 %}#2E7D32{% else %}#9CA3AF{% endif %};">
-          {{ "%g"|format(stock) }}{% if low %} 🔴{% endif %}
-        </td>
-        <td class="ta-right mono" style="color:#6B7280;font-size:11px;">{% if safety > 0 %}{{ "%g"|format(safety) }}{% else %}-{% endif %}</td>
-        <td>{{ p.unit }}</td>
-        <td class="ta-right mono">
-          {% if p.currency == 'USD' %}${{ '{:,.2f}'.format(p.std_price) }}{% else %}₩{{ '{:,.0f}'.format(p.std_price) }}{% endif %}
-        </td>
-        <td>{{ p.biz_div or '-' }}</td>
-        <td>{{ p.category or '-' }}</td>
-        <td class="actions" style="white-space:nowrap;">
-          <a href="/stock/movements?part_id={{ p.id }}" class="btn-sm" style="background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;">📒 이력</a>
-          <a href="/stock/issue?part_id={{ p.id }}" class="btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;">📤 출고</a>
-          <a href="/parts/{{ p.id }}/edit" class="btn-sm">수정</a>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="13" class="empty">등록된 부품이 없습니다. <a href="/parts/new">+ 부품 등록</a>으로 시작하세요.</td></tr>
+        <tr onclick="location.href='/parts/{{ p.id }}'">
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.code|default('—') }}</td>
+          <td><b>{{ p.name|default('—') }}</b>{% if p.spec %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ p.spec }}</div>{% endif %}</td>
+          <td class="center"><span class="pill pill-muted">{{ p.biz_div|default('—') }}</span></td>
+          <td class="center" style="font-size:12px;color:var(--mute);">{{ p.category|default('—') }}</td>
+          <td class="num">{% if p.unit_price %}{{ '{:,.0f}'.format(p.unit_price) }}{% else %}—{% endif %}</td>
+          <td class="center" style="font-size:12px;">{{ p.unit|default('—') }}</td>
+          <td class="center">{% if p.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <div class="ico">📊</div>
+      <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 자재가 없습니다{% endif %}</div>
+      <div style="margin-top:14px;"><a class="btn btn-primary" href="/parts/new">＋ 첫 자재 등록</a></div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
-
-<p class="muted ta-right">총 {{ parts|length }}건</p>
-
-{% endblock %}
+</body>
+</html>

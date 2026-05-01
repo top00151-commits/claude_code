@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}회사 정보 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+{# 사이클 61 (2026-04-27) — 견적서 헤더용 회사 식별 정보 입력 (대표 직접) #}
+{# 저장: app_settings 테이블 / 외부 자산 0건 / admin·ceo 전용 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin" style="font-size:var(--text-sm);color:var(--mute);text-decoration:none;">← 관리자 홈</a>
+</div>
+
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--success);"><!-- S2-D1: var(--success) → var(--success) sage-700 -->
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🏢 회사 식별 정보</h1>
+  <div style="font-size:var(--text-sm);color:var(--mute);">견적서 등 거래처에 송부되는 공식 문서 헤더에 자동 반영됩니다.</div>
+  {% if saved and saved|int > 0 %}
+  <div style="margin-top:12px;background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">
+    ✓ {{ saved }}개 항목이 저장되었습니다.
+  </div>
+  {% endif %}
+  <div style="margin-top:12px;background:#F0F5EB;border-left:3px solid #C9A961;color:var(--success);padding:10px 14px;border-radius:6px;font-size:var(--text-xs);line-height:1.6;"><!-- S2-D1: Tailwind amber → sage+gold (FEF3C7→F0F5EB / F59E0B→C9A961 / 92400E→3F5C44) -->
+    <strong>안내</strong>: 사업자등록번호·주소·연락처는 사업자등록증 원본 기준 정확한 값을 입력하세요.<br>
+    미입력 항목은 견적서에 <code>[등록 대기]</code>로 표시되어 거래처가 식별 불가합니다.
+  </div>
+</div>
+
+<form method="post" action="/admin/company-info">
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:var(--text-md);font-weight:800;color:var(--success);">📝 회사 정보 입력</h2><!-- S2-D1: var(--success) → var(--success) sage-700 -->
+
+    {% for key, label, default in keys %}
+    <div style="margin-bottom:14px;">
+      <label style="font-size:var(--text-xs);font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">{{ label }}
+        <span style="font-family:monospace;font-size:var(--text-xs);color:var(--mute-2);font-weight:500;">{{ key }}</span>
+      </label>
+      <input type="text" name="k_{{ key }}"
+             value="{{ current.get(key, '') }}"
+             placeholder="{% if default %}예: {{ default }}{% else %}(필수 — 사업자등록증 기준){% endif %}"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:var(--text-sm);">
+      {% if default and not current.get(key) %}
+      <div style="font-size:var(--text-xs);color:var(--mute-2);margin-top:3px;">미입력 시 기본값: <code>{{ default }}</code></div>
+      {% elif not default and not current.get(key) %}
+      <div style="font-size:var(--text-xs);color:var(--knk-red);margin-top:3px;">⚠ 미입력 — 견적서에 <code>[등록 대기]</code>로 표시됩니다.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:30px;">
+    <a href="/admin" style="padding:10px 20px;border:1px solid var(--line-strong);border-radius:8px;color:var(--mute);text-decoration:none;font-weight:700;">취소</a>
+    <button type="submit" style="background:linear-gradient(135deg,#5D7F61,var(--success));color:#fff;border:none;padding:10px 28px;border-radius:8px;font-weight:800;cursor:pointer;box-shadow:0 4px 10px rgba(63,92,68,.3);"><!-- S2-D1: Tailwind green grad → sage-500/700 grad / rgba 22,163,74→63,92,68 -->
+      저장
+    </button>
+  </div>
+</form>
+
+{% endblock %}

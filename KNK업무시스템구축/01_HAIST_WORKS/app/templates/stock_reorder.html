@@ -1,6 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}발주 추천 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재발주 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">재발주</div>
+      <h1 class="page-title">재발주</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# 사이클 51 S2-4차 (2026-04-27) — 재발주점 미달 부품 + 권장 발주량 + 우선순위 #}
 
 <div style="margin-bottom:14px;">
@@ -9,7 +26,7 @@
   <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">재고 잔고</a>
 </div>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:14px;padding:24px;margin-bottom:18px;">
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
   <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">발주 추천</h1>
   <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
     재발주점(reorder_point) 미달 부품 자동 추출 · 부족율 기준 우선순위 분류.
@@ -19,12 +36,12 @@
 {# KPI 3종 — HIGH / MID / LOW 카운트 #}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">
   <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;">
-    <div style="font-size:11px;color:#991B1B;font-weight:700;">HIGH (부족율 ≥50%)</div>
-    <div style="font-size:24px;font-weight:800;color:#991B1B;margin-top:4px;">{{ high_cnt|default(0) }}</div>
+    <div style="font-size:11px;color:var(--knk-red-dk);font-weight:700;">HIGH (부족율 ≥50%)</div>
+    <div style="font-size:24px;font-weight:800;color:var(--knk-red-dk);margin-top:4px;">{{ high_cnt|default(0) }}</div>
   </div>
   <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:14px;">
-    <div style="font-size:11px;color:#92400E;font-weight:700;">MID (20~50%)</div>
-    <div style="font-size:24px;font-weight:800;color:#92400E;margin-top:4px;">{{ mid_cnt|default(0) }}</div>
+    <div style="font-size:11px;color:var(--amber-deep);font-weight:700;">MID (20~50%)</div>
+    <div style="font-size:24px;font-weight:800;color:var(--amber-deep);margin-top:4px;">{{ mid_cnt|default(0) }}</div>
   </div>
   <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px;">
     <div style="font-size:11px;color:#1E40AF;font-weight:700;">LOW (&lt;20%)</div>
@@ -42,7 +59,7 @@
 </div>
 {% endif %}
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,#E5E7EB);border-radius:12px;padding:20px;">
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
   <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:12px;">
     발주 추천 목록 ({{ items|length }}건)
   </div>
@@ -50,7 +67,7 @@
   <div style="overflow-x:auto;">
   <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:920px;">
     <thead>
-      <tr style="border-bottom:1px solid var(--ink-200,#E5E7EB);text-align:left;background:#F9FAFB;">
+      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;background:var(--paper);">
         <th style="padding:8px;">우선순위</th>
         <th style="padding:8px;">품번</th>
         <th style="padding:8px;">품명</th>
@@ -65,12 +82,12 @@
     </thead>
     <tbody>
       {% for r in items %}
-      <tr style="border-bottom:1px solid var(--ink-100,#F3F4F6);">
+      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
         <td style="padding:8px;">
           {% if r.priority == 'HIGH' %}
-          <span style="display:inline-block;padding:3px 8px;background:#FEE2E2;color:#991B1B;border-radius:6px;font-size:11px;font-weight:700;">HIGH</span>
+          <span style="display:inline-block;padding:3px 8px;background:var(--knk-red-soft);color:var(--knk-red-dk);border-radius:6px;font-size:11px;font-weight:700;">HIGH</span>
           {% elif r.priority == 'MID' %}
-          <span style="display:inline-block;padding:3px 8px;background:#FEF3C7;color:#92400E;border-radius:6px;font-size:11px;font-weight:700;">MID</span>
+          <span style="display:inline-block;padding:3px 8px;background:var(--amber-glow);color:var(--amber-deep);border-radius:6px;font-size:11px;font-weight:700;">MID</span>
           {% else %}
           <span style="display:inline-block;padding:3px 8px;background:#DBEAFE;color:#1E40AF;border-radius:6px;font-size:11px;font-weight:700;">LOW</span>
           {% endif %}
@@ -112,12 +129,17 @@
           out.style.color = '#065F46';
         } else {
           out.textContent = '실패: ' + (d.error || 'unknown');
-          out.style.color = '#991B1B';
+          out.style.color = 'var(--knk-red-dk)';
         }
       })
-      .catch(function(e){ out.textContent = '오류: ' + e; out.style.color = '#991B1B'; })
+      .catch(function(e){ out.textContent = '오류: ' + e; out.style.color = 'var(--knk-red-dk)'; })
       .finally(function(){ btn.disabled = false; btn.textContent = '알림 트리거 실행 (관리자)'; });
   });
 })();
-</script>
-{% endblock %}
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

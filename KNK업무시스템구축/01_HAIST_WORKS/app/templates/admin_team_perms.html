@@ -1,7 +1,23 @@
-{% extends "base.html" %}
-{% block title %}{{ team.name }} 팀원 권한 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>팀 권한 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">팀 권한</div>
+      <h1 class="page-title">팀 권한</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# ─── ① 페이지 헤더 (sage breadcrumb + accent + lock) ─── #}
 <div class="page-head">
   <div class="page-title">
@@ -169,7 +185,7 @@
     </div>
 
     {# 관리 (CEO/admin 전용 컬럼) #}
-    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #A5282C;background:rgba(165,40,44,.03);">
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid var(--knk-red);background:rgba(165,40,44,.03);">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="font-size:18px;">⚙</span>
         <b style="color:var(--accent);font-size:13px;">관리 (is_admin) — CEO/admin 만 부여 가능</b>
@@ -247,7 +263,7 @@
           <td style="white-space:nowrap;min-width:180px;">
             <div style="display:flex;align-items:center;gap:10px;">
               <div style="width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0;
-                {% if m.role in ['ceo','admin'] %}background:linear-gradient(135deg,#A5282C,#8B1E22);
+                {% if m.role in ['ceo','admin'] %}background:linear-gradient(135deg,var(--knk-red),#8B1E22);
                 {% elif m.role == 'executive' %}background:linear-gradient(135deg,#C9A961,#A38635);
                 {% else %}background:linear-gradient(135deg,#7FA183,#5D7F61);{% endif %}">{{ m.name[:1] }}</div>
               <div style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">
@@ -367,6 +383,10 @@
     </div>
   </div>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

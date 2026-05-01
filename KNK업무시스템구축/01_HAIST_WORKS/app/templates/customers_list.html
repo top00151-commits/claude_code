@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>고객사 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>고객사</b></div><h1 class="page-title">🏢 <em>고객사</em></h1></div>
+    <a class="btn btn-primary" href="/customers/new">＋ 고객사 등록</a>
+  </div>
+
+  <div class="tbl-wrap">
+    {% if customers %}
+    <table class="tbl">
+      <thead><tr><th style="width:60px;">ID</th><th>고객사명</th><th>사업자번호</th><th>대표</th><th>담당자</th><th class="center">등급</th><th class="center">상태</th></tr></thead>
+      <tbody>
+      {% for c in customers %}
+        <tr onclick="location.href='/customer/{{ c.id }}'">
+          <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
+          <td><b>{{ c.name }}</b></td>
+          <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.business_no|default('—') }}</td>
+          <td>{{ c.ceo_name|default('—') }}</td>
+          <td>{{ c.contact_person|default('—') }}{% if c.phone %}<div style="font-size:11px;color:var(--mute);">📞 {{ c.phone }}</div>{% endif %}</td>
+          <td class="center">{% if c.tier %}<span class="pill {% if c.tier == 'A' %}pill-danger{% elif c.tier == 'B' %}pill-warn{% else %}pill-muted{% endif %}">{{ c.tier }}</span>{% else %}—{% endif %}</td>
+          <td class="center">{% if c.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">🏢</div><div class="ttl">등록된 고객사가 없습니다</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/customers/new">＋ 첫 고객사</a></div></div>{% endif %}
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

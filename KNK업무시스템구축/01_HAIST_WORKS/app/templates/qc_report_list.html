@@ -1,27 +1,43 @@
-{% extends "base.html" %}
-{% block title %}검사기 출하성적서 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QC 보고서 목록 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">QC 보고서 목록</div>
+      <h1 class="page-title">QC 보고서 목록</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/qms" style="font-size:13px;color:#6B7280;text-decoration:none;">← QMS 대시</a>
-  · <a href="/qms/recurrence" style="font-size:13px;color:#6B7280;text-decoration:none;">재발 추적</a>
-  · <a href="/qms/pareto" style="font-size:13px;color:#6B7280;text-decoration:none;">Pareto 분석</a>
-  · <a href="/qms/capa" style="font-size:13px;color:#6B7280;text-decoration:none;">CAPA 관리</a>
-  · <a href="/qc/inspection-reports" style="font-size:13px;color:#A5282C;text-decoration:none;font-weight:700;">검사기 출하성적서</a>
+  <a href="/qms" style="font-size:13px;color:var(--mute);text-decoration:none;">← QMS 대시</a>
+  · <a href="/qms/recurrence" style="font-size:13px;color:var(--mute);text-decoration:none;">재발 추적</a>
+  · <a href="/qms/pareto" style="font-size:13px;color:var(--mute);text-decoration:none;">Pareto 분석</a>
+  · <a href="/qms/capa" style="font-size:13px;color:var(--mute);text-decoration:none;">CAPA 관리</a>
+  · <a href="/qc/inspection-reports" style="font-size:13px;color:var(--knk-red);text-decoration:none;font-weight:700;">검사기 출하성적서</a>
 </div>
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #1976D2;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--info);">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-    <span style="font-family:var(--font-mono);font-size:13px;color:#1976D2;font-weight:800;background:#E3F2FD;padding:4px 10px;border-radius:6px;">QCR</span>
-    <span style="font-size:11px;color:#6B7280;">검사기 출하성적서 · 김정록 본업 (반복성·정확도·통신·외관·동작·안전)</span>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--info);font-weight:800;background:var(--paper-warm);padding:4px 10px;border-radius:6px;">QCR</span>
+    <span style="font-size:11px;color:var(--mute);">검사기 출하성적서 · 김정록 본업 (반복성·정확도·통신·외관·동작·안전)</span>
   </div>
   <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">검사기 출하성적서 (QC Inspection Report)</h1>
-  <p style="margin:4px 0 0;color:#6B7280;font-size:13px;">출하 전 검사기 반복성·정확도 검증 후 고객사에 발행. 외부 PDF 라이브러리 0건 (HTML 인쇄).</p>
+  <p style="margin:4px 0 0;color:var(--mute);font-size:13px;">출하 전 검사기 반복성·정확도 검증 후 고객사에 발행. 외부 PDF 라이브러리 0건 (HTML 인쇄).</p>
 </div>
 
 <form method="get" action="/qc/inspection-reports" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-  <label style="font-size:12px;color:#6B7280;">상태
-    <select name="status" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid #D1D5DB;border-radius:6px;">
+  <label style="font-size:12px;color:var(--mute);">상태
+    <select name="status" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--line-strong);border-radius:6px;">
       <option value="">전체</option>
       <option value="DRAFT" {% if filter_status=='DRAFT' %}selected{% endif %}>DRAFT</option>
       <option value="ISSUED" {% if filter_status=='ISSUED' %}selected{% endif %}>ISSUED</option>
@@ -29,59 +45,59 @@
       <option value="CANCELLED" {% if filter_status=='CANCELLED' %}selected{% endif %}>CANCELLED</option>
     </select>
   </label>
-  <label style="font-size:12px;color:#6B7280;">종합판정
-    <select name="overall" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid #D1D5DB;border-radius:6px;">
+  <label style="font-size:12px;color:var(--mute);">종합판정
+    <select name="overall" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--line-strong);border-radius:6px;">
       <option value="">전체</option>
       {% for code, label in QC_OVERALL_OPTIONS %}
       <option value="{{ code }}" {% if filter_overall==code %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   </label>
-  <a href="/qc/inspection-reports/new" style="background:#1976D2;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">+ 신규 발급</a>
+  <a href="/qc/inspection-reports/new" style="background:var(--info);color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">+ 신규 발급</a>
 </form>
 
 {% if items %}
-<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
   <thead>
-    <tr style="background:#F9FAFB;">
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">성적서번호</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">검사기 모델</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">시리얼</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">거래처</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">수주번호</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">검사일</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">검사자</th>
-      <th style="padding:8px;text-align:center;font-size:12px;color:#374151;">종합</th>
-      <th style="padding:8px;text-align:center;font-size:12px;color:#374151;">상태</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">등록일</th>
-      <th style="padding:8px;text-align:center;font-size:12px;color:#374151;">조치</th>
+    <tr style="background:var(--paper);">
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">성적서번호</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">검사기 모델</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">시리얼</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">거래처</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">수주번호</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">검사일</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">검사자</th>
+      <th style="padding:8px;text-align:center;font-size:12px;color:var(--ink);">종합</th>
+      <th style="padding:8px;text-align:center;font-size:12px;color:var(--ink);">상태</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">등록일</th>
+      <th style="padding:8px;text-align:center;font-size:12px;color:var(--ink);">조치</th>
     </tr>
   </thead>
   <tbody>
     {% for it in items %}
-    <tr style="border-top:1px solid #F3F4F6;">
-      <td style="padding:8px;font-size:13px;"><a href="/qc/inspection-reports/{{ it.id }}" style="color:#1976D2;font-weight:700;text-decoration:none;">{{ it.report_no or ('#' ~ it.id) }}</a></td>
+    <tr style="border-top:1px solid var(--paper-2);">
+      <td style="padding:8px;font-size:13px;"><a href="/qc/inspection-reports/{{ it.id }}" style="color:var(--info);font-weight:700;text-decoration:none;">{{ it.report_no or ('#' ~ it.id) }}</a></td>
       <td style="padding:8px;font-size:13px;">{{ it.machine_model or '-' }}</td>
-      <td style="padding:8px;font-size:12px;color:#6B7280;font-family:monospace;">{{ it.machine_serial or '-' }}</td>
+      <td style="padding:8px;font-size:12px;color:var(--mute);font-family:monospace;">{{ it.machine_serial or '-' }}</td>
       <td style="padding:8px;font-size:13px;">{{ it.cust_disp }}</td>
-      <td style="padding:8px;font-size:12px;color:#6B7280;">{{ it.order_no or '-' }}</td>
+      <td style="padding:8px;font-size:12px;color:var(--mute);">{{ it.order_no or '-' }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.inspection_date or '-' }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.inspector_disp }}</td>
       <td style="padding:8px;text-align:center;font-size:12px;">
-        {% if it.overall == 'PASS' %}<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:4px;font-weight:700;">PASS</span>
-        {% elif it.overall == 'FAIL' %}<span style="background:#FFEBEE;color:#C62828;padding:2px 8px;border-radius:4px;font-weight:700;">FAIL</span>
+        {% if it.overall == 'PASS' %}<span style="background:var(--paper-2);color:var(--success);padding:2px 8px;border-radius:4px;font-weight:700;">PASS</span>
+        {% elif it.overall == 'FAIL' %}<span style="background:var(--knk-red-soft);color:#C62828;padding:2px 8px;border-radius:4px;font-weight:700;">FAIL</span>
         {% elif it.overall == 'CONDITIONAL_PASS' %}<span style="background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:4px;font-weight:700;">CONDITIONAL</span>
         {% else %}{{ it.overall }}{% endif %}
       </td>
       <td style="padding:8px;text-align:center;font-size:12px;">
-        {% if it.status == 'DRAFT' %}<span style="background:#F3F4F6;color:#6B7280;padding:2px 6px;border-radius:4px;">DRAFT</span>
-        {% elif it.status == 'ISSUED' %}<span style="background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:4px;font-weight:700;">ISSUED</span>
-        {% elif it.status == 'SENT' %}<span style="background:#E8F5E9;color:#2E7D32;padding:2px 6px;border-radius:4px;font-weight:700;">SENT</span>
+        {% if it.status == 'DRAFT' %}<span style="background:var(--paper-2);color:var(--mute);padding:2px 6px;border-radius:4px;">DRAFT</span>
+        {% elif it.status == 'ISSUED' %}<span style="background:var(--paper-warm);color:var(--info);padding:2px 6px;border-radius:4px;font-weight:700;">ISSUED</span>
+        {% elif it.status == 'SENT' %}<span style="background:var(--paper-2);color:var(--success);padding:2px 6px;border-radius:4px;font-weight:700;">SENT</span>
         {% else %}{{ it.status }}{% endif %}
       </td>
-      <td style="padding:8px;font-size:11px;color:#9CA3AF;">{{ it.created_at }}</td>
+      <td style="padding:8px;font-size:11px;color:var(--mute-2);">{{ it.created_at }}</td>
       <td style="padding:8px;text-align:center;">
-        <a href="/qc/inspection-reports/{{ it.id }}" style="font-size:11px;color:#1976D2;text-decoration:none;margin-right:4px;">상세</a>
+        <a href="/qc/inspection-reports/{{ it.id }}" style="font-size:11px;color:var(--info);text-decoration:none;margin-right:4px;">상세</a>
         <a href="/qc/inspection-reports/{{ it.id }}/print" target="_blank" style="font-size:11px;color:#7B1FA2;text-decoration:none;">인쇄</a>
       </td>
     </tr>
@@ -89,12 +105,16 @@
   </tbody>
 </table>
 {% else %}
-<div style="text-align:center;padding:40px 20px;border:1px dashed #D1D5DB;border-radius:8px;background:#fff;">
-  <h3 style="margin:0 0 8px;color:#374151;">발급된 출하성적서가 없습니다</h3>
-  <p style="color:#6B7280;font-size:13px;">김정록 본업 — [+ 신규 발급] 으로 검사기 출하 시 QCR을 발급하세요.</p>
-  <p style="color:#9CA3AF;font-size:12px;">성적서번호는 QCR-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
-  <a href="/qc/inspection-reports/new" style="display:inline-block;background:#1976D2;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:700;margin-top:8px;">+ 신규 발급</a>
+<div style="text-align:center;padding:40px 20px;border:1px dashed var(--line-strong);border-radius:8px;background:#fff;">
+  <h3 style="margin:0 0 8px;color:var(--ink);">발급된 출하성적서가 없습니다</h3>
+  <p style="color:var(--mute);font-size:13px;">김정록 본업 — [+ 신규 발급] 으로 검사기 출하 시 QCR을 발급하세요.</p>
+  <p style="color:var(--mute-2);font-size:12px;">성적서번호는 QCR-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
+  <a href="/qc/inspection-reports/new" style="display:inline-block;background:var(--info);color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:700;margin-top:8px;">+ 신규 발급</a>
 </div>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

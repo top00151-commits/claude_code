@@ -1,83 +1,103 @@
-{% extends "base.html" %}
-{% block title %}QMS 품질 대시 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QMS 대시보드 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">QMS 대시보드</div>
+      <h1 class="page-title">QMS 대시보드</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/issues" style="font-size:13px;color:#6B7280;text-decoration:none;">← 이슈 목록</a>
-  · <a href="/qms/recurrence" style="font-size:13px;color:#6B7280;text-decoration:none;">재발 추적</a>
-  · <a href="/qms/pareto" style="font-size:13px;color:#A5282C;text-decoration:none;font-weight:700;">Pareto 분석</a>
-  · <a href="/qms/capa" style="font-size:13px;color:#2E7D32;text-decoration:none;font-weight:700;">CAPA 관리</a>
-  · <a href="/qc/inspection-reports" style="font-size:13px;color:#1976D2;text-decoration:none;font-weight:700;">QCR 출하성적서</a>
+  <a href="/issues" style="font-size:13px;color:var(--mute);text-decoration:none;">← 이슈 목록</a>
+  · <a href="/qms/recurrence" style="font-size:13px;color:var(--mute);text-decoration:none;">재발 추적</a>
+  · <a href="/qms/pareto" style="font-size:13px;color:var(--knk-red);text-decoration:none;font-weight:700;">Pareto 분석</a>
+  · <a href="/qms/capa" style="font-size:13px;color:var(--success);text-decoration:none;font-weight:700;">CAPA 관리</a>
+  · <a href="/qc/inspection-reports" style="font-size:13px;color:var(--info);text-decoration:none;font-weight:700;">QCR 출하성적서</a>
 </div>
 
 <!-- 헤더 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #A5282C;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--knk-red);">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-    <span style="font-family:var(--font-mono);font-size:13px;color:#A5282C;font-weight:800;background:#FCE4E5;padding:4px 10px;border-radius:6px;">QMS</span>
-    <span style="font-size:11px;color:#6B7280;">품질 대시 1차 · P2 제조/품질팀 주2회</span>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--knk-red);font-weight:800;background:#FCE4E5;padding:4px 10px;border-radius:6px;">QMS</span>
+    <span style="font-size:11px;color:var(--mute);">품질 대시 1차 · P2 제조/품질팀 주2회</span>
   </div>
   <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">품질 관리 대시보드</h1>
 </div>
 
 <!-- KPI Strip -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;">
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;">
-    <div style="font-size:11px;color:#6B7280;">전체 이슈</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;">
+    <div style="font-size:11px;color:var(--mute);">전체 이슈</div>
     <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;">{{ kpi.total }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #A5282C;">
-    <div style="font-size:11px;color:#6B7280;">미해결</div>
-    <div style="font-size:24px;font-weight:800;color:#A5282C;font-variant-numeric:tabular-nums;">{{ kpi.open }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--knk-red);">
+    <div style="font-size:11px;color:var(--mute);">미해결</div>
+    <div style="font-size:24px;font-weight:800;color:var(--knk-red);font-variant-numeric:tabular-nums;">{{ kpi.open }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #C62828;">
-    <div style="font-size:11px;color:#6B7280;">치명/심각 미해결</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid #C62828;">
+    <div style="font-size:11px;color:var(--mute);">치명/심각 미해결</div>
     <div style="font-size:24px;font-weight:800;color:#C62828;font-variant-numeric:tabular-nums;">{{ kpi.critical }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #EF6C00;">
-    <div style="font-size:11px;color:#6B7280;">SLA 위반</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid #EF6C00;">
+    <div style="font-size:11px;color:var(--mute);">SLA 위반</div>
     <div style="font-size:24px;font-weight:800;color:#EF6C00;font-variant-numeric:tabular-nums;">{{ kpi.breached }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #1976D2;">
-    <div style="font-size:11px;color:#6B7280;">재발 그룹</div>
-    <div style="font-size:24px;font-weight:800;color:#1976D2;font-variant-numeric:tabular-nums;">{{ kpi.recurrence_groups }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--info);">
+    <div style="font-size:11px;color:var(--mute);">재발 그룹</div>
+    <div style="font-size:24px;font-weight:800;color:var(--info);font-variant-numeric:tabular-nums;">{{ kpi.recurrence_groups }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #2E7D32;">
-    <div style="font-size:11px;color:#6B7280;">시정조치 진행</div>
-    <div style="font-size:24px;font-weight:800;color:#2E7D32;font-variant-numeric:tabular-nums;">{{ kpi.ca_open }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--success);">
+    <div style="font-size:11px;color:var(--mute);">시정조치 진행</div>
+    <div style="font-size:24px;font-weight:800;color:var(--success);font-variant-numeric:tabular-nums;">{{ kpi.ca_open }}</div>
   </div>
 </div>
 
 <!-- SLA 위반 위험 목록 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin-bottom:14px;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
   <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">미해결 이슈 SLA 현황</h3>
   {% if items %}
   <table style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
-      <tr style="background:#F9FAFB;">
-        <th style="padding:8px;text-align:left;border-bottom:2px solid #E5E7EB;">이슈번호</th>
-        <th style="padding:8px;text-align:left;border-bottom:2px solid #E5E7EB;">제목</th>
-        <th style="padding:8px;text-align:center;border-bottom:2px solid #E5E7EB;">중대도</th>
-        <th style="padding:8px;text-align:center;border-bottom:2px solid #E5E7EB;">SLA(h)</th>
-        <th style="padding:8px;text-align:right;border-bottom:2px solid #E5E7EB;">잔여(h)</th>
-        <th style="padding:8px;text-align:center;border-bottom:2px solid #E5E7EB;">상태</th>
+      <tr style="background:var(--paper);">
+        <th style="padding:8px;text-align:left;border-bottom:2px solid var(--line);">이슈번호</th>
+        <th style="padding:8px;text-align:left;border-bottom:2px solid var(--line);">제목</th>
+        <th style="padding:8px;text-align:center;border-bottom:2px solid var(--line);">중대도</th>
+        <th style="padding:8px;text-align:center;border-bottom:2px solid var(--line);">SLA(h)</th>
+        <th style="padding:8px;text-align:right;border-bottom:2px solid var(--line);">잔여(h)</th>
+        <th style="padding:8px;text-align:center;border-bottom:2px solid var(--line);">상태</th>
       </tr>
     </thead>
     <tbody>
     {% for it in items %}
-      <tr style="border-bottom:1px solid #F3F4F6;{% if it.sla.breached %}background:#FEF2F2;{% endif %}">
-        <td style="padding:8px;font-family:var(--font-mono);"><a href="/issues/{{ it.id }}" style="color:#1976D2;text-decoration:none;">{{ it.issue_no or it.id }}</a></td>
+      <tr style="border-bottom:1px solid var(--paper-2);{% if it.sla.breached %}background:#FEF2F2;{% endif %}">
+        <td style="padding:8px;font-family:var(--font-mono);"><a href="/issues/{{ it.id }}" style="color:var(--info);text-decoration:none;">{{ it.issue_no or it.id }}</a></td>
         <td style="padding:8px;">{{ it.title }}</td>
-        <td style="padding:8px;text-align:center;font-weight:700;color:{% if it.severity in ['치명','CRITICAL'] %}#C62828{% elif it.severity in ['심각','HIGH'] %}#EF6C00{% else %}#6B7280{% endif %};">{{ it.severity }}</td>
+        <td style="padding:8px;text-align:center;font-weight:700;color:{% if it.severity in ['치명','CRITICAL'] %}#C62828{% elif it.severity in ['심각','HIGH'] %}#EF6C00{% else %}var(--mute){% endif %};">{{ it.severity }}</td>
         <td style="padding:8px;text-align:center;font-variant-numeric:tabular-nums;">{{ it.sla.sla_hours }}</td>
-        <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:{% if it.sla.breached %}#C62828{% elif it.sla.remaining_h < 4 %}#EF6C00{% else %}#2E7D32{% endif %};">{{ it.sla.remaining_h }}{% if it.sla.breached %} ⚠{% endif %}</td>
-        <td style="padding:8px;text-align:center;font-size:11px;color:#6B7280;">{{ it.status }}</td>
+        <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:{% if it.sla.breached %}#C62828{% elif it.sla.remaining_h < 4 %}#EF6C00{% else %}var(--success){% endif %};">{{ it.sla.remaining_h }}{% if it.sla.breached %} ⚠{% endif %}</td>
+        <td style="padding:8px;text-align:center;font-size:11px;color:var(--mute);">{{ it.status }}</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div style="padding:20px;text-align:center;color:#6B7280;">미해결 이슈 없음. 품질 안정.</div>
+  <div style="padding:20px;text-align:center;color:var(--mute);">미해결 이슈 없음. 품질 안정.</div>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

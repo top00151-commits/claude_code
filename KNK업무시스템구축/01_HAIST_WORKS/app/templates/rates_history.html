@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}단가 변경 이력 — {{ part.name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>환율 이력 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">환율 이력</div>
+      <h1 class="page-title">환율 이력</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head row-between">
   <div>
     <h1>📊 단가 변경 이력 — {{ part.name }}</h1>
@@ -14,7 +30,7 @@
 </div>
 
 <div class="card" style="padding:0;">
-  <div style="padding:14px 18px;border-bottom:1px solid #E5E7EB;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);">
     <h2 style="margin:0;font-size:15px;font-weight:800;">📜 변경 이력 ({{ history|length }}건)</h2>
   </div>
   {% if history %}
@@ -35,30 +51,34 @@
       <tr>
         <td style="font-family:monospace;">{{ h.effective_date }}</td>
         <td>{{ h.supplier_name or '-' }}</td>
-        <td style="text-align:right;font-family:monospace;color:#6B7280;">
+        <td style="text-align:right;font-family:monospace;color:var(--mute);">
           {% if h.old_price %}{{ "{:,.2f}".format(h.old_price) }}{% else %}-{% endif %}
         </td>
         <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.2f}".format(h.new_price) }}</td>
         <td style="text-align:right;font-family:monospace;">
           {% if h.change_pct is not none %}
             {% if h.change_pct > 0 %}
-            <span style="color:#DC2626;font-weight:700;">▲ {{ "{:.2f}".format(h.change_pct) }}%</span>
+            <span style="color:var(--knk-red);font-weight:700;">▲ {{ "{:.2f}".format(h.change_pct) }}%</span>
             {% elif h.change_pct < 0 %}
             <span style="color:#2563EB;font-weight:700;">▼ {{ "{:.2f}".format(h.change_pct|abs) }}%</span>
             {% else %}
-            <span style="color:#9CA3AF;">0.00%</span>
+            <span style="color:var(--mute-2);">0.00%</span>
             {% endif %}
-          {% else %}<span style="color:#9CA3AF;">신규</span>{% endif %}
+          {% else %}<span style="color:var(--mute-2);">신규</span>{% endif %}
         </td>
-        <td style="font-size:11px;color:#6B7280;">{{ h.note or '-' }}</td>
-        <td style="font-size:11px;color:#9CA3AF;">{{ h.changed_by_name or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute);">{{ h.note or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ h.changed_by_name or '-' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div style="padding:30px;text-align:center;color:#9CA3AF;">단가 변경 이력 없음. 부품 상세에서 단가를 등록하면 자동으로 기록됩니다.</div>
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">단가 변경 이력 없음. 부품 상세에서 단가를 등록하면 자동으로 기록됩니다.</div>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

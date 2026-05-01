@@ -1,97 +1,357 @@
-{% extends "base.html" %}
 {# 사이클 73 (2026-04-27): 사용 가이드 페이지 — 대표 16:20 직접 지시 #}
-{# 외부 자산 0 / v2 본체 미접촉 / 핫패치 보존 / 인라인 스타일만 사용 (기존 admin_health.html 스타일 패턴 일치) #}
-{% block title %}사용 가이드 — KNK HAIST WORKS{% endblock %}
-{% block body %}
+{# v3 (2026-04-28): standalone 레이아웃 — 사이드바·빅터도크·상단헤더 모두 제거 / 가이드 검색바 #}
+{# v4 CX23c (2026-04-28): 매거진 톤 적용 (대표 캡처 4 진단: 가이드 0% 적용 → 매거진 마스트헤드 + 시리프 + 모노크롬 + KNK 빨강 한 점) #}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용 가이드 — KNK HAIST WORKS</title>
+<!-- v5 H5 풀이식 (2026-04-30 빅터(05) 권고 100%) — Pretendard 사내 호스팅 -->
+<link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260501v5STANDALONE">
+<style>
+  /* v4 CX23c — 가이드 standalone + 매거진 톤 (자체 토큰) */
+  :root{
+    --paper:#FAFAF7; --paper-2:#F0EDE3; --paper-3:#E5E2D8;
+    --ink:#0A0A0A; --ink-2:#2A2A26;
+    --ink-3:rgba(10,10,10,.70); --ink-4:rgba(10,10,10,.55);
+    --line-soft:#D8D4CC;
+    --accent:var(--knk-red); --accent-dk:#8B1E22; --accent-soft:#F5E4E2;
+    --font-serif:"Times New Roman",Georgia,"Pretendard Variable",Pretendard,serif;
+    --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard Variable",Pretendard,system-ui,sans-serif;
+  }
+  html, body{ height:auto; min-height:100%; overflow:auto; margin:0; padding:0; }
+  body{ background:var(--paper); color:var(--ink); font-family:var(--font-serif); font-size:14px; line-height:1.6; display:block; }
 
-<div style="margin-bottom:14px;">
-  <a href="/home" style="font-size:13px;color:#6B7280;text-decoration:none;">← 통합 메인</a>
+  /* 매거진 마스트헤드 + 검색바 */
+  .guide-bar{
+    position:sticky; top:0; z-index:50;
+    background:var(--paper);
+    border-top:3px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    padding:10px 28px;
+    display:flex; align-items:center; gap:18px;
+    flex-wrap:wrap;
+  }
+  .guide-bar-edition{
+    width:100%; display:flex; justify-content:space-between;
+    padding-bottom:8px; margin-bottom:8px;
+    border-bottom:1px solid var(--line-soft);
+    font-family:var(--font-sans);
+    font-size:11px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.15em;
+  }
+  .guide-bar-edition .edition{ color:var(--accent); font-weight:900; letter-spacing:.20em; }
+
+  .guide-bar .back{
+    font-family:var(--font-sans);
+    font-size:11px; font-weight:700; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--ink); text-decoration:none;
+    padding:7px 14px;
+    border:1px solid var(--ink); border-radius:0;
+    transition:all .15s; flex-shrink:0;
+  }
+  .guide-bar .back:hover{ background:var(--ink); color:var(--paper); }
+  .guide-bar .title{
+    font-family:var(--font-serif); font-style:italic;
+    font-size:14px; color:var(--ink-3); font-weight:400; flex-shrink:0;
+    border-left:1px solid var(--line-soft); padding-left:14px;
+  }
+  .guide-bar .search-wrap{
+    flex:1; max-width:520px; margin-left:auto;
+    display:flex; align-items:center; gap:8px;
+    background:var(--paper); border:1px solid var(--ink); border-radius:0;
+    padding:8px 12px; transition:all .15s;
+  }
+  .guide-bar .search-wrap:focus-within{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .guide-bar .search-wrap svg{ width:16px; height:16px; color:var(--ink); flex-shrink:0; }
+  .guide-bar .search-wrap input{
+    flex:1; border:0; outline:0; background:transparent;
+    font-family:var(--font-sans);
+    font-size:13px; font-weight:500; color:var(--ink);
+  }
+  .guide-bar .search-wrap input::placeholder{ color:var(--ink-4); font-weight:400; }
+  .guide-bar .search-wrap .count{
+    font-family:var(--font-sans);
+    font-size:10px; color:var(--ink); font-weight:900; flex-shrink:0;
+    padding:2px 8px; background:var(--paper-2);
+    border:1px solid var(--ink); border-radius:0;
+    min-width:34px; text-align:center;
+    text-transform:uppercase; letter-spacing:.05em;
+  }
+  .guide-bar .search-wrap .count.has{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .guide-bar .search-wrap .count.zero{ background:var(--paper); color:var(--accent); border-color:var(--accent); }
+  .guide-bar .clear-btn{
+    background:none; border:0; color:var(--ink-4); font-size:14px;
+    cursor:pointer; padding:0 4px; flex-shrink:0;
+    font-family:var(--font-sans);
+  }
+  .guide-bar .clear-btn:hover{ color:var(--accent); }
+
+  .guide-wrap{ max-width:1180px; margin:0 auto; padding:24px 28px 60px; }
+
+  /* 모든 가이드 섹션 — 매거진 카드 톤 */
+  .guide-section{
+    background:var(--paper) !important;
+    border:1px solid var(--line-soft) !important;
+    border-radius:0 !important;
+    padding:24px !important;
+    margin-bottom:14px;
+    box-shadow:none !important;
+    /* 옛 sage/녹색 hero/border-left 강제 무력화 */
+    border-top:0 !important;
+    border-left:0 !important;
+  }
+  /* 첫 섹션 (Hero) — 매거진 cover */
+  .guide-section:first-child{
+    border-top:3px solid var(--accent) !important;
+    background:var(--paper-2) !important;
+    padding:36px 32px !important;
+  }
+  .guide-section h1{
+    font-family:var(--font-serif) !important;
+    font-weight:300 !important;
+    font-size:32px !important;
+    color:var(--ink) !important;
+    letter-spacing:-1px;
+    margin:0 0 8px !important;
+    line-height:1.15;
+  }
+  .guide-section h1 b, .guide-section h1 strong{ font-weight:700 !important; }
+  .guide-section h2{
+    font-family:var(--font-serif) !important;
+    font-weight:700 !important;
+    font-size:20px !important;
+    color:var(--ink) !important;
+    letter-spacing:-.5px;
+    margin:0 0 12px !important;
+    padding-bottom:8px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .guide-section p{ font-family:var(--font-serif); color:var(--ink-2); font-size:13px; }
+
+  /* 카드 안 카드 (1단계 KNK 가동 등) */
+  .guide-section [style*="background:var(--paper-2)"],
+  .guide-section [style*="background:var(--paper-2)"],
+  .guide-section [style*="background:var(--paper-2)"],
+  .guide-section [style*="background:var(--paper-2)"],
+  .guide-section [style*="background:var(--paper-2)"],
+  .guide-section [style*="background:#F0F9FF"]{
+    background:var(--paper) !important;
+    border:1px solid var(--line-soft) !important;
+    border-radius:0 !important;
+  }
+  .guide-section [style*="border:1px solid var(--ink)"],
+  .guide-section [style*="border:1px solid var(--ink)"],
+  .guide-section [style*="border:1px solid var(--accent)"],
+  .guide-section [style*="border:1px solid var(--ink)"],
+  .guide-section [style*="border:1px solid var(--accent)"]{
+    border-color:var(--ink) !important;
+  }
+  /* 카드 라벨 */
+  .guide-section [style*="color:var(--accent)"],
+  .guide-section [style*="color:var(--ink)"],
+  .guide-section [style*="color:var(--ink)"],
+  .guide-section [style*="color:var(--ink)"],
+  .guide-section [style*="color:var(--ink)"],
+  .guide-section [style*="color:var(--ink)"],
+  .guide-section [style*="color:var(--accent-dk)"]{
+    color:var(--ink) !important;
+    font-family:var(--font-sans);
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.10em;
+  }
+  /* 본문 텍스트 색상 */
+  .guide-section [style*="color:var(--ink-2)"]{
+    color:var(--ink-2) !important;
+    font-family:var(--font-serif);
+  }
+  .guide-section [style*="color:var(--ink-3)"],
+  .guide-section [style*="color:var(--ink-4)"]{
+    color:var(--ink-3) !important;
+    font-family:var(--font-serif);
+    font-style:italic;
+  }
+  .guide-section a[style*="color:var(--accent)"],
+  .guide-section a[style*="color:var(--accent)"]{
+    color:var(--accent) !important;
+    font-family:var(--font-sans);
+    font-weight:700;
+    text-decoration:underline;
+  }
+  /* "바로가기" 버튼 */
+  .guide-section a[style*="background:var(--accent)"],
+  .guide-section a[style*="background:var(--accent)"],
+  .guide-section a[style*="background:var(--accent)"],
+  .guide-section a[style*="background:var(--ink)"]{
+    background:var(--accent) !important;
+    color:#fff !important;
+    border-radius:0 !important;
+    font-family:var(--font-sans) !important;
+    font-weight:700 !important;
+    text-transform:uppercase;
+    letter-spacing:.10em;
+    border:1px solid var(--accent);
+  }
+  /* 표 매거진 톤 */
+  .guide-section table{
+    width:100%; border-collapse:collapse; font-family:var(--font-sans);
+    background:var(--paper);
+  }
+  .guide-section table thead tr{
+    background:var(--ink) !important;
+  }
+  .guide-section table thead th{
+    background:var(--ink) !important;
+    color:var(--paper) !important;
+    font-size:10px !important;
+    font-weight:900 !important;
+    text-transform:uppercase;
+    letter-spacing:.15em;
+    padding:12px 16px !important;
+    text-align:left;
+    border:0 !important;
+  }
+  .guide-section table tbody td{
+    padding:10px 16px !important;
+    border-bottom:1px solid var(--line-soft) !important;
+    font-size:13px !important;
+    color:var(--ink) !important;
+    background:var(--paper);
+  }
+  .guide-section table tbody tr:hover td{ background:var(--paper-2); }
+
+  /* 코드 (kbd, code) */
+  .guide-section code, .guide-section kbd{
+    background:var(--paper-2) !important;
+    border:1px solid var(--ink) !important;
+    border-radius:0 !important;
+    padding:2px 7px !important;
+    font-family:ui-monospace,Menlo,Consolas,monospace !important;
+    font-weight:700 !important;
+    color:var(--ink) !important;
+    font-size:12px;
+  }
+
+  /* 검색 하이라이트 */
+  mark.guide-hl{ background:var(--paper-2); color:var(--ink); padding:0 2px; font-weight:700; }
+  mark.guide-hl.current{ background:var(--accent); color:#fff; box-shadow:0 0 0 2px rgba(165,40,44,.35); }
+
+  /* 매치 없는 섹션 흐림 */
+  .guide-section.dimmed{ opacity:.25; transition:opacity .2s; }
+
+  /* 인쇄 */
+  @media print{ .guide-bar{ display:none; } .guide-wrap{ padding:0; max-width:none; } }
+</style>
+</head>
+<body>
+
+<div class="guide-bar">
+  <div class="guide-bar-edition">
+    {# v5 H5 (2026-04-29 G25 정신 — 매거진 마스트헤드 제거) #}
+    <span>📖 KNK HAIST WORKS 사용 가이드</span>
+    <span class="edition">{{ today_kor|default('2026 · 4월 29일') }}</span>
+  </div>
+  <a href="javascript:window.close()" class="back" title="이 창 닫기">← 닫기</a>
+  <a href="/home" target="_self" class="back" title="통합 메인으로 이동">통합 메인</a>
+  <span class="title">사용 가이드</span>
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="guideSearch" type="search" placeholder="가이드 안에서 찾기 (예: 견적서, 빅터, 환율, 단축키...)" autocomplete="off">
+    <button type="button" id="guidePrev" class="clear-btn" title="이전 매치" style="display:none">↑</button>
+    <button type="button" id="guideNext" class="clear-btn" title="다음 매치" style="display:none">↓</button>
+    <span id="guideCount" class="count" style="display:none">0</span>
+    <button type="button" id="guideClear" class="clear-btn" title="검색 지우기" style="display:none">✕</button>
+  </div>
 </div>
 
-<div style="background:linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 50%,#BBF7D0 100%);border:1px solid #86EFAC;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #16A34A;">
-  <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;letter-spacing:-0.02em;color:#14532D;">📖 KNK HAIST WORKS 사용 가이드</h1>
-  <div style="font-size:13px;color:#166534;">대표(김정락) 직접 사용 가이드 · 작성: 2026-04-27 / 09 빅터 팀장 · 시스템 버전: 사이클 73</div>
+<div class="guide-wrap" id="guideRoot">
+
+<div class="guide-section">
+  <h1>📖 KNK HAIST WORKS 사용 가이드</h1>
+  <div style="font-family:var(--font-sans);font-size:11px;color:var(--accent);font-weight:900;letter-spacing:.20em;text-transform:uppercase;margin-top:6px;">대표(김정락) 직접 가이드 · 작성: 2026-04-27 · 09 빅터 팀장</div>
 </div>
 
 {# ========== 1. 시작 (3단계) ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #16A34A;">
-  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:#14532D;">1. 시작 (3단계)</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--accent);">
+  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:var(--ink);">1. 시작 (3단계)</h2>
 
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:14px;">
-      <div style="font-size:11px;color:#166534;font-weight:800;margin-bottom:6px;">1단계 — KNK 가동</div>
-      <div style="font-size:13px;color:#374151;line-height:1.6;">
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;color:var(--accent);font-weight:800;margin-bottom:6px;">1단계 — KNK 가동</div>
+      <div style="font-size:13px;color:var(--ink-2);line-height:1.6;">
         바탕화면 또는 KNK업무시스템구축 폴더에서<br>
         <b>KNK_시작.bat</b> 더블클릭<br>
-        <span style="color:#6B7280;font-size:12px;">검은 명령창 + 약 3초 후 브라우저 자동 열림 (http://localhost:8081)</span>
+        <span style="color:var(--ink-3);font-size:12px;">검은 명령창 + 약 3초 후 브라우저 자동 열림 (http://localhost:8081)</span>
       </div>
     </div>
-    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:14px;">
-      <div style="font-size:11px;color:#166534;font-weight:800;margin-bottom:6px;">2단계 — 로그인</div>
-      <div style="font-size:13px;color:#374151;line-height:1.6;">
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;color:var(--accent);font-weight:800;margin-bottom:6px;">2단계 — 로그인</div>
+      <div style="font-size:13px;color:var(--ink-2);line-height:1.6;">
         대표 계정: <b>김정락</b> (CEO 권한)<br>
-        <span style="color:#6B7280;font-size:12px;">모든 페이지 접근 가능</span>
+        <span style="color:var(--ink-3);font-size:12px;">모든 페이지 접근 가능</span>
       </div>
     </div>
-    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:14px;">
-      <div style="font-size:11px;color:#166534;font-weight:800;margin-bottom:6px;">3단계 — 첫 화면</div>
-      <div style="font-size:13px;color:#374151;line-height:1.6;">
-        <a href="/home" style="color:#16A34A;font-weight:700;">통합 메인 (HAIST WORKS)</a><br>
-        <span style="color:#6B7280;font-size:12px;">업무·진행·이슈·요청 한눈에</span>
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
+      <div style="font-size:11px;color:var(--accent);font-weight:800;margin-bottom:6px;">3단계 — 첫 화면</div>
+      <div style="font-size:13px;color:var(--ink-2);line-height:1.6;">
+        <a href="/home" style="color:var(--accent);font-weight:700;">통합 메인 (HAIST WORKS)</a><br>
+        <span style="color:var(--ink-3);font-size:12px;">업무·진행·이슈·요청 한눈에</span>
       </div>
     </div>
   </div>
 </div>
 
 {# ========== 2. 3 Hub 전환 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #1565C0;">
-  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:#1565C0;">2. 3 Hub (작업 영역) 전환</h2>
-  <p style="margin:0 0 12px;font-size:12px;color:#6B7280;">좌측 상단 "통합 ▼" 드롭다운에서 전환. 각 Hub 진입 시 상단 헤더 색이 다름(시각 구분).</p>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--ink);">
+  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:var(--ink);">2. 3 Hub (작업 영역) 전환</h2>
+  <p style="margin:0 0 12px;font-size:12px;color:var(--ink-3);">좌측 상단 "통합 ▼" 드롭다운에서 전환. 각 Hub 진입 시 상단 헤더 색이 다름(시각 구분).</p>
 
   <table style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
-      <tr style="background:#F9FAFB;">
-        <th style="padding:10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;width:30%;">Hub</th>
-        <th style="padding:10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;width:25%;">진입 URL</th>
-        <th style="padding:10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;">주요 기능</th>
+      <tr style="background:var(--paper);">
+        <th style="padding:10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);width:30%;">Hub</th>
+        <th style="padding:10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);width:25%;">진입 URL</th>
+        <th style="padding:10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);">주요 기능</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;font-weight:700;">통합 (HAIST WORKS)</td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;"><a href="/home" style="color:#16A34A;font-weight:700;">/home</a></td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;color:#6B7280;">대시보드 / 업무 / 이슈 / 요청</td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);font-weight:700;">통합 (HAIST WORKS)</td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);"><a href="/home" style="color:var(--accent);font-weight:700;">/home</a></td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);color:var(--ink-3);">대시보드 / 업무 / 이슈 / 요청</td>
       </tr>
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;font-weight:700;">매출·영업 센터 (Sales Hub) <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:800;margin-left:4px;">골드 띠</span></td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;"><a href="/sales" style="color:#16A34A;font-weight:700;">/sales</a></td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;color:#6B7280;">견적·수주·고객사·매출 분석</td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);font-weight:700;">매출·영업 센터 (Sales Hub) <span style="background:var(--paper-2);color:var(--ink);font-size:10px;padding:2px 7px;border-radius:999px;font-weight:800;margin-left:4px;">골드 띠</span></td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);"><a href="/sales" style="color:var(--accent);font-weight:700;">/sales</a></td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);color:var(--ink-3);">견적·수주·고객사·매출 분석</td>
       </tr>
       <tr>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;font-weight:700;">자재·구매 센터 (Logistics Hub) <span style="background:#F0FDF4;color:#166534;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:800;margin-left:4px;">세이지 띠</span></td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;"><a href="/logistics" style="color:#16A34A;font-weight:700;">/logistics</a></td>
-        <td style="padding:10px;border-bottom:1px solid #F3F4F6;color:#6B7280;">부품·공급사·발주·재고·환율</td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);font-weight:700;">자재·구매 센터 (Logistics Hub) <span style="background:var(--paper-2);color:var(--accent);font-size:10px;padding:2px 7px;border-radius:999px;font-weight:800;margin-left:4px;">세이지 띠</span></td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);"><a href="/logistics" style="color:var(--accent);font-weight:700;">/logistics</a></td>
+        <td style="padding:10px;border-bottom:1px solid var(--paper-2);color:var(--ink-3);">부품·공급사·발주·재고·환율</td>
       </tr>
     </tbody>
   </table>
 </div>
 
 {# ========== 3. 빅터AI 도크 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #4338CA;">
-  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:#4338CA;">3. 빅터AI 도크 (대화형 AI 비서)</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--ink);">
+  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:var(--ink);">3. 빅터AI 도크 (대화형 AI 비서)</h2>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;">
     <div>
-      <div style="font-size:12px;color:#4338CA;font-weight:800;margin-bottom:8px;">호출 방법</div>
-      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:#374151;">
+      <div style="font-size:12px;color:var(--ink);font-weight:800;margin-bottom:8px;">호출 방법</div>
+      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:var(--ink-2);">
         <li>상단 우측 헤더의 <b>V 아이콘 버튼</b> 클릭 ⭐ (사이클 70 추가)</li>
-        <li>단축키 <code style="background:#EEF2FF;padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+K</code></li>
-        <li><code style="background:#EEF2FF;padding:2px 6px;border-radius:4px;font-weight:700;">Esc</code>로 닫기</li>
+        <li>단축키 <code style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+K</code></li>
+        <li><code style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-weight:700;">Esc</code>로 닫기</li>
       </ul>
     </div>
     <div>
-      <div style="font-size:12px;color:#4338CA;font-weight:800;margin-bottom:8px;">사용 예시</div>
-      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:#374151;">
+      <div style="font-size:12px;color:var(--ink);font-weight:800;margin-bottom:8px;">사용 예시</div>
+      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:var(--ink-2);">
         <li>"이번 달 수주 보여줘"</li>
         <li>"재고 부족 부품?"</li>
         <li>메뉴 못 찾을 때 빅터에게 물어보면 됨</li>
@@ -102,35 +362,35 @@
 </div>
 
 {# ========== 4. 핵심 페이지 (5개) ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #A5282C;">
-  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:#A5282C;">4. 대표가 직접 확인할 핵심 페이지</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--accent);">
+  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:var(--accent);">4. 대표가 직접 확인할 핵심 페이지</h2>
 
   <div style="display:flex;flex-direction:column;gap:10px;">
     <!-- A. 외부자산 점검 -->
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:14px;">
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:10px;padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:800;color:#991B1B;">A. 외부자산 점검 ⭐ (이미 결정 완료)</div>
-        <a href="/admin/external-assets" style="background:#A5282C;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
+        <div style="font-weight:800;color:var(--accent-dk);">A. 외부자산 점검 ⭐ (이미 결정 완료)</div>
+        <a href="/admin/external-assets" style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
       </div>
-      <div style="font-size:12px;color:#374151;line-height:1.7;">
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
         사이드바 <b>"🛡 외부자산 점검"</b> 또는 <b>관리 → 보안 → 외부자산 점검</b><br>
         카드 3장 status 확인:
         <ul style="margin:6px 0 0;padding-left:20px;">
-          <li>openpyxl: <b style="color:#16A34A;">removed_2026-04-27_cycle68</b> ✓</li>
-          <li>pandas: <b style="color:#16A34A;">removed_2026-04-27_cycle71</b> ✓</li>
-          <li>deep_translator: <b style="color:#16A34A;">removed_2026-04-27_cycle69</b> ✓</li>
+          <li>openpyxl: <b style="color:var(--accent);">removed_2026-04-27_cycle68</b> ✓</li>
+          <li>pandas: <b style="color:var(--accent);">removed_2026-04-27_cycle71</b> ✓</li>
+          <li>deep_translator: <b style="color:var(--accent);">removed_2026-04-27_cycle69</b> ✓</li>
         </ul>
-        <span style="color:#6B7280;font-size:11px;">외부자산 0 정책 100% 정합</span>
+        <span style="color:var(--ink-3);font-size:11px;">외부자산 0 정책 100% 정합</span>
       </div>
     </div>
 
     <!-- B. 회사 정보 -->
-    <div style="background:#FFFBEB;border:1px solid #F59E0B;border-radius:10px;padding:14px;">
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:10px;padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:800;color:#92400E;">B. 회사 정보 (KNK) ⭐ 대표 직접 입력 사안</div>
-        <a href="/admin/company-info" style="background:#F59E0B;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
+        <div style="font-weight:800;color:var(--ink);">B. 회사 정보 (KNK) ⭐ 대표 직접 입력 사안</div>
+        <a href="/admin/company-info" style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
       </div>
-      <div style="font-size:12px;color:#374151;line-height:1.7;">
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
         사이드바 <b>"🏢 회사 정보 (KNK)"</b> 또는 <b>관리 → 회사 정보</b>. <b>10 필드 직접 입력</b>:
         <ol style="margin:6px 0 0;padding-left:22px;columns:2;">
           <li>회사명 (한국어): "주식회사 케이엔케이"</li>
@@ -144,30 +404,30 @@
           <li>대표자명 (영문): "Jeongrak Kim"</li>
           <li>팩스 (선택)</li>
         </ol>
-        입력 후 <b>저장</b> 클릭 → 견적서 인쇄 시 자동 반영. 비어있으면 견적서에 <span style="color:#DC2626;font-weight:700;">[등록 대기]</span> 빨간 글씨.
+        입력 후 <b>저장</b> 클릭 → 견적서 인쇄 시 자동 반영. 비어있으면 견적서에 <span style="color:var(--accent);font-weight:700;">[등록 대기]</span> 빨간 글씨.
       </div>
     </div>
 
     <!-- C. 견적서 -->
-    <div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:14px;">
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:800;color:#92400E;">C. 견적서 작성 + 다국어 인쇄 (사이클 58·63)</div>
-        <a href="/sales/quotations" style="background:#F59E0B;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
+        <div style="font-weight:800;color:var(--ink);">C. 견적서 작성 + 다국어 인쇄 (사이클 58·63)</div>
+        <a href="/sales/quotations" style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
       </div>
-      <div style="font-size:12px;color:#374151;line-height:1.7;">
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
         <b>매출·영업 Hub → 견적</b> → 견적 작성 → 라인 추가 → "인쇄 보기" 클릭<br>
         <b>언어 라디오</b> (한국어 / English / Tiếng Việt) — 사내 사전 530+키 활용<br>
-        인쇄 화면에서 회사 정보·서명란·라인 표 + 직인란 자동 표시. 인쇄: 브라우저 <code style="background:#FEF3C7;padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+P</code>
+        인쇄 화면에서 회사 정보·서명란·라인 표 + 직인란 자동 표시. 인쇄: 브라우저 <code style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+P</code>
       </div>
     </div>
 
     <!-- D. CEO 대시보드 -->
-    <div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;padding:14px;">
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:800;color:#3730A3;">D. CEO 대시보드 (6 패널)</div>
-        <a href="/dashboard" style="background:#4338CA;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
+        <div style="font-weight:800;color:var(--ink);">D. CEO 대시보드 (6 패널)</div>
+        <a href="/dashboard" style="background:var(--ink);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
       </div>
-      <div style="font-size:12px;color:#374151;line-height:1.7;">
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
         통합 메인 → 6 패널 (KPI):
         <ol style="margin:6px 0 0;padding-left:22px;columns:2;">
           <li>매출 KPI</li>
@@ -181,138 +441,249 @@
     </div>
 
     <!-- E. 자재·구매 -->
-    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:14px;">
+    <div style="background:var(--paper-2);border:1px solid var(--ink);border-radius:10px;padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:800;color:#166534;">E. 자재·구매 (Logistics Hub)</div>
-        <a href="/logistics" style="background:#16A34A;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
+        <div style="font-weight:800;color:var(--accent);">E. 자재·구매 (Logistics Hub)</div>
+        <a href="/logistics" style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">바로 가기 →</a>
       </div>
-      <div style="font-size:12px;color:#374151;line-height:1.7;">
-        <a href="/parts" style="color:#16A34A;font-weight:700;">부품 마스터</a> → 부품 등록 ·
-        <a href="/po" style="color:#16A34A;font-weight:700;">발주</a> → 신규 발주 → 다중 라인 ·
-        <a href="/fx/rates" style="color:#16A34A;font-weight:700;">환율</a> → 한국은행 고시환율 수동 입력 ·
-        <a href="/stock/movements" style="color:#16A34A;font-weight:700;">재고</a> → 안전재고 / 실사 / 조정
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <a href="/parts" style="color:var(--accent);font-weight:700;">부품 마스터</a> → 부품 등록 ·
+        <a href="/po" style="color:var(--accent);font-weight:700;">발주</a> → 신규 발주 → 다중 라인 ·
+        <a href="/fx/rates" style="color:var(--accent);font-weight:700;">환율</a> → 한국은행 고시환율 수동 입력 ·
+        <a href="/stock/movements" style="color:var(--accent);font-weight:700;">재고</a> → 안전재고 / 실사 / 조정
       </div>
     </div>
   </div>
 </div>
 
 {# ========== 5. 단축키 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #6B7280;">
-  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:#374151;">5. 자주 쓰는 단축키</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--ink-3);">
+  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:var(--ink-2);">5. 자주 쓰는 단축키</h2>
   <table style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
-      <tr style="background:#F9FAFB;">
-        <th style="padding:10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;width:25%;">단축키</th>
-        <th style="padding:10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;">기능</th>
+      <tr style="background:var(--paper);">
+        <th style="padding:10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);width:25%;">단축키</th>
+        <th style="padding:10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);">기능</th>
       </tr>
     </thead>
     <tbody>
-      <tr><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;"><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+K</code></td><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#374151;">빅터AI 도크 열기/닫기</td></tr>
-      <tr><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;"><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-weight:700;">Esc</code></td><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#374151;">빅터AI 도크 닫기</td></tr>
-      <tr><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;"><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+P</code></td><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#374151;">인쇄 (견적서 인쇄 화면에서)</td></tr>
-      <tr><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;"><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-weight:700;">F5</code></td><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#374151;">페이지 새로고침</td></tr>
-      <tr><td style="padding:8px 10px;"><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+F</code></td><td style="padding:8px 10px;color:#374151;">페이지 내 검색</td></tr>
+      <tr><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);"><code style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+K</code></td><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);color:var(--ink-2);">빅터AI 도크 열기/닫기</td></tr>
+      <tr><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);"><code style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-weight:700;">Esc</code></td><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);color:var(--ink-2);">빅터AI 도크 닫기</td></tr>
+      <tr><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);"><code style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+P</code></td><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);color:var(--ink-2);">인쇄 (견적서 인쇄 화면에서)</td></tr>
+      <tr><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);"><code style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-weight:700;">F5</code></td><td style="padding:8px 10px;border-bottom:1px solid var(--paper-2);color:var(--ink-2);">페이지 새로고침</td></tr>
+      <tr><td style="padding:8px 10px;"><code style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-weight:700;">Ctrl+F</code></td><td style="padding:8px 10px;color:var(--ink-2);">페이지 내 검색</td></tr>
     </tbody>
   </table>
 </div>
 
 {# ========== 6. 문제 발생 시 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #DC2626;">
-  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:#991B1B;">6. 사용 중 문제 발생 시</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--accent);">
+  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:var(--accent-dk);">6. 사용 중 문제 발생 시</h2>
 
   <div style="display:flex;flex-direction:column;gap:8px;">
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;">
-      <div style="font-weight:800;color:#991B1B;font-size:13px;margin-bottom:4px;">페이지가 안 보임</div>
-      <div style="font-size:12px;color:#374151;">검은 명령창(서버) 살아있는지 확인 — 닫혀있으면 KNK_시작.bat 재실행</div>
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:8px;padding:12px;">
+      <div style="font-weight:800;color:var(--accent-dk);font-size:13px;margin-bottom:4px;">페이지가 안 보임</div>
+      <div style="font-size:12px;color:var(--ink-2);">검은 명령창(서버) 살아있는지 확인 — 닫혀있으면 KNK_시작.bat 재실행</div>
     </div>
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;">
-      <div style="font-weight:800;color:#991B1B;font-size:13px;margin-bottom:4px;">빅터AI가 응답 안 함</div>
-      <div style="font-size:12px;color:#374151;">페이지 새로고침 (F5) 또는 Esc 후 다시 Ctrl+K</div>
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:8px;padding:12px;">
+      <div style="font-weight:800;color:var(--accent-dk);font-size:13px;margin-bottom:4px;">빅터AI가 응답 안 함</div>
+      <div style="font-size:12px;color:var(--ink-2);">페이지 새로고침 (F5) 또는 Esc 후 다시 Ctrl+K</div>
     </div>
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;">
-      <div style="font-weight:800;color:#991B1B;font-size:13px;margin-bottom:4px;">견적서 인쇄 시 회사 정보 비어있음</div>
-      <div style="font-size:12px;color:#374151;"><a href="/admin/company-info" style="color:#A5282C;font-weight:700;">"회사 정보 (KNK)"</a> 페이지에서 10 필드 직접 입력 후 저장</div>
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:8px;padding:12px;">
+      <div style="font-weight:800;color:var(--accent-dk);font-size:13px;margin-bottom:4px;">견적서 인쇄 시 회사 정보 비어있음</div>
+      <div style="font-size:12px;color:var(--ink-2);"><a href="/admin/company-info" style="color:var(--accent);font-weight:700;">"회사 정보 (KNK)"</a> 페이지에서 10 필드 직접 입력 후 저장</div>
     </div>
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;">
-      <div style="font-weight:800;color:#991B1B;font-size:13px;margin-bottom:4px;">외부자산 점검 페이지에서 결정 다시 하고 싶음</div>
-      <div style="font-size:12px;color:#374151;">라디오 다시 선택 + 메모 + "결정 제출". 99_DISPATCH/외부자산_결정_2026-04-27.md에 추가 기록됨</div>
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:8px;padding:12px;">
+      <div style="font-weight:800;color:var(--accent-dk);font-size:13px;margin-bottom:4px;">외부자산 점검 페이지에서 결정 다시 하고 싶음</div>
+      <div style="font-size:12px;color:var(--ink-2);">라디오 다시 선택 + 메모 + "결정 제출". 99_DISPATCH/외부자산_결정_{날짜}.md에 추가 기록됨{# OPS-P1-U5: 정적 가이드 — 실제 페이지는 동적 today 적용 #}</div>
     </div>
-    <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px;">
-      <div style="font-weight:800;color:#991B1B;font-size:13px;margin-bottom:4px;">시각 / 색 / UI 이상함</div>
-      <div style="font-size:12px;color:#374151;">빅터(09 팀장)에게 채팅으로 알려주시면 즉시 정정 spike 발주</div>
+    <div style="background:var(--paper-2);border:1px solid var(--accent);border-radius:8px;padding:12px;">
+      <div style="font-weight:800;color:var(--accent-dk);font-size:13px;margin-bottom:4px;">시각 / 색 / UI 이상함</div>
+      <div style="font-size:12px;color:var(--ink-2);">빅터(09 팀장)에게 채팅으로 알려주시면 즉시 정정 spike 발주</div>
     </div>
   </div>
 </div>
 
 {# ========== 7. 시스템 종료 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #6B7280;">
-  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:#374151;">7. 시스템 종료</h2>
-  <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:#374151;">
-    <li>검은 명령창에서 <code style="background:#F3F4F6;padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+C</code> → "Y" → 서버 종료</li>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--ink-3);">
+  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:var(--ink-2);">7. 시스템 종료</h2>
+  <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.8;color:var(--ink-2);">
+    <li>검은 명령창에서 <code style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-weight:700;">Ctrl+C</code> → "Y" → 서버 종료</li>
     <li>또는 명령창 X 버튼 닫기</li>
   </ul>
 </div>
 
 {# ========== 8. 14 트랙 진행 ========== #}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #16A34A;">
-  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:#14532D;">8. 14 트랙 진행 현황 (사이클 1~73)</h2>
+<div class="guide-section" style="background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--accent);">
+  <h2 style="margin:0 0 12px;font-size:17px;font-weight:800;color:var(--ink);">8. 14 트랙 진행 현황 (사이클 1~73)</h2>
   <table style="width:100%;border-collapse:collapse;font-size:12px;">
     <thead>
-      <tr style="background:#F9FAFB;">
-        <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;width:55%;">트랙</th>
-        <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #E5E7EB;font-weight:800;color:#374151;">상태</th>
+      <tr style="background:var(--paper);">
+        <th style="padding:8px 10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);width:55%;">트랙</th>
+        <th style="padding:8px 10px;text-align:left;border-bottom:2px solid var(--line-soft);font-weight:800;color:var(--ink-2);">상태</th>
       </tr>
     </thead>
     <tbody>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">Top3 S1 매출</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">4차 완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">Top3 S2 재고</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#F59E0B;font-weight:700;">4차 (안전재고+알림) ✓ + S2-1 라우트 결재 대기</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">Top3 S3 권한</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">수출입 P11</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">1차 + 다국어 견적서 (사이클 63) ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">v2 정식 이식</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">1+2차 완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">주간보고 / 간트 / QMS</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">재고실사·조정 / 환율 / 알림 / 글로벌 검색</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">3 Hub 분리</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">✓ 사이클 60</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">CEO 대시보드</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">6 패널 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">사용자 프로필</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">완성 ✓</td></tr>
-      <tr><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;">외부자산 0 정합</td><td style="padding:6px 10px;border-bottom:1px solid #F3F4F6;color:#16A34A;font-weight:700;">✓ 사이클 68·69·71</td></tr>
-      <tr><td style="padding:6px 10px;">힐링 색 통일</td><td style="padding:6px 10px;color:#16A34A;font-weight:700;">✓ 사이클 60·64·65</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">매출 분석</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">재고 관리</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">안전재고 알림 완성 ✓ + 추가 라우트 결재 대기</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">권한 관리</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">수출입·다국어 견적서</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">시스템 본체 정식 이식</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">주간보고 / 간트 / QMS</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">재고실사·조정 / 환율 / 알림 / 글로벌 검색</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">3 Hub 분리</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">✓ 사이클 60</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">CEO 대시보드</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">6 패널 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">사용자 프로필</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">완성 ✓</td></tr>
+      <tr><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);">외부자산 0 정합</td><td style="padding:6px 10px;border-bottom:1px solid var(--paper-2);color:var(--accent);font-weight:700;">✓ 사이클 68·69·71</td></tr>
+      <tr><td style="padding:6px 10px;">힐링 색 통일</td><td style="padding:6px 10px;color:var(--accent);font-weight:700;">✓ 사이클 60·64·65</td></tr>
     </tbody>
   </table>
 </div>
 
 {# ========== 9. 빅터에게 추가 지시 ========== #}
-<div style="background:linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%);border:1px solid #86EFAC;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid #4338CA;">
-  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:#3730A3;">9. 빅터에게 추가 지시할 때</h2>
-  <p style="margin:0 0 10px;font-size:13px;color:#374151;">대표님이 채팅으로 한 마디 주시면 즉시 spike 발주:</p>
+<div class="guide-section" style="background:linear-gradient(135deg,var(--paper-2) 0%,var(--paper-2) 100%);border:1px solid var(--ink);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid var(--ink);">
+  <h2 style="margin:0 0 8px;font-size:17px;font-weight:800;color:var(--ink);">9. 빅터에게 추가 지시할 때</h2>
+  <p style="margin:0 0 10px;font-size:13px;color:var(--ink-2);">대표님이 채팅으로 한 마디 주시면 즉시 spike 발주:</p>
 
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
-    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;font-size:12px;">
-      <b style="color:#3730A3;">"이거 색이 안 맞아"</b><br>
-      <span style="color:#6B7280;">→ 05 디자인 발주 + 정정 spike</span>
+    <div style="background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font-size:12px;">
+      <b style="color:var(--ink);">"이거 색이 안 맞아"</b><br>
+      <span style="color:var(--ink-3);">→ 05 디자인 발주 + 정정 spike</span>
     </div>
-    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;font-size:12px;">
-      <b style="color:#3730A3;">"이 페이지 글씨 작아"</b><br>
-      <span style="color:#6B7280;">→ 인라인 폰트 정정</span>
+    <div style="background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font-size:12px;">
+      <b style="color:var(--ink);">"이 페이지 글씨 작아"</b><br>
+      <span style="color:var(--ink-3);">→ 인라인 폰트 정정</span>
     </div>
-    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;font-size:12px;">
-      <b style="color:#3730A3;">"이 메뉴 잘 안 보여"</b><br>
-      <span style="color:#6B7280;">→ 시각 보강</span>
+    <div style="background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font-size:12px;">
+      <b style="color:var(--ink);">"이 메뉴 잘 안 보여"</b><br>
+      <span style="color:var(--ink-3);">→ 시각 보강</span>
     </div>
-    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;font-size:12px;">
-      <b style="color:#3730A3;">"이 기능 추가해줘"</b><br>
-      <span style="color:#6B7280;">→ 03 Research → 05 → 01 사이클 가동</span>
+    <div style="background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font-size:12px;">
+      <b style="color:var(--ink);">"이 기능 추가해줘"</b><br>
+      <span style="color:var(--ink-3);">→ 03 Research → 05 → 01 사이클 가동</span>
     </div>
-    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;font-size:12px;grid-column:span 2;">
-      <b style="color:#3730A3;">"이거 결정해줘"</b>
-      <span style="color:#6B7280;">→ 외부자산 점검 페이지 또는 채팅 답변</span>
+    <div style="background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font-size:12px;grid-column:span 2;">
+      <b style="color:var(--ink);">"이거 결정해줘"</b>
+      <span style="color:var(--ink-3);">→ 외부자산 점검 페이지 또는 채팅 답변</span>
     </div>
   </div>
 
-  <p style="margin:12px 0 0;font-size:12px;color:#6B7280;font-style:italic;">대표 자리 비울 때 자체 결정 모드로 무중단 가동 중. 위반 0건 정책 + 정직성 v3 절대 준수.</p>
+  <p style="margin:12px 0 0;font-size:12px;color:var(--ink-3);font-style:italic;">대표 자리 비울 때 자체 결정 모드로 무중단 가동 중. 위반 0건 정책 + 정직성 v3 절대 준수.</p>
 </div>
 
-<div style="font-size:11px;color:#9CA3AF;text-align:center;padding:14px;">
+<div style="font-size:11px;color:var(--ink-4);text-align:center;padding:14px;">
   가이드 발행: 2026-04-27 / 09 빅터 팀장 / 시스템 버전: 사이클 73 · 외부 자산 0 / v2 본체 미접촉 / 핫패치 보존
 </div>
 
-{% endblock %}
+</div><!-- /guide-wrap -->
+
+<script>
+/* v3 (2026-04-28) — 가이드 인페이지 검색 (대표 지시: 사용가이드 검색창) */
+(function(){
+  var input  = document.getElementById('guideSearch');
+  var clear  = document.getElementById('guideClear');
+  var prev   = document.getElementById('guidePrev');
+  var next   = document.getElementById('guideNext');
+  var count  = document.getElementById('guideCount');
+  var root   = document.getElementById('guideRoot');
+  if (!input || !root) return;
+
+  var sections = root.querySelectorAll('.guide-section');
+  var origHTML = [];
+  sections.forEach(function(s){ origHTML.push(s.innerHTML); });
+
+  var current = -1;
+  var marks = [];
+  var tmr = null;
+
+  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function escapeHTML(s){ return s.replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
+
+  function clearAll(){
+    sections.forEach(function(s, i){ s.innerHTML = origHTML[i]; s.classList.remove('dimmed'); });
+    marks = []; current = -1;
+    count.style.display = 'none';
+    clear.style.display = 'none';
+    prev.style.display = 'none';
+    next.style.display = 'none';
+  }
+
+  function highlight(){
+    var q = (input.value || '').trim();
+    if (!q || q.length < 1) { clearAll(); return; }
+
+    var re = new RegExp('(' + escapeRegExp(q) + ')', 'gi');
+    var totalMatches = 0;
+    sections.forEach(function(s, i){
+      var html = origHTML[i];
+      // HTML 태그 안의 텍스트만 치환 (속성값·태그 제외)
+      var parts = html.split(/(<[^>]+>)/g);
+      var matchedInSection = 0;
+      var newHtml = parts.map(function(p){
+        if (p.startsWith('<')) return p;
+        return p.replace(re, function(m){
+          matchedInSection++;
+          return '<mark class="guide-hl">' + escapeHTML(m) + '</mark>';
+        });
+      }).join('');
+      s.innerHTML = newHtml;
+      s.classList.toggle('dimmed', matchedInSection === 0);
+      totalMatches += matchedInSection;
+    });
+
+    marks = root.querySelectorAll('mark.guide-hl');
+    count.textContent = marks.length;
+    count.style.display = 'inline-block';
+    count.classList.toggle('has', marks.length > 0);
+    count.classList.toggle('zero', marks.length === 0);
+    clear.style.display = 'inline-block';
+    prev.style.display = marks.length > 1 ? 'inline-block' : 'none';
+    next.style.display = marks.length > 1 ? 'inline-block' : 'none';
+
+    if (marks.length > 0) {
+      current = 0;
+      focusMark();
+    }
+  }
+
+  function focusMark(){
+    marks.forEach(function(m){ m.classList.remove('current'); });
+    if (current < 0 || current >= marks.length) return;
+    var m = marks[current];
+    m.classList.add('current');
+    m.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+
+  input.addEventListener('input', function(){
+    if (tmr) clearTimeout(tmr);
+    tmr = setTimeout(highlight, 200);
+  });
+
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (marks.length > 0) {
+        current = (current + (e.shiftKey ? -1 : 1) + marks.length) % marks.length;
+        focusMark();
+      }
+    } else if (e.key === 'Escape') {
+      input.value = ''; clearAll();
+    }
+  });
+
+  clear.addEventListener('click', function(){ input.value = ''; clearAll(); input.focus(); });
+  next.addEventListener('click',  function(){ if (marks.length){ current = (current + 1) % marks.length; focusMark(); } });
+  prev.addEventListener('click',  function(){ if (marks.length){ current = (current - 1 + marks.length) % marks.length; focusMark(); } });
+
+  /* Ctrl+F 가로채서 가이드 검색에 포커스 */
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      input.focus(); input.select();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

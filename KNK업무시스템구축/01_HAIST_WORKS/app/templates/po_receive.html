@@ -1,98 +1,62 @@
-{% extends "base_logi.html" %}
-{% block title %}입고 처리 {{ po.po_number }} — {{ app_name }}{% endblock %}
-{% block body %}
-
-<div class="page-head row-between">
-  <div>
-    <h1>📥 입고 처리 <span class="mono" style="color:#2E7D32">{{ po.po_number }}</span></h1>
-    <p class="muted">공급사: {{ po.supplier_name or '-' }} · 발주일: {{ po.order_date or '-' }} · 예상입고: {{ po.expected_date or '-' }}</p>
-  </div>
-  <div style="display:flex;gap:8px">
-    <a href="/po/{{ po.id }}" class="btn btn-ghost">← 발주 상세</a>
-  </div>
-</div>
-
-{% if request.query_params.get('error') == 'empty' %}
-<div style="background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
-  ⚠️ 입고할 수량을 1개 이상 입력해 주세요.
-</div>
-{% endif %}
-
-<form method="post" action="/po/{{ po.id }}/receive" class="card">
-  <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-    <label style="font-size:12px;font-weight:700;color:#6B7280;">입고일시</label>
-    <input type="datetime-local" name="occurred_at" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-    <span style="font-size:11px;color:#9CA3AF;">(비우면 현재 시각)</span>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>입고 처리 {{ po.po_number }} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.lines { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.line-head { background: var(--paper-2); padding: 12px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; font-size: 11px; font-weight: 700; color: var(--amber-deep); letter-spacing: 0.06em; text-transform: uppercase; }
+.line-row { padding: 10px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+.line-row:last-child { border-bottom: 0; }
+.line-input { padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); width: 100%; font-family: inherit; }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/po">발주 목록</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></div>
+    <h1 class="page-title">📦 <em>입고 처리</em></h1></div>
+    <a class="btn btn-secondary" href="/po/{{ po.id }}">↩ 발주서</a>
   </div>
 
-  <table class="table" style="width:100%;">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>부품</th>
-        <th style="text-align:right;">발주</th>
-        <th style="text-align:right;">누적입고</th>
-        <th style="text-align:right;">잔량</th>
-        <th style="text-align:right;width:100px;">입고수량 ⬇</th>
-        <th style="width:140px;">Lot 번호 <span style="color:#4338CA;font-size:10px;">⭐</span></th>
-        <th style="width:120px;">유효기한</th>
-        <th>비고</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for it in po["items"] %}
-      {% set remaining = (it.quantity or 0) - (it.received_qty or 0) %}
-      <tr {% if remaining <= 0 %}style="opacity:.5"{% endif %}>
-        <td>{{ loop.index }}</td>
-        <td>
-          <div style="font-weight:700;">{{ it.part_name_snapshot or it.part_name or '-' }}</div>
-          {% if it.part_no_snapshot %}<div style="font-family:monospace;font-size:11px;color:#9CA3AF;">{{ it.part_no_snapshot }}</div>{% endif %}
-          {% if it.spec_snapshot %}<div style="font-size:11px;color:#6B7280;">{{ it.spec_snapshot }}</div>{% endif %}
-          <input type="hidden" name="po_item_id" value="{{ it.id }}">
-        </td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(it.quantity or 0) }}{{ it.unit or 'EA' }}</td>
-        <td style="text-align:right;font-family:monospace;color:#6B7280;">{{ "%g"|format(it.received_qty or 0) }}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if remaining > 0 %}#2E7D32{% else %}#9CA3AF{% endif %};">{{ "%g"|format(remaining) }}</td>
-        <td style="text-align:right;">
-          <input type="number" name="receive_qty" step="0.01" min="0" max="{{ remaining }}"
-                 value="{{ remaining if remaining > 0 else '' }}"
-                 {% if remaining <= 0 %}disabled{% endif %}
-                 style="width:80px;padding:8px 10px;border:2px solid #86EFAC;border-radius:6px;text-align:right;font-family:monospace;font-weight:700;background:#F0FDF4;">
-        </td>
-        <td>
-          <input type="text" name="lot_no" placeholder="예: LOT-2604A" {% if remaining <= 0 %}disabled{% endif %}
-                 style="width:100%;padding:6px 10px;border:1px solid #C7D2FE;border-radius:6px;font-size:12px;font-family:monospace;background:#EEF2FF;">
-        </td>
-        <td>
-          <input type="date" name="expiry_date" {% if remaining <= 0 %}disabled{% endif %}
-                 style="width:100%;padding:6px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:11px;">
-        </td>
-        <td>
-          <input type="text" name="item_note" placeholder="(선택)" style="width:100%;padding:6px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <form method="post" action="/po/{{ po.id }}/receive">
+    <div class="form-card">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">발주 정보</h3>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin-bottom:20px;padding:14px;background:var(--paper-2);border-radius:var(--radius-md);">
+        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">발주번호</div><b style="font-family:monospace;color:var(--amber-deep);">{{ po.po_number }}</b></div>
+        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">거래처</div><b>{{ po.supplier_name|default('—') }}</b></div>
+        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">발주일</div><b>{{ po.order_date }}</b></div>
+        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">예상 입고</div><b>{{ po.expected_date|default('—') }}</b></div>
+      </div>
 
-  <div style="margin-top:10px;padding:10px 14px;background:#EEF2FF;border-left:3px solid #4338CA;border-radius:6px;font-size:12px;color:#312E81;">
-    ⭐ <strong>Lot 번호</strong>는 불량 발생 시 역추적의 핵심입니다. 공급사 lot 또는 입고일자 기반 자체 코드로 반드시 입력해 주세요.
-    <br>&nbsp;&nbsp;&nbsp;(이슈·AS 발생 시 "이 lot이 어느 고객사에 출하됐나" 즉시 조회 가능)
-  </div>
+      <h3 style="font-size:14px;font-weight:700;margin:18px 0 14px;">입고 일자 *</h3>
+      <input type="date" name="receive_date" value="{{ today }}" required style="padding:10px 14px;font-size:13.5px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);width:200px;">
 
-  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
-    <a href="/po/{{ po.id }}" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;font-weight:800;padding:10px 28px;">
-      ✓ 입고 등록 (재고 자동 증가)
-    </button>
-  </div>
+      <h3 style="font-size:14px;font-weight:700;margin:24px 0 14px;">품목별 입고 수량</h3>
+      <div class="lines">
+        <div class="line-head">
+          <div>#</div><div>품목</div><div>발주량</div><div>기 입고</div><div>이번 입고</div><div>잔량</div>
+        </div>
+        {% for it in po.items %}
+        <div class="line-row">
+          <div style="font-size:12px;color:var(--mute);font-weight:700;text-align:center;">{{ '%02d'|format(loop.index) }}</div>
+          <div><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.part_code %}<div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ it.part_code }}</div>{% endif %}</div>
+          <div style="text-align:right;font-weight:700;">{{ it.qty|default(0) }}</div>
+          <div style="text-align:right;color:var(--mute);">{{ it.received_qty|default(0) }}</div>
+          <div><input class="line-input" type="number" name="receive_qty_{{ it.id }}" min="0" step="0.01" value="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}" style="text-align:right;"></div>
+          <div style="text-align:right;color:var(--mute);">{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}</div>
+        </div>
+        {% endfor %}
+      </div>
 
-  <div style="margin-top:16px;padding:12px 16px;background:#F0FDF4;border-left:3px solid #16A34A;border-radius:6px;font-size:12px;color:#166534;">
-    💡 입고 등록 시 자동으로:<br>
-    &nbsp;&nbsp;• 각 부품의 <strong>현재고(stock_qty)</strong>가 증가합니다<br>
-    &nbsp;&nbsp;• <strong>수불부(stock_movements)</strong>에 이력이 남습니다<br>
-    &nbsp;&nbsp;• 발주서 상태가 자동 갱신됩니다 (부분입고/입고완료)
-  </div>
-</form>
+      <div style="margin-top: 16px;">
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">비고</label>
+        <textarea name="note" placeholder="입고 시 특이사항" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);color:var(--ink);min-height:60px;resize:vertical;"></textarea>
+      </div>
+    </div>
 
-{% endblock %}
+    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/po/{{ po.id }}">취소</a>
+      <button type="submit" class="btn btn-primary">📦 입고 등록</button>
+    </div>
+  </form>
+</main></div></body></html>

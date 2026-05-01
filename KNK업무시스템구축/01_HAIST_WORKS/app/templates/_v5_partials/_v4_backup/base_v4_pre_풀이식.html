@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="{{ lang|default('ko') }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
+{# LAST UPDATE: 2026-04-26 사용자프로필 — 본인 프로필 강화. 헬퍼 +1 (_profile_payload — 활동 30일 집계 + 권한 매트릭스 1인 + 위임 토큰 in/out). 라우트 +2: GET /me (alias → /profile) · POST /me (이메일·언어·phone·dept 수정, 본인 한정, phone/dept는 PRAGMA 존재 시만). 기존 GET /profile 강화: 6 KPI(작성 30d/진행/완료/댓글/알림/미읽음) + 최근 task 10 + 최근 댓글 10 + 권한 D/G/T 분류 + 위임받은/위임한 토큰. 신규 템플릿 +0 (profile.html 본문 강화). 외부 자산 0건 · v2 본체 무수정 · G1~G5 핫패치 보존 #}
+<!-- v5 H5 (2026-04-29 대표 일괄 승인): 표준 토큰 CSS 우선 link → 모든 페이지 v5 H5 톤 자동 적용 -->
+<link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260429v5h5">
+<link rel="stylesheet" href="/static/style.css?v=20260429v5h5-base1">
+<!-- v4 CX23c (2026-04-28 G15): style_hubs.css 비활성 — 49건 sage !important가 매거진 톤 무력화. <link rel="stylesheet" href="/static/style_hubs.css?v=20260427cycle60-3hub"> -->
+<style>
+/* v5 H5 base.html 보강 (시안 직접 이식 — 사이드바 .menu-code 핀, ws-tabs active 그라데이션) */
+.menu-code {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--paper-2, #F5EBD9);
+  color: var(--amber-deep, #B8843A);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.tb-tabs .tb-tab.active,
+.ws-tabs .ws-tab.active,
+.ws-tabs a.active {
+  background: var(--grad-amber, linear-gradient(135deg, #D4923B, #C2693A));
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(212,146,59,0.32);
+}
+</style>
+</head>
+<body data-ws="{{ (current_workspace.key if current_workspace else 'hub') }}">
+{% if user %}
+{# v4 CX23c (2026-04-28 대표 직접 승인) — 매거진 마스트헤드 2-row 구조 #}
+<header class="topbar">
+  {# G25 (2026-04-29 대표 지시): 마스트헤드 제거 — 일반 사무실 시스템 톤 #}
+  {# Row — 메인 (로고 + ws-tabs + 우측) #}
+  <div class="tb-main">
+  <div class="tb-left">
+    <button class="tb-menu-btn" onclick="toggleSidebar()" title="{{ i.menu|default('메뉴') }}" aria-label="{{ i.menu|default('메뉴') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <a href="/home" class="brand">
+      <div class="brand-logo-wrap">
+        <img src="/static/logo.png?v=20260428cx23c" alt="KNK HAIST Innovation" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">{{ app_name|default('HAIST WORKS') }} <span class="dot"></span></div>
+        <div class="brand-sub">{{ app_subtitle|default('KNK 통합 업무 플랫폼') }}</div>
+      </div>
+    </a>
+
+    {# v4 CX23c — ws-tabs (COVER 빨간 라벨 + 펄스) #}
+    {% if workspaces and workspaces|length > 1 %}
+    
+    <nav class="ws-tabs" role="tablist" aria-label="워크스페이스 전환">
+      {% for w in workspaces %}
+      <a class="ws-tab {% if current_workspace and w.key == current_workspace.key %}active{% endif %}"
+         href="{{ w.href }}"
+         {% if w.external %}target="_blank" rel="noopener"{% endif %}
+         role="tab"
+         aria-selected="{% if current_workspace and w.key == current_workspace.key %}true{% else %}false{% endif %}"
+         title="{{ w.desc }}">
+        <span class="ws-ico" aria-hidden="true">{{ w.icon }}</span>
+        <span class="ws-name">{{ w.name }}</span>
+        {% if w.external %}<span class="ws-ext" aria-hidden="true">↗</span>{% endif %}
+      </a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+  </div>
+
+  <div class="tb-center"></div>
+  <script>
+  // 글로벌 검색 자동완성 (debounce 250ms · POST /search/suggest)
+  var _gsTmr = null;
+  function gSearchSuggest(q){
+    var box = document.getElementById('gSearchSugg');
+    if (!box) return;
+    if (!q || q.trim().length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+    if (_gsTmr) clearTimeout(_gsTmr);
+    _gsTmr = setTimeout(function(){
+      fetch('/search/suggest', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({q: q.trim()})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (!d || !d.ok || !d.items || !d.items.length) { box.style.display='none'; box.innerHTML=''; return; }
+        var html = '';
+        d.items.forEach(function(it){
+          html += '<a href="'+it.link+'" style="display:block;padding:8px 12px;text-decoration:none;color:inherit;border-bottom:1px solid var(--border,#eee)"><span style="font-size:11px;color:var(--text-muted,#888);margin-right:8px">'+it.cat_label+'</span>'+(it.label||'')+'</a>';
+        });
+        html += '<a href="/search?q='+encodeURIComponent(q.trim())+'" style="display:block;padding:8px 12px;text-decoration:none;color:var(--accent,#06f);font-weight:600;text-align:center">전체 결과 보기 →</a>';
+        box.innerHTML = html;
+        box.style.display = 'block';
+      }).catch(function(){ box.style.display='none'; });
+    }, 250);
+  }
+  </script>
+
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" id="victorTrigger" type="button" onclick="victorToggleDock()" title="{{ i.victor|default('빅터') }} (Ctrl+K)" aria-label="{{ i.victor|default('빅터') }}" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg>
+    </button>
+    {# Phase 1 (2026-04-29 대표 결재) — 화면 도움말 ❓ 버튼 #}
+    <button class="tb-icon-btn" id="menuHelpBtn" type="button" onclick="menuHelpToggle()"
+      title="{% if current_menu %}{{ current_menu.code }} {{ current_menu.label }}{% else %}이 화면 도움말{% endif %}"
+      aria-label="이 화면 도움말">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
+    <a href="/notifications" class="tb-icon-btn" title="{{ i.sb_notif|default('알림') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      {% if unread_notif and unread_notif > 0 %}<span class="dot"></span>{% endif %}
+    </a>
+    <select id="langSel" class="lang-sel" onchange="changeLang(this.value)">
+      {% for code, label in LANGS.items() %}
+      <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <a href="/profile" class="user-chip" title="{{ i.my_account|default('내 계정') }}">
+      <div class="user-avatar">{{ user.name[:1] }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ user.name }}</div>
+        <div class="user-role">{{ user.rank or user.team_name or '경영진' }}</div>
+      </div>
+    </a>
+    <a href="/logout" class="logout-btn" title="{{ i.logout|default('로그아웃') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </a>
+  </div>
+  </div>{# /tb-main (CX23c 2-row) #}
+</header>
+{% endif %}
+{% if user %}
+<div class="layout-wrap">
+  <aside class="sidebar" id="sidebar">
+    {# 핫패치 2026-04-25 17:30 — sb-toggle 화살표 버튼 제거 (C안 v2 §6-7 사이드바 264px 고정 · 시안 12B 정합) #}
+    {# C안 §3·§7-2 — 드래그 리사이즈 핸들 폐지 (시안 12B 고정 264px) #}
+    {# ===== Plan Y S1 네비 5 그룹 (2026-04-24 대표 승인) ===== #}
+    {# 사이클 73 (2026-04-27): 사용 가이드 — G18 (2026-04-28) 사이드바 맨 아래로 이동 + 그룹 헤더 라벨 삭제 #}
+    {# 그룹 1: 내 업무 (개인) #}
+    <div class="sb-section">
+      <div class="sb-head">{{ i.sb_my_work|default('내 업무') }}</div>
+      <a href="/home" class="sb-item {% if active=='home' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+        업무현황 <span class="menu-code">M-00-01</span>
+      </a>
+      <a href="/daily" class="sb-item {% if active=='daily' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        일일업무 <span class="menu-code">M-00-02</span>
+      </a>
+      <a href="/calendar" class="sb-item {% if active=='calendar' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        내 달력 <span class="menu-code">M-00-08</span>
+      </a>
+      <a href="/notifications" class="sb-item {% if active=='notifications' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+        알림 <span class="menu-code">M-00-09</span>
+        {% if unread_notif and unread_notif > 0 %}<span class="sb-badge">{{ unread_notif }}</span>{% endif %}
+      </a>
+    </div>
+
+    {# 그룹 2: 전사 흐름 (피드·실시간·검색·대시보드·병목) #}
+    <div class="sb-section">
+      <div class="sb-head">{{ i.sb_company|default('전사 흐름') }}</div>
+      <a href="/feed" class="sb-item {% if active=='feed' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        부서 피드 <span class="menu-code">M-00-06</span>
+      </a>
+      <a href="/now" class="sb-item {% if active=='now' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        실시간 피드 <span class="menu-code">M-00-03</span>
+      </a>
+      <a href="/search" class="sb-item {% if active=='search' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+        검색
+      </a>
+      {% if user.role in ['ceo','admin','executive'] %}
+      <a href="/dashboard" class="sb-item {% if active=='dashboard' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        전사 대시보드 <span class="menu-code">M-05-01</span>
+      </a>
+      {% endif %}
+      {% if user.role in ['leader','executive','ceo','admin'] %}
+      <a href="/bottlenecks" class="sb-item {% if active=='bottlenecks' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        병목 감지
+      </a>
+      {% endif %}
+    </div>
+
+    {# 그룹 3: 업무 추적 (진행률·티켓·이슈·변경·게시판) #}
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a href="/progress" class="sb-item {% if active=='progress' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        진행률 매트릭스
+        <span id="progress-delayed-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/tickets" class="sb-item {% if active=='tickets' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg></span>
+        요청 티켓 <span class="menu-code">M-00-12</span>
+        <span id="tickets-pending-badge" style="display:none;margin-left:auto;background:#1565C0;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/issues" class="sb-item {% if active=='issues' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        이슈 · AS
+        <span id="issues-open-badge" style="display:none;margin-left:auto;background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/changes" class="sb-item {% if active=='changes' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+        변경 공지
+        <span id="changes-unread-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+      </a>
+      <a href="/board/company" class="sb-item {% if active=='board_company' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        게시판 <span class="menu-code">M-00-10</span>
+      </a>
+    </div>
+
+    {# C안 §3-3 — 도메인 그룹 제거 (매출·영업 / 자재·구매 → 상단 워크스페이스 스위처로 이전) #}
+
+    {# 그룹 5: 외부 · 관리 (하이웍스·팀트리·관리자) #}
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">하이웍스</span></div>
+      <a href="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="전자결제는 하이웍스에서 계속 사용">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        전자결제<span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+      </a>
+      <a href="{{ hiworks_mail_url|default('https://mail.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="메일은 하이웍스에서 계속 사용">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+        메일<span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+      </a>
+      {# 사이클 79 (DEC-2) — 인사총무 하이웍스 연동 페이지 (모든 로그인 사용자, 본인 정보만) #}
+      <a href="/hr/hiworks" class="sb-item {% if active=='hr_hiworks' %}sb-active{% endif %}" title="인사총무 업무는 하이웍스 시스템에서 처리 (HAIST WORKS는 연동·조회만)">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"/></svg></span>
+        인사총무 (하이웍스) <span class="menu-code">M-03-02</span>
+      </a>
+      {% if user.role in ['leader','executive','ceo','admin'] %}
+      {# CEO/임원/admin 은 team_id 없을 수 있음 → /team/permissions (인덱스) 로 #}
+      <a href="{% if user.team_id %}/team/{{ user.team_id }}/permissions{% else %}/team/permissions{% endif %}" class="sb-item {% if active=='team_perms' %}sb-active{% endif %}" title="팀원 권한 관리 (CEO/임원: 전 팀 / 팀장: 본인 팀)">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg></span>
+        팀원 권한
+      </a>
+      {% endif %}
+      {% if user.role in ['ceo','admin'] %}
+      <a href="/admin" class="sb-item {% if active=='admin' %}sb-active{% endif %}">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-7h-6M7 12H1m15.66-6.34-4.24 4.24M7.58 16.42l-4.24 4.24m0-16.32 4.24 4.24m8.48 8.48 4.24 4.24"/></svg></span>
+        관리자 <span class="menu-code">M-04-01</span>
+      </a>
+      {# 사이클 80 (2026-04-27 17:30 대표 지시 메모리 #7): 1회성 페이지(외부자산 점검·회사 정보)는 사이드바 제거 → /admin 페이지 카드에서 진입 #}
+      {% endif %}
+    </div>
+
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">{{ i.sb_team_project|default('팀 / 프로젝트') }}</div>
+      <div id="sbTree" class="sb-tree">불러오는 중...</div>
+    </div>
+
+    {# G18 (2026-04-28 대표 지시): 사용 가이드 — 사이드바 맨 아래 + 그룹 헤더 라벨 삭제 #}
+    <div class="sb-section">
+      <a href="/guide" target="_blank" rel="noopener" class="sb-item {% if active=='guide' %}sb-active{% endif %}" title="KNK HAIST WORKS 사용 가이드 — 새 창으로 열림 (대표 지시: 보면서 따라할 수 있게)">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+        사용 가이드 <span class="menu-code">M-00-13</span> <span class="sb-ext" aria-hidden="true">↗</span>
+      </a>
+    </div>
+  </aside>
+{% endif %}
+<div class="main-wrap">
+{% block top_fixed %}{% endblock %}
+<main class="main {% if user %}has-sidebar{% endif %}">
+{% block body %}{% endblock %}
+<footer class="footer">{{ i.footer|default('㈜케이엔케이 | HAIST Innovation') }} | {{ now }}</footer>
+</main>
+</div>
+{% if user %}</div>{% endif %}
+
+{# ========= 사이드바 트리 JS ========= #}
+{% if user %}
+<script>
+function toggleSidebar(){
+  const sb = document.getElementById('sidebar');
+  const isMobile = window.innerWidth <= 1023;
+  if (isMobile){
+    sb.classList.toggle('sb-open');
+  } else {
+    sb.classList.toggle('sb-collapsed');
+    const m = document.querySelector('.main.has-sidebar');
+    if (m) m.classList.toggle('main-wide');
+  }
+  const btn = document.querySelector('.sb-toggle');
+  if (btn) btn.textContent = (sb.classList.contains('sb-collapsed') || (!isMobile && !sb.classList.contains('sb-open'))) ? '▶' : '◀';
+}
+async function loadSidebarTree(){
+  try {
+    const r = await fetch('/api/sidebar-tree');
+    const j = await r.json();
+    if (!j.ok) return;
+    const el = document.getElementById('sbTree');
+    let html = '';
+    for (const t of j.teams){
+      const isMyTeam = t.id === j.user_team_id;
+      const hasDelay = t.delay_count > 0;
+      const badge = t.today_count ? `<span class="sb-cnt">${t.today_count}</span>` : '';
+      const delayBadge = hasDelay ? `<span class="sb-delay-cnt">${t.delay_count}</span>` : '';
+      const myTag = isMyTeam ? '<span class="sb-my">내 팀</span>' : '';
+      const expanded = isMyTeam || hasDelay;
+      html += `<div class="sb-team ${expanded?'':'sb-team-closed'}">
+        <div class="sb-team-head" onclick="this.parentElement.classList.toggle('sb-team-closed')">
+          <span class="sb-chev">${expanded?'▾':'▸'}</span>
+          <span class="sb-tname">${t.name}</span>${myTag}${delayBadge}${badge}
+        </div>
+        <div class="sb-team-body">
+          <a href="/team?team_id=${t.id}" class="sb-sub">{{ i.sb_team_status|default('👥 팀원 현황') }}</a>`;
+      for (const p of t.projects){
+        html += `<a href="/project/${p.id}" class="sb-sub">📋 ${p.name}</a>`;
+      }
+      if (!t.projects.length) html += `<div class="sb-sub sb-muted">{{ i.sb_no_project|default('프로젝트 없음') }}</div>`;
+      html += `</div></div>`;
+    }
+    el.innerHTML = html;
+  } catch(e){}
+}
+document.addEventListener('DOMContentLoaded', loadSidebarTree);
+
+/* 변경 미확인 뱃지 폴링 (1분마다) */
+async function loadUnreadChanges() {
+  try {
+    const r = await fetch('/api/changes/unread');
+    const j = await r.json();
+    const badge = document.getElementById('changes-unread-badge');
+    if (!badge) return;
+    if (j.count > 0) {
+      badge.textContent = j.count;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadUnreadChanges);
+setInterval(loadUnreadChanges, 60000);
+
+/* 티켓 미처리 뱃지 폴링 (1분마다) */
+async function loadPendingTickets() {
+  try {
+    const r = await fetch('/api/tickets/count');
+    const j = await r.json();
+    const badge = document.getElementById('tickets-pending-badge');
+    if (!badge) return;
+    const total = (j.my_open || 0) + (j.recv_pending || 0);
+    if (total > 0) {
+      badge.textContent = total;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadPendingTickets);
+setInterval(loadPendingTickets, 60000);
+
+/* 이슈 미해결 뱃지 폴링 (1분마다) */
+async function loadOpenIssues() {
+  try {
+    const r = await fetch('/api/issues/count');
+    const j = await r.json();
+    const badge = document.getElementById('issues-open-badge');
+    if (!badge) return;
+    if ((j.open || 0) > 0) {
+      badge.textContent = j.open + (j.critical > 0 ? ' (' + j.critical + '심각)' : '');
+      badge.style.display = 'inline-block';
+      if (j.critical > 0) badge.style.background = '#7F1D1D';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadOpenIssues);
+setInterval(loadOpenIssues, 60000);
+
+/* 진행률 지연 뱃지 폴링 */
+async function loadProgressDelayed() {
+  try {
+    const r = await fetch('/api/progress/summary');
+    const j = await r.json();
+    const badge = document.getElementById('progress-delayed-badge');
+    if (!badge) return;
+    if (j.delayed > 0) {
+      badge.textContent = j.delayed;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadProgressDelayed);
+setInterval(loadProgressDelayed, 60000);
+
+/* C안 §7-2 — 사이드바 드래그 리사이즈 IIFE 전부 폐지 (시안 12B 고정 264px 정책) */
+
+/* v3 (2026-04-28) — 옛 ws-wrap dropdown JS 폐기 (가로 탭 = 단순 <a> 링크) */
+
+/* v3 (2026-04-28) — 빅터 도크 모드 탭 전환 (빅터 ↔ 검색) */
+function setDockMode(mode){
+  document.querySelectorAll('.dock-mode-tab').forEach(function(t){
+    var a = t.dataset.mode === mode;
+    t.classList.toggle('active', a);
+    t.setAttribute('aria-selected', a ? 'true' : 'false');
+  });
+  document.querySelectorAll('.dock-mode-panel').forEach(function(p){
+    p.classList.toggle('active', p.dataset.modePanel === mode);
+  });
+  if (mode === 'search') {
+    setTimeout(function(){
+      var i = document.getElementById('gSearchInput');
+      if (i) { i.focus(); i.select(); }
+    }, 100);
+  } else if (mode === 'victor') {
+    setTimeout(function(){
+      var i = document.getElementById('dockInput');
+      if (i) i.focus();
+    }, 100);
+  }
+}
+
+/* v3 (2026-04-28) — "/" 단축키: 도크 열기 + 검색 모드 + 검색 input 포커스 (한글 IME 안전) */
+document.addEventListener('keydown', function(e){
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  var t = (e.target.tagName || '').toLowerCase();
+  if (t === 'input' || t === 'textarea' || t === 'select' || e.target.isContentEditable) return;
+  e.preventDefault();
+  /* 도크 닫혀있으면 열기 */
+  if (!document.body.classList.contains('dock-open') && typeof victorToggleDock === 'function') {
+    victorToggleDock();
+  }
+  /* 검색 모드 활성화 (자동 포커스 포함) */
+  setTimeout(function(){ setDockMode('search'); }, 280);
+});
+
+/* ===== 언어 변경 ===== */
+async function changeLang(lang) {
+  try {
+    const r = await fetch('/api/set-lang', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({lang})
+    });
+    const j = await r.json();
+    if (j.ok) location.reload();
+  } catch(e) { console.error('언어 변경 실패', e); }
+}
+</script>
+{% endif %}
+
+{# ========= 공용 카드 상세 모달 (Comment Anywhere) ========= #}
+{% if user %}
+<div id="cardModal" class="card-modal" style="display:none">
+  <div class="card-modal-bg" onclick="closeCardModal()"></div>
+  <div class="card-modal-card">
+    <div class="cm-modal-head">
+      <span id="cmTitle">{{ i.modal_close|default('로딩') }}...</span>
+      <div class="tr-lang-sel">
+        <label>🌐</label>
+        <select id="trLang">{# QA-H3·H4·H5 패치 ③ (2026-04-25): LANGS 동적 — ko/vi/en 만 #}
+          {% for code, label in LANGS.items() %}
+          <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div id="cmBody" class="cm-modal-body">로딩 중...</div>
+  </div>
+</div>
+<script>
+const ME_ID = {{ user.id }};
+const ME_ROLE = "{{ user.role }}";
+const LANG = "{{ lang|default('ko') }}";
+const I = {
+  modal_today: "{{ i.modal_today|default('📝 오늘 한 일') }}",
+  modal_next: "{{ i.modal_next|default('📌 다음 계획') }}",
+  translate_btn: "{{ i.translate_btn|default('🌐 사내 사전') }}",
+  comment_title: "{{ i.comment_title|default('💬 코멘트') }}",
+  no_comment: "{{ i.no_comment|default('아직 코멘트가 없습니다') }}",
+  ceo_request: "{{ i.ceo_request|default('대표 요청') }}",
+  comment_placeholder: "{{ i.comment_placeholder|default('요청사항·코멘트를 입력하세요. @이름 으로 멘션 가능') }}",
+  delegation_title: "{{ i.delegation_title|default('📌 업무 위임 이력') }}",
+  delegate_btn: "{{ i.delegate_btn|default('📌 이 업무를 위임하기') }}",
+  delegate_done: "{{ i.delegate_done|default('✅ 처리완료') }}",
+  delegate_pending: "{{ i.delegate_pending|default('⏳ 대기중') }}",
+  btn_delegate: "{{ i.btn_delegate|default('위임') }}",
+  btn_resolve: "{{ i.btn_resolve|default('처리 완료') }}",
+  btn_register: "{{ i.btn_register|default('등록') }}",
+  modal_close: "{{ i.modal_close|default('닫기') }}",
+  rx_ack: "{{ i.rx_ack|default('확인') }}",
+  rx_question: "{{ i.rx_question|default('질문') }}",
+  rx_risk: "{{ i.rx_risk|default('리스크') }}",
+  rx_ok: "{{ i.rx_ok|default('OK') }}",
+  confirm_delete_comment: "{{ i.confirm_delete|default('이 댓글을 삭제할까요?') }}",
+};
+
+async function openCardModal(taskId){
+  const m = document.getElementById('cardModal');
+  m.style.display = 'flex';
+  document.getElementById('cmTitle').textContent = '로딩...';
+  document.getElementById('cmBody').innerHTML = '<div style="text-align:center;padding:30px;color:#999">로딩 중...</div>';
+  try {
+    const r = await fetch(`/api/task/${taskId}/detail`);
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error||'오류');
+    renderCardModal(j.task, j.comments, j.reactions, j.delegations||[]);
+  } catch(e) {
+    document.getElementById('cmBody').innerHTML = '<div style="color:#A5282C;padding:20px">불러오기 실패: '+e.message+'</div>';
+  }
+}
+function closeCardModal(){
+  document.getElementById('cardModal').style.display='none';
+}
+function escHtml(s){return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function renderCardModal(t, comments, reactions, delegations){
+  const statusColors = {'진행중':'#F57F17','완료':'#2E7D32','지연':'#A5282C','대기':'#4A4A4A','보류':'#4A4A4A'};
+  const sc = statusColors[t.status] || '#4A4A4A';
+  document.getElementById('cmTitle').innerHTML = `<span class="tag" style="background:${sc};color:#fff">${t.status}</span> ${escHtml(t.title)}`;
+
+  let html = `<div class="cm-meta">
+    <b>${escHtml(t.user_name)}</b> ${escHtml(t.user_rank||'')} · ${escHtml(t.team_name||'')} · ${t.work_date} · ${t.hours||0}h
+    ${t.project_name ? '· 🛠 '+escHtml(t.project_name):''} ${t.customer_name ? '· 🏢 '+escHtml(t.customer_name):''}
+  </div>`;
+  if (t.notes) html += `<div class="cm-section"><b>${I.modal_today}</b> <button class="tr-btn" onclick="translateFromDom(this)">${I.translate_btn}</button><div class="tr-source">${escHtml(t.notes)}</div><div class="tr-result" style="display:none"></div></div>`;
+  if (t.next_plan) html += `<div class="cm-section cm-next"><b>${I.modal_next}</b> <button class="tr-btn" onclick="translateFromDom(this)">${I.translate_btn}</button><div class="tr-source">${escHtml(t.next_plan)}</div><div class="tr-result" style="display:none"></div></div>`;
+
+  // Reactions bar with name display
+  const rxKinds = [['ack','👍',I.rx_ack],['question','❓',I.rx_question],['risk','⚠️',I.rx_risk],['ok','✅',I.rx_ok]];
+  function rankClass(role, rank) {
+    if (role==='ceo'||role==='admin'||(rank&&(rank.includes('대표')||rank.includes('사장')))) return 'rx-ceo';
+    if (role==='executive'||(rank&&(rank.includes('이사')||rank.includes('부사장')||rank.includes('전무')||rank.includes('상무')))) return 'rx-exec';
+    if (role==='leader'||(rank&&(rank.includes('팀장')||rank.includes('부장')||rank.includes('차장')))) return 'rx-leader';
+    return 'rx-member';
+  }
+  html += `<div class="cm-reactions">`;
+  for (const [k,emo,lab] of rxKinds){
+    const arr = (reactions[k]||[]);
+    const mine = arr.some(x=>x.user_id===ME_ID);
+    const cls = mine ? 'rx-btn rx-mine' : 'rx-btn';
+    const tipText = arr.map(u => `${u.name} ${u.rank||''}`).join(', ');
+    html += `<button class="${cls}" onclick="toggleReaction(${t.id},'${k}')" title="${arr.length ? tipText : '클릭하여 반응'}">${emo} ${lab} <b>${arr.length||''}</b></button>`;
+    if (arr.length) {
+      html += `<div class="rx-names">`;
+      for (const u of arr) {
+        const rc = rankClass(u.role||'', u.rank||'');
+        html += `<span class="rx-name ${rc}">${escHtml(u.name)} ${escHtml(u.rank||'')}</span>`;
+      }
+      html += `</div>`;
+    }
+  }
+  html += `</div>`;
+
+  // Comments
+  html += `<div class="cm-section-head">${I.comment_title} (${comments.length})</div><div class="cm-list">`;
+  if (!comments.length) html += `<div style="color:#999;font-size:12px;padding:8px">${I.no_comment}</div>`;
+  for (const cm of comments){
+    const ceo = cm.is_ceo_request ? `<span class="tag tag-ceo">${I.ceo_request}</span> `:'';
+    const canDel = (cm.author_id===ME_ID || ME_ROLE==='ceo' || ME_ROLE==='admin');
+    const delBtn = canDel ? `<button class="btn-xs" onclick="delComment(${cm.id},${t.id})" style="float:right">🗑</button>`:'';
+    html += `<div class="cm-item ${cm.is_ceo_request?'cm-ceo':''}">
+      ${delBtn}<div>${ceo}<b>${escHtml(cm.author_name)}</b> ${escHtml(cm.author_rank||'')} <span class="cm-time">${cm.created_at}</span> <button class="tr-btn-sm" onclick="translateFromDom(this)">🌐</button></div>
+      <div class="cm-text tr-source">${escHtml(cm.body).replace(/@([가-힣A-Za-z0-9_]+)/g,'<span class="mention">@$1</span>')}</div>
+      <div class="tr-result" style="display:none"></div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // Delegations
+  if (delegations && delegations.length){
+    html += `<div class="cm-section-head">${I.delegation_title}</div><div class="cm-deleg-list">`;
+    for (const d of delegations){
+      const isDone = d.status==='done';
+      const canResolve = !isDone && d.to_user_id===ME_ID;
+      html += `<div class="cm-deleg ${isDone?'cm-deleg-done':'cm-deleg-pending'}">
+        <span>${escHtml(d.from_name)} ${escHtml(d.from_rank||'')} → <b>${escHtml(d.to_name)} ${escHtml(d.to_rank||'')}</b></span>
+        ${d.message?`<span class="cm-deleg-msg">${escHtml(d.message)}</span>`:''}
+        <span class="cm-deleg-st">${isDone?I.delegate_done:I.delegate_pending}</span>
+        ${canResolve?`<button class="btn-xs" onclick="resolveDelegation(${d.id},${t.id})">${I.btn_resolve}</button>`:''}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Delegate button
+  html += `<div class="cm-deleg-form">
+    <button class="btn-sm" onclick="document.getElementById('delegForm').style.display='block'" style="font-size:11px">${I.delegate_btn}</button>
+    <div id="delegForm" style="display:none;margin-top:8px">
+      <input id="delegTo" type="text" placeholder="@이름 검색" aria-label="위임 대상자 검색 (@이름)" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:160px" oninput="searchDelegUser(this.value)">
+      <div id="delegPop" class="mention-pop" style="display:none"></div>
+      <input id="delegToId" type="hidden">
+      <input id="delegMsg" type="text" placeholder="위임 메시지 (선택)" aria-label="위임 메시지 (선택)" style="padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-left:4px;width:200px">
+      <button class="btn-primary" onclick="submitDelegation(${t.id})" style="font-size:11px;padding:5px 12px;margin-left:4px">${I.btn_delegate}</button>
+    </div>
+  </div>`;
+
+  // Comment form (with @mention autocomplete)
+  html += `<div class="cm-form-wrap">
+    <textarea id="cmInput" placeholder="${I.comment_placeholder}" aria-label="${I.comment_placeholder}" rows="2"></textarea>
+    <div id="mentionPop" class="mention-pop" style="display:none"></div>
+    <div class="cm-form-actions">
+      <button class="btn-primary" onclick="submitComment(${t.id})">${I.btn_register}</button>
+      <button class="btn-close-modal" onclick="closeCardModal()">${I.modal_close}</button>
+    </div>
+  </div>`;
+  document.getElementById('cmBody').innerHTML = html;
+
+  // Wire up @mention autocomplete
+  const ta = document.getElementById('cmInput');
+  ta.addEventListener('input', handleMentionInput);
+  ta.focus();
+}
+// ===== 번역 기능 =====
+async function translateFromDom(btn) {
+  const container = btn.closest('.cm-section, .cm-item');
+  if (!container) return;
+  const sourceEl = container.querySelector('.tr-source');
+  const resultDiv = container.querySelector('.tr-result');
+  if (!sourceEl || !resultDiv) return;
+  const text = sourceEl.textContent.trim();
+  if (!text) return;
+  const target = document.getElementById('trLang').value;
+  // 이미 표시 중이면 토글
+  if (resultDiv.style.display === 'block') {
+    resultDiv.style.display = 'none';
+    return;
+  }
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<span class="tr-loading">번역 중...</span>';
+  try {
+    const r = await fetch('/api/translate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text, target})
+    });
+    const j = await r.json();
+    if (j.ok) {
+      const langNames = {ko:'🇰🇷 한국어', vi:'🇻🇳 Tiếng Việt', en:'🇺🇸 English'};
+      const srcLabel = j.source ? ` · ${escHtml(j.source)}` : '';
+      resultDiv.innerHTML = `<div class="tr-label">${langNames[target]||target} 번역${srcLabel}</div><div class="tr-text">${escHtml(j.translated)}</div>`;
+    } else {
+      resultDiv.innerHTML = `<span class="tr-error">${j.error||'번역 실패'}</span>`;
+    }
+  } catch(e) {
+    resultDiv.innerHTML = '<span class="tr-error">번역 서비스 연결 실패</span>';
+  }
+}
+
+async function toggleReaction(tid, kind){
+  const r = await fetch(`/api/task/${tid}/reaction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})});
+  const j = await r.json();
+  if (j.ok) openCardModal(tid);
+}
+async function submitComment(tid){
+  const ta = document.getElementById('cmInput');
+  const body = ta.value.trim();
+  if (!body) return alert('내용을 입력하세요');
+  const r = await fetch(`/api/task/${tid}/comment`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body})});
+  const j = await r.json();
+  if (j.ok){ ta.value=''; openCardModal(tid); }
+  else alert(j.error||'실패');
+}
+async function delComment(cid, tid){
+  if (!confirm('이 댓글을 삭제할까요?')) return;
+  await fetch(`/api/comment/${cid}`,{method:'DELETE'});
+  openCardModal(tid);
+}
+
+// ===== @mention autocomplete =====
+async function handleMentionInput(e){
+  const ta = e.target;
+  const val = ta.value;
+  const pos = ta.selectionStart;
+  const before = val.substring(0,pos);
+  const m = before.match(/@([가-힣A-Za-z0-9_]{1,20})$/);
+  const pop = document.getElementById('mentionPop');
+  if (!m){ pop.style.display='none'; return; }
+  const q = m[1];
+  const r = await fetch('/api/users/search?q='+encodeURIComponent(q));
+  const j = await r.json();
+  if (!j.ok || !j.users.length){ pop.style.display='none'; return; }
+  pop.innerHTML = j.users.map(u=>`<div class="mp-item" onclick="pickMention('${u.name}')">${u.name} <span class="mp-rank">${u.rank||''}</span></div>`).join('');
+  pop.style.display='block';
+}
+function pickMention(name){
+  const ta = document.getElementById('cmInput');
+  const pos = ta.selectionStart;
+  const before = ta.value.substring(0,pos).replace(/@[가-힣A-Za-z0-9_]*$/,'@'+name+' ');
+  const after = ta.value.substring(pos);
+  ta.value = before + after;
+  ta.focus();
+  document.getElementById('mentionPop').style.display='none';
+}
+
+// ===== 위임 기능 =====
+async function searchDelegUser(q){
+  const pop = document.getElementById('delegPop');
+  if (!q || q.length<1){ pop.style.display='none'; return; }
+  const r = await fetch('/api/users/search?q='+encodeURIComponent(q));
+  const j = await r.json();
+  if (!j.ok || !j.users.length){ pop.style.display='none'; return; }
+  pop.innerHTML = j.users.map(u=>`<div class="mp-item" onclick="pickDelegUser(${u.id},'${u.name} ${u.rank||""}')">${u.name} <span class="mp-rank">${u.rank||''}</span></div>`).join('');
+  pop.style.display='block';
+}
+function pickDelegUser(id, label){
+  document.getElementById('delegTo').value = label;
+  document.getElementById('delegToId').value = id;
+  document.getElementById('delegPop').style.display='none';
+}
+async function submitDelegation(tid){
+  const toId = document.getElementById('delegToId').value;
+  if (!toId) return alert('위임 대상을 선택하세요');
+  const msg = document.getElementById('delegMsg').value.trim();
+  const r = await fetch(`/api/task/${tid}/delegate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_user_id:parseInt(toId),message:msg})});
+  const j = await r.json();
+  if (j.ok){ openCardModal(tid); } else { alert(j.error||'실패'); }
+}
+async function resolveDelegation(did, tid){
+  if (!confirm('이 위임을 처리 완료로 표시할까요?')) return;
+  const r = await fetch(`/api/delegation/${did}/resolve`,{method:'POST'});
+  const j = await r.json();
+  if (j.ok) openCardModal(tid); else alert(j.error||'실패');
+}
+
+/* ===== 부서별 첫 사용 가이드 (실패 사례 회피 — 변경 관리 미흡 73% 실패 1위) ===== */
+{% if user %}
+(function(){
+  const KEY = 'haist_works_dept_guide_v1_{{ user.id }}';
+  if (localStorage.getItem(KEY)) return;
+
+  // 부서명별 맞춤 가이드 (없으면 일반 가이드)
+  const team = "{{ user.team_name|default('') }}";
+  const role = "{{ user.role|default('member') }}";
+
+  const GUIDES = {
+    "구매팀": {
+      icon: "📦",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "카톡 자재요청을 자동 라우팅으로 받음 (누락 0)"],
+        ["진행률 대시보드", "/progress", "발주 → 입고 → 조립 공정 진척 한눈"],
+        ["변경 공지", "/changes?scope=me", "BOM 변경 → 영향 자재 즉시 인지"]
+      ]
+    },
+    "관리팀": {
+      icon: "📊",
+      key_features: [
+        ["전사 게시판", "/board/company", "공지사항·증빙 요청 일원화"],
+        ["진행률 대시보드", "/progress", "전사 매출 흐름 모니터"],
+        ["요청 티켓", "/tickets?scope=all", "전산·비품 요청 추적"]
+      ]
+    },
+    "기술영업팀": {
+      icon: "💼",
+      key_features: [
+        ["진행률 대시보드", "/progress", "수주 → 출하 12공정 매트릭스 (Set Up 진행률 %)"],
+        ["변경 공지", "/changes?scope=me", "고객 사양 변경 즉시 인지"],
+        ["요청 티켓", "/tickets?scope=team", "포장·출하 요청 추적"]
+      ]
+    },
+    "전장설계팀": {
+      icon: "⚡",
+      key_features: [
+        ["변경 공지", "/changes?scope=me", "기구 설계 변경 1~3일 대기 → 즉시 알림으로 해소"],
+        ["진행률 대시보드", "/progress", "기구→전장→SW 일정 의존성 시각화"],
+        ["요청 티켓", "/tickets/new", "BOM 변경 사유 등록"]
+      ]
+    },
+    "설계팀": {
+      icon: "📐",
+      key_features: [
+        ["변경 공지 등록", "/changes/new", "기구 변경 시 즉시 등록 → 하류 부서 자동 알림"],
+        ["진행률 대시보드", "/progress", "본사-법인 진행 공유"],
+        ["요청 티켓", "/tickets?scope=team", "설계 MODIFY 요청 접수"]
+      ]
+    },
+    "검사기팀": {
+      icon: "🔬",
+      key_features: [
+        ["변경 공지", "/changes?scope=me", "SW·BOM 변경 즉시 인지"],
+        ["진행률 대시보드", "/progress", "검사기 프로젝트별 공정"],
+        ["요청 티켓", "/tickets?scope=team", "AS 요청 접수"]
+      ]
+    },
+    "가공팀": {
+      icon: "🔨",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "긴급 가공 요청 자동 우선순위"],
+        ["변경 공지", "/changes?scope=me", "도면 변경 저녁 통보 → 즉시 알림으로 해소"],
+        ["진행률 대시보드", "/progress", "가공 공정 진척"]
+      ]
+    },
+    "품질팀": {
+      icon: "✓",
+      key_features: [
+        ["요청 티켓", "/tickets?scope=team", "검수 요청 자동 라우팅"],
+        ["변경 공지", "/changes?scope=me", "도면 변경 → 검수 기준 변경"],
+        ["진행률 대시보드", "/progress", "검수 공정 (qc) 모니터"]
+      ]
+    },
+    "제조기술1팀": {
+      icon: "🛠",
+      key_features: [
+        ["진행률 대시보드", "/progress", "검사기 조립 공정 진척"],
+        ["요청 티켓", "/tickets?scope=team", "자재·도면 요청"],
+        ["변경 공지", "/changes?scope=me", "BOM·도면 변경 즉시 인지"]
+      ]
+    },
+    "제조기술2팀": {
+      icon: "🛠",
+      key_features: [
+        ["변경 공지", "/changes?scope=me", "도면 30일 link 만료 사고 예방 (지난 실사고)"],
+        ["진행률 대시보드", "/progress", "자동화 조립 공정 진척"],
+        ["요청 티켓", "/tickets?scope=team", "자재·기구 요청"]
+      ]
+    },
+    "소프트웨어팀": {
+      icon: "💻",
+      key_features: [
+        ["변경 공지", "/changes?scope=me", "I/O Map·BOM 변경 즉시 인지"],
+        ["진행률 대시보드", "/progress", "SW 공정 (sw)"],
+        ["요청 티켓", "/tickets?scope=team", "MODIFY 접수"]
+      ]
+    },
+    "개발혁신팀": {
+      icon: "🚀",
+      key_features: [
+        ["진행률 대시보드", "/progress", "공정별 진행 실시간 가시화"],
+        ["변경 공지", "/changes?scope=all", "전사 변경 모니터"],
+        ["전사 게시판", "/board/company", "혁신 사례 공유"]
+      ]
+    }
+  };
+
+  const guide = GUIDES[team] || {
+    icon: "👋",
+    key_features: [
+      ["진행률 대시보드", "/progress", "프로젝트 진행 한눈에"],
+      ["변경 공지", "/changes", "프로젝트 변경 자동 알림"],
+      ["요청 티켓", "/tickets", "카톡 대신 추적 가능한 요청"]
+    ]
+  };
+
+  // 모달 생성
+  const modal = document.createElement('div');
+  modal.id = 'deptFirstUseModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:600px;margin:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:36px;">${guide.icon}</span>
+        <div>
+          <div style="font-size:11px;color:#A5282C;font-weight:800;letter-spacing:0.04em;">HAIST WORKS 처음 시작</div>
+          <h2 style="margin:0;font-size:22px;font-weight:800;">{{ user.name }}님, ${team || '환영'}!</h2>
+        </div>
+      </div>
+      <p style="color:#6B7280;font-size:14px;line-height:1.6;margin:0 0 18px;">${team ? `${team}에서 가장 자주 쓰실 기능 3가지를 골랐어요. 30초만 봐주세요.` : '당신의 부서에 맞는 핵심 3가지'}</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        ${guide.key_features.map((f, i) => `
+          <a href="${f[1]}" style="display:flex;gap:14px;padding:14px;background:#F9FAFB;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent;transition:all .15s;" onmouseover="this.style.borderColor='#A5282C';this.style.background='#FFEBEE'" onmouseout="this.style.borderColor='transparent';this.style.background='#F9FAFB'">
+            <span style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;">${i+1}</span>
+            <div style="flex:1;">
+              <strong style="font-size:14px;color:#1A1A1A;">${f[0]} →</strong>
+              <div style="font-size:12px;color:#6B7280;margin-top:2px;line-height:1.5;">${f[2]}</div>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+
+      <div style="background:#FFF8E1;border-left:3px solid #F57F17;padding:10px 14px;border-radius:6px;margin-bottom:18px;">
+        <div style="font-size:11px;color:#F57F17;font-weight:800;margin-bottom:4px;">💡 도움이 더 필요하면</div>
+        <div style="font-size:12px;color:#6B7280;line-height:1.6;">사이드바에 모든 메뉴가 있어요. 메뉴 옆 빨간 뱃지는 미처리 항목 수입니다.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
+        <button onclick="dismissDeptGuide(false)" style="padding:8px 16px;background:transparent;border:none;color:#9CA3AF;font-size:12px;cursor:pointer;text-decoration:underline;">나중에</button>
+        <button onclick="dismissDeptGuide(true)" style="padding:10px 24px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;">확인 (다시 안 보기)</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  window.dismissDeptGuide = function(remember) {
+    if (remember) localStorage.setItem(KEY, '1');
+    modal.remove();
+  };
+})();
+{% endif %}
+
+/* =================================================================
+   HAIST Victor — 사이드 도크 (제안 #08, 2026-04-24 대표 승인)
+   ================================================================= */
+{% if user %}
+const VICTOR_DOCK_KEY = 'haist_victor_dock_open';
+let VICTOR_REDIRECT_TIMER = null;
+
+function victorToggleDock() {
+  const open = !document.body.classList.contains('dock-open');
+  document.body.classList.toggle('dock-open', open);
+  try { localStorage.setItem(VICTOR_DOCK_KEY, open ? '1' : '0'); } catch(e){}
+  if (open) setTimeout(() => document.getElementById('dockInput')?.focus(), 280);
+}
+
+/* 초기: 이전 세션에서 열려 있던 상태 복원 */
+(function(){
+  try {
+    if (localStorage.getItem(VICTOR_DOCK_KEY) === '1') document.body.classList.add('dock-open');
+  } catch(e){}
+})();
+
+function victorAutoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+async function victorAsk(q) {
+  const body = document.getElementById('dockBody');
+  if (!body) return;
+  const welcome = document.getElementById('dockWelcome');
+  if (welcome) welcome.remove();
+  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
+
+  const esc = (s) => (s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg user"><div class="bubble">' + esc(q).replace(/\n/g,'<br>') + '</div></div>'
+  );
+  const typingId = 'typ-' + Date.now();
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg ai" id="'+typingId+'"><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>'
+  );
+  body.scrollTop = body.scrollHeight;
+
+  // Phase 1 v1.2 (2026-04-29) 진단 로그 추가
+  console.log('[VICTOR-ROUTE-v1.2] try route, q=', q);
+  try {
+    const rr = await fetch('/victor/route', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({q: q})
+    });
+    console.log('[VICTOR-ROUTE-v1.2] HTTP status=', rr.status);
+    const jr = await rr.json();
+    console.log('[VICTOR-ROUTE-v1.2] response=', jr);
+    if (jr && jr.ok && jr.candidates && jr.candidates.length > 0) {
+      document.getElementById(typingId)?.remove();
+      if (jr.auto_navigate) {
+        // 단일 매치 — 자동 이동 (3초 카운트다운)
+        const m = {code: jr.code, label: jr.label, path: jr.path, tip: jr.tip};
+        const link = '<a href="' + esc(m.path) + '" style="color:#A5282C;font-weight:700">[' + esc(m.code) + '] ' + esc(m.label) + ' →</a>';
+        body.insertAdjacentHTML('beforeend',
+          '<div class="msg ai"><div class="bubble">' +
+          '🎯 <strong>' + link + '</strong><br>' +
+          '<span style="font-size:12px;color:#666">' + esc(m.tip) + '</span><br>' +
+          '<span id="vrCount" style="font-size:11px;color:#999">3초 후 자동 이동…</span>' +
+          '</div></div>'
+        );
+        body.scrollTop = body.scrollHeight;
+        let n = 3;
+        VICTOR_REDIRECT_TIMER = setInterval(() => {
+          n--;
+          const el = document.getElementById('vrCount');
+          if (el) el.textContent = n + '초 후 자동 이동…';
+          if (n <= 0) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; window.location.href = m.path; }
+        }, 1000);
+      } else {
+        // 다중 매치 — 후보 표시
+        let html = '🔎 <strong>' + esc(jr.msg) + '</strong><ul style="margin:6px 0;padding-left:18px;list-style:none">';
+        for (const c of jr.candidates) {
+          html += '<li style="margin:4px 0">'
+            + '<a href="' + esc(c.path) + '" style="color:#A5282C;font-weight:600">[' + esc(c.code) + '] ' + esc(c.label) + ' →</a>'
+            + '<br><span style="font-size:11px;color:#666">' + esc(c.tip) + '</span></li>';
+        }
+        html += '</ul>';
+        body.insertAdjacentHTML('beforeend', '<div class="msg ai"><div class="bubble">' + html + '</div></div>');
+        body.scrollTop = body.scrollHeight;
+      }
+      return;
+    }
+    // 매치 없음 또는 ok=false → 기존 빅터 AI 로 위임 (fallback)
+  } catch (e) { /* 라우팅 실패 시도 무시 + ask 진행 */ }
+
+  try {
+    const r = await fetch('/api/victor/ask', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({query: q})
+    });
+    const j = await r.json();
+    document.getElementById(typingId)?.remove();
+    if (!j.ok) {
+      victorAppendAi({type:'error', title:'오류', text: j.error || '알 수 없음', links:[]});
+    } else {
+      victorAppendAi(j.result || {});
+    }
+  } catch (err) {
+    document.getElementById(typingId)?.remove();
+    victorAppendAi({type:'error', title:'네트워크 오류', text: String(err), links:[]});
+  }
+}
+
+function victorSubmit() {
+  const inp = document.getElementById('dockInput');
+  if (!inp) return;
+  const q = inp.value.trim();
+  if (!q) return;
+  inp.value = '';
+  victorAutoGrow(inp);
+  victorAsk(q);
+}
+
+function victorAppendAi(r) {
+  const body = document.getElementById('dockBody');
+  if (!body) return;
+  const escape = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const bold = (s) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const titleIco = {route:'🧭',data:'📊',search:'🔍',guide:'💡',external:'🔗',error:'⚠️',guide_step:'🎯'}[r.type] || '🤖';
+
+  /* guide_step 은 번호 배지 렌더 */
+  let textHtml;
+  if (r.type === 'guide_step') {
+    textHtml = (r.text || '').split('\n').map(l => {
+      const m = l.match(/^(\d+)\.\s*(.+)$/);
+      if (m) {
+        return '<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;">' +
+               '<div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">' + m[1] + '</div>' +
+               '<div style="flex:1;padding-top:1px;">' + bold(escape(m[2])) + '</div></div>';
+      }
+      return '<div style="margin:3px 0;">' + bold(escape(l)) + '</div>';
+    }).join('');
+  } else {
+    textHtml = (r.text || '').split('\n').map(escape).map(bold).join('<br>');
+  }
+
+  const linksHtml = (r.links || []).map(l => {
+    const cls = l.style === 'primary' ? 'primary' : (l.style === 'do' ? 'do' : 'secondary');
+    const safeHref = (l.href || '#').replace(/"/g, '&quot;');
+    const safeLabel = escape(l.label || '');
+    const doAttr = l.style === 'do' ? ' data-do="1"' : '';
+    return '<a class="link-chip ' + cls + '" href="' + safeHref + '"' + doAttr + '>' + safeLabel + '</a>';
+  }).join('');
+
+  /* guide_step + auto_redirect 카운트다운 */
+  let countdownHtml = '';
+  if (r.type === 'guide_step' && r.auto_redirect) {
+    const safeUrl = escape(r.auto_redirect);
+    countdownHtml = '<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+      '<div style="color:#92400E;">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">' + safeUrl + '</span></div>' +
+      '<button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';
+  }
+
+  body.insertAdjacentHTML('beforeend',
+    '<div class="msg ai"><div class="bubble">' +
+    '<div class="title">' + titleIco + ' ' + escape(r.title || '') + '</div>' +
+    '<div class="text">' + textHtml + '</div>' +
+    (linksHtml ? '<div class="links">' + linksHtml + '</div>' : '') +
+    countdownHtml +
+    '</div></div>'
+  );
+  body.scrollTop = body.scrollHeight;
+
+  if (r.type === 'guide_step' && r.auto_redirect) {
+    let sec = 3;
+    VICTOR_REDIRECT_TIMER = setInterval(() => {
+      sec -= 1;
+      const el = document.getElementById('vcSec');
+      if (el) el.textContent = sec;
+      if (sec <= 0) {
+        clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null;
+        window.location.href = r.auto_redirect;
+      }
+    }, 1000);
+  }
+}
+
+function victorCancelRedirect() {
+  if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
+  const c = document.getElementById('victorCountdown');
+  if (c) { c.innerHTML = '<span style="color:#6B7280;">✓ 자동 이동 취소됨</span>'; c.style.background = '#F3F4F6'; c.style.borderLeftColor = '#9CA3AF'; }
+}
+
+function victorClearChat() {
+  const body = document.getElementById('dockBody');
+  if (body) body.innerHTML =
+    '<div class="dock-welcome" id="dockWelcome">' +
+    '<span class="emoji">👋</span>' +
+    '<div style="font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">대화가 초기화되었습니다</div>' +
+    '다시 물어보세요.</div>';
+}
+
+/* 링크 클릭: do 스타일은 확인 후 POST, 나머지는 기본 이동 + 도크 상태 유지 */
+document.addEventListener('click', function(e){
+  const a = e.target.closest('.link-chip');
+  if (!a) return;
+  if (a.dataset.do === '1') {
+    e.preventDefault();
+    const href = a.getAttribute('href') || '#';
+    if (!confirm('"' + a.textContent.trim() + '" 실행하시겠습니까?')) return;
+    if (href === '#' || href.startsWith('javascript:')) {
+      alert('실행 API가 아직 연결되지 않은 액션입니다. 해당 페이지에서 직접 처리해주세요.');
+      return;
+    }
+    fetch(href, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+      .then(r => r.ok ? alert('✓ 실행 완료') : alert('실행 실패: ' + r.status))
+      .catch(err => alert('네트워크 오류: ' + err));
+  }
+  /* 일반 이동 링크는 그대로 진행 — localStorage 복원으로 다음 페이지에서도 도크 열림 유지 */
+});
+
+/* Ctrl+K / ⌘K 로 토글 · Esc 로 접기 · Enter 전송 · Shift+Enter 줄바꿈 */
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    victorToggleDock();
+    return;
+  }
+  if (e.key === 'Escape' && document.body.classList.contains('dock-open')) {
+    /* 입력창 포커스 상태에서는 Esc로 먼저 포커스 해제만 */
+    if (document.activeElement && document.activeElement.id === 'dockInput' && document.activeElement.value) {
+      document.activeElement.blur();
+      return;
+    }
+    victorToggleDock();
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function(){
+  const inp = document.getElementById('dockInput');
+  if (!inp) return;
+  inp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      victorSubmit();
+    }
+  });
+});
+{% endif %}
+{% endif %}
+
+// =========================================================
+// Phase 1 (2026-04-29 대표 결재) — 화면 도움말 ❓ popover
+// =========================================================
+let _menuHelpEl = null;
+function menuHelpToggle() {
+  if (_menuHelpEl && _menuHelpEl.parentNode) {
+    _menuHelpEl.remove();
+    _menuHelpEl = null;
+    return;
+  }
+  const path = window.location.pathname;
+  const code = {{ (current_menu.code if current_menu else '')|tojson }};
+  const url = '/api/menu-help?path=' + encodeURIComponent(path) + (code ? '&code=' + encodeURIComponent(code) : '');
+  fetch(url).then(r => r.json()).then(j => {
+    const esc = (s) => (s || '').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    let html = '';
+    if (j.ok) {
+      const aliases = (j.aliases || []).map(a => '<span style="display:inline-block;background:#F3F4F6;color:#374151;padding:2px 8px;border-radius:4px;font-size:11px;margin:2px 4px 2px 0">' + esc(a) + '</span>').join('');
+      html = '<div style="font-weight:800;color:#A5282C;font-size:13px;margin-bottom:4px">[' + esc(j.code) + '] ' + esc(j.label) + '</div>'
+        + '<div style="color:#1F2937;font-size:13px;line-height:1.5;margin-bottom:8px">' + esc(j.tip) + '</div>'
+        + '<div style="color:#6B7280;font-size:11px;margin-bottom:6px">주 사용자: ' + esc(j.persona) + '</div>'
+        + (aliases ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #E5E7EB"><span style="font-size:10px;color:#9CA3AF;margin-right:4px">빅터 호출 키워드</span>' + aliases + '</div>' : '')
+        + '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">💡 빅터에게 "' + esc(j.label) + '"라고 말하면 이 화면이 열립니다.</div>';
+    } else {
+      html = '<div style="color:#6B7280;font-size:13px">' + esc(j.msg || '도움말 없음') + '</div>'
+        + '<div style="margin-top:8px;font-size:11px;color:#9CA3AF">URL: ' + esc(path) + '</div>';
+    }
+    const el = document.createElement('div');
+    el.id = 'menuHelpPop';
+    el.style.cssText = 'position:fixed;top:64px;right:200px;width:340px;background:#fff;border:1px solid #E5E7EB;box-shadow:0 8px 28px rgba(0,0,0,0.15);padding:14px 16px;z-index:10000;border-left:4px solid #A5282C;font-family:inherit';
+    el.innerHTML = html + '<button onclick="menuHelpToggle()" style="position:absolute;top:6px;right:8px;background:none;border:0;font-size:16px;cursor:pointer;color:#9CA3AF" aria-label="닫기">×</button>';
+    document.body.appendChild(el);
+    _menuHelpEl = el;
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+      const closeOnOut = (ev) => {
+        if (_menuHelpEl && !_menuHelpEl.contains(ev.target) && ev.target.id !== 'menuHelpBtn') {
+          _menuHelpEl.remove(); _menuHelpEl = null;
+          document.removeEventListener('click', closeOnOut);
+        }
+      };
+      document.addEventListener('click', closeOnOut);
+    }, 100);
+  }).catch(e => {
+    alert('도움말을 불러올 수 없습니다: ' + e);
+  });
+}
+</script>
+
+{# =========================================================
+   HAIST Victor — 사이드 도크 (제안 #08, 대표 승인 2026-04-24)
+   시안: 05_.../03_시안/08_victor_side_dock.html
+   ========================================================= #}
+{% if user %}
+{# 우측 세로 탭 폐지 (QA-H2 · 05 디자인팀 3차) — 헤더 .tb-icon-btn.victor 가 유일한 트리거 #}
+<aside class="dock" id="victorDock" aria-label="HAIST Victor 어시스턴트">
+  <div class="dock-head">
+    <div class="dock-head-row">
+      <div class="dock-avatar">V</div>
+      <div class="dock-title">
+        <div class="name">HAIST 빅터</div>
+        <div class="state">사내 AI 컨시어지 · 온라인</div>
+      </div>
+      <div class="dock-actions">
+        <button class="dock-btn" onclick="victorClearChat()" title="대화 초기화" aria-label="대화 초기화">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+        <button class="dock-btn" onclick="victorToggleDock()" title="접기 (Esc)" aria-label="빅터 도크 접기">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# v3 (2026-04-28 대표 승인) — 도크 모드 탭 (빅터 ↔ 검색 분리) #}
+  <div class="dock-modes" role="tablist" aria-label="도크 모드 전환">
+    <button type="button" class="dock-mode-tab active" data-mode="victor" role="tab" aria-selected="true" onclick="setDockMode('victor')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      💬 빅터에게 묻기
+    </button>
+    <button type="button" class="dock-mode-tab" data-mode="search" role="tab" aria-selected="false" onclick="setDockMode('search')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+      🔍 검색
+    </button>
+  </div>
+
+  {# 모드: 빅터 (기본 활성) #}
+  <div class="dock-mode-panel active" data-mode-panel="victor">
+    {% if victor_chips %}
+    <div class="dock-ctx">
+      <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
+      <div class="dock-ctx-chips">
+        {% for chip in victor_chips %}
+        <button class="dock-ctx-chip" onclick="victorAsk({{ chip|tojson }})">{{ chip }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="dock-body" id="dockBody">
+      <div class="dock-welcome" id="dockWelcome">
+        <span class="emoji">👋</span>
+        <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
+          {{ user.name }}님, 무엇을 도와드릴까요?
+        </div>
+        자연어로 편하게 물어보세요.<br>
+        메뉴를 찾을 필요 없습니다.
+      </div>
+    </div>
+
+    <div class="dock-input-wrap">
+      <div class="dock-quick">
+        <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
+        <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
+        <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
+        <button type="button" onclick="victorAsk('확인 안 한 변경')">미확인 변경</button>
+        <button type="button" onclick="victorAsk('결재')">결재</button>
+      </div>
+      <div class="dock-input-row">
+        <label for="dockInput" class="sr-only">빅터 입력</label>
+        <textarea class="dock-input" id="dockInput" rows="1" tabindex="0" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
+        <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)" aria-label="빅터에게 보내기" tabindex="0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="dock-foot">
+        <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+      </div>
+    </div>
+  </div>
+
+  {# 모드: 검색 (탭 클릭 시 표시) #}
+  <div class="dock-mode-panel" data-mode-panel="search">
+    <div class="dock-search-wrap">
+      <div class="search-hint">업무 · 사람 · 문서 검색</div>
+      <form class="dock-search" action="/search" method="get" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <label for="gSearchInput" class="sr-only">{{ i.search_ph|default('업무·사람·문서 검색') }}</label>
+        <input type="search" name="q" id="gSearchInput"
+               placeholder="{{ i.search_ph|default('검색어 입력 후 Enter...') }}"
+               autocomplete="off"
+               oninput="gSearchSuggest(this.value)"
+               onblur="setTimeout(function(){var el=document.getElementById('gSearchSugg');if(el)el.style.display='none'},200)"
+               onfocus="if(this.value.length>=2)gSearchSuggest(this.value)">
+        <span class="shortcut">/</span>
+      </form>
+      <div id="gSearchSugg" class="g-search-sugg dock-search-sugg"
+           style="display:none;margin-top:8px;background:#fff;border:1px solid var(--sage-300,#CAD9B8);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.10);max-height:380px;overflow:auto"></div>
+    </div>
+    <div class="dock-search-empty" id="dockSearchEmpty">
+      <span class="empty-ico">🔍</span>
+      검색어를 입력하면 결과가 표시됩니다<br>
+      <span style="font-size:11px;color:var(--ink-4,#8FA594)">예: "삼성", "라벨링", "김재훈", "발주서"</span>
+    </div>
+  </div>
+</aside>
+{% endif %}
+</body>
+</html>

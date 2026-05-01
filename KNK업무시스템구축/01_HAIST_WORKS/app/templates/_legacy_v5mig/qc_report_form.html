@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}검사기 출하성적서 {% if report %}{{ report.report_no }}{% else %}신규{% endif %} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/qc/inspection-reports" style="font-size:13px;color:var(--mute);text-decoration:none;">← QCR 목록</a>
+  · <a href="/qms" style="font-size:13px;color:var(--mute);text-decoration:none;">QMS 대시</a>
+</div>
+
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--info);">
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">
+    {% if report %}검사기 출하성적서 {{ report.report_no }}{% else %}검사기 출하성적서 신규 발급{% endif %}
+  </h1>
+  <p style="margin:6px 0 0;color:var(--mute);font-size:13px;">
+    {% if report %}
+      상태: <strong>{{ report.status }}</strong> · 종합판정: <strong>{{ report.overall }}</strong> · 검사자: {{ report.inspector_disp }} · 발급일시: {{ report.issued_at or '-' }}
+    {% else %}
+      검사기 반복성·정확도·통신·외관·동작·안전 6항목 표준. 외부 PDF 라이브러리 0건 (HTML 인쇄).
+    {% endif %}
+  </p>
+</div>
+
+{% if report %}
+<div style="margin:8px 0 16px;">
+  <a href="/qc/inspection-reports/{{ report.id }}/print" target="_blank" style="background:#7B1FA2;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">인쇄 view</a>
+  {% if report.status == 'DRAFT' %}
+  <form method="post" action="/qc/inspection-reports/{{ report.id }}/issue" style="display:inline;">
+    <button type="submit" style="background:var(--info);color:#fff;padding:6px 14px;border-radius:6px;border:0;font-weight:700;font-size:13px;cursor:pointer;">발급 확정 (DRAFT → ISSUED)</button>
+  </form>
+  {% endif %}
+</div>
+
+<table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
+  <tr><th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">성적서번호</th>
+      <td style="padding:8px;font-size:13px;"><strong>{{ report.report_no }}</strong></td>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">종합판정</th>
+      <td style="padding:8px;font-size:13px;">
+        {% if report.overall == 'PASS' %}<span style="background:var(--paper-2);color:var(--success);padding:2px 8px;border-radius:4px;font-weight:700;">PASS</span>
+        {% elif report.overall == 'FAIL' %}<span style="background:var(--knk-red-soft);color:#C62828;padding:2px 8px;border-radius:4px;font-weight:700;">FAIL</span>
+        {% elif report.overall == 'CONDITIONAL_PASS' %}<span style="background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:4px;font-weight:700;">CONDITIONAL</span>
+        {% else %}{{ report.overall }}{% endif %}
+      </td></tr>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">거래처</th>
+      <td style="padding:8px;font-size:13px;">{{ report.cust_disp }}</td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수주번호</th>
+      <td style="padding:8px;font-size:13px;">{{ report.order_no or '-' }}</td></tr>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사기 모델</th>
+      <td style="padding:8px;font-size:13px;">{{ report.machine_model or '-' }}</td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">시리얼</th>
+      <td style="padding:8px;font-size:13px;font-family:monospace;">{{ report.machine_serial or '-' }}</td></tr>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사일</th>
+      <td style="padding:8px;font-size:13px;">{{ report.inspection_date or '-' }}</td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사자</th>
+      <td style="padding:8px;font-size:13px;">{{ report.inspector_disp }}</td></tr>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">QA 책임자</th>
+      <td style="padding:8px;font-size:13px;">{{ report.qa_disp }}</td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">발급일시</th>
+      <td style="padding:8px;font-size:13px;">{{ report.issued_at or '-' }}</td></tr>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">비고</th>
+      <td colspan="3" style="padding:8px;font-size:13px;">{{ report.remarks or '-' }}</td></tr>
+</table>
+
+<h3 style="margin-top:24px;font-size:16px;color:var(--ink);">검사 항목 ({{ report.items|length }}건)</h3>
+{% if report.items %}
+<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
+  <thead>
+    <tr style="background:var(--paper);">
+      <th style="padding:6px;font-size:12px;width:40px;">#</th>
+      <th style="padding:6px;font-size:12px;text-align:left;">항목</th>
+      <th style="padding:6px;font-size:12px;text-align:left;">기준값</th>
+      <th style="padding:6px;font-size:12px;text-align:left;">측정값</th>
+      <th style="padding:6px;font-size:12px;width:80px;">판정</th>
+      <th style="padding:6px;font-size:12px;text-align:left;">비고</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in report.items %}
+    <tr style="border-top:1px solid var(--paper-2);">
+      <td style="padding:6px;font-size:13px;text-align:center;">{{ it.line_no }}</td>
+      <td style="padding:6px;font-size:13px;font-weight:600;">{{ it.item_name }}</td>
+      <td style="padding:6px;font-size:13px;color:var(--mute);">{{ it.spec_value or '-' }}</td>
+      <td style="padding:6px;font-size:13px;">{{ it.measured_value or '-' }}</td>
+      <td style="padding:6px;font-size:12px;text-align:center;">
+        {% if it.judgment == 'PASS' %}<span style="background:var(--paper-2);color:var(--success);padding:2px 8px;border-radius:4px;font-weight:700;">PASS</span>
+        {% elif it.judgment == 'FAIL' %}<span style="background:var(--knk-red-soft);color:#C62828;padding:2px 8px;border-radius:4px;font-weight:700;">FAIL</span>
+        {% else %}<span style="background:var(--paper-2);color:var(--mute);padding:2px 8px;border-radius:4px;">N/A</span>{% endif %}
+      </td>
+      <td style="padding:6px;font-size:12px;color:var(--mute);">{{ it.remarks or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:var(--mute);font-size:13px;">검사 항목 없음.</p>
+{% endif %}
+
+{% else %}
+{# 신규 발급 폼 #}
+<form method="post" action="/qc/inspection-reports" id="qcrForm">
+  <h3 style="margin:24px 0 8px;font-size:16px;color:var(--ink);">1. 거래처 · 검사기 정보</h3>
+  <table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
+    <tr>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">거래처 (선택)</th>
+      <td style="padding:8px;">
+        <select name="customer_id" onchange="onCustomerChange(this)" style="width:100%;padding:5px;">
+          <option value="">— 직접 입력 —</option>
+          {% for c in customers %}
+          <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.country or '-' }})</option>
+          {% endfor %}
+        </select>
+      </td>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">거래처명</th>
+      <td style="padding:8px;"><input type="text" name="customer_name" placeholder="거래처명" style="width:100%;padding:5px;"></td>
+    </tr>
+    <tr>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수주 (선택)</th>
+      <td style="padding:8px;">
+        <select name="order_id" onchange="onOrderChange(this)" style="width:100%;padding:5px;">
+          <option value="">— 없음 —</option>
+          {% for o in orders %}
+          <option value="{{ o.id }}" data-no="{{ o.order_no }}">{{ o.order_no }} · {{ o.cust_name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수주번호</th>
+      <td style="padding:8px;"><input type="text" name="order_no" placeholder="수주번호 스냅샷" style="width:100%;padding:5px;"></td>
+    </tr>
+    <tr>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사기 부품 (선택)</th>
+      <td style="padding:8px;">
+        <select name="part_id" style="width:100%;padding:5px;">
+          <option value="">— 없음 —</option>
+          {% for p in parts_options %}
+          <option value="{{ p.id }}">{{ p.name }} ({{ p.spec or '-' }})</option>
+          {% endfor %}
+        </select>
+      </td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사기 모델 *</th>
+      <td style="padding:8px;"><input type="text" name="machine_model" placeholder="HAIST-INS-VX1" required style="width:100%;padding:5px;"></td>
+    </tr>
+    <tr>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">시리얼 번호</th>
+      <td style="padding:8px;"><input type="text" name="machine_serial" placeholder="SN-2026-0001" style="width:100%;padding:5px;font-family:monospace;"></td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">검사일 *</th>
+      <td style="padding:8px;"><input type="date" name="inspection_date" required style="padding:5px;"></td>
+    </tr>
+    <tr>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">QA 책임자명</th>
+      <td style="padding:8px;"><input type="text" name="qa_manager_name" placeholder="QA 책임자명 (서명자)" style="width:100%;padding:5px;"></td>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">종합판정</th>
+      <td style="padding:8px;">
+        <select name="overall" style="width:100%;padding:5px;">
+          {% for code, label in QC_OVERALL_OPTIONS %}
+          <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">비고</th>
+      <td colspan="3" style="padding:8px;"><textarea name="remarks" rows="2" placeholder="추가 비고 (특이사항·사용조건 등)" style="width:100%;padding:5px;"></textarea></td>
+    </tr>
+  </table>
+
+  <h3 style="margin:24px 0 8px;font-size:16px;color:var(--ink);">2. 검사 항목 (반복성 · 정확도 · 통신 · 외관 · 동작 · 안전)</h3>
+  <p style="color:var(--mute);font-size:12px;margin:0 0 8px;">표준 6항목이 자동 추가됩니다. 측정값 입력 후 PASS/FAIL/N/A 선택. 항목명이 비어있으면 저장 시 무시됩니다.</p>
+
+  <table id="qcrLines" style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
+    <thead>
+      <tr style="background:var(--paper);">
+        <th style="padding:6px;font-size:12px;width:40px;">#</th>
+        <th style="padding:6px;font-size:12px;text-align:left;">항목 *</th>
+        <th style="padding:6px;font-size:12px;text-align:left;">기준값</th>
+        <th style="padding:6px;font-size:12px;text-align:left;">측정값</th>
+        <th style="padding:6px;font-size:12px;width:120px;">판정</th>
+        <th style="padding:6px;font-size:12px;text-align:left;">비고</th>
+        <th style="padding:6px;width:60px;"></th>
+      </tr>
+    </thead>
+    <tbody id="qcrLinesBody"></tbody>
+  </table>
+  <button type="button" onclick="addLine()" style="margin-top:8px;padding:6px 14px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;cursor:pointer;font-size:13px;">+ 항목 추가</button>
+
+  <div style="margin-top:24px;">
+    <button type="submit" style="background:var(--info);color:#fff;padding:8px 18px;border:0;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;">저장 (DRAFT)</button>
+    <a href="/qc/inspection-reports" style="display:inline-block;padding:8px 14px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;text-decoration:none;color:var(--ink);margin-left:6px;font-size:13px;">취소</a>
+  </div>
+</form>
+
+<script>
+const QC_STD = [
+  {% for nm, sp in QC_STANDARD_ITEMS %}
+  {name: {{ nm|tojson }}, spec: {{ sp|tojson }}},
+  {% endfor %}
+];
+
+function onCustomerChange(sel){
+  var opt = sel.options[sel.selectedIndex];
+  var f = sel.form;
+  if (opt && opt.value && f.customer_name && !f.customer_name.value){
+    f.customer_name.value = opt.dataset.name || '';
+  }
+}
+function onOrderChange(sel){
+  var opt = sel.options[sel.selectedIndex];
+  var f = sel.form;
+  if (opt && opt.value && f.order_no && !f.order_no.value){
+    f.order_no.value = opt.dataset.no || '';
+  }
+}
+
+function renumber(){
+  var rows = document.querySelectorAll('#qcrLinesBody tr');
+  rows.forEach(function(tr, idx){
+    var lab = tr.querySelector('.line-no');
+    if (lab) lab.textContent = (idx+1);
+  });
+}
+
+function addLine(name, spec){
+  var tbody = document.getElementById('qcrLinesBody');
+  var tr = document.createElement('tr');
+  tr.style.borderTop = '1px solid var(--paper-2)';
+  var nameVal = (name || '').replace(/"/g,'&quot;');
+  var specVal = (spec || '').replace(/"/g,'&quot;');
+  tr.innerHTML = ''
+    + '<td class="line-no" style="padding:5px;text-align:center;font-size:12px;">'+(tbody.children.length+1)+'</td>'
+    + '<td style="padding:5px;"><input type="text" name="line_item_name" value="'+nameVal+'" placeholder="항목명" style="width:100%;padding:4px;font-size:12px;"></td>'
+    + '<td style="padding:5px;"><input type="text" name="line_spec" value="'+specVal+'" placeholder="기준값" style="width:100%;padding:4px;font-size:12px;"></td>'
+    + '<td style="padding:5px;"><input type="text" name="line_measured" placeholder="측정값" style="width:100%;padding:4px;font-size:12px;"></td>'
+    + '<td style="padding:5px;text-align:center;">'
+    + '  <label style="font-size:11px;margin-right:4px;"><input type="radio" name="line_judgment_g'+tbody.children.length+'" value="PASS" checked onchange="syncJudgment(this)"> PASS</label>'
+    + '  <label style="font-size:11px;margin-right:4px;color:#C62828;"><input type="radio" name="line_judgment_g'+tbody.children.length+'" value="FAIL" onchange="syncJudgment(this)"> FAIL</label>'
+    + '  <label style="font-size:11px;color:var(--mute);"><input type="radio" name="line_judgment_g'+tbody.children.length+'" value="NA" onchange="syncJudgment(this)"> N/A</label>'
+    + '  <input type="hidden" name="line_judgment" value="PASS">'
+    + '</td>'
+    + '<td style="padding:5px;"><input type="text" name="line_remarks" placeholder="비고" style="width:100%;padding:4px;font-size:12px;"></td>'
+    + '<td style="padding:5px;text-align:center;"><button type="button" onclick="removeLine(this)" style="padding:3px 8px;font-size:11px;background:#fff;border:1px solid var(--line);border-radius:4px;cursor:pointer;color:#C62828;">삭제</button></td>';
+  tbody.appendChild(tr);
+  renumber();
+}
+
+function syncJudgment(rad){
+  var tr = rad.closest('tr');
+  var hid = tr.querySelector('input[type="hidden"][name="line_judgment"]');
+  if (hid) hid.value = rad.value;
+}
+
+function removeLine(btn){
+  var tr = btn.closest('tr');
+  if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+  renumber();
+}
+
+// 초기 — 표준 6항목 자동 추가
+QC_STD.forEach(function(it){ addLine(it.name, it.spec); });
+</script>
+{% endif %}
+
+{% endblock %}

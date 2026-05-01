@@ -1,79 +1,95 @@
-{% extends "base.html" %}
-{% block title %}CAPA 관리 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CAPA · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">CAPA</div>
+      <h1 class="page-title">CAPA</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/qms" style="font-size:var(--text-sm);color:#6B7280;text-decoration:none;">← QMS 대시</a>
-  · <a href="/qms/recurrence" style="font-size:var(--text-sm);color:#6B7280;text-decoration:none;">재발 추적</a>
-  · <a href="/qms/pareto" style="font-size:var(--text-sm);color:#A5282C;text-decoration:none;font-weight:700;">Pareto 분석</a>
-  · <a href="/qc/inspection-reports" style="font-size:var(--text-sm);color:#1976D2;text-decoration:none;font-weight:700;">QCR 출하성적서</a>
+  <a href="/qms" style="font-size:var(--text-sm);color:var(--mute);text-decoration:none;">← QMS 대시</a>
+  · <a href="/qms/recurrence" style="font-size:var(--text-sm);color:var(--mute);text-decoration:none;">재발 추적</a>
+  · <a href="/qms/pareto" style="font-size:var(--text-sm);color:var(--knk-red);text-decoration:none;font-weight:700;">Pareto 분석</a>
+  · <a href="/qc/inspection-reports" style="font-size:var(--text-sm);color:var(--info);text-decoration:none;font-weight:700;">QCR 출하성적서</a>
 </div>
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #2E7D32;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--success);">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-    <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:#2E7D32;font-weight:800;background:#E8F5E9;padding:4px 10px;border-radius:6px;">CAPA</span>
-    <span style="font-size:var(--text-xs);color:#6B7280;">DRAFT → APPROVED → IN_PROGRESS → COMPLETED → VERIFIED</span>
+    <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:var(--success);font-weight:800;background:var(--paper-2);padding:4px 10px;border-radius:6px;">CAPA</span>
+    <span style="font-size:var(--text-xs);color:var(--mute);">DRAFT → APPROVED → IN_PROGRESS → COMPLETED → VERIFIED</span>
   </div>
   <h1 style="margin:0;font-size:var(--text-2xl);font-weight:800;letter-spacing:-0.02em;">CAPA 라이프사이클 관리</h1>
 </div>
 
 <!-- KPI Strip -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #2E7D32;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">평균 closure (일)</div>
-    <div style="font-size:var(--text-2xl);font-weight:800;color:#2E7D32;font-variant-numeric:tabular-nums;">{{ kpi.avg_closure_days }}</div>
-    <div style="font-size:var(--text-xs);color:#9CA3AF;margin-top:2px;">샘플 {{ kpi.sample_size }}건</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--success);">
+    <div style="font-size:var(--text-xs);color:var(--mute);">평균 closure (일)</div>
+    <div style="font-size:var(--text-2xl);font-weight:800;color:var(--success);font-variant-numeric:tabular-nums;">{{ kpi.avg_closure_days }}</div>
+    <div style="font-size:var(--text-xs);color:var(--mute-2);margin-top:2px;">샘플 {{ kpi.sample_size }}건</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #1976D2;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">검증 비율</div>
-    <div style="font-size:var(--text-2xl);font-weight:800;color:#1976D2;font-variant-numeric:tabular-nums;">{{ kpi.verify_rate }}%</div>
-    <div style="font-size:var(--text-xs);color:#9CA3AF;margin-top:2px;">{{ kpi.verified }}/{{ kpi.completed }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--info);">
+    <div style="font-size:var(--text-xs);color:var(--mute);">검증 비율</div>
+    <div style="font-size:var(--text-2xl);font-weight:800;color:var(--info);font-variant-numeric:tabular-nums;">{{ kpi.verify_rate }}%</div>
+    <div style="font-size:var(--text-xs);color:var(--mute-2);margin-top:2px;">{{ kpi.verified }}/{{ kpi.completed }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #6B7280;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">DRAFT (시정)</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--mute);">
+    <div style="font-size:var(--text-xs);color:var(--mute);">DRAFT (시정)</div>
     <div style="font-size:var(--text-2xl);font-weight:800;font-variant-numeric:tabular-nums;">{{ ca_buckets.DRAFT }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #1976D2;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">APPROVED (시정)</div>
-    <div style="font-size:var(--text-2xl);font-weight:800;color:#1976D2;font-variant-numeric:tabular-nums;">{{ ca_buckets.APPROVED }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--info);">
+    <div style="font-size:var(--text-xs);color:var(--mute);">APPROVED (시정)</div>
+    <div style="font-size:var(--text-2xl);font-weight:800;color:var(--info);font-variant-numeric:tabular-nums;">{{ ca_buckets.APPROVED }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #EF6C00;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">IN_PROGRESS</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid #EF6C00;">
+    <div style="font-size:var(--text-xs);color:var(--mute);">IN_PROGRESS</div>
     <div style="font-size:var(--text-2xl);font-weight:800;color:#EF6C00;font-variant-numeric:tabular-nums;">{{ ca_buckets.IN_PROGRESS }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:14px;border-left:3px solid #2E7D32;">
-    <div style="font-size:var(--text-xs);color:#6B7280;">VERIFIED (시정)</div>
-    <div style="font-size:var(--text-2xl);font-weight:800;color:#2E7D32;font-variant-numeric:tabular-nums;">{{ ca_buckets.VERIFIED }}</div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--success);">
+    <div style="font-size:var(--text-xs);color:var(--mute);">VERIFIED (시정)</div>
+    <div style="font-size:var(--text-2xl);font-weight:800;color:var(--success);font-variant-numeric:tabular-nums;">{{ ca_buckets.VERIFIED }}</div>
   </div>
 </div>
 
 <!-- 라이프사이클 시각 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin-bottom:14px;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
   <h3 style="margin:0 0 12px 0;font-size:var(--text-md);font-weight:800;">라이프사이클 분포 (시정조치)</h3>
   <div style="display:flex;align-items:stretch;gap:4px;height:36px;border-radius:6px;overflow:hidden;">
     {% set ca_total = (ca_buckets.DRAFT + ca_buckets.APPROVED + ca_buckets.IN_PROGRESS + ca_buckets.COMPLETED + ca_buckets.VERIFIED) or 1 %}
-    <div style="flex:{{ ca_buckets.DRAFT }};background:#9CA3AF;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.DRAFT }}</div>
-    <div style="flex:{{ ca_buckets.APPROVED }};background:#1976D2;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.APPROVED }}</div>
+    <div style="flex:{{ ca_buckets.DRAFT }};background:var(--mute-2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.DRAFT }}</div>
+    <div style="flex:{{ ca_buckets.APPROVED }};background:var(--info);display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.APPROVED }}</div>
     <div style="flex:{{ ca_buckets.IN_PROGRESS }};background:#EF6C00;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.IN_PROGRESS }}</div>
     <div style="flex:{{ ca_buckets.COMPLETED }};background:#7B1FA2;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.COMPLETED }}</div>
-    <div style="flex:{{ ca_buckets.VERIFIED }};background:#2E7D32;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.VERIFIED }}</div>
+    <div style="flex:{{ ca_buckets.VERIFIED }};background:var(--success);display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--text-xs);font-weight:700;">{{ ca_buckets.VERIFIED }}</div>
   </div>
-  <div style="display:flex;gap:14px;font-size:var(--text-xs);color:#6B7280;margin-top:6px;">
+  <div style="display:flex;gap:14px;font-size:var(--text-xs);color:var(--mute);margin-top:6px;">
     <span>■ DRAFT</span><span>■ APPROVED</span><span>■ IN_PROGRESS</span><span>■ COMPLETED</span><span>■ VERIFIED</span>
   </div>
 </div>
 
 <!-- 부서별 분포 -->
 {% if kpi.by_dept %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin-bottom:14px;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
   <h3 style="margin:0 0 12px 0;font-size:var(--text-md);font-weight:800;">부서별 CAPA 분포 (Top 10)</h3>
   <table style="width:100%;border-collapse:collapse;font-size:var(--text-xs);">
     <thead>
-      <tr style="background:#F9FAFB;"><th style="padding:6px;text-align:left;border-bottom:1px solid #E5E7EB;">부서</th><th style="padding:6px;text-align:right;border-bottom:1px solid #E5E7EB;width:80px;">CAPA</th></tr>
+      <tr style="background:var(--paper);"><th style="padding:6px;text-align:left;border-bottom:1px solid var(--line);">부서</th><th style="padding:6px;text-align:right;border-bottom:1px solid var(--line);width:80px;">CAPA</th></tr>
     </thead>
     <tbody>
       {% for d in kpi.by_dept %}
-      <tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:6px;">{{ d.dept }}</td><td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">{{ d.cnt }}</td></tr>
+      <tr style="border-bottom:1px solid var(--paper-2);"><td style="padding:6px;">{{ d.dept }}</td><td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">{{ d.cnt }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -81,39 +97,39 @@
 {% endif %}
 
 <!-- CAPA 목록 + 라이프사이클 액션 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:18px;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;">
   <h3 style="margin:0 0 12px 0;font-size:var(--text-md);font-weight:800;">시정조치 목록 (최근 30)</h3>
   {% if items %}
   <table style="width:100%;border-collapse:collapse;font-size:var(--text-xs);">
     <thead>
-      <tr style="background:#F9FAFB;">
-        <th style="padding:6px;text-align:left;border-bottom:2px solid #E5E7EB;">이슈</th>
-        <th style="padding:6px;text-align:left;border-bottom:2px solid #E5E7EB;">조치</th>
-        <th style="padding:6px;text-align:center;border-bottom:2px solid #E5E7EB;width:120px;">상태</th>
-        <th style="padding:6px;text-align:center;border-bottom:2px solid #E5E7EB;width:200px;">액션</th>
+      <tr style="background:var(--paper);">
+        <th style="padding:6px;text-align:left;border-bottom:2px solid var(--line);">이슈</th>
+        <th style="padding:6px;text-align:left;border-bottom:2px solid var(--line);">조치</th>
+        <th style="padding:6px;text-align:center;border-bottom:2px solid var(--line);width:120px;">상태</th>
+        <th style="padding:6px;text-align:center;border-bottom:2px solid var(--line);width:200px;">액션</th>
       </tr>
     </thead>
     <tbody>
     {% for it in items %}
-      <tr style="border-bottom:1px solid #F3F4F6;">
+      <tr style="border-bottom:1px solid var(--paper-2);">
         <td style="padding:6px;font-family:var(--font-mono);font-size:var(--text-xs);">
-          {% if it.issue_id %}<a href="/issues/{{ it.issue_id }}" style="color:#1976D2;text-decoration:none;">{{ it.issue_no or it.issue_id }}</a>{% else %}-{% endif %}
+          {% if it.issue_id %}<a href="/issues/{{ it.issue_id }}" style="color:var(--info);text-decoration:none;">{{ it.issue_no or it.issue_id }}</a>{% else %}-{% endif %}
         </td>
-        <td style="padding:6px;font-size:var(--text-xs);color:#374151;">{{ it.action[:80] }}</td>
+        <td style="padding:6px;font-size:var(--text-xs);color:var(--ink);">{{ it.action[:80] }}</td>
         <td style="padding:6px;text-align:center;">
-          <span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:var(--text-xs);font-weight:700;color:#fff;background:{% if it.lifecycle_status=='DRAFT' %}#9CA3AF{% elif it.lifecycle_status=='APPROVED' %}#1976D2{% elif it.lifecycle_status=='IN_PROGRESS' %}#EF6C00{% elif it.lifecycle_status=='COMPLETED' %}#7B1FA2{% else %}#2E7D32{% endif %};">{{ it.lifecycle_status }}</span>
+          <span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:var(--text-xs);font-weight:700;color:#fff;background:{% if it.lifecycle_status=='DRAFT' %}var(--mute-2){% elif it.lifecycle_status=='APPROVED' %}var(--info){% elif it.lifecycle_status=='IN_PROGRESS' %}#EF6C00{% elif it.lifecycle_status=='COMPLETED' %}#7B1FA2{% else %}var(--success){% endif %};">{{ it.lifecycle_status }}</span>
         </td>
         <td style="padding:6px;text-align:center;">
           {% if it.lifecycle_status == 'DRAFT' %}
-          <form action="/qms/corrective/{{ it.id }}/approve" method="post" style="display:inline;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:#1976D2;color:#fff;border:0;border-radius:4px;cursor:pointer;">승인</button></form>
+          <form action="/qms/corrective/{{ it.id }}/approve" method="post" style="display:inline;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:var(--info);color:#fff;border:0;border-radius:4px;cursor:pointer;">승인</button></form>
           {% elif it.lifecycle_status == 'APPROVED' %}
           <form action="/qms/corrective/{{ it.id }}/start" method="post" style="display:inline;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:#EF6C00;color:#fff;border:0;border-radius:4px;cursor:pointer;">진행 시작</button></form>
           {% elif it.lifecycle_status == 'IN_PROGRESS' %}
           <form action="/qms/corrective/{{ it.id }}/complete" method="post" style="display:inline;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:#7B1FA2;color:#fff;border:0;border-radius:4px;cursor:pointer;">완료</button></form>
           {% elif it.lifecycle_status == 'COMPLETED' %}
-          <form action="/qms/corrective/{{ it.id }}/verify" method="post" style="display:inline;gap:4px;"><input type="text" name="effectiveness_note" placeholder="효과 검증 메모" style="padding:2px 4px;font-size:var(--text-xs);width:90px;border:1px solid #E5E7EB;border-radius:3px;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:#2E7D32;color:#fff;border:0;border-radius:4px;cursor:pointer;">검증</button></form>
+          <form action="/qms/corrective/{{ it.id }}/verify" method="post" style="display:inline;gap:4px;"><input type="text" name="effectiveness_note" placeholder="효과 검증 메모" style="padding:2px 4px;font-size:var(--text-xs);width:90px;border:1px solid var(--line);border-radius:3px;"><button type="submit" style="padding:3px 8px;font-size:var(--text-xs);background:var(--success);color:#fff;border:0;border-radius:4px;cursor:pointer;">검증</button></form>
           {% else %}
-          <span style="font-size:var(--text-xs);color:#2E7D32;font-weight:700;">완료 검증</span>
+          <span style="font-size:var(--text-xs);color:var(--success);font-weight:700;">완료 검증</span>
           {% endif %}
         </td>
       </tr>
@@ -121,12 +137,16 @@
     </tbody>
   </table>
   {% else %}
-  <div style="padding:20px;text-align:center;color:#6B7280;">시정조치 없음.</div>
+  <div style="padding:20px;text-align:center;color:var(--mute);">시정조치 없음.</div>
   {% endif %}
 </div>
 
-<div style="font-size:var(--text-xs);color:#9CA3AF;text-align:center;padding:8px;margin-top:10px;">
+<div style="font-size:var(--text-xs);color:var(--mute-2);text-align:center;padding:8px;margin-top:10px;">
   외부 차트 라이브러리 0건 · 인라인 CSS flex 분포 막대
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

@@ -1,7 +1,23 @@
-{% extends "base.html" %}
-{% set active = 'reminders' %}
-{% block title %}{{ i.rm_page_title|default('미작성 리마인드') }} · KNK{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>리마인더 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">리마인더</div>
+      <h1 class="page-title">리마인더</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>{{ i.rm_title|default('📢 오늘 미작성 팀원') }}</h1>
@@ -69,5 +85,10 @@ function copyMails(code){
   if(!t){alert(RI.no_email);return;}
   navigator.clipboard.writeText(t).then(()=>alert(RI.copied+'\n'+t));
 }
-</script>
-{% endblock %}
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

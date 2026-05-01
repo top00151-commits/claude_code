@@ -1,6 +1,23 @@
-{% extends "base.html" %}
-{% block title %}🎯 {{ i.ck_title_all|default('전사 코크핏') if is_global else i.ck_title_team|default('우리 팀 코크핏') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cockpit · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">Cockpit</div>
+      <h1 class="page-title">Cockpit</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>🎯 {{ i.ck_title_all|default('전사 코크핏') if is_global else i.ck_title_team|default('우리 팀 코크핏') }}</h1>
@@ -22,10 +39,10 @@
           onclick="location.href='/team?team_id={{ m.team_id }}'" style="cursor:pointer">
         <td><b>{{ m.name }}</b> <span class="cm-time">{{ m.rank }}</span></td>
         <td>{{ m.team_name or '-' }}</td>
-        <td class="num">{% if m.today_cn %}{{ m.today_cn }}{% else %}<span style="color:#A5282C">{{ i.ck_not_written|default('미작성') }}</span>{% endif %}</td>
+        <td class="num">{% if m.today_cn %}{{ m.today_cn }}{% else %}<span style="color:var(--knk-red)">{{ i.ck_not_written|default('미작성') }}</span>{% endif %}</td>
         <td class="num">{{ m.prog_cn }}</td>
-        <td class="num">{% if m.delay_cn %}<b style="color:#A5282C">{{ m.delay_cn }}</b>{% else %}-{% endif %}</td>
-        <td class="num">{% if m.unanswered_ceo %}<b style="color:#A5282C">⚠️ {{ m.unanswered_ceo }}</b>{% else %}-{% endif %}</td>
+        <td class="num">{% if m.delay_cn %}<b style="color:var(--knk-red)">{{ m.delay_cn }}</b>{% else %}-{% endif %}</td>
+        <td class="num">{% if m.unanswered_ceo %}<b style="color:var(--knk-red)">⚠️ {{ m.unanswered_ceo }}</b>{% else %}-{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -43,7 +60,7 @@
           <div class="cm-time">{{ s.owner_name }} · {{ s.team_name }} · {{ s.work_date }} {% if s.cn %}· 💬 {{ s.cn }}{% endif %}</div>
         </div>
         {% else %}
-        <div class="empty-mini" style="color:#2E7D32;background:#E8F5E9">{{ i.ck_no_stuck|default('막힌 카드가 없습니다 👍') }}</div>
+        <div class="empty-mini" style="color:var(--success);background:var(--paper-2)">{{ i.ck_no_stuck|default('막힌 카드가 없습니다 👍') }}</div>
         {% endfor %}
       </div>
     </div>
@@ -73,5 +90,10 @@
   </div>
   {% endfor %}
 </div>
-{% endif %}
-{% endblock %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

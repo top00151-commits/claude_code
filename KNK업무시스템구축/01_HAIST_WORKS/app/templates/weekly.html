@@ -1,205 +1,259 @@
-{% extends "base.html" %}
-{% set active = 'weekly' %}
-{% block title %}{{ i.wk_title|default('주간 요약') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.wk_title|default('주간 요약') }}</h1>
-    <div class="page-sub">{{ wk_mon }} ~ {{ wk_sun }} · {{ user.name }} {{ user.rank }}</div>
-  </div>
-  <div class="date-nav">
-    <a href="/weekly/{{ prev_mon }}" class="btn-sm">{{ i.wk_prev|default('◀ 전주') }}</a>
-    <a href="/weekly" class="btn-sm btn-today">{{ i.wk_this|default('이번 주') }}</a>
-    <a href="/weekly/{{ next_mon }}" class="btn-sm">{{ i.wk_next|default('다음 주 ▶') }}</a>
-    <button type="button" class="btn-sm" id="weeklyRefreshBtn" onclick="weeklyRefresh()" aria-label="재집계">🔄 재집계</button>
-    {# 주간보고 2차 — CSV 다운로드 (csv 모듈만 · 외부 0건) #}
-    <a href="/weekly/export.csv?wk_mon={{ wk_mon }}&scope=me" class="btn-sm" aria-label="CSV 다운로드">📄 CSV</a>
-    {% if user.role in ['leader','executive','ceo','admin'] %}
-    <a href="/weekly/export.csv?wk_mon={{ wk_mon }}&scope=team" class="btn-sm">📄 팀 CSV</a>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>주간 보고 · KNK HAIST WORKS</title>
+
+{# weekly.html — 시안 master_I_report_weekly_v5H5 STANDALONE (2026-05-01) #}
+
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; overflow-y: auto; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+.menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--amber-deep); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
+
+.main { background: var(--paper); display: flex; flex-direction: column; min-width: 0; }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); font-weight: 500; text-decoration: none; }
+.top-tab:hover { background: var(--paper-2); color: var(--ink); }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.top-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; font-size: 16px; color: var(--mute); text-decoration: none; }
+.top-icon:hover { background: var(--amber-glow); color: var(--amber-deep); }
+
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.week-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--mute); }
+.week-nav a { color: var(--amber-deep); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.week-nav a:hover { background: var(--amber-glow); }
+.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--amber-glow); }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+
+.kpi-row { margin: var(--space-4) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.kpi-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); transition: all .18s; }
+.kpi-card:hover { transform: translateY(-2px); border-color: var(--amber); box-shadow: var(--shadow-md); }
+.kpi-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.kpi-card .num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.kpi-card .delta { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
+.kpi-card .delta.up { color: var(--success); }
+.kpi-card .delta.down { color: var(--knk-red); }
+.kpi-card .delta.neutral { color: var(--mute); }
+
+.victor-insight { margin: var(--space-5) var(--content-pad) 0; background: linear-gradient(135deg, var(--ink) 0%, #4A2F1F 100%); color: white; padding: var(--space-6); border-radius: var(--radius-xl); position: relative; overflow: hidden; }
+.victor-insight::before { content: ""; position: absolute; top: -60px; right: -40px; width: 280px; height: 280px; background: var(--glow-amber-radial); opacity: 0.4; }
+.victor-insight .label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-glow); font-weight: 700; position: relative; z-index: 1; }
+.victor-insight h2 { font-size: 24px; font-weight: 700; margin-top: 8px; line-height: 1.3; position: relative; z-index: 1; }
+.victor-insight p { font-size: 14px; line-height: 1.65; margin-top: 12px; color: rgba(255,255,255,0.85); position: relative; z-index: 1; max-width: 820px; }
+.victor-insight p b { color: var(--amber-glow); }
+
+.section { margin: var(--space-7) var(--content-pad) 0; }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.section h2::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+
+.dept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
+.dept-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); }
+.dept-card .name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.dept-card .num { font-size: 22px; font-weight: 700; margin-top: 4px; color: var(--ink); }
+.dept-card .bar { height: 8px; background: var(--paper-2); border-radius: 4px; margin: 12px 0 6px; overflow: hidden; }
+.dept-card .bar > div { height: 100%; background: var(--grad-amber); border-radius: 4px; }
+.dept-card .meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--mute); font-weight: 600; }
+
+.tasks-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+.tasks-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+.tasks-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.tasks-table tr:last-child td { border-bottom: 0; }
+.tasks-table tr:hover td { background: var(--amber-glow); }
+.status-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
+.status-done { background: var(--success); color: white; }
+.status-progress { background: var(--amber-glow); color: var(--amber-deep); }
+.status-delay { background: rgba(165,40,44,0.08); color: var(--knk-red); }
+.status-wait { background: var(--paper-2); color: var(--mute); }
+
+@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1023px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+@media print { .sidebar, .top, .page-head .btn, .top-icon, .top-user { display: none !important; } .app { grid-template-columns: 1fr; } body { background: white; } }
+</style>
+</head>
+<body>
+
+{% set role = (user.role or 'member')|lower %}
+{% set total = my_stats.total|default(0) %}
+{% set done = my_stats.done|default(0) %}
+{% set progress = my_stats.progress|default(0) %}
+{% set delay = my_stats.delay|default(0) %}
+{% set hours = my_stats.hours|default(0) %}
+{% set rate = ((done * 100 / total)|round|int) if total else 0 %}
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">워크스페이스</div>
+    <a class="sb-item" href="/home">📊 통합 대시보드 <span class="menu-code">M-00-01</span></a>
+    <a class="sb-item" href="/sales">💼 매출영업센터 <span class="menu-code">M-01-01</span></a>
+    <a class="sb-item" href="/logistics">📦 자재구매센터 <span class="menu-code">M-02-01</span></a>
+
+    <div class="sb-group">보고</div>
+    <a class="sb-item" href="/team">👥 팀 대시보드 <span class="menu-code">M-00-07</span></a>
+    <a class="sb-item active" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
+    {% if role in ('ceo','admin','executive') %}
+    <a class="sb-item" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
     {% endif %}
-    {% if user.role in ['ceo','admin','executive'] %}
-    <a href="/export/weekly?wk_mon={{ wk_mon }}" class="btn-primary">📥 전사 CSV</a>
+
+    <div class="sb-group">기타</div>
+    <a class="sb-item" href="/daily">📝 일일업무 <span class="menu-code">M-00-02</span></a>
+    <a class="sb-item" href="/notifications">📢 알림함 <span class="menu-code">M-00-09</span></a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <a class="top-tab active" href="/home">통합 플랫폼</a>
+        <a class="top-tab" href="/sales">매출영업센터</a>
+        <a class="top-tab" href="/logistics">자재구매센터</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="top-icon" href="/notifications" title="알림">🔔</a>
+        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+        <a class="top-user" href="/profile">
+          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
+          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+        </a>
+        <a class="top-icon" href="/logout" title="나가기">🚪</a>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="page-meta">{{ wk_mon }} ~ {{ wk_sun }} · WEEKLY REPORT</div>
+        <h1 class="page-title">주간 <em>보고</em></h1>
+        <div class="week-nav">
+          <a href="/weekly/{{ prev_mon }}">‹ 이전 주</a>
+          <span>{{ wk_mon }} ~ {{ wk_sun }}</span>
+          <a href="/weekly/{{ next_mon }}">다음 주 ›</a>
+          <a href="/weekly">이번 주</a>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" onclick="window.print()">🖨 인쇄</button>
+        {% if role in ('leader','executive','ceo','admin') %}
+        <a class="btn btn-secondary" href="/weekly/team">👥 팀 보기</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 4 KPI -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="lbl">전체 업무</div>
+        <div class="num">{{ total }} 건</div>
+        <div class="delta neutral">완료 {{ done }} / 진행 {{ progress }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">완료율</div>
+        <div class="num">{{ rate }}<span style="font-size:14px;color:var(--mute);">%</span></div>
+        <div class="delta {% if rate >= 80 %}up{% elif rate >= 50 %}neutral{% else %}down{% endif %}">{% if rate >= 80 %}우수{% elif rate >= 50 %}양호{% else %}미흡{% endif %}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">누적 공수</div>
+        <div class="num">{{ '%.1f'|format(hours) }}<span style="font-size:14px;color:var(--mute);">h</span></div>
+        <div class="delta neutral">평균 {{ '%.1f'|format(hours/5) if hours else '0' }}h/일</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">지연 카드</div>
+        <div class="num" {% if delay > 0 %}style="color:var(--knk-red);"{% endif %}>{{ delay }}</div>
+        <div class="delta {% if delay == 0 %}up{% else %}down{% endif %}">{% if delay == 0 %}지연 없음{% else %}확인 필요{% endif %}</div>
+      </div>
+    </div>
+
+    <!-- 빅터 인사이트 -->
+    <div class="victor-insight">
+      <div class="label">VICTOR'S WEEKLY INSIGHT</div>
+      <h2>이번 주의 키워드 — <span style="color: var(--amber-glow);">"{% if rate >= 80 %}가속{% elif delay > 0 %}주의{% elif total == 0 %}준비{% else %}꾸준{% endif %}"</span></h2>
+      <p>
+        이번 주 {{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}님은 <b>{{ total }}건 업무</b> 중 <b>{{ done }}건 완료</b>(완료율 {{ rate }}%)·<b>누적 {{ '%.1f'|format(hours) }}h</b>를 기록했습니다.
+        {% if delay > 0 %}<b>지연 {{ delay }}건</b> 우선 점검 권장.{% endif %}
+        {% if total == 0 %}이번 주 등록된 업무가 없습니다 — 다음 주 일일업무 등록을 잊지 마세요.{% endif %}
+      </p>
+    </div>
+
+    <!-- 부서별 (팀장+) -->
+    {% if role in ('leader','executive','ceo','admin') and team_data %}
+    <div class="section">
+      <h2>부서별 현황</h2>
+      <div class="dept-grid">
+        {% for td in team_data %}
+        <div class="dept-card">
+          <div class="name">{{ td.team.name|default('—') }}</div>
+          <div class="num">{{ td.total|default(0) }} 건</div>
+          {% set drate = ((td.done|default(0) * 100 / td.total)|round|int) if td.total else 0 %}
+          <div class="bar"><div style="width: {{ drate }}%{% if drate < 50 %}; background: var(--warn){% endif %}"></div></div>
+          <div class="meta"><span>{{ drate }}% 완료</span>{% if td.delay > 0 %}<span style="color: var(--knk-red);">⚠ 지연 {{ td.delay }}</span>{% else %}<span style="color: var(--success);">✓ 정상</span>{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
-  </div>
-</div>
-<script>
-function weeklyRefresh(){
-  var b=document.getElementById('weeklyRefreshBtn'); if(b){b.disabled=true; b.textContent='집계중...';}
-  fetch('/weekly/refresh',{method:'POST'}).then(function(r){return r.json();})
-    .then(function(){ location.reload(); })
-    .catch(function(){ if(b){b.disabled=false; b.textContent='🔄 재집계';} alert('재집계 실패'); });
-}
-</script>
 
-<div class="section-head"><h2>{{ i.wk_my_summary|default('내 주간 요약') }}</h2></div>
-{# 주간보고 2차 — KPI 6→8 (오버타임/정시완료율 추가) #}
-<div class="summary-grid">
-  <div class="sum-card"><div class="sum-num">{{ my_stats.total }}</div><div class="sum-lab">{{ i.wk_total_cards|default('총 카드수') }}</div></div>
-  <div class="sum-card st-done"><div class="sum-num">{{ my_stats.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
-  <div class="sum-card st-progress"><div class="sum-num">{{ my_stats.progress }}</div><div class="sum-lab">{{ i.wk_progress|default('진행중') }}</div></div>
-  <div class="sum-card st-delay"><div class="sum-num">{{ my_stats.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ '%.1f'|format(my_stats.hours) }}h</div><div class="sum-lab">{{ i.wk_hours|default('누적 공수') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ my_stats.on_time_rate }}%</div><div class="sum-lab">{{ i.wk_on_time|default('정시완료율') }}</div></div>
-  <div class="sum-card{% if my_stats.overtime > 0 %} st-delay{% endif %}"><div class="sum-num">{{ '%.1f'|format(my_stats.overtime) }}h</div><div class="sum-lab">{{ i.wk_overtime|default('오버타임') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ my_by_cat|length }}</div><div class="sum-lab">{{ i.wk_cats|default('분류수') }}</div></div>
-</div>
-
-{% if my_by_cat %}
-<div class="cat-grid">
-  {% for k, v in my_by_cat.items() %}
-  <div class="cat-card">
-    <div class="cat-name">{{ k }}</div>
-    <div class="cat-num">{{ v.cnt }}{{ i.unit_count|default('건') }}</div>
-    <div class="cat-hr">{{ '%.1f'|format(v.hours) }}h</div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{% if my_trend %}
-{% set tr_max = (my_trend|map(attribute='total')|max) or 1 %}
-{# 주간보고 2차 — 4주 → 8주 트렌드 확장 (viewBox 760 · 8칸 90px) #}
-<div class="section-head"><h2>{{ i.wk_my_trend|default('최근 8주 트렌드') }}</h2></div>
-<div class="wk-trend">
-  <svg viewBox="0 0 760 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="최근 8주 카드/완료 트렌드">
-    <line x1="40" y1="100" x2="750" y2="100" stroke="var(--border-soft, #e5e7eb)" stroke-width="1"/>
-    {% for w in my_trend %}
-      {% set x = 70 + loop.index0 * 88 %}
-      {% set h_total = (w.total / tr_max) * 70 %}
-      {% set h_done  = (w.done  / tr_max) * 70 %}
-      <rect x="{{ x - 14 }}" y="{{ 100 - h_total }}" width="14" height="{{ h_total }}" fill="var(--brand-soft, #cbd5e1)" rx="2"/>
-      <rect x="{{ x }}"      y="{{ 100 - h_done  }}" width="14" height="{{ h_done  }}" fill="var(--brand, #A5282C)" rx="2"/>
-      <text x="{{ x }}" y="115" text-anchor="middle" font-size="9" fill="var(--text-muted, #6b7280)">{{ w.week_start[5:] }}</text>
-      <text x="{{ x }}" y="{{ 100 - h_total - 4 }}" text-anchor="middle" font-size="9" fill="var(--text, #374151)">{{ w.total }}</text>
-    {% endfor %}
-    <text x="40" y="20" font-size="10" fill="var(--text-muted, #6b7280)">건</text>
-  </svg>
-  <div class="wk-trend-legend">
-    <span><i class="lg-soft"></i>{{ i.wk_total_cards|default('총 카드수') }}</span>
-    <span><i class="lg-brand"></i>{{ i.wk_done|default('완료') }}</span>
-  </div>
-</div>
-{% endif %}
-
-{% if dept_compare %}
-{% set dc_max = (dept_compare|map(attribute='total')|max) or 1 %}
-<div class="section-head"><h2>{{ i.wk_dept_compare|default('부서별 비교') }}</h2></div>
-<div class="wk-dept">
-  {% for d in dept_compare %}
-  <div class="wk-dept-row">
-    <div class="wk-dept-name"><b>{{ d.team_code }}</b> {{ d.team_name }}</div>
-    <div class="wk-dept-bar">
-      <div class="wk-dept-bar-total" style="width:{{ (d.total / dc_max * 100) | round(0) }}%"></div>
-      <div class="wk-dept-bar-done" style="width:{{ (d.done / dc_max * 100) | round(0) }}%"></div>
+    <!-- 내 업무 리스트 -->
+    {% if my_tasks %}
+    <div class="section">
+      <h2>내 업무 ({{ my_tasks|length }})</h2>
+      <table class="tasks-table">
+        <thead>
+          <tr>
+            <th>일자</th>
+            <th>제목</th>
+            <th>프로젝트 / 고객</th>
+            <th style="width:90px;text-align:center;">상태</th>
+            <th style="width:60px;text-align:right;">공수</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for t in my_tasks %}
+          <tr>
+            <td style="font-size:11px;color:var(--mute);font-family:monospace;">{{ t.work_date }}</td>
+            <td><b>{{ t.title }}</b>{% if t.notes %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ t.notes[:60] }}{% if t.notes|length > 60 %}…{% endif %}</div>{% endif %}</td>
+            <td style="font-size:12px;color:var(--mute);">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %}{% if t.project_name %} · {% endif %}🏢 {{ t.customer_name }}{% endif %}</td>
+            <td style="text-align:center;">
+              {% set st = t.status %}
+              <span class="status-pill {% if st == '완료' %}status-done{% elif st == '진행중' %}status-progress{% elif st == '지연' %}status-delay{% else %}status-wait{% endif %}">{{ st }}</span>
+            </td>
+            <td style="text-align:right;font-weight:700;">{{ t.hours|default(0) }}h</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
-    <div class="wk-dept-num">
-      <span>{{ d.total }}건</span>
-      <span class="st-done">{{ d.done }}완료</span>
-      {# 주간보고 2차 — 완료율 % 표시 #}
-      <span class="small">({% if d.total %}{{ ((d.done / d.total) * 100) | round(0, 'common') | int }}{% else %}0{% endif %}%)</span>
-      {% if d.delay %}<span class="st-delay">{{ d.delay }}지연</span>{% endif %}
-      <span class="small">{{ '%.0f'|format(d.hours) }}h</span>
+    {% else %}
+    <div class="section">
+      <div class="kpi-card" style="text-align:center;padding:40px;">
+        <div style="font-size:48px;margin-bottom:8px;">📭</div>
+        <div style="font-size:15px;font-weight:700;color:var(--ink);">이번 주 등록된 업무가 없습니다</div>
+        <div style="font-size:13px;color:var(--mute);margin-top:6px;">일일업무 등록 후 자동 집계됩니다.</div>
+        <a class="btn btn-primary" href="/daily" style="margin-top:14px;">📝 일일업무 작성</a>
+      </div>
     </div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
+    {% endif %}
 
-{% if my_tasks %}
-<table class="hist-tbl">
-  <thead><tr><th>{{ i.col_date|default('일자') }}</th><th>{{ i.col_title|default('제목') }}</th><th>{{ i.col_category|default('분류') }}</th><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_status|default('상태') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-  <tbody>
-    {# 주간보고 2차 — 미진행(지연) 7일+ 강조 (date 비교 jinja) #}
-    {% for t in my_tasks %}
-      {% set is_stale = (t.status == '지연') %}
-      <tr{% if is_stale %} class="row-stale" style="background:rgba(220,38,38,0.06)"{% endif %}>
-      <td>{{ t.work_date }}</td>
-      <td><b>{{ t.title }}</b>{% if t.notes %}<div class="small">{{ t.notes }}</div>{% endif %}{% if is_stale %} <span class="tag" style="background:#dc2626;color:#fff;font-size:10px;padding:1px 6px;border-radius:3px">⚠ 7일+</span>{% endif %}</td>
-      <td>{{ t.category or '' }}</td>
-      <td>{{ t.project_name or '' }}</td>
-      <td>{{ t.customer_name or '' }}</td>
-      <td><span class="tag tag-{{ t.status }}">{{ t.status }}</span></td>
-      <td class="num">{{ t.hours }}h</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<div class="empty">
-  {{ i.wk_no_cards|default('이번 주 등록된 카드가 없습니다. 아래 버튼으로 다시 집계해 보세요.') }}
-  <div style="margin-top:8px"><button type="button" class="btn-sm" onclick="weeklyRefresh()">🔄 재집계</button></div>
+    <div style="height: var(--space-7);"></div>
+  </main>
 </div>
-{% endif %}
-
-{% if team_data %}
-<div class="section-head"><h2>{{ i.wk_team_summary|default('팀 요약') }} — {{ team_data.team.name }}</h2></div>
-<div class="summary-grid">
-  <div class="sum-card"><div class="sum-num">{{ team_data.total }}</div><div class="sum-lab">{{ i.wk_team_cards|default('팀 카드수') }}</div></div>
-  <div class="sum-card st-done"><div class="sum-num">{{ team_data.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
-  <div class="sum-card st-delay"><div class="sum-num">{{ team_data.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(team_data.hours) }}h</div><div class="sum-lab">{{ i.wk_team_hours|default('팀 누적 공수') }}</div></div>
-</div>
-
-<div class="two-col">
-  <div>
-    <div class="section-head"><h2>{{ i.wk_per_member|default('팀원별 실적') }}</h2></div>
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-      <tbody>
-        {% for uid, m in team_data.per_user.items() %}
-        <tr><td><b>{{ m.name }}</b> <span class="small">{{ m.rank }}</span></td>
-            <td class="num">{{ m.total }}</td>
-            <td class="num st-done">{{ m.done }}</td>
-            <td class="num">{{ '%.1f'|format(m.hours) }}h</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <div>
-    <div class="section-head"><h2>{{ i.wk_per_project|default('프로젝트별') }}</h2></div>
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_project|default('프로젝트') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-      <tbody>
-        {% for k, v in team_data.pj_agg %}
-        <tr><td>{{ k }}</td><td class="num">{{ v.cnt }}</td><td class="num st-done">{{ v.done }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-{% if all_data %}
-<div class="section-head"><h2>{{ i.wk_all_summary|default('전사 주간 요약') }}</h2></div>
-<div class="summary-grid">
-  <div class="sum-card"><div class="sum-num">{{ all_data.total }}</div><div class="sum-lab">{{ i.wk_all_cards|default('전사 카드') }}</div></div>
-  <div class="sum-card st-done"><div class="sum-num">{{ all_data.done }}</div><div class="sum-lab">{{ i.wk_done|default('완료') }}</div></div>
-  <div class="sum-card st-delay"><div class="sum-num">{{ all_data.delay }}</div><div class="sum-lab">{{ i.wk_delay|default('지연') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ '%.0f'|format(all_data.hours) }}h</div><div class="sum-lab">{{ i.wk_all_hours|default('전사 공수') }}</div></div>
-</div>
-<div class="two-col">
-  <div>
-    <div class="section-head"><h2>{{ i.wk_by_team|default('팀별') }}</h2></div>
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-      <tbody>
-        {% for k, v in all_data.by_team %}
-        <tr><td><b>{{ k }}</b></td><td class="num">{{ v.cnt }}</td><td class="num st-done">{{ v.done }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <div>
-    <div class="section-head"><h2>{{ i.wk_by_cust_top10|default('고객사별 TOP 10') }}</h2></div>
-    <table class="mini-tbl">
-      <thead><tr><th>{{ i.col_customer|default('고객사') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-      <tbody>
-        {% for k, v in all_data.by_cust %}
-        <tr><td><a href="#">{{ k }}</a></td><td class="num">{{ v.cnt }}</td><td class="num">{{ '%.0f'|format(v.hours) }}h</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-{% endblock %}
+</body>
+</html>

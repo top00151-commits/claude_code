@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ project.mgmt_code or project.name }} 번다운 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/progress/{{ project.id }}" style="font-size:13px;color:var(--mute);text-decoration:none;">← 프로젝트 상세</a>
+  · <a href="/progress/{{ project.id }}/gantt" style="font-size:13px;color:var(--mute);text-decoration:none;">간트</a>
+  · <a href="/progress/{{ project.id }}/milestones" style="font-size:13px;color:var(--mute);text-decoration:none;">마일스톤</a>
+</div>
+
+<!-- 헤더 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--info);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+    {% if project.mgmt_code %}<span style="font-family:var(--font-mono);font-size:13px;color:var(--info);font-weight:800;background:var(--paper-warm);padding:4px 10px;border-radius:6px;">{{ project.mgmt_code }}</span>{% endif %}
+    <span style="font-size:11px;color:var(--mute);">번다운 차트 2차 · 회귀 추세 + 예측 종료일 (외부 라이브러리 0)</span>
+  </div>
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">{{ project.project_name }}</h1>
+</div>
+
+<!-- 트리거 행 -->
+<div style="background:var(--paper-warm);border:1px solid #90CAF9;border-radius:10px;padding:10px 14px;font-size:12px;color:#0D47A1;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:200px;">
+    <strong>P1 PM</strong> 일별 잔여 추세 · <strong>P2 CEO</strong> 납기 위험 조기 인지
+  </div>
+  <form method="post" action="/progress/{{ project.id }}/snapshot" style="margin:0;">
+    <button type="submit" style="background:var(--info);color:#fff;border:0;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">오늘 스냅샷 기록</button>
+  </form>
+  <form method="post" action="/progress/{{ project.id }}/forecast" style="margin:0;" onsubmit="event.preventDefault();fetch(this.action,{method:'POST'}).then(r=>r.json()).then(d=>{if(d.error){alert('예측 실패: '+d.error);}else{location.reload();}});">
+    <button type="submit" style="background:var(--knk-red);color:#fff;border:0;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">예측 갱신</button>
+  </form>
+</div>
+
+<!-- 예측 카드 -->
+{% if forecast %}
+{% set fc_color = 'var(--success)' if (forecast.forecast_date and project.end_date and forecast.forecast_date <= project.end_date) else '#D32F2F' %}
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;border-left:4px solid {{ fc_color }};">
+  <h3 style="margin:0 0 10px 0;font-size:15px;font-weight:800;">예측 (선형 회귀 · 외부 라이브러리 0)</h3>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;">
+    <div><div style="font-size:11px;color:var(--mute);">계획 종료</div><div style="font-size:18px;font-weight:800;">{{ project.end_date or '-' }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">예측 종료</div><div style="font-size:18px;font-weight:800;color:{{ fc_color }};">{{ forecast.forecast_date or '추세 음수 아님' }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">기울기 (일/잔여)</div><div style="font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;">{{ forecast.slope|round(3) }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">R² 정확도</div><div style="font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;color:{{ 'var(--success)' if forecast.r_squared >= 0.7 else ('#F57C00' if forecast.r_squared >= 0.4 else '#D32F2F') }};">{{ forecast.r_squared|round(3) }}</div></div>
+  </div>
+  {% if saved_forecast %}<div style="margin-top:8px;font-size:11px;color:var(--mute);">최근 저장: {{ saved_forecast.computed_at }} · 표본 {{ saved_forecast.sample_n }}일</div>{% endif %}
+</div>
+{% else %}
+<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:10px 14px;font-size:12px;color:#5D4037;margin-bottom:14px;">
+  예측 불가 — 스냅샷 2건 이상 필요. 현재 {{ snaps|length }}건.
+</div>
+{% endif %}
+
+<!-- 오늘 스냅 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">오늘 (실시간 계산)</h3>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;">
+    <div><div style="font-size:11px;color:var(--mute);">총 작업</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;">{{ today_pt.total_tasks }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">완료</div><div style="font-size:22px;font-weight:800;color:var(--success);font-variant-numeric:tabular-nums;">{{ today_pt.completed_tasks }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">잔여</div><div style="font-size:22px;font-weight:800;color:var(--knk-red);font-variant-numeric:tabular-nums;">{{ today_pt.total_tasks - today_pt.completed_tasks }}</div></div>
+    <div><div style="font-size:11px;color:var(--mute);">잔여 시간</div><div style="font-size:22px;font-weight:800;color:var(--info);font-variant-numeric:tabular-nums;">{{ today_pt.remaining_hours|round(1) }}h</div></div>
+  </div>
+</div>
+
+<!-- 번다운 SVG -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">스냅샷 추세 ({{ snaps|length }}일) <span style="font-size:11px;font-weight:500;color:var(--mute);">실적/계획/예측 3선</span></h3>
+  {% if snaps and snaps|length > 0 %}
+  {% set max_t = snaps|map(attribute='total_tasks')|max %}
+  {% set max_v = max_t if max_t > 0 else 1 %}
+  {% set w = 700 %}
+  {% set h = 220 %}
+  {% set step = (w - 60) / (snaps|length if snaps|length > 1 else 1) %}
+  <svg viewBox="0 0 {{ w }} {{ h + 40 }}" style="width:100%;height:auto;font-family:var(--font-sans, system-ui);">
+    <!-- grid -->
+    <line x1="40" y1="20" x2="40" y2="{{ h }}" stroke="var(--line)" stroke-width="1"/>
+    <line x1="40" y1="{{ h }}" x2="{{ w - 10 }}" y2="{{ h }}" stroke="var(--line)" stroke-width="1"/>
+    <text x="10" y="24" font-size="10" fill="var(--mute)">{{ max_v }}</text>
+    <text x="10" y="{{ h }}" font-size="10" fill="var(--mute)">0</text>
+    <!-- 계획선 (선형) -->
+    <line x1="40" y1="20" x2="{{ w - 10 }}" y2="{{ h }}" stroke="#9E9E9E" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <text x="{{ w - 80 }}" y="35" font-size="10" fill="#9E9E9E">계획(선형)</text>
+    <!-- 실제선 (잔여 = total - done) -->
+    <polyline fill="none" stroke="var(--knk-red)" stroke-width="2"
+      points="{% for s in snaps %}{{ 40 + loop.index0 * step }},{{ 20 + (h - 20) * (1 - ((s.total_tasks - s.completed_tasks) / max_v)) }} {% endfor %}"/>
+    {% for s in snaps %}
+    <circle cx="{{ 40 + loop.index0 * step }}" cy="{{ 20 + (h - 20) * (1 - ((s.total_tasks - s.completed_tasks) / max_v)) }}" r="3" fill="var(--knk-red)"/>
+    {% endfor %}
+    <!-- 예측선 (회귀) -->
+    {% if forecast and forecast.slope < 0 %}
+    {% set y0 = forecast.intercept %}
+    {% set y0_clamp = max_v if y0 > max_v else (0 if y0 < 0 else y0) %}
+    {% set y1 = forecast.intercept + forecast.slope * (snaps|length - 1) %}
+    {% set y1_clamp = max_v if y1 > max_v else (0 if y1 < 0 else y1) %}
+    <line x1="40" y1="{{ 20 + (h - 20) * (1 - (y0_clamp / max_v)) }}"
+          x2="{{ 40 + (snaps|length - 1) * step }}" y2="{{ 20 + (h - 20) * (1 - (y1_clamp / max_v)) }}"
+          stroke="var(--info)" stroke-width="2" stroke-dasharray="6 3"/>
+    <text x="{{ w - 80 }}" y="75" font-size="10" fill="var(--info)" font-weight="700">예측(회귀)</text>
+    {% endif %}
+    <!-- x labels -->
+    {% for s in snaps %}
+      {% if loop.index0 == 0 or loop.index0 == snaps|length - 1 or loop.index0 % 5 == 0 %}
+      <text x="{{ 40 + loop.index0 * step }}" y="{{ h + 20 }}" font-size="9" fill="var(--mute)" text-anchor="middle">{{ s.snap_date[5:] }}</text>
+      {% endif %}
+    {% endfor %}
+    <text x="{{ w - 80 }}" y="55" font-size="10" fill="var(--knk-red)" font-weight="700">실적(잔여)</text>
+  </svg>
+  {% else %}
+  <div style="color:#9E9E9E;font-size:13px;padding:30px;text-align:center;">
+    스냅샷 미기록 — 위 <strong>오늘 스냅샷 기록</strong> 버튼으로 첫 데이터 생성
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

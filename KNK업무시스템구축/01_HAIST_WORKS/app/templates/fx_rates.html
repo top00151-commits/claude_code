@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}환율 관리 (FX) — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>환율 (FX) · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">환율 (FX)</div>
+      <h1 class="page-title">환율 (FX)</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head row-between">
   <div>
     <h1>환율 관리 (FX Rates)</h1>
@@ -9,17 +25,17 @@
   </div>
 </div>
 
-<div style="background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;padding:8px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;">
+<div style="background:var(--paper-warm);border:1px solid #C7D2FE;color:#3730A3;padding:8px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;">
   외부 호환 endpoint입니다. 사내 사용은 <a href="/rates" style="color:#3730A3;font-weight:700;text-decoration:underline;">기존 환율 페이지</a> 권장.
 </div>
 
 {% if request.query_params.get('success') %}
-<div style="background:#E8F5E9;border:1px solid #86EFAC;color:#2E7D32;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+<div style="background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
   환율 등록 완료
 </div>
 {% endif %}
 {% if request.query_params.get('error') %}
-<div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+<div style="background:var(--knk-red-soft);border:1px solid var(--knk-red-soft);color:var(--knk-red-dk);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
   오류: {{ request.query_params.get('error') }}
 </div>
 {% endif %}
@@ -34,7 +50,7 @@
     <div class="kpi-value" style="font-size:20px;">{{ "{:,.2f}".format(l.rate) }}</div>
     <div class="kpi-sub">{{ l.rate_date }}</div>
     {% else %}
-    <div class="kpi-value" style="color:#9CA3AF;">-</div>
+    <div class="kpi-value" style="color:var(--mute-2);">-</div>
     <div class="kpi-sub">미등록</div>
     {% endif %}
   </div>
@@ -46,28 +62,28 @@
   <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">+ 신규 환율 등록</h2>
   <form method="post" action="/fx/rates" style="display:grid;grid-template-columns:140px 110px 110px 160px 130px 1fr 120px;gap:10px;align-items:end;">
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">유효일자</label>
-      <input type="date" name="rate_date" required style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">유효일자</label>
+      <input type="date" name="rate_date" required style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">From</label>
-      <select name="from_currency" required style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">From</label>
+      <select name="from_currency" required style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
         {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
       </select>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">To</label>
-      <select name="to_currency" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">To</label>
+      <select name="to_currency" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
         {% for c in CURRENCIES %}<option value="{{ c }}" {% if c=='KRW' %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">환율 (1 From = ? To)</label>
-      <input type="number" name="rate" step="0.0001" required placeholder="예: 1380.00" style="width:100%;padding:8px 10px;border:2px solid #4338CA;border-radius:6px;font-family:monospace;font-weight:700;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">환율 (1 From = ? To)</label>
+      <input type="number" name="rate" step="0.0001" required placeholder="예: 1380.00" style="width:100%;padding:8px 10px;border:2px solid var(--info);border-radius:6px;font-family:monospace;font-weight:700;">
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">출처</label>
-      <select name="source" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">출처</label>
+      <select name="source" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
         <option value="수동 입력">수동 입력</option>
         <option value="한국은행 고시환율">한국은행 고시환율</option>
         <option value="사내 환율">사내 환율</option>
@@ -75,20 +91,20 @@
       </select>
     </div>
     <div>
-      <label style="font-size:11px;font-weight:700;color:#6B7280;">비고</label>
-      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;">
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">비고</label>
+      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
     </div>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,#4338CA,#312E81);color:#fff;border:none;font-weight:800;padding:10px 20px;">등록</button>
+    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:800;padding:10px 20px;">등록</button>
   </form>
-  <p style="margin:10px 0 0;font-size:11px;color:#6B7280;">* 같은 (From, To, 유효일자) 는 UPSERT — 중복 방지. 외부 환율 API 미사용.</p>
+  <p style="margin:10px 0 0;font-size:11px;color:var(--mute);">* 같은 (From, To, 유효일자) 는 UPSERT — 중복 방지. 외부 환율 API 미사용.</p>
 </div>
 
 <!-- 환율 이력 테이블 -->
 <div class="card" style="margin-top:14px;padding:0;">
-  <div style="padding:14px 18px;border-bottom:1px solid #E5E7EB;display:flex;justify-content:space-between;align-items:center;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
     <h2 style="margin:0;font-size:15px;font-weight:800;">환율 이력 ({{ items|length }}건)</h2>
     <form method="get" action="/fx/rates" style="display:flex;gap:8px;">
-      <select name="currency" onchange="this.form.submit()" style="padding:6px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+      <select name="currency" onchange="this.form.submit()" style="padding:6px 10px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
         <option value="">전체 통화</option>
         {% for c in CURRENCIES %}<option value="{{ c }}" {% if currency==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
@@ -112,18 +128,22 @@
       <tr>
         <td style="font-family:monospace;">{{ r.rate_date }}</td>
         <td style="font-weight:700;">{{ r.from_currency }}</td>
-        <td style="color:#6B7280;">→ {{ r.to_currency }}</td>
+        <td style="color:var(--mute);">→ {{ r.to_currency }}</td>
         <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.4f}".format(r.rate) }}</td>
         <td>{{ r.source or '-' }}</td>
-        <td style="font-size:11px;color:#6B7280;">{{ r.note or '-' }}</td>
-        <td style="font-size:11px;color:#9CA3AF;">{{ r.created_by_name or '-' }} · {{ r.created_at[:10] if r.created_at else '' }}</td>
+        <td style="font-size:11px;color:var(--mute);">{{ r.note or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ r.created_by_name or '-' }} · {{ r.created_at[:10] if r.created_at else '' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div style="padding:30px;text-align:center;color:#9CA3AF;">환율 데이터 없음 — 위 폼으로 등록하세요</div>
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">환율 데이터 없음 — 위 폼으로 등록하세요</div>
   {% endif %}
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>

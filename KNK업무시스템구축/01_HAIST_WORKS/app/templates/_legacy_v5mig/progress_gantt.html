@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ project.mgmt_code or project.name }} 간트 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/progress/{{ project.id }}" style="font-size:13px;color:var(--mute);text-decoration:none;">← 프로젝트 상세</a>
+  · <a href="/progress/{{ project.id }}/burndown" style="font-size:13px;color:var(--mute);text-decoration:none;">번다운</a>
+  · <a href="/progress/{{ project.id }}/milestones" style="font-size:13px;color:var(--mute);text-decoration:none;">마일스톤</a>
+</div>
+
+<!-- 헤더 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--knk-red);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+    {% if project.mgmt_code %}<span style="font-family:var(--font-mono);font-size:13px;color:var(--knk-red);font-weight:800;background:var(--knk-red-soft);padding:4px 10px;border-radius:6px;">{{ project.mgmt_code }}</span>{% endif %}
+    <span style="font-size:11px;color:var(--mute);">간트 차트 2차 · 마일스톤 다이아 + 오늘 라인 + 상태색 (외부 라이브러리 0)</span>
+  </div>
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">{{ project.project_name }}</h1>
+  <div style="margin-top:6px;font-size:12px;color:var(--mute);">
+    {% if project.start_date %}시작 <strong style="color:var(--ink);">{{ project.start_date }}</strong>{% endif %}
+    {% if project.end_date %}· 납기 <strong style="color:var(--knk-red);">{{ project.end_date }}</strong>{% endif %}
+    · 오늘 <strong style="color:var(--info);">{{ today_str }}</strong>
+  </div>
+</div>
+
+<!-- 안내 (P1 PM / P2 CEO) -->
+<div style="background:var(--amber-glow);border:1px solid #FFE082;border-radius:10px;padding:10px 14px;font-size:12px;color:#5D4037;margin-bottom:14px;">
+  <strong>P1 PM</strong> 공정·마일스톤 한눈에 · <strong>P2 CEO</strong> 다이아 마커로 핵심 일정 인지 · 행 호버 시 상세 표시.
+</div>
+
+<!-- 12공정 간트 (CSS bar) -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">12공정 일정 <span style="font-size:11px;font-weight:500;color:var(--mute);">(상태별 색 / 호버 상세)</span></h3>
+  {% if phases %}
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:var(--paper);border-bottom:2px solid var(--line);">
+        <th style="padding:8px;text-align:left;width:120px;">공정</th>
+        <th style="padding:8px;text-align:left;width:90px;">상태</th>
+        <th style="padding:8px;text-align:left;width:80px;">진척</th>
+        <th style="padding:8px;text-align:left;">기간 (계획 / 실적)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ph in phases %}
+      {% set scolor = '#9E9E9E' if ph.status == '예정' else ('var(--info)' if ph.status == '진행' else ('var(--success)' if ph.status == '완료' else ('#D32F2F' if ph.status == '지연' else 'var(--mute)'))) %}
+      <tr class="ph-row" style="border-bottom:1px solid #F1F3F4;position:relative;">
+        <td style="padding:8px;font-weight:600;">{{ PHASE_CODE_TO_LABEL.get(ph.phase_code, ph.phase_code) }}</td>
+        <td style="padding:8px;">
+          <span style="background:{{ scolor }}20;color:{{ scolor }};padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ ph.status }}</span>
+        </td>
+        <td style="padding:8px;font-variant-numeric:tabular-nums;">{{ ph.progress_pct|round(0)|int }}%</td>
+        <td style="padding:8px;">
+          <div style="position:relative;height:22px;background:var(--paper-2);border-radius:6px;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;height:100%;width:{{ ph.progress_pct|round(0)|int }}%;background:linear-gradient(90deg,{{ scolor }},{{ scolor }}AA);transition:width .3s;"></div>
+            <div style="position:absolute;top:0;left:6px;line-height:22px;font-size:11px;color:var(--ink);font-weight:600;">
+              {% if ph.planned_start or ph.planned_end %}계획 {{ ph.planned_start or '-' }} ~ {{ ph.planned_end or '-' }}{% endif %}
+              {% if ph.actual_start %} · 실적 {{ ph.actual_start }}{% if ph.actual_end %} ~ {{ ph.actual_end }}{% endif %}{% endif %}
+            </div>
+          </div>
+          <div class="ph-tip" style="display:none;position:absolute;z-index:5;right:12px;top:30px;background:var(--ink);color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,.2);">
+            <strong>{{ ph.phase_code }}</strong> · 상태 {{ ph.status }} · {{ ph.progress_pct|round(0)|int }}%<br>
+            계획 {{ ph.planned_start or '-' }} ~ {{ ph.planned_end or '-' }}<br>
+            실적 {{ ph.actual_start or '-' }} ~ {{ ph.actual_end or '-' }}
+            {% if ph.note %}<br>{{ ph.note }}{% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <style>.ph-row:hover .ph-tip{display:block!important;}</style>
+  {% else %}
+  <div style="color:#9E9E9E;font-size:13px;padding:20px;text-align:center;">12공정 데이터 없음 — 진행률 상세에서 자동 생성</div>
+  {% endif %}
+</div>
+
+<!-- SVG 타임라인 (마일스톤 다이아 + 오늘 라인) -->
+{% if project.start_date and project.end_date %}
+{% set sd = project.start_date %}
+{% set ed = project.end_date %}
+{% set total_days = ((ed[:4]|int - sd[:4]|int) * 365 + (ed[5:7]|int - sd[5:7]|int) * 30 + (ed[8:10]|int - sd[8:10]|int)) %}
+{% if total_days <= 0 %}{% set total_days = 1 %}{% endif %}
+{% set today_days = ((today_str[:4]|int - sd[:4]|int) * 365 + (today_str[5:7]|int - sd[5:7]|int) * 30 + (today_str[8:10]|int - sd[8:10]|int)) %}
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">타임라인 (마일스톤 + 오늘) <span style="font-size:11px;font-weight:500;color:var(--mute);">SVG 직접</span></h3>
+  <svg viewBox="0 0 720 110" style="width:100%;height:auto;font-family:var(--font-sans, system-ui);">
+    <line x1="40" y1="55" x2="700" y2="55" stroke="var(--line-strong)" stroke-width="2"/>
+    <text x="40" y="80" font-size="10" fill="var(--mute)">{{ sd }}</text>
+    <text x="700" y="80" font-size="10" fill="var(--knk-red)" text-anchor="end">{{ ed }}</text>
+    {% if today_days >= 0 and today_days <= total_days %}
+    {% set tx = 40 + (660 * today_days / total_days)|round(1) %}
+    <line x1="{{ tx }}" y1="20" x2="{{ tx }}" y2="80" stroke="var(--info)" stroke-width="2" stroke-dasharray="3 3"/>
+    <text x="{{ tx }}" y="18" font-size="10" fill="var(--info)" text-anchor="middle" font-weight="700">오늘</text>
+    {% endif %}
+    {% for m in milestones %}
+      {% if m.target_date %}
+      {% set md = ((m.target_date[:4]|int - sd[:4]|int) * 365 + (m.target_date[5:7]|int - sd[5:7]|int) * 30 + (m.target_date[8:10]|int - sd[8:10]|int)) %}
+      {% if md >= 0 and md <= total_days %}
+      {% set mx = 40 + (660 * md / total_days)|round(1) %}
+      {% set mc = 'var(--success)' if m.status == 'DONE' else ('var(--info)' if m.status == 'IN_PROGRESS' else ('#D32F2F' if m.status == 'DELAYED' else '#9E9E9E')) %}
+      <polygon points="{{ mx }},43 {{ mx + 8 }},55 {{ mx }},67 {{ mx - 8 }},55" fill="{{ mc }}" stroke="#fff" stroke-width="1.5">
+        <title>{{ m.name }} · {{ m.target_date }} · {{ m.status }}</title>
+      </polygon>
+      <text x="{{ mx }}" y="100" font-size="9" fill="var(--ink)" text-anchor="middle">{{ m.name|truncate(10) }}</text>
+      {% endif %}
+      {% endif %}
+    {% endfor %}
+  </svg>
+</div>
+{% endif %}
+
+<!-- 마일스톤 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">마일스톤 <span style="font-size:11px;font-weight:500;color:var(--mute);">다이아=상태색</span></h3>
+  {% if milestones %}
+  <ul style="margin:0;padding:0;list-style:none;">
+    {% for m in milestones %}
+    {% set mcolor = 'var(--success)' if m.status == 'DONE' else ('var(--info)' if m.status == 'IN_PROGRESS' else ('#D32F2F' if m.status == 'DELAYED' else '#9E9E9E')) %}
+    <li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F1F3F4;">
+      <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,7 7,13 1,7" fill="{{ mcolor }}"/></svg>
+      <span style="flex:1;font-weight:600;">{{ m.name }}</span>
+      <span style="font-size:11px;color:var(--mute);">{{ m.target_date or '-' }}</span>
+      <span style="background:{{ mcolor }}20;color:{{ mcolor }};padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ m.status }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div style="color:#9E9E9E;font-size:13px;padding:20px;text-align:center;">마일스톤 미등록</div>
+  {% endif %}
+</div>
+
+{% endblock %}

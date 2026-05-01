@@ -5,13 +5,114 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
 {# LAST UPDATE: 2026-04-26 사용자프로필 — 본인 프로필 강화. 헬퍼 +1 (_profile_payload — 활동 30일 집계 + 권한 매트릭스 1인 + 위임 토큰 in/out). 라우트 +2: GET /me (alias → /profile) · POST /me (이메일·언어·phone·dept 수정, 본인 한정, phone/dept는 PRAGMA 존재 시만). 기존 GET /profile 강화: 6 KPI(작성 30d/진행/완료/댓글/알림/미읽음) + 최근 task 10 + 최근 댓글 10 + 권한 D/G/T 분류 + 위임받은/위임한 토큰. 신규 템플릿 +0 (profile.html 본문 강화). 외부 자산 0건 · v2 본체 무수정 · G1~G5 핫패치 보존 #}
-<link rel="stylesheet" href="/static/style.css?v=20260427cycle60-3hub">
-<link rel="stylesheet" href="/static/style_hubs.css?v=20260427cycle60-3hub">
+<!-- 🔥 v5 H5 (2026-05-01 link 순서 수정 — CSS 우선순위 충돌 해결) -->
+<!-- 옛 style.css 먼저 → v5 토큰·시각이 마지막 link = 시안 시각 강제 적용 -->
+<link rel="stylesheet" href="/static/style.css?v=20260501v5HERO">
+<!-- v5 H5 시안 토큰·시각 — 마지막 link (style.css의 :root 12번 정의 덮어씀) -->
+<link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260501v5HERO">
+<link rel="stylesheet" href="/static/css/v5_base.css?v=20260501v5HERO">
+<!-- v4 style_hubs.css 비활성 -->
+<style>
+/* v5 H5 풀이식 보강 — 결재 ②B (시안 시각 + 현 SVG 보존) / ③B (토픽바 1행) / ④A (welcome state) */
+
+/* ⓘ 현 .tb-icon-btn 클래스를 시안 .tb-icon 시각에 맞춤 (alias) */
+.tb-icon-btn {
+  width: 38px; height: 38px;
+  border-radius: var(--radius-md, 8px);
+  display: grid; place-items: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--mute);
+  transition: all var(--t-base, 0.18s);
+  position: relative;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.tb-icon-btn:hover { background: var(--amber-glow); color: var(--amber-deep); border-color: var(--amber-light); }
+.tb-icon-btn.victor[aria-pressed="true"] { background: var(--amber-glow); color: var(--amber-deep); }
+.tb-icon-btn .dot {
+  position: absolute; top: 4px; right: 4px;
+  background: var(--knk-red);
+  width: 7px; height: 7px; border-radius: 50%;
+}
+
+/* user-chip / user-avatar → 시안 .tb-user / .tb-user-avatar alias */
+.user-chip {
+  display: flex; align-items: center; gap: var(--space-2, 8px);
+  padding: 0 var(--space-3, 12px);
+  margin-left: var(--space-2, 8px);
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--ink);
+}
+.user-avatar {
+  width: 32px; height: 32px;
+  background: var(--grad-amber, linear-gradient(135deg, #D4923B, #C2693A));
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+}
+.user-info, .user-name { font-size: 13px; color: var(--ink); font-weight: 500; }
+
+/* 메뉴 식별번호 핀 */
+.menu-code {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--paper-2, #F5EBD9);
+  color: var(--amber-deep, #B8843A);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* 결재 ③ B — 토픽바 1행 (.tb-main) + ws-tabs 그 안 가운데 */
+.topbar .tb-main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-6, 24px);
+  align-items: center;
+}
+.tb-main .ws-tabs,
+.tb-main .tb-tabs { justify-self: center; }
+
+/* ws-tabs.active 그라데이션 (시안 .tb-tab.active) */
+.ws-tabs a.active,
+.tb-tabs .tb-tab.active {
+  background: var(--grad-amber, linear-gradient(135deg, #D4923B, #C2693A));
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(212,146,59,0.32);
+  font-weight: 700;
+}
+
+/* 결재 ④ A — 빅터 dock welcome state (시안 dock-msg 시각) */
+.dock-welcome {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 12px 4px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: var(--space-3, 12px);
+}
+.dock-welcome b { color: var(--knk-red); }
+.dock-welcome .emoji { font-size: 18px; margin-right: 6px; }
+</style>
 </head>
 <body data-ws="{{ (current_workspace.key if current_workspace else 'hub') }}">
 {% if user %}
-{# C안 §3 — 시안 12B topbar 이식 (brand-logo-wrap + ws-switcher + g-search + tb-icon-btn) #}
+{# v4 CX23c (2026-04-28 대표 직접 승인) — 매거진 마스트헤드 2-row 구조 #}
 <header class="topbar">
+  {# G25 (2026-04-29 대표 지시): 마스트헤드 제거 — 일반 사무실 시스템 톤 #}
+  {# Row — 메인 (로고 + ws-tabs + 우측) #}
+  <div class="tb-main">
   <div class="tb-left">
     <button class="tb-menu-btn" onclick="toggleSidebar()" title="{{ i.menu|default('메뉴') }}" aria-label="{{ i.menu|default('메뉴') }}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -19,7 +120,7 @@
 
     <a href="/home" class="brand">
       <div class="brand-logo-wrap">
-        <img src="/static/logo.png?v=20260425healing" alt="KNK HAIST Innovation" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <img src="/static/logo.png?v=20260428cx23c" alt="KNK HAIST Innovation" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
         <span class="fallback" style="display:none">K</span>
       </div>
       <div class="brand-text">
@@ -28,43 +129,27 @@
       </div>
     </a>
 
+    {# v4 CX23c — ws-tabs (COVER 빨간 라벨 + 펄스) #}
     {% if workspaces and workspaces|length > 1 %}
-    <div class="tb-divider"></div>
-    <div class="ws-wrap" id="wsWrap">
-      <button class="ws-switcher" id="wsBtn" type="button" aria-haspopup="true" aria-expanded="false">
-        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        <span class="ws-name">{{ (current_workspace.name if current_workspace else '통합') }}</span>
-        <span class="ws-caret">▾</span>
-      </button>
-      <div class="ws-menu" id="wsMenu" role="menu">
-        {% for w in workspaces %}
-        <a class="ws-opt {% if current_workspace and w.key == current_workspace.key %}active{% endif %}"
-           href="{{ w.href }}"
-           {% if w.external %}target="_blank" rel="noopener"{% endif %}>
-          <div class="opt-ico">{{ w.icon }}</div>
-          <div class="opt-meta">
-            <div class="opt-name">{{ w.name }}</div>
-            <div class="opt-desc">{{ w.desc }}</div>
-          </div>
-          {% if current_workspace and w.key == current_workspace.key %}<span class="opt-check">✓</span>
-          {% elif w.external %}<span class="opt-ext">↗</span>{% endif %}
-        </a>
-        {% endfor %}
-      </div>
-    </div>
+    
+    <nav class="ws-tabs" role="tablist" aria-label="워크스페이스 전환">
+      {% for w in workspaces %}
+      <a class="ws-tab {% if current_workspace and w.key == current_workspace.key %}active{% endif %}"
+         href="{{ w.href }}"
+         {% if w.external %}target="_blank" rel="noopener"{% endif %}
+         role="tab"
+         aria-selected="{% if current_workspace and w.key == current_workspace.key %}true{% else %}false{% endif %}"
+         title="{{ w.desc }}">
+        <span class="ws-ico" aria-hidden="true">{{ w.icon }}</span>
+        <span class="ws-name">{{ w.name }}</span>
+        {% if w.external %}<span class="ws-ext" aria-hidden="true">↗</span>{% endif %}
+      </a>
+      {% endfor %}
+    </nav>
     {% endif %}
   </div>
 
-  <div class="tb-center" style="position:relative">
-    <form class="g-search" action="/search" method="get" role="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <label for="gSearchInput" class="sr-only">{{ i.search_ph|default('업무·사람·문서 검색') }}</label>
-      <input type="search" name="q" id="gSearchInput" tabindex="0" placeholder="{{ i.search_ph|default('업무·사람·문서 검색...') }}" autocomplete="off" oninput="gSearchSuggest(this.value)" onblur="setTimeout(function(){var el=document.getElementById('gSearchSugg');if(el)el.style.display='none'},200)" onfocus="if(this.value.length>=2)gSearchSuggest(this.value)">
-      <span class="shortcut">/</span>
-    </form>
-    {# 글로벌 검색 자동완성 드롭다운 — 2026-04-26 #}
-    <div id="gSearchSugg" class="g-search-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-elev,#fff);border:1px solid var(--border,#ddd);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:380px;overflow:auto;z-index:9999;margin-top:4px"></div>
-  </div>
+  <div class="tb-center"></div>
   <script>
   // 글로벌 검색 자동완성 (debounce 250ms · POST /search/suggest)
   var _gsTmr = null;
@@ -96,6 +181,16 @@
     <button class="tb-icon-btn victor" id="victorTrigger" type="button" onclick="victorToggleDock()" title="{{ i.victor|default('빅터') }} (Ctrl+K)" aria-label="{{ i.victor|default('빅터') }}" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg>
     </button>
+    {# Phase 1 (2026-04-29 대표 결재) — 화면 도움말 ❓ 버튼 #}
+    <button class="tb-icon-btn" id="menuHelpBtn" type="button" onclick="menuHelpToggle()"
+      title="{% if current_menu %}{{ current_menu.code }} {{ current_menu.label }}{% else %}이 화면 도움말{% endif %}"
+      aria-label="이 화면 도움말">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
     <a href="/notifications" class="tb-icon-btn" title="{{ i.sb_notif|default('알림') }}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
       {% if unread_notif and unread_notif > 0 %}<span class="dot"></span>{% endif %}
@@ -116,6 +211,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </a>
   </div>
+  </div>{# /tb-main (CX23c 2-row) #}
 </header>
 {% endif %}
 {% if user %}
@@ -124,46 +220,39 @@
     {# 핫패치 2026-04-25 17:30 — sb-toggle 화살표 버튼 제거 (C안 v2 §6-7 사이드바 264px 고정 · 시안 12B 정합) #}
     {# C안 §3·§7-2 — 드래그 리사이즈 핸들 폐지 (시안 12B 고정 264px) #}
     {# ===== Plan Y S1 네비 5 그룹 (2026-04-24 대표 승인) ===== #}
-    {# 사이클 73 (2026-04-27): 사용 가이드 — 모든 권한 #}
-    <div class="sb-section">
-      <div class="sb-head">📖 사용 가이드</div>
-      <a href="/guide" class="sb-item {% if active=='guide' %}sb-active{% endif %}" title="KNK HAIST WORKS 사용 가이드 (대표 16:20 직접 지시)">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
-        사용 가이드
-      </a>
-    </div>
+    {# 사이클 73 (2026-04-27): 사용 가이드 — G18 (2026-04-28) 사이드바 맨 아래로 이동 + 그룹 헤더 라벨 삭제 #}
     {# 그룹 1: 내 업무 (개인) #}
     <div class="sb-section">
-      <div class="sb-head">{{ i.sb_my_work|default('내 업무') }}</div>
+      <div class="sb-head">{{ i.sb_my_work|default('빠른 시작') }}</div>
       <a href="/home" class="sb-item {% if active=='home' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
-        업무현황
+        업무현황 <span class="menu-code">M-00-01</span>
       </a>
       <a href="/daily" class="sb-item {% if active=='daily' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
-        일일업무
+        일일업무 <span class="menu-code">M-00-02</span>
       </a>
       <a href="/calendar" class="sb-item {% if active=='calendar' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-        내 달력
+        내 달력 <span class="menu-code">M-00-08</span>
       </a>
       <a href="/notifications" class="sb-item {% if active=='notifications' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-        알림
+        알림 <span class="menu-code">M-00-09</span>
         {% if unread_notif and unread_notif > 0 %}<span class="sb-badge">{{ unread_notif }}</span>{% endif %}
       </a>
     </div>
 
     {# 그룹 2: 전사 흐름 (피드·실시간·검색·대시보드·병목) #}
     <div class="sb-section">
-      <div class="sb-head">{{ i.sb_company|default('전사 흐름') }}</div>
+      <div class="sb-head">{{ i.sb_company|default('팀 / 보고') }}</div>
       <a href="/feed" class="sb-item {% if active=='feed' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        부서 피드
+        부서 피드 <span class="menu-code">M-00-06</span>
       </a>
       <a href="/now" class="sb-item {% if active=='now' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
-        실시간 피드
+        실시간 피드 <span class="menu-code">M-00-03</span>
       </a>
       <a href="/search" class="sb-item {% if active=='search' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
@@ -172,7 +261,7 @@
       {% if user.role in ['ceo','admin','executive'] %}
       <a href="/dashboard" class="sb-item {% if active=='dashboard' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-        전사 대시보드
+        전사 대시보드 <span class="menu-code">M-05-01</span>
       </a>
       {% endif %}
       {% if user.role in ['leader','executive','ceo','admin'] %}
@@ -185,30 +274,30 @@
 
     {# 그룹 3: 업무 추적 (진행률·티켓·이슈·변경·게시판) #}
     <div class="sb-section">
-      <div class="sb-head">업무 추적</div>
+      <div class="sb-head">협업·추적</div>
       <a href="/progress" class="sb-item {% if active=='progress' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
         진행률 매트릭스
-        <span id="progress-delayed-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+        <span id="progress-delayed-badge" style="display:none;margin-left:auto;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
       </a>
       <a href="/tickets" class="sb-item {% if active=='tickets' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="5" x2="13" y2="19"/></svg></span>
-        요청 티켓
-        <span id="tickets-pending-badge" style="display:none;margin-left:auto;background:#1565C0;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+        요청 티켓 <span class="menu-code">M-00-12</span>
+        <span id="tickets-pending-badge" style="display:none;margin-left:auto;background:var(--info);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
       </a>
       <a href="/issues" class="sb-item {% if active=='issues' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
         이슈 · AS
-        <span id="issues-open-badge" style="display:none;margin-left:auto;background:#DC2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+        <span id="issues-open-badge" style="display:none;margin-left:auto;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
       </a>
       <a href="/changes" class="sb-item {% if active=='changes' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
         변경 공지
-        <span id="changes-unread-badge" style="display:none;margin-left:auto;background:#A5282C;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
+        <span id="changes-unread-badge" style="display:none;margin-left:auto;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;"></span>
       </a>
       <a href="/board/company" class="sb-item {% if active=='board_company' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        게시판
+        게시판 <span class="menu-code">M-00-10</span>
       </a>
     </div>
 
@@ -216,19 +305,19 @@
 
     {# 그룹 5: 외부 · 관리 (하이웍스·팀트리·관리자) #}
     <div class="sb-section">
-      <div class="sb-head">외부 · 관리 <span style="background:#EEF2FF;color:#4338CA;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;">하이웍스</span></div>
+      <div class="sb-head">관리 <span style="background:var(--paper-2);color:var(--amber-deep);font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;letter-spacing:0.04em;">하이웍스</span></div>
       <a href="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="전자결제는 하이웍스에서 계속 사용">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        전자결제<span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+        전자결제<span style="margin-left:auto;font-size:10px;color:var(--mute-2);">↗</span>
       </a>
       <a href="{{ hiworks_mail_url|default('https://mail.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="메일은 하이웍스에서 계속 사용">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
-        메일<span style="margin-left:auto;font-size:10px;color:#9CA3AF;">↗</span>
+        메일<span style="margin-left:auto;font-size:10px;color:var(--mute-2);">↗</span>
       </a>
       {# 사이클 79 (DEC-2) — 인사총무 하이웍스 연동 페이지 (모든 로그인 사용자, 본인 정보만) #}
       <a href="/hr/hiworks" class="sb-item {% if active=='hr_hiworks' %}sb-active{% endif %}" title="인사총무 업무는 하이웍스 시스템에서 처리 (HAIST WORKS는 연동·조회만)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"/></svg></span>
-        인사총무 (하이웍스)
+        인사총무 (하이웍스) <span class="menu-code">M-03-02</span>
       </a>
       {% if user.role in ['leader','executive','ceo','admin'] %}
       {# CEO/임원/admin 은 team_id 없을 수 있음 → /team/permissions (인덱스) 로 #}
@@ -240,7 +329,7 @@
       {% if user.role in ['ceo','admin'] %}
       <a href="/admin" class="sb-item {% if active=='admin' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-7h-6M7 12H1m15.66-6.34-4.24 4.24M7.58 16.42l-4.24 4.24m0-16.32 4.24 4.24m8.48 8.48 4.24 4.24"/></svg></span>
-        관리자
+        관리자 <span class="menu-code">M-04-01</span>
       </a>
       {# 사이클 80 (2026-04-27 17:30 대표 지시 메모리 #7): 1회성 페이지(외부자산 점검·회사 정보)는 사이드바 제거 → /admin 페이지 카드에서 진입 #}
       {% endif %}
@@ -249,6 +338,14 @@
     <div class="sb-section sb-tree-section">
       <div class="sb-head">{{ i.sb_team_project|default('팀 / 프로젝트') }}</div>
       <div id="sbTree" class="sb-tree">불러오는 중...</div>
+    </div>
+
+    {# G18 (2026-04-28 대표 지시): 사용 가이드 — 사이드바 맨 아래 + 그룹 헤더 라벨 삭제 #}
+    <div class="sb-section">
+      <a href="/guide" target="_blank" rel="noopener" class="sb-item {% if active=='guide' %}sb-active{% endif %}" title="KNK HAIST WORKS 사용 가이드 — 새 창으로 열림 (대표 지시: 보면서 따라할 수 있게)">
+        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+        사용 가이드 <span class="menu-code">M-00-13</span> <span class="sb-ext" aria-hidden="true">↗</span>
+      </a>
     </div>
   </aside>
 {% endif %}
@@ -385,29 +482,43 @@ setInterval(loadProgressDelayed, 60000);
 
 /* C안 §7-2 — 사이드바 드래그 리사이즈 IIFE 전부 폐지 (시안 12B 고정 264px 정책) */
 
-/* C안 §7-1 — 워크스페이스 스위처 토글 */
-(function(){
-  const wsWrap = document.getElementById('wsWrap');
-  const wsBtn  = document.getElementById('wsBtn');
-  const wsMenu = document.getElementById('wsMenu');
-  if (!wsWrap || !wsBtn || !wsMenu) return;
-  function setOpen(open){
-    wsWrap.classList.toggle('open', open);
-    wsMenu.classList.toggle('open', open);
-    wsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-  wsBtn.addEventListener('click', e => { e.stopPropagation(); setOpen(!wsWrap.classList.contains('open')); });
-  document.addEventListener('click', e => { if (!wsWrap.contains(e.target)) setOpen(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
-})();
+/* v3 (2026-04-28) — 옛 ws-wrap dropdown JS 폐기 (가로 탭 = 단순 <a> 링크) */
 
-/* C안 §7-1 — "/" 키 → 글로벌 검색 포커스 (한글 IME 안전) */
+/* v3 (2026-04-28) — 빅터 도크 모드 탭 전환 (빅터 ↔ 검색) */
+function setDockMode(mode){
+  document.querySelectorAll('.dock-mode-tab').forEach(function(t){
+    var a = t.dataset.mode === mode;
+    t.classList.toggle('active', a);
+    t.setAttribute('aria-selected', a ? 'true' : 'false');
+  });
+  document.querySelectorAll('.dock-mode-panel').forEach(function(p){
+    p.classList.toggle('active', p.dataset.modePanel === mode);
+  });
+  if (mode === 'search') {
+    setTimeout(function(){
+      var i = document.getElementById('gSearchInput');
+      if (i) { i.focus(); i.select(); }
+    }, 100);
+  } else if (mode === 'victor') {
+    setTimeout(function(){
+      var i = document.getElementById('dockInput');
+      if (i) i.focus();
+    }, 100);
+  }
+}
+
+/* v3 (2026-04-28) — "/" 단축키: 도크 열기 + 검색 모드 + 검색 input 포커스 (한글 IME 안전) */
 document.addEventListener('keydown', function(e){
   if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
-  const t = (e.target.tagName || '').toLowerCase();
+  var t = (e.target.tagName || '').toLowerCase();
   if (t === 'input' || t === 'textarea' || t === 'select' || e.target.isContentEditable) return;
-  const i = document.getElementById('gSearchInput');
-  if (i) { e.preventDefault(); i.focus(); i.select(); }
+  e.preventDefault();
+  /* 도크 닫혀있으면 열기 */
+  if (!document.body.classList.contains('dock-open') && typeof victorToggleDock === 'function') {
+    victorToggleDock();
+  }
+  /* 검색 모드 활성화 (자동 포커스 포함) */
+  setTimeout(function(){ setDockMode('search'); }, 280);
 });
 
 /* ===== 언어 변경 ===== */
@@ -481,7 +592,7 @@ async function openCardModal(taskId){
     if (!j.ok) throw new Error(j.error||'오류');
     renderCardModal(j.task, j.comments, j.reactions, j.delegations||[]);
   } catch(e) {
-    document.getElementById('cmBody').innerHTML = '<div style="color:#A5282C;padding:20px">불러오기 실패: '+e.message+'</div>';
+    document.getElementById('cmBody').innerHTML = '<div style="color:var(--knk-red);padding:20px">불러오기 실패: '+e.message+'</div>';
   }
 }
 function closeCardModal(){
@@ -489,7 +600,7 @@ function closeCardModal(){
 }
 function escHtml(s){return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function renderCardModal(t, comments, reactions, delegations){
-  const statusColors = {'진행중':'#F57F17','완료':'#2E7D32','지연':'#A5282C','대기':'#4A4A4A','보류':'#4A4A4A'};
+  const statusColors = {'진행중':'var(--warn)','완료':'var(--success)','지연':'var(--knk-red)','대기':'#4A4A4A','보류':'#4A4A4A'};
   const sc = statusColors[t.status] || '#4A4A4A';
   document.getElementById('cmTitle').innerHTML = `<span class="tag" style="background:${sc};color:#fff">${t.status}</span> ${escHtml(t.title)}`;
 
@@ -609,7 +720,7 @@ async function translateFromDom(btn) {
     });
     const j = await r.json();
     if (j.ok) {
-      const langNames = {ko:'🇰🇷 한국어', vi:'🇻🇳 Tiếng Việt', en:'🇺🇸 English'}; /* QA-H3·H4·H5 패치 ③ */
+      const langNames = {ko:'🇰🇷 한국어', vi:'🇻🇳 Tiếng Việt', en:'🇺🇸 English'};
       const srcLabel = j.source ? ` · ${escHtml(j.source)}` : '';
       resultDiv.innerHTML = `<div class="tr-label">${langNames[target]||target} 번역${srcLabel}</div><div class="tr-text">${escHtml(j.translated)}</div>`;
     } else {
@@ -823,32 +934,32 @@ async function resolveDelegation(did, tid){
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
         <span style="font-size:36px;">${guide.icon}</span>
         <div>
-          <div style="font-size:11px;color:#A5282C;font-weight:800;letter-spacing:0.04em;">HAIST WORKS 처음 시작</div>
+          <div style="font-size:11px;color:var(--knk-red);font-weight:800;letter-spacing:0.04em;">HAIST WORKS 처음 시작</div>
           <h2 style="margin:0;font-size:22px;font-weight:800;">{{ user.name }}님, ${team || '환영'}!</h2>
         </div>
       </div>
-      <p style="color:#6B7280;font-size:14px;line-height:1.6;margin:0 0 18px;">${team ? `${team}에서 가장 자주 쓰실 기능 3가지를 골랐어요. 30초만 봐주세요.` : '당신의 부서에 맞는 핵심 3가지'}</p>
+      <p style="color:var(--mute);font-size:14px;line-height:1.6;margin:0 0 18px;">${team ? `${team}에서 가장 자주 쓰실 기능 3가지를 골랐어요. 30초만 봐주세요.` : '당신의 부서에 맞는 핵심 3가지'}</p>
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
         ${guide.key_features.map((f, i) => `
-          <a href="${f[1]}" style="display:flex;gap:14px;padding:14px;background:#F9FAFB;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent;transition:all .15s;" onmouseover="this.style.borderColor='#A5282C';this.style.background='#FFEBEE'" onmouseout="this.style.borderColor='transparent';this.style.background='#F9FAFB'">
-            <span style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;">${i+1}</span>
+          <a href="${f[1]}" style="display:flex;gap:14px;padding:14px;background:var(--paper);border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent;transition:all .15s;" onmouseover="this.style.borderColor='var(--knk-red)';this.style.background='var(--knk-red-soft)'" onmouseout="this.style.borderColor='transparent';this.style.background='var(--paper)'">
+            <span style="background:linear-gradient(135deg,var(--knk-red),#8B1E22);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;">${i+1}</span>
             <div style="flex:1;">
-              <strong style="font-size:14px;color:#1A1A1A;">${f[0]} →</strong>
-              <div style="font-size:12px;color:#6B7280;margin-top:2px;line-height:1.5;">${f[2]}</div>
+              <strong style="font-size:14px;color:var(--ink);">${f[0]} →</strong>
+              <div style="font-size:12px;color:var(--mute);margin-top:2px;line-height:1.5;">${f[2]}</div>
             </div>
           </a>
         `).join('')}
       </div>
 
-      <div style="background:#FFF8E1;border-left:3px solid #F57F17;padding:10px 14px;border-radius:6px;margin-bottom:18px;">
-        <div style="font-size:11px;color:#F57F17;font-weight:800;margin-bottom:4px;">💡 도움이 더 필요하면</div>
-        <div style="font-size:12px;color:#6B7280;line-height:1.6;">사이드바에 모든 메뉴가 있어요. 메뉴 옆 빨간 뱃지는 미처리 항목 수입니다.</div>
+      <div style="background:var(--amber-glow);border-left:3px solid var(--warn);padding:10px 14px;border-radius:6px;margin-bottom:18px;">
+        <div style="font-size:11px;color:var(--warn);font-weight:800;margin-bottom:4px;">💡 도움이 더 필요하면</div>
+        <div style="font-size:12px;color:var(--mute);line-height:1.6;">사이드바에 모든 메뉴가 있어요. 메뉴 옆 빨간 뱃지는 미처리 항목 수입니다.</div>
       </div>
 
       <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
-        <button onclick="dismissDeptGuide(false)" style="padding:8px 16px;background:transparent;border:none;color:#9CA3AF;font-size:12px;cursor:pointer;text-decoration:underline;">나중에</button>
-        <button onclick="dismissDeptGuide(true)" style="padding:10px 24px;background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;">확인 (다시 안 보기)</button>
+        <button onclick="dismissDeptGuide(false)" style="padding:8px 16px;background:transparent;border:none;color:var(--mute-2);font-size:12px;cursor:pointer;text-decoration:underline;">나중에</button>
+        <button onclick="dismissDeptGuide(true)" style="padding:10px 24px;background:linear-gradient(135deg,var(--knk-red),#8B1E22);color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;">확인 (다시 안 보기)</button>
       </div>
     </div>
   `;
@@ -874,9 +985,16 @@ function victorToggleDock() {
   if (open) setTimeout(() => document.getElementById('dockInput')?.focus(), 280);
 }
 
-/* 초기: 이전 세션에서 열려 있던 상태 복원 */
+/* 초기: 이전 세션에서 열려 있던 상태 복원
+   2026-05-01 v5DOCKFIX: 시안 적용 시 도크가 항상 열려 있어 메인 폭이 좁아지는 문제 →
+   v5DOCKFIX 마이그레이션 마커가 없으면 강제로 닫고 마커 설정 (1회) */
 (function(){
   try {
+    var MIG = 'haist_dock_v5dockfix_mig';
+    if (!localStorage.getItem(MIG)) {
+      localStorage.setItem(VICTOR_DOCK_KEY, '0');
+      localStorage.setItem(MIG, '1');
+    }
     if (localStorage.getItem(VICTOR_DOCK_KEY) === '1') document.body.classList.add('dock-open');
   } catch(e){}
 })();
@@ -902,6 +1020,54 @@ async function victorAsk(q) {
     '<div class="msg ai" id="'+typingId+'"><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>'
   );
   body.scrollTop = body.scrollHeight;
+
+  // Phase 1 v1.2 (2026-04-29) 진단 로그 추가
+  console.log('[VICTOR-ROUTE-v1.2] try route, q=', q);
+  try {
+    const rr = await fetch('/victor/route', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({q: q})
+    });
+    console.log('[VICTOR-ROUTE-v1.2] HTTP status=', rr.status);
+    const jr = await rr.json();
+    console.log('[VICTOR-ROUTE-v1.2] response=', jr);
+    if (jr && jr.ok && jr.candidates && jr.candidates.length > 0) {
+      document.getElementById(typingId)?.remove();
+      if (jr.auto_navigate) {
+        // 단일 매치 — 자동 이동 (3초 카운트다운)
+        const m = {code: jr.code, label: jr.label, path: jr.path, tip: jr.tip};
+        const link = '<a href="' + esc(m.path) + '" style="color:var(--knk-red);font-weight:700">[' + esc(m.code) + '] ' + esc(m.label) + ' →</a>';
+        body.insertAdjacentHTML('beforeend',
+          '<div class="msg ai"><div class="bubble">' +
+          '🎯 <strong>' + link + '</strong><br>' +
+          '<span style="font-size:12px;color:#666">' + esc(m.tip) + '</span><br>' +
+          '<span id="vrCount" style="font-size:11px;color:#999">3초 후 자동 이동…</span>' +
+          '</div></div>'
+        );
+        body.scrollTop = body.scrollHeight;
+        let n = 3;
+        VICTOR_REDIRECT_TIMER = setInterval(() => {
+          n--;
+          const el = document.getElementById('vrCount');
+          if (el) el.textContent = n + '초 후 자동 이동…';
+          if (n <= 0) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; window.location.href = m.path; }
+        }, 1000);
+      } else {
+        // 다중 매치 — 후보 표시
+        let html = '🔎 <strong>' + esc(jr.msg) + '</strong><ul style="margin:6px 0;padding-left:18px;list-style:none">';
+        for (const c of jr.candidates) {
+          html += '<li style="margin:4px 0">'
+            + '<a href="' + esc(c.path) + '" style="color:var(--knk-red);font-weight:600">[' + esc(c.code) + '] ' + esc(c.label) + ' →</a>'
+            + '<br><span style="font-size:11px;color:#666">' + esc(c.tip) + '</span></li>';
+        }
+        html += '</ul>';
+        body.insertAdjacentHTML('beforeend', '<div class="msg ai"><div class="bubble">' + html + '</div></div>');
+        body.scrollTop = body.scrollHeight;
+      }
+      return;
+    }
+    // 매치 없음 또는 ok=false → 기존 빅터 AI 로 위임 (fallback)
+  } catch (e) { /* 라우팅 실패 시도 무시 + ask 진행 */ }
 
   try {
     const r = await fetch('/api/victor/ask', {
@@ -966,9 +1132,9 @@ function victorAppendAi(r) {
   let countdownHtml = '';
   if (r.type === 'guide_step' && r.auto_redirect) {
     const safeUrl = escape(r.auto_redirect);
-    countdownHtml = '<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
-      '<div style="color:#92400E;">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">' + safeUrl + '</span></div>' +
-      '<button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';
+    countdownHtml = '<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid var(--amber);border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+      '<div style="color:var(--amber-deep);">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">' + safeUrl + '</span></div>' +
+      '<button onclick="victorCancelRedirect()" style="background:#fff;color:var(--amber-deep);border:1px solid var(--amber);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';
   }
 
   body.insertAdjacentHTML('beforeend',
@@ -998,7 +1164,7 @@ function victorAppendAi(r) {
 function victorCancelRedirect() {
   if (VICTOR_REDIRECT_TIMER) { clearInterval(VICTOR_REDIRECT_TIMER); VICTOR_REDIRECT_TIMER = null; }
   const c = document.getElementById('victorCountdown');
-  if (c) { c.innerHTML = '<span style="color:#6B7280;">✓ 자동 이동 취소됨</span>'; c.style.background = '#F3F4F6'; c.style.borderLeftColor = '#9CA3AF'; }
+  if (c) { c.innerHTML = '<span style="color:var(--mute);">✓ 자동 이동 취소됨</span>'; c.style.background = 'var(--paper-2)'; c.style.borderLeftColor = 'var(--mute-2)'; }
 }
 
 function victorClearChat() {
@@ -1058,6 +1224,54 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 {% endif %}
 {% endif %}
+
+// =========================================================
+// Phase 1 (2026-04-29 대표 결재) — 화면 도움말 ❓ popover
+// =========================================================
+let _menuHelpEl = null;
+function menuHelpToggle() {
+  if (_menuHelpEl && _menuHelpEl.parentNode) {
+    _menuHelpEl.remove();
+    _menuHelpEl = null;
+    return;
+  }
+  const path = window.location.pathname;
+  const code = {{ (current_menu.code if current_menu else '')|tojson }};
+  const url = '/api/menu-help?path=' + encodeURIComponent(path) + (code ? '&code=' + encodeURIComponent(code) : '');
+  fetch(url).then(r => r.json()).then(j => {
+    const esc = (s) => (s || '').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    let html = '';
+    if (j.ok) {
+      const aliases = (j.aliases || []).map(a => '<span style="display:inline-block;background:var(--paper-2);color:var(--ink);padding:2px 8px;border-radius:4px;font-size:11px;margin:2px 4px 2px 0">' + esc(a) + '</span>').join('');
+      html = '<div style="font-weight:800;color:var(--knk-red);font-size:13px;margin-bottom:4px">[' + esc(j.code) + '] ' + esc(j.label) + '</div>'
+        + '<div style="color:#1F2937;font-size:13px;line-height:1.5;margin-bottom:8px">' + esc(j.tip) + '</div>'
+        + '<div style="color:var(--mute);font-size:11px;margin-bottom:6px">주 사용자: ' + esc(j.persona) + '</div>'
+        + (aliases ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)"><span style="font-size:10px;color:var(--mute-2);margin-right:4px">빅터 호출 키워드</span>' + aliases + '</div>' : '')
+        + '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute-2)">💡 빅터에게 "' + esc(j.label) + '"라고 말하면 이 화면이 열립니다.</div>';
+    } else {
+      html = '<div style="color:var(--mute);font-size:13px">' + esc(j.msg || '도움말 없음') + '</div>'
+        + '<div style="margin-top:8px;font-size:11px;color:var(--mute-2)">URL: ' + esc(path) + '</div>';
+    }
+    const el = document.createElement('div');
+    el.id = 'menuHelpPop';
+    el.style.cssText = 'position:fixed;top:64px;right:200px;width:340px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,0.15);padding:14px 16px;z-index:10000;border-left:4px solid var(--knk-red);font-family:inherit';
+    el.innerHTML = html + '<button onclick="menuHelpToggle()" style="position:absolute;top:6px;right:8px;background:none;border:0;font-size:16px;cursor:pointer;color:var(--mute-2)" aria-label="닫기">×</button>';
+    document.body.appendChild(el);
+    _menuHelpEl = el;
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+      const closeOnOut = (ev) => {
+        if (_menuHelpEl && !_menuHelpEl.contains(ev.target) && ev.target.id !== 'menuHelpBtn') {
+          _menuHelpEl.remove(); _menuHelpEl = null;
+          document.removeEventListener('click', closeOnOut);
+        }
+      };
+      document.addEventListener('click', closeOnOut);
+    }, 100);
+  }).catch(e => {
+    alert('도움말을 불러올 수 없습니다: ' + e);
+  });
+}
 </script>
 
 {# =========================================================
@@ -1083,6 +1297,22 @@ document.addEventListener('DOMContentLoaded', function(){
         </button>
       </div>
     </div>
+  </div>
+
+  {# v3 (2026-04-28 대표 승인) — 도크 모드 탭 (빅터 ↔ 검색 분리) #}
+  <div class="dock-modes" role="tablist" aria-label="도크 모드 전환">
+    <button type="button" class="dock-mode-tab active" data-mode="victor" role="tab" aria-selected="true" onclick="setDockMode('victor')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      💬 빅터에게 묻기
+    </button>
+    <button type="button" class="dock-mode-tab" data-mode="search" role="tab" aria-selected="false" onclick="setDockMode('search')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+      🔍 검색
+    </button>
+  </div>
+
+  {# 모드: 빅터 (기본 활성) #}
+  <div class="dock-mode-panel active" data-mode-panel="victor">
     {% if victor_chips %}
     <div class="dock-ctx">
       <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
@@ -1093,36 +1323,61 @@ document.addEventListener('DOMContentLoaded', function(){
       </div>
     </div>
     {% endif %}
-  </div>
 
-  <div class="dock-body" id="dockBody">
-    <div class="dock-welcome" id="dockWelcome">
-      <span class="emoji">👋</span>
-      <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
-        {{ user.name }}님, 무엇을 도와드릴까요?
+    <div class="dock-body" id="dockBody">
+      <div class="dock-welcome" id="dockWelcome">
+        <span class="emoji">👋</span>
+        <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
+          {{ user.name }}님, 무엇을 도와드릴까요?
+        </div>
+        자연어로 편하게 물어보세요.<br>
+        메뉴를 찾을 필요 없습니다.
       </div>
-      자연어로 편하게 물어보세요.<br>
-      메뉴를 찾을 필요 없습니다.
+    </div>
+
+    <div class="dock-input-wrap">
+      <div class="dock-quick">
+        <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
+        <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
+        <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
+        <button type="button" onclick="victorAsk('확인 안 한 변경')">미확인 변경</button>
+        <button type="button" onclick="victorAsk('결재')">결재</button>
+      </div>
+      <div class="dock-input-row">
+        <label for="dockInput" class="sr-only">빅터 입력</label>
+        <textarea class="dock-input" id="dockInput" rows="1" tabindex="0" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
+        <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)" aria-label="빅터에게 보내기" tabindex="0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="dock-foot">
+        <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+      </div>
     </div>
   </div>
 
-  <div class="dock-input-wrap">
-    <div class="dock-quick">
-      <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
-      <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
-      <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
-      <button type="button" onclick="victorAsk('확인 안 한 변경')">미확인 변경</button>
-      <button type="button" onclick="victorAsk('결재')">결재</button>
+  {# 모드: 검색 (탭 클릭 시 표시) #}
+  <div class="dock-mode-panel" data-mode-panel="search">
+    <div class="dock-search-wrap">
+      <div class="search-hint">업무 · 사람 · 문서 검색</div>
+      <form class="dock-search" action="/search" method="get" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <label for="gSearchInput" class="sr-only">{{ i.search_ph|default('업무·사람·문서 검색') }}</label>
+        <input type="search" name="q" id="gSearchInput"
+               placeholder="{{ i.search_ph|default('검색어 입력 후 Enter...') }}"
+               autocomplete="off"
+               oninput="gSearchSuggest(this.value)"
+               onblur="setTimeout(function(){var el=document.getElementById('gSearchSugg');if(el)el.style.display='none'},200)"
+               onfocus="if(this.value.length>=2)gSearchSuggest(this.value)">
+        <span class="shortcut">/</span>
+      </form>
+      <div id="gSearchSugg" class="g-search-sugg dock-search-sugg"
+           style="display:none;margin-top:8px;background:#fff;border:1px solid var(--sage-300,#CAD9B8);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.10);max-height:380px;overflow:auto"></div>
     </div>
-    <div class="dock-input-row">
-      <label for="dockInput" class="sr-only">빅터 입력</label>
-      <textarea class="dock-input" id="dockInput" rows="1" tabindex="0" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
-      <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)" aria-label="빅터에게 보내기" tabindex="0">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      </button>
-    </div>
-    <div class="dock-foot">
-      <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
+    <div class="dock-search-empty" id="dockSearchEmpty">
+      <span class="empty-ico">🔍</span>
+      검색어를 입력하면 결과가 표시됩니다<br>
+      <span style="font-size:11px;color:var(--ink-4,#8FA594)">예: "삼성", "라벨링", "김재훈", "발주서"</span>
     </div>
   </div>
 </aside>

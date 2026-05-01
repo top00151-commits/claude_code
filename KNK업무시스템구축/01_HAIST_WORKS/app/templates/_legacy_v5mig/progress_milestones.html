@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ project.mgmt_code or project.name }} 마일스톤 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/progress/{{ project.id }}" style="font-size:13px;color:var(--mute);text-decoration:none;">← 프로젝트 상세</a>
+  · <a href="/progress/{{ project.id }}/gantt" style="font-size:13px;color:var(--mute);text-decoration:none;">간트</a>
+  · <a href="/progress/{{ project.id }}/burndown" style="font-size:13px;color:var(--mute);text-decoration:none;">번다운</a>
+</div>
+
+<!-- 헤더 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--success);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+    {% if project.mgmt_code %}<span style="font-family:var(--font-mono);font-size:13px;color:var(--success);font-weight:800;background:var(--paper-2);padding:4px 10px;border-radius:6px;">{{ project.mgmt_code }}</span>{% endif %}
+    <span style="font-size:11px;color:var(--mute);">마일스톤 2차 · 달성률 + 다이아 마커 (외부 라이브러리 0)</span>
+  </div>
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">{{ project.project_name }}</h1>
+</div>
+
+<!-- 달성률 카드 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
+  <h3 style="margin:0 0 10px 0;font-size:15px;font-weight:800;">달성률</h3>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="font-size:30px;font-weight:800;color:var(--success);font-variant-numeric:tabular-nums;">{{ pct_ms|round(1) }}%</div>
+    <div style="flex:1;min-width:200px;">
+      <div style="height:14px;background:var(--paper-2);border-radius:6px;overflow:hidden;">
+        <div style="height:100%;width:{{ pct_ms|round(0)|int }}%;background:linear-gradient(90deg,var(--success),#66BB6A);"></div>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:var(--mute);">{{ done_ms }} / {{ total_ms }} 완료</div>
+    </div>
+  </div>
+</div>
+
+<!-- 마일스톤 목록 -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;">
+  <h3 style="margin:0 0 12px 0;font-size:15px;font-weight:800;">마일스톤 ({{ total_ms }})</h3>
+  {% if milestones %}
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:var(--paper);border-bottom:2px solid var(--line);">
+        <th style="padding:8px;text-align:left;width:30px;"></th>
+        <th style="padding:8px;text-align:left;">이름</th>
+        <th style="padding:8px;text-align:left;width:120px;">목표일</th>
+        <th style="padding:8px;text-align:left;width:120px;">완료일</th>
+        <th style="padding:8px;text-align:left;width:90px;">상태</th>
+        <th style="padding:8px;text-align:left;width:80px;">D-Day</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for m in milestones %}
+    {% set mc = 'var(--success)' if m.status == 'DONE' else ('var(--info)' if m.status == 'IN_PROGRESS' else ('#D32F2F' if m.status == 'DELAYED' else '#9E9E9E')) %}
+    <tr style="border-bottom:1px solid #F1F3F4;">
+      <td style="padding:8px;"><svg width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,7 7,13 1,7" fill="{{ mc }}"/></svg></td>
+      <td style="padding:8px;font-weight:600;">{{ m.name }}</td>
+      <td style="padding:8px;">{{ m.target_date or '-' }}</td>
+      <td style="padding:8px;color:var(--success);">{{ m.completed_at or '-' }}</td>
+      <td style="padding:8px;"><span style="background:{{ mc }}20;color:{{ mc }};padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ m.status }}</span></td>
+      <td style="padding:8px;font-variant-numeric:tabular-nums;">
+        {% if m.target_date and m.status != 'DONE' %}
+          {% set dd = ((m.target_date[:4]|int - today_str[:4]|int) * 365 + (m.target_date[5:7]|int - today_str[5:7]|int) * 30 + (m.target_date[8:10]|int - today_str[8:10]|int)) %}
+          <span style="color:{{ '#D32F2F' if dd < 0 else ('#F57C00' if dd <= 7 else 'var(--mute)') }};font-weight:700;">D{{ '%+d' % dd }}</span>
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="color:#9E9E9E;font-size:13px;padding:30px;text-align:center;">마일스톤 미등록</div>
+  {% endif %}
+</div>
+
+{% endblock %}

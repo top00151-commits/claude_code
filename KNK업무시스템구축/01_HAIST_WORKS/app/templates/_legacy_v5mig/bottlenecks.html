@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ i.bn_title|default('🚨 병목 자동 감지') }}{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.bn_title|default('🚨 병목 자동 감지') }}</h1>
+    <div class="page-sub">{{ i.bn_sub|default('규칙: ① 지연 3일+ ② 댓글 5+ 미해결 ③ 동시 8건+ 과집중 ④ 대표 요청 24h 무응답') }}</div>
+  </div>
+</div>
+
+{% if items %}
+<div class="bn-grid">
+  {% for b in items %}
+  <div class="bn-card bn-{{ b.severity }}" {% if b.task_id %}onclick="openCardModal({{ b.task_id }})"{% endif %}>
+    <div class="bn-rule">{{ b.rule }}</div>
+    <div class="bn-title">{{ b.title }}</div>
+    <div class="cm-time">{{ b.owner }}{% if b.team %} · {{ b.team }}{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">{{ i.bn_empty|default('감지된 병목이 없습니다 👍 — 회사 흐름이 원활합니다.') }}</div>
+{% endif %}
+{% endblock %}

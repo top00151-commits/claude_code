@@ -1,142 +1,51 @@
-{% extends "base_logi.html" %}
-{% block title %}수불부 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>수불부 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+</head><body>
+{% set k = kpi or {} %}
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>수불부</b></div><h1 class="page-title">📊 <em>수불부</em></h1>
+    {% if part_filter %}<div class="page-meta" style="margin-top:6px;">필터: <b>{{ part_filter.name }}</b> ({{ part_filter.code }})</div>{% endif %}</div>
+    {% if part_filter %}<a class="btn btn-secondary" href="/stock/movements">↻ 필터 해제</a>{% endif %}
+  </div>
 
-<div class="page-head row-between">
-  <div>
-    <h1>📒 수불부 <span style="font-size:12px;color:#6B7280;font-weight:500;">(입출고 원장)</span></h1>
-    <p class="muted">{% if part_filter %}부품: <strong>[{{ part_filter.part_no }}] {{ part_filter.part_name }}</strong> · {% endif %}모든 재고 변동의 감사 추적</p>
+  <!-- KPI -->
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card"><div class="kpi-label">총 자재 종</div><div class="kpi-num">{{ k.parts_total|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 수량</div><div class="kpi-num">{{ '{:,.0f}'.format(k.total_qty|default(0)) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 가치</div><div class="kpi-num">{{ '{:,.0f}'.format(k.total_value|default(0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">재고 경고</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.low_stock|default(0) }}</div></div>
   </div>
-  <div style="display:flex;gap:8px;">
-    <a href="/stock/issue" class="btn" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border:none;font-weight:700;">📤 출고</a>
-    <a href="/stock/adjust" class="btn" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;border:none;font-weight:700;">⚖️ 실사</a>
-    <a href="/po" class="btn btn-ghost">📥 입고는 발주에서</a>
-  </div>
-</div>
 
-{% if request.query_params.get('success') %}
-<div style="background:#E8F5E9;border:1px solid #86EFAC;color:#2E7D32;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
-  ✓ 등록 완료: {{ request.query_params.get('success') }}
-</div>
-{% endif %}
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:var(--space-5) var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/stock/movements">
+    <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
+    <select name="kind" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">유형 전체</option>{% for k_, l in MOVEMENT_KIND_LABEL.items() %}<option value="{{ k_ }}" {% if filter_kind == k_ %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <input type="date" name="since" value="{{ filter_since }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <input type="date" name="until" value="{{ filter_until }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <button type="submit" class="btn btn-primary">🔍</button>
+  </form>
 
-<!-- KPI -->
-<div class="kpi-row">
-  <div class="kpi">
-    <div class="kpi-label">활성 부품</div>
-    <div class="kpi-value">{{ kpi.parts_total }}</div>
-  </div>
-  <div class="kpi" style="{% if kpi.low_stock > 0 %}background:#FEF2F2;border-color:#FCA5A5;{% endif %}">
-    <div class="kpi-label">안전재고 미달</div>
-    <div class="kpi-value" style="{% if kpi.low_stock > 0 %}color:#DC2626;{% endif %}">{{ kpi.low_stock }}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">미입고 발주</div>
-    <div class="kpi-value">{{ kpi.po_pending }}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">재고 금액</div>
-    <div class="kpi-value" style="font-size:18px;">{{ "{:,.0f}".format(kpi.stock_value) }}원</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">30일 입고</div>
-    <div class="kpi-value" style="color:#2E7D32;">+{{ "%g"|format(kpi.in_30d) }}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">30일 출고</div>
-    <div class="kpi-value" style="color:#DC2626;">-{{ "%g"|format(kpi.out_30d) }}</div>
-  </div>
-</div>
-
-<!-- 필터 -->
-<form method="get" action="/stock/movements" class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;margin-bottom:14px;">
-  <select name="kind" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-    <option value="">전체 종류</option>
-    <option value="IN" {% if filter_kind=='IN' %}selected{% endif %}>입고 (IN)</option>
-    <option value="OUT" {% if filter_kind=='OUT' %}selected{% endif %}>출고 (OUT)</option>
-    <option value="ADJUST" {% if filter_kind=='ADJUST' %}selected{% endif %}>실사조정</option>
-    <option value="TRANSFER" {% if filter_kind=='TRANSFER' %}selected{% endif %}>이동</option>
-  </select>
-  <input type="date" name="since" value="{{ filter_since }}" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-  <span style="color:#6B7280;">~</span>
-  <input type="date" name="until" value="{{ filter_until }}" style="padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-  <input type="text" name="q" value="{{ q }}" placeholder="부품명·번호·사유·Lot 검색" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;">
-  <button type="submit" class="btn btn-ghost">검색</button>
-  {% if part_filter %}
-  <a href="/stock/movements" style="color:#6B7280;font-size:12px;text-decoration:none;">× 부품 필터 해제</a>
-  {% endif %}
-</form>
-
-<!-- 리스트 -->
-<div class="card" style="padding:0;">
-  {% if items %}
-  <table class="table" style="width:100%;">
-    <thead>
-      <tr>
-        <th>일시</th>
-        <th>번호</th>
-        <th>종류</th>
-        <th>부품</th>
-        <th style="text-align:right;">수량</th>
-        <th style="text-align:right;">단가</th>
-        <th>Lot</th>
-        <th>참조</th>
-        <th>사유</th>
-        <th>담당</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th class="center">일시</th><th>자재</th><th class="center">유형</th><th class="num">수량</th><th class="num">단가</th><th class="num">가치</th><th>참조</th></tr></thead>
+      <tbody>
       {% for m in items %}
-      <tr>
-        <td style="font-family:monospace;font-size:11px;color:#6B7280;white-space:nowrap;">{{ m.occurred_at[:16] if m.occurred_at else '-' }}</td>
-        <td style="font-family:monospace;font-size:11px;color:#A5282C;font-weight:700;">{{ m.movement_no }}</td>
-        <td>
-          {% if m.kind == 'IN' %}<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:800;">IN 입고</span>
-          {% elif m.kind == 'OUT' %}<span style="background:#FEE2E2;color:#991B1B;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:800;">OUT 출고</span>
-          {% elif m.kind == 'ADJUST' %}<span style="background:#FEF3C7;color:#92400E;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:700;">⚖️ 실사</span>
-          {% elif m.kind == 'TRANSFER' %}<span style="background:#E0E7FF;color:#4338CA;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:700;">이동</span>
-          {% endif %}
-        </td>
-        <td>
-          <a href="/stock/movements?part_id={{ m.part_id }}" style="text-decoration:none;color:#1A1A1A;">
-            <div style="font-weight:700;">{{ m.part_name }}</div>
-            <div style="font-family:monospace;font-size:10px;color:#9CA3AF;">{{ m.part_no }}</div>
-          </a>
-        </td>
-        <td style="text-align:right;font-family:monospace;font-weight:800;color:{% if m.quantity > 0 %}#2E7D32{% elif m.quantity < 0 %}#DC2626{% else %}#6B7280{% endif %};">
-          {{ "%+g"|format(m.quantity) }} {{ m.part_unit or m.unit }}
-          {% if m.kind == 'IN' and m.remaining_qty is not none and m.remaining_qty < m.quantity %}
-            <div style="font-size:9px;color:#9CA3AF;">남은 {{ "%g"|format(m.remaining_qty) }}</div>
-          {% endif %}
-        </td>
-        <td style="text-align:right;font-family:monospace;font-size:11px;color:#6B7280;">
-          {% if m.unit_price and m.unit_price > 0 %}{{ "{:,.0f}".format(m.unit_price) }}{% else %}-{% endif %}
-        </td>
-        <td style="font-family:monospace;font-size:10px;color:#4338CA;">
-          {% if m.lot_no %}<span style="background:#EEF2FF;padding:2px 6px;border-radius:4px;">{{ m.lot_no }}</span>{% else %}-{% endif %}
-          {% if m.expiry_date %}<div style="color:#9CA3AF;font-size:9px;">~{{ m.expiry_date }}</div>{% endif %}
-        </td>
-        <td style="font-size:11px;">
-          {% if m.po_number %}<a href="/po/{{ m.po_id }}" style="color:#4338CA;font-family:monospace;">{{ m.po_number }}</a>{% endif %}
-          {% if m.mgmt_code %}<div style="font-family:monospace;font-size:10px;color:#6B7280;">{{ m.mgmt_code }}</div>{% endif %}
-          {% if m.customer_name %}<div style="font-size:10px;color:#6B7280;">→ {{ m.customer_name }}</div>{% endif %}
-        </td>
-        <td style="font-size:11px;color:#374151;max-width:200px;">{{ m.reason or '-' }}{% if m.note %}<div style="color:#9CA3AF;">{{ m.note }}</div>{% endif %}</td>
-        <td style="font-size:11px;color:#6B7280;">{{ m.created_by_name or '-' }}</td>
-      </tr>
+        <tr>
+          <td class="center" style="font-family:monospace;font-size:11px;color:var(--mute);">{{ m.moved_at|default('—') }}</td>
+          <td><b>{{ m.part_name|default('—') }}</b><div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ m.part_no|default('') }}</div></td>
+          <td class="center"><span class="pill {% if m.kind == 'IN' %}pill-done{% elif m.kind == 'OUT' %}pill-progress{% else %}pill-muted{% endif %}">{{ MOVEMENT_KIND_LABEL.get(m.kind, m.kind) }}</span></td>
+          <td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{% if m.kind == 'IN' %}+{% elif m.kind == 'OUT' %}-{% endif %}{{ '{:,.0f}'.format(m.qty|default(0)) }}</td>
+          <td class="num">{% if m.unit_price %}{{ '{:,.0f}'.format(m.unit_price) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if m.value %}{{ '{:,.0f}'.format(m.value) }}{% else %}—{% endif %}</td>
+          <td style="font-size:12px;color:var(--mute);">{{ m.ref_type|default('') }} {% if m.ref_id %}#{{ m.ref_id }}{% endif %}</td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="padding:48px;text-align:center;color:#9CA3AF;">
-    <div style="font-size:32px;margin-bottom:10px;">📭</div>
-    <div>아직 입출고 기록이 없습니다.</div>
-    <div style="margin-top:14px;">
-      <a href="/po" class="btn btn-ghost">📥 발주 → 입고 처리 시작</a>
-      <a href="/stock/issue" class="btn">📤 출고 등록</a>
-    </div>
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">수불 데이터가 없습니다</div></div>{% endif %}
   </div>
-  {% endif %}
-</div>
-
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

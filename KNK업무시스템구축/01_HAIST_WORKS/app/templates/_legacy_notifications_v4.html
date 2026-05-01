@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% set active = 'notifications' %}
+{% block title %}{{ i.notif_page_title|default('🔔 알림') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.notif_page_title|default('🔔 알림') }}</h1>
+    <div class="page-sub">{{ i.notif_recent|default('최근 100건') }} · {{ i.notif_unread|default('안 읽음') }} {{ unread_notif }}{{ i.total_count|default('건') }}</div>
+  </div>
+  <div class="date-nav">
+    <button class="btn-sm" onclick="readAll()">{{ i.notif_read_all|default('전체 읽음 처리') }}</button>
+  </div>
+</div>
+
+{% if not items %}
+<div class="empty">{{ i.notif_empty|default('아직 알림이 없습니다.') }}</div>
+{% else %}
+<div class="notif-list">
+  {% for n in items %}
+  <a href="{{ n.link or '#' }}" class="notif-item {% if not n.is_read %}unread{% endif %}"
+     onclick="markRead({{ n.id }})">
+    <div class="ni-ico">{% if n.kind=='comment' %}💬{% else %}🔔{% endif %}</div>
+    <div class="ni-body">
+      <div class="ni-title">{{ n.title }}</div>
+      {% if n.body %}<div class="ni-text">{{ n.body }}</div>{% endif %}
+      <div class="ni-time">{{ n.created_at }}</div>
+    </div>
+    {% if not n.is_read %}<div class="ni-dot"></div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+async function markRead(id){
+  await fetch('/api/notification/'+id+'/read',{method:'POST'});
+}
+async function readAll(){
+  await fetch('/api/notifications/read-all',{method:'POST'});
+  location.reload();
+}
+</script>
+{% endblock %}

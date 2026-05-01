@@ -1,0 +1,129 @@
+{% extends "base_logi.html" %}
+{% block title %}환율 관리 (FX) — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>환율 관리 (FX Rates)</h1>
+    <p class="muted">사이클 54 1차 · 외부 API 0건 · 수동 입력 + 이력 보존. KRW 기준 환율 일자별 관리.</p>
+  </div>
+</div>
+
+<div style="background:var(--paper-warm);border:1px solid #C7D2FE;color:#3730A3;padding:8px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;">
+  외부 호환 endpoint입니다. 사내 사용은 <a href="/rates" style="color:#3730A3;font-weight:700;text-decoration:underline;">기존 환율 페이지</a> 권장.
+</div>
+
+{% if request.query_params.get('success') %}
+<div style="background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+  환율 등록 완료
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div style="background:var(--knk-red-soft);border:1px solid var(--knk-red-soft);color:var(--knk-red-dk);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
+  오류: {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<!-- 통화별 최신 환율 (대시보드) -->
+<div class="kpi-row">
+  {% for code in ['USD','VND','JPY','CNY','EUR'] %}
+  {% set l = latest.get(code) %}
+  <div class="kpi">
+    <div class="kpi-label">{{ code }} → KRW</div>
+    {% if l %}
+    <div class="kpi-value" style="font-size:20px;">{{ "{:,.2f}".format(l.rate) }}</div>
+    <div class="kpi-sub">{{ l.rate_date }}</div>
+    {% else %}
+    <div class="kpi-value" style="color:var(--mute-2);">-</div>
+    <div class="kpi-sub">미등록</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 신규 환율 등록 폼 -->
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">+ 신규 환율 등록</h2>
+  <form method="post" action="/fx/rates" style="display:grid;grid-template-columns:140px 110px 110px 160px 130px 1fr 120px;gap:10px;align-items:end;">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">유효일자</label>
+      <input type="date" name="rate_date" required style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">From</label>
+      <select name="from_currency" required style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">To</label>
+      <select name="to_currency" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        {% for c in CURRENCIES %}<option value="{{ c }}" {% if c=='KRW' %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">환율 (1 From = ? To)</label>
+      <input type="number" name="rate" step="0.0001" required placeholder="예: 1380.00" style="width:100%;padding:8px 10px;border:2px solid var(--info);border-radius:6px;font-family:monospace;font-weight:700;">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">출처</label>
+      <select name="source" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+        <option value="수동 입력">수동 입력</option>
+        <option value="한국은행 고시환율">한국은행 고시환율</option>
+        <option value="사내 환율">사내 환율</option>
+        <option value="기타">기타</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--mute);">비고</label>
+      <input type="text" name="note" placeholder="(선택)" style="width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:6px;">
+    </div>
+    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:800;padding:10px 20px;">등록</button>
+  </form>
+  <p style="margin:10px 0 0;font-size:11px;color:var(--mute);">* 같은 (From, To, 유효일자) 는 UPSERT — 중복 방지. 외부 환율 API 미사용.</p>
+</div>
+
+<!-- 환율 이력 테이블 -->
+<div class="card" style="margin-top:14px;padding:0;">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+    <h2 style="margin:0;font-size:15px;font-weight:800;">환율 이력 ({{ items|length }}건)</h2>
+    <form method="get" action="/fx/rates" style="display:flex;gap:8px;">
+      <select name="currency" onchange="this.form.submit()" style="padding:6px 10px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
+        <option value="">전체 통화</option>
+        {% for c in CURRENCIES %}<option value="{{ c }}" {% if currency==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+  {% if items %}
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>유효일자</th>
+        <th>From</th>
+        <th>→ To</th>
+        <th style="text-align:right;">환율</th>
+        <th>출처</th>
+        <th>비고</th>
+        <th>등록자</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in items %}
+      <tr>
+        <td style="font-family:monospace;">{{ r.rate_date }}</td>
+        <td style="font-weight:700;">{{ r.from_currency }}</td>
+        <td style="color:var(--mute);">→ {{ r.to_currency }}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;">{{ "{:,.4f}".format(r.rate) }}</td>
+        <td>{{ r.source or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute);">{{ r.note or '-' }}</td>
+        <td style="font-size:11px;color:var(--mute-2);">{{ r.created_by_name or '-' }} · {{ r.created_at[:10] if r.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:var(--mute-2);">환율 데이터 없음 — 위 폼으로 등록하세요</div>
+  {% endif %}
+</div>
+
+{% endblock %}

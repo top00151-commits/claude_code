@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}시스템 설정 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin" style="font-size:13px;color:var(--mute);text-decoration:none;">← 관리자 홈</a>
+</div>
+
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--info);">
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">⚙️ 시스템 설정</h1>
+  <div style="font-size:13px;color:var(--mute);">하이웍스 외부 시스템 URL과 알림 채널 등을 관리합니다.</div>
+  {% if request.query_params.get('saved') %}
+  <div style="margin-top:12px;background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">
+    ✓ {{ request.query_params.get('saved') }}개 설정이 저장되었습니다.
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" action="/admin/settings">
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:var(--info);">🔗 하이웍스 (외부 시스템)</h2>
+    <p style="margin:0 0 16px;font-size:12px;color:var(--mute);background:var(--amber-glow);border-left:3px solid var(--amber);padding:8px 12px;border-radius:6px;">
+      <strong>정책:</strong> 전자결제·메일은 하이웍스에서 계속 사용합니다. 자체 결재/메일 모듈은 만들지 않습니다.
+    </p>
+
+    {% set hw_keys = [
+      ('hiworks_approval_url', '전자결제 URL', 'https://office.hiworks.com/', '예: https://office.hiworks.com/knk.co.kr/approval'),
+      ('hiworks_mail_url',     '메일 URL',     'https://mail.hiworks.com/',   '예: https://mail.hiworks.com/knk.co.kr'),
+      ('hiworks_domain',       '회사 도메인',   '',                              '예: knk.co.kr (선택, 미래 자동 조합용)'),
+    ] %}
+    {% for key, label, default, hint in hw_keys %}
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">{{ label }}
+        <span style="font-family:monospace;font-size:10px;color:var(--mute-2);font-weight:500;">{{ key }}</span>
+      </label>
+      <input type="text" name="k_{{ key }}"
+             value="{{ settings.get(key, {}).get('value', default) }}"
+             placeholder="{{ hint }}"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:monospace;">
+      <div style="font-size:11px;color:var(--mute-2);margin-top:3px;">{{ hint }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 6px;font-size:16px;font-weight:800;color:var(--success);">📡 하이웍스 API 토큰</h2>
+    <p style="margin:0 0 14px;font-size:12px;color:var(--mute);">
+      <strong>발급 위치</strong>: 하이웍스 오피스 → 오피스 관리 → 환경 설정 → API 관리<br>
+      <strong>참조 가이드</strong>: <code>03_HAIST_WORKS_Research/하이웍스_연결방법_총망라.md</code><br>
+      토큰을 비워두면 해당 기능은 자동 OFF (게시판·웹 알림은 정상 동작).
+    </p>
+
+    {% set hw_tokens = [
+      ('hiworks_messenger_token', '메신저 알림 토큰 ⭐', '변경/이슈/티켓 푸시 — KNK 표준 채널'),
+      ('hiworks_hr_token',        '인사관리 토큰',       '근태/조직도 조회 (Phase 2)'),
+      ('hiworks_approval_token',  '전자결재 토큰',       '외부에서 자동 기안 (Phase 2)'),
+    ] %}
+    {% for key, label, desc in hw_tokens %}
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">{{ label }}
+        <span style="font-family:monospace;font-size:10px;color:var(--mute-2);font-weight:500;">{{ key }}</span>
+      </label>
+      <input type="password" name="k_{{ key }}"
+             value="{{ settings.get(key, {}).get('value', '') }}"
+             placeholder="(미발급 시 비워두기)"
+             autocomplete="off"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:monospace;">
+      <div style="font-size:11px;color:var(--mute-2);margin-top:3px;">{{ desc }}</div>
+    </div>
+    {% endfor %}
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">알림 채널 마스터 스위치
+        <span style="font-family:monospace;font-size:10px;color:var(--mute-2);font-weight:500;">notify_channel</span>
+      </label>
+      {% set ch = settings.get('notify_channel', {}).get('value', 'off') %}
+      {% set mtoken = settings.get('hiworks_messenger_token', {}).get('value', '') %}
+      <select name="k_notify_channel" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
+        <option value="off"     {% if ch=='off' %}selected{% endif %}>off — 푸시 끔 (안전 기본값)</option>
+        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>hiworks — 하이웍스 메신저로 발송</option>
+        <option value="smtp"    {% if ch=='smtp' %}selected{% endif %}>smtp — 메일 발송 (Phase 2 미구현)</option>
+      </select>
+      {% if ch == 'hiworks' and not mtoken %}
+      <div style="margin-top:8px;padding:10px 12px;background:var(--knk-red-soft);border-left:3px solid var(--knk-red);border-radius:4px;font-size:12px;color:var(--knk-red-dk);">
+        🚨 <strong>경고</strong>: hiworks 채널 선택했지만 <code>hiworks_messenger_token</code>이 비어있습니다.
+        <strong>실제 푸시는 발송되지 않습니다</strong> (silent skip). 토큰을 발급해 입력하거나 채널을 off로 변경하세요.
+      </div>
+      {% elif ch == 'smtp' %}
+      <div style="margin-top:8px;padding:10px 12px;background:var(--amber-glow);border-left:3px solid var(--amber);border-radius:4px;font-size:12px;color:var(--amber-deep);">
+        ⚠️ smtp 채널은 아직 구현되지 않았습니다. 발송 시 콘솔 로그만 남습니다.
+      </div>
+      {% elif ch == 'off' %}
+      <div style="margin-top:8px;padding:10px 12px;background:var(--paper-2);border-left:3px solid var(--mute);border-radius:4px;font-size:12px;color:var(--ink);">
+        ℹ️ 푸시 알림 OFF 상태입니다. 사이트 내 알림(🔔)·게시판 자동 글은 정상 동작합니다.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 외부 메신저 통합은 하이웍스로 단일화 (대표 결재 D01-06, 2026-04-22) #}
+
+  {# 그 외 설정 자동 표시 (위에서 안 다룬 키만) #}
+  {% set known = ['hiworks_approval_url','hiworks_mail_url','hiworks_domain',
+                   'hiworks_messenger_token','hiworks_hr_token','hiworks_approval_token',
+                   'notify_channel'] %}
+  {% set others = [] %}
+  {% for k, v in settings.items() %}
+    {% if k not in known %}{% set _ = others.append((k, v)) %}{% endif %}
+  {% endfor %}
+  {% if others %}
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:var(--mute);">기타 설정</h2>
+    {% for k, v in others %}
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:700;color:var(--ink);display:block;margin-bottom:4px;">{{ v.description or k }}
+        <span style="font-family:monospace;font-size:10px;color:var(--mute-2);">{{ k }}</span>
+      </label>
+      <input type="text" name="k_{{ k }}" value="{{ v.value }}"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:monospace;">
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:30px;">
+    <a href="/admin" style="padding:10px 20px;border:1px solid var(--line-strong);border-radius:8px;color:var(--mute);text-decoration:none;font-weight:700;">취소</a>
+    <button type="submit" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;padding:10px 28px;border-radius:8px;font-weight:800;cursor:pointer;box-shadow:0 4px 10px rgba(67,56,202,.3);">
+      저장
+    </button>
+  </div>
+</form>
+
+{% endblock %}

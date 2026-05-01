@@ -1,7 +1,23 @@
-{% extends "base.html" %}
-{% set active = 'summary' %}
-{% block title %}{{ i.sum_title|default('통합 요약') }} · KNK{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>요약 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">요약</div>
+      <h1 class="page-title">요약</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <div class="page-title">
     <h1>📊 {{ i.sum_title|default('통합 요약') }}</h1>
@@ -156,5 +172,10 @@
   {% endfor %}
 </div>
 {% if total_cards > 80 %}<div class="empty-mini">{{ i.sum_showing_80|default('총 {n}건 중 80건 표시')|replace('{n}', total_cards|string) }}</div>{% endif %}
-{% endif %}
-{% endblock %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

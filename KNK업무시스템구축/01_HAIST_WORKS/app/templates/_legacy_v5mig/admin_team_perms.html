@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} 팀원 권한 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+{# ─── ① 페이지 헤더 (sage breadcrumb + accent + lock) ─── #}
+<div class="page-head">
+  <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 외부·관리 <span class="sep">/</span>
+      <span class="current">팀원 권한 — {{ team.name }}</span>
+      <span class="lock-badge" style="background:rgba(107,163,148,.18);color:#3F6B5E;">🔒 팀장+ 전용</span>
+    </div>
+    <h1>팀원 권한 관리</h1>
+    <div class="page-sub">
+      <strong>{{ team.name }}</strong> 팀원에게 모듈 접근 권한을 부여하거나 회수하세요.
+      변경 즉시 적용되며 알림 로그에 기록됩니다.
+    </div>
+  </div>
+  <div class="ph-right" style="display:flex;gap:8px;align-items:center;">
+    {% if user.role == 'leader' %}
+    <span class="tag" style="background:rgba(127,161,131,.2);color:var(--sage-700);font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;">팀장 모드 · 본인 팀만</span>
+    {% elif user.role in ['ceo','admin'] %}
+    <span class="tag" style="background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;">CEO/관리자 · 전 팀</span>
+    {% else %}
+    <span class="tag" style="background:rgba(201,169,97,.2);color:var(--amber-dk);font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;">임원 · 전 팀</span>
+    {% endif %}
+  </div>
+</div>
+
+{# 저장 토스트 — 단순 알림 카드 (hello-banner ::before 거대 가짜요소 회피) #}
+{% if request.query_params.get('saved') %}
+<div id="savedToast" style="display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,rgba(127,161,131,.15) 0%,#fff 100%);border:1px solid var(--sage-300);border-radius:14px;padding:14px 18px;margin-bottom:18px;box-shadow:var(--sh-xs);">
+  <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0;">✓</div>
+  <div style="flex:1;min-width:0;">
+    <div style="font-weight:800;color:var(--ink);font-size:14px;">{{ request.query_params.get('saved') }}명의 권한이 저장됐습니다.</div>
+    <div style="color:var(--ink-3);font-size:12px;margin-top:2px;">변경 내역은 아래 "최근 권한 변경" 카드에 자동 기록됩니다.</div>
+  </div>
+</div>
+<script>setTimeout(function(){var t=document.getElementById('savedToast');if(t)t.style.display='none';},3500);</script>
+{% endif %}
+
+{# ─── ② KPI 5종 (현재 팀 권한 부여 현황) — 안정 클래스 .kpi-grid + .kpi-card 로 교체 (검정 SVG 폭주 방지) ─── #}
+<div class="kpi-grid" style="margin-bottom:18px;">
+  <a href="#permsForm" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ kpi.total }}<span style="font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px;">명</span></div>
+    <div class="kpi-lab">전체 팀원</div>
+    <div class="kpi-sub">자동 권한자 {{ kpi.seed }}명 포함</div>
+  </a>
+  <a href="#permsForm" class="kpi-card st-progress kpi-link">
+    <div class="kpi-num">{{ kpi.sales }}<span style="font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px;">/{{ kpi.total }}</span></div>
+    <div class="kpi-lab">📈 매출·영업 권한</div>
+    <div class="kpi-sub">/sales · 견적·수주·고객사</div>
+  </a>
+  <a href="#permsForm" class="kpi-card st-progress kpi-link">
+    <div class="kpi-num">{{ kpi.logi }}<span style="font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px;">/{{ kpi.total }}</span></div>
+    <div class="kpi-lab">📦 자재·구매 권한</div>
+    <div class="kpi-sub">/logistics · 부품·발주·재고</div>
+  </a>
+  <a href="#permsForm" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ kpi.chg }}<span style="font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px;">/{{ kpi.total }}</span></div>
+    <div class="kpi-lab">✎ 변경 등록</div>
+    <div class="kpi-sub">/changes · 변경 공지 편집</div>
+  </a>
+  <a href="#permsForm" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ kpi.tkt }}<span style="font-size:50%;color:var(--ink-3);font-weight:700;margin-left:2px;">/{{ kpi.total }}</span></div>
+    <div class="kpi-lab">✓ 티켓 처리</div>
+    <div class="kpi-sub">/tickets · 상태 변경·종료</div>
+  </a>
+</div>
+
+{# ─── ③ 권한 토글 표 (메인) ─── #}
+{# ─── 권한 5종 상세 설명 카드 (대표 직접 지시: 무엇을 할 수 있는지 자세히) ─── #}
+<details style="background:#fff;border:1px solid var(--sage-200);border-radius:14px;padding:0;margin-bottom:14px;box-shadow:var(--sh-xs);overflow:hidden;" open>
+  <summary style="cursor:pointer;padding:14px 18px;background:var(--sage-50);font-weight:800;color:var(--ink);font-size:13px;display:flex;align-items:center;gap:8px;list-style:none;">
+    <span style="color:var(--sage-700);">ⓘ</span> 권한 5종 — 부여하면 무엇을 할 수 있나요?
+    <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;">▼ 펼치기/접기</span>
+  </summary>
+  <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+
+    {# 매출 (R/W 분리) — 2026-04-28 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #C9A961;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">📈</span>
+        <b style="color:var(--ink);font-size:13px;">매출·영업 (R/W 분리)</b>
+      </div>
+      <div style="background:rgba(127,161,131,.08);padding:8px 10px;border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--sage-700);margin-bottom:4px;">👁 보기 (can_view_sales)</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>매출·영업 센터(<code style="background:var(--sage-50);padding:1px 4px;border-radius:3px;font-size:11px;">/sales</code>) 대시보드·KPI 열람</li>
+          <li>견적·수주·고객사 조회 (등록·편집 불가)</li>
+          <li>워크스페이스 스위처 메뉴 노출</li>
+        </ul>
+      </div>
+      <div style="background:var(--accent-soft);padding:8px 10px;border-radius:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:4px;">✎ 등록 (can_use_sales) — 보기 자동 포함</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li><b>관리코드(`001T2604` 형식) 발급</b> — 고객 미팅 시작 시 영업이 최초 등록 (<code style="background:var(--sage-50);padding:1px 4px;border-radius:3px;font-size:11px;">/projects/new</code>)</li>
+          <li>장비명·고객사·납기 입력 → 자동 채번 (T=검사기, M=자동화 / 일련3+사업부+YYMM)</li>
+          <li>견적 작성·인쇄·라인 추가 / 견적 → 수주 전환</li>
+          <li>고객사 등록·편집</li>
+        </ul>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 자동 부여: 보기 = 영업·검사기·품질팀 / 등록 = leader+ + 영업팀</div>
+    </div>
+
+    {# 자재 (R/W 분리) — 2026-04-28 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #6BA394;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">📦</span>
+        <b style="color:var(--ink);font-size:13px;">자재·구매 (R/W 분리)</b>
+      </div>
+      <div style="background:rgba(127,161,131,.08);padding:8px 10px;border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--sage-700);margin-bottom:4px;">👁 보기 (can_view_logistics)</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>자재·구매 센터 진입 + 워크스페이스 메뉴</li>
+          <li><b>부품 마스터 조회</b> (단가·구매처·재고 확인)</li>
+          <li><b>공급사 정보 조회</b></li>
+          <li>발주·재고 잔량·수불부·실사 이력 조회</li>
+          <li>관리코드 대장 조회</li>
+        </ul>
+      </div>
+      <div style="background:var(--accent-soft);padding:8px 10px;border-radius:8px;">
+        <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:4px;">✎ 등록 (can_use_logistics) — 보기 자동 포함</div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.65;">
+          <li>부품·공급사 등록·편집·삭제</li>
+          <li>발주(PO) 작성·승인·입고처리</li>
+          <li>재고 출고·실사 조정·작업지시서 발행</li>
+        </ul>
+        <div style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.6);border-radius:5px;font-size:10px;color:var(--ink-3);">
+          ⚠ <b>관리코드 발급은 매출 권한</b> (영업이 고객 미팅 시 최초 등록)
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 자동 부여: 보기 = leader+ + 1·2·3·7·8·9·10팀 (실무자 폭넓게) / 등록 = ceo·임원 + 구매팀</div>
+    </div>
+
+    {# 변경 #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #D4967A;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">✎</span>
+        <b style="color:var(--ink);font-size:13px;">변경 (can_edit_changes)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>변경 공지 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/changes</code>) 등록·편집</li>
+        <li>기구·전장·SW·BOM·도면 변경 공지 발행</li>
+        <li>영향 부서 자동 지정 (카톡·메일·게시판 동시 알림)</li>
+        <li>기존 변경 공지의 본문·첨부 수정</li>
+        <li>변경 이력(history) 추가</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink-4);">▶ 권한 없으면 열람만 가능 (등록·편집 차단)</div>
+    </div>
+
+    {# 티켓 (2026-04-28 (나)안 정확화) #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid #A8BD8F;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">✓</span>
+        <b style="color:var(--ink);font-size:13px;">티켓 (can_close_tickets)</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>요청 티켓 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/tickets</code>) 등록·조회는 누구나</li>
+        <li><b>수신팀 본인이 받은 티켓</b>의 상태 변경 (요청→접수→처리중→완료/반려/지연)</li>
+        <li>티켓 본문 편집 (제목·내용·납기·긴급도·수신팀·대상)</li>
+        <li>완료/접수/반려 시 메모 기록</li>
+        <li>모든 변경은 자동으로 이력 코멘트 (누가/언제/무엇 → notifications 동기화)</li>
+      </ul>
+      <div style="margin-top:8px;padding:6px 8px;background:var(--sage-50);border-radius:6px;font-size:10px;color:var(--ink-3);line-height:1.6;">
+        <b>편집 권한 (cascade)</b>: 작성자 본인 / 작성자와 같은 팀원 / 수신팀의 권한 보유자 / CEO·임원·admin<br>
+        <b>삭제 권한</b>: 작성자 본인 / CEO·admin (전사)
+      </div>
+    </div>
+
+    {# 관리 (CEO/admin 전용 컬럼) #}
+    <div style="border:1px solid var(--sage-200);border-radius:12px;padding:14px;border-left:4px solid var(--knk-red);background:rgba(165,40,44,.03);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">⚙</span>
+        <b style="color:var(--accent);font-size:13px;">관리 (is_admin) — CEO/admin 만 부여 가능</b>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <li>관리자 메뉴 (<code style="background:var(--sage-50);padding:1px 5px;border-radius:3px;font-size:11px;">/admin</code>) 진입</li>
+        <li>팀·사용자·프로젝트·고객사 등록·편집·삭제</li>
+        <li>사용자 비밀번호 초기화</li>
+        <li>외부자산 점검 / 헬스체크 / 리마인더 설정</li>
+        <li>전사 데이터 내보내기/복원</li>
+        <li>감사 로그(audit) 열람</li>
+      </ul>
+      <div style="margin-top:8px;font-size:10px;color:var(--accent);font-weight:700;">⚠ 가장 강력한 권한 — 신중히 부여</div>
+    </div>
+
+    {# 비고 #}
+    <div style="border:1px dashed var(--sage-300);border-radius:12px;padding:14px;background:var(--sage-50);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">🔒</span>
+        <b style="color:var(--sage-700);font-size:13px;">자동 권한 (시드)</b>
+      </div>
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.7;">
+        <b>CEO·임원</b> 은 위 5개 권한 모두 자동 부여 (체크박스 해제 불가).<br>
+        <b>팀장</b> 은 본인 팀원에게만 4개 권한 (매출/자재/변경/티켓) 부여 가능 — 관리⚙ 는 CEO/admin 만.<br>
+        저장 시 변경 내역은 <code style="background:#fff;padding:1px 5px;border-radius:3px;font-size:11px;border:1px solid var(--sage-200);">notifications</code> 테이블에 자동 기록됨.
+      </div>
+    </div>
+
+  </div>
+</details>
+
+<form method="post" action="/team/{{ team.id }}/permissions" id="permsForm">
+<div class="section-head" style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+  <h2>{{ team.name }} 권한 매트릭스</h2>
+  <span class="count">{{ kpi.total }}명</span>
+  <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;">
+    ① 권한 체크박스 토글 → ② 하단 저장 클릭
+  </span>
+</div>
+<div style="background:#fff;border:1px solid var(--sage-200);border-radius:18px;overflow:hidden;margin-bottom:18px;box-shadow:var(--sh-xs);">
+  <div class="user-tbl" style="overflow-x:auto;">
+    <table>
+      <thead>
+        {# 2026-04-28 — 매출·자재 R/W 분리 (보기/등록 컬럼 별도) #}
+        <tr style="background:var(--sage-50);">
+          <th style="width:32px;" rowspan="2"></th>
+          <th rowspan="2">팀원</th>
+          <th style="width:80px;" rowspan="2">직급</th>
+          <th colspan="2" style="text-align:center;background:rgba(201,169,97,.10);border-bottom:0;">📈 매출·영업</th>
+          <th colspan="2" style="text-align:center;background:rgba(107,163,148,.10);border-bottom:0;">📦 자재·구매</th>
+          <th style="width:64px;text-align:center;" rowspan="2" title="변경 공지 등록·편집">✎ 변경</th>
+          <th style="width:64px;text-align:center;" rowspan="2" title="요청 티켓 상태 변경·종료">✓ 티켓</th>
+          {% if is_admin_actor %}
+          <th style="width:64px;text-align:center;" rowspan="2" title="관리자 메뉴 접근">⚙ 관리</th>
+          {% endif %}
+        </tr>
+        <tr style="background:var(--sage-50);">
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="매출 화면 조회만 (등록·편집 불가)">👁 보기</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="매출 등록·편집·견적·수주 전환">✎ 등록</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="자재·재고·부품·단가·구매처 조회만">👁 보기</th>
+          <th style="width:64px;text-align:center;font-size:10px;color:var(--ink-3);font-weight:700;" title="부품·발주·재고 등록·편집">✎ 등록</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        {% set is_seed = m.role in ['ceo','executive'] %}
+        <tr style="{% if is_seed %}background:var(--sage-50);{% endif %}">
+          <td style="text-align:center;">
+            {% if is_seed %}
+            <span title="자동 권한 — 변경 불가" style="color:var(--sage-600);">🔒</span>
+            {% else %}
+            <input type="checkbox" name="touch_{{ m.id }}" value="1" checked style="accent-color:var(--sage-600);width:16px;height:16px;">
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap;min-width:180px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0;
+                {% if m.role in ['ceo','admin'] %}background:linear-gradient(135deg,var(--knk-red),#8B1E22);
+                {% elif m.role == 'executive' %}background:linear-gradient(135deg,#C9A961,#A38635);
+                {% else %}background:linear-gradient(135deg,#7FA183,#5D7F61);{% endif %}">{{ m.name[:1] }}</div>
+              <div style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">
+                <div style="font-weight:700;color:var(--ink);white-space:nowrap;">
+                  {{ m.name }}
+                  {% if m.role == 'leader' %}<span style="margin-left:6px;background:rgba(107,163,148,.2);color:#3F6B5E;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">팀장</span>
+                  {% elif m.role == 'executive' %}<span style="margin-left:6px;background:rgba(201,169,97,.22);color:var(--amber-dk);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">임원</span>
+                  {% elif m.role == 'ceo' %}<span style="margin-left:6px;background:var(--accent-soft);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;">CEO</span>
+                  {% endif %}
+                </div>
+                {% if is_seed %}
+                <div style="color:var(--sage-700);font-weight:700;font-size:11px;white-space:nowrap;">🔒 자동 권한 (시드)</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td style="font-size:12px;color:var(--ink-3);white-space:nowrap;">{{ m.rank or '-' }}</td>
+
+          {# 매출 보기 #}
+          <td style="text-align:center;background:rgba(201,169,97,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="vsales_{{ m.id }}" value="1" {% if m.can_view_sales or m.can_use_sales %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+          </td>
+          {# 매출 등록 #}
+          <td style="text-align:center;background:rgba(201,169,97,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="sales_{{ m.id }}" value="1" {% if m.can_use_sales %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;" title="등록 체크 시 보기도 자동 ON">{% endif %}
+          </td>
+          {# 자재 보기 #}
+          <td style="text-align:center;background:rgba(107,163,148,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="vlogi_{{ m.id }}" value="1" {% if m.can_view_logistics or m.can_use_logistics %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+          </td>
+          {# 자재 등록 #}
+          <td style="text-align:center;background:rgba(107,163,148,.04);">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="logi_{{ m.id }}" value="1" {% if m.can_use_logistics %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;" title="등록 체크 시 보기도 자동 ON">{% endif %}
+          </td>
+          {# 변경 #}
+          <td style="text-align:center;">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="chg_{{ m.id }}" value="1" {% if m.can_edit_changes %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+          </td>
+          {# 티켓 #}
+          <td style="text-align:center;">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="tkt_{{ m.id }}" value="1" {% if m.can_close_tickets %}checked{% endif %} style="accent-color:var(--sage-600);width:16px;height:16px;">{% endif %}
+          </td>
+          {% if is_admin_actor %}
+          <td style="text-align:center;">
+            {% if is_seed %}<span style="color:var(--sage-600);font-weight:800;">●</span>
+            {% else %}<input type="checkbox" name="adm_{{ m.id }}" value="1" {% if m.is_admin %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;">{% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ 10 if is_admin_actor else 9 }}" class="empty-hint" style="padding:40px;">팀원이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="padding:14px 22px;background:var(--sage-50);border-top:1px solid var(--sage-100);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6;">
+      <strong>● 자동 권한</strong>: CEO/임원은 시드 부여 (해제 불가) ·
+      <strong>저장 시</strong> 알림 로그(<code style="background:var(--sage-100);padding:1px 6px;border-radius:4px;font-size:11px;">notifications</code>)에 자동 기록
+      {% if user.role == 'leader' %} · 본인 팀원만 저장 가능{% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary" style="padding:10px 24px;font-weight:800;">
+      💾 권한 저장
+    </button>
+  </div>
+</div>
+</form>
+
+{# ─── ④ 좌(최근 변경) + 우(다른 팀 점프) ─── #}
+<div style="display:grid;grid-template-columns:{% if all_teams %}1fr 1fr{% else %}1fr{% endif %};gap:18px;">
+  {# 좌: 최근 7일 권한 변경 #}
+  <div style="background:#fff;border:1px solid var(--sage-200);border-radius:18px;padding:18px 20px;box-shadow:var(--sh-xs);">
+    <div class="section-head" style="margin-bottom:10px;">
+      <h2>최근 권한 변경 (7일)</h2>
+      <span class="count">{{ recent_changes|length }}건</span>
+    </div>
+    {% if not recent_changes %}
+    <div class="empty">최근 7일 동안 본 팀의 권한 변경 기록이 없습니다.</div>
+    {% else %}
+    <div style="display:flex;flex-direction:column;">
+      {% for ch in recent_changes %}
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed var(--sage-200);font-size:12px;">
+        <span style="font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink-4);min-width:90px;font-weight:600;">{{ ch.created_at[5:16] if ch.created_at else '-' }}</span>
+        <div style="flex:1;color:var(--ink-2);line-height:1.55;">
+          <b>{{ ch.actor_name or '-' }}</b>
+          {% if ch.actor_rank %}<span style="color:var(--ink-4);font-size:10px;">({{ ch.actor_rank }})</span>{% endif %}
+          — {{ ch.body }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# 우: 다른 팀 빠른 이동 (CEO/임원/admin) #}
+  {% if all_teams %}
+  <div style="background:#fff;border:1px solid var(--sage-200);border-radius:18px;padding:18px 20px;box-shadow:var(--sh-xs);">
+    <div class="section-head" style="margin-bottom:10px;">
+      <h2>다른 팀 권한 관리</h2>
+      <span class="count">{{ all_teams|length }}팀</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      {% for t in all_teams %}
+      <a href="/team/{{ t.id }}/permissions"
+         style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;font-weight:700;border-radius:10px;{% if t.id == team.id %}background:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);color:#fff;border:1px solid #5D7F61;{% else %}background:#fff;border:1px solid var(--sage-300);color:var(--ink-2);{% endif %}">
+        <span>{{ t.name }}</span>
+        <span style="background:{% if t.id == team.id %}rgba(255,255,255,.25){% else %}var(--sage-100){% endif %};color:{% if t.id == team.id %}#fff{% else %}var(--sage-700){% endif %};padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;">{{ t.member_count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

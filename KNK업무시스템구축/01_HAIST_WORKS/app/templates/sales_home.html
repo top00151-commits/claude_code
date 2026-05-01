@@ -1,147 +1,255 @@
-{% extends "base_sales.html" %}
-{% block title %}매출·영업 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>매출·영업 센터 · KNK HAIST WORKS</title>
 
-<div class="page-head">
-  <h1>📈 매출·영업 센터</h1>
-  <p class="muted">프로젝트 수주 · 영업단계 · 고객사별 매출. 당월/YTD 실시간 집계.</p>
-</div>
+{# ============================================================
+   sales_home.html — 시안 master_B_matrix_sales_dashboard_v5H5.html STANDALONE
+   2026-05-01 v5H5 standalone (매출 영업 대시보드)
+   ============================================================ #}
 
-{% macro won(v) %}{% if v >= 100000000 %}{{ "%.1f"|format(v/100000000) }}억원{% elif v >= 10000000 %}{{ "%.1f"|format(v/10000000) }}천만원{% else %}{{ "{:,.0f}".format(v) }}원{% endif %}{% endmacro %}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
 
-<!-- KPI 6 -->
-<div class="kpi-row">
-  <a href="/admin" class="kpi" tabindex="0">
-    <div class="kpi-label">{{ sales_kpi.ym }} 당월 수주</div>
-    <div class="kpi-value" style="font-size:20px;color:#A5282C;">{{ won(sales_kpi.month_total) }}</div>
-    <div class="kpi-sub">{{ sales_kpi.month_cnt }}건</div>
-  </a>
-  <a href="/admin" class="kpi" tabindex="0">
-    <div class="kpi-label">{{ sales_kpi.year }} YTD 수주</div>
-    <div class="kpi-value" style="font-size:20px;">{{ won(sales_kpi.ytd_total) }}</div>
-    <div class="kpi-sub">{{ sales_kpi.ytd_cnt }}건</div>
-  </a>
-  {% for b in sales_kpi.by_biz %}
-  <div class="kpi">
-    <div class="kpi-label">{% if b.biz_div=='T' %}T (검사기){% else %}M (자동화){% endif %} YTD</div>
-    <div class="kpi-value" style="font-size:18px;">{{ won(b.total) }}</div>
-    <div class="kpi-sub">{{ b.cnt }}건</div>
-  </div>
-  {% endfor %}
-  <a href="/projects" class="kpi" tabindex="0">
-    <div class="kpi-label">관리코드</div>
-    <div class="kpi-value">{{ proj_stats.with_code }}</div>
-    <div class="kpi-sub">진행중 {{ proj_stats.in_progress }}</div>
-  </a>
-  <a href="/dashboard" class="kpi" tabindex="0">
-    <div class="kpi-label">전사 대시보드</div>
-    <div class="kpi-value" style="font-size:16px;">경영 뷰 →</div>
-  </a>
-</div>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; overflow-y: auto; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+.menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--amber-deep); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
-  <!-- 영업단계별 -->
-  <div class="card">
-    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">📊 영업단계별 프로젝트</h2>
-    {% if sales_kpi.by_stage %}
-    <table class="table" style="width:100%;font-size:13px;">
-      <thead><tr><th>단계</th><th style="text-align:right;">건수</th><th style="text-align:right;">금액</th></tr></thead>
-      <tbody>
-        {% for s in sales_kpi.by_stage %}
-        <tr>
-          <td>
-            {% if s.stage in ['수주확정','납품','개조','A/S'] %}<span class="tag tag-ok">{{ s.stage }}</span>
-            {% elif s.stage in ['제안작성','제안제출'] %}<span class="tag tag-warn">{{ s.stage }}</span>
-            {% else %}{{ s.stage }}{% endif %}
-          </td>
-          <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ s.cnt }}</td>
-          <td style="text-align:right;font-family:var(--font-mono);">{{ won(s.amount) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="muted">단계별 데이터 없음</p>
-    {% endif %}
-  </div>
+.main { background: var(--paper); display: flex; flex-direction: column; min-width: 0; }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; text-decoration: none; }
+.top-tab:hover { background: var(--paper-2); color: var(--ink); }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.top-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; font-size: 16px; color: var(--mute); cursor: pointer; text-decoration: none; }
+.top-icon:hover { background: var(--amber-glow); color: var(--amber-deep); }
 
-  <!-- 고객사 Top 5 -->
-  <div class="card">
-    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">🏢 YTD 고객사 Top 5</h2>
-    {% if sales_kpi.top_customers %}
-    <table class="table" style="width:100%;font-size:13px;">
-      <thead><tr><th>고객사</th><th style="text-align:right;">건수</th><th style="text-align:right;">수주액</th></tr></thead>
-      <tbody>
-        {% for c in sales_kpi.top_customers %}
-        <tr>
-          <td style="font-weight:700;">{{ c.customer_name }}</td>
-          <td style="text-align:right;">{{ c.cnt }}</td>
-          <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ won(c.total) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="muted">고객사 데이터 없음</p>
-    {% endif %}
-  </div>
-</div>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-actions { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--amber-glow); }
 
-<!-- 최근 프로젝트 -->
-<div class="card" style="margin-top:14px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <h2 style="margin:0;font-size:15px;font-weight:800;">🆕 최근 등록 프로젝트 (10건)</h2>
-    <div style="display:flex;gap:8px;">
-      <a href="/projects" class="btn btn-ghost">전체 목록 →</a>
-      <a href="/admin" class="btn" style="background:linear-gradient(135deg,#A5282C,#8B1E22);color:#fff;border:none;font-weight:700;">+ 신규 프로젝트</a>
+.kpi-row { margin: var(--space-4) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.kpi { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); position: relative; overflow: hidden; transition: all .18s; }
+.kpi:hover { transform: translateY(-2px); border-color: var(--amber); box-shadow: var(--shadow-md); }
+.kpi-label { font-size: 11px; color: var(--mute); font-weight: 600; }
+.kpi-num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.kpi-trend { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
+.kpi-trend.up { color: var(--success); }
+.kpi-trend.warn { color: var(--knk-red); }
+.kpi-trend.neutral { color: var(--mute); }
+.kpi.hero { background: var(--grad-amber); color: white; border: 0; grid-column: span 2; }
+.kpi.hero .kpi-label, .kpi.hero .kpi-trend { color: rgba(255,255,255,0.85); }
+.kpi.hero .kpi-num { color: white; font-size: 36px; }
+
+.grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); }
+.card h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; }
+.card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+
+.bar-chart { display: flex; flex-direction: column; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 80px 1fr auto; gap: 12px; align-items: center; }
+.bar-label { font-size: 12px; color: var(--ink); font-weight: 600; }
+.bar-track { height: 22px; background: var(--paper); border-radius: var(--radius-sm); overflow: hidden; position: relative; }
+.bar-fill { height: 100%; background: var(--grad-amber); border-radius: var(--radius-sm); }
+.bar-value { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+
+.list-card { display: flex; flex-direction: column; gap: 6px; }
+.list-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; align-items: center; transition: background .12s; text-decoration: none; color: inherit; }
+.list-item:hover { background: var(--amber-glow); }
+.list-num { font-size: 12px; color: var(--amber-deep); font-weight: 700; font-family: monospace; }
+.list-text .ttl { font-size: 13px; font-weight: 600; color: var(--ink); }
+.list-text .meta { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.list-amount { font-size: 13px; font-weight: 700; color: var(--knk-red); }
+
+.section { margin: var(--space-5) var(--content-pad) 0; }
+.section-h { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.section-h::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+
+.recent-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.recent-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+.recent-table th.num, .recent-table td.num { text-align: right; }
+.recent-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.recent-table tr:last-child td { border-bottom: 0; }
+.recent-table tr:hover td { background: var(--amber-glow); cursor: pointer; }
+.recent-table .code { font-family: monospace; font-weight: 700; color: var(--amber-deep); }
+.recent-table .stage-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--paper-2); color: var(--mute); }
+
+@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1023px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+</style>
+</head>
+<body>
+{% set role = (user.role or 'member')|lower %}
+{% set kpi = sales_kpi or {} %}
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">매출 메인</div>
+    <a class="sb-item active" href="/sales">🏠 매출·영업 hub <span class="menu-code">M-01-01</span></a>
+
+    <div class="sb-group">관리</div>
+    <a class="sb-item" href="/projects">📊 프로젝트 <span class="menu-code">M-01-02</span></a>
+    <a class="sb-item" href="/customers">🏢 고객사 <span class="menu-code">M-01-03</span></a>
+    <a class="sb-item" href="/sales/quotes">📋 견적 <span class="menu-code">M-01-04</span></a>
+    <a class="sb-item" href="/orders">📑 수주 <span class="menu-code">M-01-05</span></a>
+
+    <div class="sb-group">보고</div>
+    <a class="sb-item" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
+    <a class="sb-item" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
+
+    <div class="sb-group">기타</div>
+    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <a class="top-tab" href="/home">통합 플랫폼</a>
+        <a class="top-tab active" href="/sales">매출영업센터</a>
+        <a class="top-tab" href="/logistics">자재구매센터</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="top-icon" href="/notifications" title="알림">🔔</a>
+        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+        <a class="top-user" href="/profile">
+          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
+          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+        </a>
+        <a class="top-icon" href="/logout" title="나가기">🚪</a>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="page-meta">{{ kpi.ym|default('') }} · 매출·영업 센터</div>
+        <h1 class="page-title">매출·영업 <em>대시보드</em></h1>
+      </div>
+      <div class="page-actions">
+        <a class="btn btn-secondary" href="/projects/new">＋ 프로젝트 등록</a>
+        <a class="btn btn-secondary" href="/customers/new">＋ 고객사 등록</a>
+        <a class="btn btn-primary" href="/sales/quotes/new">＋ 새 견적</a>
+      </div>
     </div>
-  </div>
-  {% if sales_kpi.recent %}
-  <table class="table" style="width:100%;">
-    <thead>
-      <tr>
-        <th>관리코드</th>
-        <th>프로젝트명</th>
-        <th>고객사</th>
-        <th>사업부</th>
-        <th>단계</th>
-        <th style="text-align:right;">수주금액</th>
-        <th>수주일</th>
-        <th>납기</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in sales_kpi.recent %}
-      <tr>
-        <td style="font-family:var(--font-mono);color:#A5282C;font-weight:700;">{{ p.mgmt_code or '-' }}</td>
-        <td style="font-weight:600;">{{ p.name }}</td>
-        <td>{{ p.customer_name or '-' }}</td>
-        <td>
-          {% if p.biz_div=='T' %}<span style="background:#E0E7FF;color:#4338CA;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">T 검사기</span>
-          {% elif p.biz_div=='M' %}<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">M 자동화</span>
-          {% else %}-{% endif %}
-        </td>
-        <td>
-          {% if p.stage in ['수주확정','납품','개조','A/S'] %}<span class="tag tag-ok">{{ p.stage }}</span>
-          {% elif p.stage in ['제안작성','제안제출'] %}<span class="tag tag-warn">{{ p.stage }}</span>
-          {% else %}{{ p.stage or '-' }}{% endif %}
-        </td>
-        <td style="text-align:right;font-family:var(--font-mono);font-weight:700;">{{ won(p.order_amount or 0) }}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ p.order_date or '-' }}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:#6B7280;">{{ p.due_date or '-' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted" style="text-align:center;padding:20px;">등록된 프로젝트가 없습니다. <a href="/admin">관리자 페이지</a> 에서 등록 또는 <a href="/admin">관리코드발행목록 엑셀</a> 업로드.</p>
-  {% endif %}
-</div>
 
-<div style="margin-top:14px;padding:12px 16px;background:#EEF2FF;border-left:3px solid #4338CA;border-radius:6px;font-size:12px;color:#312E81;">
-  💡 <strong>매출·영업 vs 자재·구매</strong> 분리 (2026-04-21):
-  <br>&nbsp;&nbsp;• 이 페이지 = <strong>매출·영업</strong> (프로젝트 수주·관리코드·고객사)
-  <br>&nbsp;&nbsp;• <a href="/logistics" style="color:#4338CA;font-weight:700;">자재·구매 센터</a> = 부품·발주·입출고·수불부
-</div>
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi hero">
+        <div class="kpi-label">{{ kpi.ym|default('') }} 이번 달 수주</div>
+        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.month_total or 0) }}<span style="font-size:14px;opacity:0.85;"> 원</span></div>
+        <div class="kpi-trend up">↑ {{ kpi.month_cnt or 0 }}건</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">{{ kpi.year|default('') }} YTD 누적</div>
+        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.ytd_total or 0) }}<span style="font-size:14px;color:var(--mute);"> 원</span></div>
+        <div class="kpi-trend neutral">{{ kpi.ytd_cnt or 0 }} 건</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">진행 프로젝트</div>
+        <div class="kpi-num">{{ proj_stats.in_progress|default(0) }}</div>
+        <div class="kpi-trend neutral">전체 {{ proj_stats.total|default(0) }} 중</div>
+      </div>
+    </div>
 
-{% endblock %}
+    <!-- 사업부별 / 단계별 -->
+    <div class="grid-2">
+      <div class="card">
+        <h3>사업부별 수주 ({{ kpi.year|default('') }})</h3>
+        {% if kpi.by_biz %}
+        {% set max_biz = kpi.by_biz|map(attribute='total')|max|default(1) %}
+        <div class="bar-chart">
+          {% for b in kpi.by_biz %}
+          <div class="bar-row">
+            <div class="bar-label">{{ '🔧 자재' if b.biz_div == 'M' else '⚙ 가공' if b.biz_div == 'T' else b.biz_div }}</div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ ((b.total / max_biz)*100)|round }}%"></div></div>
+            <div class="bar-value">{{ '{:,.0f}'.format(b.total) }} ({{ b.cnt }})</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:30px 0;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h3>단계별 프로젝트</h3>
+        {% if kpi.by_stage %}
+        {% set max_stage = kpi.by_stage|map(attribute='cnt')|max|default(1) %}
+        <div class="bar-chart">
+          {% for s in kpi.by_stage[:6] %}
+          <div class="bar-row">
+            <div class="bar-label">{{ s.stage }}</div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ ((s.cnt / max_stage)*100)|round }}%; background: var(--grad-knk-red);"></div></div>
+            <div class="bar-value">{{ s.cnt }} 건</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:30px 0;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- TOP 5 고객사 / 최근 프로젝트 -->
+    <div class="grid-2">
+      <div class="card">
+        <h3>TOP 5 고객사 ({{ kpi.year|default('') }})</h3>
+        <div class="list-card">
+          {% for c in (kpi.top_customers or []) %}
+          <a class="list-item" href="/customers?q={{ c.customer_name }}">
+            <div class="list-num">{{ '%02d'|format(loop.index) }}</div>
+            <div class="list-text">
+              <div class="ttl">{{ c.customer_name }}</div>
+              <div class="meta">{{ c.cnt }} 건</div>
+            </div>
+            <div class="list-amount">{{ '{:,.0f}'.format(c.total) }}</div>
+          </a>
+          {% else %}
+          <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>최근 프로젝트</h3>
+        <div class="list-card">
+          {% for p in (kpi.recent or [])[:7] %}
+          <a class="list-item" href="/project/{{ p.id }}">
+            <div class="list-num">{{ p.mgmt_code|default('—') }}</div>
+            <div class="list-text">
+              <div class="ttl">{{ p.name }}</div>
+              <div class="meta">{{ p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
+            </div>
+            <div class="list-amount">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</div>
+          </a>
+          {% else %}
+          <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div style="height: var(--space-7);"></div>
+  </main>
+</div>
+</body>
+</html>

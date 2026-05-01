@@ -1,111 +1,51 @@
-{% extends "base.html" %}
-{% block title %}요청 티켓 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
-
-<div class="page-head">
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
-    <div class="page-title">
-      <div class="page-breadcrumb">
-        통합 <span class="sep">/</span> 업무 추적 <span class="sep">/</span> <span class="current">요청 티켓</span>
-      </div>
-      <h1>요청 티켓</h1>
-      <div class="page-sub">자재요청·긴급가공·MODIFY·검수요청·AS — 카톡으로 누락되던 요청을 추적 가능한 티켓으로</div>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>티켓 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="page-meta">티켓 (Ticket Tracker)</div><h1 class="page-title">🎫 <em>티켓</em></h1></div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/tickets?scope=mine">내 티켓</a>
+      <a class="btn btn-secondary" href="/tickets?scope=team">팀 티켓</a>
+      <a class="btn btn-primary" href="/tickets/new">＋ 티켓 발행</a>
     </div>
-    <a href="/tickets/new" class="btn btn-primary" style="background:var(--grad-brand);color:#fff;border:none;padding:10px 20px;border-radius:12px;text-decoration:none;font-weight:700;box-shadow:0 6px 18px rgba(165,40,44,.25);">+ 티켓 등록</a>
   </div>
-</div>
 
-{# 두 메뉴 역할 구분 안내 (2026-04-28 대표 결재 (가)안 — 메뉴 통일 대신 명칭·설명 명확화) #}
-<div style="background:linear-gradient(135deg,rgba(127,161,131,.10),#fff);border:1px solid var(--sage-200);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-  <span style="background:var(--sage-600);color:#fff;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;">ⓘ 요청 티켓</span>
-  <span><b>1팀에 작업 의뢰 → 처리·완료까지 추적</b> (자재요청·긴급가공·검수·AS 등). 요청자 1명 ↔ 수신팀 1팀.</span>
-  <a href="/changes" style="margin-left:auto;color:var(--sage-700);font-weight:700;text-decoration:none;">N명에게 변경 사실 공지하려면 → 📢 변경 공지</a>
-</div>
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/tickets">
+    <input type="hidden" name="scope" value="{{ scope|default('mine') }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="제목 / 내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
+    <select name="status" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+      <option value="">상태 전체</option>
+      {% for s in TICKET_STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <select name="urgency" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+      <option value="">긴급도 전체</option>
+      {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}" {% if urgency==u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">🔍 검색</button>
+  </form>
 
-<!-- Scope 탭 -->
-<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-  <a href="?scope=me" style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope == 'me' %}background:#A5282C;color:#fff;{% else %}background:#fff;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">👤 내 티켓 (요청+받음)</a>
-  <a href="?scope=team" style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope == 'team' %}background:#A5282C;color:#fff;{% else %}background:#fff;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">👥 우리 부서가 받은</a>
-  <a href="?scope=all" style="padding:8px 18px;border-radius:8px;text-decoration:none;{% if scope == 'all' %}background:#A5282C;color:#fff;{% else %}background:#fff;border:1px solid #E5E7EB;color:#6B7280;{% endif %}">🌐 전체</a>
-</div>
-
-<!-- 필터 -->
-<form method="get" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-  <input type="hidden" name="scope" value="{{ scope }}">
-  <input type="text" name="q" value="{{ q }}" placeholder="번호/제목/대상 검색" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
-  <select name="category" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
-    <option value="">전체 종류</option>
-    {% for c in TICKET_CATEGORIES %}<option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
-  </select>
-  <select name="urgency" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
-    <option value="">전체 긴급도</option>
-    {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}" {% if urgency == u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}
-  </select>
-  <select name="status" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;">
-    <option value="">전체 상태</option>
-    {% for s in TICKET_STATUSES %}<option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
-  </select>
-  <button type="submit" style="padding:8px 18px;background:#fff;border:1px solid #D1D5DB;border-radius:8px;font-weight:600;cursor:pointer;">검색</button>
-  <a href="/tickets?scope={{ scope }}" style="padding:8px 18px;border:1px solid #E5E7EB;border-radius:8px;text-decoration:none;color:#6B7280;">초기화</a>
-</form>
-
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;">
-<table style="width:100%;border-collapse:collapse;">
-  <thead style="background:#F9FAFB;">
-    <tr style="font-size:11px;text-transform:uppercase;color:#6B7280;letter-spacing:0.04em;">
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">번호</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">긴급</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">종류</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;text-align:left;">제목</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">대상</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">요청자</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">수신</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">상태</th>
-      <th style="padding:12px 10px;border-bottom:1px solid #E5E7EB;">납기</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for tk in tickets %}
-    <tr style="font-size:13px;cursor:pointer;" onclick="location.href='/tickets/{{ tk.id }}'" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background=''">
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-family:var(--font-mono);font-size:12px;color:#A5282C;font-weight:700;">{{ tk.ticket_no }}</td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
-        {% if tk.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">🔴 긴급</span>
-        {% elif tk.urgency == '지연' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">⏰ 지연</span>
-        {% else %}<span style="color:#9CA3AF;font-size:11px;">일반</span>{% endif %}
-      </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
-        <span style="background:#F3F4F6;color:#374151;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;">{{ tk.category }}</span>
-      </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-weight:600;">
-        {{ tk.title }}
-        {% if tk.comment_count > 0 %}<span style="font-size:11px;color:#6B7280;margin-left:6px;">💬 {{ tk.comment_count }}</span>{% endif %}
-        {% if tk.source != 'web' %}<span style="font-size:10px;color:#9CA3AF;margin-left:6px;">{{ tk.source }}</span>{% endif %}
-      </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:left;font-family:monospace;font-size:11px;color:#6B7280;">{{ tk.target_label or '-' }}</td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:12px;">{{ tk.requester_name }}</td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:12px;color:#6B7280;">
-        {{ tk.recipient_user_name or tk.recipient_team_name or '미지정' }}
-      </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;">
-        {% set st = tk.status %}
-        {% if st == '완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;">✓ 완료</span>
-        {% elif st == '처리중' %}<span style="background:#FFF8E1;color:#F57F17;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">처리중</span>
-        {% elif st == '접수' %}<span style="background:#E3F2FD;color:#1565C0;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">접수</span>
-        {% elif st == '반려' %}<span style="background:#FFEBEE;color:#A5282C;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">반려</span>
-        {% elif st == '지연' %}<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">지연</span>
-        {% else %}<span style="background:#F3F4F6;color:#6B7280;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;">요청</span>{% endif %}
-      </td>
-      <td style="padding:11px 10px;border-bottom:1px solid #F1F2F4;text-align:center;font-size:11px;color:#6B7280;font-family:monospace;">{{ tk.due_date or '-' }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="9" style="padding:40px;text-align:center;color:#6B7280;">
-      등록된 티켓이 없습니다. <a href="/tickets/new" style="color:#A5282C;font-weight:700;">+ 티켓 등록</a>으로 시작하세요.
-    </td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-
-<p style="text-align:right;margin-top:8px;font-size:12px;color:#6B7280;">총 {{ tickets|length }}건</p>
-
-{% endblock %}
+  <div class="tbl-wrap">
+    {% if tickets %}
+    <table class="tbl">
+      <thead><tr><th>#</th><th>제목</th><th class="center">분류</th><th class="center">긴급</th><th class="center">상태</th><th>발행 / 담당</th><th class="center">기한</th></tr></thead>
+      <tbody>
+      {% for t in tickets %}
+        <tr onclick="location.href='/tickets/{{ t.id }}'">
+          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ t.id }}</td>
+          <td><b>{{ t.title }}</b>{% if t.body %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ t.body|truncate(60) }}</div>{% endif %}</td>
+          <td class="center"><span class="pill pill-muted">{{ t.category|default('—') }}</span></td>
+          <td class="center"><span class="pill {% if t.urgency in ('긴급','매우긴급') %}pill-danger{% elif t.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}">{{ t.urgency|default('—') }}</span></td>
+          <td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status in ('지연','반려') %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td>
+          <td style="font-size:12px;">{{ t.requester_name|default('—') }} → <b>{{ t.assignee_name|default('미배정') }}</b></td>
+          <td class="center" style="font-size:12px;color:{% if t.deadline_overdue %}var(--knk-red){% else %}var(--mute){% endif %};">{{ t.deadline|default('—') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">🎫</div><div class="ttl">티켓이 없습니다</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/tickets/new">＋ 첫 티켓 발행</a></div></div>{% endif %}
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

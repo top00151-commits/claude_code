@@ -1,69 +1,39 @@
-{% extends "base.html" %}
-{% set active = 'board' %}
-{% block title %}{% if post %}{{ i.edit_post|default('글 수정') }}{% else %}{{ i.new_post|default('글 작성') }}{% endif %} · {{ app_name|default('HAIST WORKS') }}{% endblock %}
-
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{% if post %}{{ i.edit_post|default('글 수정') }}{% else %}{{ i.new_post|default('글 작성') }}{% endif %}</h1>
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if post %}글 수정{% else %}새 글{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 12px; font-weight: 600; }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.field textarea { min-height: 240px; resize: vertical; font-family: inherit; line-height: 1.6; }
+.row2 { display: grid; grid-template-columns: 1fr 200px; gap: 14px; }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/board">게시판</a> · <b>{% if post %}수정{% else %}새 글{% endif %}</b></div>
+    <h1 class="page-title">{% if post %}글 <em>수정</em>{% else %}새 <em>글</em> 작성{% endif %}</h1></div>
   </div>
-</div>
-
-<div style="background:#fff;border-radius:10px;box-shadow:var(--sh);padding:24px 28px;border-top:3px solid var(--r)">
-  <form action="{% if post %}/board/edit/{{ post.id }}{% else %}/board/new{% endif %}" method="POST">
-    <input type="hidden" name="board_id" value="{{ board_id }}">
-
-    {# 제목 #}
-    <div style="margin-bottom:16px">
-      <label style="display:block;font-weight:600;font-size:14px;color:var(--t);margin-bottom:6px">{{ i.field_title|default('제목') }} <span style="color:var(--r)">*</span></label>
-      <input type="text" name="title" required value="{{ post.title if post else '' }}" placeholder="{{ i.title_placeholder|default('제목을 입력하세요') }}" style="width:100%;padding:10px 14px;border:1px solid var(--bd);border-radius:8px;font-size:15px;font-family:inherit">
+  <form method="post" action="{% if post %}/board/post/{{ post.id }}/edit{% else %}/board/new{% endif %}">
+    {% if not post %}<input type="hidden" name="board_id" value="{{ board_id }}">{% endif %}
+    <div class="form-card">
+      <div class="row2">
+        <div class="field"><label>제목 *</label><input type="text" name="title" required value="{{ post.title|default('') }}"></div>
+        <div class="field"><label>분류</label>
+          <select name="category">{% for c in CATEGORIES %}<option value="{{ c }}" {% if post and post.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div class="field"><label>내용</label>
+        <textarea name="body" placeholder="내용 입력 (Markdown 지원)">{{ post.body|default('') }}</textarea>
+      </div>
+      <div style="font-size:12px;color:var(--mute);margin-top:6px;"><label><input type="checkbox" name="is_pinned" value="1" {% if post and post.is_pinned %}checked{% endif %}> 📌 상단 고정</label></div>
     </div>
-
-    {# 분류 #}
-    <div style="margin-bottom:16px">
-      <label style="display:block;font-weight:600;font-size:14px;color:var(--t);margin-bottom:6px">{{ i.field_category|default('분류') }}</label>
-      <select name="category" style="width:100%;max-width:300px;padding:10px 14px;border:1px solid var(--bd);border-radius:8px;font-size:15px;font-family:inherit;background:#fff">
-        {% for cat in CATEGORIES %}
-        <option value="{{ cat }}" {% if post and post.category == cat %}selected{% endif %}>{{ cat }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    {# 본문 #}
-    <div style="margin-bottom:20px">
-      <label style="display:block;font-weight:600;font-size:14px;color:var(--t);margin-bottom:6px">{{ i.field_body|default('내용') }} <span style="color:var(--r)">*</span></label>
-      <textarea name="body" required rows="16" placeholder="{{ i.body_placeholder|default('내용을 입력하세요...') }}" style="width:100%;padding:14px;border:1px solid var(--bd);border-radius:8px;font-size:15px;font-family:inherit;resize:vertical;line-height:1.7">{{ post.body if post else '' }}</textarea>
-    </div>
-
-    {# 팀 게시판 비리더 안내 #}
-    {% if not post %}
-    <div id="approvalNotice" style="background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#F57F17;display:flex;align-items:center;gap:8px;display:none">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F57F17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      {{ i.approval_notice|default('팀장 승인 후 게시됩니다') }}
-    </div>
-    {% endif %}
-
-    {# 버튼 #}
-    <div style="display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--bd)">
-      <button type="submit" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;padding:10px 24px;font-size:15px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        {% if post %}{{ i.btn_update|default('수정') }}{% else %}{{ i.btn_submit|default('등록') }}{% endif %}
-      </button>
-      <a href="/board/{{ board_id }}" class="btn-sm" style="text-decoration:none;padding:10px 20px;font-size:15px">{{ i.btn_cancel|default('취소') }}</a>
+    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/board">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if post %}저장{% else %}게시{% endif %}</button>
     </div>
   </form>
-</div>
-
-{% if not post %}
-<script>
-(function(){
-  {# 팀 게시판에서 비리더 작성 시 안내 표시 #}
-  var notice = document.getElementById('approvalNotice');
-  {% if board_type is defined and board_type == 'team' and not is_leader %}
-  if (notice) notice.style.display = 'flex';
-  {% endif %}
-})();
-</script>
-{% endif %}
-
-{% endblock %}
+</main></div></body></html>

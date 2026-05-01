@@ -1,15 +1,31 @@
-{% extends "base_logi.html" %}
-{% block title %}수출 수주 등록 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>수출 수주 작성 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">수출 수주 작성</div>
+      <h1 class="page-title">수출 수주 작성</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>신규 수출 수주</h1>
   <p class="muted">기존 수주(orders) 선택 시 <strong>고객사 / 매출액 / 수주일</strong> 자동 채움.</p>
 </div>
 
 <div class="info-banner" style="background:#FFF7ED;border-left:3px solid #C8A055;padding:10px 14px;margin:12px 0;border-radius:4px;">
-  <p style="margin:0;font-size:13px;"><strong>페르소나 P11 안내</strong> — 베트남법인 수출 담당.
-  외부 운송사 API 미도입 (수동 입력). 기본 POL = BUSAN.</p>
+  <p style="margin:0;font-size:13px;"><strong>베트남법인 수출 담당 안내</strong> —
+  외부 운송사 API 미도입 (수동 입력). 기본 선적항(POL) = BUSAN.</p>
 </div>
 
 <form method="post" action="/export/orders" class="form-card">
@@ -67,6 +83,10 @@
 
 <p class="muted" style="margin-top:12px;font-size:12px;">
   등록 후 상세에서 CI → PL → B/L → 관세 순으로 진행. 각 단계마다 상태 자동 전이.
-</p>
+</p>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}PL 패킹리스트 — 수출 #{{ eo.id }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>P/L 작성 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">P/L 작성</div>
+      <h1 class="page-title">P/L 작성</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>PL 패킹리스트 작성 — 수출 #{{ eo.id }}</h1>
   <p class="muted">패키지 라인 추가 → 합계 자동 산출 (qty / weight / volume).</p>
@@ -88,6 +104,10 @@ function recalcPl(){
       <td class="muted">{{ it.created_at }}</td></tr>
   {% endfor %}</tbody>
 </table>
-{% else %}<p class="muted">미작성</p>{% endif %}
+{% else %}<p class="muted">미작성</p>{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

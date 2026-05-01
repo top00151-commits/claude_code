@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}권한 위임 — 감사 로그 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+{# Top3 S3 4차 본문 (2026-04-26) — 시안 §6-2 timeline + §7 검색·필터·CSV 다운로드 #}
+
+<div style="margin-bottom:14px;">
+  <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임</a>
+  <span style="margin:0 6px;color:var(--ink-300);">·</span>
+  <a href="/admin/permissions/report/users" style="font-size:13px;color:var(--ink-500);text-decoration:none;">권한 리포트</a>
+</div>
+
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
+  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">감사 로그</h1>
+  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §6-2 — append-only 타임라인 (일시 / 행위자 / action / 권한 / 비고) · immutable 🔒</div>
+</div>
+
+{# S3 4차 — 검색·필터 강화 (액션 / 기간 / actor / target / q) #}
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:14px 18px;margin-bottom:14px;">
+  <form method="get" action="/admin/permissions/audit" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">액션</span>
+      <select name="action" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+        <option value="" {% if not action_filter %}selected{% endif %}>전체</option>
+        <option value="GRANT" {% if action_filter=='GRANT' %}selected{% endif %}>GRANT</option>
+        <option value="DELEGATE" {% if action_filter=='DELEGATE' %}selected{% endif %}>DELEGATE</option>
+        <option value="REDELEGATE" {% if action_filter=='REDELEGATE' %}selected{% endif %}>REDELEGATE</option>
+        <option value="REVOKE" {% if action_filter=='REVOKE' %}selected{% endif %}>REVOKE</option>
+        <option value="EXPIRE" {% if action_filter=='EXPIRE' %}selected{% endif %}>EXPIRE</option>
+      </select>
+    </label>
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">기간 시작</span>
+      <input type="date" name="date_from" value="{{ date_from|default('') }}" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+    </label>
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">기간 끝</span>
+      <input type="date" name="date_to" value="{{ date_to|default('') }}" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+    </label>
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">actor (행위자명)</span>
+      <input type="text" name="actor" value="{{ actor_q|default('') }}" placeholder="예: 김정락" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+    </label>
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">target (대상자명)</span>
+      <input type="text" name="target" value="{{ target_q|default('') }}" placeholder="예: 홍길동" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+    </label>
+    <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-weight:700;color:var(--ink-700,var(--ink));">검색 (resource/action/token id)</span>
+      <input type="text" name="q" value="{{ q|default('') }}" placeholder="예: orders.write 또는 123" style="padding:6px 8px;border:1px solid var(--ink-200,var(--line));border-radius:4px;font-size:12px;">
+    </label>
+    <div style="display:flex;gap:6px;">
+      <button type="submit" style="padding:7px 14px;background:var(--ink-700,var(--ink));color:#fff;border:0;border-radius:4px;font-size:12px;cursor:pointer;font-weight:700;">필터 적용</button>
+      <a href="/admin/permissions/audit" style="padding:7px 14px;background:var(--ink-100,var(--paper-2));color:var(--ink-700,var(--ink));text-decoration:none;border-radius:4px;font-size:12px;">초기화</a>
+    </div>
+  </form>
+  <div style="margin-top:10px;display:flex;justify-content:flex-end;">
+    <a href="/admin/permissions/audit.csv?action={{ action_filter|default('') }}&date_from={{ date_from|default('') }}&date_to={{ date_to|default('') }}&actor={{ actor_q|default('') }}&target={{ target_q|default('') }}&q={{ q|default('') }}"
+       style="padding:6px 12px;background:#10B981;color:#fff;text-decoration:none;border-radius:4px;font-size:12px;font-weight:700;">CSV 다운로드</a>
+  </div>
+</div>
+
+{# 시간역순 타임라인 #}
+<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;overflow:hidden;">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:var(--bg-soft,#FAFBFC);border-bottom:1px solid var(--ink-200,var(--line));">
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">일시</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">행위자</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">대상자</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">Action</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">권한</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">token</th>
+        <th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--ink-700,var(--ink));">비고</th>
+        <th style="padding:10px 12px;text-align:center;font-weight:700;color:var(--ink-700,var(--ink));">🔒</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if audit_rows %}
+        {% for r in audit_rows %}
+        <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
+          <td style="padding:10px 12px;font-family:Menlo,Consolas,monospace;">{{ r.timestamp }}</td>
+          <td style="padding:10px 12px;">{{ r.actor_name or r.actor or '-' }}</td>
+          <td style="padding:10px 12px;">{{ r.target_name or '-' }}</td>
+          <td style="padding:10px 12px;">
+            {% set color = {'GRANT':'#10B981','DELEGATE':'#3B82F6','REDELEGATE':'#8B5CF6','REVOKE':'var(--knk-red)','EXPIRE':'var(--mute)'} %}
+            <span style="background:{{ color.get(r.action, 'var(--mute-2)') }};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">{{ r.action }}</span>
+          </td>
+          <td style="padding:10px 12px;">{{ r.perm_label or '-' }}</td>
+          <td style="padding:10px 12px;font-family:Menlo,Consolas,monospace;color:var(--ink-500);">{{ r.token_id or '-' }}</td>
+          <td style="padding:10px 12px;color:var(--ink-500);">{{ r.details or '-' }}</td>
+          <td style="padding:10px 12px;text-align:center;color:var(--ink-500);">🔒</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="8" style="padding:30px;text-align:center;color:var(--ink-500);">감사 로그가 비어있습니다. (append-only · 위임 발행 시 자동 기록)</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div style="margin-top:12px;font-size:11px;color:var(--ink-500);">
+  ※ delegation_audit 테이블은 append-only · 행 우측 자물쇠 = immutable 보장 (시안 §6-2 인용) · 최대 200행 표시 (CSV 다운로드 시 5000행)
+</div>
+{% endblock %}

@@ -1,60 +1,65 @@
-{% extends "base_logi.html" %}
-{% block title %}공급사 — {{ app_name }}{% endblock %}
-{% block body %}
-
-<div class="page-head row-between">
-  <div>
-    <h1>공급사 마스터</h1>
-    <p class="muted">발주(PO) 대상 거래처 관리</p>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>공급사 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>공급사</b></div>
+      <h1 class="page-title">공급사 <em>관리</em></h1>
+    </div>
+    <a class="btn btn-primary" href="/suppliers/new">＋ 공급사 등록</a>
   </div>
-  <a href="/suppliers/new" class="btn btn-primary">+ 공급사 등록</a>
-</div>
 
-<form method="get" action="/suppliers" class="filter-bar">
-  <input type="text" name="q" value="{{ q }}" placeholder="공급사명 / 코드 / 담당자 / 국가">
-  <button type="submit" class="btn">검색</button>
-  <a href="/suppliers" class="btn btn-ghost">초기화</a>
-</form>
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);" method="get" action="/suppliers">
+    <input type="search" name="q" value="{{ q }}" placeholder="공급사명 / 사업자번호 / 담당자 검색…" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
+    <button type="submit" class="btn btn-primary">🔍 검색</button>
+    {% if q %}<a class="btn btn-secondary" href="/suppliers">초기화</a>{% endif %}
+  </form>
 
-<div class="card no-pad">
-  <table class="table table-data">
-    <thead>
-      <tr>
-        <th>NO</th><th>공급사명</th><th>코드</th><th>국가</th>
-        <th>담당자</th><th>이메일</th><th>전화</th><th>결제조건</th>
-        <th>통화</th><th>상태</th><th>관리</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div class="tbl-wrap">
+    {% if suppliers %}
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:60px;">ID</th>
+          <th>공급사명</th>
+          <th>사업자번호</th>
+          <th>담당자</th>
+          <th>연락처</th>
+          <th class="center">상태</th>
+        </tr>
+      </thead>
+      <tbody>
       {% for s in suppliers %}
-      <tr>
-        <td>{{ loop.index }}</td>
-        <td class="ta-left"><strong>{{ s.name }}</strong></td>
-        <td class="mono">{{ s.code or '-' }}</td>
-        <td>{{ s.country or '-' }}</td>
-        <td>{{ s.contact or '-' }}</td>
-        <td class="ta-left">{{ s.email or '-' }}</td>
-        <td>{{ s.phone or '-' }}</td>
-        <td>{{ s.payment_terms or '-' }}</td>
-        <td>{{ s.currency or 'KRW' }}</td>
-        <td>
-          {% if s.is_active %}<span class="tag tag-ok">활성</span>
-          {% else %}<span class="tag tag-off">중지</span>{% endif %}
-        </td>
-        <td class="actions">
-          <a href="/suppliers/{{ s.id }}/edit" class="btn-sm">수정</a>
-          <form method="post" action="/suppliers/{{ s.id }}/delete" style="display:inline"
-                onsubmit="return confirm('삭제하시겠습니까?\n공급사: {{ s.name }}');">
-            <button type="submit" class="btn-sm btn-danger">삭제</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="11" class="empty">등록된 공급사가 없습니다. <a href="/suppliers/new">+ 공급사 등록</a>으로 시작하세요.</td></tr>
+        <tr onclick="location.href='/suppliers/{{ s.id }}'">
+          <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ s.id }}</td>
+          <td><b>{{ s.name }}</b>{% if s.note %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ s.note|truncate(60) }}</div>{% endif %}</td>
+          <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ s.business_no|default('—') }}</td>
+          <td>{{ s.contact_person|default('—') }}</td>
+          <td style="font-size:12px;color:var(--mute);">{% if s.phone %}📞 {{ s.phone }}{% endif %}{% if s.email %}<br>📧 {{ s.email }}{% endif %}</td>
+          <td class="center">{% if s.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
-</div>
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <div class="ico">🏢</div>
+      <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 공급사가 없습니다{% endif %}</div>
+      <div style="margin-top:14px;"><a class="btn btn-primary" href="/suppliers/new">＋ 첫 공급사 등록</a></div>
+    </div>
+    {% endif %}
+  </div>
 
-<p class="muted ta-right">총 {{ suppliers|length }}건</p>
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+</body>
+</html>

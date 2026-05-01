@@ -1,0 +1,81 @@
+{% extends "base_sales.html" %}
+{% block title %}원산지증명서 (FTA C/O) — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>원산지증명서 (FTA C/O)</h1>
+  <p class="muted">KAFTA · KEUFTA · RCEP · KCFTA · KVFTA. 안지연 본업 — 검사기·자동화장비 수출 시 발급. 외부 PDF 라이브러리 0건 (HTML 인쇄).</p>
+</div>
+
+<form method="get" action="/export/fta" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+  <label class="muted">상태
+    <select name="status" onchange="this.form.submit()">
+      <option value="">전체</option>
+      <option value="DRAFT" {% if filter_status=='DRAFT' %}selected{% endif %}>DRAFT</option>
+      <option value="ISSUED" {% if filter_status=='ISSUED' %}selected{% endif %}>ISSUED</option>
+      <option value="SENT" {% if filter_status=='SENT' %}selected{% endif %}>SENT</option>
+      <option value="CANCELLED" {% if filter_status=='CANCELLED' %}selected{% endif %}>CANCELLED</option>
+    </select>
+  </label>
+  <label class="muted">FTA 협정
+    <select name="fta_type" onchange="this.form.submit()">
+      <option value="">전체</option>
+      {% for code, label in FTA_TYPES %}
+      <option value="{{ code }}" {% if filter_fta_type==code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <a href="/export/fta/new" class="btn btn-primary">+ 신규 발급</a>
+  <a href="/export" class="btn">← 수출입 메인</a>
+</form>
+
+{% if items %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>증명서번호</th>
+      <th>FTA 협정</th>
+      <th>거래처</th>
+      <th>국가</th>
+      <th>원산지</th>
+      <th>CI 번호</th>
+      <th>수출일</th>
+      <th class="num">총액</th>
+      <th>발급자</th>
+      <th>상태</th>
+      <th>등록일</th>
+      <th>조치</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in items %}
+    <tr>
+      <td><a href="/export/fta/{{ it.id }}"><strong>{{ it.cert_no or ('#' ~ it.id) }}</strong></a></td>
+      <td>{{ it.fta_type or '-' }}</td>
+      <td>{{ it.cust_disp }}</td>
+      <td>{{ it.customer_country or '-' }}</td>
+      <td>{{ it.origin_country or '-' }}</td>
+      <td>{{ it.export_invoice_no or '-' }}</td>
+      <td>{{ it.export_date or '-' }}</td>
+      <td class="num">{{ '{:,.2f}'.format(it.total_value or 0) }} {{ it.currency }}</td>
+      <td>{{ it.issuer_name or '-' }}</td>
+      <td><span class="status-tag status-{{ (it.status or 'draft')|lower }}">{{ it.status }}</span></td>
+      <td class="muted">{{ it.created_at }}</td>
+      <td>
+        <a href="/export/fta/{{ it.id }}" class="btn btn-sm">상세</a>
+        <a href="/export/fta/{{ it.id }}/print" class="btn btn-sm" target="_blank">인쇄</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="text-align:center;padding:40px 20px;border:1px dashed var(--bd,#ddd);border-radius:8px;">
+  <h3 style="margin:0 0 8px;">발급된 원산지증명서가 없습니다</h3>
+  <p class="muted">안지연 프로 본업 — [+ 신규 발급] 으로 KAFTA/KEUFTA/RCEP 등을 발급하세요.</p>
+  <p class="muted" style="font-size:12px;">증명서번호는 FTA-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
+  <a href="/export/fta/new" class="btn btn-primary" style="margin-top:8px;">+ 신규 발급</a>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,283 +1,220 @@
-{% extends "base.html" %}
-{% set active = 'daily' %}
-{% block title %}{{ i.daily_title|default('일일업무') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <div class="page-breadcrumb">
-      통합 <span class="sep">/</span> 내 업무 <span class="sep">/</span> <span class="current">일일 업무카드</span>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>일일업무 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.task-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: 12px; transition: all .18s; }
+.task-card:hover { border-color: var(--amber); box-shadow: var(--shadow-md); }
+.task-card.delay { border-left: 4px solid var(--knk-red); }
+.task-card.done { opacity: 0.7; }
+.task-row { display: flex; gap: 12px; align-items: flex-start; }
+.task-icon { font-size: 22px; flex-shrink: 0; }
+.task-body { flex: 1; min-width: 0; }
+.task-ttl { font-size: 14px; font-weight: 700; color: var(--ink); }
+.task-meta { display: flex; gap: 12px; font-size: 11.5px; color: var(--mute); margin-top: 4px; flex-wrap: wrap; }
+.task-meta b { color: var(--ink); }
+.task-notes { font-size: 12.5px; color: var(--ink); line-height: 1.6; margin-top: 8px; padding: 8px 10px; background: var(--paper-2); border-radius: var(--radius-sm); white-space: pre-wrap; }
+.qa-bar { display: flex; gap: 8px; align-items: center; padding: 14px 18px; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin: 0 var(--content-pad) var(--space-4); }
+.qa-bar input[type="text"] { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 14px; outline: none; color: var(--ink); font-family: inherit; }
+.qa-bar select, .qa-bar input[type="number"] { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px; background: var(--paper); color: var(--ink); font-family: inherit; }
+.date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--mute); }
+.date-nav a { color: var(--amber-deep); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.date-nav a:hover { background: var(--amber-glow); }
+</style>
+</head>
+<body>
+{% set total = tasks|length %}
+{% set done = tasks|selectattr('status','equalto','완료')|list|length %}
+{% set prog = tasks|selectattr('status','equalto','진행중')|list|length %}
+{% set delay = tasks|selectattr('status','equalto','지연')|list|length %}
+{% set hours_sum = tasks|sum(attribute='hours') %}
+
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">{{ sel_date }} · 일일업무</div>
+      <h1 class="page-title">오늘의 <em>업무</em></h1>
+      <div class="date-nav">
+        <a href="/daily/{{ prev_date }}">‹</a>
+        <span>{{ sel_date }}</span>
+        <a href="/daily/{{ next_date }}">›</a>
+        <a href="/daily">오늘</a>
+      </div>
     </div>
-    <h1>{{ i.daily_title|default('일일 업무카드') }}</h1>
-    <div class="page-sub">{{ user.name }} {{ user.rank }} · {{ user.team_name or '경영진' }}</div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/history">📜 전체 기록</a>
+      <button class="btn btn-primary" onclick="document.getElementById('newTitle').focus()">＋ 새 업무</button>
+    </div>
   </div>
-  <div class="date-nav">
-    <a href="/daily/{{ prev_date }}" class="btn-sm">{{ i.prev_day|default('◀ 전일') }}</a>
-    <input type="date" id="dateSel" value="{{ sel_date }}" onchange="location.href='/daily/'+this.value">
-    <a href="/daily/{{ next_date }}" class="btn-sm">{{ i.next_day|default('익일 ▶') }}</a>
-    <a href="/daily/{{ today }}" class="btn-sm btn-today">{{ i.today|default('오늘') }}</a>
-  </div>
-</div>
 
-{% if sel_date == today and not tasks %}
-<div class="reminder-banner">
-  <div class="rb-ico">🔔</div>
-  <div class="rb-body">
-    <b>{{ user.name }} {{ user.rank }}{{ i.welcome_suffix|default('님') }}, {{ i.daily_reminder|default('오늘 아직 업무카드를 작성하지 않으셨습니다.') }}</b>
-    <div class="rb-sub">{{ i.daily_reminder_sub|default('하루 한 번, 오늘 무엇을 했는지 기록하는 것이 KNK 일일업무일지의 시작입니다.') }}</div>
+  <!-- KPI -->
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card">
+      <div class="kpi-label">전체</div>
+      <div class="kpi-num">{{ total }}</div>
+      <div class="kpi-trend neutral">건</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">완료</div>
+      <div class="kpi-num" style="color:var(--success);">{{ done }}</div>
+      <div class="kpi-trend up">{{ ((done*100/total)|round|int) if total else 0 }}%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">진행 중</div>
+      <div class="kpi-num">{{ prog }}</div>
+      <div class="kpi-trend neutral">대기 포함</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">누적 공수</div>
+      <div class="kpi-num">{{ '%.1f'|format(hours_sum or 0) }}<span class="unit">h</span></div>
+      <div class="kpi-trend {% if delay > 0 %}alert{% else %}up{% endif %}">{% if delay > 0 %}⚠ 지연 {{ delay }}{% else %}정상{% endif %}</div>
+    </div>
   </div>
-  <button class="btn-primary" onclick="openAdd()">{{ i.write_now|default('+ 지금 카드 작성') }}</button>
-</div>
-{% endif %}
 
-<div class="week-stats">
-  <div class="ws-label">{{ i.this_week|default('이번 주') }} {{ week_range }}</div>
-  <div class="ws-nums">
-    <a href="/history" class="ws-item ws-link-item" title="{{ i.all_filter|default('전체 기록 보기') }}"><b>{{ week_stats.total or 0 }}</b> {{ i.total_count|default('건') }}</a>
-    <a href="/history?status=완료" class="ws-item st-done ws-link-item" title="{{ i.kpi_done|default('완료') }} 목록"><b>{{ week_stats.done or 0 }}</b> {{ i.kpi_done|default('완료') }}</a>
-    <a href="/history?status=진행중" class="ws-item st-progress ws-link-item" title="{{ i.kpi_progress|default('진행중') }} 목록"><b>{{ week_stats.progress or 0 }}</b> {{ i.kpi_progress|default('진행중') }}</a>
-    <a href="/history?status=지연" class="ws-item st-delay ws-link-item" title="{{ i.kpi_delay|default('지연') }} 목록"><b>{{ week_stats.delay or 0 }}</b> {{ i.kpi_delay|default('지연') }}</a>
-    <a href="/weekly" class="ws-item ws-weekly-link" title="{{ i.view_weekly|default('주간 요약 보기') }}"><b>{{ '%.1f'|format(week_stats.hours or 0) }}h</b> {{ i.accumulated|default('누적') }} →</a>
+  <!-- 빠른 입력 -->
+  <div style="margin-top: var(--space-5);"></div>
+  <div class="qa-bar">
+    <div style="width:36px;height:36px;background:var(--amber-glow);border-radius:8px;display:grid;place-items:center;font-size:20px;color:var(--amber-deep);font-weight:700;flex-shrink:0;">＋</div>
+    <input type="text" id="newTitle" placeholder="지금 무슨 업무를 하고 계신가요? 입력 후 Enter" onkeydown="if(event.key==='Enter')addTask()">
+    <select id="newProject"><option value="">프로젝트</option>
+      {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+    <select id="newCustomer"><option value="">고객사</option>
+      {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+    <input type="number" id="newHours" placeholder="공수" step="0.5" min="0" max="24" style="width:80px;">
+    <button class="btn btn-primary" onclick="addTask()">등록</button>
   </div>
-</div>
 
-{% if pending_yday %}
-<div class="carry-box">
-  <div class="carry-head">
-    <b>⚠ {{ i.yday_pending|default('어제 미완료 업무') }} {{ pending_yday|length }}{{ i.total_count|default('건') }}</b> — {{ i.carry_today|default('오늘로 이월할까요?') }}
-    <button class="btn-primary" onclick="carryAll()">{{ i.carry_all|default('전체 이월') }}</button>
-  </div>
-  <div class="carry-list">
+  <!-- 어제 미완료 -->
+  {% if pending_yday %}
+  <div class="section">
+    <h2>↪ 어제 미완료 ({{ pending_yday|length }})</h2>
     {% for t in pending_yday %}
-    <div class="carry-item">
-      <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
-      <span class="carry-title">{{ t.title }}</span>
-      {% if t.project_name %}<span class="tag tag-pj">{{ t.project_name }}</span>{% endif %}
-      <button class="btn-xs" onclick="carryOne({{ t.id }})">{{ i.carry_one|default('이월') }}</button>
+    <div class="task-card" style="border-left: 4px solid var(--warn);">
+      <div class="task-row">
+        <div class="task-icon">↪</div>
+        <div class="task-body">
+          <div class="task-ttl">{{ t.title }}</div>
+          <div class="task-meta">
+            <span class="pill pill-warn">{{ t.status }}</span>
+            {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% endif %}
+            {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% endif %}
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="carry({{ t.id }})">↪ 오늘로 이월</button>
+      </div>
     </div>
     {% endfor %}
   </div>
-</div>
-{% endif %}
+  {% endif %}
 
-<div class="section-head">
-  <h2>{{ sel_date }} {{ i.task_cards|default('업무카드') }} <span class="count">{{ tasks|length }}</span></h2>
-  <button class="btn-primary" onclick="openAdd()">{{ i.add_card|default('+ 업무카드 추가') }}</button>
-</div>
-
-{% if not tasks %}
-<div class="empty">{{ i.no_cards_today|default('오늘 입력된 업무카드가 없습니다.') }} <b>{{ i.add_card|default('+ 업무카드 추가') }}</b> {{ i.start_btn|default('버튼으로 시작하세요.') }}</div>
-{% else %}
-<div class="task-grid">
-  {% for t in tasks %}
-  <div class="task-card status-{{ t.status }}" data-id="{{ t.id }}" data-status="{{ t.status }}">
-    <div class="tc-head">
-      <span class="tag tag-{{ t.status }}">{{ t.status }}</span>
-      {% if t.category %}<span class="tag tag-cat">{{ t.category }}</span>{% endif %}
-      {% if t.carry_from_id %}<span class="tag tag-carry">{{ i.carried_tag|default('이월') }}</span>{% endif %}
-      <div class="tc-actions">
-        <button class="btn-xs" onclick='openEdit({{ t|tojson }})'>{{ i.edit|default('편집') }}</button>
-        <button class="btn-xs btn-del" onclick="delTask({{ t.id }})">{{ i.delete|default('삭제') }}</button>
-      </div>
-    </div>
-    <div class="tc-title">{{ t.title }}</div>
-    <div class="tc-meta">
-      {% if t.project_name %}<span class="tag tag-pj">📋 {{ t.project_name }}</span>{% endif %}
-      {% if t.customer_name %}<span class="tag tag-cu">🏢 {{ t.customer_name }}</span>{% endif %}
-      {% if t.hours %}<span class="tag tag-hr">⏱ {{ t.hours }}h</span>{% endif %}
-      {% if t.due_date %}<span class="tag tag-due">⏰ {{ t.due_date }}</span>{% endif %}
-    </div>
-    {% if t.notes %}<div class="tc-notes"><b>{{ i.today_work|default('오늘 한 일') }}</b><div>{{ t.notes }}</div></div>{% endif %}
-    {% if t.next_plan %}<div class="tc-nextplan"><b>{{ i.next_plan|default('📌 다음 계획') }}</b><div>{{ t.next_plan }}</div></div>{% endif %}
-    <div class="tc-quickstat">
-      {% for s in statuses %}
-      <button class="qs-btn {% if t.status==s %}active{% endif %}" onclick="quickStatus({{ t.id }},'{{ s }}')">{{ s }}</button>
-      {% endfor %}
-    </div>
-
-    <!-- 댓글/요청 영역 -->
-    <div class="tc-comments" id="cm-{{ t.id }}">
-      <div class="cm-head">
-        {{ i.requests_comments|default('💬 요청·코멘트') }} <span class="count">{{ t.comment_count or 0 }}</span>
-        {% if t.has_ceo_req %}<span class="tag tag-ceo">{{ i.ceo_request|default('대표 요청') }}</span>{% endif %}
-        <button class="btn-xs" onclick="toggleComments({{ t.id }})">{{ i.toggle_expand|default('펼치기/접기') }}</button>
-      </div>
-      <div class="cm-body" style="display:{% if t.comments %}block{% else %}none{% endif %}">
-        {% for cm in t.comments %}
-        <div class="cm-item {% if cm.is_ceo_request %}cm-ceo{% endif %}">
-          <div class="cm-meta">
-            {% if cm.is_ceo_request %}<span class="tag tag-ceo">{{ i.ceo_request|default('대표 요청') }}</span>{% endif %}
-            <b>{{ cm.author_name }}</b> <span class="cm-rank">{{ cm.author_rank or '' }}</span>
-            <span class="cm-time">{{ cm.created_at }}</span>
-            {% if cm.author_id == user.id or user.role in ['ceo','admin'] %}
-            <button class="btn-xs btn-del" onclick="delComment({{ cm.id }},{{ t.id }})" aria-label="{{ i.delete|default('댓글 삭제') }}">🗑</button>
-            {% endif %}
+  <!-- 오늘 업무 -->
+  <div class="section">
+    <h2>📋 오늘 업무 ({{ total }})</h2>
+    {% if tasks %}
+      {% for t in tasks %}
+      <div class="task-card {% if t.status == '완료' %}done{% elif t.status == '지연' %}delay{% endif %}">
+        <div class="task-row">
+          <div class="task-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
+          <div class="task-body">
+            <div class="task-ttl">{{ t.title }}</div>
+            <div class="task-meta">
+              <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
+              {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% endif %}
+              {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% endif %}
+              {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
+              {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
+              {% if t.comment_count %}<span>💬 {{ t.comment_count }}</span>{% endif %}
+              {% if t.has_ceo_req %}<span class="pill pill-danger">🔴 대표 요청</span>{% endif %}
+            </div>
+            {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
           </div>
-          <div class="cm-text">{{ cm.body }}</div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-secondary" onclick="changeStatus({{ t.id }})">↻</button>
+            <a class="btn btn-secondary" href="/task/{{ t.id }}">상세</a>
+          </div>
         </div>
-        {% endfor %}
-        <form class="cm-form" onsubmit="addComment(event,{{ t.id }})">
-          <input type="text" placeholder="{{ i.comment_write|default('요청사항·답글·코멘트 작성...') }}" required>
-          <button class="btn-primary" type="submit">{{ i.btn_register|default('등록') }}</button>
-        </form>
       </div>
-    </div>
+      {% endfor %}
+    {% else %}
+      <div class="card empty">
+        <div class="ico">📭</div>
+        <div class="ttl">오늘 등록된 업무가 없습니다</div>
+        <div style="font-size:13px;color:var(--mute);">위 입력란에 업무를 입력하고 Enter를 눌러보세요.</div>
+      </div>
+    {% endif %}
   </div>
-  {% endfor %}
-</div>
-{% endif %}
 
-<!-- 모달 -->
-<div class="modal" id="modal" style="display:none">
-  <div class="modal-bg" onclick="closeModal()"></div>
-  <div class="modal-card">
-    <div class="modal-title"><span id="mTitle">{{ i.add_card_title|default('업무카드 추가') }}</span>
-      <button class="btn-xs" onclick="closeModal()" aria-label="{{ i.modal_close|default('모달 닫기') }}">✕</button>
+  <!-- 이번 주 통계 -->
+  {% if week_stats %}
+  <div class="section">
+    <h2>📊 이번 주 ({{ week_range }})</h2>
+    <div class="bento" style="margin: 0;">
+      <div class="kpi-card">
+        <div class="kpi-label">전체</div>
+        <div class="kpi-num">{{ week_stats.total|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">완료</div>
+        <div class="kpi-num" style="color:var(--success);">{{ week_stats.done|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">진행 중</div>
+        <div class="kpi-num">{{ week_stats.progress|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">누적 공수</div>
+        <div class="kpi-num">{{ '%.1f'|format(week_stats.hours|default(0)) }}<span class="unit">h</span></div>
+      </div>
     </div>
-    <form id="taskForm" onsubmit="saveTask(event)">
-      <input type="hidden" id="f_id">
-      <label>{{ i.title_label|default('제목') }} *</label>
-      <input type="text" id="f_title" required placeholder="예) 갤럭시 S27 ICT 1차 셋업 점검">
-      <div class="form-row">
-        <div>
-          <label>{{ i.category_label|default('분류') }}</label>
-          <select id="f_category">
-            {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-          </select>
-        </div>
-        <div>
-          <label>{{ i.status|default('상태') }}</label>
-          <select id="f_status">
-            {% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-          </select>
-        </div>
-        <div>
-          <label>{{ i.hours_label|default('공수(h)') }}</label>
-          <input type="number" id="f_hours" step="0.5" min="0" value="0">
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label>{{ i.project|default('프로젝트') }}</label>
-          <select id="f_project">
-            <option value="">{{ i.select|default('(선택)') }}</option>
-            {% for p in projects %}<option value="{{ p.id }}">[{{ p.code }}] {{ p.name }} · {{ p.customer_name or '' }}</option>{% endfor %}
-          </select>
-        </div>
-        <div>
-          <label>{{ i.customer|default('고객사') }}</label>
-          <select id="f_customer">
-            <option value="">{{ i.select|default('(선택)') }}</option>
-            {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div>
-          <label>{{ i.due_date|default('기한/약속일') }}</label>
-          <input type="date" id="f_due">
-        </div>
-      </div>
-      <label>{{ i.notes_label|default('오늘 한 일 (메모)') }}</label>
-      <textarea id="f_notes" rows="2" placeholder="{{ i.notes_hint|default('오늘 무엇을 했는지 핵심만 1~2줄') }}"></textarea>
-      <label>{{ i.next_label|default('📌 다음 계획 (내일 할 일)') }} <span style="color:#A5282C">*</span></label>
-      <textarea id="f_next_plan" rows="2" required placeholder="{{ i.next_hint|default('내일/다음 단계로 무엇을 할 계획인지 1~2줄') }}"></textarea>
-      <div class="modal-btns">
-        <button type="button" class="btn-sm" onclick="closeModal()">{{ i.cancel|default('취소') }}</button>
-        <button type="submit" class="btn-primary">{{ i.save|default('저장') }}</button>
-      </div>
-    </form>
   </div>
+  {% endif %}
+
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
 <script>
-const SEL_DATE = "{{ sel_date }}";
-const DI = {
-  add_title: "{{ i.add_card_title|default('업무카드 추가') }}",
-  edit_title: "{{ i.edit_card_title|default('업무카드 편집') }}",
-  save_fail: "{{ i.save_fail|default('저장 실패') }}",
-  confirm_del: "{{ i.confirm_del_task|default('삭제하시겠습니까?') }}",
-  register_fail: "{{ i.register_fail|default('등록 실패') }}",
-  confirm_del_cm: "{{ i.confirm_del_comment|default('댓글을 삭제하시겠습니까?') }}",
-};
-function openAdd(){
-  document.getElementById('mTitle').textContent=DI.add_title;
-  ['f_id','f_title','f_hours','f_notes','f_next_plan','f_due'].forEach(k=>document.getElementById(k).value='');
-  document.getElementById('f_category').value='기타';
-  document.getElementById('f_status').value='진행중';
-  document.getElementById('f_project').value='';
-  document.getElementById('f_customer').value='';
-  document.getElementById('f_hours').value='0';
-  document.getElementById('modal').style.display='flex';
+const SEL_DATE = '{{ sel_date }}';
+async function addTask() {
+  const title = document.getElementById('newTitle').value.trim();
+  if (!title) return;
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, work_date: SEL_DATE, status: '진행중',
+      hours: parseFloat(document.getElementById('newHours').value) || 0,
+      category: '기타',
+      project_id: document.getElementById('newProject').value || null,
+      customer_id: document.getElementById('newCustomer').value || null,
+    })
+  });
+  if (r.ok) location.reload();
 }
-function openEdit(t){
-  document.getElementById('mTitle').textContent=DI.edit_title;
-  document.getElementById('f_id').value=t.id;
-  document.getElementById('f_title').value=t.title||'';
-  document.getElementById('f_category').value=t.category||'기타';
-  document.getElementById('f_status').value=t.status||'진행중';
-  document.getElementById('f_hours').value=t.hours||0;
-  document.getElementById('f_project').value=t.project_id||'';
-  document.getElementById('f_customer').value=t.customer_id||'';
-  document.getElementById('f_due').value=t.due_date||'';
-  document.getElementById('f_notes').value=t.notes||'';
-  document.getElementById('f_next_plan').value=t.next_plan||'';
-  document.getElementById('modal').style.display='flex';
+async function carry(tid) {
+  if (!confirm('오늘로 이월하시겠습니까?')) return;
+  const r = await fetch('/api/task/' + tid + '/carry', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ work_date: SEL_DATE })
+  });
+  if (r.ok) location.reload();
 }
-function closeModal(){ document.getElementById('modal').style.display='none'; }
-async function saveTask(e){
-  e.preventDefault();
-  const id=document.getElementById('f_id').value;
-  const body={
-    work_date:SEL_DATE,
-    title:document.getElementById('f_title').value,
-    category:document.getElementById('f_category').value,
-    status:document.getElementById('f_status').value,
-    hours:parseFloat(document.getElementById('f_hours').value||0),
-    project_id:document.getElementById('f_project').value||null,
-    customer_id:document.getElementById('f_customer').value||null,
-    due_date:document.getElementById('f_due').value||null,
-    notes:document.getElementById('f_notes').value,
-    next_plan:document.getElementById('f_next_plan').value
-  };
-  const url = id ? '/api/task/'+id : '/api/task';
-  const method = id ? 'PUT' : 'POST';
-  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(r.ok) location.reload();
-  else alert(DI.save_fail);
+async function changeStatus(tid) {
+  const newStatus = prompt('새 상태 (진행중/완료/지연/대기/보류):');
+  if (!newStatus) return;
+  const r = await fetch('/api/task/' + tid, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: newStatus })
+  });
+  if (r.ok) location.reload();
 }
-async function delTask(id){
-  if(!confirm(DI.confirm_del)) return;
-  const r = await fetch('/api/task/'+id,{method:'DELETE'});
-  if(r.ok) location.reload();
-}
-async function quickStatus(id,status){
-  const r = await fetch('/api/task/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
-  if(r.ok) location.reload();
-}
-async function carryAll(){
-  const r = await fetch('/api/carry-forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:SEL_DATE})});
-  if(r.ok) location.reload();
-}
-function toggleComments(id){
-  const b = document.querySelector('#cm-'+id+' .cm-body');
-  b.style.display = (b.style.display==='none' ? 'block' : 'none');
-}
-async function addComment(e,tid){
-  e.preventDefault();
-  const inp = e.target.querySelector('input');
-  const body = inp.value.trim();
-  if(!body) return;
-  const r = await fetch('/api/task/'+tid+'/comment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body})});
-  if(r.ok) location.reload();
-  else alert(DI.register_fail);
-}
-async function delComment(cid,tid){
-  if(!confirm(DI.confirm_del_cm)) return;
-  const r = await fetch('/api/comment/'+cid,{method:'DELETE'});
-  if(r.ok) location.reload();
-}
-async function carryOne(id){
-  const r = await fetch('/api/carry-forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:SEL_DATE,ids:[id]})});
-  if(r.ok) location.reload();
-}
-
 </script>
-{% endblock %}
+</body>
+</html>

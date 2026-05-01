@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>G. standalone — 인쇄 마스터 (발주서·견적서 등) · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+body { background: var(--mute-2); padding: var(--space-7) 0; }
+.print-toolbar {
+  position: sticky;
+  top: 20px;
+  margin: 0 auto var(--space-5);
+  max-width: 800px;
+  background: var(--paper-3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-md);
+}
+.print-toolbar .info { font-size: 12.5px; color: var(--mute); }
+.print-toolbar .info b { color: var(--ink); }
+.btn { font-family: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--paper); border: 1px solid var(--line); }
+
+/* === 인쇄 페이지 === */
+.print-page {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 60px 70px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+/* 회사정보 미입력 빨간 배너 (01 응답서 §3-G 인계) */
+.company-warn {
+  background: var(--knk-red);
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
+  font-size: 13px;
+  font-weight: 600;
+  display: none; /* 회사정보 미입력 시만 표시 */
+}
+.company-warn.show { display: flex; align-items: center; gap: 10px; }
+
+/* 헤더 */
+.p-head { display: grid; grid-template-columns: 1fr auto; gap: 30px; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 3px solid var(--ink); }
+.p-head-left { display: flex; gap: 20px; align-items: center; }
+.p-head img { height: 48px; }
+.p-head .company-info .name { font-size: 18px; font-weight: 700; color: var(--ink); }
+.p-head .company-info .meta { font-size: 11px; color: var(--mute); margin-top: 2px; line-height: 1.5; }
+.p-head .company-info .meta b { color: var(--ink); }
+.p-head-right { text-align: right; }
+.p-head .doc-type {
+  font-size: 28px;
+  font-weight: 700;
+  background: var(--grad-amber);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+.p-head .doc-num {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--amber-deep);
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* 메타 정보 */
+.p-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+.p-meta-block h4 { font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.p-meta-row { display: flex; padding: 4px 0; font-size: 12.5px; }
+.p-meta-row .lbl { width: 80px; color: var(--mute); }
+.p-meta-row .val { flex: 1; color: var(--ink); font-weight: 500; }
+.p-meta-row .val b { font-weight: 700; }
+
+/* 라인 표 */
+.p-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12.5px; }
+.p-table th { padding: 10px 8px; background: var(--paper-2); border: 1px solid var(--ink); font-weight: 700; font-size: 11px; color: var(--ink); }
+.p-table th.num, .p-table td.num { text-align: right; }
+.p-table td { padding: 10px 8px; border: 1px solid var(--line); }
+.p-table td.amount { font-weight: 700; }
+
+/* 합계 */
+.p-totals { width: 320px; margin-left: auto; font-size: 13px; }
+.p-total-row { display: flex; justify-content: space-between; padding: 6px 0; }
+.p-total-row.grand { border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 10px; font-size: 16px; font-weight: 700; }
+.p-total-row.grand b { background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 20px; }
+
+/* 비고·서명 */
+.p-notes { margin-top: 36px; padding: 16px; background: var(--paper); border-radius: var(--radius-md); font-size: 12.5px; line-height: 1.7; }
+.p-notes h4 { font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+
+.p-signs { margin-top: 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.p-sign { text-align: center; padding-top: 16px; border-top: 1px solid var(--ink); }
+.p-sign .role { font-size: 11px; color: var(--mute); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+.p-sign .name { font-size: 15px; color: var(--ink); font-weight: 700; margin-top: 12px; }
+.p-sign .stamp { width: 60px; height: 60px; margin: 8px auto; border: 2px solid var(--knk-red); border-radius: 50%; display: grid; place-items: center; color: var(--knk-red); font-size: 11px; font-weight: 700; opacity: 0.4; }
+
+.p-foot {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--mute);
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+/* === 인쇄용 미디어 쿼리 === */
+@media print {
+  body { background: white; padding: 0; }
+  .print-toolbar { display: none; }
+  .print-page { box-shadow: none; max-width: none; margin: 0; padding: 30px 40px; page-break-after: always; }
+  .company-warn { display: none !important; }
+  .p-head .doc-type { -webkit-text-fill-color: var(--ink); color: var(--ink); }
+  .p-totals .grand b { -webkit-text-fill-color: var(--ink); color: var(--ink); }
+}
+</style>
+</head>
+<body>
+
+<!-- 화면 도구바 (인쇄 시 숨김) -->
+<div class="print-toolbar">
+  <div class="info">
+    📄 G. 인쇄 마스터 · <b>발주서</b> · 6종 인쇄 페이지 표준 (CI · PL · B/L · FTA · QC · WO)
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <button class="btn btn-secondary">📥 PDF 다운로드</button>
+    <button class="btn btn-primary" onclick="window.print()">🖨 인쇄</button>
+  </div>
+</div>
+
+<!-- 인쇄 페이지 -->
+<div class="print-page">
+  <!-- 회사정보 미입력 경고 (조건부) -->
+  <div class="company-warn show">
+    ⚠ 회사정보 (사업자번호·대표자·주소)가 미입력 상태입니다. 인쇄 전 <b>관리자 → 회사정보</b>에서 등록하세요.
+  </div>
+
+  <!-- 헤더 -->
+  <div class="p-head">
+    <div class="p-head-left">
+      <img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="company-info">
+        <div class="name">㈜케이엔케이</div>
+        <div class="meta">
+          <b>HAIST Innovation</b><br>
+          충남 천안시 동남구 …<br>
+          사업자등록번호: 000-00-00000<br>
+          대표: 김정락 · TEL 02-3142-XXXX
+        </div>
+      </div>
+    </div>
+    <div class="p-head-right">
+      <div class="doc-type">발주서</div>
+      <div class="doc-num">PO-2604-018</div>
+      <div style="font-size: 11px; color: var(--mute); margin-top: 8px;">발행일 · 2026-04-29</div>
+    </div>
+  </div>
+
+  <!-- 메타 정보 -->
+  <div class="p-meta">
+    <div class="p-meta-block">
+      <h4>거래처</h4>
+      <div class="p-meta-row"><span class="lbl">상호</span><span class="val"><b>대원전기</b></span></div>
+      <div class="p-meta-row"><span class="lbl">담당자</span><span class="val">박○○ 부장 · 010-XXXX-XXXX</span></div>
+      <div class="p-meta-row"><span class="lbl">사업자</span><span class="val">000-00-00000</span></div>
+      <div class="p-meta-row"><span class="lbl">주소</span><span class="val">경기도 ○○시 …</span></div>
+    </div>
+    <div class="p-meta-block">
+      <h4>발주 정보</h4>
+      <div class="p-meta-row"><span class="lbl">결제 조건</span><span class="val"><b>60일 어음</b></span></div>
+      <div class="p-meta-row"><span class="lbl">납기</span><span class="val"><b>2026-05-08</b></span></div>
+      <div class="p-meta-row"><span class="lbl">인도</span><span class="val">DDP 자재창고</span></div>
+      <div class="p-meta-row"><span class="lbl">담당</span><span class="val">이○○ 차장 · 자재팀</span></div>
+    </div>
+  </div>
+
+  <!-- 라인 표 -->
+  <table class="p-table">
+    <thead>
+      <tr>
+        <th style="width: 40px;">#</th>
+        <th>품목 · 사양</th>
+        <th>코드</th>
+        <th class="num">수량</th>
+        <th class="num">단가</th>
+        <th class="num">금액</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>01</td><td>컨베이어 모터 1.5kW · 인버터 호환</td><td>MTR-CV-15</td><td class="num">10 EA</td><td class="num">₩482,000</td><td class="num amount">₩4,820,000</td></tr>
+      <tr><td>02</td><td>베어링 6204 ZZ · SKF 등가품</td><td>BRG-6204</td><td class="num">200 EA</td><td class="num">₩4,200</td><td class="num amount">₩840,000</td></tr>
+      <tr><td>03</td><td>알루미늄 압출재 6m · 40×40 A6063</td><td>AL-EXT-4040</td><td class="num">20 m</td><td class="num">₩28,500</td><td class="num amount">₩570,000</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 합계 -->
+  <div class="p-totals">
+    <div class="p-total-row"><span>소계</span><b>₩6,230,000</b></div>
+    <div class="p-total-row"><span>부가세 (10%)</span><b>₩623,000</b></div>
+    <div class="p-total-row"><span>운송비</span><b>₩50,000</b></div>
+    <div class="p-total-row grand"><span>총 발주액</span><b>₩6,903,000</b></div>
+  </div>
+
+  <!-- 비고 -->
+  <div class="p-notes">
+    <h4>비고</h4>
+    대성기업 5월 추가 발주 대비 — 컨베이어 모터 재고 사전 확보. 빅터 추천 패턴 기반.
+  </div>
+
+  <!-- 서명 -->
+  <div class="p-signs">
+    <div class="p-sign">
+      <div class="role">발주처</div>
+      <div class="stamp">KNK</div>
+      <div class="name">㈜케이엔케이</div>
+    </div>
+    <div class="p-sign">
+      <div class="role">수주처 확인</div>
+      <div class="stamp">대원<br>전기</div>
+      <div class="name">대원전기</div>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <div class="p-foot">
+    KNK HAIST WORKS · v5 H5 · 2026 · 본 문서는 시스템에서 자동 생성되었습니다 · PO-2604-018
+  </div>
+</div>
+
+</body>
+</html>

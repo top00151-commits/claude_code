@@ -1,0 +1,102 @@
+{% extends "base_logi.html" %}
+{% block title %}자재·구매 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>📦 자재·구매 센터</h1>
+  <p class="muted">부품 마스터 · 공급사 · 발주 · 입고/출고/실사 · 수불부 · 환율. 구매팀·자재팀 전용.</p>
+</div>
+
+<!-- 매출은 별도 페이지 안내 -->
+<div class="card" style="margin-bottom:12px;padding:12px 16px;background:var(--paper-warm);border-left:3px solid var(--info);">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+    <div style="font-size:12px;color:var(--info);">
+      📈 <strong>매출·수주·관리코드</strong>는 별도 페이지입니다 (영업팀 영역).
+    </div>
+    <a href="/sales" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:700;padding:6px 16px;font-size:12px;">📈 매출·영업 센터 →</a>
+  </div>
+</div>
+
+<!-- KPI (자재·구매 전용) -->
+<div class="kpi-row">
+  <a href="/parts" class="kpi">
+    <div class="kpi-label">등록 부품</div>
+    <div class="kpi-value">{{ parts_stats.total }}</div>
+    <div class="kpi-sub">활성 {{ parts_stats.active }}건</div>
+  </a>
+  <a href="/po?status=발주완료" class="kpi">
+    <div class="kpi-label">미입고 발주</div>
+    <div class="kpi-value">{{ stock_kpi.po_pending if stock_kpi else 0 }}</div>
+    <div class="kpi-sub">발주완료·부분입고</div>
+  </a>
+  <a href="/stock/movements" class="kpi" style="{% if stock_kpi and stock_kpi.low_stock > 0 %}background:#FEF2F2;border-color:var(--knk-red-soft);{% endif %}">
+    <div class="kpi-label">안전재고 미달</div>
+    <div class="kpi-value" style="{% if stock_kpi and stock_kpi.low_stock > 0 %}color:var(--knk-red);{% endif %}">{{ stock_kpi.low_stock if stock_kpi else 0 }}</div>
+    <div class="kpi-sub">긴급 발주 필요</div>
+  </a>
+  <a href="/stock/movements" class="kpi">
+    <div class="kpi-label">재고 금액 (FIFO)</div>
+    <div class="kpi-value" style="font-size:18px;">{{ "{:,.0f}".format(stock_kpi.stock_value if stock_kpi else 0) }}원</div>
+    <div class="kpi-sub">실 입고 단가 기준</div>
+  </a>
+  <a href="/suppliers" class="kpi">
+    <div class="kpi-label">공급사</div>
+    <div class="kpi-value" style="font-size:20px;">관리 →</div>
+  </a>
+  <a href="/rates" class="kpi">
+    <div class="kpi-label">환율</div>
+    <div class="kpi-value" style="font-size:20px;">💱 관리</div>
+  </a>
+</div>
+
+<!-- 30일 흐름 + 빠른 액션 -->
+<div class="card" style="margin-top:12px;padding:14px 20px;background:linear-gradient(135deg,#F0FDF4,#DCFCE7);border:1px solid var(--success);">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div style="font-weight:800;color:#166534;">📊 최근 30일 재고 흐름</div>
+      <div style="font-size:13px;color:var(--ink);margin-top:4px;">
+        <span style="color:var(--success);font-weight:700;">입고 +{{ "%g"|format(stock_kpi.in_30d if stock_kpi else 0) }}</span> ·
+        <span style="color:var(--knk-red);font-weight:700;">출고 -{{ "%g"|format(stock_kpi.out_30d if stock_kpi else 0) }}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/po" class="btn" style="background:var(--success);color:#fff;border:none;font-weight:700;">📥 발주→입고</a>
+      <a href="/stock/issue" class="btn" style="background:var(--knk-red);color:#fff;border:none;font-weight:700;">📤 출고</a>
+      <a href="/stock/adjust" class="btn" style="background:var(--amber);color:#fff;border:none;font-weight:700;">⚖️ 실사</a>
+      <a href="/stock/movements" class="btn btn-ghost" style="font-weight:700;">📒 수불부</a>
+    </div>
+  </div>
+</div>
+
+<!-- 사업부별 부품 + 안내 -->
+<div class="grid-2-card" style="margin-top:14px;">
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">🔩 사업부별 부품 분포</h2>
+    {% if parts_stats.by_div %}
+    <table class="table" style="width:100%;">
+      <thead><tr><th>사업부</th><th style="text-align:right;">건수</th></tr></thead>
+      <tbody>
+        {% for k, v in parts_stats.by_div.items() %}
+        <tr><td>{{ k or '(미지정)' }}</td><td style="text-align:right;font-weight:700;">{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">아직 등록된 부품이 없습니다. <a href="/parts/new">부품 등록</a>으로 시작하세요.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">⚡ 자재·구매 주요 기능</h2>
+    <ul style="font-size:13px;line-height:1.9;color:var(--ink);padding-left:20px;margin:0;">
+      <li><a href="/parts">부품 마스터</a> — FIFO 원가 · Lot 추적 · 공급사별 단가</li>
+      <li><a href="/suppliers">공급사</a> — 평균 리드타임 자동 집계</li>
+      <li><a href="/po">발주</a> — 다중 라인 · 입고 처리</li>
+      <li><a href="/stock/movements">수불부</a> — 입출고·실사 원장</li>
+      <li><a href="/rates">환율</a> — KRW/USD/VND 다통화</li>
+      <li>자재 단가 관리 (적용일자 기반, 확정/가/견적)</li>
+    </ul>
+  </div>
+</div>
+
+{% endblock %}

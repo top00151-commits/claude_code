@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}{{ i.dash_title|default('전사 대시보드') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <div class="page-breadcrumb">
+      통합 <span class="sep">/</span> 전사 흐름 <span class="sep">/</span> <span class="current">{{ i.dash_title|default('전사 대시보드') }}</span>
+      <span class="lock-badge">🔒 경영진 전용</span>
+    </div>
+    <h1>{{ i.dash_title|default('전사 대시보드') }}</h1>
+    <div class="page-sub">{{ i.this_week|default('이번 주') }} {{ mon }} ~ {{ sun }} · {{ i.today|default('오늘') }} {{ today_s }}</div>
+  </div>
+</div>
+
+<div class="hello-banner">
+  <div class="hello-avatar">{{ user.name[:1] if user else 'V' }}</div>
+  <div class="hello-body">
+    <div class="hello-title">{{ i.dash_hello_title|default('오늘 회사의 흐름, 한눈에 보세요') }}</div>
+    <div class="hello-sub">{{ i.dash_hello_sub|default('전사 참여율과 진행·지연을 한 화면에서 확인하실 수 있습니다.') }}</div>
+  </div>
+</div>
+
+{# 2026-04-26 CEO 통합 대시보드 — 9 KPI + 알림 + 빠른 액션 #}
+{% if ceo_kpis %}
+<div class="section-head"><h2>경영 KPI 한눈에</h2></div>
+<div class="kpi-grid kpi-grid-9">
+  <a href="/sales/dashboard" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '{:,.0f}'.format(ceo_kpis.sales.month) }}</div>
+    <div class="kpi-lab">당월 매출 (원)</div>
+    <div class="kpi-sub">전월비 {{ ceo_kpis.sales.growth }}% · 미수 {{ '{:,.0f}'.format(ceo_kpis.sales.unpaid) }}</div>
+  </a>
+  <a href="/stock/balances" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.stock.on_hand_kinds }}</div>
+    <div class="kpi-lab">재고 품목수</div>
+    <div class="kpi-sub">QC 부적합 {{ ceo_kpis.stock.qc_open }}</div>
+  </a>
+  <a href="/admin/permissions" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.perms.active_tokens }}</div>
+    <div class="kpi-lab">활성 위임 토큰</div>
+    <div class="kpi-sub">7일 내 만료 {{ ceo_kpis.perms.expiring_7d }}</div>
+  </a>
+  <a href="/export" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.exports.in_progress }}</div>
+    <div class="kpi-lab">수출입 진행</div>
+    <div class="kpi-sub">출하 임박 {{ ceo_kpis.exports.ship_soon }}</div>
+  </a>
+  <a href="/qms/dashboard" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.qms.open }}</div>
+    <div class="kpi-lab">QMS 오픈 이슈</div>
+    <div class="kpi-sub">SLA 위반 {{ ceo_kpis.qms.sla_violation }}</div>
+  </a>
+  <a href="/weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.weekly.rate }}%</div>
+    <div class="kpi-lab">주간 진행률</div>
+    <div class="kpi-sub">완료 {{ ceo_kpis.weekly.completed }} · 지연 {{ ceo_kpis.weekly.delayed }}</div>
+  </a>
+  <a href="/progress/gantt" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.gantt.delayed_projects }}</div>
+    <div class="kpi-lab">지연 프로젝트</div>
+  </a>
+  <a href="/rates/dashboard" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '%.0f'|format(ceo_kpis.fx.usd_rate) }}</div>
+    <div class="kpi-lab">USD/KRW</div>
+    <div class="kpi-sub">활성 알림 {{ ceo_kpis.fx.alerts_active }}</div>
+  </a>
+  <a href="/notifications" class="kpi-card kpi-primary kpi-link">
+    <div class="kpi-num">{{ ceo_kpis.notif.unread }}</div>
+    <div class="kpi-lab">미확인 알림</div>
+  </a>
+</div>
+
+{% if unread_notifs %}
+<div class="section-head"><h2>최근 미확인 알림</h2></div>
+<div class="delay-list">
+  {% for n in unread_notifs %}
+  <div class="delay-item" {% if n.link %}onclick="location.href='{{ n.link }}'" style="cursor:pointer"{% endif %}>
+    <div class="d-top">
+      <span class="tag">{{ n.kind or '알림' }}</span>
+      <b>{{ n.title }}</b>
+    </div>
+    {% if n.body %}<div class="d-meta">{{ n.body }}</div>{% endif %}
+    <div class="d-meta">{{ n.created_at }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# 2026-04-27 사이클53 — 6번째 패널: 안전재고 알림 (Top 5) #}
+<div class="section-head"><h2>안전재고 알림 (Top 5)</h2></div>
+{% if not safety_top5 %}
+<div class="empty">부족 부품 없음 (재발주 추천 0건)</div>
+{% else %}
+<table class="mini-tbl">
+  <thead>
+    <tr>
+      <th>품번</th><th>품명</th>
+      <th class="num">현재고</th><th class="num">안전재고</th><th class="num st-delay">부족분</th>
+      <th>우선</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in safety_top5 %}
+    <tr onclick="location.href='/stock/reorder-recommendations'" style="cursor:pointer">
+      <td><b>{{ s.part_no }}</b></td>
+      <td>{{ s.part_name }}</td>
+      <td class="num">{{ '%.0f'|format(s.on_hand) }}</td>
+      <td class="num">{{ '%.0f'|format(s.safety_stock) }}</td>
+      <td class="num st-delay">{{ '%.0f'|format(s.short) }}</td>
+      <td><span class="tag">{{ s.priority }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<div class="kpi-grid">
+  <a href="/stock/safety" class="kpi-card kpi-link"><div class="kpi-lab">전체 안전재고</div></a>
+  <a href="/stock/reorder-recommendations" class="kpi-card kpi-link"><div class="kpi-lab">재발주 추천</div></a>
+</div>
+
+<div class="section-head"><h2>빠른 액션</h2></div>
+<div class="kpi-grid">
+  <a href="/sales" class="kpi-card kpi-link"><div class="kpi-lab">매출 라이프사이클</div></a>
+  <a href="/parts" class="kpi-card kpi-link"><div class="kpi-lab">재고·자재</div></a>
+  <a href="/admin/permissions" class="kpi-card kpi-link"><div class="kpi-lab">권한 위임</div></a>
+  <a href="/export" class="kpi-card kpi-link"><div class="kpi-lab">수출입</div></a>
+  <a href="/qms/dashboard" class="kpi-card kpi-link"><div class="kpi-lab">QMS 품질</div></a>
+  <a href="/progress/gantt" class="kpi-card kpi-link"><div class="kpi-lab">간트·번다운</div></a>
+  <a href="/rates/dashboard" class="kpi-card kpi-link"><div class="kpi-lab">환율</div></a>
+  <a href="/weekly" class="kpi-card kpi-link"><div class="kpi-lab">주간 보고</div></a>
+</div>
+{% endif %}
+
+<div class="kpi-grid">
+  <a href="/admin/reminders" class="kpi-card kpi-primary kpi-link">
+    <div class="kpi-num">{{ participation_rate }}%</div>
+    <div class="kpi-lab">{{ i.today_rate|default('오늘 참여율') }}</div>
+    <div class="kpi-sub">{{ today_reporters }}{{ i.member_count|default('명') }} / {{ total_users }}{{ i.member_count|default('명') }}</div>
+  </a>
+  <a href="/summary?scope=all&period=weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ total_stats.total }}</div>
+    <div class="kpi-lab">{{ i.week_cards|default('주간 카드수') }}</div>
+  </a>
+  <a href="/history?status=완료" class="kpi-card st-done kpi-link">
+    <div class="kpi-num">{{ total_stats.done }}</div>
+    <div class="kpi-lab">{{ i.week_done|default('주간 완료') }}</div>
+  </a>
+  <a href="/history?status=진행중" class="kpi-card st-progress kpi-link">
+    <div class="kpi-num">{{ total_stats.progress }}</div>
+    <div class="kpi-lab">{{ i.week_progress|default('주간 진행중') }}</div>
+  </a>
+  <a href="/bottlenecks" class="kpi-card st-delay kpi-link">
+    <div class="kpi-num">{{ total_stats.delay }}</div>
+    <div class="kpi-lab">{{ i.week_delay|default('주간 지연') }}</div>
+  </a>
+  <a href="/weekly" class="kpi-card kpi-link">
+    <div class="kpi-num">{{ '%.0f'|format(total_stats.hours) }}h</div>
+    <div class="kpi-lab">{{ i.week_hours|default('주간 누적 공수') }}</div>
+  </a>
+</div>
+
+{% if narratives %}
+<div class="section-head"><h2>{{ i.narrative_title|default('📖 지금 전사에서 진행중인 핵심 업무') }}</h2></div>
+<div class="narrative-grid">
+  {% for n in narratives %}
+  <div class="narr-card">
+    <div class="narr-team">{{ n.team.name }}</div>
+    {% for c in n.cards %}
+    <div class="narr-item {% if c.status=='지연' %}narr-delay{% endif %}" {% if c.id %}onclick="openCardModal({{ c.id }})" style="cursor:pointer"{% endif %}>
+      <span class="tag tag-{{ c.status }}">{{ c.status }}</span>
+      <b>{{ c.user_name }}</b> <span class="narr-rank">{{ c.rank or '' }}</span> —
+      <span class="narr-title">{{ c.title }}</span>
+      {% if c.project_name %}<div class="narr-pj">📋 {{ c.project_name }}</div>{% endif %}
+      {% if c.next_plan %}<div class="narr-next">📌 {{ c.next_plan }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="section-head"><h2>{{ i.teams_status|default('14개 팀 현황 (주간)') }}</h2></div>
+<div class="team-tbl">
+  <table>
+    <colgroup>
+      <col style="width:6%"><col style="width:16%"><col style="width:12%"><col style="width:5%">
+      <col style="width:8%"><col style="width:13%"><col style="width:7%"><col style="width:6%">
+      <col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:8%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>{{ i.col_code|default('코드') }}</th><th>{{ i.col_team_name|default('팀명') }}</th><th>{{ i.col_leader|default('팀장') }}</th><th>{{ i.col_members|default('인원') }}</th>
+        <th>{{ i.col_today_report|default('오늘 작성') }}</th><th>{{ i.col_participation|default('참여율') }}</th>
+        <th>{{ i.col_week_cards|default('주간 카드') }}</th><th class="st-done">{{ i.kpi_done|default('완료') }}</th><th class="st-progress">{{ i.kpi_progress|default('진행') }}</th><th class="st-delay">{{ i.kpi_delay|default('지연') }}</th>
+        <th>{{ i.hours|default('공수') }}</th><th>{{ i.col_view|default('바로가기') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in teams %}
+      <tr>
+        <td>{{ t.code }}</td>
+        <td>
+          <b>{{ t.name }}</b>
+          {% if t.is_lab %}<span class="lab-badge">{{ i.lab_badge|default('연구소') }}</span>{% endif %}
+          <div class="team-sector">{{ t.sector }}</div>
+        </td>
+        <td>{{ t.leader_name or '-' }} <span class="small">{{ t.leader_rank or '' }}</span></td>
+        <td class="num">{{ t.member_count }}</td>
+        <td class="num">{{ t.reported }}/{{ t.member_count }}</td>
+        <td class="num">
+          <div class="part-bar"><div class="part-fill" style="width:{{ t.participation }}%"></div></div>
+          <span>{{ t.participation }}%</span>
+        </td>
+        <td class="num">{{ t.week_stats.total }}</td>
+        <td class="num st-done">{{ t.week_stats.done }}</td>
+        <td class="num st-progress">{{ t.week_stats.progress }}</td>
+        <td class="num st-delay">{{ t.week_stats.delay }}</td>
+        <td class="num">{{ '%.0f'|format(t.week_stats.hours) }}h</td>
+        <td><a href="/team/{{ today_s }}?team_id={{ t.id }}" class="btn-xs">{{ i.view_btn|default('보기') }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="section-head"><h2>{{ i.delay_top10|default('이번 주 지연 업무 TOP 10') }}</h2></div>
+    {% if not delays %}
+    <div class="empty">{{ i.no_delay|default('지연 업무 없음') }}</div>
+    {% else %}
+    <div class="delay-list">
+      {% for d in delays %}
+      <div class="delay-item" onclick="openCardModal({{ d.id }})" style="cursor:pointer">
+        <div class="d-top">
+          <span class="tag tag-지연">{{ i.kpi_delay|default('지연') }}</span>
+          <b>{{ d.title }}</b>
+        </div>
+        <div class="d-meta">
+          {{ d.team_name }} · {{ d.user_name }}
+          {% if d.project_name %} · 📋 {{ d.project_name }}{% endif %}
+          {% if d.customer_name %} · 🏢 {{ d.customer_name }}{% endif %}
+          · {{ d.work_date }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <div class="section-head"><h2>{{ i.customer_hours|default('고객사별 주간 공수 TOP 10') }}</h2></div>
+    {% if not customers %}
+    <div class="empty">{{ i.no_data|default('데이터 없음') }}</div>
+    {% else %}
+    <table class="mini-tbl">
+      <thead><tr><th>{{ i.customer|default('고객사') }}</th><th>{{ i.card_label|default('카드') }}</th><th>{{ i.hours|default('공수') }}</th></tr></thead>
+      <tbody>
+        {% for c in customers %}
+        <tr onclick="location.href='/customer/{{ c.customer_id }}'" style="cursor:pointer"><td><b>{{ c.customer_name }}</b></td><td class="num">{{ c.cnt }}</td><td class="num">{{ '%.0f'|format(c.hours) }}h</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

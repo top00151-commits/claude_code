@@ -1,137 +1,153 @@
-{% extends "base.html" %}
-{% set active = 'profile' %}
-{% block title %}{{ i.profile_title|default('내 계정') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.profile_title|default('내 프로필') }}</h1>
-    <div class="page-sub">{{ user.name }} {{ user.rank or '' }} · {{ user.team_name or '경영진' }} · {{ user.login_id }}</div>
-  </div>
-</div>
-
-{% if msg %}<div class="flash flash-ok">✅ {{ msg }}</div>{% endif %}
-{% if err %}<div class="flash flash-err">❌ {{ err }}</div>{% endif %}
-
-<!-- 활동 KPI 6 -->
-<div class="kpi-row" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0">
-  <div class="kpi-card"><div class="kpi-label">최근 30일 작성 task</div><div class="kpi-value">{{ tasks_30d|default(0) }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-value">{{ tasks_open|default(0) }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">완료(30일)</div><div class="kpi-value">{{ tasks_done|default(0) }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">댓글(30일)</div><div class="kpi-value">{{ comments_30d|default(0) }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">알림(30일)</div><div class="kpi-value">{{ notifs_30d|default(0) }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">읽지 않음</div><div class="kpi-value">{{ notifs_unread|default(0) }}</div></div>
-</div>
-
-<div class="profile-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-  <!-- 좌: 본인 정보 + 수정 -->
-  <div>
-    <div class="profile-card">
-      <div class="profile-head"><b>👤 본인 정보</b></div>
-      <div class="profile-info">
-        <div class="pi-row"><span class="pi-k">{{ i.admin_name|default('이름') }}</span><span class="pi-v">{{ user.name }}</span></div>
-        <div class="pi-row"><span class="pi-k">{{ i.admin_rank|default('직급') }}</span><span class="pi-v">{{ user.rank or '-' }}</span></div>
-        <div class="pi-row"><span class="pi-k">{{ i.ck_col_team|default('팀') }}</span><span class="pi-v">{{ user.team_name or '경영진' }}</span></div>
-        <div class="pi-row"><span class="pi-k">{{ i.admin_login_id|default('로그인ID') }}</span><span class="pi-v">{{ user.login_id }}</span></div>
-        <div class="pi-row"><span class="pi-k">{{ i.admin_role|default('권한') }}</span><span class="pi-v">{{ user.role }}</span></div>
-        <div class="pi-row"><span class="pi-k">이메일</span><span class="pi-v">{{ user.email or '-' }}</span></div>
-        <div class="pi-row"><span class="pi-k">언어</span><span class="pi-v">{{ user.lang or 'ko' }}</span></div>
-      </div>
-    </div>
-
-    <!-- 본인 정보 수정 -->
-    <div class="profile-card" style="margin-top:12px">
-      <div class="profile-head"><b>✏️ 정보 수정</b><div class="profile-sub">이메일·언어 (본인 한정)</div></div>
-      <form method="post" action="/me" class="profile-form">
-        <label>이메일</label>
-        <input type="email" name="email" value="{{ user.email or '' }}" maxlength="120">
-        <label>전화번호 <span class="hint">(스키마 보유 시만 저장)</span></label>
-        <input type="text" name="phone" value="{{ user.phone or '' }}" maxlength="30">
-        <label>부서 <span class="hint">(스키마 보유 시만 저장)</span></label>
-        <input type="text" name="dept" value="{{ user.dept or '' }}" maxlength="60">
-        <label>언어</label>
-        <select name="lang">
-          {% for code, label in LANGS.items() %}
-          <option value="{{ code }}" {% if (user.lang or 'ko') == code %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-        <div class="profile-btns">
-          <button type="submit" class="btn-primary">저장</button>
-        </div>
-      </form>
-    </div>
-
-    <!-- 비밀번호 변경 -->
-    <div class="profile-card" style="margin-top:12px">
-      <div class="profile-head">
-        <b>{{ i.profile_pw_title|default('🔐 비밀번호 변경') }}</b>
-        <div class="profile-sub">{{ i.profile_pw_hint|default('초기 비밀번호(knk+4자리)를 받으신 분은 반드시 본인만 아는 비밀번호로 변경해 주세요.') }}</div>
-      </div>
-      <form method="post" action="/profile/change-password" class="profile-form">
-        <label>{{ i.current_pw|default('현재 비밀번호') }}</label>
-        <input type="password" name="current_pw" required autocomplete="current-password">
-        <label>{{ i.new_pw|default('새 비밀번호') }} <span class="hint">{{ i.pw_min_hint|default('(6자 이상)') }}</span></label>
-        <input type="password" name="new_pw" required minlength="6" autocomplete="new-password">
-        <label>{{ i.new_pw_confirm|default('새 비밀번호 확인') }}</label>
-        <input type="password" name="confirm_pw" required minlength="6" autocomplete="new-password">
-        <div class="profile-btns">
-          <button type="submit" class="btn-primary">{{ i.change_btn|default('변경하기') }}</button>
-          <a href="/daily/{{ '' }}" class="btn-sm">{{ i.cancel|default('취소') }}</a>
-        </div>
-      </form>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>내 프로필 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.profile-hero { margin: 0 var(--content-pad); background: var(--grad-amber); color: white; border-radius: var(--radius-xl); padding: var(--space-6); display: flex; gap: 24px; align-items: center; position: relative; overflow: hidden; }
+.profile-hero::before { content: ""; position: absolute; top: -60px; right: -40px; width: 280px; height: 280px; background: var(--glow-amber-radial); opacity: 0.4; }
+.avatar-lg { width: 80px; height: 80px; background: white; color: var(--knk-red); border-radius: 50%; display: grid; place-items: center; font-size: 36px; font-weight: 700; flex-shrink: 0; box-shadow: 0 8px 22px rgba(0,0,0,0.18); position: relative; z-index: 1; }
+.profile-hero h1 { font-size: 26px; font-weight: 700; color: white; }
+.profile-hero p { color: rgba(255,255,255,0.85); margin-top: 4px; font-size: 13.5px; }
+.alert-msg { margin: 0 var(--content-pad) var(--space-3); padding: 12px 16px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; }
+.alert-msg.ok { background: rgba(122,155,92,0.12); color: var(--success); border: 1px solid var(--success); }
+.alert-msg.err { background: rgba(165,40,44,0.08); color: var(--knk-red); border: 1px solid var(--knk-red); }
+.grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--ink); }
+.field input, .field select { padding: 10px 12px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.field input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.tag { display: inline-block; padding: 3px 10px; background: var(--paper-2); color: var(--amber-deep); font-size: 11px; font-weight: 700; border-radius: var(--radius-full); margin: 2px; }
+@media (max-width: 1023px) { .grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">내 계정</div>
+      <h1 class="page-title">내 <em>프로필</em></h1>
     </div>
   </div>
 
-  <!-- 우: 활동 + 권한 -->
-  <div>
-    <!-- 최근 task 10건 -->
-    <div class="profile-card">
-      <div class="profile-head"><b>📋 최근 작성 task (10건)</b></div>
-      {% if recent_tasks and recent_tasks|length > 0 %}
-      <table class="t-list" style="width:100%;font-size:13px">
-        <thead><tr><th>일자</th><th>제목</th><th>상태</th><th>분류</th></tr></thead>
+  {% if msg %}<div class="alert-msg ok">✓ {{ msg }}</div>{% endif %}
+  {% if err %}<div class="alert-msg err">⚠ {{ err }}</div>{% endif %}
+
+  <!-- Hero -->
+  <div class="profile-hero">
+    <div class="avatar-lg">{{ user.name[0] if user.name else '?' }}</div>
+    <div style="position:relative;z-index:1;">
+      <h1>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</h1>
+      <p>{{ user.role|default('member')|upper }} · {{ user.team_name|default('—') }} · {{ user.login_id }}</p>
+      <p>{% if user.email %}📧 {{ user.email }}{% endif %}{% if user.phone %} · 📞 {{ user.phone }}{% endif %}</p>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="bento" style="margin-top: var(--space-4);">
+    <div class="kpi-card">
+      <div class="kpi-label">최근 30일 업무</div>
+      <div class="kpi-num">{{ tasks_30d }}</div>
+      <div class="kpi-trend up">완료 {{ tasks_done }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">진행 중 업무</div>
+      <div class="kpi-num">{{ tasks_open }}</div>
+      <div class="kpi-trend neutral">미완료</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">댓글 30일</div>
+      <div class="kpi-num">{{ comments_30d }}</div>
+      <div class="kpi-trend neutral">활동</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">미읽음 알림</div>
+      <div class="kpi-num" {% if notifs_unread > 0 %}style="color:var(--knk-red);"{% endif %}>{{ notifs_unread }}</div>
+      <div class="kpi-trend {% if notifs_unread > 0 %}alert{% else %}up{% endif %}">총 {{ notifs_30d }}건/30일</div>
+    </div>
+  </div>
+
+  <!-- 정보 수정 + 권한 -->
+  <div class="grid-2">
+    <div class="card">
+      <h2 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <span style="width:4px;height:16px;background:var(--amber);border-radius:2px;"></span>
+        기본 정보 수정
+      </h2>
+      <form method="post" action="/me">
+        <div class="field-row">
+          <div class="field"><label>이름</label><input type="text" value="{{ user.name }}" disabled style="background:var(--paper-2);"></div>
+          <div class="field"><label>사번</label><input type="text" value="{{ user.login_id }}" disabled style="background:var(--paper-2);"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>이메일</label><input type="email" name="email" value="{{ user.email|default('') }}" placeholder="name@knk.co.kr"></div>
+          <div class="field"><label>전화</label><input type="text" name="phone" value="{{ user.phone|default('') }}" placeholder="010-0000-0000"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>부서</label><input type="text" name="dept" value="{{ user.dept|default('') }}"></div>
+          <div class="field"><label>언어</label>
+            <select name="lang">
+              <option value="ko" {% if user.lang == 'ko' %}selected{% endif %}>한국어</option>
+              <option value="en" {% if user.lang == 'en' %}selected{% endif %}>English</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:10px;width:100%;">💾 변경사항 저장</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <span style="width:4px;height:16px;background:var(--knk-red);border-radius:2px;"></span>
+        권한 매트릭스
+      </h2>
+      {% if perms_direct %}
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--mute);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;">직접 ({{ perms_direct|length }})</div>
+        <div>{% for p in perms_direct %}<span class="tag">{{ p.label }}</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if perms_group %}
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--mute);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;">그룹 ({{ perms_group|length }})</div>
+        <div>{% for p in perms_group %}<span class="tag">{{ p.label }} <small>({{ p.group_name }})</small></span>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if tokens_received %}
+      <div>
+        <div style="font-size:11px;color:var(--mute);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;">위임받은 ({{ tokens_received|length }})</div>
+        <div>{% for t in tokens_received %}<span class="tag" style="background:rgba(165,40,44,0.08);color:var(--knk-red);">🔐 {{ t.label }} (←{{ t.from_name }})</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if not perms_direct and not perms_group and not tokens_received %}
+      <div style="font-size:13px;color:var(--mute);text-align:center;padding:20px;">권한 정보 없음</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 최근 업무 -->
+  {% if recent_tasks %}
+  <div class="section">
+    <h2>최근 업무 10건</h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>일자</th><th>제목</th><th>분류</th><th class="center">상태</th></tr></thead>
         <tbody>
-          {% for t in recent_tasks %}
-          <tr><td>{{ t.work_date }}</td><td>{{ t.title }}</td><td>{{ t.status }}</td><td>{{ t.category }}</td></tr>
-          {% endfor %}
+        {% for t in recent_tasks %}
+          <tr><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.work_date }}</td><td>{{ t.title }}</td><td><span class="pill pill-muted">{{ t.category|default('—') }}</span></td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td></tr>
+        {% endfor %}
         </tbody>
       </table>
-      {% else %}<div class="muted">최근 작성한 task 없음.</div>{% endif %}
     </div>
-
-    <!-- 최근 댓글 10건 -->
-    <div class="profile-card" style="margin-top:12px">
-      <div class="profile-head"><b>💬 최근 댓글 (10건)</b></div>
-      {% if recent_comments and recent_comments|length > 0 %}
-      <ul style="font-size:13px;margin:0;padding-left:18px">
-        {% for c in recent_comments %}
-        <li><b>{{ c.task_title|truncate(30) }}</b> — {{ c.body|truncate(50) }} <span class="muted">({{ c.created_at }})</span></li>
-        {% endfor %}
-      </ul>
-      {% else %}<div class="muted">최근 댓글 없음.</div>{% endif %}
-    </div>
-
-    <!-- 권한 매트릭스 1인 -->
-    <div class="profile-card" style="margin-top:12px">
-      <div class="profile-head"><b>🔑 권한 (본인 한정)</b><div class="profile-sub">D=직접 / G=그룹 / T=위임</div></div>
-      <div style="font-size:13px">
-        <p><b>D 직접:</b> {{ perms_direct|length }}건 — {% for p in perms_direct[:8] %}<span class="badge">{{ p.label }}</span>{% endfor %}{% if perms_direct|length > 8 %} … +{{ perms_direct|length - 8 }}{% endif %}</p>
-        <p><b>G 그룹 상속:</b> {{ perms_group|length }}건 — {% for p in perms_group[:8] %}<span class="badge">{{ p.label }} <span class="muted">({{ p.group_name }})</span></span>{% endfor %}{% if perms_group|length > 8 %} … +{{ perms_group|length - 8 }}{% endif %}</p>
-        <p><b>T 위임 받은:</b> {{ tokens_received|length }}건 — {% for p in tokens_received[:8] %}<span class="badge">{{ p.label }} <span class="muted">({{ p.from_name }})</span></span>{% endfor %}{% if tokens_received|length > 8 %} … +{{ tokens_received|length - 8 }}{% endif %}</p>
-        <p><b>위임한 토큰:</b> {{ tokens_granted|length }}건 — {% for p in tokens_granted[:8] %}<span class="badge">{{ p.label }} <span class="muted">→ {{ p.to_name }}</span></span>{% endfor %}{% if tokens_granted|length > 8 %} … +{{ tokens_granted|length - 8 }}{% endif %}</p>
-      </div>
-    </div>
-
-    <!-- 위임 받은 task -->
-    {% if task_delegs_in and task_delegs_in|length > 0 %}
-    <div class="profile-card" style="margin-top:12px">
-      <div class="profile-head"><b>🤝 위임 받은 task</b></div>
-      <ul style="font-size:13px;margin:0;padding-left:18px">
-        {% for d in task_delegs_in %}
-        <li><b>{{ d.task_title|truncate(30) }}</b> — {{ d.from_name }} ({{ d.status }}) <span class="muted">{{ d.created_at }}</span></li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
   </div>
+  {% endif %}
+
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
-{% endblock %}
+</body>
+</html>

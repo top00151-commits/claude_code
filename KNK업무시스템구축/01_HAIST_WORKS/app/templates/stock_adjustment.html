@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}재고 조정 승인 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재고 조정 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">재고 조정</div>
+      <h1 class="page-title">재고 조정</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>재고 조정 승인</h1>
   <p class="muted">실사 차이로부터 생성된 조정 행을 승인하면 stock_movements에 ADJUST 기록이 추가되어 재고가 갱신됩니다.</p>
@@ -45,7 +61,7 @@
 <div class="card" style="margin-bottom:14px;">
   <form method="get" action="/stock/adjustments" style="display:flex;gap:8px;align-items:center;">
     <label style="font-size:12px;font-weight:700;">상태 필터</label>
-    <select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid #D1D5DB;border-radius:6px;font-size:12px;">
+    <select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
       <option value="PENDING"  {% if filter_status=='PENDING'  %}selected{% endif %}>승인 대기</option>
       <option value="APPROVED" {% if filter_status=='APPROVED' %}selected{% endif %}>승인 완료</option>
       <option value="REJECTED" {% if filter_status=='REJECTED' %}selected{% endif %}>반려</option>
@@ -75,7 +91,7 @@
         <td>[{{ a.part_no }}] {{ a.part_name }}</td>
         <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.system_qty or 0) }}</td>
         <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.counted_qty or 0) }}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if a.adjusted_qty < 0 %}#DC2626{% else %}#059669{% endif %};">{{ "%+g"|format(a.adjusted_qty) }}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if a.adjusted_qty < 0 %}var(--knk-red){% else %}#059669{% endif %};">{{ "%+g"|format(a.adjusted_qty) }}</td>
         <td>{{ a.reason }}</td>
         <td>{{ a.created_by_name or '-' }}</td>
         <td><span class="chip">{{ a.status }}</span></td>
@@ -110,6 +126,10 @@
   </table>
   <p class="muted" style="margin-top:10px;font-size:11px;">승인 시 stock_movements 에 kind=ADJUST 행이 자동 생성되어 stock_balances 잔고가 즉시 반영됩니다. 증명서 첨부는 PDF/JPG/PNG/XLSX 10MB 이하 (외부 저장소 미사용).</p>
 </div>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

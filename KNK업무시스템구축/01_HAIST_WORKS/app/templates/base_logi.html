@@ -4,20 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}자재·구매 — {{ app_name|default('HAIST WORKS') }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/style.css?v=20260427cycle60-3hub">
-<link rel="stylesheet" href="/static/style_hubs.css?v=20260427cycle60-3hub">
+<!-- 🔥 v5 H5 (2026-05-01 link 순서 수정) -->
+<link rel="stylesheet" href="/static/style.css?v=20260501v5HERO">
+<link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260501v5HERO">
+<link rel="stylesheet" href="/static/css/v5_base.css?v=20260501v5HERO">
+<!-- v4 style_hubs.css 비활성 -->
+<style>
+.menu-code {
+  display: inline-block; padding: 1px 6px;
+  background: var(--paper-2, #F5EBD9); color: var(--amber-deep, #B8843A);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  border-radius: 4px; margin-left: 6px; vertical-align: 1px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.tb-icon-btn { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; cursor: pointer; font-size: 18px; color: var(--mute); transition: all 0.18s; border: 1px solid transparent; background: transparent; position: relative; }
+.tb-icon-btn:hover { background: var(--amber-glow); color: var(--amber-deep); border-color: var(--amber-light); }
+.ws-tabs a.active, .tb-tabs .tb-tab.active { background: var(--grad-amber); color: #fff !important; box-shadow: 0 4px 12px rgba(212,146,59,0.32); font-weight: 700; }
+</style>
 </head>
 <body class="logi-body" data-ws="{{ (current_workspace.key if current_workspace else 'logi') }}">
 
 {% if user %}
 <header class="topbar topbar-hub-logi">
+  {# G25 (2026-04-29 대표 지시): 마스트헤드 제거 #}
+  <div class="tb-main">
   <div class="tb-left">
     <button class="tb-menu-btn" onclick="toggleSidebar()" title="메뉴" aria-label="메뉴 열기">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <a href="/logistics" class="tb-brand">
       <div class="brand-logo-wrap">
-        <img src="/static/logo.png?v=20260427hub" alt="KNK HAIST Innovation" class="tb-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <img src="/static/logo.png?v=20260428hdr3" alt="KNK HAIST Innovation" class="tb-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <span class="tb-logo fallback" style="display:none">KNK</span>
       </div>
       <span class="tb-title-group">
@@ -25,6 +42,24 @@
         <span class="tb-subtitle">자재·구매 · 재고·입출고</span>
       </span>
     </a>
+
+    {# v3 (2026-04-28 대표 승인) — 워크스페이스 가로 탭 신규 #}
+    {% if workspaces and workspaces|length > 1 %}
+    
+    <nav class="ws-tabs" role="tablist" aria-label="워크스페이스 전환">
+      {% for w in workspaces %}
+      <a class="ws-tab {% if current_workspace and w.key == current_workspace.key %}active{% endif %}"
+         href="{{ w.href }}"
+         {% if w.external %}target="_blank" rel="noopener"{% endif %}
+         role="tab"
+         aria-selected="{% if current_workspace and w.key == current_workspace.key %}true{% else %}false{% endif %}"
+         title="{{ w.desc }}">
+        <span class="ws-ico" aria-hidden="true">{{ w.icon }}</span>
+        <span class="ws-name">{{ w.name }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    {% endif %}
   </div>
   <div class="tb-spacer"></div>
   <div class="tb-right">
@@ -32,10 +67,14 @@
     <button class="tb-icon-btn victor" id="victorTrigger" type="button" onclick="victorToggleDock()" title="빅터 (Ctrl+K)" aria-label="빅터" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg>
     </button>
-    <a href="/home" target="_blank" rel="noopener" class="tb-home-link" title="HAIST WORKS 메인 창 열기">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span>HAIST WORKS</span>
-    </a>
+    {# Phase 1 (2026-04-29 대표 결재) — 화면 도움말 ❓ #}
+    <button class="tb-icon-btn" id="menuHelpBtn" type="button" onclick="menuHelpToggle()"
+      title="{% if current_menu %}{{ current_menu.code }} {{ current_menu.label }}{% else %}이 화면 도움말{% endif %}" aria-label="이 화면 도움말">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </button>
+    {# v3 (2026-04-28) — "통합 메인" 링크 제거 (ws-tabs 로 흡수) #}
     <a href="/profile" class="tb-user-chip" title="내 계정">
       <div class="tb-avatar">{{ user.name[:1] }}</div>
       <div class="tb-user-info">
@@ -47,60 +86,61 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </a>
   </div>
+  </div>{# /tb-main (CX23c 2-row) #}
 </header>
 
 <div class="layout-wrap">
   <aside class="sidebar sidebar-logi" id="sidebar">
-    <div class="sb-toggle" onclick="toggleSidebar()" title="사이드바 접기/펼치기">◀</div>
+    {# 핫패치 2026-04-28 — sb-toggle 화살표 제거 (대표 직접 지시: 매출영업·자재구매 사이드바 삼각형 아이콘 삭제) #}
     {# C안 §3·§7-2 — 드래그 핸들 폐지 #}
     {# 사이클 60 — 매출·영업 그룹 제거 (base_sales.html 로 이전) #}
 
     {# 자재·구매 (구매팀·자재팀) (S3-C1 사이클65: 이모지 → 인라인 SVG package) #}
     <div class="sb-section">
-      <div class="sb-head" style="color:var(--sage-700);"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>자재·구매</div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>자재·구매</div>
       <a href="/logistics" class="sb-item {% if active=='logistics' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></span>
-        자재·구매 센터
+        자재·구매 센터 <span class="menu-code">M-02-01</span>
       </a>
       <a href="/parts" class="sb-item {% if active=='parts' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></span>
-        부품 마스터
+        부품 마스터 <span class="menu-code">M-02-02</span>
       </a>
       <a href="/suppliers" class="sb-item {% if active=='suppliers' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
-        공급사
+        공급사 <span class="menu-code">M-02-03</span>
       </a>
       <a href="/po" class="sb-item {% if active=='po' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        발주
+        발주 <span class="menu-code">M-02-05</span>
       </a>
       <a href="/production/work-orders" class="sb-item {% if active=='work_orders' %}sb-active{% endif %}" title="가공팀 작업지시서 (윤영조·이수빈)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-        가공 작업지시서
+        가공 작업지시서 <span class="menu-code">M-02-15</span>
       </a>
     </div>
 
     <div class="sb-section">
-      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>재고 · 입출고 <span style="background:var(--sage-100);color:var(--sage-700);font-size:var(--text-xs);padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>재고 · 입출고 <span style="background:var(--paper-2);color:var(--amber-deep);font-size:var(--text-xs);padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
       <a href="/stock/movements" class="sb-item {% if active=='stock' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
-        수불부 (입출고 원장)
+        수불부 (입출고 원장) <span class="menu-code">M-02-07</span>
       </a>
-      <a href="/stock/issue" class="sb-item">
+      <a href="/stock/issue" class="sb-item {% if active=='stock_issue' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
-        출고 등록
+        출고 등록 <span class="menu-code">M-02-08</span>
       </a>
-      <a href="/stock/adjust" class="sb-item">
+      <a href="/stock/adjust" class="sb-item {% if active=='stock_adjust' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/></svg></span>
-        실사 조정
+        실사 조정 <span class="menu-code">M-02-09</span>
       </a>
     </div>
 
     <div class="sb-section">
-      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>동적 변수 <span style="background:var(--sage-100);color:var(--sage-700);font-size:var(--text-xs);padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
+      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>동적 변수 <span style="background:var(--paper-2);color:var(--amber-deep);font-size:var(--text-xs);padding:2px 7px;border-radius:999px;font-weight:800;">신규</span></div>
       <a href="/rates" class="sb-item {% if active=='rates' %}sb-active{% endif %}">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-        환율 관리
+        환율 관리 <span class="menu-code">M-02-13</span>
       </a>
       {% if user.role in ['admin', 'finance', 'ceo', 'executive'] %}
       <a href="/fx/rates" class="sb-item {% if active=='fx_rates' %}sb-active{% endif %}">
@@ -110,21 +150,7 @@
       {% endif %}
     </div>
 
-    <div class="sb-section">
-      <div class="sb-head"><span class="sb-group-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></span>이동</div>
-      <a href="/home" class="sb-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
-        통합 메인 ↗
-      </a>
-      <a href="/sales" class="sb-item">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        매출·영업 Hub ↗
-      </a>
-      <a href="/guide" class="sb-item" title="KNK HAIST WORKS 사용 가이드 (사이클 73)">
-        <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
-        📖 사용 가이드
-      </a>
-    </div>
+    {# v3 (2026-04-28 대표 지시) — "이동" 섹션 제거: 워크스페이스 탭(상단)이 통합/매출/자재 모두 흡수 · 사용가이드는 통합 메인 사이드바에서 새창 열기 #}
   </aside>
 
   <div class="main-wrap">
@@ -174,6 +200,21 @@ function toggleSidebar(){
         </button>
       </div>
     </div>
+  </div>
+
+  {# v3 (2026-04-28 대표 승인) — 도크 모드 탭 (빅터 ↔ 검색 분리) #}
+  <div class="dock-modes" role="tablist" aria-label="도크 모드 전환">
+    <button type="button" class="dock-mode-tab active" data-mode="victor" role="tab" aria-selected="true" onclick="setDockMode('victor')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      💬 빅터에게 묻기
+    </button>
+    <button type="button" class="dock-mode-tab" data-mode="search" role="tab" aria-selected="false" onclick="setDockMode('search')">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+      🔍 검색
+    </button>
+  </div>
+
+  <div class="dock-mode-panel active" data-mode-panel="victor">
     {% if victor_chips %}
     <div class="dock-ctx">
       <span class="dock-ctx-label">이 화면에서 자주 묻는 것</span>
@@ -184,25 +225,24 @@ function toggleSidebar(){
       </div>
     </div>
     {% endif %}
-  </div>
-  <div class="dock-body" id="dockBody">
-    <div class="dock-welcome" id="dockWelcome">
-      <span class="emoji">👋</span>
-      <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
-        {{ user.name }}님, 무엇을 도와드릴까요?
+    <div class="dock-body" id="dockBody">
+      <div class="dock-welcome" id="dockWelcome">
+        <span class="emoji">👋</span>
+        <div style="font-size:var(--fs-fluid-md);font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">
+          {{ user.name }}님, 무엇을 도와드릴까요?
+        </div>
+        자연어로 편하게 물어보세요.<br>
+        메뉴를 찾을 필요 없습니다.
       </div>
-      자연어로 편하게 물어보세요.<br>
-      메뉴를 찾을 필요 없습니다.
     </div>
-  </div>
-  <div class="dock-input-wrap">
-    <div class="dock-quick">
-      <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
-      <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
-      <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
-      <button type="button" onclick="victorAsk('안전재고 미달')">안전재고</button>
-      <button type="button" onclick="victorAsk('결재')">결재</button>
-    </div>
+    <div class="dock-input-wrap">
+      <div class="dock-quick">
+        <button type="button" onclick="victorAsk('내 할 일')">내 할 일</button>
+        <button type="button" onclick="victorAsk('이번달 매출')">이번달 매출</button>
+        <button type="button" onclick="victorAsk('미해결 이슈')">미해결 이슈</button>
+        <button type="button" onclick="victorAsk('안전재고 미달')">안전재고</button>
+        <button type="button" onclick="victorAsk('결재')">결재</button>
+      </div>
     <div class="dock-input-row">
       <textarea class="dock-input" id="dockInput" rows="1" placeholder="빅터에게 물어보세요..." oninput="victorAutoGrow(this)"></textarea>
       <button class="dock-send" type="button" onclick="victorSubmit()" title="보내기 (Enter)">
@@ -212,8 +252,52 @@ function toggleSidebar(){
     <div class="dock-foot">
       <kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈 · <kbd>Esc</kbd> 접기
     </div>
+    </div>
+  </div>
+
+  {# 모드: 검색 #}
+  <div class="dock-mode-panel" data-mode-panel="search">
+    <div class="dock-search-wrap">
+      <div class="search-hint">업무 · 사람 · 문서 검색</div>
+      <form class="dock-search" action="/search" method="get" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <label for="gSearchInput" class="sr-only">검색</label>
+        <input type="search" name="q" id="gSearchInput" placeholder="검색어 입력 후 Enter..." autocomplete="off">
+        <span class="shortcut">/</span>
+      </form>
+    </div>
+    <div class="dock-search-empty">
+      <span class="empty-ico">🔍</span>
+      검색어를 입력하면 결과가 표시됩니다<br>
+      <span style="font-size:11px;color:var(--ink-4,#8FA594)">예: "삼성", "라벨링", "김재훈", "발주서"</span>
+    </div>
   </div>
 </aside>
+
+<script>
+/* v3 (2026-04-28) — 빅터 도크 모드 탭 전환 (Logi Hub 독립) */
+function setDockMode(mode){
+  document.querySelectorAll('.dock-mode-tab').forEach(function(t){
+    var a = t.dataset.mode === mode;
+    t.classList.toggle('active', a);
+    t.setAttribute('aria-selected', a ? 'true' : 'false');
+  });
+  document.querySelectorAll('.dock-mode-panel').forEach(function(p){
+    p.classList.toggle('active', p.dataset.modePanel === mode);
+  });
+  if (mode === 'search') {
+    setTimeout(function(){ var i = document.getElementById('gSearchInput'); if (i) { i.focus(); i.select(); } }, 100);
+  }
+}
+document.addEventListener('keydown', function(e){
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  var t = (e.target.tagName || '').toLowerCase();
+  if (t === 'input' || t === 'textarea' || t === 'select' || e.target.isContentEditable) return;
+  e.preventDefault();
+  if (!document.body.classList.contains('dock-open') && typeof victorToggleDock === 'function') victorToggleDock();
+  setTimeout(function(){ setDockMode('search'); }, 280);
+});
+</script>
 
 <script>
 /* base_logi 페이지용 Victor 도크 JS — base.html 과 동일 로직 (독립 실행 페이지이므로 재정의) */
@@ -234,11 +318,11 @@ function victorAppendAi(r){const body=document.getElementById('dockBody');if(!bo
   if(r.type==='guide_step'){textHtml=(r.text||'').split('\n').map(l=>{const m=l.match(/^(\d+)\.\s*(.+)$/);if(m)return'<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;"><div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+m[1]+'</div><div style="flex:1;padding-top:1px;">'+bold(esc(m[2]))+'</div></div>';return'<div style="margin:3px 0;">'+bold(esc(l))+'</div>';}).join('');}
   else textHtml=(r.text||'').split('\n').map(esc).map(bold).join('<br>');
   const linksHtml=(r.links||[]).map(l=>{const cls=l.style==='primary'?'primary':(l.style==='do'?'do':'secondary');const h=(l.href||'#').replace(/"/g,'&quot;');const da=l.style==='do'?' data-do="1"':'';return'<a class="link-chip '+cls+'" href="'+h+'"'+da+'>'+esc(l.label||'')+'</a>';}).join('');
-  let countdownHtml='';if(r.type==='guide_step'&&r.auto_redirect){countdownHtml='<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="color:#92400E;">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">'+esc(r.auto_redirect)+'</span></div><button onclick="victorCancelRedirect()" style="background:#fff;color:#92400E;border:1px solid #F59E0B;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';}
+  let countdownHtml='';if(r.type==='guide_step'&&r.auto_redirect){countdownHtml='<div id="victorCountdown" style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border-left:3px solid var(--amber);border-radius:6px;font-size:var(--fs-fluid-xs);display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="color:var(--amber-deep);">⏱ <strong id="vcSec">3</strong>초 후 자동 이동 → <span style="font-weight:700;">'+esc(r.auto_redirect)+'</span></div><button onclick="victorCancelRedirect()" style="background:#fff;color:var(--amber-deep);border:1px solid var(--amber);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">취소</button></div>';}
   body.insertAdjacentHTML('beforeend','<div class="msg ai"><div class="bubble"><div class="title">'+ico+' '+esc(r.title||'')+'</div><div class="text">'+textHtml+'</div>'+(linksHtml?'<div class="links">'+linksHtml+'</div>':'')+countdownHtml+'</div></div>');
   body.scrollTop=body.scrollHeight;
   if(r.type==='guide_step'&&r.auto_redirect){let sec=3;VICTOR_REDIRECT_TIMER=setInterval(()=>{sec--;const el=document.getElementById('vcSec');if(el)el.textContent=sec;if(sec<=0){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;window.location.href=r.auto_redirect;}},1000);}}
-function victorCancelRedirect(){if(VICTOR_REDIRECT_TIMER){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;}const c=document.getElementById('victorCountdown');if(c){c.innerHTML='<span style="color:#6B7280;">✓ 자동 이동 취소됨</span>';c.style.background='#F3F4F6';c.style.borderLeftColor='#9CA3AF';}}
+function victorCancelRedirect(){if(VICTOR_REDIRECT_TIMER){clearInterval(VICTOR_REDIRECT_TIMER);VICTOR_REDIRECT_TIMER=null;}const c=document.getElementById('victorCountdown');if(c){c.innerHTML='<span style="color:var(--mute);">✓ 자동 이동 취소됨</span>';c.style.background='var(--paper-2)';c.style.borderLeftColor='var(--mute-2)';}}
 function victorClearChat(){const body=document.getElementById('dockBody');if(body)body.innerHTML='<div class="dock-welcome" id="dockWelcome"><span class="emoji">👋</span><div style="font-weight:var(--fw-bold);color:var(--ink-900);margin-bottom:var(--s-2);">대화가 초기화되었습니다</div>다시 물어보세요.</div>';}
 document.addEventListener('click',function(e){const a=e.target.closest('.link-chip');if(!a)return;if(a.dataset.do==='1'){e.preventDefault();const href=a.getAttribute('href')||'#';if(!confirm('"'+a.textContent.trim()+'" 실행하시겠습니까?'))return;if(href==='#'||href.startsWith('javascript:')){alert('실행 API가 아직 연결되지 않았습니다.');return;}fetch(href,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.ok?alert('✓ 실행 완료'):alert('실패: '+r.status)).catch(err=>alert('오류: '+err));}});
 document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();victorToggleDock();return;}if(e.key==='Escape'&&document.body.classList.contains('dock-open')){if(document.activeElement&&document.activeElement.id==='dockInput'&&document.activeElement.value){document.activeElement.blur();return;}victorToggleDock();}});
@@ -250,6 +334,69 @@ document.addEventListener('DOMContentLoaded',function(){const inp=document.getEl
 body.dock-open .topbar-hub-logi{padding-right:420px;transition:padding-right 400ms cubic-bezier(0.33,1,0.68,1);}
 @media(max-width:1023px){body.dock-open .topbar-hub-logi{padding-right:0;}}
 </style>
+
+{# Phase 1 (2026-04-29 대표 결재) — 빅터 라우팅 가로채기 + ❓ popover #}
+<script>
+(function(){
+  const _origAsk = window.victorAsk;
+  if (typeof _origAsk === 'function') {
+    window.victorAsk = async function(q){
+      try {
+        const rr = await fetch('/victor/route', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({q:q})});
+        const jr = await rr.json();
+        if (jr && jr.ok && jr.candidates && jr.candidates.length > 0) {
+          const body = document.getElementById('dockBody');
+          const welcome = document.getElementById('dockWelcome');
+          if (welcome) welcome.remove();
+          const esc = (s) => (s||'').toString().replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+          body.insertAdjacentHTML('beforeend', '<div class="msg user"><div class="bubble">'+esc(q)+'</div></div>');
+          if (jr.auto_navigate) {
+            const m = {code:jr.code,label:jr.label,path:jr.path,tip:jr.tip};
+            body.insertAdjacentHTML('beforeend', '<div class="msg ai"><div class="bubble">🎯 <a href="'+esc(m.path)+'" style="color:var(--knk-red);font-weight:700">['+esc(m.code)+'] '+esc(m.label)+' →</a><br><span style="font-size:12px;color:#666">'+esc(m.tip)+'</span><br><span id="vrCount" style="font-size:11px;color:#999">3초 후 자동 이동…</span></div></div>');
+            body.scrollTop = body.scrollHeight;
+            let n=3; if(window.VICTOR_REDIRECT_TIMER) clearInterval(window.VICTOR_REDIRECT_TIMER);
+            window.VICTOR_REDIRECT_TIMER = setInterval(()=>{n--; const el=document.getElementById('vrCount'); if(el)el.textContent=n+'초 후 자동 이동…'; if(n<=0){clearInterval(window.VICTOR_REDIRECT_TIMER); window.VICTOR_REDIRECT_TIMER=null; window.location.href=m.path;}},1000);
+          } else {
+            let html = '🔎 <strong>'+esc(jr.msg)+'</strong><ul style="margin:6px 0;padding-left:18px;list-style:none">';
+            for (const c of jr.candidates) html += '<li style="margin:4px 0"><a href="'+esc(c.path)+'" style="color:var(--knk-red);font-weight:600">['+esc(c.code)+'] '+esc(c.label)+' →</a><br><span style="font-size:11px;color:#666">'+esc(c.tip)+'</span></li>';
+            html += '</ul>';
+            body.insertAdjacentHTML('beforeend', '<div class="msg ai"><div class="bubble">'+html+'</div></div>');
+            body.scrollTop = body.scrollHeight;
+          }
+          return;
+        }
+      } catch(e){}
+      return _origAsk.call(this, q);
+    };
+  }
+})();
+
+let _menuHelpEl_h = null;
+function menuHelpToggle(){
+  if (_menuHelpEl_h && _menuHelpEl_h.parentNode){ _menuHelpEl_h.remove(); _menuHelpEl_h=null; return; }
+  const path = window.location.pathname;
+  fetch('/api/menu-help?path='+encodeURIComponent(path)).then(r=>r.json()).then(j=>{
+    const esc = (s)=>(s||'').toString().replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    let html='';
+    if (j.ok){
+      const aliases = (j.aliases||[]).map(a=>'<span style="display:inline-block;background:var(--paper-2);color:var(--ink);padding:2px 8px;border-radius:4px;font-size:11px;margin:2px 4px 2px 0">'+esc(a)+'</span>').join('');
+      html = '<div style="font-weight:800;color:var(--knk-red);font-size:13px;margin-bottom:4px">['+esc(j.code)+'] '+esc(j.label)+'</div>'
+        + '<div style="color:#1F2937;font-size:13px;line-height:1.5;margin-bottom:8px">'+esc(j.tip)+'</div>'
+        + '<div style="color:var(--mute);font-size:11px;margin-bottom:6px">주 사용자: '+esc(j.persona)+'</div>'
+        + (aliases? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)"><span style="font-size:10px;color:var(--mute-2);margin-right:4px">빅터 호출 키워드</span>'+aliases+'</div>' : '')
+        + '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute-2)">💡 빅터에게 "'+esc(j.label)+'"라고 말하면 이 화면이 열립니다.</div>';
+    } else {
+      html = '<div style="color:var(--mute);font-size:13px">'+esc(j.msg||'도움말 없음')+'</div><div style="margin-top:8px;font-size:11px;color:var(--mute-2)">URL: '+esc(path)+'</div>';
+    }
+    const el = document.createElement('div');
+    el.id='menuHelpPop';
+    el.style.cssText='position:fixed;top:64px;right:200px;width:340px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,0.15);padding:14px 16px;z-index:10000;border-left:4px solid var(--knk-red);font-family:inherit';
+    el.innerHTML = html + '<button onclick="menuHelpToggle()" style="position:absolute;top:6px;right:8px;background:none;border:0;font-size:16px;cursor:pointer;color:var(--mute-2)">×</button>';
+    document.body.appendChild(el); _menuHelpEl_h = el;
+    setTimeout(()=>{const co=(ev)=>{if(_menuHelpEl_h && !_menuHelpEl_h.contains(ev.target) && ev.target.id!=='menuHelpBtn'){_menuHelpEl_h.remove(); _menuHelpEl_h=null; document.removeEventListener('click', co);}}; document.addEventListener('click', co);},100);
+  });
+}
+</script>
 {% endif %}
 
 </body>

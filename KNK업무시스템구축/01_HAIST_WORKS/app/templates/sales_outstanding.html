@@ -1,7 +1,23 @@
-{% extends "base_sales.html" %}
-{% block title %}미수금 추적 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>미수금 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">미수금</div>
+      <h1 class="page-title">미수금</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 {# Top3-S1-4차 미수금 대시 — 등급별 KPI + 상세 테이블 #}
 {# 외부 차트 0건 · CSS bar · v2 본체 무수정 #}
 
@@ -15,7 +31,7 @@
 <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
   <a href="/sales" class="btn btn-ghost">매출 홈</a>
   <a href="/sales/dashboard" class="btn btn-ghost">강화 대시</a>
-  <a href="/sales/outstanding" class="btn" style="background:#A5282C;color:#fff;border:none;">미수금</a>
+  <a href="/sales/outstanding" class="btn" style="background:var(--knk-red);color:#fff;border:none;">미수금</a>
   <a href="/sales/aging" class="btn btn-ghost">연체 분석</a>
   <button onclick="checkAlerts()" class="btn btn-ghost">수금 알림 트리거</button>
 </div>
@@ -23,10 +39,10 @@
 {# 등급별 KPI 5 #}
 <div class="kpi-row">
   <div class="kpi"><div class="kpi-label">총 미수금</div>
-    <div class="kpi-value" style="font-size:20px;color:#DC2626;">{{ won(summary.total) }}</div>
+    <div class="kpi-value" style="font-size:20px;color:var(--knk-red);">{{ won(summary.total) }}</div>
     <div class="kpi-sub">{{ summary.n_total }}건</div></div>
   <div class="kpi"><div class="kpi-label">CURRENT (미만기)</div>
-    <div class="kpi-value" style="font-size:20px;color:#16A34A;">{{ won(summary.by_grade['CURRENT']) }}</div>
+    <div class="kpi-value" style="font-size:20px;color:var(--success);">{{ won(summary.by_grade['CURRENT']) }}</div>
     <div class="kpi-sub">{{ summary.counts['CURRENT'] }}건</div></div>
   <div class="kpi"><div class="kpi-label">D-30 (1~30일)</div>
     <div class="kpi-value" style="font-size:20px;color:#D97706;">{{ won(summary.by_grade['D-30']) }}</div>
@@ -43,8 +59,8 @@
 <div class="card" style="margin-top:14px;">
   <h2 style="margin:0 0 10px;font-size:15px;font-weight:800;">등급별 분포 (금액)</h2>
   {% if summary.total > 0 %}
-  <div style="display:flex;height:24px;border-radius:6px;overflow:hidden;background:#F3F4F6;">
-    {% for g, color in [('CURRENT','#16A34A'),('D-30','#D97706'),('D-60','#EA580C'),('D-90+','#B91C1C')] %}
+  <div style="display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--paper-2);">
+    {% for g, color in [('CURRENT','var(--success)'),('D-30','#D97706'),('D-60','#EA580C'),('D-90+','#B91C1C')] %}
       {% set pct = (summary.by_grade[g] / summary.total * 100.0) if summary.total > 0 else 0 %}
       {% if pct > 0 %}
       <div style="width:{{ pct }}%;background:{{ color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;" title="{{ g }} {{ '%.1f'|format(pct) }}%">
@@ -53,7 +69,7 @@
       {% endif %}
     {% endfor %}
   </div>
-  <p class="muted" style="margin-top:8px;font-size:12px;">연체율 (D-30 이상 비중): <strong style="color:#DC2626;">{{ "%.1f"|format(summary.overdue_rate) }}%</strong></p>
+  <p class="muted" style="margin-top:8px;font-size:12px;">연체율 (D-30 이상 비중): <strong style="color:var(--knk-red);">{{ "%.1f"|format(summary.overdue_rate) }}%</strong></p>
   {% else %}
   <p class="muted">미수금 없음 — 모든 수주가 결제 완료 또는 미청구 상태.</p>
   {% endif %}
@@ -66,7 +82,7 @@
   <div style="overflow-x:auto;">
   <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
-      <tr style="background:#F9FAFB;border-bottom:2px solid #E5E7EB;">
+      <tr style="background:var(--paper);border-bottom:2px solid var(--line);">
         <th style="text-align:left;padding:8px;">등급</th>
         <th style="text-align:left;padding:8px;">수주번호</th>
         <th style="text-align:left;padding:8px;">거래처</th>
@@ -81,14 +97,14 @@
     </thead>
     <tbody>
     {% for it in items %}
-      {% set grade_color = {'CURRENT':'#16A34A','D-30':'#D97706','D-60':'#EA580C','D-90+':'#B91C1C'}[it.grade] %}
-      <tr style="border-bottom:1px solid #F3F4F6;">
+      {% set grade_color = {'CURRENT':'var(--success)','D-30':'#D97706','D-60':'#EA580C','D-90+':'#B91C1C'}[it.grade] %}
+      <tr style="border-bottom:1px solid var(--paper-2);">
         <td style="padding:8px;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;background:{{ grade_color }};color:#fff;font-size:11px;font-weight:700;">{{ it.grade }}</span></td>
-        <td style="padding:8px;font-family:monospace;"><a href="/sales/orders/{{ it.order_id }}" style="color:#A5282C;">{{ it.order_no or '#' ~ it.order_id }}</a></td>
+        <td style="padding:8px;font-family:monospace;"><a href="/sales/orders/{{ it.order_id }}" style="color:var(--knk-red);">{{ it.order_no or '#' ~ it.order_id }}</a></td>
         <td style="padding:8px;">{{ it.customer_name }}</td>
         <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(it.total_amount) }}</td>
-        <td style="padding:8px;text-align:right;color:#16A34A;">{{ "{:,.0f}".format(it.paid_total) }}</td>
-        <td style="padding:8px;text-align:right;font-weight:700;color:#DC2626;">{{ "{:,.0f}".format(it.outstanding) }}</td>
+        <td style="padding:8px;text-align:right;color:var(--success);">{{ "{:,.0f}".format(it.paid_total) }}</td>
+        <td style="padding:8px;text-align:right;font-weight:700;color:var(--knk-red);">{{ "{:,.0f}".format(it.outstanding) }}</td>
         <td style="padding:8px;text-align:center;font-size:12px;">{{ it.terms_days }}일</td>
         <td style="padding:8px;text-align:center;font-size:12px;">{{ it.due_date_calc }}</td>
         <td style="padding:8px;text-align:right;font-weight:700;color:{{ grade_color }};">
@@ -120,6 +136,10 @@ async function checkAlerts() {
     alert('네트워크 오류: ' + e.message);
   }
 }
-</script>
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

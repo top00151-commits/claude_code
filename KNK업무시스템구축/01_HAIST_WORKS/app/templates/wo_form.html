@@ -1,17 +1,33 @@
-{% extends "base.html" %}
-{% block title %}가공팀 작업지시서 {% if wo %}{{ wo.wo_no }}{% else %}신규{% endif %} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>작업지시 작성 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">작업지시 작성</div>
+      <h1 class="page-title">작업지시 작성</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/production/work-orders" style="font-size:13px;color:#6B7280;text-decoration:none;">← 작업지시서 목록</a>
-  · <a href="/logistics" style="font-size:13px;color:#6B7280;text-decoration:none;">자재·구매 Hub</a>
+  <a href="/production/work-orders" style="font-size:13px;color:var(--mute);text-decoration:none;">← 작업지시서 목록</a>
+  · <a href="/logistics" style="font-size:13px;color:var(--mute);text-decoration:none;">자재·구매 Hub</a>
 </div>
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #2E7D32;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--success);">
   <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">
     {% if wo %}작업지시서 {{ wo.wo_no }}{% else %}작업지시서 신규 작성{% endif %}
   </h1>
-  <p style="margin:6px 0 0;color:#6B7280;font-size:13px;">
+  <p style="margin:6px 0 0;color:var(--mute);font-size:13px;">
     {% if wo %}
       상태: <strong>{{ wo.status }}</strong>
       · 부품: <strong>{{ wo.part_disp }}</strong>
@@ -28,47 +44,47 @@
   <a href="/production/work-orders/{{ wo.id }}/print" target="_blank" style="background:#7B1FA2;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">인쇄 view</a>
   {% if wo.status == 'DRAFT' %}
   <form method="post" action="/production/work-orders/{{ wo.id }}/release" style="display:inline;">
-    <button type="submit" style="background:#2E7D32;color:#fff;padding:6px 14px;border-radius:6px;border:0;font-weight:700;font-size:13px;cursor:pointer;">발행 (DRAFT → RELEASED)</button>
+    <button type="submit" style="background:var(--success);color:#fff;padding:6px 14px;border-radius:6px;border:0;font-weight:700;font-size:13px;cursor:pointer;">발행 (DRAFT → RELEASED)</button>
   </form>
   {% endif %}
 </div>
 
-<table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;">
-  <tr><th style="padding:8px;text-align:left;width:160px;background:#F9FAFB;font-size:13px;">지시서번호</th>
+<table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
+  <tr><th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">지시서번호</th>
       <td style="padding:8px;font-size:13px;"><strong>{{ wo.wo_no }}</strong></td>
-      <th style="padding:8px;text-align:left;width:160px;background:#F9FAFB;font-size:13px;">상태</th>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">상태</th>
       <td style="padding:8px;font-size:13px;">{{ wo.status }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">수주</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수주</th>
       <td style="padding:8px;font-size:13px;">{{ wo.order_no_disp }}</td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">프로젝트</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">프로젝트</th>
       <td style="padding:8px;font-size:13px;">{{ wo.project_disp }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">부품</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">부품</th>
       <td style="padding:8px;font-size:13px;">{{ wo.part_disp }} ({{ wo.part_spec }})</td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">수량</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수량</th>
       <td style="padding:8px;font-size:13px;">{{ '%g' % (wo.qty or 0) }} {{ wo.part_unit }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">작성자</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">작성자</th>
       <td style="padding:8px;font-size:13px;">{{ wo.created_by_disp }}</td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">작업자</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">작업자</th>
       <td style="padding:8px;font-size:13px;">{{ wo.assigned_disp }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">시작 예정</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">시작 예정</th>
       <td style="padding:8px;font-size:13px;">{{ wo.planned_start or '-' }}</td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">완료 예정</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">완료 예정</th>
       <td style="padding:8px;font-size:13px;">{{ wo.planned_end or '-' }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">실제 완료</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">실제 완료</th>
       <td style="padding:8px;font-size:13px;">{{ wo.actual_end or '-' }}</td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">등록일시</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">등록일시</th>
       <td style="padding:8px;font-size:13px;">{{ wo.created_at }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">가공 사양</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">가공 사양</th>
       <td colspan="3" style="padding:8px;font-size:13px;white-space:pre-wrap;">{{ wo.specifications or '-' }}</td></tr>
-  <tr><th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">비고</th>
+  <tr><th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">비고</th>
       <td colspan="3" style="padding:8px;font-size:13px;">{{ wo.remarks or '-' }}</td></tr>
 </table>
 
-<h3 style="margin-top:24px;font-size:16px;color:#374151;">가공 단계 ({{ wo.items|length }}건)</h3>
+<h3 style="margin-top:24px;font-size:16px;color:var(--ink);">가공 단계 ({{ wo.items|length }}건)</h3>
 {% if wo.items %}
-<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;">
+<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
   <thead>
-    <tr style="background:#F9FAFB;">
+    <tr style="background:var(--paper);">
       <th style="padding:6px;font-size:12px;width:40px;">#</th>
       <th style="padding:6px;font-size:12px;text-align:left;">단계</th>
       <th style="padding:6px;font-size:12px;width:80px;">시간(분)</th>
@@ -79,33 +95,33 @@
   </thead>
   <tbody>
     {% for it in wo.items %}
-    <tr style="border-top:1px solid #F3F4F6;">
+    <tr style="border-top:1px solid var(--paper-2);">
       <td style="padding:6px;font-size:13px;text-align:center;">{{ it.line_no }}</td>
       <td style="padding:6px;font-size:13px;font-weight:600;">{{ it.step_name }}</td>
       <td style="padding:6px;font-size:13px;text-align:right;">{{ it.duration_min or 0 }}</td>
       <td style="padding:6px;font-size:12px;">
-        <div style="background:#F3F4F6;border-radius:4px;height:14px;overflow:hidden;position:relative;">
-          <div style="background:#2E7D32;height:100%;width:{{ it.progress or 0 }}%;"></div>
-          <span style="position:absolute;top:0;left:0;right:0;text-align:center;font-size:10px;color:#374151;line-height:14px;font-weight:700;">{{ it.progress or 0 }}%</span>
+        <div style="background:var(--paper-2);border-radius:4px;height:14px;overflow:hidden;position:relative;">
+          <div style="background:var(--success);height:100%;width:{{ it.progress or 0 }}%;"></div>
+          <span style="position:absolute;top:0;left:0;right:0;text-align:center;font-size:10px;color:var(--ink);line-height:14px;font-weight:700;">{{ it.progress or 0 }}%</span>
         </div>
       </td>
       <td style="padding:6px;font-size:12px;">{{ it.worker_disp }}</td>
-      <td style="padding:6px;font-size:12px;color:#6B7280;">{{ it.remarks or '' }}</td>
+      <td style="padding:6px;font-size:12px;color:var(--mute);">{{ it.remarks or '' }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% else %}
-<p style="color:#6B7280;font-size:13px;">가공 단계 없음.</p>
+<p style="color:var(--mute);font-size:13px;">가공 단계 없음.</p>
 {% endif %}
 
 {% else %}
 {# 신규 작성 폼 #}
 <form method="post" action="/production/work-orders" id="woForm">
-  <h3 style="margin:24px 0 8px;font-size:16px;color:#374151;">1. 수주 · 부품 · 작업자 정보</h3>
-  <table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;">
+  <h3 style="margin:24px 0 8px;font-size:16px;color:var(--ink);">1. 수주 · 부품 · 작업자 정보</h3>
+  <table style="width:100%;max-width:920px;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
     <tr>
-      <th style="padding:8px;text-align:left;width:160px;background:#F9FAFB;font-size:13px;">수주 (선택)</th>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">수주 (선택)</th>
       <td style="padding:8px;">
         <select name="order_id" style="width:100%;padding:5px;">
           <option value="">— 없음 —</option>
@@ -114,7 +130,7 @@
           {% endfor %}
         </select>
       </td>
-      <th style="padding:8px;text-align:left;width:160px;background:#F9FAFB;font-size:13px;">프로젝트 (선택)</th>
+      <th style="padding:8px;text-align:left;width:160px;background:var(--paper);font-size:13px;">프로젝트 (선택)</th>
       <td style="padding:8px;">
         <select name="project_id" style="width:100%;padding:5px;">
           <option value="">— 없음 —</option>
@@ -125,7 +141,7 @@
       </td>
     </tr>
     <tr>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">가공 부품 *</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">가공 부품 *</th>
       <td style="padding:8px;">
         <select name="part_id" required style="width:100%;padding:5px;">
           <option value="">— 부품 선택 —</option>
@@ -134,11 +150,11 @@
           {% endfor %}
         </select>
       </td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">수량 *</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">수량 *</th>
       <td style="padding:8px;"><input type="number" name="qty" step="any" min="0" required style="width:100%;padding:5px;"></td>
     </tr>
     <tr>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">작업자 (선택)</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">작업자 (선택)</th>
       <td style="padding:8px;">
         <select name="assigned_to" onchange="onAssignedChange(this)" style="width:100%;padding:5px;">
           <option value="">— 직접 입력 —</option>
@@ -147,31 +163,31 @@
           {% endfor %}
         </select>
       </td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">작업자명</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">작업자명</th>
       <td style="padding:8px;"><input type="text" name="assigned_name" placeholder="작업자명 (예: 이수빈)" style="width:100%;padding:5px;"></td>
     </tr>
     <tr>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">시작 예정일</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">시작 예정일</th>
       <td style="padding:8px;"><input type="date" name="planned_start" style="padding:5px;"></td>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">완료 예정일</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">완료 예정일</th>
       <td style="padding:8px;"><input type="date" name="planned_end" style="padding:5px;"></td>
     </tr>
     <tr>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">가공 사양</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">가공 사양</th>
       <td colspan="3" style="padding:8px;"><textarea name="specifications" rows="2" placeholder="공차/표면조도/열처리 등 사양 메모" style="width:100%;padding:5px;"></textarea></td>
     </tr>
     <tr>
-      <th style="padding:8px;text-align:left;background:#F9FAFB;font-size:13px;">비고</th>
+      <th style="padding:8px;text-align:left;background:var(--paper);font-size:13px;">비고</th>
       <td colspan="3" style="padding:8px;"><textarea name="remarks" rows="2" placeholder="특이사항" style="width:100%;padding:5px;"></textarea></td>
     </tr>
   </table>
 
-  <h3 style="margin:24px 0 8px;font-size:16px;color:#374151;">2. 가공 단계 (절삭 · 연마 · 검수)</h3>
-  <p style="color:#6B7280;font-size:12px;margin:0 0 8px;">표준 3단계가 자동 추가됩니다. 단계명이 비어있으면 저장 시 무시됩니다.</p>
+  <h3 style="margin:24px 0 8px;font-size:16px;color:var(--ink);">2. 가공 단계 (절삭 · 연마 · 검수)</h3>
+  <p style="color:var(--mute);font-size:12px;margin:0 0 8px;">표준 3단계가 자동 추가됩니다. 단계명이 비어있으면 저장 시 무시됩니다.</p>
 
-  <table id="woLines" style="width:100%;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;">
+  <table id="woLines" style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);">
     <thead>
-      <tr style="background:#F9FAFB;">
+      <tr style="background:var(--paper);">
         <th style="padding:6px;font-size:12px;width:40px;">#</th>
         <th style="padding:6px;font-size:12px;text-align:left;">단계 *</th>
         <th style="padding:6px;font-size:12px;width:100px;">시간(분)</th>
@@ -183,11 +199,11 @@
     </thead>
     <tbody id="woLinesBody"></tbody>
   </table>
-  <button type="button" onclick="addWoLine()" style="margin-top:8px;padding:6px 14px;background:#fff;border:1px solid #D1D5DB;border-radius:6px;cursor:pointer;font-size:13px;">+ 단계 추가</button>
+  <button type="button" onclick="addWoLine()" style="margin-top:8px;padding:6px 14px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;cursor:pointer;font-size:13px;">+ 단계 추가</button>
 
   <div style="margin-top:24px;">
-    <button type="submit" style="background:#2E7D32;color:#fff;padding:8px 18px;border:0;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;">저장 (DRAFT)</button>
-    <a href="/production/work-orders" style="display:inline-block;padding:8px 14px;background:#fff;border:1px solid #D1D5DB;border-radius:6px;text-decoration:none;color:#374151;margin-left:6px;font-size:13px;">취소</a>
+    <button type="submit" style="background:var(--success);color:#fff;padding:8px 18px;border:0;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;">저장 (DRAFT)</button>
+    <a href="/production/work-orders" style="display:inline-block;padding:8px 14px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;text-decoration:none;color:var(--ink);margin-left:6px;font-size:13px;">취소</a>
   </div>
 </form>
 
@@ -217,7 +233,7 @@ function woRenumber(){
 function addWoLine(name, duration){
   var tbody = document.getElementById('woLinesBody');
   var tr = document.createElement('tr');
-  tr.style.borderTop = '1px solid #F3F4F6';
+  tr.style.borderTop = '1px solid var(--paper-2)';
   var nameVal = (name || '').replace(/"/g,'&quot;');
   var durVal = (typeof duration === 'number') ? duration : 0;
   tr.innerHTML = ''
@@ -227,7 +243,7 @@ function addWoLine(name, duration){
     + '<td style="padding:5px;"><input type="number" name="line_progress" value="0" min="0" max="100" style="width:100%;padding:4px;font-size:12px;"></td>'
     + '<td style="padding:5px;"><input type="text" name="line_worker" placeholder="작업자" style="width:100%;padding:4px;font-size:12px;"></td>'
     + '<td style="padding:5px;"><input type="text" name="line_remarks" placeholder="비고" style="width:100%;padding:4px;font-size:12px;"></td>'
-    + '<td style="padding:5px;text-align:center;"><button type="button" onclick="removeWoLine(this)" style="padding:3px 8px;font-size:11px;background:#fff;border:1px solid #E5E7EB;border-radius:4px;cursor:pointer;color:#C62828;">삭제</button></td>';
+    + '<td style="padding:5px;text-align:center;"><button type="button" onclick="removeWoLine(this)" style="padding:3px 8px;font-size:11px;background:#fff;border:1px solid var(--line);border-radius:4px;cursor:pointer;color:#C62828;">삭제</button></td>';
   tbody.appendChild(tr);
   woRenumber();
 }
@@ -241,6 +257,10 @@ function removeWoLine(btn){
 // 초기 — 표준 3단계 자동 추가
 WO_STD.forEach(function(it){ addWoLine(it.name, it.duration); });
 </script>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

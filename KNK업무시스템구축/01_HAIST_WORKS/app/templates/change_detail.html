@@ -1,161 +1,72 @@
-{% extends "base.html" %}
-{% block title %}{{ change.change_no }} {{ change.title }} — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ change.title }} · 변경 공지</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.def { display: grid; grid-template-columns: 90px 1fr; gap: 10px 14px; font-size: 13px; }
+.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
+@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/changes">변경 공지</a> · <b>#{{ change.id }}</b></div>
+      <h1 class="page-title" style="display:flex;align-items:center;gap:14px;">
+        <span style="font-family:monospace;color:var(--amber-deep);">#{{ change.id }}</span>
+        <span>{{ change.title }}</span>
+        <span class="pill {% if change.urgency in ('긴급','매우긴급') %}pill-danger{% elif change.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ change.urgency|default('—') }}</span>
+      </h1>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/changes/{{ change.id }}/edit">📂 수정</a>
+      <a class="btn btn-secondary" href="/changes">↩ 목록</a>
+    </div>
+  </div>
 
-<div style="margin-bottom:14px;">
-  <a href="/changes" style="font-size:var(--text-sm);color:#6B7280;text-decoration:none;">← 변경 목록</a>
-</div>
-
-<!-- 헤더 카드 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #A5282C;">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;">
-    <div style="flex:1;min-width:300px;">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:#A5282C;font-weight:800;background:#FFEBEE;padding:4px 12px;border-radius:6px;">{{ change.change_no }}</span>
-        {% if change.urgency == '긴급' %}<span style="background:#FFEBEE;color:#A5282C;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">🔴 긴급</span>
-        {% elif change.urgency == '예약' %}<span style="background:#E3F2FD;color:#1565C0;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">📅 예약</span>{% endif %}
-        <span style="background:#F3F4F6;color:#374151;padding:4px 12px;border-radius:6px;font-size:var(--text-xs);font-weight:700;">{{ change.change_type }}</span>
-        {% if change.biz_div == 'T' %}<span style="color:#6B7280;font-size:var(--text-xs);">검사기</span>
-        {% elif change.biz_div == 'M' %}<span style="color:#6B7280;font-size:var(--text-xs);">자동화</span>{% endif %}
-        {% if change.status == '확인완료' %}<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">✓ 모두 확인</span>
-        {% else %}<span style="background:#FFF8E1;color:#F57F17;padding:4px 12px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">{{ change.status }}</span>{% endif %}
+  <div class="detail-grid">
+    <div>
+      {% if change.summary %}
+      <div class="section-card" style="background:var(--amber-glow);border-color:var(--amber);">
+        <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ change.summary }}</div>
       </div>
-      <h1 style="margin:0;font-size:var(--text-2xl);font-weight:800;letter-spacing:-0.02em;">{{ change.title }}</h1>
-      {% if change.target_label %}
-      <div style="margin-top:6px;font-size:var(--text-sm);color:#6B7280;">대상: <span style="font-family:monospace;color:#1A1A1A;font-weight:700;">{{ change.target_label }}</span></div>
       {% endif %}
-      <div style="margin-top:6px;font-size:var(--text-xs);color:#9CA3AF;">
-        작성: <strong>{{ change.author_name }}</strong>
-        {% if change.author_team %}({{ change.author_team }}){% endif %}
-        · {{ change.created_at }}
-        {% if change.source and change.source != '수동' %}
-        <span style="margin-left:10px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:6px;font-size:var(--text-xs);font-weight:700;">{{ change.source }}</span>
-        {% endif %}
-        {% if change.source_ref %}
-        <span style="margin-left:6px;font-family:monospace;font-size:var(--text-xs);color:#6B7280;">{{ change.source_ref }}</span>
-        {% endif %}
+      <div class="section-card">
+        <h3>변경 내용</h3>
+        <div style="font-size:14px;color:var(--ink);line-height:1.7;white-space:pre-wrap;">{{ change.body|default('(상세 내용 없음)') }}</div>
       </div>
-    </div>
-    {% if is_author or user.role in ['admin','ceo'] %}
-    <form method="post" action="/changes/{{ change.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?\n변경번호: {{ change.change_no }}');">
-      <button type="submit" style="background:#FFEBEE;color:#A5282C;border:1px solid rgba(165,40,44,.3);padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;">삭제</button>
-    </form>
-    {% endif %}
-  </div>
-</div>
-
-<!-- 변경 전/후 비교 -->
-{% if change.description or change.before_value or change.after_value %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
-  {% if change.description %}
-  <div style="margin-bottom:18px;">
-    <div style="font-size:var(--text-xs);font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">설명</div>
-    <div style="font-size:var(--text-md);line-height:1.7;color:#1A1A1A;white-space:pre-wrap;">{{ change.description }}</div>
-  </div>
-  {% endif %}
-
-  {% if change.before_value or change.after_value %}
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-    <div style="background:#FFEBEE;border:1px solid #FCA5A5;border-radius:10px;padding:16px;">
-      <div style="font-size:var(--text-xs);font-weight:800;color:#A5282C;letter-spacing:0.04em;margin-bottom:8px;">⏪ 변경 전</div>
-      <div style="font-size:var(--text-sm);line-height:1.7;color:#1A1A1A;white-space:pre-wrap;font-family:var(--font-mono);">{{ change.before_value or '(없음)' }}</div>
-    </div>
-    <div style="background:#E8F5E9;border:1px solid #86EFAC;border-radius:10px;padding:16px;">
-      <div style="font-size:var(--text-xs);font-weight:800;color:#2E7D32;letter-spacing:0.04em;margin-bottom:8px;">⏩ 변경 후</div>
-      <div style="font-size:var(--text-sm);line-height:1.7;color:#1A1A1A;white-space:pre-wrap;font-family:var(--font-mono);">{{ change.after_value or '(없음)' }}</div>
-    </div>
-  </div>
-  {% endif %}
-</div>
-{% endif %}
-
-{% if change.approval_url %}
-<!-- 하이웍스 전자결재 링크 -->
-<div style="background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-  <div>
-    <div style="font-weight:800;font-size:var(--text-md);color:#312E81;">📋 하이웍스 전자결재 진행 중</div>
-    <div style="font-size:var(--text-xs);color:#4338CA;margin-top:3px;font-family:monospace;word-break:break-all;">{{ change.approval_url }}</div>
-  </div>
-  <a href="{{ change.approval_url }}" target="_blank" rel="noopener" style="background:#4338CA;color:#fff;padding:10px 20px;border-radius:8px;font-weight:800;text-decoration:none;font-size:var(--text-sm);white-space:nowrap;">결재 열기 ↗</a>
-</div>
-{% endif %}
-
-<!-- 영향 부서 + 확인 현황 -->
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;">📊 영향 부서 확인 현황</h2>
-  {% if impacts %}
-  <div style="display:flex;flex-direction:column;gap:8px;">
-    {% for imp in impacts %}
-    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#F9FAFB;border-radius:8px;">
-      {% if imp.ack_users == imp.total_users and imp.total_users > 0 %}
-      <span style="background:#E8F5E9;color:#2E7D32;padding:4px 10px;border-radius:999px;font-size:var(--text-xs);font-weight:800;">✓</span>
-      {% else %}
-      <span style="background:#FFF8E1;color:#F57F17;padding:4px 10px;border-radius:999px;font-size:var(--text-xs);font-weight:700;">⏳</span>
+      {% if logs %}
+      <div class="section-card">
+        <h3>이력 ({{ logs|length }})</h3>
+        {% for l in logs %}
+        <div style="padding:10px 12px;background:var(--paper-2);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12.5px;">
+          <b>{{ l.actor_name|default('시스템') }}</b>
+          <span style="color:var(--mute);font-size:11px;margin-left:6px;">{{ l.created_at }}</span>
+          <div style="margin-top:4px;">{{ l.action }}</div>
+        </div>
+        {% endfor %}
+      </div>
       {% endif %}
-      <span style="font-weight:700;font-size:var(--text-md);flex:1;">{{ imp.team_name }}</span>
-      <span style="font-size:var(--text-xs);color:#6B7280;">{{ imp.ack_users }}/{{ imp.total_users }}</span>
-      <div style="width:120px;height:6px;background:#E5E7EB;border-radius:3px;overflow:hidden;">
-        <div style="width:{{ (imp.ack_users * 100 / imp.total_users)|round|int if imp.total_users > 0 else 0 }}%;height:100%;background:linear-gradient(90deg,#A5282C,#8B1E22);"></div>
-      </div>
-      {% if imp.auto_detected %}<span style="font-size:var(--text-xs);color:#9CA3AF;">자동</span>{% endif %}
     </div>
-    {% endfor %}
+
+    <aside>
+      <div class="section-card">
+        <h3>상세 정보</h3>
+        <dl class="def">
+          <dt>유형</dt><dd>{{ change.change_type|default('—') }}</dd>
+          <dt>긴급도</dt><dd>{{ change.urgency|default('—') }}</dd>
+          <dt>출처</dt><dd>{{ change.source|default('—') }}</dd>
+          <dt>작성자</dt><dd>{{ change.author_name|default('—') }}</dd>
+          <dt>관련 PJ</dt><dd>{{ change.project_name|default('—') }}</dd>
+          <dt>등록일</dt><dd style="font-family:monospace;font-size:12px;">{{ change.created_at }}</dd>
+          {% if change.read_count %}<dt>읽음</dt><dd>{{ change.read_count }} 명</dd>{% endif %}
+        </dl>
+      </div>
+    </aside>
   </div>
-  {% else %}
-  <p style="color:#6B7280;font-size:var(--text-sm);">영향 부서가 없습니다 (사업부 미지정).</p>
-  {% endif %}
-</div>
-
-<!-- 내가 영향자라면 — 확인 버튼 -->
-{% if is_impacted and not (my_ack and my_ack.ack_at) %}
-<div style="background:linear-gradient(135deg,#FFF8E1,#FFEBC7);border:2px solid #F57F17;border-radius:14px;padding:22px;margin-bottom:18px;">
-  <h2 style="margin:0 0 12px;font-size:var(--text-md);font-weight:800;color:#F57F17;">⚠️ 확인이 필요합니다</h2>
-  <p style="margin:0 0 14px;font-size:var(--text-sm);color:#6B7280;">이 변경이 당신의 부서에 영향을 줍니다. 확인 후 아래 버튼을 클릭해주세요.</p>
-  <form method="post" action="/changes/{{ change.id }}/ack">
-    <textarea name="note" rows="2" placeholder="(선택) 영향 평가 메모"
-              style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:var(--text-sm);margin-bottom:10px;"></textarea>
-    <button type="submit" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-weight:800;font-size:var(--text-md);cursor:pointer;box-shadow:0 4px 10px rgba(46,125,50,.3);">
-      ✓ 확인했습니다
-    </button>
-  </form>
-</div>
-{% elif my_ack and my_ack.ack_at %}
-<div style="background:#E8F5E9;border:1px solid #86EFAC;border-radius:10px;padding:14px 18px;margin-bottom:18px;">
-  <span style="color:#2E7D32;font-weight:700;">✓ {{ my_ack.ack_at }} 에 확인 완료</span>
-  {% if my_ack.ack_note %}<div style="margin-top:6px;font-size:var(--text-xs);color:#6B7280;">메모: {{ my_ack.ack_note }}</div>{% endif %}
-</div>
-{% endif %}
-
-<!-- 확인 이력 -->
-{% if reads %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:22px;">
-  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;">확인 이력 ({{ reads|selectattr('ack_at')|list|length }} / {{ reads|length }})</h2>
-  <table style="width:100%;border-collapse:collapse;font-size:var(--text-sm);">
-    <thead>
-      <tr style="border-bottom:1px solid #E5E7EB;">
-        <th style="padding:8px;text-align:left;font-size:var(--text-xs);color:#6B7280;text-transform:uppercase;letter-spacing:0.04em;">사용자</th>
-        <th style="padding:8px;text-align:left;font-size:var(--text-xs);color:#6B7280;text-transform:uppercase;">팀</th>
-        <th style="padding:8px;text-align:center;font-size:var(--text-xs);color:#6B7280;text-transform:uppercase;">읽음</th>
-        <th style="padding:8px;text-align:center;font-size:var(--text-xs);color:#6B7280;text-transform:uppercase;">확인</th>
-        <th style="padding:8px;text-align:left;font-size:var(--text-xs);color:#6B7280;text-transform:uppercase;">메모</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in reads %}
-      <tr style="border-bottom:1px solid #F1F2F4;">
-        <td style="padding:8px;font-weight:600;">{{ r.user_name }}</td>
-        <td style="padding:8px;color:#6B7280;font-size:var(--text-xs);">{{ r.team_name or '-' }}</td>
-        <td style="padding:8px;text-align:center;font-size:var(--text-xs);font-family:monospace;color:#9CA3AF;">{{ r.read_at[5:16] if r.read_at else '-' }}</td>
-        <td style="padding:8px;text-align:center;font-size:var(--text-xs);font-family:monospace;">
-          {% if r.ack_at %}<span style="color:#2E7D32;font-weight:700;">✓ {{ r.ack_at[5:16] }}</span>
-          {% else %}<span style="color:#9CA3AF;">대기</span>{% endif %}
-        </td>
-        <td style="padding:8px;font-size:var(--text-xs);color:#6B7280;">{{ r.ack_note or '-' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% endblock %}
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

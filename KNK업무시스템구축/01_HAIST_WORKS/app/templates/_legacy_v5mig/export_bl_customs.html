@@ -1,0 +1,105 @@
+{% extends "base_sales.html" %}
+{% block title %}B/L · 관세 — 수출 #{{ eo.id }}{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <h1>B/L 선하증권 · 관세 신고 — 수출 #{{ eo.id }}</h1>
+  <p class="muted">외부 운송사 API 미도입 — 모든 항목 수동 입력.</p>
+</div>
+
+<section>
+  <h3>B/L 발급</h3>
+  <form method="post" action="/export/bl" class="form-card">
+    <input type="hidden" name="export_order_id" value="{{ eo.id }}">
+    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-row">
+        <label>B/L 번호 *</label>
+        <input type="text" name="bl_no" placeholder="운송사 발급번호 (수동)" required>
+      </div>
+      <div class="form-row">
+        <label>운송사명</label>
+        <input type="text" name="shipping_company" placeholder="예: HMM / EVERGREEN">
+      </div>
+      <div class="form-row">
+        <label>선명·항공편명</label>
+        <input type="text" name="vessel" placeholder="예: HMM ALGECIRAS V.123E">
+      </div>
+      <div class="form-row">
+        <label>추적번호</label>
+        <input type="text" name="tracking_no">
+      </div>
+      <div class="form-row">
+        <label>출항일</label>
+        <input type="date" name="departure_date" value="{{ today }}">
+      </div>
+      <div class="form-row">
+        <label>도착예정일</label>
+        <input type="date" name="arrival_date">
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:12px;">
+      <button type="submit" class="btn btn-primary">B/L 발급 (→ SHIPPED)</button>
+    </div>
+  </form>
+
+  <h4 style="margin-top:16px;">B/L 이력</h4>
+  {% if bl %}
+  <table class="data-table">
+    <thead><tr><th>B/L 번호</th><th>운송사</th><th>선명</th><th>출항</th><th>도착예정</th><th>상태</th></tr></thead>
+    <tbody>{% for it in bl %}
+    <tr><td>{{ it.bl_no }}</td><td>{{ it.shipping_company or '-' }}</td>
+        <td>{{ it.vessel or '-' }}</td><td>{{ it.departure_date or '-' }}</td>
+        <td>{{ it.arrival_date or '-' }}</td><td><span class="status-tag">{{ it.status }}</span></td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted">미발급</p>{% endif %}
+</section>
+
+<section id="customs" style="margin-top:24px;">
+  <h3>관세 신고</h3>
+  <form method="post" action="/export/customs" class="form-card">
+    <input type="hidden" name="export_order_id" value="{{ eo.id }}">
+    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-row">
+        <label>신고번호</label>
+        <input type="text" name="declaration_no" placeholder="신고번호 (수동)">
+      </div>
+      <div class="form-row">
+        <label>HS 코드 *</label>
+        <input type="text" name="hs_code" placeholder="예: 8479.89-9090" required>
+      </div>
+      <div class="form-row">
+        <label>FTA 원산지</label>
+        <select name="fta_origin">
+          <option value="KR">KR (한국 — 한·베 FTA)</option>
+          <option value="VN">VN (베트남)</option>
+          <option value="">-- 기타 --</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>신고가액 (CI 자동 채움)</label>
+        <input type="number" step="0.01" name="declared_value"
+               value="{{ '{:.2f}'.format(ci_amount or 0) }}">
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:12px;">
+      <button type="submit" class="btn btn-primary">관세 신고 (→ CLEARED)</button>
+      <a href="/export/orders/{{ eo.id }}" class="btn">취소</a>
+    </div>
+  </form>
+
+  <h4 style="margin-top:16px;">관세 이력</h4>
+  {% if customs %}
+  <table class="data-table">
+    <thead><tr><th>신고번호</th><th>HS</th><th>FTA</th><th>신고가액</th><th>상태</th></tr></thead>
+    <tbody>{% for it in customs %}
+    <tr><td>{{ it.declaration_no }}</td><td>{{ it.hs_code }}</td>
+        <td>{{ it.fta_origin or '-' }}</td>
+        <td class="num">{{ '{:,.2f}'.format(it.declared_value or 0) }}</td>
+        <td><span class="status-tag">{{ it.status }}</span></td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted">미신고</p>{% endif %}
+</section>
+
+{% endblock %}

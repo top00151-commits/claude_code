@@ -1,0 +1,86 @@
+{% extends "base_logi.html" %}
+{% block title %}부품 마스터 — {{ app_name }}{% endblock %}
+{% block body %}
+
+<div class="page-head row-between">
+  <div>
+    <h1>부품 마스터</h1>
+    <p class="muted">완성품 · 자재 · 소모품 통합 등록 · 검색 · 수정</p>
+  </div>
+  <a href="/parts/new" class="btn btn-primary">+ 부품 등록</a>
+</div>
+
+<form method="get" action="/parts" class="filter-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="부품번호 / 품명 / 규격 / 메이커 검색">
+  <select name="biz_div">
+    <option value="">전체 사업부</option>
+    <option value="T" {% if biz_div == 'T' %}selected{% endif %}>검사기 (T)</option>
+    <option value="M" {% if biz_div == 'M' %}selected{% endif %}>자동화 (M)</option>
+    <option value="공통" {% if biz_div == '공통' %}selected{% endif %}>공통</option>
+  </select>
+  <select name="category">
+    <option value="">전체 분류</option>
+    <option value="완성품" {% if category == '완성품' %}selected{% endif %}>완성품</option>
+    <option value="자재" {% if category == '자재' %}selected{% endif %}>자재</option>
+    <option value="소모품" {% if category == '소모품' %}selected{% endif %}>소모품</option>
+  </select>
+  <button type="submit" class="btn">검색</button>
+  <a href="/parts" class="btn btn-ghost">초기화</a>
+</form>
+
+<div class="card no-pad">
+  <table class="table table-data">
+    <thead>
+      <tr>
+        <th>NO</th>
+        <th>부품번호</th>
+        <th>품명</th>
+        <th>규격</th>
+        <th class="ta-right">현재고 ⭐</th>
+        <th class="ta-right">안전재고</th>
+        <th>단위</th>
+        <th class="ta-right">표준단가</th>
+        <th>사업부</th>
+        <th>분류</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in parts %}
+      {% set stock = p.stock_qty or 0 %}
+      {% set safety = p.safety_stock or 0 %}
+      {% set low = safety > 0 and stock < safety %}
+      <tr {% if low %}style="background:#FEF2F2;"{% endif %}>
+        <td>{{ loop.index }}</td>
+        <td class="mono">{{ p.part_no }}</td>
+        <td class="ta-left">
+          <a href="/parts/{{ p.id }}" style="text-decoration:none;color:var(--ink);"><strong>{{ p.part_name }}</strong></a>
+          {% if p.spec %}<div style="font-size:10px;color:var(--mute);">{{ p.spec }}</div>{% endif %}
+        </td>
+        <td class="ta-left" style="font-size:11px;color:var(--mute);">{{ p.maker or '-' }}{% if p.origin %} · {{ p.origin }}{% endif %}</td>
+        <td class="ta-right mono" style="font-weight:800;color:{% if low %}var(--knk-red){% elif stock > 0 %}var(--success){% else %}var(--mute-2){% endif %};">
+          {{ "%g"|format(stock) }}{% if low %} 🔴{% endif %}
+        </td>
+        <td class="ta-right mono" style="color:var(--mute);font-size:11px;">{% if safety > 0 %}{{ "%g"|format(safety) }}{% else %}-{% endif %}</td>
+        <td>{{ p.unit }}</td>
+        <td class="ta-right mono">
+          {% if p.currency == 'USD' %}${{ '{:,.2f}'.format(p.std_price) }}{% else %}₩{{ '{:,.0f}'.format(p.std_price) }}{% endif %}
+        </td>
+        <td>{{ p.biz_div or '-' }}</td>
+        <td>{{ p.category or '-' }}</td>
+        <td class="actions" style="white-space:nowrap;">
+          <a href="/stock/movements?part_id={{ p.id }}" class="btn-sm" style="background:var(--paper-warm);color:var(--info);border:1px solid #C7D2FE;">📒 이력</a>
+          <a href="/stock/issue?part_id={{ p.id }}" class="btn-sm" style="background:var(--knk-red-soft);color:var(--knk-red-dk);border:1px solid var(--knk-red-soft);">📤 출고</a>
+          <a href="/parts/{{ p.id }}/edit" class="btn-sm">수정</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="13" class="empty">등록된 부품이 없습니다. <a href="/parts/new">+ 부품 등록</a>으로 시작하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted ta-right">총 {{ parts|length }}건</p>
+
+{% endblock %}

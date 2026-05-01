@@ -1,7 +1,23 @@
-{% extends "base_logi.html" %}
-{% block title %}수출입 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>수출 hub · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">수출 hub</div>
+      <h1 class="page-title">수출 hub</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>수출입 서류</h1>
   <p class="muted">상업송장(CI) · 패킹리스트(PL) · 선하증권(B/L) · 관세신고. 매출 데이터 자동 채움.</p>
@@ -51,10 +67,14 @@
 {% else %}
 <div class="empty-state" style="text-align:center;padding:40px 20px;border:1px dashed var(--bd,#ddd);border-radius:8px;">
   <h3 style="margin:0 0 8px;">등록된 수출 수주가 없습니다</h3>
-  <p class="muted">P11 베트남법인 페르소나는 [+ 신규 수출 수주] 로 시작하세요.</p>
+  <p class="muted">베트남법인 수출 담당자는 [+ 신규 수출 수주] 로 시작하세요.</p>
   <p class="muted" style="font-size:12px;">기존 수주(orders) 선택 시 매출 · 고객사 자동 채움.</p>
   <a href="/export/orders/new" class="btn btn-primary" style="margin-top:8px;">+ 신규 수출 수주</a>
 </div>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

@@ -1,92 +1,115 @@
-{% extends "base.html" %}
-{% set active = 'team' %}
-{% block title %}{{ i.team_title|default('팀 현황') }} · KNK{% endblock %}
-{% block body %}
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.team_title|default('팀 현황') }}</h1>
-    <div class="page-sub">{{ sel_date }}</div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>팀 대시보드 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.member-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 10px; }
+.member-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.member-avatar { width: 38px; height: 38px; background: var(--grad-amber); color: white; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+.member-info .name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.member-info .role { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.member-stats { display: flex; gap: 18px; font-size: 12px; color: var(--mute); margin-left: auto; }
+.member-stats b { color: var(--ink); font-size: 14px; font-weight: 700; }
+.task-mini { padding: 8px 12px; background: var(--paper-2); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
+.task-mini .pill { font-size: 10px; padding: 1px 7px; }
+.date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--mute); }
+.date-nav a { color: var(--amber-deep); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.date-nav a:hover { background: var(--amber-glow); }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">{{ sel_date }} · 팀 현황</div>
+      <h1 class="page-title">팀 <em>대시보드</em></h1>
+      <div class="date-nav">
+        <a href="/team?team_id={{ target_team_id }}&sel_date={{ prev_date }}">‹</a>
+        <span>{{ sel_date }}</span>
+        <a href="/team?team_id={{ target_team_id }}&sel_date={{ next_date }}">›</a>
+        <a href="/team?team_id={{ target_team_id }}">오늘</a>
+      </div>
+    </div>
+    <div>
+      <form method="get" action="/team">
+        <select name="team_id" onchange="this.form.submit()" style="border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+          {% for t in teams %}
+          <option value="{{ t.id }}" {% if t.id == target_team_id %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
   </div>
-  <div class="date-nav">
-    <a href="/team/{{ prev_date }}{% if user.role in ['ceo','admin'] %}?team_id={{ target_team_id }}{% endif %}" class="btn-sm">{{ i.prev_day|default('◀ 전일') }}</a>
-    <input type="date" value="{{ sel_date }}" onchange="location.href='/team/'+this.value+'{% if user.role in ['ceo','admin'] %}?team_id={{ target_team_id }}{% endif %}'">
-    <a href="/team/{{ next_date }}{% if user.role in ['ceo','admin'] %}?team_id={{ target_team_id }}{% endif %}" class="btn-sm">{{ i.next_day|default('익일 ▶') }}</a>
-    <a href="/team/{{ today }}{% if user.role in ['ceo','admin'] %}?team_id={{ target_team_id }}{% endif %}" class="btn-sm btn-today">{{ i.today|default('오늘') }}</a>
-  </div>
-</div>
 
-{% if user.role in ['ceo','admin'] %}
-<div class="team-select">
-  <label>{{ i.team_select|default('팀 선택:') }}</label>
-  <select onchange="location.href='/team/{{ sel_date }}?team_id='+this.value">
-    {% for t in teams %}
-    <option value="{{ t.id }}" {% if t.id==target_team_id %}selected{% endif %}>[{{ t.code }}] {{ t.name }}{% if t.is_lab %} ({{ i.lab_badge|default('연구소') }}){% endif %}</option>
+  <!-- KPI -->
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card">
+      <div class="kpi-label">팀원</div>
+      <div class="kpi-num">{{ team_summary.members|default(members|length) }}</div>
+      <div class="kpi-trend up">활성 {{ team_summary.reported|default(0) }}명 작성</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">오늘 업무</div>
+      <div class="kpi-num">{{ team_summary.total|default(0) }}</div>
+      <div class="kpi-trend neutral">건</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">완료</div>
+      <div class="kpi-num" style="color:var(--success);">{{ team_summary.done|default(0) }}</div>
+      <div class="kpi-trend up">{% if team_summary.total %}{{ ((team_summary.done*100/team_summary.total)|round|int) }}%{% else %}—{% endif %}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">이번 주</div>
+      <div class="kpi-num">{{ team_summary.week_total|default(0) }}</div>
+      <div class="kpi-trend {% if team_summary.delay > 0 %}alert{% else %}neutral{% endif %}">{% if team_summary.delay > 0 %}⚠ 지연 {{ team_summary.delay }}{% else %}정상{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- 팀원별 업무 -->
+  <div class="section">
+    <h2>팀원별 ({{ members|length }})</h2>
+    <div style="margin: 0 var(--content-pad);">
+    {% for m in members %}
+      {% set mt = day_tasks|selectattr('user_id','equalto',m.id)|list %}
+      {% set ms = stats_by_user.get(m.id, {}) %}
+      <div class="member-card">
+        <div class="member-head">
+          <div class="member-avatar">{{ m.name[0] }}</div>
+          <div class="member-info">
+            <div class="name">{{ m.name }}{% if m.rank %} {{ m.rank }}{% endif %}</div>
+            <div class="role">{{ m.role|default('member') }}</div>
+          </div>
+          <div class="member-stats">
+            <span><b>{{ ms.total|default(0) }}</b> 전체</span>
+            <span><b style="color:var(--success);">{{ ms.done|default(0) }}</b> 완료</span>
+            <span><b>{{ ms.progress|default(0) }}</b> 진행</span>
+            {% if ms.delay|default(0) > 0 %}<span><b style="color:var(--knk-red);">{{ ms.delay }}</b> 지연</span>{% endif %}
+            <span><b>{{ '%.1f'|format(ms.hours|default(0)) }}h</b> 공수</span>
+          </div>
+        </div>
+        {% if mt %}
+          {% for t in mt[:5] %}
+          <div class="task-mini">
+            <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
+            <span style="flex:1;">{{ t.title }}</span>
+            {% if t.hours %}<span style="color:var(--mute);font-size:11px;">{{ t.hours }}h</span>{% endif %}
+          </div>
+          {% endfor %}
+          {% if mt|length > 5 %}<div style="font-size:11px;color:var(--mute);text-align:center;margin-top:4px;">외 {{ mt|length - 5 }}건</div>{% endif %}
+        {% else %}
+          <div style="font-size:12px;color:var(--mute);text-align:center;padding:8px;">오늘 등록된 업무 없음</div>
+        {% endif %}
+      </div>
     {% endfor %}
-  </select>
-</div>
-{% endif %}
-
-<div class="summary-grid">
-  <div class="sum-card"><div class="sum-num">{{ team_summary.members }}</div><div class="sum-lab">{{ i.team_members|default('팀 인원') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ team_summary.reported }}/{{ team_summary.members }}</div><div class="sum-lab">{{ i.today_written|default('오늘 작성') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ team_summary.total }}</div><div class="sum-lab">{{ i.today_cards|default('오늘 카드수') }}</div></div>
-  <div class="sum-card st-done"><div class="sum-num">{{ team_summary.done }}</div><div class="sum-lab">{{ i.kpi_done|default('완료') }}</div></div>
-  <div class="sum-card st-progress"><div class="sum-num">{{ team_summary.progress }}</div><div class="sum-lab">{{ i.kpi_progress|default('진행중') }}</div></div>
-  <div class="sum-card st-delay"><div class="sum-num">{{ team_summary.delay }}</div><div class="sum-lab">{{ i.kpi_delay|default('지연') }}</div></div>
-  <div class="sum-card"><div class="sum-num">{{ team_summary.week_done }}/{{ team_summary.week_total }}</div><div class="sum-lab">{{ i.weekly_done|default('주간 완료') }}</div></div>
-</div>
-
-<div class="section-head"><h2>{{ i.member_tasks|default('팀원별 오늘 업무') }}</h2></div>
-
-{% if not members %}
-<div class="empty">{{ i.no_members|default('팀원이 없습니다.') }}</div>
-{% else %}
-<div class="member-list">
-  {% for m in members %}
-  {% set st = stats_by_user[m.id] %}
-  <div class="member-box">
-    <div class="member-head">
-      <div class="mem-name">{{ m.name }} <span class="mem-rank">{{ m.rank }}</span></div>
-      <div class="mem-stat">
-        <span>{{ i.card_label|default('카드') }} <b>{{ st.total }}</b></span>
-        <span class="st-done">{{ i.kpi_done|default('완료') }} <b>{{ st.done }}</b></span>
-        <span class="st-progress">{{ i.kpi_progress|default('진행') }} <b>{{ st.progress }}</b></span>
-        {% if st.delay %}<span class="st-delay">{{ i.kpi_delay|default('지연') }} <b>{{ st.delay }}</b></span>{% endif %}
-        <span>{{ '%.1f'|format(st.hours) }}h</span>
-      </div>
     </div>
-    {% set member_tasks = day_tasks|selectattr('user_id','equalto',m.id)|list %}
-    {% if not member_tasks %}
-    <div class="mem-empty">{{ i.not_written_yet|default('아직 오늘 업무 미작성') }}</div>
-    {% else %}
-    <div class="dl-rows tm-rows">
-      {% for t in member_tasks %}
-      <div class="dl-row status-{{ t.status }}{% if t.meta_has_activity %} has-activity{% endif %}{% if t.meta_risk %} has-risk{% endif %}"
-           onclick="openCardModal({{ t.id }})" title="{{ t.title }}">
-        <div class="dl-col dl-c-status"><span class="tag tag-{{ t.status }}">{{ t.status }}</span></div>
-        <div class="dl-col dl-c-title">
-          {% if t.category %}<span class="ac-cat">{{ t.category }}</span>{% endif %}
-          <span class="dl-title-txt">{{ t.title }}</span>
-          {% if t.meta_last_comment %}<span class="dl-last">↳ {{ t.meta_last_comment }}</span>{% endif %}
-        </div>
-        <div class="dl-col dl-c-ref">
-          {% if t.project_name %}<span class="dl-pj">📋 {{ t.project_name }}</span>{% endif %}
-          {% if t.customer_name %}<span class="dl-cu">🏢 {{ t.customer_name }}</span>{% endif %}
-        </div>
-        <div class="dl-col dl-c-hr">{{ t.hours or 0 }}h</div>
-        <div class="dl-col dl-c-badge">
-          {% if t.meta_comments %}<span class="ac-badge ac-bd-cm">💬{{ t.meta_comments }}</span>{% endif %}
-          {% if t.meta_risk %}<span class="ac-badge ac-bd-risk">⚠️{{ t.meta_risk }}</span>{% endif %}
-          {% if t.meta_question %}<span class="ac-badge ac-bd-q">❓{{ t.meta_question }}</span>{% endif %}
-          {% if t.meta_ack %}<span class="ac-badge ac-bd-ack">👍{{ t.meta_ack }}</span>{% endif %}
-          {% if t.meta_ok %}<span class="ac-badge ac-bd-ok">✅{{ t.meta_ok }}</span>{% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
   </div>
-  {% endfor %}
+
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
-{% endif %}
-{% endblock %}
+</body>
+</html>

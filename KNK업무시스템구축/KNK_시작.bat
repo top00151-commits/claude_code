@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구
+REM   LAST UPDATE: 2026-05-02 v5H5 STANDALONE 125/125 전 템플릿 완료 (대표 "계속 진행" 지시 — base 상속 0건) — _v5_partials/chrome.html + styles.html 공통 partial / 1~5차 50건 hand-craft (home/login/po/sales/weekly/admin/dashboard/parts/suppliers/projects/team/tickets/calendar/changes/issues/board/customers/stock/sales_quotes/sales_orders/history/search/etc) + 6차 75건 자동 마이그레이션 (qms·rates·stock 정밀·sales 정밀·export·wo·fta·qc·admin sub·progress·hr·bottlenecks·cockpit·feed·summary·now·reminders·print 7종) / Jinja2 125/125 PASS / 모든 페이지 v5_tokens.css 단일 시트 + chrome partial / 레거시 _legacy_v5mig 66건 + _legacy_*_v4 백업 / SYNTAX OK
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H5 STANDALONE 125/125 전 템플릿 — base 상속 0건 / partial 일관성]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK 통합 업무 플랫폼
 echo    Human ^& AI create the Best
-echo    [Last Update: 2026-04-28 사이클81~83+전직원_비번리셋_안지연복구]
+echo    [Last Update: 2026-04-29 G25_v4_CX23c_마스트헤드제거 (대표결재: 나)제거안) 3 base (통합/매출/자재) 상단 매거진 마스트헤드(VOL.NO + EDITION) 라인 일괄제거 → 일반 사무실 시스템 톤 + topbar-h 125→80px + dock top 80px 정합]
 echo ============================================================
 echo.
 

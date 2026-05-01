@@ -1,70 +1,86 @@
-{% extends "base.html" %}
-{% block title %}가공팀 작업지시서 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>작업지시 목록 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">작업지시 목록</div>
+      <h1 class="page-title">작업지시 목록</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/logistics" style="font-size:13px;color:#6B7280;text-decoration:none;">← 자재·구매 Hub</a>
-  · <a href="/production/work-orders" style="font-size:13px;color:#A5282C;text-decoration:none;font-weight:700;">가공 작업지시서</a>
+  <a href="/logistics" style="font-size:13px;color:var(--mute);text-decoration:none;">← 자재·구매 Hub</a>
+  · <a href="/production/work-orders" style="font-size:13px;color:var(--knk-red);text-decoration:none;font-weight:700;">가공 작업지시서</a>
 </div>
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid #2E7D32;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--success);">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-    <span style="font-family:var(--font-mono);font-size:13px;color:#2E7D32;font-weight:800;background:#E8F5E9;padding:4px 10px;border-radius:6px;">WO</span>
-    <span style="font-size:11px;color:#6B7280;">가공팀 작업지시서 · 윤영조 팀장(작성) · 이수빈 매니저(수행)</span>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--success);font-weight:800;background:var(--paper-2);padding:4px 10px;border-radius:6px;">WO</span>
+    <span style="font-size:11px;color:var(--mute);">가공팀 작업지시서 · 윤영조 팀장(작성) · 이수빈 매니저(수행)</span>
   </div>
   <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">가공팀 작업지시서 (Work Order)</h1>
-  <p style="margin:4px 0 0;color:#6B7280;font-size:13px;">가공 단계별 진행률 추적 · 외부 라이브러리 0건 · A4 인쇄 (작업자 지참).</p>
+  <p style="margin:4px 0 0;color:var(--mute);font-size:13px;">가공 단계별 진행률 추적 · 외부 라이브러리 0건 · A4 인쇄 (작업자 지참).</p>
 </div>
 
 <form method="get" action="/production/work-orders" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-  <label style="font-size:12px;color:#6B7280;">상태
-    <select name="status" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid #D1D5DB;border-radius:6px;">
+  <label style="font-size:12px;color:var(--mute);">상태
+    <select name="status" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--line-strong);border-radius:6px;">
       <option value="">전체</option>
       {% for code, label in WO_STATUS_OPTIONS %}
       <option value="{{ code }}" {% if filter_status==code %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   </label>
-  <a href="/production/work-orders/new" style="background:#2E7D32;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">+ 신규 작성</a>
+  <a href="/production/work-orders/new" style="background:var(--success);color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">+ 신규 작성</a>
 </form>
 
 {% if items %}
-<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+<table style="width:100%;background:#fff;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
   <thead>
-    <tr style="background:#F9FAFB;">
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">지시서번호</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">부품</th>
-      <th style="padding:8px;text-align:right;font-size:12px;color:#374151;">수량</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">수주번호</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">작성자</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">작업자</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">시작일</th>
-      <th style="padding:8px;text-align:left;font-size:12px;color:#374151;">완료예정</th>
-      <th style="padding:8px;text-align:center;font-size:12px;color:#374151;">상태</th>
-      <th style="padding:8px;text-align:center;font-size:12px;color:#374151;">조치</th>
+    <tr style="background:var(--paper);">
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">지시서번호</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">부품</th>
+      <th style="padding:8px;text-align:right;font-size:12px;color:var(--ink);">수량</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">수주번호</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">작성자</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">작업자</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">시작일</th>
+      <th style="padding:8px;text-align:left;font-size:12px;color:var(--ink);">완료예정</th>
+      <th style="padding:8px;text-align:center;font-size:12px;color:var(--ink);">상태</th>
+      <th style="padding:8px;text-align:center;font-size:12px;color:var(--ink);">조치</th>
     </tr>
   </thead>
   <tbody>
     {% for it in items %}
-    <tr style="border-top:1px solid #F3F4F6;">
-      <td style="padding:8px;font-size:13px;"><a href="/production/work-orders/{{ it.id }}" style="color:#2E7D32;font-weight:700;text-decoration:none;">{{ it.wo_no or ('#' ~ it.id) }}</a></td>
+    <tr style="border-top:1px solid var(--paper-2);">
+      <td style="padding:8px;font-size:13px;"><a href="/production/work-orders/{{ it.id }}" style="color:var(--success);font-weight:700;text-decoration:none;">{{ it.wo_no or ('#' ~ it.id) }}</a></td>
       <td style="padding:8px;font-size:13px;">{{ it.part_disp }}</td>
       <td style="padding:8px;font-size:13px;text-align:right;">{{ '%g' % (it.qty or 0) }}</td>
-      <td style="padding:8px;font-size:12px;color:#6B7280;">{{ it.order_no_disp }}</td>
+      <td style="padding:8px;font-size:12px;color:var(--mute);">{{ it.order_no_disp }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.created_by_disp }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.assigned_disp }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.planned_start or '-' }}</td>
       <td style="padding:8px;font-size:12px;">{{ it.planned_end or '-' }}</td>
       <td style="padding:8px;text-align:center;font-size:12px;">
-        {% if it.status == 'DRAFT' %}<span style="background:#F3F4F6;color:#6B7280;padding:2px 8px;border-radius:4px;">DRAFT</span>
-        {% elif it.status == 'RELEASED' %}<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:4px;font-weight:700;">RELEASED</span>
+        {% if it.status == 'DRAFT' %}<span style="background:var(--paper-2);color:var(--mute);padding:2px 8px;border-radius:4px;">DRAFT</span>
+        {% elif it.status == 'RELEASED' %}<span style="background:var(--paper-warm);color:var(--info);padding:2px 8px;border-radius:4px;font-weight:700;">RELEASED</span>
         {% elif it.status == 'IN_PROGRESS' %}<span style="background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:4px;font-weight:700;">IN_PROGRESS</span>
-        {% elif it.status == 'COMPLETED' %}<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:4px;font-weight:700;">COMPLETED</span>
-        {% elif it.status == 'CANCELLED' %}<span style="background:#FFEBEE;color:#C62828;padding:2px 8px;border-radius:4px;">CANCELLED</span>
+        {% elif it.status == 'COMPLETED' %}<span style="background:var(--paper-2);color:var(--success);padding:2px 8px;border-radius:4px;font-weight:700;">COMPLETED</span>
+        {% elif it.status == 'CANCELLED' %}<span style="background:var(--knk-red-soft);color:#C62828;padding:2px 8px;border-radius:4px;">CANCELLED</span>
         {% else %}{{ it.status }}{% endif %}
       </td>
       <td style="padding:8px;text-align:center;">
-        <a href="/production/work-orders/{{ it.id }}" style="font-size:11px;color:#2E7D32;text-decoration:none;margin-right:4px;">상세</a>
+        <a href="/production/work-orders/{{ it.id }}" style="font-size:11px;color:var(--success);text-decoration:none;margin-right:4px;">상세</a>
         <a href="/production/work-orders/{{ it.id }}/print" target="_blank" style="font-size:11px;color:#7B1FA2;text-decoration:none;">인쇄</a>
       </td>
     </tr>
@@ -72,12 +88,16 @@
   </tbody>
 </table>
 {% else %}
-<div style="text-align:center;padding:40px 20px;border:1px dashed #D1D5DB;border-radius:8px;background:#fff;">
-  <h3 style="margin:0 0 8px;color:#374151;">발행된 작업지시서가 없습니다</h3>
-  <p style="color:#6B7280;font-size:13px;">윤영조 팀장 본업 — [+ 신규 작성] 으로 가공 작업지시를 발행하세요.</p>
-  <p style="color:#9CA3AF;font-size:12px;">지시서번호는 WO-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
-  <a href="/production/work-orders/new" style="display:inline-block;background:#2E7D32;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:700;margin-top:8px;">+ 신규 작성</a>
+<div style="text-align:center;padding:40px 20px;border:1px dashed var(--line-strong);border-radius:8px;background:#fff;">
+  <h3 style="margin:0 0 8px;color:var(--ink);">발행된 작업지시서가 없습니다</h3>
+  <p style="color:var(--mute);font-size:13px;">윤영조 팀장 본업 — [+ 신규 작성] 으로 가공 작업지시를 발행하세요.</p>
+  <p style="color:var(--mute-2);font-size:12px;">지시서번호는 WO-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
+  <a href="/production/work-orders/new" style="display:inline-block;background:var(--success);color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:700;margin-top:8px;">+ 신규 작성</a>
 </div>
-{% endif %}
+{% endif %}  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
 
-{% endblock %}
+</body>
+</html>

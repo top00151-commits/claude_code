@@ -1,17 +1,33 @@
-{% extends "base_logi.html" %}
-{% block title %}출고 등록 — {{ app_name }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stock Issue · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">Stock Issue</div>
+      <h1 class="page-title">Stock Issue</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div class="page-head">
   <h1>📤 출고 등록</h1>
   <p class="muted">프로젝트 또는 고객사에 자재를 출고합니다. 등록 시 현재고가 자동 감소합니다.</p>
 </div>
 
-<form method="post" action="/stock/issue" class="card" style="max-width:780px;">
+<form method="post" action="/stock/issue" class="card" style="max-width:780px;" onsubmit="return checkSafetyStock(this)">
   <div style="display:grid;grid-template-columns:1fr 180px 120px;gap:12px;">
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">부품 <span style="color:#DC2626;">*</span></label>
-      <select name="part_id" required onchange="updatePartHint(this)" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">부품 <span style="color:var(--knk-red);">*</span></label>
+      <select name="part_id" required onchange="updatePartHint(this)" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
         <option value="">-- 선택 --</option>
         {% for p in parts %}
         <option value="{{ p.id }}"
@@ -24,31 +40,31 @@
         </option>
         {% endfor %}
       </select>
-      <div id="partHint" style="font-size:11px;color:#6B7280;margin-top:4px;"></div>
+      <div id="partHint" style="font-size:11px;color:var(--mute);margin-top:4px;"></div>
     </div>
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">출고 수량 <span style="color:#DC2626;">*</span></label>
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">출고 수량 <span style="color:var(--knk-red);">*</span></label>
       <input type="number" name="quantity" step="0.01" min="0.01" required
-             style="width:100%;padding:10px 12px;border:2px solid #DC2626;border-radius:8px;font-size:14px;font-family:monospace;font-weight:700;background:#FEF2F2;">
+             style="width:100%;padding:10px 12px;border:2px solid var(--knk-red);border-radius:8px;font-size:14px;font-family:monospace;font-weight:700;background:#FEF2F2;">
     </div>
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">단가 (원)</label>
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">단가 (원)</label>
       <input type="number" name="unit_price" step="1" min="0" value="0"
-             style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:monospace;">
+             style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:monospace;">
     </div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">관련 프로젝트 (관리코드)</label>
-      <select name="project_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">관련 프로젝트 (관리코드)</label>
+      <select name="project_id" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
         <option value="">(선택 없음)</option>
         {% for p in projects %}<option value="{{ p.id }}">[{{ p.mgmt_code }}] {{ p.name }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">출고 대상 고객사</label>
-      <select name="customer_id" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">출고 대상 고객사</label>
+      <select name="customer_id" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
         <option value="">(선택 없음)</option>
         {% for cu in customers %}<option value="{{ cu.id }}">{{ cu.name }}</option>{% endfor %}
       </select>
@@ -57,27 +73,27 @@
 
   <div style="display:grid;grid-template-columns:1fr 1fr 180px;gap:12px;margin-top:14px;">
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">사유</label>
-      <input type="text" name="reason" value="현장 출고" placeholder="예: SK하이닉스 #2호기 조립" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">사유</label>
+      <input type="text" name="reason" value="현장 출고" placeholder="예: SK하이닉스 #2호기 조립" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
     </div>
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">위치</label>
-      <input type="text" name="location" placeholder="예: 조립동 A-2" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">위치</label>
+      <input type="text" name="location" placeholder="예: 조립동 A-2" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
     </div>
     <div>
-      <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">출고일시</label>
-      <input type="datetime-local" name="occurred_at" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;">
+      <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">출고일시</label>
+      <input type="datetime-local" name="occurred_at" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
     </div>
   </div>
 
   <div style="margin-top:14px;">
-    <label style="font-size:12px;font-weight:800;color:#374151;display:block;margin-bottom:4px;">비고</label>
-    <textarea name="note" rows="2" placeholder="추가 메모" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:inherit;"></textarea>
+    <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">비고</label>
+    <textarea name="note" rows="2" placeholder="추가 메모" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:inherit;"></textarea>
   </div>
 
-  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid var(--line);">
     <a href="/stock/movements" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border:none;font-weight:800;padding:10px 28px;">
+    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--knk-red),var(--knk-red-dk));color:#fff;border:none;font-weight:800;padding:10px 28px;">
       ✓ 출고 등록 (재고 자동 감소)
     </button>
   </div>
@@ -105,5 +121,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const sel = document.querySelector('select[name=part_id]');
   if (sel && sel.value) updatePartHint(sel);
 });
-</script>
-{% endblock %}
+function checkSafetyStock(form) {
+  /* OPS-P0-3: 안전재고 미달 출고 차단 confirm */
+  const sel = form.querySelector('select[name=part_id]');
+  const qtyInput = form.querySelector('input[name=quantity]');
+  if (!sel || !sel.value || !qtyInput) return true;
+  const opt = sel.options[sel.selectedIndex];
+  const qty = parseFloat(qtyInput.value || '0');
+  const cur = parseFloat(opt.dataset.stock || '0');
+  const safe = parseFloat(opt.dataset.safety || '0');
+  const unit = opt.dataset.unit || 'EA';
+  const partLabel = opt.text.split('—')[0].trim();
+  if (qty <= 0) return true;
+  if (qty > cur) {
+    return confirm('⚠ 현재고 초과 출고\n\n' + partLabel + '\n현재고 ' + cur + unit + ' < 출고 ' + qty + unit + '\n\n계속 진행하시겠습니까?');
+  }
+  if (safe > 0 && (cur - qty) < safe) {
+    return confirm('⚠ 안전재고 미달 출고 검출\n\n' + partLabel + '\n출고 후 재고 ' + (cur - qty).toFixed(2) + unit + ' < 안전재고 ' + safe + unit + '\n\n계속 진행하시겠습니까?');
+  }
+  return true;
+}
+</script>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+</body>
+</html>

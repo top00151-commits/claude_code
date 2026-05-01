@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Pareto 분석 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block body %}
+
+<div style="margin-bottom:14px;">
+  <a href="/qms" style="font-size:13px;color:var(--mute);text-decoration:none;">← QMS 대시</a>
+  · <a href="/qms/recurrence" style="font-size:13px;color:var(--mute);text-decoration:none;">재발 추적</a>
+  · <a href="/qms/capa" style="font-size:13px;color:var(--success);text-decoration:none;font-weight:700;">CAPA 관리</a>
+  · <a href="/qc/inspection-reports" style="font-size:13px;color:var(--info);text-decoration:none;font-weight:700;">QCR 출하성적서</a>
+</div>
+
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;border-top:4px solid var(--knk-red);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--knk-red);font-weight:800;background:#FCE4E5;padding:4px 10px;border-radius:6px;">PARETO</span>
+    <span style="font-size:11px;color:var(--mute);">root_cause 빈도 + 누적 % · 80/20 법칙</span>
+  </div>
+  <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;">Pareto 분석</h1>
+</div>
+
+<!-- 80/20 요약 -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;">
+    <div style="font-size:11px;color:var(--mute);">분석 대상 이슈</div>
+    <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;">{{ summary.total_issues }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--info);">
+    <div style="font-size:11px;color:var(--mute);">고유 원인 수</div>
+    <div style="font-size:24px;font-weight:800;color:var(--info);font-variant-numeric:tabular-nums;">{{ summary.distinct_causes }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-left:3px solid var(--knk-red);">
+    <div style="font-size:11px;color:var(--mute);">80% 도달 원인 수</div>
+    <div style="font-size:24px;font-weight:800;color:var(--knk-red);font-variant-numeric:tabular-nums;">{{ summary.p80_cutoff_idx }}</div>
+    <div style="font-size:10px;color:var(--mute-2);margin-top:2px;">전체의 {{ summary.p80_pct_of_causes }}%</div>
+  </div>
+</div>
+
+<!-- Pareto 차트 (CSS bar + SVG cumulative line) -->
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;">
+  <h3 style="margin:0 0 14px 0;font-size:15px;font-weight:800;">root_cause 빈도 + 누적 %</h3>
+  {% if rows %}
+  <div style="position:relative;">
+    <!-- Bar (왼쪽 축) + Cumulative line overlay -->
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="background:var(--paper);">
+          <th style="padding:6px;text-align:left;border-bottom:2px solid var(--line);width:30%;">원인 (40자)</th>
+          <th style="padding:6px;text-align:right;border-bottom:2px solid var(--line);width:8%;">건수</th>
+          <th style="padding:6px;text-align:left;border-bottom:2px solid var(--line);">빈도 막대</th>
+          <th style="padding:6px;text-align:right;border-bottom:2px solid var(--line);width:10%;">개별 %</th>
+          <th style="padding:6px;text-align:right;border-bottom:2px solid var(--line);width:10%;">누적 %</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr style="border-bottom:1px solid var(--paper-2);{% if r.cum_pct <= 80 %}background:#FEF7F7;{% endif %}">
+          <td style="padding:6px;font-size:11px;color:var(--ink);">{{ r.cause }}</td>
+          <td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">{{ r.cnt }}</td>
+          <td style="padding:6px;">
+            <div style="height:14px;background:var(--paper-2);border-radius:3px;overflow:hidden;position:relative;">
+              <div style="height:100%;width:{{ (r.cnt * 100 / max_cnt)|round(1) }}%;background:linear-gradient(90deg,var(--knk-red) 0%,#EF6C00 100%);border-radius:3px;"></div>
+            </div>
+          </td>
+          <td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums;color:var(--mute);">{{ r.pct }}%</td>
+          <td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:{% if r.cum_pct <= 80 %}var(--knk-red){% else %}var(--mute){% endif %};">{{ r.cum_pct }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- SVG 누적선 차트 (별도 패널) -->
+    <div style="margin-top:18px;padding:14px;background:#FAFAFA;border:1px solid var(--line);border-radius:10px;">
+      <div style="font-size:11px;color:var(--mute);margin-bottom:8px;font-weight:700;">누적 % 곡선 (80% 라인 = 노란 가이드)</div>
+      <svg viewBox="0 0 600 160" style="width:100%;height:160px;display:block;" preserveAspectRatio="none">
+        <!-- 격자 -->
+        <line x1="0" y1="32" x2="600" y2="32" stroke="var(--line)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="0" y1="80" x2="600" y2="80" stroke="var(--line)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="0" y1="128" x2="600" y2="128" stroke="var(--line)" stroke-width="1" stroke-dasharray="3,3"/>
+        <!-- 80% 가이드 라인 (y = 160 - 0.8 * 160 = 32) -->
+        <line x1="0" y1="32" x2="600" y2="32" stroke="#EF6C00" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="6" y="28" font-size="10" fill="#EF6C00" font-weight="700">80% 라인</text>
+        {% set step = 600.0 / (rows|length if rows|length > 1 else 1) %}
+        <!-- 누적선 polyline -->
+        <polyline fill="none" stroke="var(--knk-red)" stroke-width="2"
+          points="{% for r in rows %}{{ (loop.index0 * step)|round(2) }},{{ (160 - r.cum_pct * 1.6)|round(2) }} {% endfor %}"/>
+        <!-- 점 -->
+        {% for r in rows %}
+        <circle cx="{{ (loop.index0 * step)|round(2) }}" cy="{{ (160 - r.cum_pct * 1.6)|round(2) }}"
+                r="3" fill="var(--knk-red)" stroke="#fff" stroke-width="1.5"/>
+        {% endfor %}
+      </svg>
+    </div>
+  </div>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:var(--mute);">root_cause 데이터 없음. 이슈에 원인을 입력하면 분석됩니다.</div>
+  {% endif %}
+</div>
+
+<div style="font-size:11px;color:var(--mute-2);text-align:center;padding:8px;">
+  외부 차트 라이브러리 0건 · CSS gradient bar + 인라인 SVG polyline
+</div>
+
+{% endblock %}

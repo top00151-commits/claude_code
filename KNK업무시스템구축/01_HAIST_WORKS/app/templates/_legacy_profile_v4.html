@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% set active = 'profile' %}
+{% block title %}{{ i.profile_title|default('내 계정') }} · KNK{% endblock %}
+{% block body %}
+<div class="page-head">
+  <div class="page-title">
+    <h1>{{ i.profile_title|default('내 프로필') }}</h1>
+    <div class="page-sub">{{ user.name }} {{ user.rank or '' }} · {{ user.team_name or '경영진' }} · {{ user.login_id }}</div>
+  </div>
+</div>
+
+{% if msg %}<div class="flash flash-ok">✅ {{ msg }}</div>{% endif %}
+{% if err %}<div class="flash flash-err">❌ {{ err }}</div>{% endif %}
+
+<!-- 활동 KPI 6 -->
+<div class="kpi-row" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0">
+  <div class="kpi-card"><div class="kpi-label">최근 30일 작성 task</div><div class="kpi-value">{{ tasks_30d|default(0) }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-value">{{ tasks_open|default(0) }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">완료(30일)</div><div class="kpi-value">{{ tasks_done|default(0) }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">댓글(30일)</div><div class="kpi-value">{{ comments_30d|default(0) }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">알림(30일)</div><div class="kpi-value">{{ notifs_30d|default(0) }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">읽지 않음</div><div class="kpi-value">{{ notifs_unread|default(0) }}</div></div>
+</div>
+
+<div class="profile-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <!-- 좌: 본인 정보 + 수정 -->
+  <div>
+    <div class="profile-card">
+      <div class="profile-head"><b>👤 본인 정보</b></div>
+      <div class="profile-info">
+        <div class="pi-row"><span class="pi-k">{{ i.admin_name|default('이름') }}</span><span class="pi-v">{{ user.name }}</span></div>
+        <div class="pi-row"><span class="pi-k">{{ i.admin_rank|default('직급') }}</span><span class="pi-v">{{ user.rank or '-' }}</span></div>
+        <div class="pi-row"><span class="pi-k">{{ i.ck_col_team|default('팀') }}</span><span class="pi-v">{{ user.team_name or '경영진' }}</span></div>
+        <div class="pi-row"><span class="pi-k">{{ i.admin_login_id|default('로그인ID') }}</span><span class="pi-v">{{ user.login_id }}</span></div>
+        <div class="pi-row"><span class="pi-k">{{ i.admin_role|default('권한') }}</span><span class="pi-v">{{ user.role }}</span></div>
+        <div class="pi-row"><span class="pi-k">이메일</span><span class="pi-v">{{ user.email or '-' }}</span></div>
+        <div class="pi-row"><span class="pi-k">언어</span><span class="pi-v">{{ user.lang or 'ko' }}</span></div>
+      </div>
+    </div>
+
+    <!-- 본인 정보 수정 -->
+    <div class="profile-card" style="margin-top:12px">
+      <div class="profile-head"><b>✏️ 정보 수정</b><div class="profile-sub">이메일·언어 (본인 한정)</div></div>
+      <form method="post" action="/me" class="profile-form">
+        <label>이메일</label>
+        <input type="email" name="email" value="{{ user.email or '' }}" maxlength="120">
+        <label>전화번호 <span class="hint">(스키마 보유 시만 저장)</span></label>
+        <input type="text" name="phone" value="{{ user.phone or '' }}" maxlength="30">
+        <label>부서 <span class="hint">(스키마 보유 시만 저장)</span></label>
+        <input type="text" name="dept" value="{{ user.dept or '' }}" maxlength="60">
+        <label>언어</label>
+        <select name="lang">
+          {% for code, label in LANGS.items() %}
+          <option value="{{ code }}" {% if (user.lang or 'ko') == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="profile-btns">
+          <button type="submit" class="btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 비밀번호 변경 -->
+    <div class="profile-card" style="margin-top:12px">
+      <div class="profile-head">
+        <b>{{ i.profile_pw_title|default('🔐 비밀번호 변경') }}</b>
+        <div class="profile-sub">{{ i.profile_pw_hint|default('초기 비밀번호(knk+4자리)를 받으신 분은 반드시 본인만 아는 비밀번호로 변경해 주세요.') }}</div>
+      </div>
+      <form method="post" action="/profile/change-password" class="profile-form">
+        <label>{{ i.current_pw|default('현재 비밀번호') }}</label>
+        <input type="password" name="current_pw" required autocomplete="current-password">
+        <label>{{ i.new_pw|default('새 비밀번호') }} <span class="hint">{{ i.pw_min_hint|default('(6자 이상)') }}</span></label>
+        <input type="password" name="new_pw" required minlength="6" autocomplete="new-password">
+        <label>{{ i.new_pw_confirm|default('새 비밀번호 확인') }}</label>
+        <input type="password" name="confirm_pw" required minlength="6" autocomplete="new-password">
+        <div class="profile-btns">
+          <button type="submit" class="btn-primary">{{ i.change_btn|default('변경하기') }}</button>
+          <a href="/home" class="btn-sm">{{ i.cancel|default('취소') }}</a><!-- OPS-P1-U4 [E-015]: 깨진 /daily/{빈값} → /home -->
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 우: 활동 + 권한 -->
+  <div>
+    <!-- 최근 task 10건 -->
+    <div class="profile-card">
+      <div class="profile-head"><b>📋 최근 작성 task (10건)</b></div>
+      {% if recent_tasks and recent_tasks|length > 0 %}
+      <table class="t-list" style="width:100%;font-size:13px">
+        <thead><tr><th>일자</th><th>제목</th><th>상태</th><th>분류</th></tr></thead>
+        <tbody>
+          {% for t in recent_tasks %}
+          <tr><td>{{ t.work_date }}</td><td>{{ t.title }}</td><td>{{ t.status }}</td><td>{{ t.category }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="muted">최근 작성한 task 없음.</div>{% endif %}
+    </div>
+
+    <!-- 최근 댓글 10건 -->
+    <div class="profile-card" style="margin-top:12px">
+      <div class="profile-head"><b>💬 최근 댓글 (10건)</b></div>
+      {% if recent_comments and recent_comments|length > 0 %}
+      <ul style="font-size:13px;margin:0;padding-left:18px">
+        {% for c in recent_comments %}
+        <li><b>{{ c.task_title|truncate(30) }}</b> — {{ c.body|truncate(50) }} <span class="muted">({{ c.created_at }})</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="muted">최근 댓글 없음.</div>{% endif %}
+    </div>
+
+    <!-- 권한 매트릭스 1인 -->
+    <div class="profile-card" style="margin-top:12px">
+      <div class="profile-head"><b>🔑 권한 (본인 한정)</b><div class="profile-sub">D=직접 / G=그룹 / T=위임</div></div>
+      <div style="font-size:13px">
+        <p><b>D 직접:</b> {{ perms_direct|length }}건 — {% for p in perms_direct[:8] %}<span class="badge">{{ p.label }}</span>{% endfor %}{% if perms_direct|length > 8 %} … +{{ perms_direct|length - 8 }}{% endif %}</p>
+        <p><b>G 그룹 상속:</b> {{ perms_group|length }}건 — {% for p in perms_group[:8] %}<span class="badge">{{ p.label }} <span class="muted">({{ p.group_name }})</span></span>{% endfor %}{% if perms_group|length > 8 %} … +{{ perms_group|length - 8 }}{% endif %}</p>
+        <p><b>T 위임 받은:</b> {{ tokens_received|length }}건 — {% for p in tokens_received[:8] %}<span class="badge">{{ p.label }} <span class="muted">({{ p.from_name }})</span></span>{% endfor %}{% if tokens_received|length > 8 %} … +{{ tokens_received|length - 8 }}{% endif %}</p>
+        <p><b>위임한 토큰:</b> {{ tokens_granted|length }}건 — {% for p in tokens_granted[:8] %}<span class="badge">{{ p.label }} <span class="muted">→ {{ p.to_name }}</span></span>{% endfor %}{% if tokens_granted|length > 8 %} … +{{ tokens_granted|length - 8 }}{% endif %}</p>
+      </div>
+    </div>
+
+    <!-- 위임 받은 task -->
+    {% if task_delegs_in and task_delegs_in|length > 0 %}
+    <div class="profile-card" style="margin-top:12px">
+      <div class="profile-head"><b>🤝 위임 받은 task</b></div>
+      <ul style="font-size:13px;margin:0;padding-left:18px">
+        {% for d in task_delegs_in %}
+        <li><b>{{ d.task_title|truncate(30) }}</b> — {{ d.from_name }} ({{ d.status }}) <span class="muted">{{ d.created_at }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

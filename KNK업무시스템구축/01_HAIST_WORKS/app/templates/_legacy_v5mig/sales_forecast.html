@@ -1,0 +1,126 @@
+{% extends "base_sales.html" %}
+{% block title %}매출 예측 — {{ app_name }}{% endblock %}
+{% block body %}
+
+{# Top3-S1-3차 매출 예측 — 12개월 → +3개월. _linear_regression 재사용 (numpy 0). #}
+
+{% macro won(v) %}{% if v >= 100000000 %}{{ "%.1f"|format(v/100000000) }}억{% elif v >= 10000000 %}{{ "%.1f"|format(v/10000000) }}천만{% elif v >= 10000 %}{{ "%.0f"|format(v/10000) }}만{% else %}{{ "{:,.0f}".format(v) }}{% endif %}{% endmacro %}
+
+<div class="page-head">
+  <h1>매출 예측</h1>
+  <p class="muted">선형회귀 (순수 Python) · 12개월 입력 → 향후 3개월 예측 · R² 정확도 표기</p>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+  <a href="/sales" class="btn btn-ghost">매출 홈</a>
+  <a href="/sales/dashboard" class="btn btn-ghost">강화 대시</a>
+  <a href="/sales/forecast" class="btn" style="background:var(--knk-red);color:#fff;border:none;">예측</a>
+  <button onclick="refreshForecast()" class="btn btn-ghost">재계산</button>
+</div>
+
+{% if forecast %}
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-label">예측 종료월</div>
+    <div class="kpi-value" style="font-size:20px;color:var(--knk-red);">{{ forecast.end_ym }}</div>
+    <div class="kpi-sub">+3개월</div></div>
+  <div class="kpi"><div class="kpi-label">예측 매출 (해당월)</div>
+    <div class="kpi-value" style="font-size:20px;">{{ won(forecast.end_total) }}</div>
+    <div class="kpi-sub">선형 외삽</div></div>
+  <div class="kpi"><div class="kpi-label">R² 정확도</div>
+    <div class="kpi-value" style="font-size:20px;color:{% if forecast.r_squared >= 0.7 %}var(--success){% elif forecast.r_squared >= 0.4 %}#D97706{% else %}var(--knk-red){% endif %};">
+      {{ "%.3f"|format(forecast.r_squared) }}
+    </div>
+    <div class="kpi-sub">{% if forecast.r_squared >= 0.7 %}양호{% elif forecast.r_squared >= 0.4 %}보통{% else %}낮음{% endif %}</div></div>
+  <div class="kpi"><div class="kpi-label">월간 증감 (slope)</div>
+    <div class="kpi-value" style="font-size:18px;color:{% if forecast.slope >= 0 %}var(--success){% else %}var(--knk-red){% endif %};">
+      {% if forecast.slope >= 0 %}+{% endif %}{{ won(forecast.slope) }}/월
+    </div>
+    <div class="kpi-sub">선형 기울기</div></div>
+  <div class="kpi"><div class="kpi-label">샘플 수</div>
+    <div class="kpi-value" style="font-size:20px;">{{ forecast.sample_n }}</div>
+    {# OPS-P1-M4 [B-009]: 보유 월 표시 + 최소 권장 #}
+    <div class="kpi-sub">현재 {{ forecast.sample_n }}개월 보유 / 최소 2개월 권장{% if forecast.sample_n < 2 %} <span style="color:var(--knk-red);font-weight:700;">⚠ 부족</span>{% endif %}</div></div>
+</div>
+
+{# 차트 — 실측 (회색) + 예측 (빨강 점선) #}
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">실측 + 예측 (15개월)</h2>
+  <div style="position:relative;height:200px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);padding:8px 0;">
+    <div style="display:flex;align-items:flex-end;height:180px;gap:3px;">
+      {% for p in forecast.points %}
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+        <div title="{{ p.ym }} : {{ won(p.total) }}{% if p.is_pred %} (예측){% endif %}"
+             style="width:80%;border-radius:3px 3px 0 0;
+                    height:{{ (p.total / chart_max * 100)|round(1) if chart_max > 0 else 0 }}%;min-height:2px;
+                    background:{% if p.is_pred %}repeating-linear-gradient(45deg,var(--knk-red),var(--knk-red) 4px,var(--knk-red-soft) 4px,var(--knk-red-soft) 8px){% else %}linear-gradient(180deg,var(--mute),var(--ink)){% endif %};"></div>
+      </div>
+      {% endfor %}
+    </div>
+    {# 회귀선 SVG #}
+    <svg viewBox="0 0 {{ forecast.points|length * 100 }} 180" preserveAspectRatio="none"
+         style="position:absolute;top:8px;left:0;width:100%;height:180px;pointer-events:none;">
+      <polyline fill="none" stroke="#1D4ED8" stroke-width="2" stroke-dasharray="4,2"
+        points="{% for p in forecast.points %}{{ loop.index0 * 100 + 50 }},{{ 180 - (p.total / chart_max * 170) if chart_max > 0 else 180 }} {% endfor %}"/>
+    </svg>
+  </div>
+  <div style="display:flex;gap:3px;margin-top:6px;font-size:10px;color:var(--mute);">
+    {% for p in forecast.points %}
+    <div style="flex:1;text-align:center;color:{% if p.is_pred %}var(--knk-red);font-weight:700{% else %}var(--mute){% endif %};">{{ p.ym[5:] }}</div>
+    {% endfor %}
+  </div>
+  <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--mute);">
+    <div><span style="display:inline-block;width:12px;height:8px;background:var(--ink);vertical-align:middle;"></span> 실측</div>
+    <div><span style="display:inline-block;width:12px;height:8px;background:repeating-linear-gradient(45deg,var(--knk-red),var(--knk-red) 2px,var(--knk-red-soft) 2px,var(--knk-red-soft) 4px);vertical-align:middle;"></span> 예측 (3개월)</div>
+    <div><span style="display:inline-block;width:12px;height:0;border-top:2px dashed #1D4ED8;vertical-align:middle;"></span> 회귀선</div>
+  </div>
+</div>
+
+{# 데이터 테이블 #}
+<div class="card" style="margin-top:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">월별 상세</h2>
+  <table class="table" style="width:100%;font-size:13px;">
+    <thead><tr><th>YYYY-MM</th><th style="text-align:right;">매출</th><th>구분</th></tr></thead>
+    <tbody>
+      {% for p in forecast.points %}
+      <tr>
+        <td style="font-family:var(--font-mono);font-weight:700;">{{ p.ym }}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:700;
+          color:{% if p.is_pred %}var(--knk-red){% else %}var(--ink){% endif %};">{{ won(p.total) }}</td>
+        <td>
+          {% if p.is_pred %}<span class="tag tag-warn">예측</span>
+          {% else %}<span class="tag">실측</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="card" style="margin-top:14px;">
+  <p class="muted" style="text-align:center;padding:30px;">
+    예측 불가 — orders 테이블에 최소 2개월 이상의 데이터가 필요합니다.
+  </p>
+</div>
+{% endif %}
+
+<div style="margin-top:14px;padding:10px 14px;background:var(--paper-warm);border-left:3px solid var(--info);border-radius:6px;font-size:12px;color:var(--info);">
+  알고리즘 — 순수 Python <code>_linear_regression</code> (xs=월 인덱스, ys=월매출) → slope·intercept·R² 산출 → 다음 3개월 외삽 (음수는 0 클램프). 외부 라이브러리 0건.
+</div>
+
+<script>
+async function refreshForecast() {
+  try {
+    const res = await fetch('/sales/forecast/refresh', {method: 'POST'});
+    const j = await res.json();
+    if (j.ok) {
+      alert('재계산 완료: ' + j.end_ym + ' 예측 ' + Math.round(j.end_total).toLocaleString() + '원 (R²=' + j.r_squared.toFixed(3) + ')');
+      location.reload();
+    } else {
+      alert('실패: ' + (j.error || 'unknown'));
+    }
+  } catch (e) { alert('오류: ' + e); }
+}
+</script>
+
+{% endblock %}

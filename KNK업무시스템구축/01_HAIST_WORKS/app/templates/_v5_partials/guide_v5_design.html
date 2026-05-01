@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>사용 가이드 — KNK HAIST WORKS · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<!-- 사용가이드 마스터 — 표준 토큰 사용 / 하단 root는 호환성 유지용 -->
+<style>
+  :root {
+    --paper:        #FBF5EC;
+    --paper-2:      #F5EBD9;
+    --paper-3:      #FFFFFF;
+    --amber:        #D4923B;
+    --amber-light:  #F0C880;
+    --amber-glow:   #FFE5B8;
+    --amber-deep:   #B8843A;
+    --warm-tan:     #E8D5B7;
+    --ink:          #2D2520;
+    --mute:         #8B7C6E;
+    --line:         #ECE0CB;
+    --knk-red:      #A5282C;
+    --success:      #7A9B5C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+  /* ============ 사이드바 ============ */
+  .sidebar {
+    background: var(--paper-3);
+    border-right: 1px solid var(--line);
+    padding: 22px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sb-brand {
+    padding: 0 22px 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 14px;
+  }
+  .sb-brand img { height: 28px; }
+  .sb-brand-sub { font-size: 10px; color: var(--amber-deep); margin-top: 6px; font-weight: 600; letter-spacing: 0.06em; }
+  .sb-group { padding: 14px 22px 6px; font-size: 10.5px; color: var(--mute); font-weight: 600; letter-spacing: 0.04em; }
+  .sb-item {
+    padding: 9px 14px;
+    margin: 1px 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ink);
+    border-radius: 8px;
+  }
+  .sb-item:hover { background: var(--amber-glow); }
+  .sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+  .sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+
+  /* ============ 메인 ============ */
+  .main { padding: 0; }
+  .top {
+    background: var(--paper-3);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 36px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 2px 16px rgba(212,146,59,0.05);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .crumbs { font-size: 12px; color: var(--mute); }
+  .crumbs b { color: var(--ink); }
+  .top-right { display: flex; gap: 10px; align-items: center; }
+  .search {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 9px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    width: 280px;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .search:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+
+  /* ============ 히어로 ============ */
+  .hero {
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white;
+    padding: 56px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: "";
+    position: absolute;
+    top: -50%; right: -10%;
+    width: 480px; height: 480px;
+    background: radial-gradient(circle, var(--amber-glow) 0%, transparent 60%);
+    opacity: 0.4;
+  }
+  .hero-inner { position: relative; z-index: 2; max-width: 800px; }
+  .hero-up { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-glow); font-weight: 600; }
+  .hero h1 { font-size: 42px; font-weight: 700; margin-top: 12px; letter-spacing: -0.02em; line-height: 1.15; }
+  .hero h1 em { font-style: normal; color: var(--amber-glow); }
+  .hero p { margin-top: 14px; font-size: 16px; line-height: 1.7; color: rgba(255,255,255,0.88); max-width: 620px; }
+
+  /* ============ 본문 ============ */
+  .body { padding: 36px 48px 60px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 36px; }
+
+  .step-card {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 24px 26px;
+    box-shadow: 0 2px 8px rgba(212,146,59,0.04);
+    position: relative;
+    overflow: hidden;
+  }
+  .step-num {
+    font-size: 64px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--amber) 0%, var(--amber-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 0.9;
+    position: absolute;
+    bottom: -12px; right: 14px;
+    opacity: 0.4;
+  }
+  .step-label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; }
+  .step-card h3 { font-size: 18px; font-weight: 700; margin-top: 8px; color: var(--ink); }
+  .step-card p { font-size: 13px; color: var(--mute); margin-top: 6px; line-height: 1.65; }
+
+  .section { margin-bottom: 40px; }
+  .section h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section h2::before {
+    content: "";
+    width: 5px; height: 22px;
+    background: var(--amber);
+    border-radius: 3px;
+  }
+
+  .topics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .topic {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .topic:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(212,146,59,0.10); border-color: var(--amber); }
+  .topic-icon {
+    width: 44px; height: 44px;
+    background: var(--amber-glow);
+    border-radius: 12px;
+    display: grid; place-items: center;
+    font-size: 22px;
+  }
+  .topic-text { flex: 1; }
+  .topic-text h4 { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .topic-text p { font-size: 12px; color: var(--mute); margin-top: 3px; }
+  .topic-arrow { color: var(--amber-deep); font-weight: 700; }
+
+  /* 풀콰트 */
+  .pull-quote {
+    background: linear-gradient(135deg, var(--paper-2) 0%, var(--paper-3) 100%);
+    border-left: 5px solid var(--amber);
+    padding: 28px 32px;
+    border-radius: 14px;
+    margin: 32px 0;
+  }
+  .pull-quote p {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .pull-quote .by {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--amber-deep);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  /* 빅터 메모 */
+  .victor-note {
+    background: linear-gradient(135deg, var(--ink) 0%, #4A3D2E 100%);
+    color: var(--paper);
+    padding: 32px 36px;
+    border-radius: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .victor-note::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, var(--amber) 0%, transparent 65%);
+    opacity: 0.35;
+  }
+  .victor-note-inner { position: relative; z-index: 2; }
+  .victor-note .label { font-size: 11px; letter-spacing: 0.22em; color: var(--amber-light); text-transform: uppercase; font-weight: 700; }
+  .victor-note h3 { font-size: 24px; font-weight: 700; margin-top: 8px; color: white; }
+  .victor-note p { font-size: 14px; line-height: 1.75; color: rgba(255,255,255,0.85); margin-top: 12px; max-width: 700px; }
+
+  .design-note {
+    margin-top: 32px;
+    padding: 18px 24px;
+    background: var(--amber-glow);
+    border-radius: 12px;
+    border-left: 4px solid var(--knk-red);
+  }
+  .design-note h4 { font-size: 12px; color: var(--knk-red); margin-bottom: 6px; font-weight: 700; }
+  .design-note p { font-size: 12.5px; color: var(--ink); line-height: 1.65; }
+  .design-note p b { color: var(--amber-deep); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="sb-brand-sub">사용 가이드 · v5 H5</div>
+    </div>
+    <div class="sb-group">시작하기</div>
+    <div class="sb-item active">홈</div>
+    <div class="sb-item">3단계 빠른 시작</div>
+    <div class="sb-item">로그인 / 권한</div>
+    <div class="sb-group">매출영업센터</div>
+    <div class="sb-item">매출 매트릭스 5종</div>
+    <div class="sb-item">견적 작성·발행</div>
+    <div class="sb-item">고객사 등급 관리</div>
+    <div class="sb-group">자재구매센터</div>
+    <div class="sb-item">발주서 작성</div>
+    <div class="sb-item">재고·입출고</div>
+    <div class="sb-item">단가 협상 이력</div>
+    <div class="sb-group">빅터 AI</div>
+    <div class="sb-item">기본 사용법</div>
+    <div class="sb-item">자주 묻는 질문</div>
+    <div class="sb-group">관리자</div>
+    <div class="sb-item">사용자·권한</div>
+    <div class="sb-item">시스템 설정</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="crumbs">사용 가이드 · <b>홈</b></div>
+      <div class="top-right">
+        <input class="search" placeholder="가이드 검색…" />
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-up">USER GUIDE · 2026.04 EDITION</div>
+        <h1>처음 만나는 <em>HAIST WORKS</em></h1>
+        <p>케이엔케이 통합 업무 플랫폼의 모든 사용법을 한곳에. 매출·자재·물류·빅터 AI 까지, 김 부장님의 손에 익는 가장 친절한 안내서.</p>
+      </div>
+    </section>
+
+    <section class="body">
+      <div class="section">
+        <h2>3 단계 빠른 시작</h2>
+        <div class="row">
+          <div class="step-card">
+            <div class="step-label">STEP 01</div>
+            <h3>로그인</h3>
+            <p>사번 또는 사내 이메일로 로그인. SSO 사용 시 한 번 클릭으로 진입합니다.</p>
+            <div class="step-num">1</div>
+          </div>
+          <div class="step-card">
+            <div class="step-label">STEP 02</div>
+            <h3>오늘의 KNK 확인</h3>
+            <p>대시보드에서 매출·견적·발주·재고 경고 4개를 즉시 확인합니다.</p>
+            <div class="step-num">2</div>
+          </div>
+          <div class="step-card">
+            <div class="step-label">STEP 03</div>
+            <h3>빅터 AI 에게 묻기</h3>
+            <p>우측 패널에서 "(주)대성 견적 정리해줘" 처럼 한 줄로 물어보세요.</p>
+            <div class="step-num">3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>주요 영역 둘러보기</h2>
+        <div class="topics">
+          <div class="topic">
+            <div class="topic-icon">📊</div>
+            <div class="topic-text">
+              <h4>매출 매트릭스 5종</h4>
+              <p>대시 요약 · 일별 · 월별 · 연간 · 고객별</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+          <div class="topic">
+            <div class="topic-icon">📑</div>
+            <div class="topic-text">
+              <h4>견적 작성</h4>
+              <p>품목 추가, 단가 자동 불러오기, PDF 발행</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+          <div class="topic">
+            <div class="topic-icon">📦</div>
+            <div class="topic-text">
+              <h4>발주서 · 재고</h4>
+              <p>자재팀 → 거래처 발주 + 입출고 추적</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+          <div class="topic">
+            <div class="topic-icon">🚚</div>
+            <div class="topic-text">
+              <h4>물류·배송</h4>
+              <p>출고 일정 · 트럭 배차 · 도착 확인</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+          <div class="topic">
+            <div class="topic-icon">🤖</div>
+            <div class="topic-text">
+              <h4>빅터 AI 활용법</h4>
+              <p>업무 요약 · 메모 발송 · 보고서 초안</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+          <div class="topic">
+            <div class="topic-icon">⚙️</div>
+            <div class="topic-text">
+              <h4>관리자 설정</h4>
+              <p>사용자 · 권한 · 알림 · 백업</p>
+            </div>
+            <div class="topic-arrow">→</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pull-quote">
+        <p>"가장 친절한 시스템은, 사용자가 가이드를 거의 읽지 않아도 되는 시스템입니다. 그래도 필요한 순간 가장 따뜻하게 답을 건네는 — 그게 HAIST WORKS 의 약속입니다."</p>
+        <div class="by">— 빅터, 디자인 팀</div>
+      </div>
+
+      <div class="victor-note">
+        <div class="victor-note-inner">
+          <div class="label">VICTOR'S NOTE</div>
+          <h3>모르겠으면 빅터에게 물어보세요</h3>
+          <p>가이드를 못 찾으셨거나 메뉴 위치가 바뀐 것 같다면, 우측 빅터 AI 패널에 그냥 한국어로 물어보세요. 빅터가 바로 해당 페이지로 안내하거나 답변을 드립니다. <b style="color:var(--amber-light)">"고객별 매출 어디서 보지?"</b> 처럼요.</p>
+        </div>
+      </div>
+
+      <div class="design-note">
+        <h4>★ H5 사용가이드 — 디자인 메모</h4>
+        <p>
+          매거진 v4 의 차가운 흑백을 떠나 <b>앰버 그라데이션 히어로</b> + 흰 카드 + 둥근 모서리(14~18px) 톤.
+          "가이드 = 매뉴얼 = 딱딱함" 의 통념을 깨뜨려 <b>"환영 받는 느낌의 안내서"</b>.
+          빅터 노트는 검정 배경 + 앰버 글로우 → "전문가 한 마디" 의 무게감.
+          사이드바 사용 가이드 카테고리(시작하기·매출·자재·빅터·관리자) 를 메인 시스템 사이드바와 정합.
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

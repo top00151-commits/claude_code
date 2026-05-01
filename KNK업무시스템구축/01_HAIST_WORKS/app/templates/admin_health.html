@@ -1,49 +1,65 @@
-{% extends "base.html" %}
-{% block title %}시스템 건전성 점검 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>시스템 상태 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
 
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">시스템 상태</div>
+      <h1 class="page-title">시스템 상태</h1>
+    </div>
+  </div>
+  <div style="margin: 0 var(--content-pad);">
 <div style="margin-bottom:14px;">
-  <a href="/admin" style="font-size:13px;color:#6B7280;text-decoration:none;">← 관리자 홈</a>
+  <a href="/admin" style="font-size:13px;color:var(--mute);text-decoration:none;">← 관리자 홈</a>
 </div>
 
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid #16A34A;">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--success);">
   <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🩺 시스템 건전성 점검</h1>
-  <div style="font-size:13px;color:#6B7280;">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에 — 빅뱅 함정 회피용 진실 보고서</div>
+  <div style="font-size:13px;color:var(--mute);">"진짜 동작하는 것"과 "설정 필요한 것"을 한눈에 — 빅뱅 함정 회피용 진실 보고서</div>
 </div>
 
 <!-- 상태 요약 -->
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
-  <div style="background:#E8F5E9;border:1px solid #86EFAC;border-radius:12px;padding:16px;text-align:center;">
+  <div style="background:var(--paper-2);border:1px solid var(--success);border-radius:12px;padding:16px;text-align:center;">
     <div style="font-size:11px;color:#166534;font-weight:800;">✅ 정상</div>
     <div style="font-size:28px;font-weight:800;color:#166534;margin-top:4px;">{{ counts.ok }}</div>
   </div>
-  <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:12px;padding:16px;text-align:center;">
-    <div style="font-size:11px;color:#92400E;font-weight:800;">⚠️ 주의</div>
-    <div style="font-size:28px;font-weight:800;color:#92400E;margin-top:4px;">{{ counts.warn }}</div>
+  <div style="background:var(--amber-glow);border:1px solid var(--amber);border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:var(--amber-deep);font-weight:800;">⚠️ 주의</div>
+    <div style="font-size:28px;font-weight:800;color:var(--amber-deep);margin-top:4px;">{{ counts.warn }}</div>
   </div>
-  <div style="background:#FEE2E2;border:1px solid #DC2626;border-radius:12px;padding:16px;text-align:center;">
-    <div style="font-size:11px;color:#991B1B;font-weight:800;">🚨 오류</div>
-    <div style="font-size:28px;font-weight:800;color:#991B1B;margin-top:4px;">{{ counts.error }}</div>
+  <div style="background:var(--knk-red-soft);border:1px solid var(--knk-red);border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:var(--knk-red-dk);font-weight:800;">🚨 오류</div>
+    <div style="font-size:28px;font-weight:800;color:var(--knk-red-dk);margin-top:4px;">{{ counts.error }}</div>
   </div>
-  <div style="background:#F3F4F6;border:1px solid #9CA3AF;border-radius:12px;padding:16px;text-align:center;">
-    <div style="font-size:11px;color:#374151;font-weight:800;">ℹ️ 정보</div>
-    <div style="font-size:28px;font-weight:800;color:#374151;margin-top:4px;">{{ counts.info }}</div>
+  <div style="background:var(--paper-2);border:1px solid var(--mute-2);border-radius:12px;padding:16px;text-align:center;">
+    <div style="font-size:11px;color:var(--ink);font-weight:800;">ℹ️ 정보</div>
+    <div style="font-size:28px;font-weight:800;color:var(--ink);margin-top:4px;">{{ counts.info }}</div>
   </div>
 </div>
 
 {% set level_meta = {
-  'core': ('🏗 핵심 기능', '#A5282C', 'DB·테이블·매핑 — 실패하면 시스템 불가능'),
-  'data': ('📊 운영 데이터', '#1565C0', '실 사용자/프로젝트/부품 데이터 보유 현황'),
-  'external': ('🔌 외부 시스템 연동', '#4338CA', '하이웍스 API·링크 — 토큰 미설정 = 비활성'),
-  'ops': ('🛠 운영', '#16A34A', '백업·활동 — 일상 운영 점검'),
+  'core': ('🏗 핵심 기능', 'var(--knk-red)', 'DB·테이블·매핑 — 실패하면 시스템 불가능'),
+  'data': ('📊 운영 데이터', 'var(--info)', '실 사용자/프로젝트/부품 데이터 보유 현황'),
+  'external': ('🔌 외부 시스템 연동', 'var(--info)', '하이웍스 API·링크 — 토큰 미설정 = 비활성'),
+  'ops': ('🛠 운영', 'var(--success)', '백업·활동 — 일상 운영 점검'),
 } %}
 
 {% for lvl in ['core','data','external','ops'] %}
 {% if by_level.get(lvl) %}
 {% set meta = level_meta[lvl] %}
-<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid {{ meta[1] }};">
+<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 24px;margin-bottom:14px;border-left:4px solid {{ meta[1] }};">
   <h2 style="margin:0 0 4px;font-size:15px;font-weight:800;color:{{ meta[1] }};">{{ meta[0] }}</h2>
-  <p style="margin:0 0 14px;font-size:11px;color:#6B7280;">{{ meta[2] }}</p>
+  <p style="margin:0 0 14px;font-size:11px;color:var(--mute);">{{ meta[2] }}</p>
   <div style="display:flex;flex-direction:column;gap:8px;">
     {% for c in by_level[lvl] %}
     {% set s = c.status %}
@@ -51,18 +67,18 @@
       {% if s=='ok' %}#F0FDF4
       {% elif s=='warn' %}#FFFBEB
       {% elif s=='error' %}#FEF2F2
-      {% else %}#F9FAFB{% endif %};
+      {% else %}var(--paper){% endif %};
       border-left:3px solid
-      {% if s=='ok' %}#16A34A
-      {% elif s=='warn' %}#F59E0B
-      {% elif s=='error' %}#DC2626
-      {% else %}#9CA3AF{% endif %};">
+      {% if s=='ok' %}var(--success)
+      {% elif s=='warn' %}var(--amber)
+      {% elif s=='error' %}var(--knk-red)
+      {% else %}var(--mute-2){% endif %};">
       <div style="font-size:18px;width:30px;text-align:center;">
         {% if s=='ok' %}✅{% elif s=='warn' %}⚠️{% elif s=='error' %}🚨{% else %}ℹ️{% endif %}
       </div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:13px;color:#1A1A1A;">{{ c.name }}</div>
-        <div style="font-size:12px;color:#374151;margin-top:3px;">{{ c.detail }}</div>
+        <div style="font-weight:700;font-size:13px;color:var(--ink);">{{ c.name }}</div>
+        <div style="font-size:12px;color:var(--ink);margin-top:3px;">{{ c.detail }}</div>
       </div>
     </div>
     {% endfor %}
@@ -72,24 +88,28 @@
 {% endfor %}
 
 <!-- 액션 가이드 -->
-<div style="background:linear-gradient(135deg,#EEF2FF,#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:20px;margin-bottom:14px;">
-  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;color:#312E81;">📋 다음 액션</h2>
-  <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:#1A1A1A;line-height:1.7;">
+<div style="background:linear-gradient(135deg,var(--paper-warm),#DBEAFE);border:1px solid #C7D2FE;border-radius:14px;padding:20px;margin-bottom:14px;">
+  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;color:var(--info);">📋 다음 액션</h2>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--ink);line-height:1.7;">
     {% if counts.error > 0 %}
     <div>🚨 <strong>오류 {{ counts.error }}건</strong> — 운영 전 반드시 해결 (위 빨간 항목 참조)</div>
     {% endif %}
     {% if counts.warn > 0 %}
     <div>⚠️ <strong>주의 {{ counts.warn }}건</strong> — 안정 운영 위해 조치 권장</div>
     {% endif %}
-    <div>🔧 <a href="/admin/settings" style="color:#4338CA;font-weight:700;">시스템 설정</a>에서 토큰/URL/도메인 입력</div>
+    <div>🔧 <a href="/admin/settings" style="color:var(--info);font-weight:700;">시스템 설정</a>에서 토큰/URL/도메인 입력</div>
     <div>💾 백업 명령: <code style="background:#fff;padding:2px 6px;border-radius:4px;">python scripts/backup_db.py --keep 60</code></div>
     <div>📥 baby 마이그: <code style="background:#fff;padding:2px 6px;border-radius:4px;">python scripts/migrate_baby_v2.py --dry-run</code></div>
     <div>📚 배포 가이드: <code>HAIST_WORKS/_DEPLOY_배포_가이드.md</code></div>
   </div>
 </div>
 
-<div style="text-align:center;margin-top:20px;color:#9CA3AF;font-size:11px;">
+<div style="text-align:center;margin-top:20px;color:var(--mute-2);font-size:11px;">
   ※ 이 페이지는 매번 실시간 점검합니다. 새로고침으로 다시 확인 가능.
+</div>  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
 </div>
 
-{% endblock %}
+</body>
+</html>
