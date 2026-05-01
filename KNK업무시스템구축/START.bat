@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-02 v5H5 STANDALONE 125/125 전 템플릿 완료 (대�
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H5 STANDALONE 125/125 전 템플릿 — base 상속 0건 / partial 일관성]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H5 STANDALONE 125/125 + grid 핫픽스 — partial styles.html .app 그리드 row + .top grid-column 1/-1]
 
 echo.
 echo ============================================================
