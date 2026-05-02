@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📰 LOGIN v4 · CX23c — 매거진 Spread (Cover)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:'Times New Roman',Georgia,serif;font-size:15px;line-height:1.55;background:#FAFAF7;color:#0A0A0A;overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+.sans{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif}
+
+/* === 마스트헤드 (CX23c) === */
+.masthead{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:#FAFAF7;color:#0A0A0A;
+  padding:11px 32px;
+  border-top:3px solid #0A0A0A;
+  border-bottom:1px solid #0A0A0A;
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+}
+.masthead .edition{color:#A5282C;font-weight:900;letter-spacing:.20em}
+.masthead .lang-area{display:flex;gap:6px}
+.masthead .lang-area a{
+  background:transparent;color:#0A0A0A;border:1px solid #0A0A0A;
+  padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:.15em;
+}
+.masthead .lang-area a.on{background:#0A0A0A;color:#FAFAF7}
+.masthead .lang-area a:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+
+/* === 2열 분할 (cover spread) === */
+.split{
+  display:grid;grid-template-columns:1.15fr 1fr;
+  height:100vh;padding-top:42px;
+}
+@media (max-width:900px){.split{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+/* === 좌: 매거진 Cover Spread === */
+.cover{
+  position:relative;overflow:hidden;
+  background:#0A0A0A;color:#FAFAF7;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(32px,4vw,72px);
+}
+.cover::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode:overlay;opacity:.6;
+}
+.cover > *{position:relative;z-index:1}
+
+.cover-top{display:flex;flex-direction:column;gap:14px}
+.cover-mark{
+  display:flex;align-items:center;gap:6px;
+  font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  font-size:9px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  color:rgba(250,250,247,.55);
+}
+.cover-mark::before{content:"";width:24px;height:1px;background:#A5282C}
+
+.cover-logo-wrap{
+  background:transparent;
+  display:flex;align-items:center;gap:16px;
+  padding:18px 0;
+  border-top:1px solid rgba(250,250,247,.20);
+  border-bottom:1px solid rgba(250,250,247,.20);
+}
+.cover-logo-wrap img{
+  height:clamp(56px,4.5vw + 36px,80px);
+  width:auto;max-width:300px;
+  filter:brightness(1.4) contrast(.95);
+}
+.cover-logo-text{
+  font-family:'Times New Roman',Georgia,serif;
+  font-size:9px;font-style:italic;
+  color:rgba(250,250,247,.70);
+  letter-spacing:.05em;line-height:1.5;
+  border-left:1px solid rgba(250,250,247,.30);
+  padding-left:14px;
+  flex:1;
+}
+
+.cover-headline{
+  margin-top:auto;margin-bottom:32px;
+}
+.cover-overline{
+  font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  font-size:10px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  color:#D4B876;margin-bottom:18px;
+}
+.cover-overline::before{content:"— ";color:#A5282C;font-weight:700;font-style:italic}
+
+.cover-h1{
+  font-family:'Times New Roman',Georgia,serif;
+  font-size:clamp(40px,4.5vw + 16px,80px);
+  font-weight:200;line-height:1.04;letter-spacing:-1.5px;
+  text-wrap:balance;word-break:keep-all;
+}
+.cover-h1 .accent{
+  font-style:italic;font-weight:500;
+  color:#D4B876;
+}
+.cover-h1 .small{
+  display:block;font-size:.55em;font-weight:300;
+  color:rgba(250,250,247,.85);margin-top:14px;
+  font-style:italic;
+}
+
+.cover-bottom{display:flex;flex-direction:column;gap:12px}
+.cover-features{
+  display:flex;gap:24px;flex-wrap:wrap;
+  border-top:1px solid rgba(250,250,247,.20);
+  padding-top:18px;
+}
+.cf-item{
+  font-family:'Times New Roman',Georgia,serif;
+  font-size:12px;color:rgba(250,250,247,.78);
+  font-style:italic;line-height:1.5;
+  flex:1;min-width:140px;
+}
+.cf-item b{
+  font-style:normal;font-weight:700;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;letter-spacing:.20em;text-transform:uppercase;
+  color:#D4B876;display:block;margin-bottom:4px;
+}
+
+.cover-foot{
+  display:flex;justify-content:space-between;align-items:center;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;letter-spacing:.20em;text-transform:uppercase;
+  color:rgba(250,250,247,.50);
+  font-weight:700;
+  margin-top:24px;
+  padding-top:14px;
+  border-top:1px solid rgba(250,250,247,.10);
+}
+
+/* === 우: 로그인 폼 (인쇄 폼 톤) === */
+.form-panel{
+  background:#FAFAF7;position:relative;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(40px,5vw,80px);
+}
+.form-panel::before{
+  content:"FORM";
+  position:absolute;top:32px;right:32px;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  color:#A5282C;
+}
+.form-panel::after{
+  content:"";position:absolute;top:50px;right:32px;width:40px;height:1px;
+  background:#0A0A0A;
+}
+
+.form-wrap{width:100%;max-width:380px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+
+.form-overline{
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  color:#A5282C;
+}
+.form-h2{
+  font-family:'Times New Roman',Georgia,serif;
+  font-size:42px;font-weight:300;
+  color:#0A0A0A;letter-spacing:-1px;line-height:1.15;
+}
+.form-h2 b{font-weight:700}
+.form-sub{
+  font-family:'Times New Roman',Georgia,serif;
+  font-style:italic;font-size:13px;
+  color:rgba(10,10,10,.62);margin-top:6px;
+  letter-spacing:.02em;
+}
+
+.form{display:flex;flex-direction:column;gap:18px;margin-top:8px}
+.field{position:relative}
+.field label{
+  display:block;font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;font-weight:900;color:#0A0A0A;
+  margin-bottom:8px;letter-spacing:.20em;text-transform:uppercase;
+}
+.field label::after{
+  content:"";display:inline-block;width:18px;height:1px;background:#A5282C;
+  margin-left:6px;vertical-align:middle;
+}
+.input-wrap{
+  position:relative;display:flex;align-items:center;
+  background:#FAFAF7;border:1px solid #0A0A0A;
+}
+.input-wrap:focus-within{
+  outline:0;border-color:#A5282C;
+  box-shadow:0 0 0 1px #A5282C;
+}
+.input-ico{padding-left:14px;color:#0A0A0A;flex-shrink:0;display:flex}
+.input-ico svg{width:16px;height:16px;stroke-width:1.6}
+.input-wrap input{
+  flex:1;padding:14px 16px;border:0;outline:0;background:transparent;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:14px;color:#0A0A0A;font-weight:500;letter-spacing:.02em;
+}
+.input-wrap input::placeholder{color:rgba(10,10,10,.40);font-weight:400}
+.input-wrap .toggle{
+  padding:0 14px;color:rgba(10,10,10,.55);
+  background:transparent;border:0;border-left:1px solid rgba(10,10,10,.20);
+  cursor:pointer;display:flex;align-items:center;height:100%;
+}
+.input-wrap .toggle:hover{color:#A5282C}
+.input-wrap .toggle svg{width:16px;height:16px;stroke-width:1.6}
+
+.btn-login{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  padding:16px 24px;
+  background:#A5282C;color:#fff;
+  border:1px solid #A5282C;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:11px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  width:100%;
+  transition:all .25s cubic-bezier(.25,.8,.25,1);
+}
+.btn-login::before{content:"→";font-family:'Times New Roman',serif;font-weight:300;font-size:18px;letter-spacing:0}
+.btn-login:hover{background:#0A0A0A;border-color:#0A0A0A;color:#A5282C}
+
+.help-note{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:14px 16px;background:#F0EDE3;
+  border-left:2px solid #0A0A0A;
+  font-family:'Times New Roman',Georgia,serif;
+  font-style:italic;font-size:12px;
+  color:rgba(10,10,10,.78);line-height:1.7;
+  letter-spacing:.02em;
+}
+.help-note b{
+  font-style:normal;font-weight:900;
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:#A5282C;
+}
+.help-note svg{width:14px;height:14px;color:#0A0A0A;flex-shrink:0;margin-top:3px;stroke-width:1.6}
+
+.form-footer{
+  font-family:-apple-system,system-ui,sans-serif;
+  font-size:9px;color:rgba(10,10,10,.45);
+  text-align:center;margin-top:8px;
+  letter-spacing:.20em;text-transform:uppercase;font-weight:700;
+}
+
+@media (max-width:900px){
+  .cover-h1{font-size:36px}
+  .cover-features{flex-direction:column;gap:14px}
+}
+
+/* === Demo Banner === */
+.demo-banner{position:fixed;top:42px;left:0;right:0;z-index:201;background:#A5282C;color:#fff;padding:6px 18px;font-family:-apple-system,system-ui,sans-serif;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">🟡 PREVIEW — Login v4 CX23c · Magazine Spread · 대표 검토 대기</div>
+
+<header class="masthead">
+  <span>2026 · 4월 28일 화요일</span>
+  <span class="edition">— Cover · Login Issue · No. 118 —</span>
+  <div class="lang-area">
+    <a class="on" href="#">KR KO</a>
+    <a href="#">VN VI</a>
+    <a href="#">US EN</a>
+  </div>
+</header>
+
+<div class="split">
+
+  <!-- ===== 좌: 매거진 Cover ===== -->
+  <aside class="cover">
+    <div class="cover-top">
+      <div class="cover-mark">VOL. 26 · COVER STORY</div>
+      <div class="cover-logo-wrap">
+        <img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST Innovation">
+        <div class="cover-logo-text">
+          A KNK Publication<br>
+          ㈜케이엔케이 · HAIST Innovation<br>
+          <i>Human &amp; AI create the Best</i>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-headline">
+      <div class="cover-overline">Today's Editorial</div>
+      <h1 class="cover-h1">
+        오늘도<br>
+        <span class="accent">차분한 하루</span><br>
+        되시도록,
+        <span class="small">곁에서 도와드릴게요.</span>
+      </h1>
+    </div>
+
+    <div class="cover-bottom">
+      <div class="cover-features">
+        <div class="cf-item"><b>AI</b>물어보면 바로 옆에서 실행해 드리는 빅터</div>
+        <div class="cf-item"><b>FLOW</b>전사 흐름 · 피드 · 대시보드 · 병목 한 눈에</div>
+        <div class="cf-item"><b>FOCUS</b>내 업무 · 할 일 · 달력 · 알림을 조용히 정리</div>
+      </div>
+      <div class="cover-foot">
+        <span>© 2026 ㈜케이엔케이 · HAIST Innovation</span>
+        <span>v2026 · Cycle 73</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== 우: 로그인 폼 ===== -->
+  <section class="form-panel">
+    <div class="form-wrap">
+      <div>
+        <div class="form-overline">— Sign In —</div>
+        <h2 class="form-h2">로그인,<br><b>김정락</b> 대표님.</h2>
+        <p class="form-sub">KNK 통합 업무 계정으로 입장해 주세요.</p>
+      </div>
+
+      <form class="form">
+        <div class="field">
+          <label>아이디</label>
+          <div class="input-wrap">
+            <span class="input-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <input type="text" placeholder="예: hong.gd">
+          </div>
+        </div>
+        <div class="field">
+          <label>비밀번호</label>
+          <div class="input-wrap">
+            <span class="input-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" placeholder="비밀번호 입력">
+            <button type="button" class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <button type="submit" class="btn-login">Sign In</button>
+      </form>
+
+      <div class="help-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span><b>처음 오셨나요?</b><br>팀장에게 계정 생성을 요청해 주세요. 초기 비밀번호가 발급되면 안내드립니다.</span>
+      </div>
+
+      <div class="form-footer">— Issued by KNK · No. 118 —</div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

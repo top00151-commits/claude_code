@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>I. 보고서 마스터 — /weekly · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+
+.main { background: var(--paper); }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; }
+
+/* === 보고서 매스트헤드 === */
+.report-head {
+  margin: 0 var(--content-pad) var(--space-5);
+  padding: var(--space-7) var(--space-7) var(--space-6);
+  background: var(--paper-3);
+  border-radius: var(--radius-xl);
+  border-top: 4px solid var(--ink);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+.report-head::after { content: ""; position: absolute; top: -40px; right: -40px; width: 240px; height: 240px; background: var(--glow-amber-radial); opacity: 0.3; }
+.report-head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-7); position: relative; z-index: 1; }
+.report-meta-up { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; }
+.report-title { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-top: 8px; line-height: 1.1; }
+.report-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.report-period { font-size: 14px; color: var(--mute); margin-top: 6px; }
+.report-period b { color: var(--ink); }
+
+.report-actions { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+
+/* 주차 네비 */
+.week-nav { display: flex; align-items: center; gap: 8px; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); position: relative; z-index: 1; }
+.week-nav-btn { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 12px; font-size: 12.5px; cursor: pointer; }
+.week-nav-btn.active { background: var(--grad-amber); color: white; border: 0; font-weight: 700; }
+.week-nav-spacer { flex: 1; }
+
+/* === 4 탭 (개인·팀·전사·비교) === */
+.report-scope {
+  margin: 0 var(--content-pad) var(--space-4);
+  display: flex; gap: 0;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+}
+.scope-tab { flex: 1; padding: 11px 14px; text-align: center; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; color: var(--mute); font-weight: 500; }
+.scope-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+
+/* === KPI 4 카드 === */
+.kpi-grid { margin: 0 var(--content-pad) var(--space-5); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.kpi-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5); }
+.kpi-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.kpi-card .num { font-size: 32px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+.kpi-card .delta { font-size: 12px; font-weight: 600; margin-top: 4px; }
+.kpi-card .delta.up { color: var(--success); }
+.kpi-card .delta.down { color: var(--knk-red); }
+
+/* === 섹션 카드 === */
+.section { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-4); display: flex; align-items: center; gap: 10px; }
+.section h2::before { content: ""; width: 5px; height: 22px; background: var(--amber); border-radius: 2px; }
+
+/* 부서별 그리드 */
+.dept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+.dept-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+.dept-card .name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.dept-card .num { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+.dept-card .bar { height: 6px; background: var(--paper-2); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+.dept-card .bar > div { height: 100%; background: var(--grad-amber); border-radius: 3px; }
+.dept-card .meta { font-size: 11px; color: var(--mute); margin-top: 8px; display: flex; justify-content: space-between; }
+
+/* 핫 토픽 */
+.topics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.topic-item { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); display: flex; gap: 10px; align-items: flex-start; }
+.topic-icon { font-size: 22px; }
+.topic-text { flex: 1; }
+.topic-text .ttl { font-size: 13px; font-weight: 700; }
+.topic-text .body { font-size: 12px; color: var(--mute); margin-top: 4px; line-height: 1.5; }
+
+/* 빅터 인사이트 */
+.victor-insight {
+  margin: 0 var(--content-pad) var(--space-5);
+  background: var(--grad-ink);
+  color: white;
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-7);
+  position: relative;
+  overflow: hidden;
+}
+.victor-insight::before { content: ""; position: absolute; top: -60px; right: -60px; width: 280px; height: 280px; background: var(--glow-amber-strong); opacity: 0.3; }
+.victor-insight .label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-light); font-weight: 700; position: relative; z-index: 1; }
+.victor-insight h2 { font-size: 22px; font-weight: 700; margin-top: 8px; color: white; position: relative; z-index: 1; }
+.victor-insight p { font-size: 14px; line-height: 1.75; color: rgba(255,255,255,0.88); margin-top: var(--space-3); max-width: 800px; position: relative; z-index: 1; }
+.victor-insight p b { color: var(--amber-glow); }
+.victor-insight .quick-actions { display: flex; gap: 8px; margin-top: var(--space-4); position: relative; z-index: 1; }
+.victor-insight .chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); padding: 6px 14px; border-radius: var(--radius-full); font-size: 12px; cursor: pointer; }
+
+/* @media print */
+@media print {
+  .sidebar, .top, .report-actions, .week-nav, .report-scope, .quick-actions { display: none !important; }
+  body { background: white; }
+  .main { padding: 0; }
+  .report-head, .section, .victor-insight, .kpi-card, .dept-card { box-shadow: none; border: 1px solid #ccc; }
+  .victor-insight { background: white; color: black; }
+  .victor-insight h2, .victor-insight .label, .victor-insight p { color: black; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">팀 / 보고</div>
+    <a class="sb-item" href="#">👥 팀 대시 <span class="menu-code">M-00-07</span></a>
+    <a class="sb-item active" href="#">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
+    <a class="sb-item" href="#">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
+    <a class="sb-item" href="#">📊 코크핏 <span class="menu-code">M-05-03</span></a>
+    <a class="sb-item" href="#">📋 요약 <span class="menu-code">M-00-05</span></a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab active">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">김</div>
+        <div>김 정락 · 대표이사</div>
+      </div>
+    </header>
+
+    <!-- 보고서 매스트헤드 -->
+    <div class="report-head">
+      <div class="report-head-row">
+        <div>
+          <div class="report-meta-up">WEEKLY REPORT · 2026 17주차</div>
+          <h1 class="report-title">한 주의 <em>흐름</em></h1>
+          <div class="report-period">📅 <b>2026.04.21 ~ 04.27</b> · 발행 04-29 14:23 · 작성 김 정락</div>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-secondary">📥 PDF</button>
+          <button class="btn btn-secondary">📧 이메일 발송</button>
+          <button class="btn btn-primary">🖨 인쇄</button>
+        </div>
+      </div>
+
+      <div class="week-nav">
+        <button class="week-nav-btn">« 이전</button>
+        <button class="week-nav-btn">15주</button>
+        <button class="week-nav-btn">16주</button>
+        <button class="week-nav-btn active">17주 (현재)</button>
+        <button class="week-nav-btn">다음 »</button>
+        <div class="week-nav-spacer"></div>
+        <button class="week-nav-btn">📊 비교 (15주 vs 17주)</button>
+      </div>
+    </div>
+
+    <!-- 4 탭 -->
+    <div class="report-scope">
+      <div class="scope-tab">개인</div>
+      <div class="scope-tab">우리 팀</div>
+      <div class="scope-tab active">전사</div>
+      <div class="scope-tab">비교</div>
+    </div>
+
+    <!-- KPI 4 -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="lbl">주간 매출</div>
+        <div class="num">₩1.18억</div>
+        <div class="delta up">↑ +12.4% vs 16주</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">신규 견적</div>
+        <div class="num">8 건</div>
+        <div class="delta up">↑ +3</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">완료 발주</div>
+        <div class="num">12 건</div>
+        <div class="delta up">↑ +5</div>
+      </div>
+      <div class="kpi-card">
+        <div class="lbl">미해결 이슈</div>
+        <div class="num">3</div>
+        <div class="delta down">↓ -2</div>
+      </div>
+    </div>
+
+    <!-- 빅터 인사이트 (가장 강조) -->
+    <div class="victor-insight">
+      <div class="label">VICTOR'S WEEKLY INSIGHT</div>
+      <h2>이번 주의 키워드 — <span style="color: var(--amber-glow);">"가속"</span></h2>
+      <p>매출이 전주 대비 <b>+12.4% 가속</b>. 핵심 동력은 <b>대성기업 추가 발주</b>(₩1.28억 / 22%↑). 동시에 <b>자재 재고 임계 미만 3종</b>이 발생 — 5월 발주 대비 즉시 보충 필요. 이슈는 2건 감소했으나 <b>한일물산 클레임 1건</b> 미해결로 다음주 우선 처리 권장.</p>
+      <div class="quick-actions">
+        <span class="chip">📊 매출 차트 보기</span>
+        <span class="chip">⚠ 재고 보충 액션</span>
+        <span class="chip">🔍 한일물산 클레임</span>
+        <span class="chip">📑 PDF 다운로드</span>
+      </div>
+    </div>
+
+    <!-- 부서별 매출 -->
+    <div class="section">
+      <h2>부서별 매출 — 17주차</h2>
+      <div class="dept-grid">
+        <div class="dept-card">
+          <div class="name">영업1팀 · 김 부장</div>
+          <div class="num">₩6,800만</div>
+          <div class="bar"><div style="width: 92%"></div></div>
+          <div class="meta"><span>92% 달성</span><span style="color: var(--success);">↑ +18%</span></div>
+        </div>
+        <div class="dept-card">
+          <div class="name">영업2팀 · 정 부장</div>
+          <div class="num">₩3,400만</div>
+          <div class="bar"><div style="width: 65%"></div></div>
+          <div class="meta"><span>65% 달성</span><span style="color: var(--success);">↑ +5%</span></div>
+        </div>
+        <div class="dept-card">
+          <div class="name">영업3팀 · 윤 차장</div>
+          <div class="num">₩1,600만</div>
+          <div class="bar"><div style="width: 38%; background: var(--warm-tan);"></div></div>
+          <div class="meta"><span>38% 달성</span><span style="color: var(--mute);">↓ -3%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 핫 토픽 -->
+    <div class="section">
+      <h2>이번 주 핫 토픽 (4)</h2>
+      <div class="topics">
+        <div class="topic-item">
+          <div class="topic-icon">🚀</div>
+          <div class="topic-text">
+            <div class="ttl">대성기업 5월 추가 발주 신호</div>
+            <div class="body">작년 동기 +20% 패턴 반복 가능성. 자재팀 사전 보충 진행 중.</div>
+          </div>
+        </div>
+        <div class="topic-item">
+          <div class="topic-icon">⚠</div>
+          <div class="topic-text">
+            <div class="ttl">한일물산 클레임 미해결</div>
+            <div class="body">배송 지연 3건. 영업·물류팀 합동 응답 필요.</div>
+          </div>
+        </div>
+        <div class="topic-item">
+          <div class="topic-icon">🆕</div>
+          <div class="topic-text">
+            <div class="ttl">평화산업 첫 거래 ₩2,400만</div>
+            <div class="body">신용등급 검토 진행 중. 5월 정식 거래 검토.</div>
+          </div>
+        </div>
+        <div class="topic-item">
+          <div class="topic-icon">🔴</div>
+          <div class="topic-text">
+            <div class="ttl">자재 재고 임계 미만 3종</div>
+            <div class="body">컨베이어 모터·베어링·알루미늄 압출재. 발주 진행 중.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

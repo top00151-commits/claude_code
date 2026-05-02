@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📰 CX2 · Editorial Press — 매거진/신문 헤드라인 톤</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:'Times New Roman',Georgia,'Pretendard Variable',Pretendard,serif;font-size:15px;line-height:1.55;background:#FAFAF7;color:#0A0A0A;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+/* 본문은 산세리프, 헤드라인은 시리프 */
+.sans{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif}
+
+.demo-banner{background:#0A0A0A;color:#FAFAF7;padding:12px 24px;display:flex;gap:12px;align-items:center;font-size:13px;position:sticky;top:0;z-index:200;border-bottom:1px solid #A5282C;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+.demo-banner h1{font-size:14px;font-weight:900;font-family:'Times New Roman',Georgia,serif;letter-spacing:.02em}
+.demo-banner .tag{background:#A5282C;color:#fff;padding:5px 14px;font-size:11px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
+.demo-banner .hint{color:rgba(250,250,247,.78);font-size:12px;flex:1;font-style:italic}
+
+/* === Topbar — 신문 마스트헤드 (NYT/Le Monde) === */
+.topbar{
+  background:#FAFAF7;
+  color:#0A0A0A;
+  padding:14px 32px;
+  border-top:3px solid #0A0A0A;
+  border-bottom:1px solid #0A0A0A;
+  position:sticky;top:0;z-index:150;
+}
+.topbar-row1{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:12px;
+  border-bottom:1px double #0A0A0A;
+}
+.tb-date{
+  font-size:11px;color:#0A0A0A;font-weight:700;
+  text-transform:uppercase;letter-spacing:.15em;
+  font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+}
+.tb-edition{
+  font-size:11px;color:#A5282C;font-weight:900;
+  text-transform:uppercase;letter-spacing:.20em;
+  font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+}
+.topbar-row2{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-top:14px;gap:24px;
+}
+
+.tb-left{display:flex;align-items:center;gap:24px;flex-shrink:0}
+.tb-center{flex:1}
+.tb-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-logo-wrap{height:48px;min-width:48px;padding:0;background:transparent;display:flex;align-items:center;justify-content:center}
+.brand-logo-wrap img{height:42px;max-width:200px;object-fit:contain}
+.tb-divider{width:1px;height:36px;background:#0A0A0A}
+
+/* === WS Tabs — 신문 카테고리 (섹션) 톤 === */
+.ws-tabs{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap}
+.ws-tab{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:transparent;color:#0A0A0A;font-size:13px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:.05em;text-transform:uppercase;border:0;border-right:1px solid #0A0A0A;transition:all .2s ease;white-space:nowrap;position:relative}
+.ws-tab:first-child{border-left:1px solid #0A0A0A}
+.ws-tab:hover{background:#0A0A0A;color:#FAFAF7}
+.ws-tab .ws-ico{width:14px;height:14px;flex-shrink:0;color:inherit;opacity:.85}
+.ws-tab .ws-ico svg{width:100%;height:100%;stroke-width:2.2}
+/* 활성 — 검정 배경 + 흰 글자 + KNK 레드 카테고리 라벨 */
+.ws-tab.active{
+  background:#0A0A0A;
+  color:#FAFAF7;
+  font-weight:900;
+  position:relative;
+}
+.ws-tab.active::after{
+  content:"COVER";
+  position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+  background:#A5282C;color:#fff;
+  padding:1px 8px;
+  font-size:9px;font-weight:900;letter-spacing:.15em;
+  white-space:nowrap;
+}
+.ws-tab.active .ws-ico{color:#A5282C}
+
+/* === Right === */
+.tb-icon-btn{position:relative;width:38px;height:38px;background:transparent;color:#0A0A0A;display:flex;align-items:center;justify-content:center;border:1px solid #0A0A0A;transition:all .2s ease;font-family:-apple-system,system-ui,sans-serif}
+.tb-icon-btn:hover{background:#0A0A0A;color:#FAFAF7}
+.tb-icon-btn svg{width:17px;height:17px;stroke-width:2}
+.tb-icon-btn.victor{background:#A5282C;color:#FFFFFF;border-color:#A5282C;font-weight:900}
+.tb-icon-btn.victor:hover{background:#0A0A0A;border-color:#0A0A0A;color:#A5282C}
+.lang-sel{background:transparent;color:#0A0A0A;border:1px solid #0A0A0A;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.08em;font-family:-apple-system,system-ui,sans-serif}
+.user-chip{display:flex;align-items:center;gap:9px;padding:3px 13px 3px 3px;background:transparent;border:1px solid #0A0A0A;transition:all .2s ease;font-family:-apple-system,system-ui,sans-serif}
+.user-chip:hover{background:#0A0A0A;color:#FAFAF7}
+.user-chip:hover .user-avatar{background:#A5282C}
+.user-avatar{width:30px;height:30px;background:#0A0A0A;color:#FAFAF7;font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;font-family:'Times New Roman',Georgia,serif;transition:all .2s ease}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:12px;font-weight:800;letter-spacing:.05em}
+.user-role{font-size:9px;font-weight:700;color:#A5282C;text-transform:uppercase;letter-spacing:.10em}
+.logout-btn{width:34px;height:34px;background:transparent;color:#0A0A0A;display:flex;align-items:center;justify-content:center;border:1px solid #0A0A0A;transition:all .2s ease}
+.logout-btn:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+.logout-btn svg{width:14px;height:14px;stroke-width:2}
+
+/* === Body === */
+.body-sample{padding:32px;display:grid;grid-template-columns:240px 1fr;gap:24px;min-height:420px;background:#FAFAF7}
+.sample-side{background:#FAFAF7;padding:0;border:1px solid #0A0A0A}
+.sample-side .head{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#FAFAF7;background:#0A0A0A;padding:14px 18px;font-family:-apple-system,system-ui,sans-serif}
+.sample-side .item{display:block;padding:12px 18px;font-size:13px;color:#0A0A0A;font-weight:600;border-bottom:1px dashed #0A0A0A;font-family:-apple-system,system-ui,sans-serif}
+.sample-side .item:last-child{border-bottom:0}
+.sample-side .item.active{background:#0A0A0A;color:#FAFAF7;font-weight:900;border-left:5px solid #A5282C;padding-left:13px}
+.sample-main{background:#FAFAF7;padding:0;border:1px solid #0A0A0A}
+.sample-main-head{padding:32px 36px 24px;border-bottom:3px double #0A0A0A;text-align:center}
+.sample-overline{font-family:-apple-system,system-ui,sans-serif;font-size:10px;font-weight:900;color:#A5282C;letter-spacing:.30em;text-transform:uppercase;margin-bottom:8px}
+.sample-h2{font-size:42px;font-weight:900;color:#0A0A0A;letter-spacing:-1.5px;line-height:1.1;font-family:'Times New Roman',Georgia,serif}
+.sample-byline{margin-top:12px;font-size:11px;color:#0A0A0A;font-style:italic;font-family:'Times New Roman',Georgia,serif}
+.sample-byline b{font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.sample-body{padding:24px 36px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:24px}
+.card{padding:24px 24px 24px 0;border-right:1px dashed #0A0A0A}
+.card:last-child{border-right:0;padding-right:0}
+.card+.card{padding-left:24px}
+.card .lab{font-family:-apple-system,system-ui,sans-serif;font-size:9px;color:#A5282C;font-weight:900;text-transform:uppercase;letter-spacing:.20em;margin-bottom:6px}
+.card .num{font-size:48px;font-weight:900;color:#0A0A0A;letter-spacing:-2px;line-height:1;font-family:'Times New Roman',Georgia,serif}
+.card .sub{font-size:12px;color:#0A0A0A;margin-top:10px;font-style:italic;line-height:1.5;font-family:'Times New Roman',Georgia,serif}
+
+.note{padding:18px 22px;background:#0A0A0A;color:#FAFAF7;font-size:13px;line-height:1.7;border-left:6px solid #A5282C;font-family:'Times New Roman',Georgia,serif;font-style:italic}
+.note b{color:#A5282C;font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.08em;font-family:-apple-system,system-ui,sans-serif}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>📰 CX2 · Editorial Press</h1>
+  <span class="tag">대표 검토 대기</span>
+  <span class="hint">컨셉: 잡지/신문 헤드라인 톤 — NYT·Le Monde 매거진 · 시리프 헤드라인 + 산세리프 본문 + KNK 레드 섹션 라벨</span>
+</div>
+
+<header class="topbar">
+  <div class="topbar-row1">
+    <div class="tb-date">2026 · 4월 28일 화요일 · KNK INTEGRATED EDITION</div>
+    <div class="tb-edition">VOL. 26 · NO. 118</div>
+  </div>
+  <div class="topbar-row2">
+    <div class="tb-left">
+      <a href="#" class="brand">
+        <div class="brand-logo-wrap"><img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK"></div>
+      </a>
+      <div class="tb-divider"></div>
+      <nav class="ws-tabs">
+        <a class="ws-tab active" href="#" data-ws="hub">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
+          <span class="ws-name">통합</span>
+        </a>
+        <a class="ws-tab" href="#" data-ws="sales">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+          <span class="ws-name">매출·영업</span>
+        </a>
+        <a class="ws-tab" href="#" data-ws="logi">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+          <span class="ws-name">자재·구매</span>
+        </a>
+      </nav>
+    </div>
+    <div class="tb-right">
+      <button class="tb-icon-btn victor" title="빅터 (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+      <button class="tb-icon-btn" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+      <select class="lang-sel"><option>🇰🇷 KO</option><option>🇻🇳 VI</option><option>🇺🇸 EN</option></select>
+      <a href="#" class="user-chip"><div class="user-avatar">K</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+      <a href="#" class="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+    </div>
+  </div>
+</header>
+
+<div class="body-sample">
+  <aside class="sample-side">
+    <div class="head">내 업무</div>
+    <a class="item active">📊 업무 현황</a>
+    <a class="item">📅 일일 업무</a>
+    <a class="item">📆 내 달력</a>
+    <a class="item">🔔 알림</a>
+  </aside>
+  <main class="sample-main">
+    <div class="sample-main-head">
+      <div class="sample-overline">— 오늘의 업무 —</div>
+      <h2 class="sample-h2">"오후도 차분히, 김정락 대표"</h2>
+      <div class="sample-byline">취재 · <b>HAIST 빅터</b> · 통합 데스크 · 2026.04.28</div>
+    </div>
+    <div class="sample-body">
+      <div class="cards">
+        <div class="card"><div class="lab">SALES — 수주</div><div class="num">$</div><div class="sub">이번 달 수주 데이터 집계 준비 중. 영업본부 보고 대기.</div></div>
+        <div class="card"><div class="lab">⚠ ALERT — 지연</div><div class="num">0</div><div class="sub">전사 공정 지연 0건. 안정적 진행 중.</div></div>
+        <div class="card"><div class="lab">DEADLINE — 마감</div><div class="num">3</div><div class="sub">오늘 마감 3건. 집중 처리 필요.</div></div>
+      </div>
+      <div class="note"><b>Editor's Note</b> — C1·C3 혼합. 잡지/신문 매거진 톤. 시리프 헤드라인 + 산세리프 본문. KNK 레드는 카테고리·중요·CTA 라벨 전용. 대표이사·CEO·SALES·ALERT 같은 라벨로 신문 섹션 느낌. 정보 위계 강하고 진중한 인상.</div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

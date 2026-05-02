@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⚪ C · Minimal Clinic — 미니멀 클리닉</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:14px;line-height:1.6;background:#FFFFFF;color:#1A1A1A;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:#1A1A1A;color:#fff;padding:12px 24px;display:flex;gap:12px;align-items:center;font-size:13px;position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:14px;font-weight:800}
+.demo-banner .tag{background:#fff;color:#1A1A1A;padding:4px 14px;border-radius:999px;font-size:11px;font-weight:800}
+.demo-banner .hint{color:rgba(255,255,255,.78);font-size:12px;flex:1}
+
+/* === Topbar — 미니멀 오프화이트, 가는 라인 === */
+.topbar{
+  height:80px;
+  background:#FAFAFA;
+  color:#1A1A1A;
+  display:flex;align-items:center;gap:24px;padding:0 32px;
+  border-bottom:1px solid #E5E5E5;
+  position:sticky;top:0;z-index:150;
+}
+
+.tb-left{display:flex;align-items:center;gap:20px;flex-shrink:0}
+.tb-center{flex:1}
+.tb-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo-wrap{height:48px;min-width:48px;padding:2px 8px;border-radius:8px;background:transparent;display:flex;align-items:center;justify-content:center}
+.brand-logo-wrap img{height:38px;max-width:180px;object-fit:contain}
+.tb-divider{width:1px;height:28px;background:#E0E0E0}
+
+/* === WS Tabs — 미니멀 라인 + 솔리드 활성 === */
+.ws-tabs{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;padding:0;border-radius:0;background:transparent}
+.ws-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;background:transparent;color:rgba(26,26,26,.55);font-size:13px;font-weight:500;border:1px solid transparent;transition:all .2s ease;white-space:nowrap;letter-spacing:0}
+.ws-tab:hover{background:rgba(0,0,0,.04);color:#1A1A1A}
+.ws-tab .ws-ico{width:14px;height:14px;flex-shrink:0;opacity:.6;color:#1A1A1A}
+.ws-tab .ws-ico svg{width:100%;height:100%;stroke-width:2}
+/* 활성 — 솔리드 검정, 미니멀 */
+.ws-tab.active{
+  font-size:13px;font-weight:700;padding:9px 18px;letter-spacing:.1px;
+  background:#1A1A1A;
+  color:#FFFFFF;
+  border-color:#1A1A1A;
+  box-shadow:0 1px 3px rgba(0,0,0,.10);
+}
+.ws-tab.active .ws-ico{width:16px;height:16px;opacity:1;color:#FFFFFF}
+.ws-tab.active::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;margin-right:2px;animation:pulseC 2.4s ease-in-out infinite}
+@keyframes pulseC{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* === Right === */
+.tb-icon-btn{position:relative;width:38px;height:38px;border-radius:8px;background:transparent;color:#1A1A1A;display:flex;align-items:center;justify-content:center;border:1px solid #E5E5E5;transition:all .2s ease}
+.tb-icon-btn:hover{background:#F5F5F5;border-color:#D0D0D0}
+.tb-icon-btn svg{width:17px;height:17px;stroke-width:2}
+.tb-icon-btn.victor{background:#1A1A1A;color:#FFFFFF;border-color:#1A1A1A;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.tb-icon-btn.victor:hover{background:#000;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.20)}
+.lang-sel{background:transparent;color:#1A1A1A;border:1px solid #E5E5E5;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:500;cursor:pointer;outline:none}
+.user-chip{display:flex;align-items:center;gap:9px;padding:3px 13px 3px 3px;border-radius:999px;background:transparent;border:1px solid #E5E5E5;transition:all .2s ease}
+.user-chip:hover{background:#F5F5F5}
+.user-avatar{width:30px;height:30px;border-radius:50%;background:#1A1A1A;color:#FFFFFF;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:12px;font-weight:600}
+.user-role{font-size:10px;color:rgba(26,26,26,.5)}
+.logout-btn{width:34px;height:34px;border-radius:8px;background:transparent;color:#1A1A1A;display:flex;align-items:center;justify-content:center;border:1px solid #E5E5E5;transition:all .2s ease}
+.logout-btn:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+.logout-btn svg{width:14px;height:14px;stroke-width:2}
+
+/* === Body === */
+.body-sample{padding:32px;display:grid;grid-template-columns:240px 1fr;gap:24px;min-height:420px;background:#FFFFFF}
+.sample-side{background:#FAFAFA;border-radius:10px;padding:18px;border:1px solid #EEEEEE}
+.sample-side .head{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:rgba(26,26,26,.55);margin-bottom:14px}
+.sample-side .item{display:block;padding:10px 12px;border-radius:7px;font-size:13px;color:rgba(26,26,26,.78);font-weight:500}
+.sample-side .item.active{background:#1A1A1A;color:#FFFFFF;font-weight:600}
+.sample-main{background:#FFFFFF;border-radius:10px;padding:32px;border:1px solid #EEEEEE}
+.sample-h2{font-size:26px;font-weight:700;color:#1A1A1A;margin-bottom:6px;letter-spacing:-.6px}
+.sample-p{font-size:13px;color:rgba(26,26,26,.55);margin-bottom:24px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{padding:20px;border-radius:10px;background:#FAFAFA;border:1px solid #EEEEEE}
+.card .num{font-size:32px;font-weight:700;color:#1A1A1A;letter-spacing:-1px}
+.card .lab{font-size:11px;color:rgba(26,26,26,.55);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.card .sub{font-size:12px;color:rgba(26,26,26,.40);margin-top:8px}
+
+.note{margin-top:24px;padding:14px 18px;background:#FAFAFA;border-radius:10px;border-left:2px solid #1A1A1A;font-size:12px;color:rgba(26,26,26,.78)}
+.note b{color:#1A1A1A}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>⚪ C · Minimal Clinic</h1>
+  <span class="tag">대표 검토 대기</span>
+  <span class="hint">컨셉: 의료/덴탈 클리닉 미니멀 스칸디나비안 · 오프화이트 + 모노크롬 + 정확한 라인</span>
+</div>
+
+<header class="topbar">
+  <div class="tb-left">
+    <a href="#" class="brand">
+      <div class="brand-logo-wrap"><img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK"></div>
+    </a>
+    <div class="tb-divider"></div>
+    <nav class="ws-tabs">
+      <a class="ws-tab active" href="#" data-ws="hub">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
+        <span class="ws-name">KNK 통합 업무</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="sales">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span class="ws-name">매출·영업센터</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="logi">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+        <span class="ws-name">자재·구매센터</span>
+      </a>
+    </nav>
+  </div>
+  <div class="tb-center"></div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" title="빅터 (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+    <select class="lang-sel"><option>🇰🇷 한국어</option><option>🇻🇳 Tiếng Việt</option><option>🇺🇸 English</option></select>
+    <a href="#" class="user-chip"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+    <a href="#" class="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="body-sample">
+  <aside class="sample-side">
+    <div class="head">내 업무</div>
+    <a class="item active">📊 업무 현황</a>
+    <a class="item">📅 일일 업무</a>
+    <a class="item">📆 내 달력</a>
+    <a class="item">🔔 알림</a>
+  </aside>
+  <main class="sample-main">
+    <h2 class="sample-h2">안녕하세요, 김정락님</h2>
+    <p class="sample-p">2026-04-28 · KNK 통합 업무 — Minimal Clinic</p>
+    <div class="cards">
+      <div class="card"><div class="num">$</div><div class="lab">이번 달 수주</div><div class="sub">집계 준비 중</div></div>
+      <div class="card"><div class="num">0</div><div class="lab">팀 지연 공정</div><div class="sub">전사 지연 집계</div></div>
+      <div class="card"><div class="num">3</div><div class="lab">오늘 마감</div><div class="sub">집중 처리 필요</div></div>
+    </div>
+    <div class="note">💡 <b>컨셉</b>: 의료 클리닉 미니멀 · 오프화이트 + 정확한 1px 라인 + 모노크롬. 색상은 액션·상태에만 사용. 정보 밀도 높고 차분함. 아네스토피아·노션 톤.</div>
+  </main>
+</div>
+
+</body>
+</html>

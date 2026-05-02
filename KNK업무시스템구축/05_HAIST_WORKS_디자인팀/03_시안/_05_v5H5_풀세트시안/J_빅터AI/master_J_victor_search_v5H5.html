@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>J. 빅터 AI 마스터 — /search 통합 검색 · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr 320px; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+
+.main { background: var(--paper); padding: var(--space-7) var(--content-pad); }
+
+/* === 메가 검색 입력 === */
+.mega-search {
+  background: var(--paper-3);
+  border: 2px solid var(--amber);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  box-shadow: 0 12px 40px rgba(212,146,59,0.15), 0 0 0 4px var(--amber-glow);
+  margin-bottom: var(--space-5);
+}
+.mega-search .ico { font-size: 28px; }
+.mega-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: none;
+}
+.mega-search input::placeholder { color: var(--mute); }
+.mega-search .ico-clear { font-size: 22px; color: var(--mute); cursor: pointer; }
+.mega-search .btn-ai {
+  background: var(--grad-amber);
+  color: white;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; gap: 6px;
+  box-shadow: var(--shadow-amber);
+}
+
+.search-meta { display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-5); font-size: 12.5px; color: var(--mute); }
+.search-meta b { color: var(--ink); }
+.search-meta .scope-pill {
+  background: var(--amber-glow);
+  color: var(--amber-deep);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* === 빅터 AI 답변 카드 (가장 강조) === */
+.victor-answer {
+  background: var(--grad-ink);
+  color: white;
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-7);
+  margin-bottom: var(--space-5);
+  position: relative;
+  overflow: hidden;
+}
+.victor-answer::before { content: ""; position: absolute; top: -60px; right: -60px; width: 320px; height: 320px; background: var(--glow-amber-strong); opacity: 0.3; }
+.victor-answer .label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-light); font-weight: 700; position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.victor-answer .label::before { content: ""; width: 8px; height: 8px; background: var(--amber); border-radius: 50%; box-shadow: 0 0 12px var(--amber); animation: pulse-dot 1.5s infinite; }
+.victor-answer h2 { font-size: 22px; font-weight: 700; margin-top: 10px; color: white; position: relative; z-index: 1; }
+.victor-answer .answer-body { font-size: 14px; line-height: 1.75; color: rgba(255,255,255,0.92); margin-top: var(--space-3); position: relative; z-index: 1; }
+.victor-answer .answer-body b { color: var(--amber-glow); }
+.victor-answer .answer-body .highlight { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: var(--radius-xs); }
+
+.answer-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255,255,255,0.18);
+  position: relative;
+  z-index: 1;
+}
+.ans-stat .num { font-size: 24px; font-weight: 700; color: white; }
+.ans-stat .lbl { font-size: 10.5px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--amber-light); margin-top: 2px; font-weight: 600; }
+
+.answer-actions { display: flex; gap: 8px; margin-top: var(--space-4); position: relative; z-index: 1; }
+.chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); padding: 7px 14px; border-radius: var(--radius-full); font-size: 12px; cursor: pointer; color: white; }
+.chip:hover { background: rgba(255,255,255,0.2); }
+
+/* === 카테고리별 결과 === */
+.results-section { margin-bottom: var(--space-5); }
+.results-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+  display: flex; align-items: center; gap: 10px;
+  color: var(--ink);
+}
+.results-section h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.results-section h3 .count { color: var(--amber-deep); font-weight: 700; font-size: 12px; }
+
+.result-item {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 8px;
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.result-item:hover { background: var(--amber-glow); border-color: var(--amber); transform: translateX(4px); }
+.result-icon { font-size: 22px; }
+.result-text { flex: 1; }
+.result-text .ttl { font-size: 14px; font-weight: 700; color: var(--ink); }
+.result-text .ttl mark { background: var(--amber-glow); color: var(--knk-red); padding: 1px 4px; border-radius: 3px; font-weight: 700; }
+.result-text .body { font-size: 12.5px; color: var(--mute); margin-top: 4px; line-height: 1.5; }
+.result-text .body mark { background: var(--amber-glow); color: var(--ink); padding: 1px 3px; border-radius: 3px; }
+.result-text .meta { font-size: 11px; color: var(--amber-deep); margin-top: 5px; letter-spacing: 0.05em; font-weight: 600; }
+.result-arrow { color: var(--amber-deep); font-size: 18px; }
+
+/* === 우측: 최근 검색·빠른 액션 === */
+.aside { background: var(--paper); border-left: 1px solid var(--line); padding: var(--space-5); }
+.aside h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 10px; font-weight: 700; }
+.recent-item { padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.recent-item:hover { background: var(--amber-glow); }
+.recent-item .ico { font-size: 14px; color: var(--mute); }
+.aside-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-3); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">AI 도구</div>
+    <a class="sb-item active" href="#">🔍 통합 검색</a>
+    <a class="sb-item" href="#">🤖 빅터 풀페이지</a>
+    <a class="sb-item" href="#">📊 자동 보고서</a>
+    <a class="sb-item" href="#">📈 데이터 분석</a>
+  </aside>
+
+  <main class="main">
+    <!-- 메가 검색 -->
+    <div class="mega-search">
+      <div class="ico">🔍</div>
+      <input value="대성기업 5월 추가 발주 가능성" />
+      <button class="btn-ai">🤖 빅터에게 묻기</button>
+      <div class="ico-clear">×</div>
+    </div>
+
+    <div class="search-meta">
+      <span>검색 결과 <b>14건</b> · 0.18초</span>
+      <span class="scope-pill">📚 전체 (default)</span>
+      <span class="scope-pill">📋 견적</span>
+      <span class="scope-pill">📦 발주</span>
+      <span class="scope-pill">👥 고객</span>
+      <span class="scope-pill">📑 문서</span>
+    </div>
+
+    <!-- 빅터 AI 답변 (가장 강조) -->
+    <div class="victor-answer">
+      <div class="label">VICTOR'S ANSWER</div>
+      <h2>네, 대성기업 5월 추가 발주 가능성이 매우 높습니다 (확률 <span class="highlight">82%</span>)</h2>
+      <div class="answer-body">
+        분석 근거:
+        <br><br>
+        <b>1. 작년 동기 패턴</b> — 2025년 4월 대성기업 매출 ₩1.05억 → 5월 ₩1.27억 (+21%). 2024년에도 동일 패턴 (4월 → 5월 +18%).
+        <br><br>
+        <b>2. 이번 달 견적</b> — 진행 중 4건 중 D-2 마감 1건이 결정적. 이 견적이 승인되면 5월 추가 발주 거의 확실.
+        <br><br>
+        <b>3. 자재 단가 협상</b> — 컨베이어 모터 단가 작년 대비 +3%만 인상 — 시장가 대비 합리적 → 대성기업 입장에서 발주 부담 적음.
+        <br><br>
+        <span class="highlight">권장 액션</span>: 자재팀에 컨베이어 모터 5대 + 베어링 200개 사전 확보 메모 발송.
+      </div>
+
+      <div class="answer-stats">
+        <div class="ans-stat"><div class="num">82%</div><div class="lbl">발주 확률</div></div>
+        <div class="ans-stat"><div class="num">+22%</div><div class="lbl">예상 매출↑</div></div>
+        <div class="ans-stat"><div class="num">D-2</div><div class="lbl">결정적 견적</div></div>
+        <div class="ans-stat"><div class="num">5대 + 200개</div><div class="lbl">사전 확보 권장</div></div>
+      </div>
+
+      <div class="answer-actions">
+        <span class="chip">📤 자재팀에 메모 발송</span>
+        <span class="chip">📊 대성기업 패턴 차트</span>
+        <span class="chip">📋 D-2 견적 보기</span>
+        <span class="chip">📦 사전 발주 작성</span>
+      </div>
+    </div>
+
+    <!-- 카테고리별 결과 -->
+    <div class="results-section">
+      <h3>견적 <span class="count">3건</span></h3>
+      <div class="result-item">
+        <div class="result-icon">📋</div>
+        <div class="result-text">
+          <div class="ttl">견적 #2604-031 · <mark>대성기업</mark> 추가 라인 (D-2)</div>
+          <div class="body">컨베이어 라인 5종 추가 견적. <mark>대성기업</mark>이 5월 발주 검토 중. 자재 단가 확정 대기.</div>
+          <div class="meta">2026-04-29 14:18 · 김 부장</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+      <div class="result-item">
+        <div class="result-icon">📋</div>
+        <div class="result-text">
+          <div class="ttl">견적 #2604-027 · <mark>대성기업</mark> 모터 교체 분기</div>
+          <div class="body">검토중. 단가 인상 -3% 협상 가능 여부 회신 대기.</div>
+          <div class="meta">2026-04-26 11:45 · 김 부장</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+      <div class="result-item">
+        <div class="result-icon">📋</div>
+        <div class="result-text">
+          <div class="ttl">견적 #2604-022 · <mark>대성기업</mark> 컨베이어 보강</div>
+          <div class="body">승인 완료. 5월 1주차 출고 예정.</div>
+          <div class="meta">2026-04-22 09:30 · 김 부장</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <h3>발주 <span class="count">2건</span></h3>
+      <div class="result-item">
+        <div class="result-icon">📦</div>
+        <div class="result-text">
+          <div class="ttl">PO-2604-018 · 대원전기 (<mark>대성기업</mark> 향)</div>
+          <div class="body"><mark>대성기업</mark> 5월 발주 대비 컨베이어 모터 10대 사전 확보. 빅터 추천 패턴 기반.</div>
+          <div class="meta">2026-04-29 14:18 · 이 차장 · 배송 중</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+      <div class="result-item">
+        <div class="result-icon">📦</div>
+        <div class="result-text">
+          <div class="ttl">PO-2604-019 · 한국NSK</div>
+          <div class="body">베어링 6204 ZZ 500개. <mark>대성기업</mark> 5월 발주 대응.</div>
+          <div class="meta">2026-04-29 14:35 · 이 차장 · 확정 대기</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <h3>고객 <span class="count">1건</span></h3>
+      <div class="result-item">
+        <div class="result-icon">🏢</div>
+        <div class="result-text">
+          <div class="ttl">(주)<mark>대성기업</mark></div>
+          <div class="body">VIP 거래처 · 김 부장 담당 · 2018 거래 시작 · 이번 달 매출 ₩1.28억 (+22%)</div>
+          <div class="meta">최근 활동 04-29</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <h3>문서·메모 <span class="count">8건</span></h3>
+      <div class="result-item">
+        <div class="result-icon">📑</div>
+        <div class="result-text">
+          <div class="ttl">대성기업 거래 패턴 분석 (빅터 자동)</div>
+          <div class="body">최근 6개월 발주 12건. 4-5월 패턴 / 자재 선호도 / 결제 패턴.</div>
+          <div class="meta">04-29 14:00 · 빅터</div>
+        </div>
+        <div class="result-arrow">→</div>
+      </div>
+      <a href="#" style="font-size: 13px; color: var(--amber-deep); text-decoration: none; font-weight: 600; margin-top: 8px; display: inline-block;">+ 7건 더 보기 →</a>
+    </div>
+  </main>
+
+  <!-- 우측: 최근·빠른 -->
+  <aside class="aside">
+    <h4>최근 검색</h4>
+    <div class="recent-item"><span class="ico">🕐</span> 대성기업 추가 발주</div>
+    <div class="recent-item"><span class="ico">🕐</span> 컨베이어 모터 단가</div>
+    <div class="recent-item"><span class="ico">🕐</span> 한일물산 클레임</div>
+    <div class="recent-item"><span class="ico">🕐</span> 4월 매출 분석</div>
+    <div class="recent-item"><span class="ico">🕐</span> 미수금 30일 이상</div>
+
+    <h4 style="margin-top: var(--space-5);">빅터 빠른 질문</h4>
+    <div class="aside-card">
+      <div style="font-size: 13px; color: var(--ink); font-weight: 600;">자주 묻는 질문</div>
+      <div class="recent-item" style="padding: 6px 10px;"><span class="ico">💡</span> 이번 주 매출 요약</div>
+      <div class="recent-item" style="padding: 6px 10px;"><span class="ico">💡</span> 미수금 90일+ 명단</div>
+      <div class="recent-item" style="padding: 6px 10px;"><span class="ico">💡</span> 재고 임계 미만 자재</div>
+      <div class="recent-item" style="padding: 6px 10px;"><span class="ico">💡</span> D-3 마감 견적</div>
+    </div>
+
+    <h4 style="margin-top: var(--space-5);">팁</h4>
+    <div class="aside-card" style="background: var(--amber-glow); border-color: var(--amber);">
+      <div style="font-size: 12.5px; color: var(--ink); line-height: 1.6;">
+        💡 <b>빅터에게 묻기</b> 버튼을 누르면 단순 검색이 아닌 <b>분석 답변</b>을 받을 수 있습니다.
+      </div>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

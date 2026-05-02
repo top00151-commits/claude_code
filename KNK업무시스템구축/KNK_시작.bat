@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H5 STANDALONE 125/125 전 템플릿 완료 (대표 "계속 진행" 지시 — base 상속 0건) — _v5_partials/chrome.html + styles.html 공통 partial / 1~5차 50건 hand-craft (home/login/po/sales/weekly/admin/dashboard/parts/suppliers/projects/team/tickets/calendar/changes/issues/board/customers/stock/sales_quotes/sales_orders/history/search/etc) + 6차 75건 자동 마이그레이션 (qms·rates·stock 정밀·sales 정밀·export·wo·fta·qc·admin sub·progress·hr·bottlenecks·cockpit·feed·summary·now·reminders·print 7종) / Jinja2 125/125 PASS / 모든 페이지 v5_tokens.css 단일 시트 + chrome partial / 레거시 _legacy_v5mig 66건 + _legacy_*_v4 백업 / SYNTAX OK
+REM   LAST UPDATE: 2026-05-02 v5H6 자율 점검 10항 — po_receive 빠른입력+진행률, stock_movements 기간프리셋+CSV+합계, progress_dashboard KPI4, base*.html → _legacy_base 이관, menu_catalog 60→85 (Phase2 25건), t() Jinja 전역, dock JS API 스키마 정합 (q/path/code/auto_navigate), print CSS var() → 하드코드, 모바일(1023px) 사이드바 toggle + 햄버거 + 폼 1열 / Jinja2 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H5 의미·목적 기반 64건 재작성 — 자재·매출·관리자·진행·기타 전 페이지 KPI/표/폼 의미 부여]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H6 자율 점검 10항 — po_receive UX·stock_movements 필터·dashboard KPI·base 이관·menu 25건+·t() Jinja·dock 스키마·print CSS·모바일 햄버거]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

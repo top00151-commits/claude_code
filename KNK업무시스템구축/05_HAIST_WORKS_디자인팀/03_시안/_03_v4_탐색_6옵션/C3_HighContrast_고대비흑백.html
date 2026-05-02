@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⚫ C3 · High Contrast Mono — 절대 흑백 (Bauhaus)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:14px;line-height:1.55;background:#FFFFFF;color:#000000;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:#000000;color:#fff;padding:12px 24px;display:flex;gap:12px;align-items:center;font-size:13px;position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:14px;font-weight:900}
+.demo-banner .tag{background:#FFFFFF;color:#000000;padding:4px 14px;border-radius:0;font-size:11px;font-weight:900;letter-spacing:.05em}
+.demo-banner .hint{color:rgba(255,255,255,.78);font-size:12px;flex:1}
+
+/* === Topbar — 절대 흑백 + 1px 라인 === */
+.topbar{
+  height:84px;
+  background:#FFFFFF;
+  color:#000000;
+  display:flex;align-items:center;gap:24px;padding:0 32px;
+  border-bottom:2px solid #000000;
+  position:sticky;top:0;z-index:150;
+}
+
+.tb-left{display:flex;align-items:center;gap:24px;flex-shrink:0}
+.tb-center{flex:1}
+.tb-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo-wrap{height:48px;min-width:48px;padding:2px 8px;background:transparent;display:flex;align-items:center;justify-content:center}
+.brand-logo-wrap img{height:38px;max-width:180px;object-fit:contain;filter:contrast(1.15)}
+.tb-divider{width:2px;height:32px;background:#000000}
+
+/* === WS Tabs — 강한 라인 + 흑백 반전 === */
+.ws-tabs{display:flex;gap:0;align-items:center;flex-wrap:nowrap;border:2px solid #000000}
+.ws-tab{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;color:#000000;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border:0;border-right:2px solid #000000;transition:all .15s ease;white-space:nowrap}
+.ws-tab:last-child{border-right:0}
+.ws-tab:hover{background:#F0F0F0}
+.ws-tab .ws-ico{width:14px;height:14px;flex-shrink:0;color:#000000}
+.ws-tab .ws-ico svg{width:100%;height:100%;stroke-width:2.2}
+/* 활성 — 흑백 반전 */
+.ws-tab.active{
+  background:#000000;
+  color:#FFFFFF;
+  font-weight:900;
+}
+.ws-tab.active .ws-ico{width:16px;height:16px;color:#FFFFFF}
+.ws-tab.active::before{content:"●";font-size:10px;margin-right:2px;color:#FFFFFF;animation:blinkC3 1.6s ease-in-out infinite}
+@keyframes blinkC3{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* === Right === */
+.tb-icon-btn{position:relative;width:38px;height:38px;background:#FFFFFF;color:#000000;display:flex;align-items:center;justify-content:center;border:2px solid #000000;transition:all .15s ease}
+.tb-icon-btn:hover{background:#000000;color:#FFFFFF}
+.tb-icon-btn svg{width:17px;height:17px;stroke-width:2.5}
+.tb-icon-btn.victor{background:#000000;color:#FFFFFF;border-color:#000000}
+.tb-icon-btn.victor:hover{background:#FFFFFF;color:#000000}
+.lang-sel{background:#FFFFFF;color:#000000;border:2px solid #000000;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.05em}
+.user-chip{display:flex;align-items:center;gap:9px;padding:3px 13px 3px 3px;background:#FFFFFF;border:2px solid #000000;transition:all .15s ease}
+.user-chip:hover{background:#000000;color:#FFFFFF}
+.user-chip:hover .user-avatar{background:#FFFFFF;color:#000000}
+.user-avatar{width:30px;height:30px;background:#000000;color:#FFFFFF;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s ease}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.user-role{font-size:10px;font-weight:600}
+.logout-btn{width:34px;height:34px;background:#FFFFFF;color:#000000;display:flex;align-items:center;justify-content:center;border:2px solid #000000;transition:all .15s ease}
+.logout-btn:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+.logout-btn svg{width:14px;height:14px;stroke-width:2.5}
+
+/* === Body === */
+.body-sample{padding:32px;display:grid;grid-template-columns:240px 1fr;gap:24px;min-height:420px;background:#FFFFFF}
+.sample-side{background:#FFFFFF;padding:0;border:2px solid #000000}
+.sample-side .head{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:#FFFFFF;background:#000000;padding:14px 18px}
+.sample-side .item{display:block;padding:12px 18px;font-size:13px;color:#000000;font-weight:600;border-bottom:1px solid #000000;text-transform:uppercase;letter-spacing:.04em}
+.sample-side .item:last-child{border-bottom:0}
+.sample-side .item.active{background:#000000;color:#FFFFFF;font-weight:900}
+.sample-main{background:#FFFFFF;padding:32px;border:2px solid #000000}
+.sample-h2{font-size:32px;font-weight:900;color:#000000;margin-bottom:6px;letter-spacing:-1px;text-transform:uppercase}
+.sample-p{font-size:11px;color:#000000;margin-bottom:24px;text-transform:uppercase;letter-spacing:.10em;font-weight:700;border-bottom:1px solid #000000;padding-bottom:12px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid #000000}
+.card{padding:24px;background:#FFFFFF;border-right:2px solid #000000}
+.card:last-child{border-right:0}
+.card .num{font-size:48px;font-weight:900;color:#000000;letter-spacing:-2px;line-height:1}
+.card .lab{font-size:10px;color:#000000;margin-top:8px;font-weight:900;text-transform:uppercase;letter-spacing:.10em}
+.card .sub{font-size:11px;color:#000000;margin-top:12px;font-weight:600}
+
+.note{margin-top:24px;padding:18px;background:#000000;color:#FFFFFF;font-size:12px;line-height:1.6}
+.note b{color:#FFFFFF;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>⚫ C3 · High Contrast Mono</h1>
+  <span class="tag">대표 검토 대기</span>
+  <span class="hint">컨셉: 절대 흑백 (Bauhaus·Brutalist) · 모든 라인 2px · 색상 0건 · 강한 그리드 · 의도적 무거움</span>
+</div>
+
+<header class="topbar">
+  <div class="tb-left">
+    <a href="#" class="brand">
+      <div class="brand-logo-wrap"><img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK"></div>
+    </a>
+    <div class="tb-divider"></div>
+    <nav class="ws-tabs">
+      <a class="ws-tab active" href="#" data-ws="hub">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
+        <span class="ws-name">통합</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="sales">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span class="ws-name">매출·영업</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="logi">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+        <span class="ws-name">자재·구매</span>
+      </a>
+    </nav>
+  </div>
+  <div class="tb-center"></div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" title="빅터 (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+    <select class="lang-sel"><option>🇰🇷 KO</option><option>🇻🇳 VI</option><option>🇺🇸 EN</option></select>
+    <a href="#" class="user-chip"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">CEO</div></div></a>
+    <a href="#" class="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="body-sample">
+  <aside class="sample-side">
+    <div class="head">내 업무</div>
+    <a class="item active">📊 업무 현황</a>
+    <a class="item">📅 일일 업무</a>
+    <a class="item">📆 내 달력</a>
+    <a class="item">🔔 알림</a>
+  </aside>
+  <main class="sample-main">
+    <h2 class="sample-h2">김정락 / CEO</h2>
+    <p class="sample-p">2026.04.28 / KNK 통합 업무 / High Contrast Mono</p>
+    <div class="cards">
+      <div class="card"><div class="num">$</div><div class="lab">이번 달 수주</div><div class="sub">집계 준비 중</div></div>
+      <div class="card"><div class="num">0</div><div class="lab">팀 지연 공정</div><div class="sub">전사 지연 집계</div></div>
+      <div class="card"><div class="num">3</div><div class="lab">오늘 마감</div><div class="sub">집중 처리 필요</div></div>
+    </div>
+    <div class="note">💡 <b>컨셉</b>: 절대 흑백 · 모든 보더 2px · Bauhaus·Brutalist 스타일 · 색상 사용 0건 (KNK 레드 logout만 예외) · 의도된 무거움 + 정보 정확성 극대화. Off-White·꼼데가르송 그래픽 디자인 톤.</div>
+  </main>
+</div>
+
+</body>
+</html>

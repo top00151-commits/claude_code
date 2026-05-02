@@ -19,13 +19,29 @@
     <div class="kpi-card"><div class="kpi-label">재고 경고</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.low_stock|default(0) }}</div></div>
   </div>
 
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:var(--space-5) var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/stock/movements">
+  <form id="mv-filter" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:var(--space-5) var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/stock/movements">
     <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
     <select name="kind" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">유형 전체</option>{% for k_, l in MOVEMENT_KIND_LABEL.items() %}<option value="{{ k_ }}" {% if filter_kind == k_ %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-    <input type="date" name="since" value="{{ filter_since }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-    <input type="date" name="until" value="{{ filter_until }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-    <button type="submit" class="btn btn-primary">🔍</button>
+    <input type="date" name="since" id="mv-since" value="{{ filter_since }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <input type="date" name="until" id="mv-until" value="{{ filter_until }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <div style="display:flex;gap:4px;">
+      <button type="button" onclick="presetRange(0)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">오늘</button>
+      <button type="button" onclick="presetRange(7)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">7일</button>
+      <button type="button" onclick="presetRange(30)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">30일</button>
+      <button type="button" onclick="presetRange(90)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">90일</button>
+    </div>
+    <button type="submit" class="btn btn-primary">🔍 검색</button>
+    <a class="btn btn-secondary" href="?q={{ q|urlencode }}&kind={{ filter_kind|default('') }}&since={{ filter_since|default('') }}&until={{ filter_until|default('') }}&format=csv" style="font-size:12px;">⬇ CSV</a>
   </form>
+<script>
+function presetRange(days){
+  var u = new Date(); var s = new Date(); s.setDate(u.getDate()-days);
+  var f = function(d){return d.toISOString().slice(0,10);};
+  document.getElementById('mv-since').value = f(s);
+  document.getElementById('mv-until').value = f(u);
+  document.getElementById('mv-filter').submit();
+}
+</script>
 
   <div class="tbl-wrap">
     {% if items %}
@@ -44,6 +60,18 @@
         </tr>
       {% endfor %}
       </tbody>
+      {% set _in = items|selectattr('kind','equalto','IN')|list %}
+      {% set _out = items|selectattr('kind','equalto','OUT')|list %}
+      {% set _in_qty = _in|sum(attribute='qty') %}
+      {% set _out_qty = _out|sum(attribute='qty') %}
+      <tfoot>
+        <tr style="background:var(--paper-2);font-weight:700;">
+          <td colspan="3" style="text-align:right;padding:10px;">소계 ({{ items|length }}건) →</td>
+          <td class="num" style="color:var(--success);">+{{ '{:,.0f}'.format(_in_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _in|length }}건)</span></td>
+          <td class="num" colspan="2" style="color:var(--knk-red);">-{{ '{:,.0f}'.format(_out_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _out|length }}건)</span></td>
+          <td style="font-size:11px;color:var(--mute);">순증감: <b style="color:{% if (_in_qty|default(0)) - (_out_qty|default(0)) >= 0 %}var(--success){% else %}var(--knk-red){% endif %};">{{ '{:+,.0f}'.format((_in_qty|default(0)) - (_out_qty|default(0))) }}</b></td>
+        </tr>
+      </tfoot>
     </table>
     {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">수불 데이터가 없습니다</div></div>{% endif %}
   </div>

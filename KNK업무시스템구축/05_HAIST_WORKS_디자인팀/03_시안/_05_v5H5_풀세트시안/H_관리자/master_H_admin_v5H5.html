@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>H. 관리자 마스터 — /admin/permissions · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--mute); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-group--admin { color: var(--knk-red); }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+
+.main { background: var(--paper); }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-knk-red); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+
+/* 관리자 경고 배너 */
+.admin-banner {
+  margin: var(--space-5) var(--content-pad);
+  background: linear-gradient(135deg, var(--knk-red) 0%, var(--amber-burnt) 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+.admin-banner::before { content: ""; position: absolute; top: -40px; right: -10%; width: 200px; height: 200px; background: var(--glow-amber-strong); opacity: 0.3; }
+.admin-banner .ico { font-size: 24px; position: relative; z-index: 1; }
+.admin-banner .text { flex: 1; position: relative; z-index: 1; }
+.admin-banner .ttl { font-size: 14px; font-weight: 700; }
+.admin-banner .body { font-size: 12.5px; opacity: 0.92; margin-top: 2px; }
+
+/* 페이지 헤드 */
+.page-head { padding: 0 var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; }
+.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
+
+/* === 관리 5 탭 === */
+.admin-tabs {
+  margin: 0 var(--content-pad) var(--space-4);
+  display: flex; gap: 0;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+}
+.a-tab {
+  flex: 1; padding: 11px 14px; text-align: center; border-radius: var(--radius-md); cursor: pointer;
+  font-size: 13px; color: var(--mute); font-weight: 500;
+}
+.a-tab:hover { background: var(--paper); color: var(--ink); }
+.a-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+
+/* === 권한 매트릭스 === */
+.matrix-wrap { margin: 0 var(--content-pad) var(--space-7); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.matrix-head { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: var(--paper-2); }
+.matrix-head h3 { font-size: 16px; font-weight: 700; }
+.matrix-head .actions { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-md); border: 0; cursor: pointer; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); font-weight: 700; }
+.btn-secondary { background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.btn-danger { background: var(--knk-red); color: white; }
+
+table.matrix { width: 100%; font-size: 13px; border-collapse: collapse; }
+.matrix th { text-align: left; padding: 12px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.1em; text-transform: uppercase; position: sticky; top: 0; }
+.matrix th.center { text-align: center; }
+.matrix td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.matrix td.center { text-align: center; }
+.matrix tr:hover { background: var(--amber-glow); }
+
+/* 사용자 셀 */
+.user-cell { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 34px; height: 34px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.user-cell .name { font-weight: 700; color: var(--ink); }
+.user-cell .meta { font-size: 11px; color: var(--mute); margin-top: 2px; }
+
+/* 토글 스위치 */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  cursor: pointer;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--line);
+  border-radius: 22px;
+  transition: var(--t-base);
+}
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 16px; height: 16px;
+  left: 3px; top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: var(--t-base);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.toggle input:checked + .toggle-slider { background: var(--amber); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+.toggle.danger input:checked + .toggle-slider { background: var(--knk-red); }
+
+/* 역할 칩 */
+.role-pill { display: inline-block; padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
+.role-pill.ceo { background: var(--knk-red); color: white; }
+.role-pill.admin { background: var(--amber-deep); color: white; }
+.role-pill.leader { background: var(--amber-glow); color: var(--amber-deep); }
+.role-pill.user { background: var(--paper-2); color: var(--mute); }
+
+/* 일괄 액션 (체크박스 활성 시) */
+.bulk-bar { background: var(--ink); color: white; padding: var(--space-3) var(--space-5); display: flex; align-items: center; gap: var(--space-4); border-bottom: 1px solid var(--line); }
+.bulk-bar b { color: var(--amber-glow); }
+.bulk-bar .actions { margin-left: auto; display: flex; gap: 8px; }
+.bulk-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: white; padding: 6px 12px; border-radius: var(--radius-md); font-size: 12px; cursor: pointer; }
+
+/* === 우측 사이드 (감사 로그·요약) — 본 마스터에서는 단일 컬럼이지만 카테고리에서 권장 === */
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group sb-group--admin">관리자</div>
+    <a class="sb-item" href="#">🏠 관리자 홈 <span class="menu-code">M-04-01</span></a>
+    <a class="sb-item active" href="#">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
+    <a class="sb-item" href="#">🏢 회사 정보 <span class="menu-code">M-04-03</span></a>
+    <a class="sb-item" href="#">⚙️ 환경설정 <span class="menu-code">M-04-04</span></a>
+    <a class="sb-item" href="#">🔌 하이웍스 토큰 <span class="menu-code">M-04-05</span></a>
+    <div class="sb-group sb-group--admin">팀 관리</div>
+    <a class="sb-item" href="#">👥 팀 대시 <span class="menu-code">M-00-07</span></a>
+    <a class="sb-item" href="#">🔓 팀 권한 토글 <span class="menu-code">M-04-06</span></a>
+    <div class="sb-group sb-group--admin">시스템</div>
+    <a class="sb-item" href="#">💚 시스템 헬스</a>
+    <a class="sb-item" href="#">⏰ 리마인더</a>
+    <a class="sb-item" href="#">🌐 외부 자산 결정</a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab active">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">관</div>
+        <div>김 정락 · <b style="color: var(--knk-red);">관리자</b></div>
+      </div>
+    </header>
+
+    <!-- 관리자 영역 경고 배너 -->
+    <div class="admin-banner">
+      <div class="ico">🔐</div>
+      <div class="text">
+        <div class="ttl">관리자 영역 — 모든 변경은 감사 로그에 기록됩니다</div>
+        <div class="body">권한 변경은 즉시 적용되며, 사용자에게 알림이 자동 전송됩니다. 신중히 진행해주세요.</div>
+      </div>
+      <button class="btn" style="background: white; color: var(--knk-red);">📜 감사 로그 보기</button>
+    </div>
+
+    <div class="page-head">
+      <div>
+        <div class="page-meta">관리자 · 권한 위임</div>
+        <h1 class="page-title">권한 매트릭스</h1>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary">📥 내보내기</button>
+        <button class="btn btn-primary">＋ 권한 위임</button>
+      </div>
+    </div>
+
+    <!-- 5 탭 -->
+    <div class="admin-tabs">
+      <div class="a-tab active">매트릭스</div>
+      <div class="a-tab">위임</div>
+      <div class="a-tab">회수</div>
+      <div class="a-tab">감사 로그</div>
+      <div class="a-tab">그룹</div>
+    </div>
+
+    <!-- 매트릭스 -->
+    <div class="matrix-wrap">
+      <div class="matrix-head">
+        <h3>사용자 권한 매트릭스 — 영업1팀 (8명)</h3>
+        <div class="actions">
+          <button class="btn btn-secondary">⚙ 컬럼 설정</button>
+          <button class="btn btn-secondary">🔍 필터</button>
+        </div>
+      </div>
+
+      <!-- 일괄 액션 (3명 선택 가정) -->
+      <div class="bulk-bar">
+        <span>✓ <b>3명</b> 선택됨</span>
+        <div class="actions">
+          <button class="bulk-btn">📤 일괄 위임</button>
+          <button class="bulk-btn">📤 일괄 회수</button>
+          <button class="bulk-btn">📥 내보내기</button>
+        </div>
+      </div>
+
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="center" style="width: 40px;"><input type="checkbox" /></th>
+            <th>사용자</th>
+            <th>역할</th>
+            <th class="center">매출 사용</th>
+            <th class="center">매출 조회</th>
+            <th class="center">자재 사용</th>
+            <th class="center">자재 조회</th>
+            <th class="center">변경공지</th>
+            <th class="center">티켓 닫기</th>
+            <th>마지막 변경</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="center"><input type="checkbox" checked /></td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">김</div>
+                <div>
+                  <div class="name">김 정락</div>
+                  <div class="meta">대표이사 · KNK-0001</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-pill ceo">CEO</span></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td style="font-size: 11.5px; color: var(--mute);">04-29 14:23</td>
+          </tr>
+          <tr>
+            <td class="center"><input type="checkbox" checked /></td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">김</div>
+                <div>
+                  <div class="name">김 부장</div>
+                  <div class="meta">영업1팀 · 부장 · KNK-2010</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-pill leader">LEADER</span></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td style="font-size: 11.5px; color: var(--mute);">04-28 11:42</td>
+          </tr>
+          <tr>
+            <td class="center"><input type="checkbox" checked /></td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">이</div>
+                <div>
+                  <div class="name">이 차장</div>
+                  <div class="meta">자재팀 · 차장 · KNK-2017</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-pill user">USER</span></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td style="font-size: 11.5px; color: var(--mute);">04-29 09:15</td>
+          </tr>
+          <tr>
+            <td class="center"><input type="checkbox" /></td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">박</div>
+                <div>
+                  <div class="name">박 대리</div>
+                  <div class="meta">자재팀 · 대리 · KNK-2024</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-pill user">USER</span></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td style="font-size: 11.5px; color: var(--mute);">04-25 16:08</td>
+          </tr>
+          <tr>
+            <td class="center"><input type="checkbox" /></td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">최</div>
+                <div>
+                  <div class="name">최 과장</div>
+                  <div class="meta">영업2팀 · 과장 · KNK-2019</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-pill user">USER</span></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td class="center"><label class="toggle"><input type="checkbox" /><span class="toggle-slider"></span></label></td>
+            <td style="font-size: 11.5px; color: var(--mute);">04-22 10:30</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

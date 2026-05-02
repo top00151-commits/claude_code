@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #19 — 일일 업무 · 힐링 (B-2)</title>
+<style>
+/* HAIST WORKS · 힐링 시안 19 (12B 마스터 base 동기화 v2) — 2026-04-25 14:30 */
+:root{
+  --sage-50:#F7FAF4;--sage-100:#F0F5EB;--sage-200:#E4ECD9;--sage-300:#CAD9B8;
+  --sage-400:#A8BD8F;--sage-500:#7FA183;--sage-600:#5D7F61;--sage-700:#3F5C44;--sage-800:#2B3E2E;
+  --ink:#2B3E2E;--ink-2:#3F5C44;--ink-3:#5D7F61;--ink-4:#8FA594;
+  --rose:#A5282C;--rose-dk:#8B1E22;--rose-soft:#F5E4E2;
+  --accent:#A5282C;--accent-dk:#8B1E22;--accent-soft:#F5E4E2;
+  --amber:#C9A961;--amber-dk:#A38635;--teal:#6BA394;--peach:#D4967A;
+  --r:#A5282C;--r-soft:#F5E4E2;
+  --fs-xs:clamp(10px,0.55vw + 7px,13px);--fs-sm:clamp(12px,0.60vw + 9px,15px);--fs-md:clamp(13px,0.70vw + 10px,16px);
+  --fs-lg:clamp(15px,0.85vw + 11px,19px);--fs-xl:clamp(18px,1.25vw + 13px,26px);--fs-2xl:clamp(24px,2.00vw + 16px,40px);
+  --grad-header:linear-gradient(135deg,#3F5C44 0%,#5D7F61 60%,#7FA183 100%);
+  --grad-sage:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);
+  --grad-rose:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-brand:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-amber:linear-gradient(135deg,#D4B876 0%,#B09648 100%);
+  --sh-xs:0 1px 2px rgba(63,92,68,.05);--sh-sm:0 4px 14px rgba(63,92,68,.08);--sh-md:0 14px 36px rgba(63,92,68,.10);--sh-lg:0 28px 60px rgba(63,92,68,.14);
+  --sh-green:0 10px 32px rgba(127,161,131,.28);--ease:cubic-bezier(0.25,0.8,0.25,1);
+  --dur-fast:200ms;--dur-med:350ms;--dur-slow:500ms;
+  --topbar-h:clamp(84px,5vw + 52px,108px);
+  --sidebar-w:264px;
+  --dock-w:360px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:var(--fs-md);color:var(--ink);background:var(--sage-100);line-height:1.7;letter-spacing:.1px;overflow-x:hidden}
+button{cursor:pointer;border:0;background:none;color:inherit;font-family:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+input,textarea,select{font-family:inherit}
+
+.demo-banner{background:var(--sage-800);color:var(--sage-100);padding:10px 20px;display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700}
+.demo-banner .tag{background:var(--sage-500);color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.demo-banner .hint{color:rgba(247,250,244,.65);font-size:var(--fs-xs)}
+
+/* 헤더 (12B 마스터) */
+.topbar{position:sticky;top:41px;z-index:150;height:var(--topbar-h);background:var(--grad-header);color:#fff;display:flex;align-items:center;gap:16px;padding:0 28px;box-shadow:0 8px 32px rgba(45,62,46,.2)}
+.topbar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.topbar-bg::before{content:"";position:absolute;top:-40%;left:10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08), transparent 70%)}
+.topbar-bg::after{content:"";position:absolute;bottom:-60%;right:5%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(201,169,97,.12), transparent 70%)}
+.tb-left{display:flex;align-items:center;gap:18px;flex-shrink:0;position:relative;z-index:1}
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 28px;position:relative;z-index:1}
+.tb-right{display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:1}
+.tb-menu-btn{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;display:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15)}
+.tb-menu-btn:hover{background:rgba(255,255,255,.2)}
+.tb-menu-btn svg{width:20px;height:20px;stroke-width:1.8}
+@media (max-width:1024px){.tb-menu-btn{display:flex}}
+.brand{display:flex;align-items:center;gap:18px;padding:6px 14px 6px 6px;border-radius:18px;transition:background var(--dur-fast)}
+.brand:hover{background:rgba(255,255,255,.08)}
+.brand-logo-wrap{height:clamp(72px,4.6vw + 48px,100px);min-width:clamp(72px,4.6vw + 48px,100px);padding:6px 12px;border-radius:18px;flex-shrink:0;background:transparent;display:flex;align-items:center;justify-content:center;box-shadow:none}
+.brand-logo-wrap img{height:clamp(60px,4vw + 38px,90px);width:auto;max-width:380px;object-fit:contain;filter:brightness(1.2)}
+.brand-logo-wrap .fallback{font-size:clamp(30px,2.5vw + 20px,44px);font-weight:900;color:var(--rose);padding:0 6px}
+.brand-text{display:flex;flex-direction:column;line-height:1.15}
+.brand-name{font-size:var(--fs-xl);font-weight:900;color:#fff;letter-spacing:.4px;text-shadow:0 2px 6px rgba(0,0,0,.2);display:flex;align-items:baseline;gap:10px}
+.brand-name .dot{width:6px;height:6px;border-radius:50%;background:#D4B876;box-shadow:0 0 14px rgba(212,184,118,.9)}
+.brand-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.8);font-weight:500;margin-top:4px}
+.tb-divider{width:1px;height:36px;background:rgba(255,255,255,.2);margin:0 4px}
+.ws-wrap{position:relative;flex-shrink:0}
+.ws-switcher{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:14px;background:rgba(255,255,255,.1);color:#fff;font-size:var(--fs-sm);font-weight:600;border:1px solid rgba(255,255,255,.18);cursor:pointer;transition:all var(--dur-fast)}
+.ws-switcher:hover{background:rgba(255,255,255,.2)}
+.ws-wrap.open .ws-switcher{background:rgba(255,255,255,.25)}
+.ws-switcher .ws-ico{width:20px;height:20px;color:#D4B876;flex-shrink:0;stroke-width:1.8}
+.ws-switcher .ws-caret{font-size:10px;opacity:.8;transition:transform var(--dur-fast)}
+.ws-wrap.open .ws-caret{transform:rotate(180deg)}
+.ws-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:#fff;border-radius:18px;box-shadow:var(--sh-lg);padding:10px;display:none;z-index:250;border:1px solid var(--sage-300)}
+.ws-menu.open{display:block}
+.ws-opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;color:var(--ink);font-weight:500;transition:background var(--dur-fast)}
+.ws-opt + .ws-opt{margin-top:3px}
+.ws-opt:hover{background:var(--sage-100)}
+.ws-opt.active{background:var(--sage-200)}
+.ws-opt.active .opt-name{color:var(--sage-700)}
+.ws-opt .opt-ico{width:40px;height:40px;border-radius:12px;background:var(--sage-100);color:var(--sage-600);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ws-opt.active .opt-ico{background:#fff;color:var(--sage-700)}
+.ws-opt .opt-ico svg{width:20px;height:20px;stroke-width:1.7}
+.ws-opt .opt-meta{flex:1;min-width:0}
+.ws-opt .opt-name{font-size:var(--fs-sm);font-weight:700}
+.ws-opt .opt-desc{font-size:var(--fs-xs);color:var(--ink-3);margin-top:3px}
+.ws-opt .opt-check{color:var(--sage-600);font-weight:800}
+.ws-opt .opt-ext{color:var(--ink-4);font-size:var(--fs-xs)}
+.g-search{display:flex;align-items:center;gap:12px;width:min(560px,100%);padding:12px 18px;border-radius:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;cursor:text;transition:all var(--dur-fast)}
+.g-search:hover{background:rgba(255,255,255,.16)}
+.g-search:focus-within{background:rgba(255,255,255,.2);border-color:rgba(212,184,118,.6);box-shadow:0 0 0 4px rgba(212,184,118,.15)}
+.g-search svg{width:18px;height:18px;opacity:.85;stroke-width:1.8}
+.g-search input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:var(--fs-sm);font-weight:500}
+.g-search input::placeholder{color:rgba(255,255,255,.6)}
+.g-search .shortcut{background:rgba(255,255,255,.14);padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;border:1px solid rgba(255,255,255,.18)}
+.tb-icon-btn{position:relative;width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.tb-icon-btn:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px;stroke-width:1.8}
+.tb-icon-btn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#D4B876;box-shadow:0 0 0 2px var(--sage-700)}
+.tb-icon-btn.victor{background:var(--grad-amber);border-color:transparent;box-shadow:0 6px 18px rgba(201,169,97,.35)}
+.tb-icon-btn.victor:hover{filter:brightness(1.05)}
+.lang-sel{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;outline:none}
+.lang-sel option{background:var(--sage-700);color:#fff}
+.user-chip{display:flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);transition:all var(--dur-fast)}
+.user-chip:hover{background:rgba(255,255,255,.22)}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:#fff;color:var(--sage-700);font-weight:800;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:var(--fs-sm);font-weight:700;color:#fff}
+.user-role{font-size:11px;color:rgba(255,255,255,.75)}
+.logout-btn{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.logout-btn:hover{background:var(--rose);border-color:transparent}
+.logout-btn svg{width:16px;height:16px;stroke-width:1.8}
+
+/* 레이아웃 / 사이드바 */
+.layout{display:flex;height:calc(100vh - 41px - var(--topbar-h));position:relative;background:var(--sage-100)}
+.layout::before{content:"";position:absolute;top:-50px;left:40%;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle, rgba(127,161,131,.08), transparent 70%);pointer-events:none}
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--sage-50);border-right:1px solid var(--sage-200);padding:22px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+@media (max-width:1280px){.sidebar{width:240px}}
+@media (max-width:1024px){.sidebar{display:none}}
+.sb-section{padding:4px 0}
+.sb-section + .sb-section{border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-head{font-size:11px;font-weight:800;color:var(--ink-4);text-transform:uppercase;letter-spacing:.12em;padding:0 14px 12px;display:flex;align-items:center}
+.sb-head-tag{margin-left:auto;background:var(--sage-200);color:var(--sage-700);font-size:9px;font-weight:800;padding:3px 9px;border-radius:999px;text-transform:none}
+.sb-item{position:relative;display:flex;align-items:center;gap:12px;padding:11px 14px;margin-bottom:3px;font-size:var(--fs-md);color:var(--ink-2);border-radius:14px;transition:all var(--dur-fast) var(--ease);white-space:nowrap;overflow:hidden;font-weight:500}
+.sb-item:hover{background:var(--sage-200);color:var(--ink)}
+.sb-item.active{background:var(--grad-sage);color:#fff;font-weight:700;box-shadow:var(--sh-green)}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{width:20px;height:20px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--sage-600);transition:color var(--dur-fast)}
+.sb-ico svg{width:18px;height:18px;stroke-width:1.7}
+.sb-item:hover .sb-ico{color:var(--sage-700)}
+.sb-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-badge{background:var(--sage-200);color:var(--sage-700);padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;flex-shrink:0}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.3);color:#fff}
+.sb-badge.warn{background:rgba(201,169,97,.2);color:#8A6E1D}
+.sb-badge.err{background:var(--rose-soft);color:var(--rose-dk)}
+.sb-ext{font-size:11px;color:var(--ink-4);font-weight:700;margin-left:auto}
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-tree{overflow-y:auto;flex:1}
+.sb-team-head{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:var(--fs-md);font-weight:600;color:var(--ink-2);border-radius:10px;cursor:pointer;transition:background var(--dur-fast)}
+.sb-team-head:hover{background:var(--sage-200)}
+.sb-team-head .chev{width:14px;color:var(--ink-4);transition:transform var(--dur-fast)}
+.sb-team-head.open .chev{transform:rotate(90deg)}
+.sb-sub{display:block;padding:6px 14px 6px 30px;font-size:var(--fs-sm);color:var(--ink-3);border-radius:8px;margin-left:20px;border-left:2px solid var(--sage-200)}
+.sb-sub:hover{background:var(--sage-100);color:var(--sage-700);border-left-color:var(--sage-500)}
+
+/* 빅터 도크 */
+.dock{width:var(--dock-w);flex-shrink:0;background:var(--sage-50);border-left:1px solid var(--sage-200);display:flex;flex-direction:column;overflow:hidden;transition:width var(--dur-slow),opacity var(--dur-med);position:relative;z-index:1}
+@media (max-width:1280px){.dock{--dock-w:320px}}
+@media (max-width:1024px){.dock{display:none}}
+body.dock-collapsed .dock{width:0;opacity:0;border-left:0}
+.dock-head{position:relative;overflow:hidden;background:var(--grad-sage);color:#fff;padding:18px 20px;display:flex;align-items:center;gap:14px}
+.dock-head::before{content:"";position:absolute;top:-30%;right:-10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(212,184,118,.2), transparent 70%);pointer-events:none}
+.dock-head > *{position:relative;z-index:1}
+.dock-avatar{width:44px;height:44px;border-radius:50%;background:#fff;color:var(--sage-700);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.15);position:relative}
+.dock-avatar svg{width:24px;height:24px;stroke-width:1.8}
+.dock-avatar::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#D4B876;border:2px solid var(--sage-600)}
+.dock-head-text{flex:1;min-width:0;line-height:1.3}
+.dock-title{font-size:var(--fs-md);font-weight:800}
+.dock-sub{font-size:11px;color:rgba(255,255,255,.8);margin-top:3px}
+.dock-head-actions{display:flex;gap:6px}
+.dock-btn{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast)}
+.dock-btn:hover{background:rgba(255,255,255,.24)}
+.dock-btn svg{width:14px;height:14px;stroke-width:1.8}
+.dock-ctx{padding:16px 20px 12px;border-bottom:1px solid var(--sage-200);background:var(--sage-100)}
+.dock-ctx-label{font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.dock-ctx-chips{display:flex;gap:6px;flex-wrap:wrap}
+.dock-chip{padding:7px 14px;border-radius:999px;background:#fff;color:var(--sage-700);font-size:var(--fs-xs);font-weight:700;border:1px solid var(--sage-300);cursor:pointer;transition:all var(--dur-fast)}
+.dock-chip:hover{background:var(--sage-500);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:var(--sh-green)}
+.dock-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--sage-50)}
+.dock-msg{max-width:92%;padding:12px 16px;border-radius:16px;font-size:var(--fs-sm);line-height:1.65}
+.dock-msg.user{align-self:flex-end;background:var(--grad-sage);color:#fff;border-bottom-right-radius:6px;box-shadow:var(--sh-green)}
+.dock-msg.ai{align-self:flex-start;background:#fff;color:var(--ink);border:1px solid var(--sage-200);border-bottom-left-radius:6px;box-shadow:var(--sh-sm)}
+.dock-msg b{color:var(--sage-700)}
+.dock-msg ul{margin:8px 0 0;padding-left:4px;list-style:none}
+.dock-msg li{padding:5px 0 5px 20px;position:relative;color:var(--ink-2);font-size:13px}
+.dock-msg li::before{content:"·";position:absolute;left:6px;color:var(--sage-500);font-weight:900;font-size:18px;line-height:1}
+.dock-msg li.warn::before{color:var(--amber)}
+.dock-msg li.err::before{color:var(--rose)}
+.dock-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--sage-200)}
+.dock-action{padding:7px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;transition:all var(--dur-fast)}
+.dock-action.primary{background:var(--rose);color:#fff}
+.dock-action.primary:hover{background:var(--rose-dk);transform:translateY(-1px)}
+.dock-action.do{background:var(--sage-200);color:var(--sage-700);border:1px solid var(--sage-300)}
+.dock-action.do:hover{background:var(--sage-500);color:#fff;border-color:transparent}
+.dock-action.secondary{background:var(--sage-100);color:var(--ink-2)}
+.dock-foot{border-top:1px solid var(--sage-200);padding:14px;background:var(--sage-100)}
+.dock-quick{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.dock-quick button{flex-shrink:0;padding:6px 12px;border-radius:999px;background:#fff;color:var(--ink-2);border:1px solid var(--sage-300);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--dur-fast)}
+.dock-quick button:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.dock-input{display:flex;align-items:flex-end;gap:8px;background:#fff;border:1.5px solid var(--sage-300);border-radius:14px;padding:10px 12px;transition:all var(--dur-fast)}
+.dock-input:focus-within{border-color:var(--sage-500);box-shadow:0 0 0 4px rgba(127,161,131,.15)}
+.dock-input textarea{flex:1;border:0;outline:0;resize:none;font-family:inherit;font-size:var(--fs-sm);color:var(--ink);min-height:22px;max-height:100px;background:transparent;line-height:1.5}
+.dock-send{width:36px;height:36px;border-radius:11px;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast);box-shadow:var(--sh-green)}
+.dock-send:hover{transform:translateY(-1px)}
+.dock-send svg{width:16px;height:16px;stroke-width:1.8}
+.dock-hint{font-size:10px;color:var(--ink-4);margin-top:8px;text-align:center}
+.dock-hint kbd{background:var(--sage-200);padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;color:var(--ink-3)}
+
+/* 메인 */
+.main{flex:1;overflow-y:auto;background:var(--sage-100);min-width:0;position:relative}
+.main::before{content:"";position:absolute;top:-60px;right:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(201,169,97,.12),transparent 70%);pointer-events:none}
+.page-header{background:var(--sage-50);border-bottom:1px solid var(--sage-200);padding:26px 36px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;position:sticky;top:0;z-index:40}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--ink-4);font-weight:700;text-transform:uppercase;letter-spacing:.09em}
+.breadcrumb a{color:var(--ink-4)}
+.breadcrumb a:hover{color:var(--sage-600)}
+.breadcrumb .sep{color:var(--sage-300)}
+.breadcrumb .current{color:var(--ink-2)}
+.page-title{font-size:var(--fs-xl);font-weight:800;color:var(--ink);line-height:1.2;display:flex;align-items:center;gap:14px}
+.page-title .accent{display:inline-block;width:5px;height:clamp(22px,1.8vw + 14px,30px);border-radius:3px;background:var(--grad-sage)}
+.page-sub{font-size:var(--fs-sm);color:var(--ink-3);margin-top:6px;max-width:640px;font-weight:500}
+.ph-right{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:14px;font-size:var(--fs-sm);font-weight:700;transition:all var(--dur-fast);white-space:nowrap}
+.btn svg{width:16px;height:16px;stroke-width:2}
+.btn-primary{background:var(--grad-rose);color:#fff;box-shadow:0 6px 18px rgba(165,40,44,.25)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(165,40,44,.35)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--sage-300)}
+.btn-ghost:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.btn-sage{background:var(--grad-sage);color:#fff;box-shadow:var(--sh-green)}
+.page-body{padding:32px 36px 80px;position:relative;z-index:1}
+
+/* ============= 페이지별 (19: 일일 업무) ============= */
+.daily-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
+@media (max-width:1280px){.daily-grid{grid-template-columns:1fr}}
+
+.section{background:#fff;border:1px solid var(--sage-200);border-radius:20px;padding:0;margin-bottom:18px;box-shadow:var(--sh-xs);overflow:hidden}
+.sec-head{padding:18px 22px;border-bottom:1px solid var(--sage-100);display:flex;align-items:center;gap:12px}
+.sec-head h2{font-size:var(--fs-lg);color:var(--ink);font-weight:700;display:flex;align-items:center;gap:10px}
+.sec-head h2::before{content:"";width:4px;height:18px;border-radius:2px;background:var(--grad-sage)}
+.sec-head .meta{margin-left:auto;font-size:var(--fs-xs);color:var(--ink-3);font-weight:600}
+.sec-body{padding:20px 22px}
+
+.compose{background:linear-gradient(135deg,var(--sage-50) 0%,#fff 100%);border:1px solid var(--sage-200);border-radius:18px;padding:0;margin-bottom:18px;overflow:hidden;box-shadow:var(--sh-xs)}
+.compose-head{padding:14px 18px;border-bottom:1px solid var(--sage-200);display:flex;align-items:center;gap:10px;background:#fff}
+.compose-icon{width:36px;height:36px;border-radius:11px;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--sh-green)}
+.compose-icon svg{width:18px;height:18px;stroke-width:1.7}
+.compose-title{font-size:var(--fs-sm);font-weight:800;color:var(--ink)}
+.compose-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.compose-body{padding:16px 18px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:11px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.field select,.field input{padding:10px 12px;border:1.5px solid var(--sage-300);border-radius:10px;background:#fff;color:var(--ink);font-size:var(--fs-sm);outline:none;transition:all .2s}
+.field select:focus,.field input:focus{border-color:var(--sage-500);box-shadow:0 0 0 3px rgba(127,161,131,.15)}
+.compose-text{width:100%;min-height:120px;border:1.5px solid var(--sage-300);border-radius:12px;padding:14px 16px;font-size:var(--fs-sm);color:var(--ink);outline:none;resize:vertical;line-height:1.7;font-family:inherit;transition:all .2s}
+.compose-text:focus{border-color:var(--sage-500);box-shadow:0 0 0 3px rgba(127,161,131,.15)}
+.compose-text::placeholder{color:var(--ink-4);font-style:italic}
+.compose-foot{display:flex;align-items:center;gap:10px;padding:14px 18px;border-top:1px solid var(--sage-200);background:var(--sage-50);flex-wrap:wrap}
+.compose-tags{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+.tag-chip{padding:5px 12px;background:#fff;border:1px solid var(--sage-300);border-radius:999px;font-size:11px;font-weight:700;color:var(--ink-2);cursor:pointer;transition:all .15s}
+.tag-chip:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.tag-chip.active{background:var(--grad-sage);color:#fff;border-color:transparent;box-shadow:0 2px 6px rgba(127,161,131,.3)}
+
+.carry-banner{background:linear-gradient(135deg,rgba(201,169,97,.15),#fff);border:1px solid rgba(201,169,97,.3);border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:18px;box-shadow:var(--sh-xs)}
+.carry-icon{width:42px;height:42px;border-radius:12px;background:rgba(201,169,97,.25);color:var(--amber-dk);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.carry-icon svg{width:22px;height:22px;stroke-width:1.7}
+.carry-msg{flex:1;font-size:var(--fs-sm);color:var(--ink);font-weight:600;line-height:1.6}
+.carry-msg b{color:var(--amber-dk);font-weight:800}
+.carry-msg .sub{font-size:11px;color:var(--ink-3);margin-top:3px;font-weight:500}
+
+.today-list{display:flex;flex-direction:column;gap:12px}
+.entry{background:#fff;border:1px solid var(--sage-200);border-radius:14px;padding:14px 16px;transition:all .2s var(--ease);position:relative}
+.entry:hover{border-color:var(--sage-300);box-shadow:var(--sh-xs)}
+.entry.locked{background:var(--sage-50)}
+.entry-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.entry-cat{padding:3px 10px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.3px}
+.entry-cat.todo{background:rgba(212,150,122,.2);color:#A95F44}
+.entry-cat.done{background:rgba(127,161,131,.2);color:var(--sage-700)}
+.entry-cat.note{background:rgba(107,163,148,.18);color:#3F6B5E}
+.entry-cat.meeting{background:rgba(201,169,97,.2);color:var(--amber-dk)}
+.entry-time{font-size:11px;color:var(--ink-3);font-weight:600}
+.entry-edit{margin-left:auto;display:flex;gap:6px}
+.entry-edit button{width:26px;height:26px;border-radius:7px;background:transparent;color:var(--ink-4);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.entry-edit button:hover{background:var(--sage-100);color:var(--sage-700)}
+.entry-edit svg{width:13px;height:13px;stroke-width:1.7}
+.entry-text{font-size:var(--fs-sm);color:var(--ink);line-height:1.7}
+.entry-text b{color:var(--ink);font-weight:700}
+.entry-tags{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.tag-mini{padding:1px 8px;background:var(--sage-100);color:var(--ink-3);border-radius:5px;font-size:10px;font-weight:700}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.stat{background:#fff;border:1px solid var(--sage-200);border-radius:14px;padding:14px 16px;text-align:center;box-shadow:var(--sh-xs);transition:all .25s}
+.stat:hover{transform:translateY(-2px);box-shadow:var(--sh-sm)}
+.stat-num{font-size:var(--fs-xl);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+.stat-lab{font-size:11px;color:var(--ink-3);font-weight:700;margin-top:6px}
+.stat-sub{font-size:10px;color:var(--ink-4);margin-top:3px}
+
+.week-bars{display:flex;align-items:flex-end;gap:8px;height:130px;padding:8px 4px}
+.day-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.day-fill{width:100%;border-radius:8px 8px 4px 4px;background:var(--grad-sage);transition:height .4s var(--ease);min-height:4px}
+.day-fill.today{background:var(--grad-brand);box-shadow:0 4px 12px rgba(165,40,44,.25)}
+.day-fill.empty{background:var(--sage-200)}
+.day-lab{font-size:10px;color:var(--ink-3);font-weight:700}
+.day-num{font-size:11px;color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+.day-bar.today .day-lab{color:var(--accent)}
+
+.empty-state{text-align:center;padding:40px 20px;color:var(--ink-4)}
+.empty-state .ico{font-size:32px;margin-bottom:10px}
+.empty-state .msg{font-size:var(--fs-sm);font-weight:600;color:var(--ink-3)}
+.empty-state .sub{font-size:11px;margin-top:4px}
+
+@media (max-width:1024px){.tb-divider,.user-info,.brand-text{display:none}.page-header{padding:18px 20px;flex-direction:column;align-items:stretch}.page-body{padding:20px}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #19 — 일일 업무 · 힐링</h1>
+  <span class="tag">Sage Garden · B-2</span>
+  <span class="hint">/daily · 오늘 하루 차근차근 · 캐리오버 + 카테고리 + 주간 흐름</span>
+  <button id="dockToggle" style="margin-left:auto;background:var(--sage-500);color:#fff;padding:6px 14px;border-radius:999px;font-size:var(--fs-xs);font-weight:700">빅터 도크 접기/펼치기</button>
+</div>
+
+<header class="topbar">
+  <div class="topbar-bg"></div>
+  <div class="tb-left">
+    <button class="tb-menu-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <a class="brand" href="#">
+      <div class="brand-logo-wrap">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS <span class="dot"></span></div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+    <div class="tb-divider"></div>
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">통합</span><span class="ws-caret">▾</span>
+      </button>
+      <div class="ws-menu" id="wsMenu">
+        <a class="ws-opt active" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></div><div class="opt-meta"><div class="opt-name">통합</div><div class="opt-desc">HAIST WORKS 메인</div></div><span class="opt-check">✓</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="opt-meta"><div class="opt-name">매출·영업 센터</div><div class="opt-desc">Sales Hub</div></div><span class="opt-ext">↗</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div><div class="opt-meta"><div class="opt-name">자재·구매 센터</div><div class="opt-desc">Logistics Hub</div></div><span class="opt-ext">↗</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" id="victorTrigger" title="빅터 열기/닫기 (Ctrl+K)" aria-label="빅터 AI 컨시어지" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+    <select class="lang-sel"><option value="ko">🇰🇷 한국어</option><option value="vi">🇻🇳 Tiếng Việt</option><option value="en">🇺🇸 English</option></select>
+    <a class="user-chip" href="#"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+    <a class="logout-btn" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span class="sb-label">업무 현황</span><span class="sb-badge">3</span></a>
+      <a class="sb-item active"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="sb-label">일일 업무</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span class="sb-label">내 달력</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg></span><span class="sb-label">알림</span><span class="sb-badge warn">12</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span><span class="sb-label">부서 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="sb-label">실시간 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span><span class="sb-label">검색</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-label">전사 대시보드</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/></svg></span><span class="sb-label">진행률 매트릭스</span><span class="sb-badge err">2</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></svg></span><span class="sb-label">요청 티켓</span><span class="sb-badge">5</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></span><span class="sb-label">이슈 · AS</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="sb-label">변경 알림</span><span class="sb-badge">8</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-head-tag">하이웍스</span></div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-label">전자결제</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span class="sb-label">메일</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span><span class="sb-label">팀원 권한</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg></span><span class="sb-label">관리자</span></a>
+    </div>
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head open"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>영업1팀</span></div>
+        <a class="sb-sub">K-Pharma 2차 납품</a>
+        <a class="sb-sub">2분기 신규 영업</a>
+        <div class="sb-team-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>설계팀</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb"><a>통합</a><span class="sep">/</span><a>내 업무</a><span class="sep">/</span><span class="current">일일 업무</span></div>
+        <h1 class="page-title"><span class="accent"></span>오늘 하루, 차근차근</h1>
+        <div class="page-sub">2026년 4월 24일 목요일 · 어제 미완료 2건 · 오늘 작성 5건</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>달력으로 보기</button>
+        <button class="btn btn-sage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>이번 주 내보내기</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="carry-banner">
+        <div class="carry-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><polyline points="12 7 12 12 15 14"/></svg></div>
+        <div class="carry-msg"><b>어제 미완료 2건</b>이 오늘로 옮겨졌어요. 천천히 마무리해 보세요.<div class="sub">자재 발주 검토 · 4월 진행 보고서 작성</div></div>
+        <button class="btn btn-ghost" style="padding:8px 14px;font-size:var(--fs-xs)">어제 보기</button>
+      </div>
+
+      <div class="daily-grid">
+        <div>
+          <div class="compose">
+            <div class="compose-head">
+              <div class="compose-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+              <div><div class="compose-title">새 일일 업무 작성</div><div class="compose-sub">짧게 한 줄도 좋아요 — 부담 없이 기록해보세요</div></div>
+            </div>
+            <div class="compose-body">
+              <div class="field-row">
+                <div class="field"><label>카테고리</label><select><option>📋 할 일 (To-do)</option><option>✅ 완료 (Done)</option><option>📝 메모 (Note)</option><option>👥 미팅 (Meeting)</option></select></div>
+                <div class="field"><label>관련 프로젝트</label><select><option>없음</option><option>K-Pharma 2차 납품</option><option>2분기 신규 영업</option><option>월간 보고</option></select></div>
+              </div>
+              <textarea class="compose-text" placeholder="오늘 어떤 일을 하셨나요? 간단히 적어주세요...
+
+예) K-Pharma 영업1팀과 납기 협의. 검수 절차 추가로 D-7 합의."></textarea>
+            </div>
+            <div class="compose-foot">
+              <div class="compose-tags"><span class="tag-chip active">#영업</span><span class="tag-chip">#K-Pharma</span><span class="tag-chip">+태그 추가</span></div>
+              <button class="btn btn-ghost" style="padding:8px 14px;font-size:var(--fs-xs)">임시저장</button>
+              <button class="btn btn-primary" style="padding:9px 18px;font-size:var(--fs-sm)">기록하기</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="sec-head"><h2>오늘 작성한 내용</h2><span class="meta">5건 · 마지막 14:32</span></div>
+            <div class="sec-body">
+              <div class="today-list">
+                <div class="entry">
+                  <div class="entry-head"><span class="entry-cat meeting">MEETING</span><span class="entry-time">오전 10:00</span><div class="entry-edit"><button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></div></div>
+                  <div class="entry-text"><b>설계 리뷰 미팅 · 영업1팀</b> — 회의실 A에서 6명 참여. K-Pharma 라벨 검토 의견 정리. 폰트 크기·성분표 위치 등 3건 수정 필요.</div>
+                  <div class="entry-tags"><span class="tag-mini">#K-Pharma</span><span class="tag-mini">#설계</span><span class="tag-mini">#미팅</span></div>
+                </div>
+                <div class="entry">
+                  <div class="entry-head"><span class="entry-cat done">DONE</span><span class="entry-time">오전 11:30</span><div class="entry-edit"><button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div></div>
+                  <div class="entry-text">자재 납기 확인 회신 받음. 박구매 팀장과 일정 조율 완료.</div>
+                  <div class="entry-tags"><span class="tag-mini">#구매</span><span class="tag-mini">#일정조율</span></div>
+                </div>
+                <div class="entry">
+                  <div class="entry-head"><span class="entry-cat todo">TODO</span><span class="entry-time">오후 14:32</span><div class="entry-edit"><button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg></button></div></div>
+                  <div class="entry-text"><b>주간 대시보드 리포트 작성</b> — 마감 18:00. 매출 흐름 + 팀별 진행률 + 이슈 요약 포함.</div>
+                  <div class="entry-tags"><span class="tag-mini">#대시보드</span><span class="tag-mini">#리포트</span></div>
+                </div>
+                <div class="entry">
+                  <div class="entry-head"><span class="entry-cat note">NOTE</span><span class="entry-time">오후 13:15</span></div>
+                  <div class="entry-text">㈜리프케어 정기 발주 시점 변경 검토. 월말 → 월중 변경 시 우리 측 재고 관리 영향 분석 필요.</div>
+                </div>
+                <div class="entry locked">
+                  <div class="entry-head"><span class="entry-cat done">DONE</span><span class="entry-time">어제 17:45</span><span style="font-size:10px;color:var(--ink-4);font-weight:600;margin-left:8px">캐리오버됨</span></div>
+                  <div class="entry-text">↺ 어제 미완료 — <b>자재 발주 검토</b> · 오늘 마무리 완료.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-num">5</div><div class="stat-lab">오늘 등록</div><div class="stat-sub">평일 평균 6건</div></div>
+            <div class="stat"><div class="stat-num">3</div><div class="stat-lab">완료</div><div class="stat-sub">진행 중 2건</div></div>
+            <div class="stat"><div class="stat-num">23</div><div class="stat-lab">이번 주 누적</div><div class="stat-sub">잘 기록 중이에요</div></div>
+            <div class="stat"><div class="stat-num">4.6</div><div class="stat-lab">팀 평균</div><div class="stat-sub">(영업1팀 일평균)</div></div>
+          </div>
+
+          <div class="section">
+            <div class="sec-head"><h2>이번 주 흐름</h2><span class="meta">월 ~ 일</span></div>
+            <div class="sec-body">
+              <div class="week-bars">
+                <div class="day-bar"><div class="day-num">7</div><div class="day-fill" style="height:70%"></div><div class="day-lab">월</div></div>
+                <div class="day-bar"><div class="day-num">5</div><div class="day-fill" style="height:50%"></div><div class="day-lab">화</div></div>
+                <div class="day-bar"><div class="day-num">6</div><div class="day-fill" style="height:60%"></div><div class="day-lab">수</div></div>
+                <div class="day-bar today"><div class="day-num">5</div><div class="day-fill today" style="height:50%"></div><div class="day-lab">목</div></div>
+                <div class="day-bar"><div class="day-num">0</div><div class="day-fill empty" style="height:8%"></div><div class="day-lab">금</div></div>
+                <div class="day-bar"><div class="day-num">0</div><div class="day-fill empty" style="height:4%"></div><div class="day-lab">토</div></div>
+                <div class="day-bar"><div class="day-num">0</div><div class="day-fill empty" style="height:4%"></div><div class="day-lab">일</div></div>
+              </div>
+              <div style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:10px">총 23건 · 일평균 5.75건 (평일 기준)</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="sec-head"><h2>우리 팀</h2><span class="meta">영업1팀 · 7명</span></div>
+            <div class="sec-body" style="padding:14px 22px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px"><div style="width:30px;height:30px;border-radius:9px;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px">김</div><div style="flex:1"><div style="font-size:var(--fs-sm);font-weight:700">김영업 (나)</div><div style="font-size:10px;color:var(--ink-3)">오늘 5건</div></div><div style="font-size:11px;font-weight:800;color:var(--sage-700)">23건</div></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 10px"><div style="width:30px;height:30px;border-radius:9px;background:var(--sage-200);color:var(--sage-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px">정</div><div style="flex:1"><div style="font-size:var(--fs-sm);font-weight:700">정민수</div><div style="font-size:10px;color:var(--ink-3)">오늘 6건</div></div><div style="font-size:11px;font-weight:800;color:var(--sage-700)">28건</div></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 10px"><div style="width:30px;height:30px;border-radius:9px;background:var(--sage-200);color:var(--sage-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px">한</div><div style="flex:1"><div style="font-size:var(--fs-sm);font-weight:700">한지영</div><div style="font-size:10px;color:var(--ink-3)">오늘 4건</div></div><div style="font-size:11px;font-weight:800;color:var(--sage-700)">19건</div></div>
+                <div style="text-align:center;font-size:11px;color:var(--ink-4);padding:8px;font-weight:600">+ 4명 더 보기</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="dock" id="dock">
+    <div class="dock-head">
+      <div class="dock-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></div>
+      <div class="dock-head-text"><div class="dock-title">HAIST 빅터</div><div class="dock-sub">오늘 하루 챙겨드려요</div></div>
+      <div class="dock-head-actions">
+        <button class="dock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+        <button class="dock-btn" id="dockCollapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-ctx">
+      <div class="dock-ctx-label">이 화면에서 자주 묻는 것</div>
+      <div class="dock-ctx-chips"><button class="dock-chip">오늘 한 줄 요약</button><button class="dock-chip">미완료 정리</button><button class="dock-chip">팀원 평균</button></div>
+    </div>
+    <div class="dock-body">
+      <div class="dock-msg user">오늘 한 줄로 정리</div>
+      <div class="dock-msg ai"><b>오늘의 흐름</b>:
+        <ul><li>설계 리뷰 미팅 마치고 K-Pharma 라벨 수정 3건 도출</li><li>자재 납기 일정 조율 완료</li><li class="warn">주간 대시보드 리포트 18:00 마감 진행 중</li></ul>
+        <div class="dock-actions"><span class="dock-action primary">리포트 자동 작성</span><span class="dock-action do">✓ 임시저장</span><span class="dock-action secondary">전체 보기</span></div>
+      </div>
+    </div>
+    <div class="dock-foot">
+      <div class="dock-quick"><button>📋 오늘 정리</button><button>↺ 캐리오버</button><button>📊 통계</button></div>
+      <div class="dock-input"><textarea placeholder="천천히 물어보세요..." rows="1"></textarea><button class="dock-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+      <div class="dock-hint"><kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const wsWrap=document.getElementById('wsWrap'),wsBtn=document.getElementById('wsBtn'),wsMenu=document.getElementById('wsMenu');
+function wsSet(o){wsWrap.classList.toggle('open',o);wsMenu.classList.toggle('open',o)}
+wsBtn.addEventListener('click',e=>{e.stopPropagation();wsSet(!wsWrap.classList.contains('open'))});
+document.addEventListener('click',e=>{if(!wsWrap.contains(e.target))wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const t=(e.target.tagName||'').toLowerCase();if(t==='input'||t==='textarea'||t==='select'||e.target.isContentEditable)return;const i=document.getElementById('gSearchInput');if(i){e.preventDefault();i.focus();i.select()}});
+document.querySelectorAll('.sb-team-head').forEach(h=>h.addEventListener('click',()=>h.classList.toggle('open')));
+const DOCK_KEY='haist_victor_dock_open';
+function setDockOpen(open,persist){
+  document.body.classList.toggle('dock-collapsed',!open);
+  const btn=document.getElementById('victorTrigger');
+  if(btn) btn.setAttribute('aria-pressed', open?'true':'false');
+  if(persist!==false) localStorage.setItem(DOCK_KEY, open?'1':'0');
+}
+function toggleDock(){setDockOpen(document.body.classList.contains('dock-collapsed'))}
+(function(){const s=localStorage.getItem(DOCK_KEY);setDockOpen(s===null?true:s==='1',false)})();
+document.getElementById('dockToggle').addEventListener('click',toggleDock);
+document.getElementById('dockCollapse').addEventListener('click',toggleDock);
+document.getElementById('victorTrigger').addEventListener('click',toggleDock);
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();toggleDock()}});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(document.body.classList.contains('dock-collapsed')) return;
+  const a=document.activeElement;
+  if(a && a.closest && a.closest('.dock')) setDockOpen(false);
+});
+</script>
+</body></html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>자재구매센터 — KNK HAIST WORKS · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #FBF5EC;
+    --paper-2:      #F5EBD9;
+    --paper-3:      #FFFFFF;
+    --amber:        #D4923B;
+    --amber-light:  #F0C880;
+    --amber-glow:   #FFE5B8;
+    --amber-deep:   #B8843A;
+    --warm-tan:     #E8D5B7;
+    --ink:          #2D2520;
+    --mute:         #8B7C6E;
+    --line:         #ECE0CB;
+    --knk-red:      #A5282C;
+    --success:      #7A9B5C;
+    --warn:         #C97D3F;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .app { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 100vh; }
+
+  .sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: 22px 0; }
+  .sb-brand { padding: 0 22px 18px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .sb-brand img { height: 28px; }
+  .sb-brand-sub { font-size: 10px; color: var(--amber-deep); margin-top: 6px; font-weight: 600; letter-spacing: 0.06em; }
+  .sb-group { padding: 14px 22px 6px; font-size: 10.5px; color: var(--mute); font-weight: 600; }
+  .sb-item { padding: 9px 14px; margin: 1px 8px; cursor: pointer; font-size: 13px; color: var(--ink); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .sb-item:hover { background: var(--amber-glow); }
+  .sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+  .sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+  .sb-badge { background: var(--knk-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+
+  .main { background: var(--paper); }
+  .top { display: grid; grid-template-columns: auto 1fr auto; gap: 32px; align-items: center; padding: 14px 32px; background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); }
+  .top-tabs { display: flex; gap: 6px; }
+  .top-tab { padding: 9px 18px; border-radius: 24px; font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+  .top-tab.active { background: var(--amber); color: white; font-weight: 600; box-shadow: 0 4px 12px rgba(212,146,59,0.3); }
+  .top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .top-user .avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--amber), var(--amber-light)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; }
+
+  .page-head { padding: 26px 32px 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+  .page-title { font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+  .page-title em { font-style: normal; background: linear-gradient(135deg, var(--amber) 0%, var(--knk-red) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  /* === 경고 배너 === */
+  .alert-banner {
+    margin: 0 32px;
+    background: linear-gradient(135deg, var(--knk-red) 0%, #C2693A 100%);
+    color: white;
+    border-radius: 14px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 8px 24px rgba(165,40,44,0.18);
+  }
+  .alert-banner .icon { font-size: 28px; }
+  .alert-banner .ttl { font-size: 16px; font-weight: 700; }
+  .alert-banner .body { font-size: 13px; opacity: 0.9; margin-top: 2px; }
+  .alert-banner .btn {
+    margin-left: auto;
+    background: white; color: var(--knk-red);
+    padding: 8px 16px; border-radius: 10px;
+    font-size: 12.5px; font-weight: 700;
+    border: 0; cursor: pointer;
+  }
+
+  /* === 카테고리 카드 === */
+  .cat-row {
+    margin: 18px 32px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .cat-card {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(212,146,59,0.04);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(212,146,59,0.10); border-color: var(--amber); }
+  .cat-icon {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: var(--amber-glow);
+    display: grid; place-items: center;
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  .cat-card h4 { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .cat-card .stat { display: flex; justify-content: space-between; margin-top: 12px; }
+  .cat-card .stat-num { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .cat-card .stat-lbl { font-size: 11px; color: var(--mute); margin-top: 2px; }
+  .cat-card .alert-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--knk-red);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--knk-red);
+    animation: pulse 1.5s infinite;
+    margin-left: 6px;
+  }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+
+  /* === 도구바 === */
+  .toolbar {
+    margin: 18px 32px 0;
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .filter-btn { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 12.5px; cursor: pointer; font-weight: 500; }
+  .filter-btn.active { background: var(--amber-glow); border-color: var(--amber); font-weight: 600; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .new-order {
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white; border: 0;
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(212,146,59,0.25);
+  }
+
+  /* === 자재 테이블 === */
+  .table-wrap { margin: 18px 32px 32px; background: var(--paper-3); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(212,146,59,0.04); }
+  .table-head { padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: var(--paper-2); }
+  .table-head h3 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .table-head h3::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+
+  table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  thead th { text-align: left; padding: 12px 18px; font-weight: 600; font-size: 11px; color: var(--amber-deep); border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; }
+  thead th.num, td.num { text-align: right; }
+  thead th.center, td.center { text-align: center; }
+  tbody td { padding: 13px 18px; border-bottom: 1px solid var(--line); }
+  tbody tr:hover { background: var(--amber-glow); }
+  td .small { display: block; font-size: 11px; color: var(--mute); margin-top: 2px; }
+  td.code { font-family: 'Courier New', monospace; font-weight: 700; color: var(--amber-deep); }
+
+  /* 재고 막대 */
+  .stock-bar {
+    width: 100px; height: 8px;
+    background: var(--paper);
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  .stock-bar > div { height: 100%; border-radius: 4px; }
+  .stock-bar .low { background: var(--knk-red); }
+  .stock-bar .mid { background: var(--warn); }
+  .stock-bar .ok { background: var(--success); }
+
+  /* 칩 */
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .pill-low { background: var(--knk-red); color: white; }
+  .pill-warn { background: var(--warn); color: white; }
+  .pill-ok { background: var(--success); color: white; }
+  .pill-pending { background: var(--warm-tan); color: var(--ink); }
+  .pill-shipping { background: var(--amber-glow); color: var(--amber-deep); }
+
+  /* === 우측 발주 진행 === */
+  .right { background: var(--paper); border-left: 1px solid var(--line); padding: 22px 22px; overflow-y: auto; }
+  .right h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 12px; font-weight: 700; }
+  .order-card {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .order-card .top-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .order-card .ttl { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .order-card .meta { font-size: 11px; color: var(--mute); margin-top: 3px; }
+  .order-progress {
+    margin-top: 10px;
+    height: 6px;
+    background: var(--paper);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .order-progress > div { height: 100%; background: linear-gradient(90deg, var(--amber-light), var(--amber)); border-radius: 3px; }
+  .order-steps {
+    display: flex; justify-content: space-between;
+    margin-top: 6px;
+    font-size: 10px; color: var(--mute);
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="sb-brand-sub">v5 H5 · 자재구매센터</div>
+    </div>
+    <div class="sb-group">워크스페이스</div>
+    <div class="sb-item">통합 대시보드</div>
+    <div class="sb-item">매출영업센터</div>
+    <div class="sb-item active">자재구매센터 <span class="sb-badge">3</span></div>
+    <div class="sb-item">물류·배송</div>
+    <div class="sb-group">자재 관리</div>
+    <div class="sb-item">전체 자재</div>
+    <div class="sb-item">발주서 작성</div>
+    <div class="sb-item">진행 중 발주</div>
+    <div class="sb-item">단가 협상 이력</div>
+    <div class="sb-item">거래처 관리</div>
+    <div class="sb-group">재고</div>
+    <div class="sb-item">재고 현황</div>
+    <div class="sb-item">입출고 이력</div>
+    <div class="sb-group">관리</div>
+    <div class="sb-item">설정</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab active">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">이</div>
+        <div>이 차장 · 자재팀</div>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="page-meta">자재구매센터 · 통합 대시</div>
+        <h1 class="page-title">자재 <em>흐름</em> · 2026 4월</h1>
+      </div>
+      <div class="page-meta">UPDATED 14:23 · 자동갱신 5분</div>
+    </div>
+
+    <!-- 경고 배너 -->
+    <div class="alert-banner">
+      <div class="icon">⚠</div>
+      <div>
+        <div class="ttl">재고 임계치 미만 자재 3종</div>
+        <div class="body">컨베이어 모터 · 베어링 6204 · 알루미늄 압출재 — 5월 발주 대비 즉시 보충 권장</div>
+      </div>
+      <button class="btn">자세히 →</button>
+    </div>
+
+    <!-- 카테고리 -->
+    <div class="cat-row">
+      <div class="cat-card">
+        <div class="cat-icon">⚙️</div>
+        <h4>모터·구동부 <span class="alert-dot"></span></h4>
+        <div class="stat">
+          <div>
+            <div class="stat-num">42<span style="font-size:13px;color:var(--mute)"> 종</span></div>
+            <div class="stat-lbl">재고 SKU</div>
+          </div>
+          <div>
+            <div class="stat-num" style="color:var(--knk-red)">2</div>
+            <div class="stat-lbl">임계 미만</div>
+          </div>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🔩</div>
+        <h4>베어링·체결 <span class="alert-dot"></span></h4>
+        <div class="stat">
+          <div>
+            <div class="stat-num">128<span style="font-size:13px;color:var(--mute)"> 종</span></div>
+            <div class="stat-lbl">재고 SKU</div>
+          </div>
+          <div>
+            <div class="stat-num" style="color:var(--knk-red)">1</div>
+            <div class="stat-lbl">임계 미만</div>
+          </div>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">📐</div>
+        <h4>금속·압출재</h4>
+        <div class="stat">
+          <div>
+            <div class="stat-num">67<span style="font-size:13px;color:var(--mute)"> 종</span></div>
+            <div class="stat-lbl">재고 SKU</div>
+          </div>
+          <div>
+            <div class="stat-num" style="color:var(--success)">0</div>
+            <div class="stat-lbl">임계 미만</div>
+          </div>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🔌</div>
+        <h4>전장·제어</h4>
+        <div class="stat">
+          <div>
+            <div class="stat-num">94<span style="font-size:13px;color:var(--mute)"> 종</span></div>
+            <div class="stat-lbl">재고 SKU</div>
+          </div>
+          <div>
+            <div class="stat-num" style="color:var(--success)">0</div>
+            <div class="stat-lbl">임계 미만</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 도구바 -->
+    <div class="toolbar">
+      <button class="filter-btn active">전체 자재 (331)</button>
+      <button class="filter-btn">재고 임계 미만 (3)</button>
+      <button class="filter-btn">신규 도착 (12)</button>
+      <button class="filter-btn">+ 필터 추가</button>
+      <div class="spacer"></div>
+      <button class="new-order">＋ 새 발주서 작성</button>
+    </div>
+
+    <!-- 자재 테이블 -->
+    <div class="table-wrap">
+      <div class="table-head">
+        <h3>자재 — 재고 임계치 우선 정렬</h3>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>자재명 · 사양</th>
+            <th>코드</th>
+            <th>재고</th>
+            <th class="num">단가</th>
+            <th class="center">최근 입고</th>
+            <th>거래처</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>컨베이어 모터 1.5kW<span class="small">대성 표준 · 인버터 호환</span></td>
+            <td class="code">MTR-CV-15</td>
+            <td><span class="stock-bar"><div class="low" style="width:18%"></div></span>3 / 16</td>
+            <td class="num">₩482,000</td>
+            <td class="center">04-12<span class="small" style="color:var(--knk-red)">17일 전</span></td>
+            <td>대원전기</td>
+            <td><span class="pill pill-low">긴급 발주</span></td>
+          </tr>
+          <tr>
+            <td>베어링 6204 ZZ<span class="small">SKF 등가품</span></td>
+            <td class="code">BRG-6204</td>
+            <td><span class="stock-bar"><div class="low" style="width:25%"></div></span>50 / 200</td>
+            <td class="num">₩4,200</td>
+            <td class="center">04-08<span class="small" style="color:var(--knk-red)">21일 전</span></td>
+            <td>한국NSK</td>
+            <td><span class="pill pill-low">긴급 발주</span></td>
+          </tr>
+          <tr>
+            <td>알루미늄 압출재 6m<span class="small">40×40 · A6063</span></td>
+            <td class="code">AL-EXT-4040</td>
+            <td><span class="stock-bar"><div class="mid" style="width:38%"></div></span>15 / 40</td>
+            <td class="num">₩28,500</td>
+            <td class="center">04-22<span class="small">7일 전</span></td>
+            <td>경남알루미늄</td>
+            <td><span class="pill pill-warn">발주 권장</span></td>
+          </tr>
+          <tr>
+            <td>리니어 가이드 25mm<span class="small">미스미 표준</span></td>
+            <td class="code">LG-25-1000</td>
+            <td><span class="stock-bar"><div class="ok" style="width:72%"></div></span>36 / 50</td>
+            <td class="num">₩185,000</td>
+            <td class="center">04-25<span class="small">4일 전</span></td>
+            <td>미스미</td>
+            <td><span class="pill pill-ok">정상</span></td>
+          </tr>
+          <tr>
+            <td>인버터 7.5kW<span class="small">LS산전 · IG5A</span></td>
+            <td class="code">INV-LS-75</td>
+            <td><span class="stock-bar"><div class="ok" style="width:65%"></div></span>13 / 20</td>
+            <td class="num">₩620,000</td>
+            <td class="center">04-19<span class="small">10일 전</span></td>
+            <td>LS산전</td>
+            <td><span class="pill pill-ok">정상</span></td>
+          </tr>
+          <tr>
+            <td>제어 PLC 모듈<span class="small">XGB · XBM-DR16S</span></td>
+            <td class="code">PLC-XGB-16</td>
+            <td><span class="stock-bar"><div class="ok" style="width:80%"></div></span>8 / 10</td>
+            <td class="num">₩340,000</td>
+            <td class="center">04-26<span class="small">3일 전</span></td>
+            <td>LS산전</td>
+            <td><span class="pill pill-ok">정상</span></td>
+          </tr>
+          <tr>
+            <td>볼스크류 2510<span class="small">THK · BNFN2510</span></td>
+            <td class="code">BS-2510</td>
+            <td><span class="stock-bar"><div class="ok" style="width:55%"></div></span>11 / 20</td>
+            <td class="num">₩412,000</td>
+            <td class="center">04-15<span class="small">14일 전</span></td>
+            <td>한국THK</td>
+            <td><span class="pill pill-ok">정상</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- 우측: 진행 중 발주 -->
+  <aside class="right">
+    <h4>진행 중 발주 · 8건</h4>
+
+    <div class="order-card">
+      <div class="top-row">
+        <div>
+          <div class="ttl">PO-2604-018 · 대원전기</div>
+          <div class="meta">컨베이어 모터 1.5kW × 10</div>
+        </div>
+        <span class="pill pill-shipping">배송중</span>
+      </div>
+      <div class="order-progress"><div style="width:78%"></div></div>
+      <div class="order-steps">
+        <span>✓ 발주</span><span>✓ 확정</span><span>✓ 출고</span><span style="color:var(--amber-deep);font-weight:700">배송</span><span>입고</span>
+      </div>
+    </div>
+
+    <div class="order-card">
+      <div class="top-row">
+        <div>
+          <div class="ttl">PO-2604-019 · 한국NSK</div>
+          <div class="meta">베어링 6204 ZZ × 500</div>
+        </div>
+        <span class="pill pill-pending">확정 대기</span>
+      </div>
+      <div class="order-progress"><div style="width:35%"></div></div>
+      <div class="order-steps">
+        <span>✓ 발주</span><span style="color:var(--amber-deep);font-weight:700">확정</span><span>출고</span><span>배송</span><span>입고</span>
+      </div>
+    </div>
+
+    <div class="order-card">
+      <div class="top-row">
+        <div>
+          <div class="ttl">PO-2604-020 · 경남알루미늄</div>
+          <div class="meta">알루미늄 압출재 × 30 m</div>
+        </div>
+        <span class="pill pill-pending">단가 협의</span>
+      </div>
+      <div class="order-progress"><div style="width:18%"></div></div>
+      <div class="order-steps">
+        <span style="color:var(--amber-deep);font-weight:700">단가</span><span>발주</span><span>출고</span><span>배송</span><span>입고</span>
+      </div>
+    </div>
+
+    <h4 style="margin-top: 22px;">빅터 자동 분석</h4>
+
+    <div class="order-card" style="background: linear-gradient(135deg, var(--ink) 0%, #4A3D2E 100%); color: white; border: 0; position: relative; overflow: hidden;">
+      <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: radial-gradient(circle, var(--amber) 0%, transparent 65%); opacity: 0.4;"></div>
+      <div style="position: relative; z-index: 2;">
+        <div class="ttl" style="color: var(--amber-glow);">💡 5월 대비 추천</div>
+        <div class="meta" style="color: rgba(255,255,255,0.85); margin-top: 8px; font-size: 12.5px; line-height: 1.6;">
+          대성기업 5월 추가 발주 패턴(작년 +20%) 고려 시 — 컨베이어 모터 추가 5대, 베어링 200개 사전 확보 권장. 예상 비용 <b style="color: var(--amber-glow)">₩7,260,000</b>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>빅터 AI — KNK HAIST WORKS · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #FBF5EC;
+    --paper-2:      #F5EBD9;
+    --paper-3:      #FFFFFF;
+    --amber:        #D4923B;
+    --amber-light:  #F0C880;
+    --amber-glow:   #FFE5B8;
+    --amber-deep:   #B8843A;
+    --warm-tan:     #E8D5B7;
+    --ink:          #2D2520;
+    --mute:         #8B7C6E;
+    --line:         #ECE0CB;
+    --knk-red:      #A5282C;
+    --success:      #7A9B5C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.6;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .app { display: grid; grid-template-columns: 240px 280px 1fr 320px; height: 100vh; }
+
+  /* ============ 메인 사이드바 ============ */
+  .sidebar {
+    background: var(--paper-3);
+    border-right: 1px solid var(--line);
+    padding: 22px 0;
+  }
+  .sb-brand { padding: 0 22px 18px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .sb-brand img { height: 28px; }
+  .sb-brand-sub { font-size: 10px; color: var(--amber-deep); margin-top: 6px; font-weight: 600; letter-spacing: 0.06em; }
+  .sb-group { padding: 14px 22px 6px; font-size: 10.5px; color: var(--mute); font-weight: 600; }
+  .sb-item {
+    padding: 9px 14px; margin: 1px 8px; cursor: pointer; font-size: 13px; color: var(--ink);
+    border-radius: 8px;
+  }
+  .sb-item:hover { background: var(--amber-glow); }
+  .sb-item.active {
+    background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%);
+    font-weight: 600; position: relative;
+  }
+  .sb-item.active::before {
+    content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px;
+    width: 3px; background: var(--amber); border-radius: 2px;
+  }
+
+  /* ============ 빅터 대화 목록 (좌측 2번째 컬럼) ============ */
+  .chats {
+    background: var(--paper);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .chats-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper-3);
+  }
+  .chats-head h3 { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .chats-head .sub { font-size: 11px; color: var(--mute); margin-top: 3px; letter-spacing: 0.05em; }
+
+  .new-chat-btn {
+    margin: 14px 14px 8px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white;
+    border: 0;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    width: calc(100% - 28px);
+    box-shadow: 0 4px 12px rgba(212,146,59,0.25);
+    font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  .chats-section { padding: 6px 14px; font-size: 10px; color: var(--mute); letter-spacing: 0.16em; text-transform: uppercase; margin-top: 8px; font-weight: 600; }
+  .chat-item {
+    padding: 10px 14px;
+    margin: 1px 8px;
+    cursor: pointer;
+    border-radius: 10px;
+  }
+  .chat-item:hover { background: var(--paper-2); }
+  .chat-item.active { background: white; box-shadow: 0 2px 8px rgba(212,146,59,0.08); border: 1px solid var(--line); }
+  .chat-item .ttl { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .chat-item.active .ttl { color: var(--amber-deep); }
+  .chat-item .preview { font-size: 11.5px; color: var(--mute); margin-top: 3px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+  .chat-item .time { font-size: 10px; color: var(--amber-deep); margin-top: 4px; letter-spacing: 0.05em; }
+
+  /* ============ 대화 메인 ============ */
+  .convo { display: flex; flex-direction: column; background: var(--paper); }
+  .convo-head {
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 16px rgba(212,146,59,0.04);
+  }
+  .convo-head .ttl {
+    font-size: 17px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .convo-head .ttl::before {
+    content: ""; width: 10px; height: 10px;
+    background: var(--success); border-radius: 50%;
+    box-shadow: 0 0 10px var(--success);
+  }
+  .convo-head .sub { font-size: 11px; color: var(--mute); margin-top: 3px; }
+  .convo-actions { display: flex; gap: 8px; }
+  .ico-btn {
+    width: 36px; height: 36px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+    display: grid; place-items: center;
+    font-size: 16px;
+  }
+  .ico-btn:hover { background: var(--amber-glow); border-color: var(--amber); }
+
+  .convo-body { flex: 1; overflow-y: auto; padding: 32px 48px; }
+  .convo-empty { text-align: center; padding: 24px; }
+  .convo-empty h2 {
+    font-size: 36px; font-weight: 700; color: var(--ink);
+    background: linear-gradient(135deg, var(--amber) 0%, var(--knk-red) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  .day-divider {
+    text-align: center;
+    font-size: 11px;
+    color: var(--mute);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 20px 0;
+    position: relative;
+  }
+  .day-divider::before, .day-divider::after {
+    content: ""; position: absolute; top: 50%;
+    width: 30%; height: 1px; background: var(--line);
+  }
+  .day-divider::before { left: 5%; }
+  .day-divider::after { right: 5%; }
+
+  .msg { margin-bottom: 22px; max-width: 720px; }
+  .msg.user { margin-left: auto; }
+  .msg-meta {
+    display: flex; gap: 8px; align-items: center;
+    font-size: 11px; color: var(--mute);
+    margin-bottom: 6px;
+  }
+  .msg-meta .who { font-weight: 700; color: var(--ink); }
+  .msg.user .msg-meta { justify-content: flex-end; }
+
+  .msg-body {
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .msg.ai .msg-body {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 16px 16px 16px 4px;
+    color: var(--ink);
+  }
+  .msg.ai .msg-body b { color: var(--knk-red); font-weight: 700; }
+  .msg.user .msg-body {
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white;
+    border-radius: 16px 16px 4px 16px;
+    box-shadow: 0 4px 14px rgba(212,146,59,0.25);
+  }
+
+  .msg-card {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 10px;
+  }
+  .msg-card .label {
+    font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--amber-deep);
+    font-weight: 700;
+  }
+  .msg-card table { width: 100%; font-size: 13px; margin-top: 8px; border-collapse: collapse; }
+  .msg-card td { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .msg-card td:last-child { text-align: right; font-weight: 700; color: var(--ink); }
+
+  /* 빠른 작업 칩 */
+  .quick-actions {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 14px;
+  }
+  .chip {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .chip:hover { background: var(--amber-glow); border-color: var(--amber); }
+
+  /* ===== 입력 ===== */
+  .convo-input {
+    padding: 18px 32px 22px;
+    background: var(--paper-3);
+    border-top: 1px solid var(--line);
+  }
+  .input-wrap {
+    display: flex;
+    background: var(--paper);
+    border: 2px solid var(--line);
+    border-radius: 18px;
+    padding: 8px;
+    align-items: flex-end;
+    transition: all 0.2s;
+  }
+  .input-wrap:focus-within {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 4px var(--amber-glow);
+  }
+  .input-wrap textarea {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--ink);
+    resize: none;
+    outline: none;
+    min-height: 24px;
+    max-height: 200px;
+  }
+  .send-btn {
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white;
+    border: 0;
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 18px;
+    display: grid; place-items: center;
+    box-shadow: 0 4px 12px rgba(212,146,59,0.3);
+  }
+  .input-hint {
+    font-size: 11px; color: var(--mute);
+    margin-top: 8px;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  /* ============ 우측: 컨텍스트 패널 ============ */
+  .ctx {
+    background: var(--paper);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 22px 20px;
+  }
+  .ctx h4 {
+    font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+  .ctx-card {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .ctx-card .ttl { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .ctx-card .meta { font-size: 11px; color: var(--mute); margin-top: 4px; }
+  .ctx-card .stat-row {
+    display: flex; justify-content: space-between;
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+  .ctx-stat .num { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .ctx-stat .lbl { font-size: 10px; color: var(--mute); letter-spacing: 0.1em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="sb-brand-sub">v5 H5 · 빅터 AI</div>
+    </div>
+    <div class="sb-group">워크스페이스</div>
+    <div class="sb-item">통합 대시보드</div>
+    <div class="sb-item">매출영업센터</div>
+    <div class="sb-item">자재구매센터</div>
+    <div class="sb-item">물류·배송</div>
+    <div class="sb-group">AI 도구</div>
+    <div class="sb-item active">빅터 AI</div>
+    <div class="sb-item">자동 보고서</div>
+    <div class="sb-item">데이터 분석</div>
+  </aside>
+
+  <!-- 대화 목록 -->
+  <aside class="chats">
+    <div class="chats-head">
+      <h3>대화</h3>
+      <div class="sub">최근 7일 · 총 18건</div>
+    </div>
+    <button class="new-chat-btn">＋ 새 대화 시작</button>
+    <div class="chats-section">오늘</div>
+    <div class="chat-item active">
+      <div class="ttl">대성기업 견적 4건</div>
+      <div class="preview">자재팀에 단가 요청 메모 보낼까요?</div>
+      <div class="time">14:22</div>
+    </div>
+    <div class="chat-item">
+      <div class="ttl">3월 매출 분석</div>
+      <div class="preview">전월비 +18% 성장 — 주요 요인은…</div>
+      <div class="time">11:08</div>
+    </div>
+    <div class="chats-section">어제</div>
+    <div class="chat-item">
+      <div class="ttl">한일물산 클레임 정리</div>
+      <div class="preview">3건 모두 배송 지연 — 물류팀 회신…</div>
+      <div class="time">17:42</div>
+    </div>
+    <div class="chat-item">
+      <div class="ttl">신규 거래처 등록</div>
+      <div class="preview">동양FA 의 신용등급 검토 결과…</div>
+      <div class="time">09:15</div>
+    </div>
+    <div class="chats-section">이번 주</div>
+    <div class="chat-item">
+      <div class="ttl">재고 경고 분석</div>
+      <div class="preview">3종 자재 재고 임계치 미만…</div>
+      <div class="time">월</div>
+    </div>
+    <div class="chat-item">
+      <div class="ttl">분기 보고서 초안</div>
+      <div class="preview">Q1 마감 종합 보고 작성을…</div>
+      <div class="time">월</div>
+    </div>
+  </aside>
+
+  <!-- 대화 메인 -->
+  <main class="convo">
+    <div class="convo-head">
+      <div>
+        <div class="ttl">대성기업 견적 4건</div>
+        <div class="sub">2026-04-29 시작 · 빅터가 대화 컨텍스트를 기억 중</div>
+      </div>
+      <div class="convo-actions">
+        <button class="ico-btn" title="공유">↗</button>
+        <button class="ico-btn" title="저장">★</button>
+        <button class="ico-btn" title="더보기">⋯</button>
+      </div>
+    </div>
+
+    <div class="convo-body">
+      <div class="day-divider">2026 · 4월 29일</div>
+
+      <div class="msg ai">
+        <div class="msg-meta"><span class="who">빅터</span> · 14:21</div>
+        <div class="msg-body">
+          김 부장님, 좋은 오후입니다. 오늘 진행 중인 견적 23건 중 <b>(주)대성기업 추가 견적이 마감 D-2</b>입니다.
+          어떻게 도와드릴까요?
+        </div>
+      </div>
+
+      <div class="msg user">
+        <div class="msg-meta">14:22 · <span class="who">김 부장</span></div>
+        <div class="msg-body">대성 견적 진행 상태 정리해줘</div>
+      </div>
+
+      <div class="msg ai">
+        <div class="msg-meta"><span class="who">빅터</span> · 14:22</div>
+        <div class="msg-body">
+          대성 견적 4건 진행 상황을 정리했습니다:
+          <div class="msg-card">
+            <div class="label">대성기업 견적 4건 · APR 2026</div>
+            <table>
+              <tr><td>견적 #2604-018 · 자동화 라인 5종</td><td style="color:var(--success)">✓ 승인</td></tr>
+              <tr><td>견적 #2604-022 · 컨베이어 보강</td><td style="color:var(--success)">✓ 승인</td></tr>
+              <tr><td>견적 #2604-027 · 모터 교체 분기</td><td style="color:var(--amber-deep)">⏳ 검토중</td></tr>
+              <tr><td>견적 #2604-031 · 추가 라인 (D-2)</td><td style="color:var(--knk-red)">⚠ 단가 대기</td></tr>
+            </table>
+          </div>
+          마지막 1건이 자재 단가 확정 대기 중입니다. <b>자재팀에 단가 요청 메모</b>를 보낼까요?
+          <div class="quick-actions">
+            <span class="chip">📤 단가 요청 메모 발송</span>
+            <span class="chip">📋 견적서 PDF 다운로드</span>
+            <span class="chip">📊 매출 영향 분석</span>
+            <span class="chip">📅 마감일 알림 설정</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="convo-input">
+      <div class="input-wrap">
+        <textarea placeholder="빅터에게 물어보세요…  예) 이번 주 매출 요약해줘 / 대성 견적 PDF 만들어줘"></textarea>
+        <button class="send-btn">→</button>
+      </div>
+      <div class="input-hint">↑↓ 으로 이전 메시지 탐색 · Shift+Enter 줄바꿈 · Enter 전송</div>
+    </div>
+  </main>
+
+  <!-- 컨텍스트 -->
+  <aside class="ctx">
+    <h4>대화 컨텍스트</h4>
+    <div class="ctx-card">
+      <div class="ttl">(주)대성기업</div>
+      <div class="meta">VIP · 김 부장 담당 · 거래 시작 2018</div>
+      <div class="stat-row">
+        <div class="ctx-stat">
+          <div class="num">₩1.28억</div>
+          <div class="lbl">이번 달</div>
+        </div>
+        <div class="ctx-stat">
+          <div class="num">+22%</div>
+          <div class="lbl">전월비</div>
+        </div>
+      </div>
+    </div>
+
+    <h4 style="margin-top: 18px;">참조 문서</h4>
+    <div class="ctx-card">
+      <div class="ttl">📑 견적 #2604-031</div>
+      <div class="meta">2026-04-29 작성 · 14:18 마지막 수정</div>
+    </div>
+    <div class="ctx-card">
+      <div class="ttl">📊 매출 매트릭스</div>
+      <div class="meta">고객별 매출 → 대성기업</div>
+    </div>
+    <div class="ctx-card">
+      <div class="ttl">📦 자재 단가 이력</div>
+      <div class="meta">컨베이어 모터 — 최근 3개월</div>
+    </div>
+
+    <h4 style="margin-top: 18px;">빅터의 제안</h4>
+    <div class="ctx-card" style="background:linear-gradient(135deg, var(--amber-glow) 0%, var(--paper-3) 100%); border-color:var(--amber);">
+      <div class="ttl" style="color:var(--knk-red)">💡 자동 추천</div>
+      <div class="meta" style="color:var(--ink);margin-top:8px;line-height:1.6;">
+        대성기업은 매년 4월 추가 견적이 +20% 이상 증가하는 패턴이 있습니다. 5월 발주 대비 자재 선확보를 검토해보세요.
+      </div>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>매출 매트릭스 — KNK HAIST WORKS · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #FBF5EC;
+    --paper-2:      #F5EBD9;
+    --paper-3:      #FFFFFF;
+    --amber:        #D4923B;
+    --amber-light:  #F0C880;
+    --amber-glow:   #FFE5B8;
+    --amber-deep:   #B8843A;
+    --warm-tan:     #E8D5B7;
+    --ink:          #2D2520;
+    --mute:         #8B7C6E;
+    --line:         #ECE0CB;
+    --knk-red:      #A5282C;
+    --success:      #7A9B5C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .app { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 100vh; }
+
+  /* === 사이드바 === */
+  .sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: 22px 0; }
+  .sb-brand { padding: 0 22px 18px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .sb-brand img { height: 28px; }
+  .sb-brand-sub { font-size: 10px; color: var(--amber-deep); margin-top: 6px; font-weight: 600; letter-spacing: 0.06em; }
+  .sb-group { padding: 14px 22px 6px; font-size: 10.5px; color: var(--mute); font-weight: 600; }
+  .sb-item { padding: 9px 14px; margin: 1px 8px; cursor: pointer; font-size: 13px; color: var(--ink); border-radius: 8px; }
+  .sb-item:hover { background: var(--amber-glow); }
+  .sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+  .sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+  .sb-badge { background: var(--knk-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .sb-item { display: flex; justify-content: space-between; align-items: center; }
+
+  /* === 메인 === */
+  .main { background: var(--paper); }
+  .top {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 32px; align-items: center;
+    padding: 14px 32px;
+    background: var(--paper-3);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 2px 16px rgba(212,146,59,0.05);
+  }
+  .top-tabs { display: flex; gap: 6px; }
+  .top-tab { padding: 9px 18px; border-radius: 24px; font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+  .top-tab.active { background: var(--amber); color: white; font-weight: 600; box-shadow: 0 4px 12px rgba(212,146,59,0.3); }
+  .top-user { font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .top-user .avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--amber), var(--amber-light)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 13px; }
+
+  /* === 페이지 헤더 === */
+  .page-head {
+    padding: 26px 32px 18px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+  .page-title { font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+  .page-title em { font-style: normal; background: linear-gradient(135deg, var(--amber) 0%, var(--knk-red) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  /* === 매트릭스 5종 탭 === */
+  .matrix-tabs {
+    margin: 0 32px;
+    display: flex; gap: 0;
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+  }
+  .m-tab {
+    flex: 1;
+    padding: 11px 14px;
+    text-align: center;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--mute);
+    font-weight: 500;
+  }
+  .m-tab:hover { background: var(--paper); color: var(--ink); }
+  .m-tab.active {
+    background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+    color: white; font-weight: 700;
+    box-shadow: 0 4px 12px rgba(212,146,59,0.25);
+  }
+  .m-tab .num {
+    font-size: 16px; font-weight: 700; display: block; margin-bottom: 2px;
+  }
+
+  /* === KPI 4종 === */
+  .kpi-row {
+    margin: 18px 32px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .kpi {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(212,146,59,0.04);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-label { font-size: 11px; color: var(--mute); font-weight: 600; }
+  .kpi-num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+  .kpi-trend { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
+  .kpi-trend.up { color: var(--success); }
+  .kpi-trend.down { color: var(--mute); }
+  .kpi-bar {
+    margin-top: 12px;
+    height: 4px;
+    background: var(--paper);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .kpi-bar > div { height: 100%; background: linear-gradient(90deg, var(--amber-light), var(--amber)); border-radius: 2px; }
+  .kpi.featured { background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%); border: 0; color: white; }
+  .kpi.featured .kpi-label { color: rgba(255,255,255,0.85); }
+  .kpi.featured .kpi-num { color: white; }
+  .kpi.featured .kpi-trend { color: var(--amber-glow); }
+  .kpi.featured .kpi-bar { background: rgba(255,255,255,0.15); }
+  .kpi.featured .kpi-bar > div { background: var(--amber-glow); }
+
+  /* === 도구 바 === */
+  .toolbar {
+    margin: 18px 32px 0;
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .filter-btn {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .filter-btn.active { background: var(--amber-glow); border-color: var(--amber); font-weight: 600; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .search {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    width: 220px;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  .toolbar .search:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+  .toolbar .export {
+    background: var(--knk-red); color: white;
+    border: 0; border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    font-weight: 700; cursor: pointer;
+  }
+
+  /* === 매트릭스 테이블 === */
+  .table-wrap {
+    margin: 18px 32px 32px;
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(212,146,59,0.04);
+  }
+  .table-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--paper-2);
+  }
+  .table-head h3 { font-size: 16px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+  .table-head h3::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+  .table-head .meta { font-size: 11px; color: var(--mute); letter-spacing: 0.05em; }
+
+  table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    padding: 12px 18px;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--amber-deep);
+    border-bottom: 1px solid var(--line);
+    background: var(--paper-2);
+    letter-spacing: 0.06em;
+    position: sticky;
+    top: 0;
+  }
+  thead th.num, td.num { text-align: right; }
+  tbody td { padding: 13px 18px; border-bottom: 1px solid var(--line); color: var(--ink); }
+  tbody tr { transition: all 0.15s; }
+  tbody tr:hover { background: var(--amber-glow); }
+  td.client { font-weight: 600; }
+  td .small { display: block; font-size: 11px; color: var(--mute); margin-top: 2px; }
+  td.amount { font-weight: 700; }
+
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .pill-vip { background: linear-gradient(135deg, var(--knk-red), #C2693A); color: white; }
+  .pill-a { background: var(--amber-glow); color: var(--amber-deep); }
+  .pill-b { background: var(--warm-tan); color: var(--ink); }
+
+  .trend-up { color: var(--success); font-weight: 700; }
+  .trend-down { color: var(--mute); font-weight: 700; }
+
+  /* 스파크라인 */
+  .spark {
+    width: 80px; height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .spark svg { width: 100%; height: 100%; }
+
+  /* === 우측 인사이트 === */
+  .insights { background: var(--paper); border-left: 1px solid var(--line); padding: 22px 22px; overflow-y: auto; }
+  .insights h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 12px; font-weight: 700; }
+  .insight-card {
+    background: var(--paper-3);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .insight-card .ttl { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .insight-card .body { font-size: 12.5px; color: var(--mute); margin-top: 8px; line-height: 1.6; }
+  .insight-card.highlight {
+    background: linear-gradient(135deg, var(--ink) 0%, #4A3D2E 100%);
+    color: white;
+    border: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .insight-card.highlight::after {
+    content: ""; position: absolute; top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, var(--amber) 0%, transparent 65%);
+    opacity: 0.4;
+  }
+  .insight-card.highlight .ttl { color: white; position: relative; z-index: 2; }
+  .insight-card.highlight .body { color: rgba(255,255,255,0.85); position: relative; z-index: 2; }
+  .insight-card.highlight .body b { color: var(--amber-glow); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="sb-brand-sub">v5 H5 · 매출영업센터</div>
+    </div>
+    <div class="sb-group">워크스페이스</div>
+    <div class="sb-item">통합 대시보드</div>
+    <div class="sb-item active">매출영업센터 <span class="sb-badge">3</span></div>
+    <div class="sb-item">자재구매센터</div>
+    <div class="sb-item">물류·배송</div>
+    <div class="sb-group">매출 매트릭스</div>
+    <div class="sb-item">대시 요약</div>
+    <div class="sb-item">일별 매출</div>
+    <div class="sb-item">월별 매출</div>
+    <div class="sb-item">연간 매출</div>
+    <div class="sb-item">고객별 매출</div>
+    <div class="sb-group">관리</div>
+    <div class="sb-item">사용자·권한</div>
+    <div class="sb-item">설정</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab">통합 플랫폼</div>
+        <div class="top-tab active">매출영업센터</div>
+        <div class="top-tab">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">김</div>
+        <div>김 부장 · 영업1팀</div>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="page-meta">매출영업센터 · 매트릭스</div>
+        <h1 class="page-title">월별 <em>매출 흐름</em> · 2026 4월</h1>
+      </div>
+      <div class="page-meta">UPDATED 14:23 · 자동갱신 5분</div>
+    </div>
+
+    <div class="matrix-tabs">
+      <div class="m-tab"><span class="num">대시</span>요약</div>
+      <div class="m-tab"><span class="num">29</span>일별 매출</div>
+      <div class="m-tab active"><span class="num">04</span>월별 매출</div>
+      <div class="m-tab"><span class="num">2026</span>연간 매출</div>
+      <div class="m-tab"><span class="num">156</span>고객별 매출</div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi featured">
+        <div class="kpi-label">이번 달 총매출</div>
+        <div class="kpi-num">₩4.82억</div>
+        <div class="kpi-trend">↑ +18.2% vs 전월</div>
+        <div class="kpi-bar"><div style="width:78%"></div></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">신규 견적</div>
+        <div class="kpi-num">23 건</div>
+        <div class="kpi-trend up">↑ +5 신규</div>
+        <div class="kpi-bar"><div style="width:62%"></div></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">평균 거래액</div>
+        <div class="kpi-num">₩2,096만</div>
+        <div class="kpi-trend up">↑ +12.4%</div>
+        <div class="kpi-bar"><div style="width:55%"></div></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">미수금</div>
+        <div class="kpi-num">₩1.2억</div>
+        <div class="kpi-trend down">↓ -3.4%</div>
+        <div class="kpi-bar"><div style="width:24%; background: var(--warm-tan)"></div></div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="filter-btn active">기간 · 4월</button>
+      <button class="filter-btn">고객 등급 · 전체</button>
+      <button class="filter-btn">담당자 · 전체</button>
+      <button class="filter-btn">+ 필터 추가</button>
+      <div class="spacer"></div>
+      <input class="search" placeholder="고객사 / 견적 번호 검색…" />
+      <button class="export">⬇ Excel 내보내기</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head">
+        <h3>고객사 매출 — 4월 (Top 12)</h3>
+        <div class="meta">총 156개 거래처 중 매출 발생 47건 · 정렬 매출 ↓</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>고객사</th>
+            <th class="num">매출액</th>
+            <th class="num">거래 건수</th>
+            <th class="num">전월비</th>
+            <th>추이 (12주)</th>
+            <th>등급</th>
+            <th>담당</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="client">(주)대성기업<span class="small">자동화 라인 · VIP 거래처</span></td><td class="num amount">₩1.28억</td><td class="num">8</td><td class="num trend-up">+22%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,18 8,16 16,14 24,15 32,11 40,12 48,8 56,9 64,5 72,6 80,3" fill="none" stroke="#A5282C" stroke-width="2"/></svg></span></td><td><span class="pill pill-vip">VIP</span></td><td>김 부장</td></tr>
+          <tr><td class="client">한일물산<span class="small">건설자재 · 5년 거래</span></td><td class="num amount">₩9,200만</td><td class="num">6</td><td class="num trend-up">+8%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,14 8,15 16,12 24,13 32,11 40,10 48,11 56,9 64,8 72,7 80,8" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-a">A</span></td><td>이 차장</td></tr>
+          <tr><td class="client">삼강산업<span class="small">금속가공 · 신규 6개월</span></td><td class="num amount">₩7,800만</td><td class="num">5</td><td class="num trend-up">+15%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,20 8,18 16,16 24,14 32,12 40,11 48,10 56,9 64,7 72,6 80,5" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-a">A</span></td><td>박 대리</td></tr>
+          <tr><td class="client">동양FA<span class="small">자동제어 · 클레임 1건</span></td><td class="num amount">₩6,400만</td><td class="num">4</td><td class="num trend-down">−4%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,8 8,9 16,11 24,10 32,12 40,11 48,13 56,14 64,12 72,15 80,14" fill="none" stroke="#8B7C6E" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>최 과장</td></tr>
+          <tr><td class="client">경동건설<span class="small">건축자재 · 정기 거래</span></td><td class="num amount">₩5,100만</td><td class="num">3</td><td class="num trend-up">+11%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,16 8,15 16,14 24,12 32,13 40,11 48,12 56,10 64,9 72,8 80,9" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>김 부장</td></tr>
+          <tr><td class="client">대한기계<span class="small">정밀가공 · 4년 거래</span></td><td class="num amount">₩4,200만</td><td class="num">3</td><td class="num trend-up">+6%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,12 8,11 16,12 24,10 32,11 40,9 48,10 56,8 64,9 72,7 80,8" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>이 차장</td></tr>
+          <tr><td class="client">신성공업<span class="small">자동차 부품</span></td><td class="num amount">₩3,800만</td><td class="num">2</td><td class="num trend-up">+19%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,18 8,17 16,15 24,14 32,12 40,10 48,11 56,8 64,7 72,5 80,4" fill="none" stroke="#A5282C" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>박 대리</td></tr>
+          <tr><td class="client">동아엔지<span class="small">엔지니어링</span></td><td class="num amount">₩2,950만</td><td class="num">2</td><td class="num trend-down">−8%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,8 8,9 16,10 24,11 32,12 40,13 48,14 56,15 64,14 72,16 80,15" fill="none" stroke="#8B7C6E" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>최 과장</td></tr>
+          <tr><td class="client">평화산업<span class="small">파이프 · 신규</span></td><td class="num amount">₩2,400만</td><td class="num">1</td><td class="num">신규</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,22 8,21 16,20 24,18 32,16 40,14 48,12 56,10 64,8 72,6 80,4" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>김 부장</td></tr>
+          <tr><td class="client">고려정밀<span class="small">기계가공</span></td><td class="num amount">₩1,950만</td><td class="num">2</td><td class="num trend-up">+3%</td><td><span class="spark"><svg viewBox="0 0 80 24"><polyline points="0,12 8,12 16,11 24,12 32,11 40,10 48,11 56,10 64,11 72,10 80,11" fill="none" stroke="#D4923B" stroke-width="2"/></svg></span></td><td><span class="pill pill-b">B</span></td><td>이 차장</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside class="insights">
+    <h4>인사이트 · 빅터 자동 분석</h4>
+
+    <div class="insight-card highlight">
+      <div class="ttl">💡 이번 달 주목할 포인트</div>
+      <div class="body">
+        대성기업 매출이 전월비 <b>+22% 급증</b>. 같은 패턴이 작년 4~5월에도 발생 → <b>5월 추가 발주</b> 가능성 높음. 자재 선확보 검토를 권장합니다.
+      </div>
+    </div>
+
+    <div class="insight-card">
+      <div class="ttl">📈 성장 신호 3건</div>
+      <div class="body">대성·삼강·신성 — 모두 +15% 이상. 영업 추가 투입 검토 가치 있음.</div>
+    </div>
+
+    <div class="insight-card">
+      <div class="ttl">⚠ 주의 신호 2건</div>
+      <div class="body">동양FA −4%, 동아엔지 −8% — 클레임/이탈 위험. 담당자 컨택 권장.</div>
+    </div>
+
+    <div class="insight-card">
+      <div class="ttl">🆕 신규 거래</div>
+      <div class="body">평화산업 첫 거래 ₩2,400만. 신용등급 검토 진행 중.</div>
+    </div>
+
+    <h4 style="margin-top: 22px;">다음 액션</h4>
+    <div class="insight-card" style="background: var(--amber-glow); border-color: var(--amber);">
+      <div class="ttl" style="color: var(--knk-red);">🎯 빅터 추천</div>
+      <div class="body" style="color: var(--ink);">
+        대성기업 5월 추가 발주 대비 — 자재팀에 컨베이어 모터 재고 사전 확인 메모 발송하시겠습니까?
+      </div>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

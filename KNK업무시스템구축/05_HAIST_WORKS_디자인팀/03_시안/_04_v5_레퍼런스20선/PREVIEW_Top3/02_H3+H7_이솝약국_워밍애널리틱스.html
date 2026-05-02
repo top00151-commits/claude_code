@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>v5-H ② 이솝 약국 + 워밍 애널리틱스 — KNK HAIST WORKS</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============ H3+H7 팔레트: 이솝 약국 + 워밍 데이터 ============ */
+  :root {
+    --paper-warm:   #F7F1E5;   /* 따뜻한 크림 종이 */
+    --paper-2:      #EFE7D5;   /* 카드 배경 */
+    --amber:        #B8843A;   /* 호박색 */
+    --amber-soft:   #D4A85F;
+    --ink-soft:     #1A1814;   /* 부드러운 검정 */
+    --mute:         #5A5249;
+    --line:         #DCD2BC;
+
+    /* 데이터 스케일 (워밍) */
+    --data-1:       #A5282C;   /* KNK 레드 */
+    --data-2:       #B8843A;   /* 호박 */
+    --data-3:       #8B6F47;
+    --data-4:       #D4A85F;
+    --data-5:       #5A5249;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--paper-warm);
+    color: var(--ink-soft);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .serif { font-family: 'Cormorant Garamond', 'Pretendard', serif; }
+  .label-up {
+    font-family: 'Inter', 'Pretendard', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--mute);
+  }
+
+  .app { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 100vh; }
+
+  /* ============ 사이드바 — Aesop 약국 진열장 ============ */
+  .sidebar {
+    background: var(--paper-warm);
+    border-right: 1px solid var(--line);
+    padding: 24px 0 0;
+  }
+  .sb-brand {
+    padding: 0 22px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sb-brand img { height: 30px; }
+  .sb-brand .num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+  }
+  .sb-group {
+    padding: 16px 22px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 500;
+  }
+  .sb-item {
+    padding: 9px 22px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 2px solid transparent;
+  }
+  .sb-item:hover { background: rgba(184,132,58,0.06); }
+  .sb-item.active {
+    background: rgba(184,132,58,0.10);
+    border-left-color: var(--amber);
+    font-weight: 600;
+  }
+  .sb-badge {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    color: var(--data-1);
+    font-weight: 600;
+  }
+
+  /* ============ 헤더 — 약국 진열대 라벨 ============ */
+  .main { background: var(--paper-warm); }
+  .top {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 32px;
+    align-items: center;
+    padding: 16px 36px;
+    border-bottom: 1px solid var(--line);
+  }
+  .top-tabs { display: flex; gap: 0; }
+  .top-tab {
+    padding: 10px 22px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mute);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+  }
+  .top-tab.active {
+    color: var(--ink-soft);
+    border-bottom-color: var(--data-1);
+    font-weight: 700;
+  }
+  .top-user {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .top-user b { font-style: normal; font-weight: 600; }
+
+  /* ============ 페이지 ============ */
+  .page { padding: 32px 36px 48px; }
+  .masthead {
+    border-top: 3px solid var(--ink-soft);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0 24px;
+    margin-bottom: 28px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: end;
+    gap: 32px;
+  }
+  .masthead .vol {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    color: var(--amber);
+    letter-spacing: 0.16em;
+  }
+  .masthead .title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--ink-soft);
+  }
+  .masthead .title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--amber);
+  }
+  .masthead .meta { text-align: right; font-size: 11px; color: var(--mute); letter-spacing: 0.1em; }
+
+  /* ===== 벤토 ===== */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 130px;
+    gap: 16px;
+  }
+  .card {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;       /* 약국 진열 카드 — 모서리 거의 없음 */
+    padding: 18px 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .card-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 500;
+  }
+  .card-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 38px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .card-trend {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: var(--data-2);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .card-trend.up::before { content: "↑ "; color: var(--data-1); }
+  .card-trend.down::before { content: "↓ "; color: var(--mute); }
+
+  .card.hero {
+    grid-column: span 2;
+    grid-row: span 2;
+    background: var(--ink-soft);
+    color: var(--paper-warm);
+    border: 0;
+  }
+  .card.hero .card-label { color: var(--amber-soft); }
+  .card.hero .card-value { color: var(--paper-warm); font-size: 64px; font-weight: 300; }
+  .card.hero .quote {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(247,241,229,0.65);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .card.hero .card-trend { color: var(--amber-soft); font-size: 13px; }
+
+  .matrix-mini {
+    grid-column: span 4;
+    background: var(--paper-warm);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 22px 28px;
+  }
+  .matrix-mini h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+  .matrix-mini h3 em {
+    font-style: italic;
+    color: var(--amber);
+    font-size: 16px;
+    margin-left: 6px;
+  }
+  table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 10px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+    font-weight: 500;
+    border-bottom: 1px solid var(--ink-soft);
+  }
+  td {
+    padding: 11px 8px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+  td:nth-child(2) {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border: 1px solid currentColor;
+    border-radius: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .pill-1 { color: var(--data-1); }
+  .pill-2 { color: var(--data-2); }
+  .pill-3 { color: var(--data-3); }
+
+  /* ============ 빅터 ============ */
+  .victor {
+    background: var(--paper-2);
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+  .victor-head {
+    padding: 18px 22px;
+    border-bottom: 2px solid var(--ink-soft);
+  }
+  .victor-head .name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+  .victor-head .name em { font-style: italic; color: var(--amber); }
+  .victor-head .role {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-top: 4px;
+  }
+  .v-msg-list { flex: 1; padding: 18px 20px; overflow-y: auto; }
+  .v-msg { margin-bottom: 18px; font-size: 13px; line-height: 1.7; }
+  .v-msg.ai {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    font-style: italic;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--amber);
+    padding-left: 14px;
+  }
+  .v-msg.ai b { font-style: normal; font-family: 'Pretendard', sans-serif; font-size: 13px; color: var(--data-1); font-weight: 600; }
+  .v-msg.user {
+    background: var(--amber);
+    color: var(--paper-warm);
+    padding: 10px 14px;
+    margin-left: 28px;
+    border-radius: 2px;
+  }
+  .v-msg time {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    color: var(--mute);
+    margin-top: 6px;
+    letter-spacing: 0.15em;
+    font-style: normal;
+  }
+  .victor-input {
+    padding: 14px 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 8px;
+    background: var(--paper-warm);
+  }
+  .victor-input input {
+    flex: 1;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+    padding: 9px 4px;
+    font-size: 13px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    outline: none;
+  }
+  .victor-input button {
+    background: var(--data-1);
+    color: var(--paper-warm);
+    border: 0;
+    border-radius: 2px;
+    padding: 0 18px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .design-note {
+    margin: 32px 0 0;
+    padding: 20px 26px;
+    background: var(--paper-2);
+    border-left: 4px solid var(--amber);
+  }
+  .design-note h4 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+  .design-note h4 em { color: var(--amber); font-style: italic; }
+  .design-note p {
+    font-size: 13px;
+    color: var(--mute);
+    line-height: 1.75;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="num">Vol.26 · No.118</div>
+    </div>
+    <div class="sb-group">Workspaces</div>
+    <div class="sb-item active">통합 대시보드</div>
+    <div class="sb-item">매출영업센터 <span class="sb-badge">3</span></div>
+    <div class="sb-item">자재구매센터</div>
+    <div class="sb-item">물류·배송</div>
+    <div class="sb-group">매출 매트릭스</div>
+    <div class="sb-item">대시 요약</div>
+    <div class="sb-item">일별 매출</div>
+    <div class="sb-item">월별 매출</div>
+    <div class="sb-item">연간 매출</div>
+    <div class="sb-item">고객별 매출</div>
+    <div class="sb-group">Settings</div>
+    <div class="sb-item">사용자·권한</div>
+    <div class="sb-item">설정</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab active">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab">자재구매센터</div>
+      </div>
+      <div class="top-user">— <b>김 부장</b>, 영업1팀</div>
+    </header>
+
+    <section class="page">
+      <div class="masthead">
+        <div class="vol">VOL.26 · NO.118 · APR 2026</div>
+        <h1 class="title">오늘의 <em>처방전</em></h1>
+        <div class="meta">UPDATED 14:23<br>SEOUL · 16°C 흐림</div>
+      </div>
+
+      <div class="bento">
+        <div class="card hero">
+          <div>
+            <div class="card-label">This Month's Revenue</div>
+          </div>
+          <div>
+            <div class="card-value">₩4.82억</div>
+            <div class="quote">"성장은 따뜻한 색이다. 차가운 경고가 아니라."</div>
+            <div class="card-trend up">+18.2% vs 전월 · 견적 23건 진행</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Quotes Pending</div>
+          <div class="card-value">23</div>
+          <div class="card-trend up">+5 신규</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Receivables</div>
+          <div class="card-value">₩1.2억</div>
+          <div class="card-trend down">-3.4%</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Orders Awaiting</div>
+          <div class="card-value">8</div>
+          <div class="card-trend up">+2</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Stock Alert</div>
+          <div class="card-value" style="color:var(--data-1)">3</div>
+          <div class="card-trend up">+1</div>
+        </div>
+
+        <div class="matrix-mini">
+          <h3>Top Customers <em>이번 달 거래 상위 5</em></h3>
+          <table>
+            <thead>
+              <tr><th>Customer</th><th>This Month</th><th>vs Last</th><th>Tier</th><th>Owner</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>(주)대성기업</td><td>₩1.28억</td><td>+22%</td><td><span class="pill pill-1">VIP</span></td><td>김 부장</td></tr>
+              <tr><td>한일물산</td><td>₩9,200만</td><td>+8%</td><td><span class="pill pill-2">A</span></td><td>이 차장</td></tr>
+              <tr><td>삼강산업</td><td>₩7,800만</td><td>+15%</td><td><span class="pill pill-2">A</span></td><td>박 대리</td></tr>
+              <tr><td>동양FA</td><td>₩6,400만</td><td>-4%</td><td><span class="pill pill-3">B</span></td><td>최 과장</td></tr>
+              <tr><td>경동건설</td><td>₩5,100만</td><td>+11%</td><td><span class="pill pill-3">B</span></td><td>김 부장</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="design-note">
+        <h4>★ H3 + H7 디자인 메모 — <em>빅터</em></h4>
+        <p>
+          베이스: <b>H3 이솝 약국</b> (따뜻한 크림 + 호박 + Cormorant Garamond 세리프 + 약국 진열대 라벨 톤) /
+          데이터 언어: <b>H7 워밍 애널리틱스</b>. 매스트헤드는 매거진 v4 의 진화형이지만 검정이 아닌 <b>부드러운 잉크색</b>으로 차가움 제거.
+          숫자는 세리프(Cormorant Garamond)로 적어 "약국 처방전" 톤 유지. 라벨·메뉴는 산세리프(Inter) — 두 서체 가족이 약국 진열장의 아름다움을 만든다.
+          KNK 레드는 매스트헤드 바·CTA 버튼·VIP 칩에만 절제해서 사용 → 더 진중한 럭셔리 느낌.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <aside class="victor">
+    <div class="victor-head">
+      <div class="name">빅터 <em>AI</em></div>
+      <div class="role">YOUR APOTHECARY</div>
+    </div>
+    <div class="v-msg-list">
+      <div class="v-msg ai">
+        김 부장님, 오늘 진행 중인 견적 23건 중 <b>(주)대성기업 추가 견적이 마감 D-2</b>입니다.
+        <time>14:21</time>
+      </div>
+      <div class="v-msg user">
+        대성 견적 진행 상태 정리해줘
+        <time>14:22</time>
+      </div>
+      <div class="v-msg ai">
+        대성 견적 4건 — <b>2건 승인 완료</b>, 1건 검토중, 1건 자재 단가 확정 대기. 자재팀에 단가 요청 메모 발송하시겠습니까?
+        <time>14:22</time>
+      </div>
+    </div>
+    <div class="victor-input">
+      <input placeholder="ask victor anything…" />
+      <button>SEND</button>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

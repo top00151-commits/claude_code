@@ -11,6 +11,7 @@
 {% set _role = (user.role or 'member')|lower %}
 
 <header class="top">
+  <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="메뉴">☰</button>
   <a class="tb-brand" href="/home" style="padding:0 var(--space-6);display:flex;align-items:center;gap:var(--space-3);border-right:1px solid var(--line);height:100%;text-decoration:none;color:inherit;">
     <img src="/static/logo.png" alt="KNK" style="height:32px;" onerror="this.style.display='none'">
     <div>

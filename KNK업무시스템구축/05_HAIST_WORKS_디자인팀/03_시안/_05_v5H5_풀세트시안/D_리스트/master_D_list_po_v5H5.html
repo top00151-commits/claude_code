@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>D. 리스트 마스터 — /po (발주 목록) · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: #6B5C49; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+.sb-badge { background: var(--knk-red); color: white; font-size: 10px; padding: 1px 7px; border-radius: var(--radius-full); font-weight: 700; }
+
+.main { background: var(--paper); }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; box-shadow: var(--shadow-amber); }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+
+/* 페이지 헤드 */
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.crumbs b { color: var(--ink); }
+.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-actions { display: flex; gap: 10px; }
+.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
+
+/* === 상태 요약 카드 === */
+.summary-row {
+  margin: 0 var(--content-pad) var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-3);
+}
+.summary-card {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: all var(--t-base);
+}
+.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--amber); }
+.summary-card.active { background: var(--amber-glow); border-color: var(--amber); }
+.summary-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.summary-card .num { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.summary-card.danger .num { color: var(--knk-red); }
+.summary-card.warn .num { color: var(--warn); }
+.summary-card.success .num { color: var(--success); }
+
+/* === 도구바 === */
+.toolbar { margin: 0 var(--content-pad); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); display: flex; gap: 10px; align-items: center; }
+.filter-btn { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 13px; font-size: 12.5px; cursor: pointer; font-weight: 500; }
+.filter-btn.active { background: var(--amber-glow); border-color: var(--amber); font-weight: 600; }
+.filter-btn .x { color: var(--mute); margin-left: 4px; }
+.toolbar .spacer { flex: 1; }
+.toolbar .search { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; font-size: 13px; width: 240px; font-family: inherit; color: var(--ink); }
+.toolbar .ico-btn { background: var(--paper); border: 1px solid var(--line); width: 36px; height: 36px; border-radius: var(--radius-md); cursor: pointer; display: grid; place-items: center; font-size: 16px; color: var(--mute); }
+.toolbar .ico-btn:hover { background: var(--amber-glow); color: var(--amber-deep); }
+
+/* === 일괄 액션 바 (체크박스 선택 시 표시) === */
+.bulk-bar { margin: var(--space-3) var(--content-pad) 0; background: var(--ink); color: white; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-5); display: flex; align-items: center; gap: var(--space-4); position: relative; overflow: hidden; }
+.bulk-bar::before { content: ""; position: absolute; top: -50%; right: -10%; width: 200px; height: 200px; background: var(--glow-amber-strong); opacity: 0.3; }
+.bulk-info { font-size: 13px; font-weight: 600; position: relative; z-index: 1; }
+.bulk-info b { color: var(--amber-glow); }
+.bulk-actions { display: flex; gap: 8px; margin-left: auto; position: relative; z-index: 1; }
+.bulk-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: white; padding: 7px 14px; border-radius: var(--radius-md); font-size: 12.5px; cursor: pointer; font-weight: 600; }
+.bulk-btn:hover { background: rgba(255,255,255,0.2); }
+.bulk-btn.danger { background: var(--knk-red); }
+
+/* === 테이블 === */
+.table-wrap { margin: var(--space-3) var(--content-pad) var(--space-7); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+table { width: 100%; font-size: 13px; border-collapse: collapse; }
+thead th { text-align: left; padding: var(--space-3) var(--space-4); font-weight: 600; font-size: 11px; color: var(--amber-deep); border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; position: sticky; top: 0; }
+thead th.num, td.num { text-align: right; }
+thead th.center, td.center { text-align: center; }
+.sortable { cursor: pointer; }
+.sortable:hover { color: var(--knk-red); }
+.sortable.sorted::after { content: " ↓"; color: var(--amber); }
+
+tbody td { padding: 13px var(--space-4); border-bottom: 1px solid var(--line); color: var(--ink); }
+tbody tr { cursor: pointer; transition: background var(--t-fast); }
+tbody tr:hover { background: var(--amber-glow); }
+tbody tr.selected { background: var(--amber-glow); }
+
+.row-check { width: 14px; height: 14px; accent-color: var(--amber); }
+td.code { font-family: 'Courier New', monospace; font-weight: 700; color: var(--amber-deep); }
+td .small { display: block; font-size: 11px; color: var(--mute); margin-top: 2px; }
+td.amount { font-weight: 700; }
+
+.progress-cell { display: flex; align-items: center; gap: 8px; }
+.progress-bar { width: 80px; height: 6px; background: var(--paper); border-radius: 3px; overflow: hidden; }
+.progress-bar > div { height: 100%; background: var(--grad-amber); }
+.progress-text { font-size: 11.5px; font-weight: 600; color: var(--mute); }
+
+/* === 페이지네이션 === */
+.pagination { padding: var(--space-3) var(--space-4); background: var(--paper-2); border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+.page-info { font-size: 12.5px; color: var(--mute); }
+.page-info b { color: var(--ink); }
+.page-controls { display: flex; gap: 4px; align-items: center; }
+.page-btn { background: var(--paper-3); border: 1px solid var(--line); width: 32px; height: 32px; border-radius: var(--radius-sm); cursor: pointer; display: grid; place-items: center; font-size: 13px; color: var(--ink); }
+.page-btn:hover { background: var(--amber-glow); border-color: var(--amber); }
+.page-btn.active { background: var(--grad-amber); color: white; border: 0; font-weight: 700; }
+.page-size { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12.5px; font-family: inherit; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">자재 메인</div>
+    <a class="sb-item" href="#">🏠 자재 hub</a>
+    <div class="sb-group">발주 흐름</div>
+    <a class="sb-item" href="#">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
+    <a class="sb-item active" href="#">📋 발주 목록 <span class="menu-code">M-02-05</span><span class="sb-badge">8</span></a>
+    <a class="sb-item" href="#">📦 입고 처리</a>
+    <div class="sb-group">재고</div>
+    <a class="sb-item" href="#">📊 수불부 <span class="menu-code">M-02-07</span></a>
+    <a class="sb-item" href="#">📤 출고 등록 <span class="menu-code">M-02-08</span></a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab active">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">이</div>
+        <div>이 차장 · 자재팀</div>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <div class="crumbs">자재구매센터 · <b>발주 목록</b></div>
+        <h1 class="page-title">발주 <em>목록</em></h1>
+      </div>
+      <div class="page-actions">
+        <button class="btn-secondary">📥 Excel 내보내기</button>
+        <button class="btn-primary">＋ 새 발주서 작성</button>
+      </div>
+    </div>
+
+    <!-- 상태 요약 5 카드 -->
+    <div class="summary-row">
+      <div class="summary-card active">
+        <div class="lbl">전체</div>
+        <div class="num">142</div>
+      </div>
+      <div class="summary-card warn">
+        <div class="lbl">단가 협의</div>
+        <div class="num">3</div>
+      </div>
+      <div class="summary-card warn">
+        <div class="lbl">확정 대기</div>
+        <div class="num">5</div>
+      </div>
+      <div class="summary-card">
+        <div class="lbl">배송 중</div>
+        <div class="num">8</div>
+      </div>
+      <div class="summary-card success">
+        <div class="lbl">입고 완료</div>
+        <div class="num">126</div>
+      </div>
+    </div>
+
+    <!-- 도구바 -->
+    <div class="toolbar">
+      <button class="filter-btn active">기간 · 1개월 <span class="x">×</span></button>
+      <button class="filter-btn active">상태 · 진행 중 <span class="x">×</span></button>
+      <button class="filter-btn">거래처 · 전체</button>
+      <button class="filter-btn">담당 · 전체</button>
+      <button class="filter-btn">+ 필터 추가</button>
+      <div class="spacer"></div>
+      <input class="search" placeholder="발주번호 / 거래처 / 자재명…" />
+      <button class="ico-btn" title="컬럼 설정">⚙</button>
+      <button class="ico-btn" title="새로고침">↻</button>
+    </div>
+
+    <!-- 일괄 액션 바 (3건 선택 가정) -->
+    <div class="bulk-bar">
+      <div class="bulk-info">✓ <b>3건</b> 선택됨</div>
+      <div class="bulk-actions">
+        <button class="bulk-btn">📤 일괄 발행</button>
+        <button class="bulk-btn">📋 복사</button>
+        <button class="bulk-btn">📥 내보내기</button>
+        <button class="bulk-btn danger">🗑 삭제</button>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="center" style="width: 40px;"><input type="checkbox" class="row-check" /></th>
+            <th class="sortable sorted">발주번호</th>
+            <th>거래처 · 품목</th>
+            <th class="center">상태</th>
+            <th class="num sortable">금액</th>
+            <th>진행률</th>
+            <th class="center">납기</th>
+            <th>담당</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="selected"><td class="center"><input type="checkbox" class="row-check" checked /></td><td class="code">PO-2604-018</td><td><b>대원전기</b><span class="small">컨베이어 모터 1.5kW × 10</span></td><td class="center"><span class="pill" style="background: var(--amber-glow); color: var(--amber-deep);">배송중</span></td><td class="num amount">₩4,820,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:78%"></div></div><span class="progress-text">78%</span></div></td><td class="center">05-08<span class="small">D-9</span></td><td>이 차장</td></tr>
+          <tr class="selected"><td class="center"><input type="checkbox" class="row-check" checked /></td><td class="code">PO-2604-019</td><td><b>한국NSK</b><span class="small">베어링 6204 ZZ × 500</span></td><td class="center"><span class="pill pill--warn">확정 대기</span></td><td class="num amount">₩2,100,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:35%"></div></div><span class="progress-text">35%</span></div></td><td class="center">05-12<span class="small">D-13</span></td><td>이 차장</td></tr>
+          <tr class="selected"><td class="center"><input type="checkbox" class="row-check" checked /></td><td class="code">PO-2604-020</td><td><b>경남알루미늄</b><span class="small">알루미늄 압출재 × 30 m</span></td><td class="center"><span class="pill pill--warn">단가 협의</span></td><td class="num amount">₩855,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:18%"></div></div><span class="progress-text">18%</span></div></td><td class="center">05-15<span class="small">D-16</span></td><td>박 대리</td></tr>
+          <tr><td class="center"><input type="checkbox" class="row-check" /></td><td class="code">PO-2604-017</td><td><b>미스미</b><span class="small">리니어 가이드 25mm × 20</span></td><td class="center"><span class="pill" style="background: var(--success); color: white;">입고 완료</span></td><td class="num amount">₩3,700,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:100%; background: var(--success);"></div></div><span class="progress-text">100%</span></div></td><td class="center">04-25<span class="small" style="color: var(--success);">완료</span></td><td>이 차장</td></tr>
+          <tr><td class="center"><input type="checkbox" class="row-check" /></td><td class="code">PO-2604-016</td><td><b>LS산전</b><span class="small">인버터 7.5kW × 5</span></td><td class="center"><span class="pill" style="background: var(--success); color: white;">입고 완료</span></td><td class="num amount">₩3,100,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:100%; background: var(--success);"></div></div><span class="progress-text">100%</span></div></td><td class="center">04-22<span class="small" style="color: var(--success);">완료</span></td><td>박 대리</td></tr>
+          <tr><td class="center"><input type="checkbox" class="row-check" /></td><td class="code">PO-2604-015</td><td><b>한국THK</b><span class="small">볼스크류 2510 × 6</span></td><td class="center"><span class="pill" style="background: var(--amber-glow); color: var(--amber-deep);">배송중</span></td><td class="num amount">₩2,472,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:62%"></div></div><span class="progress-text">62%</span></div></td><td class="center">05-02<span class="small">D-3</span></td><td>최 과장</td></tr>
+          <tr><td class="center"><input type="checkbox" class="row-check" /></td><td class="code">PO-2604-014</td><td><b>대원전기</b><span class="small">서보모터 1.0kW × 4</span></td><td class="center"><span class="pill" style="background: var(--success); color: white;">입고 완료</span></td><td class="num amount">₩2,800,000</td><td><div class="progress-cell"><div class="progress-bar"><div style="width:100%; background: var(--success);"></div></div><span class="progress-text">100%</span></div></td><td class="center">04-18<span class="small" style="color: var(--success);">완료</span></td><td>이 차장</td></tr>
+        </tbody>
+      </table>
+      <div class="pagination">
+        <div class="page-info">총 <b>142건</b> · 1-10 표시 중</div>
+        <div class="page-controls">
+          <button class="page-btn">«</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">…</button>
+          <button class="page-btn">15</button>
+          <button class="page-btn">»</button>
+          <select class="page-size" style="margin-left: 12px;">
+            <option>10 / 페이지</option>
+            <option>25 / 페이지</option>
+            <option>50 / 페이지</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

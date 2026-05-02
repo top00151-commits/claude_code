@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
+from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw,
                         parse_mgmt_xls, parse_mgmt_csv, import_mgmt_rows,
                         regenerate_user_passwords, build_password_csv,
@@ -28,11 +29,167 @@ from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw
                         search_boards, search_exports, search_audits,
                         ceo_dashboard_kpis)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HAIST WORKS — main.py 목차 (TABLE OF CONTENTS)
+#  v1.0 (2026-04-29 대표 결재 옵션 A — 코드 정리 Phase 1)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  PART I. 기반 (Core)
+#    §1.  IMPORTS                                              L 1
+#    §2.  APP 초기화                                            L 32
+#    §3.  STARTUP + 일일 미작성자 알림 스케줄러                  L 40
+#    §4.  Phase 1 — 빅터 자연어 라우팅 + 메뉴 도움말 API          L 220
+#    §5.  HELPERS (ctx, get_user, role_home...)                 L 310
+#    §6.  Phase 1 — 메뉴 식별번호 헬퍼                           L 395
+#
+#  PART II. 인증·진입점
+#    §7.  AUTH (login/logout)                                  L 624
+#    §8.  ROOT (/)                                             L 658
+#
+#  PART III. 일상 업무 (전 직원)
+#    §9.  HOME — 직관적 단일 페이지                              L 669
+#    §10. DAILY — 일일 업무카드                                 L 904
+#    §11. SUMMARY — 통합 요약                                   L 1137
+#    §12. HISTORY — 개인 히스토리                                L 1851
+#    §13. CALENDAR — 월간 뷰                                    L 2899
+#    §14. FEED — 부서간 피드                                    L 2974
+#
+#  PART IV. 통신·협업
+#    §15. COMMENTS API                                         L 1303
+#    §16. TASK DETAIL API                                      L 1337
+#    §17. REACTIONS API                                        L 1365
+#    §18. 번역 API + set-lang                                   L 1380
+#    §19. 업무 위임 API                                         L 1462
+#    §20. 멘션 자동완성 API                                     L 1490
+#    §21. SIDEBAR TREE API                                     L 1501
+#    §22. ACTIVITIES API                                       L 1550
+#    §23. NOTIFICATIONS API                                    L 1784
+#    §24. CHANGES INFORM (변경 공지)                            L 3926
+#    §25. TICKETS (요청 티켓)                                   L 4237
+#    §26. ISSUES (이슈·AS DB)                                   L 4548
+#    §27. BOARD (게시판)                                        L 4723
+#
+#  PART V. 분석·보고
+#    §28. SEARCH — 통합 검색                                    L 1583
+#    §29. RETRO                                                L 1674
+#    §30. COCKPIT (팀장/CEO 라이브)                              L 1694
+#    §31. BOTTLENECKS                                          L 1770
+#    §32. TEAM DASHBOARD                                       L 1904
+#    §33. CEO DASHBOARD                                        L 2176
+#    §34. WEEKLY                                               L 2368
+#
+#  PART VI. 프로젝트
+#    §35. PROJECT DETAIL                                       L 2749
+#    §36. PROGRESS DASHBOARD                                   L 4150
+#    §37. PROGRESS GANTT/BURNDOWN                              L 8713
+#
+#  PART VII. 매출영업 (M-01)
+#    §38. CUSTOMER LIST                                        L 2825
+#    §39. CUSTOMER DETAIL                                      L 2853
+#    §40. SALES S1 가드 / 라이프사이클                           L 7161
+#    §41. COMPANY INFO (견적서 헤더)                             L 7246
+#    §42. SALES QUOTATIONS                                     L 7273
+#    §43. SALES DASHBOARD / FORECAST                           L 7707
+#    §44. OUTSTANDING / RECEIPTS                               L 7914
+#
+#  PART VIII. 수출입 (M-01-10/11)
+#    §45. EXPORT P11                                           L 8122
+#    §46. EXPORT PRINT                                         L 8555
+#    §47. FTA CERTIFICATES                                     L 9894
+#
+#  PART IX. 자재구매 (M-02)
+#    §48. LOGISTICS HUB                                        L 4952
+#    §49. SUPPLIERS                                            L 5269
+#    §50. PURCHASE ORDERS                                      L 5368
+#    §51. STOCK MOVEMENTS                                      L 5539
+#    §52. STOCK S2 가드 / 입출고                                L 6870
+#    §53. STOCK AUDIT                                          L 5885
+#    §54. STOCK AUDIT v2 (첨부파일·close)                        L 6039
+#    §55. SAFETY STOCK / REORDER                               L 9667
+#    §56. RATES                                                L 5574
+#    §57. RATES STRENGTHENING (단가시뮬·알림)                    L 9455
+#    §58. PRICES BY DATE                                       L 5621
+#    §59. FX RATES                                             L 9740
+#
+#  PART X. 품질관리 (QMS)
+#    §60. QMS                                                  L 9006
+#    §61. QMS CAPA / PARETO                                    L 9218
+#    §62. QC INSPECTION REPORTS                                L 10102
+#
+#  PART XI. 생산
+#    §63. WORK ORDERS                                          L 10319
+#
+#  PART XII. 관리·설정 (M-04)
+#    §64. ADMIN                                                L 3097
+#    §65. MGMT CODE IMPORT                                     L 3194
+#    §66. PASSWORD REGENERATION                                L 3231
+#    §67. GUIDE                                                L 3270
+#    §68. EXTERNAL ASSETS REVIEW                               L 3283
+#    §69. COMPANY INFO ADMIN                                   L 3445
+#    §70. HIWORKS LINKS (HR)                                   L 3519
+#    §71. PROFILE                                              L 3616
+#    §72. REMINDERS                                            L 3799
+#    §73. EXPORT WEEKLY CSV                                    L 3840
+#    §74. PERMISSIONS S3 (위임 1차)                              L 6208
+#    §75. PERMISSIONS S3 v3 (그룹·매트릭스)                       L 6458
+#    §76. PERMISSIONS REPORT                                   L 6749
+#
+#  PART XIII. AI 통합
+#    §77. VICTOR AI ASK                                        L 6177
+#
+# ───────────────────────────────────────────────────────────────────────────────
+#  사용법:
+#   - 특정 영역 수정: PART X 의 §N 라인으로 점프 (에디터 Ctrl+G)
+#   - 전체 검색: 파일 내 "§N." 검색 (예: "§42." → SALES QUOTATIONS)
+#   - 라우트 검색: "@app.get(" 또는 "@app.post("
+#   - 행 수가 정확하지 않을 수 있음 (수정 시 변동) — _INDEX_main_py.md 참조
+#  관련 문서: app/menu_catalog.py (사용자용 M-XX-YY 코드)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
 BASE = os.path.dirname(os.path.dirname(__file__))
 app = FastAPI(title="KNK 일일업무일지 v2")
 app.add_middleware(SessionMiddleware, secret_key="knk-haist-2026-phase1")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
 tpl = Jinja2Templates(directory=os.path.join(BASE, "app", "templates"))
+
+# v5H5 (2026-05-02) — t() Jinja 전역: 어느 템플릿에서든 {{ t('키', '기본값') }} 호출 가능
+# lang은 request.session.get('lang','ko') 로 자동 결정 (캐시 컨텍스트 없을 시 'ko')
+def _t_helper(key: str, default: str = "", lang: str = "ko"):
+    try:
+        from app.i18n import T
+        v = T.get(key)
+        if isinstance(v, dict):
+            return v.get(lang) or v.get("ko") or default or key
+    except Exception:
+        pass
+    return default or key
+tpl.env.globals["t"] = _t_helper
+
+
+# =====================================================
+# v5 H5 (2026-04-29 대표 일괄 승인) — 에러 페이지 핸들러 (404/500)
+# 시안 G_standalone/master_G_error_v5H5.html 직접 이식
+# =====================================================
+from fastapi import HTTPException as _HTTPException
+from starlette.exceptions import HTTPException as _StarletteHTTPException
+
+@app.exception_handler(_StarletteHTTPException)
+async def _v5_http_exception_handler(request: Request, exc: _StarletteHTTPException):
+    code = exc.status_code
+    if code in (404, 403, 500, 502, 503):
+        try:
+            return tpl.TemplateResponse(
+                request=request, name="error.html",
+                context={"status_code": code, "detail": str(exc.detail or ""),
+                         "request": request, "user": get_user(request) if hasattr(request, 'session') else None,
+                         "lang": "ko", "i": {}, "LANGS": LANGS,
+                         "app_name": "HAIST WORKS"},
+                status_code=code,
+            )
+        except Exception:
+            pass
+    return JSONResponse({"error": str(exc.detail), "status": code}, status_code=code)
 
 
 @app.on_event("startup")
@@ -40,6 +197,173 @@ def startup():
     init_db()
     seed_all()
     seed_sample_tasks(14)
+    # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
+    _start_daily_reminder_scheduler()
+
+
+# =====================================================
+# OPS-P1-A2 [D-008] B2 안 — 일일 미작성자 시스템 알림 (16:30 평일)
+# 외부 의존 0건 (stdlib threading.Timer). 메일·메신저 발송 X.
+# notifications 테이블 INSERT만 → 다음 로그인 시 🔔 자동 표시.
+# =====================================================
+def _send_daily_missing_reminders():
+    """오늘 일일업무카드를 작성하지 않은 활성 사용자에게 시스템 알림."""
+    try:
+        today_iso = date.today().isoformat()
+        with db_session() as c:
+            # 활성 + role 'admin'/'ceo' 제외 (대표·관리자는 일지 의무 X)
+            missing = [dict(r) for r in c.execute(
+                """SELECT u.id, u.name, u.rank
+                   FROM users u
+                   WHERE u.is_active = 1
+                     AND u.role NOT IN ('admin','ceo')
+                     AND NOT EXISTS (
+                       SELECT 1 FROM tasks t
+                       WHERE t.user_id = u.id AND t.work_date = ?
+                     )""",
+                (today_iso,)
+            ).fetchall()]
+        sent = 0
+        for u in missing:
+            try:
+                ok = notify_user(
+                    user_id=u["id"], type="TASK",
+                    title="🔔 오늘 업무카드 미작성",
+                    body=f"{u.get('name','')} {u.get('rank','') or ''}님, 오늘({today_iso}) 일일업무카드가 아직 등록되지 않았습니다.",
+                    link="/daily",
+                )
+                if ok:
+                    sent += 1
+            except Exception:
+                continue
+        print(f"[DAILY-REMINDER] {today_iso} → 미작성 {len(missing)}명 / 알림 {sent}건 발송")
+    except Exception as e:
+        print(f"[DAILY-REMINDER ERR] {e}")
+
+
+def _seconds_until_next_1630_weekday() -> float:
+    """다음 평일(월~금) 16:30 까지 남은 초. 토·일이면 다음 월요일 16:30."""
+    from datetime import datetime as _dt, timedelta as _td
+    now = _dt.now()
+    target = now.replace(hour=16, minute=30, second=0, microsecond=0)
+    if target <= now:
+        target = target + _td(days=1)
+    # 주말 건너뛰기
+    while target.weekday() >= 5:  # 5=토, 6=일
+        target = target + _td(days=1)
+    return max(60.0, (target - now).total_seconds())
+
+
+def _daily_reminder_tick():
+    """타이머 콜백 — 평일 16:30에 알림 발송 후 다음 일정 재예약."""
+    import threading as _th
+    from datetime import datetime as _dt
+    try:
+        if _dt.now().weekday() < 5:  # 평일만
+            _send_daily_missing_reminders()
+    except Exception as e:
+        print(f"[DAILY-REMINDER tick ERR] {e}")
+    # 다음 평일 16:30 재예약
+    delay = _seconds_until_next_1630_weekday()
+    timer = _th.Timer(delay, _daily_reminder_tick)
+    timer.daemon = True
+    timer.start()
+
+
+def _start_daily_reminder_scheduler():
+    """startup 1회 호출 — 첫 실행 시각 예약."""
+    import threading as _th
+    delay = _seconds_until_next_1630_weekday()
+    print(f"[DAILY-REMINDER] 스케줄러 시작. 다음 발송까지 {int(delay)}초 ({int(delay/3600)}시간).")
+    timer = _th.Timer(delay, _daily_reminder_tick)
+    timer.daemon = True
+    timer.start()
+
+
+# =====================================================
+# Phase 1 — 빅터 자연어 라우팅 + 메뉴 도움말 API (대표 결재 2026-04-29)
+# =====================================================
+@app.post("/victor/route")
+async def victor_route_query(req: Request):
+    """빅터 자연어 → 페이지 후보. 정확 매치 1건이면 redirect URL 반환.
+    Body: {q: "견적서 작성"} → JSON.
+    """
+    u = get_user(req)
+    if not u:
+        print("[VICTOR-ROUTE] 401 login_required")
+        return JSONResponse({"error": "login_required"}, 401)
+    try:
+        data = await req.json()
+        q = (data.get("q") or "").strip()
+    except Exception:
+        q = ""
+    print(f"[VICTOR-ROUTE] 요청 q='{q}' user={u.get('name','?')}")
+    if not q:
+        return JSONResponse({"ok": False, "msg": "검색어가 비어있습니다."})
+    candidates = _menu.search(q, limit=5)
+    print(f"[VICTOR-ROUTE] candidates={len(candidates)} → {[c['code'] for c in candidates]}")
+    if not candidates:
+        return JSONResponse({
+            "ok": False,
+            "msg": f"'{q}' 와 일치하는 메뉴를 찾지 못했습니다. M-XX-YY 코드 또는 메뉴 이름으로 시도해주세요.",
+            "candidates": []
+        })
+    # 단일 매치 → 자동 이동 / 다중 매치 → 후보 표시
+    if len(candidates) == 1:
+        m = candidates[0]
+        return JSONResponse({
+            "ok": True,
+            "auto_navigate": True,
+            "code": m["code"], "label": m["label"], "path": m["path"], "tip": m["tip"]
+        })
+    return JSONResponse({
+        "ok": True,
+        "auto_navigate": False,
+        "msg": f"'{q}' 후보 {len(candidates)}개 — 클릭하여 이동:",
+        "candidates": [
+            {"code": m["code"], "label": m["label"], "path": m["path"], "tip": m["tip"]}
+            for m in candidates
+        ],
+    })
+
+
+@app.get("/api/menu-help")
+async def api_menu_help(req: Request, path: str = "", code: str = ""):
+    """현재 페이지의 M-코드·라벨·도움말 조회 (❓ 버튼이 호출)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "login_required"}, 401)
+    m: dict | None = None
+    if code:
+        m = _menu.by_code(code)
+    elif path:
+        m = _menu.by_path(path.split("?")[0])
+    if not m:
+        return JSONResponse({"ok": False, "msg": "이 화면의 도움말이 아직 등록되지 않았습니다."})
+    return JSONResponse({
+        "ok": True,
+        "code": m["code"], "label": m["label"], "path": m["path"],
+        "tip": m["tip"], "persona": m["persona"], "aliases": m["aliases"],
+    })
+
+
+@app.get("/api/menu-catalog")
+async def api_menu_catalog(req: Request):
+    """전체 카탈로그 — 사이드바·도움말 일괄 조회용."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "login_required"}, 401)
+    return JSONResponse({"ok": True, "menus": _menu.all_menus(), "hubs": _menu.hubs()})
+
+
+@app.post("/admin/daily-reminder/run-now")
+async def admin_daily_reminder_run_now(req: Request):
+    """관리자 수동 트리거 — 즉시 발송 (테스트/긴급용)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    _send_daily_missing_reminders()
+    return JSONResponse({"ok": True, "msg": "일일 미작성자 알림 즉시 발송 완료"})
 
 
 CATEGORIES = ["설계", "제조", "고객대응", "회의", "출장", "검토", "개발", "구매", "품질", "기타"]
@@ -92,8 +416,8 @@ def _victor_chips_for_path(path: str):
 # C안 §4 — 워크스페이스 스위처 (시안 12B 헤더)
 WORKSPACES = [
     {"key": "hub",   "name": "통합",          "desc": "HAIST WORKS 메인 (업무·진행·이슈·요청)", "icon": "🏢", "href": "/home",      "external": False},
-    {"key": "sales", "name": "매출·영업 센터", "desc": "Sales Hub · 영업·수주·고객사",          "icon": "📈", "href": "/sales",     "external": True},
-    {"key": "logi",  "name": "자재·구매 센터", "desc": "Logistics Hub · 자재·구매·재고",         "icon": "📦", "href": "/logistics", "external": True},
+    {"key": "sales", "name": "매출·영업 센터", "desc": "Sales Hub · 영업·수주·고객사",          "icon": "📈", "href": "/sales",     "external": False},
+    {"key": "logi",  "name": "자재·구매 센터", "desc": "Logistics Hub · 자재·구매·재고",         "icon": "📦", "href": "/logistics", "external": False},
 ]
 
 def workspaces_for(user):
@@ -112,11 +436,36 @@ def workspaces_for(user):
     return out
 
 def current_workspace_for(path: str):
-    """현재 path 기반 워크스페이스 매핑"""
+    """현재 path 기반 워크스페이스 매핑 (2026-04-28 G8 보강 — 사이드바 모든 sales/logi 경로 정합)"""
     p = path or ""
-    if p.startswith("/sales"):     return WORKSPACES[1]
-    if p.startswith("/logistics") or p.startswith("/parts") or p.startswith("/po") or p.startswith("/stock"): return WORKSPACES[2]
+    # 매출·영업 센터 (Sales Hub)
+    #   /sales* · /customer* · /export* (수출입·FTA) · /quotation* · /order*
+    if (p.startswith("/sales") or p.startswith("/customer")
+        or p.startswith("/export") or p.startswith("/quotation")
+        or p.startswith("/order")):
+        return WORKSPACES[1]
+    # 자재·구매 센터 (Logistics Hub)
+    #   /logistics* · /parts* · /po* · /stock* · /supplier* · /rates · /fx*
+    if (p.startswith("/logistics") or p.startswith("/parts")
+        or p.startswith("/po") or p.startswith("/stock")
+        or p.startswith("/supplier") or p.startswith("/rates")
+        or p.startswith("/fx")):
+        return WORKSPACES[2]
+    # 그 외 = 통합 (Hub)
     return WORKSPACES[0]
+
+
+# =====================================================
+# Phase 1 — 메뉴 식별번호 헬퍼 (대표 결재 2026-04-29)
+# =====================================================
+def _current_menu_for(path: str) -> dict | None:
+    """현재 URL → 카탈로그 매칭 결과 (없으면 None)."""
+    try:
+        # 쿼리스트링 제거
+        clean = (path or "").split("?")[0]
+        return _menu.by_path(clean)
+    except Exception:
+        return None
 
 
 def ctx(request, name, **kwargs):
@@ -131,11 +480,19 @@ def ctx(request, name, **kwargs):
     # 번역 사전 생성
     i = get_all_translations(lang)
 
+    # CX23c v4 마스트헤드 컨텍스트 (대표 승인 2026-04-28)
+    _today_d = date.today()
+    _wkdays = ['월', '화', '수', '목', '금', '토', '일']
+    _today_kor = f"{_today_d.year} · {_today_d.month}월 {_today_d.day}일 {_wkdays[_today_d.weekday()]}요일"
+    _edition_no = _today_d.timetuple().tm_yday  # 일년 중 N번째 발행
+
     base = {
         "categories": CATEGORIES,
         "statuses": STATUSES,
         "today": date.today().isoformat(),
         "now": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "today_kor": _today_kor,            # CX23c 마스트헤드용
+        "edition_no": _edition_no,          # CX23c VOL/NO 표시
         "lang": lang,
         "i": i,
         "LANGS": LANGS,
@@ -153,6 +510,8 @@ def ctx(request, name, **kwargs):
         "workspaces":          workspaces_for(user) if user else [],
         "current_workspace":   current_workspace_for(str(request.url.path) if hasattr(request, "url") else ""),
         "WORKSPACES":          workspaces_for(user) if user else [],
+        # Phase 1 (대표 결재 2026-04-29): 메뉴 식별번호 — 현재 페이지 M-코드 + 도움말
+        "current_menu":        _current_menu_for(str(request.url.path) if hasattr(request, "url") else ""),
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None
@@ -1897,10 +2256,13 @@ async def dashboard_page(req: Request):
     if not u:
         # Plan Y S1 회귀 #1: leader 가 /dashboard 직접 접근 → /team 폴백
         # (이전: role_home 호출 후 leader 도 /dashboard 로 무한 루프 가능성 존재)
+        # OPS-P1-G1 [A-008]: 권한 차단 무음 → no_perm 배너 안내
         target = role_home(u_any)
         if target == "/dashboard":
             target = "/home"  # 안전 폴백
-        return RedirectResponse(target, 303)
+        # 폴백 대상에 ?no_perm=dashboard 부착 (이미 쿼리 있으면 & 처리)
+        sep = "&" if "?" in target else "?"
+        return RedirectResponse(f"{target}{sep}no_perm=dashboard", 303)
     today = date.today()
     mon = (today - timedelta(days=today.weekday())).isoformat()
     sun = (today - timedelta(days=today.weekday()) + timedelta(days=6)).isoformat()
@@ -2312,7 +2674,12 @@ async def weekly_refresh(req: Request):
             c.execute("ANALYZE weekly_summary")
         except Exception:
             pass
-    return JSONResponse({"ok": True, "msg": "재집계 완료"})
+    # OPS-P1-A7 [D-017]: 클라이언트 캐시 무효화 헤더
+    return JSONResponse(
+        {"ok": True, "msg": "재집계 완료"},
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate",
+                 "Pragma": "no-cache", "Expires": "0"},
+    )
 
 
 # 주간보고 2차 — 마감 알림 (토 18시 발동 가정)
@@ -2516,6 +2883,34 @@ async def project_detail(req: Request, pid: int):
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro)
+
+
+# =====================================================
+# CUSTOMER LIST (2026-04-28 신설 — 사이드바 /customers 링크 broken 수정)
+# =====================================================
+@app.get("/customers", response_class=HTMLResponse)
+async def customers_list(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                """SELECT cu.id, cu.name, cu.tier, cu.note,
+                          COUNT(DISTINCT p.id) AS proj_count,
+                          COALESCE(SUM(p.order_amount), 0) AS total_amount,
+                          MAX(p.order_date) AS last_order
+                   FROM customers cu
+                   LEFT JOIN projects p ON p.customer_id = cu.id
+                   GROUP BY cu.id
+                   ORDER BY total_amount DESC, cu.tier DESC, cu.name"""
+            ).fetchall()
+            customers = [dict(r) for r in rows]
+        except Exception:
+            customers = [dict(r) for r in c.execute(
+                "SELECT id, name, tier, note FROM customers ORDER BY tier DESC, name"
+            ).fetchall()]
+    return ctx(req, "customers_list.html", user=u, active="customers", customers=customers)
 
 
 # =====================================================
@@ -3121,7 +3516,11 @@ async def admin_company_info_page(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    saved = req.query_params.get("saved", "")
+    # OPS-P0-4: saved 정수화 (문자열 "0" truthy 방지)
+    try:
+        saved = int(req.query_params.get("saved", "0") or "0")
+    except (TypeError, ValueError):
+        saved = 0
     # 현재 입력된 값 (default 미적용 raw)
     current = {key: (get_setting(key, "") or "") for key, _l, _d in COMPANY_INFO_KEYS}
     return ctx(req, "admin_company_info.html", user=u,
@@ -4033,6 +4432,21 @@ async def tickets_new_submit(
         except (ValueError, TypeError):
             rtid = None
 
+    # OPS-P1-A1 [D-003]: 카테고리 기반 자동 라우팅 — 사용자 미선택 시 TICKET_ROUTING 사용
+    if rtid is None:
+        try:
+            from app.database import TICKET_ROUTING  # noqa: F811
+        except ImportError:
+            TICKET_ROUTING = {}
+        target_team_name = TICKET_ROUTING.get(category)
+        if target_team_name:
+            with db_session() as c:
+                row = c.execute(
+                    "SELECT id FROM teams WHERE name=? LIMIT 1", (target_team_name,)
+                ).fetchone()
+            if row:
+                rtid = row["id"] if hasattr(row, "keys") else row[0]
+
     tid, ticket_no = ticket_create({
         "category": category, "title": title, "description": description,
         "biz_div": biz_div, "project_id": pid,
@@ -4137,6 +4551,38 @@ async def tickets_add_comment(req: Request, tid: int, body: str = Form(...)):
     if not u:
         return RedirectResponse("/login", 303)
     ticket_add_comment(tid, u["id"], body)
+    # OPS-P1-A3 [D-018]: 댓글 후 티켓 관여자(요청자/담당자/팀장) 알림
+    try:
+        ticket = ticket_get(tid)
+        if ticket:
+            recipients = set()
+            if ticket.get("requester_id") and ticket["requester_id"] != u["id"]:
+                recipients.add(ticket["requester_id"])
+            if ticket.get("assignee_id") and ticket["assignee_id"] != u["id"]:
+                recipients.add(ticket["assignee_id"])
+            preview = (body or "").strip().replace("\n", " ")[:40]
+            for rid in recipients:
+                try:
+                    notify_user(
+                        user_id=rid,
+                        type="ticket_comment",
+                        title=f"💬 티켓 댓글 — {ticket.get('ticket_no','')}",
+                        body=f"{u.get('name','')}: {preview}",
+                        link=f"/tickets/{tid}",
+                    )
+                except Exception:
+                    pass
+            # 수신팀 메신저 푸시 (토큰 없으면 silent)
+            if ticket.get("recipient_team_id"):
+                try:
+                    hiworks_notify(
+                        channel_id=f"team-{ticket['recipient_team_id']}",
+                        text=f"💬 [{ticket.get('ticket_no','')}] {u.get('name','')}: {preview}",
+                    )
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[TICKET COMMENT NOTIFY ERROR] {e}")
     return RedirectResponse(f"/tickets/{tid}", 303)
 
 
@@ -4497,24 +4943,36 @@ async def board_add_comment(req: Request, post_id: int, body: str = Form(...)):
 
 @app.post("/board/post/{post_id}/approve")
 async def board_approve(req: Request, post_id: int):
+    # OPS-P1-G2 [D-006]: 게시글 승인 권한 명시 검증 (leader/admin/ceo 만)
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     post = board_post_get(post_id)
-    if post and _is_team_leader(u, post.get("board_team_id")):
-        board_post_approve(post_id, u["id"])
-    return RedirectResponse(f"/board/team/{post['board_team_id']}" if post else "/home", 303)
+    if not post:
+        return RedirectResponse("/home", 303)
+    is_team_leader = _is_team_leader(u, post.get("board_team_id"))
+    is_priv = u.get("role") in ("admin", "ceo")
+    if not (is_team_leader or is_priv):
+        raise HTTPException(403, "게시글 승인 권한이 없습니다 (팀장/관리자/대표 전용)")
+    board_post_approve(post_id, u["id"])
+    return RedirectResponse(f"/board/team/{post['board_team_id']}", 303)
 
 
 @app.post("/board/post/{post_id}/reject")
 async def board_reject(req: Request, post_id: int, reason: str = Form("")):
+    # OPS-P1-G2 [D-006]: 게시글 반려 권한 명시 검증
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     post = board_post_get(post_id)
-    if post and _is_team_leader(u, post.get("board_team_id")):
-        board_post_reject(post_id, u["id"], reason)
-    return RedirectResponse(f"/board/team/{post['board_team_id']}" if post else "/home", 303)
+    if not post:
+        return RedirectResponse("/home", 303)
+    is_team_leader = _is_team_leader(u, post.get("board_team_id"))
+    is_priv = u.get("role") in ("admin", "ceo")
+    if not (is_team_leader or is_priv):
+        raise HTTPException(403, "게시글 반려 권한이 없습니다 (팀장/관리자/대표 전용)")
+    board_post_reject(post_id, u["id"], reason)
+    return RedirectResponse(f"/board/team/{post['board_team_id']}", 303)
 
 
 @app.post("/board/post/{post_id}/pin")
@@ -4772,7 +5230,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
         return RedirectResponse("/home", 303)
     rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status)
     return ctx(request, "projects.html",
-               user=u, active="logi_projects",
+               user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES)
 
@@ -4785,7 +5243,7 @@ async def projects_new_form(request: Request):
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
     return ctx(request, "project_form.html",
-               user=u, active="logi_projects",
+               user=u, active="sales_projects",
                project=None,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES)
@@ -4828,7 +5286,7 @@ async def projects_edit_form(request: Request, pid: int):
     if not p:
         return RedirectResponse("/projects", status_code=303)
     return ctx(request, "project_form.html",
-               user=u, active="logi_projects",
+               user=u, active="sales_projects",
                project=p,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES)
@@ -5398,7 +5856,7 @@ async def stock_issue_form(request: Request, part_id: str = ""):
                parts=[dict(r) for r in parts],
                projects=[dict(r) for r in projects],
                customers=[dict(r) for r in customers],
-               default_part_id=part_id, active="stock")
+               default_part_id=part_id, active="stock_issue")
 
 
 @app.post("/stock/issue")
@@ -5457,7 +5915,7 @@ async def stock_adjust_form(request: Request, part_id: str = ""):
         ).fetchall()
     return ctx(request, "stock_adjust.html", user=u,
                parts=[dict(r) for r in parts],
-               default_part_id=part_id, active="stock")
+               default_part_id=part_id, active="stock_adjust")
 
 
 @app.post("/stock/adjust")
@@ -6661,6 +7119,11 @@ async def stock_qc_submit(req: Request, po_item_id: int):
         fail_reason = (form.get("fail_reason") or "").strip() or None
     except Exception:
         return RedirectResponse(f"/stock/qc/{po_item_id}?error=invalid", 303)
+    # OPS-V5 [정적점검]: 음수 차단 + FAIL/PARTIAL 사유 필수 (감사 추적)
+    if pass_qty < 0 or fail_qty < 0:
+        return RedirectResponse(f"/stock/qc/{po_item_id}?error=qty_negative", 303)
+    if status in ("FAIL", "PARTIAL") and not fail_reason:
+        return RedirectResponse(f"/stock/qc/{po_item_id}?error=fail_reason_required", 303)
     # po_item_id 가 receipts.id 로 들어올 수 있으므로 둘다 시도 (UI 단순화)
     with db_session() as c:
         c.execute(
@@ -6809,7 +7272,7 @@ async def sales_quotations_page(req: Request):
             ).fetchall()
             for lr in line_rows:
                 lines_by_quote.setdefault(lr["quotation_id"], []).append(dict(lr))
-    return ctx(req, "sales_quotations.html", user=u, active="sales",
+    return ctx(req, "sales_quotations.html", user=u, active="sales_quotations",
                tab="quotations", items=items, lines_by_quote=lines_by_quote)
 
 
@@ -7042,7 +7505,7 @@ async def sales_orders_page(req: Request):
                ORDER BY o.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
-    return ctx(req, "sales_orders.html", user=u, active="sales",
+    return ctx(req, "sales_orders.html", user=u, active="sales_orders",
                tab="orders", items=items)
 
 
@@ -7141,7 +7604,7 @@ async def sales_production_page(req: Request):
                ORDER BY p.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
-    return ctx(req, "sales_production.html", user=u, active="sales",
+    return ctx(req, "sales_production.html", user=u, active="sales_production",
                tab="production", items=items)
 
 
@@ -7203,7 +7666,7 @@ async def sales_shipments_receipts_page(req: Request):
                ORDER BY o.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
-    return ctx(req, "sales_shipments_receipts.html", user=u, active="sales",
+    return ctx(req, "sales_shipments_receipts.html", user=u, active="sales_shipments",
                tab="shipments", items=items)
 
 
@@ -7469,7 +7932,7 @@ async def sales_dashboard_v3(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         ctx_data = _sales_dashboard_ctx(c)
-    return ctx(req, "sales_dashboard.html", user=u, active="sales",
+    return ctx(req, "sales_dashboard.html", user=u, active="sales_dashboard",
                tab="dashboard", **ctx_data)
 
 
@@ -7677,7 +8140,7 @@ async def sales_outstanding_page(req: Request):
     with db_session() as c:
         items = _outstanding_receivables(c)
     summary = _outstanding_summary(items)
-    return ctx(req, "sales_outstanding.html", user=u, active="sales",
+    return ctx(req, "sales_outstanding.html", user=u, active="sales_outstanding",
                tab="outstanding", items=items, summary=summary)
 
 
@@ -9184,10 +9647,21 @@ async def rates_cost_sim_submit(
     u = _rates_guard(request)
     if not u:
         return RedirectResponse("/login", 303)
-    pid = int(part_id)
-    base = float(unit_price_base)
-    rate = float(exchange_rate)
-    margin = float(margin_pct or 0)
+    # OPS-V3 [정적점검 결함]: 입력 검증 누락 → ValueError/0음수 차단
+    try:
+        pid = int(part_id)
+        base = float(unit_price_base)
+        rate = float(exchange_rate)
+        margin = float(margin_pct or 0)
+    except (ValueError, TypeError):
+        return RedirectResponse("/rates?error=입력값+형식+오류", 303)
+    if pid <= 0 or base <= 0 or rate <= 0:
+        return RedirectResponse(f"/rates/cost-sim/{pid}?error=part_id/단가/환율은+양수여야+합니다", 303)
+    if margin < -100:
+        return RedirectResponse(f"/rates/cost-sim/{pid}?error=마진율은+-100%+이상이어야+합니다", 303)
+    if base_currency == target_currency and abs(rate - 1.0) > 1e-9:
+        # 같은 통화인데 환율 != 1.0 → 사용자 실수 가능 (경고만, 계속 진행)
+        pass
     target = base * rate * (1.0 + margin / 100.0)
     try:
         cost_simulation_create({
@@ -9297,6 +9771,8 @@ async def stock_reorder_page(req: Request, limit: int = 200):
     u = _s2_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    # OPS-V4 [정적점검]: limit 상한 가드 (메모리 폭주 방지)
+    limit = max(1, min(int(limit or 200), 1000))
     from .database import recommend_reorders
     items = recommend_reorders(limit=limit)
     high = sum(1 for r in items if r["priority"] == "HIGH")

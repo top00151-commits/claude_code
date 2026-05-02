@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #16 — 변경 알림 · 힐링 (B-2)</title>
+<style>
+/* ============================================================
+   HAIST WORKS · 힐링 시안 16 (12B 마스터 base 동기화 v2)
+   2026-04-25 14:30
+   ============================================================ */
+:root{
+  --sage-50:#F7FAF4;--sage-100:#F0F5EB;--sage-200:#E4ECD9;--sage-300:#CAD9B8;
+  --sage-400:#A8BD8F;--sage-500:#7FA183;--sage-600:#5D7F61;--sage-700:#3F5C44;--sage-800:#2B3E2E;
+  --ink:#2B3E2E;--ink-2:#3F5C44;--ink-3:#5D7F61;--ink-4:#8FA594;
+  --rose:#A5282C;--rose-dk:#8B1E22;--rose-soft:#F5E4E2;
+  --accent:#A5282C;--accent-dk:#8B1E22;--accent-soft:#F5E4E2;
+  --amber:#C9A961;--amber-dk:#A38635;--teal:#6BA394;--peach:#D4967A;
+  --r:#A5282C;--r-soft:#F5E4E2;
+  --fs-xs:clamp(10px,0.55vw + 7px,13px);--fs-sm:clamp(12px,0.60vw + 9px,15px);--fs-md:clamp(13px,0.70vw + 10px,16px);
+  --fs-lg:clamp(15px,0.85vw + 11px,19px);--fs-xl:clamp(18px,1.25vw + 13px,26px);--fs-2xl:clamp(24px,2.00vw + 16px,40px);
+  --grad-header:linear-gradient(135deg,#3F5C44 0%,#5D7F61 60%,#7FA183 100%);
+  --grad-sage:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);
+  --grad-rose:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-brand:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-amber:linear-gradient(135deg,#D4B876 0%,#B09648 100%);
+  --sh-xs:0 1px 2px rgba(63,92,68,.05);--sh-sm:0 4px 14px rgba(63,92,68,.08);--sh-md:0 14px 36px rgba(63,92,68,.10);--sh-lg:0 28px 60px rgba(63,92,68,.14);
+  --sh-green:0 10px 32px rgba(127,161,131,.28);--ease:cubic-bezier(0.25,0.8,0.25,1);
+  --dur-fast:200ms;--dur-med:350ms;--dur-slow:500ms;
+  --topbar-h:clamp(84px,5vw + 52px,108px);
+  --sidebar-w:264px;
+  --dock-w:360px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:var(--fs-md);color:var(--ink);background:var(--sage-100);line-height:1.7;letter-spacing:.1px;overflow-x:hidden}
+button{cursor:pointer;border:0;background:none;color:inherit;font-family:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:var(--sage-800);color:var(--sage-100);padding:10px 20px;display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);position:sticky;top:0;z-index:200}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700}
+.demo-banner .tag{background:var(--sage-500);color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.demo-banner .hint{color:rgba(247,250,244,.65);font-size:var(--fs-xs)}
+
+/* ============= 헤더 (12B 마스터) ============= */
+.topbar{position:sticky;top:41px;z-index:150;height:var(--topbar-h);background:var(--grad-header);color:#fff;display:flex;align-items:center;gap:16px;padding:0 28px;box-shadow:0 8px 32px rgba(45,62,46,.2)}
+.topbar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.topbar-bg::before{content:"";position:absolute;top:-40%;left:10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08), transparent 70%)}
+.topbar-bg::after{content:"";position:absolute;bottom:-60%;right:5%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(201,169,97,.12), transparent 70%)}
+
+.tb-left{display:flex;align-items:center;gap:18px;flex-shrink:0;position:relative;z-index:1}
+.tb-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 28px;position:relative;z-index:1}
+.tb-right{display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:1}
+
+.tb-menu-btn{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;display:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.tb-menu-btn:hover{background:rgba(255,255,255,.2)}
+.tb-menu-btn svg{width:20px;height:20px;stroke-width:1.8}
+@media (max-width:1024px){.tb-menu-btn{display:flex}}
+
+.brand{display:flex;align-items:center;gap:18px;padding:6px 14px 6px 6px;border-radius:18px;transition:background var(--dur-fast)}
+.brand:hover{background:rgba(255,255,255,.08)}
+.brand-logo-wrap{height:clamp(72px,4.6vw + 48px,100px);min-width:clamp(72px,4.6vw + 48px,100px);padding:6px 12px;border-radius:18px;flex-shrink:0;background:transparent;display:flex;align-items:center;justify-content:center;box-shadow:none}
+.brand-logo-wrap img{height:clamp(60px,4vw + 38px,90px);width:auto;max-width:380px;object-fit:contain;filter:brightness(1.2)}
+.brand-logo-wrap .fallback{font-size:clamp(30px,2.5vw + 20px,44px);font-weight:900;color:var(--rose);padding:0 6px}
+.brand-text{display:flex;flex-direction:column;line-height:1.15}
+.brand-name{font-size:var(--fs-xl);font-weight:900;color:#fff;letter-spacing:.4px;text-shadow:0 2px 6px rgba(0,0,0,.2);display:flex;align-items:baseline;gap:10px}
+.brand-name .dot{width:6px;height:6px;border-radius:50%;background:#D4B876;box-shadow:0 0 14px rgba(212,184,118,.9)}
+.brand-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.8);font-weight:500;margin-top:4px}
+
+.tb-divider{width:1px;height:36px;background:rgba(255,255,255,.2);margin:0 4px}
+
+.ws-wrap{position:relative;flex-shrink:0}
+.ws-switcher{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:14px;background:rgba(255,255,255,.1);color:#fff;font-size:var(--fs-sm);font-weight:600;border:1px solid rgba(255,255,255,.18);cursor:pointer;transition:all var(--dur-fast)}
+.ws-switcher:hover{background:rgba(255,255,255,.2)}
+.ws-wrap.open .ws-switcher{background:rgba(255,255,255,.25)}
+.ws-switcher .ws-ico{width:20px;height:20px;color:#D4B876;flex-shrink:0;stroke-width:1.8}
+.ws-switcher .ws-caret{font-size:10px;opacity:.8;transition:transform var(--dur-fast)}
+.ws-wrap.open .ws-caret{transform:rotate(180deg)}
+
+.ws-menu{position:absolute;top:calc(100% + 10px);left:0;min-width:300px;background:#fff;border-radius:18px;box-shadow:var(--sh-lg);padding:10px;display:none;z-index:250;border:1px solid var(--sage-300)}
+.ws-menu.open{display:block}
+.ws-opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;color:var(--ink);font-weight:500;transition:background var(--dur-fast)}
+.ws-opt + .ws-opt{margin-top:3px}
+.ws-opt:hover{background:var(--sage-100)}
+.ws-opt.active{background:var(--sage-200)}
+.ws-opt.active .opt-name{color:var(--sage-700)}
+.ws-opt .opt-ico{width:40px;height:40px;border-radius:12px;background:var(--sage-100);color:var(--sage-600);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ws-opt.active .opt-ico{background:#fff;color:var(--sage-700)}
+.ws-opt .opt-ico svg{width:20px;height:20px;stroke-width:1.7}
+.ws-opt .opt-meta{flex:1;min-width:0}
+.ws-opt .opt-name{font-size:var(--fs-sm);font-weight:700}
+.ws-opt .opt-desc{font-size:var(--fs-xs);color:var(--ink-3);margin-top:3px}
+.ws-opt .opt-check{color:var(--sage-600);font-weight:800}
+.ws-opt .opt-ext{color:var(--ink-4);font-size:var(--fs-xs)}
+
+.g-search{display:flex;align-items:center;gap:12px;width:min(560px,100%);padding:12px 18px;border-radius:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;cursor:text;transition:all var(--dur-fast)}
+.g-search:hover{background:rgba(255,255,255,.16)}
+.g-search:focus-within{background:rgba(255,255,255,.2);border-color:rgba(212,184,118,.6);box-shadow:0 0 0 4px rgba(212,184,118,.15)}
+.g-search svg{width:18px;height:18px;opacity:.85;stroke-width:1.8}
+.g-search input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:var(--fs-sm);font-weight:500}
+.g-search input::placeholder{color:rgba(255,255,255,.6)}
+.g-search .shortcut{background:rgba(255,255,255,.14);padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;border:1px solid rgba(255,255,255,.18)}
+
+.tb-icon-btn{position:relative;width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.tb-icon-btn:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+.tb-icon-btn svg{width:20px;height:20px;stroke-width:1.8}
+.tb-icon-btn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#D4B876;box-shadow:0 0 0 2px var(--sage-700)}
+.tb-icon-btn.victor{background:var(--grad-amber);border-color:transparent;box-shadow:0 6px 18px rgba(201,169,97,.35)}
+.tb-icon-btn.victor:hover{filter:brightness(1.05)}
+
+.lang-sel{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;outline:none}
+.lang-sel option{background:var(--sage-700);color:#fff}
+
+.user-chip{display:flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);transition:all var(--dur-fast)}
+.user-chip:hover{background:rgba(255,255,255,.22)}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:#fff;color:var(--sage-700);font-weight:800;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:var(--fs-sm);font-weight:700;color:#fff}
+.user-role{font-size:11px;color:rgba(255,255,255,.75)}
+.logout-btn{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.15);transition:all var(--dur-fast)}
+.logout-btn:hover{background:var(--rose);border-color:transparent}
+.logout-btn svg{width:16px;height:16px;stroke-width:1.8}
+
+/* ============= 레이아웃 / 사이드바 ============= */
+.layout{display:flex;height:calc(100vh - 41px - var(--topbar-h));position:relative;background:var(--sage-100)}
+.layout::before{content:"";position:absolute;top:-50px;left:40%;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle, rgba(127,161,131,.08), transparent 70%);pointer-events:none}
+
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--sage-50);border-right:1px solid var(--sage-200);padding:22px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+@media (max-width:1280px){.sidebar{width:240px}}
+@media (max-width:1024px){.sidebar{display:none}}
+
+.sb-section{padding:4px 0}
+.sb-section + .sb-section{border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-head{font-size:11px;font-weight:800;color:var(--ink-4);text-transform:uppercase;letter-spacing:.12em;padding:0 14px 12px;display:flex;align-items:center}
+.sb-head-tag{margin-left:auto;background:var(--sage-200);color:var(--sage-700);font-size:9px;font-weight:800;padding:3px 9px;border-radius:999px;text-transform:none}
+
+.sb-item{position:relative;display:flex;align-items:center;gap:12px;padding:11px 14px;margin-bottom:3px;font-size:var(--fs-md);color:var(--ink-2);border-radius:14px;transition:all var(--dur-fast) var(--ease);white-space:nowrap;overflow:hidden;font-weight:500}
+.sb-item:hover{background:var(--sage-200);color:var(--ink)}
+.sb-item.active{background:var(--grad-sage);color:#fff;font-weight:700;box-shadow:var(--sh-green)}
+.sb-item.active .sb-ico{color:#fff}
+.sb-ico{width:20px;height:20px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--sage-600);transition:color var(--dur-fast)}
+.sb-ico svg{width:18px;height:18px;stroke-width:1.7}
+.sb-item:hover .sb-ico{color:var(--sage-700)}
+.sb-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-badge{background:var(--sage-200);color:var(--sage-700);padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;flex-shrink:0}
+.sb-item.active .sb-badge{background:rgba(255,255,255,.3);color:#fff}
+.sb-badge.warn{background:rgba(201,169,97,.2);color:#8A6E1D}
+.sb-badge.err{background:var(--rose-soft);color:var(--rose-dk)}
+.sb-ext{font-size:11px;color:var(--ink-4);font-weight:700;margin-left:auto}
+
+.sb-tree-section{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--sage-200);padding-top:16px;margin-top:6px}
+.sb-tree{overflow-y:auto;flex:1}
+.sb-team-head{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:var(--fs-md);font-weight:600;color:var(--ink-2);border-radius:10px;cursor:pointer;transition:background var(--dur-fast)}
+.sb-team-head:hover{background:var(--sage-200)}
+.sb-team-head .chev{width:14px;color:var(--ink-4);transition:transform var(--dur-fast)}
+.sb-team-head.open .chev{transform:rotate(90deg)}
+.sb-sub{display:block;padding:6px 14px 6px 30px;font-size:var(--fs-sm);color:var(--ink-3);border-radius:8px;margin-left:20px;border-left:2px solid var(--sage-200)}
+.sb-sub:hover{background:var(--sage-100);color:var(--sage-700);border-left-color:var(--sage-500)}
+
+/* ============= 빅터 도크 ============= */
+.dock{width:var(--dock-w);flex-shrink:0;background:var(--sage-50);border-left:1px solid var(--sage-200);display:flex;flex-direction:column;overflow:hidden;transition:width var(--dur-slow),opacity var(--dur-med);position:relative;z-index:1}
+@media (max-width:1280px){.dock{--dock-w:320px}}
+@media (max-width:1024px){.dock{display:none}}
+body.dock-collapsed .dock{width:0;opacity:0;border-left:0}
+
+.dock-head{position:relative;overflow:hidden;background:var(--grad-sage);color:#fff;padding:18px 20px;display:flex;align-items:center;gap:14px}
+.dock-head::before{content:"";position:absolute;top:-30%;right:-10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(212,184,118,.2), transparent 70%);pointer-events:none}
+.dock-head > *{position:relative;z-index:1}
+.dock-avatar{width:44px;height:44px;border-radius:50%;background:#fff;color:var(--sage-700);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.15);position:relative}
+.dock-avatar svg{width:24px;height:24px;stroke-width:1.8}
+.dock-avatar::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#D4B876;border:2px solid var(--sage-600)}
+.dock-head-text{flex:1;min-width:0;line-height:1.3}
+.dock-title{font-size:var(--fs-md);font-weight:800}
+.dock-sub{font-size:11px;color:rgba(255,255,255,.8);margin-top:3px}
+.dock-head-actions{display:flex;gap:6px}
+.dock-btn{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast)}
+.dock-btn:hover{background:rgba(255,255,255,.24)}
+.dock-btn svg{width:14px;height:14px;stroke-width:1.8}
+
+.dock-ctx{padding:16px 20px 12px;border-bottom:1px solid var(--sage-200);background:var(--sage-100)}
+.dock-ctx-label{font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.dock-ctx-chips{display:flex;gap:6px;flex-wrap:wrap}
+.dock-chip{padding:7px 14px;border-radius:999px;background:#fff;color:var(--sage-700);font-size:var(--fs-xs);font-weight:700;border:1px solid var(--sage-300);cursor:pointer;transition:all var(--dur-fast)}
+.dock-chip:hover{background:var(--sage-500);color:#fff;border-color:transparent;transform:translateY(-1px);box-shadow:var(--sh-green)}
+
+.dock-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--sage-50)}
+.dock-msg{max-width:92%;padding:12px 16px;border-radius:16px;font-size:var(--fs-sm);line-height:1.65}
+.dock-msg.user{align-self:flex-end;background:var(--grad-sage);color:#fff;border-bottom-right-radius:6px;box-shadow:var(--sh-green)}
+.dock-msg.ai{align-self:flex-start;background:#fff;color:var(--ink);border:1px solid var(--sage-200);border-bottom-left-radius:6px;box-shadow:var(--sh-sm)}
+.dock-msg b{color:var(--sage-700)}
+.dock-msg ul{margin:8px 0 0;padding-left:4px;list-style:none}
+.dock-msg li{padding:5px 0 5px 20px;position:relative;color:var(--ink-2);font-size:13px}
+.dock-msg li::before{content:"·";position:absolute;left:6px;color:var(--sage-500);font-weight:900;font-size:18px;line-height:1}
+.dock-msg li.warn::before{color:var(--amber)}
+.dock-msg li.err::before{color:var(--rose)}
+
+.dock-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--sage-200)}
+.dock-action{padding:7px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;transition:all var(--dur-fast)}
+.dock-action.primary{background:var(--rose);color:#fff}
+.dock-action.primary:hover{background:var(--rose-dk);transform:translateY(-1px)}
+.dock-action.do{background:var(--sage-200);color:var(--sage-700);border:1px solid var(--sage-300)}
+.dock-action.do:hover{background:var(--sage-500);color:#fff;border-color:transparent}
+.dock-action.secondary{background:var(--sage-100);color:var(--ink-2)}
+
+.dock-foot{border-top:1px solid var(--sage-200);padding:14px;background:var(--sage-100)}
+.dock-quick{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.dock-quick button{flex-shrink:0;padding:6px 12px;border-radius:999px;background:#fff;color:var(--ink-2);border:1px solid var(--sage-300);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--dur-fast)}
+.dock-quick button:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.dock-input{display:flex;align-items:flex-end;gap:8px;background:#fff;border:1.5px solid var(--sage-300);border-radius:14px;padding:10px 12px;transition:all var(--dur-fast)}
+.dock-input:focus-within{border-color:var(--sage-500);box-shadow:0 0 0 4px rgba(127,161,131,.15)}
+.dock-input textarea{flex:1;border:0;outline:0;resize:none;font-family:inherit;font-size:var(--fs-sm);color:var(--ink);min-height:22px;max-height:100px;background:transparent;line-height:1.5}
+.dock-send{width:36px;height:36px;border-radius:11px;background:var(--grad-sage);color:#fff;display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast);box-shadow:var(--sh-green)}
+.dock-send:hover{transform:translateY(-1px)}
+.dock-send svg{width:16px;height:16px;stroke-width:1.8}
+.dock-hint{font-size:10px;color:var(--ink-4);margin-top:8px;text-align:center}
+.dock-hint kbd{background:var(--sage-200);padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;color:var(--ink-3)}
+
+/* ============= 메인 ============= */
+.main{flex:1;overflow-y:auto;background:var(--sage-100);min-width:0;position:relative}
+.main::before{content:"";position:absolute;top:-80px;right:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle, rgba(212,184,118,.1), transparent 70%);pointer-events:none}
+
+.page-header{background:var(--sage-50);border-bottom:1px solid var(--sage-200);padding:26px 36px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;position:sticky;top:0;z-index:40}
+.ph-left{min-width:0;flex:1}
+.breadcrumb{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--ink-4);font-weight:700;text-transform:uppercase;letter-spacing:.09em}
+.breadcrumb a{color:var(--ink-4)}
+.breadcrumb a:hover{color:var(--sage-600)}
+.breadcrumb .sep{color:var(--sage-300)}
+.breadcrumb .current{color:var(--ink-2)}
+.page-title{font-size:var(--fs-xl);font-weight:800;color:var(--ink);line-height:1.2;display:flex;align-items:center;gap:14px}
+.page-title .accent{display:inline-block;width:5px;height:clamp(22px,1.8vw + 14px,30px);border-radius:3px;background:var(--grad-sage)}
+.page-sub{font-size:var(--fs-sm);color:var(--ink-3);margin-top:6px;max-width:640px;font-weight:500}
+.ph-right{display:flex;gap:10px;align-items:center}
+
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:14px;font-size:var(--fs-sm);font-weight:700;transition:all var(--dur-fast);white-space:nowrap}
+.btn svg{width:16px;height:16px;stroke-width:2}
+.btn-primary{background:var(--grad-rose);color:#fff;box-shadow:0 6px 18px rgba(165,40,44,.25)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(165,40,44,.35)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--sage-300)}
+.btn-ghost:hover{border-color:var(--sage-500);color:var(--sage-700)}
+.btn-sage{background:var(--grad-sage);color:#fff;box-shadow:var(--sh-green)}
+.btn-sage:hover{transform:translateY(-1px)}
+
+.page-body{padding:32px 36px 80px;position:relative;z-index:1}
+
+/* ============= 페이지별 컴포넌트 (16: 변경 알림) ============= */
+.summary-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.sum-card{background:#fff;border:1px solid var(--sage-200);border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:14px;transition:all .3s var(--ease);box-shadow:var(--sh-xs);position:relative;overflow:hidden}
+.sum-card:hover{transform:translateY(-3px);box-shadow:var(--sh-md);border-color:var(--sage-300)}
+.sum-card::after{content:"";position:absolute;bottom:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:var(--bg-deco,radial-gradient(circle,rgba(127,161,131,.08),transparent 70%));pointer-events:none}
+.sum-ico{width:44px;height:44px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative;z-index:1}
+.sum-ico svg{width:22px;height:22px;stroke-width:1.6}
+.sum-ico.unread{background:var(--accent-soft);color:var(--accent)}
+.sum-ico.mine{background:rgba(107,163,148,.18);color:#3F6B5E}
+.sum-ico.urgent{background:rgba(212,150,122,.2);color:#A95F44}
+.sum-ico.done{background:rgba(127,161,131,.18);color:var(--sage-700)}
+.sum-body{flex:1;min-width:0;position:relative;z-index:1}
+.sum-lab{font-size:var(--fs-xs);color:var(--ink-3);font-weight:700}
+.sum-num{font-size:var(--fs-xl);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+.sum-sub{font-size:10px;color:var(--ink-4);margin-top:2px}
+
+.filter-bar{background:#fff;border:1px solid var(--sage-200);border-radius:16px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:var(--sh-xs)}
+.filter-label{font-size:var(--fs-xs);color:var(--ink-3);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.pill-group{display:flex;gap:4px;background:var(--sage-100);border-radius:10px;padding:3px}
+.pill{padding:6px 14px;border-radius:8px;font-size:var(--fs-xs);color:var(--ink-2);font-weight:600;cursor:pointer;transition:all .2s}
+.pill.active{background:#fff;color:var(--sage-700);font-weight:800;box-shadow:var(--sh-xs)}
+.pill:hover:not(.active){background:rgba(255,255,255,.6)}
+.filter-search{display:flex;align-items:center;gap:8px;background:var(--sage-50);border:1px solid var(--sage-200);border-radius:10px;padding:8px 14px;flex:1;min-width:200px;max-width:300px}
+.filter-search svg{width:16px;height:16px;color:var(--ink-4);stroke-width:1.7;flex-shrink:0}
+.filter-search input{flex:1;border:0;outline:0;background:transparent;font-size:var(--fs-sm);color:var(--ink);font-family:inherit}
+
+.bulk-bar{background:linear-gradient(135deg,var(--accent-soft),#fff);border:1px solid var(--accent-soft);border-radius:14px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--sh-xs)}
+.bulk-icon{width:40px;height:40px;border-radius:12px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bulk-icon svg{width:20px;height:20px;stroke-width:1.7}
+.bulk-msg{flex:1;font-size:var(--fs-sm);color:var(--ink);font-weight:600}
+.bulk-msg b{color:var(--accent);font-weight:800}
+
+.change-list{display:flex;flex-direction:column;gap:14px}
+.change-card{background:#fff;border:1px solid var(--sage-200);border-radius:18px;padding:0;overflow:hidden;transition:all .25s var(--ease);box-shadow:var(--sh-xs)}
+.change-card:hover{transform:translateY(-2px);box-shadow:var(--sh-sm);border-color:var(--sage-300)}
+.change-card.unread{border-left:4px solid var(--accent)}
+.change-card.urgent{background:linear-gradient(135deg,#fff,var(--accent-soft));border-color:var(--accent-soft)}
+
+.change-head{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--sage-100)}
+.change-team-av{width:38px;height:38px;border-radius:11px;background:var(--sage-200);color:var(--sage-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0}
+.change-meta{flex:1;min-width:0}
+.change-team{font-size:var(--fs-sm);font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.change-tag{padding:2px 9px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.3px}
+.change-tag.urgent{background:var(--accent);color:#fff}
+.change-tag.notice{background:rgba(201,169,97,.2);color:var(--amber-dk)}
+.change-tag.info{background:rgba(107,163,148,.18);color:#3F6B5E}
+.change-author{font-size:var(--fs-xs);color:var(--ink-3);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+.change-time{font-size:11px;color:var(--ink-4);font-weight:600;flex-shrink:0;text-align:right}
+.change-time .time-ago{display:block;font-size:10px;margin-top:2px;color:var(--ink-4)}
+
+.change-body{padding:16px 20px;font-size:var(--fs-sm);color:var(--ink-2);line-height:1.7}
+.change-body b{color:var(--ink);font-weight:700}
+.change-body p+p{margin-top:8px}
+.change-attach{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap}
+.attach-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;background:var(--sage-100);border:1px solid var(--sage-200);border-radius:8px;font-size:11px;color:var(--ink-2);font-weight:600}
+.attach-chip svg{width:12px;height:12px;color:var(--sage-600);stroke-width:1.7}
+
+.change-foot{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--sage-50);border-top:1px solid var(--sage-100);flex-wrap:wrap}
+.change-mark{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:8px;margin-right:auto}
+.change-mark .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.change-mark.read .dot{background:var(--sage-400)}
+
+.change-actions{display:flex;gap:8px}
+.act-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s var(--ease)}
+.act-btn svg{width:13px;height:13px;stroke-width:2}
+.act-btn.confirm{background:var(--grad-sage);color:#fff;box-shadow:0 2px 8px rgba(127,161,131,.3)}
+.act-btn.confirm:hover{transform:translateY(-1px);box-shadow:var(--sh-green)}
+.act-btn.hold{background:#fff;color:var(--amber-dk);border:1px solid rgba(201,169,97,.3)}
+.act-btn.hold:hover{background:rgba(201,169,97,.1);border-color:var(--amber)}
+.act-btn.detail{background:#fff;color:var(--ink-2);border:1px solid var(--sage-300)}
+.act-btn.detail:hover{border-color:var(--sage-500);color:var(--sage-700)}
+
+@media (max-width:1024px){.tb-divider,.user-info,.brand-text{display:none}.page-header{padding:18px 20px;flex-direction:column;align-items:stretch}.page-body{padding:20px}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #16 — 변경 알림 · 힐링</h1>
+  <span class="tag">Sage Garden · B-2</span>
+  <span class="hint">/changes · 차분히 변화를 짚어드리는 페이지</span>
+  <button id="dockToggle" style="margin-left:auto;background:var(--sage-500);color:#fff;padding:6px 14px;border-radius:999px;font-size:var(--fs-xs);font-weight:700">빅터 도크 접기/펼치기</button>
+</div>
+
+<header class="topbar">
+  <div class="topbar-bg"></div>
+  <div class="tb-left">
+    <button class="tb-menu-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <a class="brand" href="#">
+      <div class="brand-logo-wrap">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fallback" style="display:none">K</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">HAIST WORKS <span class="dot"></span></div>
+        <div class="brand-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </a>
+    <div class="tb-divider"></div>
+    <div class="ws-wrap" id="wsWrap">
+      <button class="ws-switcher" id="wsBtn">
+        <svg class="ws-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="ws-name">통합</span><span class="ws-caret">▾</span>
+      </button>
+      <div class="ws-menu" id="wsMenu">
+        <a class="ws-opt active" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></div><div class="opt-meta"><div class="opt-name">통합</div><div class="opt-desc">HAIST WORKS 메인</div></div><span class="opt-check">✓</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="opt-meta"><div class="opt-name">매출·영업 센터</div><div class="opt-desc">Sales Hub</div></div><span class="opt-ext">↗</span></a>
+        <a class="ws-opt" href="#"><div class="opt-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></div><div class="opt-meta"><div class="opt-name">자재·구매 센터</div><div class="opt-desc">Logistics Hub</div></div><span class="opt-ext">↗</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="tb-center">
+    <label class="g-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="업무·사람·문서 검색..." id="gSearchInput">
+      <span class="shortcut">/</span>
+    </label>
+  </div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" id="victorTrigger" title="빅터 열기/닫기 (Ctrl+K)" aria-label="빅터 AI 컨시어지" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+    <select class="lang-sel"><option value="ko">🇰🇷 한국어</option><option value="vi">🇻🇳 Tiếng Việt</option><option value="en">🇺🇸 English</option></select>
+    <a class="user-chip" href="#"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+    <a class="logout-btn" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span class="sb-label">업무 현황</span><span class="sb-badge">3</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="sb-label">일일 업무</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span class="sb-label">내 달력</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg></span><span class="sb-label">알림</span><span class="sb-badge warn">12</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span><span class="sb-label">부서 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="sb-label">실시간 피드</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span><span class="sb-label">검색</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="sb-label">전사 대시보드</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/></svg></span><span class="sb-label">진행률 매트릭스</span><span class="sb-badge err">2</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2 9V7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/></svg></span><span class="sb-label">요청 티켓</span><span class="sb-badge">5</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></span><span class="sb-label">이슈 · AS</span></a>
+      <a class="sb-item active"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="sb-label">변경 알림</span><span class="sb-badge">8</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-head">외부 · 관리 <span class="sb-head-tag">하이웍스</span></div>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="sb-label">전자결제</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span class="sb-label">메일</span><span class="sb-ext">↗</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span><span class="sb-label">팀원 권한</span></a>
+      <a class="sb-item"><span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg></span><span class="sb-label">관리자</span></a>
+    </div>
+    <div class="sb-section sb-tree-section">
+      <div class="sb-head">팀 / 프로젝트</div>
+      <div class="sb-tree">
+        <div class="sb-team-head open"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>영업1팀</span></div>
+        <a class="sb-sub">K-Pharma 2차 납품</a>
+        <a class="sb-sub">2분기 신규 영업</a>
+        <div class="sb-team-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg><span>설계팀</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div class="ph-left">
+        <div class="breadcrumb"><a>통합</a><span class="sep">/</span><a>업무 추적</a><span class="sep">/</span><span class="current">변경 알림</span></div>
+        <h1 class="page-title"><span class="accent"></span>오늘의 변화, 빠르게 짚어드려요</h1>
+        <div class="page-sub">미확인 8건 · 내 관련 3건 · 차분히 한 번에 정리해 보세요</div>
+      </div>
+      <div class="ph-right">
+        <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>전체 확인 처리</button>
+        <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>변경 등록</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="summary-strip">
+        <div class="sum-card"><div class="sum-ico unread"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="sum-body"><div class="sum-lab">미확인</div><div class="sum-num">8</div><div class="sum-sub">새로 도착한 변경</div></div></div>
+        <div class="sum-card"><div class="sum-ico mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg></div><div class="sum-body"><div class="sum-lab">내 관련</div><div class="sum-num">3</div><div class="sum-sub">내가 챙길 것</div></div></div>
+        <div class="sum-card"><div class="sum-ico urgent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div class="sum-body"><div class="sum-lab">긴급</div><div class="sum-num">2</div><div class="sum-sub">우선 확인</div></div></div>
+        <div class="sum-card"><div class="sum-ico done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="sum-body"><div class="sum-lab">이번 주 처리</div><div class="sum-num">24</div><div class="sum-sub">잘 챙겨오셨어요</div></div></div>
+      </div>
+
+      <div class="bulk-bar">
+        <div class="bulk-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+        <div class="bulk-msg"><b>읽지 않은 변경 8건</b>이 있어요. 한 번에 확인 처리 하시거나, 아래에서 하나씩 챙겨보세요.</div>
+        <button class="btn btn-sage" style="padding:8px 14px;font-size:var(--fs-xs)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>전체 확인</button>
+      </div>
+
+      <div class="filter-bar">
+        <span class="filter-label">상태</span>
+        <div class="pill-group"><button class="pill active">전체</button><button class="pill">미확인</button><button class="pill">내 관련</button><button class="pill">긴급</button></div>
+        <span class="filter-label">기간</span>
+        <div class="pill-group"><button class="pill active">오늘</button><button class="pill">이번 주</button><button class="pill">이번 달</button></div>
+        <div class="filter-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" placeholder="제목·작성자 검색..."></div>
+      </div>
+
+      <div class="change-list">
+        <div class="change-card unread urgent">
+          <div class="change-head">
+            <div class="change-team-av">생</div>
+            <div class="change-meta">
+              <div class="change-team">생산팀<span class="change-tag urgent">긴급</span><span class="change-tag info">전사</span></div>
+              <div class="change-author"><span>박생산 팀장</span><span>·</span><span>관련 부서: 영업1·물류·품질</span></div>
+            </div>
+            <div class="change-time">오전 11:23<span class="time-ago">10분 전</span></div>
+          </div>
+          <div class="change-body">
+            <p><b>K-Pharma 2차 납품 일정 변경 (D-3 → D-7)</b></p>
+            <p>고객사 측 입고 검수 절차 추가 요청으로 납기를 4일 늦추기로 했습니다. 영업1팀은 고객 컨택 결과 공유 부탁드리고, 물류팀은 출고 일정 재조정 부탁드립니다.</p>
+            <div class="change-attach">
+              <span class="attach-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>고객사_검수절차.pdf</span>
+              <span class="attach-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>변경된 일정표.xlsx</span>
+            </div>
+          </div>
+          <div class="change-foot">
+            <div class="change-mark"><span class="dot"></span>아직 확인하지 않으셨어요</div>
+            <div class="change-actions">
+              <button class="act-btn detail">자세히 보기</button>
+              <button class="act-btn hold">잠시 보류</button>
+              <button class="act-btn confirm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>확인했어요</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="change-card unread">
+          <div class="change-head">
+            <div class="change-team-av" style="background:rgba(107,163,148,.2);color:#3F6B5E">설</div>
+            <div class="change-meta">
+              <div class="change-team">설계팀<span class="change-tag info">관련 팀</span></div>
+              <div class="change-author"><span>이설계 팀장</span><span>·</span><span>관련 부서: 영업1</span></div>
+            </div>
+            <div class="change-time">오전 09:48<span class="time-ago">2시간 전</span></div>
+          </div>
+          <div class="change-body">
+            <p><b>라벨링 검토 의견 회신 — 수정 요청 3건</b></p>
+            <p>K-Pharma 라벨 시안 검토 마쳤습니다. 폰트 크기 · 성분표 위치 · 바코드 영역 3곳 수정 부탁드려요. 자세한 내용은 첨부 의견서 참조.</p>
+            <div class="change-attach">
+              <span class="attach-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>라벨_검토의견_v2.pdf</span>
+            </div>
+          </div>
+          <div class="change-foot">
+            <div class="change-mark"><span class="dot"></span>아직 확인하지 않으셨어요</div>
+            <div class="change-actions">
+              <button class="act-btn detail">자세히 보기</button>
+              <button class="act-btn confirm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>확인했어요</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="change-card unread">
+          <div class="change-head">
+            <div class="change-team-av" style="background:rgba(201,169,97,.25);color:#8A6E1D">구</div>
+            <div class="change-meta">
+              <div class="change-team">구매팀<span class="change-tag notice">공지</span></div>
+              <div class="change-author"><span>박구매 팀장</span><span>·</span><span>관련 부서: 전사</span></div>
+            </div>
+            <div class="change-time">어제 17:30<span class="time-ago">17시간 전</span></div>
+          </div>
+          <div class="change-body">
+            <p><b>5월 자재 단가 인상 안내 (PE 원료 +3.2%)</b></p>
+            <p>주요 원자재 PE 인상 통보로 다음 달부터 단가 조정 예정입니다. 영업팀은 견적 시 새 단가 반영 부탁드립니다.</p>
+          </div>
+          <div class="change-foot">
+            <div class="change-mark"><span class="dot"></span>아직 확인하지 않으셨어요</div>
+            <div class="change-actions">
+              <button class="act-btn detail">자세히 보기</button>
+              <button class="act-btn confirm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>확인했어요</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="change-card">
+          <div class="change-head">
+            <div class="change-team-av" style="background:rgba(127,161,131,.2);color:var(--sage-700)">관</div>
+            <div class="change-meta">
+              <div class="change-team">관리팀<span class="change-tag info">정보</span></div>
+              <div class="change-author"><span>조관리 팀장</span><span>·</span><span>관련 부서: 전사</span></div>
+            </div>
+            <div class="change-time">어제 14:20<span class="time-ago">20시간 전</span></div>
+          </div>
+          <div class="change-body">
+            <p><b>5월 정기 점검 일정 안내</b></p>
+            <p>전사 정기 안전 점검 일정 공지드립니다. 5월 14일 (수) 오전 10시 ~ 정오. 각 팀장님 사전 협조 부탁드립니다.</p>
+          </div>
+          <div class="change-foot">
+            <div class="change-mark read"><span class="dot"></span>2026-04-24 14:31 · 확인 완료</div>
+            <div class="change-actions">
+              <button class="act-btn detail">자세히 보기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="dock" id="dock">
+    <div class="dock-head">
+      <div class="dock-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></div>
+      <div class="dock-head-text"><div class="dock-title">HAIST 빅터</div><div class="dock-sub">변경 사항 차분히 정리해드려요</div></div>
+      <div class="dock-head-actions">
+        <button class="dock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+        <button class="dock-btn" id="dockCollapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-ctx">
+      <div class="dock-ctx-label">이 화면에서 자주 묻는 것</div>
+      <div class="dock-ctx-chips"><button class="dock-chip">긴급만 보기</button><button class="dock-chip">내 관련만</button><button class="dock-chip">한 줄 요약</button></div>
+    </div>
+    <div class="dock-body">
+      <div class="dock-msg user">긴급 변경만 한 줄씩</div>
+      <div class="dock-msg ai"><b>긴급 변경 2건</b>:
+        <ul><li class="err">생산팀 · K-Pharma 납기 D-3→D-7 (10분 전)</li><li class="warn">설계팀 · 라벨 수정 3건 (2시간 전)</li></ul>
+        <div class="dock-actions"><span class="dock-action primary">전체 확인 처리</span><span class="dock-action do">✓ 영업1팀 알림</span><span class="dock-action secondary">상세</span></div>
+      </div>
+    </div>
+    <div class="dock-foot">
+      <div class="dock-quick"><button>🔴 긴급</button><button>👤 내 관련</button><button>📋 전체 확인</button></div>
+      <div class="dock-input"><textarea placeholder="천천히 물어보세요..." rows="1"></textarea><button class="dock-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+      <div class="dock-hint"><kbd>Enter</kbd> 전송 · <kbd>Shift+Enter</kbd> 줄바꿈</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const wsWrap=document.getElementById('wsWrap'),wsBtn=document.getElementById('wsBtn'),wsMenu=document.getElementById('wsMenu');
+function wsSet(o){wsWrap.classList.toggle('open',o);wsMenu.classList.toggle('open',o)}
+wsBtn.addEventListener('click',e=>{e.stopPropagation();wsSet(!wsWrap.classList.contains('open'))});
+document.addEventListener('click',e=>{if(!wsWrap.contains(e.target))wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')wsSet(false)});
+document.addEventListener('keydown',e=>{if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const t=(e.target.tagName||'').toLowerCase();if(t==='input'||t==='textarea'||t==='select'||e.target.isContentEditable)return;const i=document.getElementById('gSearchInput');if(i){e.preventDefault();i.focus();i.select()}});
+document.querySelectorAll('.sb-team-head').forEach(h=>h.addEventListener('click',()=>h.classList.toggle('open')));
+const DOCK_KEY='haist_victor_dock_open';
+function setDockOpen(open,persist){
+  document.body.classList.toggle('dock-collapsed',!open);
+  const btn=document.getElementById('victorTrigger');
+  if(btn) btn.setAttribute('aria-pressed', open?'true':'false');
+  if(persist!==false) localStorage.setItem(DOCK_KEY, open?'1':'0');
+}
+function toggleDock(){setDockOpen(document.body.classList.contains('dock-collapsed'))}
+(function(){const s=localStorage.getItem(DOCK_KEY);setDockOpen(s===null?true:s==='1',false)})();
+document.getElementById('dockToggle').addEventListener('click',toggleDock);
+document.getElementById('dockCollapse').addEventListener('click',toggleDock);
+document.getElementById('victorTrigger').addEventListener('click',toggleDock);
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();toggleDock()}});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(document.body.classList.contains('dock-collapsed')) return;
+  const a=document.activeElement;
+  if(a && a.closest && a.closest('.dock')) setDockOpen(false);
+});
+</script>
+</body></html>

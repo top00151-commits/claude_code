@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #13 — 로그인 · 힐링 Sage Garden (B-2)</title>
+<style>
+:root{
+  --sage-50:#F7FAF4; --sage-100:#F0F5EB; --sage-200:#E4ECD9; --sage-300:#CAD9B8;
+  --sage-400:#A8BD8F; --sage-500:#7FA183; --sage-600:#5D7F61; --sage-700:#3F5C44; --sage-800:#2B3E2E;
+  --ink:#2B3E2E; --ink-2:#3F5C44; --ink-3:#5D7F61; --ink-4:#8FA594;
+  --accent:#A5282C; --accent-dk:#8B1E22; --accent-soft:#F5E4E2;
+  --amber:#C9A961; --teal:#6BA394;
+
+  --fs-xs:clamp(10px,0.55vw + 7px,13px);
+  --fs-sm:clamp(12px,0.60vw + 9px,15px);
+  --fs-md:clamp(13px,0.70vw + 10px,16px);
+  --fs-lg:clamp(15px,0.85vw + 11px,19px);
+  --fs-xl:clamp(18px,1.25vw + 13px,26px);
+  --fs-2xl:clamp(24px,2.00vw + 16px,40px);
+  --fs-hero:clamp(32px,4.5vw + 20px,72px);
+
+  --grad-brand:linear-gradient(135deg,#A5282C 0%,#8B1E22 100%);
+  --grad-sage:linear-gradient(135deg,#7FA183 0%,#5D7F61 100%);
+  --grad-panel:linear-gradient(145deg,#3F5C44 0%,#2B3E2E 55%,#1A2A1C 100%);
+  --sh-sm:0 4px 14px rgba(63,92,68,.08);
+  --sh-md:0 14px 36px rgba(63,92,68,.12);
+  --sh-lg:0 28px 60px rgba(63,92,68,.18);
+  --sh-glow:0 12px 36px rgba(165,40,44,.22);
+  --ease:cubic-bezier(0.25,0.8,0.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;
+  font-size:var(--fs-md);color:var(--ink);line-height:1.7;letter-spacing:.1px;
+  background:var(--sage-100);overflow:hidden;
+}
+button,input,select,textarea{font-family:inherit}
+button{cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{
+  position:fixed;top:0;left:0;right:0;z-index:300;
+  background:var(--sage-800);color:var(--sage-100);padding:9px 20px;
+  display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);
+}
+.demo-banner h1{font-size:var(--fs-md);font-weight:700}
+.demo-banner .tag{background:var(--sage-500);color:#fff;padding:3px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:700}
+.demo-banner .hint{color:rgba(247,250,244,.65);font-size:var(--fs-xs)}
+
+/* 2열 분할 */
+.split{
+  display:grid;grid-template-columns:1.1fr 1fr;
+  height:100vh;padding-top:40px;
+}
+@media (max-width:900px){.split{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+/* 좌: 브랜드 패널 (딥 세이지 포레스트) */
+.brand-panel{
+  position:relative;overflow:hidden;
+  background:var(--grad-panel);color:#fff;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(32px, 4vw, 64px);
+}
+.brand-panel::before{
+  content:"";position:absolute;top:-20%;left:-10%;width:70%;height:70%;border-radius:50%;
+  background:radial-gradient(circle, rgba(127,161,131,.22), transparent 60%);
+  filter:blur(40px);
+}
+.brand-panel::after{
+  content:"";position:absolute;bottom:-30%;right:-20%;width:80%;height:80%;border-radius:50%;
+  background:radial-gradient(circle, rgba(201,169,97,.18), transparent 60%);
+  filter:blur(50px);
+}
+.brand-panel > *{position:relative;z-index:1}
+
+/* 브랜드 패널 상단 — 핫패치 2026-04-25 18:45 (대표 직접 지시: 큰 로고 중앙 · 원본 색상) */
+.bp-header{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;margin-top:clamp(20px,3vh,48px)}
+.bp-logo{
+  /* 흰색 박스 제거 — PNG 원본 색상 그대로 녹색 배경 위 */
+  height:auto;min-width:0;padding:0;border-radius:0;
+  background:transparent;display:block;box-shadow:none;
+}
+.bp-logo img{width:clamp(260px,30vw,460px);height:auto;display:block;max-width:100%}
+.bp-logo .fb{font-size:clamp(40px,3.5vw + 24px,64px);font-weight:900;color:var(--accent)}
+.bp-name{font-size:var(--fs-xl);font-weight:900;letter-spacing:.4px;line-height:1.1;text-align:center}
+.bp-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.75);font-weight:500;margin-top:4px;text-align:center}
+@media (max-width:900px){
+  .bp-logo img{width:clamp(200px,40vw,300px)}
+  .bp-header{margin-top:0;gap:12px}
+}
+
+/* 브랜드 패널 중앙 (히어로 텍스트) */
+.bp-hero{display:flex;flex-direction:column;gap:16px;max-width:600px}
+.bp-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  padding:6px 14px;border-radius:999px;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.3px;
+  backdrop-filter:blur(6px);width:fit-content;
+}
+.bp-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px rgba(201,169,97,.8)}
+.bp-title{
+  font-size:clamp(32px, 3.5vw + 16px, 64px);
+  font-weight:800;line-height:1.2;letter-spacing:-.5px;
+  text-wrap:balance;        /* 자연스러운 2줄 균형 */
+  word-break:keep-all;      /* 한글 단어 단위 줄바꿈 */
+}
+.bp-title .accent{color:var(--amber)}
+.bp-desc{font-size:var(--fs-lg);color:rgba(255,255,255,.8);font-weight:400;max-width:480px}
+
+/* 3 포인트 */
+.bp-points{display:flex;flex-direction:column;gap:14px;margin-top:12px}
+.bp-point{display:flex;align-items:center;gap:14px;color:rgba(255,255,255,.9);font-size:var(--fs-sm)}
+.bp-point-ico{
+  width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;
+}
+.bp-point-ico svg{width:18px;height:18px;stroke-width:1.7}
+
+/* 브랜드 패널 하단 (푸터) */
+.bp-footer{font-size:var(--fs-xs);color:rgba(255,255,255,.55);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.bp-footer a:hover{color:var(--amber)}
+
+/* 우: 로그인 폼 패널 */
+.form-panel{
+  background:var(--sage-50);position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  padding:clamp(32px,4vw,64px);
+}
+.form-panel::before{
+  content:"";position:absolute;top:20%;right:-15%;width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle, rgba(127,161,131,.12), transparent 70%);
+  filter:blur(30px);
+}
+.form-panel::after{
+  content:"";position:absolute;bottom:-10%;left:-10%;width:350px;height:350px;border-radius:50%;
+  background:radial-gradient(circle, rgba(201,169,97,.08), transparent 70%);
+  filter:blur(30px);
+}
+
+.form-wrap{position:relative;z-index:1;width:100%;max-width:440px;display:flex;flex-direction:column;gap:24px}
+
+/* 우상단 언어 */
+.lang-area{position:absolute;top:clamp(20px,2vw,32px);right:clamp(20px,2vw,32px);z-index:2}
+.lang-sel{
+  background:#fff;color:var(--ink);border:1px solid var(--sage-300);
+  border-radius:12px;padding:10px 14px;font-size:var(--fs-sm);font-weight:600;
+  cursor:pointer;outline:none;box-shadow:var(--sh-sm);
+}
+
+/* 폼 헤더 */
+.fh-greeting{
+  display:flex;align-items:center;gap:8px;
+  font-size:var(--fs-sm);color:var(--sage-600);font-weight:700;letter-spacing:.2px;
+}
+.fh-greeting::before{content:"🌿";font-size:16px}
+.fh-title{font-size:var(--fs-2xl);font-weight:800;color:var(--ink);line-height:1.2;letter-spacing:-.3px}
+.fh-sub{font-size:var(--fs-sm);color:var(--ink-3);font-weight:500}
+
+/* 폼 */
+.form{display:flex;flex-direction:column;gap:18px}
+.field{position:relative}
+.field label{
+  display:block;font-size:var(--fs-xs);font-weight:800;color:var(--ink-3);
+  margin-bottom:8px;letter-spacing:.08em;text-transform:uppercase;
+}
+.input-wrap{
+  position:relative;display:flex;align-items:center;
+  background:#fff;border:1.5px solid var(--sage-300);border-radius:14px;
+  transition:all .2s var(--ease);
+}
+.input-wrap:focus-within{border-color:var(--sage-500);box-shadow:0 0 0 4px rgba(127,161,131,.15)}
+.input-ico{padding-left:16px;color:var(--ink-4);flex-shrink:0}
+.input-ico svg{width:18px;height:18px;stroke-width:1.7}
+.input-wrap input{
+  flex:1;padding:14px 16px;border:0;outline:0;background:transparent;
+  font-size:var(--fs-md);color:var(--ink);font-weight:500;
+}
+.input-wrap input::placeholder{color:var(--ink-4);font-weight:400}
+.input-wrap .toggle{padding:0 16px;color:var(--ink-4);background:transparent;border:0;cursor:pointer}
+.input-wrap .toggle:hover{color:var(--sage-600)}
+.input-wrap .toggle svg{width:18px;height:18px;stroke-width:1.7}
+
+.form-actions{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm)}
+.remember{display:flex;align-items:center;gap:8px;color:var(--ink-2);cursor:pointer;font-weight:500}
+.remember input{width:18px;height:18px;accent-color:var(--sage-500)}
+.forgot{color:var(--sage-700);font-weight:700;cursor:pointer}
+.forgot:hover{color:var(--sage-600)}
+
+.btn-login{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:16px 24px;border-radius:14px;
+  background:var(--grad-brand);color:#fff;
+  font-size:var(--fs-md);font-weight:700;letter-spacing:.2px;
+  box-shadow:var(--sh-glow);
+  transition:all .2s var(--ease);
+}
+.btn-login:hover{transform:translateY(-2px);box-shadow:0 18px 44px rgba(165,40,44,.35)}
+.btn-login svg{width:18px;height:18px;stroke-width:2}
+
+.divider{display:flex;align-items:center;gap:14px;margin:4px 0;color:var(--ink-4);font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--sage-300)}
+
+.btn-sso{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:14px 20px;border-radius:14px;
+  background:#fff;border:1.5px solid var(--sage-300);
+  color:var(--ink);font-size:var(--fs-sm);font-weight:700;
+  transition:all .2s var(--ease);
+}
+.btn-sso:hover{border-color:var(--sage-500);color:var(--sage-700);transform:translateY(-1px);box-shadow:var(--sh-sm)}
+.btn-sso svg{width:18px;height:18px;color:var(--sage-600);stroke-width:1.7}
+
+/* 안내 메시지 */
+.help-note{
+  display:flex;align-items:flex-start;gap:10px;
+  background:var(--sage-100);border:1px solid var(--sage-200);
+  padding:12px 14px;border-radius:12px;
+  font-size:var(--fs-xs);color:var(--ink-2);line-height:1.6;
+}
+.help-note svg{width:16px;height:16px;color:var(--sage-600);flex-shrink:0;margin-top:2px;stroke-width:1.7}
+.help-note b{color:var(--sage-700);font-weight:800}
+
+.form-footer{font-size:var(--fs-xs);color:var(--ink-4);text-align:center;margin-top:8px}
+.form-footer a{color:var(--sage-700);font-weight:700}
+
+@media (max-width:900px){
+  .bp-points{display:none}
+  .bp-title{font-size:clamp(26px,5vw + 16px,40px)}
+  .lang-area{top:48px;right:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>시안 #13 — 로그인 · 힐링</h1>
+  <span class="tag">Sage Garden · B-2</span>
+  <span class="hint">세이지 베이스 · KNK 레드 CTA · 브레인드 패널 좌 / 폼 우</span>
+</div>
+
+<!-- 언어 셀렉터 (우상단) -->
+<div class="lang-area">
+  <select class="lang-sel">
+    <option value="ko">🇰🇷 한국어</option>
+    <option value="vi">🇻🇳 Tiếng Việt</option>
+    <option value="en">🇺🇸 English</option>
+  </select>
+</div>
+
+<div class="split">
+  <!-- 좌 브랜드 패널 -->
+  <div class="brand-panel">
+    <div class="bp-header">
+      <div class="bp-logo">
+        <img src="../../01_HAIST_WORKS/static/logo.png" alt="KNK HAIST" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="fb" style="display:none">K</span>
+      </div>
+      <div>
+        <div class="bp-name">HAIST WORKS</div>
+        <div class="bp-sub">KNK 통합 업무 플랫폼</div>
+      </div>
+    </div>
+
+    <div class="bp-hero">
+      <div class="bp-badge"><span class="dot"></span>HAIST Innovation · v2026</div>
+      <h1 class="bp-title">오늘도 <span class="accent">차분한 하루</span> 되시도록, 곁에서 도와드릴게요.</h1>
+      <p class="bp-desc">Human &amp; AI create the Best — 빅터와 함께 더 여유롭게, 더 정확하게 업무를 정리하세요.</p>
+
+      <div class="bp-points">
+        <div class="bp-point">
+          <div class="bp-point-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></div>
+          <span>AI 빅터 · 물어보면 바로 옆에서 실행</span>
+        </div>
+        <div class="bp-point">
+          <div class="bp-point-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+          <span>전사 흐름 · 피드·대시보드·병목을 한 눈에</span>
+        </div>
+        <div class="bp-point">
+          <div class="bp-point-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          <span>내 업무 · 할 일·달력·알림을 조용히 정리</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bp-footer">
+      <div>© 2026 ㈜케이엔케이 · HAIST Innovation</div>
+      <div><a>이용약관</a> · <a>개인정보</a></div>
+    </div>
+  </div>
+
+  <!-- 우 로그인 폼 -->
+  <div class="form-panel">
+    <div class="form-wrap">
+      <div>
+        <div class="fh-greeting">오늘도 평안하시길</div>
+        <h2 class="fh-title" style="margin-top:8px">로그인</h2>
+        <div class="fh-sub" style="margin-top:4px">KNK 업무 계정으로 입장해주세요</div>
+      </div>
+
+      <form class="form" onsubmit="event.preventDefault()">
+        <div class="field">
+          <label>아이디</label>
+          <div class="input-wrap">
+            <span class="input-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <input type="text" name="login_id" placeholder="예: hong.gd" autocomplete="username">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>비밀번호</label>
+          <div class="input-wrap">
+            <span class="input-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" name="password" id="pw" placeholder="비밀번호 입력" autocomplete="current-password">
+            <button type="button" class="toggle" onclick="togglePw()" title="보기"><svg id="pwEye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <label class="remember"><input type="checkbox"><span>로그인 상태 유지</span></label>
+          <a class="forgot">비밀번호 찾기</a>
+        </div>
+
+        <button class="btn-login" type="submit">
+          로그인
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
+
+      <div class="divider">또는</div>
+
+      <button class="btn-sso">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 11l3 3L22 4"/></svg>
+        하이웍스 계정으로 로그인
+      </button>
+
+      <div class="help-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div><b>처음 오셨나요?</b> 팀장에게 계정 생성을 요청해주세요. 초기 비밀번호가 발급되면 안내드립니다.</div>
+      </div>
+
+      <div class="form-footer">문제가 있으시면 <a>관리자 연락처</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePw(){
+  const i=document.getElementById('pw');
+  i.type=i.type==='password'?'text':'password';
+}
+</script>
+</body></html>

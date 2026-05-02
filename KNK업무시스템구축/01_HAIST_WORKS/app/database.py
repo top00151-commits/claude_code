@@ -1,6 +1,76 @@
 """
 KNK 일일업무일지 v2 - Database Layer
 Phase 1 MVP - Task Card 기반 구조
+
+═══════════════════════════════════════════════════════════════════════════════
+ database.py 목차 (TABLE OF CONTENTS) — v1.0 (2026-04-29 옵션 A 정리)
+═══════════════════════════════════════════════════════════════════════════════
+
+ PART A. 기반
+   §A1.  DB 연결 / 헬퍼 (db_session, hash_pw)         L 1~30
+   §A2.  SCHEMA — 모든 CREATE TABLE 정의              L 32
+
+ PART B. 시드 데이터 / 초기화
+   §B1.  ORG CHART 시드 (TEAMS, USERS)                L 1379
+   §B2.  로그인 ID 생성 규칙                           L 1528
+   §B3.  init_db / seed_all                           L 1541
+   §B4.  샘플 데이터 (지난 14일 현실적 데이터)         L 2026
+   §B5.  관리코드 발행목록 import                      L 2272
+   §B6.  초기 비번 일괄 발급                           L 2442
+
+ PART C. 댓글·알림·활동
+   §C1.  COMMENTS & 멘션 파싱                         L 2500
+   §C2.  활동 로그 / 반응 / 회고                       L 2580
+   §C3.  알림시스템 통합 헬퍼 (notify_user 등)         L 3049
+   §C4.  하이웍스 메신저 push                          L 5621
+
+ PART D. 자재구매 (Logistics)
+   §D1.  parts / 관리코드 발행대장                      L 3095
+   §D2.  발주 (suppliers + PO 헤더/라인)                L 3378
+   §D3.  STOCK MOVEMENTS (수불부)                      L 3688
+   §D4.  안전재고 알림 + 발주 추천                      L 3802
+   §D5.  재고 실사·조정                                 L 4228
+   §D6.  FIFO + ABC + 회전율                           L 4639
+   §D7.  환율 관리 (FXLoader 패턴)                     L 4744
+   §D8.  적용일자 단가 (price_history)                  L 4821
+   §D9.  환율·단가 헬퍼                                L 4916
+   §D10. 공급사 리드타임 health_check                  L 4997
+
+ PART E. 변경·이슈·티켓·게시판
+   §E1.  게시판 (boards / board_posts / board_comments) L 5261
+   §E2.  변경 Inform 시스템                            L 5416
+   §E3.  ISSUES · AS DB                                L 5426
+   §E4.  요청 티켓 시스템                              L 5943
+   §E5.  ISSUES 헬퍼                                   L 6247
+
+ PART F. 분석·검색
+   §F1.  진행률 대시보드 (PHASE_DEFS 등)                L 6497
+   §F2.  글로벌 통합 검색                              L 6812
+   §F3.  CEO 통합 대시보드 KPI                          L 7033
+
+ PART G. 매출영업
+   §G1.  Sales 견적 라인 헬퍼                          L 7224
+   §G2.  단가 시뮬레이션 (cost_simulation)              L 6668
+
+ PART H. 수출입
+   §H1.  FTA 원산지증명서                              L 7298
+
+ PART I. 품질관리
+   §I1.  QC INSPECTION REPORT                          L 7432
+
+ PART J. 생산
+   §J1.  WORK ORDERS (가공작업지시서)                  L 7584
+
+ PART K. 시스템 설정
+   §K1.  app_settings (key-value 저장)                 L 5572
+
+───────────────────────────────────────────────────────────────────────────────
+ 사용법:
+  - 특정 영역 수정: §AN. 검색 (예: §D4. → 안전재고 알림)
+  - 함수 검색: ^def 함수명
+  - 스키마 검색: "CREATE TABLE 테이블명"
+  - 행 수가 정확하지 않을 수 있음 (수정 시 변동) — _INDEX_코드구조.md 참조
+═══════════════════════════════════════════════════════════════════════════════
 """
 import sqlite3, os, hashlib
 from contextlib import contextmanager
@@ -3288,25 +3358,35 @@ def _project_insert_or_update_values(data: dict) -> dict:
 
 
 def projects_create_logi(data: dict) -> tuple[int, str | None]:
+    """OPS-P1-D3 [D-014]: mgmt_code UNIQUE 제약 race 시 최대 5회 재채번 retry.
+    schema: line 78 mgmt_code TEXT UNIQUE — 동시 INSERT 방어."""
+    import sqlite3 as _sq
     vals = _project_insert_or_update_values(data)
-    # 자동 채번
-    code = None
-    if vals["stage"] in NEEDS_CODE_STAGES and vals["biz_div"] in ("T", "M"):
-        code = generate_mgmt_code(vals["biz_div"])
     now = _logi_now()
-    with db_session() as c:
-        cur = c.execute("""
-            INSERT INTO projects
-            (mgmt_code, name, biz_div, customer_name, model_name, stage, po_type,
-             status, customer_po, currency, order_amount, order_date, due_date,
-             pm_name, sales_name, logi_note, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (code, vals["name"], vals["biz_div"], vals["customer_name"],
-              vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
-              vals["customer_po"], vals["currency"], vals["order_amount"],
-              vals["order_date"], vals["due_date"], vals["pm_name"],
-              vals["sales_name"], vals["logi_note"], now, now))
-        return cur.lastrowid, code
+    needs_code = vals["stage"] in NEEDS_CODE_STAGES and vals["biz_div"] in ("T", "M")
+    last_err = None
+    for _attempt in range(5):
+        code = generate_mgmt_code(vals["biz_div"]) if needs_code else None
+        try:
+            with db_session() as c:
+                cur = c.execute("""
+                    INSERT INTO projects
+                    (mgmt_code, name, biz_div, customer_name, model_name, stage, po_type,
+                     status, customer_po, currency, order_amount, order_date, due_date,
+                     pm_name, sales_name, logi_note, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (code, vals["name"], vals["biz_div"], vals["customer_name"],
+                      vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
+                      vals["customer_po"], vals["currency"], vals["order_amount"],
+                      vals["order_date"], vals["due_date"], vals["pm_name"],
+                      vals["sales_name"], vals["logi_note"], now, now))
+                return cur.lastrowid, code
+        except _sq.IntegrityError as e:
+            last_err = e
+            if "mgmt_code" not in str(e):
+                raise  # 다른 컬럼 UNIQUE 위반은 재시도 무의미
+            continue  # mgmt_code 충돌만 재채번
+    raise RuntimeError(f"projects_create_logi: mgmt_code 채번 5회 충돌 — {last_err}")
 
 
 def projects_update_logi(pid: int, data: dict) -> str | None:

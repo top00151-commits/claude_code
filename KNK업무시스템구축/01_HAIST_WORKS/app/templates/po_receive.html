@@ -8,6 +8,13 @@
 .line-row { padding: 10px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
 .line-row:last-child { border-bottom: 0; }
 .line-input { padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); width: 100%; font-family: inherit; }
+.line-input.over { border-color: var(--knk-red); background: #fff5f5; }
+.qfill { display:flex; gap:4px; margin-top: 8px; }
+.qfill button { padding: 4px 10px; font-size: 11px; border: 1px solid var(--line); background: var(--paper-2); border-radius: var(--radius-sm); cursor: pointer; color: var(--mute); }
+.qfill button:hover { background: var(--amber-glow); color: var(--ink); }
+.line-foot { background: var(--paper-2); padding: 12px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; font-weight: 700; font-size: 13px; border-top: 2px solid var(--line); }
+.line-foot div { text-align:right; }
+.line-foot div:nth-child(2) { text-align:left; color: var(--amber-deep); }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -31,7 +38,13 @@
       <h3 style="font-size:14px;font-weight:700;margin:18px 0 14px;">입고 일자 *</h3>
       <input type="date" name="receive_date" value="{{ today }}" required style="padding:10px 14px;font-size:13.5px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);width:200px;">
 
-      <h3 style="font-size:14px;font-weight:700;margin:24px 0 14px;">품목별 입고 수량</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 14px;">
+        <h3 style="font-size:14px;font-weight:700;">품목별 입고 수량</h3>
+        <div class="qfill">
+          <button type="button" onclick="qfillAll('rest')">전 행 잔량</button>
+          <button type="button" onclick="qfillAll('zero')">전 행 0</button>
+        </div>
+      </div>
       <div class="lines">
         <div class="line-head">
           <div>#</div><div>품목</div><div>발주량</div><div>기 입고</div><div>이번 입고</div><div>잔량</div>
@@ -42,10 +55,26 @@
           <div><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.part_code %}<div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ it.part_code }}</div>{% endif %}</div>
           <div style="text-align:right;font-weight:700;">{{ it.qty|default(0) }}</div>
           <div style="text-align:right;color:var(--mute);">{{ it.received_qty|default(0) }}</div>
-          <div><input class="line-input" type="number" name="receive_qty_{{ it.id }}" min="0" step="0.01" value="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}" style="text-align:right;"></div>
-          <div style="text-align:right;color:var(--mute);">{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}</div>
+          <div><input class="line-input rcv-input" type="number" name="receive_qty_{{ it.id }}" min="0" step="0.01"
+                      data-rest="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}"
+                      data-order="{{ it.qty|default(0) }}"
+                      data-prev="{{ it.received_qty|default(0) }}"
+                      value="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}" style="text-align:right;" oninput="recalc()"></div>
+          <div style="text-align:right;color:var(--mute);" data-rest-cell="{{ it.id }}">{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}</div>
         </div>
         {% endfor %}
+        <div class="line-foot">
+          <div></div>
+          <div>합계 / 입고율</div>
+          <div id="sum-order">0</div>
+          <div id="sum-prev">0</div>
+          <div id="sum-recv" style="color:var(--success);">0</div>
+          <div id="sum-rate" style="color:var(--amber-deep);">0%</div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;height:6px;background:var(--paper-2);border-radius:3px;overflow:hidden;">
+        <div id="rate-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--amber-deep),var(--success));transition:width .3s;"></div>
       </div>
 
       <div style="margin-top: 16px;">
@@ -59,4 +88,27 @@
       <button type="submit" class="btn btn-primary">📦 입고 등록</button>
     </div>
   </form>
+<script>
+function qfillAll(mode){
+  document.querySelectorAll('.rcv-input').forEach(function(el){
+    el.value = mode==='zero' ? 0 : (el.dataset.rest||0);
+  });
+  recalc();
+}
+function recalc(){
+  var sumO=0, sumP=0, sumR=0;
+  document.querySelectorAll('.rcv-input').forEach(function(el){
+    var o=parseFloat(el.dataset.order)||0, p=parseFloat(el.dataset.prev)||0, r=parseFloat(el.value)||0, rest=parseFloat(el.dataset.rest)||0;
+    sumO+=o; sumP+=p; sumR+=r;
+    if (r > rest) el.classList.add('over'); else el.classList.remove('over');
+  });
+  var rate = sumO>0 ? Math.round((sumP+sumR)/sumO*100) : 0;
+  document.getElementById('sum-order').textContent = sumO.toFixed(2);
+  document.getElementById('sum-prev').textContent  = sumP.toFixed(2);
+  document.getElementById('sum-recv').textContent  = sumR.toFixed(2);
+  document.getElementById('sum-rate').textContent  = rate + '%';
+  document.getElementById('rate-bar').style.width  = Math.min(rate,100) + '%';
+}
+recalc();
+</script>
 </main></div></body></html>

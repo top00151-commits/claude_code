@@ -4340,22 +4340,27 @@ body.dock-open .dock { right: 0; }
   color: #fff !important;
 }
 .brand-logo-wrap{
-  height: clamp(64px, 4.2vw + 42px, 88px);
-  min-width: clamp(64px, 4.2vw + 42px, 88px);
-  padding: 10px 16px;
+  /* 핫패치 2026-04-25 18:30 — 사이즈 확대 (wrap 64-88 → 72-100 / padding 축소) */
+  height: clamp(72px, 4.6vw + 48px, 100px);
+  min-width: clamp(72px, 4.6vw + 48px, 100px);
+  padding: 6px 12px;
   border-radius: 18px;
   flex-shrink: 0;
-  background: #fff;
+  /* 핫패치 2026-04-25 18:15 — 흰색 배경 → 투명 (대표 직접 지시) */
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 22px rgba(0,0,0,.20), 0 0 0 1px rgba(255,255,255,.30) inset;
+  /* 핫패치 2026-04-25 18:15 — box-shadow 제거 (투명 배경에 inset 흰 테두리 + drop shadow 어색) */
+  box-shadow: none;
 }
 .brand-logo-wrap img{
-  height: clamp(52px, 3.6vw + 32px, 76px);
+  /* 핫패치 2026-04-25 18:30 — img 높이 52-76 → 60-90 / max-width 280 → 380 / filter 회색 밝게 */
+  height: clamp(60px, 4vw + 38px, 90px);
   width: auto;
-  max-width: 280px;
+  max-width: 380px;
   object-fit: contain;
+  filter: brightness(1.2);
 }
 .brand-logo-wrap .fallback{
   font-size: clamp(30px, 2.5vw + 20px, 44px);
@@ -5608,3 +5613,1787 @@ body.dock-open .dock { right: 0; }
   .wk-dept-row{ grid-template-columns: 1fr; gap:4px; }
 }
 /* === 주간보고 자동집계 1차 끝 === */
+
+/* ============================================================
+   HEADER REDESIGN v3 — 2026-04-28 대표 직접 승인
+   05 디자인팀 발주: _TO_01_2026-04-28_헤더재설계_v3승인_가로탭+검색도크모드분리.md
+   시안: 12B_PREVIEW_새헤더_가로탭_검색도크이전.html
+   ① 로고 축소 (3개 탭과 균형)
+   ② 워크스페이스 가로 탭 (활성 amber + 펄스)
+   ③ 빅터 도크 모드 탭 (빅터 ↔ 검색 분리)
+   ④ brand-text 숨김 / .g-search 폐기
+   ============================================================ */
+
+/* ── 로고 축소 (기존 .brand-logo-wrap 오버라이드) ── */
+.topbar .brand-logo-wrap{
+  height: clamp(48px, 3vw + 32px, 64px);
+  min-width: clamp(48px, 3vw + 32px, 64px);
+  padding: 4px 10px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+.topbar .brand-logo-wrap img{
+  height: clamp(40px, 2.5vw + 26px, 56px);
+  width: auto;
+  max-width: 240px;
+  object-fit: contain;
+  filter: brightness(1.2);
+}
+
+/* ── brand-text 숨김 (활성 탭에 정보 있어 중복) → tb-right 가시화 ── */
+.topbar .brand-text{ display: none !important; }
+.topbar .tb-title-group{ display: none !important; }
+
+/* ── 옛 패턴 비활성 (HTML 잔존 시 안전) ── */
+.topbar .g-search,
+.topbar .ws-switcher,
+.topbar .ws-menu,
+.topbar .ws-wrap,
+.topbar .tb-home-link{ display: none !important; }
+
+/* ── 워크스페이스 가로 탭 ── */
+.ws-tabs{ display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+.ws-tab{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  color: rgba(255, 255, 255, .55);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, .10);
+  text-decoration: none;
+  transition: all .2s ease;
+  white-space: nowrap;
+  letter-spacing: .1px;
+}
+.ws-tab:hover{
+  background: rgba(255, 255, 255, .16);
+  color: rgba(255, 255, 255, .95);
+  border-color: rgba(255, 255, 255, .20);
+}
+.ws-tab .ws-ico{
+  width: 13px; height: 13px;
+  flex-shrink: 0;
+  opacity: .6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, .7);
+  font-size: 13px;
+}
+.ws-tab .ws-ico svg{ width: 100%; height: 100%; display: block; stroke-width: 1.8; }
+
+/* 활성 탭 — amber 그라디언트 + 다크 텍스트 + 펄스 인디케이터 */
+.ws-tab.active{
+  background: linear-gradient(135deg, rgba(212, 184, 118, .95) 0%, rgba(184, 154, 82, .95) 100%);
+  color: #2B3E2E;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 7px 16px;
+  border-color: rgba(212, 184, 118, 1);
+  box-shadow: 0 4px 16px rgba(212, 184, 118, .50), 0 0 0 2px rgba(212, 184, 118, .20);
+  letter-spacing: .2px;
+}
+.ws-tab.active .ws-ico{
+  width: 20px; height: 20px;
+  opacity: 1;
+  color: #2B3E2E;
+  font-size: 18px;
+}
+.ws-tab.active::before{
+  content: "";
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, .85);
+  margin-right: 2px;
+  flex-shrink: 0;
+  animation: wsActivePulse 2s ease-in-out infinite;
+}
+@keyframes wsActivePulse{
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .55; transform: scale(1.25); }
+}
+.ws-tab .ws-ext{ font-size: 9px; opacity: .6; margin-left: 2px; }
+
+/* 모바일 대응 (1100px 이하) */
+@media (max-width: 1100px){
+  .ws-tab .ws-name{ display: none; }
+  .ws-tab.active .ws-name{ display: inline; font-size: 12px; }
+  .ws-tab{ padding: 6px 8px; }
+  .ws-tab.active{ padding: 7px 12px; }
+}
+
+/* ── 빅터 도크 모드 탭 (빅터 / 검색 분리) ── */
+.dock-modes{
+  display: flex;
+  gap: 0;
+  padding: 10px 14px 0;
+  background: var(--sage-50, #F7FAF4);
+  border-bottom: 1px solid var(--sage-200, #E4ECD9);
+  flex-shrink: 0;
+}
+.dock-mode-tab{
+  flex: 1;
+  padding: 10px 8px;
+  background: transparent;
+  color: var(--ink-3, #5D7F61);
+  font-size: var(--fs-fluid-sm, 13px);
+  font-weight: 700;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .2s ease;
+  letter-spacing: .2px;
+  font-family: inherit;
+}
+.dock-mode-tab:hover{ color: var(--sage-700, #3F5C44); background: var(--sage-100, #F0F5EB); }
+.dock-mode-tab.active{
+  color: var(--sage-700, #3F5C44);
+  border-bottom-color: var(--sage-600, #5D7F61);
+  background: #fff;
+}
+.dock-mode-tab .ico{
+  width: 16px; height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dock-mode-tab .ico svg{ width: 100%; height: 100%; stroke-width: 2; }
+
+.dock-mode-panel{ display: none; }
+.dock-mode-panel.active{ display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* ── 검색 모드 패널 — 빅터 chat 과 시각 차이 명확화 ── */
+.dock-search-wrap{ padding: 14px 16px 0 16px; background: var(--sage-50, #F7FAF4); }
+.dock-search-wrap .search-hint{
+  font-size: 10px;
+  color: var(--ink-3, #5D7F61);
+  margin-bottom: 8px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dock-search-wrap .search-hint::before{
+  content: "";
+  width: 14px; height: 2px;
+  background: var(--sage-500, #7FA183);
+}
+.dock-search{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 2px solid var(--sage-400, #A8BD8F);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(127, 161, 131, .10);
+  transition: all .2s ease;
+}
+.dock-search:focus-within{
+  border-color: var(--sage-600, #5D7F61);
+  box-shadow: 0 6px 18px rgba(93, 127, 97, .20);
+}
+.dock-search svg{
+  width: 20px; height: 20px;
+  color: var(--sage-700, #3F5C44);
+  flex-shrink: 0;
+  stroke-width: 2.2;
+}
+.dock-search input{
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: var(--fs-fluid-md, 15px);
+  color: var(--ink, #2B3E2E);
+  font-weight: 600;
+  min-width: 0;
+}
+.dock-search input::placeholder{ color: var(--ink-4, #8FA594); font-weight: 500; }
+.dock-search .shortcut{
+  font-size: 10px;
+  color: var(--ink-3, #5D7F61);
+  padding: 3px 8px;
+  background: var(--sage-100, #F0F5EB);
+  border-radius: 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  flex-shrink: 0;
+  border: 1px solid var(--sage-300, #CAD9B8);
+  font-weight: 700;
+}
+.dock-search-empty{
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--ink-4, #8FA594);
+  font-size: var(--fs-fluid-sm, 13px);
+}
+.dock-search-empty .empty-ico{
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
+  opacity: .4;
+}
+/* === HEADER REDESIGN v3 끝 === */
+
+
+/* ============================================================
+   CX23c CURATED MAGAZINE v4 — 2026-04-28 대표 직접 승인
+   05 디자인팀 발주: _TO_01_2026-04-28_v4승인_CX23c_CuratedMagazine_전체재스킨.md
+   시안: 03_시안/_03_v4_탐색_6옵션/CX23c_CuratedMagazine_매거진70.html
+
+   컨셉: 우아한 신문 데스크 (Monocle / Wallpaper / GQ 톤)
+     - 모노크롬 인쇄지 베이스 (#FAFAF7)
+     - KNK 레드 단일 액센트 (#A5282C)
+     - 시리프 헤드라인 + sans UI
+     - 강한 마스트헤드 (VOL/NO + 카테고리 라벨)
+   ============================================================ */
+
+:root {
+  --paper:        #FAFAF7;
+  --paper-2:      #F0EDE3;
+  --paper-3:      #E5E2D8;
+  --ink:          #0A0A0A;
+  --ink-2:        #2A2A26;
+  --ink-3:        rgba(10, 10, 10, .70);
+  --ink-4:        rgba(10, 10, 10, .55);
+  --ink-5:        rgba(10, 10, 10, .40);
+  --line-strong:  #0A0A0A;
+  --line-soft:    #D8D4CC;
+  --line-dashed:  rgba(10, 10, 10, .20);
+  --accent:       #A5282C;
+  --accent-dk:    #8B1E22;
+  --accent-soft:  #F5E4E2;
+  --accent-glow:  0 0 12px rgba(165, 40, 44, .55);
+  --font-serif:   "Times New Roman", Georgia, "Pretendard Variable", Pretendard, serif;
+  --font-sans:    -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --topbar-h:     96px;
+}
+
+/* SAGE → CX23c 알리아스 레이어는 line 6535+ "CX23c BOOST" 섹션에 이미 정의됨 (중복 제거 2026-04-28 G12) */
+
+body {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+button, input, select, textarea,
+.sb-item, .ws-tab, .lang-sel, .tb-icon-btn,
+.btn, .label, .badge, .breadcrumb,
+.tag, .chip, kbd {
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, .page-title, .sample-h2, .brand-name,
+.kpi-num, .num, .sum-card .num {
+  font-family: var(--font-serif);
+}
+
+/* ===== TOPBAR — 매거진 마스트헤드 (2-row) ===== */
+.topbar {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  padding: 12px 36px 0 !important;
+  border-top: 3px solid var(--ink) !important;
+  border-bottom: 1px solid var(--ink) !important;
+  position: sticky;
+  top: 0;
+  z-index: 150;
+  height: auto !important;
+  box-shadow: none !important;
+  display: block !important;
+}
+.topbar-bg,
+.topbar::before,
+.topbar::after { display: none !important; content: none !important; }
+
+.tb-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.tb-date {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--ink);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+}
+.tb-edition {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .20em;
+}
+
+.tb-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  gap: 28px;
+}
+.tb-left { display: flex; align-items: center; gap: 28px; flex-shrink: 0; }
+.tb-center { flex: 1; }
+.tb-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.topbar .brand,
+.topbar .tb-brand { display: flex; align-items: center; gap: 14px; padding: 0; background: transparent; }
+.topbar .brand-logo-wrap {
+  height: 48px !important;
+  min-width: 48px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.topbar .brand-logo-wrap img {
+  height: 42px !important;
+  max-width: 200px;
+  object-fit: contain;
+  filter: none !important;
+}
+.tb-divider { width: 1px !important; height: 36px !important; background: var(--ink) !important; }
+
+.topbar .brand-text,
+.topbar .tb-title-group { display: none !important; }
+
+/* ===== WS-TABS — COVER 라벨 ===== */
+.ws-tabs {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+.ws-tab {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 9px !important;
+  padding: 11px 20px !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  font-family: var(--font-sans);
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: .10em !important;
+  text-transform: uppercase;
+  border: 0 !important;
+  border-right: 1px solid var(--ink) !important;
+  text-decoration: none;
+  transition: all .2s ease;
+  white-space: nowrap;
+  position: relative;
+  box-shadow: none !important;
+}
+.ws-tab:first-child { border-left: 1px solid var(--ink) !important; }
+.ws-tab:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+}
+.ws-tab .ws-ico {
+  width: 14px !important; height: 14px !important;
+  flex-shrink: 0;
+  color: inherit !important;
+  opacity: .85 !important;
+  font-size: 13px;
+}
+.ws-tab .ws-ico svg { width: 100% !important; height: 100% !important; stroke-width: 2; }
+
+.ws-tab.active {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-weight: 900 !important;
+  padding: 11px 20px !important;
+  border-color: var(--ink) !important;
+}
+.ws-tab.active::after {
+  content: "COVER";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: 2px 10px;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .20em;
+  white-space: nowrap;
+  animation: none;
+  border-radius: 0;
+}
+.ws-tab.active::before {
+  content: "";
+  display: inline-block;
+  width: 5px !important;
+  height: 5px !important;
+  background: var(--accent) !important;
+  border-radius: 50%;
+  margin-right: 0;
+  box-shadow: none !important;
+  animation: cx23cPulse 2s ease-in-out infinite;
+}
+.ws-tab.active .ws-ico {
+  color: var(--accent) !important;
+  width: 14px !important; height: 14px !important;
+}
+
+@keyframes cx23cPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .4; transform: scale(1.3); }
+}
+
+@media (max-width: 1100px) {
+  .ws-tab .ws-name { display: none; }
+  .ws-tab.active .ws-name { display: inline; font-size: 11px; }
+  .ws-tab { padding: 9px 12px !important; }
+  .ws-tab.active { padding: 9px 14px !important; }
+}
+
+/* ===== 우측 아이콘 ===== */
+.topbar .tb-icon-btn {
+  position: relative;
+  width: 38px !important;
+  height: 38px !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-sans);
+  transition: all .2s ease;
+  box-shadow: none !important;
+}
+.topbar .tb-icon-btn:hover {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  transform: none !important;
+}
+.topbar .tb-icon-btn svg { width: 17px !important; height: 17px !important; stroke-width: 2; }
+
+.topbar .tb-icon-btn.victor {
+  background: var(--accent) !important;
+  color: #FFFFFF !important;
+  border-color: var(--accent) !important;
+  font-weight: 900;
+}
+.topbar .tb-icon-btn.victor:hover {
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
+  color: var(--accent) !important;
+}
+
+.topbar .tb-icon-btn .dot {
+  position: absolute;
+  top: 4px !important;
+  right: 4px !important;
+  width: 6px !important;
+  height: 6px !important;
+  background: var(--accent) !important;
+  border-radius: 50%;
+  border: 1px solid var(--paper) !important;
+  box-shadow: var(--accent-glow);
+}
+
+.topbar .lang-sel {
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  padding: 8px 11px !important;
+  font-family: var(--font-sans);
+  font-size: 11px !important;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+}
+
+.topbar .user-chip,
+.topbar .tb-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px !important;
+  padding: 3px 13px 3px 3px !important;
+  background: transparent !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-sans);
+  color: var(--ink) !important;
+  transition: all .2s ease;
+}
+.topbar .user-chip:hover,
+.topbar .tb-user-chip:hover {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+.topbar .user-chip:hover .user-avatar,
+.topbar .tb-user-chip:hover .tb-avatar { background: var(--accent) !important; }
+.topbar .user-avatar,
+.topbar .tb-avatar {
+  width: 30px !important; height: 30px !important;
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-family: var(--font-serif) !important;
+  font-style: italic;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  transition: all .2s ease;
+}
+.topbar .user-info,
+.topbar .tb-user-info { display: flex; flex-direction: column; line-height: 1.2; }
+.topbar .user-name,
+.topbar .tb-user-name {
+  font-size: 12px !important;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: inherit !important;
+}
+.topbar .user-role,
+.topbar .tb-user-role {
+  font-size: 9px !important;
+  font-weight: 700;
+  color: var(--accent) !important;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+}
+
+.topbar .logout-btn,
+.topbar .logout {
+  width: 34px !important; height: 34px !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s ease;
+}
+.topbar .logout-btn:hover,
+.topbar .logout:hover {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+.topbar .logout-btn svg,
+.topbar .logout svg { width: 14px !important; height: 14px !important; stroke-width: 2; }
+
+/* ===== PAGE BODY ===== */
+.page-header,
+.page-head {
+  background: var(--paper);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 36px 40px 26px;
+}
+.page-title h1,
+h1.page-title {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -1px;
+  line-height: 1.15;
+}
+.page-title h1 b,
+.headline-strong { font-weight: 700; }
+
+.page-overline {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: .30em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.page-byline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 14px;
+}
+
+.kpi-card,
+.sum-card,
+.sample-card {
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  padding: 24px;
+  position: relative;
+  box-shadow: none;
+}
+.kpi-card.alert::before,
+.sum-card.alert::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+}
+.kpi-card .lab,
+.sum-card .lab {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  color: var(--ink);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  margin-bottom: 10px;
+}
+.kpi-card.alert .lab { color: var(--accent); }
+.kpi-card .num,
+.sum-card .num {
+  font-family: var(--font-serif);
+  font-size: 48px;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -2px;
+  line-height: 1;
+}
+.kpi-card .sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 12px;
+  line-height: 1.6;
+}
+
+/* 사이드바 */
+.sidebar {
+  background: var(--paper) !important;
+  border-right: 1px solid var(--ink) !important;
+  padding: 0 !important;
+}
+.sb-section { padding: 0; margin: 0; border: 0 !important; }
+.sb-section + .sb-section { border-top: 0 !important; padding-top: 0 !important; margin-top: 0 !important; }
+.sb-head {
+  font-family: var(--font-sans) !important;
+  font-weight: 900 !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: .18em !important;
+  color: var(--paper) !important;
+  background: var(--ink) !important;
+  padding: 14px 20px !important;
+}
+.sb-head-tag {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-radius: 0 !important;
+  font-weight: 900 !important;
+  letter-spacing: .15em;
+}
+.sb-item {
+  display: flex !important;
+  align-items: center;
+  gap: 12px !important;
+  padding: 13px 20px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  color: var(--ink) !important;
+  font-weight: 300 !important;
+  border-bottom: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  letter-spacing: .02em;
+  margin: 0 !important;
+}
+.sb-item:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+}
+.sb-item.sb-active,
+.sb-item.active {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-weight: 700 !important;
+  border-left: 5px solid var(--accent) !important;
+  padding-left: 15px !important;
+  box-shadow: none !important;
+}
+.sb-item.sb-active .sb-ico,
+.sb-item.active .sb-ico { color: var(--paper) !important; }
+.sb-ico { color: var(--ink-3) !important; }
+.sb-badge {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-sans);
+  font-weight: 900 !important;
+  letter-spacing: .10em;
+}
+.sb-badge.warn { background: var(--accent) !important; color: #fff !important; }
+.sb-badge.err { background: var(--accent) !important; color: #fff !important; }
+.sb-item.sb-active .sb-badge,
+.sb-item.active .sb-badge {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+.sb-ext {
+  color: var(--ink-4) !important;
+  font-family: var(--font-sans);
+  font-weight: 700 !important;
+}
+
+/* 폼 */
+.filter-bar input,
+.filter-bar select,
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  font-family: var(--font-sans);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* 버튼 */
+.btn {
+  font-family: var(--font-sans);
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  padding: 9px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .2s ease;
+  box-shadow: none;
+}
+.btn:hover { background: var(--ink); color: var(--paper); transform: none; }
+
+.btn-primary,
+.btn-cta,
+.btn-knk {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  box-shadow: none !important;
+}
+.btn-primary:hover,
+.btn-cta:hover,
+.btn-knk:hover {
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
+  color: var(--accent) !important;
+  transform: none !important;
+}
+.btn-ghost {
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+}
+
+/* 테이블 */
+table {
+  font-family: var(--font-sans);
+  background: var(--paper);
+}
+table thead th {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+  padding: 12px 16px !important;
+  text-align: left;
+  border: 0 !important;
+}
+table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 400;
+  background: var(--paper);
+}
+table tbody tr:hover td { background: var(--paper-2); }
+
+/* 태그 */
+.tag,
+.badge {
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.tag.urgent,
+.tag-active,
+.badge.urgent { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* 옛 wsActivePulse 무력화 */
+@keyframes wsActivePulse { 0%, 100% { opacity: 1; transform: scale(1); } }
+
+/* === CX23c CURATED MAGAZINE v4 끝 === */
+
+
+/* ============================================================
+   CX23c BOOST — 2026-04-28 대표 직접 점검 후 긴급 보강
+   05 디자인팀 발주: _TO_01_2026-04-28_v4CX23c_Phase2.5+3_긴급보강.md
+   대표 캡처 5장 진단:
+     - 헤더 마스트헤드만 적용됨 (20/20 PASS는 헤더 한정)
+     - 사이드바·KPI·도크·버튼 등 본문은 옛 sage 톤
+     - guide·login은 base 미상속이라 0% 적용
+   해결: SAGE → CX23c 알리아스 + 사이드바/도크/KPI 강제 오버라이드
+   ============================================================ */
+
+/* ============================================================
+   §3 SAGE → CX23c ALIAS LAYER (15분 작업, 125개 페이지 자동 변환)
+   ============================================================ */
+:root {
+  --sage-50:  var(--paper);
+  --sage-100: var(--paper-2);
+  --sage-200: var(--line-soft);
+  --sage-300: var(--line-soft);
+  --sage-400: var(--ink-4);
+  --sage-500: var(--ink-3);
+  --sage-600: var(--ink-2);
+  --sage-700: var(--ink);
+  --sage-800: var(--ink);
+
+  --grad-sage:   linear-gradient(135deg, var(--ink-2), var(--ink));
+  --grad-header: var(--paper);
+  --grad-aurora: linear-gradient(135deg, var(--paper) 0%, var(--paper-2) 100%);
+  --grad-brand:  linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+  --grad-rose:   linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+
+  --rose:        var(--accent);
+  --rose-dk:     var(--accent-dk);
+  --rose-soft:   var(--accent-soft);
+
+  --amber:       var(--ink-3);
+  --peach:       var(--accent);
+  --teal:        var(--ink-3);
+
+  --knk-red:     var(--accent);
+  --knk-red-dk:  var(--accent-dk);
+  --knk-red-soft: var(--accent-soft);
+}
+
+/* ============================================================
+   §6 SIDEBAR — 강제 매거진 톤 (대표 캡처 1·2·3 옛 sage 검정 정리)
+   ============================================================ */
+.sidebar {
+  background: var(--paper) !important;
+  border-right: 1px solid var(--ink) !important;
+  padding: 0 !important;
+  width: var(--sidebar-w, 264px);
+}
+.sb-section { padding: 0 !important; margin: 0 !important; }
+.sb-section + .sb-section { border-top: 0 !important; padding-top: 0 !important; margin-top: 0 !important; }
+.sb-head {
+  font-family: var(--font-sans) !important;
+  font-weight: 900 !important;
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: .18em !important;
+  color: var(--paper) !important;
+  background: var(--ink) !important;
+  padding: 12px 18px !important;
+  border: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sb-head .sb-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--paper);
+  opacity: .85;
+}
+.sb-head .sb-group-icon svg { width: 14px; height: 14px; stroke-width: 2; }
+.sb-item {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 12px 18px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+  color: var(--ink) !important;
+  font-weight: 500 !important;
+  border-bottom: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  letter-spacing: .03em;
+  margin: 0 !important;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sb-item:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+}
+.sb-item.sb-active,
+.sb-item.active {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-weight: 700 !important;
+  border-left: 4px solid var(--accent) !important;
+  padding-left: 14px !important;
+  box-shadow: none !important;
+}
+.sb-item.sb-active .sb-ico,
+.sb-item.active .sb-ico { color: var(--paper) !important; }
+.sb-ico {
+  color: var(--ink-3) !important;
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-ico svg { width: 100%; height: 100%; stroke-width: 2; }
+.sb-badge,
+.sb-cnt,
+.sb-delay-cnt {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-family: var(--font-sans);
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  border-radius: 0 !important;
+  padding: 1px 7px !important;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-left: auto;
+}
+.sb-badge.warn { background: var(--ink) !important; color: var(--paper) !important; }
+.sb-badge.err { background: var(--accent) !important; }
+.sb-item.sb-active .sb-badge,
+.sb-item.active .sb-badge {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+.sb-team-head {
+  font-family: var(--font-sans) !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  color: var(--ink) !important;
+  font-weight: 700;
+  padding: 10px 18px !important;
+  background: var(--paper-2) !important;
+  border-bottom: 1px solid var(--line-soft) !important;
+}
+.sb-team-head:hover { background: var(--line-soft) !important; }
+.sb-sub {
+  background: transparent !important;
+  border-left: 2px solid var(--line-soft) !important;
+  color: var(--ink-2) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 11px !important;
+  padding: 6px 14px 6px 30px !important;
+}
+.sb-sub:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  border-left-color: var(--accent) !important;
+}
+.sb-ext {
+  color: var(--ink-4) !important;
+  font-family: var(--font-sans);
+  font-weight: 700 !important;
+  margin-left: auto;
+}
+
+/* ============================================================
+   §5 빅터 도크 — 매거진 컬럼 (대표 캡처 1·2·3 옛 흰박스 정리)
+   ============================================================ */
+.dock {
+  background: var(--paper) !important;
+  border-left: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.dock-head {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  padding: 16px 18px !important;
+  border-radius: 0 !important;
+  border-bottom: 3px double var(--paper) !important;
+}
+.dock-head .dock-title,
+.dock-head .name {
+  font-family: var(--font-serif) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  color: var(--paper) !important;
+}
+.dock-head .dock-sub,
+.dock-head .state {
+  font-family: var(--font-sans) !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+  color: var(--accent) !important;
+  opacity: 1;
+}
+.dock-avatar {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  font-family: var(--font-serif) !important;
+  font-style: italic;
+  font-weight: 700;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+.dock-btn {
+  background: transparent !important;
+  color: var(--paper) !important;
+  border: 1px solid var(--paper) !important;
+  border-radius: 0 !important;
+}
+.dock-btn:hover {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+}
+.dock-modes {
+  background: var(--paper) !important;
+  border-bottom: 1px solid var(--ink) !important;
+  padding: 0 !important;
+  gap: 0;
+}
+.dock-mode-tab {
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  font-size: 11px !important;
+  color: var(--ink-3) !important;
+  background: var(--paper) !important;
+  border: 0 !important;
+  border-right: 1px solid var(--line-soft) !important;
+  border-bottom: 0 !important;
+  padding: 12px 8px !important;
+}
+.dock-mode-tab:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+}
+.dock-mode-tab.active {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  border-bottom: 0 !important;
+}
+.dock-ctx,
+.dock-input-wrap,
+.dock-foot {
+  background: var(--paper) !important;
+  border-top: 1px solid var(--line-soft) !important;
+}
+.dock-ctx { background: var(--paper-2) !important; }
+.dock-ctx-label {
+  color: var(--ink) !important;
+  font-family: var(--font-sans);
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+}
+.dock-ctx-chip,
+.dock-quick button,
+.dock-chip {
+  font-family: var(--font-sans) !important;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  padding: 5px 10px !important;
+}
+.dock-ctx-chip:hover,
+.dock-quick button:hover,
+.dock-chip:hover {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+.dock-msg.user,
+.msg.user .bubble {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-sans) !important;
+  border: 1px solid var(--ink) !important;
+}
+.dock-msg.ai,
+.msg.ai .bubble {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-serif) !important;
+}
+.dock-input,
+.dock-input textarea {
+  font-family: var(--font-sans) !important;
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+}
+.dock-send {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-radius: 0 !important;
+  border: 1px solid var(--accent) !important;
+  box-shadow: none !important;
+}
+.dock-send:hover {
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
+  color: var(--accent) !important;
+}
+.dock-search,
+.dock-search-wrap .dock-search {
+  background: var(--paper) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.dock-search:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent) !important;
+}
+.dock-search input {
+  font-family: var(--font-sans) !important;
+  color: var(--ink) !important;
+}
+.dock-search .shortcut {
+  background: var(--paper-2) !important;
+  border: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  color: var(--ink) !important;
+}
+.dock-welcome {
+  font-family: var(--font-serif) !important;
+  color: var(--ink) !important;
+}
+.link-chip {
+  font-family: var(--font-sans) !important;
+  border-radius: 0 !important;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
+}
+.dock .link-chip.primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+}
+.dock .link-chip.secondary {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+}
+.dock .link-chip.do {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  border: 1px solid var(--ink) !important;
+}
+
+/* ============================================================
+   §4-2 KPI 카드 — 매거진 톤 강제 (인라인 클래스 오버라이드)
+   ============================================================ */
+.hm2-kpi,
+.hm2-kpi-card,
+.hk-card {
+  background: var(--paper) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 24px !important;
+  position: relative;
+}
+.hm2-kpi.alert::before,
+.hm2-kpi-card.alert::before,
+.hk-card.alert::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+}
+.hm2-kpi-ico,
+.kpi-ico,
+.sum-ico,
+.hk-ico {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-serif) !important;
+  box-shadow: none !important;
+}
+.hm2-kpi-ico.alert,
+.kpi-ico.alert,
+.hk-ico.alert {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.hm2-kpi-num,
+.kpi-num,
+.sum-num,
+.hk-num {
+  font-family: var(--font-serif) !important;
+  font-weight: 300 !important;
+  color: var(--ink) !important;
+  letter-spacing: -1.5px !important;
+}
+.hm2-kpi-lab,
+.kpi-lab,
+.sum-lab,
+.hk-lab {
+  font-family: var(--font-sans) !important;
+  font-size: 9px !important;
+  color: var(--ink) !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: .22em;
+}
+.hm2-kpi.alert .hm2-kpi-lab,
+.kpi-card.alert .kpi-lab { color: var(--accent) !important; }
+.hm2-lg-dot,
+.legend-dot,
+.lg-dot {
+  filter: saturate(.6) brightness(.85);
+}
+
+/* ============================================================
+   §4 인라인 색 일괄 보정 (가장 흔한 옛 sage 인라인을 selector로 잡기)
+   ============================================================ */
+[style*="background:var(--rose-soft)"],
+[style*="background: var(--rose-soft)"] { background: var(--accent-soft) !important; }
+[style*="color:var(--rose-dk)"],
+[style*="color: var(--rose-dk)"] { color: var(--accent-dk) !important; }
+[style*="background:var(--sage-100)"] { background: var(--paper-2) !important; }
+[style*="background:var(--sage-50)"] { background: var(--paper) !important; }
+[style*="background:var(--sage-200)"] { background: var(--line-soft) !important; }
+[style*="color:var(--sage-700)"] { color: var(--ink) !important; }
+[style*="color:var(--sage-800)"] { color: var(--ink) !important; }
+
+/* ============================================================
+   §section / page 카드 — 매거진 정리
+   ============================================================ */
+.section,
+.card,
+.hk-card,
+.list-card,
+.search-row,
+.empty-state {
+  background: var(--paper) !important;
+  border-color: var(--line-soft) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.section-head h2,
+.list-card h2,
+.section h2 { font-family: var(--font-serif); font-weight: 600; color: var(--ink); }
+
+/* ============================================================
+   §10 WS-TABS 매거진 사각 — 대표 직접 지시 2026-04-28 G16
+   시안: 03_시안/_03_v4_탐색_6옵션/CX23c_CuratedMagazine_매거진70.html
+   요구: 모서리 둥근 라운드 → 사각 (border-radius:0) · 활성=검정박스+흰글자+빨간COVER라벨+빨간점펄스
+   ============================================================ */
+.topbar .ws-tabs {
+  display: flex !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+}
+.topbar .ws-tab {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 11px 20px !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: var(--font-sans) !important;
+  letter-spacing: .10em !important;
+  text-transform: uppercase;
+  border: 0 !important;
+  border-right: 1px solid var(--ink) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+  position: relative;
+  transition: all .25s ease;
+}
+.topbar .ws-tab:first-child {
+  border-left: 1px solid var(--ink) !important;
+}
+.topbar .ws-tab:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  transform: none !important;
+}
+.topbar .ws-tab .ws-ico {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0;
+  color: inherit !important;
+  opacity: .85;
+}
+.topbar .ws-tab .ws-ico svg { width: 100% !important; height: 100% !important; stroke-width: 2 !important; }
+
+/* 활성 탭 — 검정 박스 + 흰 글자 + 빨간 COVER 라벨 + 빨간 점 펄스 */
+.topbar .ws-tab.active {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  font-weight: 900 !important;
+  font-size: 12px !important;
+  padding: 11px 20px !important;
+  border-color: var(--ink) !important;
+  box-shadow: none !important;
+  letter-spacing: .10em !important;
+}
+.topbar .ws-tab.active::after {
+  content: "COVER";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: 2px 10px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .20em;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  border-radius: 0;
+}
+.topbar .ws-tab.active::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 5px !important;
+  height: 5px !important;
+  border-radius: 50% !important;
+  background: var(--accent) !important;
+  box-shadow: none !important;
+  margin-right: 0 !important;
+  flex-shrink: 0;
+  animation: wsActivePulseCX23c 2s ease-in-out infinite !important;
+}
+@keyframes wsActivePulseCX23c {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+.topbar .ws-tab.active .ws-ico { color: var(--accent) !important; opacity: 1 !important; }
+
+/* === CX23c BOOST (Phase 2.5 + 3a) 끝 === */
+
+/* ============================================================
+   §11 G17 — 도크 위치 & 폼 사각화 (대표 직접 지시 2026-04-28)
+   1) 빅터 도크가 헤더 우측(로그인 정보) 가리는 문제 → topbar 2행 높이로 보정
+   2) modal·admin·form의 select/input/textarea 라운드 → 사각 (시안 일치)
+   ============================================================ */
+
+/* G25 (2026-04-29): 마스트헤드 제거 (약 38px 절약) → topbar 단일행 ≈ 80px */
+:root { --topbar-h: 80px !important; }
+
+.dock {
+  top: 80px !important;
+  border-radius: 0 !important;
+  box-shadow: -2px 0 0 var(--ink), -8px 0 18px rgba(0,0,0,.08) !important;
+}
+
+/* === G19 헤더 우측 박스 높이 통일 (대표 지시) === */
+.topbar .tb-icon-btn,
+.topbar .lang-sel,
+.topbar .tb-user-chip,
+.topbar .user-chip,
+.topbar .logout-btn,
+.topbar .logout {
+  height: 36px !important;
+  min-height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
+}
+.topbar .tb-icon-btn { width: 36px !important; padding: 0 !important; justify-content: center !important; }
+.topbar .lang-sel { padding: 0 10px !important; line-height: 34px !important; }
+.topbar .tb-user-chip,
+.topbar .user-chip { padding: 0 12px 0 0 !important; gap: 8px !important; }
+.topbar .tb-user-chip .tb-avatar,
+.topbar .user-chip .user-avatar { width: 30px !important; height: 30px !important; border-radius: 0 !important; }
+.topbar .logout-btn,
+.topbar .logout { width: 36px !important; padding: 0 !important; justify-content: center !important; }
+
+/* === G19 사이드바 팀/프로젝트 — 흰 배경 + 12px 글씨 === */
+.sidebar .sb-team-head {
+  background: var(--paper) !important;       /* 흰/페이퍼 배경 */
+  color: var(--ink) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 12px 18px !important;
+  border-bottom: 1px solid var(--line-soft) !important;
+  text-transform: uppercase;
+  letter-spacing: .03em !important;
+}
+.sidebar .sb-team-head:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+}
+.sidebar .sb-sub {
+  background: var(--paper) !important;
+  color: var(--ink-2) !important;
+  font-size: 12px !important;
+  padding: 10px 18px 10px 36px !important;
+  border-bottom: 1px solid var(--line-soft) !important;
+  border-left: 0 !important;
+}
+.sidebar .sb-sub:hover {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  border-left: 0 !important;
+}
+
+/* === G19 작업 입력칸 + 도크 chip 사각화 보강 === */
+body .task-input,
+body .quick-task-input,
+body input.task-quick,
+body .dock-ctx-chip,
+body .dock-quick button,
+body .chip-btn,
+body .pill,
+body .pill-btn {
+  border-radius: 0 !important;
+}
+body .dock-ctx-chip {
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 11px !important;
+  letter-spacing: .05em;
+  padding: 6px 10px !important;
+}
+body .dock-ctx-chip:hover {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+body .dock-quick button {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--ink) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* === 사이드바 그룹 헤더 G18: 글씨 크기 12px (항목과 일치) + 인라인 sage 컬러 무력화 === */
+.sidebar .sb-head {
+  font-size: 12px !important;
+  color: var(--paper) !important;        /* 검정 박스 위 흰 글자 — 인라인 sage-700 강제 무력화 */
+  letter-spacing: .14em !important;
+  padding: 13px 18px !important;
+}
+.sidebar .sb-head[style*="sage-700"],
+.sidebar .sb-head[style*="color:"] {
+  color: var(--paper) !important;        /* 인라인 style="color:var(--sage-700)" 강제 백색 */
+}
+.sidebar .sb-head .sb-group-icon { color: var(--paper) !important; opacity: .9; }
+
+/* === 통합 페이지 등 KPI/카드 추가 사각화 (높은 specificity) === */
+body .kpi, body .kpi-card, body .sum-card, body .hm2-kpi,
+body .stat-card, body .info-card, body .sec-card,
+body .calendar-stat, body .month-stat,
+body .card, body .panel, body .box,
+body .modal-card, body .cm-modal-card,
+body input, body select, body textarea,
+body .input-wrap, body .dock-search, body .dock-input,
+body .btn, body button.btn,
+body .badge, body .chip, body .tag, body .alert {
+  border-radius: 0 !important;
+}
+
+/* === 모든 폼 요소 사각화 (글로벌) === */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="search"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="tel"],
+input[type="url"],
+select,
+textarea,
+.modal-card input,
+.modal-card select,
+.modal-card textarea,
+.admin-form input,
+.admin-form select,
+.cm-form input,
+.cm-form-wrap textarea,
+.profile-form input,
+.history-form input,
+.tr-lang-sel select,
+.team-select select,
+.date-nav input,
+.input-wrap,
+.dock-search,
+.dock-input {
+  border-radius: 0 !important;
+  border: 1px solid var(--ink, #0A0A0A) !important;
+  background: var(--paper, #FAFAF7) !important;
+  color: var(--ink, #0A0A0A) !important;
+  font-family: var(--font-sans) !important;
+  box-shadow: none !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent, #A5282C) !important;
+  box-shadow: 0 0 0 1px var(--accent, #A5282C) !important;
+  outline: 0 !important;
+}
+
+/* 모달 카드도 사각 */
+.modal-card,
+.modal,
+.card-modal-card,
+.cm-modal,
+.cm-modal-card,
+.dialog,
+.popup,
+.dropdown,
+.tooltip,
+.menu,
+.cm-form-wrap,
+.team-select,
+.help-note,
+.btn,
+button.btn-primary,
+button.btn-ghost,
+button.btn-secondary {
+  border-radius: 0 !important;
+}
+
+/* 일반 카드/패널도 모서리 사각 (매거진 일관성) */
+.kpi-card, .kpi, .sum-card, .sec-card, .section-head, .section,
+.list-card, .card, .alert, .toast, .chip, .badge, .tag {
+  border-radius: 0 !important;
+}
+
+/* === §11 G17 끝 === */
+
+/* ============================================================
+   §12 G23 — NUCLEAR 사각화 (대표 직접 지시 2026-04-29)
+   "텍스트박스는 기본적으로 사각이야. 모서리가 원형으로 되어 있으면 안 돼"
+   전 시스템 전수 적용. 원형 보존 대상은 아래 화이트리스트만 예외.
+   ============================================================ */
+
+/* 1) 모든 일반 UI 요소 강제 사각화 */
+body input,
+body select,
+body textarea,
+body button,
+body .btn, body .btn-primary, body .btn-ghost, body .btn-secondary,
+body .card, body .kpi, body .kpi-card, body .panel, body .box,
+body .sum-card, body .sec-card, body .info-card, body .stat-card,
+body .modal, body .modal-card, body .dialog, body .popup,
+body .card-modal, body .card-modal-card, body .cm-modal, body .cm-modal-card,
+body .chip, body .badge, body .tag, body .pill, body .label,
+body .delay-pill, body .status-pill, body .urgency-pill,
+body .alert, body .toast, body .note, body .help-note,
+body .empty-state, body .info-banner,
+body .dropdown, body .menu, body .tooltip, body .submenu,
+body .section, body .section-head, body .list-card, body .form-card, body .form-row,
+body .tb-icon-btn, body .lang-sel, body .user-chip, body .tb-user-chip,
+body .logout, body .logout-btn,
+body .ws-tab, body .sb-item, body .sb-head, body .sb-team-head, body .sb-sub, body .sb-badge,
+body .dock, body .dock-head, body .dock-btn, body .dock-modes, body .dock-mode-tab,
+body .dock-search, body .dock-input, body .dock-quick button, body .dock-ctx-chip,
+body .dock-msg, body .dock-action, body .link-chip,
+body .bp-badge, body .bp-point-ico, body .lang-pick, body .lang-area a,
+body .progress, body .progress-bar, body .progress-fill,
+body .tab, body .tab-list, body .tabs,
+body .field, body .input-wrap, body .input-ico,
+body .breadcrumb, body .crumb,
+body table, body th, body td, body thead, body tbody, body tr,
+body .table-wrap, body .grid, body .grid-row,
+body .form, body .form-section, body .form-group,
+body fieldset,
+body .well, body .container, body .row, body .col,
+body .file, body .upload, body .attachment,
+body .calendar, body .calendar-day, body .calendar-cell,
+body .progress-matrix, body .matrix-cell,
+body .ticket, body .ticket-card,
+body .change-card, body .issue-card,
+body .quotation, body .order, body .invoice,
+body .login-form, body .signup-form,
+body .filter-bar, body .filter-chip,
+body .pagination, body .page-link,
+body .accordion, body .accordion-item,
+body .stepper, body .stepper-item,
+body .toolbar, body .action-bar {
+  border-radius: 0 !important;
+}
+
+/* 2) 인라인 style="border-radius:Xpx" 강제 사각화 (단, 50% 원형 제외) */
+body [style*="border-radius:4px"],
+body [style*="border-radius:5px"],
+body [style*="border-radius:6px"],
+body [style*="border-radius:7px"],
+body [style*="border-radius:8px"],
+body [style*="border-radius:9px"],
+body [style*="border-radius:10px"],
+body [style*="border-radius:11px"],
+body [style*="border-radius:12px"],
+body [style*="border-radius:13px"],
+body [style*="border-radius:14px"],
+body [style*="border-radius:15px"],
+body [style*="border-radius:16px"],
+body [style*="border-radius:18px"],
+body [style*="border-radius:20px"],
+body [style*="border-radius:22px"],
+body [style*="border-radius:24px"],
+body [style*="border-radius:999px"],
+body [style*="border-radius: 4px"],
+body [style*="border-radius: 6px"],
+body [style*="border-radius: 8px"],
+body [style*="border-radius: 10px"],
+body [style*="border-radius: 12px"],
+body [style*="border-radius: 14px"],
+body [style*="border-radius: 999px"] {
+  border-radius: 0 !important;
+}
+
+/* 3) 화이트리스트 — 원형 유지 (아바타·인디케이터 점·SVG 동그라미) */
+body .user-avatar,
+body .tb-avatar,
+body .dock-avatar,
+body .avatar,
+body [class*="avatar"]:not([class*="card"]),
+body .dot,
+body .notification-dot,
+body .bp-badge .dot,
+body .ws-tab.active::before,
+body .indicator-dot,
+body .pulse-dot,
+body img.round,
+body img.circle,
+body .progress-circle {
+  border-radius: 50% !important;
+}
+
+/* === §12 G23 NUCLEAR 사각화 끝 === */
+
+/* ============================================================
+   §13 G24 — TRULY UNIVERSAL 사각화 (대표 직접 지시 2026-04-29)
+   "다시 전부 확인해봐" — G23 클래스 열거가 놓친 요소 (.team-row,
+   .feed-item, .stat-card, .month-card 등) 전부 catch-all.
+   universal selector + whitelist 예외 (아바타·dot·SVG·체크박스/라디오)
+   ============================================================ */
+
+/* 1) UNIVERSAL — 모든 요소 사각화, 단 화이트리스트 제외 */
+body *:not(.user-avatar):not(.tb-avatar):not(.dock-avatar):not(.avatar):not(.t-avatar):not(.bp-logo):not([class*="-avatar"]):not(.dot):not(.notification-dot):not([class*="-dot"]):not([class*="dot-"]):not(svg):not(circle):not(ellipse):not(path):not(input[type="checkbox"]):not(input[type="radio"]):not(.preserve-radius) {
+  border-radius: 0 !important;
+}
+
+/* 2) ::before / ::after 가상 요소 (예: COVER 라벨 등) */
+body *::before,
+body *::after {
+  border-radius: 0 !important;
+}
+
+/* 3) 화이트리스트 — 원형 강제 (G23 보완) */
+body .user-avatar,
+body .tb-avatar,
+body .dock-avatar,
+body .avatar,
+body .t-avatar,
+body [class*="-avatar"],
+body .dot,
+body .notification-dot,
+body .ws-tab.active::before,
+body .pulse-dot,
+body .indicator-dot,
+body [class*="dot-pulse"],
+body img.round,
+body img.circle {
+  border-radius: 50% !important;
+}
+
+/* 4) 체크박스/라디오 네이티브 모양 보존 (브라우저 기본) */
+body input[type="checkbox"],
+body input[type="radio"] {
+  border-radius: 0 !important;  /* 모서리만 사각, 외 스타일은 브라우저 기본 */
+}
+
+/* === §13 G24 TRULY UNIVERSAL 끝 === */

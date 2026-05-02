@@ -536,18 +536,27 @@ async function victorAsk(q) {
   try {
     const r = await fetch('/victor/route', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ query: q })
+      body: JSON.stringify({ q: q })
     });
     if (r.ok) {
       const j = await r.json();
-      if (j.url) {
+      // 단일 매치(auto_navigate=true) → path 로 이동
+      if (j.ok && j.auto_navigate && j.path) {
         body.insertAdjacentHTML('beforeend',
-          `<div class="dock-msg">→ <b>${escapeHtml(j.label||'')}</b> 페이지로 이동합니다 (${j.menu_code||''})</div>`);
+          `<div class="dock-msg">→ <b>${escapeHtml(j.label||'')}</b> 페이지로 이동합니다 (${j.code||''})</div>`);
         body.scrollTop = body.scrollHeight;
-        setTimeout(() => location.href = j.url, 800);
+        setTimeout(() => location.href = j.path, 800);
+      } else if (j.ok && j.candidates && j.candidates.length) {
+        // 다중 매치 → 후보 클릭형 표시
+        const items = j.candidates.map(c =>
+          `<a href="${c.path}" style="display:block;padding:6px 10px;margin:4px 0;background:var(--paper-2);border-radius:6px;color:var(--ink);text-decoration:none;font-size:12px;">→ <b>${escapeHtml(c.label)}</b> <span style="color:var(--mute);">(${c.code})</span></a>`
+        ).join('');
+        body.insertAdjacentHTML('beforeend',
+          `<div class="dock-msg">후보 ${j.candidates.length}건 — 선택하세요:${items}</div>`);
+        body.scrollTop = body.scrollHeight;
       } else {
         body.insertAdjacentHTML('beforeend',
-          `<div class="dock-msg">${escapeHtml(j.message||'해당하는 메뉴를 찾지 못했습니다')}</div>`);
+          `<div class="dock-msg">${escapeHtml(j.msg||'해당하는 메뉴를 찾지 못했습니다')}</div>`);
       }
     }
   } catch(e) {

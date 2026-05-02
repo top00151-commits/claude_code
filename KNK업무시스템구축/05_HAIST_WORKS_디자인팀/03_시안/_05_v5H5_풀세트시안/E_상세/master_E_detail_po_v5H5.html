@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>E. 상세 마스터 — /po/{id} (발주 상세) · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar { background: var(--paper-3); border-right: 1px solid var(--line); padding: var(--space-5) 0; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: #6B5C49; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--ink); text-decoration: none; }
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active { background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--amber); border-radius: 2px; }
+.main { background: var(--paper); }
+.top { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-7); align-items: center; padding: var(--space-3) var(--content-pad); background: var(--paper-3); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: var(--z-topbar); }
+.top-tabs { display: flex; gap: 6px; }
+.top-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--mute); cursor: pointer; font-weight: 500; }
+.top-tab.active { background: var(--grad-amber); color: white; font-weight: 700; }
+.top-user { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.top-user .avatar { width: 32px; height: 32px; background: var(--grad-amber); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+
+/* === 상세 헤더 === */
+.detail-head { padding: var(--space-6) var(--content-pad) var(--space-4); }
+.crumbs { font-size: 12px; color: var(--mute); margin-bottom: 10px; }
+.crumbs a { color: var(--amber-deep); text-decoration: none; font-weight: 500; }
+.detail-head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-7); }
+.detail-title-block .id-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.detail-id {
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--amber-deep);
+}
+.status-pill-lg {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--amber-glow);
+  color: var(--amber-deep);
+}
+.status-pill-lg.shipping { background: var(--amber-glow); color: var(--amber-deep); }
+.detail-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.detail-meta { display: flex; gap: var(--space-5); margin-top: 8px; font-size: 12.5px; color: var(--mute); }
+.detail-meta span b { color: var(--ink); font-weight: 600; }
+
+.detail-actions { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); font-weight: 700; }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
+.btn-icon { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; font-size: 16px; color: var(--mute); background: var(--paper-3); border: 1px solid var(--line); }
+.btn-icon:hover { background: var(--amber-glow); color: var(--amber-deep); }
+
+/* === 진행 5단계 === */
+.workflow {
+  margin: 0 var(--content-pad) var(--space-5);
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  position: relative;
+}
+.wf-step {
+  flex: 1;
+  text-align: center;
+  position: relative;
+}
+.wf-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: calc(50% + 24px);
+  width: calc(100% - 48px);
+  height: 2px;
+  background: var(--line);
+}
+.wf-step.done:not(:last-child)::after { background: var(--success); }
+.wf-step.active:not(:last-child)::after { background: linear-gradient(90deg, var(--amber) 0%, var(--line) 100%); }
+.wf-icon {
+  width: 36px; height: 36px;
+  margin: 0 auto 10px;
+  background: var(--paper-2);
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 16px;
+  color: var(--mute);
+  position: relative;
+  z-index: 1;
+}
+.wf-step.done .wf-icon { background: var(--success); border-color: var(--success); color: white; }
+.wf-step.active .wf-icon { background: var(--grad-amber); border-color: var(--amber); color: white; box-shadow: 0 0 0 4px var(--amber-glow); }
+.wf-label .ttl { font-size: 13px; font-weight: 600; color: var(--ink); }
+.wf-step.active .wf-label .ttl { color: var(--amber-deep); }
+.wf-label .date { font-size: 11px; color: var(--mute); margin-top: 3px; }
+
+/* === 콘텐츠 그리드 === */
+.content { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-5); padding: 0 var(--content-pad) var(--space-7); }
+
+/* === 메인 콘텐츠 === */
+.section-card {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-3);
+  box-shadow: var(--shadow-sm);
+}
+.section-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: var(--space-4);
+  display: flex; align-items: center; gap: 10px;
+}
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+
+/* 정의 목록 */
+.def-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-7); }
+.def-item .lbl { font-size: 11px; color: var(--mute); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+.def-item .val { font-size: 14px; color: var(--ink); font-weight: 500; }
+.def-item .val.amount { font-weight: 700; color: var(--knk-red); font-size: 16px; }
+
+/* 라인 표 */
+.lines-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+.lines-table th { text-align: left; padding: 10px 12px; font-size: 11px; color: var(--amber-deep); font-weight: 600; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+.lines-table th.num, .lines-table td.num { text-align: right; }
+.lines-table td { padding: 12px; border-bottom: 1px solid var(--line); }
+.lines-table tr:last-child td { border-bottom: 0; }
+
+/* 첨부 */
+.attach-list { display: grid; gap: 8px; }
+.attach-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
+.attach-item:hover { background: var(--amber-glow); border-color: var(--amber); }
+.attach-item .ico { font-size: 18px; }
+.attach-item .name { flex: 1; font-size: 13px; color: var(--ink); font-weight: 500; }
+.attach-item .size { font-size: 11px; color: var(--mute); }
+
+/* 메모·코멘트 */
+.comment {
+  background: var(--paper-2);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 10px;
+}
+.comment-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.comment-head .who { font-size: 13px; font-weight: 700; color: var(--ink); }
+.comment-head .when { font-size: 11px; color: var(--mute); }
+.comment-body { font-size: 13px; color: var(--ink); line-height: 1.65; }
+.comment-add textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 60px;
+}
+.comment-add textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.comment-add .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.comment-add .hint { font-size: 11px; color: var(--mute); }
+
+/* === 우측 사이드 === */
+.aside { display: flex; flex-direction: column; gap: var(--space-3); position: sticky; top: 100px; align-self: start; }
+.aside-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); }
+.aside-card h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 10px; font-weight: 700; }
+
+/* 활동 이력 */
+.activity-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.activity-item:last-child { border-bottom: 0; }
+.activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); margin-top: 7px; flex-shrink: 0; }
+.activity-text { flex: 1; }
+.activity-text .ttl { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.activity-text .meta { font-size: 11px; color: var(--mute); margin-top: 2px; }
+
+/* 관련 문서 */
+.related-item { display: flex; gap: 10px; padding: 8px; border-radius: var(--radius-sm); cursor: pointer; transition: background var(--t-fast); }
+.related-item:hover { background: var(--amber-glow); }
+.related-item .ico { font-size: 18px; }
+.related-item .text { flex: 1; }
+.related-item .ttl { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.related-item .meta { font-size: 10.5px; color: var(--mute); margin-top: 2px; }
+
+/* 빅터 추천 카드 */
+.aside-card.victor {
+  background: var(--grad-ink);
+  color: white;
+  border: 0;
+  position: relative;
+  overflow: hidden;
+}
+.aside-card.victor::before { content: ""; position: absolute; top: -40px; right: -40px; width: 160px; height: 160px; background: var(--glow-amber-strong); opacity: 0.4; }
+.aside-card.victor h4 { color: var(--amber-light); position: relative; z-index: 1; }
+.aside-card.victor .body { font-size: 12.5px; line-height: 1.6; color: rgba(255,255,255,0.85); position: relative; z-index: 1; }
+.aside-card.victor .body b { color: var(--amber-glow); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-group">발주 흐름</div>
+    <a class="sb-item" href="#">📝 발주서 작성</a>
+    <a class="sb-item active" href="#">📋 발주 목록 <span class="menu-code">M-02-05</span></a>
+    <a class="sb-item" href="#">📦 입고 처리</a>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab active">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">이</div>
+        <div>이 차장 · 자재팀</div>
+      </div>
+    </header>
+
+    <div class="detail-head">
+      <div class="crumbs">
+        자재구매센터 · <a href="#">발주 목록</a> · <b>PO-2604-018</b>
+      </div>
+      <div class="detail-head-row">
+        <div class="detail-title-block">
+          <div class="id-row">
+            <span class="detail-id">PO-2604-018</span>
+            <span class="status-pill-lg shipping">배송 중</span>
+          </div>
+          <h1 class="detail-title">대원전기 발주서</h1>
+          <div class="detail-meta">
+            <span>📅 발주일 <b>2026-04-29</b></span>
+            <span>🚚 납기 <b>2026-05-08</b> (D-9)</span>
+            <span>👤 담당 <b>이 차장</b></span>
+            <span>💰 금액 <b>₩4,820,000</b></span>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn btn-icon" title="공유">↗</button>
+          <button class="btn btn-icon" title="복제">📋</button>
+          <button class="btn btn-icon" title="인쇄">🖨</button>
+          <button class="btn btn-secondary">📂 수정</button>
+          <button class="btn btn-primary">📦 입고 처리 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 진행 5단계 -->
+    <div class="workflow">
+      <div class="wf-step done">
+        <div class="wf-icon">✓</div>
+        <div class="wf-label">
+          <div class="ttl">발주</div>
+          <div class="date">04-29 · 14:18</div>
+        </div>
+      </div>
+      <div class="wf-step done">
+        <div class="wf-icon">✓</div>
+        <div class="wf-label">
+          <div class="ttl">확정</div>
+          <div class="date">04-29 · 16:42</div>
+        </div>
+      </div>
+      <div class="wf-step done">
+        <div class="wf-icon">✓</div>
+        <div class="wf-label">
+          <div class="ttl">출고</div>
+          <div class="date">05-02 · 09:15</div>
+        </div>
+      </div>
+      <div class="wf-step active">
+        <div class="wf-icon">🚚</div>
+        <div class="wf-label">
+          <div class="ttl">배송 중</div>
+          <div class="date">진행률 78%</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-icon">📦</div>
+        <div class="wf-label">
+          <div class="ttl">입고</div>
+          <div class="date">05-08 예정</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 콘텐츠 -->
+    <div class="content">
+      <div>
+        <!-- 기본 정보 -->
+        <div class="section-card">
+          <h3>기본 정보</h3>
+          <div class="def-list">
+            <div class="def-item"><div class="lbl">거래처</div><div class="val">대원전기 (모터·구동부 전문)</div></div>
+            <div class="def-item"><div class="lbl">발주 번호</div><div class="val">PO-2604-018</div></div>
+            <div class="def-item"><div class="lbl">결제 조건</div><div class="val">60일 어음</div></div>
+            <div class="def-item"><div class="lbl">인도 조건</div><div class="val">DDP 자재창고</div></div>
+            <div class="def-item"><div class="lbl">배송지</div><div class="val">KNK 본사 자재창고 (충남 천안)</div></div>
+            <div class="def-item"><div class="lbl">총 금액</div><div class="val amount">₩4,820,000</div></div>
+          </div>
+        </div>
+
+        <!-- 라인 항목 -->
+        <div class="section-card">
+          <h3>발주 품목 (3 종)</h3>
+          <table class="lines-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>품목 · 사양</th>
+                <th>코드</th>
+                <th class="num">수량</th>
+                <th class="num">단가</th>
+                <th class="num">금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>01</td><td>컨베이어 모터 1.5kW · 인버터 호환</td><td style="font-family:'Courier New',monospace; color: var(--amber-deep); font-weight: 700;">MTR-CV-15</td><td class="num">10 EA</td><td class="num">₩482,000</td><td class="num" style="font-weight: 700;">₩4,820,000</td></tr>
+              <tr><td>02</td><td>베어링 6204 ZZ · SKF 등가품</td><td style="font-family:'Courier New',monospace; color: var(--amber-deep); font-weight: 700;">BRG-6204</td><td class="num">200 EA</td><td class="num">₩4,200</td><td class="num" style="font-weight: 700;">₩840,000</td></tr>
+              <tr><td>03</td><td>알루미늄 압출재 6m · 40×40 A6063</td><td style="font-family:'Courier New',monospace; color: var(--amber-deep); font-weight: 700;">AL-EXT-4040</td><td class="num">20 m</td><td class="num">₩28,500</td><td class="num" style="font-weight: 700;">₩570,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 첨부 -->
+        <div class="section-card">
+          <h3>첨부 파일 (2)</h3>
+          <div class="attach-list">
+            <div class="attach-item">
+              <div class="ico">📑</div>
+              <div class="name">컨베이어_모터_사양서_v3.pdf</div>
+              <div class="size">2.4 MB</div>
+            </div>
+            <div class="attach-item">
+              <div class="ico">📐</div>
+              <div class="name">베어링_도면_BRG6204.dwg</div>
+              <div class="size">512 KB</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 메모·코멘트 -->
+        <div class="section-card">
+          <h3>메모 · 코멘트 (2)</h3>
+          <div class="comment">
+            <div class="comment-head">
+              <span class="who">이 차장 · 자재팀</span>
+              <span class="when">04-29 14:18</span>
+            </div>
+            <div class="comment-body">대성기업 5월 추가 발주 대비 — 컨베이어 모터 재고 사전 확보. 빅터 추천 패턴 기반.</div>
+          </div>
+          <div class="comment">
+            <div class="comment-head">
+              <span class="who">박 대리 · 자재팀</span>
+              <span class="when">04-30 09:42</span>
+            </div>
+            <div class="comment-body">대원전기에서 단가 확정 회신 받음. 작년 대비 +3% 인상 — 시장가 대비 합리적 수준.</div>
+          </div>
+          <div class="comment-add">
+            <textarea placeholder="댓글을 작성하세요…"></textarea>
+            <div class="row">
+              <span class="hint">@ 멘션 사용 가능 · Enter 전송 / Shift+Enter 줄바꿈</span>
+              <button class="btn btn-primary">댓글 추가</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 -->
+      <aside class="aside">
+        <div class="aside-card victor">
+          <h4>💡 빅터 분석</h4>
+          <div class="body">대성기업 5월 추가 발주 패턴 (작년 +20%) 고려 시 — <b>입고 즉시 컨베이어 모터 5대 추가 확보 권장</b>.</div>
+        </div>
+
+        <div class="aside-card">
+          <h4>활동 이력 (12)</h4>
+          <div class="activity-item">
+            <div class="activity-dot" style="background: var(--success);"></div>
+            <div class="activity-text">
+              <div class="ttl">출고 완료</div>
+              <div class="meta">대원전기 · 05-02 09:15</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot" style="background: var(--success);"></div>
+            <div class="activity-text">
+              <div class="ttl">발주 확정</div>
+              <div class="meta">대원전기 회신 · 04-29 16:42</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot"></div>
+            <div class="activity-text">
+              <div class="ttl">발주 발행</div>
+              <div class="meta">이 차장 · 04-29 14:18</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot"></div>
+            <div class="activity-text">
+              <div class="ttl">댓글 추가</div>
+              <div class="meta">박 대리 · 04-30 09:42</div>
+            </div>
+          </div>
+          <a href="#" style="font-size: 11.5px; color: var(--amber-deep); text-decoration: none; margin-top: 8px; display: block; font-weight: 600;">전체 이력 보기 →</a>
+        </div>
+
+        <div class="aside-card">
+          <h4>관련 문서 (3)</h4>
+          <div class="related-item">
+            <div class="ico">📋</div>
+            <div class="text">
+              <div class="ttl">매출 견적 #2604-027</div>
+              <div class="meta">대성기업 · 본 발주의 트리거</div>
+            </div>
+          </div>
+          <div class="related-item">
+            <div class="ico">⚙️</div>
+            <div class="text">
+              <div class="ttl">부품 마스터 MTR-CV-15</div>
+              <div class="meta">단가 이력 · 재고 현황</div>
+            </div>
+          </div>
+          <div class="related-item">
+            <div class="ico">📊</div>
+            <div class="text">
+              <div class="ttl">대원전기 거래 이력</div>
+              <div class="meta">최근 6개월 발주 12건</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</body>
+</html>

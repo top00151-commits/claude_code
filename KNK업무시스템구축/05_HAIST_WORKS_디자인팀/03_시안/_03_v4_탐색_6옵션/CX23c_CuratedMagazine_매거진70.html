@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📰 CX23c · Curated Magazine — 매거진 우세 70 (Monocle 톤)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:'Times New Roman',Georgia,'Pretendard Variable',Pretendard,serif;font-size:15px;line-height:1.6;background:#FAFAF7;color:#0A0A0A;overflow-x:hidden;font-weight:400}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+.sans{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif}
+
+.demo-banner{background:#0A0A0A;color:#FAFAF7;padding:12px 24px;display:flex;gap:12px;align-items:center;font-size:13px;position:sticky;top:0;z-index:200;border-bottom:2px solid #A5282C;font-family:-apple-system,system-ui,sans-serif}
+.demo-banner h1{font-size:14px;font-weight:700;font-family:'Times New Roman',Georgia,serif;letter-spacing:.02em}
+.demo-banner h1 b{font-weight:900}
+.demo-banner .tag{background:#A5282C;color:#fff;padding:5px 12px;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.demo-banner .hint{color:rgba(250,250,247,.78);font-size:12px;flex:1;font-style:italic;font-family:'Times New Roman',Georgia,serif}
+
+/* === Topbar — 강한 매거진 (CX2 + CX3 본문 가벼움) === */
+.topbar{
+  background:#FAFAF7;
+  color:#0A0A0A;
+  padding:12px 36px 0;
+  border-top:3px solid #0A0A0A;
+  border-bottom:1px solid #0A0A0A;
+  position:sticky;top:0;z-index:150;
+}
+.topbar-row1{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:12px;
+  border-bottom:1px solid #D8D4CC;
+}
+.tb-date{
+  font-size:11px;color:#0A0A0A;font-weight:700;
+  text-transform:uppercase;letter-spacing:.15em;
+  font-family:-apple-system,system-ui,sans-serif;
+}
+.tb-edition{
+  font-size:11px;color:#A5282C;font-weight:900;
+  text-transform:uppercase;letter-spacing:.20em;
+  font-family:-apple-system,system-ui,sans-serif;
+}
+.topbar-row2{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 0;gap:28px;
+}
+
+.tb-left{display:flex;align-items:center;gap:28px;flex-shrink:0}
+.tb-center{flex:1}
+.tb-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-logo-wrap{height:48px;min-width:48px;padding:0;background:transparent;display:flex;align-items:center;justify-content:center}
+.brand-logo-wrap img{height:42px;max-width:200px;object-fit:contain}
+.tb-divider{width:1px;height:36px;background:#0A0A0A}
+
+/* === WS Tabs — 매거진 강한 카테고리 + COVER 라벨 (큰) === */
+.ws-tabs{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap}
+.ws-tab{display:inline-flex;align-items:center;gap:9px;padding:11px 20px;background:transparent;color:#0A0A0A;font-size:12px;font-weight:600;font-family:-apple-system,system-ui,sans-serif;letter-spacing:.10em;text-transform:uppercase;border:0;border-right:1px solid #0A0A0A;transition:all .25s ease;white-space:nowrap;position:relative}
+.ws-tab:first-child{border-left:1px solid #0A0A0A}
+.ws-tab:hover{background:#F0EDE3;color:#0A0A0A}
+.ws-tab .ws-ico{width:14px;height:14px;flex-shrink:0;color:inherit;opacity:.85}
+.ws-tab .ws-ico svg{width:100%;height:100%;stroke-width:2}
+/* 활성 — 검정 + 큰 COVER 라벨 (CX2) + 작은 빨간 점 (CX3 아주 약간) */
+.ws-tab.active{
+  background:#0A0A0A;
+  color:#FAFAF7;
+  font-weight:900;
+  position:relative;
+}
+.ws-tab.active::after{
+  content:"COVER";
+  position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+  background:#A5282C;color:#fff;
+  padding:2px 10px;
+  font-size:9px;font-weight:900;letter-spacing:.20em;
+  white-space:nowrap;
+}
+.ws-tab.active::before{
+  content:"";display:inline-block;width:5px;height:5px;
+  background:#A5282C;border-radius:50%;
+  margin-right:0;
+  animation:pulse23c 2s ease-in-out infinite;
+}
+.ws-tab.active .ws-ico{color:#A5282C}
+@keyframes pulse23c{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* === Right === */
+.tb-icon-btn{position:relative;width:38px;height:38px;background:transparent;color:#0A0A0A;display:flex;align-items:center;justify-content:center;border:1px solid #0A0A0A;transition:all .25s ease;font-family:-apple-system,system-ui,sans-serif}
+.tb-icon-btn:hover{background:#0A0A0A;color:#FAFAF7}
+.tb-icon-btn svg{width:17px;height:17px;stroke-width:2}
+.tb-icon-btn.victor{background:#A5282C;color:#FFFFFF;border-color:#A5282C;font-weight:900}
+.tb-icon-btn.victor:hover{background:#0A0A0A;border-color:#0A0A0A;color:#A5282C}
+.lang-sel{background:transparent;color:#0A0A0A;border:1px solid #0A0A0A;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.10em;font-family:-apple-system,system-ui,sans-serif}
+.user-chip{display:flex;align-items:center;gap:9px;padding:3px 13px 3px 3px;background:transparent;border:1px solid #0A0A0A;transition:all .25s ease;font-family:-apple-system,system-ui,sans-serif}
+.user-chip:hover{background:#0A0A0A;color:#FAFAF7}
+.user-chip:hover .user-avatar{background:#A5282C}
+.user-avatar{width:30px;height:30px;background:#0A0A0A;color:#FAFAF7;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;font-family:'Times New Roman',Georgia,serif;font-style:italic;transition:all .25s ease}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:12px;font-weight:700;letter-spacing:.04em}
+.user-role{font-size:9px;font-weight:700;color:#A5282C;text-transform:uppercase;letter-spacing:.15em}
+.logout-btn{width:34px;height:34px;background:transparent;color:#0A0A0A;display:flex;align-items:center;justify-content:center;border:1px solid #0A0A0A;transition:all .25s ease}
+.logout-btn:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+.logout-btn svg{width:14px;height:14px;stroke-width:2}
+
+/* === Body — 매거진 인쇄 + CX3 가벼운 본문 === */
+.body-sample{padding:36px;display:grid;grid-template-columns:240px 1fr;gap:28px;min-height:420px;background:#FAFAF7}
+.sample-side{background:#FAFAF7;padding:0;border:1px solid #0A0A0A}
+.sample-side .head{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#FAFAF7;background:#0A0A0A;padding:14px 20px;font-family:-apple-system,system-ui,sans-serif}
+.sample-side .item{display:block;padding:13px 20px;font-size:13px;color:#0A0A0A;font-weight:300;border-bottom:1px solid #E5E2D8;font-family:-apple-system,system-ui,sans-serif;letter-spacing:.02em}
+.sample-side .item:last-child{border-bottom:0}
+.sample-side .item.active{background:#0A0A0A;color:#FAFAF7;font-weight:700;border-left:5px solid #A5282C;padding-left:15px}
+
+.sample-main{background:#FAFAF7;padding:0;border:1px solid #0A0A0A}
+.sample-main-head{padding:32px 40px 26px;border-bottom:3px double #0A0A0A;text-align:center}
+.sample-overline{font-family:-apple-system,system-ui,sans-serif;font-size:10px;font-weight:900;color:#A5282C;letter-spacing:.30em;text-transform:uppercase;margin-bottom:12px}
+.sample-h2{font-size:44px;font-weight:300;color:#0A0A0A;letter-spacing:-1.5px;line-height:1.12;font-family:'Times New Roman',Georgia,serif}
+.sample-h2 b{font-weight:700}
+.sample-byline{margin-top:14px;font-size:11px;color:#0A0A0A;font-style:italic;font-family:'Times New Roman',Georgia,serif;font-weight:400}
+.sample-byline b{font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.05em;font-family:-apple-system,system-ui,sans-serif;font-size:10px}
+
+.sample-body{padding:28px 40px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:24px;border-top:1px solid #0A0A0A;border-bottom:1px solid #0A0A0A}
+.card{padding:24px;border-right:1px solid #D8D4CC;background:transparent}
+.card:last-child{border-right:0}
+.card.alert{position:relative}
+.card.alert::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#A5282C}
+.card .lab{font-family:-apple-system,system-ui,sans-serif;font-size:9px;color:#0A0A0A;font-weight:900;text-transform:uppercase;letter-spacing:.22em;margin-bottom:10px}
+.card.alert .lab{color:#A5282C}
+.card .num{font-size:48px;font-weight:300;color:#0A0A0A;letter-spacing:-2px;line-height:1;font-family:'Times New Roman',Georgia,serif}
+.card .sub{font-size:12px;color:#0A0A0A;margin-top:12px;font-style:italic;line-height:1.6;font-family:'Times New Roman',Georgia,serif;font-weight:300}
+
+.note{padding:20px 24px;background:#0A0A0A;color:#FAFAF7;font-size:13px;line-height:1.7;border-left:5px solid #A5282C;font-family:'Times New Roman',Georgia,serif;font-weight:300;font-style:italic}
+.note b{color:#A5282C;font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.10em;font-family:-apple-system,system-ui,sans-serif;font-size:10px}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1><b>📰 CX23c</b> · Curated Magazine</h1>
+  <span class="tag">검토 대기</span>
+  <span class="hint">컨셉: 매거진 70 + 갤러리 30 — 우아한 신문 (Monocle·Wallpaper 톤) · 강한 마스트헤드 + 가벼운 본문</span>
+</div>
+
+<header class="topbar">
+  <div class="topbar-row1">
+    <div class="tb-date">2026 · 4월 28일 화요일 · KNK INTEGRATED EDITION</div>
+    <div class="tb-edition">VOL. 26 · NO. 118</div>
+  </div>
+  <div class="topbar-row2">
+    <div class="tb-left">
+      <a href="#" class="brand">
+        <div class="brand-logo-wrap"><img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK"></div>
+      </a>
+      <div class="tb-divider"></div>
+      <nav class="ws-tabs">
+        <a class="ws-tab active" href="#" data-ws="hub">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
+          <span class="ws-name">통합</span>
+        </a>
+        <a class="ws-tab" href="#" data-ws="sales">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+          <span class="ws-name">매출·영업</span>
+        </a>
+        <a class="ws-tab" href="#" data-ws="logi">
+          <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+          <span class="ws-name">자재·구매</span>
+        </a>
+      </nav>
+    </div>
+    <div class="tb-right">
+      <button class="tb-icon-btn victor" title="빅터 (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+      <button class="tb-icon-btn" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+      <select class="lang-sel"><option>🇰🇷 KO</option><option>🇻🇳 VI</option><option>🇺🇸 EN</option></select>
+      <a href="#" class="user-chip"><div class="user-avatar">K</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">대표이사</div></div></a>
+      <a href="#" class="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+    </div>
+  </div>
+</header>
+
+<div class="body-sample">
+  <aside class="sample-side">
+    <div class="head">— 내 업무 —</div>
+    <a class="item active">업무 현황</a>
+    <a class="item">일일 업무</a>
+    <a class="item">내 달력</a>
+    <a class="item">알림</a>
+  </aside>
+  <main class="sample-main">
+    <div class="sample-main-head">
+      <div class="sample-overline">— Today's Cover Story —</div>
+      <h2 class="sample-h2">"오후도 차분히,<br><b>김정락</b> 대표"</h2>
+      <div class="sample-byline">취재 · <b>HAIST 빅터</b> · 통합 데스크 · 2026.04.28</div>
+    </div>
+    <div class="sample-body">
+      <div class="cards">
+        <div class="card"><div class="lab">SALES — 수주</div><div class="num">$</div><div class="sub">이번 달 수주 데이터 집계 준비 중. 영업본부 보고 대기.</div></div>
+        <div class="card alert"><div class="lab">⚠ ALERT — 지연</div><div class="num">0</div><div class="sub">전사 공정 지연 0건. 안정적 진행 중.</div></div>
+        <div class="card"><div class="lab">DEADLINE — 마감</div><div class="num">3</div><div class="sub">오늘 마감 3건. 집중 처리 필요.</div></div>
+      </div>
+      <div class="note"><b>Editor's Note —</b> CX2 매거진 강함 (3px 상단 + 마스트헤드 + COVER 큰 라벨 + 신문 카테고리 라벨) + CX3 가벼움 (font-weight 300 본문 시리프 + 1px 카드 라인). 강한 신문 데스크 + 우아한 본문 활자. Monocle·Wallpaper·The Gentleman's Journal 톤.</div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

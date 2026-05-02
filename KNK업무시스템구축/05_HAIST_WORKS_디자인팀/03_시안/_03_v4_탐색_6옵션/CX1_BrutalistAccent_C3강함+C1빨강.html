@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🔴 CX1 · Brutalist Accent — C3 강함 + C1 KNK 레드</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;font-size:14px;line-height:1.55;background:#FFFFFF;color:#000000;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+
+.demo-banner{background:#000000;color:#fff;padding:12px 24px;display:flex;gap:12px;align-items:center;font-size:13px;position:sticky;top:0;z-index:200;border-bottom:3px solid #A5282C}
+.demo-banner h1{font-size:14px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}
+.demo-banner .tag{background:#A5282C;color:#fff;padding:5px 14px;border-radius:0;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.demo-banner .hint{color:rgba(255,255,255,.78);font-size:12px;flex:1}
+
+/* === Topbar — Bauhaus 흑백 + KNK 레드 underline === */
+.topbar{
+  height:84px;
+  background:#FFFFFF;
+  color:#000000;
+  display:flex;align-items:center;gap:24px;padding:0 32px;
+  border-bottom:2px solid #000000;
+  box-shadow:inset 0 -5px 0 0 #A5282C;  /* 빨간 underline strip */
+  position:sticky;top:0;z-index:150;
+}
+
+.tb-left{display:flex;align-items:center;gap:24px;flex-shrink:0}
+.tb-center{flex:1}
+.tb-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-logo-wrap{height:50px;min-width:50px;padding:2px 8px;background:transparent;display:flex;align-items:center;justify-content:center}
+.brand-logo-wrap img{height:42px;max-width:200px;object-fit:contain;filter:contrast(1.15)}
+.tb-divider{width:2px;height:36px;background:#000000}
+
+/* === WS Tabs — 강한 흑백 + 활성에 KNK 빨간 하단 라인 === */
+.ws-tabs{display:flex;gap:0;align-items:center;flex-wrap:nowrap;border:2px solid #000000;background:#FFFFFF}
+.ws-tab{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#FFFFFF;color:#000000;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border:0;border-right:2px solid #000000;transition:all .15s ease;white-space:nowrap;position:relative}
+.ws-tab:last-child{border-right:0}
+.ws-tab:hover{background:#F0F0F0}
+.ws-tab .ws-ico{width:14px;height:14px;flex-shrink:0;color:#000000}
+.ws-tab .ws-ico svg{width:100%;height:100%;stroke-width:2.4}
+/* 활성 — 검정 배경 + 흰 글자 + 하단 KNK 레드 4px 라인 */
+.ws-tab.active{
+  background:#000000;
+  color:#FFFFFF;
+  font-weight:900;
+}
+.ws-tab.active::after{
+  content:"";position:absolute;left:0;right:0;bottom:-2px;height:4px;
+  background:#A5282C;
+  box-shadow:0 0 12px rgba(165,40,44,.65);
+}
+.ws-tab.active .ws-ico{width:16px;height:16px;color:#FFFFFF}
+.ws-tab.active::before{
+  content:"";display:inline-block;width:7px;height:7px;
+  background:#A5282C;
+  box-shadow:0 0 8px rgba(165,40,44,.85);
+  margin-right:2px;
+  animation:pulseCX1 1.6s ease-in-out infinite;
+}
+@keyframes pulseCX1{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.4)}}
+
+/* === Right === */
+.tb-icon-btn{position:relative;width:38px;height:38px;background:#FFFFFF;color:#000000;display:flex;align-items:center;justify-content:center;border:2px solid #000000;transition:all .15s ease}
+.tb-icon-btn:hover{background:#000000;color:#FFFFFF}
+.tb-icon-btn svg{width:17px;height:17px;stroke-width:2.4}
+.tb-icon-btn.victor{background:#A5282C;color:#FFFFFF;border-color:#000000;box-shadow:inset 0 0 0 2px #A5282C,0 0 0 0 transparent;position:relative}
+.tb-icon-btn.victor::before{
+  content:"";position:absolute;top:-3px;right:-3px;width:8px;height:8px;
+  background:#FFFFFF;border:2px solid #A5282C;border-radius:50%;
+  box-shadow:0 0 8px rgba(165,40,44,.6);
+}
+.tb-icon-btn.victor:hover{background:#000000;border-color:#A5282C}
+.lang-sel{background:#FFFFFF;color:#000000;border:2px solid #000000;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.05em}
+.user-chip{display:flex;align-items:center;gap:9px;padding:3px 13px 3px 3px;background:#FFFFFF;border:2px solid #000000;transition:all .15s ease}
+.user-chip:hover{background:#000000;color:#FFFFFF}
+.user-chip:hover .user-avatar{background:#A5282C;color:#FFFFFF}
+.user-avatar{width:30px;height:30px;background:#000000;color:#FFFFFF;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s ease}
+.user-info{display:flex;flex-direction:column;line-height:1.2}
+.user-name{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.user-role{font-size:10px;font-weight:700;color:#A5282C}
+.logout-btn{width:34px;height:34px;background:#FFFFFF;color:#000000;display:flex;align-items:center;justify-content:center;border:2px solid #000000;transition:all .15s ease}
+.logout-btn:hover{background:#A5282C;color:#fff;border-color:#A5282C}
+.logout-btn svg{width:14px;height:14px;stroke-width:2.5}
+
+/* === Body === */
+.body-sample{padding:32px;display:grid;grid-template-columns:240px 1fr;gap:24px;min-height:420px;background:#FFFFFF}
+.sample-side{background:#FFFFFF;padding:0;border:2px solid #000000}
+.sample-side .head{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.10em;color:#FFFFFF;background:#000000;padding:14px 18px;display:flex;align-items:center;gap:8px}
+.sample-side .head::before{content:"";width:8px;height:8px;background:#A5282C;border-radius:50%;box-shadow:0 0 6px rgba(165,40,44,.6)}
+.sample-side .item{display:block;padding:12px 18px;font-size:13px;color:#000000;font-weight:700;border-bottom:1px solid #000000;text-transform:uppercase;letter-spacing:.04em;position:relative}
+.sample-side .item:last-child{border-bottom:0}
+.sample-side .item.active{background:#000000;color:#FFFFFF;font-weight:900;border-left:5px solid #A5282C;padding-left:13px}
+.sample-main{background:#FFFFFF;padding:0;border:2px solid #000000}
+.sample-main-head{padding:24px 32px;border-bottom:2px solid #000000;display:flex;align-items:center;justify-content:space-between}
+.sample-h2{font-size:32px;font-weight:900;color:#000000;letter-spacing:-1px;text-transform:uppercase;line-height:1.1}
+.sample-h2 .accent{color:#A5282C}
+.sample-p{font-size:11px;color:#000000;text-transform:uppercase;letter-spacing:.10em;font-weight:800}
+.sample-body{padding:24px 32px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid #000000;margin-bottom:24px}
+.card{padding:24px;background:#FFFFFF;border-right:2px solid #000000;position:relative}
+.card:last-child{border-right:0}
+.card.alert::before{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:#A5282C}
+.card .num{font-size:48px;font-weight:900;color:#000000;letter-spacing:-2px;line-height:1}
+.card.alert .num{color:#A5282C}
+.card .lab{font-size:10px;color:#000000;margin-top:8px;font-weight:900;text-transform:uppercase;letter-spacing:.10em}
+.card .sub{font-size:11px;color:#000000;margin-top:12px;font-weight:600;border-top:1px solid #000000;padding-top:12px}
+
+.note{padding:18px;background:#000000;color:#FFFFFF;font-size:12px;line-height:1.7;border-left:6px solid #A5282C}
+.note b{color:#A5282C;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <h1>🔴 CX1 · Brutalist Accent</h1>
+  <span class="tag">대표 검토 대기</span>
+  <span class="hint">컨셉: C3 절대 흑백 + C1 KNK 레드 단일 액센트 · Bauhaus 강함 + 한 점의 빨강</span>
+</div>
+
+<header class="topbar">
+  <div class="tb-left">
+    <a href="#" class="brand">
+      <div class="brand-logo-wrap"><img src="../../../01_HAIST_WORKS/static/logo.png" alt="KNK"></div>
+    </a>
+    <div class="tb-divider"></div>
+    <nav class="ws-tabs">
+      <a class="ws-tab active" href="#" data-ws="hub">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span>
+        <span class="ws-name">통합</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="sales">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span class="ws-name">매출·영업</span>
+      </a>
+      <a class="ws-tab" href="#" data-ws="logi">
+        <span class="ws-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 7 12 3 4 7l8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/></svg></span>
+        <span class="ws-name">자재·구매</span>
+      </a>
+    </nav>
+  </div>
+  <div class="tb-center"></div>
+  <div class="tb-right">
+    <button class="tb-icon-btn victor" title="빅터 (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="8" width="14" height="10" rx="2.5"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/><path d="M12 8V5m-3 0h6"/></svg></button>
+    <button class="tb-icon-btn" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+    <select class="lang-sel"><option>🇰🇷 KO</option><option>🇻🇳 VI</option><option>🇺🇸 EN</option></select>
+    <a href="#" class="user-chip"><div class="user-avatar">김</div><div class="user-info"><div class="user-name">김정락</div><div class="user-role">CEO</div></div></a>
+    <a href="#" class="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+  </div>
+</header>
+
+<div class="body-sample">
+  <aside class="sample-side">
+    <div class="head">내 업무</div>
+    <a class="item active">📊 업무 현황</a>
+    <a class="item">📅 일일 업무</a>
+    <a class="item">📆 내 달력</a>
+    <a class="item">🔔 알림</a>
+  </aside>
+  <main class="sample-main">
+    <div class="sample-main-head">
+      <h2 class="sample-h2">김정락 / <span class="accent">CEO</span></h2>
+      <p class="sample-p">2026.04.28 / KNK 통합 업무</p>
+    </div>
+    <div class="sample-body">
+      <div class="cards">
+        <div class="card"><div class="num">$</div><div class="lab">이번 달 수주</div><div class="sub">집계 준비 중</div></div>
+        <div class="card alert"><div class="num">0</div><div class="lab">팀 지연 공정</div><div class="sub">⚠ 전사 지연 집계</div></div>
+        <div class="card"><div class="num">3</div><div class="lab">오늘 마감</div><div class="sub">집중 처리 필요</div></div>
+      </div>
+      <div class="note">💡 <b>컨셉</b>: C3 Bauhaus 강한 흑백 그리드 + C1 KNK 레드 단일 액센트. 모든 라인 2px · 활성 탭 하단 4px 빨간 underline · 펄스 빨간 dot · 위험·중요 카드만 빨강. 의도된 무거움 + 한 점의 강조. 꼼데가르송·Off-White·Le Corbusier 그래픽.</div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
