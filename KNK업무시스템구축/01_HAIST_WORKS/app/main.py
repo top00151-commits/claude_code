@@ -11,7 +11,8 @@ import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
-from .database import (db_session, init_db, seed_all, seed_sample_tasks, hash_pw,
+from .database import (db_session, init_db, seed_all, seed_sample_tasks,
+                        seed_business_data, hash_pw,
                         parse_mgmt_xls, parse_mgmt_csv, import_mgmt_rows,
                         regenerate_user_passwords, build_password_csv,
                         add_comment, get_task_comments, delete_comment,
@@ -197,6 +198,11 @@ def startup():
     init_db()
     seed_all()
     seed_sample_tasks(14)
+    # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
+    try:
+        seed_business_data()
+    except Exception as _e:
+        print(f"[SEED-BIZ ERR] {_e}")
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
 
@@ -2475,7 +2481,7 @@ async def dashboard_page(req: Request):
                 narratives.append({"team": t, "cards": cards})
 
     # 2026-04-26 CEO 통합 대시보드 — 9 KPI + 알림 + 빠른 액션
-    ceo_kpis = ceo_dashboard_kpis(user_id=u["id"])
+    kpis_raw = ceo_dashboard_kpis(user_id=u["id"])
     with db_session() as c:
         unread_notifs = [dict(r) for r in c.execute(
             "SELECT id, kind, title, body, link, created_at "
@@ -2492,13 +2498,117 @@ async def dashboard_page(req: Request):
     except Exception:
         safety_top5 = []
 
+    # ─────────────────────────────────────────────────────────────
+    # v5H45 (2026-05-03 대표 대시보드 비어있음 자동 수정):
+    # 템플릿(dashboard.html)이 기대하는 형식과 핸들러 데이터 형식이 어긋나서
+    # narratives / ceo_kpis / teams 신호등이 화면에 0건으로 노출되던 현상 해결.
+    # ─────────────────────────────────────────────────────────────
+    # (1) teams: 템플릿 별칭(team_id/team_name/total_members/total/done/progress/delay/signal) 부여
+    for t in teams:
+        ws = t.get("week_stats") or {}
+        t["team_id"] = t.get("id")
+        t["team_name"] = t.get("name")
+        t["total_members"] = t.get("member_count", 0)
+        t["total"] = ws.get("total", 0)
+        t["done"] = ws.get("done", 0)
+        t["progress"] = ws.get("progress", 0)
+        t["delay"] = ws.get("delay", 0)
+        delay_n = t["delay"] or 0
+        part = t.get("participation") or 0
+        if delay_n >= 3 or part < 50:
+            t["signal"] = "red"
+        elif delay_n >= 1 or part < 80:
+            t["signal"] = "yellow"
+        else:
+            t["signal"] = "green"
+
+    # (2) narratives: {team, cards} → {icon, title, body}
+    narratives_view = []
+    for n in narratives:
+        tm = n.get("team") or {}
+        cards = n.get("cards") or []
+        if not cards:
+            continue
+        delay_in = sum(1 for c in cards if c.get("status") == "지연")
+        icon = "🔴" if delay_in else "🟡"
+        title = f"{tm.get('name','')} 팀 · 진행 {len(cards)-delay_in}건 / 지연 {delay_in}건"
+        body_parts = []
+        for cd in cards[:3]:
+            who = cd.get("user_name", "")
+            rk = cd.get("rank") or ""
+            tit = (cd.get("title") or "").strip()
+            np = (cd.get("next_plan") or "").strip()
+            chunk = f"[{who} {rk}] {tit}" if rk else f"[{who}] {tit}"
+            if np:
+                chunk += f" → {np[:40]}"
+            body_parts.append(chunk)
+        narratives_view.append({"icon": icon, "title": title,
+                                "body": " · ".join(body_parts)})
+
+    # 데이터가 한 건도 없을 때는 친절한 빈 상태 안내(빈 페이지 방지)
+    if not narratives_view:
+        narratives_view = [{
+            "icon": "💡",
+            "title": "오늘의 인사이트",
+            "body": "오늘 진행 중·지연 업무가 보고되지 않았습니다. 좌측 사이드바 ‘오늘의 업무’에서 카드를 작성하면 이 영역에 자동으로 요약됩니다."
+        }]
+
+    # (3) ceo_kpis dict → 카드 리스트 (label/value/trend/note)
+    def _won(n):
+        try:
+            n = float(n or 0)
+        except Exception:
+            return "0"
+        if n >= 1e8:
+            return f"{n/1e8:,.1f}억"
+        if n >= 1e4:
+            return f"{n/1e4:,.0f}만"
+        return f"{n:,.0f}"
+
+    s = kpis_raw.get("sales", {})
+    st = kpis_raw.get("stock", {})
+    ex = kpis_raw.get("exports", {})
+    qm = kpis_raw.get("qms", {})
+    wk = kpis_raw.get("weekly", {})
+    gt = kpis_raw.get("gantt", {})
+    fx = kpis_raw.get("fx", {})
+    growth = s.get("growth", 0) or 0
+    rate = wk.get("rate", 0) or 0
+    ceo_kpis_view = [
+        {"label": "이번달 매출", "value": f"{_won(s.get('month',0))}원",
+         "trend": "up" if growth > 0 else ("alert" if growth < 0 else "neutral"),
+         "note": f"전월비 {growth:+.1f}%" if s.get("prev_month") else "전월 데이터 없음"},
+        {"label": "미수금 잔액", "value": f"{_won(s.get('unpaid',0))}원",
+         "trend": "alert" if (s.get("unpaid") or 0) > 0 else "neutral",
+         "note": "발행 INVOICE − 수금"},
+        {"label": "활성 재고 품목", "value": f"{int(st.get('on_hand_kinds',0)):,}",
+         "trend": "alert" if (st.get("qc_open") or 0) > 0 else "neutral",
+         "note": f"QC 부적합 {int(st.get('qc_open',0))}건"},
+        {"label": "수출 오더 진행", "value": f"{int(ex.get('in_progress',0)):,}건",
+         "trend": "up" if (ex.get("ship_soon") or 0) > 0 else "neutral",
+         "note": f"7일내 출하 {int(ex.get('ship_soon',0))}건"},
+        {"label": "품질 미해결", "value": f"{int(qm.get('open',0)):,}건",
+         "trend": "alert" if (qm.get("sla_violation") or 0) > 0 else "neutral",
+         "note": f"SLA위반 {int(qm.get('sla_violation',0))}건"},
+        {"label": "이번주 완료율", "value": f"{int(rate)}%",
+         "trend": "up" if rate >= 70 else ("alert" if rate < 50 else "neutral"),
+         "note": f"완료 {int(wk.get('completed',0))} · 지연 {int(wk.get('delayed',0))}"},
+        {"label": "지연 프로젝트", "value": f"{int(gt.get('delayed_projects',0)):,}건",
+         "trend": "alert" if (gt.get("delayed_projects") or 0) > 0 else "neutral",
+         "note": "end_date 경과"},
+        {"label": "USD 환율", "value": f"{(fx.get('usd_rate') or 0):,.1f}원",
+         "trend": "neutral",
+         "note": f"활성 알림 {int(fx.get('alerts_active',0))}건"},
+    ]
+
     return ctx(req, "dashboard.html",
                user=u, teams=teams, total_stats=total_stats,
                mon=mon, sun=sun, today_s=today_s,
                participation_rate=participation_rate,
                today_reporters=today_reporters, total_users=total_users,
-               delays=delays, customers=customers, narratives=narratives,
-               ceo_kpis=ceo_kpis, unread_notifs=unread_notifs,
+               delays=delays, customers=customers,
+               narratives=narratives_view,
+               ceo_kpis=ceo_kpis_view, unread_notifs=unread_notifs,
                safety_top5=safety_top5)
 
 

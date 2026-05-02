@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H43 HAIST WORKS 노출 임계값 1900→1280px (대표 지시) — @media (max-width: 1279px) display:none !important. 1280px↑에서는 항상 노출 (.top min-width 1280과 동일 임계값으로 정합) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-03 v5H45 대표대시 비어있음 자동수정 + 비즈니스 데이터 시드 추가 (대표 지시 "전 아이콘 항목 내용 자동 보충") — dashboard_page 핸들러: ceo_kpis dict→list, narratives 형식정합, teams 신호등 부여 / database.py: seed_business_data() 신규 — parts·suppliers·purchase_orders·po_items·stock_movements·receipts·qc_inspections·issues_out·stock_audits·quotations·orders·invoices·receipts_payment·issues·corrective_actions·preventive_actions·tickets·changes·board_posts·qc_inspection_reports·work_orders·export_orders·project_milestones·burndown 일괄 시드 / app_settings 마커 멱등 / DEMO 접두 충돌방지
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H43 HAIST WORKS 1280px↑ 노출]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H45 대표대시 자동수정 + 비즈니스 데이터 시드]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -7814,3 +7814,628 @@ def get_work_order(wo_id: int) -> dict:
         else:
             wo["avg_progress"] = 0
         return wo
+
+
+# =====================================================
+# v5H45 (2026-05-03) — 비즈니스 데이터 종합 시드
+# 대표 지시: "전 아이콘 항목 내용 자동 보충".
+# 대상 테이블 (빈 페이지 원인): parts, suppliers, purchase_orders, po_items,
+# stock_movements, receipts, qc_inspections, issues_out, stock_audits,
+# quotations, quotation_items, orders, order_items, invoices,
+# receipts_payment, issues, corrective_actions, preventive_actions,
+# tickets, changes, board_posts, qc_inspection_reports/items,
+# work_orders/items, export_orders, commercial_invoices, packing_lists,
+# bills_of_lading, project_milestones, project_burndown_snapshots.
+# 멱등 가드: parts 테이블에 행이 있으면 전체 skip.
+# 외부 자산 0건. 표준 라이브러리만 사용.
+# =====================================================
+def seed_business_data():
+    """매출·자재·품질·진행 모듈 페이지가 빈 채로 노출되지 않도록
+    현실적 더미 데이터를 일괄 시드. 멱등 (parts 행 존재 시 skip)."""
+    import random as _rand
+    _rand.seed(20260503)
+    today = _date.today()
+
+    # 멱등 가드: app_settings 마커로 1회만 실행
+    with db_session() as c:
+        marker = c.execute(
+            "SELECT value FROM app_settings WHERE key='seed_business_data_v1'"
+        ).fetchone()
+        if marker:
+            return 0
+
+        # ───────── 0. 참조 마스터 조회 ─────────
+        users = [dict(r) for r in c.execute(
+            "SELECT id, name, role, team_id FROM users WHERE is_active=1 AND role!='admin'"
+        ).fetchall()]
+        if not users:
+            return 0
+        ceo_user = next((u for u in users if u["role"] == "ceo"), users[0])
+        purch_users = [u for u in users if u["role"] in ("leader", "executive", "member")][:6] or users[:6]
+        qa_users = [u for u in users if u["role"] in ("leader", "member")][:4] or users[:4]
+        sales_users = users[:5]
+
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY id"
+        ).fetchall()]
+        projects = [dict(r) for r in c.execute(
+            "SELECT id, code, name, customer_id, type FROM projects ORDER BY id"
+        ).fetchall()]
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, code, name FROM teams ORDER BY display_order"
+        ).fetchall()]
+
+        # ───────── 1. PARTS 12종 ─────────
+        parts_seed = [
+            ("KNK-T-CCD-001",  "CCD 카메라 모듈 5MP",    "1/1.8\" / Global Shutter", "Sony",       "Japan",   "EA",  450_000, "T", "자재"),
+            ("KNK-T-LEN-001",  "M12 광학렌즈 16mm",     "F2.4 / Coated",            "Edmund",     "USA",     "EA",  120_000, "T", "자재"),
+            ("KNK-T-LED-001",  "Bar Type LED 조명 200x30", "White 6500K",          "CCS",        "Japan",   "EA",  220_000, "T", "자재"),
+            ("KNK-T-PCB-001",  "검사기 메인 PCB v3.2",   "8layer FR4",               "KNK설계",    "Korea",   "EA",  380_000, "T", "완성품"),
+            ("KNK-M-SVR-001",  "Servo Motor 400W",       "Pulse 2500P/R",            "Mitsubishi", "Japan",   "EA",  680_000, "M", "자재"),
+            ("KNK-M-CYL-001",  "Pneumatic Cylinder Φ32", "Stroke 100mm",             "SMC",        "Japan",   "EA",   85_000, "M", "자재"),
+            ("KNK-M-PLC-001",  "PLC CPU Module",         "16-Slot",                  "Omron",      "Japan",   "EA",  720_000, "M", "자재"),
+            ("KNK-M-BLT-001",  "Conveyor Belt 1200x100", "PVC Anti-static",          "Habasit",    "Swiss",   "EA",  140_000, "M", "자재"),
+            ("KNK-C-PWR-001",  "DC 24V/5A Power",        "AC100-240V Input",         "MeanWell",   "Taiwan",  "EA",   62_000, "공통", "소모품"),
+            ("KNK-C-CBL-001",  "Industrial Ethernet Cable 5m", "Cat6A / SHIELD",   "TE",         "Germany", "EA",   28_000, "공통", "소모품"),
+            ("KNK-C-FIL-001",  "Air Filter 5μm",          "1/4\" NPT",               "SMC",        "Japan",   "EA",   18_000, "공통", "소모품"),
+            ("KNK-C-LBR-001",  "Industrial Lubricant 1L", "Food grade NSF H1",       "Klüber",     "Germany", "EA",   42_000, "공통", "소모품"),
+        ]
+        for pn, nm, sp, mk, og, un, pr, bd, cat in parts_seed:
+            c.execute(
+                "INSERT OR IGNORE INTO parts(part_no, part_name, spec, maker, origin, unit, std_price, biz_div, category) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (pn, nm, sp, mk, og, un, pr, bd, cat),
+            )
+        part_ids = {row["part_no"]: row["id"] for row in c.execute(
+            "SELECT id, part_no FROM parts").fetchall()}
+        # 시드 part_no가 모두 매핑됐는지 확인 (없으면 해당 시드 스킵)
+        parts_seed = [t for t in parts_seed if t[0] in part_ids]
+        if not parts_seed:
+            return 0
+
+        # ───────── 2. SUPPLIERS 6 ─────────
+        sup_seed = [
+            ("성진엔지니어링",  "SUP-001", "박상호 차장", "sj@sjeng.kr",     "031-555-1100", "KR",  "KRW", "30일"),
+            ("한빛전자부품",    "SUP-002", "김미진 대리", "mj@hb.kr",        "031-777-2200", "KR",  "KRW", "현금"),
+            ("동광정밀",        "SUP-003", "이재훈 과장", "lee@dkjm.kr",     "032-310-3300", "KR",  "KRW", "60일"),
+            ("Sony Korea",      "SUP-004", "Tanaka",      "tn@sony.co.kr",   "02-555-4400",  "KR",  "USD", "선금"),
+            ("SMC Korea",       "SUP-005", "Yamada",      "ym@smc.co.kr",    "031-460-5500", "KR",  "KRW", "30일"),
+            ("MeanWell Trade",  "SUP-006", "Chen",        "chen@mw.tw",      "+886-2-66789", "TW",  "USD", "선금"),
+        ]
+        for nm, cd, ct, em, ph, cnt, cur, pt in sup_seed:
+            c.execute(
+                "INSERT OR IGNORE INTO suppliers(name, code, contact, email, phone, country, currency, payment_terms) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (nm, cd, ct, em, ph, cnt, cur, pt),
+            )
+        sup_ids = [r["id"] for r in c.execute("SELECT id FROM suppliers").fetchall()]
+        if not sup_ids:
+            return 0
+
+        # ───────── 3. PURCHASE ORDERS 8 + LINES + STOCK MOVEMENTS ─────────
+        po_status_pool = ["발주완료", "발주완료", "부분입고", "입고완료", "입고완료", "입고완료", "작성중", "발주완료"]
+        for i in range(8):
+            d = today - _td(days=_rand.randint(2, 35))
+            po_no = f"PO-DEMO-{d.strftime('%y%m')}-{i+1:03d}"
+            sup = _rand.choice(sup_ids)
+            pj  = _rand.choice(projects) if projects and _rand.random() > 0.3 else None
+            cur = "USD" if _rand.random() > 0.7 else "KRW"
+            xr  = 1380.0 if cur == "USD" else 1.0
+            status = po_status_pool[i]
+            c.execute(
+                "INSERT INTO purchase_orders(po_number, project_id, supplier_id, order_date, expected_date, "
+                "currency, exchange_rate, status, shipping_terms, payment_terms, po_type, created_by, note) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (po_no, pj["id"] if pj else None, sup, d.isoformat(),
+                 (d + _td(days=_rand.randint(7, 21))).isoformat(),
+                 cur, xr, status,
+                 _rand.choice(["국내", "FOB", "CIF", "DDP"]),
+                 _rand.choice(["선금", "현금", "30일", "60일"]),
+                 _rand.choice(["일반", "긴급", "정기"]),
+                 _rand.choice(purch_users)["id"],
+                 _rand.choice(["", "", "긴급납기 협의", "QC 보강 요청", "정기 발주"]))
+            )
+            po_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            n_lines = _rand.choice([2, 3, 3, 4])
+            line_total = 0
+            chosen_parts = _rand.sample(list(parts_seed), k=n_lines)
+            for ln, (pn, nm, sp, *rest) in enumerate(chosen_parts, start=1):
+                pid = part_ids[pn]
+                qty = _rand.choice([5, 10, 20, 30, 50, 100])
+                up  = next(p[6] for p in parts_seed if p[0] == pn) * (1 + _rand.uniform(-0.05, 0.05))
+                up  = round(up / xr, 2) if cur == "USD" else round(up)
+                amt = round(qty * up)
+                rcv = qty if status == "입고완료" else (qty // 2 if status == "부분입고" else 0)
+                c.execute(
+                    "INSERT INTO po_items(po_id, line_no, part_id, part_no_snapshot, part_name_snapshot, "
+                    "spec_snapshot, unit, quantity, unit_price, amount, received_qty, delivery_date, note) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (po_id, ln, pid, pn, nm, sp, "EA", qty, up, amt, rcv,
+                     (d + _td(days=_rand.randint(7, 21))).isoformat(), "")
+                )
+                po_item_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                line_total += amt
+                # 입고완료/부분입고 → stock_movements IN 행
+                if rcv > 0:
+                    occ = (d + _td(days=_rand.randint(2, 14))).strftime("%Y-%m-%d %H:%M")
+                    sm_no = f"SM-{occ[2:4]}{occ[5:7]}{occ[8:10]}-{ln:03d}-{po_id}"
+                    c.execute(
+                        "INSERT INTO stock_movements(movement_no, part_id, kind, quantity, unit, "
+                        "unit_price, amount, remaining_qty, lot_no, po_id, po_item_id, occurred_at, "
+                        "created_by, reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (sm_no, pid, "IN", rcv, "EA", up * (xr if cur == "USD" else 1),
+                         round(rcv * up * (xr if cur == "USD" else 1)),
+                         rcv, f"LOT-{po_no}-L{ln}", po_id, po_item_id, occ,
+                         _rand.choice(purch_users)["id"], "발주 입고")
+                    )
+            c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?", (line_total, po_id))
+
+        # ───────── 4. RECEIPTS (입고 헤더) — 입고완료 PO 기준 ─────────
+        finished_pos = [dict(r) for r in c.execute(
+            "SELECT id, po_number, total_amount FROM purchase_orders "
+            "WHERE status IN ('입고완료','부분입고')").fetchall()]
+        for po in finished_pos:
+            tot_q = c.execute(
+                "SELECT COALESCE(SUM(received_qty),0) FROM po_items WHERE po_id=?", (po["id"],)
+            ).fetchone()[0]
+            c.execute(
+                "INSERT INTO receipts(po_id, received_at, received_by, total_qty, status, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (po["id"], (today - _td(days=_rand.randint(0, 14))).strftime("%Y-%m-%d %H:%M"),
+                 _rand.choice(purch_users)["id"], tot_q,
+                 _rand.choice(["PASS", "PASS", "PARTIAL"]), "정상 입고 처리")
+            )
+
+        # ───────── 5. QC INSPECTIONS — 입고 일부 (PASS 7 / FAIL 1) ─────────
+        po_items_for_qc = [dict(r) for r in c.execute(
+            "SELECT pi.id AS poi_id, pi.received_qty AS rq, r.id AS rcp_id "
+            "FROM po_items pi JOIN receipts r ON r.po_id=pi.po_id "
+            "WHERE pi.received_qty>0 LIMIT 8").fetchall()]
+        for i, q in enumerate(po_items_for_qc):
+            fail = (i == 3)
+            pass_qty = 0 if fail else q["rq"]
+            fail_qty = q["rq"] if fail else 0
+            c.execute(
+                "INSERT INTO qc_inspections(po_item_id, receipt_id, inspector_id, pass_qty, "
+                "fail_qty, fail_reason, status) VALUES(?,?,?,?,?,?,?)",
+                (q["poi_id"], q["rcp_id"], _rand.choice(qa_users)["id"], pass_qty, fail_qty,
+                 "외관 흠집 발견 (cosmetic, 사용가능)" if fail else None,
+                 "FAIL" if fail else "PASS")
+            )
+
+        # ───────── 6. STOCK ISSUES (출고 요청) 5건 ─────────
+        for i in range(5):
+            pn = _rand.choice(list(parts_seed))[0]
+            pid = part_ids[pn]
+            qty = _rand.choice([1, 2, 5])
+            stat = _rand.choice(["ISSUED", "ISSUED", "APPROVED", "PENDING", "ISSUED"])
+            req_at = (today - _td(days=_rand.randint(0, 10))).strftime("%Y-%m-%d %H:%M")
+            iss_at = req_at if stat == "ISSUED" else None
+            c.execute(
+                "INSERT INTO issues_out(part_id, requester_id, approver_id, requested_at, "
+                "issued_at, qty, purpose, status) VALUES(?,?,?,?,?,?,?,?)",
+                (pid, _rand.choice(purch_users)["id"], _rand.choice(purch_users)["id"],
+                 req_at, iss_at, qty,
+                 _rand.choice(["조립용 출고", "AS 부품 교체", "샘플 검토", "긴급 수리"]), stat)
+            )
+            if stat == "ISSUED":
+                up = next(p[6] for p in parts_seed if p[0] == pn)
+                c.execute(
+                    "INSERT INTO stock_movements(movement_no, part_id, kind, quantity, unit, "
+                    "unit_price, amount, occurred_at, created_by, reason) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (f"SM-OUT-{i+1:03d}-{today.strftime('%y%m%d')}", pid, "OUT", -qty, "EA",
+                     up, qty * up, iss_at,
+                     _rand.choice(purch_users)["id"], "출고 승인")
+                )
+
+        # ───────── 7. STOCK AUDITS — 분기 1회 모형 ─────────
+        for i, mago in enumerate([90, 60, 30, 0]):
+            sd = today - _td(days=mago + _rand.randint(0, 5))
+            audit_no = f"AUD-DEMO-{sd.strftime('%Y%m')}-{i+1:04d}"
+            stat = ["CLOSED", "CLOSED", "REVIEW", "OPEN"][i]
+            c.execute(
+                "INSERT INTO stock_audits(audit_no, start_date, end_date, status, led_by, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (audit_no, sd.isoformat(),
+                 (sd + _td(days=2)).isoformat() if stat == "CLOSED" else None,
+                 stat, _rand.choice(purch_users)["id"],
+                 "분기 정기 실사 / 사이클 카운트")
+            )
+
+        # ───────── 8. QUOTATIONS 5 + ITEMS ─────────
+        for i in range(5):
+            d = today - _td(days=_rand.randint(0, 60))
+            qno = f"QT-DEMO-{d.strftime('%Y%m')}-{i+1:04d}"
+            cu = _rand.choice(customers) if customers else None
+            stat = ["DRAFT", "QUOTED", "QUOTED", "CONFIRMED", "CONFIRMED"][i]
+            c.execute(
+                "INSERT INTO quotations(quote_no, customer_id, valid_until, version, status, created_by) "
+                "VALUES(?,?,?,?,?,?)",
+                (qno, cu["id"] if cu else None,
+                 (d + _td(days=30)).isoformat(), 1, stat, _rand.choice(sales_users)["id"])
+            )
+            qid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            tot = 0
+            for ln in range(1, _rand.choice([2, 3, 3]) + 1):
+                pn = _rand.choice(list(parts_seed))
+                pid = part_ids[pn[0]]
+                qty = _rand.choice([1, 2, 3, 5])
+                up  = pn[6] * _rand.uniform(1.10, 1.35)
+                tp  = round(qty * up)
+                c.execute(
+                    "INSERT INTO quotation_items(quotation_id, line_no, part_id, item_name, qty, "
+                    "unit, unit_price, total_price) VALUES(?,?,?,?,?,?,?,?)",
+                    (qid, ln, pid, pn[1], qty, "EA", round(up), tp)
+                )
+                tot += tp
+            c.execute("UPDATE quotations SET total_amount=? WHERE id=?", (tot, qid))
+
+        # ───────── 9. ORDERS 6 + ITEMS + INVOICES + RECEIPTS_PAYMENT ─────────
+        order_status_pool = ["CONFIRMED", "IN_PRODUCTION", "READY_TO_SHIP",
+                             "SHIPPED", "INVOICED", "PAID"]
+        for i in range(6):
+            d = today - _td(days=_rand.randint(0, 50))
+            sno = f"SO-DEMO-{d.strftime('%Y%m')}-{i+1:04d}"
+            cu = _rand.choice(customers) if customers else None
+            stat = order_status_pool[i]
+            c.execute(
+                "INSERT INTO orders(order_no, customer_id, order_date, due_date, status, created_by) "
+                "VALUES(?,?,?,?,?,?)",
+                (sno, cu["id"] if cu else None, d.isoformat(),
+                 (d + _td(days=_rand.randint(20, 60))).isoformat(),
+                 stat, _rand.choice(sales_users)["id"])
+            )
+            oid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            tot = 0
+            for ln in range(1, _rand.choice([2, 3]) + 1):
+                pn = _rand.choice(list(parts_seed))
+                pid = part_ids[pn[0]]
+                qty = _rand.choice([1, 2, 3, 5, 10])
+                up  = pn[6] * _rand.uniform(1.15, 1.4)
+                amt = round(qty * up)
+                c.execute(
+                    "INSERT INTO order_items(order_id, part_id, qty, unit_price, amount) "
+                    "VALUES(?,?,?,?,?)",
+                    (oid, pid, qty, round(up), amt)
+                )
+                tot += amt
+            c.execute("UPDATE orders SET total_amount=? WHERE id=?", (tot, oid))
+            # 상태 이력 1행
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) "
+                "VALUES(?,?,?,?,?)",
+                (oid, "DRAFT", stat, _rand.choice(sales_users)["id"], "정기 진행")
+            )
+            # 송장 — INVOICED/PAID/SHIPPED 단계
+            if stat in ("INVOICED", "PAID", "SHIPPED"):
+                vat = round(tot * 0.10)
+                ino = f"INV-DEMO-{d.strftime('%Y%m')}-{i+1:04d}"
+                c.execute(
+                    "INSERT INTO invoices(invoice_no, order_id, customer_id, issue_date, "
+                    "amount_excl_vat, vat, total_amount, status, created_by) "
+                    "VALUES(?,?,?,?,?,?,?,?,?)",
+                    (ino, oid, cu["id"] if cu else None,
+                     (d + _td(days=10)).isoformat(),
+                     tot, vat, tot + vat, "ISSUED", _rand.choice(sales_users)["id"])
+                )
+            # 수금 — PAID 일부 / SHIPPED 부분 / INVOICED 미수 split
+            if stat == "PAID":
+                c.execute(
+                    "INSERT INTO receipts_payment(order_id, received_at, amount, method, received_by, note) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (oid, (d + _td(days=20)).strftime("%Y-%m-%d %H:%M"),
+                     round((tot * 1.10)), "이체", _rand.choice(sales_users)["id"], "전액 수금")
+                )
+            elif stat == "INVOICED":
+                # 부분 수금 50%
+                c.execute(
+                    "INSERT INTO receipts_payment(order_id, received_at, amount, method, received_by, note) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (oid, (d + _td(days=15)).strftime("%Y-%m-%d %H:%M"),
+                     round((tot * 1.10) / 2), "이체", _rand.choice(sales_users)["id"], "부분 수금")
+                )
+
+        # ───────── 10. ISSUES (QMS) 5 + CORRECTIVE/PREVENTIVE ─────────
+        iss_seed = [
+            ("CCD 카메라 노이즈 발생", "심각", "품질", "조치중", "삼성전자",   "T", "고객 라인 가동 중 5분에 1회 노이즈 라인", "전원 노이즈 추정", "필터 모듈 추가 적용", ""),
+            ("Servo 위치 오차 0.05mm", "중",   "설계결함", "원인분석", "삼성전기", "M", "0.05mm 위치 오차 반복 발생", "엔코더 케이블 EMI", "차폐 케이블 교체 검토", ""),
+            ("PLC 통신 단선",          "치명", "AS",    "해결",    "드림텍",   "M", "야간 라인 통신 단선", "RJ45 커넥터 산화", "신규 커넥터 교체 / SOP 갱신", "정기 점검 매월 1회"),
+            ("LED 조명 휘도 저하",      "경",   "품질",  "접수",    "한국성전", "T", "출하 1주일 만에 휘도 80%로 저하", "", "", ""),
+            ("BOM 오기재로 잘못 출고",   "중",   "기타",  "재발방지등록", "기타전장", "T", "BOM Rev2 vs Rev3 혼동", "관리코드 확인 누락", "출고 전 2인 확인 SOP", "체크리스트 도입"),
+        ]
+        for i, (ttl, sev, ity, st, cust, bd, desc, rc, act, prev) in enumerate(iss_seed):
+            cu = next((c2 for c2 in customers if c2["name"] == cust), None)
+            d  = today - _td(days=_rand.randint(2, 30))
+            iss_no = f"ISS-DEMO-{d.strftime('%y%m')}-{i+1:03d}"
+            owner_team = _rand.choice(teams)["id"] if teams else None
+            c.execute(
+                "INSERT INTO issues(issue_no, title, severity, issue_type, status, customer_id, "
+                "customer_name, biz_div, occurred_at, description, root_cause, action_taken, "
+                "prevention, owner_team_id, owner_user_id, cost_estimate, created_by) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (iss_no, ttl, sev, ity, st, cu["id"] if cu else None, cust, bd,
+                 d.isoformat(), desc, rc, act, prev,
+                 owner_team, _rand.choice(qa_users)["id"],
+                 _rand.choice([0, 200_000, 500_000, 1_500_000]),
+                 _rand.choice(qa_users)["id"])
+            )
+            issue_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            # 시정조치
+            if st in ("조치중", "해결", "재발방지등록"):
+                c.execute(
+                    "INSERT INTO corrective_actions(issue_id, action, responsible, due_date, "
+                    "completed_at, status, created_by) VALUES(?,?,?,?,?,?,?)",
+                    (issue_id, act or "임시 조치", _rand.choice(qa_users)["id"],
+                     (d + _td(days=14)).isoformat(),
+                     (d + _td(days=10)).isoformat() if st != "조치중" else None,
+                     "DONE" if st != "조치중" else "IN_PROGRESS",
+                     _rand.choice(qa_users)["id"])
+                )
+                ca_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                # 예방조치
+                if st == "재발방지등록" and prev:
+                    c.execute(
+                        "INSERT INTO preventive_actions(corrective_id, action, completed_at, created_by) "
+                        "VALUES(?,?,?,?)",
+                        (ca_id, prev, (d + _td(days=12)).isoformat(),
+                         _rand.choice(qa_users)["id"])
+                    )
+
+        # ───────── 11. TICKETS 6 ─────────
+        tkt_seed = [
+            ("자재요청", "추가 PCB 5장 긴급 요청",      "다음 주 출하분 부족", "긴급", "처리중"),
+            ("긴급가공", "Bracket 절삭 가공 의뢰",       "샘플용 3개",        "긴급", "완료"),
+            ("MODIFY",   "검사기 SW 임계값 조정",        "0.5 → 0.4mm 변경", "일반", "요청"),
+            ("검수요청", "출하 전 외관/동작 검수",       "BOM Rev3 적용분",   "일반", "처리중"),
+            ("AS",       "고객사 LED 조명 교체",         "현장 출장 필요",    "긴급", "완료"),
+            ("기타",     "사내 정기 안전 점검",          "공장동 1·2층",      "일반", "요청"),
+        ]
+        for i, (cat, ttl, desc, urg, st) in enumerate(tkt_seed):
+            d = today - _td(days=_rand.randint(0, 14))
+            tno = f"TKT-DEMO-{d.strftime('%y%m')}-{i+1:03d}"
+            req = _rand.choice(users)
+            recv = _rand.choice(teams)["id"] if teams else None
+            c.execute(
+                "INSERT INTO tickets(ticket_no, category, title, description, requester_id, "
+                "recipient_team_id, urgency, status, due_date, completed_at, hours_estimated, "
+                "hours_actual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (tno, cat, ttl, desc, req["id"], recv, urg, st,
+                 (d + _td(days=_rand.randint(2, 7))).isoformat(),
+                 (d + _td(days=2)).isoformat() if st == "완료" else None,
+                 _rand.choice([1, 2, 4, 8]),
+                 _rand.choice([1, 2, 3, 5]) if st == "완료" else None)
+            )
+
+        # ───────── 12. CHANGES (변경 공지) 4 ─────────
+        chg_seed = [
+            ("기구설계", "검사기 베이스 두께 +5mm 변경",       "T", "강성 부족 → 처짐 발생",
+             "베이스 25mm", "베이스 30mm", "긴급"),
+            ("BOM",     "PCB Rev2 → Rev3 적용 (모든 검사기)", "T", "노이즈 필터 회로 추가",
+             "Rev2", "Rev3", "일반"),
+            ("소프트웨어", "검사 기준값 조정 (0.5→0.4mm)",     "T", "고객 품질 향상 요청",
+             "0.5mm", "0.4mm", "예약"),
+            ("도면",    "조립도 A-203 개정 (간섭 회피)",       "M", "Cylinder 충돌 방지",
+             "A-203 R0", "A-203 R1", "일반"),
+        ]
+        for i, (cty, ttl, bd, desc, bv, av, urg) in enumerate(chg_seed):
+            d = today - _td(days=_rand.randint(1, 20))
+            cno = f"CHG-DEMO-{d.strftime('%y%m')}-{i+1:03d}"
+            pj  = _rand.choice(projects) if projects else None
+            c.execute(
+                "INSERT INTO changes(change_no, change_type, biz_div, target_kind, target_id, target_label, "
+                "project_id, title, description, before_value, after_value, urgency, author_id, status, "
+                "notified_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (cno, cty, bd, "project", pj["id"] if pj else None,
+                 pj["name"] if pj else "전체",
+                 pj["id"] if pj else None, ttl, desc, bv, av, urg,
+                 _rand.choice(users)["id"],
+                 _rand.choice(["공지중", "공지중", "확인완료"]),
+                 d.strftime("%Y-%m-%d %H:%M"))
+            )
+
+        # ───────── 13. BOARD POSTS — 전사·팀 게시판 8 ─────────
+        # 전사 게시판 자동 생성
+        company_board = c.execute(
+            "SELECT id FROM boards WHERE type='company'").fetchone()
+        if not company_board:
+            c.execute("INSERT INTO boards(name, type) VALUES(?,?)",
+                      ("전사 게시판", "company"))
+            company_board_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        else:
+            company_board_id = company_board["id"]
+
+        # 각 팀에도 게시판
+        team_board_map = {}
+        for t in teams:
+            existing = c.execute(
+                "SELECT id FROM boards WHERE type='team' AND team_id=?", (t["id"],)
+            ).fetchone()
+            if not existing:
+                c.execute(
+                    "INSERT INTO boards(name, type, team_id) VALUES(?,?,?)",
+                    (f"{t['name']} 게시판", "team", t["id"])
+                )
+                bid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            else:
+                bid = existing["id"]
+            team_board_map[t["id"]] = bid
+
+        post_seed = [
+            (company_board_id, "공지", 1, "5월 전사 안전교육 안내",
+             "5월 둘째 주 화요일 14:00, 본사 회의실에서 전사 안전교육이 진행됩니다. 전 직원 필참."),
+            (company_board_id, "공지", 1, "여름 휴가 일정 사전 신청 안내",
+             "7~8월 여름 휴가 일정을 5월 31일까지 각 팀장에게 신청 부탁드립니다."),
+            (company_board_id, "자료", 0, "검사기/자동화 통합 SOP v3.2 배포",
+             "표준 작업 절차서 v3.2 가 배포되었습니다. 변경점은 §4 안전 점검 항목입니다."),
+            (company_board_id, "일반", 0, "신입사원 환영합니다",
+             "이번 주 신규 입사자가 합류했습니다. 따뜻한 환영 부탁드립니다."),
+        ]
+        # 팀별 1건씩
+        for t in teams[:4]:
+            post_seed.append(
+                (team_board_map[t["id"]], "일반", 0,
+                 f"{t['name']} 주간 회의록 ({today.strftime('%m/%d')})",
+                 "1) 진행 중 안건 공유\n2) 다음 주 우선순위\n3) 현장 이슈 공유")
+            )
+        for bid, cat, pin, ttl, body in post_seed:
+            c.execute(
+                "INSERT INTO board_posts(board_id, author_id, title, body, category, "
+                "is_pinned, view_count, approval_status) VALUES(?,?,?,?,?,?,?,?)",
+                (bid, _rand.choice(users)["id"], ttl, body, cat, pin,
+                 _rand.randint(5, 80), "approved")
+            )
+
+        # ───────── 14. QC INSPECTION REPORTS 4 ─────────
+        for i in range(4):
+            d  = today - _td(days=_rand.randint(0, 25))
+            cu = _rand.choice(customers) if customers else None
+            qa = _rand.choice(qa_users)
+            insp = _rand.choice(qa_users)
+            rno = f"QCR-DEMO-{d.strftime('%Y')}-{i+1:04d}"
+            ovr = _rand.choice(["PASS", "PASS", "PASS", "CONDITIONAL_PASS"])
+            stat = _rand.choice(["ISSUED", "SENT", "DRAFT"])
+            c.execute(
+                "INSERT INTO qc_inspection_reports(report_no, customer_id, customer_name, "
+                "machine_model, machine_serial, inspection_date, inspector_id, inspector_name, "
+                "qa_manager_id, qa_manager_name, overall, status, issued_at, created_by, remarks) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (rno, cu["id"] if cu else None, cu["name"] if cu else "내부",
+                 _rand.choice(["HAIST-INS-VX1", "HAIST-INS-VX2", "HAIST-AT-AX1"]),
+                 f"SN{_rand.randint(20240, 26050)}",
+                 d.isoformat(), insp["id"], insp["name"],
+                 qa["id"], qa["name"], ovr, stat,
+                 d.strftime("%Y-%m-%d %H:%M") if stat != "DRAFT" else None,
+                 insp["id"], "출하 전 표준 검수")
+            )
+            rid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for ln, item in enumerate([
+                ("반복성",  "≤0.5μm",   "0.32μm",   "PASS"),
+                ("정확도",  "100±0.1mm", "99.97mm",  "PASS"),
+                ("통신",    "Latency≤5ms", "3.1ms",  "PASS"),
+                ("외관",    "스크래치 無", "양호",     "PASS"),
+                ("동작",    "사이클 정상", "정상",     "PASS"),
+                ("안전",    "안전 회로 정상", "정상",  "PASS"),
+            ], start=1):
+                jud = "PASS" if ovr == "PASS" else _rand.choice(["PASS", "PASS", "FAIL"])
+                c.execute(
+                    "INSERT INTO qc_inspection_items(report_id, line_no, item_name, "
+                    "spec_value, measured_value, judgment, remarks) VALUES(?,?,?,?,?,?,?)",
+                    (rid, ln, item[0], item[1], item[2], jud,
+                     "기준 충족" if jud == "PASS" else "부적합 → 재작업")
+                )
+
+        # ───────── 15. WORK ORDERS 3 ─────────
+        for i in range(3):
+            d  = today - _td(days=_rand.randint(0, 20))
+            wno = f"WO-DEMO-{d.strftime('%Y')}-{i+1:04d}"
+            pn  = _rand.choice(list(parts_seed))
+            pid = part_ids[pn[0]]
+            asn = _rand.choice(users)
+            cby = _rand.choice(users)
+            stat = ["IN_PROGRESS", "COMPLETED", "RELEASED"][i]
+            c.execute(
+                "INSERT INTO work_orders(wo_no, part_id, qty, assigned_to, assigned_name, "
+                "created_by, created_by_name, planned_start, planned_end, "
+                "actual_end, specifications, status, remarks) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (wno, pid, _rand.choice([5, 10, 20]), asn["id"], asn["name"],
+                 cby["id"], cby["name"], d.isoformat(),
+                 (d + _td(days=5)).isoformat(),
+                 (d + _td(days=4)).isoformat() if stat == "COMPLETED" else None,
+                 f"{pn[1]} 가공 — 도면 기준 ±0.05mm", stat,
+                 "정밀 가공 / 표면 거칠기 Ra1.6")
+            )
+            wid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for ln, step in enumerate(["절삭", "연마", "검수"], start=1):
+                prog = 100 if stat == "COMPLETED" else (
+                    100 if ln == 1 and stat == "IN_PROGRESS" else
+                    50 if ln == 2 and stat == "IN_PROGRESS" else 0)
+                w = _rand.choice(users)
+                c.execute(
+                    "INSERT INTO work_order_items(wo_id, line_no, step_name, duration_min, "
+                    "progress, worker_id, worker_name, remarks) VALUES(?,?,?,?,?,?,?,?)",
+                    (wid, ln, step, _rand.choice([30, 60, 90, 120]),
+                     prog, w["id"], w["name"], "표준 공정")
+                )
+
+        # ───────── 16. EXPORT ORDERS 3 + CI/PL/BL ─────────
+        # 기존 orders 중 SHIPPED/INVOICED 일부를 수출 오더로 매핑
+        ship_orders = [dict(r) for r in c.execute(
+            "SELECT id, order_no, total_amount FROM orders "
+            "WHERE status IN ('SHIPPED','INVOICED','PAID') LIMIT 3").fetchall()]
+        for i, so in enumerate(ship_orders):
+            stat = ["SHIPPED", "CI_ISSUED", "BOOKED"][i]
+            c.execute(
+                "INSERT INTO export_orders(order_id, buyer, shipping_terms, payment_terms, "
+                "port_of_loading, port_of_discharge, status, created_by) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (so["id"],
+                 _rand.choice(["KNK Vietnam Ltd.", "ASEAN Tech Co.", "Hanoi Auto Inc."]),
+                 _rand.choice(["FOB", "CIF", "DDP"]),
+                 _rand.choice(["T/T", "L/C", "D/P"]),
+                 "BUSAN",
+                 _rand.choice(["HAIPHONG", "HOCHIMINH", "BANGKOK"]),
+                 stat, _rand.choice(sales_users)["id"])
+            )
+            eo_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            # CI
+            usd_amt = round(so["total_amount"] / 1380, 2)
+            c.execute(
+                "INSERT INTO commercial_invoices(invoice_no, export_order_id, issue_date, "
+                "total_amount, currency, signed_by, status) VALUES(?,?,?,?,?,?,?)",
+                (f"CI-DEMO-{today.strftime('%Y%m')}-{i+1:04d}", eo_id,
+                 today.isoformat(), usd_amt, "USD",
+                 _rand.choice(sales_users)["id"], "ISSUED")
+            )
+            # PL
+            c.execute(
+                "INSERT INTO packing_lists(pl_no, export_order_id, total_packages, "
+                "total_weight, total_volume) VALUES(?,?,?,?,?)",
+                (f"PL-DEMO-{today.strftime('%Y%m')}-{i+1:04d}", eo_id,
+                 _rand.randint(2, 10), _rand.randint(150, 800), round(_rand.uniform(2.5, 12.0), 2))
+            )
+
+        # ───────── 17. PROJECT MILESTONES + BURNDOWN ─────────
+        for pj in projects[:6]:
+            ms_seed = [
+                ("Concept 동결", -45, "DONE"),
+                ("설계 완료",     -25, "DONE"),
+                ("자재 입고 완료", -10, "IN_PROGRESS"),
+                ("조립·시운전",   +5,  "PLANNED"),
+                ("출하 검수",     +20, "PLANNED"),
+                ("고객 인수",     +35, "PLANNED"),
+            ]
+            for nm, off, st in ms_seed:
+                c.execute(
+                    "INSERT INTO project_milestones(project_id, name, target_date, status, "
+                    "completed_at) VALUES(?,?,?,?,?)",
+                    (pj["id"], nm, (today + _td(days=off)).isoformat(),
+                     st, (today + _td(days=off)).isoformat() if st == "DONE" else None)
+                )
+            # 14일 번다운 — 단조 감소
+            base_total = _rand.randint(40, 80)
+            done_per_day = base_total / 30
+            for dback in range(14, -1, -1):
+                snap = today - _td(days=dback)
+                done = int(min(base_total, (14 - dback + 5) * done_per_day))
+                rem  = max(0, (base_total - done) * 4)
+                try:
+                    c.execute(
+                        "INSERT INTO project_burndown_snapshots(project_id, snap_date, "
+                        "total_tasks, completed_tasks, remaining_hours) VALUES(?,?,?,?,?)",
+                        (pj["id"], snap.isoformat(), base_total, done, rem)
+                    )
+                except Exception:
+                    pass
+
+        # 마커 기록 — 다음 부팅에서 skip
+        c.execute(
+            "INSERT OR REPLACE INTO app_settings(key, value, description) "
+            "VALUES('seed_business_data_v1', ?, "
+            "'v5H45 (2026-05-03) 비즈니스 데이터 시드 완료')",
+            (today.isoformat(),)
+        )
+
+    return 1
+

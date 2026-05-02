@@ -54,16 +54,14 @@ def _pms_specs():
         "dropdown_map":   dict(DROPDOWN_MAP),
     }
 
-    # 2_진행현황 (동적 — 부서별 세부항목 + 소계 컬럼)
+    # 2_진행현황 (v3.1 — 부서당 1컬럼 = 완료일/입고일)
     prog_labels = ["NO","관리코드","수주번호","고객사","모델","품명","진행상태","전체\n진척률(%)"]
     for dept in DEPTS:
-        for sub in DEPT_SUB_ITEMS.get(dept, []):
-            prog_labels.append(f"{dept}\n{sub}")
-        prog_labels.append(f"{dept}\n소계")
+        prog_labels.append(f"{dept}\n완료일")
     prog_mc = len(prog_labels)
     prog_spec = {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ 진행현황 │ {YEAR}",
-        "purpose": "검사기 진행현황",
+        "purpose": "검사기 진행현황 (v3.1 부서별 완료일)",
         "max_col": prog_mc,
         "labels":  prog_labels,
         "r3_map":  {c: "auto" for c in range(1, prog_mc + 1)},

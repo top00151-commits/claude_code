@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H43 HAIST WORKS 노출 임계값 1900→1280px — @media max-width:1279px display:none / 154/154 PASS
+REM   LAST UPDATE: 2026-05-03 v5H45 CEO dashboard auto-fix + business data seeder — dashboard_page handler: ceo_kpis dict→list, narratives reshape, teams signal lights / seed_business_data() seeds parts/suppliers/POs/stock/orders/invoices/issues/tickets/changes/boards/qc/wo/export/milestones via app_settings marker (idempotent) with DEMO prefix to avoid collision
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H43 HAIST WORKS 1280px↑ 노출]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H45 CEO dashboard auto-fix + biz data seed]
 
 echo.
 echo ============================================================

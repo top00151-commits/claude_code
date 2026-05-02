@@ -425,10 +425,9 @@ def _build_inconsistency_report(wb, mismatches, log):
 # ② 부서입력 → 진행현황 수집
 # ═══════════════════════════════════════════════════════════════
 def _collect_dept_progress(log):
-    """부서입력 파일에서 진척률 수집 → {관리코드: {부서: {세부: 진척률}}} (v2026.04b)
-
-    컬럼 구조 변경: auto_cols 10 → 11 (C10=담당자 추가).
-    담당자(C10) 비어있으면 해당 부서 미참여로 간주 → 전체 평균에서 제외 플래그.
+    """v3.1: 01 검사기 — 부서별 완료일 수집 (% 폐기)
+    각 부서별 "완료일" 또는 "입고일" 컬럼이 채워졌으면 완료(_complete=True)로 표시.
+    PMS 진척률 = 완료 부서 수 / 참여 부서 수 (참여 = "제외" 아닌 부서)
     """
     progress = {}
     for dept in DEPTS:
@@ -438,8 +437,23 @@ def _collect_dept_progress(log):
             continue
         wb = load_workbook(fp, data_only=True)
         ws = wb.active
-        subs = DEPT_SUB_ITEMS.get(dept, [])
-        n_auto = 11  # v2026.04b: 자동연동 컬럼 수 (담당자 포함)
+        n_auto = 11  # 자동연동 11열 (담당자·전체% 포함)
+
+        # v3.1: 완료일/입고일 컬럼 위치 자동 탐색 (헤더 키워드 매칭)
+        # 우선순위: 부서완료일 > 외주입고일 > 가공입고일 > 가공의뢰입고일
+        complete_col = None
+        for c in range(n_auto + 1, ws.max_column + 1):
+            h = str(ws.cell(4, c).value or "").replace("\n", "").replace(" ", "")
+            if "부서완료일" in h:
+                complete_col = c
+                break
+        if complete_col is None:
+            # 구매팀: 외주입고일이 곧 완료
+            for c in range(n_auto + 1, ws.max_column + 1):
+                h = str(ws.cell(4, c).value or "").replace("\n", "").replace(" ", "")
+                if "외주입고일" in h:
+                    complete_col = c
+                    break
 
         for r in range(5, ws.max_row + 1):
             code = _val(ws, r, 2)
@@ -448,13 +462,15 @@ def _collect_dept_progress(log):
             code = str(code)
             if code not in progress:
                 progress[code] = {}
-            pic = str(_val(ws, r, 10) or "").strip()    # 담당자 (C10)
-            dept_data = {"_pic": pic, "_has_pic": bool(pic)}
-            for i, sub in enumerate(subs):
-                v = _num(ws, r, n_auto + 1 + i)
-                dept_data[sub] = v
-            vals = [v for v in dept_data.values() if isinstance(v, (int, float)) and v > 0]
-            dept_data["_avg"] = sum(vals) / len(vals) if vals else 0
+            pic = str(_val(ws, r, 10) or "").strip()
+            complete_val = _val(ws, r, complete_col) if complete_col else None
+            is_complete = complete_val is not None and str(complete_val).strip() != ""
+            dept_data = {
+                "_pic":      pic,
+                "_has_pic":  bool(pic),
+                "_complete": is_complete,
+                "_complete_date": complete_val,
+            }
             progress[code][dept] = dept_data
         wb.close()
 
@@ -462,8 +478,24 @@ def _collect_dept_progress(log):
 
 
 def _write_progress(ws_pms_prog, ws_pms_proj, progress, log):
-    """2_진행현황 시트에 write-back"""
-    # 프로젝트 목록 수집 (1_프로젝트등록에서 활성 프로젝트만)
+    """v3.1: 01 검사기 — 부서별 완료 여부 + 완료일 표시
+    PMS 진척률 = 완료 부서 수 / 참여 부서 수 ('제외' 부서 분모에서 제외)
+    """
+    # PMS 1_프로젝트등록에서 부서별 '제외' 정보 수집
+    pms_exclusions = {}    # {code: set of excluded depts}
+    for r in range(5, ws_pms_proj.max_row + 1):
+        code = _val(ws_pms_proj, r, C_CODE)
+        if not code:
+            continue
+        cs = str(code)
+        excluded = set()
+        for i, dept in enumerate(DEPTS):
+            v = str(_val(ws_pms_proj, r, C_DEPT_START + i) or "").strip()
+            if v == "제외":
+                excluded.add(dept)
+        pms_exclusions[cs] = excluded
+
+    # 프로젝트 목록 (활성)
     projects = []
     for r in range(5, ws_pms_proj.max_row + 1):
         code = _val(ws_pms_proj, r, C_CODE)
@@ -478,51 +510,56 @@ def _write_progress(ws_pms_prog, ws_pms_proj, progress, log):
                 "status": status,
             })
 
-    base_cols = 8  # NO, 관리코드, 수주번호, 고객사, 모델, 품명, 진행상태, 전체진척률 (v2026.04b swap)
+    # v3.1: 2_진행현황 시트에 부서별 완료여부 + 완료일 표시 (간소화)
+    # 헤더: NO·관리코드·수주번호·고객사·모델·품명·진행상태·전체진척률 + 7부서 완료일
+    base_cols = 8
     row = 5
     for idx, proj in enumerate(projects, 1):
         ws_pms_prog.cell(row=row, column=1).value = idx
         ws_pms_prog.cell(row=row, column=2).value = proj["code"]
         ws_pms_prog.cell(row=row, column=3).value = proj["sj"]
         ws_pms_prog.cell(row=row, column=4).value = proj["cust"]
-        ws_pms_prog.cell(row=row, column=5).value = proj["model"]    # v2026.04b swap
-        ws_pms_prog.cell(row=row, column=6).value = proj["prod"]     # v2026.04b swap
+        ws_pms_prog.cell(row=row, column=5).value = proj["model"]
+        ws_pms_prog.cell(row=row, column=6).value = proj["prod"]
         ws_pms_prog.cell(row=row, column=7).value = proj["status"]
 
-        col = base_cols + 1
-        dept_avgs = []
         code_prog = progress.get(proj["code"], {})
+        excluded = pms_exclusions.get(proj["code"], set())
+
+        # 부서별 완료여부 카운트
+        participating = 0
+        completed = 0
+        col = base_cols + 1
         for dept in DEPTS:
-            subs = DEPT_SUB_ITEMS.get(dept, [])
-            dept_data = code_prog.get(dept, {})
-            for sub in subs:
-                v = dept_data.get(sub, 0)
-                ws_pms_prog.cell(row=row, column=col).value = v / 100 if v else None
-                ws_pms_prog.cell(row=row, column=col).number_format = PCT
+            if dept in excluded:
+                ws_pms_prog.cell(row=row, column=col).value = "제외"
                 col += 1
-            # 소계
-            avg = dept_data.get("_avg", 0)
-            ws_pms_prog.cell(row=row, column=col).value = avg / 100 if avg else None
-            ws_pms_prog.cell(row=row, column=col).number_format = PCT
-            if avg > 0:
-                dept_avgs.append(avg)
+                continue
+            participating += 1
+            dept_data = code_prog.get(dept, {})
+            cd = dept_data.get("_complete_date")
+            if dept_data.get("_complete"):
+                completed += 1
+                ws_pms_prog.cell(row=row, column=col).value = cd  # 완료일 표시
+            else:
+                ws_pms_prog.cell(row=row, column=col).value = None
             col += 1
 
-        # 전체진척률
-        total_avg = sum(dept_avgs) / len(dept_avgs) if dept_avgs else 0
-        ws_pms_prog.cell(row=row, column=8).value = total_avg / 100 if total_avg else None
+        # 전체진척률 (완료부서 / 참여부서)
+        total_pct = (completed / participating * 100) if participating else 0
+        ws_pms_prog.cell(row=row, column=8).value = total_pct / 100 if total_pct else None
         ws_pms_prog.cell(row=row, column=8).number_format = PCT
 
-        # PMS 1_프로젝트등록에도 전체진척률 write-back
+        # PMS 1_프로젝트등록 진척률 write-back
         for pr in range(5, ws_pms_proj.max_row + 1):
             if str(_val(ws_pms_proj, pr, C_CODE)) == proj["code"]:
-                ws_pms_proj.cell(row=pr, column=C_PROG).value = total_avg / 100 if total_avg else None
+                ws_pms_proj.cell(row=pr, column=C_PROG).value = total_pct / 100 if total_pct else None
                 ws_pms_proj.cell(row=pr, column=C_PROG).number_format = PCT
                 break
 
         row += 1
 
-    log.info(f"  진행현황 갱신: {len(projects)}건")
+    log.info(f"  진행현황 갱신: {len(projects)}건 (v3.1 완료부서 기반)")
 
 
 
