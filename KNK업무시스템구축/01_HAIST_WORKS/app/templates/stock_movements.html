@@ -54,23 +54,23 @@ function presetRange(days){
           <td class="center" style="font-family:monospace;font-size:11px;color:var(--mute);">{{ m.moved_at|default('—') }}</td>
           <td><b>{{ m.part_name|default('—') }}</b><div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ m.part_no|default('') }}</div></td>
           <td class="center"><span class="pill {% if m.kind == 'IN' %}pill-done{% elif m.kind == 'OUT' %}pill-progress{% else %}pill-muted{% endif %}">{{ MOVEMENT_KIND_LABEL.get(m.kind, m.kind) }}</span></td>
-          <td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{% if m.kind == 'IN' %}+{% elif m.kind == 'OUT' %}-{% endif %}{{ '{:,.0f}'.format(m.qty|default(0)) }}</td>
+          <td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{{ '{:+,.0f}'.format(m.quantity|default(0)) }}</td>
           <td class="num">{% if m.unit_price %}{{ '{:,.0f}'.format(m.unit_price) }}{% else %}—{% endif %}</td>
-          <td class="num">{% if m.value %}{{ '{:,.0f}'.format(m.value) }}{% else %}—{% endif %}</td>
-          <td style="font-size:12px;color:var(--mute);">{{ m.ref_type|default('') }} {% if m.ref_id %}#{{ m.ref_id }}{% endif %}</td>
+          <td class="num">{% if m.amount %}{{ '{:,.0f}'.format(m.amount) }}{% else %}—{% endif %}</td>
+          <td style="font-size:12px;color:var(--mute);">{% if m.po_number %}PO {{ m.po_number }}{% elif m.project_name %}{{ m.project_name }}{% elif m.reason %}{{ m.reason }}{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
       {% set _in = items|selectattr('kind','equalto','IN')|list %}
       {% set _out = items|selectattr('kind','equalto','OUT')|list %}
-      {% set _in_qty = _in|sum(attribute='qty') %}
-      {% set _out_qty = _out|sum(attribute='qty') %}
+      {% set _in_qty = _in|sum(attribute='quantity') %}
+      {% set _out_qty = _out|sum(attribute='quantity') %}
       <tfoot>
         <tr style="background:var(--paper-2);font-weight:700;">
           <td colspan="3" style="text-align:right;padding:10px;">소계 ({{ items|length }}건) →</td>
           <td class="num" style="color:var(--success);">+{{ '{:,.0f}'.format(_in_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _in|length }}건)</span></td>
-          <td class="num" colspan="2" style="color:var(--knk-red);">-{{ '{:,.0f}'.format(_out_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _out|length }}건)</span></td>
-          <td style="font-size:11px;color:var(--mute);">순증감: <b style="color:{% if (_in_qty|default(0)) - (_out_qty|default(0)) >= 0 %}var(--success){% else %}var(--knk-red){% endif %};">{{ '{:+,.0f}'.format((_in_qty|default(0)) - (_out_qty|default(0))) }}</b></td>
+          <td class="num" colspan="2" style="color:var(--knk-red);">{{ '{:,.0f}'.format(_out_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _out|length }}건)</span></td>
+          <td style="font-size:11px;color:var(--mute);">순증감: <b style="color:{% if (_in_qty|default(0)) + (_out_qty|default(0)) >= 0 %}var(--success){% else %}var(--knk-red){% endif %};">{{ '{:+,.0f}'.format((_in_qty|default(0)) + (_out_qty|default(0))) }}</b></td>
         </tr>
       </tfoot>
     </table>

@@ -2650,16 +2650,26 @@ async def api_team_summary(req: Request):
 # =====================================================
 # WEEKLY — 주간 자동 요약
 # =====================================================
+# v5H46: /weekly/team 별칭 — /weekly/{wk_mon}가 'team'을 날짜로 파싱하던 충돌 해결
+@app.get("/weekly/team", response_class=HTMLResponse)
+async def weekly_team_alias(req: Request):
+    return RedirectResponse("/weekly", 303)
+
+
 @app.get("/weekly", response_class=HTMLResponse)
 @app.get("/weekly/{wk_mon}", response_class=HTMLResponse)
 async def weekly_page(req: Request, wk_mon: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    if not wk_mon:
+    if not wk_mon or wk_mon == "team":
         td = date.today()
         wk_mon = (td - timedelta(days=td.weekday())).isoformat()
-    mon = datetime.strptime(wk_mon, "%Y-%m-%d").date()
+    try:
+        mon = datetime.strptime(wk_mon, "%Y-%m-%d").date()
+    except ValueError:
+        td = date.today()
+        mon = td - timedelta(days=td.weekday())
     sun = mon + timedelta(days=6)
     prev_mon = (mon - timedelta(days=7)).isoformat()
     next_mon = (mon + timedelta(days=7)).isoformat()
@@ -4081,6 +4091,47 @@ async def me_update(req: Request,
 # =====================================================
 # REMINDERS — 팀장용 오늘 미작성자 리스트
 # =====================================================
+# v5H46 (2026-05-03): 사이드바·내부 링크 정합 별칭 — 6개 404 → 정상 페이지 리다이렉트
+@app.get("/reminders", response_class=HTMLResponse)
+async def reminders_alias(req: Request, sel_date: str = ""):
+    return await reminders_page(req, sel_date)
+
+
+@app.get("/board", response_class=HTMLResponse)
+async def board_alias(req: Request):
+    return RedirectResponse("/board/company", 303)
+
+
+@app.get("/qms/dashboard", response_class=HTMLResponse)
+async def qms_dashboard_alias(req: Request):
+    return RedirectResponse("/qms", 303)
+
+
+@app.get("/qc/reports", response_class=HTMLResponse)
+async def qc_reports_alias(req: Request):
+    return RedirectResponse("/qc/inspection-reports", 303)
+
+
+@app.get("/admin/fx", response_class=HTMLResponse)
+async def admin_fx_alias(req: Request):
+    return RedirectResponse("/fx/rates", 303)
+
+
+@app.get("/admin/permissions/report", response_class=HTMLResponse)
+async def admin_perm_report_alias(req: Request):
+    return RedirectResponse("/admin/permissions/report/expiring", 303)
+
+
+@app.get("/stock", response_class=HTMLResponse)
+async def stock_root_alias(req: Request):
+    return RedirectResponse("/stock/balances", 303)
+
+
+@app.get("/receipts", response_class=HTMLResponse)
+async def receipts_alias(req: Request):
+    return RedirectResponse("/stock/receipts", 303)
+
+
 @app.get("/admin/reminders", response_class=HTMLResponse)
 async def reminders_page(req: Request, sel_date: str = ""):
     u = require(req, ["leader", "executive", "ceo", "admin"])
@@ -4445,6 +4496,13 @@ async def progress_dashboard(req: Request, biz_div: str = "", customer: str = ""
     if not u:
         return RedirectResponse("/login", 303)
     matrix = progress_matrix(biz_div=biz_div, customer=customer, status=status, limit=limit)
+    # v5H46: 템플릿이 r.phases.get(phase_code) 형태로 접근 → dict 변환 (None 보호)
+    for r in matrix:
+        ph_list = r.get("phases") or []
+        if not isinstance(ph_list, list):
+            r["phases"] = {}
+            continue
+        r["phases"] = {p.get("phase_code"): p for p in ph_list if p and p.get("phase_code")}
     return ctx(req, "progress_matrix.html", user=u, active="progress",
                matrix=matrix, biz_div=biz_div, customer=customer, status=status,
                PHASE_DEFS=PHASE_DEFS, PHASE_STATUSES=PHASE_STATUSES)
@@ -7056,8 +7114,16 @@ async def admin_permissions_report_users(req: Request):
             users = [dict(r) for r in rows]
         except Exception:
             users = []
+    # v5H46: 템플릿이 summary/headers/rows/report_title 형식 기대
+    summary = _perm_report_summary()
+    rows_view = [[ux.get("name",""), ux.get("team_name") or "-", ux.get("role",""),
+                  ux.get("active_tokens",0), ux.get("granted_tokens",0),
+                  ux.get("group_count",0)] for ux in users]
     return ctx(req, "admin_permissions_report.html", user=u, active="admin",
-               report_kind="users", users=users, groups=[], expiring=[])
+               report_kind="users", users=users, groups=[], expiring=[],
+               summary=summary, report_title="사용자별 권한 분포",
+               headers=["이름","팀","역할","수신중","위임중","그룹수"],
+               rows=rows_view)
 
 
 @app.get("/admin/permissions/report/groups", response_class=HTMLResponse)
@@ -7077,8 +7143,14 @@ async def admin_permissions_report_groups(req: Request):
             groups = [dict(r) for r in rows]
         except Exception:
             groups = []
+    summary = _perm_report_summary()
+    rows_view = [[g.get("name",""), g.get("description") or "-",
+                  g.get("perm_count",0), g.get("user_count",0)] for g in groups]
     return ctx(req, "admin_permissions_report.html", user=u, active="admin",
-               report_kind="groups", users=[], groups=groups, expiring=[])
+               report_kind="groups", users=[], groups=groups, expiring=[],
+               summary=summary, report_title="그룹별 멤버·권한 분포",
+               headers=["그룹명","설명","권한수","멤버수"],
+               rows=rows_view)
 
 
 @app.get("/admin/permissions/report/expiring", response_class=HTMLResponse)
@@ -7110,9 +7182,50 @@ async def admin_permissions_report_expiring(req: Request, days: int = 7):
             expiring = [dict(r) for r in rows]
         except Exception:
             expiring = []
+    summary = _perm_report_summary()
+    rows_view = [[ex.get("expires_at","-"), ex.get("from_name","-"),
+                  ex.get("to_name","-"), ex.get("perm_label","-"),
+                  ex.get("status","-")] for ex in expiring]
     return ctx(req, "admin_permissions_report.html", user=u, active="admin",
                report_kind="expiring", users=[], groups=[], expiring=expiring,
-               expiring_days=d)
+               expiring_days=d,
+               summary=summary,
+               report_title=f"만료 임박 토큰 ({d}일 내)",
+               headers=["만료일","From","To","권한","상태"],
+               rows=rows_view)
+
+
+def _perm_report_summary() -> dict:
+    """권한 리포트 4 KPI 요약 — 모든 리포트 페이지 공통 헤더."""
+    out = {"total_users": 0, "users_with_perms": 0,
+           "total_perms": 0, "active_delegations": 0}
+    with db_session() as c:
+        try:
+            out["total_users"] = c.execute(
+                "SELECT COUNT(*) FROM users WHERE is_active=1"
+            ).fetchone()[0]
+        except Exception:
+            pass
+        try:
+            out["users_with_perms"] = c.execute(
+                "SELECT COUNT(DISTINCT to_user) FROM delegation_tokens "
+                "WHERE status='ACTIVE'"
+            ).fetchone()[0]
+        except Exception:
+            pass
+        try:
+            out["total_perms"] = c.execute(
+                "SELECT COUNT(*) FROM permissions"
+            ).fetchone()[0]
+        except Exception:
+            pass
+        try:
+            out["active_delegations"] = c.execute(
+                "SELECT COUNT(*) FROM delegation_tokens WHERE status='ACTIVE'"
+            ).fetchone()[0]
+        except Exception:
+            pass
+    return out
 
 
 @app.post("/admin/permissions/cleanup-expired")
@@ -7173,11 +7286,21 @@ async def stock_balances_page(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         rows = c.execute(
-            """SELECT part_id, part_no, part_name, on_hand, unit, last_movement_at
-               FROM stock_balances ORDER BY part_no LIMIT 200"""
+            """SELECT sb.part_id, sb.part_no, sb.part_name, sb.on_hand, sb.unit,
+                      sb.last_movement_at, p.spec, p.std_price
+               FROM stock_balances sb
+               LEFT JOIN parts p ON p.id = sb.part_id
+               ORDER BY sb.part_no LIMIT 200"""
         ).fetchall()
-    balances = [dict(r) for r in rows]
-    last_update = max((r.get("last_movement_at") or "") for r in balances) if balances else "-"
+    balances = []
+    for r in rows:
+        b = dict(r)
+        b["qty"] = b.get("on_hand") or 0
+        b["unit_price"] = b.get("std_price") or 0
+        b["value"] = (b["qty"] * b["unit_price"]) if b["unit_price"] else 0
+        b["safety_stock"] = 0  # 추후 part_safety_stock 테이블 연동
+        balances.append(b)
+    last_update = max((b.get("last_movement_at") or "") for b in balances) if balances else "-"
     return ctx(req, "stock_balances.html", user=u, active="stock",
                balances=balances, last_update=last_update or "-")
 
@@ -10673,10 +10796,10 @@ async def wo_new_form(req: Request):
             "SELECT id, name FROM projects ORDER BY id DESC LIMIT 100"
         ).fetchall()]
         parts_options = [dict(r) for r in c.execute(
-            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+            "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
         users_options = [dict(r) for r in c.execute(
-            "SELECT id, name FROM users WHERE active=1 ORDER BY name LIMIT 200"
+            "SELECT id, name FROM users WHERE is_active=1 ORDER BY name LIMIT 200"
         ).fetchall()]
     return ctx(req, "wo_form.html", user=u, active="work_orders",
                orders=orders, projects=projects,

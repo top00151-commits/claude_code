@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H45 대표대시 비어있음 자동수정 + 비즈니스 데이터 시드 추가 (대표 지시 "전 아이콘 항목 내용 자동 보충") — dashboard_page 핸들러: ceo_kpis dict→list, narratives 형식정합, teams 신호등 부여 / database.py: seed_business_data() 신규 — parts·suppliers·purchase_orders·po_items·stock_movements·receipts·qc_inspections·issues_out·stock_audits·quotations·orders·invoices·receipts_payment·issues·corrective_actions·preventive_actions·tickets·changes·board_posts·qc_inspection_reports·work_orders·export_orders·project_milestones·burndown 일괄 시드 / app_settings 마커 멱등 / DEMO 접두 충돌방지
+REM   LAST UPDATE: 2026-05-03 v5H46 사이드바 전체 라우트 정합 (대표 지시 "전 아이콘 항목 내용 자동 보충" 후속) — 82개 라우트 100% 정상 (74 OK + 8 별칭) / 12건 버그·404 일괄수정 — /stock/balances NoneType len, /stock/movements 컬럼명 qty→quantity, /search dict+dict 평탄화, /progress phases list→dict, /weekly/team 날짜파싱 충돌, /production/work-orders SQL p.name→part_name + users.active→is_active, /admin/permissions/report 3종 summary 누락 / 7개 라우트 별칭 신규(/reminders /board /qms/dashboard /qc/reports /admin/fx /admin/permissions/report /stock /receipts) / v5H45는 3154efb 별도 커밋
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H45 대표대시 자동수정 + 비즈니스 데이터 시드]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H46 82라우트 100% 정상 (12버그 + 7별칭)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -35,14 +35,32 @@
 
   {% if q %}
   <div style="margin: 0 var(--content-pad);">
-    {% if res or res_global %}
-      {% set all_res = (res or []) + (res_global or []) %}
-      <div class="page-meta" style="margin-bottom: 12px;">총 <b>{{ all_res|length }}건</b> 결과</div>
-      {% for r in all_res %}
-      <a class="result-card" href="{{ r.url|default('#') }}">
-        <div class="result-cat">{{ cat_labels.get(r.cat, r.cat|default('기타')) }}</div>
-        <div class="result-ttl">{{ r.title|default(r.label|default('—')) }}</div>
-        {% if r.meta or r.body %}<div class="result-meta">{{ r.meta|default(r.body|default('')|truncate(120)) }}</div>{% endif %}
+    {# v5H46: res/res_global 둘 다 dict(카테고리→list) — 평탄화 후 순회 #}
+    {% set _flat = [] %}
+    {% if res %}
+      {% for cat_key, items in res.items() %}
+        {% for it in items %}
+          {% set _ = _flat.append({'cat': cat_key, 'item': it}) %}
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+    {% if res_global %}
+      {% for cat_key, items in res_global.items() %}
+        {% for it in items %}
+          {% set _ = _flat.append({'cat': cat_key, 'item': it}) %}
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+    {% if _flat %}
+      <div class="page-meta" style="margin-bottom: 12px;">총 <b>{{ _flat|length }}건</b> 결과</div>
+      {% for entry in _flat %}
+      {% set r = entry.item %}
+      <a class="result-card" href="{{ r.url|default(r.link|default('#')) }}">
+        <div class="result-cat">{{ cat_labels.get(entry.cat, entry.cat) }}</div>
+        <div class="result-ttl">{{ r.title|default(r.name|default(r.part_name|default(r.order_no|default(r.issue_no|default(r.label|default('—')))))) }}</div>
+        {% if r.body or r.notes or r.description or r.customer_name %}
+        <div class="result-meta">{{ (r.body or r.notes or r.description or r.customer_name or '')|truncate(120) }}</div>
+        {% endif %}
       </a>
       {% endfor %}
     {% else %}

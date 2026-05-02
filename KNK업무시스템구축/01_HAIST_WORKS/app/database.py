@@ -7755,7 +7755,7 @@ def get_work_orders(status: str = None, limit: int = 200) -> list:
     """가공팀 작업지시서 목록 (상태 필터). 최신순."""
     sql = (
         "SELECT w.*, COALESCE(o.order_no,'-') AS order_no_disp, "
-        "       COALESCE(p.name,'-') AS part_disp, "
+        "       COALESCE(p.part_name,'-') AS part_disp,"
         "       COALESCE(ua.name, w.assigned_name, '-') AS assigned_disp, "
         "       COALESCE(uc.name, w.created_by_name, '-') AS created_by_disp "
         "FROM work_orders w "
@@ -7781,8 +7781,8 @@ def get_work_order(wo_id: int) -> dict:
     with db_session() as c:
         row = c.execute(
             "SELECT w.*, COALESCE(o.order_no,'-') AS order_no_disp, "
-            "       COALESCE(p.name,'-') AS part_disp, "
-            "       COALESCE(p.spec,'-') AS part_spec, "
+            "       COALESCE(p.part_name,'-') AS part_disp,"
+            "       COALESCE(p.spec,'-') AS part_spec, COALESCE(p.part_no,'-') AS part_no,"
             "       COALESCE(p.unit,'-') AS part_unit, "
             "       COALESCE(ua.name, w.assigned_name, '-') AS assigned_disp, "
             "       COALESCE(uc.name, w.created_by_name, '-') AS created_by_disp, "

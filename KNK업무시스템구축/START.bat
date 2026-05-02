@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H45 CEO dashboard auto-fix + business data seeder — dashboard_page handler: ceo_kpis dict→list, narratives reshape, teams signal lights / seed_business_data() seeds parts/suppliers/POs/stock/orders/invoices/issues/tickets/changes/boards/qc/wo/export/milestones via app_settings marker (idempotent) with DEMO prefix to avoid collision
+REM   LAST UPDATE: 2026-05-03 v5H46 sidebar route audit pass — 82/82 routes OK (74 + 8 alias) / fixes: stock/balances NoneType, stock/movements col rename, search dict flatten, progress phases dict cast, weekly/team date parse, work-orders SQL col, permissions/report summary / 7 new aliases (/reminders /board /qms/dashboard /qc/reports /admin/fx /admin/permissions/report /stock /receipts)
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H45 CEO dashboard auto-fix + biz data seed]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H46 82 routes 100% OK]
 
 echo.
 echo ============================================================
