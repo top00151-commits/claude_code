@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H42 빅터 dock 열림 시 상단바 영향 제거 (대표 지적 — HAIST 너무 빨리 사라짐) — 원인: dock 열리면 .top 에 padding-right:320px 추가되어 상단바 가용 너비 320px 줄어듦 → 1900px 임계값 도달 빨라져 HAIST 조기 숨김. 수정: dock 열려도 .top·.tb-headline padding/left 보정 모두 제거 (메인 .main padding-right만 유지). 결과: 상단바는 dock과 무관, HAIST는 viewport 1900px↑이면 항상 표시 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H43 HAIST WORKS 노출 임계값 1900→1280px (대표 지시) — @media (max-width: 1279px) display:none !important. 1280px↑에서는 항상 노출 (.top min-width 1280과 동일 임계값으로 정합) / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H42 빅터 dock 열림 시 상단바 영향 제거 (HAIST 조기 숨김 해결)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H43 HAIST WORKS 1280px↑ 노출]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

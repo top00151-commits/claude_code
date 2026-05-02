@@ -35,9 +35,9 @@ button { font-family: inherit; cursor: pointer; }
 .tb-brand { white-space: nowrap; flex-shrink: 0; }
 .tb-brand div, .tb-brand div div { white-space: nowrap; }
 /* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정.
-   v5H41: absolute라 좁은 창에서 탭/아이콘 위로 침범 → 1900px↓ 강제 숨김 (!important로 인라인 style·후속 룰 무력화) */
+   v5H43: 대표 지시 — 1280px↑에서 노출 (1279px↓에서만 숨김) */
 .tb-headline { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-@media (max-width: 1900px) {
+@media (max-width: 1279px) {
   .tb-headline { display: none !important; }
 }
 /* 우측 아이콘 그룹은 자동 우측 정렬 */
