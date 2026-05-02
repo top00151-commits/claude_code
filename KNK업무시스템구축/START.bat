@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H39 min-width 1100→1400px — 실측상 1100px도 겹침 발생 → 1400px로 상향 (실제 안전 임계값) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H40 상단바 겹침 근본 해결 — HAIST 1700px↓ 자동 숨김 + min-width 1280px + html/body overflow-x:auto 명시 / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H39 min-width 1100→1400px]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H40 상단바 겹침 근본 해결]
 
 echo.
 echo ============================================================

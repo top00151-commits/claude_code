@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import (
-    TYPE_NAME, YEAR, DEPTS, DEPT_SUB_ITEMS,
+    TYPE_NAME, YEAR, DEPTS, DEPT_SUB_ITEMS, DEPT_MILESTONES,
     PMS_HEADER_LABELS, MAX_COL, R3_MAP_PROJ, R4_MAP_PROJ,
     SHIP_SUMMARY_MAX_COL, SHIP_SUMMARY_LABELS, R3_MAP_SHIP, R4_MAP_SHIP,
     C_QTY, C_CURRENCY, C_UPRICE, C_TOTAL, C_DDAY, C_STATUS,
@@ -138,13 +138,15 @@ def _pms_specs():
 
 def _dept_spec(dept):
     subs = DEPT_SUB_ITEMS.get(dept, [])
+    milestones = DEPT_MILESTONES.get(dept, [])    # v3.0
     n_sub = len(subs)
+    n_ms = len(milestones)
     # v2026.04b: auto_cols 11열 — C10=담당자 추가 + 모델/품명 순서 swap
     auto_cols = ["NO","관리코드","수주번호","고객사","모델","품명",
                  "PO유형","영업단계","진행상태","담당자","전체진척률(%)"]
     n_auto = len(auto_cols)     # 11
     C_DEPT_PIC = 10
-    labels = list(auto_cols) + list(subs) + ["상태", "메모"]
+    labels = list(auto_cols) + list(subs) + list(milestones) + ["상태", "메모"]
     mc = len(labels)
 
     r3 = {}
@@ -152,16 +154,22 @@ def _dept_spec(dept):
         r3[c] = "auto"
     r3[C_DEPT_PIC] = "input"                         # 담당자는 직접 입력
     for c in range(n_auto + 1, n_auto + n_sub + 1):
-        r3[c] = "input"
-    r3[n_auto + n_sub + 1] = "select"
-    r3[n_auto + n_sub + 2] = "memo"
+        r3[c] = "input"                              # 세부 진척률
+    for c in range(n_auto + n_sub + 1, n_auto + n_sub + n_ms + 1):
+        r3[c] = "po_input"                           # v3.0 마일스톤·입고일
+    r3[n_auto + n_sub + n_ms + 1] = "select"
+    r3[n_auto + n_sub + n_ms + 2] = "memo"
 
     r4 = {}
     for c in range(1, n_auto + 1):
         r4[c] = "id"
     r4[C_DEPT_PIC] = "dept"                          # 담당자 부서색
-    for c in range(n_auto + 1, mc + 1):
+    for c in range(n_auto + 1, n_auto + n_sub + 1):
         r4[c] = "status"
+    for c in range(n_auto + n_sub + 1, n_auto + n_sub + n_ms + 1):
+        r4[c] = "payment"                            # v3.0 황금 영역색
+    r4[n_auto + n_sub + n_ms + 1] = "status"
+    r4[n_auto + n_sub + n_ms + 2] = "status"
 
     return {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ {dept} │ {YEAR}",

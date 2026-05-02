@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H39 상단바 min-width 1100→1400px (대표 재지적 — 1100px도 겹침 발생) — 실측 합계 sidebar 240+로고 150+탭 412+HAIST 250+아이콘 374+padding 96 ≈ 1500px, 안전 마진 1400px 적용. 1400px 미만 창에서 가로 스크롤 활성화 (요소 겹침 0건) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H40 상단바 겹침 근본 해결 (대표 재재지적) — (1) HAIST WORKS는 absolute 중앙이라 좁은 창에서 탭/아이콘과 겹침: 1700px↓에선 자동 숨김 (브랜드 데코레이션 → 충분히 넓을 때만 노출), (2) min-width 1400→1280px (HAIST 제외하면 탭+아이콘만 fit하면 OK), (3) html/body overflow-x:auto 명시로 가로 스크롤 활성화 보장 — 1280px↑: HAIST 숨김 정상 / 1700px↑: HAIST 노출 / 1023px↓: 모바일 모드 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H39 min-width 1100→1400px (실제 겹침 임계값 반영)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H40 HAIST 1700px↓ 자동 숨김 + min-width 1280px + 가로 스크롤 보장]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

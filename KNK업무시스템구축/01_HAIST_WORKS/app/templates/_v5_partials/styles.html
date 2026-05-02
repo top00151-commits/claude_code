@@ -2,7 +2,9 @@
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+/* v5H40: 좁은 창에서 가로 스크롤 활성화 보장 */
+html { overflow-x: auto; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; overflow-x: auto; }
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
@@ -25,16 +27,20 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 3px solid var(--knk-red);
   position: sticky; top: 0; z-index: var(--z-topbar);
   box-shadow: 0 2px 16px rgba(165,40,44,0.08);
-  /* v5H39: 최소 너비 보장 — HAIST WORKS·탭·아이콘 겹침 방지
-     실측 합계: sidebar 240 + 로고 150 + 탭 430 + HAIST 250 + 아이콘 340 + padding 96 ≈ 1506px
-     안전 마진 포함 1400px (HAIST는 absolute 중앙이라 양쪽 그룹과 약간 겹쳐도 자연스러움) */
-  min-width: 1400px;
+  /* v5H40: 최소 너비 — 탭+아이콘+사용자만 안 겹치는 임계값 (HAIST 타이틀은 1700px↓에서 숨김)
+     sidebar 240 + 로고 150 + gap 24 + 탭 412 + 우측 374 + padding 96 + 안전 100 = ~1396 → 1280px (탭/사용자명 압축 가능) */
+  min-width: 1280px;
 }
-.app { min-width: 1400px; }
+.app { min-width: 1280px; }
 .tb-brand { white-space: nowrap; flex-shrink: 0; }
 .tb-brand div, .tb-brand div div { white-space: nowrap; }
-/* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정 */
+/* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정.
+   v5H40: 좁은 창에서 탭/아이콘과 겹치지 않도록 1700px↓에서 자동 숨김 */
 .tb-headline { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+@media (max-width: 1700px) {
+  /* HAIST WORKS 타이틀은 충분히 넓을 때만 표시 (브랜드 강조용 데코레이션) */
+  .tb-headline { display: none; }
+}
 /* 우측 아이콘 그룹은 자동 우측 정렬 */
 .top > div:last-child { margin-left: auto; }
 .top-tabs { display: flex; gap: 6px; flex-wrap: nowrap; }
