@@ -237,9 +237,9 @@ async function saveTask(btn) {
     });
     const j = await r.json().catch(()=>({}));
     if (r.ok && j.ok) {
-      // 저장 성공 시각 피드백 후 새로고침
-      if (btn) { btn.textContent = '✓ 저장 완료'; btn.style.background = 'var(--success)'; }
-      setTimeout(()=> location.reload(), 600);
+      // v5H34: 저장 성공 시 /daily 메인으로 이동 (사용자가 저장 결과 확인 가능)
+      if (btn) { btn.textContent = '✓ 저장 완료 — 일일업무로 이동'; btn.style.background = 'var(--success)'; }
+      setTimeout(()=> location.href = '/daily', 700);
     } else {
       alert('저장 실패: ' + (j.error || ('HTTP ' + r.status)));
       if (btn) { btn.disabled = false; btn.textContent = '💾 저장'; }

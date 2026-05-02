@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H33 task_detail 저장 버튼 작동 안함 버그 수정 (대표 지적) — 원인: Jinja `{{ task.project_id|default('null') }}` 필터가 None 값엔 안 적용 → 'None'이 그대로 JS에 출력되어 SyntaxError로 fetch 호출 자체 실패. 수정: TASK_META 객체로 안전 직렬화 (`task.project_id if task.project_id else 'null'` + tojson 필터), PUT API 필수 필드 status 추가, 저장 중/완료 시각 피드백 + 에러 시 alert로 사유 표시 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H34 일일업무 흐름 개선 (대표 지적 2건) — (1) task_detail 저장 후 reload → /daily 메인 이동 (저장 결과 즉시 확인, 헷갈림 해소), 버튼 텍스트 '✓ 저장 완료 — 일일업무로 이동', (2) daily.html '↪ 오늘로 이월' 버튼 작동 안함 버그: 호출 엔드포인트 /api/task/{tid}/carry (미존재) → 실제 엔드포인트 /api/carry-forward (date+ids[] body) 로 수정, 성공/실패 alert 처리 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H33 저장 버튼 작동 버그 수정 (Jinja None 직렬화)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H34 저장 후 /daily 이동 + 오늘로 이월 버튼 수정]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

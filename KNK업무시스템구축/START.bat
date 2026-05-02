@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H33 task_detail 저장 버튼 작동 안함 버그 수정 — Jinja {{ None|default('null') }}이 'None' 출력해 JS SyntaxError 발생, fetch 호출 자체 실패. TASK_META 객체 안전 직렬화(if-else + tojson) + status 필드 추가 + 저장 중/완료 시각 피드백 + 에러 alert / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H34 일일업무 흐름 개선 — (1) task_detail 저장 후 /daily 이동 (저장 결과 확인), (2) '↪ 오늘로 이월' 버튼 잘못된 엔드포인트 호출 수정 (/api/task/{tid}/carry 미존재 → /api/carry-forward) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H33 저장 버튼 버그 수정]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H34 저장 후 이동 + 오늘로 이월 버튼 수정]
 
 echo.
 echo ============================================================

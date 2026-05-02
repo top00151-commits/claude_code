@@ -242,13 +242,23 @@ async function addTask() {
   });
   if (r.ok) location.reload();
 }
+// v5H34: 어제 미완료 → 오늘로 이월 (실제 엔드포인트는 /api/carry-forward)
 async function carry(tid) {
-  if (!confirm('오늘로 이월하시겠습니까?')) return;
-  const r = await fetch('/api/task/' + tid + '/carry', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ work_date: SEL_DATE })
-  });
-  if (r.ok) location.reload();
+  if (!confirm('이 업무를 오늘(' + SEL_DATE + ')로 이월하시겠습니까?\n새 카드가 생성되고 진행/수정 가능합니다.')) return;
+  try {
+    const r = await fetch('/api/carry-forward', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: SEL_DATE, ids: [tid] })
+    });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.ok) {
+      location.reload();
+    } else {
+      alert('이월 실패: ' + (j.error || ('HTTP ' + r.status)));
+    }
+  } catch(e) {
+    alert('통신 오류: ' + (e.message || e));
+  }
 }
 async function changeStatus(tid) {
   const newStatus = prompt('새 상태 (진행중/완료/지연/대기/보류):');
