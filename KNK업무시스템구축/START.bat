@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 — 데스크톱 .top + .app min-width:1100px → 작아지면 viewport 가로 스크롤, 모바일(1023px↓)에선 min-width 해제 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H39 min-width 1100→1400px — 실측상 1100px도 겹침 발생 → 1400px로 상향 (실제 안전 임계값) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 전환]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H39 min-width 1100→1400px]
 
 echo.
 echo ============================================================

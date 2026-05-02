@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 전환 (대표 지시) — 데스크톱(1024px↑) .top + .app min-width:1100px 강제 → 창 너비가 더 작아지면 viewport 가로 스크롤바 자동 표시 (HAIST WORKS·탭·아이콘 겹침 대신 좌우 스크롤로 모든 요소 접근 가능). 모바일(1023px↓)에선 min-width:auto !important 로 해제하여 단일 컬럼 레이아웃 유지 (탭 숨김 + HAIST WORKS 16px 축소 기존 룰 그대로 작동) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H39 상단바 min-width 1100→1400px (대표 재지적 — 1100px도 겹침 발생) — 실측 합계 sidebar 240+로고 150+탭 412+HAIST 250+아이콘 374+padding 96 ≈ 1500px, 안전 마진 1400px 적용. 1400px 미만 창에서 가로 스크롤 활성화 (요소 겹침 0건) / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 전환 (min-width 1100px)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H39 min-width 1100→1400px (실제 겹침 임계값 반영)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

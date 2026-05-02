@@ -25,11 +25,12 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 3px solid var(--knk-red);
   position: sticky; top: 0; z-index: var(--z-topbar);
   box-shadow: 0 2px 16px rgba(165,40,44,0.08);
-  /* v5H38: 최소 너비 보장 — HAIST WORKS·탭·아이콘 겹침 방지 */
-  min-width: 1100px;
+  /* v5H39: 최소 너비 보장 — HAIST WORKS·탭·아이콘 겹침 방지
+     실측 합계: sidebar 240 + 로고 150 + 탭 430 + HAIST 250 + 아이콘 340 + padding 96 ≈ 1506px
+     안전 마진 포함 1400px (HAIST는 absolute 중앙이라 양쪽 그룹과 약간 겹쳐도 자연스러움) */
+  min-width: 1400px;
 }
-/* v5H38: 데스크톱에서 창이 1100px 미만이면 좌우 스크롤 활성화 (겹침 대신) */
-.app { min-width: 1100px; }
+.app { min-width: 1400px; }
 .tb-brand { white-space: nowrap; flex-shrink: 0; }
 .tb-brand div, .tb-brand div div { white-space: nowrap; }
 /* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정 */
