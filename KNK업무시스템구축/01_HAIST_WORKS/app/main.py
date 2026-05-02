@@ -4132,6 +4132,60 @@ async def receipts_alias(req: Request):
     return RedirectResponse("/stock/receipts", 303)
 
 
+@app.get("/projects/{pid}", response_class=HTMLResponse)
+async def projects_detail_alias(req: Request, pid: int):
+    return RedirectResponse(f"/project/{pid}", 303)
+
+
+@app.get("/sales/orders/{oid}", response_class=HTMLResponse)
+async def sales_order_detail(req: Request, oid: int):
+    """수주 상세 — 라인/송장/수금/이력 (v5H47 신규)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        row = c.execute(
+            """SELECT o.*, cu.name AS customer_name,
+                      uc.name AS created_by_name
+               FROM orders o
+               LEFT JOIN customers cu ON cu.id = o.customer_id
+               LEFT JOIN users uc ON uc.id = o.created_by
+               WHERE o.id=?""",
+            (oid,)
+        ).fetchone()
+        if not row:
+            return RedirectResponse("/sales/orders", 303)
+        order = dict(row)
+        items = [dict(r) for r in c.execute(
+            """SELECT oi.*, p.part_no, p.part_name
+               FROM order_items oi
+               LEFT JOIN parts p ON p.id = oi.part_id
+               WHERE oi.order_id=? ORDER BY oi.id""",
+            (oid,)
+        ).fetchall()]
+        invoices_ = [dict(r) for r in c.execute(
+            "SELECT * FROM invoices WHERE order_id=? ORDER BY id DESC", (oid,)
+        ).fetchall()]
+        receipts_p = [dict(r) for r in c.execute(
+            "SELECT * FROM receipts_payment WHERE order_id=? ORDER BY id DESC", (oid,)
+        ).fetchall()]
+        history = [dict(r) for r in c.execute(
+            """SELECT h.*, u.name AS changed_by_name
+               FROM order_status_history h
+               LEFT JOIN users u ON u.id = h.changed_by
+               WHERE h.order_id=? ORDER BY h.id DESC""",
+            (oid,)
+        ).fetchall()]
+    # 핵심 KPI 계산
+    invoiced = sum(float(i.get("total_amount") or 0) for i in invoices_)
+    received = sum(float(r.get("amount") or 0) for r in receipts_p)
+    return ctx(req, "sales_order_detail.html", user=u, active="sales",
+               order=order, items=items, invoices=invoices_,
+               receipts=receipts_p, history=history,
+               total_invoiced=invoiced, total_received=received,
+               outstanding=max(0, invoiced - received))
+
+
 @app.get("/admin/reminders", response_class=HTMLResponse)
 async def reminders_page(req: Request, sel_date: str = ""):
     u = require(req, ["leader", "executive", "ceo", "admin"])
@@ -4631,11 +4685,14 @@ def _can_delete_ticket(u, ticket) -> bool:
 
 
 @app.get("/tickets", response_class=HTMLResponse)
-async def tickets_page(req: Request, scope: str = "me", q: str = "",
+async def tickets_page(req: Request, scope: str = "", q: str = "",
                        category: str = "", urgency: str = "", status: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    # v5H47: scope 미지정 시 ceo/admin/executive 는 'all' (전사) 기본 — 빈 화면 방지
+    if not scope:
+        scope = "all" if u.get("role") in ("ceo", "admin", "executive") else "me"
     suid = u["id"] if scope == "me" else None
     stid = u.get("team_id") if scope == "team" else None
     rows = tickets_list(scope_user_id=suid, scope_team_id=stid,
@@ -10338,7 +10395,7 @@ async def export_fta_new_form(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
         ).fetchall()]
         export_orders = [dict(r) for r in c.execute(
             """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
@@ -10347,7 +10404,7 @@ async def export_fta_new_form(req: Request):
                ORDER BY eo.id DESC LIMIT 100"""
         ).fetchall()]
         parts_options = [dict(r) for r in c.execute(
-            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+            "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
     return ctx(req, "fta_form.html", user=u, active="export",
                customers=customers, export_orders=export_orders,
@@ -10454,7 +10511,7 @@ async def export_fta_detail(req: Request, cert_id: int):
     company = _company_info_dict()
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
         ).fetchall()]
         export_orders = [dict(r) for r in c.execute(
             """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
@@ -10463,7 +10520,7 @@ async def export_fta_detail(req: Request, cert_id: int):
                ORDER BY eo.id DESC LIMIT 100"""
         ).fetchall()]
         parts_options = [dict(r) for r in c.execute(
-            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+            "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
     return ctx(req, "fta_form.html", user=u, active="export",
                cert=cert, company=company,
@@ -10565,7 +10622,7 @@ async def qc_report_new_form(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
         ).fetchall()]
         orders = [dict(r) for r in c.execute(
             """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
@@ -10574,7 +10631,7 @@ async def qc_report_new_form(req: Request):
                ORDER BY o.id DESC LIMIT 100"""
         ).fetchall()]
         parts_options = [dict(r) for r in c.execute(
-            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+            "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
     return ctx(req, "qc_report_form.html", user=u, active="qc_reports",
                customers=customers, orders=orders, parts_options=parts_options,
@@ -10671,7 +10728,7 @@ async def qc_report_detail(req: Request, report_id: int):
     company = _company_info_dict()
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, country FROM customers ORDER BY name LIMIT 200"
+            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
         ).fetchall()]
         orders = [dict(r) for r in c.execute(
             """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
@@ -10680,7 +10737,7 @@ async def qc_report_detail(req: Request, report_id: int):
                ORDER BY o.id DESC LIMIT 100"""
         ).fetchall()]
         parts_options = [dict(r) for r in c.execute(
-            "SELECT id, name, spec, unit FROM parts ORDER BY name LIMIT 300"
+            "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
     return ctx(req, "qc_report_form.html", user=u, active="qc_reports",
                report=report, company=company,

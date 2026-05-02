@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H46 sidebar route audit pass — 82/82 routes OK (74 + 8 alias) / fixes: stock/balances NoneType, stock/movements col rename, search dict flatten, progress phases dict cast, weekly/team date parse, work-orders SQL col, permissions/report summary / 7 new aliases (/reminders /board /qms/dashboard /qc/reports /admin/fx /admin/permissions/report /stock /receipts)
+REM   LAST UPDATE: 2026-05-03 v5H47 detail-page audit + 96/96 routes OK (sidebar 82 + detail 14: customer/project/po/part/issue/ticket/change/task/wo/qcr/sales-order/export/board-post/progress) / 5 more fixes: customers.country missing→COALESCE(tier), parts.name SQL→part_name AS name, qcr SQL p.name fix, part_detail None format, /projects/{id} alias + /sales/orders/{id} new (template+handler) / tickets default scope=all for ceo/admin/exec
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H46 82 routes 100% OK]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H47 96 routes 100% OK]
 
 echo.
 echo ============================================================

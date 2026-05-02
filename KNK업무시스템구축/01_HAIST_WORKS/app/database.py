@@ -7643,7 +7643,7 @@ def get_qc_inspection_report(report_id: int) -> dict:
             "SELECT qr.*, COALESCE(cu.name, qr.customer_name, '-') AS cust_disp, "
             "       COALESCE(us.name, qr.inspector_name, '-') AS inspector_disp, "
             "       COALESCE(uq.name, qr.qa_manager_name, '-') AS qa_disp, "
-            "       COALESCE(p.name, '-') AS part_disp "
+            "       COALESCE(p.part_name, '-') AS part_disp "
             "FROM qc_inspection_reports qr "
             "LEFT JOIN customers cu ON cu.id = qr.customer_id "
             "LEFT JOIN users us ON us.id = qr.inspector_id "

@@ -32,7 +32,7 @@
   <div class="bento" style="grid-template-columns:repeat(4,1fr);">
     <div class="kpi-card"><div class="kpi-label">현재 재고</div><div class="kpi-num">{{ '{:,.0f}'.format(p.stock_qty|default(0)) }}<span class="unit">{{ p.unit|default('EA') }}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">재고 가치</div><div class="kpi-num">{{ '{:,.0f}'.format(stock_value|default(0)) }}<span class="unit">원</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">활성 단가</div><div class="kpi-num">{{ '{:,.0f}'.format(active_price|default(p.unit_price|default(0))) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">활성 단가</div><div class="kpi-num">{{ '{:,.0f}'.format((active_price or p.unit_price or p.std_price or 0)) }}<span class="unit">원</span></div></div>
     <div class="kpi-card"><div class="kpi-label">안전 재고</div><div class="kpi-num" {% if (p.stock_qty|default(0)) <= (p.safety_stock|default(0)) %}style="color:var(--knk-red);"{% endif %}>{{ '{:,.0f}'.format(p.safety_stock|default(0)) }}</div>{% if (p.stock_qty|default(0)) <= (p.safety_stock|default(0)) %}<div class="kpi-trend alert">⚠ 임계 미만</div>{% endif %}</div>
   </div>
 

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H46 사이드바 전체 라우트 정합 (대표 지시 "전 아이콘 항목 내용 자동 보충" 후속) — 82개 라우트 100% 정상 (74 OK + 8 별칭) / 12건 버그·404 일괄수정 — /stock/balances NoneType len, /stock/movements 컬럼명 qty→quantity, /search dict+dict 평탄화, /progress phases list→dict, /weekly/team 날짜파싱 충돌, /production/work-orders SQL p.name→part_name + users.active→is_active, /admin/permissions/report 3종 summary 누락 / 7개 라우트 별칭 신규(/reminders /board /qms/dashboard /qc/reports /admin/fx /admin/permissions/report /stock /receipts) / v5H45는 3154efb 별도 커밋
+REM   LAST UPDATE: 2026-05-03 v5H47 디테일 페이지 일괄 정합 + 96개 전체 라우트 100% 정상 — 사이드바 82 + 디테일 14 (고객·프로젝트·PO·부품·이슈·티켓·변경·업무·작업지시·검사기보고서·수주·수출·게시글·진척) / 추가수정 5건: customers.country 미존재 컬럼 4곳 → COALESCE(tier) 별칭, parts.name SQL 5곳 → part_name AS name, qc_inspection_report 상세 SQL p.name 정합, part_detail 활성단가 None format, /projects/{id} 별칭 + /sales/orders/{id} 신규(템플릿+핸들러) / 티켓 기본 scope ceo/admin/executive='all' 변경(빈 화면 방지)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H46 82라우트 100% 정상 (12버그 + 7별칭)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H47 96라우트 100% 정상 (사이드바82 + 디테일14)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
