@@ -157,6 +157,20 @@
   z-index: 95;
 }
 body.victor-open .victor-dock { transform: translateX(0); }
+/* 빅터 dock 열렸을 때 메인 콘텐츠 우측 padding 확보 → 컨텐츠가 가려지지 않도록 */
+.main { transition: padding-right .25s ease-out; }
+body.victor-open .main { padding-right: 320px; }
+/* 상단바도 우측 아이콘이 dock 뒤에 가리지 않도록 padding 보정 */
+body.victor-open .top { padding-right: calc(var(--content-pad) + 320px); transition: padding-right .25s ease-out; }
+/* HAIST WORKS 정중앙 — dock 열린 만큼 좌측으로 보정 */
+.tb-headline { transition: left .25s ease-out; }
+body.victor-open .tb-headline { left: calc(50% - 160px); }
+@media (max-width: 1023px) {
+  /* 모바일에서는 dock이 풀스크린이므로 메인 padding 보정 불필요 */
+  body.victor-open .main { padding-right: 0; }
+  body.victor-open .top { padding-right: 0; }
+  body.victor-open .tb-headline { left: 50%; }
+}
 .vd-head { padding: 16px 18px; background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%); color: white; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .vd-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .vd-name::before { content:""; width: 9px; height: 9px; background: white; border-radius: 50%; box-shadow: 0 0 10px white; animation: vdPulse 1.5s infinite; }

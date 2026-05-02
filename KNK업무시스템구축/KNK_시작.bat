@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 상태 보존 (대표 지시) — chrome.html에 fixed-position 빅터 dock 패널(우측 슬라이드인, 320px) 추가, 🤖 아이콘 toggleVictorDock() 클릭 시 열림/닫힘, localStorage('knk_victor_open')로 페이지 이동 시에도 상태 유지, /victor/route API 호출은 chrome 내부로 이전 (home.html 중복 코드 제거), home.html .app 3컬럼→2컬럼 복원, ESC 닫기·Ctrl+K 열기 단축키 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 자동 좌측 이동 (대표 지시) — body.victor-open일 때 .main padding-right:320px, .top padding-right도 동일 보정으로 우측 아이콘 가림 방지, .tb-headline(HAIST WORKS) left:calc(50% - 160px)로 보정 정중앙 유지, 모바일(1023px↓)에서는 dock 풀스크린이라 보정 해제 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 페이지 이동 시 상태 유지]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 좌측 이동 (가림 방지)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

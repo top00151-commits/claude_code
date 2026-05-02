@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 상태 보존 — chrome.html fixed-position 빅터 dock + localStorage 토글 상태, /victor/route 라우팅 chrome 내부, home.html 3컬럼→2컬럼 복원, ESC/Ctrl+K 단축키 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 자동 좌측 이동 — body.victor-open .main padding-right:320px + .top padding-right + .tb-headline left 보정, 모바일은 dock 풀스크린이라 보정 해제 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 페이지 이동 시 상태 유지]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 좌측 이동 (가림 방지)]
 
 echo.
 echo ============================================================
