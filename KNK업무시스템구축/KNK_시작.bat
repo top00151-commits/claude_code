@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H41 HAIST 숨김 강제 + 임계값 1700→1900px (대표 재재재지적 — 자재 vs HAIST 여전 겹침) — (1) HAIST WORKS @media max-width:1900px display:none !important 적용 (인라인 style·후속 .tb-headline 룰 모두 무력화), (2) 1900px 미만에서는 무조건 HAIST 숨김 → 자재구매센터 탭과 겹침 0건 / 154/154 PASS — ⚠ 브라우저 강력 새로고침 필요(Ctrl+F5)
+REM   LAST UPDATE: 2026-05-02 v5H42 빅터 dock 열림 시 상단바 영향 제거 (대표 지적 — HAIST 너무 빨리 사라짐) — 원인: dock 열리면 .top 에 padding-right:320px 추가되어 상단바 가용 너비 320px 줄어듦 → 1900px 임계값 도달 빨라져 HAIST 조기 숨김. 수정: dock 열려도 .top·.tb-headline padding/left 보정 모두 제거 (메인 .main padding-right만 유지). 결과: 상단바는 dock과 무관, HAIST는 viewport 1900px↑이면 항상 표시 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H41 HAIST 숨김 강제(!important) + 임계값 1900px]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H42 빅터 dock 열림 시 상단바 영향 제거 (HAIST 조기 숨김 해결)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

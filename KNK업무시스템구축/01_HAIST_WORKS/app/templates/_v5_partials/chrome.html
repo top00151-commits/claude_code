@@ -170,16 +170,11 @@ body.victor-open .victor-dock { transform: translateX(0); }
 /* 빅터 dock 열렸을 때 메인 콘텐츠 우측 padding 확보 → 컨텐츠가 가려지지 않도록 */
 .main { transition: padding-right .25s ease-out; }
 body.victor-open .main { padding-right: 320px; }
-/* 상단바도 우측 아이콘이 dock 뒤에 가리지 않도록 padding 보정 */
-body.victor-open .top { padding-right: calc(var(--content-pad) + 320px); transition: padding-right .25s ease-out; }
-/* HAIST WORKS 정중앙 — dock 열린 만큼 좌측으로 보정 */
-.tb-headline { transition: left .25s ease-out; }
-body.victor-open .tb-headline { left: calc(50% - 160px); }
+/* v5H42: 상단바는 dock과 무관하게 원래 너비 유지 (HAIST WORKS 조기 숨김 문제 해결).
+   우측 아이콘은 dock에 일부 가려질 수 있으나 토픽바 레이아웃 안정성 우선 */
+/* v5H42: 상단바·HAIST 위치는 dock과 무관 (보정 제거) — 메인만 좌측 padding 추가 */
 @media (max-width: 1023px) {
-  /* 모바일에서는 dock이 풀스크린이므로 메인 padding 보정 불필요 */
   body.victor-open .main { padding-right: 0; }
-  body.victor-open .top { padding-right: 0; }
-  body.victor-open .tb-headline { left: 50%; }
 }
 .vd-head { padding: 16px 18px; background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%); color: white; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .vd-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
