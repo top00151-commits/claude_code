@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H47 detail-page audit + 96/96 routes OK (sidebar 82 + detail 14: customer/project/po/part/issue/ticket/change/task/wo/qcr/sales-order/export/board-post/progress) / 5 more fixes: customers.country missing→COALESCE(tier), parts.name SQL→part_name AS name, qcr SQL p.name fix, part_detail None format, /projects/{id} alias + /sales/orders/{id} new (template+handler) / tickets default scope=all for ceo/admin/exec
+REM   LAST UPDATE: 2026-05-03 v5H48 form-page aliases + route conflict fix — 121/121 routes OK (sidebar 82 + detail 14 + form 24 + 21 alias redirects) / 3 route conflicts fixed via {id:int} constraint (projects/{pid}, parts/{pid}, stock/audits/{audit_id}, admin/permissions/groups/{group_id} were intercepting /something/new) / 11 new form aliases (/admin/{teams,users}/new /customers/new /orders/new /sales/{quotes,shipments}/new /stock/audit{,s}/new /qc/reports/new /fta/certificates/new /admin/permissions/groups/new /parts/import)
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H47 96 routes 100% OK]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H48 121 routes 100% OK]
 
 echo.
 echo ============================================================

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H47 디테일 페이지 일괄 정합 + 96개 전체 라우트 100% 정상 — 사이드바 82 + 디테일 14 (고객·프로젝트·PO·부품·이슈·티켓·변경·업무·작업지시·검사기보고서·수주·수출·게시글·진척) / 추가수정 5건: customers.country 미존재 컬럼 4곳 → COALESCE(tier) 별칭, parts.name SQL 5곳 → part_name AS name, qc_inspection_report 상세 SQL p.name 정합, part_detail 활성단가 None format, /projects/{id} 별칭 + /sales/orders/{id} 신규(템플릿+핸들러) / 티켓 기본 scope ceo/admin/executive='all' 변경(빈 화면 방지)
+REM   LAST UPDATE: 2026-05-03 v5H48 폼 페이지 별칭 + 라우트 충돌 정리 — 121개 전체 라우트 100% 정상 (사이드바82 + 디테일14 + 폼24 + 별칭 21 통합) / 라우트 충돌 3건 수정 — /projects/new가 /projects/{pid}에 가로채진 422 등 → {pid:int} 제약 추가 (parts/{pid}, stock/audits/{audit_id}, admin/permissions/groups/{group_id} 동일 패턴) / 신규 별칭 11건 추가 — /admin/teams/new, /admin/users/new, /customers/new, /orders/new, /sales/quotes/new, /sales/shipments/new, /stock/audit/new, /stock/audits/new, /qc/reports/new, /fta/certificates/new, /admin/permissions/groups/new, /parts/import
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H47 96라우트 100% 정상 (사이드바82 + 디테일14)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H48 121라우트 100% 정상 (사이드바82+디테일14+폼24)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -4132,12 +4132,73 @@ async def receipts_alias(req: Request):
     return RedirectResponse("/stock/receipts", 303)
 
 
-@app.get("/projects/{pid}", response_class=HTMLResponse)
+# v5H48 (2026-05-03): 사이드바·내부 폼 링크가 미존재 라우트 가리키는 8건 → 인접 페이지로 별칭
+@app.get("/admin/teams/new", response_class=HTMLResponse)
+async def _alias_admin_teams_new(req: Request):
+    return RedirectResponse("/admin", 303)
+
+
+@app.get("/admin/users/new", response_class=HTMLResponse)
+async def _alias_admin_users_new(req: Request):
+    return RedirectResponse("/admin", 303)
+
+
+@app.get("/customers/new", response_class=HTMLResponse)
+async def _alias_customers_new(req: Request):
+    return RedirectResponse("/customers", 303)
+
+
+@app.get("/orders/new", response_class=HTMLResponse)
+async def _alias_orders_new(req: Request):
+    return RedirectResponse("/sales/quotations", 303)
+
+
+@app.get("/sales/quotes/new", response_class=HTMLResponse)
+async def _alias_sales_quotes_new(req: Request):
+    return RedirectResponse("/sales/quotations", 303)
+
+
+@app.get("/sales/shipments/new", response_class=HTMLResponse)
+async def _alias_sales_shipments_new(req: Request):
+    return RedirectResponse("/sales/shipments-receipts", 303)
+
+
+@app.get("/stock/audit/new", response_class=HTMLResponse)
+async def _alias_stock_audit_new(req: Request):
+    return RedirectResponse("/stock/audits", 303)
+
+
+@app.get("/stock/audits/new", response_class=HTMLResponse)
+async def _alias_stock_audits_new_get(req: Request):
+    return RedirectResponse("/stock/audits", 303)
+
+
+@app.get("/qc/reports/new", response_class=HTMLResponse)
+async def _alias_qc_reports_new(req: Request):
+    return RedirectResponse("/qc/inspection-reports/new", 303)
+
+
+@app.get("/fta/certificates/new", response_class=HTMLResponse)
+async def _alias_fta_certificates_new(req: Request):
+    return RedirectResponse("/export/fta/new", 303)
+
+
+@app.get("/admin/permissions/groups/new", response_class=HTMLResponse)
+async def _alias_admin_perm_groups_new(req: Request):
+    return RedirectResponse("/admin/permissions/groups", 303)
+
+
+@app.get("/parts/import", response_class=HTMLResponse)
+async def _alias_parts_import(req: Request):
+    return RedirectResponse("/parts", 303)
+
+
+@app.get("/projects/{pid:int}", response_class=HTMLResponse)
 async def projects_detail_alias(req: Request, pid: int):
     return RedirectResponse(f"/project/{pid}", 303)
 
 
-@app.get("/sales/orders/{oid}", response_class=HTMLResponse)
+@app.get("/sales/orders/{oid:int}", response_class=HTMLResponse)
 async def sales_order_detail(req: Request, oid: int):
     """수주 상세 — 라인/송장/수금/이력 (v5H47 신규)."""
     u = get_user(req)
@@ -6079,7 +6140,7 @@ async def parts_price_approve_submit(request: Request, price_id: int):
     return RedirectResponse(f"/parts/{pid}?approved=1", 303)
 
 
-@app.get("/parts/{pid}", response_class=HTMLResponse)
+@app.get("/parts/{pid:int}", response_class=HTMLResponse)
 async def parts_detail_page(request: Request, pid: int):
     """부품 상세 — FIFO 레이어, 공급사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
     u = get_user(request)
@@ -6325,7 +6386,7 @@ async def stock_audits_new(request: Request, note: str = Form("")):
     return RedirectResponse(f"/stock/audits/{aid}?success={ano}", 303)
 
 
-@app.get("/stock/audits/{audit_id}", response_class=HTMLResponse)
+@app.get("/stock/audits/{audit_id:int}", response_class=HTMLResponse)
 async def stock_audit_detail(request: Request, audit_id: int):
     u = get_user(request)
     if not u:
@@ -6903,7 +6964,7 @@ async def admin_permissions_groups_create(req: Request):
     return RedirectResponse(f"/admin/permissions/groups/{gid}", 303)
 
 
-@app.get("/admin/permissions/groups/{group_id}", response_class=HTMLResponse)
+@app.get("/admin/permissions/groups/{group_id:int}", response_class=HTMLResponse)
 async def admin_permissions_groups_detail(req: Request, group_id: int):
     """그룹 상세 — 그룹 정보 + 권한 + 멤버 + 추가 가능한 권한/사용자 목록"""
     u = require(req, ["admin", "ceo"])
