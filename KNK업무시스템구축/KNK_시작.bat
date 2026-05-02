@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H19 브랜드 매뉴얼 정합 (대표 지시 — 패턴 적극 사용) — (1) 260330_KNK 로고 메뉴얼 BS_12 패턴 모티프 SVG 신규 작성 (knk_pattern.svg + knk_pattern_subtle.svg, 3개 스트라이프 × 삼각형 격자, 적·백 2색), (2) BS_11 금지규정 위반 HAIST WORKS text-shadow 제거, (3) 패턴 적용: 상단바 우측·사이드바 하단(은은 6%)·empty state·login 좌측 welcome panel·login 배경(분홍 amber 그라디언트 → red 그라디언트 + 패턴), (4) amber 잔존 청소: pill-progress 레드, pill-warn 그레이로 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H20 패턴 정밀화 + 적용 영역 대폭 확대 (대표 지시) — (1) 부정확 SVG 폐기, PDF 원본(패턴디자인_3_v1) 300dpi PNG에서 직접 seamless 타일 추출 (knk_pattern.png 450×390 + knk_pattern_subtle.png 10% opacity), (2) 적용 영역 확대: 상단바 우측·상단바 하단 8px 띠·사이드바 하단·page-head 우측+좌측 6px 레드바·card 우상단+우하단·KPI 카드 luminosity blend·btn-primary multiply blend·테이블 th 내부·empty state·login welcome panel multiply / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H19 브랜드 매뉴얼 정합 — KNK 패턴 적극 사용 + text-shadow 제거 + amber 청소]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H20 PDF 원본 패턴 PNG 추출 + 10개 영역 적용 (상단바·사이드바·page-head·card·KPI·btn·테이블·empty·login welcome·login bg)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

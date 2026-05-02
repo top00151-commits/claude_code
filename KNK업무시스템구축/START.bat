@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H19 브랜드 매뉴얼 정합 — (1) BS_12 패턴 모티프 SVG 신규(3개 스트라이프 × 삼각형 격자), (2) BS_11 금지규정 위반 text-shadow 제거, (3) 패턴 적용: 상단바·사이드바·empty·login welcome+배경, (4) amber 잔존 청소 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H20 패턴 정밀화 + 적용 영역 대폭 확대 — PDF 원본 PNG 추출(SVG 폐기), 10개 영역 적용 (상단바·사이드바·page-head·card·KPI·btn·테이블·empty·login welcome·login bg) / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H19 브랜드 매뉴얼 정합 — KNK 패턴 적극 사용 + text-shadow 제거 + amber 청소]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H20 PDF 원본 패턴 PNG 추출 + 10개 영역 적용]
 
 echo.
 echo ============================================================
