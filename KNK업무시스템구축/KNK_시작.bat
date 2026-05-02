@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H17 상단바 정리 — (1) 로고 옆 중복 텍스트 제거 (KNK 로고 이미지에 이미 'Human & Ai create the Best / HAIST Innovation' 포함되어 있어 옆 div 텍스트는 중복이었음), 로고 38px로 확대, (2) HAIST WORKS 중앙 타이틀 색상 var(--knk-red) 회사 브랜드 컬러 + 26px / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H18 KNK 레드 적극 사용 (대표 지시) — (1) HAIST WORKS 절대 위치(left:50%/translate -50%)로 화면 정중앙 고정 (좌우 그룹과 무관), 28px·자간 0.1em, (2) 전 페이지 액센트 KNK 레드 일괄 적용: 상단바 하단 3px red border, top-tab/sb-item active 레드 그라디언트, sidebar 그룹 타이틀·메뉴코드·페이지 메타·crumbs·테이블 헤더·KPI hover·section bar 모두 레드, btn-primary 레드 그라디언트, btn-secondary hover 레드 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H17 상단바 정리 — 로고 옆 중복 텍스트 제거 + HAIST WORKS KNK 레드 색상]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H18 HAIST WORKS 절대 중앙 + KNK 레드 적극 적용 (전 페이지 액센트)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
