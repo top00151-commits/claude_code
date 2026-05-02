@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 (대표 지시) — (1) sales page-meta 날짜 중복 '{today} · {kpi.ym} 영업현황' → '{today} · 영업현황' 한 번만, (2) sales page-title 26px→28px (logi와 동일), (3) sales/logi 모두 page-title em 컬러 grad-knk-red로 통일 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H28 일일업무 UX 개선 (대표 지시) — (1) "+ 새 업무" 버튼: 단순 focus → 빠른입력바로 부드러운 스크롤+하이라이트(KNK red 3px ring)+포커스, (2) 프로젝트 드롭다운: select → input+datalist combobox (DB 매출 프로젝트 + 사내/개인/업무개선/교육·세미나/회의/일반업무 자유 추가 가능), (3) DB tasks.project_label TEXT 컬럼 마이그레이션, /api/task POST에서 project_id 또는 project_label 자동 분기 저장, 표시 시 둘 다 처리 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 (날짜 1개·폰트 28px·em red)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H28 일일업무 UX — 새 업무 버튼 액션 + 프로젝트 자유 입력]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

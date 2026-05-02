@@ -1622,6 +1622,13 @@ def init_db():
                 c.execute("ALTER TABLE tasks ADD COLUMN next_plan TEXT")
             except Exception:
                 pass
+        # v5H28 (2026-05-02): 자유 입력 프로젝트 라벨 (project_id 와 별개)
+        # 사용자가 매출 프로젝트 외 사내·일반·개인 업무를 자유 텍스트로 등록 가능
+        if "project_label" not in cols:
+            try:
+                c.execute("ALTER TABLE tasks ADD COLUMN project_label TEXT")
+            except Exception:
+                pass
         # 마이그레이션: users에 lang 컬럼 추가
         ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
         if "lang" not in ucols:

@@ -49,7 +49,7 @@
     </div>
     <div style="display:flex;gap:10px;">
       <a class="btn btn-secondary" href="/history">📜 전체 기록</a>
-      <button class="btn btn-primary" onclick="document.getElementById('newTitle').focus()">＋ 새 업무</button>
+      <button class="btn btn-primary" onclick="focusNewTask()">＋ 새 업무</button>
     </div>
   </div>
 
@@ -82,9 +82,16 @@
   <div class="qa-bar">
     <div style="width:36px;height:36px;background:var(--amber-glow);border-radius:8px;display:grid;place-items:center;font-size:20px;color:var(--amber-deep);font-weight:700;flex-shrink:0;">＋</div>
     <input type="text" id="newTitle" placeholder="지금 무슨 업무를 하고 계신가요? 입력 후 Enter" onkeydown="if(event.key==='Enter')addTask()">
-    <select id="newProject"><option value="">프로젝트</option>
-      {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
-    </select>
+    <input type="text" id="newProject" list="projectOptions" placeholder="프로젝트 (선택 또는 자유 입력)" autocomplete="off" style="min-width:180px;">
+    <datalist id="projectOptions">
+      {% for p in projects %}<option data-pid="{{ p.id }}" value="{{ p.name }}">{% endfor %}
+      <option value="사내 프로젝트">
+      <option value="개인 업무">
+      <option value="업무 개선">
+      <option value="교육·세미나">
+      <option value="회의">
+      <option value="일반 업무">
+    </datalist>
     <select id="newCustomer"><option value="">고객사</option>
       {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
     </select>
@@ -104,7 +111,7 @@
           <div class="task-ttl">{{ t.title }}</div>
           <div class="task-meta">
             <span class="pill pill-warn">{{ t.status }}</span>
-            {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% endif %}
+            {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
             {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% endif %}
           </div>
         </div>
@@ -127,7 +134,7 @@
             <div class="task-ttl">{{ t.title }}</div>
             <div class="task-meta">
               <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
-              {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% endif %}
+              {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
               {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% endif %}
               {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
               {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
@@ -183,16 +190,43 @@
 
 <script>
 const SEL_DATE = '{{ sel_date }}';
+// "+ 새 업무" 버튼: 빠른입력 바로 스크롤·하이라이트·포커스
+function focusNewTask(){
+  var bar = document.querySelector('.qa-bar');
+  var inp = document.getElementById('newTitle');
+  if (bar) {
+    bar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    bar.style.transition = 'box-shadow .3s, transform .3s';
+    bar.style.boxShadow = '0 0 0 3px var(--knk-red), 0 8px 24px rgba(165,40,44,0.25)';
+    bar.style.transform = 'scale(1.01)';
+    setTimeout(function(){
+      bar.style.boxShadow = ''; bar.style.transform = '';
+    }, 800);
+  }
+  setTimeout(function(){ if (inp) inp.focus(); }, 250);
+}
+
 async function addTask() {
   const title = document.getElementById('newTitle').value.trim();
   if (!title) return;
+  // v5H28: project_id (DB FK) 또는 project_label (자유 입력) 자동 분기
+  const projInput = document.getElementById('newProject').value.trim();
+  let project_id = null, project_label = null;
+  if (projInput) {
+    // datalist에서 매칭되는 option 찾기 (data-pid 있으면 등록된 프로젝트)
+    const opts = document.querySelectorAll('#projectOptions option');
+    for (const o of opts) {
+      if (o.value === projInput && o.dataset.pid) { project_id = parseInt(o.dataset.pid, 10); break; }
+    }
+    if (!project_id) project_label = projInput;  // 매칭 안되면 자유 텍스트
+  }
   const r = await fetch('/api/task', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       title, work_date: SEL_DATE, status: '진행중',
       hours: parseFloat(document.getElementById('newHours').value) || 0,
       category: '기타',
-      project_id: document.getElementById('newProject').value || null,
+      project_id, project_label,
       customer_id: document.getElementById('newCustomer').value || null,
     })
   });

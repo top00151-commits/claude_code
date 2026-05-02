@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 — sales page-meta 날짜 중복 제거({today}만), page-title 26→28px(logi와 동일), em 컬러 grad-knk-red 통일 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H28 일일업무 UX 개선 — "+ 새 업무" 버튼 스크롤+하이라이트+포커스, 프로젝트 select → datalist combobox (DB 프로젝트 + 사내/개인/업무개선/교육·세미나/회의/일반 자유 추가), DB tasks.project_label 마이그레이션 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H27 매출/자재 헤더 디테일 통일]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H28 일일업무 UX — 새 업무 버튼 + 프로젝트 자유 입력]
 
 echo.
 echo ============================================================
