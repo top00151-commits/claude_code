@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H15 사이드바 허브별 + 공통 분리 (대표 지시) — 상단 탭(통합/매출/자재) 선택에 따라 해당 허브 메뉴만 표시 + 구분선 + 공통 메뉴(알림/캘린더/티켓/변경공지/이슈/검색) 항상 노출 / active_tab URL 자동 감지 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H16 대표 지적 2건 — (1) 자재/발주 목록 클릭 시 레이아웃 깨짐: po_list/po_form/po_detail 인라인 chrome CSS 제거 + styles partial include로 통일, (2) 상단바 재구성: 좌 KNK 로고+탭, 중앙 HAIST WORKS 큰 타이틀, 우 빅터/알림/도움말/사용자 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H15 사이드바 = 허브 선택 메뉴 + 구분선 + 공통 메뉴]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H16 상단바 재구성 (HAIST WORKS 중앙 큰 타이틀) + po 페이지 chrome 정합]
 
 echo.
 echo ============================================================
