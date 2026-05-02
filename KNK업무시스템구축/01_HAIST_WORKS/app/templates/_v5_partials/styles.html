@@ -25,7 +25,11 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 3px solid var(--knk-red);
   position: sticky; top: 0; z-index: var(--z-topbar);
   box-shadow: 0 2px 16px rgba(165,40,44,0.08);
+  /* v5H38: 최소 너비 보장 — HAIST WORKS·탭·아이콘 겹침 방지 */
+  min-width: 1100px;
 }
+/* v5H38: 데스크톱에서 창이 1100px 미만이면 좌우 스크롤 활성화 (겹침 대신) */
+.app { min-width: 1100px; }
 .tb-brand { white-space: nowrap; flex-shrink: 0; }
 .tb-brand div, .tb-brand div div { white-space: nowrap; }
 /* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정 */
@@ -101,7 +105,9 @@ button { font-family: inherit; cursor: pointer; }
   .tb-brand div div:last-child { display: none; }  /* 서브타이틀 숨김 */
 }
 @media (max-width: 1023px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h, 80px) 1fr; }
+  /* v5H38: 모바일에선 min-width 해제 — 가로 스크롤 없이 단일 컬럼 */
+  .app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h, 80px) 1fr; min-width: auto !important; }
+  .top { min-width: auto !important; }
   .sidebar { display: none; position: fixed; top: var(--topbar-h, 80px); left: 0; bottom: 0; width: 280px; z-index: 90; background: var(--paper); border-right: 1px solid var(--line); box-shadow: 4px 0 16px rgba(0,0,0,.12); overflow-y: auto; }
   body.mob-sb-open .sidebar { display: block; }
   body.mob-sb-open::after { content:""; position:fixed; inset: var(--topbar-h, 80px) 0 0 280px; background: rgba(0,0,0,.4); z-index: 89; }

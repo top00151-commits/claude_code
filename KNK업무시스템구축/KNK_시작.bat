@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H37 삭제 HTTP 500 FK 위반 수정 — 원인: tasks.carry_from_id 자기참조 FK가 ON DELETE CASCADE 미설정 → 이월된 자식 카드가 부모 참조하는 상태에서 부모 DELETE 시도 → SQLite FK constraint failed. 수정: 1) UPDATE tasks SET carry_from_id=NULL WHERE carry_from_id=? 먼저 실행, 2) activity_logs/notifications.task_id도 방어적 NULL 처리, 3) try/except로 FK 등 DB 오류 시 명확한 메시지(`DB 오류: {타입}: {사유}`) 500 반환 + traceback 서버 로그 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 전환 (대표 지시) — 데스크톱(1024px↑) .top + .app min-width:1100px 강제 → 창 너비가 더 작아지면 viewport 가로 스크롤바 자동 표시 (HAIST WORKS·탭·아이콘 겹침 대신 좌우 스크롤로 모든 요소 접근 가능). 모바일(1023px↓)에선 min-width:auto !important 로 해제하여 단일 컬럼 레이아웃 유지 (탭 숨김 + HAIST WORKS 16px 축소 기존 룰 그대로 작동) / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H37 삭제 HTTP 500 FK 위반 수정 (carry_from_id 자기참조)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H38 상단바 겹침 → 가로 스크롤 전환 (min-width 1100px)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
