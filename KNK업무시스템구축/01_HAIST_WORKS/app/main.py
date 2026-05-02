@@ -2485,6 +2485,21 @@ async def dashboard_page(req: Request):
         ).fetchall()]
 
         # 내러티브: 팀별 진행중 핵심 카드 3건씩 + 다음 계획
+        # v5H51: 오늘이 주말이거나 비어있으면 가장 최근 평일로 폴백
+        narr_date = today_s
+        narr_check = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE work_date=? "
+            "AND status IN ('진행중','지연')",
+            (today_s,)
+        ).fetchone()[0]
+        if narr_check == 0:
+            r = c.execute(
+                "SELECT MAX(work_date) FROM tasks "
+                "WHERE work_date<=? AND status IN ('진행중','지연')",
+                (today_s,)
+            ).fetchone()
+            if r and r[0]:
+                narr_date = r[0]
         narratives = []
         for t in teams:
             cards = [dict(r) for r in c.execute(
@@ -2496,7 +2511,7 @@ async def dashboard_page(req: Request):
                      AND t.status IN ('진행중','지연')
                    ORDER BY CASE t.status WHEN '지연' THEN 0 ELSE 1 END, t.id
                    LIMIT 3""",
-                (t["id"], today_s),
+                (t["id"], narr_date),
             ).fetchall()]
             if cards:
                 narratives.append({"team": t, "cards": cards})
