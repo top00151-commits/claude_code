@@ -8453,6 +8453,21 @@ async def sales_dashboard_v3(req: Request):
         "kpi_ship_soon":    k.get("ship_soon", 0),
     }
     ctx_data.update(flat)
+    # v5H51: pareto_top5 / pipeline 형식 정합 (템플릿 정합)
+    tcs = ctx_data.get("top_customers", [])
+    ctx_data["pareto_top5"] = [{
+        "customer_name": tc.get("name", "-"),
+        "total":  tc.get("total", 0),
+        "cnt":    tc.get("cnt", 0),
+        "share":  tc.get("pct", 0),
+    } for tc in tcs[:5]]
+    pipe_dict = ctx_data.get("pipeline", {})
+    if isinstance(pipe_dict, dict):
+        ctx_data["pipeline"] = [
+            {"stage": stage, "cnt": (info.get("cnt", 0) if isinstance(info, dict) else int(info or 0)),
+             "amount": (info.get("amount", 0) if isinstance(info, dict) else 0)}
+            for stage, info in pipe_dict.items()
+        ]
     return ctx(req, "sales_dashboard.html", user=u, active="sales_dashboard",
                tab="dashboard", **ctx_data)
 
