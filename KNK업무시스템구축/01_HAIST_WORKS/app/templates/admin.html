@@ -94,40 +94,10 @@ tbody tr:hover td { background: var(--amber-glow); }
 <body>
 
 <div class="app">
-  <aside class="sidebar">
-    <div class="sb-group">관리자 메뉴</div>
-    <a class="sb-item active" href="/admin">⚙️ 관리자 홈 <span class="menu-code">M-04-01</span></a>
-    <a class="sb-item" href="/admin/delegations">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
-    <a class="sb-item" href="/admin/i18n">🌐 다국어</a>
-    <a class="sb-item" href="/admin/menu-permissions">📋 메뉴 권한</a>
-
-    <div class="sb-group">시스템</div>
-    <a class="sb-item" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
-    <a class="sb-item" href="/audit">📜 감사 로그</a>
-
-    <div class="sb-group">↩</div>
-    <a class="sb-item" href="/home">통합 플랫폼으로</a>
-  </aside>
-
+  {% set active = 'admin' %}
+  {% set active_tab = 'home' %}
+  {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
-    <header class="top">
-      <div></div>
-      <div class="top-tabs">
-        <a class="top-tab active" href="/home">통합 플랫폼</a>
-        <a class="top-tab" href="/sales">매출영업센터</a>
-        <a class="top-tab" href="/logistics">자재구매센터</a>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <a class="top-icon" href="/notifications" title="알림">🔔</a>
-        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
-        <a class="top-user" href="/profile">
-          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
-          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
-        </a>
-        <a class="top-icon" href="/logout" title="나가기">🚪</a>
-      </div>
-    </header>
-
     <div class="page-head">
       <div>
         <div class="crumbs"><b>관리자</b></div>

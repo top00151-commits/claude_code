@@ -102,38 +102,10 @@ button { font-family: inherit; cursor: pointer; }
 {% set rate = ((done * 100 / total)|round|int) if total else 0 %}
 
 <div class="app">
-  <aside class="sidebar">
-    <div class="sb-group">보고</div>
-    <a class="sb-item" href="/team">👥 팀 대시보드 <span class="menu-code">M-00-07</span></a>
-    <a class="sb-item active" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
-    {% if role in ('ceo','admin','executive') %}
-    <a class="sb-item" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
-    {% endif %}
-
-    <div class="sb-group">기타</div>
-    <a class="sb-item" href="/daily">📝 일일업무 <span class="menu-code">M-00-02</span></a>
-    <a class="sb-item" href="/notifications">📢 알림함 <span class="menu-code">M-00-09</span></a>
-  </aside>
-
+  {% set active = 'weekly' %}
+  {% set active_tab = 'home' %}
+  {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
-    <header class="top">
-      <div></div>
-      <div class="top-tabs">
-        <a class="top-tab active" href="/home">통합 플랫폼</a>
-        <a class="top-tab" href="/sales">매출영업센터</a>
-        <a class="top-tab" href="/logistics">자재구매센터</a>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <a class="top-icon" href="/notifications" title="알림">🔔</a>
-        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
-        <a class="top-user" href="/profile">
-          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
-          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
-        </a>
-        <a class="top-icon" href="/logout" title="나가기">🚪</a>
-      </div>
-    </header>
-
     <div class="page-head">
       <div>
         <div class="page-meta">{{ wk_mon }} ~ {{ wk_sun }} · WEEKLY REPORT</div>

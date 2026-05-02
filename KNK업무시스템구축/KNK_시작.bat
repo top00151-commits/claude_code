@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H6 자율 점검 10항 — po_receive 빠른입력+진행률, stock_movements 기간프리셋+CSV+합계, progress_dashboard KPI4, base*.html → _legacy_base 이관, menu_catalog 60→85 (Phase2 25건), t() Jinja 전역, dock JS API 스키마 정합 (q/path/code/auto_navigate), print CSS var() → 하드코드, 모바일(1023px) 사이드바 toggle + 햄버거 + 폼 1열 / Jinja2 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H7 대표 지적 2건 — (1) 상단바 brand 텍스트 wrap/탭 겹침 → .top flex+brand nowrap, (2) weekly/admin 인라인 sidebar+topbar로 페이지간 chrome 불일치 → chrome partial 적용 (153/153 PASS)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H6 자율 점검 10항 — po_receive UX·stock_movements 필터·dashboard KPI·base 이관·menu 25건+·t() Jinja·dock 스키마·print CSS·모바일 햄버거]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H7 대표 지적 2건 — 상단바 겹침 수정 + weekly/admin chrome partial 정합]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
