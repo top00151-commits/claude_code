@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H26 page-meta 형식 통일 — 3개 허브 페이지 '{today} · {짧은 설명}' 패턴, sales '{today} · {월} 영업현황', logi '{today} · 자재구매현황' (URL 노출 제거) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 — sales page-meta 날짜 중복 제거({today}만), page-title 26→28px(logi와 동일), em 컬러 grad-knk-red 통일 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H26 page-meta 형식 통일]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H27 매출/자재 헤더 디테일 통일]
 
 echo.
 echo ============================================================

@@ -17,8 +17,8 @@
 
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
-.page-title { font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
-.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--knk-red); }
 .page-actions { display: flex; gap: 8px; }
 .btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
@@ -85,7 +85,7 @@
   <main class="main">
     <div class="page-head">
       <div>
-        <div class="page-meta">{{ today }} · {{ kpi.ym|default('') }} 영업현황</div>
+        <div class="page-meta">{{ today }} · 영업현황</div>
         <h1 class="page-title">매출영업<em>센터</em></h1>
       </div>
       <div class="page-actions">

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H26 page-meta 형식 통일 (대표 지시) — 3개 허브 페이지 모두 '{today} · {짧은 설명}' 패턴으로 일관화: home '2026-05-02 · EVENING' (기존 유지), sales '2026-05-02 · 2026-05 영업현황' (기존 '매출·영업 센터' 중복 제거), logi '2026-05-02 · 자재구매현황' (기존 '/logistics' URL 노출 제거) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 (대표 지시) — (1) sales page-meta 날짜 중복 '{today} · {kpi.ym} 영업현황' → '{today} · 영업현황' 한 번만, (2) sales page-title 26px→28px (logi와 동일), (3) sales/logi 모두 page-title em 컬러 grad-knk-red로 통일 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H26 page-meta 형식 통일 — {today} · {설명}]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H27 매출/자재 헤더 디테일 통일 (날짜 1개·폰트 28px·em red)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
