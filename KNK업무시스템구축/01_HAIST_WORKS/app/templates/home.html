@@ -13,7 +13,10 @@
    ============================================================ #}
 
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
 <style>
+/* v5H11: chrome (.top/.sidebar/.sb-*) — _v5_partials/styles.html 사용
+   home은 dock 때문에 .app 3컬럼 유지 (아래 .app 정의가 partial보다 우선) */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
 a { text-decoration: none; color: inherit; }
@@ -181,68 +184,9 @@ body.dock-collapsed .dock { display: none; }
 {% set role       = (user.role or 'member')|lower %}
 
 <div class="app">
-
-  <!-- ============ 토픽바 ============ -->
-  <header class="topbar">
-    <div class="tb-brand">
-      <img src="/static/logo.png" alt="KNK" onerror="this.style.display='none'" />
-      <div>
-        <div class="tb-brand-name">HAIST WORKS</div>
-        <div class="tb-brand-sub">통합 플랫폼 · /home</div>
-      </div>
-    </div>
-    <div class="tb-tabs">
-      <a class="tb-tab active" href="/home">통합 플랫폼</a>
-      <a class="tb-tab" href="/sales">매출영업센터</a>
-      <a class="tb-tab" href="/logistics">자재구매센터</a>
-    </div>
-    <div class="tb-right">
-      <a class="tb-icon active" href="javascript:void(0)" onclick="toggleDock()" title="빅터 AI 도크">🤖</a>
-      <a class="tb-icon" href="/guide" target="_blank" title="도움말">❓</a>
-      <a class="tb-icon" href="/notifications" title="알림">
-        🔔
-        {% if unread_notif and unread_notif > 0 %}<span class="tb-icon-badge">{{ unread_notif }}</span>{% endif %}
-      </a>
-      <a class="tb-icon" href="javascript:void(0)" onclick="alert('언어 설정은 다음 사이클에 추가됩니다')" title="언어">🌐</a>
-      <a class="tb-user" href="/profile">
-        <div class="tb-user-avatar">{{ user.name[0] if user.name else '?' }}</div>
-        <div class="tb-user-name">{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}{% if user.team_name %} · <b>{{ user.team_name }}</b>{% endif %}</div>
-      </a>
-      <a class="tb-icon" href="/logout" title="나가기">🚪</a>
-    </div>
-  </header>
-
-  <!-- ============ 사이드바 ============ -->
-  <aside class="sidebar">
-    <div class="sb-group">빠른 시작</div>
-    <a class="sb-item" href="/daily"><span>📝 일일업무</span> <span class="menu-code">M-00-02</span></a>
-    <a class="sb-item" href="/notifications"><span>📢 알림함</span> <span class="menu-code">M-00-09</span>{% if unread_notif and unread_notif > 0 %}<span class="sb-badge">{{ unread_notif }}</span>{% endif %}</a>
-    <a class="sb-item" href="/board"><span>📋 게시판</span> <span class="menu-code">M-00-10</span></a>
-    <a class="sb-item" href="/tickets"><span>🎫 티켓</span> <span class="menu-code">M-00-12</span>{% if (hw_counts.tickets_pending or 0) > 0 %}<span class="sb-badge">{{ hw_counts.tickets_pending }}</span>{% endif %}</a>
-    <a class="sb-item" href="/calendar"><span>📅 캘린더</span> <span class="menu-code">M-00-08</span></a>
-    <a class="sb-item" href="/progress"><span>📈 실시간 진행</span> <span class="menu-code">M-00-03</span></a>
-
-    <div class="sb-group">팀 / 보고</div>
-    <a class="sb-item" href="/team"><span>👥 팀 대시보드</span> <span class="menu-code">M-00-07</span></a>
-    <a class="sb-item" href="/weekly"><span>📑 주간 보고</span> <span class="menu-code">M-05-02</span></a>
-    {% if role in ('ceo','admin','executive','leader') %}
-    <a class="sb-item" href="/dashboard"><span>🏢 대표 대시</span> <span class="menu-code">M-05-01</span></a>
-    {% endif %}
-
-    <div class="sb-group">협업·추적</div>
-    <a class="sb-item" href="/changes"><span>📌 변경 공지</span> <span class="menu-code">M-00-04</span>{% if (hw_counts.changes_unread or 0) > 0 %}<span class="sb-badge">{{ hw_counts.changes_unread }}</span>{% endif %}</a>
-    <a class="sb-item" href="/issues"><span>🚨 이슈·AS</span> <span class="menu-code">M-00-05</span></a>
-    <a class="sb-item" href="/search"><span>🔍 검색</span> <span class="menu-code">M-00-11</span></a>
-
-    {% if role in ('ceo','admin') %}
-    <div class="sb-group">관리</div>
-    <a class="sb-item" href="/admin"><span>⚙️ 관리자</span> <span class="menu-code">M-04-01</span></a>
-    <a class="sb-item" href="/admin/permissions"><span>🔐 권한 위임</span> <span class="menu-code">M-04-02</span></a>
-    {% endif %}
-
-    <div class="sb-group">&nbsp;</div>
-    <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
-  </aside>
+  {# v5H11: 인라인 topbar+sidebar 제거 → chrome partial로 통일 (대표 지시 2026-05-02) #}
+  {% set active_tab = 'home' %}
+  {% include "_v5_partials/chrome.html" with context %}
 
   <!-- ============ 메인 ============ -->
   <main class="main">
