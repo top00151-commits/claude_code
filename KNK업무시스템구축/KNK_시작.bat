@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H14 대표 지적 2건 — (1) 수주 클릭 시 매출 홈도 active 표시되는 버그: prefix 매칭 → longest-prefix-match 알고리즘으로 변경 (단 하나만 active), (2) 이슈·AS 등 일부 active 자동 스크롤 안됨: requestAnimationFrame → DOMContentLoaded+load 이벤트, scrollIntoView → offsetTop 직접 계산 방식 (가운데 정렬) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H15 사이드바 허브별 + 공통 분리 (대표 지시) — 상단 탭(통합/매출/자재) 선택에 따라 해당 허브 메뉴만 표시 + 구분선 + 공통 메뉴(알림/캘린더/티켓/변경공지/이슈/검색) 항상 노출 / active_tab URL 자동 감지 (sales/export/customers/projects/fta → sales, logistics/po/parts/stock/rates 등 → logi) / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H14 active 중복 표시 버그 + 자동 스크롤 안정화]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H15 사이드바 = 허브 선택 메뉴 + 구분선 + 공통 메뉴]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

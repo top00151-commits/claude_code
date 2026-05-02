@@ -7,19 +7,23 @@
    ============================================================ #}
 
 {% set _path = (request.url.path if request and request.url else '') %}
-{% set _at = active_tab|default('home') %}
 {% set _role = (user.role or 'member')|lower %}
 
-{# 사이드바 전체 path 목록 (a 매크로 호출과 1:1) — longest prefix 계산용.
-   추후 메뉴 추가 시 이 목록에도 같은 path 추가 필수. #}
-{% set _all_paths = [
-  '/home','/daily','/now','/calendar','/notifications','/board/company','/tickets',
-  '/sales','/projects','/customers','/sales/quotations','/sales/orders',
-  '/sales/shipments-receipts','/sales/outstanding','/export',
-  '/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates',
-  '/team','/weekly','/dashboard','/changes','/issues','/search',
-  '/admin','/admin/permissions'
-] %}
+{# active_tab 자동 감지: URL prefix 기반 (템플릿이 명시 설정하면 그것 우선) #}
+{% set _at_auto = 'home' %}
+{% if _path.startswith('/sales') or _path.startswith('/export') or _path.startswith('/customers') or _path.startswith('/projects') or _path.startswith('/fta') %}
+  {% set _at_auto = 'sales' %}
+{% elif _path.startswith('/logistics') or _path.startswith('/po') or _path.startswith('/parts') or _path.startswith('/stock') or _path.startswith('/rates') or _path.startswith('/qms') or _path.startswith('/wo') or _path.startswith('/suppliers') or _path.startswith('/qc') or _path.startswith('/fx_rates') %}
+  {% set _at_auto = 'logi' %}
+{% endif %}
+{% set _at = active_tab|default(_at_auto) %}
+
+{# 허브별 path 목록 — longest-prefix 계산용 #}
+{% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
+{% set _paths_sales = ['/sales','/projects','/customers','/sales/quotations','/sales/orders','/sales/shipments-receipts','/sales/outstanding','/export'] %}
+{% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates'] %}
+{% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/admin','/admin/permissions'] %}
+{% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
 
 {# 정확 일치 찾기. 없으면 _path가 startswith(p+'/')인 path 중 가장 긴 것 선택 #}
 {% set _ns = namespace(active='', best_len=0) %}
@@ -66,46 +70,51 @@
 </header>
 
 <aside class="sidebar">
-  <div class="sb-group">내 업무</div>
-  {{ a('/home',          '🏠 업무현황',     'M-00-01') }}
-  {{ a('/daily',         '📝 일일업무',     'M-00-02') }}
-  {{ a('/now',           '⚡ 실시간 진행',  'M-00-03') }}
-  {{ a('/calendar',      '📅 캘린더',       'M-00-08') }}
-  {{ a('/notifications', '📢 알림함',       'M-00-09') }}
-  {{ a('/board/company', '📋 게시판',       'M-00-10') }}
-  {{ a('/tickets',       '🎫 티켓',         'M-00-12') }}
-
-  <div class="sb-group">매출·영업</div>
-  {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
-  {{ a('/projects',              '📊 프로젝트',    'M-01-12') }}
-  {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
-  {{ a('/sales/quotations',      '📋 견적서',      'M-01-02') }}
-  {{ a('/sales/orders',          '📑 수주',        'M-01-03') }}
-  {{ a('/sales/shipments-receipts','🚚 출하·수금', 'M-01-04') }}
-  {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
-  {{ a('/export',                '🌐 수출입',      'M-01-10') }}
-
-  <div class="sb-group">자재·구매</div>
-  {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
-  {{ a('/parts',             '🔩 부품 마스터', 'M-02-02') }}
-  {{ a('/suppliers',         '🏭 공급사',      'M-02-03') }}
-  {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
-  {{ a('/po/new',            '📝 발주 작성',   'M-02-04') }}
-  {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
-  {{ a('/stock/issue',       '📤 출고 등록',   'M-02-08') }}
-  {{ a('/rates',             '💱 환율',        'M-02-13') }}
-
-  <div class="sb-group">팀 / 보고</div>
-  {{ a('/team',      '👥 팀 대시보드', 'M-00-07') }}
-  {{ a('/weekly',    '📊 주간 보고',   'M-05-02') }}
-  {% if _role in ('ceo','admin','executive','leader') %}
-  {{ a('/dashboard', '🏢 대표 대시',   'M-05-01') }}
+  {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
+  {% if _at == 'sales' %}
+    <div class="sb-group">매출·영업</div>
+    {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
+    {{ a('/projects',              '📊 프로젝트',    'M-01-12') }}
+    {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
+    {{ a('/sales/quotations',      '📋 견적서',      'M-01-02') }}
+    {{ a('/sales/orders',          '📑 수주',        'M-01-03') }}
+    {{ a('/sales/shipments-receipts','🚚 출하·수금', 'M-01-04') }}
+    {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
+    {{ a('/export',                '🌐 수출입',      'M-01-10') }}
+  {% elif _at == 'logi' %}
+    <div class="sb-group">자재·구매</div>
+    {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
+    {{ a('/parts',             '🔩 부품 마스터', 'M-02-02') }}
+    {{ a('/suppliers',         '🏭 공급사',      'M-02-03') }}
+    {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
+    {{ a('/po/new',            '📝 발주 작성',   'M-02-04') }}
+    {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
+    {{ a('/stock/issue',       '📤 출고 등록',   'M-02-08') }}
+    {{ a('/rates',             '💱 환율',        'M-02-13') }}
+  {% else %}
+    <div class="sb-group">통합 플랫폼</div>
+    {{ a('/home',          '🏠 업무현황',     'M-00-01') }}
+    {{ a('/daily',         '📝 일일업무',     'M-00-02') }}
+    {{ a('/now',           '⚡ 실시간 진행',  'M-00-03') }}
+    {{ a('/board/company', '📋 게시판',       'M-00-10') }}
+    {{ a('/team',          '👥 팀 대시보드',  'M-00-07') }}
+    {{ a('/weekly',        '📊 주간 보고',    'M-05-02') }}
+    {% if _role in ('ceo','admin','executive','leader') %}
+    {{ a('/dashboard',     '🏢 대표 대시',    'M-05-01') }}
+    {% endif %}
   {% endif %}
 
-  <div class="sb-group">협업·추적</div>
-  {{ a('/changes', '📌 변경 공지', 'M-00-04') }}
-  {{ a('/issues',  '🚨 이슈·AS',   'M-00-05') }}
-  {{ a('/search',  '🔍 검색',      'M-00-11') }}
+  {# ─────────── 구분선 ─────────── #}
+  <div style="margin: 14px 14px; border-top: 1px solid var(--line);"></div>
+
+  {# ─────────── 공통 메뉴 (항상 노출) ─────────── #}
+  <div class="sb-group">공통</div>
+  {{ a('/notifications', '📢 알림함',    'M-00-09') }}
+  {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}
+  {{ a('/tickets',       '🎫 티켓',      'M-00-12') }}
+  {{ a('/changes',       '📌 변경 공지', 'M-00-04') }}
+  {{ a('/issues',        '🚨 이슈·AS',  'M-00-05') }}
+  {{ a('/search',        '🔍 검색',      'M-00-11') }}
 
   {% if _role in ('ceo','admin') %}
   <div class="sb-group">관리</div>
