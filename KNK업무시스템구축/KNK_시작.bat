@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H30 업무 카드 상세 페이지 신규 (대표 지시) — daily.html '상세' 클릭 → /task/{tid} 라우트 미존재 404 → main.py @app.get('/task/{tid}') 신규 + task_detail.html 신규 작성: 좌측 본문(상태 변경 4-pill·제목·메모·다음계획·마감일·공수·💬댓글 thread+추가폼), 우측 사이드(분류/일정/작성자/반응 4 카드), 기존 /api/task PUT·status·comment API 재사용, project_label/customer_label 표시, 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H31 업무 상세 UX 개선 (대표 지시) — (1) 작성자만 보이는 🗑 삭제 버튼 추가 (page-head 우측, 기존 DELETE /api/task API 재사용, 확인 모달 포함), (2) '업무 메모/진행 상황'+'다음 계획' 분리 textarea 통합 → 단일 '📝 업무 노트' 1개 (시간순 자유 기록, 다음 할 일도 같은 곳에 기록 후 실행되면 그 줄에 결과만 추가하면 되므로 옮겨 적을 필요 X), '＋ 진행 기록' / '＋ 다음 할 일' 빠른 버튼 (timestamp 자동 prefix), 기존 next_plan 데이터는 노트 끝에 자동 병합 표시 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H30 업무 카드 상세 페이지 신규 — /task/{tid}]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H31 업무 상세 UX — 삭제 버튼 + 메모/계획 통합 단일 노트]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

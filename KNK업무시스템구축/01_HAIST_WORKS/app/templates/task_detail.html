@@ -52,6 +52,9 @@
       </div>
       <div style="display:flex;gap:10px;">
         <a class="btn btn-secondary" href="/daily">← 목록</a>
+        {% if user.id == task.user_id %}
+        <button class="btn btn-danger" onclick="deleteTask()" style="background:var(--knk-red);color:white;">🗑 삭제</button>
+        {% endif %}
       </div>
     </div>
 
@@ -74,16 +77,19 @@
           <input type="text" id="fTitle" value="{{ task.title }}">
         </div>
 
-        <!-- 노트 -->
+        <!-- 통합 노트 (진행 기록 + 다음 단계) -->
         <div class="field-block">
-          <label>업무 메모 / 진행 상황</label>
-          <textarea id="fNotes" placeholder="진행 상황·이슈·결정사항 등을 자유롭게 기록하세요">{{ task.notes|default('') }}</textarea>
-        </div>
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span>📝 업무 노트 (진행 상황 · 다음 단계)</span>
+            <span style="display:flex;gap:6px;">
+              <button type="button" onclick="appendNote('진행')" style="font-size:11px;padding:3px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">＋ 진행 기록</button>
+              <button type="button" onclick="appendNote('다음')" style="font-size:11px;padding:3px 8px;border:1px solid var(--knk-red);background:rgba(165,40,44,0.06);border-radius:4px;cursor:pointer;color:var(--knk-red);font-weight:700;">＋ 다음 할 일</button>
+            </span>
+          </label>
+          <textarea id="fNotes" placeholder="모든 진행 사항을 시간순으로 자유롭게 기록하세요.&#10;&#10;예시)&#10;[2026-05-02 14:30] 진행: 1차 시안 검토 완료&#10;[2026-05-02 16:00] 📌 다음: 견적서 초안 작성">{{ task.notes|default('') }}{% if task.next_plan and task.next_plan.strip() %}{% if task.notes and task.notes.strip() %}
 
-        <!-- 다음 계획 -->
-        <div class="field-block">
-          <label>다음 계획 (Next Plan)</label>
-          <textarea id="fNextPlan" placeholder="다음 단계·내일 할 일·후속 조치">{{ task.next_plan|default('') }}</textarea>
+{% endif %}📌 다음 단계: {{ task.next_plan }}{% endif %}</textarea>
+          <div style="font-size:11px;color:var(--mute);margin-top:6px;">💡 다음에 할 일을 기록하면 → 실행 후 그 줄에 결과만 추가하면 됩니다 (옮겨 적을 필요 없음)</div>
         </div>
 
         <!-- 마감 / 공수 -->
@@ -186,7 +192,7 @@ async function saveTask() {
   const body = {
     title: document.getElementById('fTitle').value.trim(),
     notes: document.getElementById('fNotes').value,
-    next_plan: document.getElementById('fNextPlan').value,
+    next_plan: '',  // v5H31: next_plan UI 제거 — notes로 통합
     due_date: document.getElementById('fDue').value || null,
     hours: parseFloat(document.getElementById('fHours').value) || 0,
     category: '{{ task.category|default("기타") }}',
@@ -201,6 +207,31 @@ async function saveTask() {
     location.reload();
   } else {
     alert('저장 실패');
+  }
+}
+
+// 진행 기록 / 다음 할 일 빠른 추가 (timestamp prefix)
+function appendNote(kind) {
+  const ta = document.getElementById('fNotes');
+  const now = new Date();
+  const ts = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0')
+           + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const prefix = kind === '다음' ? '📌 다음: ' : '진행: ';
+  const line = '[' + ts + '] ' + prefix;
+  const cur = ta.value.trim();
+  ta.value = cur ? (cur + '\n' + line) : line;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+async function deleteTask() {
+  if (!confirm('이 업무 카드를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.')) return;
+  const r = await fetch('/api/task/' + TID, { method: 'DELETE' });
+  if (r.ok) {
+    alert('삭제되었습니다');
+    location.href = '/daily';
+  } else {
+    alert('삭제 실패 (작성자만 삭제 가능)');
   }
 }
 async function addComment() {

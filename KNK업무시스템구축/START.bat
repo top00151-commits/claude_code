@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H30 업무 카드 상세 페이지 신규 — /task/{tid} 라우트 + task_detail.html (상태 변경 4-pill, 제목/메모/다음계획/마감일/공수 인라인 수정, 댓글 thread+추가, 우측 사이드 분류/일정/작성자/반응) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H31 업무 상세 UX — 작성자 🗑 삭제 버튼, '메모+다음계획' 2개 textarea → 단일 '업무 노트' 1개 (시간순 통합, ＋진행 기록/＋다음 할 일 빠른 버튼) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H30 업무 카드 상세 페이지 신규]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H31 업무 상세 UX — 삭제 + 단일 노트]
 
 echo.
 echo ============================================================
