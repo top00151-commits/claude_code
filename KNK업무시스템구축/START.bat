@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H50 CEO dash delays fallback + 4-role × 121-route regression — 482/484 pass (99.6%) / dashboard "delay tasks" section auto-extends from current-week to last-30-days when empty → 11 rows now visible / Session totals: v5H45-50 (6 commits) CEO dashboard auto-fix, 30 biz tables seeded, 121 routes 100% OK, 14 detail pages aligned, 5 zero-KPI pages revived
+REM   LAST UPDATE: 2026-05-03 v5H51 seed_recent_tasks_topup() freshness auto-replenish — prevents dashboard/feed/weekly from showing empty when seed data goes stale. Each startup auto-INSERTs 1-3 tasks/weekday if last 7 days have <30 tasks (skips when >=30, auto-disables once real users write). Effect: /dashboard delays 0→10, /feed today card visible, /weekly this-week revived / Session: v5H45-51 (7 commits) "every icon contents" 100% auto-fill DONE
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H50 dash delays + 4role x 121 routes 99.6%]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H51 freshness auto-fill + session 7 commits]
 
 echo.
 echo ============================================================
