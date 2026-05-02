@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H24 상단바 균형 배치 (대표 지시) — flex+absolute → grid 1fr auto 1fr 전환, 좌측 그룹(.tb-left: 햄버거+로고+탭) / 중앙(.tb-headline HAIST WORKS) / 우측 그룹(.tb-right: 빅터🤖+알림+도움말+사용자+로그아웃) 3섹션 균등 분할로 좌우 시각적 균형, 모바일(1023px↓) HAIST WORKS 16px 축소 + 좌측 auto / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 자동 좌측 이동 (대표 지시) — body.victor-open일 때 .main padding-right:320px, .top padding-right도 동일 보정으로 우측 아이콘 가림 방지, .tb-headline(HAIST WORKS) left:calc(50% - 160px)로 보정 정중앙 유지, 모바일(1023px↓)에서는 dock 풀스크린이라 보정 해제 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H24 상단바 균형 배치 — grid 1fr auto 1fr (좌·중앙·우 3섹션)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 좌측 이동 (가림 방지)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
