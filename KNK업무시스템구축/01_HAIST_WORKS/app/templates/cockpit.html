@@ -1,99 +1,47 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cockpit · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>Cockpit · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">Cockpit</div>
-      <h1 class="page-title">Cockpit</h1>
+    <div><div class="page-meta">{% if is_global %}전사{% else %}내 팀{% endif %} Cockpit</div><h1 class="page-title">🎯 <em>Cockpit</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">팀원 한눈에 + 정체 + 미작성 + 병목</div></div>
+  </div>
+
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">팀원</div><div class="kpi-num">{{ members|length if members else 0 }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">정체 업무</div><div class="kpi-num" style="color:var(--warn);">{{ stuck|length if stuck else 0 }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">미작성 일일</div><div class="kpi-num" style="color:var(--knk-red);">{{ missing|length if missing else 0 }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">병목</div><div class="kpi-num">{{ bottlenecks|length if bottlenecks else 0 }}</div></div>
+  </div>
+
+  {% if stuck %}
+  <div class="section">
+    <h2>🐢 정체 업무 ({{ stuck|length }})</h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>제목</th><th>담당</th><th>상태</th><th class="num">정체일</th></tr></thead>
+        <tbody>
+        {% for s in stuck %}<tr><td><b>{{ s.title }}</b></td><td>{{ s.user_name|default('—') }}</td><td><span class="pill pill-warn">{{ s.status }}</span></td><td class="num">{{ s.stuck_days|default(0) }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <div class="page-title">
-    <h1>🎯 {{ i.ck_title_all|default('전사 코크핏') if is_global else i.ck_title_team|default('우리 팀 코크핏') }}</h1>
-    <div class="page-sub">{{ user.name }} {{ user.rank }} — {{ i.ck_sub|default('한 화면에서 누가 어디서 막혀있는지 봅니다') }}</div>
-  </div>
-</div>
+  {% endif %}
 
-<div class="cockpit-grid">
-  <!-- 멤버 상태 -->
-  <div class="ck-block ck-members">
-    <div class="ck-head">{{ i.ck_members|default('👥 멤버 라이브 상태') }} ({{ members|length }})</div>
-    <table class="ck-tbl">
-      <thead><tr>
-        <th>{{ i.ck_col_name|default('이름') }}</th><th>{{ i.ck_col_team|default('팀') }}</th><th>{{ i.ck_col_today|default('오늘') }}</th><th>{{ i.ck_col_progress|default('진행') }}</th><th>{{ i.ck_col_delay|default('지연') }}</th><th>{{ i.ck_col_ceo_unanswered|default('대표요청 미응답') }}</th>
-      </tr></thead>
-      <tbody>
-      {% for m in members %}
-      <tr class="{% if m.unanswered_ceo %}ck-warn{% elif m.delay_cn %}ck-delay{% elif not m.today_cn %}ck-mute{% endif %}"
-          onclick="location.href='/team?team_id={{ m.team_id }}'" style="cursor:pointer">
-        <td><b>{{ m.name }}</b> <span class="cm-time">{{ m.rank }}</span></td>
-        <td>{{ m.team_name or '-' }}</td>
-        <td class="num">{% if m.today_cn %}{{ m.today_cn }}{% else %}<span style="color:var(--knk-red)">{{ i.ck_not_written|default('미작성') }}</span>{% endif %}</td>
-        <td class="num">{{ m.prog_cn }}</td>
-        <td class="num">{% if m.delay_cn %}<b style="color:var(--knk-red)">{{ m.delay_cn }}</b>{% else %}-{% endif %}</td>
-        <td class="num">{% if m.unanswered_ceo %}<b style="color:var(--knk-red)">⚠️ {{ m.unanswered_ceo }}</b>{% else %}-{% endif %}</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="ck-side">
-    <!-- 막힌 카드 -->
-    <div class="ck-block">
-      <div class="ck-head">{{ i.ck_stuck|default('🚨 막힌 카드') }} ({{ i.kpi_delay|default('지연') }} {{ stuck|length }}{{ i.total_count|default('건') }})</div>
-      <div class="ck-list">
-        {% for s in stuck %}
-        <div class="ck-stuck" onclick="openCardModal({{ s.id }})">
-          <b>{{ s.title }}</b>
-          <div class="cm-time">{{ s.owner_name }} · {{ s.team_name }} · {{ s.work_date }} {% if s.cn %}· 💬 {{ s.cn }}{% endif %}</div>
-        </div>
-        {% else %}
-        <div class="empty-mini" style="color:var(--success);background:var(--paper-2)">{{ i.ck_no_stuck|default('막힌 카드가 없습니다 👍') }}</div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- 미작성자 -->
-    <div class="ck-block">
-      <div class="ck-head">{{ i.ck_missing|default('📭 오늘 미작성') }} ({{ missing|length }})</div>
-      <div class="ck-list">
-        {% for m in missing %}
-        <div class="ck-miss" onclick="location.href='/team?team_id={{ m.team_id }}'" style="cursor:pointer"><b>{{ m.name }}</b> {{ m.rank }} <span class="cm-time">{{ m.team_name }}</span></div>
-        {% else %}
-        <div class="empty-mini">{{ i.ck_all_done|default('전원 작성 완료 👍') }}</div>
-        {% endfor %}
-      </div>
+  {% if missing %}
+  <div class="section">
+    <h2>📭 미작성 일일업무 ({{ missing|length }})</h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>이름</th><th>팀</th><th>역할</th></tr></thead>
+        <tbody>
+        {% for m in missing %}<tr><td><b>{{ m.name }}</b>{% if m.rank %} {{ m.rank }}{% endif %}</td><td>{{ m.team_name|default('—') }}</td><td>{{ m.role|default('—') }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-</div>
-
-{% if is_global and bottlenecks %}
-<div class="section-head"><h2>{{ i.ck_bottleneck|default('🚨 자동 감지된 병목') }} ({{ bottlenecks|length }})</h2></div>
-<div class="bn-grid">
-  {% for b in bottlenecks[:12] %}
-  <div class="bn-card bn-{{ b.severity }}" {% if b.task_id %}onclick="openCardModal({{ b.task_id }})"{% endif %}>
-    <div class="bn-rule">{{ b.rule }}</div>
-    <div class="bn-title">{{ b.title }}</div>
-    <div class="cm-time">{{ b.owner }}{% if b.team %} · {{ b.team }}{% endif %}</div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}  </div>
+  {% endif %}
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

@@ -1,81 +1,36 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>권한 회수 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>권한 회수 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">권한 회수</div>
-      <h1 class="page-title">권한 회수</h1>
-    </div>
+    <div><div class="crumbs"><a href="/admin/permissions">권한</a> · <b>회수</b></div><h1 class="page-title">− 권한 <em>회수</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">사용자 권한·위임 토큰 회수 (감사 로그 자동 기록)</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S3 2차 본문 (2026-04-25) — 시안 §6-1 빨간 + 2단계 확인 + Cascade 미리보기 #}
 
-<div style="margin-bottom:14px;">
-  <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">회수 / 이력</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §6-1 — 빨간 + 2단계 확인 + Cascade 미리보기</div>
-</div>
-
-{# 활성 위임 카드 리스트 (회수 가능) #}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;margin-bottom:18px;">
-  <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--ink-700,var(--ink));">활성 위임 (ACTIVE)</div>
-
-  {% set sample_tokens = [
-    {"id": 1, "to": "박팀장", "perm": "자재 write", "expire": "2026-05-25", "cascade": 1},
-    {"id": 2, "to": "김사원", "perm": "자재 read",  "expire": "2026-05-23", "cascade": 0},
-  ] %}
-  {% for t in sample_tokens %}
-  <div style="border:1px solid var(--ink-200,var(--line));border-radius:8px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <div style="font-weight:700;font-size:13px;">{{ t.to }} — {{ t.perm }}</div>
-      <div style="font-size:11px;color:var(--ink-500);">만료 {{ t.expire }} · 하위 재위임 {{ t.cascade }}건</div>
-    </div>
-    <form method="post" action="/admin/permissions/revoke" onsubmit="return revokeConfirm(this, {{ t.cascade }})" style="display:inline;">
-      <input type="hidden" name="token_id" value="{{ t.id }}">
-      <input type="hidden" name="confirm_text" value="">
-      <button type="submit"
-              style="padding:8px 14px;background:var(--st-delay,var(--knk-red));color:#fff;border:0;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;">회수</button>
-    </form>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th>유형</th><th>사용자</th><th>권한</th><th>부여일</th><th class="center">액션</th></tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr>
+          <td><span class="pill {% if it.kind == 'DIRECT' %}pill-progress{% elif it.kind == 'GROUP' %}pill-warn{% else %}pill-danger{% endif %}">{{ it.kind|default('—') }}</span></td>
+          <td><b>{{ it.user_name|default('—') }}</b></td>
+          <td style="font-family:monospace;font-size:12px;">{{ it.label|default('—') }}</td>
+          <td style="font-family:monospace;font-size:11px;">{{ it.granted_at|default('—') }}</td>
+          <td class="center">
+            <form method="post" action="/admin/permissions/revoke" style="margin:0;display:inline;">
+              <input type="hidden" name="kind" value="{{ it.kind }}"><input type="hidden" name="id" value="{{ it.id }}">
+              <button class="btn btn-secondary" type="submit" onclick="return confirm('회수하시겠습니까?')" style="padding:5px 10px;font-size:11px;color:var(--knk-red);">− 회수</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">−</div><div class="ttl">회수 가능 권한 없음</div></div>{% endif %}
   </div>
-  {% endfor %}
-</div>
-
-{# Cascade 미리보기 안내 #}
-<div style="background:#FEF2F2;border:1px solid var(--knk-red-soft);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--knk-red-dk);">
-  <b>⚠ 회수 시 Cascade 영향</b> — 이 토큰 회수 시 재위임받은 하위 토큰도 함께 REVOKED 처리됩니다. immutable 감사로그에 기록되며 되돌릴 수 없습니다.
-</div>
-
-<script>
-// 시안 §6-1 — 2단계 확인 ("회수합니다" 입력) + Cascade 영향 표시
-function revokeConfirm(form, cascadeN) {
-  const msg = cascadeN > 0
-    ? '이 토큰을 회수하면 하위 재위임 ' + cascadeN + '건도 함께 무효화됩니다.\n\n확인하려면 "회수합니다" 를 입력하세요:'
-    : '이 토큰을 회수합니다. immutable 로그에 기록되며 되돌릴 수 없습니다.\n\n확인하려면 "회수합니다" 를 입력하세요:';
-  const ans = window.prompt(msg);
-  if (ans !== '회수합니다') {
-    alert('취소되었습니다.');
-    return false;
-  }
-  form.confirm_text.value = ans;
-  return true;
-}
-</script>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

@@ -1,125 +1,59 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>B/L 통관 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>B/L 통관 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-3); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld input, .fld select { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">B/L 통관</div>
-      <h1 class="page-title">B/L 통관</h1>
-    </div>
+    <div><div class="crumbs"><a href="/export">수출</a> · <a href="/export/orders/{{ eo.id }}">{{ eo.export_no }}</a> · <b>B/L 통관</b></div>
+    <h1 class="page-title">🚢 B/L &amp; <em>통관</em></h1></div>
+    <a class="btn btn-secondary" href="/export/orders/{{ eo.id }}">↩ 수출 상세</a>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>B/L 선하증권 · 관세 신고 — 수출 #{{ eo.id }}</h1>
-  <p class="muted">외부 운송사 API 미도입 — 모든 항목 수동 입력.</p>
-</div>
 
-<section>
-  <h3>B/L 발급</h3>
-  <form method="post" action="/export/bl" class="form-card">
-    <input type="hidden" name="export_order_id" value="{{ eo.id }}">
-    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div class="form-row">
-        <label>B/L 번호 *</label>
-        <input type="text" name="bl_no" placeholder="운송사 발급번호 (수동)" required>
-      </div>
-      <div class="form-row">
-        <label>운송사명</label>
-        <input type="text" name="shipping_company" placeholder="예: HMM / EVERGREEN">
-      </div>
-      <div class="form-row">
-        <label>선명·항공편명</label>
-        <input type="text" name="vessel" placeholder="예: HMM ALGECIRAS V.123E">
-      </div>
-      <div class="form-row">
-        <label>추적번호</label>
-        <input type="text" name="tracking_no">
-      </div>
-      <div class="form-row">
-        <label>출항일</label>
-        <input type="date" name="departure_date" value="{{ today }}">
-      </div>
-      <div class="form-row">
-        <label>도착예정일</label>
-        <input type="date" name="arrival_date">
-      </div>
+  <form method="post" action="/export/orders/{{ eo.id }}/bl" class="form-card">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">선적 (B/L)</h3>
+    <div class="frow">
+      <div class="fld"><label>B/L 번호</label><input type="text" name="bl_no" value="{{ bl.bl_no|default('') }}"></div>
+      <div class="fld"><label>발행일</label><input type="date" name="issued_at" value="{{ bl.issued_at|default(today) }}"></div>
     </div>
-    <div class="form-actions" style="margin-top:12px;">
-      <button type="submit" class="btn btn-primary">B/L 발급 (→ SHIPPED)</button>
+    <div class="frow">
+      <div class="fld"><label>본선명</label><input type="text" name="vessel" value="{{ bl.vessel|default(eo.vessel|default('')) }}"></div>
+      <div class="fld"><label>항차</label><input type="text" name="voyage" value="{{ bl.voyage|default('') }}"></div>
     </div>
+    <div class="frow">
+      <div class="fld"><label>출발항</label><input type="text" name="port_from" value="{{ bl.port_from|default('Busan, KR') }}"></div>
+      <div class="fld"><label>도착항</label><input type="text" name="port_to" value="{{ bl.port_to|default(eo.destination|default('')) }}"></div>
+    </div>
+    <button class="btn btn-primary" type="submit">📤 B/L 저장</button>
   </form>
 
-  <h4 style="margin-top:16px;">B/L 이력</h4>
-  {% if bl %}
-  <table class="data-table">
-    <thead><tr><th>B/L 번호</th><th>운송사</th><th>선명</th><th>출항</th><th>도착예정</th><th>상태</th></tr></thead>
-    <tbody>{% for it in bl %}
-    <tr><td>{{ it.bl_no }}</td><td>{{ it.shipping_company or '-' }}</td>
-        <td>{{ it.vessel or '-' }}</td><td>{{ it.departure_date or '-' }}</td>
-        <td>{{ it.arrival_date or '-' }}</td><td><span class="status-tag">{{ it.status }}</span></td></tr>
-    {% endfor %}</tbody>
-  </table>
-  {% else %}<p class="muted">미발급</p>{% endif %}
-</section>
-
-<section id="customs" style="margin-top:24px;">
-  <h3>관세 신고</h3>
-  <form method="post" action="/export/customs" class="form-card">
-    <input type="hidden" name="export_order_id" value="{{ eo.id }}">
-    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div class="form-row">
-        <label>신고번호</label>
-        <input type="text" name="declaration_no" placeholder="신고번호 (수동)">
-      </div>
-      <div class="form-row">
-        <label>HS 코드 *</label>
-        <input type="text" name="hs_code" placeholder="예: 8479.89-9090" required>
-      </div>
-      <div class="form-row">
-        <label>FTA 원산지</label>
-        <select name="fta_origin">
-          <option value="KR">KR (한국 — 한·베 FTA)</option>
-          <option value="VN">VN (베트남)</option>
-          <option value="">-- 기타 --</option>
+  <form method="post" action="/export/orders/{{ eo.id }}/customs" class="form-card">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">통관 신고</h3>
+    <div class="frow">
+      <div class="fld"><label>신고번호</label><input type="text" name="declaration_no" value="{{ customs.declaration_no|default('') }}"></div>
+      <div class="fld"><label>신고일</label><input type="date" name="declared_at" value="{{ customs.declared_at|default(today) }}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>신고금액 ({{ eo.currency|default('USD') }})</label><input type="number" name="declared_amount" step="0.01" value="{{ customs.declared_amount|default(ci_amount) }}"></div>
+      <div class="fld"><label>HS 코드 (대표)</label><input type="text" name="hs_code" value="{{ customs.hs_code|default('') }}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>승인 상태</label>
+        <select name="status">
+          <option value="DRAFT" {% if customs.status == 'DRAFT' %}selected{% endif %}>작성 중</option>
+          <option value="SUBMITTED" {% if customs.status == 'SUBMITTED' %}selected{% endif %}>제출</option>
+          <option value="CLEARED" {% if customs.status == 'CLEARED' %}selected{% endif %}>통관 완료</option>
+          <option value="REJECTED" {% if customs.status == 'REJECTED' %}selected{% endif %}>반려</option>
         </select>
       </div>
-      <div class="form-row">
-        <label>신고가액 (CI 자동 채움)</label>
-        <input type="number" step="0.01" name="declared_value"
-               value="{{ '{:.2f}'.format(ci_amount or 0) }}">
-      </div>
+      <div class="fld"><label>관세사</label><input type="text" name="broker" value="{{ customs.broker|default('') }}"></div>
     </div>
-    <div class="form-actions" style="margin-top:12px;">
-      <button type="submit" class="btn btn-primary">관세 신고 (→ CLEARED)</button>
-      <a href="/export/orders/{{ eo.id }}" class="btn">취소</a>
-    </div>
+    <button class="btn btn-primary" type="submit">📤 통관 저장</button>
   </form>
-
-  <h4 style="margin-top:16px;">관세 이력</h4>
-  {% if customs %}
-  <table class="data-table">
-    <thead><tr><th>신고번호</th><th>HS</th><th>FTA</th><th>신고가액</th><th>상태</th></tr></thead>
-    <tbody>{% for it in customs %}
-    <tr><td>{{ it.declaration_no }}</td><td>{{ it.hs_code }}</td>
-        <td>{{ it.fta_origin or '-' }}</td>
-        <td class="num">{{ '{:,.2f}'.format(it.declared_value or 0) }}</td>
-        <td><span class="status-tag">{{ it.status }}</span></td></tr>
-    {% endfor %}</tbody>
-  </table>
-  {% else %}<p class="muted">미신고</p>{% endif %}
-</section>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

@@ -1,181 +1,39 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>요약 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>요약 보고 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+{% set s = stats or {} %}
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">요약</div>
-      <h1 class="page-title">요약</h1>
+    <div><div class="page-meta">{{ period_label|default(period) }} · {{ scope_label|default(scope) }}</div><h1 class="page-title">📋 <em>요약</em> 보고</h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">기간: <b>{{ frm }} ~ {{ to }}</b></div></div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="?period={{ period }}&scope={{ scope }}&ref={{ prev_ref }}">‹ 이전</a>
+      <a class="btn btn-secondary" href="?period={{ period }}&scope={{ scope }}">현재</a>
+      <a class="btn btn-secondary" href="?period={{ period }}&scope={{ scope }}&ref={{ next_ref }}">다음 ›</a>
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <div class="page-title">
-    <h1>📊 {{ i.sum_title|default('통합 요약') }}</h1>
-    <div class="page-sub">{{ scope_label }} · {{ period_label }}</div>
-  </div>
-  <div class="date-nav">
-    <a href="/summary?period={{ period }}&scope={{ scope }}&ref={{ prev_ref }}" class="btn-sm">{{ i.sum_prev|default('◀ 이전') }}</a>
-    <a href="/summary?period={{ period }}&scope={{ scope }}" class="btn-sm btn-today">{{ i.sum_current|default('현재') }}</a>
-    <a href="/summary?period={{ period }}&scope={{ scope }}&ref={{ next_ref }}" class="btn-sm">{{ i.sum_next|default('다음 ▶') }}</a>
-  </div>
-</div>
 
-<div class="summary-toolbar">
-  <div class="st-group">
-    <span class="st-label">{{ i.sum_period|default('기간') }}</span>
-    <a href="/summary?period=daily&scope={{ scope }}&ref={{ ref }}" class="btn-sm {% if period=='daily' %}btn-active{% endif %}">{{ i.sum_daily|default('일간') }}</a>
-    <a href="/summary?period=weekly&scope={{ scope }}&ref={{ ref }}" class="btn-sm {% if period=='weekly' %}btn-active{% endif %}">{{ i.sum_weekly|default('주간') }}</a>
-    <a href="/summary?period=monthly&scope={{ scope }}&ref={{ ref }}" class="btn-sm {% if period=='monthly' %}btn-active{% endif %}">{{ i.sum_monthly|default('월간') }}</a>
+  <div class="bento" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">전체</div><div class="kpi-num">{{ s.total|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-num" style="color:var(--success);">{{ s.done|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">완료율</div><div class="kpi-num">{{ completion_rate|default(0) }}<span class="unit">%</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">지연</div><div class="kpi-num" style="color:var(--knk-red);">{{ s.delay|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 공수</div><div class="kpi-num">{{ '%.1f'|format(s.hours|default(0)) }}<span class="unit">h</span></div></div>
   </div>
-  <div class="st-group">
-    <span class="st-label">{{ i.sum_target|default('대상') }}</span>
-    <a href="/summary?period={{ period }}&scope=me&ref={{ ref }}" class="btn-sm {% if scope=='me' %}btn-active{% endif %}">{{ i.sum_me|default('개인') }}</a>
-    {% if can_team %}
-    <a href="/summary?period={{ period }}&scope=team&ref={{ ref }}" class="btn-sm {% if scope=='team' %}btn-active{% endif %}">{{ i.sum_dept|default('부서') }}</a>
-    {% endif %}
-    {% if can_all %}
-    <a href="/summary?period={{ period }}&scope=all&ref={{ ref }}" class="btn-sm {% if scope=='all' %}btn-active{% endif %}">{{ i.sum_all|default('전사') }}</a>
-    {% endif %}
-  </div>
-</div>
 
-<div class="kpi-grid">
-  <a href="/history" class="kpi-card kpi-primary kpi-link">
-    <div class="kpi-num">{{ stats.total }}</div>
-    <div class="kpi-lab">{{ i.sum_total_cards|default('총 카드수') }}</div>
-    {% if delta and delta.total is not none %}
-    <div class="kpi-delta {% if delta.total >= 0 %}up{% else %}down{% endif %}">
-      {% if delta.total >= 0 %}▲{% else %}▼{% endif %} {{ delta.total }}% ({{ i.sum_prev_period|default('전월') }})
+  <div style="margin-top: var(--space-5);"></div>
+  <div class="section">
+    <h2>전환 옵션</h2>
+    <div style="margin: 0 var(--content-pad);display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn btn-secondary" href="?period=daily&scope={{ scope }}">📅 일간</a>
+      <a class="btn btn-secondary" href="?period=weekly&scope={{ scope }}">📊 주간</a>
+      <a class="btn btn-secondary" href="?period=monthly&scope={{ scope }}">📆 월간</a>
+      <a class="btn btn-secondary" href="?period={{ period }}&scope=mine">👤 내 업무</a>
+      <a class="btn btn-secondary" href="?period={{ period }}&scope=team">👥 팀</a>
+      <a class="btn btn-secondary" href="?period={{ period }}&scope=all">🏢 전사</a>
     </div>
-    {% endif %}
-  </a>
-  <a href="/history?status=완료" class="kpi-card st-done kpi-link">
-    <div class="kpi-num">{{ stats.done }}</div>
-    <div class="kpi-lab">{{ i.sum_done|default('완료') }}</div>
-    {% if delta and delta.done is not none %}
-    <div class="kpi-delta {% if delta.done >= 0 %}up{% else %}down{% endif %}">
-      {% if delta.done >= 0 %}▲{% else %}▼{% endif %} {{ delta.done }}%
-    </div>
-    {% endif %}
-  </a>
-  <a href="/history?status=진행중" class="kpi-card st-progress kpi-link">
-    <div class="kpi-num">{{ stats.progress }}</div>
-    <div class="kpi-lab">{{ i.sum_progress|default('진행중') }}</div>
-  </a>
-  <a href="/history?status=지연" class="kpi-card st-delay kpi-link">
-    <div class="kpi-num">{{ stats.delay }}</div>
-    <div class="kpi-lab">{{ i.sum_delay|default('지연') }}</div>
-    {% if delta and delta.delay is not none %}
-    <div class="kpi-delta {% if delta.delay <= 0 %}up{% else %}down{% endif %}">
-      {% if delta.delay >= 0 %}▲{% else %}▼{% endif %} {{ delta.delay }}%
-    </div>
-    {% endif %}
-  </a>
-  <a href="/weekly" class="kpi-card kpi-link">
-    <div class="kpi-num">{{ '%.0f'|format(stats.hours) }}h</div>
-    <div class="kpi-lab">{{ i.sum_hours|default('누적 공수') }}</div>
-    {% if delta and delta.hours is not none %}
-    <div class="kpi-delta {% if delta.hours >= 0 %}up{% else %}down{% endif %}">
-      {% if delta.hours >= 0 %}▲{% else %}▼{% endif %} {{ delta.hours }}%
-    </div>
-    {% endif %}
-  </a>
-  <a href="/history?status=완료" class="kpi-card kpi-link">
-    <div class="kpi-num">{{ completion_rate }}%</div>
-    <div class="kpi-lab">{{ i.sum_rate|default('완료율') }}</div>
-  </a>
-</div>
-
-{% if period=='monthly' and daily_trend %}
-<div class="section-head"><h2>{{ i.sum_daily_trend|default('📈 일별 추이') }}</h2></div>
-<div class="trend-chart">
-  {% set max_cnt = daily_trend|map(attribute='cnt')|max %}
-  {% for d in daily_trend %}
-  <div class="tc-bar" title="{{ d.d }}: {{ d.cnt }}{{ i.unit_count|default('건') }} · {{ '%.1f'|format(d.hours) }}h">
-    <div class="tc-bar-fill" style="height: {{ (d.cnt * 100 / max_cnt)|round(0,'floor')|int }}%">
-      <div class="tc-bar-done" style="height: {{ (d.done * 100 / d.cnt)|round(0,'floor')|int if d.cnt else 0 }}%"></div>
-    </div>
-    <div class="tc-bar-lab">{{ d.d[-2:] }}</div>
   </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{% if scope != 'me' and team_agg %}
-<div class="section-head"><h2>{{ i.sum_team_agg|default('🏢 팀별 집계') }}</h2></div>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.col_team|default('팀') }}</th><th>{{ i.col_cards|default('카드수') }}</th><th class="st-done">{{ i.col_done|default('완료') }}</th><th class="st-delay">{{ i.sum_delay|default('지연') }}</th><th>{{ i.col_hours|default('공수') }}</th><th>{{ i.sum_rate|default('완료율') }}</th></tr></thead>
-  <tbody>
-    {% for r in team_agg %}
-    <tr>
-      <td><b>{{ r.team_name or i.sum_unassigned|default('(미배정)') }}</b></td>
-      <td>{{ r.cnt }}</td>
-      <td>{{ r.done }}</td>
-      <td>{{ r.delay }}</td>
-      <td>{{ '%.1f'|format(r.hours) }}h</td>
-      <td>{{ ((r.done*100/r.cnt)|round(0,'floor')|int) if r.cnt else 0 }}%</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-
-{% if scope != 'me' and user_agg %}
-<div class="section-head"><h2>{{ i.sum_user_agg|default('👤 인원별 집계 (Top 20)') }}</h2></div>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_rank|default('직급') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_done|default('완료') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-  <tbody>
-    {% for r in user_agg %}
-    <tr><td><b>{{ r.user_name }}</b></td><td>{{ r.rank or '' }}</td><td>{{ r.cnt }}</td><td>{{ r.done }}</td><td>{{ '%.1f'|format(r.hours) }}h</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-
-{% if project_agg %}
-<div class="section-head"><h2>{{ i.sum_pj_agg|default('📋 프로젝트별 집계') }}</h2></div>
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.sum_pj_code|default('관리코드') }}</th><th>{{ i.sum_pj_name|default('프로젝트명') }}</th><th>{{ i.col_cards|default('카드') }}</th><th>{{ i.col_hours|default('공수') }}</th></tr></thead>
-  <tbody>
-    {% for r in project_agg %}
-    <tr><td>{{ r.project_code or '' }}</td><td><b>{{ r.project_name }}</b></td><td>{{ r.cnt }}</td><td>{{ '%.1f'|format(r.hours) }}h</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-
-<div class="section-head"><h2>{{ i.sum_narrative|default('📖 지금 무엇을 하고 있는지 (상위 80건)') }}</h2></div>
-{% if not cards %}
-<div class="empty">{{ i.sum_empty|default('해당 기간 카드가 없습니다.') }}</div>
-{% else %}
-<div class="narrative-list">
-  {% for c in cards %}
-  <div class="narr-row {% if c.status=='지연' %}narr-delay{% endif %}" onclick="openCardModal({{ c.id }})" style="cursor:pointer">
-    <span class="tag tag-{{ c.status }}">{{ c.status }}</span>
-    <span class="narr-date">{{ c.work_date }}</span>
-    {% if scope != 'me' %}<b>{{ c.user_name }}</b> <span class="narr-rank">{{ c.rank or '' }}</span>{% endif %}
-    {% if scope == 'all' %}<span class="narr-team">[{{ c.team_name or i.sum_unassigned|default('미배정') }}]</span>{% endif %}
-    <span class="narr-title">— {{ c.title }}</span>
-    {% if c.project_name %}<span class="tag tag-pj">📋 {{ c.project_name }}</span>{% endif %}
-    {% if c.next_plan %}<div class="narr-next">{{ i.sum_next_plan|default('📌 다음:') }} {{ c.next_plan }}</div>{% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% if total_cards > 80 %}<div class="empty-mini">{{ i.sum_showing_80|default('총 {n}건 중 80건 표시')|replace('{n}', total_cards|string) }}</div>{% endif %}
-{% endif %}  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

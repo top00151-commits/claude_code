@@ -1,94 +1,45 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QC 처리 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>QC 처리 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.qc-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
+.qc-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.qc-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.qc-field input, .qc-field select, .qc-field textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+.qc-field textarea { min-height: 80px; resize: vertical; }
+.qc-field.full { grid-column: span 2; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">QC 처리</div>
-      <h1 class="page-title">QC 처리</h1>
-    </div>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>QC 처리</b></div><h1 class="page-title">🔬 QC <em>처리</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{% if mode == 'disposition' %}QC #{{ qc_id }} 처분 결정 (양품/불량/재작업){% else %}입고 후 검사 등록 (PO 항목 #{{ po_item_id }}){% endif %}</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S2 2차 (2026-04-25) — 시안 §1 우 패널 PASS/FAIL/HOLD/PARTIAL 분기 + 부적합 모달 #}
-{# qc_inspections INSERT + receipts.qc_inspection_id UPDATE + status 분기 #}
 
-<div style="margin-bottom:14px;">
-  <a href="/stock/receipts" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 입고 GR</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">검수 (QC)</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §1 우패널 — qc_inspections INSERT · 부적합 시 qc_disposition 모달 (RETURN/SPECIAL_ACCEPT/SCRAP)</div>
-</div>
-
-{% if mode == 'disposition' %}
-{# 부적합 처리 모달 (시안 §검수 분기) #}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--st-delay,#EF4444);border-radius:12px;padding:24px;">
-  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;color:var(--st-delay,#EF4444);">부적합 처리 — QC #{{ qc_id }}</div>
-  <form method="post" action="/stock/qc/disposition">
-    <input type="hidden" name="qc_inspection_id" value="{{ qc_id }}">
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;">
-      <label style="cursor:pointer;border:1px solid var(--ink-300);border-radius:10px;padding:14px;text-align:center;">
-        <input type="radio" name="action" value="RETURN" checked> <b>반품</b><br><span style="font-size:11px;color:var(--ink-500);">RETURN · 거래처 반송</span>
-      </label>
-      <label style="cursor:pointer;border:1px solid var(--ink-300);border-radius:10px;padding:14px;text-align:center;">
-        <input type="radio" name="action" value="SPECIAL_ACCEPT"> <b>특채</b><br><span style="font-size:11px;color:var(--ink-500);">SPECIAL_ACCEPT · 조건부</span>
-      </label>
-      <label style="cursor:pointer;border:1px solid var(--ink-300);border-radius:10px;padding:14px;text-align:center;">
-        <input type="radio" name="action" value="SCRAP"> <b>폐기</b><br><span style="font-size:11px;color:var(--ink-500);">SCRAP · loss 차감</span>
-      </label>
+  <form class="qc-form" method="post" action="{% if mode == 'disposition' %}/stock/qc/disposition{% else %}/stock/qc/{{ po_item_id }}{% endif %}">
+    {% if mode == 'disposition' %}<input type="hidden" name="qc_id" value="{{ qc_id }}">{% endif %}
+    <div class="qc-row">
+      <div class="qc-field"><label>판정 *</label>
+        <select name="result" required>
+          <option value="">— 선택 —</option>
+          <option value="PASS">✓ 양품 (PASS)</option>
+          <option value="FAIL">✗ 불량 (FAIL)</option>
+          <option value="REWORK">↻ 재작업 (REWORK)</option>
+        </select>
+      </div>
+      <div class="qc-field"><label>검사일</label><input type="date" name="inspected_at" value="{{ today|default('') }}"></div>
     </div>
-    <textarea name="note" placeholder="사유 (필수)" required rows="3" style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;"></textarea>
-    <button type="submit" style="margin-top:10px;background:var(--st-delay,#EF4444);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;">부적합 확정</button>
+    <div class="qc-row">
+      <div class="qc-field"><label>합격 수량</label><input type="number" name="pass_qty" step="0.01" min="0" placeholder="0"></div>
+      <div class="qc-field"><label>불량 수량</label><input type="number" name="fail_qty" step="0.01" min="0" placeholder="0"></div>
+    </div>
+    <div class="qc-row">
+      <div class="qc-field full"><label>비고 / 불량 사유</label><textarea name="note" placeholder="검사 결과·특이사항·후속 조치"></textarea></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="javascript:history.back()">취소</a>
+      <button class="btn btn-primary" type="submit">📤 등록</button>
+    </div>
   </form>
-</div>
-{% else %}
-{# 검수 입력 (PASS/FAIL/HOLD/PARTIAL) #}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
-  {% if po_item_id and po_item_id > 0 %}
-  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">검수 입력 — po_item #{{ po_item_id }}</div>
-  <form method="post" action="/stock/qc/{{ po_item_id }}">
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:14px;">
-      <label style="font-size:12px;">합격 수량 (pass_qty)
-        <input name="pass_qty" type="number" step="0.01" value="0" required style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;">
-      </label>
-      <label style="font-size:12px;">불합격 수량 (fail_qty)
-        <input name="fail_qty" type="number" step="0.01" value="0" required style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;">
-      </label>
-    </div>
-    <textarea name="fail_reason" placeholder="부적합 사유 (있을 시)" rows="2" style="width:100%;padding:8px;border:1px solid var(--ink-300);border-radius:6px;margin-bottom:14px;"></textarea>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-      <button type="submit" name="status" value="PASS"
-              style="background:var(--st-done,#10B981);color:#fff;border:0;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">PASS</button>
-      <button type="submit" name="status" value="PARTIAL"
-              style="background:var(--st-progress,var(--amber));color:#fff;border:0;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">PARTIAL</button>
-      <button type="submit" name="status" value="HOLD"
-              style="background:var(--mute);color:#fff;border:0;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">HOLD</button>
-      <button type="submit" name="status" value="FAIL"
-              style="background:var(--st-delay,#EF4444);color:#fff;border:0;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">FAIL</button>
-    </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--ink-500);">FAIL 또는 PARTIAL 선택 시 부적합 처리 모달이 자동 호출됩니다.</div>
-  </form>
-  {% else %}
-  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
-    검수 대상이 지정되지 않았습니다.<br>
-    <a href="/stock/receipts" style="color:var(--st-progress);">입고 목록</a>에서 [검수] 링크로 진입해주세요.
-  </div>
-  {% endif %}
-</div>
-{% endif %}  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

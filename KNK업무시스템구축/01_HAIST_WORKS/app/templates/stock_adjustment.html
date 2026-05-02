@@ -1,135 +1,59 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>재고 조정 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>재고 조정 이력 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+{% set k = att_counts or {} %}
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">재고 조정</div>
-      <h1 class="page-title">재고 조정</h1>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 조정 이력</b></div><h1 class="page-title">📜 재고 조정 <em>이력</em></h1>
+    {% if attach_view %}<div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">조정 #{{ attach_adj_id }} 첨부파일</div>{% endif %}</div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/stock/adjustments?status=PENDING" style="{% if filter_status == 'PENDING' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">⏳ 승인 대기 ({{ k.PENDING|default(0) }})</a>
+      <a class="btn btn-secondary" href="/stock/adjustments?status=APPROVED" style="{% if filter_status == 'APPROVED' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">✓ 승인 ({{ k.APPROVED|default(0) }})</a>
+      <a class="btn btn-secondary" href="/stock/adjustments?status=REJECTED" style="{% if filter_status == 'REJECTED' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">✗ 반려 ({{ k.REJECTED|default(0) }})</a>
+      <a class="btn btn-primary" href="/stock/adjust">＋ 조정 등록</a>
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>재고 조정 승인</h1>
-  <p class="muted">실사 차이로부터 생성된 조정 행을 승인하면 stock_movements에 ADJUST 기록이 추가되어 재고가 갱신됩니다.</p>
-</div>
 
-{% if attach_view %}
-<div class="card" style="margin-bottom:14px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-    <h2 style="margin:0;font-size:14px;">조정 #{{ attach_adj_id }} — 증명서 첨부</h2>
-    <a href="/stock/adjustments" class="btn">목록으로</a>
+  {% if attach_view %}
+  <div class="section">
+    <h2>📎 첨부 ({{ attachments|length if attachments else 0 }})</h2>
+    {% if attachments %}
+    <div style="margin: 0 var(--content-pad);">
+      {% for a in attachments %}
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);margin-bottom:8px;">
+        <span style="font-size:20px;">📑</span>
+        <a href="{{ a.url|default('#') }}" target="_blank" style="flex:1;font-weight:600;color:var(--ink);">{{ a.filename|default('파일') }}</a>
+        <span style="font-size:11px;color:var(--mute);">{{ a.size|default('—') }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="empty"><div class="ico">📎</div><div class="ttl">첨부 없음</div></div>{% endif %}
   </div>
-  <form method="post" action="/stock/adjustments/{{ attach_adj_id }}/attach"
-        enctype="multipart/form-data"
-        style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-    <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.xlsx"
-           style="font-size:12px;">
-    <button type="submit" class="btn btn-primary">업로드</button>
-    <span class="muted" style="font-size:11px;">허용: pdf/jpg/jpeg/png/xlsx · 최대 10MB · 외부 저장소 미사용 (로컬 디스크)</span>
-  </form>
-  <table class="data-table" style="width:100%;font-size:12px;">
-    <thead>
-      <tr><th>파일명</th><th>업로더</th><th>업로드 시각</th><th>다운로드</th></tr>
-    </thead>
-    <tbody>
-    {% for att in attachments %}
-      <tr>
-        <td>{{ att.file_name }}</td>
-        <td>{{ att.uploaded_by_name or '-' }}</td>
-        <td>{{ att.uploaded_at }}</td>
-        <td><a href="/stock/adjustments/{{ attach_adj_id }}/attachments/{{ att.id }}/download"
-               class="btn" style="padding:4px 10px;font-size:11px;">다운로드</a></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="4" class="muted" style="text-align:center;padding:14px;">아직 첨부 없음</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-
-<div class="card" style="margin-bottom:14px;">
-  <form method="get" action="/stock/adjustments" style="display:flex;gap:8px;align-items:center;">
-    <label style="font-size:12px;font-weight:700;">상태 필터</label>
-    <select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
-      <option value="PENDING"  {% if filter_status=='PENDING'  %}selected{% endif %}>승인 대기</option>
-      <option value="APPROVED" {% if filter_status=='APPROVED' %}selected{% endif %}>승인 완료</option>
-      <option value="REJECTED" {% if filter_status=='REJECTED' %}selected{% endif %}>반려</option>
-      <option value=""         {% if filter_status==''         %}selected{% endif %}>전체</option>
-    </select>
-    {% if not can_approve %}
-      <span class="muted" style="font-size:11px;margin-left:auto;">읽기 전용 (승인 권한 없음 · 자재팀장/임원만 승인 가능)</span>
-    {% endif %}
-  </form>
-</div>
-
-<div class="card">
-  <table class="data-table" style="width:100%;font-size:12px;">
-    <thead>
-      <tr>
-        <th>실사</th><th>부품</th>
-        <th style="text-align:right;">시스템</th>
-        <th style="text-align:right;">실측</th>
-        <th style="text-align:right;">조정</th>
-        <th>사유</th><th>요청자</th><th>상태</th><th>증명서</th><th>처리</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for a in adjustments %}
-      <tr>
-        <td>{{ a.audit_no }}</td>
-        <td>[{{ a.part_no }}] {{ a.part_name }}</td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.system_qty or 0) }}</td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(a.counted_qty or 0) }}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if a.adjusted_qty < 0 %}var(--knk-red){% else %}#059669{% endif %};">{{ "%+g"|format(a.adjusted_qty) }}</td>
-        <td>{{ a.reason }}</td>
-        <td>{{ a.created_by_name or '-' }}</td>
-        <td><span class="chip">{{ a.status }}</span></td>
-        <td>
-          <a href="/stock/adjustments/{{ a.id }}/attachments" class="btn"
-             style="padding:3px 8px;font-size:11px;">
-            첨부 ({{ att_counts.get(a.id, 0) }})
-          </a>
-        </td>
-        <td>
-          {% if a.status == 'PENDING' and can_approve %}
-            <form method="post" action="/stock/adjustments/{{ a.id }}/approve" style="display:inline;">
-              <button type="submit" class="btn btn-primary" style="padding:4px 10px;font-size:11px;">승인</button>
-            </form>
-            <form method="post" action="/stock/adjustments/{{ a.id }}/reject" style="display:inline;">
-              <input type="hidden" name="note" value="">
-              <button type="submit" class="btn" style="padding:4px 10px;font-size:11px;">반려</button>
-            </form>
-          {% elif a.status == 'APPROVED' %}
-            <span class="muted" style="font-size:11px;">{{ a.approved_by_name or '' }} · 완료</span>
-          {% elif a.status == 'REJECTED' %}
-            <span class="muted" style="font-size:11px;">반려됨</span>
-          {% else %}
-            <span class="muted" style="font-size:11px;">대기</span>
-          {% endif %}
-        </td>
-      </tr>
-    {% else %}
-      <tr><td colspan="10" class="muted" style="text-align:center;padding:18px;">조정 행 없음</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  <p class="muted" style="margin-top:10px;font-size:11px;">승인 시 stock_movements 에 kind=ADJUST 행이 자동 생성되어 stock_balances 잔고가 즉시 반영됩니다. 증명서 첨부는 PDF/JPG/PNG/XLSX 10MB 이하 (외부 저장소 미사용).</p>
-</div>
-{% endif %}  </div>
+  {% else %}
+  <div class="tbl-wrap">
+    {% if adjustments %}
+    <table class="tbl">
+      <thead><tr><th>#</th><th>일자</th><th>자재</th><th class="center">유형</th><th class="num">변동</th><th>사유</th><th class="center">상태</th><th>요청</th><th class="center">첨부</th></tr></thead>
+      <tbody>
+      {% for a in adjustments %}
+        <tr>
+          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ a.id }}</td>
+          <td style="font-family:monospace;font-size:12px;">{{ a.adj_date|default('—') }}</td>
+          <td><b>{{ a.part_name|default('—') }}</b><div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ a.part_code|default('') }}</div></td>
+          <td class="center"><span class="pill pill-muted">{{ a.adj_type|default('—') }}</span></td>
+          <td class="num" style="font-weight:700;{% if a.qty_delta|default(0) < 0 %}color:var(--knk-red);{% else %}color:var(--success);{% endif %}">{{ '%+d'|format(a.qty_delta|default(0)) }}</td>
+          <td style="font-size:12px;color:var(--mute);">{{ a.reason|default('—')|truncate(50) }}</td>
+          <td class="center"><span class="pill {% if a.status == 'APPROVED' %}pill-done{% elif a.status == 'REJECTED' %}pill-danger{% else %}pill-warn{% endif %}">{{ a.status|default('PENDING') }}</span></td>
+          <td style="font-size:12px;">{{ a.requester_name|default('—') }}</td>
+          <td class="center">{% if a.has_attach %}<a href="/stock/adjustments/{{ a.id }}/attachments" class="btn btn-secondary" style="padding:3px 8px;font-size:11px;">📎</a>{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📜</div><div class="ttl">조정 이력 없음</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/stock/adjust">＋ 첫 조정</a></div></div>{% endif %}
+  </div>
+  {% endif %}
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

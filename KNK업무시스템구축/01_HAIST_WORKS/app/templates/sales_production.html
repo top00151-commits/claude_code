@@ -1,103 +1,39 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>생산 계획 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>생산 진행 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">생산 계획</div>
-      <h1 class="page-title">생산 계획</h1>
-    </div>
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>생산 진행</b></div><h1 class="page-title">🏭 생산 <em>진행</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">수주 → 생산 시작 → 출하 워크플로우</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S1 2차 본문 (2026-04-25) — 시안 §1 탭3 WO · §5 Empty State #}
 
-<div style="margin-bottom:14px;">
-  <a href="/sales" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 매출 홈</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">매출 &gt; 주문 라이프사이클 &gt; 생산지시 WO</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §1 탭3 — production_orders · 예정/실제 동시 노출 (시안 §4-2)</div>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;font-size:13px;">
-  <a href="/sales/quotations" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[견적 QT]</a>
-  <a href="/sales/orders" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[수주 SO]</a>
-  <a href="/sales/production" style="padding:6px 12px;border-bottom:2px solid var(--knk-red,#E11D48);color:var(--ink-900);text-decoration:none;font-weight:700;">[생산 WO]</a>
-  <a href="/sales/shipments-receipts" style="padding:6px 12px;color:var(--ink-500);text-decoration:none;">[출하·수금 DO/RC]</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;overflow:hidden;">
-{% if items and items|length > 0 %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead style="background:var(--ink-50,#F8FAFC);">
-      <tr>
-        <th style="padding:12px 16px;text-align:left;font-weight:700;">WO ID</th>
-        <th style="padding:12px 16px;text-align:left;font-weight:700;">SO</th>
-        <th style="padding:12px 16px;text-align:left;font-weight:700;">계획 시작</th>
-        <th style="padding:12px 16px;text-align:left;font-weight:700;">계획 종료</th>
-        <th style="padding:12px 16px;text-align:left;font-weight:700;">실제 시작</th>
-        <th style="padding:12px 16px;text-align:center;font-weight:700;">상태</th>
-        <th style="padding:12px 16px;text-align:center;font-weight:700;">액션</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for it in items %}
-      <tr style="border-top:1px solid var(--ink-100,#F1F5F9);">
-        <td style="padding:12px 16px;">WO-{{ '%04d' % it.id }}</td>
-        <td style="padding:12px 16px;">{{ it.order_no or '-' }}</td>
-        <td style="padding:12px 16px;">{{ it.planned_start or '-' }}</td>
-        <td style="padding:12px 16px;">{{ it.planned_end or '-' }}</td>
-        <td style="padding:12px 16px;">{{ it.actual_start or '-' }}</td>
-        <td style="padding:12px 16px;text-align:center;">
-          {% if it.status == 'IN_PRODUCTION' %}
-            <span class="tag tag-progress">{{ it.status }}</span>
-          {% elif it.status == 'DONE' %}
-            <span class="tag tag-done">{{ it.status }}</span>
-          {% else %}
-            <span class="tag tag-wait">{{ it.status }}</span>
-          {% endif %}
-        </td>
-        <td style="padding:12px 16px;text-align:center;">
-          {% if it.status == 'READY_TO_SHIP' or it.status == 'IN_PRODUCTION' %}
-          <form method="post" action="/sales/shipments" style="display:inline;">
-            <input type="hidden" name="order_id" value="{{ it.order_id }}">
-            <input type="hidden" name="shipped_qty" value="1">
-            <button type="submit" style="background:var(--knk-red,#E11D48);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">출하</button>
-          </form>
-          {% else %}
-          <span style="color:var(--ink-400);font-size:12px;">-</span>
-          {% endif %}
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-{% else %}
-  {# 시안 §5 Empty State 한국어 #}
-  <div style="padding:48px 24px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
-    진행 중인 작업지시가 없습니다.<br>
-    <strong style="color:var(--ink-700);">수주 탭</strong>에서 생산 시작 버튼을 눌러 작업을 시작할 수 있습니다.
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th>수주번호</th><th>고객사</th><th>제품</th><th class="num">수량</th><th class="center">상태</th><th>납기</th><th class="center">액션</th></tr></thead>
+      <tbody>
+      {% for o in items %}
+        <tr>
+          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ o.order_no|default('#' ~ o.id) }}</td>
+          <td><b>{{ o.customer_name|default('—') }}</b></td>
+          <td>{{ o.product_name|default('—') }}</td>
+          <td class="num">{{ '{:,.0f}'.format(o.qty|default(0)) }}</td>
+          <td class="center"><span class="pill {% if o.status == 'IN_PRODUCTION' %}pill-progress{% elif o.status == 'CONFIRMED' %}pill-warn{% else %}pill-muted{% endif %}">{{ o.status|default('—') }}</span></td>
+          <td style="font-family:monospace;font-size:11px;color:{% if o.due_overdue %}var(--knk-red){% else %}var(--mute){% endif %};">{{ o.due_date|default('—') }}</td>
+          <td class="center">
+            {% if o.status == 'CONFIRMED' %}
+            <form method="post" action="/sales/production/start" style="margin:0;display:inline;"><input type="hidden" name="order_id" value="{{ o.id }}"><button class="btn btn-primary" style="padding:5px 10px;font-size:11px;">▶ 생산 시작</button></form>
+            {% elif o.status == 'IN_PRODUCTION' %}
+            <a class="btn btn-secondary" href="/sales/shipments?order_id={{ o.id }}" style="padding:5px 10px;font-size:11px;">📦 출하</a>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">🏭</div><div class="ttl">생산 대기 수주 없음</div></div>{% endif %}
   </div>
-{% endif %}
-</div>
-
-<div style="margin-top:14px;font-size:12px;color:var(--ink-400);">
-  자재출고요청은 <a href="/stock/issues" style="color:var(--knk-red);">자재출고</a> 화면으로 점프. ·
-  영업·생산 1버튼 협업 동선.
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

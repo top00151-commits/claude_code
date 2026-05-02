@@ -1,152 +1,35 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>권한 리포트 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>권한 리포트 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">권한 리포트</div>
-      <h1 class="page-title">권한 리포트</h1>
+    <div><div class="crumbs"><a href="/admin/permissions">권한</a> · <b>리포트</b></div><h1 class="page-title">📑 권한 <em>리포트</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">사용자/리소스/그룹별 권한 분석</div></div>
+  </div>
+
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">전체 사용자</div><div class="kpi-num">{{ summary.total_users|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">권한 보유</div><div class="kpi-num">{{ summary.users_with_perms|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">권한 종류</div><div class="kpi-num">{{ summary.total_perms|default(0) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">활성 위임</div><div class="kpi-num">{{ summary.active_delegations|default(0) }}</div></div>
+  </div>
+
+  <div class="section">
+    <h2>{{ report_title|default('상세 리포트') }}</h2>
+    <div class="tbl-wrap">
+      {% if rows %}
+      <table class="tbl">
+        <thead><tr>{% for h in headers|default(['항목', '값']) %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for r in rows %}
+          <tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty"><div class="ico">📑</div><div class="ttl">리포트 데이터 없음</div></div>{% endif %}
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S3 4차 본문 (2026-04-26) — 시안 §7 운영 리포트 (사용자/그룹/만료임박 3종 통합) #}
-
-<div style="margin-bottom:14px;">
-  <a href="/admin/permissions" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 권한 위임</a>
-  <span style="margin:0 6px;color:var(--ink-300);">·</span>
-  <a href="/admin/permissions/audit" style="font-size:13px;color:var(--ink-500);text-decoration:none;">감사 로그</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">권한 리포트</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">시안 §7 — 사용자별 권한 카운트 / 그룹별 분포 / 만료 임박 토큰</div>
-</div>
-
-{# 리포트 탭 #}
-<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-  <a href="/admin/permissions/report/users" style="padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;
-     {% if report_kind=='users' %}background:var(--ink-700,var(--ink));color:#fff;{% else %}background:var(--ink-100,var(--paper-2));color:var(--ink-700,var(--ink));{% endif %}">사용자별 권한</a>
-  <a href="/admin/permissions/report/groups" style="padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;
-     {% if report_kind=='groups' %}background:var(--ink-700,var(--ink));color:#fff;{% else %}background:var(--ink-100,var(--paper-2));color:var(--ink-700,var(--ink));{% endif %}">그룹별 분포</a>
-  <a href="/admin/permissions/report/expiring" style="padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;
-     {% if report_kind=='expiring' %}background:var(--knk-red);color:#fff;{% else %}background:var(--ink-100,var(--paper-2));color:var(--ink-700,var(--ink));{% endif %}">만료 임박</a>
-</div>
-
-{% if report_kind=='users' %}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;overflow:hidden;">
-  <table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead>
-      <tr style="background:var(--bg-soft,#FAFBFC);border-bottom:1px solid var(--ink-200,var(--line));">
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">이름</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">역할</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">팀</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:700;">활성 토큰(수신)</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:700;">발급 토큰(송신)</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:700;">소속 그룹</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in users %}
-      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
-        <td style="padding:10px 12px;font-weight:600;">{{ r.name }}</td>
-        <td style="padding:10px 12px;color:var(--ink-500);">{{ r.role }}</td>
-        <td style="padding:10px 12px;color:var(--ink-500);">{{ r.team_name or '-' }}</td>
-        <td style="padding:10px 12px;text-align:right;font-family:Menlo,Consolas,monospace;font-weight:700;">{{ r.active_tokens or 0 }}</td>
-        <td style="padding:10px 12px;text-align:right;font-family:Menlo,Consolas,monospace;color:var(--ink-500);">{{ r.granted_tokens or 0 }}</td>
-        <td style="padding:10px 12px;text-align:right;font-family:Menlo,Consolas,monospace;color:var(--ink-500);">{{ r.group_count or 0 }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--ink-500);">사용자가 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if report_kind=='groups' %}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;overflow:hidden;">
-  <table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead>
-      <tr style="background:var(--bg-soft,#FAFBFC);border-bottom:1px solid var(--ink-200,var(--line));">
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">그룹명</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">설명</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:700;">권한 수</th>
-        <th style="padding:10px 12px;text-align:right;font-weight:700;">멤버 수</th>
-        <th style="padding:10px 12px;text-align:center;font-weight:700;">관리</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for g in groups %}
-      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
-        <td style="padding:10px 12px;font-weight:600;">{{ g.name }}</td>
-        <td style="padding:10px 12px;color:var(--ink-500);">{{ g.description or '-' }}</td>
-        <td style="padding:10px 12px;text-align:right;font-family:Menlo,Consolas,monospace;font-weight:700;">{{ g.perm_count or 0 }}</td>
-        <td style="padding:10px 12px;text-align:right;font-family:Menlo,Consolas,monospace;font-weight:700;">{{ g.user_count or 0 }}</td>
-        <td style="padding:10px 12px;text-align:center;"><a href="/admin/permissions/groups/{{ g.id }}" style="color:#3B82F6;text-decoration:none;font-size:11px;">상세</a></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" style="padding:30px;text-align:center;color:var(--ink-500);">그룹이 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if report_kind=='expiring' %}
-<div style="background:var(--amber-glow);border:1px solid var(--amber);border-radius:8px;padding:14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-  <div style="font-size:12px;color:var(--amber-deep);">
-    <strong>만료 임박:</strong> {{ expiring_days|default(7) }}일 이내 만료될 ACTIVE 토큰 (총 {{ expiring|length }}건)
-  </div>
-  <form method="post" action="/admin/permissions/cleanup-expired" onsubmit="return confirm('이미 만료된 토큰을 EXPIRED 상태로 일괄 정리합니다. 진행할까요?\n(audit 자동 기록 · immutable)');" style="margin:0;">
-    <button type="submit" style="padding:7px 14px;background:var(--knk-red);color:#fff;border:0;border-radius:4px;font-size:12px;cursor:pointer;font-weight:700;">만료된 토큰 정리</button>
-  </form>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;overflow:hidden;">
-  <table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead>
-      <tr style="background:var(--bg-soft,#FAFBFC);border-bottom:1px solid var(--ink-200,var(--line));">
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">token_id</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">만료일</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">발급자</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">대상자</th>
-        <th style="padding:10px 12px;text-align:left;font-weight:700;">권한</th>
-        <th style="padding:10px 12px;text-align:center;font-weight:700;">상태</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in expiring %}
-      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
-        <td style="padding:10px 12px;font-family:Menlo,Consolas,monospace;">{{ r.token_id }}</td>
-        <td style="padding:10px 12px;font-family:Menlo,Consolas,monospace;color:var(--knk-red);font-weight:700;">{{ r.expires_at }}</td>
-        <td style="padding:10px 12px;">{{ r.from_name or '-' }}</td>
-        <td style="padding:10px 12px;font-weight:600;">{{ r.to_name or '-' }}</td>
-        <td style="padding:10px 12px;color:var(--ink-500);">{{ r.perm_label or '-' }}</td>
-        <td style="padding:10px 12px;text-align:center;"><span style="background:#10B981;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">{{ r.status }}</span></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--ink-500);">{{ expiring_days|default(7) }}일 내 만료될 토큰이 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div style="margin-top:12px;font-size:11px;color:var(--ink-500);">
-  ※ 시안 §7 운영 리포트 — 권한 분포 가시화로 과다권한 탐지 / 만료 정리는 audit immutable 기록
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

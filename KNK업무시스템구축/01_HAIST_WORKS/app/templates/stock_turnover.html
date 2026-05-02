@@ -1,99 +1,46 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>재고 회전 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>재고 회전율 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">재고 회전</div>
-      <h1 class="page-title">재고 회전</h1>
-    </div>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 회전율</b></div><h1 class="page-title">🔄 재고 <em>회전율</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">출고량 ÷ 평균재고 · FAST(≥2 회/년)·NORMAL(0.5~2)·SLOW(&lt;0.5)</div></div>
+    <form method="get" style="display:flex;gap:8px;">
+      <select name="days" onchange="this.form.submit()" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);color:var(--ink);">
+        <option value="30" {% if days == 30 %}selected{% endif %}>최근 30일</option>
+        <option value="90" {% if days == 90 %}selected{% endif %}>최근 90일</option>
+        <option value="180" {% if days == 180 %}selected{% endif %}>최근 180일</option>
+      </select>
+    </form>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S2 3차 (2026-04-26) — 재고 회전율. 출고량/평균재고. FAST/NORMAL/SLOW 3밴드 #}
 
-<div style="margin-bottom:14px;">
-  <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 잔고</a>
-</div>
+  <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">⚡ FAST</div><div class="kpi-num" style="color:var(--success);">{{ fast }}</div><div class="kpi-trend up">고회전 (≥ 2)</div></div>
+    <div class="kpi-card"><div class="kpi-label">→ NORMAL</div><div class="kpi-num">{{ normal }}</div><div class="kpi-trend neutral">정상 (0.5~2)</div></div>
+    <div class="kpi-card"><div class="kpi-label">🐢 SLOW</div><div class="kpi-num" style="color:var(--knk-red);">{{ slow }}</div><div class="kpi-trend alert">저회전 (&lt; 0.5)</div></div>
+  </div>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">재고 회전율</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
-    최근 {{ days }}일 — 출고량 / 평균재고 · FAST(≥2) / NORMAL(0.5~2) / SLOW(&lt;0.5)
-  </div>
-</div>
-
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
-  <div style="background:#fff;border:1px solid var(--st-done,var(--success));border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-done,var(--success));font-weight:700;">FAST</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ fast }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">회전 ≥ 2.0</div>
-  </div>
-  <div style="background:#fff;border:1px solid var(--st-progress,#2563EB);border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-progress,#2563EB);font-weight:700;">NORMAL</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ normal }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">0.5 ≤ 회전 &lt; 2.0</div>
-  </div>
-  <div style="background:#fff;border:1px solid var(--st-delay,var(--knk-red));border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-delay,var(--knk-red));font-weight:700;">SLOW</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ slow }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">회전 &lt; 0.5 · 정체 의심</div>
-  </div>
-</div>
-
-<div style="background:#fff;border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
-  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">부품별 회전율 ({{ items|length }}건)</div>
-  {% if items and items|length > 0 %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead>
-      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;">
-        <th style="padding:8px;">밴드</th><th style="padding:8px;">품번</th>
-        <th style="padding:8px;">품명</th>
-        <th style="padding:8px;text-align:right;">현 재고</th>
-        <th style="padding:8px;text-align:right;">{{ days }}일 출고</th>
-        <th style="padding:8px;text-align:right;">평균재고</th>
-        <th style="padding:8px;text-align:right;">회전율</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in items %}
-      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
-        <td style="padding:8px;">
-          {% if r.band == 'FAST' %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-done,var(--success));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">FAST</span>
-          {% elif r.band == 'NORMAL' %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-progress,#2563EB);color:#fff;border-radius:4px;font-size:11px;font-weight:700;">NORMAL</span>
-          {% else %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-delay,var(--knk-red));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">SLOW</span>
-          {% endif %}
-        </td>
-        <td style="padding:8px;font-family:monospace;">{{ r.part_no }}</td>
-        <td style="padding:8px;">{{ r.part_name }}</td>
-        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.on_hand or 0) }} {{ r.unit or '' }}</td>
-        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.out_qty or 0) }}</td>
-        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.avg_stock or 0) }}</td>
-        <td style="padding:8px;text-align:right;font-weight:700;">{{ '%.2f'|format(r.turnover or 0) }}</td>
-      </tr>
+  <div style="margin-top: var(--space-5);"></div>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th class="center">분류</th><th>코드</th><th>자재명</th><th class="num">출고량</th><th class="num">평균 재고</th><th class="num">회전율</th></tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr onclick="location.href='/parts/{{ it.part_id }}'">
+          <td class="center"><span class="pill {% if it.band == 'FAST' %}pill-done{% elif it.band == 'SLOW' %}pill-danger{% else %}pill-progress{% endif %}">{{ it.band }}</span></td>
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.part_no|default('—') }}</td>
+          <td><b>{{ it.part_name|default('—') }}</b></td>
+          <td class="num">{{ '{:,.0f}'.format(it.out_qty|default(0)) }}</td>
+          <td class="num">{{ '{:,.1f}'.format(it.avg_stock|default(0)) }}</td>
+          <td class="num" style="font-weight:700;">{{ '{:,.2f}'.format(it.turnover|default(0)) }}</td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
-    활성 부품이 없습니다. 부품 마스터 등록 후 다시 조회해주세요.
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">🔄</div><div class="ttl">데이터 없음</div></div>{% endif %}
   </div>
-  {% endif %}
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

@@ -1,290 +1,65 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FTA 원산지 작성 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>FTA 증명서 작성 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld label .req { color: var(--knk-red); }
+.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+.fld textarea { min-height: 80px; resize: vertical; }
+.fld.full { grid-column: span 2; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">FTA 원산지 작성</div>
-      <h1 class="page-title">FTA 원산지 작성</h1>
-    </div>
+    <div><div class="crumbs"><a href="/fta/certificates">FTA</a> · <b>{% if cert %}수정{% else %}작성{% endif %}</b></div>
+    <h1 class="page-title">📜 FTA 증명서 <em>{% if cert %}수정{% else %}작성{% endif %}</em></h1></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>{% if cert %}원산지증명서 {{ cert.cert_no }}{% else %}원산지증명서 신규 발급{% endif %}</h1>
-  <p class="muted">
-    {% if cert %}
-      상태: <strong>{{ cert.status }}</strong> · 발급자: {{ cert.issuer_name or '-' }} · 발급일시: {{ cert.issued_at or '-' }}
-    {% else %}
-      KAFTA / KEUFTA / KCFTA / KVFTA / RCEP 5종. 거래처 + HS 코드 라인 입력. 외부 PDF 라이브러리 0건.
-    {% endif %}
-  </p>
-</div>
 
-<div style="margin:8px 0 16px;">
-  <a href="/export/fta" class="btn">← 목록</a>
-  {% if cert %}
-    <a href="/export/fta/{{ cert.id }}/print" class="btn" target="_blank">인쇄 view</a>
-    {% if cert.status == 'DRAFT' %}
-    <form method="post" action="/export/fta/{{ cert.id }}/issue" style="display:inline;">
-      <button type="submit" class="btn btn-primary">발급 확정 (DRAFT → ISSUED)</button>
-    </form>
-    {% endif %}
-  {% endif %}
-</div>
-
-{% if cert %}
-{# 상세 view (read-only) #}
-<table class="data-table" style="max-width:920px;">
-  <tr><th style="width:160px;">증명서번호</th><td><strong>{{ cert.cert_no }}</strong></td>
-      <th style="width:160px;">FTA 협정</th><td>{{ cert.fta_type }}</td></tr>
-  <tr><th>거래처</th><td>{{ cert.cust_disp }}</td>
-      <th>국가</th><td>{{ cert.customer_country or '-' }}</td></tr>
-  <tr><th>거래처 주소</th><td colspan="3">{{ cert.customer_address or '-' }}</td></tr>
-  <tr><th>CI 번호</th><td>{{ cert.export_invoice_no or '-' }}</td>
-      <th>수출일</th><td>{{ cert.export_date or '-' }}</td></tr>
-  <tr><th>원산지</th><td>{{ cert.origin_country or '-' }}</td>
-      <th>총액</th><td>{{ '{:,.2f}'.format(cert.total_value or 0) }} {{ cert.currency }}</td></tr>
-  <tr><th>비고</th><td colspan="3">{{ cert.remarks or '-' }}</td></tr>
-</table>
-
-<h3 style="margin-top:24px;">라인 ({{ cert.items|length }}건)</h3>
-{% if cert.items %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>#</th><th>품명</th><th>HS 코드</th>
-      <th class="num">수량</th><th>단위</th>
-      <th class="num">단가</th><th>원산지</th>
-      <th class="num">합계</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for it in cert.items %}
-    <tr>
-      <td>{{ it.line_no }}</td>
-      <td>{{ it.part_disp }}</td>
-      <td>{{ it.hs_code or '-' }}</td>
-      <td class="num">{{ '{:,.2f}'.format(it.qty or 0) }}</td>
-      <td>{{ it.unit or '-' }}</td>
-      <td class="num">{{ '{:,.2f}'.format(it.unit_price or 0) }}</td>
-      <td>{{ it.origin_country or '-' }}</td>
-      <td class="num">{{ '{:,.2f}'.format(it.total or 0) }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="muted">라인 없음.</p>
-{% endif %}
-
-{% else %}
-{# 신규 발급 폼 #}
-<form method="post" action="/export/fta" id="ftaForm">
-  <h3>1. FTA 협정 · 거래처</h3>
-  <table class="data-table" style="max-width:920px;">
-    <tr>
-      <th style="width:160px;">FTA 협정 *</th>
-      <td>
+  <form method="post" action="{% if cert %}/fta/certificates/{{ cert.id }}/edit{% else %}/fta/certificates/new{% endif %}" class="form-card">
+    <div class="frow">
+      <div class="fld"><label>인증 번호</label><input type="text" name="cert_no" value="{{ cert.cert_no|default('') }}" placeholder="자동 생성"></div>
+      <div class="fld"><label>FTA 협정 <span class="req">*</span></label>
         <select name="fta_type" required>
           <option value="">— 선택 —</option>
-          {% for code, label in FTA_TYPES %}
-          <option value="{{ code }}">{{ label }}</option>
-          {% endfor %}
+          <option>한-EU</option><option>한-미</option><option>한-아세안</option>
+          <option>RCEP</option><option>한-중</option><option>한-베트남</option><option>기타</option>
         </select>
-      </td>
-      <th style="width:160px;">원산지</th>
-      <td>
-        <select name="origin_country">
-          {% for code, label in ORIGIN_COUNTRIES %}
-          <option value="{{ code }}" {% if code=='KR' %}selected{% endif %}>{{ label }} ({{ code }})</option>
-          {% endfor %}
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>품목 (자재) <span class="req">*</span></label>
+        <select name="part_id" required>
+          <option value="">— 선택 —</option>
+          {% for p in parts|default([]) %}<option value="{{ p.id }}">{{ p.name }}{% if p.spec %} · {{ p.spec }}{% endif %}</option>{% endfor %}
         </select>
-      </td>
-    </tr>
-    <tr>
-      <th>거래처 (선택)</th>
-      <td>
-        <select name="customer_id" onchange="onCustomerChange(this)">
-          <option value="">— 직접 입력 —</option>
-          {% for c in customers %}
-          <option value="{{ c.id }}" data-name="{{ c.name }}" data-country="{{ c.country or '' }}">{{ c.name }} ({{ c.country or '-' }})</option>
-          {% endfor %}
+      </div>
+      <div class="fld"><label>HS 코드 <span class="req">*</span></label><input type="text" name="hs_code" required value="{{ cert.hs_code|default('') }}" placeholder="000000"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>원산지 기준</label>
+        <select name="origin_criteria">
+          <option value="">— 선택 —</option>
+          <option>WO (완전생산)</option>
+          <option>PSR (품목별 기준)</option>
+          <option>RVC (역내가치비율)</option>
+          <option>CTC (세번변경기준)</option>
         </select>
-      </td>
-      <th>거래처명</th>
-      <td><input type="text" name="customer_name" placeholder="거래처명 (영문 권장)" style="width:100%;"></td>
-    </tr>
-    <tr>
-      <th>거래처 국가</th>
-      <td><input type="text" name="customer_country" placeholder="VN / US / JP 등" style="width:100%;"></td>
-      <th>거래처 주소</th>
-      <td><input type="text" name="customer_address" placeholder="영문 주소" style="width:100%;"></td>
-    </tr>
-    <tr>
-      <th>수출 수주 (선택)</th>
-      <td>
-        <select name="export_order_id">
-          <option value="">— 없음 —</option>
-          {% for eo in export_orders %}
-          <option value="{{ eo.id }}">#{{ eo.id }} · {{ eo.order_no }} · {{ eo.buyer or '-' }}</option>
-          {% endfor %}
-        </select>
-      </td>
-      <th>CI 번호</th>
-      <td><input type="text" name="export_invoice_no" placeholder="CI-202604-0001" style="width:100%;"></td>
-    </tr>
-    <tr>
-      <th>수출일</th>
-      <td><input type="date" name="export_date"></td>
-      <th>통화</th>
-      <td>
-        <select name="currency">
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="JPY">JPY</option>
-          <option value="KRW">KRW</option>
-          <option value="VND">VND</option>
-        </select>
-      </td>
-    </tr>
-    <tr>
-      <th>비고</th>
-      <td colspan="3"><textarea name="remarks" rows="2" style="width:100%;" placeholder="추가 비고 (관세사 등)"></textarea></td>
-    </tr>
-  </table>
-
-  <h3 style="margin-top:24px;">2. 라인 (HS 코드별)</h3>
-  <p class="muted" style="font-size:12px;">행은 자동으로 추가됩니다. 품명 또는 HS 코드가 비어있으면 저장 시 무시됩니다.</p>
-
-  <table class="data-table" id="ftaLines">
-    <thead>
-      <tr>
-        <th style="width:40px;">#</th>
-        <th>부품 선택</th>
-        <th>품명 *</th>
-        <th>HS 코드</th>
-        <th class="num">수량</th>
-        <th>단위</th>
-        <th class="num">단가</th>
-        <th>원산지</th>
-        <th class="num">합계</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="ftaLinesBody">
-      {# 초기 라인 3행 #}
-    </tbody>
-  </table>
-  <button type="button" class="btn" onclick="addLine()">+ 라인 추가</button>
-
-  <div style="margin-top:24px;text-align:right;">
-    <strong>총액 (자동 합산):</strong>
-    <span id="ftaGrandTotal" style="font-size:16pt;">0.00</span>
-  </div>
-
-  <div style="margin-top:24px;">
-    <button type="submit" class="btn btn-primary">저장 (DRAFT)</button>
-    <a href="/export/fta" class="btn">취소</a>
-  </div>
-</form>
-
-<datalist id="partOptions">
-  {% for p in parts_options %}
-  <option value="{{ p.name }}" data-id="{{ p.id }}" data-unit="{{ p.unit or '' }}">{{ p.spec or '' }}</option>
-  {% endfor %}
-</datalist>
-
-<script>
-(function(){
-  const PARTS = [
-    {% for p in parts_options %}
-    {id: {{ p.id }}, name: {{ p.name|tojson }}, unit: {{ (p.unit or '')|tojson }}},
-    {% endfor %}
-  ];
-  window._ftaParts = PARTS;
-  function partOptionsHtml(){
-    var s = '<option value="">— 직접 입력 —</option>';
-    for (var i=0;i<PARTS.length;i++){
-      s += '<option value="'+PARTS[i].id+'" data-name="'+PARTS[i].name.replace(/"/g,'&quot;')+'" data-unit="'+(PARTS[i].unit||'').replace(/"/g,'&quot;')+'">'+PARTS[i].name+'</option>';
-    }
-    return s;
-  }
-  window._partOptionsHtml = partOptionsHtml;
-})();
-
-function onCustomerChange(sel){
-  var opt = sel.options[sel.selectedIndex];
-  var f = sel.form;
-  if (opt && opt.value){
-    if (f.customer_name && !f.customer_name.value) f.customer_name.value = opt.dataset.name || '';
-    if (f.customer_country && !f.customer_country.value) f.customer_country.value = opt.dataset.country || '';
-  }
-}
-
-function recalc(){
-  var rows = document.querySelectorAll('#ftaLinesBody tr');
-  var total = 0;
-  rows.forEach(function(tr, idx){
-    tr.querySelector('.line-no').textContent = (idx+1);
-    var q = parseFloat(tr.querySelector('input[name="line_qty"]').value) || 0;
-    var u = parseFloat(tr.querySelector('input[name="line_unit_price"]').value) || 0;
-    var t = q * u;
-    tr.querySelector('.line-total').textContent = t.toFixed(2);
-    total += t;
-  });
-  document.getElementById('ftaGrandTotal').textContent = total.toFixed(2);
-}
-
-function addLine(){
-  var tbody = document.getElementById('ftaLinesBody');
-  var tr = document.createElement('tr');
-  tr.innerHTML = ''
-    + '<td class="line-no">'+(tbody.children.length+1)+'</td>'
-    + '<td><select name="line_part_id" onchange="onPartPick(this)">'+window._partOptionsHtml()+'</select></td>'
-    + '<td><input type="text" name="line_part_name" placeholder="품명" style="width:100%;" oninput="recalc()"></td>'
-    + '<td><input type="text" name="line_hs" placeholder="8543.70" style="width:100px;"></td>'
-    + '<td class="num"><input type="number" name="line_qty" step="0.01" style="width:80px;text-align:right;" oninput="recalc()"></td>'
-    + '<td><input type="text" name="line_unit" placeholder="EA" style="width:60px;"></td>'
-    + '<td class="num"><input type="number" name="line_unit_price" step="0.01" style="width:100px;text-align:right;" oninput="recalc()"></td>'
-    + '<td><select name="line_origin"><option value="">동일</option><option value="KR">KR</option><option value="VN">VN</option><option value="CN">CN</option></select></td>'
-    + '<td class="num line-total">0.00</td>'
-    + '<td><button type="button" class="btn btn-sm" onclick="removeLine(this)">삭제</button></td>';
-  tbody.appendChild(tr);
-  recalc();
-}
-
-function removeLine(btn){
-  var tr = btn.closest('tr');
-  if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
-  recalc();
-}
-
-function onPartPick(sel){
-  var opt = sel.options[sel.selectedIndex];
-  var tr = sel.closest('tr');
-  if (!opt || !opt.value) return;
-  var nameInput = tr.querySelector('input[name="line_part_name"]');
-  var unitInput = tr.querySelector('input[name="line_unit"]');
-  if (nameInput && !nameInput.value) nameInput.value = opt.dataset.name || '';
-  if (unitInput && !unitInput.value) unitInput.value = opt.dataset.unit || '';
-}
-
-// 초기 3행
-addLine(); addLine(); addLine();
-</script>
-{% endif %}  </div>
+      </div>
+      <div class="fld"><label>RVC %</label><input type="number" name="rvc_percent" step="0.1" min="0" max="100" value="{{ cert.rvc_percent|default('') }}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>발행일</label><input type="date" name="issued_at" value="{{ cert.issued_at|default('') }}"></div>
+      <div class="fld"><label>유효기한</label><input type="date" name="expires_at" value="{{ cert.expires_at|default('') }}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld full"><label>비고</label><textarea name="note" placeholder="원산지 입증 자료·근거">{{ cert.note|default('') }}</textarea></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/fta/certificates">취소</a>
+      <button class="btn btn-primary" type="submit">📤 저장</button>
+    </div>
+  </form>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

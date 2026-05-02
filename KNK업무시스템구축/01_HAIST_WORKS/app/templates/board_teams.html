@@ -1,54 +1,25 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>팀 게시판 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>팀 게시판 선택 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">팀 게시판</div>
-      <h1 class="page-title">팀 게시판</h1>
-    </div>
+    <div><div class="page-meta">팀 게시판</div><h1 class="page-title">📋 팀 <em>게시판</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">접근 가능한 팀 게시판 목록</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>부서 게시판</h1>
-  <p class="muted">각 부서(팀)별 게시판을 선택하세요. 부서원이 작성한 글은 팀장 승인 후 게시됩니다.</p>
-</div>
 
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px;">
-  {% for t in teams %}
-  <a href="/board/team/{{ t.id }}" style="display:block;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;text-decoration:none;color:inherit;transition:all .2s;box-shadow:0 1px 2px rgba(15,23,42,.04);"
-     onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,.1)';this.style.borderColor='rgba(165,40,44,.3)'"
-     onmouseout="this.style.transform='';this.style.boxShadow='0 1px 2px rgba(15,23,42,.04)';this.style.borderColor='var(--line)'">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--knk-red),#8B1E22);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0;">
-        {{ t.name[:1] }}
+  <div class="actions" style="margin: 0 var(--content-pad);grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
+    {% for t in teams %}
+    <a class="action-card" href="/board/team/{{ t.id }}" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📋</div>
+      <div style="flex:1;">
+        <h4 style="font-size:13px;font-weight:700;color:var(--ink);">{{ t.name }}</h4>
+        <p style="font-size:11px;color:var(--mute);margin-top:2px;">{{ t.post_count|default(0) }} 게시글{% if t.unread %} · <b style="color:var(--knk-red);">{{ t.unread }} 신규</b>{% endif %}</p>
       </div>
-      <div>
-        <div style="font-size:16px;font-weight:700;color:var(--ink);">{{ t.name }}</div>
-        <div style="font-size:11px;color:var(--mute-2);">{{ t.sector or '' }}</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:14px;font-size:12px;color:var(--mute);">
-      <span>게시글 <b style="color:var(--ink);">{{ t.post_count }}</b></span>
-      {% if t.pending_count > 0 %}
-      <span style="color:var(--warn);">승인대기 <b>{{ t.pending_count }}</b></span>
-      {% endif %}
-    </div>
-  </a>
-  {% endfor %}
-</div>  </div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    {% else %}<div class="card empty" style="grid-column: 1/-1;"><div class="ico">📋</div><div class="ttl">접근 가능한 팀 게시판 없음</div></div>{% endfor %}
+  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

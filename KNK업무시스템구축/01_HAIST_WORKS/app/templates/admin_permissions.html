@@ -1,89 +1,45 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>권한 관리 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>권한 관리 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">권한 관리</div>
-      <h1 class="page-title">권한 관리</h1>
-    </div>
+    <div><div class="crumbs"><a href="/admin">관리자</a> · <b>권한 관리</b></div><h1 class="page-title">🔐 권한 <em>관리 (RBAC)</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">사용자·그룹 권한 부여/회수 + 위임 토큰 관리</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S3 2차 본문 (2026-04-25) — 시안 §0 보내기/회수/감사 3탭 + 좌 트리 + 우 카드 #}
 
-<div style="margin-bottom:14px;">
-  <a href="/admin" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 관리자 홈</a>
-</div>
-
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--knk-red,#C8161D);">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;letter-spacing:-0.02em;">권한 위임</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">3계층 위임 (CEO → 팀장 → 팀원) · 만료/재위임OFF/감사로그 3원칙 · 시안 §0</div>
-</div>
-
-{# 시안 §0 ASCII 헤더 — 보내기/회수/감사 3탭 #}
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;margin-bottom:18px;">
-  <div style="display:flex;gap:18px;border-bottom:1px solid var(--ink-200,var(--line));padding-bottom:10px;margin-bottom:16px;">
-    <a href="/admin/permissions/grant" style="font-weight:700;color:var(--ink-700,var(--ink));text-decoration:none;padding:4px 0;">보내기</a>
-    <a href="/admin/permissions/revoke" style="color:var(--ink-500);text-decoration:none;padding:4px 0;">회수/이력</a>
-    <a href="/admin/permissions/groups" style="color:var(--ink-500);text-decoration:none;padding:4px 0;">그룹 관리</a>
-    <a href="/admin/permissions/matrix" style="color:var(--ink-500);text-decoration:none;padding:4px 0;">매트릭스</a>
-    <a href="/admin/permissions/audit" style="color:var(--ink-500);text-decoration:none;padding:4px 0;">감사 로그</a>
-    <a href="/admin/permissions/report/users" style="color:var(--ink-500);text-decoration:none;padding:4px 0;">리포트</a>
+  <div class="actions" style="margin: 0 var(--content-pad);grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
+    <a class="action-card" href="/admin/permissions/grant" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">＋</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 부여</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">사용자에게 직접 권한 부여</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    <a class="action-card" href="/admin/permissions/groups" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">👥</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 그룹</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">그룹 단위 권한 관리</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    <a class="action-card" href="/admin/permissions/matrix" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📊</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 매트릭스</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">사용자×권한 전체 매트릭스</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    <a class="action-card" href="/admin/permissions/audit" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📜</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">감사 로그</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">권한 변경 이력</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    <a class="action-card" href="/admin/permissions/report" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--amber-glow);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📑</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 리포트</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">사용자/리소스별 보고서</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
+    <a class="action-card" href="/admin/permissions/revoke" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:rgba(165,40,44,0.12);color:var(--knk-red);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">−</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 회수</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">권한·위임 토큰 회수</p></div>
+      <div style="color:var(--amber-deep);font-weight:700;">→</div>
+    </a>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-    {# 좌 — 3계층 트리 (시안 §1 ASCII) #}
-    <div>
-      <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">▾ 3계층 트리 (Inheritance ③)</div>
-      <div style="font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.7;background:var(--bg-soft,#FAFBFC);padding:14px 16px;border-radius:8px;border:1px solid var(--ink-200,var(--line));">
-        <div>▼ <b>CEO 김정락</b> <span style="color:var(--knk-red,#C8161D);font-weight:700;">[OWNER]</span></div>
-        <div style="padding-left:18px;">▼ 자재팀장 박OO <span style="color:var(--ink-700,var(--ink));font-weight:700;">[MANAGER]</span></div>
-        <div style="padding-left:36px;">· 김사원 <span style="color:var(--ink-500);">[MEMBER]</span></div>
-        <div style="padding-left:36px;">· 이사원 <span style="color:var(--ink-500);">[MEMBER]</span></div>
-        <div style="padding-left:18px;">▶ 영업팀장 정OO <span style="color:var(--ink-700,var(--ink));font-weight:700;">[MANAGER]</span></div>
-        <div style="padding-left:18px;">▶ 회계팀장 최OO <span style="color:var(--ink-700,var(--ink));font-weight:700;">[MANAGER]</span></div>
-      </div>
-    </div>
-    {# 우 — 위임 카드 리스트 (시안 §3-1 3 배지 강제 노출) #}
-    <div>
-      <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--ink-700,var(--ink));">내가 위임한 권한 (Token ④)</div>
-      <div style="border:1px dashed var(--ink-300,var(--line-strong));border-radius:8px;padding:12px;margin-bottom:8px;">
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">박팀장 — 자재 write</div>
-        <div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px;">
-          <span style="background:var(--st-progress,#FCD34D);padding:2px 6px;border-radius:4px;">⏱ D-29</span>
-          <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">🔒 재위임OFF</span>
-          <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">📜 감사로그</span>
-        </div>
-        <div style="font-size:11px;color:var(--ink-500);">부여 2026-04-25 / 만료 5/25</div>
-      </div>
-      <div style="border:1px dashed var(--ink-300,var(--line-strong));border-radius:8px;padding:12px;">
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">김사원 — 입고처리</div>
-        <div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px;">
-          <span style="background:var(--st-progress,#FCD34D);padding:2px 6px;border-radius:4px;">⏱ D-27</span>
-          <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">🔒 재위임OFF</span>
-          <span style="background:var(--ink-200,var(--line));padding:2px 6px;border-radius:4px;">📜 감사로그</span>
-        </div>
-        <div style="font-size:11px;color:var(--ink-500);">부여 2026-04-25 / 만료 5/23</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-{# 시안 §4 Deny overrides Allow 안내 #}
-<div style="background:var(--bg-soft,#FAFBFC);border:1px solid var(--ink-200,var(--line));border-radius:8px;padding:14px 16px;font-size:12px;color:var(--ink-700,var(--ink));">
-  <b>권한 평가 순서</b> — DENY 확인 → ALLOW 확인 → 기본 거부 (시안 §4, R3 §2 인용)
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

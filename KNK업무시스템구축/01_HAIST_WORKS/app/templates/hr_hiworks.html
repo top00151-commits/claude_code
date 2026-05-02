@@ -1,126 +1,28 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>HR (Hiworks) · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>HR / Hiworks · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">HR (Hiworks)</div>
-      <h1 class="page-title">HR (Hiworks)</h1>
-    </div>
-  </div>
-  <div style="margin: 0 var(--content-pad);">
-{# 사이클 79 (2026-04-27) DEC-2 — 인사총무 하이웍스 연동 카드 #}
-{# 외부 자산 0건 / iframe import 0건 / 외부 링크만 노출 / 본인 KNK 정보만 표시 #}
-
-<div style="margin-bottom:14px;">
-  <a href="/home" style="font-size:var(--text-sm);color:var(--mute);text-decoration:none;">← 홈</a>
-</div>
-
-{# 상단 안내 카드 #}
-<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--success);">
-  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🏢 인사총무 (하이웍스 연동)</h1>
-  <div style="font-size:var(--text-sm);color:var(--mute);line-height:1.6;">
-    <strong style="color:var(--success);">인사총무 업무는 하이웍스 시스템에서 처리합니다.</strong>
-    HAIST WORKS는 연동 + 조회만 제공합니다.
-  </div>
-  <div style="margin-top:12px;background:#F0F5EB;border-left:3px solid #C9A961;color:var(--success);padding:10px 14px;border-radius:6px;font-size:var(--text-xs);line-height:1.6;">
-    <strong>안내</strong>: 출퇴근·휴가·급여·인사 정보는 아래 외부 링크를 통해 하이웍스에서 직접 처리하세요.<br>
-    링크가 비어있는 항목은 관리자(<a href="/admin/hiworks-settings" style="color:var(--success);text-decoration:underline;">/admin/hiworks-settings</a>)에서 URL 입력 후 사용 가능합니다.
-  </div>
-</div>
-
-{# 본인 KNK 정보 (개인정보 보호 — 다른 직원 정보 노출 X) #}
-<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;color:var(--success);">👤 내 정보 (KNK DB)</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:var(--text-sm);">
-    <div><span style="color:var(--mute);font-weight:600;">이름</span><br><strong>{{ me.name }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">로그인 ID</span><br><strong>{{ me.login_id }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">소속 팀</span><br><strong>{{ me.team_name }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">직급</span><br><strong>{{ me.rank }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">권한 (Role)</span><br><strong>{{ me.role }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">이메일</span><br><strong>{{ me.email or '(미입력)' }}</strong></div>
-    <div><span style="color:var(--mute);font-weight:600;">계정 생성일</span><br><strong>{{ me.hire_date or '-' }}</strong></div>
-  </div>
-  <div style="margin-top:10px;font-size:var(--text-xs);color:var(--mute-2);">
-    ※ 본 정보는 KNK DB의 본인 정보만 표시됩니다. 변경은 관리자에게 요청하세요.
-  </div>
-</div>
-
-{# 하이웍스 연동 카드 4개 (외부 링크만, iframe 없음) #}
-<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;color:var(--success);">🔗 하이웍스 연동 카드</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
-    {% for link in links %}
-      {% if link.key != 'hiworks_main_url' %}
-      <a href="{{ link.url or link.default or '#' }}"
-         {% if link.url or link.default %}target="_blank" rel="noopener"{% endif %}
-         style="display:block;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 20px;text-decoration:none;color:inherit;{% if not link.url and not link.default %}opacity:0.5;pointer-events:none;{% endif %}"
-         onmouseover="this.style.borderColor='var(--success)'" onmouseout="this.style.borderColor='#E2E8F0'">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-weight:800;font-size:15px;color:#1E293B;">
-            {% if link.key == 'hiworks_attendance_url' %}🕘
-            {% elif link.key == 'hiworks_leave_url' %}🏖️
-            {% elif link.key == 'hiworks_payroll_url' %}💰
-            {% elif link.key == 'hiworks_profile_url' %}📋
-            {% else %}🔗{% endif %}
-            {{ link.label }}
-          </div>
-          <span style="font-size:11px;color:var(--mute-2);">
-            {% if link.url or link.default %}↗ 외부 링크{% else %}URL 미설정{% endif %}
-          </span>
-        </div>
-        <div style="font-size:11px;color:#64748B;margin-top:6px;font-family:monospace;word-break:break-all;">
-          {{ link.url or link.default or '(관리자 미설정)' }}
-        </div>
-        {# OPS-P1-L3 [E-006]: 항목별 관리자 요청 버튼 #}
-        {% if not link.url and not link.default %}
-        <a href="/tickets/new?category=기타&title={{ ('하이웍스 ' ~ link.label ~ ' URL 설정 요청')|urlencode }}"
-           onclick="event.stopPropagation();"
-           style="display:inline-block;margin-top:6px;padding:4px 10px;background:#FFF3E0;border:1px solid #FFB74D;color:#E65100;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none;">
-          📩 관리자에게 요청
-        </a>
-        {% endif %}
-      </a>
-      {% endif %}
-    {% endfor %}
+    <div><div class="crumbs"><a href="/admin">관리자</a> · <b>HR (Hiworks)</b></div><h1 class="page-title">👤 HR <em>(Hiworks 연동)</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">하이웍스 인사·근태 정보 동기화</div></div>
+    <a class="btn btn-secondary" href="/admin/hiworks-settings">⚙ 설정</a>
   </div>
 
-  {# 하이웍스 메인 별도 안내 #}
-  {% for link in links %}
-    {% if link.key == 'hiworks_main_url' %}
-    <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);">
-      <a href="{{ link.url or link.default or '#' }}"
-         {% if link.url or link.default %}target="_blank" rel="noopener"{% endif %}
-         style="display:inline-block;background:linear-gradient(135deg,#5D7F61,var(--success));color:#fff;padding:10px 22px;border-radius:8px;font-weight:800;text-decoration:none;font-size:var(--text-sm);box-shadow:0 4px 10px rgba(63,92,68,.3);">
-        🏢 하이웍스 메인 열기 ↗
-      </a>
-      <span style="margin-left:10px;font-size:var(--text-xs);color:var(--mute);">
-        하이웍스 통합 메인 페이지로 이동합니다.
-      </span>
-    </div>
-    {% endif %}
-  {% endfor %}
-</div>
-
-{% if user.role in ['ceo','admin'] %}
-<div style="margin-bottom:30px;">
-  <a href="/admin/hiworks-settings" style="font-size:var(--text-sm);color:var(--success);text-decoration:underline;">
-    ⚙ 관리자: 하이웍스 URL 설정
-  </a>
-</div>
-{% endif %}  </div>
+  {% if items %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>이름</th><th>부서</th><th>직급</th><th>이메일</th><th class="center">상태</th><th>최근 동기화</th></tr></thead>
+      <tbody>
+      {% for h in items %}
+        <tr><td><b>{{ h.name|default('—') }}</b></td><td>{{ h.dept|default('—') }}</td><td>{{ h.position|default('—') }}</td><td style="font-family:monospace;font-size:11px;">{{ h.email|default('—') }}</td><td class="center"><span class="pill {% if h.is_active %}pill-done{% else %}pill-muted{% endif %}">{{ '활성' if h.is_active else '비활성' }}</span></td><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ h.synced_at|default('—') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty" style="margin: 0 var(--content-pad);"><div class="ico">👤</div><div class="ttl">Hiworks 연동 대기</div><div style="font-size:13px;color:var(--mute);margin-top:6px;">설정 페이지에서 API 키를 등록하면 직원 정보가 자동 동기화됩니다.</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/admin/hiworks-settings">⚙ 설정으로 이동</a></div></div>
+  {% endif %}
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

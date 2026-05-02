@@ -1,94 +1,39 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>리마인더 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>일일업무 미작성자 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">리마인더</div>
-      <h1 class="page-title">리마인더</h1>
+    <div><div class="page-meta">{{ sel_date }} · 미작성 알림</div><h1 class="page-title">⏰ 일일업무 <em>미작성자</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">매일 16:30 자동 알림 + 팀장에게 미작성자 명단 발송</div></div>
+    <form method="get" style="display:flex;gap:8px;">
+      <input type="date" name="sel_date" value="{{ sel_date }}" onchange="this.form.submit()" style="border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);color:var(--ink);">
+    </form>
+  </div>
+
+  <div class="section">
+    <h2>팀별 작성 현황 ({{ teams|length if teams else 0 }})</h2>
+    <div class="tbl-wrap">
+      {% if teams %}
+      <table class="tbl">
+        <thead><tr><th>팀</th><th>팀장</th><th class="num">팀원</th><th class="num">작성</th><th class="num">미작성</th><th class="center">참여율</th><th class="center">알림</th></tr></thead>
+        <tbody>
+        {% for t in teams %}
+          <tr>
+            <td><b>{{ t.name }}</b></td>
+            <td>{{ t.leader_name|default('—') }}</td>
+            <td class="num">{{ t.member_count|default(0) }}</td>
+            <td class="num" style="color:var(--success);font-weight:700;">{{ t.reported|default(0) }}</td>
+            <td class="num" style="color:var(--knk-red);font-weight:700;">{{ (t.member_count|default(0)) - (t.reported|default(0)) }}</td>
+            <td class="center">{% set pct = ((t.reported|default(0))*100/(t.member_count|default(1)))|round|int %}<span class="pill {% if pct >= 80 %}pill-done{% elif pct >= 50 %}pill-warn{% else %}pill-danger{% endif %}">{{ pct }}%</span></td>
+            <td class="center"><form method="post" action="/reminders/send" style="margin:0;display:inline;"><input type="hidden" name="team_id" value="{{ t.id }}"><input type="hidden" name="sel_date" value="{{ sel_date }}"><button class="btn btn-secondary" type="submit" style="padding:5px 10px;font-size:11px;">📧 알림</button></form></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty"><div class="ico">⏰</div><div class="ttl">팀 없음</div></div>{% endif %}
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <div class="page-title">
-    <h1>{{ i.rm_title|default('📢 오늘 미작성 팀원') }}</h1>
-    <div class="page-sub">{{ sel_date }} {{ i.rm_sub|default('기준 · 리더/경영진 전용') }}</div>
-  </div>
-  <div class="date-nav">
-    <input type="date" value="{{ sel_date }}" onchange="location.href='/admin/reminders?sel_date='+this.value">
-  </div>
-</div>
-
-{% set total_missing = namespace(n=0) %}
-{% set total_members = namespace(n=0) %}
-{% set total_reported = namespace(n=0) %}
-{% for t in teams %}
-  {% set total_missing.n = total_missing.n + (t.missing|length) %}
-  {% set total_members.n = total_members.n + t.total %}
-  {% set total_reported.n = total_reported.n + t.reported_count %}
-{% endfor %}
-{% set total_missing = total_missing.n %}
-{% set total_members = total_members.n %}
-{% set total_reported = total_reported.n %}
-
-<div class="kpi-grid">
-  <div class="kpi-card kpi-primary"><div class="kpi-num">{{ total_missing }}</div><div class="kpi-lab">{{ i.rm_missing|default('미작성 인원') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{{ total_reported }}</div><div class="kpi-lab">{{ i.rm_written|default('작성 완료') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{{ total_members }}</div><div class="kpi-lab">{{ i.rm_total|default('전체 대상') }}</div></div>
-  <div class="kpi-card"><div class="kpi-num">{% if total_members %}{{ (total_reported*100/total_members)|round(0,'floor')|int }}{% else %}0{% endif %}%</div><div class="kpi-lab">{{ i.rm_rate|default('작성률') }}</div></div>
-</div>
-
-{% for t in teams %}
-<div class="section-head">
-  <h2>{{ t.name }} <span class="count">{{ t.reported_count }}/{{ t.total }}</span>
-    <span class="tag {% if t.participation>=80 %}tag-완료{% elif t.participation>=50 %}tag-진행중{% else %}tag-지연{% endif %}">{{ t.participation }}%</span>
-  </h2>
-  {% if t.missing %}
-  <button class="btn-sm" onclick="copyMails('t{{ t.id }}')">{{ i.rm_copy_mail|default('📋 메일주소 복사') }}</button>
-  {% endif %}
-</div>
-{% if t.missing %}
-<table class="mini-tbl">
-  <thead><tr><th>{{ i.col_name|default('이름') }}</th><th>{{ i.col_rank|default('직급') }}</th><th>{{ i.col_email|default('이메일') }}</th></tr></thead>
-  <tbody>
-    {% for m in t.missing %}
-    <tr>
-      <td><b>{{ m.name }}</b></td>
-      <td>{{ m.rank or '' }}</td>
-      <td>{{ m.email or '-' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-<div id="mail-t{{ t.id }}" style="display:none">{{ t.missing|map(attribute='email')|select|join(', ') }}</div>
-{% else %}
-<div class="empty-mini">{{ i.rm_all_done|default('✅ 전원 작성 완료') }}</div>
-{% endif %}
-{% endfor %}
-
-<script>
-const RI = {
-  no_email: "{{ i.rm_no_email|default('이메일 주소가 없습니다') }}",
-  copied: "{{ i.rm_copied|default('복사됨:') }}"
-};
-function copyMails(code){
-  const t=document.getElementById('mail-'+code).textContent;
-  if(!t){alert(RI.no_email);return;}
-  navigator.clipboard.writeText(t).then(()=>alert(RI.copied+'\n'+t));
-}
-</script>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

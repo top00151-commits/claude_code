@@ -1,145 +1,41 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>미수금 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>미수금 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+{% set s = summary or {} %}
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">미수금</div>
-      <h1 class="page-title">미수금</h1>
-    </div>
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>미수금</b></div><h1 class="page-title">💸 <em>미수금</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">출하 후 미수금 현황 + 거래처별 잔액</div></div>
+    <a class="btn btn-secondary" href="/sales/aging">📊 연체 분석</a>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3-S1-4차 미수금 대시 — 등급별 KPI + 상세 테이블 #}
-{# 외부 차트 0건 · CSS bar · v2 본체 무수정 #}
 
-{% macro won(v) %}{% if v >= 100000000 %}{{ "%.1f"|format(v/100000000) }}억{% elif v >= 10000000 %}{{ "%.1f"|format(v/10000000) }}천만{% elif v >= 10000 %}{{ "%.0f"|format(v/10000) }}만{% else %}{{ "{:,.0f}".format(v) }}{% endif %}{% endmacro %}
-
-<div class="page-head">
-  <h1>미수금 추적</h1>
-  <p class="muted">SHIPPED·INVOICED 기준 · 만기 = 수주일 + payment_terms · 등급 4단계 (CURRENT / D-30 / D-60 / D-90+)</p>
-</div>
-
-<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-  <a href="/sales" class="btn btn-ghost">매출 홈</a>
-  <a href="/sales/dashboard" class="btn btn-ghost">강화 대시</a>
-  <a href="/sales/outstanding" class="btn" style="background:var(--knk-red);color:#fff;border:none;">미수금</a>
-  <a href="/sales/aging" class="btn btn-ghost">연체 분석</a>
-  <button onclick="checkAlerts()" class="btn btn-ghost">수금 알림 트리거</button>
-</div>
-
-{# 등급별 KPI 5 #}
-<div class="kpi-row">
-  <div class="kpi"><div class="kpi-label">총 미수금</div>
-    <div class="kpi-value" style="font-size:20px;color:var(--knk-red);">{{ won(summary.total) }}</div>
-    <div class="kpi-sub">{{ summary.n_total }}건</div></div>
-  <div class="kpi"><div class="kpi-label">CURRENT (미만기)</div>
-    <div class="kpi-value" style="font-size:20px;color:var(--success);">{{ won(summary.by_grade['CURRENT']) }}</div>
-    <div class="kpi-sub">{{ summary.counts['CURRENT'] }}건</div></div>
-  <div class="kpi"><div class="kpi-label">D-30 (1~30일)</div>
-    <div class="kpi-value" style="font-size:20px;color:#D97706;">{{ won(summary.by_grade['D-30']) }}</div>
-    <div class="kpi-sub">{{ summary.counts['D-30'] }}건</div></div>
-  <div class="kpi"><div class="kpi-label">D-60 (31~60일)</div>
-    <div class="kpi-value" style="font-size:20px;color:#EA580C;">{{ won(summary.by_grade['D-60']) }}</div>
-    <div class="kpi-sub">{{ summary.counts['D-60'] }}건</div></div>
-  <div class="kpi"><div class="kpi-label">D-90+ (61일 초과)</div>
-    <div class="kpi-value" style="font-size:20px;color:#B91C1C;">{{ won(summary.by_grade['D-90+']) }}</div>
-    <div class="kpi-sub">{{ summary.counts['D-90+'] }}건</div></div>
-</div>
-
-{# 등급 분포 막대 — CSS gradient bar #}
-<div class="card" style="margin-top:14px;">
-  <h2 style="margin:0 0 10px;font-size:15px;font-weight:800;">등급별 분포 (금액)</h2>
-  {% if summary.total > 0 %}
-  <div style="display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--paper-2);">
-    {% for g, color in [('CURRENT','var(--success)'),('D-30','#D97706'),('D-60','#EA580C'),('D-90+','#B91C1C')] %}
-      {% set pct = (summary.by_grade[g] / summary.total * 100.0) if summary.total > 0 else 0 %}
-      {% if pct > 0 %}
-      <div style="width:{{ pct }}%;background:{{ color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;" title="{{ g }} {{ '%.1f'|format(pct) }}%">
-        {% if pct > 8 %}{{ g }} {{ "%.0f"|format(pct) }}%{% endif %}
-      </div>
-      {% endif %}
-    {% endfor %}
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">총 미수금</div><div class="kpi-num" style="color:var(--knk-red);">{{ '{:,.0f}'.format(s.total|default(0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">거래처</div><div class="kpi-num">{{ s.customer_count|default(items|length) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">최장 연체</div><div class="kpi-num" style="color:var(--knk-red);">{{ s.max_overdue_days|default(0) }}<span class="unit">일</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">30일 이상</div><div class="kpi-num">{{ s.over_30|default(0) }}</div></div>
   </div>
-  <p class="muted" style="margin-top:8px;font-size:12px;">연체율 (D-30 이상 비중): <strong style="color:var(--knk-red);">{{ "%.1f"|format(summary.overdue_rate) }}%</strong></p>
-  {% else %}
-  <p class="muted">미수금 없음 — 모든 수주가 결제 완료 또는 미청구 상태.</p>
-  {% endif %}
-</div>
 
-{# 상세 테이블 #}
-<div class="card" style="margin-top:14px;">
-  <h2 style="margin:0 0 10px;font-size:15px;font-weight:800;">미수금 상세 ({{ items|length }}건)</h2>
-  {% if items %}
-  <div style="overflow-x:auto;">
-  <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead>
-      <tr style="background:var(--paper);border-bottom:2px solid var(--line);">
-        <th style="text-align:left;padding:8px;">등급</th>
-        <th style="text-align:left;padding:8px;">수주번호</th>
-        <th style="text-align:left;padding:8px;">거래처</th>
-        <th style="text-align:right;padding:8px;">수주금액</th>
-        <th style="text-align:right;padding:8px;">기수금</th>
-        <th style="text-align:right;padding:8px;">미수금</th>
-        <th style="text-align:center;padding:8px;">결제조건</th>
-        <th style="text-align:center;padding:8px;">만기일</th>
-        <th style="text-align:right;padding:8px;">연체일</th>
-        <th style="text-align:center;padding:8px;">상태</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for it in items %}
-      {% set grade_color = {'CURRENT':'var(--success)','D-30':'#D97706','D-60':'#EA580C','D-90+':'#B91C1C'}[it.grade] %}
-      <tr style="border-bottom:1px solid var(--paper-2);">
-        <td style="padding:8px;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;background:{{ grade_color }};color:#fff;font-size:11px;font-weight:700;">{{ it.grade }}</span></td>
-        <td style="padding:8px;font-family:monospace;"><a href="/sales/orders/{{ it.order_id }}" style="color:var(--knk-red);">{{ it.order_no or '#' ~ it.order_id }}</a></td>
-        <td style="padding:8px;">{{ it.customer_name }}</td>
-        <td style="padding:8px;text-align:right;">{{ "{:,.0f}".format(it.total_amount) }}</td>
-        <td style="padding:8px;text-align:right;color:var(--success);">{{ "{:,.0f}".format(it.paid_total) }}</td>
-        <td style="padding:8px;text-align:right;font-weight:700;color:var(--knk-red);">{{ "{:,.0f}".format(it.outstanding) }}</td>
-        <td style="padding:8px;text-align:center;font-size:12px;">{{ it.terms_days }}일</td>
-        <td style="padding:8px;text-align:center;font-size:12px;">{{ it.due_date_calc }}</td>
-        <td style="padding:8px;text-align:right;font-weight:700;color:{{ grade_color }};">
-          {% if it.overdue_days > 0 %}+{{ it.overdue_days }}{% else %}{{ it.overdue_days }}{% endif %}
-        </td>
-        <td style="padding:8px;text-align:center;font-size:11px;">{{ it.status }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <div style="margin-top: var(--space-5);"></div>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th>고객사</th><th class="num">미수액</th><th class="num">최근 출하</th><th class="num">연체일</th><th class="center">위험도</th></tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr>
+          <td><b>{{ it.customer_name|default('—') }}</b></td>
+          <td class="num" style="font-weight:700;color:var(--knk-red);">{{ '{:,.0f}'.format(it.outstanding|default(0)) }}</td>
+          <td class="num" style="font-size:12px;color:var(--mute);">{{ it.last_shipment|default('—') }}</td>
+          <td class="num" style="font-weight:700;{% if it.overdue_days|default(0) > 30 %}color:var(--knk-red);{% endif %}">{{ it.overdue_days|default(0) }}</td>
+          <td class="center"><span class="pill {% if it.overdue_days|default(0) > 60 %}pill-danger{% elif it.overdue_days|default(0) > 30 %}pill-warn{% else %}pill-progress{% endif %}">{% if it.overdue_days|default(0) > 60 %}🔴 위험{% elif it.overdue_days|default(0) > 30 %}🟡 주의{% else %}🟢 정상{% endif %}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">✓</div><div class="ttl">미수금 없음</div></div>{% endif %}
   </div>
-  {% else %}
-  <p class="muted">미수금 건 없음.</p>
-  {% endif %}
-</div>
-
-<script>
-async function checkAlerts() {
-  if (!confirm('수금 알림을 즉시 발송하시겠습니까? (만기 D-7 / 연체 D+1·D+30·D+60)')) return;
-  try {
-    const r = await fetch('/sales/alerts/check', {method:'POST'});
-    const j = await r.json();
-    if (j.ok) {
-      alert('알림 발송 완료\n발송: ' + j.sent + '건\n중복 스킵: ' + j.skipped + '건\n검토 대상: ' + j.items + '건');
-    } else {
-      alert('오류: ' + (j.error || '알 수 없음'));
-    }
-  } catch (e) {
-    alert('네트워크 오류: ' + e.message);
-  }
-}
-</script>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

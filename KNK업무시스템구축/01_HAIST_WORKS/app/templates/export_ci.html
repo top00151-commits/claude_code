@@ -1,78 +1,48 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CI 작성 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>CI 작성 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+.lines-tbl { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 10px; }
+.lines-tbl th { background: var(--paper-2); padding: 8px 10px; font-size: 11px; color: var(--amber-deep); text-align: left; border-bottom: 1px solid var(--line); }
+.lines-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">CI 작성</div>
-      <h1 class="page-title">CI 작성</h1>
-    </div>
-  </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>CI 상업송장 발급 — 수출 #{{ eo.id }}</h1>
-  <p class="muted">
-    매출 <strong>{{ '{:,.0f}'.format(eo.order_amount or 0) }}원</strong> 자동 채움 →
-    CI total_amount 입력 (수정 가능). 통화 환산은 수동.
-  </p>
-</div>
-
-<form method="post" action="/export/ci" class="form-card">
-  <input type="hidden" name="export_order_id" value="{{ eo.id }}">
-
-  <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div class="form-row">
-      <label>발급일</label>
-      <input type="date" name="issue_date" value="{{ today }}">
-    </div>
-    <div class="form-row">
-      <label>통화</label>
-      <select name="currency">
-        <option value="USD" selected>USD</option>
-        <option value="KRW">KRW</option>
-        <option value="VND">VND</option>
-        <option value="EUR">EUR</option>
-      </select>
-    </div>
-    <div class="form-row" style="grid-column:span 2;">
-      <label>총액 (자동 채움 — 수정 가능)</label>
-      <input type="number" step="0.01" name="total_amount"
-             value="{{ '{:.2f}'.format(eo.order_amount or 0) }}">
-      <p class="muted" style="font-size:12px;margin:4px 0 0;">
-        ※ 매출 자동 채움 = 수주 (orders.total_amount) → CI 라인 합산.
-      </p>
-    </div>
+    <div><div class="crumbs"><a href="/export">수출</a> · <a href="/export/orders/{{ eo.id }}">{{ eo.export_no }}</a> · <b>CI 작성</b></div>
+    <h1 class="page-title">📑 Commercial <em>Invoice</em></h1></div>
+    <a class="btn btn-secondary" href="/export/orders/{{ eo.id }}">↩ 수출 상세</a>
   </div>
 
-  <div class="form-actions" style="margin-top:16px;">
-    <button type="submit" class="btn btn-primary">CI 발급</button>
-    <a href="/export/orders/{{ eo.id }}" class="btn">취소</a>
-  </div>
-</form>
+  <form method="post" action="/export/orders/{{ eo.id }}/ci" class="form-card">
+    <div class="frow">
+      <div class="fld"><label>CI 번호</label><input type="text" name="ci_no" placeholder="자동 생성"></div>
+      <div class="fld"><label>발행일</label><input type="date" name="issued_at" value="{{ today }}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>인코텀즈</label><input type="text" value="{{ eo.incoterms|default('FOB') }}" readonly style="background:var(--paper-2);"></div>
+      <div class="fld"><label>통화</label><input type="text" value="{{ eo.currency|default('USD') }}" readonly style="background:var(--paper-2);"></div>
+    </div>
 
-<h3 style="margin-top:24px;">발급 이력</h3>
-{% if items %}
-<table class="data-table">
-  <thead><tr><th>송장번호</th><th>발급일</th><th>금액</th><th>통화</th><th>상태</th></tr></thead>
-  <tbody>{% for it in items %}
-  <tr><td>{{ it.invoice_no }}</td><td>{{ it.issue_date or '-' }}</td>
-      <td class="num">{{ '{:,.2f}'.format(it.total_amount or 0) }}</td>
-      <td>{{ it.currency }}</td><td><span class="status-tag">{{ it.status }}</span></td></tr>
-  {% endfor %}</tbody>
-</table>
-{% else %}<p class="muted">미발급</p>{% endif %}  </div>
+    <h3 style="font-size:13px;font-weight:700;margin:18px 0 8px;">품목</h3>
+    <table class="lines-tbl">
+      <thead><tr><th>#</th><th>품목명</th><th>HS 코드</th><th class="num" style="text-align:right;">수량</th><th class="num" style="text-align:right;">단가</th><th class="num" style="text-align:right;">금액</th></tr></thead>
+      <tbody>
+      {% for it in items|default([]) %}
+        <tr><td>{{ loop.index }}</td><td>{{ it.name|default('—') }}</td><td style="font-family:monospace;font-size:11px;">{{ it.hs_code|default('—') }}</td><td style="text-align:right;">{{ it.qty|default(0) }}</td><td style="text-align:right;">{{ '{:,.2f}'.format(it.unit_price|default(0)) }}</td><td style="text-align:right;font-weight:700;">{{ '{:,.2f}'.format((it.qty|default(0))*(it.unit_price|default(0))) }}</td></tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--mute);padding:14px;">품목 없음 — 다음 사이클에 라인 입력 UI 추가 예정</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <a class="btn btn-secondary" href="/export/orders/{{ eo.id }}">취소</a>
+      <button class="btn btn-primary" type="submit">📤 CI 발행</button>
+    </div>
+  </form>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

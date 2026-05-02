@@ -1,71 +1,57 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>재고 조정 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>재고 조정 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.adj-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
+.adj-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld label .req { color: var(--knk-red); }
+.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+.fld textarea { min-height: 80px; resize: vertical; }
+.fld.full { grid-column: span 2; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">재고 조정</div>
-      <h1 class="page-title">재고 조정</h1>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 조정</b></div><h1 class="page-title">⚖ 재고 <em>조정</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">파손·분실·이동 등으로 인한 수량 +/-  보정 (사유 + 증빙)</div></div>
+    <a class="btn btn-secondary" href="/stock/adjustments">📜 조정 이력</a>
+  </div>
+
+  <form class="adj-form" method="post" action="/stock/adjust">
+    <div class="adj-row">
+      <div class="fld"><label>자재 <span class="req">*</span></label>
+        <select name="part_id" required>
+          <option value="">— 선택 —</option>
+          {% for p in parts %}<option value="{{ p.id }}" {% if p.id == default_part_id %}selected{% endif %}>{{ p.code }} · {{ p.name }} (재고 {{ p.stock_qty|default(0) }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld"><label>조정 유형 <span class="req">*</span></label>
+        <select name="adj_type" required>
+          <option value="">— 선택 —</option>
+          <option value="DAMAGED">파손</option>
+          <option value="LOST">분실</option>
+          <option value="FOUND">발견 (입고 누락)</option>
+          <option value="MOVE">위치 이동</option>
+          <option value="CORRECTION">시스템 보정</option>
+        </select>
+      </div>
     </div>
-  </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>⚖️ 재고 실사 조정</h1>
-  <p class="muted">실사 결과와 시스템 재고의 차이를 조정합니다. 양수(+)는 증가, 음수(-)는 감소.</p>
-</div>
+    <div class="adj-row">
+      <div class="fld"><label>수량 변동 <span class="req">*</span> <span style="font-size:11px;color:var(--mute);font-weight:500;">(+ 증가 / - 감소)</span></label><input type="number" name="qty_delta" step="0.01" required placeholder="-5 또는 +10"></div>
+      <div class="fld"><label>조정일</label><input type="date" name="adj_date" value="{{ today|default('') }}"></div>
+    </div>
+    <div class="adj-row">
+      <div class="fld full"><label>사유 <span class="req">*</span></label><textarea name="reason" required placeholder="조정 사유 (필수) · 증빙 첨부는 다음 단계"></textarea></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/stock/balances">취소</a>
+      <button class="btn btn-primary" type="submit">📤 조정 등록</button>
+    </div>
+  </form>
 
-<form method="post" action="/stock/adjust" class="card" style="max-width:640px;">
-  <div>
-    <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">부품 <span style="color:var(--knk-red);">*</span></label>
-    <select name="part_id" required style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
-      <option value="">-- 선택 --</option>
-      {% for p in parts %}
-      <option value="{{ p.id }}" {% if default_part_id and (default_part_id|string)==(p.id|string) %}selected{% endif %}>
-        [{{ p.part_no }}] {{ p.part_name }} — 시스템 재고 {{ "%g"|format(p.stock_qty or 0) }}{{ p.unit or 'EA' }}
-      </option>
-      {% endfor %}
-    </select>
+  <div style="margin: 0 var(--content-pad);font-size:12px;color:var(--mute);background:var(--amber-glow);border-radius:var(--radius-md);padding:12px 14px;line-height:1.6;">
+    💡 <b>승인 정책</b>: 5개 미만 / 1만원 미만 변동은 즉시 반영. 그 외는 팀장·관리자 승인 후 반영.
   </div>
-
-  <div style="margin-top:14px;">
-    <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">조정 수량 <span style="color:var(--knk-red);">*</span> <span style="font-weight:500;color:var(--mute);">(+증가 / -감소)</span></label>
-    <input type="number" name="quantity" step="0.01" required placeholder="예: -3 (3개 감소) 또는 +5 (5개 증가)"
-           style="width:100%;padding:10px 12px;border:2px solid var(--amber);border-radius:8px;font-size:14px;font-family:monospace;font-weight:700;background:#FFFBEB;">
-  </div>
-
-  <div style="margin-top:14px;">
-    <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">조정 사유 <span style="color:var(--knk-red);">*</span></label>
-    <input type="text" name="reason" required placeholder="예: 2026-04 월말 실사 차이, 파손 폐기, 분실" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
-  </div>
-
-  <div style="margin-top:14px;">
-    <label style="font-size:12px;font-weight:800;color:var(--ink);display:block;margin-bottom:4px;">비고</label>
-    <textarea name="note" rows="2" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;font-family:inherit;"></textarea>
-  </div>
-
-  <div style="margin-top:14px;padding:12px 16px;background:var(--amber-glow);border-left:3px solid var(--amber);border-radius:6px;font-size:12px;color:var(--amber-deep);">
-    ⚠️ 실사 조정은 감사(audit) 추적이 중요합니다. 사유를 명확히 기록하세요.
-  </div>
-
-  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid var(--line);">
-    <a href="/stock/movements" class="btn btn-ghost">취소</a>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--amber),#D97706);color:#fff;border:none;font-weight:800;padding:10px 28px;">
-      ✓ 조정 등록
-    </button>
-  </div>
-</form>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

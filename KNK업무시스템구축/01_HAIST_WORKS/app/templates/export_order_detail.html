@@ -1,106 +1,89 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>수출 수주 상세 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ eo.export_no|default('수출 수주') }} · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
+.def dt { color: var(--mute); font-weight: 600; }
+.flow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.flow-step { padding: 8px 14px; border-radius: var(--radius-md); font-size: 12px; font-weight: 600; background: var(--paper-2); color: var(--mute); }
+.flow-step.done { background: var(--success); color: white; }
+.flow-step.active { background: var(--grad-amber); color: white; }
+@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">수출 수주 상세</div>
-      <h1 class="page-title">수출 수주 상세</h1>
+    <div><div class="crumbs"><a href="/export">수출</a> · <b>{{ eo.export_no|default('#' ~ eo.id) }}</b></div>
+    <h1 class="page-title">🚢 <em>{{ eo.export_no|default('#' ~ eo.id) }}</em> {% if eo.status %}<span class="pill {% if eo.status == 'CLEARED' %}pill-done{% elif eo.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}" style="font-size:13px;">{{ eo.status }}</span>{% endif %}</h1></div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/export">↩ 목록</a>
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>수출 수주 #{{ eo.id }} · {{ eo.buyer or '-' }}</h1>
-  <p class="muted">
-    수주 {{ eo.order_no }} · 고객사 {{ eo.customer_name }} ·
-    매출 {{ '{:,.0f}'.format(eo.order_amount or 0) }}원 · 등록 {{ eo.order_date }}
-  </p>
-  <p class="muted">
-    {{ eo.shipping_terms or '-' }} / {{ eo.payment_terms or '-' }} ·
-    {{ eo.port_of_loading or '-' }} → {{ eo.port_of_discharge or '-' }}
-  </p>
-</div>
 
-{# 진행도 (5단계) — DRAFT/CI_ISSUED/PL_READY/SHIPPED/CLEARED #}
-{% set st = eo.status %}
-<div class="progress-bar" style="display:flex;gap:0;margin:16px 0;border-radius:6px;overflow:hidden;border:1px solid var(--bd,#ddd);">
-  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['DRAFT','CI_ISSUED','PL_READY','SHIPPED','CLEARED'] %}var(--knk-red);color:#fff{% else %}#f5f5f5{% endif %};">1. DRAFT</div>
-  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['CI_ISSUED','PL_READY','SHIPPED','CLEARED'] %}var(--knk-red);color:#fff{% else %}#f5f5f5{% endif %};">2. CI 발행</div>
-  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['PL_READY','SHIPPED','CLEARED'] %}var(--knk-red);color:#fff{% else %}#f5f5f5{% endif %};">3. PL 준비</div>
-  <div style="flex:1;padding:10px;text-align:center;background:{% if st in ['SHIPPED','CLEARED'] %}var(--knk-red);color:#fff{% else %}#f5f5f5{% endif %};">4. 선적</div>
-  <div style="flex:1;padding:10px;text-align:center;background:{% if st == 'CLEARED' %}var(--knk-red);color:#fff{% else %}#f5f5f5{% endif %};">5. 통관완료</div>
-</div>
+  <!-- 진행 단계 -->
+  <div style="margin: 0 var(--content-pad) var(--space-3);">
+    <div class="flow">
+      <div class="flow-step done">DRAFT</div>
+      <div class="flow-step {% if ci %}done{% elif eo.status == 'CI_ISSUED' %}active{% endif %}">CI 발행 {% if ci %}✓{% endif %}</div>
+      <div class="flow-step {% if pl %}done{% elif eo.status == 'PL_READY' %}active{% endif %}">P/L 준비 {% if pl %}✓{% endif %}</div>
+      <div class="flow-step {% if bl %}done{% elif eo.status == 'SHIPPED' %}active{% endif %}">선적 {% if bl %}✓{% endif %}</div>
+      <div class="flow-step {% if customs %}done{% elif eo.status == 'CLEARED' %}active{% endif %}">통관 {% if customs %}✓{% endif %}</div>
+    </div>
+  </div>
 
-<nav class="tab-nav" style="display:flex;gap:8px;margin:16px 0;border-bottom:2px solid var(--bd,#ddd);">
-  <a href="/export/ci/{{ eo.id }}" class="tab btn">CI 상업송장 ({{ ci|length }})</a>
-  <a href="/export/pl/{{ eo.id }}" class="tab btn">PL 패킹리스트 ({{ pl|length }})</a>
-  <a href="/export/bl/{{ eo.id }}" class="tab btn">B/L 선하증권 ({{ bl|length }})</a>
-  <a href="/export/bl/{{ eo.id }}#customs" class="tab btn">관세 신고 ({{ customs|length }})</a>
-</nav>
+  <div class="detail-grid">
+    <div>
+      <div class="section-card">
+        <h3>수출 수주 정보</h3>
+        <dl class="def">
+          <dt>수출번호</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ eo.export_no|default('—') }}</dd>
+          <dt>고객사</dt><dd>{{ eo.customer_name|default('—') }}</dd>
+          <dt>총액</dt><dd style="font-weight:700;color:var(--knk-red);">{{ eo.currency|default('USD') }} {{ '{:,.2f}'.format(eo.total_amount|default(0)) }}</dd>
+          <dt>인코텀즈</dt><dd>{{ eo.incoterms|default('—') }}</dd>
+          <dt>도착항</dt><dd>{{ eo.destination|default('—') }}</dd>
+          <dt>출항 예정</dt><dd style="font-family:monospace;">{{ eo.etd|default('—') }}</dd>
+          <dt>본선</dt><dd>{{ eo.vessel|default('—') }}</dd>
+          <dt>B/L 번호</dt><dd style="font-family:monospace;">{{ eo.bl_no|default('—') }}</dd>
+        </dl>
+      </div>
 
-<section style="margin-top:20px;">
-  <h3>CI 상업송장 <a href="/export/ci/{{ eo.id }}" class="btn btn-sm">+ 발급</a></h3>
-  {% if ci %}
-  <table class="data-table">
-    <thead><tr><th>송장번호</th><th>발급일</th><th>금액</th><th>통화</th><th>상태</th><th>인쇄</th></tr></thead>
-    <tbody>{% for it in ci %}
-    <tr><td>{{ it.invoice_no }}</td><td>{{ it.issue_date or '-' }}</td>
-        <td class="num">{{ '{:,.2f}'.format(it.total_amount or 0) }}</td>
-        <td>{{ it.currency }}</td><td><span class="status-tag">{{ it.status }}</span></td>
-        <td><a href="/export/ci/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
-    {% endfor %}</tbody></table>
-  {% else %}<p class="muted">CI 미발급</p>{% endif %}
+      {% if ci %}
+      <div class="section-card">
+        <h3>📑 Commercial Invoice (CI)</h3>
+        <dl class="def">
+          <dt>CI 번호</dt><dd style="font-family:monospace;">{{ ci.ci_no|default('—') }}</dd>
+          <dt>발행일</dt><dd>{{ ci.issued_at|default('—') }}</dd>
+          <dt>금액</dt><dd style="font-weight:700;">{{ ci.currency|default('USD') }} {{ '{:,.2f}'.format(ci.total|default(0)) }}</dd>
+        </dl>
+      </div>
+      {% endif %}
 
-  <h3 style="margin-top:18px;">PL 패킹리스트 <a href="/export/pl/{{ eo.id }}" class="btn btn-sm">+ 작성</a></h3>
-  {% if pl %}
-  <table class="data-table">
-    <thead><tr><th>PL 번호</th><th>패키지</th><th>중량(kg)</th><th>용적(CBM)</th><th>인쇄</th></tr></thead>
-    <tbody>{% for it in pl %}
-    <tr><td>{{ it.pl_no }}</td><td>{{ it.total_packages }}</td>
-        <td class="num">{{ '{:,.2f}'.format(it.total_weight or 0) }}</td>
-        <td class="num">{{ '{:,.2f}'.format(it.total_volume or 0) }}</td>
-        <td><a href="/export/pl/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
-    {% endfor %}</tbody></table>
-  {% else %}<p class="muted">PL 미작성</p>{% endif %}
+      {% if pl %}
+      <div class="section-card">
+        <h3>📦 Packing List (P/L)</h3>
+        <dl class="def">
+          <dt>P/L 번호</dt><dd style="font-family:monospace;">{{ pl.pl_no|default('—') }}</dd>
+          <dt>총 박스</dt><dd>{{ pl.total_boxes|default(0) }}</dd>
+          <dt>총 중량</dt><dd>{{ pl.total_weight|default(0) }} kg</dd>
+        </dl>
+      </div>
+      {% endif %}
+    </div>
 
-  <h3 style="margin-top:18px;">B/L 선하증권 <a href="/export/bl/{{ eo.id }}" class="btn btn-sm">+ 발급</a></h3>
-  {% if bl %}
-  <table class="data-table">
-    <thead><tr><th>B/L 번호</th><th>운송사</th><th>선명</th><th>출항</th><th>도착예정</th><th>상태</th><th>인쇄</th></tr></thead>
-    <tbody>{% for it in bl %}
-    <tr><td>{{ it.bl_no }}</td><td>{{ it.shipping_company or '-' }}</td>
-        <td>{{ it.vessel or '-' }}</td><td>{{ it.departure_date or '-' }}</td>
-        <td>{{ it.arrival_date or '-' }}</td><td><span class="status-tag">{{ it.status }}</span></td>
-        <td><a href="/export/bl/{{ it.id }}/print" target="_blank" class="btn btn-sm">인쇄</a></td></tr>
-    {% endfor %}</tbody></table>
-  {% else %}<p class="muted">B/L 미발급</p>{% endif %}
-
-  <h3 style="margin-top:18px;">관세 신고</h3>
-  {% if customs %}
-  <table class="data-table">
-    <thead><tr><th>신고번호</th><th>HS</th><th>FTA</th><th>신고가액</th><th>상태</th></tr></thead>
-    <tbody>{% for it in customs %}
-    <tr><td>{{ it.declaration_no }}</td><td>{{ it.hs_code or '-' }}</td>
-        <td>{{ it.fta_origin or '-' }}</td>
-        <td class="num">{{ '{:,.2f}'.format(it.declared_value or 0) }}</td>
-        <td><span class="status-tag">{{ it.status }}</span></td></tr>
-    {% endfor %}</tbody></table>
-  {% else %}<p class="muted">관세 미신고</p>{% endif %}
-</section>
-
-<p style="margin-top:20px;"><a href="/export" class="btn">← 목록으로</a></p>  </div>
+    <aside>
+      <div class="section-card">
+        <h3>액션</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <a class="btn btn-primary" href="/export/orders/{{ eo.id }}/ci">📑 CI {% if ci %}수정{% else %}작성{% endif %}</a>
+          <a class="btn btn-secondary" href="/export/orders/{{ eo.id }}/pl">📦 P/L {% if pl %}수정{% else %}작성{% endif %}</a>
+          <a class="btn btn-secondary" href="/export/orders/{{ eo.id }}/bl">🚢 B/L 통관</a>
+        </div>
+      </div>
+    </aside>
+  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

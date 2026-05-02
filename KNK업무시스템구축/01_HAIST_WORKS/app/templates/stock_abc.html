@@ -1,101 +1,48 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ABC 분류 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>ABC 분류 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">ABC 분류</div>
-      <h1 class="page-title">ABC 분류</h1>
-    </div>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>ABC 분류</b></div><h1 class="page-title">📊 ABC <em>분류</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">최근 {{ days }}일 출고 매출 누적 비중 · A(80%)·B(95%)·C(나머지)</div></div>
+    <form method="get" style="display:flex;gap:8px;align-items:center;">
+      <select name="days" onchange="this.form.submit()" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);color:var(--ink);">
+        <option value="30" {% if days == 30 %}selected{% endif %}>최근 30일</option>
+        <option value="90" {% if days == 90 %}selected{% endif %}>최근 90일</option>
+        <option value="180" {% if days == 180 %}selected{% endif %}>최근 180일</option>
+        <option value="365" {% if days == 365 %}selected{% endif %}>최근 1년</option>
+      </select>
+    </form>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# Top3 S2 3차 (2026-04-26) — ABC 분류 (파레토). 최근 N일 출고 매출 누적 비중 기준 #}
 
-<div style="margin-bottom:14px;">
-  <a href="/stock/balances" style="font-size:13px;color:var(--ink-500);text-decoration:none;">← 잔고</a>
-</div>
+  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+    <div class="kpi-card"><div class="kpi-label">전체 자재</div><div class="kpi-num">{{ total }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">A (핵심)</div><div class="kpi-num" style="color:var(--knk-red);">{{ a_count }}</div><div class="kpi-trend alert">매출 80% 견인</div></div>
+    <div class="kpi-card"><div class="kpi-label">B (보통)</div><div class="kpi-num" style="color:var(--warn);">{{ b_count }}</div><div class="kpi-trend neutral">매출 81~95%</div></div>
+    <div class="kpi-card"><div class="kpi-label">C (저활)</div><div class="kpi-num" style="color:var(--mute);">{{ c_count }}</div><div class="kpi-trend neutral">매출 95% 이하</div></div>
+  </div>
 
-<div style="background:var(--bg-card,#fff);border:1px solid var(--ink-200,var(--line));border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h1 style="margin:0 0 6px;font-size:var(--fs-fluid-lg,22px);font-weight:800;">ABC 분류</h1>
-  <div style="font-size:var(--fs-fluid-sm,13px);color:var(--ink-500);">
-    최근 {{ days }}일 출고 매출 누적 — A(상위 80%) / B(80~95%) / C(나머지) · 파레토 원칙
-  </div>
-</div>
-
-{# A/B/C 카운트 KPI 3칸 #}
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
-  <div style="background:#fff;border:1px solid var(--st-done,var(--success));border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-done,var(--success));font-weight:700;">A · 핵심</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ a_count }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">매출 상위 80%</div>
-  </div>
-  <div style="background:#fff;border:1px solid var(--st-progress,#2563EB);border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-progress,#2563EB);font-weight:700;">B · 일반</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ b_count }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">매출 80~95%</div>
-  </div>
-  <div style="background:#fff;border:1px solid var(--st-delay,var(--knk-red));border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:var(--st-delay,var(--knk-red));font-weight:700;">C · 저활용</div>
-    <div style="font-size:24px;font-weight:800;margin-top:4px;">{{ c_count }}</div>
-    <div style="font-size:11px;color:var(--ink-500);">매출 95% 이하</div>
-  </div>
-</div>
-
-<div style="background:#fff;border:1px solid var(--ink-200,var(--line));border-radius:12px;padding:20px;">
-  <div style="font-size:var(--fs-fluid-md,15px);font-weight:700;margin-bottom:14px;">분류 결과 (상위 {{ items|length }} / 전체 {{ total }})</div>
-  {% if items and items|length > 0 %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead>
-      <tr style="border-bottom:1px solid var(--ink-200,var(--line));text-align:left;">
-        <th style="padding:8px;">등급</th><th style="padding:8px;">품번</th>
-        <th style="padding:8px;">품명</th>
-        <th style="padding:8px;text-align:right;">출고량</th>
-        <th style="padding:8px;text-align:right;">매출액</th>
-        <th style="padding:8px;text-align:right;">비중</th>
-        <th style="padding:8px;text-align:right;">누적</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in items %}
-      <tr style="border-bottom:1px solid var(--ink-100,var(--paper-2));">
-        <td style="padding:8px;">
-          {% if r.abc_class == 'A' %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-done,var(--success));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">A</span>
-          {% elif r.abc_class == 'B' %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-progress,#2563EB);color:#fff;border-radius:4px;font-size:11px;font-weight:700;">B</span>
-          {% else %}
-            <span style="display:inline-block;padding:2px 8px;background:var(--st-delay,var(--knk-red));color:#fff;border-radius:4px;font-size:11px;font-weight:700;">C</span>
-          {% endif %}
-        </td>
-        <td style="padding:8px;font-family:monospace;">{{ r.part_no }}</td>
-        <td style="padding:8px;">{{ r.part_name }}</td>
-        <td style="padding:8px;text-align:right;">{{ '%.0f'|format(r.out_qty or 0) }} {{ r.unit or '' }}</td>
-        <td style="padding:8px;text-align:right;font-weight:600;">{{ '{:,.0f}'.format(r.out_value or 0) }}</td>
-        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.share_pct) }}%</td>
-        <td style="padding:8px;text-align:right;color:var(--ink-500);">{{ '%.1f'|format(r.cum_share_pct) }}%</td>
-      </tr>
+  <div style="margin-top:var(--space-5);"></div>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th class="center">분류</th><th>코드</th><th>자재명</th><th class="num">출고 수량</th><th class="num">매출 금액</th><th class="num">누적 비중</th></tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr onclick="location.href='/parts/{{ it.part_id }}'">
+          <td class="center"><span class="pill {% if it.abc_class == 'A' %}pill-danger{% elif it.abc_class == 'B' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;font-weight:800;">{{ it.abc_class }}</span></td>
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.part_no|default('—') }}</td>
+          <td><b>{{ it.part_name|default('—') }}</b></td>
+          <td class="num">{{ '{:,.0f}'.format(it.out_qty|default(0)) }}</td>
+          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(it.revenue|default(it.out_value|default(0))) }}</td>
+          <td class="num"><b>{{ '%.1f'|format(it.cum_pct|default(0)) }}%</b></td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="padding:32px;text-align:center;color:var(--ink-500);font-size:13px;line-height:1.8;">
-    최근 {{ days }}일 출고 이력이 없어 ABC 분류가 비어 있습니다.<br>
-    <a href="/stock/issues" style="color:var(--st-progress);">출고 (GI)</a> 발생 후 다시 조회해주세요.
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">출고 데이터가 부족합니다</div><div style="font-size:13px;color:var(--mute);">{{ days }}일 동안 출고 이력이 필요합니다.</div></div>{% endif %}
   </div>
-  {% endif %}
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

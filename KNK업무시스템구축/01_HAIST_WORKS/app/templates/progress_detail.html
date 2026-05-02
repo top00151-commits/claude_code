@@ -1,110 +1,44 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>진행 상세 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ project.name }} 진행 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.phase-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 10px; display: grid; grid-template-columns: 60px 1fr 200px 120px; gap: 14px; align-items: center; }
+.phase-num { width: 40px; height: 40px; border-radius: 50%; background: var(--paper-2); display: grid; place-items: center; font-weight: 700; color: var(--mute); }
+.phase-card.done .phase-num { background: var(--success); color: white; }
+.phase-card.active .phase-num { background: var(--grad-amber); color: white; }
+.phase-card.delay .phase-num { background: var(--knk-red); color: white; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">진행 상세</div>
-      <h1 class="page-title">진행 상세</h1>
+    <div><div class="crumbs"><a href="/progress">진행</a> · <b>{{ project.mgmt_code|default(project.name) }}</b></div>
+    <h1 class="page-title">📊 {{ project.name }}</h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">관리코드 <b>{{ project.mgmt_code }}</b> · 고객사 {{ project.customer_name|default('—') }}</div></div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/progress/{{ project.id }}/gantt">📅 Gantt</a>
+      <a class="btn btn-secondary" href="/progress/{{ project.id }}/burndown">📉 Burndown</a>
+      <a class="btn btn-secondary" href="/progress/{{ project.id }}/milestones">🎯 마일스톤</a>
     </div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div style="margin-bottom:14px;">
-  <a href="/progress" style="font-size:13px;color:var(--mute);text-decoration:none;">← 진행률 대시보드</a>
-</div>
 
-<!-- 프로젝트 헤더 -->
-<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--knk-red);">
-  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
-    <div style="flex:1;min-width:300px;">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-        <span style="font-family:var(--font-mono);font-size:13px;color:var(--knk-red);font-weight:800;background:var(--knk-red-soft);padding:4px 12px;border-radius:6px;">{{ project.mgmt_code }}</span>
-        {% if project.biz_div == 'T' %}<span style="background:var(--paper-2);color:var(--ink);padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;">검사기</span>
-        {% elif project.biz_div == 'M' %}<span style="background:var(--paper-2);color:var(--ink);padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;">자동화</span>{% endif %}
-        {% if project.status %}<span style="background:var(--paper-warm);color:var(--info);padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;">{{ project.status }}</span>{% endif %}
+  <div class="section">
+    <h2>단계별 진행</h2>
+    <div style="margin: 0 var(--content-pad);">
+      {% for phase in phases|default([]) %}
+      <div class="phase-card {% if phase.status == 'DONE' %}done{% elif phase.status == 'PROGRESS' %}active{% elif phase.status == 'DELAY' %}delay{% endif %}">
+        <div class="phase-num">{{ loop.index }}</div>
+        <div>
+          <b>{{ phase.label|default(PHASE_CODE_TO_LABEL.get(phase.code, phase.code)) }}</b>
+          {% if phase.note %}<div style="font-size:12px;color:var(--mute);margin-top:2px;">{{ phase.note }}</div>{% endif %}
+        </div>
+        <div style="font-size:12px;color:var(--mute);">
+          {% if phase.start_date %}🟢 {{ phase.start_date }}{% endif %}
+          {% if phase.end_date %} → {{ phase.end_date }}{% endif %}
+        </div>
+        <div><span class="pill {% if phase.status == 'DONE' %}pill-done{% elif phase.status == 'DELAY' %}pill-danger{% elif phase.status == 'PROGRESS' %}pill-progress{% else %}pill-muted{% endif %}">{{ phase.status|default('—') }}</span></div>
       </div>
-      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.02em;">{{ project.project_name }}</h1>
-      <div style="margin-top:6px;font-size:13px;color:var(--mute);">
-        고객: <strong style="color:var(--ink);">{{ project.customer_name or '-' }}</strong>
-        {% if project.due_date %}· 납기: <strong style="color:var(--knk-red);">{{ project.due_date }}</strong>{% endif %}
-        {% if project.pm_name %}· PM: {{ project.pm_name }}{% endif %}
-      </div>
+      {% else %}<div class="card empty"><div class="ico">📊</div><div class="ttl">단계 정보 없음</div></div>{% endfor %}
     </div>
   </div>
-</div>
-
-<!-- 12공정 카드 그리드 -->
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:18px;">
-  {% for ph in phases %}
-  {% set bg = '#fff' %}{% set border = 'var(--line)' %}{% set status_color = 'var(--mute)' %}{% set status_bg = 'var(--paper-2)' %}
-  {% if ph.status == '진행' %}{% set border = 'var(--warn)' %}{% set status_color = 'var(--warn)' %}{% set status_bg = 'var(--amber-glow)' %}{% endif %}
-  {% if ph.status == '완료' %}{% set border = 'var(--success)' %}{% set status_color = 'var(--success)' %}{% set status_bg = 'var(--paper-2)' %}{% endif %}
-  {% if ph.status == '지연' %}{% set border = 'var(--knk-red)' %}{% set status_color = 'var(--knk-red)' %}{% set status_bg = 'var(--knk-red-soft)' %}{% endif %}
-  {% if ph.status == '보류' %}{% set status_color = 'var(--mute-2)' %}{% endif %}
-
-  <div style="background:{{ bg }};border:2px solid {{ border }};border-radius:12px;padding:18px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div>
-        <div style="font-size:11px;color:var(--mute-2);font-weight:700;">{{ ph.phase_order }}/12</div>
-        <h3 style="margin:0;font-size:16px;font-weight:800;">{{ PHASE_CODE_TO_LABEL.get(ph.phase_code, ph.phase_code) }}</h3>
-      </div>
-      <span style="background:{{ status_bg }};color:{{ status_color }};padding:5px 12px;border-radius:999px;font-size:11px;font-weight:800;">{{ ph.status }}</span>
-    </div>
-
-    <!-- 진행 바 -->
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-bottom:4px;">
-        <span>진척률</span>
-        <strong style="color:var(--ink);">{{ ph.progress_pct|int }}%</strong>
-      </div>
-      <div style="width:100%;height:8px;background:var(--paper-2);border-radius:4px;overflow:hidden;">
-        <div style="width:{{ ph.progress_pct|int }}%;height:100%;background:linear-gradient(90deg,{{ status_color }},{{ status_color }});"></div>
-      </div>
-    </div>
-
-    <div style="font-size:12px;color:var(--mute);line-height:1.6;margin-bottom:12px;">
-      <div>담당: <strong style="color:var(--ink);">{{ ph.team_name or '미지정' }}</strong>{% if ph.assignee_name %} ({{ ph.assignee_name }}){% endif %}</div>
-      {% if ph.planned_end %}<div>예정: {{ ph.planned_start or '-' }} ~ {{ ph.planned_end }}</div>{% endif %}
-      {% if ph.actual_start %}<div>실제: {{ ph.actual_start }}{% if ph.actual_end %} ~ {{ ph.actual_end }}{% endif %}</div>{% endif %}
-      {% if ph.note %}<div style="margin-top:6px;padding:8px;background:var(--paper);border-radius:6px;font-style:italic;">"{{ ph.note }}"</div>{% endif %}
-    </div>
-
-    <!-- 빠른 상태 변경 (1~2 클릭) -->
-    <form method="post" action="/progress/phase/{{ ph.id }}/update" style="display:flex;gap:6px;flex-wrap:wrap;">
-      <input type="hidden" name="project_id" value="{{ project.id }}">
-      {% if ph.status != '진행' %}
-      <button type="submit" name="status" value="진행" style="flex:1;padding:6px 10px;background:var(--amber-glow);color:var(--warn);border:1px solid var(--warn);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">시작</button>
-      {% endif %}
-      {% if ph.status != '완료' %}
-      <button type="submit" name="status" value="완료" style="flex:1;padding:6px 10px;background:var(--paper-2);color:var(--success);border:1px solid var(--success);border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;">완료</button>
-      {% endif %}
-      {% if ph.status != '지연' %}
-      <button type="submit" name="status" value="지연" style="padding:6px 10px;background:var(--knk-red-soft);color:var(--knk-red);border:1px solid var(--knk-red);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">지연</button>
-      {% endif %}
-    </form>
-
-    <!-- 진척률 직접 입력 -->
-    <form method="post" action="/progress/phase/{{ ph.id }}/update" style="margin-top:8px;display:flex;gap:6px;">
-      <input type="hidden" name="project_id" value="{{ project.id }}">
-      <input type="number" name="progress_pct" min="0" max="100" step="5" value="{{ ph.progress_pct|int }}" style="flex:1;padding:6px 10px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
-      <input type="text" name="note" placeholder="메모(선택)" style="flex:2;padding:6px 10px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
-      <button type="submit" style="padding:6px 12px;background:var(--knk-red);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">저장</button>
-    </form>
-  </div>
-  {% endfor %}
-</div>  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

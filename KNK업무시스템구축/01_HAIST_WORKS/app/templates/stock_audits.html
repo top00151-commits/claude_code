@@ -1,68 +1,34 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>실사 이력 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>재고 실사 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">실사 이력</div>
-      <h1 class="page-title">실사 이력</h1>
-    </div>
+    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 실사</b></div><h1 class="page-title">📋 재고 <em>실사</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">정기/임시 재고 실사 이력 + 차이 보정</div></div>
+    <a class="btn btn-primary" href="/stock/audit/new">＋ 실사 시작</a>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-{# 사이클 56 (2026-04-27) — 재고실사 목록 (분리 페이지) #}
-{# 발주서 §D.1 — stock_audits.html #}
 
-<div class="page-head">
-  <h1>재고 실사 목록</h1>
-  <p class="muted">P4 자재팀 분기 1회 — 시스템 재고와 실측 재고 차이 확인 → 자동 조정 제안</p>
-</div>
-
-<div style="display:flex;gap:8px;margin-bottom:14px;">
-  <a href="/stock/audits/new" class="btn btn-primary">+ 신규 실사 시작</a>
-  <a href="/stock/adjustments" class="btn">조정 승인 화면</a>
-</div>
-
-<div class="card">
-  <h2 style="margin:0 0 10px 0;font-size:14px;">실사 이력 (최근 50건)</h2>
-  <table class="data-table" style="width:100%;font-size:12px;">
-    <thead>
-      <tr>
-        <th>실사 번호</th><th>시작일</th><th>범위</th><th>상태</th><th>주관</th>
-        <th style="text-align:right;">라인</th><th style="text-align:right;">실측</th>
-        <th style="text-align:right;">차이</th><th>비고</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for a in audits %}
-      <tr>
-        <td><a href="/stock/audits/{{ a.id }}">{{ a.audit_no }}</a></td>
-        <td>{{ a.start_date }}</td>
-        <td><span class="chip">{{ a.scope or 'FULL' }}</span></td>
-        <td><span class="chip">{{ a.status }}</span></td>
-        <td>{{ a.led_by_name or '-' }}</td>
-        <td style="text-align:right;">{{ a.item_count }}</td>
-        <td style="text-align:right;">{{ a.counted_count }}</td>
-        <td style="text-align:right;font-weight:700;">{{ a.total_diff_count or 0 }}</td>
-        <td>{{ a.note or '' }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="9" class="muted" style="text-align:center;padding:18px;">아직 실사 없음</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>  </div>
+  <div class="tbl-wrap">
+    {% if audits %}
+    <table class="tbl">
+      <thead><tr><th>실사 ID</th><th>일자</th><th>주관</th><th class="num">대상 품목</th><th class="num">차이 항목</th><th class="center">상태</th><th class="center">승인</th></tr></thead>
+      <tbody>
+      {% for a in audits %}
+        <tr onclick="location.href='/stock/audit/{{ a.id }}'">
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">#{{ a.id }}</td>
+          <td style="font-family:monospace;">{{ a.audit_date|default('—') }}</td>
+          <td>{{ a.auditor_name|default('—') }}</td>
+          <td class="num">{{ a.line_count|default(0) }}</td>
+          <td class="num" {% if a.diff_count|default(0) > 0 %}style="color:var(--knk-red);font-weight:700;"{% endif %}>{{ a.diff_count|default(0) }}</td>
+          <td class="center"><span class="pill {% if a.status == 'CLOSED' %}pill-done{% elif a.status == 'PENDING' %}pill-warn{% else %}pill-progress{% endif %}">{{ a.status|default('OPEN') }}</span></td>
+          <td class="center">{% if a.approved_at %}<span class="pill pill-done">✓ 승인</span>{% else %}<span class="pill pill-muted">대기</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📋</div><div class="ttl">실사 이력이 없습니다</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/stock/audit/new">＋ 첫 실사 시작</a></div></div>{% endif %}
+  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

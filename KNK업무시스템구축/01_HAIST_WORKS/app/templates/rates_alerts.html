@@ -1,111 +1,45 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>환율 알림 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>환율 알림 설정 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.alert-item { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto 1fr auto auto; gap: 14px; align-items: center; }
+.alert-item.inactive { opacity: 0.5; }
+.add-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.add-form .field { display: flex; flex-direction: column; gap: 4px; }
+.add-form label { font-size: 11px; color: var(--mute); font-weight: 600; }
+.add-form input, .add-form select { padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">환율 알림</div>
-      <h1 class="page-title">환율 알림</h1>
-    </div>
+    <div><div class="crumbs"><a href="/rates">환율</a> · <b>알림 설정</b></div><h1 class="page-title">⚠ 환율 <em>알림 설정</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">통화별 임계값 도달 시 자동 알림</div></div>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head row-between">
-  <div>
-    <h1>🔔 환율 알림 등록</h1>
-    <p class="muted">P4 구매팀 · 통화별 임계값 등록 (외부 API 미호출 — 수동 환율 입력 시점 평가)</p>
-  </div>
-  <a href="/rates/dashboard" class="btn">환율 대시</a>
-</div>
 
-{% if request.query_params.get('saved') %}
-<div style="background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
-  ✓ 알림 등록 완료
-</div>
-{% endif %}
-{% if request.query_params.get('error') %}
-<div style="background:var(--knk-red-soft);border:1px solid var(--knk-red-soft);color:var(--knk-red-dk);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:700;">
-  ⚠️ {{ request.query_params.get('error') }}
-</div>
-{% endif %}
-
-<div class="card" style="margin-bottom:14px;">
-  <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;">+ 알림 등록</h2>
-  <form method="post" action="/rates/alerts" style="display:grid;grid-template-columns:140px 140px 160px 1fr;gap:10px;align-items:end;">
-    <div>
-      <label style="font-size:11px;font-weight:700;color:var(--mute);">통화</label>
-      <select name="target_currency" required style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;">
-        {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
-      </select>
-    </div>
-    <div>
-      <label style="font-size:11px;font-weight:700;color:var(--mute);">방향</label>
-      <select name="direction" style="width:100%;padding:8px;border:1px solid var(--line-strong);border-radius:6px;">
-        <option value="above">↗ 초과 시</option>
-        <option value="below">↘ 미만 시</option>
-      </select>
-    </div>
-    <div>
-      <label style="font-size:11px;font-weight:700;color:var(--mute);">임계값 (KRW)</label>
-      <input type="number" name="threshold" step="0.01" required placeholder="예: 1400.00"
-             style="width:100%;padding:8px;border:2px solid var(--info);border-radius:6px;font-family:monospace;font-weight:700;">
-    </div>
-    <button type="submit" class="btn" style="background:linear-gradient(135deg,var(--info),var(--info));color:#fff;border:none;font-weight:800;padding:10px;">알림 등록</button>
+  <form class="add-form" method="post" action="/rates/alerts">
+    <div class="field"><label>통화</label><select name="currency" required>{% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>조건</label><select name="condition"><option value="above">이상 (≥)</option><option value="below">이하 (≤)</option></select></div>
+    <div class="field"><label>임계값 (KRW)</label><input type="number" name="threshold" step="0.01" min="0" required placeholder="1400.00"></div>
+    <div class="field"><label>받는 이</label><input type="text" name="recipients" placeholder="이메일 또는 이름"></div>
+    <button type="submit" class="btn btn-primary">＋ 알림 추가</button>
   </form>
-</div>
 
-<div class="card" style="padding:0;">
-  <div style="padding:14px 18px;border-bottom:1px solid var(--line);">
-    <h2 style="margin:0;font-size:15px;font-weight:800;">📋 알림 목록 ({{ alerts|length }}건)</h2>
-  </div>
-  {% if alerts %}
-  <table class="table" style="width:100%;">
-    <thead>
-      <tr>
-        <th>통화</th>
-        <th>방향</th>
-        <th style="text-align:right;">임계</th>
-        <th style="text-align:right;">현재 환율</th>
-        <th>상태</th>
-        <th>등록</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div style="margin: 0 var(--content-pad);">
+    {% if alerts %}
       {% for a in alerts %}
-      {% set cur = latest.get(a.target_currency, {}).get('rate') %}
-      <tr>
-        <td style="font-weight:700;">{{ a.target_currency }}</td>
-        <td>{% if a.direction == 'above' %}↗ 초과{% else %}↘ 미만{% endif %}</td>
-        <td style="text-align:right;font-family:monospace;">{{ "{:,.2f}".format(a.threshold) }}</td>
-        <td style="text-align:right;font-family:monospace;">{% if cur %}{{ "{:,.2f}".format(cur) }}{% else %}-{% endif %}</td>
-        <td>
-          {% if a.is_active %}
-            <span style="color:#059669;font-weight:700;">활성</span>
-          {% else %}
-            <span style="color:var(--mute-2);">비활성</span>
-          {% endif %}
-          {% if a.triggered_at %} · <span style="color:var(--knk-red);">발동 {{ a.triggered_at[:10] }}</span>{% endif %}
-        </td>
-        <td style="font-size:11px;color:var(--mute-2);">{{ a.created_by_name or '-' }}</td>
-      </tr>
+      <div class="alert-item {% if not a.is_active %}inactive{% endif %}">
+        <span class="pill pill-progress">{{ a.currency }}</span>
+        <div>
+          <b>{{ a.condition|default('—') }} {{ "{:,.2f}".format(a.threshold|default(0)) }} 원</b>
+          {% set cur = latest.get(a.currency) %}
+          {% if cur %}<span style="font-size:11px;color:var(--mute);margin-left:8px;">현재 {{ "{:,.2f}".format(cur.rate) }}</span>{% endif %}
+          {% if a.recipients %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">→ {{ a.recipients }}</div>{% endif %}
+        </div>
+        <span class="pill {% if a.is_active %}pill-done{% else %}pill-muted{% endif %}">{{ '활성' if a.is_active else '비활성' }}</span>
+        <form method="post" action="/rates/alerts/{{ a.id }}/toggle" style="margin:0;"><button class="btn btn-secondary" type="submit">{{ '⏸' if a.is_active else '▶' }}</button></form>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="padding:30px;text-align:center;color:var(--mute-2);">등록된 알림 없음</div>
-  {% endif %}
-</div>  </div>
+    {% else %}<div class="card empty"><div class="ico">⚠</div><div class="ttl">알림 설정이 없습니다</div><div style="font-size:13px;color:var(--mute);">위 폼에서 첫 알림을 등록해주세요.</div></div>{% endif %}
+  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

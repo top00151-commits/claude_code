@@ -1,168 +1,76 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>재고 실사 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>실사 #{{ audit.id|default('-') }} · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.audit-form { margin: 0 var(--content-pad) var(--space-3); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
+.audit-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld input, .fld select, .fld textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">재고 실사</div>
-      <h1 class="page-title">재고 실사</h1>
-    </div>
+    <div><div class="crumbs"><a href="/stock/audits">실사</a> · <b>#{{ audit.id|default('새 실사') }}</b></div>
+    <h1 class="page-title">📋 실사 <em>#{{ audit.id|default('NEW') }}</em>
+      {% if audit and audit.status %}<span class="pill {% if audit.status == 'CLOSED' %}pill-done{% elif audit.status == 'PENDING' %}pill-warn{% else %}pill-progress{% endif %}" style="font-size:13px;margin-left:14px;">{{ audit.status }}</span>{% endif %}</h1></div>
+    <a class="btn btn-secondary" href="/stock/audits">← 목록</a>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>재고 실사 (Top10 #10 · P4 자재팀 분기 1회)</h1>
-  <p class="muted">시스템 재고와 실측 재고의 차이를 확인하고, 차이는 조정 승인 절차로 넘어갑니다.</p>
-</div>
 
-{% if mode == "list" %}
-<form method="post" action="/stock/audits/new" class="card" style="max-width:720px;margin-bottom:18px;">
-  <h2 style="margin:0 0 10px 0;font-size:14px;">신규 실사 시작</h2>
-  <div style="display:flex;gap:8px;align-items:center;">
-    <input type="text" name="note" placeholder="실사 비고 (예: 2026-Q2 정기 실사)"
-           style="flex:1;padding:9px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
-    <button type="submit" class="btn btn-primary">실사 시작</button>
+  {% if audit %}
+  <div class="audit-form">
+    <div class="audit-row">
+      <div class="fld"><label>실사 ID</label><input type="text" value="#{{ audit.id }}" readonly style="background:var(--paper-2);"></div>
+      <div class="fld"><label>실사일</label><input type="date" value="{{ audit.audit_date }}" readonly style="background:var(--paper-2);"></div>
+      <div class="fld"><label>주관</label><input type="text" value="{{ audit.auditor_name|default('—') }}" readonly style="background:var(--paper-2);"></div>
+    </div>
+    {% if audit.note %}
+    <div class="fld"><label>메모</label><textarea readonly style="background:var(--paper-2);min-height:60px;">{{ audit.note }}</textarea></div>
+    {% endif %}
   </div>
-  <p class="muted" style="margin:8px 0 0 0;font-size:11px;">시퀀스: AUD-YYYYMM-#### · 자재팀장 권한 필요 (조정 승인은 별도)</p>
-</form>
 
-<div class="card">
-  <h2 style="margin:0 0 10px 0;font-size:14px;">실사 이력</h2>
-  <table class="data-table" style="width:100%;font-size:12px;">
-    <thead>
-      <tr>
-        <th>실사 번호</th><th>시작일</th><th>상태</th><th>주관</th>
-        <th style="text-align:right;">라인</th><th style="text-align:right;">완료</th><th>비고</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for a in audits %}
-      <tr>
-        <td><a href="/stock/audits/{{ a.id }}">{{ a.audit_no }}</a></td>
-        <td>{{ a.start_date }}</td>
-        <td><span class="chip">{{ a.status }}</span></td>
-        <td>{{ a.led_by_name or '-' }}</td>
-        <td style="text-align:right;">{{ a.item_count }}</td>
-        <td style="text-align:right;">{{ a.counted_count }}</td>
-        <td>{{ a.note or '' }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="7" class="muted" style="text-align:center;padding:18px;">아직 실사 없음</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if mode == "detail" and audit %}
-<div class="card" style="margin-bottom:14px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-    <div>
-      <strong>{{ audit.audit_no }}</strong> · {{ audit.start_date }}{% if audit.end_date %} ~ {{ audit.end_date }}{% endif %} ·
-      상태 <span class="chip">{{ audit.status }}</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <a href="/stock/adjustments" class="btn">조정 승인 화면</a>
-      {% if audit.status != 'CLOSED' %}
-        <form method="post" action="/stock/audits/{{ audit.id }}/close" style="display:inline;"
-              onsubmit="return confirm('실사를 CLOSE 합니다. 이후 라인/조정은 잠깁니다. 진행할까요?');">
-          <button type="submit" class="btn btn-primary"
-                  {% if not can_close %}disabled title="라인 PENDING {{ pending_lines }}건 / 조정 PENDING {{ pending_adjs }}건 — 모두 처리 후 가능"{% endif %}>
-            실사 CLOSE
-          </button>
-        </form>
-      {% else %}
-        <span class="chip" style="background:#DCFCE7;color:#166534;">CLOSED</span>
-      {% endif %}
-    </div>
-  </div>
-  {% if effect %}
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;font-size:12px;">
-    <div style="padding:8px;background:var(--paper-2);border-radius:6px;">
-      <div class="muted" style="font-size:11px;">실측 매칭률</div>
-      <div style="font-weight:700;font-size:16px;">{{ effect.match_rate }}%</div>
-      <div class="muted" style="font-size:11px;">{{ effect.line_matched }} / {{ effect.line_total }} 라인</div>
-    </div>
-    <div style="padding:8px;background:var(--paper-2);border-radius:6px;">
-      <div class="muted" style="font-size:11px;">ADJUST 건수</div>
-      <div style="font-weight:700;font-size:16px;">{{ effect.adjust_count }}</div>
-      <div class="muted" style="font-size:11px;">stock_movements kind=ADJUST</div>
-    </div>
-    <div style="padding:8px;background:var(--paper-2);border-radius:6px;">
-      <div class="muted" style="font-size:11px;">조정 합계 (순)</div>
-      <div style="font-weight:700;font-size:16px;font-family:monospace;">{{ "%+g"|format(effect.adjust_qty_sum) }}</div>
-      <div class="muted" style="font-size:11px;">+증가/-감소 합산</div>
-    </div>
-    <div style="padding:8px;background:var(--paper-2);border-radius:6px;">
-      <div class="muted" style="font-size:11px;">조정 절대치 합</div>
-      <div style="font-weight:700;font-size:16px;font-family:monospace;">{{ "%g"|format(effect.abs_qty_sum) }}</div>
-      <div class="muted" style="font-size:11px;">시스템 차이 총량</div>
+  {% if pending_lines %}
+  <div class="section">
+    <h2>실사 라인 ({{ pending_lines|length }})</h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>코드</th><th>자재명</th><th class="num">시스템</th><th class="num">실측</th><th class="num">차이</th><th>비고</th></tr></thead>
+        <tbody>
+        {% for l in pending_lines %}
+          <tr>
+            <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ l.code|default('—') }}</td>
+            <td><b>{{ l.name|default('—') }}</b></td>
+            <td class="num">{{ '{:,.0f}'.format(l.system_qty|default(0)) }}</td>
+            <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(l.actual_qty|default(0)) }}</td>
+            <td class="num" {% if l.diff|default(0) != 0 %}style="color:var(--knk-red);font-weight:700;"{% endif %}>{{ '%+d'|format(l.diff|default(0)) }}</td>
+            <td style="font-size:12px;color:var(--mute);">{{ l.note|default('—') }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
   {% endif %}
-</div>
 
-<form method="post" action="/stock/audits/{{ audit.id }}/items" class="card" style="margin-bottom:14px;">
-  <h2 style="margin:0 0 10px 0;font-size:14px;">실측 라인 입력</h2>
-  <div style="display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:8px;">
-    <select name="part_id" required style="padding:8px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
-      <option value="">-- 부품 선택 --</option>
-      {% for p in parts %}
-      <option value="{{ p.id }}">[{{ p.part_no }}] {{ p.part_name }} (시스템 {{ "%g"|format(p.stock_qty or 0) }}{{ p.unit or 'EA' }})</option>
-      {% endfor %}
-    </select>
-    <input type="number" name="counted_qty" step="0.01" required placeholder="실측 수량"
-           style="padding:8px;border:2px solid var(--amber);border-radius:6px;font-size:12px;font-weight:700;">
-    <input type="text" name="variance_reason" placeholder="차이 사유 (선택)"
-           style="padding:8px;border:1px solid var(--line-strong);border-radius:6px;font-size:12px;">
-    <button type="submit" class="btn btn-primary">라인 저장</button>
+  {% if can_approve and can_close %}
+  <div style="margin: var(--space-4) var(--content-pad);display:flex;justify-content:flex-end;gap:10px;">
+    <form method="post" action="/stock/audit/{{ audit.id }}/close" style="margin:0;">
+      <button class="btn btn-primary" type="submit" onclick="return confirm('실사를 마감하시겠습니까? 차이가 자동으로 재고에 반영됩니다.')">📤 마감 + 보정</button>
+    </form>
   </div>
-</form>
-
-<div class="card">
-  <h2 style="margin:0 0 10px 0;font-size:14px;">실사 라인 ({{ audit.items|length }}건)</h2>
-  <table class="data-table" style="width:100%;font-size:12px;">
-    <thead>
-      <tr>
-        <th>부품</th>
-        <th style="text-align:right;">시스템</th>
-        <th style="text-align:right;">실측</th>
-        <th style="text-align:right;">차이</th>
-        <th>상태</th>
-        <th>사유</th>
-        <th>실측자</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for it in audit.items %}
-      <tr>
-        <td>[{{ it.part_no }}] {{ it.part_name }}</td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(it.system_qty) }}</td>
-        <td style="text-align:right;font-family:monospace;">{{ "%g"|format(it.counted_qty or 0) }}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700;color:{% if it.variance < 0 %}var(--knk-red){% elif it.variance > 0 %}#059669{% else %}var(--mute){% endif %};">{{ "%+g"|format(it.variance or 0) }}</td>
-        <td><span class="chip">{{ it.status }}</span></td>
-        <td>{{ it.variance_reason or '' }}</td>
-        <td>{{ it.counted_by_name or '-' }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="7" class="muted" style="text-align:center;padding:14px;">아직 실측 라인 없음</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  <p class="muted" style="margin-top:10px;font-size:11px;">차이가 있는 라인은 자동으로 PENDING 조정 행이 생성됩니다. /stock/adjustments 에서 승인하세요.</p>
-</div>
-{% endif %}  </div>
+  {% endif %}
+  {% else %}
+  <form method="post" action="/stock/audit/new" class="audit-form">
+    <div class="audit-row">
+      <div class="fld"><label>실사일 *</label><input type="date" name="audit_date" required></div>
+      <div class="fld"><label>대상 (선택사항)</label><select name="scope"><option value="">전체</option><option value="biz_M">사업부 M</option><option value="biz_T">사업부 T</option></select></div>
+      <div class="fld"><label>주관</label><input type="text" name="auditor" placeholder="자동: 본인"></div>
+    </div>
+    <div class="fld"><label>메모</label><textarea name="note" placeholder="실사 사유·범위" style="min-height:60px;"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+      <a class="btn btn-secondary" href="/stock/audits">취소</a>
+      <button class="btn btn-primary" type="submit">📤 실사 시작</button>
+    </div>
+  </form>
+  {% endif %}
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

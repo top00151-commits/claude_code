@@ -1,101 +1,34 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FTA 원산지 목록 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>FTA 원산지 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">FTA 원산지 목록</div>
-      <h1 class="page-title">FTA 원산지 목록</h1>
-    </div>
+    <div><div class="crumbs"><a href="/export">수출</a> · <b>FTA 원산지</b></div><h1 class="page-title">📜 FTA <em>원산지 증명</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">FTA 협정별 원산지 증명서 발행/관리</div></div>
+    <a class="btn btn-primary" href="/fta/certificates/new">＋ FTA 증명서</a>
   </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>원산지증명서 (FTA C/O)</h1>
-  <p class="muted">KAFTA · KEUFTA · RCEP · KCFTA · KVFTA. 안지연 본업 — 검사기·자동화장비 수출 시 발급. 외부 PDF 라이브러리 0건 (HTML 인쇄).</p>
-</div>
 
-<form method="get" action="/export/fta" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-  <label class="muted">상태
-    <select name="status" onchange="this.form.submit()">
-      <option value="">전체</option>
-      <option value="DRAFT" {% if filter_status=='DRAFT' %}selected{% endif %}>DRAFT</option>
-      <option value="ISSUED" {% if filter_status=='ISSUED' %}selected{% endif %}>ISSUED</option>
-      <option value="SENT" {% if filter_status=='SENT' %}selected{% endif %}>SENT</option>
-      <option value="CANCELLED" {% if filter_status=='CANCELLED' %}selected{% endif %}>CANCELLED</option>
-    </select>
-  </label>
-  <label class="muted">FTA 협정
-    <select name="fta_type" onchange="this.form.submit()">
-      <option value="">전체</option>
-      {% for code, label in FTA_TYPES %}
-      <option value="{{ code }}" {% if filter_fta_type==code %}selected{% endif %}>{{ label }}</option>
+  <div class="tbl-wrap">
+    {% if items %}
+    <table class="tbl">
+      <thead><tr><th>인증 번호</th><th class="center">FTA 협정</th><th>품목</th><th>HS 코드</th><th class="center">상태</th><th>발행일</th><th>유효기한</th></tr></thead>
+      <tbody>
+      {% for f in items %}
+        <tr onclick="location.href='/fta/certificates/{{ f.id }}'">
+          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ f.cert_no|default('#' ~ f.id) }}</td>
+          <td class="center"><span class="pill pill-progress">{{ f.fta_type|default('—') }}</span></td>
+          <td><b>{{ f.product_name|default('—') }}</b></td>
+          <td style="font-family:monospace;font-size:11px;">{{ f.hs_code|default('—') }}</td>
+          <td class="center"><span class="pill {% if f.status == 'APPROVED' %}pill-done{% elif f.status == 'EXPIRED' %}pill-danger{% else %}pill-progress{% endif %}">{{ f.status|default('—') }}</span></td>
+          <td style="font-family:monospace;font-size:11px;">{{ f.issued_at|default('—') }}</td>
+          <td style="font-family:monospace;font-size:11px;color:{% if f.expired %}var(--knk-red){% else %}var(--mute){% endif %};">{{ f.expires_at|default('—') }}</td>
+        </tr>
       {% endfor %}
-    </select>
-  </label>
-  <a href="/export/fta/new" class="btn btn-primary">+ 신규 발급</a>
-  <a href="/export" class="btn">← 수출입 메인</a>
-</form>
-
-{% if items %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>증명서번호</th>
-      <th>FTA 협정</th>
-      <th>거래처</th>
-      <th>국가</th>
-      <th>원산지</th>
-      <th>CI 번호</th>
-      <th>수출일</th>
-      <th class="num">총액</th>
-      <th>발급자</th>
-      <th>상태</th>
-      <th>등록일</th>
-      <th>조치</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for it in items %}
-    <tr>
-      <td><a href="/export/fta/{{ it.id }}"><strong>{{ it.cert_no or ('#' ~ it.id) }}</strong></a></td>
-      <td>{{ it.fta_type or '-' }}</td>
-      <td>{{ it.cust_disp }}</td>
-      <td>{{ it.customer_country or '-' }}</td>
-      <td>{{ it.origin_country or '-' }}</td>
-      <td>{{ it.export_invoice_no or '-' }}</td>
-      <td>{{ it.export_date or '-' }}</td>
-      <td class="num">{{ '{:,.2f}'.format(it.total_value or 0) }} {{ it.currency }}</td>
-      <td>{{ it.issuer_name or '-' }}</td>
-      <td><span class="status-tag status-{{ (it.status or 'draft')|lower }}">{{ it.status }}</span></td>
-      <td class="muted">{{ it.created_at }}</td>
-      <td>
-        <a href="/export/fta/{{ it.id }}" class="btn btn-sm">상세</a>
-        <a href="/export/fta/{{ it.id }}/print" class="btn btn-sm" target="_blank">인쇄</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<div class="empty-state" style="text-align:center;padding:40px 20px;border:1px dashed var(--bd,#ddd);border-radius:8px;">
-  <h3 style="margin:0 0 8px;">발급된 원산지증명서가 없습니다</h3>
-  <p class="muted">안지연 프로 본업 — [+ 신규 발급] 으로 KAFTA/KEUFTA/RCEP 등을 발급하세요.</p>
-  <p class="muted" style="font-size:12px;">증명서번호는 FTA-{{ '%04d' % 1 }} 패턴으로 자동 생성됩니다.</p>
-  <a href="/export/fta/new" class="btn btn-primary" style="margin-top:8px;">+ 신규 발급</a>
-</div>
-{% endif %}  </div>
+      </tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📜</div><div class="ttl">FTA 증명서 없음</div></div>{% endif %}
+  </div>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>

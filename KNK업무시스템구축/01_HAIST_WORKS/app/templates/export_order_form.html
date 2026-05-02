@@ -1,92 +1,52 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>수출 수주 작성 · KNK HAIST WORKS</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>수출 수주 등록 · KNK</title>
 {% include "_v5_partials/styles.html" %}
-
-</head>
-<body>
-<div class="app">
-{% include "_v5_partials/chrome.html" with context %}
+<style>
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.fld label .req { color: var(--knk-red); }
+.fld input, .fld select { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="page-meta">수출 수주 작성</div>
-      <h1 class="page-title">수출 수주 작성</h1>
-    </div>
-  </div>
-  <div style="margin: 0 var(--content-pad);">
-<div class="page-head">
-  <h1>신규 수출 수주</h1>
-  <p class="muted">기존 수주(orders) 선택 시 <strong>고객사 / 매출액 / 수주일</strong> 자동 채움.</p>
-</div>
-
-<div class="info-banner" style="background:#FFF7ED;border-left:3px solid #C8A055;padding:10px 14px;margin:12px 0;border-radius:4px;">
-  <p style="margin:0;font-size:13px;"><strong>베트남법인 수출 담당 안내</strong> —
-  외부 운송사 API 미도입 (수동 입력). 기본 선적항(POL) = BUSAN.</p>
-</div>
-
-<form method="post" action="/export/orders" class="form-card">
-  <div class="form-row">
-    <label>수주 ID (자동 채움 소스) <span class="muted">— 미선택 시 신규 수출만 등록</span></label>
-    <select name="order_id" id="order_id_sel">
-      <option value="">-- 선택 안 함 --</option>
-      {% for o in orders %}
-      <option value="{{ o.id }}" data-amount="{{ o.total_amount }}" data-no="{{ o.order_no }}">
-        {{ o.order_no }} · {{ '{:,.0f}'.format(o.total_amount or 0) }}원 · {{ o.order_date }}
-      </option>
-      {% endfor %}
-    </select>
+    <div><div class="crumbs"><a href="/export">수출</a> · <b>새 수주</b></div><h1 class="page-title">🚢 수출 <em>수주</em> 등록</h1></div>
   </div>
 
-  <div class="form-row">
-    <label>해외 바이어 *</label>
-    <input type="text" name="buyer" placeholder="예: HAIST VIETNAM CO., LTD." required>
-  </div>
-
-  <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div class="form-row">
-      <label>선적조건 (Incoterms)</label>
-      <select name="shipping_terms">
-        <option value="FOB">FOB (본선인도)</option>
-        <option value="CIF">CIF (운임·보험 포함)</option>
-        <option value="EXW">EXW (공장인도)</option>
-        <option value="DDP">DDP (관세지급인도)</option>
-      </select>
+  <form method="post" action="/export/orders" class="form-card">
+    <div class="frow">
+      <div class="fld"><label>매출 수주 연결 <span class="req">*</span></label>
+        <select name="order_id" required>
+          <option value="">— 매출 수주 선택 —</option>
+          {% for o in orders %}<option value="{{ o.id }}">{{ o.order_no|default('#' ~ o.id) }} · 고객 {{ o.customer_id }} · {{ '{:,.0f}'.format(o.total_amount|default(0)) }}원 ({{ o.order_date|default('—') }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld"><label>수출번호</label><input type="text" name="export_no" placeholder="자동 생성"></div>
     </div>
-    <div class="form-row">
-      <label>결제조건</label>
-      <select name="payment_terms">
-        <option value="T/T">T/T (전신환)</option>
-        <option value="L/C">L/C (신용장)</option>
-        <option value="D/P">D/P (지급도)</option>
-        <option value="D/A">D/A (인수도)</option>
-      </select>
+    <div class="frow">
+      <div class="fld"><label>인코텀즈 <span class="req">*</span></label>
+        <select name="incoterms" required>
+          <option value="">— 선택 —</option>
+          <option>FOB</option><option>CIF</option><option>CFR</option><option>DAP</option><option>DDP</option><option>EXW</option>
+        </select>
+      </div>
+      <div class="fld"><label>통화</label>
+        <select name="currency"><option>USD</option><option>EUR</option><option>JPY</option><option>CNY</option><option>KRW</option></select>
+      </div>
     </div>
-    <div class="form-row">
-      <label>선적항 (POL)</label>
-      <input type="text" name="port_of_loading" value="BUSAN">
+    <div class="frow">
+      <div class="fld"><label>도착항 / 도시</label><input type="text" name="destination" placeholder="예: Hamburg, DE"></div>
+      <div class="fld"><label>출항 예정일</label><input type="date" name="etd"></div>
     </div>
-    <div class="form-row">
-      <label>양륙항 (POD)</label>
-      <input type="text" name="port_of_discharge" placeholder="예: HAIPHONG / HO CHI MINH">
+    <div class="frow">
+      <div class="fld"><label>본선명</label><input type="text" name="vessel" placeholder="MS Atlantic"></div>
+      <div class="fld"><label>B/L 번호</label><input type="text" name="bl_no"></div>
     </div>
-  </div>
-
-  <div class="form-actions" style="margin-top:16px;">
-    <button type="submit" class="btn btn-primary">등록</button>
-    <a href="/export" class="btn">취소</a>
-  </div>
-</form>
-
-<p class="muted" style="margin-top:12px;font-size:12px;">
-  등록 후 상세에서 CI → PL → B/L → 관세 순으로 진행. 각 단계마다 상태 자동 전이.
-</p>  </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/export">취소</a>
+      <button class="btn btn-primary" type="submit">📤 등록</button>
+    </div>
+  </form>
   <div style="height: var(--space-7);"></div>
-</main>
-</div>
-
-</body>
-</html>
+</main></div></body></html>
