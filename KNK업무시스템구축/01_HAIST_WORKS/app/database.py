@@ -8163,22 +8163,25 @@ def seed_business_data():
             issue_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
             # 시정조치
             if st in ("조치중", "해결", "재발방지등록"):
+                _ca_status = "DONE" if st != "조치중" else "IN_PROGRESS"
+                _ca_lifecycle = "COMPLETED" if _ca_status == "DONE" else "IN_PROGRESS"
                 c.execute(
                     "INSERT INTO corrective_actions(issue_id, action, responsible, due_date, "
-                    "completed_at, status, created_by) VALUES(?,?,?,?,?,?,?)",
+                    "completed_at, status, lifecycle_status, created_by) VALUES(?,?,?,?,?,?,?,?)",
                     (issue_id, act or "임시 조치", _rand.choice(qa_users)["id"],
                      (d + _td(days=14)).isoformat(),
                      (d + _td(days=10)).isoformat() if st != "조치중" else None,
-                     "DONE" if st != "조치중" else "IN_PROGRESS",
+                     _ca_status, _ca_lifecycle,
                      _rand.choice(qa_users)["id"])
                 )
                 ca_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
                 # 예방조치
                 if st == "재발방지등록" and prev:
                     c.execute(
-                        "INSERT INTO preventive_actions(corrective_id, action, completed_at, created_by) "
-                        "VALUES(?,?,?,?)",
+                        "INSERT INTO preventive_actions(corrective_id, action, completed_at, lifecycle_status, created_by) "
+                        "VALUES(?,?,?,?,?)",
                         (ca_id, prev, (d + _td(days=12)).isoformat(),
+                         "COMPLETED",
                          _rand.choice(qa_users)["id"])
                     )
 

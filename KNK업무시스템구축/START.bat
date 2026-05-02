@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H48 form-page aliases + route conflict fix — 121/121 routes OK (sidebar 82 + detail 14 + form 24 + 21 alias redirects) / 3 route conflicts fixed via {id:int} constraint (projects/{pid}, parts/{pid}, stock/audits/{audit_id}, admin/permissions/groups/{group_id} were intercepting /something/new) / 11 new form aliases (/admin/{teams,users}/new /customers/new /orders/new /sales/{quotes,shipments}/new /stock/audit{,s}/new /qc/reports/new /fta/certificates/new /admin/permissions/groups/new /parts/import)
+REM   LAST UPDATE: 2026-05-03 v5H49 KPI value fixes + multi-role audit — 5 pages with all-zero KPIs revived: /sales/dashboard flat-key mapping (kpi_month_total/ytd_total/avg_amount/outstanding etc 11 keys), /qms/capa lifecycle_status sync (DONE→COMPLETED) + template ca.OPEN/CLOSED legacy compat, /feed by_team_list dict conversion + fallback to most-recent date when today empty / multi-role audit: ceo/executive/leader/member all 14 pages 100% OK
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H48 121 routes 100% OK]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H49 KPIs revived + multi-role 100%]
 
 echo.
 echo ============================================================

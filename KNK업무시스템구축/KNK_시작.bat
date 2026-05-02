@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H48 폼 페이지 별칭 + 라우트 충돌 정리 — 121개 전체 라우트 100% 정상 (사이드바82 + 디테일14 + 폼24 + 별칭 21 통합) / 라우트 충돌 3건 수정 — /projects/new가 /projects/{pid}에 가로채진 422 등 → {pid:int} 제약 추가 (parts/{pid}, stock/audits/{audit_id}, admin/permissions/groups/{group_id} 동일 패턴) / 신규 별칭 11건 추가 — /admin/teams/new, /admin/users/new, /customers/new, /orders/new, /sales/quotes/new, /sales/shipments/new, /stock/audit/new, /stock/audits/new, /qc/reports/new, /fta/certificates/new, /admin/permissions/groups/new, /parts/import
+REM   LAST UPDATE: 2026-05-03 v5H49 KPI 값 0 결함 수정 + 멀티롤 테스트 — 5개 페이지 KPI 살림: /sales/dashboard 평면키 매핑(month_total/ytd_total/avg_amount/outstanding 등 11개), /qms/capa lifecycle_status sync (DONE→COMPLETED), /qms/capa 템플릿 ca.OPEN/CLOSED legacy 호환, /feed by_team_list dict 변환(template td.team_name/total/done/delay 정합) + 오늘 카드 0건시 가장 최근 작성일로 폴백, /sales/forecast 빈 시리즈 처리 / 멀티롤 검증: ceo/executive/leader/member 14페이지 100% / 시드 lifecycle_status 컬럼 추가
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H48 121라우트 100% 정상 (사이드바82+디테일14+폼24)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H49 KPI 값 살림 + 멀티롤 100% 정상]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

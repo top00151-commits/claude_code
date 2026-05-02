@@ -3275,6 +3275,16 @@ async def feed_page(req: Request, sel_date: str = ""):
     if not sel_date:
         sel_date = date.today().isoformat()
     with db_session() as c:
+        # v5H49: 오늘 카드가 없으면 가장 최근 작성일로 자동 폴백 — 빈 피드 방지
+        today_n = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE work_date=?", (sel_date,)
+        ).fetchone()[0]
+        if today_n == 0:
+            r = c.execute(
+                "SELECT MAX(work_date) FROM tasks WHERE work_date<=?", (sel_date,)
+            ).fetchone()
+            if r and r[0]:
+                sel_date = r[0]
         # 팀별 오늘 한 줄 요약
         summaries = [dict(r) for r in c.execute(
             """SELECT ts.*, t.name AS team_name, t.code AS team_code, t.is_lab,
@@ -3351,7 +3361,21 @@ async def feed_page(req: Request, sel_date: str = ""):
         # 각 팀 내부 정렬: 우선순위 → 담당자 → id
         for k, d in by_team.items():
             d["tasks"].sort(key=lambda x: (x["_sort"], x.get("user_name") or "", x["id"]))
-        by_team_list = sorted(by_team.items(), key=lambda x: x[1]["code"] or "99")
+        # v5H49: 템플릿이 td.team_name/total/done/delay/summaries 를 기대 → dict 리스트로 변환
+        by_team_list = []
+        for nm, info in sorted(by_team.items(), key=lambda x: x[1]["code"] or "99"):
+            ts = info.get("tasks") or []
+            by_team_list.append({
+                "team_name": nm,
+                "code": info.get("code"),
+                "has_urgent": info.get("has_urgent", False),
+                "tasks": ts,
+                "summaries": ts[:5],
+                "total": len(ts),
+                "done": sum(1 for t in ts if t.get("status") == "완료"),
+                "progress": sum(1 for t in ts if t.get("status") == "진행중"),
+                "delay": sum(1 for t in ts if t.get("status") == "지연"),
+            })
 
         # 전체 카운트 (필터칩용)
         all_total = len(tasks)
@@ -8392,6 +8416,22 @@ async def sales_dashboard_v3(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         ctx_data = _sales_dashboard_ctx(c)
+    # v5H49: 템플릿이 평면 키(kpi_month_total 등) 기대 → 평면화
+    k = ctx_data.get("kpi", {})
+    flat = {
+        "kpi_month_total":  k.get("month_total", 0),
+        "kpi_month_cnt":    k.get("active_orders", 0),
+        "kpi_ytd_total":    sum(s["total"] for s in ctx_data.get("series", [])),
+        "kpi_ytd_cnt":      sum(s["cnt"] for s in ctx_data.get("series", [])),
+        "kpi_avg_amount":   round(k.get("month_total", 0) / max(1, k.get("active_orders", 1))),
+        "kpi_outstanding":  k.get("unpaid", 0),
+        "kpi_mom":          k.get("mom", 0),
+        "kpi_rcv_rate":     k.get("rcv_rate", 0),
+        "kpi_avg_days":     k.get("avg_days", 0),
+        "kpi_in_prod":      k.get("in_prod", 0),
+        "kpi_ship_soon":    k.get("ship_soon", 0),
+    }
+    ctx_data.update(flat)
     return ctx(req, "sales_dashboard.html", user=u, active="sales_dashboard",
                tab="dashboard", **ctx_data)
 
@@ -9862,7 +9902,20 @@ async def qms_capa_dashboard(req: Request):
                LIMIT 30"""
         ).fetchall()]
         kpi = _capa_kpi(c)
+    # v5H49: 템플릿 호환 — ca.OPEN/ca.CLOSED 형식도 함께 노출 (legacy)
+    ca_view = dict(ca_buckets)
+    pa_view = dict(pa_buckets)
+    ca_view["OPEN"] = ca_buckets.get("IN_PROGRESS", 0) + ca_buckets.get("APPROVED", 0) + ca_buckets.get("DRAFT", 0)
+    ca_view["CLOSED"] = ca_buckets.get("COMPLETED", 0) + ca_buckets.get("VERIFIED", 0)
+    pa_view["OPEN"] = pa_buckets.get("IN_PROGRESS", 0) + pa_buckets.get("APPROVED", 0) + pa_buckets.get("DRAFT", 0)
+    pa_view["CLOSED"] = pa_buckets.get("COMPLETED", 0) + pa_buckets.get("VERIFIED", 0)
+    # 템플릿이 {% set ca = ca_buckets %} 로 ca_buckets 만 읽음 → ca_buckets 에 직접 OPEN/CLOSED 추가
+    ca_buckets["OPEN"] = ca_view["OPEN"]
+    ca_buckets["CLOSED"] = ca_view["CLOSED"]
+    pa_buckets["OPEN"] = pa_view["OPEN"]
+    pa_buckets["CLOSED"] = pa_view["CLOSED"]
     return ctx(req, "qms_capa.html", user=u, active="qms",
+               ca=ca_view, pa=pa_view,
                ca_buckets=ca_buckets, pa_buckets=pa_buckets,
                items=items, kpi=kpi)
 
