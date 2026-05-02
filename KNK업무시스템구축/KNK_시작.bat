@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H40 상단바 겹침 근본 해결 (대표 재재지적) — (1) HAIST WORKS는 absolute 중앙이라 좁은 창에서 탭/아이콘과 겹침: 1700px↓에선 자동 숨김 (브랜드 데코레이션 → 충분히 넓을 때만 노출), (2) min-width 1400→1280px (HAIST 제외하면 탭+아이콘만 fit하면 OK), (3) html/body overflow-x:auto 명시로 가로 스크롤 활성화 보장 — 1280px↑: HAIST 숨김 정상 / 1700px↑: HAIST 노출 / 1023px↓: 모바일 모드 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H41 HAIST 숨김 강제 + 임계값 1700→1900px (대표 재재재지적 — 자재 vs HAIST 여전 겹침) — (1) HAIST WORKS @media max-width:1900px display:none !important 적용 (인라인 style·후속 .tb-headline 룰 모두 무력화), (2) 1900px 미만에서는 무조건 HAIST 숨김 → 자재구매센터 탭과 겹침 0건 / 154/154 PASS — ⚠ 브라우저 강력 새로고침 필요(Ctrl+F5)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H40 HAIST 1700px↓ 자동 숨김 + min-width 1280px + 가로 스크롤 보장]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H41 HAIST 숨김 강제(!important) + 임계값 1900px]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -241,6 +241,109 @@ def _collect_active_for_forecast(source_dir, type_name):
     return active
 
 
+def _collect_outsource_data():
+    """v3.0: 부서 파일에서 가공의뢰·외주 입고일 수집
+    - 01 설계팀: '가공의뢰\\n입고일' (의뢰부서='설계')
+    - 01 구매팀: '외주\\n입고일' (의뢰부서='구매')
+    - 01 베트남: '가공\\n입고일' (의뢰부서='베트남')
+    - 02 동일 + 02 설계팀
+    """
+    rows = []
+    targets = [
+        ("검사기", "01_검사기_완제품", "설계팀",  "설계", "가공의뢰\n입고일"),
+        ("검사기", "01_검사기_완제품", "구매팀",  "구매", "외주\n입고일"),
+        ("검사기", "01_검사기_완제품", "베트남",  "베트남", "가공\n입고일"),
+        ("자동화", "02_자동화_완제품", "설계팀",  "설계", "가공의뢰\n입고일"),
+        ("자동화", "02_자동화_완제품", "구매팀",  "구매", "외주\n입고일"),
+        ("자동화", "02_자동화_완제품", "베트남",  "베트남", "가공\n입고일"),
+    ]
+    for biz, biz_dir, dept_name, owner, target_header in targets:
+        source_dir = SOURCES.get(biz_dir)
+        if not source_dir:
+            continue
+        pattern = os.path.join(source_dir, f"KNK_*{dept_name}_입력_*.xlsx")
+        files = glob.glob(pattern)
+        if not files:
+            continue
+        fp = files[0]
+        try:
+            wb = load_workbook(fp, data_only=True)
+            ws = wb.active
+            # target_header 컬럼 인덱스 찾기
+            target_col = None
+            for c in range(1, ws.max_column + 1):
+                h = ws.cell(4, c).value
+                if h == target_header:
+                    target_col = c
+                    break
+            if not target_col:
+                wb.close()
+                continue
+            # 데이터 행 수집
+            for r in range(5, ws.max_row + 1):
+                code = _val(ws, r, 2)
+                if not code:
+                    continue
+                rows.append({
+                    "biz": biz,
+                    "code": str(code),
+                    "sj":   _val(ws, r, 3),
+                    "cust": _val(ws, r, 4),
+                    "prod": _val(ws, r, 6),
+                    "owner": owner,
+                    "in_date": _val(ws, r, target_col),
+                })
+            wb.close()
+        except Exception as e:
+            print(f"  [WARN] 외주 수집 실패 ({fp}): {e}")
+    return rows
+
+
+def _build_outsource_sheet(wb, rows):
+    """외주현황 시트 — 가공의뢰·외주 입고 추적 (v3.0)"""
+    sheet_name = "외주현황"
+    if sheet_name in wb.sheetnames:
+        del wb[sheet_name]
+    ws = wb.create_sheet(sheet_name)
+    ws.sheet_properties.tabColor = TAB_VIEW
+
+    labels = ["NO", "사업부", "관리코드", "수주번호", "고객사", "품명",
+              "의뢰부서", "입고일", "상태"]
+    mc = len(labels)
+    setup_r1(ws, f"㈜케이엔케이 │ 외주현황 (가공의뢰·외주 입고 추적) │ {YEAR}", mc)
+    r3 = {c: "auto" for c in range(1, mc + 1)}
+    apply_r3_guide(ws, mc, r3)
+    r4 = {c: "id" for c in range(1, mc + 1)}
+    r4[7] = "dept"     # 의뢰부서
+    r4[8] = "payment"  # 입고일
+    r4[9] = "status"
+    apply_r4_header(ws, mc, labels, r4)
+
+    # 정렬: 미입고 먼저, 그 안에서 의뢰부서·관리코드 순
+    rows_sorted = sorted(rows, key=lambda x: (
+        0 if not x["in_date"] else 1,    # 미입고 먼저
+        x["owner"],
+        x["code"],
+    ))
+
+    row = 5
+    for idx, r in enumerate(rows_sorted, 1):
+        ws.cell(row=row, column=1).value = idx
+        ws.cell(row=row, column=2).value = r["biz"]
+        ws.cell(row=row, column=3).value = r["code"]
+        ws.cell(row=row, column=4).value = r["sj"]
+        ws.cell(row=row, column=5).value = r["cust"]
+        ws.cell(row=row, column=6).value = r["prod"]
+        ws.cell(row=row, column=7).value = r["owner"]
+        ws.cell(row=row, column=8).value = r["in_date"]
+        ws.cell(row=row, column=9).value = "입고완료" if r["in_date"] else "진행중"
+        row += 1
+
+    format_data_rows(ws, mc, row_start=5, row_end=max(row, 200))
+    apply_protection(ws, mc, r3)
+    auto_fit_columns(ws)
+
+
 def _collect_consumables_data(source_dir):
     """소모품(05) 출하관리에서 데이터 수집"""
     projects = []
@@ -446,6 +549,10 @@ def generate():
 
     # 시트: 진행률 매트릭스 (전체 프로젝트 × 부서)
     _build_progress_matrix_sheet(wb, all_active)
+
+    # 시트: 외주현황 (v3.0 — 설계·구매·베트남 부서 파일에서 입고일 수집)
+    outsource_rows = _collect_outsource_data()
+    _build_outsource_sheet(wb, outsource_rows)
 
     # 시트0: 오늘의 현황 (맨 앞에 삽입)
     _build_today_sheet(wb, type_summaries, all_pending_inv, all_pending_pay, all_active)
