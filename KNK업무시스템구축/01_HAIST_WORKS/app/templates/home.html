@@ -24,8 +24,9 @@ body.dock-collapsed .app { grid-template-columns: var(--sidebar-w) 1fr 0; }
 body.dock-collapsed .dock { display: none; }
 
 /* === 토픽바 === */
-.topbar { grid-column: 1 / -1; display: grid; grid-template-columns: var(--sidebar-w) 1fr auto; gap: var(--space-6); align-items: center; background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); }
-.tb-brand { padding: 0 var(--space-6); display: flex; align-items: center; gap: var(--space-3); border-right: 1px solid var(--line); height: 100%; }
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-5); background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); padding-right: var(--space-4); }
+.tb-brand { padding: 0 var(--space-6); display: flex; align-items: center; gap: var(--space-3); border-right: 1px solid var(--line); height: 100%; white-space: nowrap; flex-shrink: 0; }
+.tb-right { margin-left: auto; }
 .tb-brand img { height: 32px; }
 .tb-brand-name { font-size: 14px; font-weight: 700; color: var(--ink); }
 .tb-brand-sub { font-size: 10px; color: var(--amber-deep); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
@@ -236,7 +237,7 @@ body.dock-collapsed .dock { display: none; }
     {% if role in ('ceo','admin') %}
     <div class="sb-group">관리</div>
     <a class="sb-item" href="/admin"><span>⚙️ 관리자</span> <span class="menu-code">M-04-01</span></a>
-    <a class="sb-item" href="/admin/delegations"><span>🔐 권한 위임</span> <span class="menu-code">M-04-02</span></a>
+    <a class="sb-item" href="/admin/permissions"><span>🔐 권한 위임</span> <span class="menu-code">M-04-02</span></a>
     {% endif %}
 
     <div class="sb-group">&nbsp;</div>

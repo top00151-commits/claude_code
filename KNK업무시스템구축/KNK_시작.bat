@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H7 대표 지적 2건 — (1) 상단바 brand 텍스트 wrap/탭 겹침 → .top flex+brand nowrap, (2) weekly/admin 인라인 sidebar+topbar로 페이지간 chrome 불일치 → chrome partial 적용 (153/153 PASS)
+REM   LAST UPDATE: 2026-05-02 v5H8 대표 지적 5건 — (1) weekly chrome 이중정의 제거→partial styles include, (2) home.html .topbar grid→flex+nowrap (브랜드/탭 겹침 해결), (3) chrome 상단 빅터AI 아이콘 🤖 추가, (4) admin chrome 이중정의 제거+감사로그 링크 정정, (5) /admin/delegations(존재X)→/admin/permissions 3건 정정 (153/153 PASS)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H7 대표 지적 2건 — 상단바 겹침 수정 + weekly/admin chrome partial 정합]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H8 대표 지적 5건 — weekly/admin/home 레이아웃 깨짐 + 빅터 아이콘 + 권한위임 404 모두 해결]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

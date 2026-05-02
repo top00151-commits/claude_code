@@ -25,6 +25,7 @@
     <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">자재구매센터</a>
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
+    <a class="top-icon" href="/home#victor" title="빅터 AI" style="background:var(--amber-glow);color:var(--amber-deep);">🤖</a>
     <a class="top-icon" href="/notifications" title="알림">🔔</a>
     <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
     <a class="top-user" href="/profile">
@@ -92,7 +93,7 @@
     {% if _role in ('ceo','admin') %}
     <div class="sb-group">관리</div>
     <a class="sb-item {% if _act == 'admin' %}active{% endif %}" href="/admin">⚙️ 관리자 <span class="menu-code">M-04-01</span></a>
-    <a class="sb-item" href="/admin/delegations">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
+    <a class="sb-item" href="/admin/permissions">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
     {% endif %}
 
     <div class="sb-group">&nbsp;</div>
