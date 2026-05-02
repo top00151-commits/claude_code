@@ -7,7 +7,18 @@ a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
 .app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: var(--topbar-h, 80px) 1fr; min-height: 100vh; }
-.sidebar { background: var(--paper-3); border-right: 2px solid var(--knk-red); padding: var(--space-5) 0; overflow-y: auto; grid-column: 1; grid-row: 2; }
+/* KNK 브랜드 삼각형 패턴 워터마크 — 사이드바 하단 */
+.sidebar {
+  background:
+    url('/static/knk_pattern_subtle.svg') left bottom / 80px 70px repeat-x,
+    var(--paper-3);
+  border-right: 2px solid var(--knk-red);
+  padding: var(--space-5) 0 90px 0;
+  overflow-y: auto;
+  grid-column: 1;
+  grid-row: 2;
+  position: relative;
+}
 .main { grid-column: 2; grid-row: 2; min-width: 0; }
 .sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--knk-red); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
@@ -18,7 +29,16 @@ button { font-family: inherit; cursor: pointer; }
 .menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--knk-red); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
 
 .main { background: var(--paper); display: flex; flex-direction: column; min-width: 0; overflow-y: auto; }
-.top { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: var(--space-5); padding: 0 var(--content-pad) 0 0; background: var(--paper-3); border-bottom: 3px solid var(--knk-red); position: sticky; top: 0; z-index: var(--z-topbar); box-shadow: 0 2px 16px rgba(165,40,44,0.08); }
+.top {
+  grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: var(--space-5);
+  padding: 0 var(--content-pad) 0 0;
+  background:
+    url('/static/knk_pattern_subtle.svg') right center / 80px 70px repeat-y,
+    var(--paper-3);
+  border-bottom: 3px solid var(--knk-red);
+  position: sticky; top: 0; z-index: var(--z-topbar);
+  box-shadow: 0 2px 16px rgba(165,40,44,0.08);
+}
 .tb-brand { white-space: nowrap; flex-shrink: 0; }
 .tb-brand div, .tb-brand div div { white-space: nowrap; }
 /* HAIST WORKS 중앙 타이틀 — 절대 위치로 화면 정중앙 고정 */
@@ -77,15 +97,21 @@ button { font-family: inherit; cursor: pointer; }
 .tbl tr:hover td { background: rgba(165,40,44,0.04); }
 
 .pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
-.pill-progress { background: var(--amber-glow); color: var(--amber-deep); }
+.pill-progress { background: rgba(165,40,44,0.10); color: var(--knk-red); }
 .pill-done { background: var(--success); color: white; }
-.pill-warn { background: rgba(201,125,63,0.12); color: var(--warn); border: 1px solid var(--warn); }
-.pill-danger { background: rgba(165,40,44,0.08); color: var(--knk-red); }
+.pill-warn { background: rgba(128,128,128,0.14); color: #555; border: 1px solid #999; }
+.pill-danger { background: var(--knk-red); color: white; }
 .pill-muted { background: var(--paper-2); color: var(--mute); }
 
-.empty { padding: 60px 20px; text-align: center; color: var(--mute); }
+.empty {
+  padding: 60px 20px; text-align: center; color: var(--mute); position: relative;
+  background:
+    url('/static/knk_pattern_subtle.svg') center bottom / 80px 70px repeat-x;
+}
 .empty .ico { font-size: 48px; margin-bottom: 12px; }
 .empty .ttl { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+/* 페이지 헤드 좌측 KNK 레드 액센트 바 (브랜드 매뉴얼 BS_xx 페이지 디자인 모티프) */
+.page-head { border-left: 4px solid var(--knk-red); padding-left: calc(var(--content-pad) - 4px) !important; margin-left: 0 !important; }
 
 @media (max-width: 1280px) {
   .bento { grid-template-columns: repeat(2, 1fr); }

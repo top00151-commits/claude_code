@@ -22,8 +22,10 @@ body {
   place-items: center;
   background: var(--paper);
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(255,229,184,0.45) 0%, transparent 50%),
-    radial-gradient(circle at 85% 80%, rgba(212,146,59,0.10) 0%, transparent 55%);
+    url('/static/knk_pattern_subtle.svg'),
+    radial-gradient(circle at 15% 20%, rgba(165,40,44,0.10) 0%, transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(165,40,44,0.06) 0%, transparent 55%);
+  background-size: 80px 70px, auto, auto;
   color: var(--ink);
 }
 .wrap {
@@ -34,14 +36,16 @@ body {
   margin: 40px;
 }
 .welcome {
-  background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%);
+  background:
+    url('/static/knk_pattern.svg') center / 80px 70px,
+    linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%);
   color: white; padding: 56px 52px;
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   min-height: 600px;
 }
-.welcome::before { content: ""; position: absolute; top: -100px; right: -120px; width: 380px; height: 380px; background: radial-gradient(circle, var(--amber-glow) 0%, transparent 65%); opacity: 0.5; }
-.welcome::after { content: ""; position: absolute; bottom: -150px; left: -100px; width: 320px; height: 320px; background: radial-gradient(circle, var(--knk-red) 0%, transparent 65%); opacity: 0.18; }
+.welcome::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(165,40,44,0.85) 0%, rgba(122,29,32,0.92) 100%); }
+.welcome > * { position: relative; z-index: 2; }
 .welcome-top { position: relative; z-index: 2; }
 .welcome-logo { background: white; padding: 12px 18px; border-radius: 14px; display: inline-block; box-shadow: 0 8px 22px rgba(0,0,0,0.15); }
 .welcome-logo img { height: 32px; display: block; }

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="70" viewBox="0 0 80 70">
+  <!-- KNK 브랜드 삼각형 패턴 (260330_KNK 로고 메뉴얼 BS_12 모티프) -->
+  <!-- 3개 스트라이프(N 모티프) × 삼각형 격자 -->
+  <defs>
+    <g id="tri-up">
+      <polygon points="20,2 38,34 2,34" fill="#A5282C"/>
+      <line x1="13" y1="22" x2="27" y2="22" stroke="#fff" stroke-width="1.6"/>
+      <line x1="10" y1="27" x2="30" y2="27" stroke="#fff" stroke-width="1.6"/>
+      <line x1="7"  y1="32" x2="33" y2="32" stroke="#fff" stroke-width="1.6"/>
+    </g>
+    <g id="tri-down">
+      <polygon points="2,2 38,2 20,34" fill="#A5282C"/>
+      <line x1="7"  y1="6"  x2="33" y2="6"  stroke="#fff" stroke-width="1.6"/>
+      <line x1="10" y1="11" x2="30" y2="11" stroke="#fff" stroke-width="1.6"/>
+      <line x1="13" y1="16" x2="27" y2="16" stroke="#fff" stroke-width="1.6"/>
+    </g>
+  </defs>
+  <use href="#tri-up"   x="0"  y="0"/>
+  <use href="#tri-down" x="20" y="0"/>
+  <use href="#tri-up"   x="40" y="0"/>
+  <use href="#tri-down" x="60" y="0"/>
+  <use href="#tri-down" x="0"  y="35"/>
+  <use href="#tri-up"   x="20" y="35"/>
+  <use href="#tri-down" x="40" y="35"/>
+  <use href="#tri-up"   x="60" y="35"/>
+</svg>

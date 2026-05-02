@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H18 KNK 레드 적극 사용 (대표 지시) — (1) HAIST WORKS 절대 위치로 화면 정중앙 고정, (2) 전 페이지 액센트 KNK 레드 일괄 적용: 상단바 하단·top-tab/sb-item active·sidebar 그룹·테이블 헤더·KPI hover·section bar·btn-primary 모두 레드 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H19 브랜드 매뉴얼 정합 — (1) BS_12 패턴 모티프 SVG 신규(3개 스트라이프 × 삼각형 격자), (2) BS_11 금지규정 위반 text-shadow 제거, (3) 패턴 적용: 상단바·사이드바·empty·login welcome+배경, (4) amber 잔존 청소 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H18 HAIST WORKS 절대 중앙 + KNK 레드 적극 적용 (전 페이지 액센트)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H19 브랜드 매뉴얼 정합 — KNK 패턴 적극 사용 + text-shadow 제거 + amber 청소]
 
 echo.
 echo ============================================================
