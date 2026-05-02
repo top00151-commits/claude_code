@@ -2442,6 +2442,7 @@ async def dashboard_page(req: Request):
         ).fetchone()[0]
         participation_rate = round(today_reporters * 100 / total_users) if total_users else 0
 
+        # v5H50: 이번 주 지연 0건일 때 최근 30일로 자동 확장 (시드 데이터 노출 보장)
         delays = [dict(r) for r in c.execute(
             """SELECT t.*, u.name AS user_name, tm.name AS team_name,
                       p.name AS project_name, cu.name AS customer_name
@@ -2453,6 +2454,19 @@ async def dashboard_page(req: Request):
                ORDER BY t.work_date DESC LIMIT 10""",
             (mon, sun),
         ).fetchall()]
+        if not delays:
+            from_30d = (today - timedelta(days=30)).isoformat()
+            delays = [dict(r) for r in c.execute(
+                """SELECT t.*, u.name AS user_name, tm.name AS team_name,
+                          p.name AS project_name, cu.name AS customer_name
+                   FROM tasks t JOIN users u ON t.user_id=u.id
+                   LEFT JOIN teams tm ON u.team_id=tm.id
+                   LEFT JOIN projects p ON t.project_id=p.id
+                   LEFT JOIN customers cu ON t.customer_id=cu.id
+                   WHERE t.status='지연' AND t.work_date>=?
+                   ORDER BY t.work_date DESC LIMIT 10""",
+                (from_30d,),
+            ).fetchall()]
 
         customers = [dict(r) for r in c.execute(
             """SELECT cu.name AS customer_name, COUNT(*) AS cnt,

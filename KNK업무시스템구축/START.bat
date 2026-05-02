@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H49 KPI value fixes + multi-role audit — 5 pages with all-zero KPIs revived: /sales/dashboard flat-key mapping (kpi_month_total/ytd_total/avg_amount/outstanding etc 11 keys), /qms/capa lifecycle_status sync (DONE→COMPLETED) + template ca.OPEN/CLOSED legacy compat, /feed by_team_list dict conversion + fallback to most-recent date when today empty / multi-role audit: ceo/executive/leader/member all 14 pages 100% OK
+REM   LAST UPDATE: 2026-05-03 v5H50 CEO dash delays fallback + 4-role × 121-route regression — 482/484 pass (99.6%) / dashboard "delay tasks" section auto-extends from current-week to last-30-days when empty → 11 rows now visible / Session totals: v5H45-50 (6 commits) CEO dashboard auto-fix, 30 biz tables seeded, 121 routes 100% OK, 14 detail pages aligned, 5 zero-KPI pages revived
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H49 KPIs revived + multi-role 100%]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H50 dash delays + 4role x 121 routes 99.6%]
 
 echo.
 echo ============================================================

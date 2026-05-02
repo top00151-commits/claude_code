@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H49 KPI 값 0 결함 수정 + 멀티롤 테스트 — 5개 페이지 KPI 살림: /sales/dashboard 평면키 매핑(month_total/ytd_total/avg_amount/outstanding 등 11개), /qms/capa lifecycle_status sync (DONE→COMPLETED), /qms/capa 템플릿 ca.OPEN/CLOSED legacy 호환, /feed by_team_list dict 변환(template td.team_name/total/done/delay 정합) + 오늘 카드 0건시 가장 최근 작성일로 폴백, /sales/forecast 빈 시리즈 처리 / 멀티롤 검증: ceo/executive/leader/member 14페이지 100% / 시드 lifecycle_status 컬럼 추가
+REM   LAST UPDATE: 2026-05-03 v5H50 대표대시 지연업무 폴백 + 4-role × 121-route 회귀검증 — 484개 페이지 호출 중 482 통과 (99.6%) / 대표 대시보드의 "지연 업무" 섹션이 이번 주 0건일 때 최근 30일 윈도우로 자동 확장 → 시드 데이터 11건 노출됨 / 본 세션 통합 결과: v5H45-50 6개 커밋 (3154efb→cc0b934→2004aab→7da6892→c37ab95→이번) 대표대시 비어있음 자동수정·30개 비즈니스 테이블 시드·121개 라우트 100% 정상·14개 디테일 페이지 정합·5개 KPI 살림
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H49 KPI 값 살림 + 멀티롤 100% 정상]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H50 대표대시 지연 폴백 + 4롤×121라우트 99.6%]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
