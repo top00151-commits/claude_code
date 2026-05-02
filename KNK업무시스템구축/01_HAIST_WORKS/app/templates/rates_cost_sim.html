@@ -9,7 +9,8 @@
 .sim-result { margin-top: 14px; padding: 14px 16px; background: var(--amber-glow); border-radius: var(--radius-md); font-size: 14px; }
 .sim-result b { color: var(--knk-red); font-size: 18px; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/parts/{{ part.id }}">{{ part.code }}</a> · <b>비용 시뮬</b></div><h1 class="page-title">💰 비용 <em>시뮬</em></h1>

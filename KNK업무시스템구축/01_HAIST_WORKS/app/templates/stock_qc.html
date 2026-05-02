@@ -9,7 +9,8 @@
 .qc-field textarea { min-height: 80px; resize: vertical; }
 .qc-field.full { grid-column: span 2; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>QC 처리</b></div><h1 class="page-title">🔬 QC <em>처리</em></h1>

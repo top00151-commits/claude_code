@@ -17,7 +17,8 @@
 .line-foot div:nth-child(2) { text-align:left; color: var(--amber-deep); }
 </style></head>
 <body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/po">발주 목록</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></div>

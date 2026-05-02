@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 </head><body>
 {% set s = summary or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/qms">QMS</a> · <b>Pareto 분석</b></div><h1 class="page-title">📊 QMS <em>Pareto</em></h1>

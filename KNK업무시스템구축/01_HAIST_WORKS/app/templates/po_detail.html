@@ -112,39 +112,9 @@ button { font-family: inherit; cursor: pointer; }
 {% set grand = po.total_amount|default(sub_total + vat) %}
 
 <div class="app">
-  <aside class="sidebar">
-    <div class="sb-group">발주 흐름</div>
-    <a class="sb-item" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
-    <a class="sb-item active" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span></a>
-    <a class="sb-item" href="/receipts">📦 입고 처리 <span class="menu-code">M-02-06</span></a>
-
-    <div class="sb-group">재고</div>
-    <a class="sb-item" href="/parts">📊 자재 마스터 <span class="menu-code">M-02-02</span></a>
-    <a class="sb-item" href="/stock">📚 수불부 <span class="menu-code">M-02-07</span></a>
-    <a class="sb-item" href="/issues">📤 출고 등록 <span class="menu-code">M-02-08</span></a>
-
-    <div class="sb-group">기타</div>
-    <a class="sb-item" href="/suppliers">🏢 공급사 <span class="menu-code">M-02-03</span></a>
-    </aside>
-
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
-    <header class="top">
-      <div></div>
-      <div class="top-tabs">
-        <a class="top-tab" href="/home">통합 플랫폼</a>
-        <a class="top-tab" href="/sales">매출영업센터</a>
-        <a class="top-tab active" href="/logistics">자재구매센터</a>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <a class="top-icon" href="/notifications" title="알림">🔔</a>
-        <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
-        <a class="top-user" href="/profile">
-          <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
-          <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
-        </a>
-        <a class="top-icon" href="/logout" title="나가기">🚪</a>
-      </div>
-    </header>
 
     <div class="detail-head">
       <div class="crumbs"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 목록</a> · <b>{{ po.po_number }}</b></div>

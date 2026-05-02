@@ -12,7 +12,8 @@
 .field textarea { min-height: 70px; resize: vertical; }
 </style></head>
 <body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/suppliers">공급사</a> · <b>{% if supplier %}수정{% else %}등록{% endif %}</b></div>

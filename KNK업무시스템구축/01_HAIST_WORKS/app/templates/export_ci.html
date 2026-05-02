@@ -10,7 +10,8 @@
 .lines-tbl th { background: var(--paper-2); padding: 8px 10px; font-size: 11px; color: var(--amber-deep); text-align: left; border-bottom: 1px solid var(--line); }
 .lines-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/export">수출</a> · <a href="/export/orders/{{ eo.id }}">{{ eo.export_no }}</a> · <b>CI 작성</b></div>

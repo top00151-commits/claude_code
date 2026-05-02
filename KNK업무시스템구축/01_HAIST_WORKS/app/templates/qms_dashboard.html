@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 </head><body>
 {% set k = kpi or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="page-meta">QMS · 품질경영시스템</div><h1 class="page-title">🎯 QMS <em>대시보드</em></h1>

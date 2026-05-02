@@ -2,7 +2,8 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ part.name }} 환율 이력 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 </head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/parts">자재 마스터</a> · <a href="/parts/{{ part.id }}">{{ part.code }}</a> · <b>환율 이력</b></div>

@@ -9,7 +9,8 @@
 </style>
 </head><body>
 {% set fc = saved_forecast or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>매출 예측</b></div><h1 class="page-title">📈 매출 <em>예측</em></h1>

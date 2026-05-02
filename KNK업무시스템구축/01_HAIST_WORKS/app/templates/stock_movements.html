@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 </head><body>
 {% set k = kpi or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>수불부</b></div><h1 class="page-title">📊 <em>수불부</em></h1>

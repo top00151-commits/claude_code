@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 </head><body>
 {% set s = summary or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>미수금</b></div><h1 class="page-title">💸 <em>미수금</em></h1>

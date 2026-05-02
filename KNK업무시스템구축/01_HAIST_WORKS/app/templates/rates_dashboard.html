@@ -6,7 +6,8 @@
 .alert-card .ttl { font-size: 13px; font-weight: 700; color: var(--knk-red); }
 .alert-card .body { font-size: 12px; color: var(--ink); margin-top: 4px; line-height: 1.5; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <a href="/rates">환율</a> · <b>대시보드</b></div><h1 class="page-title">💱 환율 <em>대시보드</em></h1></div>

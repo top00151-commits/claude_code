@@ -7,7 +7,8 @@
 .fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 .fld input { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/export">수출</a> · <a href="/export/orders/{{ eo.id }}">{{ eo.export_no }}</a> · <b>P/L</b></div>

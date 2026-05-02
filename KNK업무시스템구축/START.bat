@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H8 대표 지적 5건 — (1) weekly chrome 이중정의 제거→partial styles include, (2) home.html .topbar grid→flex+nowrap (브랜드/탭 겹침 해결), (3) chrome 상단 빅터AI 아이콘 🤖 추가, (4) admin chrome 이중정의 제거+감사로그 링크 정정, (5) /admin/delegations(존재X)→/admin/permissions 3건 정정 (153/153 PASS)
+REM   LAST UPDATE: 2026-05-02 v5H9 대표 지적 2건 — (1) sales_home/logistics_home chrome partial 적용 (로고/빅터아이콘 누락 해결), (2) 매출 19개+자재 36개 페이지에 active_tab='sales'|'logi' 일괄 설정 (고객사 클릭→통합플랫폼 전환 버그 해결: 사이드바가 원래 허브 유지) / Jinja2 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H8 대표 지적 5건 — weekly/admin/home 레이아웃 깨짐 + 빅터 아이콘 + 권한위임 404 모두 해결]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H9 대표 지적 2건 — 매출/자재 허브 chrome 통일 + 55개 페이지 active_tab 설정 (사이드바 허브 유지)]
 
 echo.
 echo ============================================================

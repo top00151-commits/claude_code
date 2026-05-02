@@ -2,7 +2,8 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>매출 강화 대시 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 </head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>강화 대시</b></div><h1 class="page-title">📊 매출 <em>강화 대시</em></h1></div>

@@ -9,7 +9,8 @@
 .add-form label { font-size: 11px; color: var(--mute); font-weight: 600; }
 .add-form input, .add-form select { padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>환율 관리</b></div><h1 class="page-title">💱 <em>환율</em> 관리</h1>

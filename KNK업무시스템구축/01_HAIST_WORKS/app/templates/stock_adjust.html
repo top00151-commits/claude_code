@@ -10,7 +10,8 @@
 .fld textarea { min-height: 80px; resize: vertical; }
 .fld.full { grid-column: span 2; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 조정</b></div><h1 class="page-title">⚖ 재고 <em>조정</em></h1>

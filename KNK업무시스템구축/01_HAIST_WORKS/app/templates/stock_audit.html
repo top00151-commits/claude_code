@@ -7,7 +7,8 @@
 .fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 .fld input, .fld select, .fld textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/stock/audits">실사</a> · <b>#{{ audit.id|default('새 실사') }}</b></div>

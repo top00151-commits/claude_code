@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 </head><body>
 {% set k = att_counts or {} %}
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 조정 이력</b></div><h1 class="page-title">📜 재고 조정 <em>이력</em></h1>

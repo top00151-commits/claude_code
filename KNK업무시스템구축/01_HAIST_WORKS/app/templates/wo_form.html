@@ -10,7 +10,8 @@
 .fld textarea { min-height: 80px; resize: vertical; }
 .fld.full { grid-column: span 2; }
 </style></head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'logi' %}
+{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/production/work-orders">작업지시</a> · <b>{% if wo %}수정{% else %}발행{% endif %}</b></div>
