@@ -145,12 +145,12 @@ R3_MAP_PROJ = {
     17:"po_input", 18:"po_input",                       # 수주일, 납기일
     19:"po_select", 20:"auto", 21:"auto", 22:"auto",    # 출하경로, 진척률, D-day, 진행상태
     23:"memo",                                           # 비고
-    # 24~31: 부서담당자 8개 — "제외" 선택 또는 이름 입력 (sel_input)
+    # v3.0: 24~30 부서담당자 7개 — 가공팀 폐기
     24:"sel_input", 25:"sel_input", 26:"sel_input", 27:"sel_input",
-    28:"sel_input", 29:"sel_input", 30:"sel_input", 31:"sel_input",
-    # 32~33: 매출·수금 — 납품 후 기술영업팀 입력 (po_input)
-    32:"po_input",   # 계산서 발행일
-    33:"po_input",   # 입금일
+    28:"sel_input", 29:"sel_input", 30:"sel_input",
+    # 31~32: 매출·수금
+    31:"po_input",   # 계산서 발행일
+    32:"po_input",   # 입금일
 }
 R4_MAP_PROJ = {
     1:"id", 2:"id", 3:"id",
@@ -159,11 +159,11 @@ R4_MAP_PROJ = {
     13:"po", 14:"po", 15:"po", 16:"po", 17:"po", 18:"po",
     19:"status", 20:"status", 21:"status", 22:"status",
     23:"manage",
-    # 24~31: 부서 (보라)
+    # v3.0: 24~30 부서 7개 (보라)
     24:"dept", 25:"dept", 26:"dept", 27:"dept",
-    28:"dept", 29:"dept", 30:"dept", 31:"dept",
-    # 32~33: 매출·수금 (payment)
-    32:"payment", 33:"payment",
+    28:"dept", 29:"dept", 30:"dept",
+    # 31~32: 매출·수금 (payment)
+    31:"payment", 32:"payment",
 }
 
 # 출하현황 R3 (전체 auto)

@@ -468,6 +468,19 @@ def _current_menu_for(path: str) -> dict | None:
         return None
 
 
+# v5H35 (2026-05-02) — 테스트용 가짜 날짜 헬퍼 (세션 기반, 개인별)
+def fake_today_iso(request) -> str:
+    """세션에 fake_today 가 설정되면 그 값, 아니면 실제 today (ISO)."""
+    try:
+        if hasattr(request, "session"):
+            fk = request.session.get("fake_today")
+            if fk:
+                return str(fk)
+    except Exception:
+        pass
+    return date.today().isoformat()
+
+
 def ctx(request, name, **kwargs):
     # 사용자 언어 결정
     user = kwargs.get("user")
@@ -486,10 +499,21 @@ def ctx(request, name, **kwargs):
     _today_kor = f"{_today_d.year} · {_today_d.month}월 {_today_d.day}일 {_wkdays[_today_d.weekday()]}요일"
     _edition_no = _today_d.timetuple().tm_yday  # 일년 중 N번째 발행
 
+    # v5H35: 테스트 모드 가짜 날짜 (세션 fake_today 가 설정된 경우만)
+    _today_iso = fake_today_iso(request)
+    _fake_active = False
+    try:
+        if hasattr(request, "session"):
+            _fake_active = bool(request.session.get("fake_today"))
+    except Exception:
+        pass
+
     base = {
         "categories": CATEGORIES,
         "statuses": STATUSES,
-        "today": date.today().isoformat(),
+        "today": _today_iso,
+        "real_today": date.today().isoformat(),
+        "fake_date_active": _fake_active,
         "now": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "today_kor": _today_kor,            # CX23c 마스트헤드용
         "edition_no": _edition_no,          # CX23c VOL/NO 표시
@@ -1408,6 +1432,26 @@ async def api_delete_comment(req: Request, cid: int):
 # =====================================================
 # TASK DETAIL — 모달용 단일 카드 정보 (어디서든 호출)
 # =====================================================
+# v5H35 (2026-05-02) — 테스트용 가짜 날짜 설정 (세션 기반, ceo/admin/leader 만)
+@app.post("/dev/fake-date")
+async def dev_set_fake_date(req: Request):
+    u = get_user(req)
+    if not u or u.get("role","") not in ("ceo","admin","leader","executive"):
+        return JSONResponse({"error":"권한 없음"}, 403)
+    d = await req.json()
+    fk = (d.get("date") or "").strip()
+    if fk in ("", "clear", "today"):
+        req.session.pop("fake_today", None)
+        return JSONResponse({"ok": True, "active": False, "today": date.today().isoformat()})
+    # YYYY-MM-DD 검증
+    try:
+        datetime.strptime(fk, "%Y-%m-%d")
+    except Exception:
+        return JSONResponse({"error":"형식 오류 (YYYY-MM-DD)"}, 400)
+    req.session["fake_today"] = fk
+    return JSONResponse({"ok": True, "active": True, "today": fk, "real": date.today().isoformat()})
+
+
 # v5H30 (2026-05-02) — 일일업무 카드 상세 페이지 (대표 지시: 상세 클릭 시 페이지 부재)
 @app.get("/task/{tid}", response_class=HTMLResponse)
 async def task_detail_page(request: Request, tid: int):

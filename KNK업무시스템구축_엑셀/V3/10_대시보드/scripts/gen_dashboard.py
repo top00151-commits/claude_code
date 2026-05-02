@@ -1012,8 +1012,9 @@ def _build_progress_matrix_sheet(wb, active_rows):
             print(f"  [WARN] {type_name} 진행현황 읽기 실패: {e}")
         return data
 
-    depts_01 = ["설계팀","검사기팀","개발혁신팀","품질팀","제조기술1팀","구매팀","가공팀","베트남"]
-    depts_02 = ["설계팀","전장설계팀","소프트웨어팀","구매팀","가공팀","제조기술2팀","베트남"]
+    # v3.0: 가공팀 폐기 (의뢰 부서가 추적)
+    depts_01 = ["설계팀","검사기팀","개발혁신팀","품질팀","제조기술1팀","구매팀","베트남"]
+    depts_02 = ["설계팀","전장설계팀","소프트웨어팀","구매팀","제조기술2팀","베트남"]
     prog_01 = _read_progress(SOURCES["01_검사기_완제품"], "검사기", depts_01)
     prog_02 = _read_progress(SOURCES["02_자동화_완제품"], "자동화", depts_02)
 
@@ -1058,7 +1059,7 @@ def _build_progress_matrix_sheet(wb, active_rows):
     for d in depts_02:
         if d not in all_depts:
             all_depts.append(d)
-    # all_depts: [설계팀, 검사기팀, 개발혁신팀, 품질팀, 제조기술1팀, 구매팀, 가공팀, 베트남, 전장설계팀, 소프트웨어팀, 제조기술2팀]
+    # v3.0 all_depts: [설계팀, 검사기팀, 개발혁신팀, 품질팀, 제조기술1팀, 구매팀, 베트남, 전장설계팀, 소프트웨어팀, 제조기술2팀]
 
     # 헤더
     left_labels = ["NO", "분류", "관리코드", "고객사", "품명", "담당영업", "납기", "D-day", "전체%"]

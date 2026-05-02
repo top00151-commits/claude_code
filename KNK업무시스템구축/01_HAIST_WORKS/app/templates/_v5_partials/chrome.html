@@ -43,6 +43,13 @@
   </a>
 {%- endmacro %}
 
+{% if fake_date_active %}
+<div id="fakeDateBanner" style="position:fixed;top:0;left:0;right:0;background:#ffeb3b;color:#000;padding:6px 14px;text-align:center;font-size:13px;font-weight:700;z-index:1000;border-bottom:2px solid #f57f17;">
+  🧪 테스트 모드 — 시스템 날짜를 <b>{{ today }}</b>로 가장 중 (실제: {{ real_today }})
+  <button onclick="setFakeDate('clear')" style="margin-left:14px;padding:3px 10px;background:#000;color:#ffeb3b;border:0;border-radius:4px;font-weight:700;cursor:pointer;font-size:11px;">실제 날짜로 복귀</button>
+</div>
+<style>body { padding-top: 32px; }</style>
+{% endif %}
 <header class="top">
   {# v5H16 — 좌: KNK 로고+탭 / 중앙: HAIST WORKS 큰 타이틀 / 우: 아이콘+사용자 #}
   <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="메뉴">☰</button>
@@ -56,6 +63,9 @@
   </div>
   <div class="tb-headline" style="font-size:28px;font-weight:800;letter-spacing:0.1em;color:var(--knk-red);white-space:nowrap;">HAIST WORKS</div>
   <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    {% if _role in ('ceo','admin','leader','executive') %}
+    <a class="top-icon" href="javascript:void(0)" onclick="openFakeDateUI()" title="테스트 날짜 변경" style="background:{% if fake_date_active %}#ffeb3b;color:#000{% else %}var(--paper-2);color:var(--mute){% endif %};">🧪</a>
+    {% endif %}
     <a class="top-icon" href="javascript:void(0)" onclick="toggleVictorDock()" title="빅터 AI (열기/닫기)" style="background:rgba(165,40,44,0.10);color:var(--knk-red);" id="victorToggleBtn">🤖</a>
     <a class="top-icon" href="/notifications" title="알림">🔔</a>
     <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
@@ -258,6 +268,36 @@ async function victorAsk(q){
   body.scrollTop = body.scrollHeight;
 }
 function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+
+/* v5H35 — 테스트용 가짜 날짜 설정 (admin/ceo/leader 전용) */
+window.openFakeDateUI = function(){
+  var cur = '{{ today }}';
+  var v = prompt(
+    '🧪 테스트 모드: 시스템에 알려줄 날짜를 입력하세요 (YYYY-MM-DD)\n' +
+    '실제 오늘: {{ real_today }}\n' +
+    '현재 가짜: {{ today }}\n\n' +
+    '비우거나 "clear"입력 → 실제 날짜로 복귀',
+    cur
+  );
+  if (v === null) return;  // cancel
+  setFakeDate(v.trim());
+};
+window.setFakeDate = async function(dateStr){
+  try {
+    var r = await fetch('/dev/fake-date', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: dateStr })
+    });
+    var j = await r.json();
+    if (r.ok && j.ok){
+      location.reload();
+    } else {
+      alert('실패: ' + (j.error || ('HTTP ' + r.status)));
+    }
+  } catch(e) {
+    alert('통신 오류: ' + e.message);
+  }
+};
 </script>
 
 <script>

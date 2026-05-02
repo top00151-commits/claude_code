@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H34 일일업무 흐름 개선 — (1) task_detail 저장 후 /daily 이동 (저장 결과 확인), (2) '↪ 오늘로 이월' 버튼 잘못된 엔드포인트 호출 수정 (/api/task/{tid}/carry 미존재 → /api/carry-forward) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능 — fake_today_iso 헬퍼 + ctx() today/real_today/fake_date_active 주입 + POST /dev/fake-date (ceo/admin/leader 전용) + chrome.html 🧪 아이콘 + 노란 배너 + prompt UI / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H34 저장 후 이동 + 오늘로 이월 버튼 수정]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능]
 
 echo.
 echo ============================================================
