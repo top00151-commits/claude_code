@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H36 task_detail 삭제 + 반응 표시 버그 수정 (대표 지적) — (1) DELETE /api/task API: 권한 미검증 후 항상 ok:True 반환 → SELECT user_id 먼저 조회·작성자 또는 ceo/admin 검증·404/403 정확 반환 (조용한 실패 제거), (2) 프론트 deleteTask: 'r.ok' 단순 체크 → r.ok && j.ok 검사 + 실제 서버 에러 메시지 alert 표시 + credentials:'same-origin' 명시, (3) 사이드바 반응 카드: get_reactions가 list가 아닌 dict ('ack/question/risk/ok' 키) 반환 → for r in reactions가 str key 순회로 r.count=str.count 메서드 출력 버그 → reactions.ack|length 등 명시적 키 접근으로 수정 (👀확인/👍좋아요/❓질문/⚠위험 4종 분리 표시) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H37 삭제 HTTP 500 FK 위반 수정 — 원인: tasks.carry_from_id 자기참조 FK가 ON DELETE CASCADE 미설정 → 이월된 자식 카드가 부모 참조하는 상태에서 부모 DELETE 시도 → SQLite FK constraint failed. 수정: 1) UPDATE tasks SET carry_from_id=NULL WHERE carry_from_id=? 먼저 실행, 2) activity_logs/notifications.task_id도 방어적 NULL 처리, 3) try/except로 FK 등 DB 오류 시 명확한 메시지(`DB 오류: {타입}: {사유}`) 500 반환 + traceback 서버 로그 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H36 삭제 권한 검증 + 반응 dict 표시 버그 수정]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H37 삭제 HTTP 500 FK 위반 수정 (carry_from_id 자기참조)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

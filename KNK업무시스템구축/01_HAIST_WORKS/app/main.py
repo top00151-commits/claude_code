@@ -1157,18 +1157,30 @@ async def api_delete_task(req: Request, tid: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
-    with db_session() as c:
-        # v5H36: 실제 권한 확인 — 카드 존재 여부 + 작성자/관리자 검증
-        row = c.execute("SELECT user_id FROM tasks WHERE id=?", (tid,)).fetchone()
-        if not row:
-            return JSONResponse({"ok": False, "error": "카드를 찾을 수 없습니다"}, 404)
-        is_owner = (int(row["user_id"]) == int(u["id"]))
-        is_admin = u.get("role","") in ("ceo","admin")
-        if not (is_owner or is_admin):
-            return JSONResponse({"ok": False, "error": "작성자만 삭제 가능"}, 403)
-        # 카드 + 관련 댓글/반응 cascade 삭제 (FK ON DELETE CASCADE 설정되어 있을 때)
-        c.execute("DELETE FROM tasks WHERE id=?", (tid,))
-    return JSONResponse({"ok": True})
+    try:
+        with db_session() as c:
+            # v5H36: 실제 권한 확인 — 카드 존재 여부 + 작성자/관리자 검증
+            row = c.execute("SELECT user_id FROM tasks WHERE id=?", (tid,)).fetchone()
+            if not row:
+                return JSONResponse({"ok": False, "error": "카드를 찾을 수 없습니다"}, 404)
+            is_owner = (int(row["user_id"]) == int(u["id"]))
+            is_admin = u.get("role","") in ("ceo","admin")
+            if not (is_owner or is_admin):
+                return JSONResponse({"ok": False, "error": "작성자만 삭제 가능"}, 403)
+            # v5H37: carry_from_id 자기참조 FK가 CASCADE 아님 → 자식(이월된 카드)의 참조 NULL 처리 후 삭제
+            c.execute("UPDATE tasks SET carry_from_id=NULL WHERE carry_from_id=?", (tid,))
+            # activity_logs / notifications 등 task_id 참조도 안전하게 정리 (CASCADE 미설정 가능성)
+            try: c.execute("UPDATE activity_logs SET task_id=NULL WHERE task_id=?", (tid,))
+            except Exception: pass
+            try: c.execute("UPDATE notifications SET task_id=NULL WHERE task_id=?", (tid,))
+            except Exception: pass
+            # 본 카드 삭제 (task_comments/task_reactions 등은 ON DELETE CASCADE)
+            c.execute("DELETE FROM tasks WHERE id=?", (tid,))
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        # FK violation 또는 기타 오류 → 명확한 메시지
+        import traceback; traceback.print_exc()
+        return JSONResponse({"ok": False, "error": f"DB 오류: {type(e).__name__}: {str(e)[:200]}"}, 500)
 
 
 @app.post("/api/task/{tid}/status")
