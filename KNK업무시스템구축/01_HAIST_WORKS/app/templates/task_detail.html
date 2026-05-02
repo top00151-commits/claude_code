@@ -181,11 +181,15 @@
           <div class="kv"><span class="k">소속팀</span><span class="v">{{ task.team_name|default('—') }}</span></div>
         </div>
 
-        {% if reactions %}
+        {% set _r_total = (reactions.ack|length) + (reactions.question|length) + (reactions.risk|length) + (reactions.ok|length) if reactions else 0 %}
+        {% if _r_total > 0 %}
         <div class="side-card">
           <h3>👍 반응</h3>
           <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:13px;">
-            {% for r in reactions %}<span style="background:var(--paper-2);padding:4px 10px;border-radius:var(--radius-full);">{{ r.kind }} {{ r.count }}</span>{% endfor %}
+            {% if reactions.ack|length %}<span style="background:var(--paper-2);padding:4px 10px;border-radius:var(--radius-full);" title="확인">👀 {{ reactions.ack|length }}</span>{% endif %}
+            {% if reactions.ok|length %}<span style="background:var(--paper-2);padding:4px 10px;border-radius:var(--radius-full);" title="좋아요">👍 {{ reactions.ok|length }}</span>{% endif %}
+            {% if reactions.question|length %}<span style="background:var(--paper-2);padding:4px 10px;border-radius:var(--radius-full);" title="질문">❓ {{ reactions.question|length }}</span>{% endif %}
+            {% if reactions.risk|length %}<span style="background:rgba(165,40,44,0.10);color:var(--knk-red);padding:4px 10px;border-radius:var(--radius-full);" title="위험">⚠ {{ reactions.risk|length }}</span>{% endif %}
           </div>
         </div>
         {% endif %}
@@ -271,12 +275,17 @@ function appendNote(kind) {
 
 async function deleteTask() {
   if (!confirm('이 업무 카드를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.')) return;
-  const r = await fetch('/api/task/' + TID, { method: 'DELETE' });
-  if (r.ok) {
-    alert('삭제되었습니다');
-    location.href = '/daily';
-  } else {
-    alert('삭제 실패 (작성자만 삭제 가능)');
+  try {
+    const r = await fetch('/api/task/' + TID, { method: 'DELETE', credentials: 'same-origin' });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.ok) {
+      alert('삭제되었습니다');
+      location.href = '/daily';
+    } else {
+      alert('삭제 실패: ' + (j.error || ('HTTP ' + r.status)));
+    }
+  } catch(e) {
+    alert('통신 오류: ' + (e.message || e));
   }
 }
 async function addComment() {

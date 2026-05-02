@@ -1158,7 +1158,16 @@ async def api_delete_task(req: Request, tid: int):
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
     with db_session() as c:
-        c.execute("DELETE FROM tasks WHERE id=? AND user_id=?", (tid, u["id"]))
+        # v5H36: 실제 권한 확인 — 카드 존재 여부 + 작성자/관리자 검증
+        row = c.execute("SELECT user_id FROM tasks WHERE id=?", (tid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "카드를 찾을 수 없습니다"}, 404)
+        is_owner = (int(row["user_id"]) == int(u["id"]))
+        is_admin = u.get("role","") in ("ceo","admin")
+        if not (is_owner or is_admin):
+            return JSONResponse({"ok": False, "error": "작성자만 삭제 가능"}, 403)
+        # 카드 + 관련 댓글/반응 cascade 삭제 (FK ON DELETE CASCADE 설정되어 있을 때)
+        c.execute("DELETE FROM tasks WHERE id=?", (tid,))
     return JSONResponse({"ok": True})
 
 

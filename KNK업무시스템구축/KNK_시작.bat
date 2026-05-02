@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능 (대표 지시 — 날짜 변경하며 테스트) — (1) fake_today_iso(request) 헬퍼: session.fake_today 우선, 없으면 실제 today, (2) ctx() 자동 주입 today/real_today/fake_date_active, (3) POST /dev/fake-date (ceo·admin·leader·executive 전용, body {date:YYYY-MM-DD or 'clear'}), (4) chrome.html 우측 상단 🧪 아이콘(역할 보유자만, active 시 노란색), 활성 시 화면 최상단 노란 배너 '🧪 테스트 모드 — {today} (실제: {real_today})' + 실제 복귀 버튼, prompt() 다이얼로그로 날짜 입력 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H36 task_detail 삭제 + 반응 표시 버그 수정 (대표 지적) — (1) DELETE /api/task API: 권한 미검증 후 항상 ok:True 반환 → SELECT user_id 먼저 조회·작성자 또는 ceo/admin 검증·404/403 정확 반환 (조용한 실패 제거), (2) 프론트 deleteTask: 'r.ok' 단순 체크 → r.ok && j.ok 검사 + 실제 서버 에러 메시지 alert 표시 + credentials:'same-origin' 명시, (3) 사이드바 반응 카드: get_reactions가 list가 아닌 dict ('ack/question/risk/ok' 키) 반환 → for r in reactions가 str key 순회로 r.count=str.count 메서드 출력 버그 → reactions.ack|length 등 명시적 키 접근으로 수정 (👀확인/👍좋아요/❓질문/⚠위험 4종 분리 표시) / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능 (🧪 아이콘 + 노란 배너)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H36 삭제 권한 검증 + 반응 dict 표시 버그 수정]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

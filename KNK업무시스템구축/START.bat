@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능 — fake_today_iso 헬퍼 + ctx() today/real_today/fake_date_active 주입 + POST /dev/fake-date (ceo/admin/leader 전용) + chrome.html 🧪 아이콘 + 노란 배너 + prompt UI / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H36 task_detail 삭제 + 반응 표시 버그 — DELETE API 실제 권한 검증(404/403 정확), 프론트 서버 에러 alert 표시, get_reactions dict 구조에 맞게 ack/question/risk/ok 명시 키 접근 (이전엔 r.count=str.count 메서드 출력 버그) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H35 테스트용 가짜 날짜 임시 기능]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H36 삭제 권한 검증 + 반응 표시 버그 수정]
 
 echo.
 echo ============================================================
