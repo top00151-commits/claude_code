@@ -92,15 +92,26 @@
           <div style="font-size:11px;color:var(--mute);margin-top:6px;">💡 다음에 할 일을 기록하면 → 실행 후 그 줄에 결과만 추가하면 됩니다 (옮겨 적을 필요 없음)</div>
         </div>
 
-        <!-- 마감 / 공수 -->
+        <!-- 마감 / 오늘 작업 시간 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="field-block">
-            <label>마감일</label>
+            <label>📅 마감일 (전체 업무 종료 예정)</label>
             <input type="date" id="fDue" value="{{ task.due_date|default('') }}">
+            <div style="font-size:11px;color:var(--mute);margin-top:6px;">언제까지 끝낼 계획인지 (며칠/몇 주/몇 달 걸려도 OK)</div>
           </div>
           <div class="field-block">
-            <label>공수 (시간)</label>
-            <input type="text" id="fHours" value="{{ task.hours|default(0) }}" inputmode="decimal">
+            <label>⏱ 오늘 작업 시간 (h)</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="fHours" value="{{ task.hours|default(0) }}" inputmode="decimal" style="flex:1;">
+              <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                <button type="button" onclick="setHours(0.5)" style="font-size:11px;padding:4px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">0.5</button>
+                <button type="button" onclick="setHours(1)" style="font-size:11px;padding:4px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">1h</button>
+                <button type="button" onclick="setHours(2)" style="font-size:11px;padding:4px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">2h</button>
+                <button type="button" onclick="setHours(4)" style="font-size:11px;padding:4px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">4h</button>
+                <button type="button" onclick="setHours(8)" style="font-size:11px;padding:4px 8px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">8h (하루)</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--mute);margin-top:6px;">💡 <b>오늘({{ task.work_date }}) 이 업무에 들인 시간</b>만 입력. 다음 날에도 이어서 하면 일일업무에서 새 카드로 작성하세요</div>
           </div>
         </div>
 
@@ -145,6 +156,16 @@
           </span></div>
           <div class="kv"><span class="k">카테고리</span><span class="v">{{ task.category|default('기타') }}</span></div>
         </div>
+
+        {% if cum and (cum.cards or 0) > 1 %}
+        <div class="side-card" style="border-top:3px solid var(--knk-red);">
+          <h3>📊 이 프로젝트 누적 공수</h3>
+          <div class="kv"><span class="k">총 시간</span><span class="v"><b style="color:var(--knk-red);font-size:18px;">{{ '%.1f'|format(cum.hours) }} h</b></span></div>
+          <div class="kv"><span class="k">기록 일수</span><span class="v">{{ cum.cards }}일</span></div>
+          {% if cum.first and cum.last %}<div class="kv"><span class="k">기간</span><span class="v" style="font-family:monospace;font-size:11px;">{{ cum.first }} ~ {{ cum.last }}</span></div>{% endif %}
+          <div style="font-size:10px;color:var(--mute);margin-top:8px;line-height:1.5;">며칠·몇 주 이어진 업무도 일별 카드 시간을 합산해 자동 집계됩니다</div>
+        </div>
+        {% endif %}
 
         <div class="side-card">
           <h3>🕐 일정</h3>
@@ -208,6 +229,11 @@ async function saveTask() {
   } else {
     alert('저장 실패');
   }
+}
+
+// 빠른 시간 입력 (0.5/1/2/4/8h 프리셋)
+function setHours(h) {
+  document.getElementById('fHours').value = h;
 }
 
 // 진행 기록 / 다음 할 일 빠른 추가 (timestamp prefix)

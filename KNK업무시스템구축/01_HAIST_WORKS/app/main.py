@@ -1429,11 +1429,19 @@ async def task_detail_page(request: Request, tid: int):
         if not t:
             return HTMLResponse("<h1>업무 카드를 찾을 수 없습니다</h1><a href='/daily'>← 일일업무로</a>", 404)
         task = dict(t)
+        # v5H32: 동일 프로젝트(또는 라벨)의 누적 공수·카드 수 계산 — '며칠/몇주 걸리는 업무' 추적용
+        cum = {"hours": 0.0, "cards": 0, "first": None, "last": None}
+        if task.get("project_id"):
+            row = c.execute("SELECT COALESCE(SUM(hours),0) AS h, COUNT(*) AS n, MIN(work_date) AS f, MAX(work_date) AS l FROM tasks WHERE project_id=? AND user_id=?", (task["project_id"], task["user_id"])).fetchone()
+            if row: cum = {"hours": float(row["h"] or 0), "cards": int(row["n"] or 0), "first": row["f"], "last": row["l"]}
+        elif task.get("project_label"):
+            row = c.execute("SELECT COALESCE(SUM(hours),0) AS h, COUNT(*) AS n, MIN(work_date) AS f, MAX(work_date) AS l FROM tasks WHERE project_label=? AND user_id=?", (task["project_label"], task["user_id"])).fetchone()
+            if row: cum = {"hours": float(row["h"] or 0), "cards": int(row["n"] or 0), "first": row["f"], "last": row["l"]}
     comments = get_task_comments(tid)
     reactions = get_reactions(tid)
     return ctx(request, "task_detail.html",
                user=u, active="daily",
-               task=task, comments=comments, reactions=reactions)
+               task=task, comments=comments, reactions=reactions, cum=cum)
 
 
 @app.get("/api/task/{tid}/detail")

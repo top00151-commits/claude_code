@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H31 업무 상세 UX — 작성자 🗑 삭제 버튼, '메모+다음계획' 2개 textarea → 단일 '업무 노트' 1개 (시간순 통합, ＋진행 기록/＋다음 할 일 빠른 버튼) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H32 공수 입력 명확화 — '오늘 작업 시간 (h)' 라벨 + 안내, 빠른 프리셋 5개(0.5/1/2/4/8h), 마감일 안내 추가, 사이드바 '이 프로젝트 누적 공수' 카드 (모든 일별 카드 SUM 자동 집계) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H31 업무 상세 UX — 삭제 + 단일 노트]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H32 공수 입력 명확화 + 누적 공수 집계]
 
 echo.
 echo ============================================================
