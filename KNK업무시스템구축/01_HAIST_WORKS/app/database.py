@@ -8442,3 +8442,76 @@ def seed_business_data():
 
     return 1
 
+
+# =====================================================
+# v5H50 (2026-05-03) — 최근 7일 task 자동 보충 (대시보드 신선도)
+# 시드 데이터가 며칠 묵으면 dashboard·feed·weekly 가 빈 화면으로
+# 노출되는 것을 방지. 매 startup 시 실행하되 30건 이상이면 skip.
+# 정상 운영 환경에서는 사용자가 직접 작성한 task가 30건 넘으므로 무동작.
+# =====================================================
+def seed_recent_tasks_topup() -> int:
+    """최근 7일에 task가 30건 미만이면 더미 task 자동 보충."""
+    import random as _rand
+    today = _date.today()
+    week_ago = (today - _td(days=6)).isoformat()
+    with db_session() as c:
+        n = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE work_date>=?", (week_ago,)
+        ).fetchone()[0]
+        if n >= 30:
+            return 0
+        users = [dict(r) for r in c.execute(
+            "SELECT id, name, rank, role, team_id FROM users "
+            "WHERE is_active=1 AND role!='admin' AND team_id IS NOT NULL"
+        ).fetchall()]
+        if not users:
+            return 0
+        projects = [dict(r) for r in c.execute(
+            "SELECT id, name, type, customer_id FROM projects ORDER BY id LIMIT 30"
+        ).fetchall()]
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers"
+        ).fetchall()]
+        titles = [
+            "고객사 견적 검토", "BOM 사양 확인 미팅", "내부 설계 리뷰",
+            "협력사 일정 조율", "샘플 검수", "출하 전 점검",
+            "테스트 데이터 분석", "공정 개선 검토", "품질 이슈 대응",
+            "신규 부품 검증", "월간 리포트 작성", "장비 시운전",
+            "검사기 캘리브레이션", "자동화 시퀀스 디버깅",
+        ]
+        cats = ["고객대응", "내부업무", "협력사", "품질", "설계", "테스트", "보고"]
+        st_today = ["진행중", "진행중", "완료", "지연", "대기"]
+        st_past = ["완료", "완료", "진행중", "지연"]
+        notes_pool = ["", "", "검토 진행 중", "다음 주 마무리",
+                      "협의 완료", "샘플 도착 대기"]
+        # 시드 시드값: 매일 다르게 (재현성 + 일별 변화)
+        _rand.seed(42 + today.toordinal())
+        added = 0
+        for dback in range(7):
+            d = today - _td(days=dback)
+            if d.weekday() >= 5:  # 주말 skip
+                continue
+            sample_users = _rand.sample(users, min(8, len(users)))
+            for u in sample_users:
+                n_tasks = _rand.choice([1, 2, 2, 3])
+                for _ in range(n_tasks):
+                    pj = _rand.choice(projects) if projects and _rand.random() > 0.3 else None
+                    cu_id = (pj["customer_id"] if pj
+                             else (_rand.choice(customers)["id"]
+                                   if customers and _rand.random() > 0.5 else None))
+                    title = _rand.choice(titles)
+                    if pj:
+                        title = f'{pj["name"].split()[0]} {title}'
+                    status = _rand.choice(st_today if dback == 0 else st_past)
+                    hours = round(_rand.choice([0.5, 1, 1.5, 2, 2, 3, 4]), 1)
+                    notes = _rand.choice(notes_pool)
+                    c.execute(
+                        "INSERT INTO tasks(user_id, work_date, title, category, "
+                        "project_id, customer_id, status, hours, notes) "
+                        "VALUES(?,?,?,?,?,?,?,?,?)",
+                        (u["id"], d.isoformat(), title, _rand.choice(cats),
+                         pj["id"] if pj else None, cu_id, status, hours, notes)
+                    )
+                    added += 1
+        return added
+

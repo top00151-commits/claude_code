@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
-                        seed_business_data, hash_pw,
+                        seed_business_data, seed_recent_tasks_topup, hash_pw,
                         parse_mgmt_xls, parse_mgmt_csv, import_mgmt_rows,
                         regenerate_user_passwords, build_password_csv,
                         add_comment, get_task_comments, delete_comment,
@@ -203,6 +203,13 @@ def startup():
         seed_business_data()
     except Exception as _e:
         print(f"[SEED-BIZ ERR] {_e}")
+    # v5H50 (2026-05-03) — 최근 7일 task가 30건 미만이면 자동 보충 (dashboard/feed 데이터 신선도)
+    try:
+        added = seed_recent_tasks_topup()
+        if added:
+            print(f"[SEED-RECENT] +{added} fresh tasks for current week")
+    except Exception as _e:
+        print(f"[SEED-RECENT ERR] {_e}")
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
 
