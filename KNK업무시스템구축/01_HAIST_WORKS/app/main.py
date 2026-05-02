@@ -4193,13 +4193,166 @@ async def receipts_alias(req: Request):
 
 
 # v5H48 (2026-05-03): 사이드바·내부 폼 링크가 미존재 라우트 가리키는 8건 → 인접 페이지로 별칭
-@app.get("/admin/teams/new", response_class=HTMLResponse)
-async def _alias_admin_teams_new(req: Request):
+# v5H52b: 관리자 사용자/팀 신규 폼 + POST 핸들러 (실제 작동)
+@app.get("/admin/users/new", response_class=HTMLResponse)
+async def admin_users_new_form(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, code, name FROM teams ORDER BY display_order").fetchall()]
+    return ctx(req, "admin_user_form.html", user=u, active="admin",
+               target_user=None, teams=teams)
+
+
+@app.post("/admin/users/new")
+async def admin_users_new_submit(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    login_id = (form.get("login_id") or "").strip()
+    password = (form.get("password") or "knk1234").strip()
+    role = (form.get("role") or "member").strip()
+    if not name or not login_id:
+        return RedirectResponse("/admin/users/new?error=required", 303)
+    with db_session() as c:
+        ex = c.execute("SELECT id FROM users WHERE login_id=?", (login_id,)).fetchone()
+        if ex:
+            return RedirectResponse("/admin/users/new?error=duplicate", 303)
+        team_id = form.get("team_id") or None
+        c.execute(
+            "INSERT INTO users(name, login_id, password, role, team_id, rank, "
+            "email, is_active) VALUES(?,?,?,?,?,?,?,?)",
+            (name, login_id, hash_pw(password), role, team_id,
+             form.get("rank", ""), form.get("email", ""),
+             int(form.get("is_active") or 1))
+        )
     return RedirectResponse("/admin", 303)
 
 
-@app.get("/admin/users/new", response_class=HTMLResponse)
-async def _alias_admin_users_new(req: Request):
+@app.get("/admin/users/{uid:int}/edit", response_class=HTMLResponse)
+async def admin_users_edit_form(req: Request, uid: int):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        row = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        if not row:
+            return RedirectResponse("/admin", 303)
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, code, name FROM teams ORDER BY display_order").fetchall()]
+    return ctx(req, "admin_user_form.html", user=u, active="admin",
+               target_user=dict(row), teams=teams)
+
+
+@app.post("/admin/users/{uid:int}/edit")
+async def admin_users_edit_submit(req: Request, uid: int):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return RedirectResponse(f"/admin/users/{uid}/edit?error=required", 303)
+    with db_session() as c:
+        # 비번 변경된 경우만 갱신
+        new_pw = (form.get("password") or "").strip()
+        if new_pw:
+            c.execute(
+                "UPDATE users SET name=?, role=?, team_id=?, rank=?, email=?, "
+                "is_active=?, password=? WHERE id=?",
+                (name, form.get("role", "member"),
+                 form.get("team_id") or None,
+                 form.get("rank", ""), form.get("email", ""),
+                 int(form.get("is_active") or 1), hash_pw(new_pw), uid)
+            )
+        else:
+            c.execute(
+                "UPDATE users SET name=?, role=?, team_id=?, rank=?, email=?, "
+                "is_active=? WHERE id=?",
+                (name, form.get("role", "member"),
+                 form.get("team_id") or None,
+                 form.get("rank", ""), form.get("email", ""),
+                 int(form.get("is_active") or 1), uid)
+            )
+    return RedirectResponse("/admin", 303)
+
+
+@app.get("/admin/teams/new", response_class=HTMLResponse)
+async def admin_teams_new_form(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        users = [dict(r) for r in c.execute(
+            "SELECT id, name, rank FROM users WHERE is_active=1 "
+            "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+    return ctx(req, "admin_team_form.html", user=u, active="admin",
+               team=None, users=users)
+
+
+@app.post("/admin/teams/new")
+async def admin_teams_new_submit(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    code = (form.get("code") or "").strip()
+    name = (form.get("name") or "").strip()
+    if not code or not name:
+        return RedirectResponse("/admin/teams/new?error=required", 303)
+    with db_session() as c:
+        ex = c.execute("SELECT id FROM teams WHERE code=?", (code,)).fetchone()
+        if ex:
+            return RedirectResponse("/admin/teams/new?error=duplicate", 303)
+        c.execute(
+            "INSERT INTO teams(code, name, sector, display_order, is_lab, leader_id) "
+            "VALUES(?,?,?,?,?,?)",
+            (code, name, form.get("sector", "공통"),
+             int(form.get("display_order") or 99),
+             int(form.get("is_lab") or 0),
+             form.get("leader_id") or None)
+        )
+    return RedirectResponse("/admin", 303)
+
+
+@app.get("/admin/teams/{tid:int}/edit", response_class=HTMLResponse)
+async def admin_teams_edit_form(req: Request, tid: int):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        row = c.execute("SELECT * FROM teams WHERE id=?", (tid,)).fetchone()
+        if not row:
+            return RedirectResponse("/admin", 303)
+        users = [dict(r) for r in c.execute(
+            "SELECT id, name, rank FROM users WHERE is_active=1 "
+            "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+    return ctx(req, "admin_team_form.html", user=u, active="admin",
+               team=dict(row), users=users)
+
+
+@app.post("/admin/teams/{tid:int}/edit")
+async def admin_teams_edit_submit(req: Request, tid: int):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return RedirectResponse(f"/admin/teams/{tid}/edit?error=required", 303)
+    with db_session() as c:
+        c.execute(
+            "UPDATE teams SET code=?, name=?, sector=?, display_order=?, "
+            "is_lab=?, leader_id=? WHERE id=?",
+            (form.get("code", ""), name, form.get("sector", "공통"),
+             int(form.get("display_order") or 99),
+             int(form.get("is_lab") or 0),
+             form.get("leader_id") or None, tid)
+        )
     return RedirectResponse("/admin", 303)
 
 

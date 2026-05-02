@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if team %}팀 수정{% else %}팀 추가{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { background:var(--paper-3); border:1px solid var(--line); border-radius:var(--radius-lg);
+             padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
+.frow { display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-4); margin-bottom: var(--space-4); }
+.fld { display:flex; flex-direction:column; gap:6px; }
+.fld.full { grid-column: span 2; }
+.fld label { font-size:12px; color:var(--mute); font-weight:600; letter-spacing:.04em; }
+.fld input, .fld select {
+    padding: 9px 12px; border:1px solid var(--line); border-radius: var(--radius-md);
+    font-size:14px; background: var(--paper); color: var(--ink); font-family: inherit;
+}
+.req { color: var(--knk-red); font-weight:700; }
+.actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>{% if team %}팀 수정{% else %}팀 추가{% endif %}</b></div>
+      <div class="page-meta">TEAM {{ '편집' if team else '신규' }}</div>
+      <h1 class="page-title">👥 팀 <em>{% if team %}{{ team.name }}{% else %}추가{% endif %}</em></h1>
+    </div>
+  </div>
+
+  <form class="form-card" method="POST" action="{% if team %}/admin/teams/{{ team.id }}/edit{% else %}/admin/teams/new{% endif %}" autocomplete="off">
+    <div class="frow">
+      <div class="fld">
+        <label>팀 코드 <span class="req">*</span></label>
+        <input type="text" name="code" required value="{{ team.code|default('') }}" placeholder="예: 11 (2자리)">
+      </div>
+      <div class="fld">
+        <label>팀명 <span class="req">*</span></label>
+        <input type="text" name="name" required value="{{ team.name|default('') }}" placeholder="예: 신규사업팀">
+      </div>
+      <div class="fld">
+        <label>섹터</label>
+        <select name="sector">
+          {% for s in ['공통','검사기','자동화','지원','연구개발'] %}
+          <option value="{{ s }}" {% if team and team.sector == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label>표시 순서</label>
+        <input type="number" name="display_order" value="{{ team.display_order|default(99) }}" min="1" max="999" step="1">
+      </div>
+      <div class="fld">
+        <label>연구실 여부</label>
+        <select name="is_lab">
+          <option value="0" {% if not team or team.is_lab != 1 %}selected{% endif %}>일반팀</option>
+          <option value="1" {% if team and team.is_lab == 1 %}selected{% endif %}>연구실 (Lab)</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>팀장</label>
+        <select name="leader_id">
+          <option value="">— 미지정 —</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if team and team.leader_id == u.id %}selected{% endif %}>{{ u.name }} ({{ u.rank|default('-') }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">💾 {% if team %}수정 저장{% else %}추가{% endif %}</button>
+      <a href="/admin" class="btn btn-secondary">취소</a>
+    </div>
+  </form>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>
