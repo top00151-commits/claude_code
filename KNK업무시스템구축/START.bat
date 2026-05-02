@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H13 사이드바 스크롤 보존 + active 자동 가시화 — 페이지 이동 시 사이드바 scrollTop sessionStorage 저장/복원 + active 항목이 viewport 밖이면 nearest 스크롤 (선택한 메뉴가 항상 보임) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H14 대표 지적 2건 — (1) 수주 클릭 시 매출 홈도 active 표시되는 버그: prefix 매칭 → longest-prefix-match 알고리즘으로 변경 (단 하나만 active), (2) 이슈·AS 등 일부 active 자동 스크롤 안됨: requestAnimationFrame → DOMContentLoaded+load 이벤트, scrollIntoView → offsetTop 직접 계산 방식 (가운데 정렬) / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H13 사이드바 스크롤 보존 + active 자동 가시화]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H14 active 중복 표시 버그 + 자동 스크롤 안정화]
 
 echo.
 echo ============================================================

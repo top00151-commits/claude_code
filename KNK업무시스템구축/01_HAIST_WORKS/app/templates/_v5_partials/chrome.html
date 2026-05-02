@@ -10,10 +10,31 @@
 {% set _at = active_tab|default('home') %}
 {% set _role = (user.role or 'member')|lower %}
 
-{# 헬퍼: 현재 경로가 path와 정확히 일치하거나 하위 경로면 active #}
+{# 사이드바 전체 path 목록 (a 매크로 호출과 1:1) — longest prefix 계산용.
+   추후 메뉴 추가 시 이 목록에도 같은 path 추가 필수. #}
+{% set _all_paths = [
+  '/home','/daily','/now','/calendar','/notifications','/board/company','/tickets',
+  '/sales','/projects','/customers','/sales/quotations','/sales/orders',
+  '/sales/shipments-receipts','/sales/outstanding','/export',
+  '/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates',
+  '/team','/weekly','/dashboard','/changes','/issues','/search',
+  '/admin','/admin/permissions'
+] %}
+
+{# 정확 일치 찾기. 없으면 _path가 startswith(p+'/')인 path 중 가장 긴 것 선택 #}
+{% set _ns = namespace(active='', best_len=0) %}
+{% if _path in _all_paths %}{% set _ns.active = _path %}
+{% else %}
+  {% for p in _all_paths %}
+    {% if p != '/' and _path.startswith(p + '/') and (p|length) > _ns.best_len %}
+      {% set _ns.active = p %}{% set _ns.best_len = p|length %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{# 헬퍼: longest-prefix-match 결과(_ns.active)와 동일할 때만 active 부여 #}
 {% macro a(path, label, code='') -%}
-  {%- set is_active = (_path == path) or (path != '/' and _path.startswith(path + '/')) -%}
-  <a class="sb-item{% if is_active %} active{% endif %}" href="{{ path }}">
+  <a class="sb-item{% if path == _ns.active %} active{% endif %}" href="{{ path }}">
     <span>{{ label }}</span>{% if code %} <span class="menu-code">{{ code }}</span>{% endif %}
   </a>
 {%- endmacro %}
@@ -97,31 +118,31 @@
 </aside>
 
 <script>
-/* v5H13 — 사이드바 스크롤 보존 + active 자동 가시화
-   (1) 페이지 이동 직전 사이드바 scrollTop 저장
-   (2) 새 페이지 로드 시 저장값 복원
-   (3) active 항목이 viewport 밖이면 nearest로 스크롤
-*/
+/* v5H14 — 사이드바 active 항목 자동 가시화 (단순화)
+   페이지 이동 시 active 항목이 사이드바 viewport 안에 보이도록 보장.
+   sessionStorage 복원은 active 자동 스크롤과 충돌 가능성 있어 제거. */
 (function(){
-  var SB = document.querySelector('aside.sidebar');
-  if (!SB) return;
-  var KEY = 'knk_sb_scroll';
-  // 복원
-  try { var s = sessionStorage.getItem(KEY); if (s) SB.scrollTop = parseInt(s, 10) || 0; } catch(e){}
-  // active 항목 가시화 (저장값이 없거나 active가 보이지 않을 때만)
-  requestAnimationFrame(function(){
+  function ensureActiveVisible(){
+    var SB = document.querySelector('aside.sidebar');
+    if (!SB) return;
     var act = SB.querySelector('.sb-item.active');
     if (!act) return;
-    var sr = SB.getBoundingClientRect(), ar = act.getBoundingClientRect();
-    if (ar.top < sr.top || ar.bottom > sr.bottom) {
-      act.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    // active 항목 위치 = 사이드바 내부 offsetTop. 사이드바 가시 영역 안인지 확인.
+    var top = act.offsetTop;
+    var bottom = top + act.offsetHeight;
+    var view_top = SB.scrollTop;
+    var view_bottom = view_top + SB.clientHeight;
+    if (top < view_top || bottom > view_bottom) {
+      // 가운데로 정렬 (사용자가 위/아래 컨텍스트도 보도록)
+      SB.scrollTop = Math.max(0, top - SB.clientHeight / 2 + act.offsetHeight / 2);
     }
-  });
-  // 사이드바 클릭 시 현재 scrollTop 저장
-  SB.addEventListener('click', function(e){
-    var a = e.target.closest('a.sb-item');
-    if (!a) return;
-    try { sessionStorage.setItem(KEY, String(SB.scrollTop)); } catch(e){}
-  });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureActiveVisible);
+  } else {
+    ensureActiveVisible();
+  }
+  // load 이벤트에서도 한 번 더 (이미지/폰트 로드 후 레이아웃 변경 보정)
+  window.addEventListener('load', ensureActiveVisible);
 })();
 </script>
