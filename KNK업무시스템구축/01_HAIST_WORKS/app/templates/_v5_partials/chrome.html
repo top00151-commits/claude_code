@@ -95,3 +95,33 @@
   <div class="sb-group">&nbsp;</div>
   <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
 </aside>
+
+<script>
+/* v5H13 — 사이드바 스크롤 보존 + active 자동 가시화
+   (1) 페이지 이동 직전 사이드바 scrollTop 저장
+   (2) 새 페이지 로드 시 저장값 복원
+   (3) active 항목이 viewport 밖이면 nearest로 스크롤
+*/
+(function(){
+  var SB = document.querySelector('aside.sidebar');
+  if (!SB) return;
+  var KEY = 'knk_sb_scroll';
+  // 복원
+  try { var s = sessionStorage.getItem(KEY); if (s) SB.scrollTop = parseInt(s, 10) || 0; } catch(e){}
+  // active 항목 가시화 (저장값이 없거나 active가 보이지 않을 때만)
+  requestAnimationFrame(function(){
+    var act = SB.querySelector('.sb-item.active');
+    if (!act) return;
+    var sr = SB.getBoundingClientRect(), ar = act.getBoundingClientRect();
+    if (ar.top < sr.top || ar.bottom > sr.bottom) {
+      act.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    }
+  });
+  // 사이드바 클릭 시 현재 scrollTop 저장
+  SB.addEventListener('click', function(e){
+    var a = e.target.closest('a.sb-item');
+    if (!a) return;
+    try { sessionStorage.setItem(KEY, String(SB.scrollTop)); } catch(e){}
+  });
+})();
+</script>
