@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 자동 좌측 이동 — body.victor-open .main padding-right:320px + .top padding-right + .tb-headline left 보정, 모바일은 dock 풀스크린이라 보정 해제 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H24 상단바 균형 배치 — grid 1fr auto 1fr, 좌(햄버거+로고+탭) / 중앙(HAIST WORKS) / 우(빅터+알림+도움말+사용자+로그아웃), 모바일 HAIST WORKS 축소 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 좌측 이동 (가림 방지)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H24 상단바 균형 배치 — grid 1fr auto 1fr]
 
 echo.
 echo ============================================================
