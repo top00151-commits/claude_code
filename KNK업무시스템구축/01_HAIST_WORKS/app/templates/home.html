@@ -22,9 +22,8 @@ body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD G
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
-.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr var(--dock-w); grid-template-rows: var(--topbar-h) 1fr; min-height: 100vh; }
-body.dock-collapsed .app { grid-template-columns: var(--sidebar-w) 1fr 0; }
-body.dock-collapsed .dock { display: none; }
+/* v5H22: 빅터 dock이 chrome partial의 fixed-position 패널로 이전됨. .app은 표준 2컬럼. */
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: var(--topbar-h) 1fr; min-height: 100vh; }
 
 /* === 토픽바 === */
 .topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-5); background: var(--paper-3); border-bottom: 1px solid var(--line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); padding-right: var(--space-4); }
@@ -409,28 +408,7 @@ body.dock-collapsed .dock { display: none; }
 
   </main>
 
-  <!-- ============ 빅터 dock ============ -->
-  <aside class="dock">
-    <div class="dock-head">
-      <div class="dock-name">빅터 AI</div>
-      <div class="dock-role">YOUR WARM PARTNER</div>
-    </div>
-    <div class="dock-body" id="dockBody">
-      <div class="dock-msg">
-        {{ user.name }}님, {{ greeting|default('안녕하세요') }}.
-        {% if total_my > 0 %}
-        오늘 진행 중인 업무 <b>{{ prog_my + wait_my }}건</b>{% if delay_my > 0 %} · <b style="color:var(--knk-red)">지연 {{ delay_my }}건</b>{% endif %}.
-        {% else %}
-        오늘 등록된 업무가 없습니다. 위 ＋ 입력란에 자유롭게 입력해보세요.
-        {% endif %}
-        <div style="font-size: 10px; color: var(--mute); margin-top: 4px;">{{ sel_date }}</div>
-      </div>
-    </div>
-    <div class="dock-input-wrap">
-      <input id="dockInput" placeholder="빅터에게 물어보기…" onkeydown="if(event.key==='Enter')victorAsk(this.value)" />
-      <button onclick="victorAsk(document.getElementById('dockInput').value)">전송</button>
-    </div>
-  </aside>
+  {# v5H22: 인라인 dock 제거 — chrome partial의 fixed-position 빅터 dock 사용 (모든 페이지 공통, localStorage 상태 유지) #}
 
 </div>
 
@@ -466,49 +444,8 @@ async function carryForward(tid) {
   else { showToast('이월 실패'); }
 }
 
-function toggleDock() {
-  document.body.classList.toggle('dock-collapsed');
-}
-
-async function victorAsk(q) {
-  q = (q || '').trim();
-  if (!q) return;
-  const body = document.getElementById('dockBody');
-  body.insertAdjacentHTML('beforeend',
-    `<div class="dock-msg user">${escapeHtml(q)}</div>`);
-  document.getElementById('dockInput').value = '';
-  body.scrollTop = body.scrollHeight;
-  try {
-    const r = await fetch('/victor/route', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ q: q })
-    });
-    if (r.ok) {
-      const j = await r.json();
-      // 단일 매치(auto_navigate=true) → path 로 이동
-      if (j.ok && j.auto_navigate && j.path) {
-        body.insertAdjacentHTML('beforeend',
-          `<div class="dock-msg">→ <b>${escapeHtml(j.label||'')}</b> 페이지로 이동합니다 (${j.code||''})</div>`);
-        body.scrollTop = body.scrollHeight;
-        setTimeout(() => location.href = j.path, 800);
-      } else if (j.ok && j.candidates && j.candidates.length) {
-        // 다중 매치 → 후보 클릭형 표시
-        const items = j.candidates.map(c =>
-          `<a href="${c.path}" style="display:block;padding:6px 10px;margin:4px 0;background:var(--paper-2);border-radius:6px;color:var(--ink);text-decoration:none;font-size:12px;">→ <b>${escapeHtml(c.label)}</b> <span style="color:var(--mute);">(${c.code})</span></a>`
-        ).join('');
-        body.insertAdjacentHTML('beforeend',
-          `<div class="dock-msg">후보 ${j.candidates.length}건 — 선택하세요:${items}</div>`);
-        body.scrollTop = body.scrollHeight;
-      } else {
-        body.insertAdjacentHTML('beforeend',
-          `<div class="dock-msg">${escapeHtml(j.msg||'해당하는 메뉴를 찾지 못했습니다')}</div>`);
-      }
-    }
-  } catch(e) {
-    body.insertAdjacentHTML('beforeend', `<div class="dock-msg">통신 실패: ${escapeHtml(e.message||'')}</div>`);
-  }
-  body.scrollTop = body.scrollHeight;
-}
+/* v5H22: toggleDock·victorAsk·escapeHtml은 chrome partial로 이전됨.
+   home은 toast만 정의. 키보드 단축키는 chrome의 toggleVictorDock() 호출. */
 
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
@@ -522,14 +459,13 @@ function showToast(msg) {
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2200);
 }
 
-// 키보드 단축키 — Esc: 도크 토글
+// 키보드 단축키 — Esc: 빅터 dock 닫기 / Ctrl+K: 빅터 dock 열기 (chrome partial 함수 호출)
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !document.body.classList.contains('dock-collapsed')) {
-    toggleDock();
+  if (e.key === 'Escape' && document.body.classList.contains('victor-open')) {
+    if (window.toggleVictorDock) window.toggleVictorDock(false);
   } else if (e.ctrlKey && e.key === 'k') {
     e.preventDefault();
-    if (document.body.classList.contains('dock-collapsed')) toggleDock();
-    setTimeout(() => document.getElementById('dockInput')?.focus(), 100);
+    if (window.toggleVictorDock) window.toggleVictorDock(true);
   }
 });
 </script>

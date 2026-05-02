@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H21 패턴 적용 전수 제거 — styles.html 10개 영역 + login.html 2개 영역 모든 knk_pattern 참조 삭제, PNG 파일은 보존, 패턴 기하 재분석: hexagon 내부 3개 rhombus(60°/120°) tessellation (isometric cube illusion) 확정 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 상태 보존 — chrome.html fixed-position 빅터 dock + localStorage 토글 상태, /victor/route 라우팅 chrome 내부, home.html 3컬럼→2컬럼 복원, ESC/Ctrl+K 단축키 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H21 패턴 적용 제거 + 패턴 구조 재분석 (rhombus tessellation 확정)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 페이지 이동 시 상태 유지]
 
 echo.
 echo ============================================================

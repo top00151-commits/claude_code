@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H21 패턴 적용 전수 제거 (대표 지시 — 분석 후 지정 영역에만 재적용 예정) — styles.html 10개 영역, login.html 2개 영역의 knk_pattern* 참조 모두 삭제, PNG 파일은 보존, 패턴 기하 재분석: 정삼각 X / 헥사곤 X — 실제 구조는 hexagon 내부 3개 rhombus(60°/120°) tessellation (isometric cube illusion), 각 rhombus에 5개 평행 stripe(외곽 hex edge와 평행) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 상태 보존 (대표 지시) — chrome.html에 fixed-position 빅터 dock 패널(우측 슬라이드인, 320px) 추가, 🤖 아이콘 toggleVictorDock() 클릭 시 열림/닫힘, localStorage('knk_victor_open')로 페이지 이동 시에도 상태 유지, /victor/route API 호출은 chrome 내부로 이전 (home.html 중복 코드 제거), home.html .app 3컬럼→2컬럼 복원, ESC 닫기·Ctrl+K 열기 단축키 / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H21 패턴 적용 전수 제거 (대표 지시 — 분석 후 지정 영역에만 재적용)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H22 빅터 AI dock 전 페이지 공통 + 페이지 이동 시 상태 유지]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

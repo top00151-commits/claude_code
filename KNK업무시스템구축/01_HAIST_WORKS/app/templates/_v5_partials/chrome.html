@@ -56,7 +56,7 @@
   </div>
   <div class="tb-headline" style="font-size:28px;font-weight:800;letter-spacing:0.1em;color:var(--knk-red);white-space:nowrap;">HAIST WORKS</div>
   <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-    <a class="top-icon" href="/home#victor" title="빅터 AI" style="background:var(--amber-glow);color:var(--amber-deep);">🤖</a>
+    <a class="top-icon" href="javascript:void(0)" onclick="toggleVictorDock()" title="빅터 AI (열기/닫기)" style="background:rgba(165,40,44,0.10);color:var(--knk-red);" id="victorToggleBtn">🤖</a>
     <a class="top-icon" href="/notifications" title="알림">🔔</a>
     <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
     <a class="top-user" href="/profile">
@@ -123,6 +123,128 @@
   <div class="sb-group">&nbsp;</div>
   <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
 </aside>
+
+{# ─────────── 빅터 AI Dock — 모든 페이지 공통 (v5H22) ─────────── #}
+<aside id="victorDock" class="victor-dock" aria-hidden="true">
+  <div class="vd-head">
+    <div>
+      <div class="vd-name">빅터 AI</div>
+      <div class="vd-role">YOUR WARM PARTNER</div>
+    </div>
+    <button type="button" class="vd-close" onclick="toggleVictorDock(false)" aria-label="닫기">✕</button>
+  </div>
+  <div class="vd-body" id="vdBody">
+    <div class="vd-msg">
+      안녕하세요 {{ user.name|default('') }}님 👋<br>
+      자연어로 메뉴를 물어보세요. 예: <b>"견적 작성"</b>, <b>"수불부"</b>, <b>"권한 위임"</b>
+    </div>
+  </div>
+  <form class="vd-input-wrap" onsubmit="event.preventDefault();victorAsk(document.getElementById('vdInput').value);">
+    <input id="vdInput" placeholder="빅터에게 물어보기…" autocomplete="off">
+    <button type="submit">전송</button>
+  </form>
+</aside>
+
+<style>
+.victor-dock {
+  position: fixed; top: var(--topbar-h, 80px); right: 0; bottom: 0;
+  width: 320px; max-width: 90vw;
+  background: var(--paper); border-left: 2px solid var(--knk-red);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.10);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .25s ease-out;
+  z-index: 95;
+}
+body.victor-open .victor-dock { transform: translateX(0); }
+.vd-head { padding: 16px 18px; background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%); color: white; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.vd-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.vd-name::before { content:""; width: 9px; height: 9px; background: white; border-radius: 50%; box-shadow: 0 0 10px white; animation: vdPulse 1.5s infinite; }
+@keyframes vdPulse { 0%,100%{opacity:.6} 50%{opacity:1} }
+.vd-role { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; margin-top: 4px; opacity: 0.85; }
+.vd-close { background: rgba(255,255,255,0.15); color: white; border: 0; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.vd-close:hover { background: rgba(255,255,255,0.28); }
+.vd-body { flex: 1; padding: 14px; overflow-y: auto; }
+.vd-msg { background: var(--paper-3); border: 1px solid var(--line); border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; color: var(--ink); }
+.vd-msg b { color: var(--knk-red); }
+.vd-msg.user { background: var(--knk-red); color: white; border: 0; border-radius: 12px 12px 4px 12px; margin-left: 24px; }
+.vd-msg.user b { color: white; }
+.vd-msg a { display: block; padding: 6px 10px; margin: 4px 0; background: var(--paper-2); border-radius: 6px; color: var(--ink); text-decoration: none; font-size: 12px; }
+.vd-msg a:hover { background: rgba(165,40,44,0.08); color: var(--knk-red); }
+.vd-input-wrap { padding: 10px 14px; border-top: 1px solid var(--line); background: var(--paper-3); display: flex; gap: 8px; }
+.vd-input-wrap input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: inherit; color: var(--ink); }
+.vd-input-wrap input:focus { outline: none; border-color: var(--knk-red); }
+.vd-input-wrap button { background: var(--knk-red); color: white; border: 0; border-radius: 8px; padding: 0 14px; font-weight: 700; cursor: pointer; font-size: 12.5px; }
+.vd-input-wrap button:hover { background: #7A1D20; }
+#victorToggleBtn.is-open { background: var(--knk-red) !important; color: white !important; }
+@media (max-width: 1023px) {
+  .victor-dock { width: 100%; }
+}
+</style>
+
+<script>
+/* 빅터 dock 토글 — localStorage로 페이지 간 상태 유지 */
+(function(){
+  var KEY = 'knk_victor_open';
+  function applyState(open){
+    document.body.classList.toggle('victor-open', !!open);
+    var btn = document.getElementById('victorToggleBtn');
+    if (btn) btn.classList.toggle('is-open', !!open);
+    var dock = document.getElementById('victorDock');
+    if (dock) dock.setAttribute('aria-hidden', open ? 'false' : 'true');
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch(e){}
+  }
+  window.toggleVictorDock = function(force){
+    var cur = document.body.classList.contains('victor-open');
+    var next = (typeof force === 'boolean') ? force : !cur;
+    applyState(next);
+    if (next) setTimeout(function(){ var i=document.getElementById('vdInput'); if(i) i.focus(); }, 250);
+  };
+  // 초기 상태 복원
+  try {
+    if (localStorage.getItem(KEY) === '1') applyState(true);
+  } catch(e){}
+})();
+
+/* 빅터 자연어 라우팅 */
+async function victorAsk(q){
+  q = (q || '').trim();
+  if (!q) return;
+  var body = document.getElementById('vdBody');
+  body.insertAdjacentHTML('beforeend',
+    '<div class="vd-msg user">' + _vdEsc(q) + '</div>');
+  var inp = document.getElementById('vdInput'); if (inp) inp.value = '';
+  body.scrollTop = body.scrollHeight;
+  try {
+    var r = await fetch('/victor/route', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ q: q })
+    });
+    var j = await r.json();
+    if (j.ok && j.auto_navigate && j.path){
+      body.insertAdjacentHTML('beforeend',
+        '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b> 페이지로 이동합니다 (' + _vdEsc(j.code||'') + ')</div>');
+      body.scrollTop = body.scrollHeight;
+      setTimeout(function(){ location.href = j.path; }, 800);
+    } else if (j.ok && j.candidates && j.candidates.length){
+      var html = '<div class="vd-msg">후보 ' + j.candidates.length + '건 — 선택하세요:';
+      j.candidates.forEach(function(c){
+        html += '<a href="' + c.path + '">→ <b>' + _vdEsc(c.label) + '</b> <span style="color:var(--mute);">(' + _vdEsc(c.code) + ')</span></a>';
+      });
+      html += '</div>';
+      body.insertAdjacentHTML('beforeend', html);
+      body.scrollTop = body.scrollHeight;
+    } else {
+      body.insertAdjacentHTML('beforeend',
+        '<div class="vd-msg">' + _vdEsc(j.msg || '해당하는 메뉴를 찾지 못했습니다') + '</div>');
+    }
+  } catch(e){
+    body.insertAdjacentHTML('beforeend', '<div class="vd-msg">통신 실패: ' + _vdEsc(e.message||'') + '</div>');
+  }
+  body.scrollTop = body.scrollHeight;
+}
+function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+</script>
 
 <script>
 /* v5H14 — 사이드바 active 항목 자동 가시화 (단순화)
