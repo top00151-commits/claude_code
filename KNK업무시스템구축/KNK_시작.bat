@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 자동 좌측 이동 (대표 지시) — body.victor-open일 때 .main padding-right:320px, .top padding-right도 동일 보정으로 우측 아이콘 가림 방지, .tb-headline(HAIST WORKS) left:calc(50% - 160px)로 보정 정중앙 유지, 모바일(1023px↓)에서는 dock 풀스크린이라 보정 해제 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H25 페이지 타이틀 메뉴명 통일 (대표 지시) — sales_home.html '매출·영업 대시보드'/'매출·영업 센터' → '매출영업센터' (페이지 타이틀·메타·HTML title), logistics_home.html '자재·구매 센터' → '자재구매센터' (동일 패턴, 통일성 확보) / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H23 빅터 dock 열림 시 메인 콘텐츠 좌측 이동 (가림 방지)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H25 매출/자재 페이지 타이틀 메뉴명 통일 (매출영업센터·자재구매센터)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
