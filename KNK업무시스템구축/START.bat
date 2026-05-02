@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H11 대표 지시 — home.html 자체 topbar+sidebar 제거 → chrome partial 사용으로 통일 (모든 페이지 상단/사이드바 100% 동일) + 사이드바 내 업무에 게시판·실시간 진행 추가 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H12 게시판 클릭 404 수정 — /board(미존재) → /board/company(존재) + 사이드바 전체 링크 라우트 매칭 검증 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H11 home.html chrome partial 통일 — 모든 페이지 상단바/사이드바 100% 동일 (dock 3컬럼 유지)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H12 게시판 클릭 404 수정 + 사이드바 전체 링크 검증]
 
 echo.
 echo ============================================================
