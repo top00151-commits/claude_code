@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H32 공수 입력 명확화 — '오늘 작업 시간 (h)' 라벨 + 안내, 빠른 프리셋 5개(0.5/1/2/4/8h), 마감일 안내 추가, 사이드바 '이 프로젝트 누적 공수' 카드 (모든 일별 카드 SUM 자동 집계) / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H33 task_detail 저장 버튼 작동 안함 버그 수정 — Jinja {{ None|default('null') }}이 'None' 출력해 JS SyntaxError 발생, fetch 호출 자체 실패. TASK_META 객체 안전 직렬화(if-else + tojson) + status 필드 추가 + 저장 중/완료 시각 피드백 + 에러 alert / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H32 공수 입력 명확화 + 누적 공수 집계]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H33 저장 버튼 버그 수정]
 
 echo.
 echo ============================================================

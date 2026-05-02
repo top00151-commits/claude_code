@@ -117,7 +117,7 @@
 
         <div class="action-bar">
           <button class="btn btn-secondary" onclick="location.href='/daily'">취소</button>
-          <button class="btn btn-primary" onclick="saveTask()">💾 저장</button>
+          <button class="btn btn-primary" onclick="saveTask(this)">💾 저장</button>
         </div>
 
         <!-- 댓글 -->
@@ -209,25 +209,44 @@ async function changeStatus(s) {
     alert('상태 변경 실패');
   }
 }
-async function saveTask() {
+// 페이지 데이터 (Jinja → JS 안전 직렬화)
+const TASK_META = {
+  category: {{ (task.category or '기타')|tojson }},
+  project_id: {{ task.project_id if task.project_id else 'null' }},
+  customer_id: {{ task.customer_id if task.customer_id else 'null' }},
+  status: {{ (task.status or '진행중')|tojson }}
+};
+
+async function saveTask(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '💾 저장 중...'; }
   const body = {
     title: document.getElementById('fTitle').value.trim(),
     notes: document.getElementById('fNotes').value,
     next_plan: '',  // v5H31: next_plan UI 제거 — notes로 통합
     due_date: document.getElementById('fDue').value || null,
     hours: parseFloat(document.getElementById('fHours').value) || 0,
-    category: '{{ task.category|default("기타") }}',
-    project_id: {{ task.project_id|default('null') }},
-    customer_id: {{ task.customer_id|default('null') }},
+    category: TASK_META.category,
+    project_id: TASK_META.project_id,
+    customer_id: TASK_META.customer_id,
+    status: TASK_META.status,  // PUT API 가 status 필드 필요
   };
-  const r = await fetch('/api/task/' + TID, {
-    method: 'PUT', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  if (r.ok) {
-    location.reload();
-  } else {
-    alert('저장 실패');
+  try {
+    const r = await fetch('/api/task/' + TID, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.ok) {
+      // 저장 성공 시각 피드백 후 새로고침
+      if (btn) { btn.textContent = '✓ 저장 완료'; btn.style.background = 'var(--success)'; }
+      setTimeout(()=> location.reload(), 600);
+    } else {
+      alert('저장 실패: ' + (j.error || ('HTTP ' + r.status)));
+      if (btn) { btn.disabled = false; btn.textContent = '💾 저장'; }
+    }
+  } catch(e) {
+    alert('통신 오류: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = '💾 저장'; }
   }
 }
 

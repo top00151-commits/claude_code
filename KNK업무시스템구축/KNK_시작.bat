@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H32 공수 입력 UX 명확화 (대표 지시 — 며칠/몇주 걸리는 업무 시간 표현 혼란) — (1) 라벨 '공수(시간)' → '⏱ 오늘 작업 시간 (h)' + 안내 '오늘({work_date}) 이 업무에 들인 시간만 입력. 다음 날에도 이어서 하면 일일업무에서 새 카드 작성', (2) 빠른 입력 프리셋 5개 (0.5/1h/2h/4h/8h하루) 클릭 한 번에 입력, (3) 마감일 라벨 '📅 마감일 (전체 업무 종료 예정)' + '며칠/몇주/몇달 걸려도 OK' 안내, (4) 사이드바 '📊 이 프로젝트 누적 공수' 카드 신규 (동일 project_id 또는 project_label의 모든 카드 SUM/COUNT, 기간 first~last) — 며칠 이어진 업무 자동 집계 / 154/154 PASS
+REM   LAST UPDATE: 2026-05-02 v5H33 task_detail 저장 버튼 작동 안함 버그 수정 (대표 지적) — 원인: Jinja `{{ task.project_id|default('null') }}` 필터가 None 값엔 안 적용 → 'None'이 그대로 JS에 출력되어 SyntaxError로 fetch 호출 자체 실패. 수정: TASK_META 객체로 안전 직렬화 (`task.project_id if task.project_id else 'null'` + tojson 필터), PUT API 필수 필드 status 추가, 저장 중/완료 시각 피드백 + 에러 시 alert로 사유 표시 / 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H32 공수 입력 명확화 + 누적 공수 자동 집계]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H33 저장 버튼 작동 버그 수정 (Jinja None 직렬화)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
