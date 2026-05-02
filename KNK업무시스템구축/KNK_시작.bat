@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H28 일일업무 UX 개선 (대표 지시) — (1) "+ 새 업무" 버튼: 단순 focus → 빠른입력바로 부드러운 스크롤+하이라이트(KNK red 3px ring)+포커스, (2) 프로젝트 드롭다운: select → input+datalist combobox (DB 매출 프로젝트 + 사내/개인/업무개선/교육·세미나/회의/일반업무 자유 추가 가능), (3) DB tasks.project_label TEXT 컬럼 마이그레이션, /api/task POST에서 project_id 또는 project_label 자동 분기 저장, 표시 시 둘 다 처리 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H29 일일업무 입력 UX 추가 정리 (대표 지시) — (1) qa-bar CSS 분리: 업무 제목(borderless·14px·focus 시 KNK red ring) vs 보조입력(border·12px·padding 6/10) + 사이 verticla divider qa-sep 1px, (2) 고객사도 select → input+datalist combobox: '사내업무' 기본 옵션 + DB 고객사(data-cid) 자유 추가, (3) DB tasks.customer_label TEXT 마이그레이션, /api/task POST에서 customer_id 또는 customer_label 자동 분기, (4) task 표시 시 customer_name → fallback customer_label / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H28 일일업무 UX — 새 업무 버튼 액션 + 프로젝트 자유 입력]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H29 일일업무 입력 UX — 시각 구분 + 고객사 자유 입력 + 사내업무]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

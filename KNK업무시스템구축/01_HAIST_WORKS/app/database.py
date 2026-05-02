@@ -1629,6 +1629,12 @@ def init_db():
                 c.execute("ALTER TABLE tasks ADD COLUMN project_label TEXT")
             except Exception:
                 pass
+        # v5H29 (2026-05-02): 자유 입력 고객사 라벨 ('사내업무' 등)
+        if "customer_label" not in cols:
+            try:
+                c.execute("ALTER TABLE tasks ADD COLUMN customer_label TEXT")
+            except Exception:
+                pass
         # 마이그레이션: users에 lang 컬럼 추가
         ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
         if "lang" not in ucols:

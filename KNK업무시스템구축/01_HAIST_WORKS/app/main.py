@@ -1050,14 +1050,17 @@ async def api_create_task(req: Request):
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
     d = await req.json()
-    # v5H28: project_id(매출 프로젝트 FK) 또는 project_label(자유 텍스트) 둘 중 하나
+    # v5H28-29: project/customer — FK(매출 프로젝트·고객사) 또는 label(자유 텍스트, 사내업무 등) 자동 분기
     _pid = d.get("project_id") or None
     _plabel = (d.get("project_label") or "").strip() or None
+    _cid = d.get("customer_id") or None
+    _clabel = (d.get("customer_label") or "").strip() or None
     with db_session() as c:
         cur = c.execute(
-            """INSERT INTO tasks(user_id, work_date, title, category, project_id, project_label, customer_id,
+            """INSERT INTO tasks(user_id, work_date, title, category, project_id, project_label,
+                                  customer_id, customer_label,
                                   status, hours, notes, next_plan, due_date)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 u["id"],
                 d.get("work_date") or date.today().isoformat(),
@@ -1065,7 +1068,8 @@ async def api_create_task(req: Request):
                 d.get("category") or "기타",
                 _pid,
                 _plabel if not _pid else None,  # FK 있으면 라벨 무시
-                d.get("customer_id") or None,
+                _cid,
+                _clabel if not _cid else None,
                 d.get("status") or "진행중",
                 float(d.get("hours") or 0),
                 d.get("notes") or "",
