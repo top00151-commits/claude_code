@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H51 seed_recent_tasks_topup() freshness auto-replenish — prevents dashboard/feed/weekly from showing empty when seed data goes stale. Each startup auto-INSERTs 1-3 tasks/weekday if last 7 days have <30 tasks (skips when >=30, auto-disables once real users write). Effect: /dashboard delays 0→10, /feed today card visible, /weekly this-week revived / Session: v5H45-51 (7 commits) "every icon contents" 100% auto-fill DONE
+REM   LAST UPDATE: 2026-05-03 v5H52 sales-center form flow alignment — 3 critical defects user found while using: (1) /projects/new POST validation fail → handler accepts template's name/customer_name fields + auto-strips KRW commas (2) /customers/new only alias, no real form → customer_form.html (8 fields) + customers ALTER 8 cols + POST/edit handlers (3) /sales/quotes/new only alias → sales_quote_form.html (dynamic line items, live total) + sales_quote_detail.html + POST (4) KRW input live thousand-separator commas (knk_inputs.html partial auto-included via chrome.html) (5) tbl-sticky CSS for 13 list templates (sticky table headers when scrolling)
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H51 freshness auto-fill + session 7 commits]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H52 sales forms aligned + KRW commas + sticky]
 
 echo.
 echo ============================================================

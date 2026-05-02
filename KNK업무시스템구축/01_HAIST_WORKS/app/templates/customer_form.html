@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if customer %}고객사 수정{% else %}고객사 등록{% endif %} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { background:var(--paper-3); border:1px solid var(--line); border-radius:var(--radius-lg);
+             padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
+.frow { display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-4); margin-bottom: var(--space-4); }
+.fld { display:flex; flex-direction:column; gap:6px; }
+.fld.full { grid-column: span 2; }
+.fld label { font-size:12px; color:var(--mute); font-weight:600; letter-spacing:.04em; }
+.fld input, .fld select, .fld textarea {
+    padding: 9px 12px; border:1px solid var(--line); border-radius: var(--radius-md);
+    font-size:14px; background: var(--paper); color: var(--ink); font-family: inherit;
+}
+.fld input:focus, .fld select:focus, .fld textarea:focus { outline:2px solid var(--knk-red); border-color: var(--knk-red); }
+.fld textarea { min-height: 80px; resize:vertical; }
+.req { color: var(--knk-red); font-weight:700; }
+.actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+</style>
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/customers">고객사</a> · <b>{% if customer %}수정{% else %}등록{% endif %}</b></div>
+      <div class="page-meta">CUSTOMER {{ '편집' if customer else '신규' }}</div>
+      <h1 class="page-title">🏢 고객사 <em>{% if customer %}{{ customer.name }}{% else %}등록{% endif %}</em></h1>
+    </div>
+  </div>
+
+  <form class="form-card" method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
+    <div class="frow">
+      <div class="fld">
+        <label>고객사명 <span class="req">*</span></label>
+        <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
+      </div>
+      <div class="fld">
+        <label>등급</label>
+        <select name="tier">
+          {% for t in ['주요', '일반', '신규', '휴면'] %}
+          <option value="{{ t }}" {% if (customer and customer.tier == t) or (not customer and t=='일반') %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label>사업자번호</label>
+        <input type="text" name="biz_no" value="{{ customer.biz_no|default('') }}" placeholder="123-45-67890">
+      </div>
+      <div class="fld">
+        <label>대표자명</label>
+        <input type="text" name="ceo_name" value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
+      </div>
+      <div class="fld">
+        <label>담당자명</label>
+        <input type="text" name="manager_name" value="{{ customer.manager_name|default('') }}" placeholder="김담당 과장">
+      </div>
+      <div class="fld">
+        <label>연락처</label>
+        <input type="text" name="phone" value="{{ customer.phone|default('') }}" placeholder="031-1234-5678">
+      </div>
+      <div class="fld">
+        <label>이메일</label>
+        <input type="email" name="email" value="{{ customer.email|default('') }}" placeholder="contact@example.com">
+      </div>
+      <div class="fld">
+        <label>활성 상태</label>
+        <select name="is_active">
+          <option value="1" {% if not customer or customer.is_active != 0 %}selected{% endif %}>활성</option>
+          <option value="0" {% if customer and customer.is_active == 0 %}selected{% endif %}>비활성</option>
+        </select>
+      </div>
+      <div class="fld full">
+        <label>주소</label>
+        <input type="text" name="address" value="{{ customer.address|default('') }}" placeholder="경기도 ...">
+      </div>
+      <div class="fld full">
+        <label>비고</label>
+        <textarea name="note" placeholder="특이사항 / 메모">{{ customer.note|default('') }}</textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">💾 {% if customer %}수정 저장{% else %}등록{% endif %}</button>
+      <a href="/customers" class="btn btn-secondary">취소</a>
+    </div>
+  </form>
+  <div style="height: var(--space-7);"></div>
+</main></div>
+{% include "_v5_partials/knk_inputs.html" ignore missing %}
+</body></html>

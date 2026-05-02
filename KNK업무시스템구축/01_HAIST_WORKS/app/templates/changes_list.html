@@ -15,7 +15,7 @@
     <select name="urgency" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">긴급 전체</option>{% for u_ in CHANGE_URGENCIES %}<option value="{{ u_ }}" {% if urgency==u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}</select>
     <button type="submit" class="btn btn-primary">🔍</button>
   </form>
-  <div class="tbl-wrap">
+  <div class="tbl-wrap tbl-sticky">
     {% if changes %}
     <table class="tbl">
       <thead><tr><th>#</th><th>제목</th><th class="center">유형</th><th class="center">긴급</th><th>작성자</th><th class="center">읽음</th><th class="center">날짜</th></tr></thead>

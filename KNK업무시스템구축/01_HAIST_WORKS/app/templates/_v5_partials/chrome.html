@@ -324,3 +324,6 @@ window.setFakeDate = async function(dateStr){
   window.addEventListener('load', ensureActiveVisible);
 })();
 </script>
+
+{# v5H52 (2026-05-03): 공용 입력 헬퍼 자동 포함 — 모든 페이지에서 KRW 콤마 + 고정헤더 사용 가능 #}
+{% include "_v5_partials/knk_inputs.html" ignore missing %}

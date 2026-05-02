@@ -1635,6 +1635,23 @@ def init_db():
                 c.execute("ALTER TABLE tasks ADD COLUMN customer_label TEXT")
             except Exception:
                 pass
+        # v5H52 (2026-05-03): 고객사 등록 폼 확장 — 사업자번호/대표/담당자/전화/이메일/주소
+        cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]
+        for col, ddl in [
+            ("biz_no",      "ALTER TABLE customers ADD COLUMN biz_no TEXT"),
+            ("ceo_name",    "ALTER TABLE customers ADD COLUMN ceo_name TEXT"),
+            ("manager_name","ALTER TABLE customers ADD COLUMN manager_name TEXT"),
+            ("phone",       "ALTER TABLE customers ADD COLUMN phone TEXT"),
+            ("email",       "ALTER TABLE customers ADD COLUMN email TEXT"),
+            ("address",     "ALTER TABLE customers ADD COLUMN address TEXT"),
+            ("is_active",   "ALTER TABLE customers ADD COLUMN is_active INTEGER DEFAULT 1"),
+            ("created_at",  "ALTER TABLE customers ADD COLUMN created_at TEXT DEFAULT (datetime('now','localtime'))"),
+        ]:
+            if col not in cucols:
+                try:
+                    c.execute(ddl)
+                except Exception:
+                    pass
         # 마이그레이션: users에 lang 컬럼 추가
         ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
         if "lang" not in ucols:

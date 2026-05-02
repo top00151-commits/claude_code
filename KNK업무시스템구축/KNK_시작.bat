@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H51 seed_recent_tasks_topup() 신선도 자동 보충 — 시드 데이터가 며칠 묵으면 dashboard/feed/weekly가 빈 화면으로 노출되던 것을 방지. startup 시마다 최근 7일 task가 30건 미만이면 평일별 1~3건씩 자동 INSERT (30건 이상이면 skip). 정상 운영 시 사용자가 직접 작성 시작하면 자동 비활성. 효과: /dashboard 지연업무 0→10건, /feed 오늘 카드 노출, /weekly 이번 주 데이터 살림 / 본 세션 통합: v5H45-51 7개 커밋 (3154efb→c37ab95→2004aab→cc0b934→7da6892→398ba3e→877f1fe) 대표대시 빈 페이지 100% 자동 보충 완료
+REM   LAST UPDATE: 2026-05-03 v5H52 매출영업센터 폼 흐름 전면 정합 (대표 사용 중 발견 3대 결함 일괄 수정) — (1) /projects/new POST 'project_name' 필수 검증 실패 → 템플릿 실제 필드명(name/customer_name) 호환 + 콤마 자동 제거 (2) /customers/new 별칭만 있고 실제 폼 없음 → customer_form.html 신규(8필드) + customers ALTER 8컬럼(biz_no/ceo_name/manager_name/phone/email/address/is_active) + POST/edit 핸들러 신규 (3) /sales/quotes/new 별칭만 있음 → sales_quote_form.html 신규(라인 동적 추가/실시간 합계) + sales_quote_detail.html 신규 + POST 신규 (4) KRW 입력 실시간 천단위 콤마 공통 JS (knk_inputs.html) — chrome.html 자동 포함, 모든 amount/price/금액 input 자동 적용 (5) tbl-sticky CSS — 13개 list 템플릿(고객사/부품/공급사/PO/수주/견적/이슈/티켓/변경/수불/잔고/QC/작업지시) 헤더 고정 스크롤
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H51 신선도 자동보충 + 본세션 7커밋 완료]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H52 매출영업 폼 전면 정합 + KRW 콤마 + 고정헤더]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

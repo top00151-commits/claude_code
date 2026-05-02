@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>견적 작성 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { background:var(--paper-3); border:1px solid var(--line); border-radius:var(--radius-lg);
+             padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
+.frow { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-4); margin-bottom: var(--space-4); }
+.fld { display:flex; flex-direction:column; gap:6px; }
+.fld.full { grid-column: span 3; }
+.fld label { font-size:12px; color:var(--mute); font-weight:600; letter-spacing:.04em; }
+.fld input, .fld select, .fld textarea {
+    padding: 9px 12px; border:1px solid var(--line); border-radius: var(--radius-md);
+    font-size:14px; background: var(--paper); color: var(--ink); font-family: inherit;
+}
+.fld input:focus, .fld select:focus { outline:2px solid var(--knk-red); border-color: var(--knk-red); }
+.req { color: var(--knk-red); font-weight:700; }
+.actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+
+.lines-table { width:100%; border-collapse: collapse; margin-top: var(--space-3); }
+.lines-table th { background: var(--paper-2); color: var(--knk-red); font-size:11px; text-transform:uppercase;
+    padding: 9px 10px; border-bottom: 2px solid var(--knk-red); text-align:left; letter-spacing:.06em; }
+.lines-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.lines-table td input { width: 100%; padding: 7px 9px; border:1px solid var(--line); border-radius: 6px;
+    font-size:13px; background: var(--paper); }
+.lines-table td input:focus { outline: 2px solid var(--knk-red); border-color: var(--knk-red); }
+.lines-table .del-line-btn { background: transparent; border: 1px solid var(--line); color: var(--mute);
+    border-radius: 6px; padding: 4px 8px; cursor:pointer; font-size: 14px; }
+.lines-table .del-line-btn:hover { color: var(--knk-red); border-color: var(--knk-red); }
+.line-total { text-align: right; font-weight: 700; }
+.summary-row { background: var(--paper-2); font-weight: 700; font-size: 14px; }
+</style>
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/sales/quotations">견적 관리</a> · <b>새 견적</b></div>
+      <div class="page-meta">QUOTATION NEW</div>
+      <h1 class="page-title">📋 새 <em>견적</em> 작성</h1>
+    </div>
+  </div>
+
+  <form class="form-card" method="POST" action="/sales/quotes/new" autocomplete="off" id="quoteForm">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:var(--space-3);color:var(--ink);">기본 정보</h2>
+    <div class="frow">
+      <div class="fld">
+        <label>고객사 <span class="req">*</span></label>
+        <select name="customer_id" required>
+          <option value="">— 선택 —</option>
+          {% for c in customers %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label>유효기한</label>
+        <input type="date" name="valid_until">
+      </div>
+      <div class="fld">
+        <label>버전</label>
+        <input type="number" name="version" value="1" min="1" step="1">
+      </div>
+      <div class="fld full">
+        <label>비고</label>
+        <input type="text" name="note" placeholder="견적 특이사항">
+      </div>
+    </div>
+
+    <h2 style="font-size:16px;font-weight:700;margin-top:var(--space-5);margin-bottom:var(--space-3);color:var(--ink);">견적 라인</h2>
+    <table class="lines-table" id="linesTbl">
+      <thead>
+        <tr>
+          <th style="width:50px;">#</th>
+          <th>품목명 <span class="req">*</span></th>
+          <th style="width:100px;">수량</th>
+          <th style="width:80px;">단위</th>
+          <th style="width:140px;">단가 (원)</th>
+          <th style="width:140px;">소계</th>
+          <th style="width:50px;"></th>
+        </tr>
+      </thead>
+      <tbody id="linesBody">
+        <!-- JS로 행 추가 -->
+      </tbody>
+      <tfoot>
+        <tr class="summary-row">
+          <td colspan="5" style="text-align:right;padding-right:14px;">총 합계 →</td>
+          <td class="line-total" id="grandTotal">0</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div style="margin-top: var(--space-3); display: flex; justify-content: space-between;">
+      <button type="button" class="btn btn-secondary" onclick="addLine()">＋ 라인 추가</button>
+      <input type="hidden" name="total_amount" id="totalHidden" value="0">
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">💾 견적 저장</button>
+      <a href="/sales/quotations" class="btn btn-secondary">취소</a>
+    </div>
+  </form>
+  <div style="height: var(--space-7);"></div>
+</main></div>
+{% include "_v5_partials/knk_inputs.html" ignore missing %}
+<script>
+let lineCount = 0;
+function addLine() {
+  lineCount += 1;
+  const tbody = document.getElementById('linesBody');
+  const tr = document.createElement('tr');
+  tr.dataset.lineIdx = lineCount;
+  tr.innerHTML = `
+    <td style="text-align:center;color:var(--mute);font-family:monospace;">${String(lineCount).padStart(2,'0')}</td>
+    <td><input type="text" name="line_name_${lineCount}" placeholder="예: KNK-T-CCD-001 CCD 카메라 모듈" required></td>
+    <td><input type="text" name="line_qty_${lineCount}" inputmode="numeric" value="1" oninput="recalc()"></td>
+    <td><input type="text" name="line_unit_${lineCount}" value="EA"></td>
+    <td><input type="text" class="knk-money" name="line_price_${lineCount}" value="0" oninput="recalc()"></td>
+    <td class="line-total" data-line-total="${lineCount}">0</td>
+    <td><button type="button" class="del-line-btn" onclick="this.closest('tr').remove(); recalc();">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+  // 새로 추가된 입력에도 콤마 포맷터 적용 (knk_inputs scan은 DOMContentLoaded 1회만 작동)
+  if (window.knkAttachMoney) window.knkAttachMoney(tr);
+  recalc();
+}
+function recalc() {
+  let grand = 0;
+  document.querySelectorAll('#linesBody tr').forEach(function(tr) {
+    const idx = tr.dataset.lineIdx;
+    const qty = parseFloat((tr.querySelector(`[name="line_qty_${idx}"]`).value || '0').replace(/,/g,'')) || 0;
+    const price = parseFloat((tr.querySelector(`[name="line_price_${idx}"]`).value || '0').replace(/,/g,'')) || 0;
+    const sub = qty * price;
+    tr.querySelector(`[data-line-total="${idx}"]`).textContent = sub.toLocaleString('ko-KR');
+    grand += sub;
+  });
+  document.getElementById('grandTotal').textContent = grand.toLocaleString('ko-KR');
+  document.getElementById('totalHidden').value = grand;
+}
+// 시작 시 1행 자동 추가
+addLine();
+</script>
+</body></html>

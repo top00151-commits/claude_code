@@ -1,0 +1,72 @@
+{# v5H52 (2026-05-03): 공용 입력 헬퍼 — 금액 input 실시간 천단위 콤마 포맷터 #}
+{# 사용법: <input class="knk-money" name="..."> 또는 type="text"+inputmode="numeric"+name 에 'amount/price/금액' 포함 #}
+<script>
+(function() {
+  function formatNumberWithCommas(s) {
+    if (!s) return '';
+    // 숫자/소수점/마이너스 외 모두 제거
+    var raw = String(s).replace(/[^\d.\-]/g, '');
+    if (raw === '' || raw === '-') return raw;
+    var neg = raw.startsWith('-');
+    if (neg) raw = raw.slice(1);
+    var parts = raw.split('.');
+    var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '-' : '') + intPart + (parts.length > 1 ? '.' + parts[1] : '');
+  }
+  function isMoneyField(el) {
+    if (el.classList.contains('knk-money')) return true;
+    var n = (el.name || '').toLowerCase();
+    return /amount|price|cost|금액|단가|수주액|총액|미수|매출/.test(n);
+  }
+  function attach(el) {
+    if (el.dataset.knkMoneyAttached) return;
+    el.dataset.knkMoneyAttached = '1';
+    // 초기 포맷
+    if (el.value && /^[\-\d.]+$/.test(el.value.replace(/,/g, ''))) {
+      el.value = formatNumberWithCommas(el.value);
+    }
+    el.addEventListener('input', function(e) {
+      var caret = el.selectionStart;
+      var oldLen = el.value.length;
+      el.value = formatNumberWithCommas(el.value);
+      // 캐럿 위치 보정 (콤마 추가/제거 대응)
+      var newLen = el.value.length;
+      try { el.setSelectionRange(caret + (newLen - oldLen), caret + (newLen - oldLen)); } catch(_) {}
+    });
+    // 폼 제출 시 콤마 제거
+    if (el.form) {
+      el.form.addEventListener('submit', function() {
+        el.value = el.value.replace(/,/g, '');
+      });
+    }
+  }
+  function scan() {
+    var inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input:not([type])');
+    inputs.forEach(function(el) {
+      if (isMoneyField(el)) {
+        // type="number" 는 콤마 표시 안되므로 text 로 전환
+        if (el.type === 'number') {
+          el.type = 'text';
+          el.setAttribute('inputmode', 'numeric');
+        }
+        attach(el);
+      }
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scan);
+  } else {
+    scan();
+  }
+})();
+</script>
+<style>
+/* v5H52: 긴 리스트 테이블 — 헤더 고정 + 본문 스크롤
+   .tbl-wrap.tbl-sticky 를 가진 컨테이너에 적용. 부모 height 또는 max-height 필요. */
+.tbl-wrap.tbl-sticky { max-height: calc(100vh - 280px); overflow-y: auto; position: relative; }
+.tbl-wrap.tbl-sticky .tbl thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--paper-2);
+  box-shadow: 0 2px 0 var(--knk-red);
+}
+</style>

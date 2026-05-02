@@ -4204,8 +4204,81 @@ async def _alias_admin_users_new(req: Request):
 
 
 @app.get("/customers/new", response_class=HTMLResponse)
-async def _alias_customers_new(req: Request):
-    return RedirectResponse("/customers", 303)
+async def customers_new_form(req: Request):
+    """v5H52: 고객사 신규 등록 폼 (실제 작동)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "customer_form.html", user=u, active="sales", customer=None)
+
+
+@app.post("/customers/new")
+async def customers_new_submit(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return RedirectResponse("/customers/new?error=name_required", status_code=303)
+    fields = {
+        "name": name,
+        "tier": (form.get("tier") or "일반").strip(),
+        "biz_no": (form.get("biz_no") or "").strip(),
+        "ceo_name": (form.get("ceo_name") or "").strip(),
+        "manager_name": (form.get("manager_name") or "").strip(),
+        "phone": (form.get("phone") or "").strip(),
+        "email": (form.get("email") or "").strip(),
+        "address": (form.get("address") or "").strip(),
+        "is_active": int(form.get("is_active") or 1),
+        "note": (form.get("note") or "").strip(),
+    }
+    with db_session() as c:
+        # name UNIQUE — 중복이면 기존 ID로 리다이렉트
+        existing = c.execute("SELECT id FROM customers WHERE name=?", (name,)).fetchone()
+        if existing:
+            return RedirectResponse(
+                f"/customers?error=duplicate&id={existing['id']}", status_code=303)
+        cols = ",".join(fields.keys())
+        ph = ",".join(["?"] * len(fields))
+        c.execute(f"INSERT INTO customers({cols}) VALUES({ph})", tuple(fields.values()))
+        new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return RedirectResponse(f"/customer/{new_id}", status_code=303)
+
+
+@app.get("/customers/{cid:int}/edit", response_class=HTMLResponse)
+async def customers_edit_form(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        row = c.execute("SELECT * FROM customers WHERE id=?", (cid,)).fetchone()
+    if not row:
+        return RedirectResponse("/customers", 303)
+    return ctx(req, "customer_form.html", user=u, active="sales", customer=dict(row))
+
+
+@app.post("/customers/{cid:int}/edit")
+async def customers_edit_submit(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return RedirectResponse(f"/customers/{cid}/edit?error=name_required", status_code=303)
+    with db_session() as c:
+        c.execute(
+            "UPDATE customers SET name=?, tier=?, biz_no=?, ceo_name=?, "
+            "manager_name=?, phone=?, email=?, address=?, is_active=?, note=? "
+            "WHERE id=?",
+            (name, form.get("tier", "일반"), form.get("biz_no", ""),
+             form.get("ceo_name", ""), form.get("manager_name", ""),
+             form.get("phone", ""), form.get("email", ""),
+             form.get("address", ""), int(form.get("is_active") or 1),
+             form.get("note", ""), cid)
+        )
+    return RedirectResponse(f"/customer/{cid}", status_code=303)
 
 
 @app.get("/orders/new", response_class=HTMLResponse)
@@ -4214,8 +4287,102 @@ async def _alias_orders_new(req: Request):
 
 
 @app.get("/sales/quotes/new", response_class=HTMLResponse)
-async def _alias_sales_quotes_new(req: Request):
-    return RedirectResponse("/sales/quotations", 303)
+async def sales_quotes_new_form(req: Request):
+    """v5H52: 견적 신규 작성 폼 (라인 동적 추가, 실시간 합계, 콤마 포맷)."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name"
+        ).fetchall()]
+    return ctx(req, "sales_quote_form.html", user=u, active="sales_quotations",
+               customers=customers)
+
+
+@app.post("/sales/quotes/new")
+async def sales_quotes_new_submit(req: Request):
+    """v5H52: 견적 + 라인 일괄 INSERT. 라인은 line_name_N/line_qty_N/line_price_N 패턴."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    form = await req.form()
+    customer_id = form.get("customer_id") or None
+    valid_until = form.get("valid_until") or None
+    version = int(form.get("version") or 1)
+    note = form.get("note") or ""
+    # 합계 (콤마 제거)
+    total_raw = (form.get("total_amount") or "0").replace(",", "")
+    try:
+        total_amount = float(total_raw) if total_raw else 0
+    except ValueError:
+        total_amount = 0
+    # 라인 수집
+    line_indices = sorted({
+        int(k.split("_")[-1]) for k in form.keys()
+        if k.startswith("line_name_") and k.split("_")[-1].isdigit()
+    })
+    with db_session() as c:
+        ym = datetime.now().strftime("%Y%m")
+        seq_row = c.execute(
+            "SELECT COUNT(*) FROM quotations WHERE quote_no LIKE ?",
+            (f"QT-{ym}-%",),
+        ).fetchone()
+        seq = (seq_row[0] if seq_row else 0) + 1
+        quote_no = f"QT-{ym}-{seq:04d}"
+        cur = c.execute(
+            "INSERT INTO quotations(quote_no, customer_id, total_amount, "
+            "valid_until, version, status, created_by) "
+            "VALUES(?,?,?,?,?,'DRAFT',?)",
+            (quote_no, customer_id, total_amount, valid_until, version, u.get("id"))
+        )
+        qid = cur.lastrowid
+        for ln, idx in enumerate(line_indices, start=1):
+            name = (form.get(f"line_name_{idx}") or "").strip()
+            if not name:
+                continue
+            qty_raw = (form.get(f"line_qty_{idx}") or "0").replace(",", "")
+            price_raw = (form.get(f"line_price_{idx}") or "0").replace(",", "")
+            try:
+                qty = float(qty_raw)
+                price = float(price_raw)
+            except ValueError:
+                qty = price = 0
+            c.execute(
+                "INSERT INTO quotation_items(quotation_id, line_no, item_name, "
+                "qty, unit, unit_price, total_price) VALUES(?,?,?,?,?,?,?)",
+                (qid, ln, name, qty,
+                 form.get(f"line_unit_{idx}") or "EA",
+                 price, qty * price)
+            )
+    return RedirectResponse(f"/sales/quotes/{qid}", status_code=303)
+
+
+@app.get("/sales/quotes/{qid:int}", response_class=HTMLResponse)
+async def sales_quote_detail(req: Request, qid: int):
+    """견적 상세 — 라인 + 합계 + 인쇄/수주전환 액션."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        row = c.execute(
+            """SELECT q.*, COALESCE(cu.name,'-') AS customer_name,
+                      uc.name AS created_by_name
+               FROM quotations q
+               LEFT JOIN customers cu ON cu.id = q.customer_id
+               LEFT JOIN users uc ON uc.id = q.created_by
+               WHERE q.id=?""",
+            (qid,)
+        ).fetchone()
+        if not row:
+            return RedirectResponse("/sales/quotations", 303)
+        quote = dict(row)
+        items = [dict(r) for r in c.execute(
+            "SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY line_no",
+            (qid,)
+        ).fetchall()]
+    return ctx(req, "sales_quote_detail.html", user=u, active="sales_quotations",
+               quote=quote, items=items)
 
 
 @app.get("/sales/shipments/new", response_class=HTMLResponse)
@@ -5705,27 +5872,42 @@ async def projects_new_form(request: Request):
 
 
 @app.post("/projects/new")
-async def projects_new_submit(
-    request: Request,
-    biz_div: str = Form(...), project_name: str = Form(...),
-    customer: str = Form(""), model: str = Form(""),
-    stage: str = Form("제안작성"), po_type: str = Form("신규"),
-    status: str = Form("수주예정"), customer_po: str = Form(""),
-    currency: str = Form("KRW"), order_amount: str = Form("0"),
-    order_date: str = Form(""), due_date: str = Form(""),
-    pm: str = Form(""), sales: str = Form(""), note: str = Form(""),
-):
+async def projects_new_submit(request: Request):
+    """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
+    정합. 콤마 들어간 KRW 입력값도 자동 정리."""
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
+    form = await request.form()
+    # 템플릿/대체 필드명 둘 다 허용 (호환)
+    project_name = (form.get("name") or form.get("project_name") or "").strip()
+    customer = (form.get("customer_name") or form.get("customer") or "").strip()
+    biz_div = (form.get("biz_div") or "").strip()
+    if not project_name:
+        return RedirectResponse("/projects/new?error=name_required", status_code=303)
+    if not biz_div:
+        return RedirectResponse("/projects/new?error=biz_div_required", status_code=303)
+    # 콤마 제거 후 숫자로
+    raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
+    try:
+        amt = float(raw_amt) if raw_amt else 0
+    except ValueError:
+        amt = 0
     _logi.projects_create_logi({
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
-        "model": model, "stage": stage, "po_type": po_type, "status": status,
-        "customer_po": customer_po, "currency": currency,
-        "order_amount": order_amount, "order_date": order_date, "due_date": due_date,
-        "pm": pm, "sales": sales, "note": note,
+        "model": form.get("model", ""),
+        "stage": form.get("stage", "제안작성") or "제안작성",
+        "po_type": form.get("po_type", "신규") or "신규",
+        "status": form.get("status", "수주예정") or "수주예정",
+        "customer_po": form.get("customer_po", ""),
+        "currency": form.get("currency", "KRW") or "KRW",
+        "order_amount": amt,
+        "order_date": form.get("order_date", ""),
+        "due_date": form.get("due_date", ""),
+        "pm": form.get("pm", ""), "sales": form.get("sales", ""),
+        "note": form.get("note", ""),
     })
     return RedirectResponse("/projects", status_code=303)
 
