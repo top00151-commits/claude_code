@@ -61,12 +61,41 @@
 })();
 </script>
 <style>
-/* v5H52: 긴 리스트 테이블 — 헤더 고정 + 본문 스크롤
-   .tbl-wrap.tbl-sticky 를 가진 컨테이너에 적용. 부모 height 또는 max-height 필요. */
-.tbl-wrap.tbl-sticky { max-height: calc(100vh - 280px); overflow-y: auto; position: relative; }
+/* v5H52/v5H53: 테이블 본문 스크롤 + 헤더 고정 (엑셀 틀고정 스타일)
+   - 기본: 메인 영역 한 페이지 한 테이블 → 화면 하단까지 스크롤
+   - section-card 내부 (디테일 페이지 카드): 더 작은 max-height (400px)
+   - 좁은 화면 (1023px↓): max-height 더 작게 */
+.tbl-wrap.tbl-sticky {
+  max-height: calc(100vh - 280px);
+  min-height: 200px;
+  overflow-y: auto;
+  position: relative;
+}
 .tbl-wrap.tbl-sticky .tbl thead th {
   position: sticky; top: 0; z-index: 5;
   background: var(--paper-2);
   box-shadow: 0 2px 0 var(--knk-red);
+}
+/* tfoot 도 하단 고정 (있는 경우) */
+.tbl-wrap.tbl-sticky .tbl tfoot tr {
+  position: sticky; bottom: 0; z-index: 4;
+  background: var(--paper-2);
+  box-shadow: 0 -2px 0 var(--line);
+}
+/* 디테일 페이지 카드 안 — 더 컴팩트 */
+.section-card .tbl-wrap.tbl-sticky,
+.card .tbl-wrap.tbl-sticky {
+  max-height: 420px;
+  min-height: 0;
+}
+/* 모바일: 가로 스크롤도 허용 */
+@media (max-width: 1023px) {
+  .tbl-wrap.tbl-sticky { max-height: calc(100vh - 200px); overflow-x: auto; }
+}
+/* 인쇄 시 sticky/스크롤 해제 — 모든 행 노출 */
+@media print {
+  .tbl-wrap.tbl-sticky { max-height: none !important; overflow: visible !important; }
+  .tbl-wrap.tbl-sticky .tbl thead th,
+  .tbl-wrap.tbl-sticky .tbl tfoot tr { position: static !important; box-shadow: none !important; }
 }
 </style>

@@ -27,7 +27,7 @@
 
   <div class="section">
     <h2>미해결 이슈 ({{ items|length if items else 0 }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       {% if items %}
       <table class="tbl">
         <thead><tr><th>#</th><th>제목</th><th class="center">심각</th><th class="center">유형</th><th class="center">SLA</th><th>발생</th><th class="center">담당팀</th></tr></thead>

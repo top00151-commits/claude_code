@@ -24,7 +24,7 @@
 
   <div class="section">
     <h2>팀원 ({{ members|length if members else 0 }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       {% if members %}
       <table class="tbl">
         <thead><tr><th>이름</th><th>직급</th><th class="center">권한</th><th class="num">직접</th><th class="num">그룹</th><th class="num">위임</th>{% if is_admin_actor %}<th class="center">액션</th>{% endif %}</tr></thead>

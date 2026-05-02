@@ -27,7 +27,7 @@
   <!-- 라인 -->
   <div class="section">
     <h2>📦 수주 라인 ({{ items|length }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
         <thead><tr><th>품번</th><th>품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead>
         <tbody>
@@ -54,7 +54,7 @@
       <div>
         <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">📄 발행 송장 ({{ invoices|length }})</h3>
         {% if invoices %}
-        <div class="tbl-wrap">
+        <div class="tbl-wrap tbl-sticky">
           <table class="tbl">
             <thead><tr><th>송장번호</th><th>발행일</th><th class="num">금액(VAT포함)</th><th>상태</th></tr></thead>
             <tbody>
@@ -70,7 +70,7 @@
       <div>
         <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">💰 수금 내역 ({{ receipts|length }})</h3>
         {% if receipts %}
-        <div class="tbl-wrap">
+        <div class="tbl-wrap tbl-sticky">
           <table class="tbl">
             <thead><tr><th>수금일</th><th class="num">금액</th><th>방법</th><th>비고</th></tr></thead>
             <tbody>
@@ -89,7 +89,7 @@
   {% if history %}
   <div class="section">
     <h2>📜 상태 이력</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
         <thead><tr><th>일시</th><th>변경자</th><th>이전</th><th>이후</th><th>비고</th></tr></thead>
         <tbody>

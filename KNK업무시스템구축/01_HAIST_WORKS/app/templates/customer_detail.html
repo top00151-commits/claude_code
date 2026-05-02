@@ -35,7 +35,7 @@
       <div class="section-card">
         <h3>프로젝트 ({{ pjts|length }})</h3>
         {% if pjts %}
-        <table class="tbl" style="border:0;">
+        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
           <thead><tr><th>관리코드</th><th>프로젝트명</th><th class="center">단계</th><th class="center">상태</th><th class="num">수주액</th></tr></thead>
           <tbody>
           {% for p in pjts %}
@@ -48,21 +48,21 @@
             </tr>
           {% endfor %}
           </tbody>
-        </table>
+        </table></div>
         {% else %}<div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">프로젝트 없음</div>{% endif %}
       </div>
 
       {% if tasks %}
       <div class="section-card">
         <h3>최근 업무 ({{ total_tasks }})</h3>
-        <table class="tbl" style="border:0;">
+        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
           <thead><tr><th>일자</th><th>담당</th><th>제목</th><th class="center">상태</th></tr></thead>
           <tbody>
           {% for t in tasks[:15] %}
             <tr><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td></tr>
           {% endfor %}
           </tbody>
-        </table>
+        </table></div>
       </div>
       {% endif %}
     </div>

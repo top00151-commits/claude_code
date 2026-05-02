@@ -14,7 +14,7 @@
 
   <div class="section">
     <h2>팀별 작성 현황 ({{ teams|length if teams else 0 }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       {% if teams %}
       <table class="tbl">
         <thead><tr><th>팀</th><th>팀장</th><th class="num">팀원</th><th class="num">작성</th><th class="num">미작성</th><th class="center">참여율</th><th class="center">알림</th></tr></thead>

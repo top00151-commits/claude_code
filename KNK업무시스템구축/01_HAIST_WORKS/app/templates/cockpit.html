@@ -19,7 +19,7 @@
   {% if stuck %}
   <div class="section">
     <h2>🐢 정체 업무 ({{ stuck|length }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
         <thead><tr><th>제목</th><th>담당</th><th>상태</th><th class="num">정체일</th></tr></thead>
         <tbody>
@@ -33,7 +33,7 @@
   {% if missing %}
   <div class="section">
     <h2>📭 미작성 일일업무 ({{ missing|length }})</h2>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
         <thead><tr><th>이름</th><th>팀</th><th>역할</th></tr></thead>
         <tbody>
