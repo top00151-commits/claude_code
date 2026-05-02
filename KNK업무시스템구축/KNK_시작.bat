@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H9 대표 지적 2건 — (1) sales_home/logistics_home chrome partial 적용 (로고/빅터아이콘 누락 해결), (2) 매출 19개+자재 36개 페이지에 active_tab='sales'|'logi' 일괄 설정 (고객사 클릭→통합플랫폼 전환 버그 해결: 사이드바가 원래 허브 유지) / Jinja2 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H10 대표 지시 — 사이드바 통합 (3허브 분기 폐지, 단일 사이드바 모든 메뉴 항상 노출) + URL 자동 active 감지 (request.url.path 기반, 페이지에서 active 변수 설정 불필요) / Jinja2 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H9 대표 지적 2건 — 매출/자재 허브 chrome 통일 + 55개 페이지 active_tab 설정 (사이드바 허브 유지)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H10 사이드바 통합 + URL 자동 active 감지 — 페이지 어디서든 동일 사이드바, 클릭한 메뉴 자동 하이라이트]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

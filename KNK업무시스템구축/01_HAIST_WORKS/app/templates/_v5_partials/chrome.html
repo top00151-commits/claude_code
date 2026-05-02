@@ -1,14 +1,22 @@
 {# ============================================================
-   _v5_partials/chrome.html — v5H5 STANDALONE 공통 chrome (header + sidebar)
-   2026-05-02 신설 — 매 페이지 200+ 줄 보일러플레이트 제거
+   _v5_partials/chrome.html — v5H10 통합 사이드바 (대표 지시 2026-05-02)
+   - 사이드바는 페이지마다 바뀌지 않고 항상 동일 구조 유지
+   - active 표시는 request.url.path 기반 자동 감지 (페이지에서 설정 불필요)
+   - active_tab 은 상단 토픽바 활성화에만 사용 (사이드바와 무관)
    사용:  {% include "_v5_partials/chrome.html" with context %}
-   필수 컨텍스트:  user, active (= 'home'|'daily'|'po'|'parts'...)
-   active_tab:  'home'|'sales'|'logi' (top-tab 활성)
    ============================================================ #}
 
-{% set _act = active|default('home') %}
+{% set _path = (request.url.path if request and request.url else '') %}
 {% set _at = active_tab|default('home') %}
 {% set _role = (user.role or 'member')|lower %}
+
+{# 헬퍼: 현재 경로가 path와 정확히 일치하거나 하위 경로면 active #}
+{% macro a(path, label, code='') -%}
+  {%- set is_active = (_path == path) or (path != '/' and _path.startswith(path + '/')) -%}
+  <a class="sb-item{% if is_active %} active{% endif %}" href="{{ path }}">
+    <span>{{ label }}</span>{% if code %} <span class="menu-code">{{ code }}</span>{% endif %}
+  </a>
+{%- endmacro %}
 
 <header class="top">
   <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="메뉴">☰</button>
@@ -37,66 +45,51 @@
 </header>
 
 <aside class="sidebar">
-  {% if _at == 'logi' %}
-    {# 자재·구매 hub 항목 제거 — 토픽바 "자재구매센터" 탭과 중복 #}
-    <div class="sb-group">발주 흐름</div>
-    <a class="sb-item {% if _act == 'po_new' %}active{% endif %}" href="/po/new">📝 발주서 작성 <span class="menu-code">M-02-04</span></a>
-    <a class="sb-item {% if _act == 'po' %}active{% endif %}" href="/po">📋 발주 목록 <span class="menu-code">M-02-05</span></a>
-    <a class="sb-item {% if _act == 'receipts' %}active{% endif %}" href="/receipts">📦 입고 처리 <span class="menu-code">M-02-06</span></a>
+  <div class="sb-group">내 업무</div>
+  {{ a('/home',          '🏠 업무현황',     'M-00-01') }}
+  {{ a('/daily',         '📝 일일업무',     'M-00-02') }}
+  {{ a('/calendar',      '📅 캘린더',       'M-00-08') }}
+  {{ a('/notifications', '📢 알림함',       'M-00-09') }}
+  {{ a('/tickets',       '🎫 티켓',         'M-00-12') }}
 
-    <div class="sb-group">재고</div>
-    <a class="sb-item {% if _act == 'parts' %}active{% endif %}" href="/parts">📊 자재 마스터 <span class="menu-code">M-02-02</span></a>
-    <a class="sb-item {% if _act == 'stock' %}active{% endif %}" href="/stock">📚 수불부 <span class="menu-code">M-02-07</span></a>
-    <a class="sb-item {% if _act == 'issues' %}active{% endif %}" href="/issues">📤 출고 등록 <span class="menu-code">M-02-08</span></a>
+  <div class="sb-group">매출·영업</div>
+  {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
+  {{ a('/projects',              '📊 프로젝트',    'M-01-12') }}
+  {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
+  {{ a('/sales/quotations',      '📋 견적서',      'M-01-02') }}
+  {{ a('/sales/orders',          '📑 수주',        'M-01-03') }}
+  {{ a('/sales/shipments-receipts','🚚 출하·수금', 'M-01-04') }}
+  {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
+  {{ a('/export',                '🌐 수출입',      'M-01-10') }}
 
-    <div class="sb-group">기타</div>
-    <a class="sb-item {% if _act == 'suppliers' %}active{% endif %}" href="/suppliers">🏢 공급사 <span class="menu-code">M-02-03</span></a>
-    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
+  <div class="sb-group">자재·구매</div>
+  {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
+  {{ a('/parts',             '🔩 부품 마스터', 'M-02-02') }}
+  {{ a('/suppliers',         '🏭 공급사',      'M-02-03') }}
+  {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
+  {{ a('/po/new',            '📝 발주 작성',   'M-02-04') }}
+  {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
+  {{ a('/stock/issue',       '📤 출고 등록',   'M-02-08') }}
+  {{ a('/rates',             '💱 환율',        'M-02-13') }}
 
-  {% elif _at == 'sales' %}
-    {# 매출·영업 hub 항목 제거 — 토픽바 "매출영업센터" 탭과 중복 #}
-    <div class="sb-group">관리</div>
-    <a class="sb-item {% if _act == 'projects' %}active{% endif %}" href="/projects">📊 프로젝트 <span class="menu-code">M-01-02</span></a>
-    <a class="sb-item {% if _act == 'customers' %}active{% endif %}" href="/customers">🏢 고객사 <span class="menu-code">M-01-03</span></a>
-    <a class="sb-item {% if _act == 'sales_quotes' %}active{% endif %}" href="/sales/quotes">📋 견적 <span class="menu-code">M-01-04</span></a>
-    <a class="sb-item {% if _act == 'sales_orders' %}active{% endif %}" href="/orders">📑 수주 <span class="menu-code">M-01-05</span></a>
-
-    <div class="sb-group">보고</div>
-    {% if _role in ('ceo','admin','executive','leader') %}
-    <a class="sb-item {% if _act == 'dashboard' %}active{% endif %}" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
-    {% endif %}
-    <a class="sb-item {% if _act == 'weekly' %}active{% endif %}" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
-
-    <div class="sb-group">기타</div>
-    <a class="sb-item" href="/home">↩ 통합 플랫폼</a>
-
-  {% else %}
-    {# 워크스페이스 그룹 (통합/매출/자재) 제거 — 토픽바 탭과 중복 (대표 지시 2026-05-02) #}
-    <div class="sb-group">빠른 시작</div>
-    <a class="sb-item {% if _act == 'daily' %}active{% endif %}" href="/daily">📝 일일업무 <span class="menu-code">M-00-02</span></a>
-    <a class="sb-item {% if _act == 'notifications' %}active{% endif %}" href="/notifications">📢 알림함 <span class="menu-code">M-00-09</span></a>
-    <a class="sb-item {% if _act == 'tickets' %}active{% endif %}" href="/tickets">🎫 티켓 <span class="menu-code">M-00-12</span></a>
-    <a class="sb-item {% if _act == 'calendar' %}active{% endif %}" href="/calendar">📅 캘린더 <span class="menu-code">M-00-08</span></a>
-
-    <div class="sb-group">팀 / 보고</div>
-    <a class="sb-item {% if _act == 'team' %}active{% endif %}" href="/team">👥 팀 대시보드 <span class="menu-code">M-00-07</span></a>
-    <a class="sb-item {% if _act == 'weekly' %}active{% endif %}" href="/weekly">📑 주간 보고 <span class="menu-code">M-05-02</span></a>
-    {% if _role in ('ceo','admin','executive','leader') %}
-    <a class="sb-item {% if _act == 'dashboard' %}active{% endif %}" href="/dashboard">🏢 대표 대시 <span class="menu-code">M-05-01</span></a>
-    {% endif %}
-
-    <div class="sb-group">협업·추적</div>
-    <a class="sb-item {% if _act == 'changes' %}active{% endif %}" href="/changes">📌 변경 공지 <span class="menu-code">M-00-04</span></a>
-    <a class="sb-item {% if _act == 'issues' %}active{% endif %}" href="/issues">🚨 이슈·AS <span class="menu-code">M-00-05</span></a>
-    <a class="sb-item {% if _act == 'search' %}active{% endif %}" href="/search">🔍 검색 <span class="menu-code">M-00-11</span></a>
-
-    {% if _role in ('ceo','admin') %}
-    <div class="sb-group">관리</div>
-    <a class="sb-item {% if _act == 'admin' %}active{% endif %}" href="/admin">⚙️ 관리자 <span class="menu-code">M-04-01</span></a>
-    <a class="sb-item" href="/admin/permissions">🔐 권한 위임 <span class="menu-code">M-04-02</span></a>
-    {% endif %}
-
-    <div class="sb-group">&nbsp;</div>
-    <a class="sb-item" href="/guide" target="_blank">📖 사용 가이드 ↗ <span class="menu-code">M-00-13</span></a>
+  <div class="sb-group">팀 / 보고</div>
+  {{ a('/team',      '👥 팀 대시보드', 'M-00-07') }}
+  {{ a('/weekly',    '📊 주간 보고',   'M-05-02') }}
+  {% if _role in ('ceo','admin','executive','leader') %}
+  {{ a('/dashboard', '🏢 대표 대시',   'M-05-01') }}
   {% endif %}
+
+  <div class="sb-group">협업·추적</div>
+  {{ a('/changes', '📌 변경 공지', 'M-00-04') }}
+  {{ a('/issues',  '🚨 이슈·AS',   'M-00-05') }}
+  {{ a('/search',  '🔍 검색',      'M-00-11') }}
+
+  {% if _role in ('ceo','admin') %}
+  <div class="sb-group">관리</div>
+  {{ a('/admin',             '⚙️ 관리자',    'M-04-01') }}
+  {{ a('/admin/permissions', '🔐 권한 위임', 'M-04-02') }}
+  {% endif %}
+
+  <div class="sb-group">&nbsp;</div>
+  <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
 </aside>
