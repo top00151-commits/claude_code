@@ -1408,6 +1408,34 @@ async def api_delete_comment(req: Request, cid: int):
 # =====================================================
 # TASK DETAIL — 모달용 단일 카드 정보 (어디서든 호출)
 # =====================================================
+# v5H30 (2026-05-02) — 일일업무 카드 상세 페이지 (대표 지시: 상세 클릭 시 페이지 부재)
+@app.get("/task/{tid}", response_class=HTMLResponse)
+async def task_detail_page(request: Request, tid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        t = c.execute(
+            """SELECT t.*, u.name AS user_name, u.rank AS user_rank,
+                      p.name AS project_name, p.code AS project_code, p.id AS project_id_link,
+                      cs.name AS customer_name, cs.id AS customer_id_link,
+                      tm.name AS team_name
+               FROM tasks t LEFT JOIN users u ON t.user_id=u.id
+               LEFT JOIN projects p ON t.project_id=p.id
+               LEFT JOIN customers cs ON t.customer_id=cs.id
+               LEFT JOIN teams tm ON u.team_id=tm.id
+               WHERE t.id=?""", (tid,)
+        ).fetchone()
+        if not t:
+            return HTMLResponse("<h1>업무 카드를 찾을 수 없습니다</h1><a href='/daily'>← 일일업무로</a>", 404)
+        task = dict(t)
+    comments = get_task_comments(tid)
+    reactions = get_reactions(tid)
+    return ctx(request, "task_detail.html",
+               user=u, active="daily",
+               task=task, comments=comments, reactions=reactions)
+
+
 @app.get("/api/task/{tid}/detail")
 async def api_task_detail(req: Request, tid: int):
     u = get_user(req)

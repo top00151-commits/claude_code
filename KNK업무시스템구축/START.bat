@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H29 일일업무 입력 UX — qa-bar CSS 분리(제목 borderless+큰글씨 vs 보조 border+작은글씨, 사이 divider), 고객사 datalist combobox + '사내업무' 기본 옵션, DB tasks.customer_label 마이그레이션 / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H30 업무 카드 상세 페이지 신규 — /task/{tid} 라우트 + task_detail.html (상태 변경 4-pill, 제목/메모/다음계획/마감일/공수 인라인 수정, 댓글 thread+추가, 우측 사이드 분류/일정/작성자/반응) / 154/154 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H29 일일업무 입력 UX — 시각 구분 + 고객사 자유 입력]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H30 업무 카드 상세 페이지 신규]
 
 echo.
 echo ============================================================

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/>
+<title>{{ task.title }} · 업무 상세 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-5); margin: 0 var(--content-pad); }
+.detail-main { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.detail-side { display: flex; flex-direction: column; gap: var(--space-3); }
+.side-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5); }
+.side-card h3 { font-size: 12px; font-weight: 700; color: var(--knk-red); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.kv { display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-size: 13px; padding: 6px 0; }
+.kv .k { color: var(--mute); font-weight: 600; }
+.kv .v { color: var(--ink); }
+.kv .v b { color: var(--knk-red); }
+.field-block { margin-bottom: var(--space-5); }
+.field-block label { font-size: 11px; color: var(--knk-red); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.field-block textarea, .field-block input[type="text"], .field-block input[type="date"] {
+  width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink); font-family: inherit; box-sizing: border-box;
+}
+.field-block textarea { min-height: 100px; resize: vertical; line-height: 1.6; }
+.field-block textarea:focus, .field-block input:focus { outline: none; border-color: var(--knk-red); box-shadow: 0 0 0 2px rgba(165,40,44,0.15); }
+.status-row { display: flex; gap: 8px; margin-bottom: var(--space-5); flex-wrap: wrap; }
+.status-pill { padding: 8px 16px; border-radius: var(--radius-full); border: 1px solid var(--line); font-size: 13px; font-weight: 600; cursor: pointer; background: var(--paper); color: var(--ink); transition: all .15s; }
+.status-pill:hover { border-color: var(--knk-red); color: var(--knk-red); }
+.status-pill.active { background: var(--knk-red); color: white; border-color: var(--knk-red); box-shadow: 0 4px 12px rgba(165,40,44,0.25); }
+.status-pill[data-s="완료"].active { background: var(--success); border-color: var(--success); }
+.status-pill[data-s="지연"].active { background: var(--knk-red); }
+
+.cmt-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.cmt { background: var(--paper-2); border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px; }
+.cmt-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; color: var(--mute); }
+.cmt-head b { color: var(--knk-red); font-weight: 700; }
+.cmt-body { color: var(--ink); line-height: 1.6; white-space: pre-wrap; }
+.cmt-form { margin-top: 14px; display: flex; gap: 8px; }
+.cmt-form input { flex: 1; padding: 8px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-family: inherit; }
+.cmt-form input:focus { outline: none; border-color: var(--knk-red); }
+
+.action-bar { display: flex; gap: 10px; justify-content: flex-end; margin-top: var(--space-5); }
+@media (max-width: 1023px) { .detail-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="crumbs"><a href="/daily">일일업무</a> · <b>업무 상세</b></div>
+        <h1 class="page-title">{{ task.title }}</h1>
+        <div class="page-meta" style="margin-top:6px;">{{ task.work_date }} · {{ task.user_name|default('—') }}{% if task.user_rank %} {{ task.user_rank }}{% endif %}{% if task.team_name %} · {{ task.team_name }}{% endif %}</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <a class="btn btn-secondary" href="/daily">← 목록</a>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <!-- 좌측: 본문 -->
+      <div class="detail-main">
+        <!-- 상태 변경 -->
+        <div class="field-block">
+          <label>상태</label>
+          <div class="status-row" id="statusRow">
+            {% for s in ['진행중','완료','보류','지연'] %}
+            <button class="status-pill {% if task.status == s %}active{% endif %}" data-s="{{ s }}" onclick="changeStatus('{{ s }}')">{{ s }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- 제목 / 카테고리 -->
+        <div class="field-block">
+          <label>업무 제목</label>
+          <input type="text" id="fTitle" value="{{ task.title }}">
+        </div>
+
+        <!-- 노트 -->
+        <div class="field-block">
+          <label>업무 메모 / 진행 상황</label>
+          <textarea id="fNotes" placeholder="진행 상황·이슈·결정사항 등을 자유롭게 기록하세요">{{ task.notes|default('') }}</textarea>
+        </div>
+
+        <!-- 다음 계획 -->
+        <div class="field-block">
+          <label>다음 계획 (Next Plan)</label>
+          <textarea id="fNextPlan" placeholder="다음 단계·내일 할 일·후속 조치">{{ task.next_plan|default('') }}</textarea>
+        </div>
+
+        <!-- 마감 / 공수 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="field-block">
+            <label>마감일</label>
+            <input type="date" id="fDue" value="{{ task.due_date|default('') }}">
+          </div>
+          <div class="field-block">
+            <label>공수 (시간)</label>
+            <input type="text" id="fHours" value="{{ task.hours|default(0) }}" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn btn-secondary" onclick="location.href='/daily'">취소</button>
+          <button class="btn btn-primary" onclick="saveTask()">💾 저장</button>
+        </div>
+
+        <!-- 댓글 -->
+        <div class="field-block" style="margin-top:var(--space-7);">
+          <label>💬 댓글 ({{ comments|length }})</label>
+          <div class="cmt-list">
+            {% for c in comments %}
+            <div class="cmt">
+              <div class="cmt-head"><b>{{ c.author_name|default('—') }}</b><span>{{ c.created_at|default('') }}</span></div>
+              <div class="cmt-body">{{ c.body }}</div>
+            </div>
+            {% else %}
+            <div class="cmt" style="text-align:center;color:var(--mute);">아직 댓글이 없습니다</div>
+            {% endfor %}
+          </div>
+          <form class="cmt-form" onsubmit="event.preventDefault();addComment();">
+            <input type="text" id="cmtInput" placeholder="댓글 입력 후 Enter">
+            <button type="submit" class="btn btn-primary">전송</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 우측: 메타 정보 -->
+      <div class="detail-side">
+        <div class="side-card">
+          <h3>📋 분류</h3>
+          <div class="kv"><span class="k">프로젝트</span><span class="v">
+            {% if task.project_name %}<a href="/project/{{ task.project_id_link }}" style="color:var(--knk-red);"><b>{{ task.project_code|default('') }}</b> {{ task.project_name }}</a>
+            {% elif task.project_label %}<b>{{ task.project_label }}</b>
+            {% else %}<span style="color:var(--mute);">—</span>{% endif %}
+          </span></div>
+          <div class="kv"><span class="k">고객사</span><span class="v">
+            {% if task.customer_name %}<a href="/customers/{{ task.customer_id_link }}" style="color:var(--knk-red);">{{ task.customer_name }}</a>
+            {% elif task.customer_label %}<b>{{ task.customer_label }}</b>
+            {% else %}<span style="color:var(--mute);">—</span>{% endif %}
+          </span></div>
+          <div class="kv"><span class="k">카테고리</span><span class="v">{{ task.category|default('기타') }}</span></div>
+        </div>
+
+        <div class="side-card">
+          <h3>🕐 일정</h3>
+          <div class="kv"><span class="k">작성일</span><span class="v" style="font-family:monospace;font-size:12px;">{{ task.created_at|default('—') }}</span></div>
+          <div class="kv"><span class="k">수정일</span><span class="v" style="font-family:monospace;font-size:12px;">{{ task.updated_at|default('—') }}</span></div>
+          <div class="kv"><span class="k">업무일</span><span class="v" style="font-family:monospace;font-size:12px;">{{ task.work_date|default('—') }}</span></div>
+          <div class="kv"><span class="k">마감일</span><span class="v"><b style="color:var(--knk-red);">{{ task.due_date|default('미설정') }}</b></span></div>
+        </div>
+
+        <div class="side-card">
+          <h3>👤 작성자</h3>
+          <div class="kv"><span class="k">담당자</span><span class="v"><b>{{ task.user_name|default('—') }}</b>{% if task.user_rank %} {{ task.user_rank }}{% endif %}</span></div>
+          <div class="kv"><span class="k">소속팀</span><span class="v">{{ task.team_name|default('—') }}</span></div>
+        </div>
+
+        {% if reactions %}
+        <div class="side-card">
+          <h3>👍 반응</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:13px;">
+            {% for r in reactions %}<span style="background:var(--paper-2);padding:4px 10px;border-radius:var(--radius-full);">{{ r.kind }} {{ r.count }}</span>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="height: var(--space-7);"></div>
+  </main>
+</div>
+
+<script>
+const TID = {{ task.id }};
+async function changeStatus(s) {
+  const r = await fetch('/api/task/' + TID + '/status', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: s })
+  });
+  if (r.ok) {
+    document.querySelectorAll('.status-pill').forEach(p => p.classList.toggle('active', p.dataset.s === s));
+  } else {
+    alert('상태 변경 실패');
+  }
+}
+async function saveTask() {
+  const body = {
+    title: document.getElementById('fTitle').value.trim(),
+    notes: document.getElementById('fNotes').value,
+    next_plan: document.getElementById('fNextPlan').value,
+    due_date: document.getElementById('fDue').value || null,
+    hours: parseFloat(document.getElementById('fHours').value) || 0,
+    category: '{{ task.category|default("기타") }}',
+    project_id: {{ task.project_id|default('null') }},
+    customer_id: {{ task.customer_id|default('null') }},
+  };
+  const r = await fetch('/api/task/' + TID, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    alert('저장 실패');
+  }
+}
+async function addComment() {
+  const inp = document.getElementById('cmtInput');
+  const v = inp.value.trim();
+  if (!v) return;
+  const r = await fetch('/api/task/' + TID + '/comment', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ body: v })
+  });
+  if (r.ok) location.reload();
+}
+</script>
+</body>
+</html>

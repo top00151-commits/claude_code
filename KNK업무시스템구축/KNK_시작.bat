@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H29 일일업무 입력 UX 추가 정리 (대표 지시) — (1) qa-bar CSS 분리: 업무 제목(borderless·14px·focus 시 KNK red ring) vs 보조입력(border·12px·padding 6/10) + 사이 verticla divider qa-sep 1px, (2) 고객사도 select → input+datalist combobox: '사내업무' 기본 옵션 + DB 고객사(data-cid) 자유 추가, (3) DB tasks.customer_label TEXT 마이그레이션, /api/task POST에서 customer_id 또는 customer_label 자동 분기, (4) task 표시 시 customer_name → fallback customer_label / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H30 업무 카드 상세 페이지 신규 (대표 지시) — daily.html '상세' 클릭 → /task/{tid} 라우트 미존재 404 → main.py @app.get('/task/{tid}') 신규 + task_detail.html 신규 작성: 좌측 본문(상태 변경 4-pill·제목·메모·다음계획·마감일·공수·💬댓글 thread+추가폼), 우측 사이드(분류/일정/작성자/반응 4 카드), 기존 /api/task PUT·status·comment API 재사용, project_label/customer_label 표시, 154/154 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H29 일일업무 입력 UX — 시각 구분 + 고객사 자유 입력 + 사내업무]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H30 업무 카드 상세 페이지 신규 — /task/{tid}]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
