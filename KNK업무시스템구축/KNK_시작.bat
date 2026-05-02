@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H20 패턴 정밀화 + 적용 영역 대폭 확대 (대표 지시) — (1) 부정확 SVG 폐기, PDF 원본(패턴디자인_3_v1) 300dpi PNG에서 직접 seamless 타일 추출 (knk_pattern.png 450×390 + knk_pattern_subtle.png 10% opacity), (2) 적용 영역 확대: 상단바 우측·상단바 하단 8px 띠·사이드바 하단·page-head 우측+좌측 6px 레드바·card 우상단+우하단·KPI 카드 luminosity blend·btn-primary multiply blend·테이블 th 내부·empty state·login welcome panel multiply / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H21 패턴 적용 전수 제거 (대표 지시 — 분석 후 지정 영역에만 재적용 예정) — styles.html 10개 영역, login.html 2개 영역의 knk_pattern* 참조 모두 삭제, PNG 파일은 보존, 패턴 기하 재분석: 정삼각 X / 헥사곤 X — 실제 구조는 hexagon 내부 3개 rhombus(60°/120°) tessellation (isometric cube illusion), 각 rhombus에 5개 평행 stripe(외곽 hex edge와 평행) / 153/153 PASS
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H20 PDF 원본 패턴 PNG 추출 + 10개 영역 적용 (상단바·사이드바·page-head·card·KPI·btn·테이블·empty·login welcome·login bg)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H21 패턴 적용 전수 제거 (대표 지시 — 분석 후 지정 영역에만 재적용)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

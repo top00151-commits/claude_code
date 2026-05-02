@@ -22,10 +22,8 @@ body {
   place-items: center;
   background: var(--paper);
   background-image:
-    url('/static/knk_pattern_subtle.png'),
     radial-gradient(circle at 15% 20%, rgba(165,40,44,0.10) 0%, transparent 50%),
     radial-gradient(circle at 85% 80%, rgba(165,40,44,0.06) 0%, transparent 55%);
-  background-size: 240px auto, auto, auto;
   color: var(--ink);
 }
 .wrap {
@@ -36,17 +34,12 @@ body {
   margin: 40px;
 }
 .welcome {
-  background:
-    url('/static/knk_pattern.png') center / 320px auto,
-    linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%);
-  background-blend-mode: multiply, normal;
+  background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%);
   color: white; padding: 56px 52px;
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   min-height: 600px;
 }
-.welcome::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(165,40,44,0.65) 0%, rgba(122,29,32,0.78) 100%); }
-.welcome > * { position: relative; z-index: 2; }
 .welcome-top { position: relative; z-index: 2; }
 .welcome-logo { background: white; padding: 12px 18px; border-radius: 14px; display: inline-block; box-shadow: 0 8px 22px rgba(0,0,0,0.15); }
 .welcome-logo img { height: 32px; display: block; }

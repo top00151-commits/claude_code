@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-02 v5H20 패턴 정밀화 + 적용 영역 대폭 확대 — PDF 원본 PNG 추출(SVG 폐기), 10개 영역 적용 (상단바·사이드바·page-head·card·KPI·btn·테이블·empty·login welcome·login bg) / 153/153 PASS
+REM   LAST UPDATE: 2026-05-02 v5H21 패턴 적용 전수 제거 — styles.html 10개 영역 + login.html 2개 영역 모든 knk_pattern 참조 삭제, PNG 파일은 보존, 패턴 기하 재분석: hexagon 내부 3개 rhombus(60°/120°) tessellation (isometric cube illusion) 확정 / 153/153 PASS
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H20 PDF 원본 패턴 PNG 추출 + 10개 영역 적용]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-02 v5H21 패턴 적용 제거 + 패턴 구조 재분석 (rhombus tessellation 확정)]
 
 echo.
 echo ============================================================
