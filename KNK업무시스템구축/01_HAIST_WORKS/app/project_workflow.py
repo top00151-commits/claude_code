@@ -54,34 +54,36 @@ def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
 
 def generate_so_no(c, biz_div: str = "T",
                     ref_date: date | None = None) -> str:
-    """v5H69: 수주번호 발급 — KNK 표준 [사업부]-[YYMMDD] 형식.
-    예: T-260501  (검사기, 2026-05-01 발주)
-    같은 사업부+날짜 복수 건: -2, -3, ...
-    예: T-260501-2 (같은 날 두 번째 수주)"""
+    """v5H88: 수주번호 발급 — KNK 표준 [사업부]-[YYMMDD] 형식.
+    같은 날 첫 건은 접미 없음, 두 번째부터 -1, -2, -3 순차.
+    예:
+      첫 건       → T-260505
+      두 번째     → T-260505-1
+      세 번째     → T-260505-2
+    (이전 v5H69 는 두 번째를 -2 로 부여해 -1 이 누락 — 대표 지적 수정)
+    """
     if not biz_div or biz_div not in ("T", "M"):
         biz_div = "T"
     d = ref_date or date.today()
     yymmdd = d.strftime("%y%m%d")
     base = f"{biz_div}-{yymmdd}"
-    # 같은 base / base-N 패턴 모두 조회
     rows = c.execute(
         "SELECT order_no FROM orders WHERE order_no = ? OR order_no LIKE ?",
         (base, base + "-%")
     ).fetchall()
     if not rows:
         return base  # 첫 건 → 접미 없음
-    # -N 중 최대 N 찾기 (base 단독은 N=1로 간주)
+    # 접미 N 의 최대값. base 단독은 접미 없음(0) 으로 간주 → 다음은 -1
     max_n = 0
     for r in rows:
         on = r[0]
         if not on:
             continue
         if on == base:
-            max_n = max(max_n, 1)
-        else:
-            m = re.match(rf"^{re.escape(base)}-(\d+)$", on)
-            if m:
-                max_n = max(max_n, int(m.group(1)))
+            continue  # 접미 없음 = N 카운트에서 제외
+        m = re.match(rf"^{re.escape(base)}-(\d+)$", on)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
     return f"{base}-{max_n + 1}"
 
 
