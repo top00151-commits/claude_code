@@ -4,6 +4,10 @@
 <style>
 .form-card { background:var(--paper-3); border:1px solid var(--line); border-radius:var(--radius-lg);
              padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
+.form-card + .form-card { margin-top: var(--space-4); }
+.form-card h2 { font-size:15px; font-weight:700; margin-bottom: var(--space-3); color:var(--ink);
+                 display:flex; align-items:center; gap:8px; padding-bottom: 10px;
+                 border-bottom: 2px solid var(--knk-red); }
 .frow { display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-4); margin-bottom: var(--space-4); }
 .fld { display:flex; flex-direction:column; gap:6px; }
 .fld.full { grid-column: span 2; }
@@ -16,6 +20,21 @@
 .fld textarea { min-height: 80px; resize:vertical; }
 .req { color: var(--knk-red); font-weight:700; }
 .actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+
+/* 담당자 테이블 */
+.contacts-tbl { width:100%; border-collapse: collapse; margin-top: var(--space-2); }
+.contacts-tbl th { background: var(--paper-2); color: var(--knk-red); font-size:11px;
+    text-transform:uppercase; padding: 9px 8px; border-bottom: 2px solid var(--knk-red);
+    text-align:left; letter-spacing:.06em; font-weight:700; }
+.contacts-tbl td { padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.contacts-tbl input, .contacts-tbl select {
+    width: 100%; padding: 7px 9px; border:1px solid var(--line); border-radius: 6px;
+    font-size:13px; background: var(--paper); font-family: inherit; }
+.contacts-tbl input:focus, .contacts-tbl select:focus { outline: 2px solid var(--knk-red); border-color: var(--knk-red); }
+.contacts-tbl .del-btn { background: transparent; border: 1px solid var(--line); color: var(--mute);
+    border-radius: 6px; padding: 4px 8px; cursor:pointer; font-size: 14px; }
+.contacts-tbl .del-btn:hover { color: var(--knk-red); border-color: var(--knk-red); }
+.role-help { font-size: 11px; color: var(--mute); margin-top: 6px; }
 </style>
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -28,62 +47,143 @@
     </div>
   </div>
 
-  <form class="form-card" method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
-    <div class="frow">
-      <div class="fld">
-        <label>고객사명 <span class="req">*</span></label>
-        <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
-      </div>
-      <div class="fld">
-        <label>등급</label>
-        <select name="tier">
-          {% for t in ['주요', '일반', '신규', '휴면'] %}
-          <option value="{{ t }}" {% if (customer and customer.tier == t) or (not customer and t=='일반') %}selected{% endif %}>{{ t }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="fld">
-        <label>사업자번호</label>
-        <input type="text" name="biz_no" value="{{ customer.biz_no|default('') }}" placeholder="123-45-67890">
-      </div>
-      <div class="fld">
-        <label>대표자명</label>
-        <input type="text" name="ceo_name" value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
-      </div>
-      <div class="fld">
-        <label>담당자명</label>
-        <input type="text" name="manager_name" value="{{ customer.manager_name|default('') }}" placeholder="김담당 과장">
-      </div>
-      <div class="fld">
-        <label>연락처</label>
-        <input type="text" name="phone" value="{{ customer.phone|default('') }}" placeholder="031-1234-5678">
-      </div>
-      <div class="fld">
-        <label>이메일</label>
-        <input type="email" name="email" value="{{ customer.email|default('') }}" placeholder="contact@example.com">
-      </div>
-      <div class="fld">
-        <label>활성 상태</label>
-        <select name="is_active">
-          <option value="1" {% if not customer or customer.is_active != 0 %}selected{% endif %}>활성</option>
-          <option value="0" {% if customer and customer.is_active == 0 %}selected{% endif %}>비활성</option>
-        </select>
-      </div>
-      <div class="fld full">
-        <label>주소</label>
-        <input type="text" name="address" value="{{ customer.address|default('') }}" placeholder="경기도 ...">
-      </div>
-      <div class="fld full">
-        <label>비고</label>
-        <textarea name="note" placeholder="특이사항 / 메모">{{ customer.note|default('') }}</textarea>
+  <form method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
+
+    <!-- 회사 정보 -->
+    <div class="form-card">
+      <h2>📋 회사 정보</h2>
+      <div class="frow">
+        <div class="fld">
+          <label>고객사명 <span class="req">*</span></label>
+          <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
+        </div>
+        <div class="fld">
+          <label>등급</label>
+          <select name="tier">
+            {% for t in ['주요', '일반', '신규', '휴면'] %}
+            <option value="{{ t }}" {% if (customer and customer.tier == t) or (not customer and t=='일반') %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fld">
+          <label>사업자번호</label>
+          <input type="text" name="biz_no" value="{{ customer.biz_no|default('') }}" placeholder="123-45-67890">
+        </div>
+        <div class="fld">
+          <label>대표자명</label>
+          <input type="text" name="ceo_name" value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
+        </div>
+        <div class="fld">
+          <label>대표 전화</label>
+          <input type="text" name="phone" value="{{ customer.phone|default('') }}" placeholder="031-1234-5678">
+        </div>
+        <div class="fld">
+          <label>대표 이메일</label>
+          <input type="email" name="email" value="{{ customer.email|default('') }}" placeholder="contact@example.com">
+        </div>
+        <div class="fld full">
+          <label>주소</label>
+          <input type="text" name="address" value="{{ customer.address|default('') }}" placeholder="경기도 ...">
+        </div>
+        <div class="fld">
+          <label>활성 상태</label>
+          <select name="is_active">
+            <option value="1" {% if not customer or customer.is_active != 0 %}selected{% endif %}>활성</option>
+            <option value="0" {% if customer and customer.is_active == 0 %}selected{% endif %}>비활성</option>
+          </select>
+        </div>
+        <div class="fld full">
+          <label>비고</label>
+          <textarea name="note" placeholder="특이사항 / 메모">{{ customer.note|default('') }}</textarea>
+        </div>
       </div>
     </div>
-    <div class="actions">
-      <button type="submit" class="btn btn-primary">💾 {% if customer %}수정 저장{% else %}등록{% endif %}</button>
-      <a href="/customers" class="btn btn-secondary">취소</a>
+
+    <!-- 담당자 (다중) -->
+    <div class="form-card">
+      <h2>👥 담당자 <span style="font-size:12px;font-weight:500;color:var(--mute);">— 역할별로 여러 명 등록 가능</span></h2>
+      <div class="role-help">
+        💡 한 거래처에 <b>영업/구매/세금계산서/품질/기술/결재 담당자</b>를 부서별로 분리 등록.
+        주담당(★)은 역할별 1명만 표시.
+      </div>
+      <table class="contacts-tbl" id="contactsTbl">
+        <thead>
+          <tr>
+            <th style="width:120px;">역할</th>
+            <th style="width:130px;">부서</th>
+            <th style="width:120px;">이름</th>
+            <th style="width:100px;">직위</th>
+            <th style="width:140px;">전화</th>
+            <th style="width:140px;">휴대폰</th>
+            <th>이메일</th>
+            <th style="width:60px;text-align:center;">주담당</th>
+            <th style="width:50px;"></th>
+          </tr>
+        </thead>
+        <tbody id="contactsBody">
+          {% if contacts %}
+            {% for c in contacts %}
+            <tr data-idx="{{ loop.index }}">
+              <td><select name="contact_role_{{ loop.index }}">
+                {% for r in ['영업','구매','세금계산서','품질','기술','결재','수발신','기타'] %}
+                <option value="{{ r }}" {% if c.role == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select></td>
+              <td><input type="text" name="contact_dept_{{ loop.index }}" value="{{ c.department|default('') }}" placeholder="구매2팀"></td>
+              <td><input type="text" name="contact_name_{{ loop.index }}" value="{{ c.name }}" placeholder="홍길동"></td>
+              <td><input type="text" name="contact_position_{{ loop.index }}" value="{{ c.position|default('') }}" placeholder="과장"></td>
+              <td><input type="text" name="contact_phone_{{ loop.index }}" value="{{ c.phone|default('') }}" placeholder="02-1234-5678"></td>
+              <td><input type="text" name="contact_mobile_{{ loop.index }}" value="{{ c.mobile|default('') }}" placeholder="010-1234-5678"></td>
+              <td><input type="email" name="contact_email_{{ loop.index }}" value="{{ c.email|default('') }}" placeholder="hong@example.com"></td>
+              <td style="text-align:center;"><input type="checkbox" name="contact_primary_{{ loop.index }}" value="1" {% if c.is_primary %}checked{% endif %}></td>
+              <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+          <!-- JS로 신규 행 추가 -->
+        </tbody>
+      </table>
+      <div style="margin-top: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="addContact()">＋ 담당자 추가</button>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <div class="actions" style="border-top:0; padding-top:0; margin-top:0;">
+        <button type="submit" class="btn btn-primary">💾 {% if customer %}수정 저장{% else %}등록{% endif %}</button>
+        <a href="/customers" class="btn btn-secondary">취소</a>
+      </div>
     </div>
   </form>
   <div style="height: var(--space-7);"></div>
 </main></div>
+<script>
+let contactCount = {{ contacts|length if contacts else 0 }};
+const ROLES = ['영업','구매','세금계산서','품질','기술','결재','수발신','기타'];
+function addContact(role) {
+  contactCount += 1;
+  const idx = contactCount;
+  const tbody = document.getElementById('contactsBody');
+  const tr = document.createElement('tr');
+  tr.dataset.idx = idx;
+  const opts = ROLES.map(r => `<option value="${r}" ${(role===r)?'selected':''}>${r}</option>`).join('');
+  tr.innerHTML = `
+    <td><select name="contact_role_${idx}">${opts}</select></td>
+    <td><input type="text" name="contact_dept_${idx}" placeholder="구매2팀"></td>
+    <td><input type="text" name="contact_name_${idx}" placeholder="홍길동"></td>
+    <td><input type="text" name="contact_position_${idx}" placeholder="과장"></td>
+    <td><input type="text" name="contact_phone_${idx}" placeholder="02-1234-5678"></td>
+    <td><input type="text" name="contact_mobile_${idx}" placeholder="010-1234-5678"></td>
+    <td><input type="email" name="contact_email_${idx}" placeholder="hong@example.com"></td>
+    <td style="text-align:center;"><input type="checkbox" name="contact_primary_${idx}" value="1"></td>
+    <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+// 신규 등록 시 영업/구매/세금계산서 3개 행 자동 생성
+{% if not customer and not contacts %}
+['영업','구매','세금계산서'].forEach(addContact);
+{% endif %}
+</script>
 {% include "_v5_partials/knk_inputs.html" ignore missing %}
 </body></html>

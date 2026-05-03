@@ -135,6 +135,25 @@ CREATE TABLE IF NOT EXISTS customers (
     note TEXT
 );
 
+-- v5H56 (2026-05-03 대표 지적) — 거래처 담당자 다대다
+-- 한 거래처에 영업·구매·세금계산서·기술·품질·결재 등 여러 담당자 가능
+CREATE TABLE IF NOT EXISTS customer_contacts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL,           -- 영업/구매/세금계산서/품질/기술/결재/기타
+    department      TEXT,                    -- 부서명 (예: 구매2팀)
+    name            TEXT NOT NULL,           -- 담당자 이름
+    position        TEXT,                    -- 직위 (과장/팀장 등)
+    phone           TEXT,
+    mobile          TEXT,
+    email           TEXT,
+    is_primary      INTEGER DEFAULT 0,       -- 1 = 해당 역할의 주담당
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ccontact_cust ON customer_contacts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ccontact_role ON customer_contacts(role);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT,

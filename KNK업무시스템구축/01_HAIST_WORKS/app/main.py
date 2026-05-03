@@ -3218,10 +3218,24 @@ async def customer_detail(req: Request, cid: int):
             by_team[k]["cnt"] += 1
             by_team[k]["hours"] += t["hours"] or 0
         by_team_list = sorted(by_team.items(), key=lambda x: -x[1]["cnt"])
+        # v5H56: 다중 담당자 (역할별 정렬)
+        contacts = []
+        try:
+            contacts = [dict(r) for r in c.execute(
+                "SELECT * FROM customer_contacts WHERE customer_id=? "
+                "ORDER BY is_primary DESC, "
+                "CASE role WHEN '영업' THEN 1 WHEN '구매' THEN 2 "
+                "          WHEN '세금계산서' THEN 3 WHEN '품질' THEN 4 "
+                "          WHEN '기술' THEN 5 WHEN '결재' THEN 6 ELSE 9 END, id",
+                (cid,)
+            ).fetchall()]
+        except Exception:
+            contacts = []
 
     return ctx(req, "customer_detail.html",
                user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
-               stats=stats, by_team=by_team_list, total_tasks=len(tasks))
+               stats=stats, by_team=by_team_list, total_tasks=len(tasks),
+               contacts=contacts)
 
 
 # =====================================================
@@ -4356,13 +4370,38 @@ async def admin_teams_edit_submit(req: Request, tid: int):
     return RedirectResponse("/admin", 303)
 
 
+def _customer_contacts_from_form(form) -> list[dict]:
+    """v5H56: 폼에서 contact_role_N / contact_name_N 등 패턴으로 다중 담당자 수집."""
+    indices = sorted({
+        int(k.split("_")[-1]) for k in form.keys()
+        if k.startswith("contact_name_") and k.split("_")[-1].isdigit()
+    })
+    out = []
+    for idx in indices:
+        nm = (form.get(f"contact_name_{idx}") or "").strip()
+        if not nm:
+            continue
+        out.append({
+            "role":       (form.get(f"contact_role_{idx}") or "기타").strip(),
+            "department": (form.get(f"contact_dept_{idx}") or "").strip(),
+            "name":       nm,
+            "position":   (form.get(f"contact_position_{idx}") or "").strip(),
+            "phone":      (form.get(f"contact_phone_{idx}") or "").strip(),
+            "mobile":     (form.get(f"contact_mobile_{idx}") or "").strip(),
+            "email":      (form.get(f"contact_email_{idx}") or "").strip(),
+            "is_primary": 1 if form.get(f"contact_primary_{idx}") == "1" else 0,
+        })
+    return out
+
+
 @app.get("/customers/new", response_class=HTMLResponse)
 async def customers_new_form(req: Request):
-    """v5H52: 고객사 신규 등록 폼 (실제 작동)."""
+    """v5H52/v5H56: 고객사 신규 등록 폼 (다중 담당자 지원)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    return ctx(req, "customer_form.html", user=u, active="sales", customer=None)
+    return ctx(req, "customer_form.html", user=u, active="sales",
+               customer=None, contacts=[])
 
 
 @app.post("/customers/new")
@@ -4379,15 +4418,14 @@ async def customers_new_submit(req: Request):
         "tier": (form.get("tier") or "일반").strip(),
         "biz_no": (form.get("biz_no") or "").strip(),
         "ceo_name": (form.get("ceo_name") or "").strip(),
-        "manager_name": (form.get("manager_name") or "").strip(),
         "phone": (form.get("phone") or "").strip(),
         "email": (form.get("email") or "").strip(),
         "address": (form.get("address") or "").strip(),
         "is_active": int(form.get("is_active") or 1),
         "note": (form.get("note") or "").strip(),
     }
+    contacts = _customer_contacts_from_form(form)
     with db_session() as c:
-        # name UNIQUE — 중복이면 기존 ID로 리다이렉트
         existing = c.execute("SELECT id FROM customers WHERE name=?", (name,)).fetchone()
         if existing:
             return RedirectResponse(
@@ -4396,6 +4434,14 @@ async def customers_new_submit(req: Request):
         ph = ",".join(["?"] * len(fields))
         c.execute(f"INSERT INTO customers({cols}) VALUES({ph})", tuple(fields.values()))
         new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        for ct in contacts:
+            c.execute(
+                "INSERT INTO customer_contacts(customer_id, role, department, "
+                "name, position, phone, mobile, email, is_primary) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (new_id, ct["role"], ct["department"], ct["name"], ct["position"],
+                 ct["phone"], ct["mobile"], ct["email"], ct["is_primary"])
+            )
     return RedirectResponse(f"/customer/{new_id}", status_code=303)
 
 
@@ -4406,9 +4452,14 @@ async def customers_edit_form(req: Request, cid: int):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         row = c.execute("SELECT * FROM customers WHERE id=?", (cid,)).fetchone()
-    if not row:
-        return RedirectResponse("/customers", 303)
-    return ctx(req, "customer_form.html", user=u, active="sales", customer=dict(row))
+        if not row:
+            return RedirectResponse("/customers", 303)
+        contacts = [dict(r) for r in c.execute(
+            "SELECT * FROM customer_contacts WHERE customer_id=? "
+            "ORDER BY is_primary DESC, id", (cid,)
+        ).fetchall()]
+    return ctx(req, "customer_form.html", user=u, active="sales",
+               customer=dict(row), contacts=contacts)
 
 
 @app.post("/customers/{cid:int}/edit")
@@ -4420,17 +4471,28 @@ async def customers_edit_submit(req: Request, cid: int):
     name = (form.get("name") or "").strip()
     if not name:
         return RedirectResponse(f"/customers/{cid}/edit?error=name_required", status_code=303)
+    contacts = _customer_contacts_from_form(form)
     with db_session() as c:
         c.execute(
             "UPDATE customers SET name=?, tier=?, biz_no=?, ceo_name=?, "
-            "manager_name=?, phone=?, email=?, address=?, is_active=?, note=? "
+            "phone=?, email=?, address=?, is_active=?, note=? "
             "WHERE id=?",
             (name, form.get("tier", "일반"), form.get("biz_no", ""),
-             form.get("ceo_name", ""), form.get("manager_name", ""),
+             form.get("ceo_name", ""),
              form.get("phone", ""), form.get("email", ""),
              form.get("address", ""), int(form.get("is_active") or 1),
              form.get("note", ""), cid)
         )
+        # 담당자: 전체 삭제 후 재삽입 (간단·신뢰)
+        c.execute("DELETE FROM customer_contacts WHERE customer_id=?", (cid,))
+        for ct in contacts:
+            c.execute(
+                "INSERT INTO customer_contacts(customer_id, role, department, "
+                "name, position, phone, mobile, email, is_primary) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (cid, ct["role"], ct["department"], ct["name"], ct["position"],
+                 ct["phone"], ct["mobile"], ct["email"], ct["is_primary"])
+            )
     return RedirectResponse(f"/customer/{cid}", status_code=303)
 
 
