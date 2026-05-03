@@ -425,9 +425,14 @@ def _build_inconsistency_report(wb, mismatches, log):
 # ② 부서입력 → 진행현황 수집
 # ═══════════════════════════════════════════════════════════════
 def _collect_dept_progress(log):
-    """v3.1: 01 검사기 — 부서별 완료일 수집 (% 폐기)
-    각 부서별 "완료일" 또는 "입고일" 컬럼이 채워졌으면 완료(_complete=True)로 표시.
-    PMS 진척률 = 완료 부서 수 / 참여 부서 수 (참여 = "제외" 아닌 부서)
+    """v3.1: 01 검사기 — 부서별 시작일·완료일 수집 (% 폐기)
+
+    본인 부서 진척률 자동 계산:
+      - 시작일·완료일 둘 다 빈칸 → 0%   (미시작)
+      - 시작일만 입력             → 50%  (진행중)
+      - 완료일까지 입력           → 100% (완료)
+
+    PMS 전체진척률 = 완료 부서 수 / 참여 부서 수 ('제외' 분모에서 제외)
     """
     progress = {}
     for dept in DEPTS:
@@ -437,21 +442,23 @@ def _collect_dept_progress(log):
             continue
         wb = load_workbook(fp, data_only=True)
         ws = wb.active
-        n_auto = 11  # 자동연동 11열 (담당자·전체% 포함)
+        n_auto = 11  # 자동연동 11열 (담당자·부서% 포함)
 
-        # v3.1: 완료일/입고일 컬럼 위치 자동 탐색 (헤더 키워드 매칭)
+        # v3.1: 시작일·완료일 컬럼 위치 자동 탐색 (헤더 키워드 매칭)
         # 우선순위: 부서완료일 > 외주입고일 > 가공입고일 > 가공의뢰입고일
+        start_col = None
         complete_col = None
         for c in range(n_auto + 1, ws.max_column + 1):
             h = str(ws.cell(4, c).value or "").replace("\n", "").replace(" ", "")
-            if "부서완료일" in h:
+            if start_col is None and ("부서시작일" in h or "외주발주일" in h):
+                start_col = c
+            if complete_col is None and ("부서완료일" in h or "외주입고일" in h):
                 complete_col = c
-                break
+        # fallback: 가공의뢰입고일·가공입고일도 완료 후보로
         if complete_col is None:
-            # 구매팀: 외주입고일이 곧 완료
             for c in range(n_auto + 1, ws.max_column + 1):
                 h = str(ws.cell(4, c).value or "").replace("\n", "").replace(" ", "")
-                if "외주입고일" in h:
+                if "입고일" in h:
                     complete_col = c
                     break
 
@@ -463,13 +470,28 @@ def _collect_dept_progress(log):
             if code not in progress:
                 progress[code] = {}
             pic = str(_val(ws, r, 10) or "").strip()
+
+            start_val    = _val(ws, r, start_col)    if start_col    else None
             complete_val = _val(ws, r, complete_col) if complete_col else None
-            is_complete = complete_val is not None and str(complete_val).strip() != ""
+            has_start    = start_val    is not None and str(start_val).strip()    != ""
+            is_complete  = complete_val is not None and str(complete_val).strip() != ""
+
+            # 본인 부서 진척률 자동 계산 (0/50/100)
+            if is_complete:
+                self_pct = 1.0
+            elif has_start:
+                self_pct = 0.5
+            else:
+                self_pct = 0.0
+
             dept_data = {
-                "_pic":      pic,
-                "_has_pic":  bool(pic),
-                "_complete": is_complete,
+                "_pic":           pic,
+                "_has_pic":       bool(pic),
+                "_complete":      is_complete,
                 "_complete_date": complete_val,
+                "_has_start":     has_start,
+                "_start_date":    start_val,
+                "_self_pct":      self_pct,    # 본인 부서 진척률 (0/0.5/1.0)
             }
             progress[code][dept] = dept_data
         wb.close()
@@ -814,8 +836,8 @@ def _sync_mapping_and_ledgers(wb_pms, ws_proj, log):
 # ═══════════════════════════════════════════════════════════════
 # 부서입력 파일 자동연동 (PMS → 부서)
 # ═══════════════════════════════════════════════════════════════
-def _sync_dept_files(ws_proj, log):
-    """PMS ↔ 부서입력 파일 양방향 동기화 (v2026.04d)
+def _sync_dept_files(ws_proj, log, progress=None):
+    """PMS ↔ 부서입력 파일 양방향 동기화 (v3.1)
 
     동작 규칙:
       - PMS 부서 컬럼 값 == "제외"  → 해당 부서 파일에 프로젝트 미등록
@@ -825,7 +847,11 @@ def _sync_dept_files(ws_proj, log):
 
     컬럼 매핑 (부서진척입력 시트):
       C1 NO / C2 관리코드 / C3 수주번호 / C4 고객사 / C5 모델 / C6 품명 /
-      C7 PO유형 / C8 영업단계 / C9 진행상태 / C10 담당자 / C11 전체진척률(%)
+      C7 PO유형 / C8 영업단계 / C9 진행상태 / C10 담당자 / C11 부서진척률(%)
+
+    v3.1 K11 (부서진척률):
+      - progress 인자가 있으면 → 본인 부서 진척률 (0/50/100, 시작일·완료일 기반)
+      - 없으면 PMS C20(전체진척률)로 fallback (구버전 호환)
     """
     # 1단계: PMS 읽기 + PMS 부서 컬럼 값 수집
     projects = []
@@ -920,7 +946,15 @@ def _sync_dept_files(ws_proj, log):
             # C10 담당자: PMS 값이 있으면 그걸, 없으면 기존 파일 값 유지
             pic_to_write = dept_val if dept_val else existing_pic.get(proj["code"])
             ws_d.cell(row, 10).value = pic_to_write
-            ws_d.cell(row, 11).value = proj["prog"]
+            # v3.1 K11 = 본인 부서 진척률 (0/0.5/1.0, 시작일·완료일 기반)
+            # progress 인자 없으면 PMS 전체진척률로 fallback (구버전)
+            if progress is not None:
+                dept_data = progress.get(proj["code"], {}).get(dept, {})
+                self_pct = dept_data.get("_self_pct")
+                ws_d.cell(row, 11).value = self_pct if self_pct is not None else 0.0
+            else:
+                ws_d.cell(row, 11).value = proj["prog"]
+            ws_d.cell(row, 11).number_format = PCT
             row += 1
 
         wb_d.save(fp)
@@ -968,13 +1002,17 @@ def sync_all():
     log.info("②-b 관리코드 일관성 검증")
     _validate_code_consistency(ws_proj, wb, log)
 
-    # ② 부서입력 연동 (PMS → 부서)
-    log.info("② 부서입력 연동")
-    _sync_dept_files(ws_proj, log)
-
-    # 부서입력 → 진행현황 수집
-    log.info("  부서진척률 수집")
+    # ②-c 부서 파일 진척률 수집 (시작일·완료일 → 본인 부서 0/50/100)
+    # _sync_dept_files보다 먼저 실행해야 K11에 본인 부서 진척률 기록 가능
+    log.info("②-c 부서진척률 수집")
     progress = _collect_dept_progress(log)
+
+    # ②-d 부서입력 연동 (PMS → 부서, progress 전달로 K11 = 본인 부서%)
+    log.info("②-d 부서입력 연동")
+    _sync_dept_files(ws_proj, log, progress=progress)
+
+    # 진행현황 갱신 (PMS 1_프로젝트등록 C20 = 완료부서/참여부서)
+    log.info("②-e 진행현황 갱신")
     _write_progress(ws_prog, ws_proj, progress, log)
 
     # ⑤ 출하현황 집계 (v2026.04: 01 검사기 X~AH 삭제로 skip)

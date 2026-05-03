@@ -120,7 +120,7 @@
         <h3>사업부별 수주 ({{ kpi.year|default('') }})</h3>
         {% if kpi.by_biz %}
         {% set max_biz = kpi.by_biz|map(attribute='total')|max|default(1) %}
-        <div class="bar-chart">
+        <div class="bar-chart list-scroll-sm">
           {% for b in kpi.by_biz %}
           <div class="bar-row">
             <div class="bar-label">{{ '🔧 자재' if b.biz_div == 'M' else '⚙ 가공' if b.biz_div == 'T' else b.biz_div }}</div>
@@ -138,7 +138,7 @@
         <h3>단계별 프로젝트</h3>
         {% if kpi.by_stage %}
         {% set max_stage = kpi.by_stage|map(attribute='cnt')|max|default(1) %}
-        <div class="bar-chart">
+        <div class="bar-chart list-scroll-sm">
           {% for s in kpi.by_stage[:6] %}
           <div class="bar-row">
             <div class="bar-label">{{ s.stage }}</div>
@@ -157,7 +157,7 @@
     <div class="grid-2">
       <div class="card">
         <h3>TOP 5 고객사 ({{ kpi.year|default('') }})</h3>
-        <div class="list-card">
+        <div class="list-card list-scroll-sm">
           {% for c in (kpi.top_customers or []) %}
           <a class="list-item" href="/customers?q={{ c.customer_name }}">
             <div class="list-num">{{ '%02d'|format(loop.index) }}</div>
@@ -175,7 +175,7 @@
 
       <div class="card">
         <h3>최근 프로젝트</h3>
-        <div class="list-card">
+        <div class="list-card list-scroll-sm">
           {% for p in (kpi.recent or [])[:7] %}
           <a class="list-item" href="/project/{{ p.id }}">
             <div class="list-num">{{ p.mgmt_code|default('—') }}</div>
