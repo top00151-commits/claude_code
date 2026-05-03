@@ -416,21 +416,30 @@ def _collect_dept_progress(log):
             pic = str(_val(ws, r, 10) or "").strip()
             dept_data = {"_pic": pic, "_has_pic": bool(pic)}
 
-            # 세부항목 값 수집 (0~1 소수 또는 0~100 정수 모두 허용)
+            # 세부항목 값 수집 (v3.1 — 빈 칸 = 해당없음, 분모 제외)
+            #   None / 빈 문자열  → 해당없음 (분모 제외)
+            #   0                 → 명시적 미착수 (분모 포함)
+            #   0.5               → 50% 진행 중
+            #   1보다 크면 0~100  입력으로 보고 0~1로 정규화
             sub_vals = []
             for i, sub in enumerate(subs):
-                v = _num(ws, r, n_auto + 1 + i)
-                # 1보다 크면 0~100 입력으로 보고 0~1로 정규화
+                cell_v = ws.cell(r, n_auto + 1 + i).value
+                if cell_v is None or cell_v == "":
+                    dept_data[sub] = None        # 해당없음
+                    continue
+                # 숫자로 변환 (텍스트 등 비숫자는 0)
+                try:
+                    v = float(cell_v)
+                except (TypeError, ValueError):
+                    v = 0.0
                 if v > 1:
                     v = v / 100.0
-                # 1.0 초과 클램프
                 v = max(0.0, min(1.0, v))
                 dept_data[sub] = v
-                sub_vals.append(v)
+                sub_vals.append(v)             # 분모 포함
 
-            # ★ 평균: 입력 안 한 0도 분모 포함 (전체 중 어디까지 했는지)
-            # _has_pic(bool) 등이 들어가지 않도록 sub_vals만 사용
-            dept_data["_avg"] = sum(sub_vals) / len(sub_vals) if sub_vals else 0.0
+            # _avg: 해당없음 제외한 평균 (전체 None이면 None — 부서 자체 해당없음)
+            dept_data["_avg"] = (sum(sub_vals) / len(sub_vals)) if sub_vals else None
             progress[code][dept] = dept_data
         wb.close()
 
@@ -481,16 +490,21 @@ def _write_progress(ws_pms_prog, ws_pms_proj, progress, log):
         for dept in DEPTS:
             subs = DEPT_SUB_ITEMS.get(dept, [])
             dept_data = code_prog.get(dept, {})
-            # 세부항목 % (이미 0~1 정규화됨)
+            # 세부항목 % (None=해당없음 → 빈 칸 / 0~1 = %)
             for sub in subs:
-                v = dept_data.get(sub, 0)
-                ws_pms_prog.cell(row=row, column=col).value = v if v else None
-                ws_pms_prog.cell(row=row, column=col).number_format = PCT
+                v = dept_data.get(sub)
+                if v is None:
+                    ws_pms_prog.cell(row=row, column=col).value = None
+                else:
+                    ws_pms_prog.cell(row=row, column=col).value = v if v else None
+                    ws_pms_prog.cell(row=row, column=col).number_format = PCT
                 col += 1
-            # 소계 (이미 0~1)
-            avg = dept_data.get("_avg", 0)
+            # 소계 (None=전 항목 해당없음)
+            avg = dept_data.get("_avg")
             if dept in excluded:
                 ws_pms_prog.cell(row=row, column=col).value = "제외"
+            elif avg is None:
+                ws_pms_prog.cell(row=row, column=col).value = None    # 해당없음
             else:
                 ws_pms_prog.cell(row=row, column=col).value = avg if avg else None
                 ws_pms_prog.cell(row=row, column=col).number_format = PCT

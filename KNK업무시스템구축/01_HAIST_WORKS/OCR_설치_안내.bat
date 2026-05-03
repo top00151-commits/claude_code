@@ -1,73 +1,82 @@
 @echo off
 REM ============================================================
-REM   v5H57 (2026-05-03) - 사업자등록증 OCR 설치 안내
-REM   PDF 자동 인식은 별도 설치 없이 즉시 사용 가능
-REM   이미지 / 스캔본 OCR 만 추가 설치 필요
+REM   v5H59 (2026-05-03) - OCR install guide (English-only to avoid Korean cmd encoding issues)
+REM   Korean detail: see http://localhost:8081/guide/ocr (after server start)
 REM ============================================================
-chcp 65001 > nul
-title KNK HAIST WORKS - OCR 설치 안내
+title KNK HAIST WORKS - OCR Install Guide
 
 cls
 echo.
 echo  ============================================================
-echo    KNK HAIST WORKS  ^|  사업자등록증 OCR 설치 안내
+echo    KNK HAIST WORKS  ^|  OCR Install Guide
+echo    (For business-license image / scan recognition)
 echo  ============================================================
 echo.
-echo  [현재 상태]
+echo  [Current status]
 where tesseract >nul 2>nul
 if errorlevel 1 (
-    echo    Tesseract OCR : 미설치
+    echo    Tesseract OCR     : NOT installed
+    set OCRSTATE=NOT
 ) else (
-    echo    Tesseract OCR : 설치 완료
+    echo    Tesseract OCR     : INSTALLED
+    set OCRSTATE=OK
 )
 if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
-    echo    표준 경로     : C:\Program Files\Tesseract-OCR\tesseract.exe
+    echo    Standard path     : C:\Program Files\Tesseract-OCR\tesseract.exe
 )
 echo.
-echo  [기능별 의존성]
+echo  [What works without install]
+echo    PDF from Hometax / Gov24  : YES (text-PDF auto parsed)
 echo.
-echo    PDF 자동 인식 (홈택스/정부24)    : 즉시 사용 가능 ^(추가 설치 불필요^)
-echo    스캔본 PDF / JPG / PNG OCR       : Tesseract 설치 필요
+echo  [What needs Tesseract install]
+echo    JPG / PNG / scanned PDF  : Image OCR (Korean recognition)
 echo.
 echo  ============================================================
-echo  [Tesseract 설치 방법 (한 번만)]
+echo  [Install steps - one time only]
 echo  ============================================================
 echo.
-echo    1. 다운로드 페이지 열기:
+echo    1. Download installer:
 echo       https://github.com/UB-Mannheim/tesseract/wiki
+echo       File: tesseract-ocr-w64-setup-v5.x.x.exe
 echo.
-echo    2. tesseract-ocr-w64-setup-v5.x.x.exe 다운로드
+echo    2. During install - IMPORTANT:
+echo       In "Additional language data" section,
+echo       CHECK "Korean" checkbox  (REQUIRED for Korean recognition)
 echo.
-echo    3. 설치 시 ★중요★:
-echo       "Additional language data" 항목에서
-echo       "Korean" 반드시 체크 (한국어 인식)
+echo    3. Default install path:
+echo       C:\Program Files\Tesseract-OCR\
+echo       (HAIST WORKS auto-detects - no PATH setup needed)
 echo.
-echo    4. 설치 경로: C:\Program Files\Tesseract-OCR\
-echo       (HAIST WORKS 가 자동 감지 - PATH 설정 불필요)
-echo.
-echo  ============================================================
-echo  [추가 - 스캔 PDF 지원 시 Poppler 설치]
-echo  ============================================================
-echo.
-echo    스캔된 PDF 도 인식하려면 Poppler 설치 (이미지 변환용):
-echo    https://github.com/oschwartz10612/poppler-windows/releases
-echo    bin 폴더를 PATH 에 추가
+echo    4. Restart HAIST WORKS server (run START.bat again)
 echo.
 echo  ============================================================
-echo  [정책]
+echo  [Optional - scanned PDF support]
 echo  ============================================================
+echo    For scanned PDF (not just text PDF), also install Poppler:
+echo      https://github.com/oschwartz10612/poppler-windows/releases
+echo    Add bin folder to system PATH.
 echo.
-echo    * 외부 API 0건 (모든 OCR 로컬 실행)
-echo    * 데이터 외부 송신 0건
-echo    * 오픈소스 (Apache 2.0)
+echo  ============================================================
+echo  [Privacy / Policy]
+echo  ============================================================
+echo    * No external API calls (all OCR runs locally)
+echo    * No data leaves the machine
+echo    * Open source (Tesseract: Apache 2.0 license)
 echo.
 echo  ------------------------------------------------------------
-echo  [브라우저로 다운로드 페이지 열기]
-echo  ------------------------------------------------------------
 echo.
-choice /C YN /M "지금 Tesseract 다운로드 페이지를 여시겠습니까"
+
+if "%OCRSTATE%"=="OK" (
+    echo  Tesseract is already installed - no action needed.
+    echo  Image/PDF OCR is available in customer registration form.
+    echo.
+    pause
+    exit /b 0
+)
+
+choice /C YN /M "Open Tesseract download page in browser now"
 if errorlevel 2 goto :end
-if errorlevel 1 start https://github.com/UB-Mannheim/tesseract/wiki
+if errorlevel 1 start "" "https://github.com/UB-Mannheim/tesseract/wiki"
 
 :end
 echo.
