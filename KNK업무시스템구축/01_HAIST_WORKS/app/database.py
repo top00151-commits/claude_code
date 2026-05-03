@@ -2047,6 +2047,26 @@ def init_db():
         except Exception:
             pass
 
+        # v5H89b: 기존 orders.customer_id 가 NULL 인데 project 가 customer_name
+        # 또는 customer_id 를 갖고 있으면 backfill (수주관리 리스트 고객사 표시 회복)
+        try:
+            # 1) projects.customer_id 가 비었지만 customer_name 매칭되는 customers 가 있으면 채움
+            c.execute(
+                "UPDATE projects SET customer_id = ("
+                "  SELECT id FROM customers WHERE customers.name = projects.customer_name LIMIT 1"
+                ") "
+                "WHERE customer_id IS NULL AND COALESCE(customer_name,'') <> ''"
+            )
+            # 2) orders.customer_id NULL → project 의 customer_id 로 채움
+            c.execute(
+                "UPDATE orders SET customer_id = ("
+                "  SELECT customer_id FROM projects WHERE projects.id = orders.project_id"
+                ") "
+                "WHERE customer_id IS NULL AND project_id IS NOT NULL"
+            )
+        except Exception:
+            pass
+
 
 def seed_all():
     """최초 1회: 조직도/사용자/고객사 시드"""
@@ -3462,13 +3482,23 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
         code = generate_mgmt_code(vals["biz_div"]) if needs_code else None
         try:
             with db_session() as c:
+                # v5H89b: customer_name → customer_id 자동 매핑 (orders FK 연결용)
+                cust_id = None
+                if vals.get("customer_name"):
+                    row = c.execute(
+                        "SELECT id FROM customers WHERE name=? LIMIT 1",
+                        (vals["customer_name"],)
+                    ).fetchone()
+                    if row:
+                        cust_id = row[0]
                 cur = c.execute("""
                     INSERT INTO projects
-                    (mgmt_code, name, biz_div, customer_name, model_name, stage, po_type,
-                     status, customer_po, currency, order_amount, order_date, due_date,
-                     pm_name, sales_name, logi_note, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """, (code, vals["name"], vals["biz_div"], vals["customer_name"],
+                    (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
+                     stage, po_type, status, customer_po, currency, order_amount,
+                     order_date, due_date, pm_name, sales_name, logi_note,
+                     created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
@@ -3498,14 +3528,23 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
     if not new_code and needs_code:
         new_code = generate_mgmt_code(vals["biz_div"])
     with db_session() as c:
+        # v5H89b: customer_name → customer_id 자동 매핑
+        cust_id = None
+        if vals.get("customer_name"):
+            row = c.execute(
+                "SELECT id FROM customers WHERE name=? LIMIT 1",
+                (vals["customer_name"],)
+            ).fetchone()
+            if row:
+                cust_id = row[0]
         c.execute("""
             UPDATE projects
-            SET mgmt_code=?, name=?, biz_div=?, customer_name=?, model_name=?,
+            SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
                 stage=?, po_type=?, status=?, customer_po=?, currency=?,
                 order_amount=?, order_date=?, due_date=?,
                 pm_name=?, sales_name=?, logi_note=?, updated_at=?
             WHERE id=?
-        """, (new_code, vals["name"], vals["biz_div"], vals["customer_name"],
+        """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
               vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
               vals["customer_po"], vals["currency"], vals["order_amount"],
               vals["order_date"], vals["due_date"], vals["pm_name"],

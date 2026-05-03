@@ -260,6 +260,20 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     proj = dict(proj)
     biz_div = proj.get("biz_div") or "T"
     customer_id = proj.get("customer_id")
+    # v5H89b: customer_id 비어 있으면 customer_name 으로 조회해서 채움
+    if not customer_id and proj.get("customer_name"):
+        try:
+            row = c.execute(
+                "SELECT id FROM customers WHERE name=? LIMIT 1",
+                (proj["customer_name"],)
+            ).fetchone()
+            if row:
+                customer_id = row[0]
+                # 프로젝트에도 채워둠 (다음 호출 빠르게)
+                c.execute("UPDATE projects SET customer_id=? WHERE id=?",
+                          (customer_id, project_id))
+        except Exception:
+            pass
 
     if order_date:
         try:

@@ -9447,7 +9447,7 @@ async def sales_orders_page(req: Request):
         sel_extra = (", " + ", ".join(extra)) if extra else ""
         rows = c.execute(
             f"""SELECT o.id, o.order_no, o.customer_id,
-                      COALESCE(cu.name,'-') AS customer_name,
+                      COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
                       o.total_amount, o.due_date, o.status,
                       o.order_date,
                       COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
@@ -9455,8 +9455,9 @@ async def sales_orders_page(req: Request):
                       {sel_extra}
                       {pj_extra}
                FROM orders o
-               LEFT JOIN customers cu ON cu.id = o.customer_id
-               LEFT JOIN projects p ON p.id = o.project_id
+               LEFT JOIN customers cu  ON cu.id  = o.customer_id
+               LEFT JOIN projects p    ON p.id   = o.project_id
+               LEFT JOIN customers pcu ON pcu.id = p.customer_id
                ORDER BY o.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
