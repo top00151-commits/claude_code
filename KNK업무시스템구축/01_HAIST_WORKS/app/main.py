@@ -6927,20 +6927,47 @@ async def projects_new_submit(request: Request):
         "note": form.get("note", ""),
     })
     if confirm_now and new_pid:
-        # 관리코드 + SO 동시 발급 (already issued mgmt_code via NEEDS_CODE_STAGES, SO 발급은 별도)
+        # v5H78: 호기별 다중 SO 발급 — unit_label[]/unit_amount[]/unit_due[]/unit_note[]
+        labels = form.getlist("unit_label[]")
+        amounts = form.getlist("unit_amount[]")
+        dues = form.getlist("unit_due[]")
+        notes_u = form.getlist("unit_note[]")
+        units = []
+        for i in range(max(len(labels), len(amounts))):
+            lbl = (labels[i] if i < len(labels) else "").strip() or f"{i+1}호기"
+            raw = (amounts[i] if i < len(amounts) else "0").strip().replace(",", "")
+            try:
+                u_amt = float(raw) if raw else 0
+            except ValueError:
+                u_amt = 0
+            u_due = (dues[i] if i < len(dues) else "").strip()
+            u_note = (notes_u[i] if i < len(notes_u) else "").strip()
+            # 빈 라인(라벨도 금액도 없음) 스킵
+            if not (labels[i] if i < len(labels) else "") and u_amt == 0:
+                continue
+            units.append({"label": lbl, "amount": u_amt,
+                          "due_date": u_due, "note": u_note})
         try:
             with db_session() as c:
-                _pwf.confirm_order(
-                    c, int(new_pid),
-                    order_date=form.get("order_date", ""),
-                    total_amount=amt,
-                    due_date=form.get("due_date", ""),
-                    created_by=_u.get("id") or 0,
-                    po_number=form.get("customer_po", ""),
-                    note=form.get("note", ""),
-                )
-        except Exception as _e:
-            # 프로젝트는 이미 생성됨 — SO 발급 실패는 상세에서 재시도
+                if units:
+                    _pwf.confirm_order_multi(
+                        c, int(new_pid), units=units,
+                        order_date=form.get("order_date", ""),
+                        created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""),
+                    )
+                else:
+                    # 호기 라인이 비어 있으면 기존 단일 SO 흐름 (하위호환)
+                    _pwf.confirm_order(
+                        c, int(new_pid),
+                        order_date=form.get("order_date", ""),
+                        total_amount=amt,
+                        due_date=form.get("due_date", ""),
+                        created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""),
+                        note=form.get("note", ""),
+                    )
+        except Exception:
             return RedirectResponse(
                 f"/project/{new_pid}?warn=so_issue_failed", status_code=303
             )

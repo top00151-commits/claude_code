@@ -225,6 +225,106 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     }
 
 
+def confirm_order_multi(c, project_id: int, units: list[dict],
+                         order_date: str | None = None,
+                         created_by: int = 0,
+                         po_number: str = "") -> dict:
+    """v5H78: 호기별 다중 수주 동시 확정.
+
+    동일 프로젝트에서 여러 호기(예: 검사기 1호기/2호기/...)가 동시에
+    수주됐을 때, 호기별로 SO 를 각각 발행하고 관리코드는 1개만 부여.
+
+    Args:
+      project_id: 대상 프로젝트
+      units: 호기 라인 목록 [{label, amount, due_date, note}, ...]
+             label  : '1호기' / 'A타입' 등 자유 라벨
+             amount : 호기별 수주액 (KRW)
+             due_date: 호기별 납기 (YYYY-MM-DD, 선택)
+             note   : 호기별 비고 (선택)
+      order_date: 공통 발주일 (None 이면 today)
+      po_number : 고객 PO 번호 (호기 전체 공통)
+
+    Returns: {ok, mgmt_code, units: [{so_no, order_id, label, amount}, ...],
+              total_amount, message}
+    """
+    if not units:
+        return {"ok": False, "message": "호기 정보가 없습니다"}
+    proj = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not proj:
+        return {"ok": False, "message": "프로젝트를 찾을 수 없음"}
+    proj = dict(proj)
+    biz_div = proj.get("biz_div") or "T"
+    customer_id = proj.get("customer_id")
+
+    if order_date:
+        try:
+            from datetime import datetime as _dt
+            ref_d = _dt.strptime(order_date, "%Y-%m-%d").date()
+        except Exception:
+            ref_d = date.today()
+            order_date = ref_d.isoformat()
+    else:
+        ref_d = date.today()
+        order_date = ref_d.isoformat()
+
+    # 1. 관리번호 — 미발급 시 1회만 발급 (호기 전체 공통)
+    mgmt_code = (proj.get("mgmt_code") or "").strip()
+    total = sum(float(u.get("amount") or 0) for u in units)
+    if not mgmt_code:
+        mgmt_code = generate_mgmt_code(c, biz_div, ref_d)
+        c.execute(
+            "UPDATE projects SET mgmt_code=?, code=COALESCE(NULLIF(code,''),?), "
+            "status='수주확정', stage='수주', "
+            "order_date=COALESCE(order_date,?), order_amount=? "
+            "WHERE id=?",
+            (mgmt_code, mgmt_code, order_date, total, project_id)
+        )
+    else:
+        # 이미 관리코드 보유 (추가 발주 케이스) — order_amount 누적 갱신만
+        c.execute(
+            "UPDATE projects SET order_amount=COALESCE(order_amount,0)+? WHERE id=?",
+            (total, project_id)
+        )
+
+    # 2. 호기별 SO 발행 — generate_so_no 가 -2/-3 자동 채번
+    issued = []
+    for u in units:
+        label = (u.get("label") or "").strip() or f"{len(issued)+1}호기"
+        amount = float(u.get("amount") or 0)
+        u_due = (u.get("due_date") or "").strip() or None
+        u_note = (u.get("note") or "").strip()
+        so_no = generate_so_no(c, biz_div, ref_d)
+        cur = c.execute(
+            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+            "due_date, total_amount, status, created_by, unit_label, unit_note) "
+            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
+            (so_no, customer_id, project_id, order_date, u_due,
+             amount, created_by or None, label, u_note)
+        )
+        oid = cur.lastrowid
+        try:
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, "
+                "changed_by, note) VALUES(?,?,?,?,?)",
+                (oid, "DRAFT", "CONFIRMED", created_by or None,
+                 f"호기 발주 {label} (관리번호 {mgmt_code})"
+                 + (f" / 고객 PO {po_number}" if po_number else ""))
+            )
+        except Exception:
+            pass
+        issued.append({"so_no": so_no, "order_id": oid,
+                       "label": label, "amount": amount})
+
+    return {
+        "ok": True,
+        "mgmt_code": mgmt_code,
+        "units": issued,
+        "total_amount": total,
+        "message": f"관리번호 {mgmt_code} 발급 + 호기 {len(issued)}건 SO 발행 완료 "
+                   f"(합계 {total:,.0f}원)",
+    }
+
+
 def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
     """v5H70: 잘못 생성한 수주 삭제 (관리번호 발급도 되돌림 옵션).
 

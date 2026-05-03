@@ -2016,6 +2016,9 @@ def init_db():
                 ("tax_invoice_no",     "ALTER TABLE orders ADD COLUMN tax_invoice_no TEXT"),
                 ("tax_invoice_date",   "ALTER TABLE orders ADD COLUMN tax_invoice_date TEXT"),
                 ("tax_invoice_note",   "ALTER TABLE orders ADD COLUMN tax_invoice_note TEXT"),
+                # v5H78: 호기별 다중 발주 — 1호기/2호기 ... 호기 라벨 + 비고
+                ("unit_label",         "ALTER TABLE orders ADD COLUMN unit_label TEXT"),
+                ("unit_note",          "ALTER TABLE orders ADD COLUMN unit_note TEXT"),
             ]:
                 if col not in ocols:
                     try:

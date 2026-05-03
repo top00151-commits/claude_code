@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H77 project registration with SO co-issuance option — Previous workflow only issued SO via separate '수주확정' screen. Missing case: already-won projects registered cold. Form section ③ now has "☑ Already won — issue SO with registration" checkbox (amber dashed callout). When checked, POST /projects/new runs projects_create_logi then immediately _pwf.confirm_order() → mgmt_code + SO ([div]-YYMMDD) issued together → redirect to /project/{pid}. Unchecked = legacy flow (제안작성 default).
+REM   LAST UPDATE: 2026-05-03 v5H78 multi-unit (호기별) simultaneous SO issuance — real case: 10 inspection units ordered together with different per-unit prices. orders ALTER (unit_label/unit_note). New project_workflow.confirm_order_multi(units=[{label,amount,due,note}]) — single mgmt_code, one SO per unit (generate_so_no auto -2/-3 suffix). Form's "confirm now" checkbox reveals dynamic units table (label/amount/due/note + add/remove rows + live sum). Single unit (1 row) and N units use same UI. Blank rows auto-skipped.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H77 project registration with SO co-issuance (mgmt code + SO in one step)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H78 multi-unit SO issuance (N units simultaneous order, per-unit pricing)]
 
 echo.
 echo ============================================================
