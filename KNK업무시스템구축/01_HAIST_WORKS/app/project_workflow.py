@@ -304,12 +304,13 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             (total, project_id)
         )
 
-    # 2. (납기, 납품지) 그룹화 — 입력 순서 유지 (dict insertion-order)
+    # 2. (납기, 납품지, 통화) 그룹화 — v5H92: 통화도 그룹키
     groups: dict[tuple, list[dict]] = {}
     for u in units:
         key = (
             (u.get("due_date") or "").strip(),
             (u.get("ship_to") or "").strip(),
+            (u.get("currency") or "KRW").strip().upper(),
         )
         groups.setdefault(key, []).append(u)
 
@@ -320,7 +321,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     REUSABLE_STATUSES = ("DRAFT", "QUOTED", "CONFIRMED",
                          "IN_PRODUCTION", "READY_TO_SHIP")
     issued_groups = []
-    for (g_due, g_ship), g_units in groups.items():
+    for (g_due, g_ship, g_cur), g_units in groups.items():
         g_total = sum(float(u.get("amount") or 0) for u in g_units)
         g_qty = len(g_units)
         labels_concat = " · ".join(
@@ -328,17 +329,17 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             for i, u in enumerate(g_units)
         )
 
-        # 동일 (project_id, order_date, due_date, ship_to) + 진행 가능 상태인
-        # 기존 SO 검색 — 가장 최근 1건 재사용
+        # 동일 (project_id, order_date, due_date, ship_to, currency) + 진행 가능 상태
         existing = None
         try:
             existing = c.execute(
                 "SELECT id, order_no, total_amount, unit_qty, unit_label, status "
                 "FROM orders WHERE project_id=? AND order_date=? "
                 "AND COALESCE(due_date,'')=? AND COALESCE(ship_to,'')=? "
+                "AND COALESCE(currency,'KRW')=? "
                 "AND status IN (" + ",".join("?" * len(REUSABLE_STATUSES)) + ") "
                 "ORDER BY id DESC LIMIT 1",
-                (project_id, order_date, (g_due or ""), (g_ship or ""),
+                (project_id, order_date, (g_due or ""), (g_ship or ""), g_cur,
                  *REUSABLE_STATUSES)
             ).fetchone()
         except Exception:
@@ -358,17 +359,29 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             )
             reused = True
         else:
-            # 신규 SO 발행
+            # 신규 SO 발행 (v5H92: currency 포함)
             so_no = generate_so_no(c, biz_div, ref_d)
-            cur = c.execute(
-                "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-                "due_date, total_amount, status, created_by, unit_label, unit_note, "
-                "ship_to, unit_qty) "
-                "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
-                (so_no, customer_id, project_id, order_date, (g_due or None),
-                 g_total, created_by or None, labels_concat,
-                 (po_number or None), (g_ship or None), g_qty)
-            )
+            try:
+                cur = c.execute(
+                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
+                    "ship_to, unit_qty, currency) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?)",
+                    (so_no, customer_id, project_id, order_date, (g_due or None),
+                     g_total, created_by or None, labels_concat,
+                     (po_number or None), (g_ship or None), g_qty, g_cur)
+                )
+            except Exception:
+                # currency 컬럼 미생성 환경 폴백
+                cur = c.execute(
+                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
+                    "ship_to, unit_qty) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
+                    (so_no, customer_id, project_id, order_date, (g_due or None),
+                     g_total, created_by or None, labels_concat,
+                     (po_number or None), (g_ship or None), g_qty)
+                )
             oid = cur.lastrowid
             reused = False
 
@@ -405,7 +418,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
 
         issued_groups.append({
             "so_no": so_no, "order_id": oid, "reused": reused,
-            "due_date": g_due, "ship_to": g_ship,
+            "due_date": g_due, "ship_to": g_ship, "currency": g_cur,
             "qty": g_qty, "total_amount": g_total,
             "units": [{"label": (u.get("label") or "").strip() or f"{i+1}호기",
                        "amount": float(u.get("amount") or 0),
@@ -509,7 +522,7 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     except Exception:
         cols = set()
     extra = []
-    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note"):
+    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency"):
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
@@ -532,6 +545,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             d["unit_label"] = None
         if "unit_note" not in d:
             d["unit_note"] = None
+        if "currency" not in d or not d.get("currency"):
+            d["currency"] = "KRW"
 
         # 호기별 라인 (order_items) — 있을 때만
         try:

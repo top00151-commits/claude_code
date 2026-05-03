@@ -4518,6 +4518,9 @@ async def sales_orders_add_unit(req: Request, oid: int):
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
+    cur_v = (form.get("currency") or "").strip().upper() or "KRW"
+    if cur_v not in ("KRW", "USD"):
+        cur_v = "KRW"
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -4553,11 +4556,18 @@ async def sales_orders_add_unit(req: Request, oid: int):
             )
         except Exception:
             pass
-        # orders 누적
-        c.execute(
-            "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?",
-            (new_qty, new_total, new_lbl, oid)
-        )
+        # orders 누적 (+ currency 필요 시 갱신)
+        try:
+            c.execute(
+                "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=?, currency=? WHERE id=?",
+                (new_qty, new_total, new_lbl, cur_v, oid)
+            )
+        except Exception:
+            # currency 컬럼 없으면 기존 갱신만
+            c.execute(
+                "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?",
+                (new_qty, new_total, new_lbl, oid)
+            )
         # 프로젝트 합계 동기화
         try:
             pid = cur["project_id"]
@@ -4595,7 +4605,10 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     form = await req.form()
     raw_q = (form.get("unit_qty") or "").strip()
     raw_a = (form.get("total_amount") or "").strip().replace(",", "")
+    raw_c = (form.get("currency") or "").strip().upper()
     sets, vals = [], []
+    if raw_c in ("KRW", "USD"):
+        sets.append("currency=?"); vals.append(raw_c)
     if raw_q:
         try:
             q = int(float(raw_q))
@@ -7121,11 +7134,13 @@ async def projects_new_submit(request: Request):
     })
     if confirm_now and new_pid:
         # v5H81: 호기 라인 — (납기, 납품지) 그룹화 키 포함
+        # v5H92: 통화(currency) 도 라인별로 받음 (KRW/USD)
         labels = form.getlist("unit_label[]")
         amounts = form.getlist("unit_amount[]")
         dues = form.getlist("unit_due[]")
         ships = form.getlist("unit_ship[]")
         notes_u = form.getlist("unit_note[]")
+        currs = form.getlist("unit_currency[]")
         units = []
         for i in range(max(len(labels), len(amounts))):
             lbl = (labels[i] if i < len(labels) else "").strip() or f"{i+1}호기"
@@ -7137,10 +7152,14 @@ async def projects_new_submit(request: Request):
             u_due = (dues[i] if i < len(dues) else "").strip()
             u_ship = (ships[i] if i < len(ships) else "").strip()
             u_note = (notes_u[i] if i < len(notes_u) else "").strip()
+            u_cur = (currs[i] if i < len(currs) else "").strip().upper() or "KRW"
+            if u_cur not in ("KRW", "USD"):
+                u_cur = "KRW"
             if not (labels[i] if i < len(labels) else "") and u_amt == 0:
                 continue
             units.append({"label": lbl, "amount": u_amt,
-                          "due_date": u_due, "ship_to": u_ship, "note": u_note})
+                          "due_date": u_due, "ship_to": u_ship,
+                          "note": u_note, "currency": u_cur})
         try:
             with db_session() as c:
                 if units:
@@ -9543,7 +9562,7 @@ async def sales_orders_page(req: Request):
         except Exception:
             ocols = set()
         extra = []
-        for cn in ("ship_to", "unit_qty", "unit_label"):
+        for cn in ("ship_to", "unit_qty", "unit_label", "currency"):
             if cn in ocols:
                 extra.append(f"o.{cn}")
         # projects 조인 — 관리번호/프로젝트명/사업부/모델

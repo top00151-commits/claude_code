@@ -139,7 +139,7 @@
         <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
         {% if project_orders %}
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
-          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품지</th><th class="center">호기수</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:90px;">동작</th></tr></thead>
+          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품처</th><th class="center">수량</th><th class="num">단가</th><th class="num">금액</th><th class="center">통화</th><th class="center">상태</th><th>비고</th><th style="width:90px;">동작</th></tr></thead>
           <tbody>
           {% for so in project_orders %}
           {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
@@ -161,41 +161,49 @@
               <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="호기수({{ so.unit_qty }}대) ≠ 호기 라인({{ so.items_n }}건). '➕ 호기' 로 부족한 호기를 추가하세요.">⚠ 호기 {{ so.items_n }}/{{ so.unit_qty }}</div>
               {% endif %}
             </td>
+            {# v5H92: 단가 셀 — 호기 단가 (균일 표시 / 다르면 '여러 단가 ▾') #}
+            {% set _cur = so.currency|default('KRW') %}
+            {% set _sym = '$' if _cur == 'USD' else '₩' %}
+            {% set _qq = so.unit_qty|default(1) %}
+            <td class="num">
+              {% if so.units and so.units|length > 0 %}
+                {% if so.unit_price_uniform is not none %}
+                  <b>{{ _sym }}{{ '{:,.0f}'.format(so.unit_price_uniform) }}</b>
+                {% else %}
+                <details style="margin:0;">
+                  <summary style="font-size:12px;color:var(--knk-red);cursor:pointer;text-align:right;font-weight:700;">여러 단가 ▾</summary>
+                  <div style="font-size:11px;color:var(--ink);margin-top:4px;text-align:right;line-height:1.6;">
+                    {% for u in so.units %}
+                    <div><span style="color:var(--mute);">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span> · <b>{{ _sym }}{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</b></div>
+                    {% endfor %}
+                  </div>
+                </details>
+                {% endif %}
+              {% elif _qq > 0 and so.total_amount %}
+                <span style="color:var(--mute);">{{ _sym }}{{ '{:,.0f}'.format((so.total_amount or 0) / _qq) }}</span>
+                <div style="font-size:10px;color:var(--mute);">(평균)</div>
+              {% else %}—{% endif %}
+            </td>
             <td class="num">
               {% if _editable %}
               <input type="text" inputmode="numeric" value="{{ '{:,.0f}'.format(so.total_amount or 0) }}"
                      class="amt-inp knk-money" data-orig="{{ so.total_amount or 0 }}"
                      style="width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:right;background:var(--paper);">
               {% else %}
-              <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
+              <b>{{ _sym }}{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
               {% endif %}
               {% if so.mismatch_sum %}
-              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;text-align:right;" title="합계({{ '{:,.0f}'.format(so.total_amount) }}) ≠ 호기 단가 합({{ '{:,.0f}'.format(so.items_sum) }}). 차액 {{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}원">⚠ 합계 불일치 (Δ {{ '{:,.0f}'.format(so.total_amount - so.items_sum) }})</div>
+              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;text-align:right;" title="합계({{ _sym }}{{ '{:,.0f}'.format(so.total_amount) }}) ≠ 호기 단가 합({{ _sym }}{{ '{:,.0f}'.format(so.items_sum) }}). 차액 {{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}">⚠ 합계 불일치 Δ{{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}</div>
               {% endif %}
-              {# v5H85/85b: 호기별 단가 표기.
-                 (1) order_items 가 있고 단가 동일 → 'N대 × 단가'
-                 (2) order_items 가 있고 단가 다름 → 호기별 분해 펼치기
-                 (3) order_items 비어 있고 unit_qty>1 → 합계/호기수 추정 표시 #}
-              {% set _qq = so.unit_qty|default(1) %}
-              {% if so.units and so.units|length > 1 %}
-                {% if so.unit_price_uniform is not none %}
-                <div style="font-size:10.5px;color:var(--mute);margin-top:2px;text-align:right;">
-                  {{ so.units|length }}대 × {{ '{:,.0f}'.format(so.unit_price_uniform) }}원
-                </div>
-                {% else %}
-                <details style="margin-top:2px;">
-                  <summary style="font-size:10.5px;color:var(--knk-red);cursor:pointer;text-align:right;">호기별 단가 ▾</summary>
-                  <div style="font-size:11px;color:var(--ink);margin-top:4px;text-align:right;line-height:1.6;">
-                    {% for u in so.units %}
-                    <div><span style="color:var(--mute);">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span> · <b>{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</b></div>
-                    {% endfor %}
-                  </div>
-                </details>
-                {% endif %}
-              {% elif _qq > 1 and so.total_amount %}
-                <div style="font-size:10.5px;color:var(--mute);margin-top:2px;text-align:right;">
-                  {{ _qq }}대 × {{ '{:,.0f}'.format((so.total_amount or 0) / _qq) }}원 <span style="opacity:0.7;">(평균)</span>
-                </div>
+            </td>
+            <td class="center">
+              {% if _editable %}
+              <select class="cur-inp" data-orig="{{ _cur }}" style="padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;background:var(--paper);">
+                <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>₩ KRW</option>
+                <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>$ USD</option>
+              </select>
+              {% else %}
+              <span style="font-size:12px;color:var(--mute);">{{ _sym }} {{ _cur }}</span>
               {% endif %}
             </td>
             <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
@@ -214,11 +222,15 @@
           </tr>
           {% if _editable %}
           <tr class="add-unit-row" data-soid="{{ so.id }}" style="display:none;background:var(--amber-glow);">
-            <td colspan="9" style="padding:10px 14px;">
+            <td colspan="11" style="padding:10px 14px;">
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;">
                 <span style="font-weight:700;color:var(--amber-deep);">➕ 호기 추가:</span>
-                <input type="text" name="label" placeholder="호기 라벨 (예: 3호기 — 비우면 자동)" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
-                <input type="text" name="amount" inputmode="numeric" placeholder="단가 (KRW)" class="knk-money" style="width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;text-align:right;background:var(--paper);">
+                <input type="text" name="label" placeholder="호기 라벨 (비우면 자동)" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
+                <select name="cur" style="padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
+                  <option value="KRW" {% if (so.currency or 'KRW') == 'KRW' %}selected{% endif %}>₩ KRW</option>
+                  <option value="USD" {% if so.currency == 'USD' %}selected{% endif %}>$ USD</option>
+                </select>
+                <input type="text" name="amount" inputmode="numeric" placeholder="단가" class="knk-money" style="width:130px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;text-align:right;background:var(--paper);">
                 <input type="text" name="note" placeholder="비고 (선택)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
                 <button type="button" class="confirm-add-unit" style="background:var(--amber-deep);color:white;border:0;border-radius:5px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
                 <button type="button" class="cancel-add-unit" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:5px;padding:7px 12px;cursor:pointer;font-size:13px;">취소</button>
@@ -232,8 +244,8 @@
             <tr style="background:var(--paper-2);font-weight:700;">
               <td colspan="4" style="text-align:right;padding:10px;">총 합계 →</td>
               <td class="center">{% set _qty = namespace(t=0) %}{% for _so in project_orders %}{% set _qty.t = _qty.t + (_so.unit_qty or 1) %}{% endfor %}{{ _qty.t }}대</td>
-              <td class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}</td>
-              <td colspan="3" style="font-size:11px;color:var(--mute);">SO {{ project_orders|length }}건</td>
+              <td colspan="2" class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}<span style="color:var(--mute);font-weight:500;font-size:11px;"> (KRW 환산)</span></td>
+              <td colspan="4" style="font-size:11px;color:var(--mute);">SO {{ project_orders|length }}건</td>
             </tr>
           </tfoot>
         </table></div>
@@ -264,6 +276,8 @@
               body.set('label', formRow.querySelector('input[name="label"]').value || '');
               body.set('amount', (amtInp.value || '0').replace(/,/g,''));
               body.set('note',  formRow.querySelector('input[name="note"]').value || '');
+              const curSel = formRow.querySelector('select[name="cur"]');
+              if (curSel) body.set('currency', curSel.value);
               if (parseFloat(body.get('amount')) <= 0) {
                 alert('⚠ 단가를 입력해주세요'); return;
               }
@@ -285,20 +299,24 @@
             const soid = tr.dataset.soid;
             const qty  = tr.querySelector('.qty-inp');
             const amt  = tr.querySelector('.amt-inp');
+            const cur  = tr.querySelector('.cur-inp');
             const save = tr.querySelector('.save-so');
             if (!save) return;  // 편집 권한 없으면 스킵
             function dirty(){
               const dq = qty && (String(qty.value) !== String(qty.dataset.orig));
               const aRaw = amt ? (amt.value || '0').replace(/,/g,'') : '0';
               const da = amt && (parseFloat(aRaw) !== parseFloat(amt.dataset.orig));
-              save.style.display = (dq || da) ? 'inline-block' : 'none';
+              const dc = cur && (cur.value !== cur.dataset.orig);
+              save.style.display = (dq || da || dc) ? 'inline-block' : 'none';
             }
             if (qty) qty.addEventListener('input', dirty);
             if (amt) amt.addEventListener('input', dirty);
+            if (cur) cur.addEventListener('change', dirty);
             save.addEventListener('click', async () => {
               const body = new URLSearchParams();
               if (qty) body.set('unit_qty', qty.value);
               if (amt) body.set('total_amount', (amt.value || '0').replace(/,/g,''));
+              if (cur) body.set('currency', cur.value);
               save.disabled = true;
               try {
                 const r = await fetch('/sales/orders/' + soid + '/quick-edit', {

@@ -2023,6 +2023,8 @@ def init_db():
                 ("ship_to",            "ALTER TABLE orders ADD COLUMN ship_to TEXT"),
                 # 호기 수량 (SO 안에 묶인 호기 개수)
                 ("unit_qty",           "ALTER TABLE orders ADD COLUMN unit_qty INTEGER DEFAULT 1"),
+                # v5H92: 통화 (KRW / USD) — SO 단위
+                ("currency",           "ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'KRW'"),
             ]:
                 if col not in ocols:
                     try:
