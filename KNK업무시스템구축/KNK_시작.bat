@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H75 프로젝트 등록 폼 정합 — (1) 고객사명: 자유입력 → 등록 고객사 datalist 드롭다운(자동완성) — 동일 고객사 표기 일관성 확보 (2) STAGES 에서 개조/A/S 제거 → PO_TYPES 로 이동 (개조·A/S 는 단계가 아니라 발주 유형) (3) 단계/상태 별도 입력 제거 → 단계는 워크플로우(제안→수주확정→납품) 자동 진행, 폼은 상태만 노출 → hidden stage 기본 '제안작성' (4) customers_for_picker() 신규 + project_form.html GET 라우트(new/edit) 양쪽 customers 컨텍스트 주입
+REM   LAST UPDATE: 2026-05-03 v5H76 프로젝트 등록 폼 가독성 개편 — (1) PO_TYPES 에 '기타' 추가 → [신규,추가,개조,A/S,기타] (2) LOGI_STATUSES 9단계 확장 → [초기협의,제안서전달,견적발행,수주예정,진행중,납품완료,보류,취소,기타] (3) 폼 레이아웃 4섹션 카드형 — ①기본정보 ②고객·일정 ③금액·상태 ④비고 / max-width 880px 중앙정렬 / autofocus 프로젝트명 / 통화 hidden(KRW고정) / 상단 1줄 안내 hint / 관리코드 readonly placeholder
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H75 프로젝트 등록 폼 정합 (고객사 드롭다운 + 개조/AS 유형이동 + 단계/상태 통합)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H76 프로젝트 등록 폼 가독성 개편 (4섹션 카드형 + PO유형/상태 옵션 확장)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

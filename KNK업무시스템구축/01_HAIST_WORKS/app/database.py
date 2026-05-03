@@ -3235,8 +3235,8 @@ BIZ_NAME = {v: k for k, v in BIZ_CODE.items()}
 
 STAGES = ["제안작성", "제안제출", "수주확정", "납품"]
 NEEDS_CODE_STAGES = ("수주확정", "납품")
-PO_TYPES = ["신규", "추가", "개조", "A/S"]
-LOGI_STATUSES = ["수주예정", "진행중", "납품완료", "취소", "보류"]
+PO_TYPES = ["신규", "추가", "개조", "A/S", "기타"]
+LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
 
 def _logi_now() -> str:

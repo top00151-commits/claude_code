@@ -2,64 +2,148 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %} · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field.full { grid-column: span 2; }
-.field label { font-size: 12px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
-.field textarea { min-height: 80px; resize: vertical; }
+/* v5H76: 프로젝트 등록 폼 — 단정한 섹션형 레이아웃 (기본정보 → 고객·일정 → 금액·상태 → 비고) */
+.pf-wrap { max-width: 880px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.pf-hint { font-size: 12px; color: var(--mute); margin: var(--space-2) 0 var(--space-5); line-height: 1.6; }
+.pf-section { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); }
+.pf-section h3 { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; margin: 0 0 var(--space-4); display: flex; align-items: center; gap: 8px; }
+.pf-section h3::before { content: ""; width: 4px; height: 14px; background: var(--amber); border-radius: 2px; }
+.pf-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 14px; }
+.pf-row:last-child { margin-bottom: 0; }
+.pf-row.solo { grid-template-columns: 1fr; }
+.pf-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.pf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pf-field.full { grid-column: 1/-1; }
+.pf-field label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.pf-field label .req { color: var(--knk-red); margin-left: 2px; }
+.pf-field input, .pf-field select, .pf-field textarea { padding: 11px 14px; font-family: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); transition: border-color .15s, box-shadow .15s; }
+.pf-field input:focus, .pf-field select:focus, .pf-field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.pf-field textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
+.pf-field .sub { font-size: 11.5px; color: var(--mute); }
+.pf-field input[readonly] { background: var(--paper-2); color: var(--mute); cursor: not-allowed; }
+.pf-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: var(--space-3); }
+@media (max-width: 720px) { .pf-row, .pf-row.three { grid-template-columns: 1fr; } }
 </style></head>
 <body>
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div><div class="crumbs"><a href="/projects">프로젝트</a> · <b>{% if project %}수정{% else %}등록{% endif %}</b></div>
-    <h1 class="page-title">{% if project %}프로젝트 <em>수정</em>{% else %}프로젝트 <em>등록</em>{% endif %}</h1></div>
+    <div>
+      <div class="crumbs"><a href="/projects">프로젝트</a> · <b>{% if project %}수정{% else %}등록{% endif %}</b></div>
+      <h1 class="page-title">{% if project %}프로젝트 <em>수정</em>{% else %}프로젝트 <em>등록</em>{% endif %}</h1>
+    </div>
   </div>
-  <form method="post" action="{% if project %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
-    <div class="form-card">
-      <div class="field-row">
-        <div class="field"><label>관리코드</label><input type="text" name="mgmt_code" value="{{ project.mgmt_code|default('') }}" placeholder="자동 발급 (저장 시)"></div>
-        <div class="field"><label>사업부 *</label><select name="biz_div" required><option value="">— 선택 —</option><option value="M" {% if project and project.biz_div == 'M' %}selected{% endif %}>M (자동화)</option><option value="T" {% if project and project.biz_div == 'T' %}selected{% endif %}>T (검사기)</option></select></div>
+
+  <form method="post" action="{% if project %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}" class="pf-wrap">
+
+    {# 단계는 워크플로우(제안→수주확정→납품)가 자동 진행 — 폼에서는 숨김 #}
+    <input type="hidden" name="stage" value="{{ project.stage|default('제안작성') }}">
+    <input type="hidden" name="currency" value="{{ project.currency|default('KRW') }}">
+
+    <div class="pf-hint">
+      ① 기본정보를 입력하면 저장 시 관리코드가 자동 발급됩니다 ·
+      ② 고객사는 등록된 명칭을 선택해주세요 ·
+      ③ 수주가 확정되면 별도 화면에서 수주번호(SO)가 발급됩니다.
+    </div>
+
+    <!-- ① 기본 정보 -->
+    <div class="pf-section">
+      <h3>① 기본 정보</h3>
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <label>프로젝트명<span class="req">*</span></label>
+          <input type="text" name="name" required autofocus
+                 value="{{ project.name|default(project.project_name|default('')) }}"
+                 placeholder="예: ○○고객사 검사기 1호기">
+        </div>
       </div>
-      <div class="field-row">
-        <div class="field full"><label>프로젝트명 *</label><input type="text" name="name" required value="{{ project.name|default(project.project_name|default('')) }}"></div>
+      <div class="pf-row three">
+        <div class="pf-field">
+          <label>사업부<span class="req">*</span></label>
+          <select name="biz_div" required>
+            <option value="">— 선택 —</option>
+            <option value="T" {% if project and project.biz_div == 'T' %}selected{% endif %}>T (검사기)</option>
+            <option value="M" {% if project and project.biz_div == 'M' %}selected{% endif %}>M (자동화)</option>
+          </select>
+        </div>
+        <div class="pf-field">
+          <label>PO 유형</label>
+          <select name="po_type">
+            <option value="">— 선택 —</option>
+            {% for t in PO_TYPES %}
+            <option value="{{ t }}" {% if project and project.po_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="pf-field">
+          <label>관리코드</label>
+          <input type="text" name="mgmt_code" value="{{ project.mgmt_code|default('') }}"
+                 placeholder="저장 시 자동 발급" {% if not project %}readonly{% endif %}>
+        </div>
       </div>
-      <div class="field-row">
-        <div class="field">
+    </div>
+
+    <!-- ② 고객 / 일정 -->
+    <div class="pf-section">
+      <h3>② 고객 · 일정</h3>
+      <div class="pf-row solo">
+        <div class="pf-field full">
           <label>고객사</label>
           <input type="text" name="customer_name" list="customer_list" autocomplete="off"
                  value="{{ project.customer_name|default('') }}"
-                 placeholder="등록된 고객사를 선택 (목록에 없으면 /customers/new 에서 먼저 등록)">
+                 placeholder="등록된 고객사 선택 (없으면 /customers/new 에서 먼저 등록)">
           <datalist id="customer_list">
             {% for cu in (customers or []) %}
             <option value="{{ cu.name }}"></option>
             {% endfor %}
           </datalist>
         </div>
-        <div class="field"><label>PO 유형</label><select name="po_type"><option value="">— 선택 —</option>{% for t in PO_TYPES %}<option value="{{ t }}" {% if project and project.po_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
       </div>
-      <div class="field-row">
-        {# v5H75: 단계는 워크플로우(제안→수주확정→납품)가 자동 진행. 등록 시 노출 불필요 → 상태만 표시 #}
-        <input type="hidden" name="stage" value="{{ project.stage|default('제안작성') }}">
-        <div class="field full"><label>상태</label><select name="status"><option value="">— 선택 —</option>{% for s in STATUSES %}<option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>발주일</label><input type="date" name="order_date" value="{{ project.order_date|default('') }}"></div>
-        <div class="field"><label>납기</label><input type="date" name="due_date" value="{{ project.due_date|default('') }}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>수주액 (원)</label><input type="number" name="order_amount" step="1" value="{{ project.order_amount|default(0) }}"></div>
-        <div class="field"><label>통화</label><input type="text" name="currency" value="{{ project.currency|default('KRW') }}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>비고</label><textarea name="note" placeholder="프로젝트 특이사항">{{ project.note|default('') }}</textarea></div>
+      <div class="pf-row">
+        <div class="pf-field">
+          <label>발주일</label>
+          <input type="date" name="order_date" value="{{ project.order_date|default('') }}">
+        </div>
+        <div class="pf-field">
+          <label>납기</label>
+          <input type="date" name="due_date" value="{{ project.due_date|default('') }}">
+        </div>
       </div>
     </div>
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+
+    <!-- ③ 금액 / 상태 -->
+    <div class="pf-section">
+      <h3>③ 금액 · 상태</h3>
+      <div class="pf-row">
+        <div class="pf-field">
+          <label>수주액 <span class="sub">(KRW)</span></label>
+          <input type="text" name="order_amount" inputmode="numeric"
+                 value="{{ project.order_amount|default(0) }}" placeholder="0">
+        </div>
+        <div class="pf-field">
+          <label>상태</label>
+          <select name="status">
+            <option value="">— 선택 —</option>
+            {% for s in STATUSES %}
+            <option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ 비고 -->
+    <div class="pf-section">
+      <h3>④ 비고</h3>
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note|default('') }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="pf-actions">
       <a class="btn btn-secondary" href="/projects">취소</a>
       <button type="submit" class="btn btn-primary">📤 {% if project %}저장{% else %}등록{% endif %}</button>
     </div>
