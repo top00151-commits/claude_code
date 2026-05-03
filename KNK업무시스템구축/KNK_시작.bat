@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H76 프로젝트 등록 폼 가독성 개편 — (1) PO_TYPES 에 '기타' 추가 → [신규,추가,개조,A/S,기타] (2) LOGI_STATUSES 9단계 확장 → [초기협의,제안서전달,견적발행,수주예정,진행중,납품완료,보류,취소,기타] (3) 폼 레이아웃 4섹션 카드형 — ①기본정보 ②고객·일정 ③금액·상태 ④비고 / max-width 880px 중앙정렬 / autofocus 프로젝트명 / 통화 hidden(KRW고정) / 상단 1줄 안내 hint / 관리코드 readonly placeholder
+REM   LAST UPDATE: 2026-05-03 v5H77 프로젝트 등록 시 SO 동시발급 옵션 — 기존 워크플로우는 '제안→별도 수주확정 화면'에서만 SO 발급. 이미 수주된 프로젝트 등록 케이스 누락. 폼 ③ 섹션에 '☑ 이미 수주 확정 — 등록과 동시에 SO 발급' 체크박스 신설(amber dashed 강조박스). 체크 시 POST /projects/new 가 projects_create_logi 후 즉시 _pwf.confirm_order() 호출 → 관리코드 + 수주번호([사업부]-YYMMDD) 동시 발급 → /project/{pid} 상세로 redirect. 미체크 시 기존 흐름 유지(제안작성)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H76 프로젝트 등록 폼 가독성 개편 (4섹션 카드형 + PO유형/상태 옵션 확장)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H77 프로젝트 등록 시 수주확정 동시발급 옵션 (관리코드+SO 한번에)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

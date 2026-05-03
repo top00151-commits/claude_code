@@ -6906,10 +6906,16 @@ async def projects_new_submit(request: Request):
         amt = float(raw_amt) if raw_amt else 0
     except ValueError:
         amt = 0
-    _logi.projects_create_logi({
+    # v5H77: '수주확정 동시발급' 체크 — 등록 직후 confirm_order 호출
+    confirm_now = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
+    stage_val = form.get("stage", "제안작성") or "제안작성"
+    if confirm_now:
+        # 수주 확정과 함께 등록하면 stage 를 즉시 '수주확정' 으로
+        stage_val = "수주확정"
+    new_pid, _new_code = _logi.projects_create_logi({
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
-        "stage": form.get("stage", "제안작성") or "제안작성",
+        "stage": stage_val,
         "po_type": form.get("po_type", "신규") or "신규",
         "status": form.get("status", "수주예정") or "수주예정",
         "customer_po": form.get("customer_po", ""),
@@ -6920,6 +6926,25 @@ async def projects_new_submit(request: Request):
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
     })
+    if confirm_now and new_pid:
+        # 관리코드 + SO 동시 발급 (already issued mgmt_code via NEEDS_CODE_STAGES, SO 발급은 별도)
+        try:
+            with db_session() as c:
+                _pwf.confirm_order(
+                    c, int(new_pid),
+                    order_date=form.get("order_date", ""),
+                    total_amount=amt,
+                    due_date=form.get("due_date", ""),
+                    created_by=_u.get("id") or 0,
+                    po_number=form.get("customer_po", ""),
+                    note=form.get("note", ""),
+                )
+        except Exception as _e:
+            # 프로젝트는 이미 생성됨 — SO 발급 실패는 상세에서 재시도
+            return RedirectResponse(
+                f"/project/{new_pid}?warn=so_issue_failed", status_code=303
+            )
+        return RedirectResponse(f"/project/{new_pid}", status_code=303)
     return RedirectResponse("/projects", status_code=303)
 
 

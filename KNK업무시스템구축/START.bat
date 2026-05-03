@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H76 project form readability overhaul — (1) PO_TYPES adds '기타' → [신규,추가,개조,A/S,기타] (2) LOGI_STATUSES expanded to 9 → [초기협의,제안서전달,견적발행,수주예정,진행중,납품완료,보류,취소,기타] (3) Form layout: 4 sectioned cards (basic / customer-schedule / amount-status / note), max-width 880px centered, autofocus name, currency hidden (KRW fixed), top hint line, mgmt_code readonly placeholder
+REM   LAST UPDATE: 2026-05-03 v5H77 project registration with SO co-issuance option — Previous workflow only issued SO via separate '수주확정' screen. Missing case: already-won projects registered cold. Form section ③ now has "☑ Already won — issue SO with registration" checkbox (amber dashed callout). When checked, POST /projects/new runs projects_create_logi then immediately _pwf.confirm_order() → mgmt_code + SO ([div]-YYMMDD) issued together → redirect to /project/{pid}. Unchecked = legacy flow (제안작성 default).
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H76 project form readability overhaul (4 sectioned cards + expanded PO/status options)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H77 project registration with SO co-issuance (mgmt code + SO in one step)]
 
 echo.
 echo ============================================================
