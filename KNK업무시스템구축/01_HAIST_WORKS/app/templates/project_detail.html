@@ -199,7 +199,8 @@
         {% for so in project_orders %}
           {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
           {% set _cur = so.currency|default('KRW') %}
-          {% set _sym = '$' if _cur == 'USD' else '₩' %}
+          {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
+          {% set _sym = '' %}
           {% set _qq = so.unit_qty|default(1) %}
           <div class="so-card" data-soid="{{ so.id }}">
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
@@ -210,7 +211,7 @@
                 <span class="item"><span class="k">📅 발주</span><span class="v">{{ so.order_date|default('-') }}</span></span>
                 <span class="item"><span class="k">→ 납기</span><span class="v">{{ so.due_date|default('-') }}</span></span>
                 <span class="item"><span class="k">📍 납품처</span><span class="v">{{ so.ship_to|default('미지정') }}</span></span>
-                <span class="item"><span class="k">💱 통화</span><span class="v">{{ _sym }} {{ _cur }}</span></span>
+                <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
@@ -231,7 +232,7 @@
               <thead>
                 <tr>
                   <th style="width:120px;">호기</th>
-                  <th class="num" style="width:170px;">단가 ({{ _sym }})</th>
+                  <th class="num" style="width:170px;">단가 ({{ _cur }})</th>
                   <th>비고</th>
                   {% if _editable %}<th class="center" style="width:90px;">동작</th>{% endif %}
                 </tr>
@@ -250,7 +251,7 @@
                     {% if _editable %}
                     <input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">
                     {% else %}
-                    <span class="price">{{ _sym }}{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
+                    <span class="price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
                     {% endif %}
                   </td>
                   <td>
@@ -283,8 +284,9 @@
                 <span style="font-weight:700;color:var(--amber-deep);">＋ 호기 추가</span>
                 <input type="text" name="label" placeholder="호기 라벨 (비우면 자동)" style="width:160px;">
                 <select name="cur">
-                  <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>₩ KRW</option>
-                  <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>$ USD</option>
+                  <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>KRW</option>
+                  <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>USD</option>
+                  <option value="VND" {% if _cur == 'VND' %}selected{% endif %}>VND</option>
                 </select>
                 <input type="text" name="amount" inputmode="numeric" placeholder="단가" class="amt knk-money">
                 <input type="text" name="note" placeholder="비고 (선택)" class="note">
@@ -298,12 +300,12 @@
             <div class="so-card-foot">
               <div class="summary">
                 <span>수량 <b>{{ _qq }}대</b></span>
-                <span style="margin-left:14px;">합계 {{ _sym }}<b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b></span>
+                <span style="margin-left:14px;">합계 <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b> <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
                 <span class="warn" style="margin-left:14px;">
                   ⚠
                   {% if so.mismatch_qty %}호기 라인 {{ so.items_n }}/{{ so.unit_qty }}{% endif %}
-                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}{% endif %}
+                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {{ '{:,.0f}'.format(so.total_amount - so.items_sum) }} {{ _cur }}{% endif %}
                 </span>
                 {% endif %}
               </div>
@@ -323,7 +325,7 @@
           <div>
             <div class="label">총 SO {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
           </div>
-          <div class="value">₩ {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:11px;color:var(--mute);font-weight:500;">(KRW 환산 합계)</span></div>
+          <div class="value">{{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">KRW</span> <span style="font-size:11px;color:var(--mute);font-weight:500;">(환산 합계)</span></div>
         </div>
         <script>
         // v5H93: 카드 레이아웃 — '＋ 호기 추가' 토글 + 호기 라인 인라인 편집/삭제

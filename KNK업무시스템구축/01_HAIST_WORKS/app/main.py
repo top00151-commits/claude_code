@@ -4640,7 +4640,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
     cur_v = (form.get("currency") or "").strip().upper() or "KRW"
-    if cur_v not in ("KRW", "USD"):
+    if cur_v not in ("KRW", "USD", "VND"):
         cur_v = "KRW"
     try:
         amt = float(raw_a) if raw_a else 0
@@ -4728,7 +4728,7 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     raw_a = (form.get("total_amount") or "").strip().replace(",", "")
     raw_c = (form.get("currency") or "").strip().upper()
     sets, vals = [], []
-    if raw_c in ("KRW", "USD"):
+    if raw_c in ("KRW", "USD", "VND"):
         sets.append("currency=?"); vals.append(raw_c)
     if raw_q:
         try:
