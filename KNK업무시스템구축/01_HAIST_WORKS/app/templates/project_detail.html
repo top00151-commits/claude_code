@@ -129,7 +129,10 @@
     <div class="kpi-card"><div class="kpi-label">전체 업무</div><div class="kpi-num">{{ total_tasks }}</div></div>
     <div class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-num" style="color:var(--success);">{{ s.done|default(0) }}</div><div class="kpi-trend up">{% if total_tasks %}{{ ((s.done*100/total_tasks)|round|int) }}%{% else %}0%{% endif %}</div></div>
     <div class="kpi-card"><div class="kpi-label">누적 공수</div><div class="kpi-num">{{ '%.1f'|format(s.hours|default(0)) }}<span class="unit">h</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">수주액</div><div class="kpi-num">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}<span class="unit">원</span></div></div>
+    {# v5H94: 수주액 KPI 는 SO 합계가 우선 (단일 진실 소스). SO 가 없으면 폼 입력값 폴백. #}
+    {% set _so_total = (project_orders|sum(attribute='total_amount')) if project_orders else 0 %}
+    {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
+    <div class="kpi-card"><div class="kpi-label">수주액</div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">원</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
   </div>
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
@@ -493,7 +496,7 @@
           <dt>상태</dt><dd>{{ p.status|default('—') }}</dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
-          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</dd>
+          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}</dd>
         </dl>
       </div>
 

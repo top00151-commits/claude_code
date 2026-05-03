@@ -3202,10 +3202,21 @@ async def project_detail(req: Request, pid: int):
         ).fetchall()]
     retro = get_retro(pid)
     # v5H68: 연결된 수주(SO) 목록
+    # v5H94: 페이지 로드 시 projects.order_amount 자동 자가치유
+    #   = SUM(orders.total_amount). SO 있으면 합계가 단일 진실 소스.
     project_orders = []
     try:
         with db_session() as c2:
             project_orders = _pwf.get_project_orders(c2, pid)
+            if project_orders:
+                _so_sum = sum(float(o.get("total_amount") or 0) for o in project_orders)
+                _curr = float(p.get("order_amount") or 0) if isinstance(p, dict) else float((p["order_amount"] or 0))
+                if abs(_so_sum - _curr) > 0.5:
+                    c2.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                               (_so_sum, pid))
+                    # 즉시 표시값에도 반영
+                    if isinstance(p, dict):
+                        p["order_amount"] = _so_sum
     except Exception:
         pass
     return ctx(req, "project_detail.html",
