@@ -3668,6 +3668,33 @@ def projects_delete_logi(pid: int) -> None:
             try: c.execute(sql, (pid,))
             except Exception: pass
 
+        # 1-i) v5H98: 안전망 — project_id 컬럼이 있는 모든 테이블 동적 정리
+        #   누락된 child 테이블 (예: 추후 추가된 progress / WO / 분석 등) 까지 자동 cleanup
+        #   먼저 SET NULL 시도(이력 보존), 실패하면 DELETE
+        try:
+            all_tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name <> 'projects'"
+            ).fetchall()]
+            for tname in all_tables:
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
+                except Exception:
+                    continue
+                if "project_id" not in cols:
+                    continue
+                # 먼저 SET NULL (해당 row 가 살아 있으면 됨)
+                try:
+                    c.execute(f"UPDATE {tname} SET project_id=NULL WHERE project_id=?", (pid,))
+                except Exception:
+                    # NULL 허용 안 하면 row 자체 삭제
+                    try:
+                        c.execute(f"DELETE FROM {tname} WHERE project_id=?", (pid,))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         # 2. 본체 삭제
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
 

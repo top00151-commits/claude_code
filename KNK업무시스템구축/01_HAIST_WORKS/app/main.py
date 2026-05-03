@@ -7476,20 +7476,32 @@ async def projects_edit_submit(request: Request, pid: int):
 
 @app.post("/projects/{pid}/delete")
 async def projects_delete_submit(request: Request, pid: int):
-    """v5H72: 프로젝트 삭제 — 더 엄격한 can_delete_sales 권한."""
+    """v5H72: 프로젝트 삭제 — 더 엄격한 can_delete_sales 권한.
+    v5H98: 삭제 실패 시 구체적 FK/sqlite 에러 메시지 JSON 으로 반환."""
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_delete_sales(_u):
-        # JSON 응답 (프론트 fetch 호환)
-        if request.headers.get("accept", "").find("json") >= 0 or \
-           request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JSONResponse({"error": "권한 없음",
-                                  "message": "프로젝트 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."}, 403)
         return JSONResponse({"error": "권한 없음",
-                              "message": "프로젝트 삭제 권한이 없습니다."}, 403)
-    _logi.projects_delete_logi(pid)
-    return RedirectResponse("/projects", status_code=303)
+                              "message": "프로젝트 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."}, 403)
+    try:
+        _logi.projects_delete_logi(pid)
+    except Exception as e:
+        import traceback
+        err_msg = str(e)
+        tb = traceback.format_exc()
+        # 어느 테이블이 막는지 힌트 추출 (FOREIGN KEY constraint failed)
+        hint = ""
+        if "FOREIGN KEY" in err_msg or "foreign key" in err_msg.lower():
+            hint = ("관련 자식 데이터가 남아 있어 삭제 차단됨. "
+                    "잠시 후 다시 시도하거나 시스템 관리자에게 보고하세요.")
+        return JSONResponse({
+            "ok": False,
+            "error": "삭제 실패",
+            "message": f"{err_msg}\n{hint}",
+            "trace": tb[-500:],  # 마지막 500자만
+        }, 500)
+    return JSONResponse({"ok": True, "message": "프로젝트 삭제 완료"})
 
 
 # =====================================================

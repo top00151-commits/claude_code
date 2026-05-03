@@ -88,12 +88,23 @@
         confirmLabel: '⚠ 프로젝트 삭제',
         onConfirm: async () => {
           const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:new FormData()});
-          if (r.status === 403) { alert('⚠ 권한 없음'); throw new Error('권한 없음'); }
-          if (r.ok || r.status === 303 || r.redirected) {
+          if (r.status === 403) {
+            const j = await r.json().catch(() => ({}));
+            alert('⚠ 권한 없음\n\n' + (j.message || ''));
+            throw new Error('권한 없음');
+          }
+          let j = null;
+          try { j = await r.json(); } catch(_) {}
+          if (r.ok && (!j || j.ok)) {
+            alert('✓ 프로젝트 [' + name + '] 삭제 완료');
+            location.reload();
+          } else if (r.ok || r.redirected) {
+            // 호환: 옛 RedirectResponse 시점
             alert('✓ 프로젝트 [' + name + '] 삭제 완료');
             location.reload();
           } else {
-            throw new Error('HTTP ' + r.status);
+            const msg = (j && j.message) ? j.message : ('HTTP ' + r.status);
+            throw new Error(msg);
           }
         }
       });
