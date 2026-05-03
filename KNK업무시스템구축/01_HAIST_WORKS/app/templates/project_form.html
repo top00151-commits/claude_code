@@ -103,6 +103,20 @@
                  placeholder="저장 시 자동 발급" {% if not project %}readonly{% endif %}>
         </div>
       </div>
+      {# v5H97: 거래 구분 (내수/수출) — 회계/통화/세관 처리 분기 키 #}
+      <div class="pf-row">
+        <div class="pf-field">
+          <label>거래 구분 <span class="sub">(수출이면 통화는 USD/VND 권장)</span></label>
+          <div style="display:flex;gap:14px;padding:8px 0;">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
+              <input type="radio" name="is_export" value="0" {% if not project or not project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 🏠 내수
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
+              <input type="radio" name="is_export" value="1" {% if project and project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> ✈ 수출
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ② 고객 / 일정 -->
@@ -133,21 +147,31 @@
       </div>
     </div>
 
-    <!-- ③ 금액 / 상태 -->
+    <!-- ③ 금액 -->
     <div class="pf-section">
-      <h3>③ 금액 · 상태</h3>
+      <h3>③ 금액</h3>
       <div class="pf-row">
         <div class="pf-field">
-          <label>수주액 <span class="sub">(KRW)</span></label>
+          <label>수주액</label>
           <input type="text" name="order_amount" inputmode="numeric"
                  value="{{ project.order_amount|default(0) }}" placeholder="0">
         </div>
         <div class="pf-field">
-          <label>상태</label>
+          <label>통화</label>
+          <select name="currency">
+            <option value="KRW" {% if not project or (project.currency or 'KRW') == 'KRW' %}selected{% endif %}>KRW (원)</option>
+            <option value="USD" {% if project and project.currency == 'USD' %}selected{% endif %}>USD (달러)</option>
+            <option value="VND" {% if project and project.currency == 'VND' %}selected{% endif %}>VND (동)</option>
+          </select>
+        </div>
+      </div>
+      {# v5H97: 초기 상태만 설정 — 이후 변경은 프로젝트 상세에서 인라인 클릭으로 #}
+      <div class="pf-row">
+        <div class="pf-field full">
+          <label>초기 상태 <span class="sub">(저장 후 프로젝트 상세에서 클릭으로 수시 변경 가능)</span></label>
           <select name="status">
-            <option value="">— 선택 —</option>
             {% for s in STATUSES %}
-            <option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>
+            <option value="{{ s }}" {% if project and project.status == s %}selected{% elif not project and s == '초기협의' %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
         </div>

@@ -440,6 +440,39 @@
         }
         </script>
         {% include "_v5_partials/password_confirm.html" %}
+        <script>
+        // v5H97: 상태 인라인 빠른 변경
+        (function(){
+          const sel = document.getElementById('quickStatus');
+          if (!sel) return;
+          const msg = document.getElementById('quickStatusMsg');
+          sel.addEventListener('change', async () => {
+            const body = new URLSearchParams();
+            body.set('status', sel.value);
+            try {
+              const r = await fetch('/projects/' + sel.dataset.pid + '/quick-status',
+                                    {method:'POST', body: body});
+              const j = await r.json();
+              if (j.ok) {
+                msg.textContent = '✓ 저장됨';
+                msg.style.display = 'inline';
+                setTimeout(() => { msg.style.display = 'none'; }, 1500);
+                sel.dataset.orig = sel.value;
+                // 상태 변화로 관리코드/SO 자동 발급 가능 → 새로고침
+                if (j.message && j.message.indexOf('→') >= 0) {
+                  setTimeout(() => location.reload(), 800);
+                }
+              } else {
+                alert('⚠ ' + (j.message || '실패'));
+                sel.value = sel.dataset.orig;
+              }
+            } catch(e) {
+              alert('⚠ ' + e.message);
+              sel.value = sel.dataset.orig;
+            }
+          });
+        })();
+        </script>
         {% else %}
         <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">
           {% if not p.mgmt_code %}
@@ -494,11 +527,24 @@
           <dt>프로젝트명</dt><dd><b>{{ p.name }}</b></dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
+          <dt>거래 구분</dt><dd>{% if p.is_export %}<span style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}</dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
-          <dt>상태</dt><dd>{{ p.status|default('—') }}</dd>
+          <dt>상태</dt><dd>
+            {% if can_sales %}
+            <select id="quickStatus" data-pid="{{ p.id }}" data-orig="{{ p.status|default('') }}"
+                    style="padding:4px 10px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;font-weight:700;background:var(--paper);cursor:pointer;">
+              {% for s in (STATUSES or []) %}
+              <option value="{{ s }}" {% if p.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <span id="quickStatusMsg" style="font-size:11px;color:var(--success);margin-left:6px;display:none;">✓</span>
+            {% else %}
+            <b>{{ p.status|default('—') }}</b>
+            {% endif %}
+          </dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
-          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}</dd>
+          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}</dd>
         </dl>
       </div>
 

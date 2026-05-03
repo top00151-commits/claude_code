@@ -3223,7 +3223,8 @@ async def project_detail(req: Request, pid: int):
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
-               project_orders=project_orders)
+               project_orders=project_orders,
+               STATUSES=_logi.LOGI_STATUSES)
 
 
 # =====================================================
@@ -4513,6 +4514,36 @@ async def auth_verify_password(req: Request):
     if hash_pw(pw) != row["password"]:
         return JSONResponse({"ok": False, "error": "비밀번호가 일치하지 않습니다"})
     return JSONResponse({"ok": True})
+
+
+@app.post("/projects/{pid:int}/quick-status")
+async def projects_quick_status(req: Request, pid: int):
+    """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    new_status = (form.get("status") or "").strip()
+    if new_status not in _logi.LOGI_STATUSES:
+        return JSONResponse({"ok": False, "message": "유효하지 않은 상태"}, 400)
+    with db_session() as c:
+        cur = c.execute("SELECT status, mgmt_code, biz_div FROM projects WHERE id=?", (pid,)).fetchone()
+        if not cur:
+            return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        c.execute("UPDATE projects SET status=?, updated_at=? WHERE id=?",
+                  (new_status, _logi._logi_now() if hasattr(_logi, "_logi_now") else None, pid))
+        # status 가 won 으로 바뀌었는데 mgmt_code 없으면 발급
+        if (new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
+            and cur["biz_div"] in ("T", "M")):
+            try:
+                code = _logi.generate_mgmt_code(cur["biz_div"])
+                c.execute("UPDATE projects SET mgmt_code=?, stage='수주확정' WHERE id=?",
+                          (code, pid))
+            except Exception:
+                pass
+    return JSONResponse({"ok": True, "message": f"상태 → {new_status}"})
 
 
 @app.post("/sales/orders/items/{iid:int}/edit")
@@ -7256,9 +7287,10 @@ async def projects_new_submit(request: Request):
         "model": form.get("model", ""),
         "stage": stage_val,
         "po_type": form.get("po_type", "신규") or "신규",
-        "status": form.get("status", "수주예정") or "수주예정",
+        "status": form.get("status", "초기협의") or "초기협의",
         "customer_po": form.get("customer_po", ""),
-        "currency": form.get("currency", "KRW") or "KRW",
+        "currency": (form.get("currency", "KRW") or "KRW").upper(),
+        "is_export": form.get("is_export", "0"),
         "order_amount": amt,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
@@ -7400,7 +7432,7 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = float(raw_amt) if raw_amt else 0
     except ValueError:
         amt = 0
-    status_val = form.get("status", "수주예정") or "수주예정"
+    status_val = form.get("status", "초기협의") or "초기협의"
     _logi.projects_update_logi(pid, {
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
@@ -7408,7 +7440,8 @@ async def projects_edit_submit(request: Request, pid: int):
         "po_type": form.get("po_type", "신규") or "신규",
         "status": status_val,
         "customer_po": form.get("customer_po", ""),
-        "currency": form.get("currency", "KRW") or "KRW",
+        "currency": (form.get("currency", "KRW") or "KRW").upper(),
+        "is_export": form.get("is_export", "0"),
         "order_amount": amt,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),

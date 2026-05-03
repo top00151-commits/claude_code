@@ -1868,6 +1868,7 @@ def init_db():
             ("sales_name",    "TEXT"),
             ("logi_note",     "TEXT"),                   # 물류 비고
             ("updated_at",    "TEXT"),
+            ("is_export",     "INTEGER DEFAULT 0"),       # v5H97: 0=내수, 1=수출
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -3281,6 +3282,8 @@ STAGES = ["제안작성", "제안제출", "수주확정", "납품"]
 NEEDS_CODE_STAGES = ("수주확정", "납품")
 # v5H86: 상태가 '이미 수주된' 의미면 stage 와 무관하게 관리코드 발급
 WON_STATUSES = ("진행중", "납품완료")
+# v5H97: 거래 구분 (내수/수출)
+TRADE_TYPES = ("내수", "수출")
 PO_TYPES = ["신규", "추가", "개조", "A/S", "기타"]
 LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
@@ -3455,7 +3458,10 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "po_type": (data.get("po_type") or "신규").strip() or "신규",
         "status": (data.get("status") or "수주예정").strip() or "수주예정",
         "customer_po": (data.get("customer_po") or "").strip(),
-        "currency": (data.get("currency") or "KRW").strip() or "KRW",
+        "currency": ((data.get("currency") or "KRW").strip().upper()
+                     if (data.get("currency") or "KRW").strip().upper() in ("KRW","USD","VND")
+                     else "KRW"),
+        "is_export": 1 if str(data.get("is_export") or data.get("trade_type") or "").lower() in ("1","true","수출","export") else 0,
         "order_amount": float(data.get("order_amount") or 0),
         "order_date": (data.get("order_date") or "").strip(),
         "due_date": (data.get("due_date") or "").strip(),
@@ -3498,13 +3504,13 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                     (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
                      stage, po_type, status, customer_po, currency, order_amount,
                      order_date, due_date, pm_name, sales_name, logi_note,
-                     created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     is_export, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
-                      vals["sales_name"], vals["logi_note"], now, now))
+                      vals["sales_name"], vals["logi_note"], vals["is_export"], now, now))
                 return cur.lastrowid, code
         except _sq.IntegrityError as e:
             last_err = e
@@ -3544,13 +3550,14 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
             SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
                 stage=?, po_type=?, status=?, customer_po=?, currency=?,
                 order_amount=?, order_date=?, due_date=?,
-                pm_name=?, sales_name=?, logi_note=?, updated_at=?
+                pm_name=?, sales_name=?, logi_note=?, is_export=?, updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
               vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
               vals["customer_po"], vals["currency"], vals["order_amount"],
               vals["order_date"], vals["due_date"], vals["pm_name"],
-              vals["sales_name"], vals["logi_note"], _logi_now(), pid))
+              vals["sales_name"], vals["logi_note"], vals["is_export"],
+              _logi_now(), pid))
     return new_code
 
 
