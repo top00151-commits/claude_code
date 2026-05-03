@@ -225,6 +225,75 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     }
 
 
+def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
+    """v5H70: 잘못 생성한 수주 삭제 (관리번호 발급도 되돌림 옵션).
+
+    Args:
+      order_id: 삭제할 수주 ID
+      restore_project: True 이면 프로젝트의 마지막 수주였을 때
+                       관리번호 / status / stage 를 제안 단계로 되돌림
+
+    Returns: {ok, message, project_id, mgmt_code_cleared}
+    """
+    o = c.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+    if not o:
+        return {"ok": False, "message": "수주를 찾을 수 없음"}
+    o = dict(o)
+    project_id = o.get("project_id")
+    order_no = o.get("order_no")
+
+    # 1) 자식 데이터 정리 (참조 무결성)
+    try:
+        c.execute("DELETE FROM order_status_history WHERE order_id=?", (order_id,))
+    except Exception:
+        pass
+    try:
+        c.execute("DELETE FROM order_items WHERE order_id=?", (order_id,))
+    except Exception:
+        pass
+    try:
+        c.execute("DELETE FROM invoices WHERE order_id=?", (order_id,))
+    except Exception:
+        pass
+    try:
+        c.execute("DELETE FROM receipts_payment WHERE order_id=?", (order_id,))
+    except Exception:
+        pass
+    try:
+        c.execute("DELETE FROM shipments WHERE order_id=?", (order_id,))
+    except Exception:
+        pass
+
+    # 2) 수주 본체 삭제
+    c.execute("DELETE FROM orders WHERE id=?", (order_id,))
+
+    mgmt_cleared = False
+    # 3) 프로젝트 상태 복원 (선택)
+    if restore_project and project_id:
+        # 같은 프로젝트의 다른 수주가 더 있는지 확인
+        n = c.execute(
+            "SELECT COUNT(*) FROM orders WHERE project_id=?",
+            (project_id,)
+        ).fetchone()[0]
+        if n == 0:
+            # 마지막 수주였다면 → 관리번호/상태 되돌림
+            c.execute(
+                "UPDATE projects SET mgmt_code=NULL, code=NULL, "
+                "status='수주예정', stage='제안작성' "
+                "WHERE id=?",
+                (project_id,)
+            )
+            mgmt_cleared = True
+
+    return {
+        "ok": True,
+        "message": f"수주번호 {order_no} 삭제됨" + (" + 관리번호 회수 (제안 단계로 복원)" if mgmt_cleared else ""),
+        "project_id": project_id,
+        "order_no": order_no,
+        "mgmt_code_cleared": mgmt_cleared,
+    }
+
+
 def get_project_orders(c, project_id: int) -> list[dict]:
     """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순."""
     rows = c.execute(

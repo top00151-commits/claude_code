@@ -51,23 +51,38 @@
           <th class="center">상태</th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
+          <th style="width:50px;">삭제</th>
         </tr>
       </thead>
       <tbody>
       {% for p in projects %}
-        <tr onclick="location.href='/project/{{ p.id }}'">
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</td>
-          <td><b>{{ p.name|default(p.project_name|default('—')) }}</b></td>
+        <tr>
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="/project/{{ p.id }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
+          <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
           <td class="center"><span class="pill pill-muted">{{ p.biz_div|default('—') }}</span></td>
           <td class="center">{% if p.stage %}<span class="pill pill-progress">{{ p.stage }}</span>{% else %}—{% endif %}</td>
           <td class="center">{% if p.status %}<span class="pill {% if p.status in ('완료','종료') %}pill-done{% elif p.status == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% else %}—{% endif %}</td>
           <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>
+          <td style="text-align:center;">
+            <button type="button" onclick="deleteProject({{ p.id }}, '{{ p.name|default(p.project_name|default('-'))|replace(\"'\",'') }}')" title="프로젝트 삭제" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    <script>
+    async function deleteProject(pid, name) {
+      if (!confirm(`프로젝트 [${name}] 를 정말 삭제하시겠습니까?\n\n` +
+                   `· 연관된 모든 수주/업무 카드도 영향받습니다.\n` +
+                   `· 되돌릴 수 없습니다.`)) return;
+      const fd = new FormData();
+      const r = await fetch(`/projects/${pid}/delete`, {method:'POST', body:fd});
+      if (r.ok || r.status === 303 || r.redirected) { location.reload(); }
+      else { alert('삭제 실패'); }
+    }
+    </script>
     {% else %}
     <div class="empty">
       <div class="ico">📊</div>

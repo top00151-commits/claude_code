@@ -4455,6 +4455,17 @@ async def projects_confirm_order(req: Request, pid: int):
     return JSONResponse(res)
 
 
+@app.post("/sales/orders/{oid:int}/delete")
+async def sales_orders_delete(req: Request, oid: int):
+    """v5H70: 잘못 생성한 수주 삭제 — 마지막 수주면 관리번호도 회수."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        res = _pwf.delete_order(c, oid, restore_project=True)
+    return JSONResponse(res)
+
+
 @app.post("/projects/{pid:int}/add-followup-order")
 async def projects_add_followup(req: Request, pid: int):
     """추가 발주 — 동일 관리번호 + 신규 수주번호 발행 (KNK 추적 표준)."""
@@ -6834,29 +6845,40 @@ async def projects_edit_form(request: Request, pid: int):
 
 
 @app.post("/projects/{pid}/edit")
-async def projects_edit_submit(
-    request: Request,
-    pid: int, biz_div: str = Form(...), project_name: str = Form(...),
-    customer: str = Form(""), model: str = Form(""),
-    stage: str = Form("제안작성"), po_type: str = Form("신규"),
-    status: str = Form("수주예정"), customer_po: str = Form(""),
-    currency: str = Form("KRW"), order_amount: str = Form("0"),
-    order_date: str = Form(""), due_date: str = Form(""),
-    pm: str = Form(""), sales: str = Form(""), note: str = Form(""),
-):
+async def projects_edit_submit(request: Request, pid: int):
+    """v5H70: 폼 실제 필드명(name/customer_name)과 정합 + 콤마 자동 정리.
+    v5H52 의 /projects/new 와 같은 패턴 — edit 도 동일 수정."""
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
+    form = await request.form()
+    project_name = (form.get("name") or form.get("project_name") or "").strip()
+    customer = (form.get("customer_name") or form.get("customer") or "").strip()
+    biz_div = (form.get("biz_div") or "").strip()
+    if not project_name:
+        return RedirectResponse(f"/projects/{pid}/edit?error=name_required", status_code=303)
+    raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
+    try:
+        amt = float(raw_amt) if raw_amt else 0
+    except ValueError:
+        amt = 0
     _logi.projects_update_logi(pid, {
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
-        "model": model, "stage": stage, "po_type": po_type, "status": status,
-        "customer_po": customer_po, "currency": currency,
-        "order_amount": order_amount, "order_date": order_date, "due_date": due_date,
-        "pm": pm, "sales": sales, "note": note,
+        "model": form.get("model", ""),
+        "stage": form.get("stage", "제안작성") or "제안작성",
+        "po_type": form.get("po_type", "신규") or "신규",
+        "status": form.get("status", "수주예정") or "수주예정",
+        "customer_po": form.get("customer_po", ""),
+        "currency": form.get("currency", "KRW") or "KRW",
+        "order_amount": amt,
+        "order_date": form.get("order_date", ""),
+        "due_date": form.get("due_date", ""),
+        "pm": form.get("pm", ""), "sales": form.get("sales", ""),
+        "note": form.get("note", ""),
     })
-    return RedirectResponse("/projects", status_code=303)
+    return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
 @app.post("/projects/{pid}/delete")

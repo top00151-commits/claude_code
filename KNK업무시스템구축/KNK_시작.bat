@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H52 매출영업센터 폼 흐름 전면 정합 
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H69 수주번호 KNK 표준 [T/M]-[YYMMDD][-N]]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H70 프로젝트 수정 422 수정 + 수주 삭제 + 관리번호 회수]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
