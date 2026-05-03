@@ -153,15 +153,20 @@
       </div>
 
       <div id="unitsBox" style="display:none;margin-top:14px;">
-        <h4 style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:8px;">
-          호기별 발주 라인 <span style="color:var(--mute);font-weight:500;">— 호기마다 SO가 1개씩 발행됩니다</span>
+        <h4 style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:6px;">
+          호기별 발주 라인
         </h4>
+        <p style="font-size:11.5px;color:var(--mute);margin-bottom:8px;line-height:1.55;">
+          <b>SO 발행 규칙</b>: 호기들의 <b>(납기일 + 납품지)</b> 가 모두 같으면 → SO 1개로 묶이고 호기는 그 SO의 라인으로 들어갑니다.<br>
+          <b>납기 또는 납품지가 다르면</b> → 그 그룹마다 SO 가 별도 발행됩니다 (진행/납품 추적 단위).
+        </p>
         <table id="unitsTable" style="width:100%;border-collapse:collapse;font-size:13px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;">
           <thead style="background:var(--paper-2);">
             <tr>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:140px;">호기</th>
-              <th style="padding:8px 10px;text-align:right;font-size:11.5px;color:var(--amber-deep);">금액(KRW)</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:160px;">납기</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:110px;">호기</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11.5px;color:var(--amber-deep);width:140px;">금액(KRW)</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:150px;">납기</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);">납품지</th>
               <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);">비고</th>
               <th style="width:40px;"></th>
             </tr>
@@ -171,7 +176,7 @@
             <tr style="background:var(--paper-2);font-weight:700;">
               <td style="padding:8px 10px;">합계</td>
               <td id="unitsSum" style="padding:8px 10px;text-align:right;color:var(--knk-red);">0</td>
-              <td colspan="3"></td>
+              <td colspan="4" id="unitsGroupHint" style="padding:8px 10px;color:var(--mute);font-weight:500;font-size:11.5px;"></td>
             </tr>
           </tfoot>
         </table>
@@ -186,15 +191,25 @@
         const tbody = document.getElementById('unitsTbody');
         const sumCell = document.getElementById('unitsSum');
         const addBtn = document.getElementById('addUnitBtn');
+        const hintCell = document.getElementById('unitsGroupHint');
         let counter = 0;
         function fmt(n){ return (Math.round(n||0)).toLocaleString('ko-KR'); }
         function recalc(){
           let total = 0;
-          tbody.querySelectorAll('input[name="unit_amount[]"]').forEach(inp => {
-            const v = parseFloat((inp.value||'0').replace(/,/g,'')) || 0;
+          const groups = new Set();
+          tbody.querySelectorAll('tr').forEach(tr => {
+            const v = parseFloat(((tr.querySelector('input[name="unit_amount[]"]')||{}).value||'0').replace(/,/g,'')) || 0;
             total += v;
+            const due = ((tr.querySelector('input[name="unit_due[]"]')||{}).value||'').trim();
+            const ship = ((tr.querySelector('input[name="unit_ship[]"]')||{}).value||'').trim();
+            groups.add(due + '||' + ship);
           });
           sumCell.textContent = fmt(total);
+          const n = groups.size;
+          const rows = tbody.querySelectorAll('tr').length;
+          hintCell.textContent = rows > 0
+            ? `호기 ${rows}대 → SO ${n}건 발행 예정`
+            : '';
         }
         function addRow(label){
           counter++;
@@ -204,21 +219,23 @@
             <td style="padding:6px 8px;"><input type="text" name="unit_label[]" value="${label||(counter+'호기')}" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_amount[]" inputmode="numeric" placeholder="0" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="date" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
+            <td style="padding:6px 8px;"><input type="text" name="unit_ship[]" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_note[]" placeholder="(선택)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 4px;text-align:center;"><button type="button" class="rmU" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:16px;">×</button></td>
           `;
           tbody.appendChild(tr);
           const amtInp = tr.querySelector('input[name="unit_amount[]"]');
-          // v5H80: 신규 추가된 호기 금액 input 에도 천단위 콤마 포맷터 부착
           if (window.knkAttachMoney) { window.knkAttachMoney(amtInp); }
           amtInp.addEventListener('input', recalc);
+          tr.querySelector('input[name="unit_due[]"]').addEventListener('change', recalc);
+          tr.querySelector('input[name="unit_ship[]"]').addEventListener('input', recalc);
           tr.querySelector('.rmU').addEventListener('click', () => {
             if (tbody.children.length <= 1) return;
             tr.remove(); recalc();
           });
+          recalc();
         }
         addBtn.addEventListener('click', () => addRow());
-        // 첫 행 자동 추가
         addRow('1호기');
       })();
       </script>

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H80 호기 동적 추가 시 금액 천단위 콤마 누락 수정 — 대표 보고: '호기 추가했는데 금액 자리수 구분이 안됨'. 원인: knk_inputs.html 의 천단위 포맷터가 DOMContentLoaded 시점에만 scan, JS 로 동적 추가된 unit_amount[] input 은 미부착. 수정: knk_inputs 가 window.knkAttachMoney/knkScanMoney/knkFormatMoney 전역 노출 + project_form.html addRow() 가 신규 input 마다 knkAttachMoney 호출 → 호기 추가/입력 즉시 콤마 적용. 합계도 정상 누적
+REM   LAST UPDATE: 2026-05-03 v5H81 SO 채번 규칙 재정합 (대표 정의 명확화) — SO 는 호기/수량 구분이 아니라 진행 단위(납기/납품지/일자) 구분용. 수정 전: 호기마다 SO 1개씩 (T-260503/-2/-3) 잘못 발급. 수정 후: (납기, 납품지) 그룹화 → 같은 납기+같은 납품지면 호기 N대라도 SO 1개에 묶임, 다르면 그룹별 SO 분리. orders ALTER (ship_to, unit_qty), order_items ALTER (unit_label, line_note). confirm_order_multi 재작성 (그룹화 + order_items 적재). 폼 호기 테이블에 '납품지' 컬럼 추가 + SO 발행 예정 건수 라이브 hint. project_detail 수주내역 테이블에 납품지/호기 컬럼 추가
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H80 호기 동적 추가 시 금액 천단위 콤마 자동 적용]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H81 SO 채번 규칙 재정합 (납기/납품지 그룹 = SO 1개)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H80 dynamic 호기 row money formatter fix — CEO: 'added a unit row but the amount has no thousand separators'. Cause: knk_inputs.html scans only on DOMContentLoaded, JS-injected unit_amount[] inputs not attached. Fix: knk_inputs exposes window.knkAttachMoney/knkScanMoney/knkFormatMoney; project_form.html addRow() calls knkAttachMoney on each new amount input → commas appear instantly when typing in any added unit row.
+REM   LAST UPDATE: 2026-05-03 v5H81 SO numbering rule realignment (CEO clarified) — SO is NOT for unit/quantity distinction; it's for progress tracking by (date, due_date, ship_to). Before: 1 SO per unit (T-260503/-2/-3) — wrong. After: group by (due_date, ship_to) → same due+ship = 1 SO with N units inside, different = separate SO per group. orders ALTER (ship_to, unit_qty); order_items ALTER (unit_label, line_note). confirm_order_multi rewritten (groups + items insert). Form unit table now has 납품지 column + live "N units → M SO" hint. project_detail SO list shows ship_to + unit count.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H80 dynamic unit row gets thousand separators]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H81 SO numbering rule (group by due/ship_to, not per unit)]
 
 echo.
 echo ============================================================

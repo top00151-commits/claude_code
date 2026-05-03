@@ -2019,8 +2019,27 @@ def init_db():
                 # v5H78: 호기별 다중 발주 — 1호기/2호기 ... 호기 라벨 + 비고
                 ("unit_label",         "ALTER TABLE orders ADD COLUMN unit_label TEXT"),
                 ("unit_note",          "ALTER TABLE orders ADD COLUMN unit_note TEXT"),
+                # v5H81: 납품지 (SO 그룹화 키 — 동일 납기 + 동일 납품지 = 1 SO)
+                ("ship_to",            "ALTER TABLE orders ADD COLUMN ship_to TEXT"),
+                # 호기 수량 (SO 안에 묶인 호기 개수)
+                ("unit_qty",           "ALTER TABLE orders ADD COLUMN unit_qty INTEGER DEFAULT 1"),
             ]:
                 if col not in ocols:
+                    try:
+                        c.execute(decl)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # v5H81: order_items — 호기 라벨 + 라인 비고
+        try:
+            oicols = [r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()]
+            for col, decl in [
+                ("unit_label", "ALTER TABLE order_items ADD COLUMN unit_label TEXT"),
+                ("line_note",  "ALTER TABLE order_items ADD COLUMN line_note TEXT"),
+            ]:
+                if col not in oicols:
                     try:
                         c.execute(decl)
                     except Exception:

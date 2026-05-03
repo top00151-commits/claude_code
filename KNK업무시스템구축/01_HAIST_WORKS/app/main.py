@@ -6927,10 +6927,11 @@ async def projects_new_submit(request: Request):
         "note": form.get("note", ""),
     })
     if confirm_now and new_pid:
-        # v5H78: 호기별 다중 SO 발급 — unit_label[]/unit_amount[]/unit_due[]/unit_note[]
+        # v5H81: 호기 라인 — (납기, 납품지) 그룹화 키 포함
         labels = form.getlist("unit_label[]")
         amounts = form.getlist("unit_amount[]")
         dues = form.getlist("unit_due[]")
+        ships = form.getlist("unit_ship[]")
         notes_u = form.getlist("unit_note[]")
         units = []
         for i in range(max(len(labels), len(amounts))):
@@ -6941,12 +6942,12 @@ async def projects_new_submit(request: Request):
             except ValueError:
                 u_amt = 0
             u_due = (dues[i] if i < len(dues) else "").strip()
+            u_ship = (ships[i] if i < len(ships) else "").strip()
             u_note = (notes_u[i] if i < len(notes_u) else "").strip()
-            # 빈 라인(라벨도 금액도 없음) 스킵
             if not (labels[i] if i < len(labels) else "") and u_amt == 0:
                 continue
             units.append({"label": lbl, "amount": u_amt,
-                          "due_date": u_due, "note": u_note})
+                          "due_date": u_due, "ship_to": u_ship, "note": u_note})
         try:
             with db_session() as c:
                 if units:

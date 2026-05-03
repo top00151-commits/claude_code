@@ -229,23 +229,26 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                          order_date: str | None = None,
                          created_by: int = 0,
                          po_number: str = "") -> dict:
-    """v5H78: 호기별 다중 수주 동시 확정.
+    """v5H81: 호기별 발주를 (납기, 납품지) 그룹화하여 SO 발행.
 
-    동일 프로젝트에서 여러 호기(예: 검사기 1호기/2호기/...)가 동시에
-    수주됐을 때, 호기별로 SO 를 각각 발행하고 관리코드는 1개만 부여.
+    KNK 표준 (대표 정의):
+      SO 번호는 **호기/수량 구분이 아니라 진행 단위 구분용**.
+      동일 관리번호라도 (납기 또는 납품지가 다르면) SO 분리.
+      반대로 동일 납기 + 동일 납품지면 호기 N개라도 SO 1개.
 
     Args:
       project_id: 대상 프로젝트
-      units: 호기 라인 목록 [{label, amount, due_date, note}, ...]
-             label  : '1호기' / 'A타입' 등 자유 라벨
-             amount : 호기별 수주액 (KRW)
-             due_date: 호기별 납기 (YYYY-MM-DD, 선택)
-             note   : 호기별 비고 (선택)
-      order_date: 공통 발주일 (None 이면 today)
-      po_number : 고객 PO 번호 (호기 전체 공통)
+      units: 호기 라인 [{label, amount, due_date, ship_to, note}, ...]
+             label    : '1호기' 등 호기 라벨
+             amount   : 호기 수주액
+             due_date : 납기 (그룹화 키)
+             ship_to  : 납품지 (그룹화 키)
+             note     : 호기 비고
+      order_date: 공통 발주일 (그룹화 키 — 같은 호출은 같은 일자)
+      po_number : 고객 PO 번호 (전체 공통)
 
-    Returns: {ok, mgmt_code, units: [{so_no, order_id, label, amount}, ...],
-              total_amount, message}
+    Returns: {ok, mgmt_code, groups: [{so_no, order_id, due_date, ship_to,
+              total_amount, units: [...]}], total_amount, message}
     """
     if not units:
         return {"ok": False, "message": "호기 정보가 없습니다"}
@@ -267,7 +270,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         ref_d = date.today()
         order_date = ref_d.isoformat()
 
-    # 1. 관리번호 — 미발급 시 1회만 발급 (호기 전체 공통)
+    # 1. 관리번호 — 미발급 시 1회만 발급
     mgmt_code = (proj.get("mgmt_code") or "").strip()
     total = sum(float(u.get("amount") or 0) for u in units)
     if not mgmt_code:
@@ -280,48 +283,88 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             (mgmt_code, mgmt_code, order_date, total, project_id)
         )
     else:
-        # 이미 관리코드 보유 (추가 발주 케이스) — order_amount 누적 갱신만
         c.execute(
             "UPDATE projects SET order_amount=COALESCE(order_amount,0)+? WHERE id=?",
             (total, project_id)
         )
 
-    # 2. 호기별 SO 발행 — generate_so_no 가 -2/-3 자동 채번
-    issued = []
+    # 2. (납기, 납품지) 그룹화 — 입력 순서 유지 (dict insertion-order)
+    groups: dict[tuple, list[dict]] = {}
     for u in units:
-        label = (u.get("label") or "").strip() or f"{len(issued)+1}호기"
-        amount = float(u.get("amount") or 0)
-        u_due = (u.get("due_date") or "").strip() or None
-        u_note = (u.get("note") or "").strip()
+        key = (
+            (u.get("due_date") or "").strip(),
+            (u.get("ship_to") or "").strip(),
+        )
+        groups.setdefault(key, []).append(u)
+
+    # 3. 그룹별로 SO 1개씩 발행 + 그룹 안의 호기는 order_items 로 적재
+    issued_groups = []
+    for (g_due, g_ship), g_units in groups.items():
+        g_total = sum(float(u.get("amount") or 0) for u in g_units)
+        g_qty = len(g_units)
+        labels_concat = " · ".join(
+            ((u.get("label") or "").strip() or f"{i+1}호기")
+            for i, u in enumerate(g_units)
+        )
         so_no = generate_so_no(c, biz_div, ref_d)
         cur = c.execute(
             "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-            "due_date, total_amount, status, created_by, unit_label, unit_note) "
-            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
-            (so_no, customer_id, project_id, order_date, u_due,
-             amount, created_by or None, label, u_note)
+            "due_date, total_amount, status, created_by, unit_label, unit_note, "
+            "ship_to, unit_qty) "
+            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
+            (so_no, customer_id, project_id, order_date, (g_due or None),
+             g_total, created_by or None, labels_concat,
+             (po_number or None), (g_ship or None), g_qty)
         )
         oid = cur.lastrowid
+
+        # 호기별 라인은 order_items 에 적재 (qty=1 / unit_price=호기금액)
+        for i, u in enumerate(g_units):
+            lbl = (u.get("label") or "").strip() or f"{i+1}호기"
+            amt = float(u.get("amount") or 0)
+            note_u = (u.get("note") or "").strip()
+            try:
+                c.execute(
+                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                    "unit_label, line_note) VALUES(?,?,?,?,?,?)",
+                    (oid, 1, amt, amt, lbl, note_u)
+                )
+            except Exception:
+                # order_items 컬럼 부재 시 무시 (구버전 호환)
+                pass
+
+        # 상태 이력
         try:
+            note_msg = (
+                f"수주 발행 (관리번호 {mgmt_code} · 납기 {g_due or '미지정'} · "
+                f"납품지 {g_ship or '미지정'} · 호기 {g_qty}대 — {labels_concat})"
+                + (f" / 고객 PO {po_number}" if po_number else "")
+            )
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
-                (oid, "DRAFT", "CONFIRMED", created_by or None,
-                 f"호기 발주 {label} (관리번호 {mgmt_code})"
-                 + (f" / 고객 PO {po_number}" if po_number else ""))
+                (oid, "DRAFT", "CONFIRMED", created_by or None, note_msg)
             )
         except Exception:
             pass
-        issued.append({"so_no": so_no, "order_id": oid,
-                       "label": label, "amount": amount})
+
+        issued_groups.append({
+            "so_no": so_no, "order_id": oid,
+            "due_date": g_due, "ship_to": g_ship,
+            "qty": g_qty, "total_amount": g_total,
+            "units": [{"label": (u.get("label") or "").strip() or f"{i+1}호기",
+                       "amount": float(u.get("amount") or 0),
+                       "note": (u.get("note") or "").strip()}
+                      for i, u in enumerate(g_units)],
+        })
 
     return {
         "ok": True,
         "mgmt_code": mgmt_code,
-        "units": issued,
+        "groups": issued_groups,
         "total_amount": total,
-        "message": f"관리번호 {mgmt_code} 발급 + 호기 {len(issued)}건 SO 발행 완료 "
-                   f"(합계 {total:,.0f}원)",
+        "message": f"관리번호 {mgmt_code} 발급 + SO {len(issued_groups)}건 발행 완료 "
+                   f"(호기 {len(units)}대 / 합계 {total:,.0f}원)",
     }
 
 

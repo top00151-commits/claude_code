@@ -139,13 +139,15 @@
         <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
         {% if project_orders %}
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
-          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:60px;">삭제</th></tr></thead>
+          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품지</th><th class="center">호기</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:60px;">삭제</th></tr></thead>
           <tbody>
           {% for so in project_orders %}
           <tr>
             <td style="font-family:monospace;font-weight:700;color:var(--knk-red);"><a href="/sales/orders/{{ so.id }}" style="color:inherit;">{{ so.order_no }}</a></td>
             <td>{{ so.order_date|default('-') }}</td>
             <td>{{ so.due_date|default('-') }}</td>
+            <td>{{ so.ship_to|default('-') }}</td>
+            <td class="center">{{ so.unit_qty|default(1) }}대{% if so.unit_label %}<div style="font-size:10.5px;color:var(--mute);">{{ so.unit_label }}</div>{% endif %}</td>
             <td class="num">{{ '{:,.0f}'.format(so.total_amount or 0) }}</td>
             <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
             <td style="font-size:11px;color:var(--mute);">{% if loop.last %}최초 수주{% else %}추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</td>
@@ -161,9 +163,10 @@
           </tbody>
           <tfoot>
             <tr style="background:var(--paper-2);font-weight:700;">
-              <td colspan="3" style="text-align:right;padding:10px;">총 합계 →</td>
+              <td colspan="4" style="text-align:right;padding:10px;">총 합계 →</td>
+              <td class="center">{{ project_orders|sum(attribute='unit_qty')|default(project_orders|length) }}대</td>
               <td class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}</td>
-              <td colspan="3" style="font-size:11px;color:var(--mute);">건수 {{ project_orders|length }}</td>
+              <td colspan="3" style="font-size:11px;color:var(--mute);">SO {{ project_orders|length }}건</td>
             </tr>
           </tfoot>
         </table></div>
