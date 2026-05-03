@@ -5920,11 +5920,19 @@ async def sales_order_detail(req: Request, oid: int):
     # 핵심 KPI 계산
     invoiced = sum(float(i.get("total_amount") or 0) for i in invoices_)
     received = sum(float(r.get("amount") or 0) for r in receipts_p)
+    # v5H102: 연결 프로젝트의 변경 이력도 함께 노출 (SO 상세에서 확인 편의)
+    project_history_logs = []
+    try:
+        if order.get("project_id"):
+            project_history_logs = _logi.get_project_history(order["project_id"], limit=30)
+    except Exception:
+        pass
     return ctx(req, "sales_order_detail.html", user=u, active="sales",
                order=order, items=items, invoices=invoices_,
                receipts=receipts_p, history=history,
                total_invoiced=invoiced, total_received=received,
-               outstanding=max(0, invoiced - received))
+               outstanding=max(0, invoiced - received),
+               project_history=project_history_logs)
 
 
 @app.get("/admin/reminders", response_class=HTMLResponse)
