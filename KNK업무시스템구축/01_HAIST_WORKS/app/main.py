@@ -3323,13 +3323,29 @@ async def project_detail(req: Request, pid: int):
         project_history_logs = _logi.get_project_history(pid, limit=30)
     except Exception:
         pass
+    # v5H111: 사이드패널 호기 분해용 — 모든 SO 의 units 를 라벨 숫자 순 정렬
+    all_units_sorted = []
+    try:
+        import re as _re_n
+        _flat = []
+        for _so in (project_orders or []):
+            for _u in (_so.get("units") or []):
+                _flat.append(dict(_u))
+        def _sort_key(u):
+            lbl = (u.get("unit_label") or "")
+            m = _re_n.match(r"^(\d+)", lbl)
+            return (int(m.group(1)) if m else 9999, lbl)
+        all_units_sorted = sorted(_flat, key=_sort_key)
+    except Exception:
+        pass
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
                project_orders=project_orders,
                STATUSES=_logi.LOGI_STATUSES,
-               project_history=project_history_logs)
+               project_history=project_history_logs,
+               all_units_sorted=all_units_sorted)
 
 
 # =====================================================

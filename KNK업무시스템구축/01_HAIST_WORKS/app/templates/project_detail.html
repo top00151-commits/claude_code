@@ -630,16 +630,10 @@
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
-            {# v5H103: 호기별 분해 (간략) — 모든 SO 의 모든 호기 라인 합쳐서 #}
-            {% set _all_units = [] %}
-            {% for _so in (project_orders or []) %}
-              {% for _u in (_so.units or []) %}
-                {% set _ = _all_units.append(_u) %}
-              {% endfor %}
-            {% endfor %}
-            {% if _all_units %}
+            {# v5H111: 호기별 분해 — 라벨 숫자 순으로 정렬 (서버 all_units_sorted) #}
+            {% if all_units_sorted %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">
-              {% for u in _all_units %}
+              {% for u in all_units_sorted %}
               <div>
                 <span style="color:var(--ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
                 <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
