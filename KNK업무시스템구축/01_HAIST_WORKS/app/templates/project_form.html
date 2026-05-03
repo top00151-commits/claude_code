@@ -29,12 +29,23 @@
         <div class="field full"><label>프로젝트명 *</label><input type="text" name="name" required value="{{ project.name|default(project.project_name|default('')) }}"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>고객사명</label><input type="text" name="customer_name" value="{{ project.customer_name|default('') }}"></div>
+        <div class="field">
+          <label>고객사</label>
+          <input type="text" name="customer_name" list="customer_list" autocomplete="off"
+                 value="{{ project.customer_name|default('') }}"
+                 placeholder="등록된 고객사를 선택 (목록에 없으면 /customers/new 에서 먼저 등록)">
+          <datalist id="customer_list">
+            {% for cu in (customers or []) %}
+            <option value="{{ cu.name }}"></option>
+            {% endfor %}
+          </datalist>
+        </div>
         <div class="field"><label>PO 유형</label><select name="po_type"><option value="">— 선택 —</option>{% for t in PO_TYPES %}<option value="{{ t }}" {% if project and project.po_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>단계</label><select name="stage"><option value="">— 선택 —</option>{% for s in STAGES %}<option value="{{ s }}" {% if project and project.stage == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
-        <div class="field"><label>상태</label><select name="status"><option value="">— 선택 —</option>{% for s in STATUSES %}<option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        {# v5H75: 단계는 워크플로우(제안→수주확정→납품)가 자동 진행. 등록 시 노출 불필요 → 상태만 표시 #}
+        <input type="hidden" name="stage" value="{{ project.stage|default('제안작성') }}">
+        <div class="field full"><label>상태</label><select name="status"><option value="">— 선택 —</option>{% for s in STATUSES %}<option value="{{ s }}" {% if project and project.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
       </div>
       <div class="field-row">
         <div class="field"><label>발주일</label><input type="date" name="order_date" value="{{ project.order_date|default('') }}"></div>

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H52 sales-center form flow alignment — 3 critical defects user found while using: (1) /projects/new POST validation fail → handler accepts template's name/customer_name fields + auto-strips KRW commas (2) /customers/new only alias, no real form → customer_form.html (8 fields) + customers ALTER 8 cols + POST/edit handlers (3) /sales/quotes/new only alias → sales_quote_form.html (dynamic line items, live total) + sales_quote_detail.html + POST (4) KRW input live thousand-separator commas (knk_inputs.html partial auto-included via chrome.html) (5) tbl-sticky CSS for 13 list templates (sticky table headers when scrolling)
+REM   LAST UPDATE: 2026-05-03 v5H75 project registration form alignment — (1) Customer name: free text → datalist dropdown of registered customers (consistent naming) (2) STAGES drops 개조/A/S → moved to PO_TYPES (these are order kinds, not lifecycle stages) (3) Stage/status split removed from form: stage now driven by workflow (proposal→win→delivery), form shows status only; hidden stage defaults '제안작성' (4) New customers_for_picker() + both new/edit GET routes inject customers context
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H74 main pages remove duplicate action buttons]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H75 project form alignment (customer dropdown + 개조/AS as PO type + stage/status merged)]
 
 echo.
 echo ============================================================

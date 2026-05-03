@@ -6878,7 +6878,8 @@ async def projects_new_form(request: Request):
                user=u, active="sales_projects",
                project=None,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
-               PO_TYPES=_logi.PO_TYPES)
+               PO_TYPES=_logi.PO_TYPES,
+               customers=_logi.customers_for_picker())
 
 
 @app.post("/projects/new")
@@ -6936,7 +6937,8 @@ async def projects_edit_form(request: Request, pid: int):
                user=u, active="sales_projects",
                project=p,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
-               PO_TYPES=_logi.PO_TYPES)
+               PO_TYPES=_logi.PO_TYPES,
+               customers=_logi.customers_for_picker())
 
 
 @app.post("/projects/{pid}/edit")

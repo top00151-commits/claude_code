@@ -3233,9 +3233,9 @@ from datetime import datetime as _dt, date as _date
 BIZ_CODE = {"검사기": "T", "자동화": "M"}
 BIZ_NAME = {v: k for k, v in BIZ_CODE.items()}
 
-STAGES = ["제안작성", "제안제출", "수주확정", "납품", "개조", "A/S"]
-NEEDS_CODE_STAGES = ("수주확정", "납품", "개조", "A/S")
-PO_TYPES = ["신규", "추가"]
+STAGES = ["제안작성", "제안제출", "수주확정", "납품"]
+NEEDS_CODE_STAGES = ("수주확정", "납품")
+PO_TYPES = ["신규", "추가", "개조", "A/S"]
 LOGI_STATUSES = ["수주예정", "진행중", "납품완료", "취소", "보류"]
 
 
@@ -7080,6 +7080,20 @@ def search_orders(q, limit=5):
                ORDER BY o.order_date DESC LIMIT ?""",
             (qq, qq, qq, qq, int(limit)),
         ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def customers_for_picker():
+    """v5H75: 프로젝트 등록 폼 고객사 드롭다운용 — 활성 고객 전부 (id, name)."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT id, name FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name ASC"
+            ).fetchall()
+        except Exception:
+            rows = c.execute(
+                "SELECT id, name FROM customers ORDER BY name ASC"
+            ).fetchall()
         return [dict(r) for r in rows]
 
 

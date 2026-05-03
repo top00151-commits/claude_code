@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H52 매출영업센터 폼 흐름 전면 정합 (대표 사용 중 발견 3대 결함 일괄 수정) — (1) /projects/new POST 'project_name' 필수 검증 실패 → 템플릿 실제 필드명(name/customer_name) 호환 + 콤마 자동 제거 (2) /customers/new 별칭만 있고 실제 폼 없음 → customer_form.html 신규(8필드) + customers ALTER 8컬럼(biz_no/ceo_name/manager_name/phone/email/address/is_active) + POST/edit 핸들러 신규 (3) /sales/quotes/new 별칭만 있음 → sales_quote_form.html 신규(라인 동적 추가/실시간 합계) + sales_quote_detail.html 신규 + POST 신규 (4) KRW 입력 실시간 천단위 콤마 공통 JS (knk_inputs.html) — chrome.html 자동 포함, 모든 amount/price/금액 input 자동 적용 (5) tbl-sticky CSS — 13개 list 템플릿(고객사/부품/공급사/PO/수주/견적/이슈/티켓/변경/수불/잔고/QC/작업지시) 헤더 고정 스크롤
+REM   LAST UPDATE: 2026-05-03 v5H75 프로젝트 등록 폼 정합 — (1) 고객사명: 자유입력 → 등록 고객사 datalist 드롭다운(자동완성) — 동일 고객사 표기 일관성 확보 (2) STAGES 에서 개조/A/S 제거 → PO_TYPES 로 이동 (개조·A/S 는 단계가 아니라 발주 유형) (3) 단계/상태 별도 입력 제거 → 단계는 워크플로우(제안→수주확정→납품) 자동 진행, 폼은 상태만 노출 → hidden stage 기본 '제안작성' (4) customers_for_picker() 신규 + project_form.html GET 라우트(new/edit) 양쪽 customers 컨텍스트 주입
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H74 메인페이지 중복 액션버튼 제거 (사이드바 정합)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H75 프로젝트 등록 폼 정합 (고객사 드롭다운 + 개조/AS 유형이동 + 단계/상태 통합)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
