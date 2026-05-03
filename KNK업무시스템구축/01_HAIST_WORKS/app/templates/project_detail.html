@@ -24,10 +24,105 @@
       </h1>
     </div>
     <div style="display:flex;gap:8px;">
+      {% if not p.mgmt_code %}
+      <button class="btn btn-primary" onclick="openConfirmOrder()" style="background:var(--success);">✓ 수주 확정 (관리번호 발급)</button>
+      {% else %}
+      <button class="btn btn-primary" onclick="openFollowupOrder()" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
+      {% endif %}
       <a class="btn btn-secondary" href="/projects/{{ p.id }}/edit">📂 수정</a>
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>
+
+  <!-- v5H68: 수주 확정 모달 (제안 → 수주) -->
+  {% if not p.mgmt_code %}
+  <div id="confirmOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
+      <h3 style="font-size:18px; font-weight:700; margin-bottom:8px;">✓ 수주 확정 + 관리번호 발급</h3>
+      <div style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
+        프로젝트 <b>{{ p.name }}</b> 의 수주를 확정합니다.<br>
+        관리번호는 사업부({{ p.biz_div|default('T') }}) + 발주년월 기준으로 자동 발급됩니다.<br>
+        수주번호(SO)는 발주일자 기준으로 발행됩니다.
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
+          <input type="date" id="cfm_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">납기일</label>
+          <input type="date" id="cfm_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">수주액 (원)</label>
+          <input type="text" id="cfm_total_amount" class="knk-money" placeholder="120,000,000" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
+          <input type="text" id="cfm_po_number" placeholder="예: SAMSUNG-PO-2026-001" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="document.getElementById('confirmOrderModal').style.display='none'">취소</button>
+        <button class="btn btn-primary" onclick="submitConfirmOrder()" style="background:var(--success);">확정</button>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- v5H68: 추가 발주 모달 (관리번호 유지, SO만 신규) -->
+  <div id="followupOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
+      <h3 style="font-size:18px; font-weight:700; margin-bottom:8px;">＋ 추가 발주 (관리번호 {{ p.mgmt_code }})</h3>
+      <div style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
+        동일 프로젝트에 추가 발주가 들어왔을 때 사용합니다.<br>
+        <b>관리번호 {{ p.mgmt_code }}</b> 유지 + 신규 수주번호(SO)만 발행하여 날짜별 추적이 가능합니다.
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
+          <input type="date" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">납기일</label>
+          <input type="date" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">수주액 (원)</label>
+          <input type="text" id="fup_total_amount" class="knk-money" placeholder="50,000,000" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
+          <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="document.getElementById('followupOrderModal').style.display='none'">취소</button>
+        <button class="btn btn-primary" onclick="submitFollowupOrder()" style="background:var(--amber-deep);">추가 발주 발행</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <script>
+  function openConfirmOrder() {
+    document.getElementById('cfm_order_date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('confirmOrderModal').style.display = 'flex';
+  }
+  function openFollowupOrder() {
+    document.getElementById('fup_order_date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('followupOrderModal').style.display = 'flex';
+  }
+  async function submitConfirmOrder() {
+    const fd = new FormData();
+    fd.append('order_date', document.getElementById('cfm_order_date').value);
+    fd.append('due_date', document.getElementById('cfm_due_date').value);
+    fd.append('total_amount', document.getElementById('cfm_total_amount').value.replace(/,/g,''));
+    fd.append('po_number', document.getElementById('cfm_po_number').value);
+    const r = await fetch('/projects/{{ p.id }}/confirm-order', {method:'POST', body:fd});
+    const j = await r.json();
+    if (j.ok) {
+      alert(`✓ 수주 확정 완료\n\n관리번호: ${j.mgmt_code}\n수주번호: ${j.so_no}`);
+      location.reload();
+    } else { alert('실패: ' + j.message); }
+  }
+  async function submitFollowupOrder() {
+    const fd = new FormData();
+    fd.append('order_date', document.getElementById('fup_order_date').value);
+    fd.append('due_date', document.getElementById('fup_due_date').value);
+    fd.append('total_amount', document.getElementById('fup_total_amount').value.replace(/,/g,''));
+    fd.append('po_number', document.getElementById('fup_po_number').value);
+    const r = await fetch('/projects/{{ p.id }}/add-followup-order', {method:'POST', body:fd});
+    const j = await r.json();
+    if (j.ok) {
+      alert(`＋ 추가 발주 완료\n\n관리번호: ${j.mgmt_code} (유지)\n신규 수주번호: ${j.so_no}`);
+      location.reload();
+    } else { alert('실패: ' + j.message); }
+  }
+  </script>
 
   <!-- KPI -->
   <div class="bento" style="grid-template-columns:repeat(4,1fr);">
@@ -39,6 +134,44 @@
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
+      <!-- v5H68: 연결된 수주(SO) 목록 — KNK 워크플로우 -->
+      <div class="section-card">
+        <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
+        {% if project_orders %}
+        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
+          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th></tr></thead>
+          <tbody>
+          {% for so in project_orders %}
+          <tr onclick="location.href='/sales/orders/{{ so.id }}'" style="cursor:pointer;">
+            <td style="font-family:monospace;font-weight:700;color:var(--knk-red);">{{ so.order_no }}</td>
+            <td>{{ so.order_date|default('-') }}</td>
+            <td>{{ so.due_date|default('-') }}</td>
+            <td class="num">{{ '{:,.0f}'.format(so.total_amount or 0) }}</td>
+            <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
+            <td style="font-size:11px;color:var(--mute);">{% if loop.first %}최초 수주{% else %}추가 발주 #{{ project_orders|length - loop.index0 }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--paper-2);font-weight:700;">
+              <td colspan="3" style="text-align:right;padding:10px;">총 합계 →</td>
+              <td class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}</td>
+              <td colspan="2" style="font-size:11px;color:var(--mute);">건수 {{ project_orders|length }}</td>
+            </tr>
+          </tfoot>
+        </table></div>
+        {% else %}
+        <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">
+          {% if not p.mgmt_code %}
+          🟡 아직 수주 확정 전입니다 (제안 단계)<br>
+          <span style="font-size:11px;">상단 <b>"✓ 수주 확정"</b> 버튼으로 관리번호와 수주번호를 발급하세요.</span>
+          {% else %}
+          연결된 수주가 없습니다. 상단 <b>"＋ 추가 발주"</b> 버튼으로 신규 수주를 발행할 수 있습니다.
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
       {% if tasks %}
       <div class="section-card">
         <h3>최근 업무 ({{ total_tasks }})</h3>

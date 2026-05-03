@@ -1655,6 +1655,15 @@ def init_db():
             except Exception:
                 pass
         # v5H52 (2026-05-03): 고객사 등록 폼 확장 — 사업자번호/대표/담당자/전화/이메일/주소
+        # v5H68 (2026-05-03): orders.project_id 컬럼 추가 — 수주↔프로젝트 연결 (KNK 워크플로우)
+        ocols = [r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()]
+        if "project_id" not in ocols:
+            try:
+                c.execute("ALTER TABLE orders ADD COLUMN project_id INTEGER REFERENCES projects(id)")
+                c.execute("CREATE INDEX IF NOT EXISTS idx_orders_project ON orders(project_id)")
+            except Exception:
+                pass
+
         # v5H58 (2026-05-03): 등급 자동 산정 — tier_score / tier_computed_at
         cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]
         for col, ddl in [

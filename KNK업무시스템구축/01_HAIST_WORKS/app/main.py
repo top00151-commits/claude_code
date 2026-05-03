@@ -3175,10 +3175,18 @@ async def project_detail(req: Request, pid: int):
             (pid,)
         ).fetchall()]
     retro = get_retro(pid)
+    # v5H68: 연결된 수주(SO) 목록
+    project_orders = []
+    try:
+        with db_session() as c2:
+            project_orders = _pwf.get_project_orders(c2, pid)
+    except Exception:
+        pass
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
-               timeline=timeline_list[:30], all_comments=all_comments, retro=retro)
+               timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
+               project_orders=project_orders)
 
 
 # =====================================================
@@ -4417,6 +4425,58 @@ import tempfile as _tempfile
 
 _CUSTOMER_FILES_DIR = os.path.join(BASE, "data", "customer_files")
 os.makedirs(_CUSTOMER_FILES_DIR, exist_ok=True)
+
+
+# v5H68 (2026-05-03): 프로젝트 라이프사이클 — 수주확정/추가발주 워크플로우
+from . import project_workflow as _pwf
+
+
+@app.post("/projects/{pid:int}/confirm-order")
+async def projects_confirm_order(req: Request, pid: int):
+    """프로젝트 수주 확정 — 관리번호 자동 발급 + 수주번호(SO) 발행.
+    KNK 표준: 제안 단계 → 수주 확정 시 (NNN+T/M+YYMM) 형식 발급."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    form = await req.form()
+    order_date = (form.get("order_date") or "").strip()
+    raw_amt = (form.get("total_amount") or "0").replace(",", "")
+    try:
+        total = float(raw_amt) if raw_amt else 0
+    except ValueError:
+        total = 0
+    due_date = (form.get("due_date") or "").strip()
+    po_number = (form.get("po_number") or "").strip()
+    note = (form.get("note") or "").strip()
+    with db_session() as c:
+        res = _pwf.confirm_order(c, pid, order_date=order_date, total_amount=total,
+                                  due_date=due_date, created_by=u.get("id"),
+                                  po_number=po_number, note=note)
+    return JSONResponse(res)
+
+
+@app.post("/projects/{pid:int}/add-followup-order")
+async def projects_add_followup(req: Request, pid: int):
+    """추가 발주 — 동일 관리번호 + 신규 수주번호 발행 (KNK 추적 표준)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    form = await req.form()
+    order_date = (form.get("order_date") or "").strip()
+    raw_amt = (form.get("total_amount") or "0").replace(",", "")
+    try:
+        total = float(raw_amt) if raw_amt else 0
+    except ValueError:
+        total = 0
+    due_date = (form.get("due_date") or "").strip()
+    po_number = (form.get("po_number") or "").strip()
+    note = (form.get("note") or "").strip()
+    with db_session() as c:
+        res = _pwf.add_followup_order(c, pid, order_date=order_date,
+                                        total_amount=total, due_date=due_date,
+                                        created_by=u.get("id"),
+                                        po_number=po_number, note=note)
+    return JSONResponse(res)
 
 
 # v5H67: 공통 엑셀 내보내기 헬퍼 — 모든 모듈에서 재사용

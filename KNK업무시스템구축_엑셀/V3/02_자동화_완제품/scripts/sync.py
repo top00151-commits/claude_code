@@ -429,18 +429,24 @@ def _collect_dept_progress(log):
             pic = str(_val(ws, r, 10) or "").strip()
             dept_data = {"_pic": pic, "_has_pic": bool(pic)}
 
-            # 세부항목 값 수집 (v3.1 — 빈 칸 = 해당없음, 분모 제외)
+            # 세부항목 값 수집 (v3.1.2 — [%·예정일] 짝 배치)
+            #   진척률 컬럼: n_auto + 1 + i*2  (% 입력)
+            #   예정일 컬럼: n_auto + 2 + i*2  (날짜 — 평균 계산엔 사용 안 함)
+            #
             #   None / 빈 문자열  → 해당없음 (분모 제외)
             #   0                 → 명시적 미착수 (분모 포함)
             #   0.5               → 50% 진행 중
             #   1보다 크면 0~100  입력으로 보고 0~1로 정규화
             sub_vals = []
             for i, sub in enumerate(subs):
-                cell_v = ws.cell(r, n_auto + 1 + i).value
+                pct_col = n_auto + 1 + i * 2
+                due_col = n_auto + 2 + i * 2
+                cell_v = ws.cell(r, pct_col).value
                 if cell_v is None or cell_v == "":
                     dept_data[sub] = None        # 해당없음
+                    # 예정일도 함께 보존 (대시보드 활용 가능)
+                    dept_data[sub + "_due"] = ws.cell(r, due_col).value
                     continue
-                # 숫자로 변환 (텍스트 등 비숫자는 0)
                 try:
                     v = float(cell_v)
                 except (TypeError, ValueError):
@@ -449,7 +455,8 @@ def _collect_dept_progress(log):
                     v = v / 100.0
                 v = max(0.0, min(1.0, v))
                 dept_data[sub] = v
-                sub_vals.append(v)             # 분모 포함
+                dept_data[sub + "_due"] = ws.cell(r, due_col).value
+                sub_vals.append(v)
 
             # _avg: 해당없음 제외한 평균 (전체 None이면 None — 부서 자체 해당없음)
             dept_data["_avg"] = (sum(sub_vals) / len(sub_vals)) if sub_vals else None

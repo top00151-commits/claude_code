@@ -161,10 +161,11 @@ INPUT_COL_WIDTH = 7   # v3.1: 부서 입력칸 통일 너비 (한3자=6단위 + 
 def _dept_spec(dept):
     subs_raw = DEPT_SUB_ITEMS.get(dept, [])
     milestones_raw = DEPT_MILESTONES.get(dept, [])
-    # v3.1: 세부항목 헤더 — 영문/한글 경계 우선 균형 분리 (최대 2줄)
+    # v3.1.2: 항목별 [%·예정일] 짝 배치 — 한 항목 = 진척률 컬럼 + 예정일 컬럼
     subs = [wrap_label_2lines(s) for s in subs_raw]
     milestones = list(milestones_raw)
-    n_sub = len(subs)
+    n_sub = len(subs)        # 세부항목 개수
+    n_pair = n_sub * 2        # 진척률 + 예정일 컬럼 합계
     n_ms = len(milestones)
     # v2026.04b: auto_cols 11열 — C10=담당자 추가 + 모델/품명 순서 swap
     # v3.1: K11 = "부서진척률(%)" (본인 부서 세부항목 평균 자동 계산)
@@ -172,34 +173,68 @@ def _dept_spec(dept):
                  "PO유형","영업단계","진행상태","담당자","부서진척률(%)"]
     n_auto = len(auto_cols)     # 11
     C_DEPT_PIC = 10
-    labels = list(auto_cols) + list(subs) + list(milestones) + ["상태", "메모"]
+
+    # 라벨: auto_cols + (sub, 예정일) 짝 + 마일스톤 + 상태/메모
+    labels = list(auto_cols)
+    for sub in subs:
+        labels.append(sub)               # 진척률 컬럼
+        labels.append("예정일")          # 예정일 컬럼 (메모로 어떤 항목인지 명시)
+    labels += list(milestones) + ["상태", "메모"]
     mc = len(labels)
+
+    sub_start = n_auto + 1                 # 첫 세부항목 컬럼
+    ms_start  = n_auto + n_pair + 1        # 마일스톤 시작
+    status_col = ms_start + n_ms           # 상태
+    memo_col   = ms_start + n_ms + 1       # 메모
 
     r3 = {}
     for c in range(1, n_auto + 1):
         r3[c] = "auto"
-    r3[C_DEPT_PIC] = "input"                         # 담당자는 직접 입력
-    for c in range(n_auto + 1, n_auto + n_sub + 1):
-        r3[c] = "input"                              # 세부 진척률
-    for c in range(n_auto + n_sub + 1, n_auto + n_sub + n_ms + 1):
-        r3[c] = "po_input"                           # v3.0 마일스톤·입고일
-    r3[n_auto + n_sub + n_ms + 1] = "select"
-    r3[n_auto + n_sub + n_ms + 2] = "memo"
+    r3[C_DEPT_PIC] = "input"                  # 담당자
+    # 세부항목 짝: % = input, 예정일 = po_input
+    for i in range(n_sub):
+        r3[sub_start + i*2]     = "input"     # 진척률
+        r3[sub_start + i*2 + 1] = "po_input"  # 예정일
+    # 마일스톤
+    for c in range(ms_start, ms_start + n_ms):
+        r3[c] = "po_input"
+    r3[status_col] = "select"
+    r3[memo_col]   = "memo"
 
     r4 = {}
     for c in range(1, n_auto + 1):
         r4[c] = "id"
-    r4[C_DEPT_PIC] = "dept"                          # 담당자 부서색
-    for c in range(n_auto + 1, n_auto + n_sub + 1):
-        r4[c] = "status"
-    for c in range(n_auto + n_sub + 1, n_auto + n_sub + n_ms + 1):
-        r4[c] = "payment"                            # v3.0 황금 영역색
-    r4[n_auto + n_sub + n_ms + 1] = "status"
-    r4[n_auto + n_sub + n_ms + 2] = "status"
+    r4[C_DEPT_PIC] = "dept"
+    # 세부항목 짝: % = status색, 예정일 = payment색 (시각 구분)
+    for i in range(n_sub):
+        r4[sub_start + i*2]     = "status"
+        r4[sub_start + i*2 + 1] = "payment"
+    for c in range(ms_start, ms_start + n_ms):
+        r4[c] = "payment"
+    r4[status_col] = "status"
+    r4[memo_col]   = "status"
 
-    # v3.1: 세부항목·마일스톤 컬럼 너비 5 통일
+    # v3.1.2: 모든 입력 컬럼 너비 7 통일
     fixed_widths = {c: INPUT_COL_WIDTH
-                    for c in range(n_auto + 1, n_auto + n_sub + n_ms + 1)}
+                    for c in range(sub_start, ms_start + n_ms)}
+
+    # v3.1.2: 각 "예정일" 컬럼에 항목별 메모 (어느 항목 예정일인지 명시)
+    comments = {}
+    for i, sub_raw in enumerate(subs_raw):
+        due_col = sub_start + i*2 + 1
+        sub_clean = sub_raw.replace("\n", "")
+        comments[due_col] = (
+            f"▣ {sub_clean} — 완료 예정일\n\n"
+            f"★ 날짜 입력 (% 아님 ⚠️)\n\n"
+            f"• 형식: YYYY-MM-DD  예: 2026-07-15\n"
+            f"• {sub_clean} 작업의 ★완료 예정일★ 기입\n\n"
+            f"📋 운영:\n"
+            f"  ▸ 좌측 셀 = 진척률(%)\n"
+            f"  ▸ 이 셀  = {sub_clean} 완료 목표일\n"
+            f"  ▸ 진척률과 비교 → 일정 대비 진행도 추적\n"
+            f"  ▸ 예: 7/15까지 100% 목표인데 7/10 현재 50% → 일정 빠름\n\n"
+            f"• 비워두면: 일정 미정 또는 해당없음"
+        )
 
     return {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ {dept} │ {YEAR}",
@@ -210,6 +245,7 @@ def _dept_spec(dept):
         "r4_map":  r4,
         "freeze":  "auto",
         "fixed_widths": fixed_widths,
+        "comments": comments,
     }
 
 
