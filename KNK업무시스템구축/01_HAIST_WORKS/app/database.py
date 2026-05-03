@@ -3476,7 +3476,113 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
 
 
 def projects_delete_logi(pid: int) -> None:
+    """v5H73b: FK 자식 row 일괄 정리 후 프로젝트 삭제 (FOREIGN KEY 충돌 방지).
+
+    projects 를 참조하는 테이블:
+      orders, purchase_orders, tasks, project_phases, project_milestones,
+      project_burndown_snapshots, project_forecasts, issues, tickets,
+      changes, qc_inspection_reports, work_orders, stock_movements,
+      change_impacts (간접)
+    각각 SET NULL 또는 DELETE 처리."""
     with db_session() as c:
+        # 1. 자식 row가 자체 자식을 가진 것들 — 먼저 손자부터 정리
+        # 1-a) orders 의 자식: order_items, invoices, receipts_payment,
+        #      shipments, order_status_history
+        order_ids = [r[0] for r in c.execute(
+            "SELECT id FROM orders WHERE project_id=?", (pid,)).fetchall()]
+        for oid in order_ids:
+            for sql in [
+                "DELETE FROM order_items WHERE order_id=?",
+                "DELETE FROM invoices WHERE order_id=?",
+                "DELETE FROM receipts_payment WHERE order_id=?",
+                "DELETE FROM shipments WHERE order_id=?",
+                "DELETE FROM order_status_history WHERE order_id=?",
+                "DELETE FROM production_orders WHERE order_id=?",
+            ]:
+                try: c.execute(sql, (oid,))
+                except Exception: pass
+        try: c.execute("DELETE FROM orders WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # 1-b) purchase_orders 자식: po_items
+        po_ids = [r[0] for r in c.execute(
+            "SELECT id FROM purchase_orders WHERE project_id=?", (pid,)).fetchall()]
+        for poid in po_ids:
+            try: c.execute("DELETE FROM po_items WHERE po_id=?", (poid,))
+            except Exception: pass
+        try: c.execute("DELETE FROM purchase_orders WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # 1-c) work_orders 자식: work_order_items
+        wo_ids = [r[0] for r in c.execute(
+            "SELECT id FROM work_orders WHERE project_id=?", (pid,)).fetchall()]
+        for woid in wo_ids:
+            try: c.execute("DELETE FROM work_order_items WHERE wo_id=?", (woid,))
+            except Exception: pass
+        try: c.execute("DELETE FROM work_orders WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # 1-d) issues 자식: issue_logs, change_impacts
+        issue_ids = [r[0] for r in c.execute(
+            "SELECT id FROM issues WHERE project_id=?", (pid,)).fetchall()]
+        for iid in issue_ids:
+            try: c.execute("DELETE FROM issue_logs WHERE issue_id=?", (iid,))
+            except Exception: pass
+        try: c.execute("DELETE FROM issues WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # 1-e) changes 자식: change_impacts, change_reads
+        change_ids = [r[0] for r in c.execute(
+            "SELECT id FROM changes WHERE project_id=?", (pid,)).fetchall()]
+        for cid in change_ids:
+            for sql in [
+                "DELETE FROM change_impacts WHERE change_id=?",
+                "DELETE FROM change_reads WHERE change_id=?",
+            ]:
+                try: c.execute(sql, (cid,))
+                except Exception: pass
+        try: c.execute("DELETE FROM changes WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # 1-f) project_phases / milestones / burndown / forecasts (CASCADE 일 가능성)
+        for sql in [
+            "DELETE FROM project_phases WHERE project_id=?",
+            "DELETE FROM project_milestones WHERE project_id=?",
+            "DELETE FROM project_burndown_snapshots WHERE project_id=?",
+            "DELETE FROM project_forecasts WHERE project_id=?",
+        ]:
+            try: c.execute(sql, (pid,))
+            except Exception: pass
+
+        # 1-g) tasks 자식: task_comments, task_reactions, task_meta, etc.
+        task_ids = [r[0] for r in c.execute(
+            "SELECT id FROM tasks WHERE project_id=?", (pid,)).fetchall()]
+        for tid in task_ids:
+            for sql in [
+                "DELETE FROM task_comments WHERE task_id=?",
+                "DELETE FROM task_reactions WHERE task_id=?",
+                "DELETE FROM comment_mentions WHERE comment_id IN (SELECT id FROM task_comments WHERE task_id=?)",
+                "DELETE FROM task_delegations WHERE task_id=?",
+            ]:
+                try: c.execute(sql, (tid,))
+                except Exception: pass
+        # tasks 는 SET NULL 이 안전 — 이력 보존
+        try:
+            c.execute("UPDATE tasks SET project_id=NULL WHERE project_id=?", (pid,))
+        except Exception:
+            try: c.execute("DELETE FROM tasks WHERE project_id=?", (pid,))
+            except Exception: pass
+
+        # 1-h) 기타 — qc_inspection_reports, tickets, stock_movements
+        for sql in [
+            "UPDATE qc_inspection_reports SET order_id=NULL WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
+            "UPDATE tickets SET project_id=NULL WHERE project_id=?",
+            "UPDATE stock_movements SET project_id=NULL WHERE project_id=?",
+        ]:
+            try: c.execute(sql, (pid,))
+            except Exception: pass
+
+        # 2. 본체 삭제
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
 
 
