@@ -9428,15 +9428,35 @@ async def sales_orders_page(req: Request):
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
+        # v5H89: 컬럼 동적 감지 — orders 의 ship_to/unit_qty/unit_label 등은
+        # ALTER 미적용 DB 와 호환을 위해 PRAGMA 로 존재 확인
+        try:
+            ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        except Exception:
+            ocols = set()
+        extra = []
+        for cn in ("ship_to", "unit_qty", "unit_label"):
+            if cn in ocols:
+                extra.append(f"o.{cn}")
+        # projects 조인 — 관리번호/프로젝트명/사업부/모델
+        pj_extra = (
+            ", p.id AS project_id, p.mgmt_code AS mgmt_code, "
+            "p.name AS project_name, p.biz_div AS biz_div, "
+            "p.model_name AS model_name, p.po_type AS po_type"
+        )
+        sel_extra = (", " + ", ".join(extra)) if extra else ""
         rows = c.execute(
-            """SELECT o.id, o.order_no, o.customer_id,
+            f"""SELECT o.id, o.order_no, o.customer_id,
                       COALESCE(cu.name,'-') AS customer_name,
                       o.total_amount, o.due_date, o.status,
                       o.order_date,
                       COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
                       o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
+                      {sel_extra}
+                      {pj_extra}
                FROM orders o
                LEFT JOIN customers cu ON cu.id = o.customer_id
+               LEFT JOIN projects p ON p.id = o.project_id
                ORDER BY o.id DESC LIMIT 200"""
         ).fetchall()
         items = [dict(r) for r in rows]
