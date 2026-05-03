@@ -7058,6 +7058,35 @@ async def projects_new_submit(request: Request):
                 f"/project/{new_pid}?warn=so_issue_failed", status_code=303
             )
         return RedirectResponse(f"/project/{new_pid}", status_code=303)
+    # v5H87: confirm_now 미체크 + status 가 won (진행중/납품완료) 인 경우
+    # 자동으로 SO 1건 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
+    status_val = (form.get("status") or "").strip()
+    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES:
+        try:
+            with db_session() as c:
+                # 이미 SO 가 있으면 발행 안 함 (재진입 방지)
+                exists = c.execute(
+                    "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (new_pid,)
+                ).fetchone()
+                if not exists:
+                    _pwf.confirm_order_multi(
+                        c, int(new_pid),
+                        units=[{
+                            "label": "1호기",
+                            "amount": amt,
+                            "due_date": form.get("due_date", ""),
+                            "ship_to": "",
+                            "note": "",
+                        }],
+                        order_date=form.get("order_date", ""),
+                        created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""),
+                    )
+        except Exception:
+            return RedirectResponse(
+                f"/project/{new_pid}?warn=so_issue_failed", status_code=303
+            )
+        return RedirectResponse(f"/project/{new_pid}", status_code=303)
     return RedirectResponse("/projects", status_code=303)
 
 
@@ -7111,12 +7140,13 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = float(raw_amt) if raw_amt else 0
     except ValueError:
         amt = 0
+    status_val = form.get("status", "수주예정") or "수주예정"
     _logi.projects_update_logi(pid, {
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
         "stage": form.get("stage", "제안작성") or "제안작성",
         "po_type": form.get("po_type", "신규") or "신규",
-        "status": form.get("status", "수주예정") or "수주예정",
+        "status": status_val,
         "customer_po": form.get("customer_po", ""),
         "currency": form.get("currency", "KRW") or "KRW",
         "order_amount": amt,
@@ -7125,6 +7155,29 @@ async def projects_edit_submit(request: Request, pid: int):
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
     })
+    # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 1건 발행
+    if status_val in _logi.WON_STATUSES:
+        try:
+            with db_session() as c:
+                exists = c.execute(
+                    "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
+                ).fetchone()
+                if not exists:
+                    _pwf.confirm_order_multi(
+                        c, int(pid),
+                        units=[{
+                            "label": "1호기",
+                            "amount": amt,
+                            "due_date": form.get("due_date", ""),
+                            "ship_to": "",
+                            "note": "",
+                        }],
+                        order_date=form.get("order_date", ""),
+                        created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""),
+                    )
+        except Exception:
+            pass
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
