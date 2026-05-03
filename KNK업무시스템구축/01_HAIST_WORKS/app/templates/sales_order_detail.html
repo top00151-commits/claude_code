@@ -9,8 +9,16 @@
       <div class="crumbs"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></div>
       <div class="page-meta">SALES ORDER DETAIL</div>
       <h1 class="page-title">{{ order.order_no }} <em>{{ order.customer_name|default('-') }}</em></h1>
-      <div style="font-size:13px; color:var(--mute); margin-top:6px;">
-        주문일 {{ order.order_date }} · 납기 {{ order.due_date|default('-') }} ·
+      <div style="font-size:13px; color:var(--ink); margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+        {% if order.mgmt_code %}
+        <span><b style="color:var(--amber-deep);font-family:monospace;">{{ order.mgmt_code }}</b> <a href="/project/{{ order.project_id }}" style="color:var(--mute);font-size:11.5px;">▸ 프로젝트</a></span>
+        {% endif %}
+        {% if order.project_name %}<span style="color:var(--mute);">📂 {{ order.project_name }}</span>{% endif %}
+        {% if order.biz_div %}<span style="color:var(--mute);">{{ 'T·검사기' if order.biz_div == 'T' else 'M·자동화' if order.biz_div == 'M' else order.biz_div }}</span>{% endif %}
+        {% if order.model_name %}<span style="color:var(--mute);">모델 {{ order.model_name }}</span>{% endif %}
+        <span style="color:var(--mute);">📅 {{ order.order_date }} → {{ order.due_date|default('-') }}</span>
+        {% if order.ship_to %}<span style="color:var(--mute);">📍 {{ order.ship_to }}</span>{% endif %}
+        <span style="color:var(--mute);">💱 {{ order.currency or 'KRW' }}</span>
         <span class="pill {% if order.status == 'PAID' %}pill-done{% elif order.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ order.status }}</span>
       </div>
     </div>
@@ -18,29 +26,34 @@
 
   <!-- KPI -->
   <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">수주 금액</div><div class="kpi-num">{{ '{:,.0f}'.format(order.total_amount or 0) }}<span class="unit"> 원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">수주 금액</div><div class="kpi-num">{{ '{:,.0f}'.format(order.total_amount or 0) }}<span class="unit"> {{ order.currency or 'KRW' }}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">발행 INV</div><div class="kpi-num">{{ '{:,.0f}'.format(total_invoiced) }}<span class="unit"> 원</span></div></div>
     <div class="kpi-card"><div class="kpi-label">수금 누계</div><div class="kpi-num" style="color:var(--success);">{{ '{:,.0f}'.format(total_received) }}<span class="unit"> 원</span></div></div>
     <div class="kpi-card"><div class="kpi-label">미수금</div><div class="kpi-num" {% if outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{{ '{:,.0f}'.format(outstanding) }}<span class="unit"> 원</span></div></div>
   </div>
 
   <!-- 라인 -->
+  {% set _cur = order.currency or 'KRW' %}
   <div class="section">
     <h2>📦 수주 라인 ({{ items|length }})</h2>
     <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
-        <thead><tr><th>품번</th><th>품명</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead>
+        <thead><tr><th>호기 / 품번</th><th>품명 / 사양</th><th class="num">수량</th><th class="num">단가 ({{ _cur }})</th><th class="num">금액 ({{ _cur }})</th><th>비고</th></tr></thead>
         <tbody>
         {% for it in items %}
           <tr>
-            <td style="font-family:monospace;font-size:12px;">{{ it.part_no|default('-') }}</td>
-            <td><b>{{ it.part_name|default('-') }}</b></td>
-            <td class="num">{{ '{:,.0f}'.format(it.qty or 0) }}</td>
+            <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.unit_label or it.part_no or ('호기 ' ~ loop.index) }}</td>
+            <td>
+              <b>{{ it.part_name or it.unit_label or ('호기 ' ~ loop.index) }}</b>
+              {% if order.model_name and it.part_name != order.model_name %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">모델 {{ order.model_name }}</div>{% endif %}
+            </td>
+            <td class="num">{{ '{:,.0f}'.format(it.qty or 1) }}</td>
             <td class="num">{{ '{:,.0f}'.format(it.unit_price or 0) }}</td>
             <td class="num"><b>{{ '{:,.0f}'.format(it.amount or 0) }}</b></td>
+            <td style="font-size:12px;color:var(--mute);">{{ it.line_note or '' }}</td>
           </tr>
         {% else %}
-          <tr><td colspan="5" class="empty" style="padding:40px;">라인이 없습니다.</td></tr>
+          <tr><td colspan="6" class="empty" style="padding:40px;">라인이 없습니다.</td></tr>
         {% endfor %}
         </tbody>
       </table>

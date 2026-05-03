@@ -5757,18 +5757,24 @@ async def sales_order_detail(req: Request, oid: int):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
+        # v5H96: 프로젝트 정보(관리코드/프로젝트명/모델/사업부) 함께 조인
         row = c.execute(
             """SELECT o.*, cu.name AS customer_name,
-                      uc.name AS created_by_name
+                      uc.name AS created_by_name,
+                      pj.id AS project_id, pj.mgmt_code AS mgmt_code,
+                      pj.name AS project_name, pj.biz_div AS biz_div,
+                      pj.model_name AS model_name
                FROM orders o
                LEFT JOIN customers cu ON cu.id = o.customer_id
                LEFT JOIN users uc ON uc.id = o.created_by
+               LEFT JOIN projects pj ON pj.id = o.project_id
                WHERE o.id=?""",
             (oid,)
         ).fetchone()
         if not row:
             return RedirectResponse("/sales/orders", 303)
         order = dict(row)
+        # v5H96: 호기 라인은 part_id 없음 → unit_label/line_note 를 표기 소스로
         items = [dict(r) for r in c.execute(
             """SELECT oi.*, p.part_no, p.part_name
                FROM order_items oi
@@ -5776,6 +5782,12 @@ async def sales_order_detail(req: Request, oid: int):
                WHERE oi.order_id=? ORDER BY oi.id""",
             (oid,)
         ).fetchall()]
+        # 표시용 정규화: part_no/part_name 비면 unit_label / line_note 로 폴백
+        for it in items:
+            if not it.get("part_no") and it.get("unit_label"):
+                it["part_no"] = "—"
+            if not it.get("part_name"):
+                it["part_name"] = it.get("unit_label") or "호기"
         invoices_ = [dict(r) for r in c.execute(
             "SELECT * FROM invoices WHERE order_id=? ORDER BY id DESC", (oid,)
         ).fetchall()]
