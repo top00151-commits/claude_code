@@ -276,16 +276,15 @@
               <tbody>
                 {% for u in so.units %}
                 <tr data-uid="{{ u.id }}">
-                  <td>
-                    {# v5H103: 최초 vs 추가 배지 #}
+                  <td style="white-space:nowrap;">
+                    {# v5H108: 배지 + 라벨 한 줄 (대표 지시) #}
                     {% if loop.first %}
-                      <span style="display:inline-block;background:#ecf5ff;color:#1f5fc6;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-bottom:3px;">최초</span>
+                      <span style="display:inline-block;background:#ecf5ff;color:#1f5fc6;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px;vertical-align:middle;">최초</span>
                     {% else %}
-                      <span style="display:inline-block;background:var(--amber-glow);color:var(--amber-deep);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-bottom:3px;">추가 #{{ loop.index0 }}</span>
+                      <span style="display:inline-block;background:var(--amber-glow);color:var(--amber-deep);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px;vertical-align:middle;">추가 #{{ loop.index0 }}</span>
                     {% endif %}
-                    <br>
-                    <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
-                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
+                    <span class="display-val" style="vertical-align:middle;"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}" style="vertical-align:middle;">{% endif %}
                   </td>
                   <td class="num">
                     <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
