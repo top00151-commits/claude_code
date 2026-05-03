@@ -25,16 +25,13 @@
       <option value="M" {% if biz_div=='M' %}selected{% endif %}>🤖 자동화</option>
       <option value="T" {% if biz_div=='T' %}selected{% endif %}>🔬 검사기</option>
     </select>
-    <select name="stage" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-      <option value="">단계 전체</option>
-      {% for s in STAGES %}<option value="{{ s }}" {% if stage==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
-    </select>
+    {# v5H99: 단계 필터 제거 — 상태로 통합 (사용자 가시 정보는 상태만) #}
     <select name="status" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
       <option value="">상태 전체</option>
       {% for s in STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q or biz_div or stage or status %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
+    {% if q or biz_div or status %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
   <div class="tbl-wrap tbl-sticky">
@@ -46,7 +43,6 @@
           <th>프로젝트명</th>
           <th>고객사</th>
           <th class="center">사업부</th>
-          <th class="center">단계</th>
           <th class="center">상태</th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
@@ -60,8 +56,7 @@
           <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
           <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}🔬 검사기{% elif p.biz_div == 'M' %}🤖 자동화{% else %}{{ p.biz_div|default('—') }}{% endif %}</span></td>
-          <td class="center">{% if p.stage %}<span class="pill pill-progress">{{ p.stage }}</span>{% else %}—{% endif %}</td>
-          <td class="center">{% if p.status %}<span class="pill {% if p.status in ('완료','종료') %}pill-done{% elif p.status == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% else %}—{% endif %}</td>
+          <td class="center">{% if p.status %}<span class="pill {% if p.status in ('납품완료','완료','종료') %}pill-done{% elif p.status in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% else %}—{% endif %}</td>
           <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>
           <td style="text-align:center;">
