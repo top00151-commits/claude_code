@@ -3210,6 +3210,44 @@ async def project_detail(req: Request, pid: int):
     project_orders = []
     try:
         with db_session() as c2:
+            # v5H104: 각 SO 의 unit_qty 를 실제 items count 와 일치시킴
+            #   (qty=2 인데 items=1 인 모순 데이터 자동 정리)
+            try:
+                so_ids = [r[0] for r in c2.execute(
+                    "SELECT id FROM orders WHERE project_id=?", (pid,)
+                ).fetchall()]
+                for _oid in so_ids:
+                    _ic = c2.execute(
+                        "SELECT COUNT(*) FROM order_items WHERE order_id=?", (_oid,)
+                    ).fetchone()[0] or 0
+                    if _ic > 0:
+                        # items 가 있으면 그 개수에 맞추기
+                        c2.execute(
+                            "UPDATE orders SET unit_qty=? WHERE id=? AND COALESCE(unit_qty,1) <> ?",
+                            (_ic, _oid, _ic)
+                        )
+                    # items 가 0 이면 건드리지 않음 (사용자가 추가 발주만 받고
+                    # 아직 호기 라인 안 쪼갠 케이스 보존)
+                # SO total_amount 도 items_sum 과 정합 (items 가 있을 때만)
+                for _oid in so_ids:
+                    row = c2.execute(
+                        "SELECT COALESCE(SUM(amount),0), COUNT(*) "
+                        "FROM order_items WHERE order_id=?", (_oid,)
+                    ).fetchone()
+                    _isum = float(row[0] or 0)
+                    _icnt = int(row[1] or 0)
+                    if _icnt > 0:
+                        cur_t = c2.execute(
+                            "SELECT total_amount FROM orders WHERE id=?", (_oid,)
+                        ).fetchone()
+                        if cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5:
+                            c2.execute(
+                                "UPDATE orders SET total_amount=? WHERE id=?",
+                                (_isum, _oid)
+                            )
+            except Exception:
+                pass
+
             project_orders = _pwf.get_project_orders(c2, pid)
             if project_orders:
                 _so_sum = sum(float(o.get("total_amount") or 0) for o in project_orders)
