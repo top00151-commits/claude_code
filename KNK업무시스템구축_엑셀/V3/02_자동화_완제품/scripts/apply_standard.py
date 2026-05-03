@@ -142,8 +142,9 @@ def _dept_spec(dept):
     n_sub = len(subs)
     n_ms = len(milestones)
     # v2026.04b: auto_cols 11열 — C10=담당자 추가 + 모델/품명 순서 swap
+    # v3.1: K11 = "부서진척률(%)" (본인 부서 세부항목 평균 자동 계산)
     auto_cols = ["NO","관리코드","수주번호","고객사","모델","품명",
-                 "PO유형","영업단계","진행상태","담당자","전체진척률(%)"]
+                 "PO유형","영업단계","진행상태","담당자","부서진척률(%)"]
     n_auto = len(auto_cols)     # 11
     C_DEPT_PIC = 10
     labels = list(auto_cols) + list(subs) + list(milestones) + ["상태", "메모"]

@@ -415,11 +415,22 @@ def _collect_dept_progress(log):
                 progress[code] = {}
             pic = str(_val(ws, r, 10) or "").strip()
             dept_data = {"_pic": pic, "_has_pic": bool(pic)}
+
+            # 세부항목 값 수집 (0~1 소수 또는 0~100 정수 모두 허용)
+            sub_vals = []
             for i, sub in enumerate(subs):
                 v = _num(ws, r, n_auto + 1 + i)
+                # 1보다 크면 0~100 입력으로 보고 0~1로 정규화
+                if v > 1:
+                    v = v / 100.0
+                # 1.0 초과 클램프
+                v = max(0.0, min(1.0, v))
                 dept_data[sub] = v
-            vals = [v for v in dept_data.values() if isinstance(v, (int, float)) and v > 0]
-            dept_data["_avg"] = sum(vals) / len(vals) if vals else 0
+                sub_vals.append(v)
+
+            # ★ 평균: 입력 안 한 0도 분모 포함 (전체 중 어디까지 했는지)
+            # _has_pic(bool) 등이 들어가지 않도록 sub_vals만 사용
+            dept_data["_avg"] = sum(sub_vals) / len(sub_vals) if sub_vals else 0.0
             progress[code][dept] = dept_data
         wb.close()
 
@@ -457,31 +468,44 @@ def _write_progress(ws_pms_prog, ws_pms_proj, progress, log):
         col = base_cols + 1
         dept_avgs = []
         code_prog = progress.get(proj["code"], {})
+
+        # PMS 1_프로젝트등록 '제외' 부서 수집 — 분모에서 빼기
+        excluded = set()
+        for r in range(5, ws_pms_proj.max_row + 1):
+            if str(_val(ws_pms_proj, r, C_CODE)) == proj["code"]:
+                for i, dept in enumerate(DEPTS):
+                    if str(_val(ws_pms_proj, r, C_DEPT_START + i) or "").strip() == "제외":
+                        excluded.add(dept)
+                break
+
         for dept in DEPTS:
             subs = DEPT_SUB_ITEMS.get(dept, [])
             dept_data = code_prog.get(dept, {})
+            # 세부항목 % (이미 0~1 정규화됨)
             for sub in subs:
                 v = dept_data.get(sub, 0)
-                ws_pms_prog.cell(row=row, column=col).value = v / 100 if v else None
+                ws_pms_prog.cell(row=row, column=col).value = v if v else None
                 ws_pms_prog.cell(row=row, column=col).number_format = PCT
                 col += 1
-            # 소계
+            # 소계 (이미 0~1)
             avg = dept_data.get("_avg", 0)
-            ws_pms_prog.cell(row=row, column=col).value = avg / 100 if avg else None
-            ws_pms_prog.cell(row=row, column=col).number_format = PCT
-            if avg > 0:
-                dept_avgs.append(avg)
+            if dept in excluded:
+                ws_pms_prog.cell(row=row, column=col).value = "제외"
+            else:
+                ws_pms_prog.cell(row=row, column=col).value = avg if avg else None
+                ws_pms_prog.cell(row=row, column=col).number_format = PCT
+                dept_avgs.append(avg)   # 0도 포함 (참여 부서)
             col += 1
 
-        # 전체진척률
+        # 전체진척률 = 참여 부서 평균 (제외 빠짐, 0도 포함)
         total_avg = sum(dept_avgs) / len(dept_avgs) if dept_avgs else 0
-        ws_pms_prog.cell(row=row, column=8).value = total_avg / 100 if total_avg else None
+        ws_pms_prog.cell(row=row, column=8).value = total_avg if total_avg else None
         ws_pms_prog.cell(row=row, column=8).number_format = PCT
 
         # PMS 1_프로젝트등록에도 전체진척률 write-back
         for pr in range(5, ws_pms_proj.max_row + 1):
             if str(_val(ws_pms_proj, pr, C_CODE)) == proj["code"]:
-                ws_pms_proj.cell(row=pr, column=C_PROG).value = total_avg / 100 if total_avg else None
+                ws_pms_proj.cell(row=pr, column=C_PROG).value = total_avg if total_avg else None
                 ws_pms_proj.cell(row=pr, column=C_PROG).number_format = PCT
                 break
 
@@ -736,13 +760,17 @@ def _sync_mapping_and_ledgers(wb_pms, ws_proj, log):
 # ═══════════════════════════════════════════════════════════════
 # 부서입력 파일 자동연동 (PMS → 부서)
 # ═══════════════════════════════════════════════════════════════
-def _sync_dept_files(ws_proj, log):
-    """PMS ↔ 부서입력 파일 양방향 동기화 (v2026.04d)
+def _sync_dept_files(ws_proj, log, progress=None):
+    """PMS ↔ 부서입력 파일 양방향 동기화 (v3.1)
 
     규칙:
       - PMS 부서 컬럼 "제외"   → 부서 파일 미등록
       - PMS 이름 / 부서 파일 이름 → 양쪽 동기화 (부서 파일 이름이 권위)
       - 부서 파일 C10 담당자 입력 → PMS 부서 컬럼으로 역반영 (제외 제외)
+
+    v3.1 K11 (부서진척률):
+      - progress 인자 있으면 → 본인 부서 세부항목 평균 (0~1, 자동 계산)
+      - 없으면 PMS C20(전체진척률)로 fallback
     """
     # 1단계: PMS 읽기
     projects = []
@@ -831,7 +859,14 @@ def _sync_dept_files(ws_proj, log):
             ws_d.cell(row, 9).value  = proj["status"]
             pic_to_write = dept_val if dept_val else existing_pic.get(proj["code"])
             ws_d.cell(row, 10).value = pic_to_write
-            ws_d.cell(row, 11).value = proj["prog"]
+            # v3.1 K11 = 본인 부서 진척률 (세부항목 평균 0~1, 자동 계산)
+            if progress is not None:
+                dept_data = progress.get(proj["code"], {}).get(dept, {})
+                self_avg = dept_data.get("_avg", 0.0)
+                ws_d.cell(row, 11).value = self_avg if self_avg else 0.0
+            else:
+                ws_d.cell(row, 11).value = proj["prog"]
+            ws_d.cell(row, 11).number_format = PCT
             row += 1
 
         wb_d.save(fp)
@@ -875,13 +910,16 @@ def sync_all():
     log.info("②-b 관리코드 일관성 검증")
     _validate_code_consistency(ws_proj, wb, log)
 
-    # ③ 부서입력 연동
-    log.info("③ 부서입력 연동")
-    _sync_dept_files(ws_proj, log)
-
-    # ④ 부서진척률 수집·반영
-    log.info("④ 부서진척률 수집·반영")
+    # ③ 부서진척률 수집 (먼저 — _sync_dept_files에 본인 부서% 전달)
+    log.info("③ 부서진척률 수집")
     progress = _collect_dept_progress(log)
+
+    # ④ 부서입력 연동 (PMS → 부서, K11 = 본인 부서 진척률)
+    log.info("④ 부서입력 연동")
+    _sync_dept_files(ws_proj, log, progress=progress)
+
+    # ⑤ 진행현황 갱신 (PMS C20 = 참여부서 평균)
+    log.info("⑤ 진행현황 갱신")
     _write_progress(ws_prog, ws_proj, progress, log)
 
     # ⑤ 출하현황 집계 (v2026.04: 02 자동화 X~AH 삭제로 skip — 3_출하현황은 수동 입력)
