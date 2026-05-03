@@ -142,7 +142,7 @@
           <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품지</th><th class="center">호기수</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:90px;">동작</th></tr></thead>
           <tbody>
           {% for so in project_orders %}
-          {% set _editable = can_use_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
+          {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
           <tr data-soid="{{ so.id }}">
             <td style="font-family:monospace;font-weight:700;color:var(--knk-red);"><a href="/sales/orders/{{ so.id }}" style="color:inherit;">{{ so.order_no }}</a></td>
             <td>{{ so.order_date|default('-') }}</td>

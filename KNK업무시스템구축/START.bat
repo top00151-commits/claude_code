@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H84 SO inline quick-edit — CEO suggestion: 'if we can edit the order quantity, it'll be easier'. project_detail SO list now shows unit_qty (number input) and total_amount (text + commas) inline; on change a 💾 button appears → POST /sales/orders/{oid}/quick-edit. Validation: qty>=1, amt>=0; rejects SHIPPED/INVOICED/PAID/CANCELLED SOs. Updates project.order_amount sum + writes history note. Requires can_use_sales. Direct quantity adjustment as simpler alternative to multi-SO grouping flow.
+REM   LAST UPDATE: 2026-05-03 v5H84b inline edit not working bugfix — template referenced can_use_sales but ctx() exposes can_sales. _editable always False → input/💾 never rendered. project_detail.html var name fixed. v5H84 SO inline quick-edit — CEO suggestion: 'if we can edit the order quantity, it'll be easier'. project_detail SO list now shows unit_qty (number input) and total_amount (text + commas) inline; on change a 💾 button appears → POST /sales/orders/{oid}/quick-edit. Validation: qty>=1, amt>=0; rejects SHIPPED/INVOICED/PAID/CANCELLED SOs. Updates project.order_amount sum + writes history note. Requires can_use_sales. Direct quantity adjustment as simpler alternative to multi-SO grouping flow.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84 SO inline quick-edit (qty / amount)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84b inline edit permission var name fix]
 
 echo.
 echo ============================================================
