@@ -60,10 +60,22 @@
           · 스캔본/이미지: Tesseract OCR 설치 시 작동 — 미설치 시 친절한 안내 표시
         </span>
       </div>
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input type="file" id="bizDocFile" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff" style="flex:1; min-width:240px; padding:8px; border:1px dashed var(--amber); border-radius:8px; background: white; cursor: pointer;">
-        <button type="button" class="btn btn-primary" onclick="parseBizDoc()" id="parseBtn" style="background: var(--amber-deep);">🔍 자동 인식</button>
-        <span id="parseStatus" style="font-size:12px; color:var(--mute);"></span>
+      <!-- v5H62: 드래그앤드롭 + 클립보드 붙여넣기 + 파일선택 3가지 모두 지원 -->
+      <div id="bizDropZone" style="border: 2px dashed var(--amber); border-radius: 12px; padding: 24px 16px; background: white; text-align: center; cursor: pointer; transition: all .2s;">
+        <div style="font-size: 32px; margin-bottom: 8px;">📥</div>
+        <div style="font-weight: 700; color: var(--amber-deep); margin-bottom: 4px;">파일을 여기로 끌어다 놓으세요</div>
+        <div style="font-size: 11.5px; color: var(--mute); margin-bottom: 10px;">
+          또는 <b style="color:var(--knk-red);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('bizDocFile').click()">파일 선택</b>
+          · <kbd style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--line);">Ctrl+V</kbd> 로 클립보드 이미지 붙여넣기
+        </div>
+        <div style="font-size: 10.5px; color: var(--mute);">PDF / JPG / PNG / BMP / TIFF 지원 (최대 20MB)</div>
+        <input type="file" id="bizDocFile" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff" style="display: none;">
+        <div id="filePreview" style="display:none; margin-top: 12px; padding: 8px 12px; background: var(--paper-2); border-radius: 8px; font-size: 12px; color: var(--ink);"></div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+        <button type="button" class="btn btn-primary" onclick="parseBizDoc()" id="parseBtn" style="background: var(--amber-deep);" disabled>🔍 자동 인식</button>
+        <button type="button" class="btn btn-secondary" onclick="clearBizFile()" id="clearFileBtn" style="display:none;">✕ 파일 제거</button>
+        <span id="parseStatus" style="font-size:12px; color:var(--mute); flex:1;"></span>
       </div>
       <div id="parseResult" style="display:none; margin-top:12px; padding:12px; background:white; border-radius:8px; border:1px solid var(--line); font-size:12.5px;"></div>
     </div>
@@ -241,6 +253,105 @@ async function installKoreanOcr() {
     btn.textContent = '↻ 다시 시도';
   }
 }
+
+// v5H62: 드래그앤드롭 + 클립보드 붙여넣기
+(function setupDragDrop(){
+  const zone = document.getElementById('bizDropZone');
+  const fileInput = document.getElementById('bizDocFile');
+  const previewEl = document.getElementById('filePreview');
+  const parseBtn = document.getElementById('parseBtn');
+  const clearBtn = document.getElementById('clearFileBtn');
+  if (!zone || !fileInput) return;
+
+  function setFile(file) {
+    if (!file) return;
+    // 사이즈 체크 (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      alert('파일이 너무 큽니다 (최대 20MB)');
+      return;
+    }
+    // 확장자 체크
+    const okExt = /\.(pdf|jpe?g|png|bmp|tiff?)$/i;
+    if (!okExt.test(file.name)) {
+      alert('지원하지 않는 파일 형식: ' + file.name + '\nPDF/JPG/PNG 만 가능합니다.');
+      return;
+    }
+    // 파일 input 에 설정 (DataTransfer 트릭)
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    // 프리뷰
+    const sizeKB = (file.size / 1024).toFixed(0);
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `📄 <b>${file.name}</b> <span style="color:var(--mute);">(${sizeKB} KB)</span>`;
+    parseBtn.disabled = false;
+    clearBtn.style.display = '';
+    document.getElementById('parseStatus').textContent = '';
+    document.getElementById('parseResult').style.display = 'none';
+  }
+
+  // 1) 파일 선택 (label 클릭)
+  fileInput.addEventListener('change', e => {
+    if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  // 2) 드래그 앤 드롭
+  ['dragenter','dragover'].forEach(ev => {
+    zone.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.background = '#fff8e7';
+      zone.style.borderColor = 'var(--knk-red)';
+      zone.style.transform = 'scale(1.01)';
+    });
+  });
+  ['dragleave','drop'].forEach(ev => {
+    zone.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.background = 'white';
+      zone.style.borderColor = 'var(--amber)';
+      zone.style.transform = 'scale(1)';
+    });
+  });
+  zone.addEventListener('drop', e => {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  // 3) Ctrl+V 클립보드 이미지 붙여넣기 (페이지 전체에서 동작)
+  document.addEventListener('paste', e => {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.type && it.type.indexOf('image') === 0) {
+        const blob = it.getAsFile();
+        if (blob) {
+          // 클립보드 이미지는 파일명이 없으니 자동 명명
+          const ext = (it.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+          const named = new File([blob], `clipboard_${ts}.${ext}`, {type: it.type});
+          setFile(named);
+          // 사용자에게 알림
+          document.getElementById('parseStatus').textContent = '📋 클립보드 이미지 붙여넣기 완료';
+          document.getElementById('parseStatus').style.color = 'var(--success)';
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  });
+
+  // 클리어 버튼
+  window.clearBizFile = function() {
+    fileInput.value = '';
+    previewEl.style.display = 'none';
+    parseBtn.disabled = true;
+    clearBtn.style.display = 'none';
+    document.getElementById('parseStatus').textContent = '';
+    document.getElementById('parseResult').style.display = 'none';
+  };
+})();
 
 // v5H57: 사업자등록증 자동 파서
 async function parseBizDoc() {
