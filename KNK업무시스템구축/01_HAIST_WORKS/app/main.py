@@ -210,8 +210,39 @@ def startup():
             print(f"[SEED-RECENT] +{added} fresh tasks for current week")
     except Exception as _e:
         print(f"[SEED-RECENT ERR] {_e}")
+    # v5H58 (2026-05-03) — 고객사 등급 자동 재계산 (startup + 24h 주기)
+    try:
+        from . import customer_tier as _ct
+        with db_session() as c:
+            n = _ct.refresh_all_customer_tiers(c)
+        print(f"[TIER] {n} customers tier auto-computed")
+    except Exception as _e:
+        print(f"[TIER ERR] {_e}")
+    _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+
+
+# v5H58: 24시간마다 자동 재계산 (백그라운드 타이머)
+def _tier_refresh_tick():
+    import threading as _th
+    try:
+        from . import customer_tier as _ct
+        with db_session() as c:
+            n = _ct.refresh_all_customer_tiers(c)
+        print(f"[TIER-AUTO] refreshed {n} customers")
+    except Exception as e:
+        print(f"[TIER-AUTO ERR] {e}")
+    timer = _th.Timer(86400, _tier_refresh_tick)  # 24h
+    timer.daemon = True
+    timer.start()
+
+
+def _start_tier_refresh_scheduler():
+    import threading as _th
+    timer = _th.Timer(86400, _tier_refresh_tick)
+    timer.daemon = True
+    timer.start()
 
 
 # =====================================================
@@ -3160,15 +3191,18 @@ async def customers_list(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         try:
+            # v5H58: 자동 산정 등급 점수(tier_score) 우선 정렬
             rows = c.execute(
-                """SELECT cu.id, cu.name, cu.tier, cu.note,
+                """SELECT cu.id, cu.name, cu.tier, cu.note, cu.biz_no, cu.ceo_name,
+                          COALESCE(cu.tier_score, 0) AS tier_score,
+                          cu.tier_computed_at,
                           COUNT(DISTINCT p.id) AS proj_count,
                           COALESCE(SUM(p.order_amount), 0) AS total_amount,
                           MAX(p.order_date) AS last_order
                    FROM customers cu
                    LEFT JOIN projects p ON p.customer_id = cu.id
                    GROUP BY cu.id
-                   ORDER BY total_amount DESC, cu.tier DESC, cu.name"""
+                   ORDER BY tier_score DESC, total_amount DESC, cu.name"""
             ).fetchall()
             customers = [dict(r) for r in rows]
         except Exception:
@@ -3232,10 +3266,13 @@ async def customer_detail(req: Request, cid: int):
         except Exception:
             contacts = []
 
+    # v5H58: 등급 점수 breakdown
+    from . import customer_tier as _ct
+    tier_breakdown = _ct.parse_breakdown(cu.get("tier_breakdown"))
     return ctx(req, "customer_detail.html",
                user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
                stats=stats, by_team=by_team_list, total_tasks=len(tasks),
-               contacts=contacts)
+               contacts=contacts, tier_breakdown=tier_breakdown)
 
 
 # =====================================================
@@ -4411,6 +4448,30 @@ async def customers_parse_biz(req: Request, file: UploadFile = File(...)):
     return JSONResponse(result)
 
 
+@app.post("/customers/{cid:int}/recompute-tier")
+async def customers_recompute_tier(req: Request, cid: int):
+    """v5H58: 단일 거래처 등급 수동 재계산 (사용자 트리거)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    from . import customer_tier as _ct
+    with db_session() as c:
+        res = _ct.refresh_customer_tier(c, cid)
+    return JSONResponse({"ok": True, **res})
+
+
+@app.post("/admin/recompute-all-tiers")
+async def admin_recompute_all_tiers(req: Request):
+    """v5H58: 전체 거래처 등급 강제 재계산 (관리자)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    from . import customer_tier as _ct
+    with db_session() as c:
+        n = _ct.refresh_all_customer_tiers(c)
+    return JSONResponse({"ok": True, "refreshed": n})
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56: 폼에서 contact_role_N / contact_name_N 등 패턴으로 다중 담당자 수집."""
     indices = sorted({
@@ -4454,9 +4515,10 @@ async def customers_new_submit(req: Request):
     name = (form.get("name") or "").strip()
     if not name:
         return RedirectResponse("/customers/new?error=name_required", status_code=303)
+    # v5H58: 등급은 자동 산정 (사용자 입력 무시) — 신규는 일단 '신규' 로 시작
     fields = {
         "name": name,
-        "tier": (form.get("tier") or "일반").strip(),
+        "tier": "신규",
         "biz_no": (form.get("biz_no") or "").strip(),
         "ceo_name": (form.get("ceo_name") or "").strip(),
         "phone": (form.get("phone") or "").strip(),
@@ -4483,6 +4545,9 @@ async def customers_new_submit(req: Request):
                 (new_id, ct["role"], ct["department"], ct["name"], ct["position"],
                  ct["phone"], ct["mobile"], ct["email"], ct["is_primary"])
             )
+        # v5H58: 즉시 등급 자동 산정
+        from . import customer_tier as _ct
+        _ct.refresh_customer_tier(c, new_id)
     return RedirectResponse(f"/customer/{new_id}", status_code=303)
 
 
@@ -4514,12 +4579,12 @@ async def customers_edit_submit(req: Request, cid: int):
         return RedirectResponse(f"/customers/{cid}/edit?error=name_required", status_code=303)
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
+        # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
-            "UPDATE customers SET name=?, tier=?, biz_no=?, ceo_name=?, "
+            "UPDATE customers SET name=?, biz_no=?, ceo_name=?, "
             "phone=?, email=?, address=?, is_active=?, note=? "
             "WHERE id=?",
-            (name, form.get("tier", "일반"), form.get("biz_no", ""),
-             form.get("ceo_name", ""),
+            (name, form.get("biz_no", ""), form.get("ceo_name", ""),
              form.get("phone", ""), form.get("email", ""),
              form.get("address", ""), int(form.get("is_active") or 1),
              form.get("note", ""), cid)
@@ -4534,6 +4599,9 @@ async def customers_edit_submit(req: Request, cid: int):
                 (cid, ct["role"], ct["department"], ct["name"], ct["position"],
                  ct["phone"], ct["mobile"], ct["email"], ct["is_primary"])
             )
+        # v5H58: 수정 후에도 등급 즉시 재계산
+        from . import customer_tier as _ct
+        _ct.refresh_customer_tier(c, cid)
     return RedirectResponse(f"/customer/{cid}", status_code=303)
 
 

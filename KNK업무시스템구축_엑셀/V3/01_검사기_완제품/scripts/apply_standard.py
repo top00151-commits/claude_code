@@ -15,7 +15,7 @@ from config import (
     MODULE_DIR, TYPE_NAME, YEAR, DEPTS, DEPT_SUB_ITEMS, DEPT_MILESTONES,
     PMS_HEADER_LABELS, MAX_COL, R3_MAP_PROJ, R4_MAP_PROJ,
     SHIP_SUMMARY_MAX_COL, SHIP_SUMMARY_LABELS, R3_MAP_SHIP, R4_MAP_SHIP,
-    C_QTY, C_CURRENCY, C_UPRICE, C_TOTAL, C_DDAY, C_STATUS,
+    C_QTY, C_CURRENCY, C_UPRICE, C_TOTAL, C_DDAY, C_STATUS, C_DEPT_START,
     DROPDOWN_MAP,
     pms_path, dept_path,
 )
@@ -26,15 +26,33 @@ def _log(msg):
     print(msg)
 
 
+def _wrap_dept_name(name):
+    """v3.1: 부서명 4글자 초과 시 4글자+\n+나머지로 분리 (열 너비 통일)
+    예: '개발혁신팀'(5) → '개발혁신\n팀'
+        '제조기술1팀'(6) → '제조기술\n1팀'
+        '검사기팀'(4) → 그대로
+    """
+    if len(name) > 4:
+        return name[:4] + "\n" + name[4:]
+    return name
+
+
+DEPT_COL_WIDTH = 7   # v3.1: 부서 컬럼 통일 너비 (4글자 + 여유)
+
+
 # ═══════════════════════════════════════════════════════════════
 # PMS 통합 파일 (7시트) specs
 # ═══════════════════════════════════════════════════════════════
 def _pms_specs():
     # v2026.04e: 1_프로젝트등록 = 33열 (부서 8 + 매출·수금 2)
     mc = MAX_COL  # 33
-    labels = list(PMS_HEADER_LABELS) + list(DEPTS) + ["계산서\n발행일", "입금일"]
+    dept_labels = [_wrap_dept_name(d) for d in DEPTS]
+    labels = list(PMS_HEADER_LABELS) + dept_labels + ["계산서\n발행일", "입금일"]
     r3 = dict(R3_MAP_PROJ)
     r4 = dict(R4_MAP_PROJ)
+
+    # 부서 컬럼 너비 통일 (1_프로젝트등록·4_완료이력·8_매출마감 공통)
+    dept_widths = {c: DEPT_COL_WIDTH for c in range(C_DEPT_START, C_DEPT_START + len(DEPTS))}
 
     proj_spec = {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ 프로젝트 등록 │ {YEAR}",
@@ -52,13 +70,16 @@ def _pms_specs():
         "dday_col":       C_DDAY,
         "status_col":     C_STATUS,
         "dropdown_map":   dict(DROPDOWN_MAP),
+        "fixed_widths":   dept_widths,
     }
 
     # 2_진행현황 (v3.1 — 부서당 1컬럼 = 완료일/입고일)
     prog_labels = ["NO","관리코드","수주번호","고객사","모델","품명","진행상태","전체\n진척률(%)"]
     for dept in DEPTS:
-        prog_labels.append(f"{dept}\n완료일")
+        prog_labels.append(f"{_wrap_dept_name(dept)}\n완료일")
     prog_mc = len(prog_labels)
+    # 부서별 완료일 컬럼 너비 통일 (C9~)
+    prog_dept_widths = {c: DEPT_COL_WIDTH for c in range(9, prog_mc + 1)}
     prog_spec = {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ 진행현황 │ {YEAR}",
         "purpose": "검사기 진행현황 (v3.1 부서별 완료일)",
@@ -67,6 +88,7 @@ def _pms_specs():
         "r3_map":  {c: "auto" for c in range(1, prog_mc + 1)},
         "r4_map":  {c: ("id" if c <= 8 else "dept") for c in range(1, prog_mc + 1)},
         "freeze":  "auto",
+        "fixed_widths": prog_dept_widths,
     }
 
     # 3_출하현황

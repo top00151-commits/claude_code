@@ -14,7 +14,7 @@ from config import (
     TYPE_NAME, YEAR, DEPTS, DEPT_SUB_ITEMS, DEPT_MILESTONES,
     PMS_HEADER_LABELS, MAX_COL, R3_MAP_PROJ, R4_MAP_PROJ,
     SHIP_SUMMARY_MAX_COL, SHIP_SUMMARY_LABELS, R3_MAP_SHIP, R4_MAP_SHIP,
-    C_QTY, C_CURRENCY, C_UPRICE, C_TOTAL, C_DDAY, C_STATUS,
+    C_QTY, C_CURRENCY, C_UPRICE, C_TOTAL, C_DDAY, C_STATUS, C_DEPT_START,
     DROPDOWN_MAP,
     pms_path, dept_path,
 )
@@ -25,12 +25,29 @@ def _log(msg):
     print(msg)
 
 
+def _wrap_dept_name(name):
+    """v3.1: 부서명 4글자 초과 시 4글자+\n+나머지 (열 너비 통일)
+    예: '전장설계팀'(5)→'전장설계\n팀', '소프트웨어팀'(6)→'소프트웨\n어팀',
+        '제조기술2팀'(6)→'제조기술\n2팀', '설계팀'(3)→그대로
+    """
+    if len(name) > 4:
+        return name[:4] + "\n" + name[4:]
+    return name
+
+
+DEPT_COL_WIDTH = 7   # v3.1: 부서 컬럼 통일 너비
+
+
 def _pms_specs():
     # v2026.04e: 1_프로젝트등록 = 31열 (부서 7 + 매출·수금 2)
     mc = MAX_COL  # 31
-    labels = list(PMS_HEADER_LABELS) + list(DEPTS) + ["계산서\n발행일", "입금일"]
+    dept_labels = [_wrap_dept_name(d) for d in DEPTS]
+    labels = list(PMS_HEADER_LABELS) + dept_labels + ["계산서\n발행일", "입금일"]
     r3 = dict(R3_MAP_PROJ)
     r4 = dict(R4_MAP_PROJ)
+
+    # 부서 컬럼 너비 통일
+    dept_widths = {c: DEPT_COL_WIDTH for c in range(C_DEPT_START, C_DEPT_START + len(DEPTS))}
 
     proj_spec = {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ 프로젝트 등록 │ {YEAR}",
@@ -48,14 +65,16 @@ def _pms_specs():
         "dday_col":     C_DDAY,
         "status_col":   C_STATUS,
         "dropdown_map": dict(DROPDOWN_MAP),
+        "fixed_widths": dept_widths,
     }
 
     # 2_진행현황
     prog_labels = ["NO","관리코드","수주번호","고객사","모델","품명","진행상태","전체\n진척률(%)"]
     for dept in DEPTS:
+        wrapped = _wrap_dept_name(dept)
         for sub in DEPT_SUB_ITEMS.get(dept, []):
-            prog_labels.append(f"{dept}\n{sub}")
-        prog_labels.append(f"{dept}\n소계")
+            prog_labels.append(f"{wrapped}\n{sub}")
+        prog_labels.append(f"{wrapped}\n소계")
     prog_mc = len(prog_labels)
     prog_spec = {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ 진행현황 │ {YEAR}",

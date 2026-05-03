@@ -68,13 +68,46 @@
     </div>
 
     <aside>
+      <!-- v5H58: 자동 등급 산정 카드 -->
+      <div class="section-card" style="border-left: 4px solid {% if cu.tier == 'VIP' %}var(--knk-red){% elif cu.tier == '주요' %}var(--amber-deep){% elif cu.tier == '신규' %}var(--amber){% elif cu.tier == '휴면' %}var(--mute){% else %}var(--success){% endif %};">
+        <h3>⭐ 자동 산정 등급</h3>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <span class="pill {% if cu.tier == 'VIP' %}pill-danger{% elif cu.tier == '주요' %}pill-progress{% elif cu.tier == '신규' %}pill-warn{% elif cu.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:18px; padding:6px 14px; font-weight:700;">
+            {{ cu.tier|default('—') }}
+          </span>
+          <div style="text-align:right;">
+            <div style="font-size:24px; font-weight:700; color:var(--ink);">{{ cu.tier_score|default(0) }}<span style="font-size:13px; color:var(--mute);">/100</span></div>
+            <div style="font-size:10px; color:var(--mute);">{{ cu.tier_computed_at|default('미계산') }}</div>
+          </div>
+        </div>
+        {% if tier_breakdown %}
+        <div style="border-top:1px solid var(--line); padding-top:10px;">
+          <div style="font-size:11px; color:var(--mute); margin-bottom:8px; font-weight:700;">📊 점수 산정 내역</div>
+          {% for b in tier_breakdown %}
+          <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+              <span><b>{{ b.label }}</b></span>
+              <span><b style="color:{% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--amber-deep){% elif b.score > 0 %}var(--mute){% else %}var(--knk-red){% endif %};">{{ b.score }}</b><span style="color:var(--mute);font-size:10px;">/{{ b.max }}</span></span>
+            </div>
+            <div style="background:var(--paper-2); height:6px; border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width: {{ (b.score * 100 / b.max)|round|int }}%; background: {% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--amber-deep){% elif b.score > 0 %}var(--amber){% else %}var(--paper-2){% endif %};"></div>
+            </div>
+            <div style="font-size:10.5px; color:var(--mute); margin-top:2px;">{{ b.detail }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);">
+          <button type="button" onclick="recomputeTier({{ cu.id }})" class="btn btn-secondary" style="width:100%; justify-content:center; font-size:12px;">↻ 지금 재계산</button>
+        </div>
+      </div>
+
       <div class="section-card">
         <h3>회사 정보</h3>
         <dl class="def">
           <dt>고객사명</dt><dd><b>{{ cu.name }}</b></dd>
           <dt>사업자번호</dt><dd style="font-family:monospace;">{{ cu.biz_no|default(cu.business_no|default('—')) }}</dd>
           <dt>대표</dt><dd>{{ cu.ceo_name|default('—') }}</dd>
-          <dt>등급</dt><dd><span class="pill {% if cu.tier == '주요' %}pill-progress{% elif cu.tier == '신규' %}pill-warn{% else %}pill-muted{% endif %}">{{ cu.tier|default('일반') }}</span></dd>
           <dt>대표 전화</dt><dd>{{ cu.phone|default('—') }}</dd>
           <dt>대표 이메일</dt><dd style="font-size:12px;">{{ cu.email|default('—') }}</dd>
           <dt>주소</dt><dd style="font-size:12px;">{{ cu.address|default('—') }}</dd>
@@ -83,6 +116,19 @@
           <a href="/customers/{{ cu.id }}/edit" class="btn btn-secondary" style="width:100%; justify-content:center;">✏ 수정</a>
         </div>
       </div>
+
+      <script>
+      async function recomputeTier(cid) {
+        const r = await fetch(`/customers/${cid}/recompute-tier`, {method:'POST'});
+        const j = await r.json();
+        if (j.ok) {
+          alert(`재계산 완료\n등급: ${j.tier} (${j.score}/100)`);
+          location.reload();
+        } else {
+          alert('재계산 실패: ' + (j.error || ''));
+        }
+      }
+      </script>
 
       <!-- v5H56: 다중 담당자 (역할별) -->
       <div class="section-card">

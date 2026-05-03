@@ -77,10 +77,11 @@ def apply_r1(ws, title, max_col):
 # ═══════════════════════════════════════════════════════════════
 # 2. R2 — 좌측 슬로건 병합 + 우측 끝 업데이트 일시 (스펙 §3, 체크 [2][3])
 # ═══════════════════════════════════════════════════════════════
-def apply_r2(ws, purpose, max_col, ts=None, slogan_override=None):
+def apply_r2(ws, purpose, max_col, ts=None, slogan_override=None, ts_cols=3):
     """
     slogan_override: 지정 시 R2_SLOGAN_TMPL을 우회하고 이 텍스트를 그대로 사용.
                      (예: 시트별 안내문구 삽입)
+    ts_cols: 우측 업데이트 일시 영역의 컬럼 수 (기본 3 — "업데이트: 2026-05-03 12:32" 가독성 확보)
     """
     if ts is None:
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -90,9 +91,19 @@ def apply_r2(ws, purpose, max_col, ts=None, slogan_override=None):
     for rng in to_unmerge:
         ws.unmerge_cells(rng)
 
-    # 좌측(A2 ~ C{max_col-1}) 병합 — 슬로건
-    if max_col >= 2:
+    # v3.1: 우측 영역을 최소 3컬럼 병합 (업데이트 일시 글자 잘림 방지)
+    if max_col >= ts_cols + 1:
+        right_start = max_col - ts_cols + 1
+        left_end = right_start - 1
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=left_end)
+        ws.merge_cells(start_row=2, start_column=right_start, end_row=2, end_column=max_col)
+    elif max_col >= 2:
         ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=max(1, max_col - 1))
+        right_start = max_col
+    else:
+        right_start = 1
+
+    # 좌측 — 슬로건
     c1 = ws.cell(2, 1)
     c1.value = slogan_override if slogan_override else R2_SLOGAN_TMPL.format(purpose=purpose)
     c1.fill = FILL_KNK_DARK
@@ -100,9 +111,9 @@ def apply_r2(ws, purpose, max_col, ts=None, slogan_override=None):
     c1.alignment = Alignment(horizontal="left", vertical="center", indent=1, wrap_text=False)
     c1.border = THIN
 
-    # 우측 끝 단일 셀 — 업데이트 일시
+    # 우측 — 업데이트 일시 (최소 3컬럼 너비)
     if max_col >= 2:
-        c2 = ws.cell(2, max_col)
+        c2 = ws.cell(2, right_start)
         c2.value = R2_TS_TMPL.format(ts=ts)
         c2.fill = FILL_KNK_DARK
         c2.font = Font(name="맑은 고딕", size=9, color="FFFFFF", italic=True)
@@ -899,6 +910,13 @@ def normalize_sheet(ws, spec, log=None):
 
     # [10] 컬럼 너비
     apply_auto_widths(ws, mc)
+
+    # 고정 너비 (auto_widths 이후 — 우선순위 더 높음)
+    # 예: spec["fixed_widths"] = {24: 7, 25: 7, ..., 30: 7}  → 부서 컬럼 7 통일
+    fixed_widths = spec.get("fixed_widths")
+    if fixed_widths:
+        for col, width in fixed_widths.items():
+            ws.column_dimensions[get_column_letter(col)].width = width
 
     # 드롭다운 재정비 (구 위치 잔재 전부 제거 + 새로 생성)
     dropdown_map = spec.get("dropdown_map")
