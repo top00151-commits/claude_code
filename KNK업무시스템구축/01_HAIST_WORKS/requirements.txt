@@ -3,3 +3,20 @@ uvicorn[standard]
 jinja2
 python-multipart
 itsdangerous
+
+# v5H57 (2026-05-03) — 사업자등록증 자동 파서
+pdfplumber          # 텍스트 PDF 추출 (홈택스/정부24 발급분)
+Pillow              # 이미지 처리
+
+# 옵션 (이미지/스캔본 OCR — Tesseract 별도 설치 필요)
+pytesseract         # Python wrapper (Tesseract 바이너리 별도)
+pdf2image           # 스캔 PDF → 이미지 변환 (poppler 별도)
+
+# 비고:
+# - pdfplumber 만으로 홈택스/정부24 발급 PDF 90% 자동 추출 가능 (외부 의존 0)
+# - pytesseract + pdf2image 는 Python 설치만, 추가 바이너리 필요:
+#   · Tesseract OCR (Windows 설치 시 Korean 언어팩 체크)
+#     https://github.com/UB-Mannheim/tesseract/wiki
+#   · Poppler (스캔 PDF → 이미지 변환용)
+#     https://github.com/oschwartz10612/poppler-windows/releases
+# - 미설치 시 PDF만 동작. 이미지 업로드 시 친절한 안내 메시지 표시.

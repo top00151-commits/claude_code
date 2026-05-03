@@ -150,8 +150,8 @@ def apply_r4(ws, max_col, labels, r4_map, comments=None):
             text = comments.get(c) or _default_comment_for(cell.value)
             if text:
                 cm = Comment(text, "KNK PMS")
-                cm.width = 500    # v2026.04d: 380→500 (상세 메모 수용)
-                cm.height = 220   # v2026.04d: 110→220
+                cm.width = 720    # v3.1: 500→720 (가독성 확대)
+                cm.height = 420   # v3.1: 220→420
                 cell.comment = cm
     ws.row_dimensions[4].height = ROW_HEIGHTS[4]
 
@@ -753,15 +753,16 @@ def apply_dropdowns(ws, dropdown_map, row_start=5, row_end=2000):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 9. VML 메모 박스 크기 강제 380×110 (스펙 §14.4, 체크 [6])
+# 9. VML 메모 박스 크기 강제 (스펙 §14.4, 체크 [6])
+#    v3.1: 720×420 px (가독성 확대) + 폰트 11pt
 # ═══════════════════════════════════════════════════════════════
-def fix_vml_comment_size(xlsx_path, width_px=500, height_px=220):
+def fix_vml_comment_size(xlsx_path, width_px=720, height_px=420):
     """
     xlsx zip 내부 xl/drawings/commentsDrawingN.vml 파일의
     style="... width:Wpx; height:Hpx" (또는 pt) 값을 강제 재작성.
 
     openpyxl 3.x는 Comment.width/height를 VML에 px 단위로 저장하므로
-    Comment 객체에 380/110을 넣었다면 이 함수는 no-op에 가깝다.
+    Comment 객체에 720/420을 넣었다면 이 함수는 no-op에 가깝다.
     구버전 호환 + 안전장치.
     """
     tmp_path = xlsx_path + ".tmp"
@@ -776,6 +777,54 @@ def fix_vml_comment_size(xlsx_path, width_px=500, height_px=220):
                     text = re.sub(r"height\s*:\s*[\d.]+\s*px", f"height:{height_px}px", text)
                     text = re.sub(r"width\s*:\s*[\d.]+\s*pt", f"width:{width_px}px", text)
                     text = re.sub(r"height\s*:\s*[\d.]+\s*pt", f"height:{height_px}px", text)
+                    data = text.encode("utf-8")
+                zout.writestr(name, data)
+    shutil.move(tmp_path, xlsx_path)
+
+
+def fix_comment_font_size(xlsx_path, font_size=11, font_name="맑은 고딕"):
+    """
+    xl/comments*.xml 내 모든 <text><t>...</t></text>를
+    <text><r><rPr><sz/><rFont/></rPr><t>...</t></r></text>로 재작성.
+
+    openpyxl Comment는 단순 문자열 → commentsN.xml에서는
+    `<comment><text><t>...</t></text></comment>` 형태로 직렬화 (rPr 없음, 폰트 9pt 기본).
+
+    이 함수는 다음을 수행:
+      A) 기존 <r><t>...</t></r> 안 <rPr>의 sz/rFont 강제 교체 (이미 rich-text인 경우)
+      B) <text><t>...</t></text> 형태를 <text><r><rPr/><t/></r></text>로 변환 + rPr 주입
+    """
+    tmp_path = xlsx_path + ".tmp"
+    rpr_block = (
+        f'<rPr><sz val="{font_size}"/>'
+        f'<rFont val="{font_name}"/>'
+        f'<family val="3"/><charset val="129"/></rPr>'
+    )
+
+    with zipfile.ZipFile(xlsx_path, "r") as zin:
+        names = zin.namelist()
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for name in names:
+                data = zin.read(name)
+                if name.startswith("xl/comments") and name.endswith(".xml"):
+                    text = data.decode("utf-8", errors="ignore")
+
+                    # A) 이미 rPr 있는 경우 — sz / rFont 값만 교체
+                    text = re.sub(r'<sz\s+val="[\d.]+"\s*/>',
+                                  f'<sz val="{font_size}"/>', text)
+                    text = re.sub(r'<rFont\s+val="[^"]*"\s*/>',
+                                  f'<rFont val="{font_name}"/>', text)
+
+                    # B) <text><t...>...</t></text> → <text><r><rPr/><t/></r></text>
+                    # (re.DOTALL: 텍스트 내 \n 매칭 위해)
+                    pattern = re.compile(
+                        r'<text>\s*<t([^>]*)>(.*?)</t>\s*</text>',
+                        flags=re.DOTALL,
+                    )
+                    text = pattern.sub(
+                        lambda m: f'<text><r>{rpr_block}<t{m.group(1)}>{m.group(2)}</t></r></text>',
+                        text,
+                    )
                     data = text.encode("utf-8")
                 zout.writestr(name, data)
     shutil.move(tmp_path, xlsx_path)
@@ -995,8 +1044,9 @@ def normalize_file(xlsx_path, sheet_specs, fix_vml=True, log=None):
 
     if fix_vml:
         fix_vml_comment_size(xlsx_path)
+        fix_comment_font_size(xlsx_path)
         if log:
-            log(f"  ✓ VML 메모 박스 500×220 px 강제 적용")
+            log(f"  ✓ VML 메모 박스 720×420 px + 폰트 11pt 강제 적용")
 
     if log:
         log(f"  ✓ 저장 완료")

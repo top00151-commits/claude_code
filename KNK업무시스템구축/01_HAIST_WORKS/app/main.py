@@ -4370,6 +4370,47 @@ async def admin_teams_edit_submit(req: Request, tid: int):
     return RedirectResponse("/admin", 303)
 
 
+# =====================================================
+# v5H57 (2026-05-03 대표 지시) — 사업자등록증 자동 파서
+# PDF/JPG/PNG 업로드 → 사업자번호/상호/대표자/주소 자동 추출
+# 외부 API 0건 (pdfplumber + Tesseract OCR 로컬 실행)
+# =====================================================
+from . import biz_doc as _biz_doc
+import tempfile as _tempfile
+
+_CUSTOMER_FILES_DIR = os.path.join(BASE, "data", "customer_files")
+os.makedirs(_CUSTOMER_FILES_DIR, exist_ok=True)
+
+
+@app.post("/customers/parse-biz")
+async def customers_parse_biz(req: Request, file: UploadFile = File(...)):
+    """사업자등록증 파일(PDF/JPG/PNG) 업로드 → 자동 파싱 → JSON 반환.
+    UI 에서 비동기 호출 → 응답 받은 필드를 폼에 자동 채움."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    fn = file.filename or "biz_doc"
+    ext = os.path.splitext(fn)[1].lower()
+    if ext not in (".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"):
+        return JSONResponse({
+            "ok": False,
+            "message": f"지원하지 않는 파일 형식입니다: {ext}\nPDF / JPG / PNG 만 가능합니다.",
+        })
+    # 임시 파일 저장 (파싱용)
+    with _tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+    try:
+        result = _biz_doc.parse_file(tmp_path, fn)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+    return JSONResponse(result)
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56: 폼에서 contact_role_N / contact_name_N 등 패턴으로 다중 담당자 수집."""
     indices = sorted({
