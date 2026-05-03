@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H85 per-unit price breakdown when units within a
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H85 per-unit price breakdown when units differ]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H85b per-unit breakdown fallback (avg if no items)]
 
 echo.
 echo ============================================================

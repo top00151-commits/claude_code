@@ -166,7 +166,11 @@
               {% else %}
               <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
               {% endif %}
-              {# v5H85: 호기별 단가 표기 — 모두 같으면 'N대 × 단가', 다르면 호기별 분해 #}
+              {# v5H85/85b: 호기별 단가 표기.
+                 (1) order_items 가 있고 단가 동일 → 'N대 × 단가'
+                 (2) order_items 가 있고 단가 다름 → 호기별 분해 펼치기
+                 (3) order_items 비어 있고 unit_qty>1 → 합계/호기수 추정 표시 #}
+              {% set _qq = so.unit_qty|default(1) %}
               {% if so.units and so.units|length > 1 %}
                 {% if so.unit_price_uniform is not none %}
                 <div style="font-size:10.5px;color:var(--mute);margin-top:2px;text-align:right;">
@@ -182,6 +186,10 @@
                   </div>
                 </details>
                 {% endif %}
+              {% elif _qq > 1 and so.total_amount %}
+                <div style="font-size:10.5px;color:var(--mute);margin-top:2px;text-align:right;">
+                  {{ _qq }}대 × {{ '{:,.0f}'.format((so.total_amount or 0) / _qq) }}원 <span style="opacity:0.7;">(평균)</span>
+                </div>
               {% endif %}
             </td>
             <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
