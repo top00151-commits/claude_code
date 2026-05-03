@@ -98,4 +98,36 @@
   .tbl-wrap.tbl-sticky .tbl thead th,
   .tbl-wrap.tbl-sticky .tbl tfoot tr { position: static !important; box-shadow: none !important; }
 }
+
+/* v5H54: 비-테이블 데이터 영역 스크롤 컨테이너
+   카드 리스트 / 알림 / 피드 / 검색 결과 등 div 기반 데이터 목록에 적용.
+   사용법: <div class="list-scroll"> ... 반복 카드들 ... </div>
+   필요 시 .list-scroll-sm (작은 영역, 360px), .list-scroll-tall (큰 영역, vh-180px) */
+.list-scroll {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  position: relative;
+  padding-right: 4px; /* 스크롤바 공간 */
+}
+.list-scroll-sm  { max-height: 360px; overflow-y: auto; padding-right:4px; }
+.list-scroll-tall{ max-height: calc(100vh - 180px); overflow-y: auto; padding-right:4px; }
+/* 스티키 헤더가 있는 div-기반 리스트 — 첫 번째 .list-head 자식이 sticky */
+.list-scroll > .list-head {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--paper-2);
+  padding: 10px 14px;
+  font-size: 11px; color: var(--knk-red); font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border-bottom: 2px solid var(--knk-red);
+}
+@media (max-width: 1023px) {
+  .list-scroll      { max-height: calc(100vh - 200px); }
+  .list-scroll-tall { max-height: calc(100vh - 140px); }
+}
+@media print {
+  .list-scroll, .list-scroll-sm, .list-scroll-tall {
+    max-height: none !important; overflow: visible !important;
+  }
+  .list-scroll > .list-head { position: static !important; }
+}
 </style>

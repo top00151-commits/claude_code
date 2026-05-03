@@ -32,7 +32,7 @@
     </div>
   </div>
 
-  <div style="margin: 0 var(--content-pad);">
+  <div class="list-scroll" style="margin: 0 var(--content-pad);">
     {% if items %}
       {% for n in items %}
       <a class="notif-item {% if not n.is_read %}unread{% endif %}" href="{{ n.link|default('/home') }}">

@@ -53,6 +53,7 @@
     {% endif %}
     {% if _flat %}
       <div class="page-meta" style="margin-bottom: 12px;">총 <b>{{ _flat|length }}건</b> 결과</div>
+      <div class="list-scroll">
       {% for entry in _flat %}
       {% set r = entry.item %}
       <a class="result-card" href="{{ r.url|default(r.link|default('#')) }}">
@@ -63,6 +64,7 @@
         {% endif %}
       </a>
       {% endfor %}
+      </div>
     {% else %}
       <div class="empty"><div class="ico">🔍</div><div class="ttl">"{{ q }}" 검색 결과 없음</div><div style="font-size:13px;color:var(--mute);">다른 키워드로 검색해보세요.</div></div>
     {% endif %}

@@ -30,7 +30,7 @@
     <div class="kpi-card"><div class="kpi-label">지연</div><div class="kpi-num" style="color:var(--knk-red);">{{ all_delay|default(0) }}</div></div>
   </div>
 
-  <div style="margin: var(--space-5) var(--content-pad) 0;">
+  <div class="list-scroll" style="margin: var(--space-5) var(--content-pad) 0;">
     {% for td in by_team|default([]) %}
     <div class="feed-card">
       <div class="feed-card-head">

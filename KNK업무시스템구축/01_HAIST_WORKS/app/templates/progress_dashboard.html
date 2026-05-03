@@ -35,7 +35,7 @@
     <div class="kpi-card"><div class="kpi-label">평균 진행률</div><div class="kpi-num">{{ _avg }}<span class="unit">%</span></div></div>
   </div>
 
-  <div style="margin: var(--space-5) var(--content-pad) 0;">
+  <div class="list-scroll" style="margin: var(--space-5) var(--content-pad) 0;">
     {% if projects %}
       {% for p in projects %}
       {% set rate = ((p.done_ms|default(0) * 100 / p.total_ms)|round|int) if p.total_ms else 0 %}

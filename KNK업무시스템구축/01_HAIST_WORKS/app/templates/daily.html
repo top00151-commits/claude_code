@@ -135,6 +135,7 @@
   <div class="section">
     <h2>📋 오늘 업무 ({{ total }})</h2>
     {% if tasks %}
+      <div class="list-scroll-tall">
       {% for t in tasks %}
       <div class="task-card {% if t.status == '완료' %}done{% elif t.status == '지연' %}delay{% endif %}">
         <div class="task-row">
@@ -159,6 +160,7 @@
         </div>
       </div>
       {% endfor %}
+      </div>
     {% else %}
       <div class="card empty">
         <div class="ico">📭</div>

@@ -72,7 +72,7 @@
   <!-- 팀원별 업무 -->
   <div class="section">
     <h2>팀원별 ({{ members|length }})</h2>
-    <div style="margin: 0 var(--content-pad);">
+    <div class="list-scroll" style="margin: 0 var(--content-pad);">
     {% for m in members %}
       {% set mt = day_tasks|selectattr('user_id','equalto',m.id)|list %}
       {% set ms = stats_by_user.get(m.id, {}) %}
