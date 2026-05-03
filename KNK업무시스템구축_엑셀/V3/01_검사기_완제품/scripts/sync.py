@@ -22,6 +22,18 @@ from openpyxl.comments import Comment
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import *
+# v3.1: 저장 후 VML 박스(720×420) + 코멘트 폰트(11pt) 보정
+from shared.knk_standard import fix_vml_comment_size, fix_comment_font_size
+
+
+def _fix_after_save(xlsx_path):
+    """openpyxl wb.save() 후 VML 박스가 144×79로 돌아가는 문제 보정."""
+    try:
+        fix_vml_comment_size(xlsx_path)
+        fix_comment_font_size(xlsx_path)
+    except Exception:
+        pass
+
 
 # ═══════════════════════════════════════════════════════════════
 # 로깅 설정
@@ -958,6 +970,7 @@ def _sync_dept_files(ws_proj, log, progress=None):
             row += 1
 
         wb_d.save(fp)
+        _fix_after_save(fp)   # v3.1: VML 박스 + 폰트 복원
     log.info(f"  부서입력 연동: {len(DEPTS)}개 부서")
 
 
@@ -1036,6 +1049,7 @@ def sync_all():
     _sort_and_pad_proj(ws_proj, log)
 
     wb.save(fp)
+    _fix_after_save(fp)   # v3.1: PMS 파일 VML 박스 + 폰트 복원
     log.info("=" * 60)
     log.info("  동기화 완료!")
     log.info("=" * 60)
