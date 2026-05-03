@@ -310,13 +310,15 @@
             <div class="add-unit-card">
               <div class="row">
                 <span style="font-weight:700;color:var(--amber-deep);">＋ 호기 추가</span>
-                <input type="text" name="label" placeholder="호기 라벨 (비우면 자동)" style="width:160px;">
+                <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
+                <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
+                <span style="color:var(--mute);font-size:12px;">대 ×</span>
                 <select name="cur">
                   <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>KRW</option>
                   <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>USD</option>
                   <option value="VND" {% if _cur == 'VND' %}selected{% endif %}>VND</option>
                 </select>
-                <input type="text" name="amount" inputmode="numeric" placeholder="단가" class="amt knk-money">
+                <input type="text" name="amount" inputmode="numeric" placeholder="단가 (1대당)" class="amt knk-money">
                 <input type="text" name="note" placeholder="비고 (선택)" class="note">
                 <button type="button" class="save-btn">저장</button>
                 <button type="button" class="cancel-btn">취소</button>
@@ -425,6 +427,8 @@
                 body.set('label', addCard.querySelector('input[name="label"]').value || '');
                 body.set('amount', (amtInp.value || '0').replace(/,/g,''));
                 body.set('note',  addCard.querySelector('input[name="note"]').value || '');
+                const qtyInp = addCard.querySelector('input[name="qty"]');
+                if (qtyInp) body.set('qty', qtyInp.value || '1');
                 const curSel = addCard.querySelector('select[name="cur"]');
                 if (curSel) body.set('currency', curSel.value);
                 if (parseFloat(body.get('amount')) <= 0) {

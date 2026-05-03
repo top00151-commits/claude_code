@@ -4828,6 +4828,16 @@ async def sales_orders_add_unit(req: Request, oid: int):
     cur_v = (form.get("currency") or "").strip().upper() or "KRW"
     if cur_v not in ("KRW", "USD", "VND"):
         cur_v = "KRW"
+    # v5H110: 수량 — N대 한 번에 추가 (모두 같은 단가, 라벨은 자동 증가)
+    raw_qty = (form.get("qty") or "1").strip()
+    try:
+        bulk_qty = int(float(raw_qty))
+    except ValueError:
+        bulk_qty = 1
+    if bulk_qty < 1:
+        bulk_qty = 1
+    if bulk_qty > 100:
+        return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -4848,7 +4858,6 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 "message": f"{st} 상태 SO 는 호기 추가 불가"
             }, 400)
         # v5H109: 자동 라벨은 프로젝트 전체 호기 라인 개수 기준 (관리코드 우선)
-        # → 같은 관리코드의 모든 SO 를 통틀어 순번 부여 (1·2호기 → 다음 추가 시 3호기)
         try:
             items_in_so = c.execute(
                 "SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)
@@ -4862,23 +4871,36 @@ async def sales_orders_add_unit(req: Request, oid: int):
         except Exception:
             items_in_so = 0
             items_in_project = 0
-        new_qty = items_in_so + 1  # 이 SO 의 호기 수 (orders.unit_qty 갱신용)
-        next_no = items_in_project + 1  # 프로젝트 전체 다음 호기 번호 (라벨용)
-        # 라벨 자동 생성 (미입력 시 'N호기' = 프로젝트 다음 순번)
-        if not label:
-            label = f"{next_no}호기"
-        new_total = float(cur["total_amount"] or 0) + amt
+        # v5H110: 시작 라벨에서 숫자 추출 → bulk 시 N개 자동 증가
+        import re as _re
+        base_no = None
+        if label:
+            m = _re.match(r"^(\d+)호기$", label)
+            if m:
+                base_no = int(m.group(1))
+        if base_no is None:
+            base_no = items_in_project + 1
+        # bulk_qty 만큼 라벨 생성: ['5호기', '6호기', ...]
+        labels_bulk = [f"{base_no + i}호기" for i in range(bulk_qty)]
+        # bulk 0번째가 사용자 입력 커스텀 라벨이면 그대로 첫 라벨 사용
+        if label and not _re.match(r"^\d+호기$", label):
+            labels_bulk[0] = label  # 커스텀 라벨 유지, 나머지는 N호기 형식
+
+        new_qty = items_in_so + bulk_qty
+        new_total = float(cur["total_amount"] or 0) + amt * bulk_qty
         old_lbl = (cur["unit_label"] or "").strip()
-        new_lbl = (old_lbl + " · " + label) if old_lbl else label
-        # order_items INSERT
-        try:
-            c.execute(
-                "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-                (oid, amt, amt, label, note)
-            )
-        except Exception:
-            pass
+        new_lbl = (old_lbl + " · " + " · ".join(labels_bulk)) if old_lbl else " · ".join(labels_bulk)
+
+        # order_items INSERT — bulk_qty 개 모두
+        for _lbl in labels_bulk:
+            try:
+                c.execute(
+                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                    "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                    (oid, amt, amt, _lbl, note)
+                )
+            except Exception:
+                pass
         # orders 누적 (+ currency 필요 시 갱신)
         try:
             c.execute(
@@ -4886,7 +4908,6 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 (new_qty, new_total, new_lbl, cur_v, oid)
             )
         except Exception:
-            # currency 컬럼 없으면 기존 갱신만
             c.execute(
                 "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?",
                 (new_qty, new_total, new_lbl, oid)
@@ -4903,11 +4924,13 @@ async def sales_orders_add_unit(req: Request, oid: int):
                           (float(row[0] or 0), pid))
         except Exception:
             pass
-        # 이력 (v5H100: SO 합계 변동 명시)
+        # 이력 (v5H100: SO 합계 변동 명시 / v5H110: bulk 표시)
         try:
             old_total = float(cur["total_amount"] or 0)
             old_qty = int(cur["unit_qty"] or 1)
-            note_msg = (f"호기 추가 [{label}] · 단가 {amt:,.0f} {cur_v} · "
+            range_str = (labels_bulk[0] if len(labels_bulk) == 1
+                         else f"{labels_bulk[0]}~{labels_bulk[-1]}")
+            note_msg = (f"호기 추가 [{range_str}] · {bulk_qty}대 × 단가 {amt:,.0f} {cur_v} · "
                         f"수량 {old_qty} → {new_qty}대 · "
                         f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
             if note:
@@ -4919,7 +4942,9 @@ async def sales_orders_add_unit(req: Request, oid: int):
             )
         except Exception:
             pass
-    return JSONResponse({"ok": True, "message": f"호기 '{label}' 추가 완료"})
+    msg = (f"호기 '{labels_bulk[0]}' 추가 완료" if bulk_qty == 1
+           else f"호기 {labels_bulk[0]}~{labels_bulk[-1]} ({bulk_qty}대) 추가 완료")
+    return JSONResponse({"ok": True, "message": msg})
 
 
 @app.post("/sales/orders/{oid:int}/quick-edit")
