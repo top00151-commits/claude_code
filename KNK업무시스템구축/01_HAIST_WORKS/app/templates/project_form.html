@@ -152,9 +152,16 @@
       <h3>③ 금액</h3>
       <div class="pf-row">
         <div class="pf-field">
-          <label>수주액</label>
+          <label>수주액 {% if has_orders %}<span class="sub" style="color:var(--knk-red);">(SO 합계로 자동 계산 — 수정 불가)</span>{% endif %}</label>
           <input type="text" name="order_amount" inputmode="numeric"
-                 value="{{ project.order_amount|default(0) }}" placeholder="0">
+                 value="{{ project.order_amount|default(0) }}" placeholder="0"
+                 {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
+          {% if has_orders %}
+          <div style="font-size:11px;color:var(--mute);margin-top:4px;line-height:1.5;">
+            ⓘ 호기 단가/추가는 <a href="/project/{{ project.id }}" style="color:var(--amber-deep);font-weight:700;">프로젝트 상세 → 수주 카드</a>에서 직접 편집하세요.<br>
+            여기서 입력한 값은 SO 합계로 자동 덮어써집니다.
+          </div>
+          {% endif %}
         </div>
         <div class="pf-field">
           <label>통화</label>

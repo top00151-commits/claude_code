@@ -7507,12 +7507,23 @@ async def projects_edit_form(request: Request, pid: int):
     p = _logi.projects_get_logi(pid)
     if not p:
         return RedirectResponse("/projects", status_code=303)
+    # v5H103: SO 존재 여부 → 폼 수주액 readonly 안내용
+    has_orders = False
+    try:
+        with db_session() as c3:
+            row = c3.execute(
+                "SELECT COUNT(*) FROM orders WHERE project_id=?", (pid,)
+            ).fetchone()
+            has_orders = (row[0] or 0) > 0
+    except Exception:
+        pass
     return ctx(request, "project_form.html",
                user=u, active="sales_projects",
                project=p,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
-               customers=_logi.customers_for_picker())
+               customers=_logi.customers_for_picker(),
+               has_orders=has_orders)
 
 
 @app.post("/projects/{pid}/edit")
