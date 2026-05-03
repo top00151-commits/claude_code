@@ -151,7 +151,7 @@
             <td style="font-size:11px;color:var(--mute);">{% if loop.last %}최초 수주{% else %}추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</td>
             <td style="text-align:center;">
               {% if can_sales_del %}
-              <button type="button" onclick="deleteSO({{ so.id }}, {{ so.order_no|tojson }})" title="수주 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
+              <button type="button" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})' title="수주 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
               {% else %}
               <span style="color:var(--line);font-size:13px;" title="삭제 권한 없음 (영업팀 등록권한자만)">🔒</span>
               {% endif %}

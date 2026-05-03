@@ -66,7 +66,7 @@
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>
           <td style="text-align:center;">
             {% if can_sales_del %}
-            <button type="button" onclick="deleteProject({{ p.id }}, {{ (p.name or p.project_name or '-')|tojson }})" title="프로젝트 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
+            <button type="button" onclick='deleteProject({{ p.id }}, {{ (p.name or p.project_name or "-")|tojson }})' title="프로젝트 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
             {% else %}
             <span style="color:var(--line);font-size:13px;" title="삭제 권한 없음 (영업팀 등록권한자만)">🔒</span>
             {% endif %}
