@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H81 SO numbering rule realignment (CEO clarified) — SO is NOT for unit/quantity distinction; it's for progress tracking by (date, due_date, ship_to). Before: 1 SO per unit (T-260503/-2/-3) — wrong. After: group by (due_date, ship_to) → same due+ship = 1 SO with N units inside, different = separate SO per group. orders ALTER (ship_to, unit_qty); order_items ALTER (unit_label, line_note). confirm_order_multi rewritten (groups + items insert). Form unit table now has 납품지 column + live "N units → M SO" hint. project_detail SO list shows ship_to + unit count.
+REM   LAST UPDATE: 2026-05-03 v5H82 v5H81 follow-up error fix + strict customer validation — (1) Error cause: get_project_orders did not SELECT new columns (ship_to/unit_qty/unit_label/unit_note) → template's so.ship_to triggered KeyError. Now uses PRAGMA to dynamically include only existing columns + None-safe defaults. (2) Customer free-text rejected: POST /projects/new + /projects/{pid}/edit verify exact match against customers.name; if not found → redirect with ?error=customer_not_registered. (3) Red banner at top of form for errors (unregistered customer / missing required). (4) Customer label updated to '(only registered customers)'. (5) project_detail unit_qty sum now None-safe.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H81 SO numbering rule (group by due/ship_to, not per unit)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H82 v5H81 follow-up error fix + strict customer validation]
 
 echo.
 echo ============================================================

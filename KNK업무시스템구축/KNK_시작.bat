@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H81 SO 채번 규칙 재정합 (대표 정의 명확화) — SO 는 호기/수량 구분이 아니라 진행 단위(납기/납품지/일자) 구분용. 수정 전: 호기마다 SO 1개씩 (T-260503/-2/-3) 잘못 발급. 수정 후: (납기, 납품지) 그룹화 → 같은 납기+같은 납품지면 호기 N대라도 SO 1개에 묶임, 다르면 그룹별 SO 분리. orders ALTER (ship_to, unit_qty), order_items ALTER (unit_label, line_note). confirm_order_multi 재작성 (그룹화 + order_items 적재). 폼 호기 테이블에 '납품지' 컬럼 추가 + SO 발행 예정 건수 라이브 hint. project_detail 수주내역 테이블에 납품지/호기 컬럼 추가
+REM   LAST UPDATE: 2026-05-03 v5H82 v5H81 등록 후 오류 수정 + 고객사 검증 강화 — (1) 오류 원인: get_project_orders 가 새 컬럼(ship_to/unit_qty/unit_label/unit_note) 미선택 → 템플릿 so.ship_to 접근 시 KeyError. PRAGMA 동적 감지로 존재하는 컬럼만 SELECT + None 안전 기본값 (2) 고객사 자유입력 차단 — POST /projects/new + /projects/{pid}/edit 가 customers.name 와 정확 일치 검증, 없으면 ?error=customer_not_registered 로 redirect (3) 폼 상단에 빨간 경고 배너 (등록 안 된 고객사 / 필수 항목 누락) (4) 고객사 라벨 '(등록된 고객사만 선택 가능)' 명시 (5) project_detail 합계 행 unit_qty 합산 안전 (None 가드)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H81 SO 채번 규칙 재정합 (납기/납품지 그룹 = SO 1개)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H82 v5H81 후속 오류 수정 + 고객사 검증 강화]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

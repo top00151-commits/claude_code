@@ -438,10 +438,38 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
 
 
 def get_project_orders(c, project_id: int) -> list[dict]:
-    """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순."""
+    """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순.
+    v5H81b: 새 컬럼(ship_to/unit_qty/unit_label/unit_note) 도 함께 SELECT
+    + None 안전 기본값 보정 (Jinja sum 등 합계 연산이 None+int 로 깨지지 않도록)."""
+    # 컬럼 존재 여부 동적 감지 — 구버전 DB 호환
+    try:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    except Exception:
+        cols = set()
+    extra = []
+    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note"):
+        if cn in cols:
+            extra.append(cn)
+    extra_sql = (", " + ", ".join(extra)) if extra else ""
     rows = c.execute(
-        "SELECT id, order_no, order_date, due_date, total_amount, status, "
-        "created_at FROM orders WHERE project_id=? ORDER BY order_date DESC, id DESC",
+        f"SELECT id, order_no, order_date, due_date, total_amount, status, "
+        f"created_at{extra_sql} FROM orders WHERE project_id=? "
+        f"ORDER BY order_date DESC, id DESC",
         (project_id,)
     ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        # 합계/표시용 None → 기본값
+        if d.get("total_amount") is None:
+            d["total_amount"] = 0
+        if "unit_qty" not in d or d.get("unit_qty") is None:
+            d["unit_qty"] = 1
+        if "ship_to" not in d:
+            d["ship_to"] = None
+        if "unit_label" not in d:
+            d["unit_label"] = None
+        if "unit_note" not in d:
+            d["unit_note"] = None
+        out.append(d)
+    return out

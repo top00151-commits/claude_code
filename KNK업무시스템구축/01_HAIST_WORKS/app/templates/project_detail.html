@@ -164,7 +164,7 @@
           <tfoot>
             <tr style="background:var(--paper-2);font-weight:700;">
               <td colspan="4" style="text-align:right;padding:10px;">총 합계 →</td>
-              <td class="center">{{ project_orders|sum(attribute='unit_qty')|default(project_orders|length) }}대</td>
+              <td class="center">{% set _qty = namespace(t=0) %}{% for _so in project_orders %}{% set _qty.t = _qty.t + (_so.unit_qty or 1) %}{% endfor %}{{ _qty.t }}대</td>
               <td class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}</td>
               <td colspan="3" style="font-size:11px;color:var(--mute);">SO {{ project_orders|length }}건</td>
             </tr>

@@ -6900,6 +6900,18 @@ async def projects_new_submit(request: Request):
         return RedirectResponse("/projects/new?error=name_required", status_code=303)
     if not biz_div:
         return RedirectResponse("/projects/new?error=biz_div_required", status_code=303)
+    # v5H82: 고객사 서버사이드 검증 — 등록된 고객사가 아니면 거부
+    if customer:
+        with db_session() as _cc:
+            _ok = _cc.execute(
+                "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
+            ).fetchone()
+        if not _ok:
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/projects/new?error=customer_not_registered&cust={_q(customer)}",
+                status_code=303
+            )
     # 콤마 제거 후 숫자로
     raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
     try:
@@ -7009,6 +7021,18 @@ async def projects_edit_submit(request: Request, pid: int):
     biz_div = (form.get("biz_div") or "").strip()
     if not project_name:
         return RedirectResponse(f"/projects/{pid}/edit?error=name_required", status_code=303)
+    # v5H82: 고객사 검증 (등록된 고객사만 허용)
+    if customer:
+        with db_session() as _cc:
+            _ok = _cc.execute(
+                "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
+            ).fetchone()
+        if not _ok:
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/projects/{pid}/edit?error=customer_not_registered&cust={_q(customer)}",
+                status_code=303
+            )
     raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
     try:
         amt = float(raw_amt) if raw_amt else 0
