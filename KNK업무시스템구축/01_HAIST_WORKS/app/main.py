@@ -3229,7 +3229,6 @@ async def project_detail(req: Request, pid: int):
                     # items 가 0 이면 건드리지 않음 (사용자가 추가 발주만 받고
                     # 아직 호기 라인 안 쪼갠 케이스 보존)
                 # SO total_amount 도 items_sum 과 정합 (items 가 있을 때만)
-                # 라벨도 'N호기' 패턴이면 위치 순서로 자동 재번호
                 import re as _re
                 _hogi_re = _re.compile(r"^\d+호기$")
                 for _oid in so_ids:
@@ -3248,32 +3247,42 @@ async def project_detail(req: Request, pid: int):
                                 "UPDATE orders SET total_amount=? WHERE id=?",
                                 (_isum, _oid)
                             )
-                        # 라벨 자동 정렬 (모든 라벨이 'N호기' 패턴이고 순서 어긋날 때만)
-                        try:
-                            it_rows = c2.execute(
-                                "SELECT id, unit_label FROM order_items "
-                                "WHERE order_id=? ORDER BY id ASC", (_oid,)
-                            ).fetchall()
-                            labels = [(r[0], (r[1] or "")) for r in it_rows]
-                            all_pat = all(_hogi_re.match(lbl) for _, lbl in labels)
-                            need_fix = any(
-                                lbl != f"{i+1}호기"
-                                for i, (_, lbl) in enumerate(labels)
+
+                # v5H109: 라벨 자동 재번호 — 관리코드(프로젝트) 전체 기준
+                # 같은 관리코드 안에서 SO 가 달라도 호기는 1·2·3·... 연속 번호
+                try:
+                    all_items = c2.execute(
+                        "SELECT oi.id, oi.unit_label, oi.order_id "
+                        "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+                        "WHERE o.project_id=? "
+                        "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC",
+                        (pid,)
+                    ).fetchall()
+                    labels = [(r[0], (r[1] or ""), r[2]) for r in all_items]
+                    all_pat = labels and all(_hogi_re.match(lbl) for _, lbl, _ in labels)
+                    need_fix = any(
+                        lbl != f"{i+1}호기"
+                        for i, (_, lbl, _) in enumerate(labels)
+                    )
+                    if all_pat and need_fix:
+                        for i, (iid, _, _) in enumerate(labels):
+                            c2.execute(
+                                "UPDATE order_items SET unit_label=? WHERE id=?",
+                                (f"{i+1}호기", iid)
                             )
-                            if all_pat and need_fix:
-                                for i, (iid, _) in enumerate(labels):
-                                    c2.execute(
-                                        "UPDATE order_items SET unit_label=? WHERE id=?",
-                                        (f"{i+1}호기", iid)
-                                    )
-                                # orders.unit_label 합쳐진 표기도 갱신
-                                joined = " · ".join(f"{i+1}호기" for i in range(len(labels)))
+                        # orders.unit_label 도 SO 별 새 라벨 합쳐 갱신
+                        for _oid in so_ids:
+                            sub = [
+                                f"{i+1}호기"
+                                for i, (_, _, oord) in enumerate(labels) if oord == _oid
+                            ]
+                            if sub:
                                 c2.execute(
                                     "UPDATE orders SET unit_label=? WHERE id=?",
-                                    (joined, _oid)
+                                    (" · ".join(sub), _oid)
                                 )
-                        except Exception:
-                            pass
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -4838,17 +4847,26 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 "ok": False,
                 "message": f"{st} 상태 SO 는 호기 추가 불가"
             }, 400)
-        # v5H105: 자동 라벨은 실제 호기 라인 개수 기준 (unit_qty 와 다를 수 있음)
+        # v5H109: 자동 라벨은 프로젝트 전체 호기 라인 개수 기준 (관리코드 우선)
+        # → 같은 관리코드의 모든 SO 를 통틀어 순번 부여 (1·2호기 → 다음 추가 시 3호기)
         try:
-            items_now = c.execute(
+            items_in_so = c.execute(
                 "SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)
             ).fetchone()[0] or 0
+            project_id_local = cur["project_id"]
+            items_in_project = c.execute(
+                "SELECT COUNT(*) FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
+                (project_id_local,)
+            ).fetchone()[0] or 0
         except Exception:
-            items_now = 0
-        new_qty = items_now + 1
-        # 라벨 자동 생성 (미입력 시 'N호기' = 다음 순번)
+            items_in_so = 0
+            items_in_project = 0
+        new_qty = items_in_so + 1  # 이 SO 의 호기 수 (orders.unit_qty 갱신용)
+        next_no = items_in_project + 1  # 프로젝트 전체 다음 호기 번호 (라벨용)
+        # 라벨 자동 생성 (미입력 시 'N호기' = 프로젝트 다음 순번)
         if not label:
-            label = f"{new_qty}호기"
+            label = f"{next_no}호기"
         new_total = float(cur["total_amount"] or 0) + amt
         old_lbl = (cur["unit_label"] or "").strip()
         new_lbl = (old_lbl + " · " + label) if old_lbl else label
