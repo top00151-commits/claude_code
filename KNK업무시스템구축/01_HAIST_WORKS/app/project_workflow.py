@@ -52,31 +52,37 @@ def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
     return f"{next_seq:03d}{suffix}"
 
 
-def generate_so_no(c, ref_date: date | None = None,
-                    prefix: str = "SO") -> str:
-    """수주번호 발급 — SO-YYYYMM-#### 형식.
-    같은 년월 내 시퀀스 자동 증가."""
+def generate_so_no(c, biz_div: str = "T",
+                    ref_date: date | None = None) -> str:
+    """v5H69: 수주번호 발급 — KNK 표준 [사업부]-[YYMMDD] 형식.
+    예: T-260501  (검사기, 2026-05-01 발주)
+    같은 사업부+날짜 복수 건: -2, -3, ...
+    예: T-260501-2 (같은 날 두 번째 수주)"""
+    if not biz_div or biz_div not in ("T", "M"):
+        biz_div = "T"
     d = ref_date or date.today()
-    yyyymm = d.strftime("%Y%m")
-    pat = f"{prefix}-{yyyymm}-%"
+    yymmdd = d.strftime("%y%m%d")
+    base = f"{biz_div}-{yymmdd}"
+    # 같은 base / base-N 패턴 모두 조회
     rows = c.execute(
-        "SELECT order_no FROM orders WHERE order_no LIKE ? "
-        "UNION SELECT order_no FROM orders WHERE order_no LIKE ?",
-        (pat, f"{prefix}-DEMO-{yyyymm}-%")
+        "SELECT order_no FROM orders WHERE order_no = ? OR order_no LIKE ?",
+        (base, base + "-%")
     ).fetchall()
-    max_seq = 0
-    seq_pat = re.compile(rf"^{re.escape(prefix)}-(?:DEMO-)?{yyyymm}-(\d{{4}})$")
+    if not rows:
+        return base  # 첫 건 → 접미 없음
+    # -N 중 최대 N 찾기 (base 단독은 N=1로 간주)
+    max_n = 0
     for r in rows:
         on = r[0]
         if not on:
             continue
-        m = seq_pat.match(on)
-        if m:
-            seq = int(m.group(1))
-            if seq > max_seq:
-                max_seq = seq
-    next_seq = max_seq + 1
-    return f"{prefix}-{yyyymm}-{next_seq:04d}"
+        if on == base:
+            max_n = max(max_n, 1)
+        else:
+            m = re.match(rf"^{re.escape(base)}-(\d+)$", on)
+            if m:
+                max_n = max(max_n, int(m.group(1)))
+    return f"{base}-{max_n + 1}"
 
 
 def confirm_order(c, project_id: int, order_date: str | None = None,
@@ -114,7 +120,7 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
         ref_d = date.today()
         order_date = ref_d.isoformat()
 
-    # 1. 관리번호 — 미발급 시 자동 발급
+    # 1. 관리번호 — 미발급 시 자동 발급 (v5H69: SO 발급 전 필수 단계)
     mgmt_code = (proj.get("mgmt_code") or "").strip()
     if not mgmt_code:
         mgmt_code = generate_mgmt_code(c, biz_div, ref_d)
@@ -126,8 +132,8 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
             (mgmt_code, mgmt_code, order_date, total_amount or 0, project_id)
         )
 
-    # 2. 수주번호 발행
-    so_no = generate_so_no(c, ref_d)
+    # 2. 수주번호 발행 — 관리코드 채번 후만 (KNK 표준)
+    so_no = generate_so_no(c, biz_div, ref_d)
     cur = c.execute(
         "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
         "due_date, total_amount, status, created_by) "
@@ -175,6 +181,7 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         return {"ok": False,
                 "message": "관리번호가 발급되지 않은 프로젝트입니다. 먼저 '수주 확정'을 실행하세요."}
     customer_id = proj.get("customer_id")
+    biz_div = proj.get("biz_div") or "T"
 
     if order_date:
         try:
@@ -187,8 +194,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         ref_d = date.today()
         order_date = ref_d.isoformat()
 
-    # 신규 SO 발행 (관리번호는 그대로 유지)
-    so_no = generate_so_no(c, ref_d)
+    # 신규 SO 발행 (관리번호는 그대로 유지) — v5H69: 사업부 인자
+    so_no = generate_so_no(c, biz_div, ref_d)
     cur = c.execute(
         "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
         "due_date, total_amount, status, created_by) "
