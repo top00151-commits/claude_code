@@ -2050,6 +2050,24 @@ def init_db():
         except Exception:
             pass
 
+        # v5H101: 프로젝트 변경 이력 테이블 (대표 지시: '변경사항 기록 이력서')
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS project_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER NOT NULL,
+                    changed_at TEXT DEFAULT (datetime('now','localtime')),
+                    changed_by INTEGER,
+                    field TEXT,
+                    old_value TEXT,
+                    new_value TEXT,
+                    note TEXT
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_project_history_pid ON project_history(project_id)")
+        except Exception:
+            pass
+
         # v5H89b: 기존 orders.customer_id 가 NULL 인데 project 가 customer_name
         # 또는 customer_id 를 갖고 있으면 backfill (수주관리 리스트 고객사 표시 회복)
         try:
@@ -3511,7 +3529,12 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals["customer_po"], vals["currency"], vals["order_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
                       vals["sales_name"], vals["logi_note"], vals["is_export"], now, now))
-                return cur.lastrowid, code
+                new_id = cur.lastrowid
+                # v5H101: 프로젝트 생성 이벤트 기록
+                log_project_change(c, new_id, data.get("_changed_by"),
+                                   "프로젝트", "", vals["name"],
+                                   note=f"신규 등록 (관리코드 {code or '미발급'})")
+                return new_id, code
         except _sq.IntegrityError as e:
             last_err = e
             if "mgmt_code" not in str(e):
@@ -3520,11 +3543,76 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     raise RuntimeError(f"projects_create_logi: mgmt_code 채번 5회 충돌 — {last_err}")
 
 
+def log_project_change(c, project_id: int, user_id: int | None,
+                        field: str, old_val, new_val, note: str = "") -> None:
+    """v5H101: 프로젝트 필드 변경 1건을 project_history 에 기록.
+    NULL 안전, 표시용 문자열로 정규화."""
+    try:
+        ov = "" if old_val is None else str(old_val)
+        nv = "" if new_val is None else str(new_val)
+        if ov == nv and not note:
+            return  # 변동 없음
+        c.execute(
+            "INSERT INTO project_history(project_id, changed_by, field, "
+            "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+            (project_id, user_id, field, ov, nv, note)
+        )
+    except Exception:
+        pass
+
+
+def get_project_history(project_id: int, limit: int = 50) -> list[dict]:
+    """v5H101: 프로젝트 변경 이력 최근 N건 (사용자명 join)."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT ph.*, COALESCE(u.name,'시스템') AS changed_by_name "
+                "FROM project_history ph "
+                "LEFT JOIN users u ON u.id = ph.changed_by "
+                "WHERE ph.project_id=? ORDER BY ph.id DESC LIMIT ?",
+                (project_id, int(limit))
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
 def projects_update_logi(pid: int, data: dict) -> str | None:
     current = projects_get_logi(pid)
     if not current:
         return None
     vals = _project_insert_or_update_values(data)
+    # v5H101: 변경 전/후 비교 → project_history 자동 기록
+    _changed_by = data.get("_changed_by")
+    _diff_keys = [
+        ("name", "프로젝트명"),
+        ("biz_div", "사업부"),
+        ("customer_name", "고객사"),
+        ("model_name", "모델"),
+        ("po_type", "PO유형"),
+        ("status", "상태"),
+        ("currency", "통화"),
+        ("is_export", "거래구분"),
+        ("order_amount", "수주액"),
+        ("order_date", "발주일"),
+        ("due_date", "납기"),
+        ("logi_note", "비고"),
+    ]
+    _pending_logs = []
+    for k, label in _diff_keys:
+        old_v = current.get(k) if isinstance(current, dict) else current[k] if k in current.keys() else None
+        new_v = vals.get(k)
+        if k == "is_export":
+            old_v = "수출" if old_v else "내수"
+            new_v = "수출" if new_v else "내수"
+        elif k == "order_amount":
+            try:
+                old_v = f"{float(old_v or 0):,.0f}"
+                new_v = f"{float(new_v or 0):,.0f}"
+            except Exception:
+                pass
+        if (old_v or "") != (new_v or ""):
+            _pending_logs.append((label, old_v, new_v))
     new_code = current["mgmt_code"]
     # v5H86: stage 또는 status 가 won 의미면 관리코드 발급
     needs_code = (
@@ -3558,6 +3646,9 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
               vals["order_date"], vals["due_date"], vals["pm_name"],
               vals["sales_name"], vals["logi_note"], vals["is_export"],
               _logi_now(), pid))
+        # v5H101: 변경 이력 적재 (UPDATE 성공 후)
+        for label, ov, nv in _pending_logs:
+            log_project_change(c, pid, _changed_by, label, ov, nv, "")
     return new_code
 
 

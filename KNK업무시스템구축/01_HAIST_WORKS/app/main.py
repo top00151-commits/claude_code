@@ -3204,6 +3204,9 @@ async def project_detail(req: Request, pid: int):
     # v5H68: 연결된 수주(SO) 목록
     # v5H94: 페이지 로드 시 projects.order_amount 자동 자가치유
     #   = SUM(orders.total_amount). SO 있으면 합계가 단일 진실 소스.
+    # v5H101: due_date / order_date 도 SO 기준으로 자가치유
+    #   - due_date  = MAX(orders.due_date)  (가장 늦은 납기 = 전체 일정 기준)
+    #   - order_date = MIN(orders.order_date) (최초 발주일)
     project_orders = []
     try:
         with db_session() as c2:
@@ -3214,9 +3217,34 @@ async def project_detail(req: Request, pid: int):
                 if abs(_so_sum - _curr) > 0.5:
                     c2.execute("UPDATE projects SET order_amount=? WHERE id=?",
                                (_so_sum, pid))
-                    # 즉시 표시값에도 반영
                     if isinstance(p, dict):
                         p["order_amount"] = _so_sum
+                # 납기 자가치유 (MAX)
+                _due_dates = [o.get("due_date") for o in project_orders if o.get("due_date")]
+                if _due_dates:
+                    _max_due = max(_due_dates)
+                    _proj_due = (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or ""
+                    if _max_due != _proj_due:
+                        c2.execute("UPDATE projects SET due_date=? WHERE id=?",
+                                   (_max_due, pid))
+                        if isinstance(p, dict):
+                            p["due_date"] = _max_due
+                # 발주일 자가치유 (MIN)
+                _ord_dates = [o.get("order_date") for o in project_orders if o.get("order_date")]
+                if _ord_dates:
+                    _min_ord = min(_ord_dates)
+                    _proj_ord = (p.get("order_date") if isinstance(p, dict) else p["order_date"]) or ""
+                    if _min_ord != _proj_ord:
+                        c2.execute("UPDATE projects SET order_date=? WHERE id=?",
+                                   (_min_ord, pid))
+                        if isinstance(p, dict):
+                            p["order_date"] = _min_ord
+    except Exception:
+        pass
+    # v5H101: 프로젝트 변경 이력 (최근 30건)
+    project_history_logs = []
+    try:
+        project_history_logs = _logi.get_project_history(pid, limit=30)
     except Exception:
         pass
     return ctx(req, "project_detail.html",
@@ -3224,7 +3252,8 @@ async def project_detail(req: Request, pid: int):
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
                project_orders=project_orders,
-               STATUSES=_logi.LOGI_STATUSES)
+               STATUSES=_logi.LOGI_STATUSES,
+               project_history=project_history_logs)
 
 
 # =====================================================
@@ -4532,8 +4561,12 @@ async def projects_quick_status(req: Request, pid: int):
         cur = c.execute("SELECT status, mgmt_code, biz_div FROM projects WHERE id=?", (pid,)).fetchone()
         if not cur:
             return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        old_status = cur["status"] or ""
         c.execute("UPDATE projects SET status=?, updated_at=? WHERE id=?",
                   (new_status, _logi._logi_now() if hasattr(_logi, "_logi_now") else None, pid))
+        # v5H101: 변경 이력
+        _logi.log_project_change(c, pid, u.get("id"), "상태", old_status, new_status,
+                                  note="인라인 빠른 변경")
         # status 가 won 으로 바뀌었는데 mgmt_code 없으면 발급
         if (new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
             and cur["biz_div"] in ("T", "M")):
@@ -7335,6 +7368,7 @@ async def projects_new_submit(request: Request):
         # 수주 확정과 함께 등록하면 stage 를 즉시 '수주확정' 으로
         stage_val = "수주확정"
     new_pid, _new_code = _logi.projects_create_logi({
+        "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
         "stage": stage_val,
@@ -7441,6 +7475,27 @@ async def projects_edit_form(request: Request, pid: int):
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
+    # v5H101: 편집 폼 진입 시 SO 기준으로 자가치유
+    #   납기/발주일/수주액 = SO 합계·MAX·MIN 으로 정정 후 폼 노출
+    try:
+        with db_session() as c2:
+            sos = _pwf.get_project_orders(c2, pid)
+            if sos:
+                so_sum = sum(float(o.get("total_amount") or 0) for o in sos)
+                dues = [o.get("due_date") for o in sos if o.get("due_date")]
+                ords = [o.get("order_date") for o in sos if o.get("order_date")]
+                heal_pairs = [("order_amount", so_sum)]
+                if dues:
+                    heal_pairs.append(("due_date", max(dues)))
+                if ords:
+                    heal_pairs.append(("order_date", min(ords)))
+                for col, val in heal_pairs:
+                    try:
+                        c2.execute(f"UPDATE projects SET {col}=? WHERE id=?", (val, pid))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
     p = _logi.projects_get_logi(pid)
     if not p:
         return RedirectResponse("/projects", status_code=303)
@@ -7486,6 +7541,7 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = 0
     status_val = form.get("status", "초기협의") or "초기협의"
     _logi.projects_update_logi(pid, {
+        "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
         "stage": form.get("stage", "제안작성") or "제안작성",
