@@ -208,7 +208,10 @@
             <td style="padding:6px 4px;text-align:center;"><button type="button" class="rmU" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:16px;">×</button></td>
           `;
           tbody.appendChild(tr);
-          tr.querySelector('input[name="unit_amount[]"]').addEventListener('input', recalc);
+          const amtInp = tr.querySelector('input[name="unit_amount[]"]');
+          // v5H80: 신규 추가된 호기 금액 input 에도 천단위 콤마 포맷터 부착
+          if (window.knkAttachMoney) { window.knkAttachMoney(amtInp); }
+          amtInp.addEventListener('input', recalc);
           tr.querySelector('.rmU').addEventListener('click', () => {
             if (tbody.children.length <= 1) return;
             tr.remove(); recalc();

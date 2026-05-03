@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H79 매출영업센터 사이드바 탭 이탈 버그 수정 — 대표 보고: '매출 메뉴에서 등록/진행하다 보면 통합플랫폼 쪽으로 연결이 됨'. 근본 원인: chrome.html 자동 탭 감지가 /projects(복수)만 체크 → /project/{pid}(단수) 상세 URL 매칭 실패 → home 탭으로 빠짐. 수정: /project/, /customer/, /order/, /quote/, /supplier/, /part/, /work, /receipts, /issues, /movements 등 단수형/추가 prefix 자동 sales 또는 logi 매핑 + 4개 누락 템플릿(sales_quote_form/sales_quote_detail/sales_order_detail/customer_form)에 active_tab='sales' 명시 (이중 안전장치)
+REM   LAST UPDATE: 2026-05-03 v5H80 호기 동적 추가 시 금액 천단위 콤마 누락 수정 — 대표 보고: '호기 추가했는데 금액 자리수 구분이 안됨'. 원인: knk_inputs.html 의 천단위 포맷터가 DOMContentLoaded 시점에만 scan, JS 로 동적 추가된 unit_amount[] input 은 미부착. 수정: knk_inputs 가 window.knkAttachMoney/knkScanMoney/knkFormatMoney 전역 노출 + project_form.html addRow() 가 신규 input 마다 knkAttachMoney 호출 → 호기 추가/입력 즉시 콤마 적용. 합계도 정상 누적
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H79 사이드바 탭 이탈 버그 수정 (매출 → 통합 잘못 점프)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H80 호기 동적 추가 시 금액 천단위 콤마 자동 적용]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

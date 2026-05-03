@@ -58,6 +58,10 @@
   } else {
     scan();
   }
+  // v5H80: 동적으로 추가된 input 도 처리하도록 전역 helper 노출
+  window.knkAttachMoney = attach;
+  window.knkScanMoney = scan;
+  window.knkFormatMoney = formatNumberWithCommas;
 })();
 </script>
 <style>

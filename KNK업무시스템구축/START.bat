@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H79 sidebar tab leak fix — CEO report: 'navigating from sales menu, pages drift to integration platform tab'. Root cause: chrome.html auto-tab detection only matched /projects (plural) → /project/{pid} (singular) detail URLs missed → fell to 'home'. Fix: extended URL prefix matcher to include singular forms (/project/, /customer/, /order/, /quote/, /supplier/, /part/) + extra logi prefixes (/work, /receipts, /issues, /movements). Also explicit active_tab='sales' added to 4 missing templates (sales_quote_form, sales_quote_detail, sales_order_detail, customer_form) as belt-and-suspenders.
+REM   LAST UPDATE: 2026-05-03 v5H80 dynamic 호기 row money formatter fix — CEO: 'added a unit row but the amount has no thousand separators'. Cause: knk_inputs.html scans only on DOMContentLoaded, JS-injected unit_amount[] inputs not attached. Fix: knk_inputs exposes window.knkAttachMoney/knkScanMoney/knkFormatMoney; project_form.html addRow() calls knkAttachMoney on each new amount input → commas appear instantly when typing in any added unit row.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H79 sidebar tab leak fix (sales → integration drift)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H80 dynamic unit row gets thousand separators]
 
 echo.
 echo ============================================================
