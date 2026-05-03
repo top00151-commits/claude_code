@@ -197,15 +197,35 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         order_date = ref_d.isoformat()
 
     # 신규 SO 발행 (관리번호는 그대로 유지) — v5H69: 사업부 인자
+    # v5H106: 호기 라인도 함께 1건 자동 생성 (번호는 프로젝트 내 연속)
     so_no = generate_so_no(c, biz_div, ref_d)
+    # 프로젝트 전체에서 다음 호기 번호 계산 (모든 SO 의 items count + 1)
+    try:
+        next_no = c.execute(
+            "SELECT COUNT(*) FROM order_items oi "
+            "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
+            (project_id,)
+        ).fetchone()[0] + 1
+    except Exception:
+        next_no = 1
+    auto_label = f"{next_no}호기"
     cur = c.execute(
         "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-        "due_date, total_amount, status, created_by) "
-        "VALUES(?,?,?,?,?,?,'CONFIRMED',?)",
+        "due_date, total_amount, status, created_by, unit_label, unit_qty) "
+        "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,1)",
         (so_no, customer_id, project_id, order_date, due_date or None,
-         total_amount or 0, created_by or None)
+         total_amount or 0, created_by or None, auto_label)
     )
     order_id = cur.lastrowid
+    # 호기 라인도 1건 자동 생성 (이후 사용자가 단가/라벨/비고 직접 편집)
+    try:
+        c.execute(
+            "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+            "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+            (order_id, total_amount or 0, total_amount or 0, auto_label, note or None)
+        )
+    except Exception:
+        pass
 
     # 상태 이력
     try:
@@ -213,7 +233,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
             "INSERT INTO order_status_history(order_id, from_status, to_status, "
             "changed_by, note) VALUES(?,?,?,?,?)",
             (order_id, "DRAFT", "CONFIRMED", created_by or None,
-             f"추가 발주 (관리번호 {mgmt_code})" + (f" / 고객 PO {po_number}" if po_number else ""))
+             f"추가 발주 (관리번호 {mgmt_code} · {auto_label} / {total_amount or 0:,.0f}원)"
+             + (f" / 고객 PO {po_number}" if po_number else ""))
         )
     except Exception:
         pass
@@ -223,7 +244,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         "mgmt_code": mgmt_code,
         "so_no": so_no,
         "order_id": order_id,
-        "message": f"추가 수주번호 {so_no} 발행 완료 (관리번호 {mgmt_code} 유지)",
+        "auto_label": auto_label,
+        "message": f"추가 수주번호 {so_no} 발행 완료 ({auto_label} / 관리번호 {mgmt_code} 유지)",
     }
 
 

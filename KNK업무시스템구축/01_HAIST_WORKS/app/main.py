@@ -4917,6 +4917,9 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     raw_q = (form.get("unit_qty") or "").strip()
     raw_a = (form.get("total_amount") or "").strip().replace(",", "")
     raw_c = (form.get("currency") or "").strip().upper()
+    raw_due = (form.get("due_date") or "").strip()
+    raw_ord = (form.get("order_date") or "").strip()
+    raw_ship = (form.get("ship_to") or "").strip()
     sets, vals = [], []
     if raw_c in ("KRW", "USD", "VND"):
         sets.append("currency=?"); vals.append(raw_c)
@@ -4936,6 +4939,13 @@ async def sales_orders_quick_edit(req: Request, oid: int):
             sets.append("total_amount=?"); vals.append(a)
         except ValueError:
             return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
+    # v5H106: SO 헤더 필드 (납기/발주일/납품처) 도 인라인 편집
+    if "due_date" in form:
+        sets.append("due_date=?"); vals.append(raw_due or None)
+    if "order_date" in form:
+        sets.append("order_date=?"); vals.append(raw_ord or None)
+    if "ship_to" in form:
+        sets.append("ship_to=?"); vals.append(raw_ship or None)
     if not sets:
         return JSONResponse({"ok": False, "message": "수정 항목이 없습니다"}, 400)
     with db_session() as c:

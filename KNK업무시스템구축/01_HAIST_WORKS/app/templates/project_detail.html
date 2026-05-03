@@ -208,15 +208,29 @@
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
               <span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span>
               <div class="so-meta">
-                <span class="item"><span class="k">📅 발주</span><span class="v">{{ so.order_date|default('-') }}</span></span>
-                <span class="item"><span class="k">→ 납기</span><span class="v">{{ so.due_date|default('-') }}</span></span>
-                <span class="item"><span class="k">📍 납품처</span><span class="v">{{ so.ship_to|default('미지정') }}</span></span>
+                {# v5H106: 발주일/납기/납품처 인라인 편집 가능 #}
+                <span class="item"><span class="k">📅 발주</span>
+                  {% if _editable %}
+                  <input type="date" class="so-meta-edit" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">
+                  {% else %}<span class="v">{{ so.order_date|default('-') }}</span>{% endif %}
+                </span>
+                <span class="item"><span class="k">→ 납기</span>
+                  {% if _editable %}
+                  <input type="date" class="so-meta-edit" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">
+                  {% else %}<span class="v">{{ so.due_date|default('-') }}</span>{% endif %}
+                </span>
+                <span class="item"><span class="k">📍 납품처</span>
+                  {% if _editable %}
+                  <input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:130px;">
+                  {% else %}<span class="v">{{ so.ship_to|default('미지정') }}</span>{% endif %}
+                </span>
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
                 {% if _editable %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
+                <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
                 {% if can_sales_del %}
                 <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})'>🗑 삭제</button>
@@ -337,9 +351,44 @@
 
         <script>
         // v5H93: 카드 레이아웃 — '＋ 호기 추가' 토글 + 호기 라인 인라인 편집/삭제
+        // v5H106: SO 헤더 메타(발주일/납기/납품처) 인라인 편집
         (function(){
           document.querySelectorAll('.so-card').forEach(card => {
             const soid = card.dataset.soid;
+            // SO 헤더 메타 인라인 편집
+            const metaSaveBtn = card.querySelector('.so-meta-save');
+            const metaInputs = card.querySelectorAll('.so-meta-edit');
+            if (metaSaveBtn && metaInputs.length) {
+              function metaDirty(){
+                let d = false;
+                metaInputs.forEach(inp => {
+                  if ((inp.value || '') !== (inp.dataset.orig || '')) d = true;
+                });
+                metaSaveBtn.style.display = d ? 'inline-block' : 'none';
+              }
+              metaInputs.forEach(inp => {
+                inp.addEventListener('change', metaDirty);
+                inp.addEventListener('input', metaDirty);
+              });
+              metaSaveBtn.addEventListener('click', async () => {
+                const body = new URLSearchParams();
+                metaInputs.forEach(inp => {
+                  body.set(inp.dataset.field, inp.value || '');
+                });
+                try {
+                  const r = await fetch('/sales/orders/' + soid + '/quick-edit',
+                                        {method:'POST', body: body});
+                  const j = await r.json().catch(() => ({}));
+                  if (r.ok && j.ok) {
+                    metaInputs.forEach(inp => { inp.dataset.orig = inp.value; });
+                    metaSaveBtn.style.display = 'none';
+                    setTimeout(() => location.reload(), 400);
+                  } else {
+                    alert('⚠ ' + (j.message || j.error || '실패'));
+                  }
+                } catch(e) { alert('⚠ ' + e.message); }
+              });
+            }
 
             // ＋ 호기 추가 토글
             const addBtn = card.querySelector('.so-actions .add-unit');
