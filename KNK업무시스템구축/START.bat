@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H82 v5H81 follow-up error fix + strict customer validation — (1) Error cause: get_project_orders did not SELECT new columns (ship_to/unit_qty/unit_label/unit_note) → template's so.ship_to triggered KeyError. Now uses PRAGMA to dynamically include only existing columns + None-safe defaults. (2) Customer free-text rejected: POST /projects/new + /projects/{pid}/edit verify exact match against customers.name; if not found → redirect with ?error=customer_not_registered. (3) Red banner at top of form for errors (unregistered customer / missing required). (4) Customer label updated to '(only registered customers)'. (5) project_detail unit_qty sum now None-safe.
+REM   LAST UPDATE: 2026-05-03 v5H83 same-day same-key follow-up reuses existing SO — CEO: 'when an additional order comes on the same day, can it use the previously issued SO number?'. confirm_order_multi now searches per-group for existing SO matching (project_id, order_date, due_date, ship_to) in active statuses (DRAFT/QUOTED/CONFIRMED/IN_PRODUCTION/READY_TO_SHIP). If found → updates total_amount/unit_qty/unit_label in place + appends new order_items rows + records 'unit added' history (instead of issuing new SO). Completed/invoiced/cancelled SOs excluded (issues new SO). Result message split: 'N new SOs · M units appended to existing SOs'.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H82 v5H81 follow-up error fix + strict customer validation]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H83 same-day same-key reuses existing SO]
 
 echo.
 echo ============================================================

@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H82 v5H81 등록 후 오류 수정 + 고객사 검증 강화 — (1) 오류 원인: get_project_orders 가 새 컬럼(ship_to/unit_qty/unit_label/unit_note) 미선택 → 템플릿 so.ship_to 접근 시 KeyError. PRAGMA 동적 감지로 존재하는 컬럼만 SELECT + None 안전 기본값 (2) 고객사 자유입력 차단 — POST /projects/new + /projects/{pid}/edit 가 customers.name 와 정확 일치 검증, 없으면 ?error=customer_not_registered 로 redirect (3) 폼 상단에 빨간 경고 배너 (등록 안 된 고객사 / 필수 항목 누락) (4) 고객사 라벨 '(등록된 고객사만 선택 가능)' 명시 (5) project_detail 합계 행 unit_qty 합산 안전 (None 가드)
+REM   LAST UPDATE: 2026-05-03 v5H83 같은 날 동일 (납기,납품지) 추가 발주 → 기존 SO 재사용 — 대표 지시: '같은 날에 추가가 나오면 미리 발행된 수주번호를 사용할 수 있게'. confirm_order_multi 가 그룹별로 (project_id, order_date, due_date, ship_to) 매칭되는 진행 가능 상태(DRAFT/QUOTED/CONFIRMED/IN_PRODUCTION/READY_TO_SHIP) 기존 SO 검색 → 발견 시 신규 발급 대신 기존 SO 의 total_amount/unit_qty/unit_label 누적 갱신 + order_items 신규 행 추가 + history '호기 추가' 기록. 완료/송장/취소 SO 는 추가 대상 제외 (새 SO 생성). 메시지 '신규 SO N건 · 기존 SO M건에 호기 추가' 형태로 분리 표시
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H82 v5H81 후속 오류 수정 + 고객사 검증 강화]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H83 같은 날 동일 키 추가 발주 → 기존 SO 재사용]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

@@ -297,7 +297,12 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         )
         groups.setdefault(key, []).append(u)
 
-    # 3. 그룹별로 SO 1개씩 발행 + 그룹 안의 호기는 order_items 로 적재
+    # 3. 그룹별 처리:
+    #    v5H83 (대표 지시): 같은 날 + 같은 (납기, 납품지) 의 기존 SO 가
+    #    이미 있으면 신규 SO 발행 대신 그 SO 에 호기를 추가(append).
+    #    완료/송장/취소 상태인 SO 는 추가 대상에서 제외 (새로 발급).
+    REUSABLE_STATUSES = ("DRAFT", "QUOTED", "CONFIRMED",
+                         "IN_PRODUCTION", "READY_TO_SHIP")
     issued_groups = []
     for (g_due, g_ship), g_units in groups.items():
         g_total = sum(float(u.get("amount") or 0) for u in g_units)
@@ -306,19 +311,52 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             ((u.get("label") or "").strip() or f"{i+1}호기")
             for i, u in enumerate(g_units)
         )
-        so_no = generate_so_no(c, biz_div, ref_d)
-        cur = c.execute(
-            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-            "due_date, total_amount, status, created_by, unit_label, unit_note, "
-            "ship_to, unit_qty) "
-            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
-            (so_no, customer_id, project_id, order_date, (g_due or None),
-             g_total, created_by or None, labels_concat,
-             (po_number or None), (g_ship or None), g_qty)
-        )
-        oid = cur.lastrowid
 
-        # 호기별 라인은 order_items 에 적재 (qty=1 / unit_price=호기금액)
+        # 동일 (project_id, order_date, due_date, ship_to) + 진행 가능 상태인
+        # 기존 SO 검색 — 가장 최근 1건 재사용
+        existing = None
+        try:
+            existing = c.execute(
+                "SELECT id, order_no, total_amount, unit_qty, unit_label, status "
+                "FROM orders WHERE project_id=? AND order_date=? "
+                "AND COALESCE(due_date,'')=? AND COALESCE(ship_to,'')=? "
+                "AND status IN (" + ",".join("?" * len(REUSABLE_STATUSES)) + ") "
+                "ORDER BY id DESC LIMIT 1",
+                (project_id, order_date, (g_due or ""), (g_ship or ""),
+                 *REUSABLE_STATUSES)
+            ).fetchone()
+        except Exception:
+            existing = None
+
+        if existing:
+            # 기존 SO 에 호기 추가
+            oid = existing["id"]
+            so_no = existing["order_no"]
+            new_total = float(existing["total_amount"] or 0) + g_total
+            new_qty = int(existing["unit_qty"] or 1) + g_qty
+            old_label = (existing["unit_label"] or "").strip()
+            new_label = (old_label + " · " + labels_concat) if old_label else labels_concat
+            c.execute(
+                "UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
+                (new_total, new_qty, new_label, oid)
+            )
+            reused = True
+        else:
+            # 신규 SO 발행
+            so_no = generate_so_no(c, biz_div, ref_d)
+            cur = c.execute(
+                "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+                "due_date, total_amount, status, created_by, unit_label, unit_note, "
+                "ship_to, unit_qty) "
+                "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
+                (so_no, customer_id, project_id, order_date, (g_due or None),
+                 g_total, created_by or None, labels_concat,
+                 (po_number or None), (g_ship or None), g_qty)
+            )
+            oid = cur.lastrowid
+            reused = False
+
+        # 호기별 라인은 order_items 에 적재 (재사용/신규 모두 공통)
         for i, u in enumerate(g_units):
             lbl = (u.get("label") or "").strip() or f"{i+1}호기"
             amt = float(u.get("amount") or 0)
@@ -330,26 +368,27 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                     (oid, 1, amt, amt, lbl, note_u)
                 )
             except Exception:
-                # order_items 컬럼 부재 시 무시 (구버전 호환)
                 pass
 
         # 상태 이력
         try:
+            action_word = "호기 추가" if reused else "수주 발행"
             note_msg = (
-                f"수주 발행 (관리번호 {mgmt_code} · 납기 {g_due or '미지정'} · "
-                f"납품지 {g_ship or '미지정'} · 호기 {g_qty}대 — {labels_concat})"
+                f"{action_word} (관리번호 {mgmt_code} · 납기 {g_due or '미지정'} · "
+                f"납품지 {g_ship or '미지정'} · 호기 +{g_qty}대 — {labels_concat})"
                 + (f" / 고객 PO {po_number}" if po_number else "")
             )
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
-                (oid, "DRAFT", "CONFIRMED", created_by or None, note_msg)
+                (oid, "CONFIRMED" if reused else "DRAFT", "CONFIRMED",
+                 created_by or None, note_msg)
             )
         except Exception:
             pass
 
         issued_groups.append({
-            "so_no": so_no, "order_id": oid,
+            "so_no": so_no, "order_id": oid, "reused": reused,
             "due_date": g_due, "ship_to": g_ship,
             "qty": g_qty, "total_amount": g_total,
             "units": [{"label": (u.get("label") or "").strip() or f"{i+1}호기",
@@ -358,13 +397,20 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                       for i, u in enumerate(g_units)],
         })
 
+    n_reused = sum(1 for g in issued_groups if g.get("reused"))
+    n_new = len(issued_groups) - n_reused
+    msg_parts = []
+    if n_new:
+        msg_parts.append(f"신규 SO {n_new}건")
+    if n_reused:
+        msg_parts.append(f"기존 SO {n_reused}건에 호기 추가")
     return {
         "ok": True,
         "mgmt_code": mgmt_code,
         "groups": issued_groups,
         "total_amount": total,
-        "message": f"관리번호 {mgmt_code} 발급 + SO {len(issued_groups)}건 발행 완료 "
-                   f"(호기 {len(units)}대 / 합계 {total:,.0f}원)",
+        "message": f"관리번호 {mgmt_code} · " + " · ".join(msg_parts)
+                   + f" (총 호기 {len(units)}대 / 합계 {total:,.0f}원)",
     }
 
 
