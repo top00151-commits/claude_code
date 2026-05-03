@@ -4504,6 +4504,79 @@ async def auth_verify_password(req: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/sales/orders/{oid:int}/quick-edit")
+async def sales_orders_quick_edit(req: Request, oid: int):
+    """v5H84: SO 인라인 빠른 수정 — 호기수(unit_qty) / 금액(total_amount) 즉시 변경.
+    프로젝트 상세에서 인라인 편집용. 출하/송장/취소 SO 는 거부."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    raw_q = (form.get("unit_qty") or "").strip()
+    raw_a = (form.get("total_amount") or "").strip().replace(",", "")
+    sets, vals = [], []
+    if raw_q:
+        try:
+            q = int(float(raw_q))
+            if q < 1:
+                return JSONResponse({"ok": False, "message": "호기 수는 1 이상이어야 합니다"}, 400)
+            sets.append("unit_qty=?"); vals.append(q)
+        except ValueError:
+            return JSONResponse({"ok": False, "message": "호기 수 형식 오류"}, 400)
+    if raw_a:
+        try:
+            a = float(raw_a)
+            if a < 0:
+                return JSONResponse({"ok": False, "message": "금액은 0 이상이어야 합니다"}, 400)
+            sets.append("total_amount=?"); vals.append(a)
+        except ValueError:
+            return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
+    if not sets:
+        return JSONResponse({"ok": False, "message": "수정 항목이 없습니다"}, 400)
+    with db_session() as c:
+        cur = c.execute("SELECT status, project_id FROM orders WHERE id=?", (oid,)).fetchone()
+        if not cur:
+            return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
+        st = (cur["status"] or "").upper()
+        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+            return JSONResponse({
+                "ok": False,
+                "message": f"이미 {st} 상태인 SO 는 인라인 수정 불가 (필요 시 삭제 후 재발급)"
+            }, 400)
+        vals.append(oid)
+        c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
+        # 프로젝트 합계 동기화 (project.order_amount = SUM 모든 SO)
+        try:
+            pid = cur["project_id"]
+            if pid:
+                row = c.execute(
+                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                    (pid,)
+                ).fetchone()
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                          (float(row[0] or 0), pid))
+        except Exception:
+            pass
+        # 변경 이력
+        try:
+            change_desc = []
+            if "unit_qty=?" in ",".join(sets):
+                change_desc.append(f"호기수→{int(form.get('unit_qty') or 0)}")
+            if "total_amount=?" in ",".join(sets):
+                change_desc.append(f"금액→{float(raw_a or 0):,.0f}")
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, "
+                "changed_by, note) VALUES(?,?,?,?,?)",
+                (oid, st, st, u.get("id"),
+                 "인라인 수정: " + " / ".join(change_desc))
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "message": "저장 완료"})
+
+
 @app.post("/sales/orders/{oid:int}/delete")
 async def sales_orders_delete(req: Request, oid: int):
     """v5H70/v5H72: 수주 삭제 — 기술영업팀 등록권한자(can_use_sales)만 가능."""

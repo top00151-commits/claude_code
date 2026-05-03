@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H83 같은 날 동일 (납기,납품지) 추가 발주 → 기존 SO 재사용 — 대표 지시: '같은 날에 추가가 나오면 미리 발행된 수주번호를 사용할 수 있게'. confirm_order_multi 가 그룹별로 (project_id, order_date, due_date, ship_to) 매칭되는 진행 가능 상태(DRAFT/QUOTED/CONFIRMED/IN_PRODUCTION/READY_TO_SHIP) 기존 SO 검색 → 발견 시 신규 발급 대신 기존 SO 의 total_amount/unit_qty/unit_label 누적 갱신 + order_items 신규 행 추가 + history '호기 추가' 기록. 완료/송장/취소 SO 는 추가 대상 제외 (새 SO 생성). 메시지 '신규 SO N건 · 기존 SO M건에 호기 추가' 형태로 분리 표시
+REM   LAST UPDATE: 2026-05-03 v5H84 SO 인라인 빠른 수정 — 대표 제안 '발주 수량을 수정할 수 있게 하면 쉽게 될 것 같은데'. project_detail 수주 내역 테이블에서 호기수(number input)/금액(text input + 콤마) 즉시 편집 → 변경 감지 시 💾 저장 버튼 노출 → 클릭 시 POST /sales/orders/{oid}/quick-edit. 호기수 1+ / 금액 0+ 검증, 출하/송장/취소 SO 는 거부. 저장 시 프로젝트 order_amount 동기화 + history 기록. 권한: can_use_sales 필요. 신규 발주 워크플로우 대신 직접 수량 조정으로 단순화 가능
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H83 같은 날 동일 키 추가 발주 → 기존 SO 재사용]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84 SO 인라인 빠른 수정 (호기수/금액 즉시 편집)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

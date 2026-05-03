@@ -139,19 +139,40 @@
         <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
         {% if project_orders %}
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
-          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품지</th><th class="center">호기</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:60px;">삭제</th></tr></thead>
+          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품지</th><th class="center">호기수</th><th class="num">금액(원)</th><th class="center">상태</th><th>비고</th><th style="width:90px;">동작</th></tr></thead>
           <tbody>
           {% for so in project_orders %}
-          <tr>
+          {% set _editable = can_use_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
+          <tr data-soid="{{ so.id }}">
             <td style="font-family:monospace;font-weight:700;color:var(--knk-red);"><a href="/sales/orders/{{ so.id }}" style="color:inherit;">{{ so.order_no }}</a></td>
             <td>{{ so.order_date|default('-') }}</td>
             <td>{{ so.due_date|default('-') }}</td>
             <td>{{ so.ship_to|default('-') }}</td>
-            <td class="center">{{ so.unit_qty|default(1) }}대{% if so.unit_label %}<div style="font-size:10.5px;color:var(--mute);">{{ so.unit_label }}</div>{% endif %}</td>
-            <td class="num">{{ '{:,.0f}'.format(so.total_amount or 0) }}</td>
+            <td class="center">
+              {% if _editable %}
+              <input type="number" min="1" step="1" value="{{ so.unit_qty|default(1) }}"
+                     class="qty-inp" data-orig="{{ so.unit_qty|default(1) }}"
+                     style="width:60px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:center;background:var(--paper);">대
+              {% else %}
+              {{ so.unit_qty|default(1) }}대
+              {% endif %}
+              {% if so.unit_label %}<div style="font-size:10.5px;color:var(--mute);margin-top:2px;">{{ so.unit_label }}</div>{% endif %}
+            </td>
+            <td class="num">
+              {% if _editable %}
+              <input type="text" inputmode="numeric" value="{{ '{:,.0f}'.format(so.total_amount or 0) }}"
+                     class="amt-inp knk-money" data-orig="{{ so.total_amount or 0 }}"
+                     style="width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:right;background:var(--paper);">
+              {% else %}
+              {{ '{:,.0f}'.format(so.total_amount or 0) }}
+              {% endif %}
+            </td>
             <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
             <td style="font-size:11px;color:var(--mute);">{% if loop.last %}최초 수주{% else %}추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</td>
-            <td style="text-align:center;">
+            <td style="text-align:center;white-space:nowrap;">
+              {% if _editable %}
+              <button type="button" class="save-so" title="수정 저장" style="background:transparent;border:1px solid var(--line);color:var(--amber-deep);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;display:none;">💾</button>
+              {% endif %}
               {% if can_sales_del %}
               <button type="button" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})' title="수주 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
               {% else %}
@@ -171,6 +192,50 @@
           </tfoot>
         </table></div>
         <script>
+        // v5H84: SO 인라인 빠른 수정 — 호기수 / 금액 즉시 편집 + 💾 저장
+        (function(){
+          document.querySelectorAll('tr[data-soid]').forEach(tr => {
+            const soid = tr.dataset.soid;
+            const qty  = tr.querySelector('.qty-inp');
+            const amt  = tr.querySelector('.amt-inp');
+            const save = tr.querySelector('.save-so');
+            if (!save) return;  // 편집 권한 없으면 스킵
+            function dirty(){
+              const dq = qty && (String(qty.value) !== String(qty.dataset.orig));
+              const aRaw = amt ? (amt.value || '0').replace(/,/g,'') : '0';
+              const da = amt && (parseFloat(aRaw) !== parseFloat(amt.dataset.orig));
+              save.style.display = (dq || da) ? 'inline-block' : 'none';
+            }
+            if (qty) qty.addEventListener('input', dirty);
+            if (amt) amt.addEventListener('input', dirty);
+            save.addEventListener('click', async () => {
+              const body = new URLSearchParams();
+              if (qty) body.set('unit_qty', qty.value);
+              if (amt) body.set('total_amount', (amt.value || '0').replace(/,/g,''));
+              save.disabled = true;
+              try {
+                const r = await fetch('/sales/orders/' + soid + '/quick-edit', {
+                  method:'POST', body: body
+                });
+                const j = await r.json();
+                if (j.ok) {
+                  if (qty) qty.dataset.orig = qty.value;
+                  if (amt) amt.dataset.orig = (amt.value || '0').replace(/,/g,'');
+                  save.style.display = 'none';
+                  // 합계 행 갱신을 위해 reload
+                  location.reload();
+                } else {
+                  alert('⚠ 저장 실패: ' + (j.message || j.error || ''));
+                }
+              } catch(e) {
+                alert('⚠ 네트워크 오류: ' + e.message);
+              } finally {
+                save.disabled = false;
+              }
+            });
+          });
+        })();
+
         // v5H73: 본인 비밀번호 재인증 후 수주 삭제
         async function deleteSO(oid, orderNo) {
           await window.knkConfirmWithPassword({

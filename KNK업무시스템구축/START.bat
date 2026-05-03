@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H83 same-day same-key follow-up reuses existing SO — CEO: 'when an additional order comes on the same day, can it use the previously issued SO number?'. confirm_order_multi now searches per-group for existing SO matching (project_id, order_date, due_date, ship_to) in active statuses (DRAFT/QUOTED/CONFIRMED/IN_PRODUCTION/READY_TO_SHIP). If found → updates total_amount/unit_qty/unit_label in place + appends new order_items rows + records 'unit added' history (instead of issuing new SO). Completed/invoiced/cancelled SOs excluded (issues new SO). Result message split: 'N new SOs · M units appended to existing SOs'.
+REM   LAST UPDATE: 2026-05-03 v5H84 SO inline quick-edit — CEO suggestion: 'if we can edit the order quantity, it'll be easier'. project_detail SO list now shows unit_qty (number input) and total_amount (text + commas) inline; on change a 💾 button appears → POST /sales/orders/{oid}/quick-edit. Validation: qty>=1, amt>=0; rejects SHIPPED/INVOICED/PAID/CANCELLED SOs. Updates project.order_amount sum + writes history note. Requires can_use_sales. Direct quantity adjustment as simpler alternative to multi-SO grouping flow.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H83 same-day same-key reuses existing SO]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84 SO inline quick-edit (qty / amount)]
 
 echo.
 echo ============================================================
