@@ -30,7 +30,7 @@
 .summary-row { background: var(--paper-2); font-weight: 700; font-size: 14px; }
 </style>
 </head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div>

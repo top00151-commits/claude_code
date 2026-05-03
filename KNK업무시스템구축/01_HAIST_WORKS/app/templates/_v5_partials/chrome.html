@@ -11,9 +11,10 @@
 
 {# active_tab 자동 감지: URL prefix 기반 (템플릿이 명시 설정하면 그것 우선) #}
 {% set _at_auto = 'home' %}
-{% if _path.startswith('/sales') or _path.startswith('/export') or _path.startswith('/customers') or _path.startswith('/projects') or _path.startswith('/fta') %}
+{# v5H79: 싱귤러 URL(/project/, /customer/, /order/, /quote/) 도 sales 로 인식 — 상세 페이지에서 통합플랫폼 탭으로 빠지는 버그 수정 #}
+{% if _path.startswith('/sales') or _path.startswith('/export') or _path.startswith('/customers') or _path.startswith('/customer/') or _path == '/customer' or _path.startswith('/projects') or _path.startswith('/project/') or _path == '/project' or _path.startswith('/order/') or _path.startswith('/orders') or _path.startswith('/quote/') or _path.startswith('/quotes') or _path.startswith('/fta') %}
   {% set _at_auto = 'sales' %}
-{% elif _path.startswith('/logistics') or _path.startswith('/po') or _path.startswith('/parts') or _path.startswith('/stock') or _path.startswith('/rates') or _path.startswith('/qms') or _path.startswith('/wo') or _path.startswith('/suppliers') or _path.startswith('/qc') or _path.startswith('/fx_rates') %}
+{% elif _path.startswith('/logistics') or _path.startswith('/po') or _path.startswith('/parts') or _path.startswith('/part/') or _path.startswith('/stock') or _path.startswith('/rates') or _path.startswith('/qms') or _path.startswith('/wo') or _path.startswith('/work') or _path.startswith('/suppliers') or _path.startswith('/supplier/') or _path.startswith('/qc') or _path.startswith('/receipts') or _path.startswith('/issues') or _path.startswith('/movements') or _path.startswith('/fx_rates') %}
   {% set _at_auto = 'logi' %}
 {% endif %}
 {% set _at = active_tab|default(_at_auto) %}

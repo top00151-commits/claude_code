@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H78 호기별 다중 SO 동시 발급 — 검사기 10대 동시 수주 + 호기별 단가 다른 실제 케이스 대응. orders 테이블 ALTER (unit_label/unit_note 컬럼). project_workflow.confirm_order_multi(units=[{label,amount,due,note}]) 신규 — 관리코드 1회만 발급, 호기별로 SO 각각 발행(generate_so_no 가 -2/-3 자동 채번). 폼 '수주확정 동시 발급' 체크 시 동적 호기 라인 테이블(라벨/금액/납기/비고 + 행 추가/삭제/실시간 합계) 노출. 단일 호기(1줄)~N호기 모두 같은 UI. 빈 라인 자동 스킵
+REM   LAST UPDATE: 2026-05-03 v5H79 매출영업센터 사이드바 탭 이탈 버그 수정 — 대표 보고: '매출 메뉴에서 등록/진행하다 보면 통합플랫폼 쪽으로 연결이 됨'. 근본 원인: chrome.html 자동 탭 감지가 /projects(복수)만 체크 → /project/{pid}(단수) 상세 URL 매칭 실패 → home 탭으로 빠짐. 수정: /project/, /customer/, /order/, /quote/, /supplier/, /part/, /work, /receipts, /issues, /movements 등 단수형/추가 prefix 자동 sales 또는 logi 매핑 + 4개 누락 템플릿(sales_quote_form/sales_quote_detail/sales_order_detail/customer_form)에 active_tab='sales' 명시 (이중 안전장치)
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H78 호기별 다중 SO 동시 발급 (검사기 N대 동시 수주, 호기별 단가)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H79 사이드바 탭 이탈 버그 수정 (매출 → 통합 잘못 점프)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.

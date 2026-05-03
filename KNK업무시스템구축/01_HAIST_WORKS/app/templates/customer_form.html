@@ -37,7 +37,7 @@
 .role-help { font-size: 11px; color: var(--mute); margin-top: 6px; }
 </style>
 </head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
     <div>

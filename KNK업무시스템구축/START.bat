@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H78 multi-unit (호기별) simultaneous SO issuance — real case: 10 inspection units ordered together with different per-unit prices. orders ALTER (unit_label/unit_note). New project_workflow.confirm_order_multi(units=[{label,amount,due,note}]) — single mgmt_code, one SO per unit (generate_so_no auto -2/-3 suffix). Form's "confirm now" checkbox reveals dynamic units table (label/amount/due/note + add/remove rows + live sum). Single unit (1 row) and N units use same UI. Blank rows auto-skipped.
+REM   LAST UPDATE: 2026-05-03 v5H79 sidebar tab leak fix — CEO report: 'navigating from sales menu, pages drift to integration platform tab'. Root cause: chrome.html auto-tab detection only matched /projects (plural) → /project/{pid} (singular) detail URLs missed → fell to 'home'. Fix: extended URL prefix matcher to include singular forms (/project/, /customer/, /order/, /quote/, /supplier/, /part/) + extra logi prefixes (/work, /receipts, /issues, /movements). Also explicit active_tab='sales' added to 4 missing templates (sales_quote_form, sales_quote_detail, sales_order_detail, customer_form) as belt-and-suspenders.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H78 multi-unit SO issuance (N units simultaneous order, per-unit pricing)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H79 sidebar tab leak fix (sales → integration drift)]
 
 echo.
 echo ============================================================
