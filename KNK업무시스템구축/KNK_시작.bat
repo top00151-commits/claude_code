@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H52 매출영업센터 폼 흐름 전면 정합 
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H73b 프로젝트 삭제 FK 충돌 수정 — 자식 row 일괄 정리]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H74 메인페이지 중복 액션버튼 제거 (사이드바 정합)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
