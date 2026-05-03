@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H101 due/order date self-heal + project history 
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H106 followup SO auto-creates unit + SO header inline edit]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H107 SO card read/edit mode separation (visual simplify)]
 
 echo.
 echo ============================================================

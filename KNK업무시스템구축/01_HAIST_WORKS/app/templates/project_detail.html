@@ -190,6 +190,30 @@
         .so-grand-total { padding: 14px 18px; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-top: var(--space-3); display: flex; justify-content: space-between; align-items: center; }
         .so-grand-total .label { font-size: 13px; color: var(--mute); font-weight: 600; }
         .so-grand-total .value { font-size: 22px; font-weight: 700; color: var(--knk-red); font-family: monospace; }
+
+        /* v5H107: 읽기 모드 기본, 편집 모드 토글 */
+        .so-card .so-meta-edit,
+        .so-card .unit-edit { display: none; }
+        .so-card .display-val { display: inline; }
+        .so-card .add-unit-card,
+        .so-card .row-save,
+        .so-card .row-del,
+        .so-card .so-meta-save,
+        .so-card .add-unit { display: none; }
+        .so-card.edit-mode .so-meta-edit,
+        .so-card.edit-mode .unit-edit { display: inline-block; }
+        .so-card.edit-mode .display-val { display: none; }
+        .so-card.edit-mode .row-save,
+        .so-card.edit-mode .row-del,
+        .so-card.edit-mode .add-unit { display: inline-block; }
+        .so-card .toggle-edit { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .so-card.edit-mode .toggle-edit { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
+        .so-card.edit-mode .toggle-edit::after { content: " 완료"; }
+        /* 편집모드일 때만 호기 추가 카드 표시 가능하게 (open + edit-mode) */
+        .so-card.edit-mode .add-unit-card.open { display: block; }
+        /* 동작 컬럼은 편집 모드에서만 */
+        .so-card .edit-only { display: none; }
+        .so-card.edit-mode .edit-only { display: table-cell; }
       </style>
 
       <div class="section-card">
@@ -208,27 +232,25 @@
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
               <span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span>
               <div class="so-meta">
-                {# v5H106: 발주일/납기/납품처 인라인 편집 가능 #}
+                {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
-                  {% if _editable %}
-                  <input type="date" class="so-meta-edit" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">
-                  {% else %}<span class="v">{{ so.order_date|default('-') }}</span>{% endif %}
+                  <span class="v display-val">{{ so.order_date|default('-') }}</span>
+                  {% if _editable %}<input type="date" class="so-meta-edit" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">→ 납기</span>
-                  {% if _editable %}
-                  <input type="date" class="so-meta-edit" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">
-                  {% else %}<span class="v">{{ so.due_date|default('-') }}</span>{% endif %}
+                  <span class="v display-val">{{ so.due_date|default('-') }}</span>
+                  {% if _editable %}<input type="date" class="so-meta-edit" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">📍 납품처</span>
-                  {% if _editable %}
-                  <input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:130px;">
-                  {% else %}<span class="v">{{ so.ship_to|default('미지정') }}</span>{% endif %}
+                  <span class="v display-val">{{ so.ship_to|default('미지정') }}</span>
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:130px;">{% endif %}
                 </span>
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
                 {% if _editable %}
+                <button type="button" class="toggle-edit" title="이 SO 편집 모드">✏️ 편집</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
@@ -248,7 +270,7 @@
                   <th style="width:120px;">호기</th>
                   <th class="num" style="width:170px;">단가 ({{ _cur }})</th>
                   <th>비고</th>
-                  {% if _editable %}<th class="center" style="width:90px;">동작</th>{% endif %}
+                  {% if _editable %}<th class="center edit-only" style="width:90px;">동작</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -262,28 +284,19 @@
                       <span style="display:inline-block;background:var(--amber-glow);color:var(--amber-deep);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-bottom:3px;">추가 #{{ loop.index0 }}</span>
                     {% endif %}
                     <br>
-                    {% if _editable %}
-                    <input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">
-                    {% else %}
-                    <b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b>
-                    {% endif %}
+                    <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
                   </td>
                   <td class="num">
-                    {% if _editable %}
-                    <input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">
-                    {% else %}
-                    <span class="price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
-                    {% endif %}
+                    <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
+                    {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   <td>
-                    {% if _editable %}
-                    <input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">
-                    {% else %}
-                    <span class="note">{{ u.line_note or '' }}</span>
-                    {% endif %}
+                    <span class="display-val note">{{ u.line_note or '' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
                   </td>
                   {% if _editable %}
-                  <td class="center">
+                  <td class="center edit-only">
                     <button type="button" class="row-save">💾 저장</button>
                     <button type="button" class="row-del" title="라인 삭제" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:14px;">×</button>
                   </td>
@@ -350,11 +363,18 @@
         </div>
 
         <script>
-        // v5H93: 카드 레이아웃 — '＋ 호기 추가' 토글 + 호기 라인 인라인 편집/삭제
-        // v5H106: SO 헤더 메타(발주일/납기/납품처) 인라인 편집
+        // v5H93/106/107: 카드 레이아웃 — 읽기/편집 모드 토글 + 인라인 편집
         (function(){
           document.querySelectorAll('.so-card').forEach(card => {
             const soid = card.dataset.soid;
+            // v5H107: 편집 모드 토글
+            const toggleBtn = card.querySelector('.toggle-edit');
+            if (toggleBtn) {
+              toggleBtn.addEventListener('click', () => {
+                card.classList.toggle('edit-mode');
+                toggleBtn.textContent = card.classList.contains('edit-mode') ? '✏️ 편집' : '✏️ 편집';
+              });
+            }
             // SO 헤더 메타 인라인 편집
             const metaSaveBtn = card.querySelector('.so-meta-save');
             const metaInputs = card.querySelectorAll('.so-meta-edit');
