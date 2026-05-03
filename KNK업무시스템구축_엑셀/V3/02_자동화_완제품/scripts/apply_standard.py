@@ -155,9 +155,24 @@ def _pms_specs():
     }
 
 
+def _wrap3(name):
+    """v3.1: 부서 입력칸 헤더 — 3글자 초과 시 3글자+\n+나머지 (열너비 통일)
+    예: 'BOM작성'(5)→'BOM\n작성', '상세컨셉'(4)→'상세컨\n셉', '메뉴얼'(3)→그대로
+    """
+    if len(name) > 3:
+        return name[:3] + "\n" + name[3:]
+    return name
+
+
+INPUT_COL_WIDTH = 5   # v3.1: 부서 입력칸 통일 너비 (3글자 + 여유)
+
+
 def _dept_spec(dept):
-    subs = DEPT_SUB_ITEMS.get(dept, [])
-    milestones = DEPT_MILESTONES.get(dept, [])    # v3.0
+    subs_raw = DEPT_SUB_ITEMS.get(dept, [])
+    milestones_raw = DEPT_MILESTONES.get(dept, [])
+    # v3.1: 세부항목 헤더 wrap3 적용 (마일스톤은 config.py에서 이미 \n 분리됨)
+    subs = [_wrap3(s) for s in subs_raw]
+    milestones = list(milestones_raw)
     n_sub = len(subs)
     n_ms = len(milestones)
     # v2026.04b: auto_cols 11열 — C10=담당자 추가 + 모델/품명 순서 swap
@@ -191,6 +206,10 @@ def _dept_spec(dept):
     r4[n_auto + n_sub + n_ms + 1] = "status"
     r4[n_auto + n_sub + n_ms + 2] = "status"
 
+    # v3.1: 세부항목·마일스톤 컬럼 너비 5 통일
+    fixed_widths = {c: INPUT_COL_WIDTH
+                    for c in range(n_auto + 1, n_auto + n_sub + n_ms + 1)}
+
     return {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ {dept} │ {YEAR}",
         "purpose": f"자동화 {dept} 전용",
@@ -199,6 +218,7 @@ def _dept_spec(dept):
         "r3_map":  r3,
         "r4_map":  r4,
         "freeze":  "auto",
+        "fixed_widths": fixed_widths,
     }
 
 

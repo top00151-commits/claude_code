@@ -217,6 +217,31 @@ function addContact(role) {
 ['영업','구매','세금계산서'].forEach(addContact);
 {% endif %}
 
+// v5H60: 한국어 OCR 데이터 자동 설치
+async function installKoreanOcr() {
+  const btn = document.getElementById('installKoreanBtn');
+  const resEl = document.getElementById('installResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ 다운로드 중... (수십 초 소요)';
+  resEl.innerHTML = '<span style="color:var(--mute);">GitHub 에서 kor.traineddata 다운로드 중...</span>';
+  try {
+    const r = await fetch('/customers/install-korean-ocr', { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) {
+      resEl.innerHTML = `<span style="color:var(--success);font-weight:700;">✅ ${j.message}</span><br><span style="font-size:11px;color:var(--mute);">이제 다시 "🔍 자동 인식" 버튼을 눌러주세요.</span>`;
+      btn.style.display = 'none';
+    } else {
+      resEl.innerHTML = `<span style="color:var(--knk-red);">⚠ ${j.message}</span>`;
+      btn.disabled = false;
+      btn.textContent = '↻ 다시 시도';
+    }
+  } catch (e) {
+    resEl.innerHTML = `<span style="color:var(--knk-red);">네트워크 오류: ${e.message}</span>`;
+    btn.disabled = false;
+    btn.textContent = '↻ 다시 시도';
+  }
+}
+
 // v5H57: 사업자등록증 자동 파서
 async function parseBizDoc() {
   const fileEl = document.getElementById('bizDocFile');
@@ -267,6 +292,20 @@ async function parseBizDoc() {
                         : '<div style="color:var(--mute);">자동 입력된 항목이 없습니다. 텍스트는 추출되었지만 표준 양식을 찾지 못했습니다.</div>'}
         ${f.biz_kind || f.biz_item ? `<div style="margin-top:8px;font-size:11.5px;color:var(--mute);">참고: 업태=${f.biz_kind||'-'}, 종목=${f.biz_item||'-'}</div>` : ''}
         <div style="margin-top:8px;font-size:11px;color:var(--mute);">⚠ 자동 입력 결과는 반드시 확인 후 저장하세요. 잘못된 값은 직접 수정 가능합니다.</div>
+      `;
+    } else if (j.message === 'KOREAN_DATA_MISSING') {
+      // v5H60: 한국어 OCR 데이터 누락 — 자동 다운로드 버튼 표시
+      statusEl.textContent = '⚠ 한국어 인식 데이터 누락';
+      statusEl.style.color = 'var(--knk-red)';
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div style="color:var(--knk-red);font-weight:700;margin-bottom:8px;">⚠ 한국어 인식 데이터(kor.traineddata) 가 설치되어 있지 않습니다</div>
+        <div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.6;">
+          Tesseract 는 설치되어 있지만 한국어 학습 데이터가 없어 한글을 인식하지 못합니다.<br>
+          아래 버튼을 클릭하면 약 28MB 짜리 한국어 데이터를 자동 다운로드합니다 (1회만).
+        </div>
+        <button type="button" class="btn btn-primary" id="installKoreanBtn" onclick="installKoreanOcr()">⬇ 한국어 데이터 자동 설치 (28MB)</button>
+        <div id="installResult" style="margin-top:8px;font-size:12px;"></div>
       `;
     } else {
       statusEl.textContent = '⚠ 인식 실패';

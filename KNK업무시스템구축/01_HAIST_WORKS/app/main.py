@@ -4419,6 +4419,29 @@ _CUSTOMER_FILES_DIR = os.path.join(BASE, "data", "customer_files")
 os.makedirs(_CUSTOMER_FILES_DIR, exist_ok=True)
 
 
+@app.get("/customers/ocr-status")
+async def customers_ocr_status(req: Request):
+    """OCR 설치 상태 확인 — Tesseract + 언어 데이터."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    return JSONResponse({
+        "tesseract": _biz_doc.has_tesseract(),
+        "korean": _biz_doc.has_korean(),
+        "langs": _biz_doc.get_installed_langs(),
+    })
+
+
+@app.post("/customers/install-korean-ocr")
+async def customers_install_korean_ocr(req: Request):
+    """한국어 OCR 데이터 자동 다운로드 (사용자 명시적 트리거)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    res = _biz_doc.download_korean_traineddata()
+    return JSONResponse(res)
+
+
 @app.post("/customers/parse-biz")
 async def customers_parse_biz(req: Request, file: UploadFile = File(...)):
     """사업자등록증 파일(PDF/JPG/PNG) 업로드 → 자동 파싱 → JSON 반환.

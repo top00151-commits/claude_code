@@ -168,6 +168,9 @@ def _pms_specs():
 # ═══════════════════════════════════════════════════════════════
 # 부서입력 파일 (부서별 컬럼 다름)
 # ═══════════════════════════════════════════════════════════════
+INPUT_COL_WIDTH = 5   # v3.1: 부서 입력칸 통일 너비
+
+
 def _dept_spec(dept):
     subs = DEPT_SUB_ITEMS.get(dept, [])
     milestones = DEPT_MILESTONES.get(dept, [])    # v3.0 마일스톤·입고일 컬럼
@@ -208,6 +211,10 @@ def _dept_spec(dept):
     r4[n_auto + n_sub + n_ms + 1] = "status"      # 상태
     r4[n_auto + n_sub + n_ms + 2] = "status"      # 메모
 
+    # v3.1: 세부항목·마일스톤 컬럼 너비 5 통일 (3글자 기준)
+    fixed_widths = {c: INPUT_COL_WIDTH
+                    for c in range(n_auto + 1, n_auto + n_sub + n_ms + 1)}
+
     return {
         "title":   f"㈜케이엔케이 │ {TYPE_NAME} │ {dept} │ {YEAR}",
         "purpose": f"검사기 {dept} 전용",
@@ -216,6 +223,7 @@ def _dept_spec(dept):
         "r3_map":  r3,
         "r4_map":  r4,
         "freeze":  "auto",
+        "fixed_widths": fixed_widths,
     }
 
 

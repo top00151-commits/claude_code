@@ -440,6 +440,12 @@ def _collect_dept_progress(log):
 
             # _avg: 해당없음 제외한 평균 (전체 None이면 None — 부서 자체 해당없음)
             dept_data["_avg"] = (sum(sub_vals) / len(sub_vals)) if sub_vals else None
+
+            # 같은 code 중복 시: 빈 데이터로 기존 데이터 덮어쓰기 방지
+            if dept in progress[code]:
+                existing = progress[code][dept]
+                if dept_data["_avg"] is None and existing.get("_avg") is not None:
+                    continue   # 기존 의미있는 데이터 유지
             progress[code][dept] = dept_data
         wb.close()
 
@@ -874,13 +880,20 @@ def _sync_dept_files(ws_proj, log, progress=None):
             pic_to_write = dept_val if dept_val else existing_pic.get(proj["code"])
             ws_d.cell(row, 10).value = pic_to_write
             # v3.1 K11 = 본인 부서 진척률 (세부항목 평균 0~1, 자동 계산)
+            #   _avg=None  → 전 세부항목 해당없음 → "해당없음" 표시
+            #   _avg=0.0   → 명시적 미착수 → 0%
+            #   _avg>0     → 진행 중
             if progress is not None:
                 dept_data = progress.get(proj["code"], {}).get(dept, {})
-                self_avg = dept_data.get("_avg", 0.0)
-                ws_d.cell(row, 11).value = self_avg if self_avg else 0.0
+                self_avg = dept_data.get("_avg")
+                if self_avg is None:
+                    ws_d.cell(row, 11).value = "해당없음"
+                else:
+                    ws_d.cell(row, 11).value = self_avg
+                    ws_d.cell(row, 11).number_format = PCT
             else:
                 ws_d.cell(row, 11).value = proj["prog"]
-            ws_d.cell(row, 11).number_format = PCT
+                ws_d.cell(row, 11).number_format = PCT
             row += 1
 
         wb_d.save(fp)
