@@ -44,7 +44,7 @@
       </tr></thead>
       <tbody>
       {% for o in items %}
-        <tr onclick="location.href='/orders/{{ o.id }}'">
+        <tr onclick="location.href='/sales/orders/{{ o.id }}'">
           <td class="so-no">{{ o.order_no|default('#' ~ o.id) }}</td>
           <td class="mgmt">{% if o.mgmt_code %}<a href="/project/{{ o.project_id }}" style="color:inherit;" onclick="event.stopPropagation();">{{ o.mgmt_code }}</a>{% else %}—{% endif %}</td>
           <td>

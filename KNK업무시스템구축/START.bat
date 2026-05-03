@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H89b customer not visible â€” data linkage fix â
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H89b customer linkage fix + backfill existing NULLs]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H89c sales orders row click 404 fix]
 
 echo.
 echo ============================================================
