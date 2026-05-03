@@ -4624,6 +4624,35 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                 "ok": False,
                 "message": f"이미 {st} 상태인 SO 는 인라인 수정 불가 (필요 시 삭제 후 재발급)"
             }, 400)
+        # v5H91: 호기 라인 vs 신규 호기수/금액 정합성 검증
+        try:
+            items = c.execute(
+                "SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS s "
+                "FROM order_items WHERE order_id=?", (oid,)
+            ).fetchone()
+            items_n = int(items["n"] or 0)
+            items_s = float(items["s"] or 0)
+        except Exception:
+            items_n, items_s = 0, 0.0
+        if items_n > 0:
+            if raw_q:
+                new_q = int(float(raw_q))
+                if new_q != items_n:
+                    return JSONResponse({
+                        "ok": False,
+                        "message": (f"호기 라인은 {items_n}건인데 호기수를 {new_q}대로 바꿀 수 없습니다.\n"
+                                    f"먼저 '➕ 호기' 로 부족한 호기({new_q - items_n}대)를 추가하거나,\n"
+                                    f"불필요한 호기 라인을 정리한 뒤 다시 시도하세요.")
+                    }, 400)
+            if raw_a:
+                new_a = float(raw_a)
+                if abs(new_a - items_s) > 0.5:
+                    return JSONResponse({
+                        "ok": False,
+                        "message": (f"호기 단가 합계는 {items_s:,.0f}원인데 합계를 {new_a:,.0f}원으로 바꿀 수 없습니다.\n"
+                                    f"차액 {new_a - items_s:,.0f}원이 발생합니다.\n"
+                                    f"호기별 단가를 직접 수정하거나, '➕ 호기' 로 차액만큼의 호기를 추가하세요.")
+                    }, 400)
         vals.append(oid)
         c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
         # 프로젝트 합계 동기화 (project.order_amount = SUM 모든 SO)

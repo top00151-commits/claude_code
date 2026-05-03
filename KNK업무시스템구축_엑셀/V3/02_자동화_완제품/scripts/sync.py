@@ -178,7 +178,8 @@ def _assign_codes(ws, log):
         if base not in existing_sj:
             sj_num = base
         else:
-            n = 2
+            # v3.1.3: 같은 날짜 두 번째부터 -1, -2, ... (첫 건은 base, 둘째 -1, 셋째 -2)
+            n = 1
             while f"{base}-{n}" in existing_sj:
                 n += 1
             sj_num = f"{base}-{n}"

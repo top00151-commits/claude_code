@@ -157,6 +157,9 @@
               {{ so.unit_qty|default(1) }}대
               {% endif %}
               {% if so.unit_label %}<div style="font-size:10.5px;color:var(--mute);margin-top:2px;">{{ so.unit_label }}</div>{% endif %}
+              {% if so.mismatch_qty %}
+              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="호기수({{ so.unit_qty }}대) ≠ 호기 라인({{ so.items_n }}건). '➕ 호기' 로 부족한 호기를 추가하세요.">⚠ 호기 {{ so.items_n }}/{{ so.unit_qty }}</div>
+              {% endif %}
             </td>
             <td class="num">
               {% if _editable %}
@@ -165,6 +168,9 @@
                      style="width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:right;background:var(--paper);">
               {% else %}
               <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
+              {% endif %}
+              {% if so.mismatch_sum %}
+              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;text-align:right;" title="합계({{ '{:,.0f}'.format(so.total_amount) }}) ≠ 호기 단가 합({{ '{:,.0f}'.format(so.items_sum) }}). 차액 {{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}원">⚠ 합계 불일치 (Δ {{ '{:,.0f}'.format(so.total_amount - so.items_sum) }})</div>
               {% endif %}
               {# v5H85/85b: 호기별 단가 표기.
                  (1) order_items 가 있고 단가 동일 → 'N대 × 단가'

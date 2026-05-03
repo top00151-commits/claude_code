@@ -561,5 +561,15 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         else:
             d["unit_price_uniform"] = None
 
+        # v5H91: 데이터 정합성 플래그 — 호기수/금액 불일치 감지
+        items_n = len(d["units"])
+        items_sum = sum(float(u.get("amount") or u.get("unit_price") or 0)
+                        for u in d["units"])
+        qty = int(d.get("unit_qty") or 1)
+        d["mismatch_qty"] = (items_n > 0 and items_n != qty)
+        d["mismatch_sum"] = (items_n > 0 and abs(items_sum - float(d.get("total_amount") or 0)) > 0.5)
+        d["items_n"] = items_n
+        d["items_sum"] = items_sum
+
         out.append(d)
     return out
