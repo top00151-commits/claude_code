@@ -4419,6 +4419,65 @@ _CUSTOMER_FILES_DIR = os.path.join(BASE, "data", "customer_files")
 os.makedirs(_CUSTOMER_FILES_DIR, exist_ok=True)
 
 
+# v5H67: 공통 엑셀 내보내기 헬퍼 — 모든 모듈에서 재사용
+def _make_xlsx_response(sheets: list, filename_prefix: str):
+    """다중 시트 엑셀 다운로드 응답 생성.
+    sheets: [{name, headers, rows}, ...]
+      - name: 시트명 (한글 OK)
+      - headers: 컬럼 헤더 리스트
+      - rows: 데이터 행 리스트 (각 행은 list 또는 tuple)
+    filename_prefix: 파일명 접두 (예: '공급사')
+    파일명 자동: '{prefix}_{YYYY-MM-DD}.xlsx'"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    wb = Workbook()
+    knk_fill = PatternFill("solid", fgColor="A5282C")
+    white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    first = True
+    for sh in sheets:
+        if first:
+            ws = wb.active
+            ws.title = sh["name"][:31]  # Excel sheet name 31자 제한
+            first = False
+        else:
+            ws = wb.create_sheet(sh["name"][:31])
+        ws.append(sh["headers"])
+        for col_idx, _ in enumerate(sh["headers"], 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = white
+            cell.fill = knk_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border
+        for row in sh["rows"]:
+            ws.append(list(row))
+        # 컬럼 너비 자동
+        for col in ws.columns:
+            max_len = 8
+            col_letter = col[0].column_letter
+            for cell in col:
+                v = str(cell.value) if cell.value is not None else ""
+                disp_len = sum(2 if ord(c) > 0x7F else 1 for c in v)
+                max_len = max(max_len, min(50, disp_len + 2))
+            ws.column_dimensions[col_letter].width = max_len
+        ws.freeze_panes = "A2"
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from urllib.parse import quote
+    fname = f"{filename_prefix}_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"},
+    )
+
+
 # v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
@@ -4533,6 +4592,325 @@ async def customers_export_xlsx(req: Request):
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
         },
     )
+
+
+# v5H67: 12개 모듈 엑셀 내보내기 일괄 추가 (대표 지시 — 모든 데이터 엑셀화)
+def _xls_str(v):
+    """엑셀 저장용 안전 변환 (None → '', dict/list → str)."""
+    if v is None: return ""
+    if isinstance(v, (int, float, str)): return v
+    return str(v)
+
+
+@app.get("/suppliers/export.xlsx")
+async def suppliers_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, name, code, contact, email, phone, country, currency, "
+            "payment_terms, COALESCE(is_active,1) AS is_active, note "
+            "FROM suppliers ORDER BY name").fetchall()]
+    headers = ["ID","공급사명","코드","담당자","이메일","전화","국가","통화",
+               "결제조건","활성","비고"]
+    data = [[r["id"], r["name"], r["code"], r["contact"], r["email"], r["phone"],
+             r["country"], r["currency"], r["payment_terms"],
+             "활성" if r["is_active"] else "비활성", r["note"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "공급사", "headers": headers, "rows": data}], "공급사")
+
+
+@app.get("/parts/export.xlsx")
+async def parts_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT p.id, p.part_no, p.part_name, p.spec, p.maker, p.origin, "
+            "p.unit, p.currency, p.std_price, p.biz_div, p.category, "
+            "COALESCE(p.is_active,1) AS is_active, p.note, "
+            "COALESCE(sb.on_hand, 0) AS on_hand "
+            "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
+            "ORDER BY p.part_no").fetchall()]
+    headers = ["ID","품번","품명","규격","제조사","원산지","단위","통화",
+               "표준단가","사업부","분류","활성","비고","현재재고"]
+    data = [[r["id"], r["part_no"], r["part_name"], r["spec"], r["maker"],
+             r["origin"], r["unit"], r["currency"], r["std_price"],
+             r["biz_div"], r["category"],
+             "활성" if r["is_active"] else "비활성",
+             r["note"], r["on_hand"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "부품", "headers": headers, "rows": data}], "부품")
+
+
+@app.get("/sales/orders/export.xlsx")
+async def sales_orders_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        # 헤더
+        head_rows = [dict(r) for r in c.execute(
+            "SELECT o.id, o.order_no, o.order_date, o.due_date, o.status, "
+            "o.total_amount, COALESCE(cu.name,'') AS customer_name "
+            "FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id "
+            "ORDER BY o.id DESC").fetchall()]
+        # 라인
+        line_rows = [dict(r) for r in c.execute(
+            "SELECT o.order_no, p.part_no, p.part_name, oi.qty, oi.unit_price, oi.amount "
+            "FROM order_items oi "
+            "LEFT JOIN orders o ON o.id=oi.order_id "
+            "LEFT JOIN parts p ON p.id=oi.part_id "
+            "ORDER BY o.id DESC, oi.id").fetchall()]
+    sheets = [
+        {"name": "수주", "headers": ["ID","수주번호","주문일","납기","상태","수주액(원)","고객사"],
+         "rows": [[r["id"], r["order_no"], r["order_date"], r["due_date"],
+                   r["status"], r["total_amount"], r["customer_name"]] for r in head_rows]},
+        {"name": "수주라인", "headers": ["수주번호","품번","품명","수량","단가","금액"],
+         "rows": [[r["order_no"], r["part_no"], r["part_name"], r["qty"],
+                   r["unit_price"], r["amount"]] for r in line_rows]},
+    ]
+    return _make_xlsx_response(sheets, "수주")
+
+
+@app.get("/sales/quotations/export.xlsx")
+async def sales_quotations_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        head_rows = [dict(r) for r in c.execute(
+            "SELECT q.id, q.quote_no, q.created_at, q.valid_until, q.version, "
+            "q.status, q.total_amount, COALESCE(cu.name,'') AS customer_name "
+            "FROM quotations q LEFT JOIN customers cu ON cu.id=q.customer_id "
+            "ORDER BY q.id DESC").fetchall()]
+        line_rows = [dict(r) for r in c.execute(
+            "SELECT q.quote_no, qi.line_no, qi.item_name, qi.qty, qi.unit, "
+            "qi.unit_price, qi.total_price, qi.note "
+            "FROM quotation_items qi "
+            "LEFT JOIN quotations q ON q.id=qi.quotation_id "
+            "ORDER BY q.id DESC, qi.line_no").fetchall()]
+    sheets = [
+        {"name": "견적", "headers": ["ID","견적번호","작성일","유효기한","버전","상태","금액(원)","고객사"],
+         "rows": [[r["id"], r["quote_no"], r["created_at"], r["valid_until"],
+                   r["version"], r["status"], r["total_amount"], r["customer_name"]]
+                  for r in head_rows]},
+        {"name": "견적라인", "headers": ["견적번호","#","품목명","수량","단위","단가","금액","비고"],
+         "rows": [[r["quote_no"], r["line_no"], r["item_name"], r["qty"],
+                   r["unit"], r["unit_price"], r["total_price"], r["note"]]
+                  for r in line_rows]},
+    ]
+    return _make_xlsx_response(sheets, "견적")
+
+
+@app.get("/po/export.xlsx")
+async def po_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        head_rows = [dict(r) for r in c.execute(
+            "SELECT po.id, po.po_number, po.order_date, po.expected_date, "
+            "po.status, po.currency, po.total_amount, "
+            "COALESCE(s.name,'') AS supplier_name, "
+            "COALESCE(p.name,'') AS project_name "
+            "FROM purchase_orders po "
+            "LEFT JOIN suppliers s ON s.id=po.supplier_id "
+            "LEFT JOIN projects p ON p.id=po.project_id "
+            "ORDER BY po.id DESC").fetchall()]
+        line_rows = [dict(r) for r in c.execute(
+            "SELECT po.po_number, pi.line_no, pi.part_no_snapshot, pi.part_name_snapshot, "
+            "pi.unit, pi.quantity, pi.unit_price, pi.amount, pi.received_qty "
+            "FROM po_items pi LEFT JOIN purchase_orders po ON po.id=pi.po_id "
+            "ORDER BY po.id DESC, pi.line_no").fetchall()]
+    sheets = [
+        {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","공급사","프로젝트"],
+         "rows": [[r["id"], r["po_number"], r["order_date"], r["expected_date"],
+                   r["status"], r["currency"], r["total_amount"],
+                   r["supplier_name"], r["project_name"]] for r in head_rows]},
+        {"name": "발주라인", "headers": ["발주번호","#","품번","품명","단위","수량","단가","금액","입고수량"],
+         "rows": [[r["po_number"], r["line_no"], r["part_no_snapshot"],
+                   r["part_name_snapshot"], r["unit"], r["quantity"],
+                   r["unit_price"], r["amount"], r["received_qty"]] for r in line_rows]},
+    ]
+    return _make_xlsx_response(sheets, "발주")
+
+
+@app.get("/stock/movements/export.xlsx")
+async def stock_movements_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT sm.id, sm.movement_no, sm.occurred_at, p.part_no, p.part_name, "
+            "sm.kind, sm.quantity, sm.unit, sm.unit_price, sm.amount, "
+            "sm.lot_no, po.po_number, prj.name AS project_name, sm.reason "
+            "FROM stock_movements sm "
+            "LEFT JOIN parts p ON p.id=sm.part_id "
+            "LEFT JOIN purchase_orders po ON po.id=sm.po_id "
+            "LEFT JOIN projects prj ON prj.id=sm.project_id "
+            "ORDER BY sm.occurred_at DESC LIMIT 5000").fetchall()]
+    headers = ["ID","수불번호","일시","품번","품명","유형","수량","단위",
+               "단가","금액","로트","발주번호","프로젝트","사유"]
+    data = [[r["id"], r["movement_no"], r["occurred_at"], r["part_no"], r["part_name"],
+             r["kind"], r["quantity"], r["unit"], r["unit_price"], r["amount"],
+             r["lot_no"], r["po_number"], r["project_name"], r["reason"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "수불부", "headers": headers, "rows": data}], "수불부")
+
+
+@app.get("/stock/balances/export.xlsx")
+async def stock_balances_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT sb.part_id, sb.part_no, sb.part_name, sb.on_hand, sb.unit, "
+            "sb.last_movement_at, p.std_price, p.spec "
+            "FROM stock_balances sb LEFT JOIN parts p ON p.id=sb.part_id "
+            "ORDER BY sb.part_no").fetchall()]
+    headers = ["품번","품명","규격","재고수량","단위","표준단가","재고가치(원)","최종거래일"]
+    data = [[r["part_no"], r["part_name"], r["spec"], r["on_hand"], r["unit"],
+             r["std_price"], (r["on_hand"] or 0) * (r["std_price"] or 0),
+             r["last_movement_at"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "재고잔고", "headers": headers, "rows": data}], "재고잔고")
+
+
+@app.get("/issues/export.xlsx")
+async def issues_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT i.id, i.issue_no, i.title, i.severity, i.issue_type, i.status, "
+            "i.customer_name, i.biz_div, i.occurred_at, i.description, "
+            "i.root_cause, i.action_taken, i.prevention, i.cost_estimate, "
+            "i.resolved_at, t.name AS owner_team_name, u.name AS owner_user_name "
+            "FROM issues i LEFT JOIN teams t ON t.id=i.owner_team_id "
+            "LEFT JOIN users u ON u.id=i.owner_user_id "
+            "ORDER BY i.id DESC").fetchall()]
+    headers = ["ID","이슈번호","제목","심각도","유형","상태","고객사","사업부",
+               "발생일","증상","원인","조치","재발방지","비용(원)","해결일",
+               "책임팀","담당자"]
+    data = [[r["id"], r["issue_no"], r["title"], r["severity"], r["issue_type"],
+             r["status"], r["customer_name"], r["biz_div"], r["occurred_at"],
+             r["description"], r["root_cause"], r["action_taken"],
+             r["prevention"], r["cost_estimate"], r["resolved_at"],
+             r["owner_team_name"], r["owner_user_name"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "이슈", "headers": headers, "rows": data}], "이슈")
+
+
+@app.get("/tickets/export.xlsx")
+async def tickets_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT t.id, t.ticket_no, t.category, t.title, t.description, "
+            "t.urgency, t.status, t.due_date, t.completed_at, "
+            "t.hours_estimated, t.hours_actual, "
+            "ru.name AS requester_name, tm.name AS recipient_team_name, "
+            "ru2.name AS recipient_user_name "
+            "FROM tickets t "
+            "LEFT JOIN users ru ON ru.id=t.requester_id "
+            "LEFT JOIN teams tm ON tm.id=t.recipient_team_id "
+            "LEFT JOIN users ru2 ON ru2.id=t.recipient_user_id "
+            "ORDER BY t.id DESC").fetchall()]
+    headers = ["ID","티켓번호","분류","제목","설명","긴급도","상태","기한","완료일",
+               "예상공수","실공수","요청자","수신팀","수신자"]
+    data = [[r["id"], r["ticket_no"], r["category"], r["title"], r["description"],
+             r["urgency"], r["status"], r["due_date"], r["completed_at"],
+             r["hours_estimated"], r["hours_actual"],
+             r["requester_name"], r["recipient_team_name"],
+             r["recipient_user_name"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "티켓", "headers": headers, "rows": data}], "티켓")
+
+
+@app.get("/changes/export.xlsx")
+async def changes_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT ch.id, ch.change_no, ch.change_type, ch.biz_div, "
+            "ch.target_label, ch.title, ch.description, "
+            "ch.before_value, ch.after_value, ch.urgency, ch.status, "
+            "ch.notified_at, ch.completed_at, u.name AS author_name "
+            "FROM changes ch LEFT JOIN users u ON u.id=ch.author_id "
+            "ORDER BY ch.id DESC").fetchall()]
+    headers = ["ID","변경번호","유형","사업부","대상","제목","설명","이전","이후",
+               "긴급도","상태","공지일","완료일","작성자"]
+    data = [[r["id"], r["change_no"], r["change_type"], r["biz_div"],
+             r["target_label"], r["title"], r["description"],
+             r["before_value"], r["after_value"], r["urgency"], r["status"],
+             r["notified_at"], r["completed_at"], r["author_name"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "변경공지", "headers": headers, "rows": data}], "변경공지")
+
+
+@app.get("/production/work-orders/export.xlsx")
+async def wo_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT wo.id, wo.wo_no, wo.qty, wo.status, "
+            "wo.planned_start, wo.planned_end, wo.actual_end, "
+            "p.part_no, p.part_name, "
+            "wo.assigned_name, wo.created_by_name, wo.specifications, wo.remarks "
+            "FROM work_orders wo LEFT JOIN parts p ON p.id=wo.part_id "
+            "ORDER BY wo.id DESC").fetchall()]
+    headers = ["ID","WO번호","수량","상태","계획시작","계획종료","실제완료",
+               "품번","품명","작업자","작성자","사양","비고"]
+    data = [[r["id"], r["wo_no"], r["qty"], r["status"], r["planned_start"],
+             r["planned_end"], r["actual_end"], r["part_no"], r["part_name"],
+             r["assigned_name"], r["created_by_name"],
+             r["specifications"], r["remarks"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "작업지시", "headers": headers, "rows": data}], "작업지시")
+
+
+@app.get("/qc/inspection-reports/export.xlsx")
+async def qc_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT qr.id, qr.report_no, qr.customer_name, qr.machine_model, "
+            "qr.machine_serial, qr.inspection_date, qr.inspector_name, "
+            "qr.qa_manager_name, qr.overall, qr.status, qr.issued_at, qr.remarks "
+            "FROM qc_inspection_reports qr ORDER BY qr.id DESC").fetchall()]
+    headers = ["ID","보고서번호","고객사","장비모델","시리얼","검사일",
+               "검사자","QA책임자","결과","상태","발급일","비고"]
+    data = [[r["id"], r["report_no"], r["customer_name"], r["machine_model"],
+             r["machine_serial"], r["inspection_date"], r["inspector_name"],
+             r["qa_manager_name"], r["overall"], r["status"], r["issued_at"],
+             r["remarks"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "QC검사보고서", "headers": headers, "rows": data}], "QC검사보고서")
+
+
+@app.get("/projects/export.xlsx")
+async def projects_export_xlsx(req: Request):
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT p.id, p.code, p.name, p.type, p.status, "
+            "p.order_amount, p.order_date, p.end_date, "
+            "COALESCE(cu.name,'') AS customer_name, "
+            "COALESCE(u.name,'') AS pm_name "
+            "FROM projects p "
+            "LEFT JOIN customers cu ON cu.id=p.customer_id "
+            "LEFT JOIN users u ON u.id=p.pm_id "
+            "ORDER BY p.id DESC").fetchall()]
+    headers = ["ID","관리코드","프로젝트명","유형","상태","수주액(원)",
+               "수주일","종료일","고객사","PM"]
+    data = [[r["id"], r["code"], r["name"], r["type"], r["status"],
+             r["order_amount"], r["order_date"], r["end_date"],
+             r["customer_name"], r["pm_name"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "프로젝트", "headers": headers, "rows": data}], "프로젝트")
 
 
 @app.get("/customers/ocr-status")

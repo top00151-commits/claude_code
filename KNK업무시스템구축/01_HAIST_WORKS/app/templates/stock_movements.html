@@ -9,6 +9,7 @@
   <div class="page-head">
     <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>수불부</b></div><h1 class="page-title">📊 <em>수불부</em></h1>
     {% if part_filter %}<div class="page-meta" style="margin-top:6px;">필터: <b>{{ part_filter.name }}</b> ({{ part_filter.code }})</div>{% endif %}</div>
+    <a class="btn btn-secondary" href="/stock/movements/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
     {% if part_filter %}<a class="btn btn-secondary" href="/stock/movements">↻ 필터 해제</a>{% endif %}
   </div>
 
