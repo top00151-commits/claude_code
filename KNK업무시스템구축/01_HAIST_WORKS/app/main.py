@@ -590,6 +590,11 @@ def ctx(request, name, **kwargs):
             base["unread_notif"] = 0
     else:
         base["unread_notif"] = 0
+    # v5H72: 권한 헬퍼 — 템플릿에서 사용
+    base["can_sales"]      = can_use_sales(user) if user else False
+    base["can_sales_del"]  = can_delete_sales(user) if user else False  # 삭제 전용 (더 엄격)
+    base["can_logi"]       = can_use_logistics(user) if user else False
+    base["is_admin"]       = bool(user and user.get("role") in ("admin", "ceo"))
     base.update(kwargs)
     return tpl.TemplateResponse(request=request, name=name, context=base)
 
@@ -700,6 +705,27 @@ def can_view_logistics(user) -> bool:
     except (KeyError, IndexError):
         pass
     return False
+
+
+def can_delete_sales(user) -> bool:
+    """v5H72: 매출·영업 **삭제** 권한 — can_use_sales 보다 더 엄격.
+    - admin / ceo / executive: 자동 허용
+    - 기술영업팀(team_id=1) 팀장(leader): 자동 허용
+    - 기타 멤버: users.can_use_sales=1 명시적으로 부여 받은 자만
+    대표 정의: '기술영업팀에서 등록 권한을 받은 사용자만'."""
+    if not user:
+        return False
+    role = (user.get("role") if isinstance(user, dict) else user["role"]) or ""
+    if role in ("admin", "ceo", "executive"):
+        return True
+    team_id = user.get("team_id") if isinstance(user, dict) else None
+    if role == "leader" and team_id == 1:
+        return True
+    # member 는 명시적 위임 받은 자만
+    try:
+        return bool(user.get("can_use_sales"))
+    except Exception:
+        return False
 
 
 def can_use_sales(user) -> bool:
@@ -4457,10 +4483,15 @@ async def projects_confirm_order(req: Request, pid: int):
 
 @app.post("/sales/orders/{oid:int}/delete")
 async def sales_orders_delete(req: Request, oid: int):
-    """v5H70: 잘못 생성한 수주 삭제 — 마지막 수주면 관리번호도 회수."""
+    """v5H70/v5H72: 수주 삭제 — 기술영업팀 등록권한자(can_use_sales)만 가능."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_delete_sales(u):
+        return JSONResponse({
+            "error": "권한 없음",
+            "message": "수주 삭제는 기술영업팀 팀장 또는 위임받은 등록권한자(can_use_sales=1)만 가능합니다.\n영업팀 팀장에게 권한 신청 후 다시 시도하세요."
+        }, 403)
     with db_session() as c:
         res = _pwf.delete_order(c, oid, restore_project=True)
     return JSONResponse(res)
@@ -4963,23 +4994,64 @@ async def qc_export_xlsx(req: Request):
 
 @app.get("/projects/export.xlsx")
 async def projects_export_xlsx(req: Request):
+    """v5H72: 프로젝트 엑셀 — 수주번호/단계/사업부라벨/누적공수/PM 등 풍부한 정보."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     with db_session() as c:
+        # 프로젝트 본체 + 누적 업무 통계 + 수주 합계
         rows = [dict(r) for r in c.execute(
-            "SELECT p.id, p.code, p.name, p.type, p.status, "
-            "p.order_amount, p.order_date, p.end_date, "
-            "COALESCE(cu.name,'') AS customer_name, "
-            "COALESCE(u.name,'') AS pm_name "
-            "FROM projects p "
-            "LEFT JOIN customers cu ON cu.id=p.customer_id "
-            "LEFT JOIN users u ON u.id=p.pm_id "
-            "ORDER BY p.id DESC").fetchall()]
-    headers = ["ID","관리코드","프로젝트명","유형","상태","수주액(원)",
-               "수주일","종료일","고객사","PM"]
-    data = [[r["id"], r["code"], r["name"], r["type"], r["status"],
-             r["order_amount"], r["order_date"], r["end_date"],
-             r["customer_name"], r["pm_name"]] for r in rows]
+            """SELECT p.id, p.mgmt_code, p.code, p.name, p.biz_div, p.type,
+                      p.stage, p.status, p.po_type,
+                      p.order_amount, p.order_date, p.due_date,
+                      p.start_date, p.end_date, p.customer_po,
+                      COALESCE(p.logi_note,'') AS note, p.created_at,
+                      COALESCE(cu.name, p.customer_name, '') AS customer_name,
+                      COALESCE(u.name, p.pm_name, '') AS pm_name,
+                      COALESCE(us.name, p.sales_name, '') AS sales_name,
+                      (SELECT COUNT(*) FROM tasks tk WHERE tk.project_id=p.id) AS task_count,
+                      (SELECT COALESCE(SUM(tk.hours),0) FROM tasks tk WHERE tk.project_id=p.id) AS total_hours,
+                      (SELECT COUNT(*) FROM orders o WHERE o.project_id=p.id) AS so_count,
+                      (SELECT COALESCE(SUM(o.total_amount),0) FROM orders o WHERE o.project_id=p.id) AS so_total
+               FROM projects p
+               LEFT JOIN customers cu ON cu.id=p.customer_id
+               LEFT JOIN users u ON u.id=p.pm_id
+               LEFT JOIN users us ON us.id=p.lead_user_id
+               ORDER BY p.id DESC""").fetchall()]
+        # 각 프로젝트의 수주번호 목록
+        so_by_proj = {}
+        for r in c.execute(
+            "SELECT project_id, order_no FROM orders WHERE project_id IS NOT NULL "
+            "ORDER BY project_id, order_date DESC, id DESC"
+        ).fetchall():
+            so_by_proj.setdefault(r["project_id"], []).append(r["order_no"])
+
+    biz_label = lambda b: "검사기" if b == "T" else ("자동화" if b == "M" else (b or ""))
+
+    headers = [
+        "ID", "관리코드", "수주번호(들)", "프로젝트명", "사업부",
+        "고객사", "단계", "상태", "PO유형",
+        "수주액(원)", "수주합계(원)", "수주건수",
+        "수주일", "납기", "시작일", "종료일",
+        "PM", "영업담당", "고객 PO", "업무수", "누적공수(h)",
+        "비고", "등록일",
+    ]
+    data = []
+    for r in rows:
+        sos = so_by_proj.get(r["id"], [])
+        data.append([
+            r["id"], r["mgmt_code"] or r["code"] or "",
+            ", ".join(sos) if sos else "",
+            r["name"], biz_label(r["biz_div"]),
+            r["customer_name"],
+            r["stage"] or "", r["status"] or "", r["po_type"] or "",
+            r["order_amount"] or 0, r["so_total"] or 0, r["so_count"] or 0,
+            r["order_date"] or "", r["due_date"] or "",
+            r["start_date"] or "", r["end_date"] or "",
+            r["pm_name"] or "", r["sales_name"] or "",
+            r["customer_po"] or "",
+            r["task_count"] or 0, round(r["total_hours"] or 0, 1),
+            r["note"] or "", r["created_at"] or "",
+        ])
     return _make_xlsx_response(
         [{"name": "프로젝트", "headers": headers, "rows": data}], "프로젝트")
 
@@ -6883,11 +6955,18 @@ async def projects_edit_submit(request: Request, pid: int):
 
 @app.post("/projects/{pid}/delete")
 async def projects_delete_submit(request: Request, pid: int):
+    """v5H72: 프로젝트 삭제 — 더 엄격한 can_delete_sales 권한."""
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
-    if not can_use_sales(_u):
-        return RedirectResponse("/home", 303)
+    if not can_delete_sales(_u):
+        # JSON 응답 (프론트 fetch 호환)
+        if request.headers.get("accept", "").find("json") >= 0 or \
+           request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JSONResponse({"error": "권한 없음",
+                                  "message": "프로젝트 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."}, 403)
+        return JSONResponse({"error": "권한 없음",
+                              "message": "프로젝트 삭제 권한이 없습니다."}, 403)
     _logi.projects_delete_logi(pid)
     return RedirectResponse("/projects", status_code=303)
 
