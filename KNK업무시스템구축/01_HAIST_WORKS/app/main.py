@@ -4419,6 +4419,122 @@ _CUSTOMER_FILES_DIR = os.path.join(BASE, "data", "customer_files")
 os.makedirs(_CUSTOMER_FILES_DIR, exist_ok=True)
 
 
+# v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
+@app.get("/customers/export.xlsx")
+async def customers_export_xlsx(req: Request):
+    """전체 고객사 + 담당자 데이터를 .xlsx 로 다운로드.
+    시트1: 고객사 (회사정보 + 자동 등급 + 점수)
+    시트2: 담당자 (고객사명 + 부서/이름/전화/이메일/특징)"""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
+    wb = Workbook()
+
+    # === 시트 1: 고객사 ===
+    ws1 = wb.active
+    ws1.title = "고객사"
+    headers1 = ["ID", "고객사명", "등급", "점수",
+                "사업자번호", "대표자", "대표 전화", "대표 이메일",
+                "주소", "활성", "비고", "프로젝트수",
+                "수주합계(원)", "최근거래일", "등급계산일"]
+    ws1.append(headers1)
+    # 헤더 스타일
+    knk_fill = PatternFill("solid", fgColor="A5282C")
+    white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for col_idx, _ in enumerate(headers1, 1):
+        cell = ws1.cell(row=1, column=col_idx)
+        cell.font = white
+        cell.fill = knk_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT cu.id, cu.name, cu.tier, cu.tier_score,
+                      cu.biz_no, cu.ceo_name, cu.phone, cu.email, cu.address,
+                      cu.is_active, cu.note, cu.tier_computed_at,
+                      COUNT(DISTINCT p.id) AS proj_count,
+                      COALESCE(SUM(p.order_amount), 0) AS total_amount,
+                      MAX(p.order_date) AS last_order
+               FROM customers cu
+               LEFT JOIN projects p ON p.customer_id = cu.id
+               GROUP BY cu.id
+               ORDER BY cu.tier_score DESC, cu.name"""
+        ).fetchall()
+        for r in rows:
+            d = dict(r)
+            ws1.append([
+                d.get("id"), d.get("name"), d.get("tier"), d.get("tier_score") or 0,
+                d.get("biz_no"), d.get("ceo_name"), d.get("phone"), d.get("email"),
+                d.get("address"),
+                "활성" if (d.get("is_active") != 0) else "비활성",
+                d.get("note"), d.get("proj_count") or 0,
+                d.get("total_amount") or 0, d.get("last_order"),
+                d.get("tier_computed_at"),
+            ])
+        # === 시트 2: 담당자 ===
+        ws2 = wb.create_sheet("담당자")
+        headers2 = ["고객사명", "부서", "이름", "직위",
+                    "전화", "휴대폰", "이메일", "주담당", "특징/메모"]
+        ws2.append(headers2)
+        for col_idx, _ in enumerate(headers2, 1):
+            cell = ws2.cell(row=1, column=col_idx)
+            cell.font = white
+            cell.fill = knk_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border
+        contacts = c.execute(
+            """SELECT cu.name AS cust_name, cc.department, cc.name, cc.position,
+                      cc.phone, cc.mobile, cc.email, cc.is_primary, cc.note
+               FROM customer_contacts cc
+               JOIN customers cu ON cu.id = cc.customer_id
+               ORDER BY cu.tier_score DESC, cu.name, cc.is_primary DESC, cc.id"""
+        ).fetchall()
+        for r in contacts:
+            d = dict(r)
+            ws2.append([
+                d.get("cust_name"), d.get("department"), d.get("name"),
+                d.get("position"), d.get("phone"), d.get("mobile"),
+                d.get("email"),
+                "★" if d.get("is_primary") else "",
+                d.get("note"),
+            ])
+
+    # 컬럼 너비 자동 (대략)
+    for ws in [ws1, ws2]:
+        for col in ws.columns:
+            max_len = 8
+            col_letter = col[0].column_letter
+            for cell in col:
+                v = str(cell.value) if cell.value is not None else ""
+                # 한글은 2칸으로 추정
+                disp_len = sum(2 if ord(c) > 0x7F else 1 for c in v)
+                max_len = max(max_len, min(50, disp_len + 2))
+            ws.column_dimensions[col_letter].width = max_len
+        ws.freeze_panes = "A2"  # 헤더 고정
+
+    # 메모리 → BytesIO → StreamingResponse
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from urllib.parse import quote
+    fname = f"고객사_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
+        },
+    )
+
+
 @app.get("/customers/ocr-status")
 async def customers_ocr_status(req: Request):
     """OCR 설치 상태 확인 — Tesseract + 언어 데이터."""
@@ -4496,7 +4612,8 @@ async def admin_recompute_all_tiers(req: Request):
 
 
 def _customer_contacts_from_form(form) -> list[dict]:
-    """v5H56: 폼에서 contact_role_N / contact_name_N 등 패턴으로 다중 담당자 수집."""
+    """v5H56/v5H66: 폼에서 contact_*_N 패턴으로 다중 담당자 수집.
+    v5H66: 'note' (특징) 필드 추가, 'role' 은 hidden 으로 '기타' 기본."""
     indices = sorted({
         int(k.split("_")[-1]) for k in form.keys()
         if k.startswith("contact_name_") and k.split("_")[-1].isdigit()
@@ -4515,6 +4632,7 @@ def _customer_contacts_from_form(form) -> list[dict]:
             "mobile":     (form.get(f"contact_mobile_{idx}") or "").strip(),
             "email":      (form.get(f"contact_email_{idx}") or "").strip(),
             "is_primary": 1 if form.get(f"contact_primary_{idx}") == "1" else 0,
+            "note":       (form.get(f"contact_note_{idx}") or "").strip(),
         })
     return out
 
@@ -4563,10 +4681,11 @@ async def customers_new_submit(req: Request):
         for ct in contacts:
             c.execute(
                 "INSERT INTO customer_contacts(customer_id, role, department, "
-                "name, position, phone, mobile, email, is_primary) "
-                "VALUES(?,?,?,?,?,?,?,?,?)",
+                "name, position, phone, mobile, email, is_primary, note) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (new_id, ct["role"], ct["department"], ct["name"], ct["position"],
-                 ct["phone"], ct["mobile"], ct["email"], ct["is_primary"])
+                 ct["phone"], ct["mobile"], ct["email"], ct["is_primary"],
+                 ct.get("note", ""))
             )
         # v5H58: 즉시 등급 자동 산정
         from . import customer_tier as _ct

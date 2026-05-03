@@ -60,18 +60,20 @@
           · 스캔본/이미지: Tesseract OCR 설치 시 작동 — 미설치 시 친절한 안내 표시
         </span>
       </div>
-      <!-- v5H62: 드래그앤드롭 + 클립보드 붙여넣기 + 파일선택 3가지 모두 지원 -->
-      <div id="bizDropZone" style="border: 2px dashed var(--amber); border-radius: 12px; padding: 24px 16px; background: white; text-align: center; cursor: pointer; transition: all .2s;">
-        <div style="font-size: 32px; margin-bottom: 8px;">📥</div>
-        <div style="font-weight: 700; color: var(--amber-deep); margin-bottom: 4px;">파일을 여기로 끌어다 놓으세요</div>
-        <div style="font-size: 11.5px; color: var(--mute); margin-bottom: 10px;">
-          또는 <b style="color:var(--knk-red);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('bizDocFile').click()">파일 선택</b>
-          · <kbd style="background:var(--paper-2);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--line);">Ctrl+V</kbd> 로 클립보드 이미지 붙여넣기
+      <!-- v5H66: 드롭존 컴팩트 (절반 이하 사이즈) -->
+      <div id="bizDropZone" style="border: 1.5px dashed var(--amber); border-radius: 8px; padding: 10px 14px; background: white; cursor: pointer; transition: all .2s; display:flex; align-items:center; gap:12px;">
+        <span style="font-size: 20px;">📥</span>
+        <div style="flex:1; font-size: 12.5px; color:var(--ink);">
+          <b style="color:var(--amber-deep);">파일을 여기로 끌어다 놓으세요</b>
+          <span style="color:var(--mute); margin: 0 6px;">·</span>
+          <b style="color:var(--knk-red);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('bizDocFile').click()">파일 선택</b>
+          <span style="color:var(--mute); margin: 0 6px;">·</span>
+          <kbd style="background:var(--paper-2);padding:1px 5px;border-radius:3px;font-size:10.5px;border:1px solid var(--line);">Ctrl+V</kbd> 붙여넣기
+          <span style="font-size:10.5px;color:var(--mute);margin-left:8px;">PDF/JPG/PNG (≤20MB)</span>
         </div>
-        <div style="font-size: 10.5px; color: var(--mute);">PDF / JPG / PNG / BMP / TIFF 지원 (최대 20MB)</div>
         <input type="file" id="bizDocFile" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff" style="display: none;">
-        <div id="filePreview" style="display:none; margin-top: 12px; padding: 8px 12px; background: var(--paper-2); border-radius: 8px; font-size: 12px; color: var(--ink);"></div>
       </div>
+      <div id="filePreview" style="display:none; margin-top: 8px; padding: 6px 10px; background: var(--paper-2); border-radius: 6px; font-size: 11.5px; color: var(--ink);"></div>
       <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
         <button type="button" class="btn btn-primary" onclick="parseBizDoc()" id="parseBtn" style="background: var(--amber-deep);" disabled>🔍 자동 인식</button>
         <button type="button" class="btn btn-secondary" onclick="clearBizFile()" id="clearFileBtn" style="display:none;">✕ 파일 제거</button>
@@ -145,34 +147,31 @@
 
     <!-- 담당자 (다중) -->
     <div class="form-card">
-      <h2>👥 담당자 <span style="font-size:12px;font-weight:500;color:var(--mute);">— 역할별로 여러 명 등록 가능</span></h2>
+      <h2>👥 담당자 <span style="font-size:12px;font-weight:500;color:var(--mute);">— 부서별로 여러 명 등록 가능</span></h2>
       <div class="role-help">
-        💡 한 거래처에 <b>영업/구매/세금계산서/품질/기술/결재 담당자</b>를 부서별로 분리 등록.
-        주담당(★)은 역할별 1명만 표시.
+        💡 한 거래처에 여러 부서 담당자를 분리 등록. 주담당(★)은 1명만 표시.
+        담당자 특징(메모) 마지막 칸에 자유 기록.
       </div>
       <table class="contacts-tbl" id="contactsTbl">
         <thead>
           <tr>
-            <th style="width:120px;">역할</th>
             <th style="width:130px;">부서</th>
-            <th style="width:120px;">이름</th>
-            <th style="width:100px;">직위</th>
-            <th style="width:140px;">전화</th>
-            <th style="width:140px;">휴대폰</th>
-            <th>이메일</th>
-            <th style="width:60px;text-align:center;">주담당</th>
-            <th style="width:50px;"></th>
+            <th style="width:110px;">이름</th>
+            <th style="width:90px;">직위</th>
+            <th style="width:130px;">전화</th>
+            <th style="width:130px;">휴대폰</th>
+            <th style="width:160px;">이메일</th>
+            <th style="width:50px;text-align:center;">주담당</th>
+            <th>특징 / 메모</th>
+            <th style="width:40px;"></th>
           </tr>
         </thead>
         <tbody id="contactsBody">
           {% if contacts %}
             {% for c in contacts %}
             <tr data-idx="{{ loop.index }}">
-              <td><select name="contact_role_{{ loop.index }}">
-                {% for r in ['영업','구매','세금계산서','품질','기술','결재','수발신','기타'] %}
-                <option value="{{ r }}" {% if c.role == r %}selected{% endif %}>{{ r }}</option>
-                {% endfor %}
-              </select></td>
+              <!-- 역할(role) 컬럼 제거 v5H66 — DB 호환 위해 hidden 으로 '기타' 자동 전달 -->
+              <input type="hidden" name="contact_role_{{ loop.index }}" value="{{ c.role|default('기타') }}">
               <td><input type="text" name="contact_dept_{{ loop.index }}" value="{{ c.department|default('') }}" placeholder="구매2팀"></td>
               <td><input type="text" name="contact_name_{{ loop.index }}" value="{{ c.name }}" placeholder="홍길동"></td>
               <td><input type="text" name="contact_position_{{ loop.index }}" value="{{ c.position|default('') }}" placeholder="과장"></td>
@@ -180,6 +179,7 @@
               <td><input type="text" name="contact_mobile_{{ loop.index }}" value="{{ c.mobile|default('') }}" placeholder="010-1234-5678"></td>
               <td><input type="email" name="contact_email_{{ loop.index }}" value="{{ c.email|default('') }}" placeholder="hong@example.com"></td>
               <td style="text-align:center;"><input type="checkbox" name="contact_primary_{{ loop.index }}" value="1" {% if c.is_primary %}checked{% endif %}></td>
+              <td><input type="text" name="contact_note_{{ loop.index }}" value="{{ c.note|default('') }}" placeholder="예: 최종 결재 / 야간 연락처 / 정산 담당"></td>
               <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
             </tr>
             {% endfor %}
@@ -203,16 +203,14 @@
 </main></div>
 <script>
 let contactCount = {{ contacts|length if contacts else 0 }};
-const ROLES = ['영업','구매','세금계산서','품질','기술','결재','수발신','기타'];
-function addContact(role) {
+function addContact() {
   contactCount += 1;
   const idx = contactCount;
   const tbody = document.getElementById('contactsBody');
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
-  const opts = ROLES.map(r => `<option value="${r}" ${(role===r)?'selected':''}>${r}</option>`).join('');
   tr.innerHTML = `
-    <td><select name="contact_role_${idx}">${opts}</select></td>
+    <input type="hidden" name="contact_role_${idx}" value="기타">
     <td><input type="text" name="contact_dept_${idx}" placeholder="구매2팀"></td>
     <td><input type="text" name="contact_name_${idx}" placeholder="홍길동"></td>
     <td><input type="text" name="contact_position_${idx}" placeholder="과장"></td>
@@ -220,13 +218,14 @@ function addContact(role) {
     <td><input type="text" name="contact_mobile_${idx}" placeholder="010-1234-5678"></td>
     <td><input type="email" name="contact_email_${idx}" placeholder="hong@example.com"></td>
     <td style="text-align:center;"><input type="checkbox" name="contact_primary_${idx}" value="1"></td>
+    <td><input type="text" name="contact_note_${idx}" placeholder="예: 최종 결재 / 야간 연락처 / 정산 담당"></td>
     <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   tbody.appendChild(tr);
 }
-// 신규 등록 시 영업/구매/세금계산서 3개 행 자동 생성
+// v5H66: 신규 등록 시 빈 행 1개 자동 생성
 {% if not customer and not contacts %}
-['영업','구매','세금계산서'].forEach(addContact);
+addContact();
 {% endif %}
 
 // v5H60: 한국어 OCR 데이터 자동 설치
