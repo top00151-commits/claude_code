@@ -485,9 +485,9 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
 
 def get_project_orders(c, project_id: int) -> list[dict]:
     """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순.
-    v5H81b: 새 컬럼(ship_to/unit_qty/unit_label/unit_note) 도 함께 SELECT
-    + None 안전 기본값 보정 (Jinja sum 등 합계 연산이 None+int 로 깨지지 않도록)."""
-    # 컬럼 존재 여부 동적 감지 — 구버전 DB 호환
+    v5H85: 호기별 라인(order_items) 도 함께 fetch → 호기마다 금액이
+           다른 경우 템플릿에서 분해 표시.
+    """
     try:
         cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
     except Exception:
@@ -506,7 +506,6 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     out = []
     for r in rows:
         d = dict(r)
-        # 합계/표시용 None → 기본값
         if d.get("total_amount") is None:
             d["total_amount"] = 0
         if "unit_qty" not in d or d.get("unit_qty") is None:
@@ -517,5 +516,34 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             d["unit_label"] = None
         if "unit_note" not in d:
             d["unit_note"] = None
+
+        # 호기별 라인 (order_items) — 있을 때만
+        try:
+            try:
+                oicols = {r2[1] for r2 in c.execute(
+                    "PRAGMA table_info(order_items)").fetchall()}
+            except Exception:
+                oicols = set()
+            sel_extra = []
+            if "unit_label" in oicols: sel_extra.append("unit_label")
+            if "line_note" in oicols:  sel_extra.append("line_note")
+            sel_extra_sql = (", " + ", ".join(sel_extra)) if sel_extra else ""
+            items = c.execute(
+                f"SELECT id, qty, unit_price, amount{sel_extra_sql} "
+                f"FROM order_items WHERE order_id=? ORDER BY id ASC",
+                (d["id"],)
+            ).fetchall()
+            d["units"] = [dict(it) for it in items]
+        except Exception:
+            d["units"] = []
+
+        # 단가 동질성 판단 — 모두 같으면 unit_price_uniform=값, 다르면 None
+        if d["units"]:
+            prices = {round(float(u.get("unit_price") or u.get("amount") or 0))
+                      for u in d["units"]}
+            d["unit_price_uniform"] = next(iter(prices)) if len(prices) == 1 else None
+        else:
+            d["unit_price_uniform"] = None
+
         out.append(d)
     return out

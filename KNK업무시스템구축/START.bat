@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H84b inline edit not working bugfix — template referenced can_use_sales but ctx() exposes can_sales. _editable always False → input/💾 never rendered. project_detail.html var name fixed. v5H84 SO inline quick-edit — CEO suggestion: 'if we can edit the order quantity, it'll be easier'. project_detail SO list now shows unit_qty (number input) and total_amount (text + commas) inline; on change a 💾 button appears → POST /sales/orders/{oid}/quick-edit. Validation: qty>=1, amt>=0; rejects SHIPPED/INVOICED/PAID/CANCELLED SOs. Updates project.order_amount sum + writes history note. Requires can_use_sales. Direct quantity adjustment as simpler alternative to multi-SO grouping flow.
+REM   LAST UPDATE: 2026-05-03 v5H85 per-unit price breakdown when units within an SO differ — CEO: 'when SO is the same but unit prices differ, how do we display?'. get_project_orders now fetches order_items per SO + computes unit_price_uniform flag. project_detail amount cell shows (1) all-same: 'N units × price' subtitle (2) mixed: '호기별 단가 ▾' collapsible details with each unit label + amount. Single-unit SO: no breakdown. — CEO suggestion: 'if we can edit the order quantity, it'll be easier'. project_detail SO list now shows unit_qty (number input) and total_amount (text + commas) inline; on change a 💾 button appears → POST /sales/orders/{oid}/quick-edit. Validation: qty>=1, amt>=0; rejects SHIPPED/INVOICED/PAID/CANCELLED SOs. Updates project.order_amount sum + writes history note. Requires can_use_sales. Direct quantity adjustment as simpler alternative to multi-SO grouping flow.
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84b inline edit permission var name fix]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H85 per-unit price breakdown when units differ]
 
 echo.
 echo ============================================================

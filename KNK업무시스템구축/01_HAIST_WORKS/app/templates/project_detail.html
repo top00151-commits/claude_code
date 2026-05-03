@@ -164,7 +164,24 @@
                      class="amt-inp knk-money" data-orig="{{ so.total_amount or 0 }}"
                      style="width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:right;background:var(--paper);">
               {% else %}
-              {{ '{:,.0f}'.format(so.total_amount or 0) }}
+              <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
+              {% endif %}
+              {# v5H85: 호기별 단가 표기 — 모두 같으면 'N대 × 단가', 다르면 호기별 분해 #}
+              {% if so.units and so.units|length > 1 %}
+                {% if so.unit_price_uniform is not none %}
+                <div style="font-size:10.5px;color:var(--mute);margin-top:2px;text-align:right;">
+                  {{ so.units|length }}대 × {{ '{:,.0f}'.format(so.unit_price_uniform) }}원
+                </div>
+                {% else %}
+                <details style="margin-top:2px;">
+                  <summary style="font-size:10.5px;color:var(--knk-red);cursor:pointer;text-align:right;">호기별 단가 ▾</summary>
+                  <div style="font-size:11px;color:var(--ink);margin-top:4px;text-align:right;line-height:1.6;">
+                    {% for u in so.units %}
+                    <div><span style="color:var(--mute);">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span> · <b>{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</b></div>
+                    {% endfor %}
+                  </div>
+                </details>
+                {% endif %}
               {% endif %}
             </td>
             <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>

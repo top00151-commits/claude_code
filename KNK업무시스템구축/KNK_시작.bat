@@ -1,10 +1,10 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-03 v5H84b 인라인 수정 안 되는 버그 수정 — 템플릿이 can_use_sales 사용했지만 ctx() 가 can_sales 로 노출. _editable 항상 False 평가 → input/💾 미렌더. project_detail.html 변수명 정정. v5H84 SO 인라인 빠른 수정 — 대표 제안 '발주 수량을 수정할 수 있게 하면 쉽게 될 것 같은데'. project_detail 수주 내역 테이블에서 호기수(number input)/금액(text input + 콤마) 즉시 편집 → 변경 감지 시 💾 저장 버튼 노출 → 클릭 시 POST /sales/orders/{oid}/quick-edit. 호기수 1+ / 금액 0+ 검증, 출하/송장/취소 SO 는 거부. 저장 시 프로젝트 order_amount 동기화 + history 기록. 권한: can_use_sales 필요. 신규 발주 워크플로우 대신 직접 수량 조정으로 단순화 가능
+REM   LAST UPDATE: 2026-05-03 v5H85 SO 안 호기 단가 다를 때 분해 표기 — 대표 질문 '수주번호는 같은데 호기 금액이 다를 때는 어떻게 표기를 해?'. get_project_orders 가 order_items 동시 fetch + unit_price_uniform 판정. project_detail 금액 셀 아래에 (1) 단가 모두 동일 → 'N대 × 단가' (2) 단가 다름 → '호기별 단가 ▾' 펼치기 (각 호기 라벨 + 금액). 호기 1개면 표기 생략 (합계만) — 대표 제안 '발주 수량을 수정할 수 있게 하면 쉽게 될 것 같은데'. project_detail 수주 내역 테이블에서 호기수(number input)/금액(text input + 콤마) 즉시 편집 → 변경 감지 시 💾 저장 버튼 노출 → 클릭 시 POST /sales/orders/{oid}/quick-edit. 호기수 1+ / 금액 0+ 검증, 출하/송장/취소 SO 는 거부. 저장 시 프로젝트 order_amount 동기화 + history 기록. 권한: can_use_sales 필요. 신규 발주 워크플로우 대신 직접 수량 조정으로 단순화 가능
 REM   업데이트 규칙: 01 세션이 코드 수정/작업할 때마다 본 라인 갱신
 REM ============================================================
 chcp 65001 > nul
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H84b 인라인 수정 권한 변수명 오타 수정 (can_use_sales → can_sales)]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H85 SO 안 호기 단가 다를 때 분해 표기 (균일/펼치기)]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
