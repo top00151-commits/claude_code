@@ -4565,8 +4565,11 @@ async def sales_order_item_edit(req: Request, iid: int):
     if amt < 0:
         return JSONResponse({"ok": False, "message": "금액은 0 이상이어야 합니다"}, 400)
     with db_session() as c:
+        # v5H100: 변경 전 값 캡처 (이력 기록용)
         it = c.execute(
-            "SELECT oi.order_id, o.status, o.project_id "
+            "SELECT oi.order_id, oi.unit_label AS old_lbl, oi.amount AS old_amt, "
+            "       oi.line_note AS old_note, "
+            "       o.status, o.project_id, o.total_amount AS old_total "
             "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
             "WHERE oi.id=?", (iid,)
         ).fetchone()
@@ -4604,6 +4607,33 @@ async def sales_order_item_edit(req: Request, iid: int):
                           (float(row[0] or 0), pid))
         except Exception:
             pass
+        # v5H100: 변경 이력 기록 (before → after)
+        try:
+            old_lbl = it["old_lbl"] or "—"
+            old_amt = float(it["old_amt"] or 0)
+            old_total = float(it["old_total"] or 0)
+            parts = [f"호기 라인 수정 [{old_lbl}"]
+            if old_lbl != (label or "—"):
+                parts.append(f"→ {label or '—'}")
+            parts.append("]")
+            change_msgs = []
+            if abs(old_amt - amt) > 0.5:
+                change_msgs.append(f"단가 {old_amt:,.0f} → {amt:,.0f}")
+            old_note_v = it["old_note"] or ""
+            if old_note_v != (note or ""):
+                change_msgs.append(f"비고 변경")
+            if abs(old_total - new_total) > 0.5:
+                change_msgs.append(f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            if not change_msgs:
+                change_msgs.append("(변동 없음)")
+            note_msg = " ".join(parts) + " · " + " / ".join(change_msgs)
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, "
+                "changed_by, note) VALUES(?,?,?,?,?)",
+                (oid, st, st, u.get("id"), note_msg)
+            )
+        except Exception:
+            pass
     return JSONResponse({"ok": True, "message": "라인 수정 완료"})
 
 
@@ -4616,8 +4646,10 @@ async def sales_order_item_delete(req: Request, iid: int):
     if not can_use_sales(u):
         return JSONResponse({"error": "권한 없음"}, 403)
     with db_session() as c:
+        # v5H100: 삭제 전 값 캡처
         it = c.execute(
-            "SELECT oi.order_id, o.status, o.project_id "
+            "SELECT oi.order_id, oi.unit_label AS lbl, oi.amount AS amt, oi.line_note AS lnote, "
+            "       o.status, o.project_id, o.total_amount AS old_total "
             "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
             "WHERE oi.id=?", (iid,)
         ).fetchone()
@@ -4630,6 +4662,9 @@ async def sales_order_item_delete(req: Request, iid: int):
                 "message": f"{st} 상태 SO 의 호기는 삭제 불가"
             }, 400)
         oid = it["order_id"]
+        del_lbl = it["lbl"] or "—"
+        del_amt = float(it["amt"] or 0)
+        old_total = float(it["old_total"] or 0)
         c.execute("DELETE FROM order_items WHERE id=?", (iid,))
         # SO 재계산
         rows = c.execute(
@@ -4651,6 +4686,17 @@ async def sales_order_item_delete(req: Request, iid: int):
                 ).fetchone()
                 c.execute("UPDATE projects SET order_amount=? WHERE id=?",
                           (float(row[0] or 0), pid))
+        except Exception:
+            pass
+        # v5H100: 삭제 이력
+        try:
+            note_msg = (f"호기 라인 삭제 [{del_lbl}] · 단가 {del_amt:,.0f} 제거 · "
+                        f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, "
+                "changed_by, note) VALUES(?,?,?,?,?)",
+                (oid, st, st, u.get("id"), note_msg)
+            )
         except Exception:
             pass
     return JSONResponse({"ok": True, "message": "라인 삭제 완료"})
@@ -4732,13 +4778,19 @@ async def sales_orders_add_unit(req: Request, oid: int):
                           (float(row[0] or 0), pid))
         except Exception:
             pass
-        # 이력
+        # 이력 (v5H100: SO 합계 변동 명시)
         try:
+            old_total = float(cur["total_amount"] or 0)
+            old_qty = int(cur["unit_qty"] or 1)
+            note_msg = (f"호기 추가 [{label}] · 단가 {amt:,.0f} {cur_v} · "
+                        f"수량 {old_qty} → {new_qty}대 · "
+                        f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            if note:
+                note_msg += f" ({note})"
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
-                (oid, st, st, u.get("id"),
-                 f"호기 추가: {label} / {amt:,.0f}원" + (f" ({note})" if note else ""))
+                (oid, st, st, u.get("id"), note_msg)
             )
         except Exception:
             pass
