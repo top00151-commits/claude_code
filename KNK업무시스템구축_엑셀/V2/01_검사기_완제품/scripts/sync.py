@@ -170,11 +170,11 @@ def _assign_codes(ws, log):
         if not sj_date:
             sj_date = TODAY
         base = f"{BIZ_CODE}-{sj_date.strftime('%y%m%d')}"
-        # 중복 시 -N 부여
+        # 중복 시 -N 부여 (둘째부터 -1, -2, -3, ...)
         if base not in existing_sj:
             sj_num = base
         else:
-            n = 2
+            n = 1
             while f"{base}-{n}" in existing_sj:
                 n += 1
             sj_num = f"{base}-{n}"

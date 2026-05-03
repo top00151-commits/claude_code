@@ -134,208 +134,279 @@
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
-      <!-- v5H68: 연결된 수주(SO) 목록 — KNK 워크플로우 -->
+      <!-- v5H93: 수주 내역 — 카드형 레이아웃 (한 SO = 한 카드, 호기 라인 항상 노출) -->
+      <style>
+        .so-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); overflow: hidden; box-shadow: var(--shadow-sm); }
+        .so-card-head { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+        .so-card-head .so-no { font-family: monospace; font-weight: 700; font-size: 18px; color: var(--knk-red); letter-spacing: 0.02em; }
+        .so-card-head .so-no a { color: inherit; text-decoration: none; }
+        .so-card-head .so-no a:hover { text-decoration: underline; }
+        .so-meta { display: flex; gap: 14px; flex: 1; flex-wrap: wrap; font-size: 12.5px; color: var(--ink); }
+        .so-meta .item { display: inline-flex; align-items: center; gap: 4px; }
+        .so-meta .item .k { color: var(--mute); font-weight: 500; }
+        .so-meta .item .v { font-weight: 700; }
+        .so-actions { display: flex; gap: 6px; }
+        .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
+        .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
+        .so-actions .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
+        .so-actions .btn-mini.danger:hover { background: #fff1f1; border-color: var(--knk-red); color: var(--knk-red); }
+
+        .so-units { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .so-units th { text-align: left; padding: 8px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
+        .so-units th.num { text-align: right; }
+        .so-units th.center { text-align: center; }
+        .so-units td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+        .so-units td.num { text-align: right; font-weight: 600; font-family: monospace; }
+        .so-units td.center { text-align: center; }
+        .so-units tr:last-child td { border-bottom: 0; }
+        .so-units .lbl { font-weight: 700; color: var(--ink); }
+        .so-units .price { color: var(--knk-red); }
+        .so-units .note { color: var(--mute); font-size: 12px; }
+        .so-units input.unit-edit { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: var(--paper); }
+        .so-units input.unit-edit:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
+        .so-units input.unit-edit.amt { width: 130px; text-align: right; font-family: monospace; font-weight: 700; color: var(--knk-red); }
+        .so-units input.unit-edit.lbl-inp { width: 90px; }
+        .so-units input.unit-edit.note-inp { width: 100%; min-width: 140px; }
+        .so-units .row-save { display: none; padding: 4px 8px; background: var(--amber-deep); color: white; border: 0; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+        .so-card-foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: var(--paper); border-top: 1px solid var(--line); font-size: 13px; }
+        .so-card-foot .summary { color: var(--ink); }
+        .so-card-foot .summary b { color: var(--knk-red); font-size: 15px; font-family: monospace; margin: 0 4px; }
+        .so-card-foot .ago { color: var(--mute); font-size: 11.5px; }
+        .so-card-foot .warn { color: var(--knk-red); font-weight: 700; font-size: 12px; }
+
+        .add-unit-card { padding: 12px 16px; background: var(--amber-glow); border-top: 1px dashed var(--amber); display: none; }
+        .add-unit-card.open { display: block; }
+        .add-unit-card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .add-unit-card input, .add-unit-card select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; font-size: 13px; background: var(--paper); }
+        .add-unit-card input.amt { width: 130px; text-align: right; }
+        .add-unit-card input.note { flex: 1; min-width: 140px; }
+        .add-unit-card .save-btn { background: var(--amber-deep); color: white; border: 0; border-radius: 5px; padding: 7px 16px; font-weight: 700; cursor: pointer; }
+        .add-unit-card .cancel-btn { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
+
+        .so-grand-total { padding: 14px 18px; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-top: var(--space-3); display: flex; justify-content: space-between; align-items: center; }
+        .so-grand-total .label { font-size: 13px; color: var(--mute); font-weight: 600; }
+        .so-grand-total .value { font-size: 22px; font-weight: 700; color: var(--knk-red); font-family: monospace; }
+      </style>
+
       <div class="section-card">
         <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
         {% if project_orders %}
-        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
-          <thead><tr><th>수주번호</th><th>발주일</th><th>납기</th><th>납품처</th><th class="center">수량</th><th class="num">단가</th><th class="num">금액</th><th class="center">통화</th><th class="center">상태</th><th>비고</th><th style="width:90px;">동작</th></tr></thead>
-          <tbody>
-          {% for so in project_orders %}
+        <div class="list-scroll">
+        {% for so in project_orders %}
           {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
-          <tr data-soid="{{ so.id }}">
-            <td style="font-family:monospace;font-weight:700;color:var(--knk-red);"><a href="/sales/orders/{{ so.id }}" style="color:inherit;">{{ so.order_no }}</a></td>
-            <td>{{ so.order_date|default('-') }}</td>
-            <td>{{ so.due_date|default('-') }}</td>
-            <td>{{ so.ship_to|default('-') }}</td>
-            <td class="center">
-              {% if _editable %}
-              <input type="number" min="1" step="1" value="{{ so.unit_qty|default(1) }}"
-                     class="qty-inp" data-orig="{{ so.unit_qty|default(1) }}"
-                     style="width:60px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:center;background:var(--paper);">대
-              {% else %}
-              {{ so.unit_qty|default(1) }}대
-              {% endif %}
-              {% if so.unit_label %}<div style="font-size:10.5px;color:var(--mute);margin-top:2px;">{{ so.unit_label }}</div>{% endif %}
-              {% if so.mismatch_qty %}
-              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="호기수({{ so.unit_qty }}대) ≠ 호기 라인({{ so.items_n }}건). '➕ 호기' 로 부족한 호기를 추가하세요.">⚠ 호기 {{ so.items_n }}/{{ so.unit_qty }}</div>
-              {% endif %}
-            </td>
-            {# v5H92: 단가 셀 — 호기 단가 (균일 표시 / 다르면 '여러 단가 ▾') #}
-            {% set _cur = so.currency|default('KRW') %}
-            {% set _sym = '$' if _cur == 'USD' else '₩' %}
-            {% set _qq = so.unit_qty|default(1) %}
-            <td class="num">
-              {% if so.units and so.units|length > 0 %}
-                {% if so.unit_price_uniform is not none %}
-                  <b>{{ _sym }}{{ '{:,.0f}'.format(so.unit_price_uniform) }}</b>
-                {% else %}
-                <details style="margin:0;">
-                  <summary style="font-size:12px;color:var(--knk-red);cursor:pointer;text-align:right;font-weight:700;">여러 단가 ▾</summary>
-                  <div style="font-size:11px;color:var(--ink);margin-top:4px;text-align:right;line-height:1.6;">
-                    {% for u in so.units %}
-                    <div><span style="color:var(--mute);">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span> · <b>{{ _sym }}{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</b></div>
-                    {% endfor %}
-                  </div>
-                </details>
-                {% endif %}
-              {% elif _qq > 0 and so.total_amount %}
-                <span style="color:var(--mute);">{{ _sym }}{{ '{:,.0f}'.format((so.total_amount or 0) / _qq) }}</span>
-                <div style="font-size:10px;color:var(--mute);">(평균)</div>
-              {% else %}—{% endif %}
-            </td>
-            <td class="num">
-              {% if _editable %}
-              <input type="text" inputmode="numeric" value="{{ '{:,.0f}'.format(so.total_amount or 0) }}"
-                     class="amt-inp knk-money" data-orig="{{ so.total_amount or 0 }}"
-                     style="width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;text-align:right;background:var(--paper);">
-              {% else %}
-              <b>{{ _sym }}{{ '{:,.0f}'.format(so.total_amount or 0) }}</b>
-              {% endif %}
-              {% if so.mismatch_sum %}
-              <div style="font-size:10.5px;color:var(--knk-red);font-weight:700;margin-top:3px;text-align:right;" title="합계({{ _sym }}{{ '{:,.0f}'.format(so.total_amount) }}) ≠ 호기 단가 합({{ _sym }}{{ '{:,.0f}'.format(so.items_sum) }}). 차액 {{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}">⚠ 합계 불일치 Δ{{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}</div>
-              {% endif %}
-            </td>
-            <td class="center">
-              {% if _editable %}
-              <select class="cur-inp" data-orig="{{ _cur }}" style="padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:13px;background:var(--paper);">
-                <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>₩ KRW</option>
-                <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>$ USD</option>
-              </select>
-              {% else %}
-              <span style="font-size:12px;color:var(--mute);">{{ _sym }} {{ _cur }}</span>
-              {% endif %}
-            </td>
-            <td class="center"><span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span></td>
-            <td style="font-size:11px;color:var(--mute);">{% if loop.last %}최초 수주{% else %}추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</td>
-            <td style="text-align:center;white-space:nowrap;">
-              {% if _editable %}
-              <button type="button" class="save-so" title="수정 저장" style="background:transparent;border:1px solid var(--line);color:var(--amber-deep);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;display:none;">💾</button>
-              <button type="button" class="add-unit" title="호기 추가 (단가 별도)" style="background:transparent;border:1px solid var(--amber);color:var(--amber-deep);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">➕ 호기</button>
-              {% endif %}
-              {% if can_sales_del %}
-              <button type="button" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})' title="수주 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
-              {% else %}
-              <span style="color:var(--line);font-size:13px;" title="삭제 권한 없음 (영업팀 등록권한자만)">🔒</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% if _editable %}
-          <tr class="add-unit-row" data-soid="{{ so.id }}" style="display:none;background:var(--amber-glow);">
-            <td colspan="11" style="padding:10px 14px;">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;">
-                <span style="font-weight:700;color:var(--amber-deep);">➕ 호기 추가:</span>
-                <input type="text" name="label" placeholder="호기 라벨 (비우면 자동)" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
-                <select name="cur" style="padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
-                  <option value="KRW" {% if (so.currency or 'KRW') == 'KRW' %}selected{% endif %}>₩ KRW</option>
-                  <option value="USD" {% if so.currency == 'USD' %}selected{% endif %}>$ USD</option>
-                </select>
-                <input type="text" name="amount" inputmode="numeric" placeholder="단가" class="knk-money" style="width:130px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;text-align:right;background:var(--paper);">
-                <input type="text" name="note" placeholder="비고 (선택)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
-                <button type="button" class="confirm-add-unit" style="background:var(--amber-deep);color:white;border:0;border-radius:5px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
-                <button type="button" class="cancel-add-unit" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:5px;padding:7px 12px;cursor:pointer;font-size:13px;">취소</button>
+          {% set _cur = so.currency|default('KRW') %}
+          {% set _sym = '$' if _cur == 'USD' else '₩' %}
+          {% set _qq = so.unit_qty|default(1) %}
+          <div class="so-card" data-soid="{{ so.id }}">
+            <!-- 헤더: 수주번호 + 메타 + 액션 -->
+            <div class="so-card-head">
+              <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
+              <span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span>
+              <div class="so-meta">
+                <span class="item"><span class="k">📅 발주</span><span class="v">{{ so.order_date|default('-') }}</span></span>
+                <span class="item"><span class="k">→ 납기</span><span class="v">{{ so.due_date|default('-') }}</span></span>
+                <span class="item"><span class="k">📍 납품처</span><span class="v">{{ so.ship_to|default('미지정') }}</span></span>
+                <span class="item"><span class="k">💱 통화</span><span class="v">{{ _sym }} {{ _cur }}</span></span>
+                <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
-            </td>
-          </tr>
-          {% endif %}
-          {% endfor %}
-          </tbody>
-          <tfoot>
-            <tr style="background:var(--paper-2);font-weight:700;">
-              <td colspan="4" style="text-align:right;padding:10px;">총 합계 →</td>
-              <td class="center">{% set _qty = namespace(t=0) %}{% for _so in project_orders %}{% set _qty.t = _qty.t + (_so.unit_qty or 1) %}{% endfor %}{{ _qty.t }}대</td>
-              <td colspan="2" class="num">{{ '{:,.0f}'.format(project_orders|sum(attribute='total_amount')) }}<span style="color:var(--mute);font-weight:500;font-size:11px;"> (KRW 환산)</span></td>
-              <td colspan="4" style="font-size:11px;color:var(--mute);">SO {{ project_orders|length }}건</td>
-            </tr>
-          </tfoot>
-        </table></div>
-        <script>
-        // v5H90: '➕ 호기' 버튼 — 단가가 다른 추가 호기 라인 즉시 입력
-        (function(){
-          document.querySelectorAll('tr[data-soid]').forEach(tr => {
-            const addBtn = tr.querySelector('.add-unit');
-            if (!addBtn) return;
-            const soid = tr.dataset.soid;
-            const formRow = document.querySelector('.add-unit-row[data-soid="' + soid + '"]');
-            if (!formRow) return;
-            // knk-money 부착 (콤마)
-            const amtInp = formRow.querySelector('input[name="amount"]');
-            if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
-            addBtn.addEventListener('click', () => {
-              formRow.style.display = (formRow.style.display === 'none' || !formRow.style.display) ? '' : 'none';
-              if (formRow.style.display === '') {
-                formRow.querySelector('input[name="label"]').focus();
-              }
-            });
-            formRow.querySelector('.cancel-add-unit').addEventListener('click', () => {
-              formRow.style.display = 'none';
-              formRow.querySelectorAll('input').forEach(i => i.value = '');
-            });
-            formRow.querySelector('.confirm-add-unit').addEventListener('click', async () => {
-              const body = new URLSearchParams();
-              body.set('label', formRow.querySelector('input[name="label"]').value || '');
-              body.set('amount', (amtInp.value || '0').replace(/,/g,''));
-              body.set('note',  formRow.querySelector('input[name="note"]').value || '');
-              const curSel = formRow.querySelector('select[name="cur"]');
-              if (curSel) body.set('currency', curSel.value);
-              if (parseFloat(body.get('amount')) <= 0) {
-                alert('⚠ 단가를 입력해주세요'); return;
-              }
-              try {
-                const r = await fetch('/sales/orders/' + soid + '/add-unit', {
-                  method: 'POST', body: body
-                });
-                const j = await r.json();
-                if (j.ok) { location.reload(); }
-                else { alert('⚠ ' + (j.message || j.error || '실패')); }
-              } catch(e) { alert('⚠ 네트워크 오류: ' + e.message); }
-            });
-          });
-        })();
+              <div class="so-actions">
+                {% if _editable %}
+                <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
+                {% endif %}
+                {% if can_sales_del %}
+                <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})'>🗑 삭제</button>
+                {% else %}
+                <span style="color:var(--line);font-size:14px;" title="삭제 권한 없음">🔒</span>
+                {% endif %}
+              </div>
+            </div>
 
-        // v5H84: SO 인라인 빠른 수정 — 호기수 / 금액 즉시 편집 + 💾 저장
+            <!-- 호기 라인 — 항상 노출, 직접 편집 가능 -->
+            {% if so.units %}
+            <table class="so-units">
+              <thead>
+                <tr>
+                  <th style="width:120px;">호기</th>
+                  <th class="num" style="width:170px;">단가 ({{ _sym }})</th>
+                  <th>비고</th>
+                  {% if _editable %}<th class="center" style="width:90px;">동작</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in so.units %}
+                <tr data-uid="{{ u.id }}">
+                  <td>
+                    {% if _editable %}
+                    <input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">
+                    {% else %}
+                    <b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b>
+                    {% endif %}
+                  </td>
+                  <td class="num">
+                    {% if _editable %}
+                    <input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">
+                    {% else %}
+                    <span class="price">{{ _sym }}{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if _editable %}
+                    <input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">
+                    {% else %}
+                    <span class="note">{{ u.line_note or '' }}</span>
+                    {% endif %}
+                  </td>
+                  {% if _editable %}
+                  <td class="center">
+                    <button type="button" class="row-save">💾 저장</button>
+                    <button type="button" class="row-del" title="라인 삭제" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:14px;">×</button>
+                  </td>
+                  {% endif %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
+              호기 라인이 없습니다 — '＋ 호기 추가' 로 입력하세요.
+            </div>
+            {% endif %}
+
+            <!-- 호기 추가 인라인 폼 -->
+            {% if _editable %}
+            <div class="add-unit-card">
+              <div class="row">
+                <span style="font-weight:700;color:var(--amber-deep);">＋ 호기 추가</span>
+                <input type="text" name="label" placeholder="호기 라벨 (비우면 자동)" style="width:160px;">
+                <select name="cur">
+                  <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>₩ KRW</option>
+                  <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>$ USD</option>
+                </select>
+                <input type="text" name="amount" inputmode="numeric" placeholder="단가" class="amt knk-money">
+                <input type="text" name="note" placeholder="비고 (선택)" class="note">
+                <button type="button" class="save-btn">저장</button>
+                <button type="button" class="cancel-btn">취소</button>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- 푸터: 수량 + 합계 + 경고 -->
+            <div class="so-card-foot">
+              <div class="summary">
+                <span>수량 <b>{{ _qq }}대</b></span>
+                <span style="margin-left:14px;">합계 {{ _sym }}<b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b></span>
+                {% if so.mismatch_qty or so.mismatch_sum %}
+                <span class="warn" style="margin-left:14px;">
+                  ⚠
+                  {% if so.mismatch_qty %}호기 라인 {{ so.items_n }}/{{ so.unit_qty }}{% endif %}
+                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {{ _sym }}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}{% endif %}
+                </span>
+                {% endif %}
+              </div>
+              <div class="ago">{{ so.created_at|default('') }}</div>
+            </div>
+          </div>
+        {% endfor %}
+        </div>
+
+        <!-- 전체 합계 -->
+        {% set _gtotal = namespace(t=0, q=0) %}
+        {% for _so in project_orders %}
+          {% set _gtotal.t = _gtotal.t + (_so.total_amount or 0) %}
+          {% set _gtotal.q = _gtotal.q + (_so.unit_qty or 1) %}
+        {% endfor %}
+        <div class="so-grand-total">
+          <div>
+            <div class="label">총 SO {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
+          </div>
+          <div class="value">₩ {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:11px;color:var(--mute);font-weight:500;">(KRW 환산 합계)</span></div>
+        </div>
+        <script>
+        // v5H93: 카드 레이아웃 — '＋ 호기 추가' 토글 + 호기 라인 인라인 편집/삭제
         (function(){
-          document.querySelectorAll('tr[data-soid]').forEach(tr => {
-            const soid = tr.dataset.soid;
-            const qty  = tr.querySelector('.qty-inp');
-            const amt  = tr.querySelector('.amt-inp');
-            const cur  = tr.querySelector('.cur-inp');
-            const save = tr.querySelector('.save-so');
-            if (!save) return;  // 편집 권한 없으면 스킵
-            function dirty(){
-              const dq = qty && (String(qty.value) !== String(qty.dataset.orig));
-              const aRaw = amt ? (amt.value || '0').replace(/,/g,'') : '0';
-              const da = amt && (parseFloat(aRaw) !== parseFloat(amt.dataset.orig));
-              const dc = cur && (cur.value !== cur.dataset.orig);
-              save.style.display = (dq || da || dc) ? 'inline-block' : 'none';
-            }
-            if (qty) qty.addEventListener('input', dirty);
-            if (amt) amt.addEventListener('input', dirty);
-            if (cur) cur.addEventListener('change', dirty);
-            save.addEventListener('click', async () => {
-              const body = new URLSearchParams();
-              if (qty) body.set('unit_qty', qty.value);
-              if (amt) body.set('total_amount', (amt.value || '0').replace(/,/g,''));
-              if (cur) body.set('currency', cur.value);
-              save.disabled = true;
-              try {
-                const r = await fetch('/sales/orders/' + soid + '/quick-edit', {
-                  method:'POST', body: body
-                });
-                const j = await r.json();
-                if (j.ok) {
-                  if (qty) qty.dataset.orig = qty.value;
-                  if (amt) amt.dataset.orig = (amt.value || '0').replace(/,/g,'');
-                  save.style.display = 'none';
-                  // 합계 행 갱신을 위해 reload
-                  location.reload();
-                } else {
-                  alert('⚠ 저장 실패: ' + (j.message || j.error || ''));
+          document.querySelectorAll('.so-card').forEach(card => {
+            const soid = card.dataset.soid;
+
+            // ＋ 호기 추가 토글
+            const addBtn = card.querySelector('.so-actions .add-unit');
+            const addCard = card.querySelector('.add-unit-card');
+            if (addBtn && addCard) {
+              const amtInp = addCard.querySelector('input[name="amount"]');
+              if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
+              addBtn.addEventListener('click', () => {
+                addCard.classList.toggle('open');
+                if (addCard.classList.contains('open')) {
+                  addCard.querySelector('input[name="label"]').focus();
                 }
-              } catch(e) {
-                alert('⚠ 네트워크 오류: ' + e.message);
-              } finally {
-                save.disabled = false;
+              });
+              addCard.querySelector('.cancel-btn').addEventListener('click', () => {
+                addCard.classList.remove('open');
+                addCard.querySelectorAll('input').forEach(i => i.value = '');
+              });
+              addCard.querySelector('.save-btn').addEventListener('click', async () => {
+                const body = new URLSearchParams();
+                body.set('label', addCard.querySelector('input[name="label"]').value || '');
+                body.set('amount', (amtInp.value || '0').replace(/,/g,''));
+                body.set('note',  addCard.querySelector('input[name="note"]').value || '');
+                const curSel = addCard.querySelector('select[name="cur"]');
+                if (curSel) body.set('currency', curSel.value);
+                if (parseFloat(body.get('amount')) <= 0) {
+                  alert('⚠ 단가를 입력해주세요'); return;
+                }
+                try {
+                  const r = await fetch('/sales/orders/' + soid + '/add-unit', {
+                    method: 'POST', body: body
+                  });
+                  const j = await r.json();
+                  if (j.ok) { location.reload(); }
+                  else { alert('⚠ ' + (j.message || j.error || '실패')); }
+                } catch(e) { alert('⚠ 네트워크 오류: ' + e.message); }
+              });
+            }
+
+            // 호기 라인 인라인 편집/삭제
+            card.querySelectorAll('tr[data-uid]').forEach(row => {
+              const uid = row.dataset.uid;
+              const lblInp = row.querySelector('.lbl-inp');
+              const amtInp = row.querySelector('.amt');
+              const noteInp = row.querySelector('.note-inp');
+              const saveBtn = row.querySelector('.row-save');
+              const delBtn = row.querySelector('.row-del');
+              if (!saveBtn) return;
+              if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
+              function dirty(){
+                const dl = lblInp && (lblInp.value !== lblInp.dataset.orig);
+                const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
+                const da = amtInp && (parseFloat(aRaw) !== parseFloat(amtInp.dataset.orig));
+                const dn = noteInp && (noteInp.value !== noteInp.dataset.orig);
+                saveBtn.style.display = (dl || da || dn) ? 'inline-block' : 'none';
+              }
+              [lblInp, amtInp, noteInp].forEach(i => i && i.addEventListener('input', dirty));
+              saveBtn.addEventListener('click', async () => {
+                const body = new URLSearchParams();
+                body.set('label', lblInp.value || '');
+                body.set('amount', (amtInp.value || '0').replace(/,/g,''));
+                body.set('note', noteInp.value || '');
+                try {
+                  const r = await fetch('/sales/orders/items/' + uid + '/edit', {
+                    method: 'POST', body: body
+                  });
+                  const j = await r.json();
+                  if (j.ok) { location.reload(); }
+                  else { alert('⚠ ' + (j.message || j.error || '실패')); }
+                } catch(e) { alert('⚠ ' + e.message); }
+              });
+              if (delBtn) {
+                delBtn.addEventListener('click', async () => {
+                  if (!confirm('이 호기 라인을 삭제하시겠습니까?\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;
+                  try {
+                    const r = await fetch('/sales/orders/items/' + uid + '/delete', { method: 'POST' });
+                    const j = await r.json();
+                    if (j.ok) { location.reload(); }
+                    else { alert('⚠ ' + (j.message || j.error || '실패')); }
+                  } catch(e) { alert('⚠ ' + e.message); }
+                });
               }
             });
           });

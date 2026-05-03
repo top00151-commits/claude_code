@@ -165,7 +165,8 @@ def _assign_codes(ws, log):
         if base not in existing_sj:
             sj_num = base
         else:
-            n = 2
+            # 둘째부터 -1, -2, -3, ...
+            n = 1
             while f"{base}-{n}" in existing_sj:
                 n += 1
             sj_num = f"{base}-{n}"

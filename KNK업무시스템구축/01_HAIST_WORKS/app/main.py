@@ -4504,6 +4504,116 @@ async def auth_verify_password(req: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/sales/orders/items/{iid:int}/edit")
+async def sales_order_item_edit(req: Request, iid: int):
+    """v5H93: 호기 라인(order_items) 인라인 편집 — 라벨/금액/비고."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    label = (form.get("label") or "").strip()
+    raw_a = (form.get("amount") or "0").strip().replace(",", "")
+    note  = (form.get("note") or "").strip()
+    try:
+        amt = float(raw_a) if raw_a else 0
+    except ValueError:
+        return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
+    if amt < 0:
+        return JSONResponse({"ok": False, "message": "금액은 0 이상이어야 합니다"}, 400)
+    with db_session() as c:
+        it = c.execute(
+            "SELECT oi.order_id, o.status, o.project_id "
+            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+            "WHERE oi.id=?", (iid,)
+        ).fetchone()
+        if not it:
+            return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
+        st = (it["status"] or "").upper()
+        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+            return JSONResponse({
+                "ok": False,
+                "message": f"{st} 상태 SO 의 호기는 수정 불가"
+            }, 400)
+        c.execute(
+            "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",
+            (label or None, amt, amt, note or None, iid)
+        )
+        # SO total_amount = SUM(items.amount), unit_label 재구성
+        oid = it["order_id"]
+        rows = c.execute(
+            "SELECT unit_label, amount FROM order_items WHERE order_id=? ORDER BY id ASC",
+            (oid,)
+        ).fetchall()
+        new_total = sum(float(r["amount"] or 0) for r in rows)
+        new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
+        c.execute("UPDATE orders SET total_amount=?, unit_label=? WHERE id=?",
+                  (new_total, new_label, oid))
+        # 프로젝트 합계 동기화
+        try:
+            pid = it["project_id"]
+            if pid:
+                row = c.execute(
+                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                    (pid,)
+                ).fetchone()
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                          (float(row[0] or 0), pid))
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "message": "라인 수정 완료"})
+
+
+@app.post("/sales/orders/items/{iid:int}/delete")
+async def sales_order_item_delete(req: Request, iid: int):
+    """v5H93: 호기 라인 삭제 — 1건만 제거. unit_qty/total_amount 자동 재계산."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    with db_session() as c:
+        it = c.execute(
+            "SELECT oi.order_id, o.status, o.project_id "
+            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+            "WHERE oi.id=?", (iid,)
+        ).fetchone()
+        if not it:
+            return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
+        st = (it["status"] or "").upper()
+        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+            return JSONResponse({
+                "ok": False,
+                "message": f"{st} 상태 SO 의 호기는 삭제 불가"
+            }, 400)
+        oid = it["order_id"]
+        c.execute("DELETE FROM order_items WHERE id=?", (iid,))
+        # SO 재계산
+        rows = c.execute(
+            "SELECT unit_label, amount FROM order_items WHERE order_id=? ORDER BY id ASC",
+            (oid,)
+        ).fetchall()
+        new_total = sum(float(r["amount"] or 0) for r in rows)
+        new_qty = max(1, len(rows))
+        new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
+        c.execute("UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
+                  (new_total, new_qty, new_label, oid))
+        # 프로젝트 합계 동기화
+        try:
+            pid = it["project_id"]
+            if pid:
+                row = c.execute(
+                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                    (pid,)
+                ).fetchone()
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                          (float(row[0] or 0), pid))
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "message": "라인 삭제 완료"})
+
+
 @app.post("/sales/orders/{oid:int}/add-unit")
 async def sales_orders_add_unit(req: Request, oid: int):
     """v5H90: 기존 SO 에 호기 라인 추가 (단가가 다른 추가 발주 대응).
