@@ -4,7 +4,7 @@ REM   LAST UPDATE: 2026-05-03 v5H52 sales-center form flow alignment — 3 criti
 REM   Rule: 01 session bumps this line every time code is modified
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H62 drag-drop + clipboard paste added]
+title KNK HAIST WORKS - HAIST Innovation [Updated 2026-05-03 v5H64 OCR accuracy 1/7 to 7/7 on images]
 
 echo.
 echo ============================================================

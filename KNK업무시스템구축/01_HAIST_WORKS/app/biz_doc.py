@@ -30,11 +30,52 @@ _TESS_CANDIDATES = [
     r"C:\Tesseract-OCR\tesseract.exe",
 ]
 
-# 앱 내부 tessdata 디렉터리 (관리자 권한 불필요)
-_APP_TESSDATA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "data", "tessdata"
-)
-os.makedirs(_APP_TESSDATA_DIR, exist_ok=True)
+# v5H63: tessdata 는 반드시 ASCII 경로에 두어야 함
+# (앱 경로에 한글이 있으면 Tesseract subprocess 인코딩 깨짐 → cp949 디코드 에러)
+# 우선순위: LOCALAPPDATA (Windows 표준) → 앱 내부 → TEMP
+def _pick_ascii_tessdata_dir() -> str:
+    candidates = []
+    la = os.environ.get("LOCALAPPDATA")
+    if la and la.isascii():
+        candidates.append(os.path.join(la, "KNK_HAIST_WORKS", "tessdata"))
+    # 앱 내부 (경로가 ASCII 인 경우만)
+    app_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tessdata")
+    if app_dir.isascii():
+        candidates.append(app_dir)
+    # TEMP 폴백
+    import tempfile
+    candidates.append(os.path.join(tempfile.gettempdir(), "knk_tessdata"))
+    for d in candidates:
+        try:
+            os.makedirs(d, exist_ok=True)
+            return d
+        except Exception:
+            continue
+    return candidates[-1]
+
+_APP_TESSDATA_DIR = _pick_ascii_tessdata_dir()
+
+# 기존 앱 경로에 kor.traineddata 가 있으면 ASCII 경로로 자동 이동 (1회)
+def _migrate_legacy_tessdata():
+    legacy = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tessdata")
+    if legacy == _APP_TESSDATA_DIR:
+        return
+    if not os.path.isdir(legacy):
+        return
+    for fn in os.listdir(legacy):
+        if not fn.endswith(".traineddata"):
+            continue
+        src = os.path.join(legacy, fn)
+        dst = os.path.join(_APP_TESSDATA_DIR, fn)
+        if os.path.isfile(dst):
+            continue
+        try:
+            import shutil
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
+
+_migrate_legacy_tessdata()
 
 
 def _setup_tesseract_path() -> str | None:
@@ -94,13 +135,37 @@ def has_korean() -> bool:
     return "kor" in get_installed_langs()
 
 
+def _copy_kor_to_system(app_kor_path: str) -> tuple[bool, str]:
+    """앱 디렉터리의 kor.traineddata 를 Tesseract 시스템 디렉터리로 복사.
+    관리자 권한 없으면 실패 — 그래도 OK (fallback 동작).
+    반환: (성공여부, 메시지)"""
+    sys_dir = _system_tessdata_dir()
+    if not sys_dir:
+        return False, "시스템 tessdata 디렉터리를 찾을 수 없음"
+    sys_kor = os.path.join(sys_dir, "kor.traineddata")
+    if os.path.isfile(sys_kor) and os.path.getsize(sys_kor) > 1_000_000:
+        return True, "이미 시스템 디렉터리에 존재"
+    try:
+        import shutil
+        shutil.copy2(app_kor_path, sys_kor)
+        return True, f"시스템 디렉터리로 복사 완료: {sys_kor}"
+    except PermissionError:
+        return False, ("관리자 권한 필요 — 시스템 디렉터리 쓰기 거부됨. "
+                       "앱 내부 디렉터리 사용 (--tessdata-dir 폴백).")
+    except Exception as e:
+        return False, f"복사 실패: {e}"
+
+
 def download_korean_traineddata() -> dict:
     """한국어 traineddata 자동 다운로드 (사용자 명시적 트리거).
     GitHub tessdata_best 에서 ~28MB. 앱 내부 tessdata 폴더에 저장.
     이미 있으면 skip. 반환: {ok, message, path, size}"""
     target = os.path.join(_APP_TESSDATA_DIR, "kor.traineddata")
     if os.path.isfile(target) and os.path.getsize(target) > 1_000_000:
-        return {"ok": True, "message": "이미 설치되어 있습니다.",
+        # 이미 다운로드됨 → 시스템 디렉터리에도 복사 시도 (관리자 권한 있으면)
+        ok, msg = _copy_kor_to_system(target)
+        return {"ok": True,
+                "message": f"이미 설치되어 있습니다. ({msg})",
                 "path": target, "size": os.path.getsize(target)}
     import urllib.request
     sources = [
@@ -122,9 +187,13 @@ def download_korean_traineddata() -> dict:
                 last_err = f"다운로드 파일이 너무 작음 ({size} bytes) — 손상 의심"
                 continue
             os.replace(tmp, target)
+            # 다운로드 성공 → 시스템 디렉터리에도 복사 시도 (인코딩 문제 회피)
+            ok, sys_msg = _copy_kor_to_system(target)
+            extra = f" + {sys_msg}" if ok else ""
             return {"ok": True,
-                    "message": f"한국어 데이터 다운로드 완료 ({size/1024/1024:.1f}MB)",
-                    "path": target, "size": size, "source": url}
+                    "message": f"한국어 데이터 다운로드 완료 ({size/1024/1024:.1f}MB){extra}",
+                    "path": target, "size": size, "source": url,
+                    "system_copy": ok}
         except Exception as e:
             last_err = str(e)
             continue
@@ -134,18 +203,57 @@ def download_korean_traineddata() -> dict:
                        f"파일을 다음 경로에 저장: {_APP_TESSDATA_DIR}\\kor.traineddata"}
 
 
-def _tess_env() -> dict:
-    """Tesseract 실행 시 환경변수 — 앱 tessdata 우선."""
-    env = os.environ.copy()
-    # 앱 내부 + 시스템 tessdata 둘 다 검색 가능하도록
-    sys_tessdata = None
+def _system_tessdata_dir() -> str | None:
+    """Tesseract 설치된 표준 tessdata 디렉터리 반환."""
     tess = _setup_tesseract_path()
-    if tess:
-        sys_tessdata = os.path.join(os.path.dirname(tess), "tessdata")
-    paths = [_APP_TESSDATA_DIR]
-    if sys_tessdata and os.path.isdir(sys_tessdata):
-        paths.append(sys_tessdata)
-    env["TESSDATA_PREFIX"] = paths[0]  # primary
+    if not tess:
+        return None
+    d = os.path.join(os.path.dirname(tess), "tessdata")
+    return d if os.path.isdir(d) else None
+
+
+def _ensure_unified_tessdata_dir() -> str:
+    """kor + eng + osd 모두 들어 있는 통합 tessdata 디렉터리 보장 후 경로 반환.
+    - 앱 디렉터리(data/tessdata/)에 kor 있으면 → 시스템 eng/osd 를 hardlink/copy
+    - 없으면 시스템 디렉터리 그대로 사용
+    이 디렉터리를 --tessdata-dir 로 Tesseract 에 명시 전달."""
+    sys_dir = _system_tessdata_dir()
+    app_kor = os.path.join(_APP_TESSDATA_DIR, "kor.traineddata")
+
+    # kor 가 앱 디렉터리에 있으면 → 통합 디렉터리는 앱 디렉터리
+    if os.path.isfile(app_kor) and sys_dir:
+        # 앱 디렉터리에 eng/osd 가 없으면 시스템에서 복사
+        for lang in ("eng", "osd"):
+            src = os.path.join(sys_dir, f"{lang}.traineddata")
+            dst = os.path.join(_APP_TESSDATA_DIR, f"{lang}.traineddata")
+            if os.path.isfile(src) and not os.path.isfile(dst):
+                try:
+                    # hardlink 시도 (디스크 절약), 실패 시 복사
+                    try:
+                        os.link(src, dst)
+                    except (OSError, AttributeError):
+                        import shutil
+                        shutil.copy2(src, dst)
+                except Exception:
+                    pass
+        return _APP_TESSDATA_DIR
+
+    # kor 없으면 시스템 디렉터리 (eng/osd 만 있음 — kor 인식 불가)
+    return sys_dir or _APP_TESSDATA_DIR
+
+
+def _tess_config() -> str:
+    """pytesseract config 문자열 — --tessdata-dir 명시.
+    pytesseract 는 config 문자열을 공백으로 split 하므로 따옴표가 그대로 인자에
+    포함됨 → 따옴표 X. 대신 forward slash 변환으로 공백/특수문자 회피."""
+    d = _ensure_unified_tessdata_dir()
+    return "--tessdata-dir " + d.replace(chr(92), "/")
+
+
+def _tess_env() -> dict:
+    """레거시 호환 — 이제 _tess_config() 사용 권장."""
+    env = os.environ.copy()
+    env["TESSDATA_PREFIX"] = _ensure_unified_tessdata_dir()
     return env
 
 
@@ -217,11 +325,10 @@ def extract_text(file_path: str, original_name: str = "") -> tuple[str, str]:
             except Exception as e:
                 # poppler 미설치 — Windows 안내
                 return "", f"error:poppler_not_found ({str(e)[:80]})"
-            env = _tess_env()
-            for k, v in env.items():
-                os.environ[k] = v
+            cfg = _tess_config()
             text = "\n".join(
-                pytesseract.image_to_string(_preprocess_image(img), lang="kor+eng")
+                pytesseract.image_to_string(_preprocess_image(img),
+                                             lang="kor+eng", config=cfg)
                 for img in images
             )
             return text.strip(), "pdf-ocr"
@@ -238,10 +345,8 @@ def extract_text(file_path: str, original_name: str = "") -> tuple[str, str]:
             from PIL import Image
             img = Image.open(file_path)
             img = _preprocess_image(img)
-            env = _tess_env()
-            for k, v in env.items():
-                os.environ[k] = v
-            text = pytesseract.image_to_string(img, lang="kor+eng")
+            cfg = _tess_config()
+            text = pytesseract.image_to_string(img, lang="kor+eng", config=cfg)
             return text.strip(), "image-ocr"
         except ImportError:
             return "", "error:pytesseract 또는 PIL 미설치"
@@ -259,51 +364,68 @@ def extract_text(file_path: str, original_name: str = "") -> tuple[str, str]:
 # 핵심: "성 명 : 김정락 생 년 월 일 : 1981 ..." / "사업의 종류 : 업태 ... 종목 ..."
 # 같이 한 줄에 여러 필드가 들어가는 케이스를 정확히 분리.
 # 줄 단위 매칭(MULTILINE) + 한국어 이름 정확 캡처(2~4자) + 종목/업태 한 줄 분해.
+# v5H64: OCR 노이즈 흡수 강화. 실제 케이스에서 발견된 오인식:
+#  - "498-62-00471" → "498-62-004/1" (1을 /로)
+#  - "성 명" → "Al 명" (성을 Al로)
+#  - "사업장 소재지" → "사업장 소 THA" (재지를 THA로)
+#  - "업태|부동산업" (라벨 사이 | 끼임)
+# 정규식을 더 느슨하게 + 후처리 정상화 단계 추가.
 _BIZ_PATTERNS = {
     "biz_no": [
-        # "등록번호 : 123-45-67890" — 우선
-        r"(?:사업자\s*등록\s*번호|등\s*록\s*번\s*호)\s*[:：]\s*(\d{3}\s*[-―]\s*\d{2}\s*[-―]\s*\d{5})",
-        # 폴백: 어디에나 있는 표준 패턴
-        r"(\d{3}-\d{2}-\d{5})",
+        # 표준 + OCR 노이즈 흡수 (1 ↔ /, 0 ↔ O/o)
+        r"(?:사업자\s*등록\s*번호|등\s*록\s*번\s*호)\s*[:：]\s*([\d/lOo\-―\s]{12,20})",
+        # 폴백: 표준 패턴
+        r"(\d{3}\s*[-―]\s*\d{2}\s*[-―]\s*\d{5})",
     ],
     "name": [
-        # ★우선★ "상호 :" 또는 "법인명/단체명 :" — 줄의 끝 또는 다중 공백/괄호까지만
-        # "성 명 :" 으로 시작하는 줄은 절대 매칭 안 되도록 (?<! 차단 — 줄 시작 또는 비-성명 보장)
         r"(?:^|\n)\s*상\s*호\s*[:：]\s*([^\n\r:：]{2,40}?)\s*(?:\n|$)",
         r"(?:^|\n)\s*(?:법\s*인\s*명|회\s*사\s*명|단\s*체\s*명)\s*[\(（]?[^:：\)）\n]*[\)）]?\s*[:：]\s*([^\n\r:：]{2,40}?)\s*(?:\n|$)",
-        # "법인명(단체명) :" 형식 (괄호 안에 부가 텍스트)
         r"법\s*인\s*명\s*\([^\)]*\)\s*[:：]\s*([^\n\r:：]{2,40}?)\s*(?:\n|$)",
     ],
     "ceo_name": [
-        # ★ "성 명 : 김정락 생 년 월 일 : 1981" — 첫 한글 이름만 캡처
         r"성\s*명\s*[:：]\s*([가-힣]{2,5})(?=\s|$)",
-        # "대표자(성명) : 홍길동"
+        # OCR 폴백: '성' 자가 깨져 'Al'/'A'/'일'로 인식된 경우 — 라벨 자릿수만 보고 매칭
+        r"(?:^|\n)\s*[A-Za-z가-힣]{1,3}\s*명\s*[:：]\s*([가-힣]{2,5})(?=\s|$)",
         r"대\s*표\s*자\s*[\(（]?\s*성\s*명\s*[\)）]?\s*[:：]\s*([가-힣]{2,5})",
-        # "대표자 : 홍길동" (단독)
         r"대\s*표\s*자\s*[:：]\s*([가-힣]{2,5})",
     ],
     "address": [
-        # "사업장 소재지" / "사업장 주소" / "본점소재지" / "주소"
+        # 표준 라벨
         r"(?:사업장\s*소재지|사업장\s*주소|본점\s*소재지|소\s*재\s*지)\s*[:：]\s*([^\n\r]{8,120})",
+        # OCR 폴백: '소재지' 가 'THA'/'재 지'/'소 THA' 등으로 깨진 경우
+        # — "사업장" 뒤에 임의 한글/영문/공백 조합 (1~12자) + ":" 만 있으면 주소
+        r"(?:^|\n)\s*사\s*업\s*장\s+[가-힣A-Za-z\s]{1,12}?\s*[:：]\s*([^\n\r]{8,120})",
         r"(?:^|\n)\s*주\s*소\s*[:：]\s*([^\n\r]{8,120})",
     ],
     "biz_kind": [
-        # ★ "사업의 종류 : 업태 도매 및 소매업 종목 가전제품 및 부품 도매업"
-        r"사\s*업\s*의?\s*종\s*류\s*[:：]\s*업\s*태\s+([^\n\r]+?)\s+종\s*목",
-        # 단독 "업태 :"
-        r"(?:^|\n)\s*업\s*태\s*[:：]\s*([^\n\r]{2,60}?)(?:\s+종\s*목|\s*$|\n)",
+        # 표준: "사업의 종류 :[ : ：]업태[|]부동산업[|][ ]종목[|]..."
+        # 콜론 이중(:：), 라벨 사이 |, [ ] 등 OCR 노이즈 모두 흡수
+        r"사\s*업\s*의?\s*종\s*류\s*[:：][\s|｜:：\[\]]*업\s*태[\s|｜:：\[\]]*([^\n\r|｜\[\]]+?)[\s|｜\[\]]+(?:종\s*목)",
+        # 단독 "업태:" 또는 "[업태]"
+        r"(?:^|\n)\s*[\[\|｜]?\s*업\s*태\s*[\]\|｜:：]+\s*([^\n\r|｜\[\]]+?)(?:\s*[\[\|｜]\s*종\s*목|\s*$|\n)",
     ],
     "biz_item": [
-        # ★ 사업의 종류 한 줄 안의 "종목" 부분
-        r"사\s*업\s*의?\s*종\s*류\s*[:：][^\n]*?종\s*목\s+([^\n\r]+?)\s*(?:\n|$)",
-        # 단독 "종목 :"
-        r"(?:^|\n)\s*(?:종\s*목|종목명)\s*[:：]\s*([^\n\r]{2,80})",
+        # 표준: 사업의 종류 한 줄 내 "종목" 부분
+        r"사\s*업\s*의?\s*종\s*류\s*[:：][^\n]*?종\s*목[\s|｜\]\[]+([^\n\r]+?)\s*(?:\n|$)",
+        # 단독 "종목:" 또는 "[종목]"
+        r"(?:^|\n)\s*[\[\|｜]?\s*(?:종\s*목|종목명)\s*[\]\|｜:：]+\s*([^\n\r]{2,80})",
     ],
     "open_date": [
-        # "개업 연월일 : 2024 년 07 월 05 일"
         r"개\s*업\s*연\s*월\s*일\s*[:：]\s*(\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일)",
     ],
 }
+
+
+def _normalize_biz_no(raw: str) -> str:
+    """사업자번호 OCR 노이즈 정상화. '498-62-004/1' → '498-62-00471'."""
+    if not raw:
+        return ""
+    # OCR 흔한 오인식 매핑: O→0, o→0, l→1, /→1
+    s = raw.translate(str.maketrans({"O": "0", "o": "0", "l": "1", "/": "1"}))
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+    return raw.strip()
 
 
 def parse_biz_doc(text: str) -> dict:
@@ -324,11 +446,11 @@ def parse_biz_doc(text: str) -> dict:
             m = re.search(pat, norm, re.MULTILINE)
             if m:
                 val = m.group(1).strip()
-                # 사업자번호: 공백 제거하여 표준 포맷으로
+                # 사업자번호: OCR 노이즈 정상화 (O→0, /→1 등)
                 if field == "biz_no":
-                    digits = re.sub(r"\D", "", val)
-                    if len(digits) == 10:
-                        val = f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+                    val = _normalize_biz_no(val)
+                    if not re.match(r"^\d{3}-\d{2}-\d{5}$", val):
+                        continue  # 정상 포맷 못 맞춘 경우 다음 패턴 시도
                 # 상호: 콜론 뒤 잔여 / 후행 정리 + "성 년 월 일" 같은 다른 라벨 잘라냄
                 if field == "name":
                     # "김정락 생 년 월 일 : ..." 같이 잘못 잡힌 경우 차단
@@ -339,6 +461,9 @@ def parse_biz_doc(text: str) -> dict:
                 # 다른 필드도 후행 다른 라벨 잘라냄 (한국어 라벨 패턴)
                 if field in ("biz_kind", "biz_item", "address"):
                     val = re.sub(r"\s+(?:업\s*태|종\s*목|발\s*급|공\s*동|성\s*명|개\s*업).*$", "", val).strip()
+                    # 라벨 잔존 |, [, ] 제거
+                    val = re.sub(r"^[\[\|｜\s]+", "", val)
+                    val = re.sub(r"[\[\]\|｜\s]+$", "", val).strip()
                 out[field] = val
                 break
     return out
