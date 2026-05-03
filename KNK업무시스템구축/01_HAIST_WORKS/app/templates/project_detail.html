@@ -197,6 +197,7 @@
             <td style="text-align:center;white-space:nowrap;">
               {% if _editable %}
               <button type="button" class="save-so" title="수정 저장" style="background:transparent;border:1px solid var(--line);color:var(--amber-deep);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;display:none;">💾</button>
+              <button type="button" class="add-unit" title="호기 추가 (단가 별도)" style="background:transparent;border:1px solid var(--amber);color:var(--amber-deep);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">➕ 호기</button>
               {% endif %}
               {% if can_sales_del %}
               <button type="button" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})' title="수주 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
@@ -205,6 +206,20 @@
               {% endif %}
             </td>
           </tr>
+          {% if _editable %}
+          <tr class="add-unit-row" data-soid="{{ so.id }}" style="display:none;background:var(--amber-glow);">
+            <td colspan="9" style="padding:10px 14px;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;">
+                <span style="font-weight:700;color:var(--amber-deep);">➕ 호기 추가:</span>
+                <input type="text" name="label" placeholder="호기 라벨 (예: 3호기 — 비우면 자동)" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
+                <input type="text" name="amount" inputmode="numeric" placeholder="단가 (KRW)" class="knk-money" style="width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;text-align:right;background:var(--paper);">
+                <input type="text" name="note" placeholder="비고 (선택)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--paper);">
+                <button type="button" class="confirm-add-unit" style="background:var(--amber-deep);color:white;border:0;border-radius:5px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:700;">저장</button>
+                <button type="button" class="cancel-add-unit" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:5px;padding:7px 12px;cursor:pointer;font-size:13px;">취소</button>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
           {% endfor %}
           </tbody>
           <tfoot>
@@ -217,6 +232,47 @@
           </tfoot>
         </table></div>
         <script>
+        // v5H90: '➕ 호기' 버튼 — 단가가 다른 추가 호기 라인 즉시 입력
+        (function(){
+          document.querySelectorAll('tr[data-soid]').forEach(tr => {
+            const addBtn = tr.querySelector('.add-unit');
+            if (!addBtn) return;
+            const soid = tr.dataset.soid;
+            const formRow = document.querySelector('.add-unit-row[data-soid="' + soid + '"]');
+            if (!formRow) return;
+            // knk-money 부착 (콤마)
+            const amtInp = formRow.querySelector('input[name="amount"]');
+            if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
+            addBtn.addEventListener('click', () => {
+              formRow.style.display = (formRow.style.display === 'none' || !formRow.style.display) ? '' : 'none';
+              if (formRow.style.display === '') {
+                formRow.querySelector('input[name="label"]').focus();
+              }
+            });
+            formRow.querySelector('.cancel-add-unit').addEventListener('click', () => {
+              formRow.style.display = 'none';
+              formRow.querySelectorAll('input').forEach(i => i.value = '');
+            });
+            formRow.querySelector('.confirm-add-unit').addEventListener('click', async () => {
+              const body = new URLSearchParams();
+              body.set('label', formRow.querySelector('input[name="label"]').value || '');
+              body.set('amount', (amtInp.value || '0').replace(/,/g,''));
+              body.set('note',  formRow.querySelector('input[name="note"]').value || '');
+              if (parseFloat(body.get('amount')) <= 0) {
+                alert('⚠ 단가를 입력해주세요'); return;
+              }
+              try {
+                const r = await fetch('/sales/orders/' + soid + '/add-unit', {
+                  method: 'POST', body: body
+                });
+                const j = await r.json();
+                if (j.ok) { location.reload(); }
+                else { alert('⚠ ' + (j.message || j.error || '실패')); }
+              } catch(e) { alert('⚠ 네트워크 오류: ' + e.message); }
+            });
+          });
+        })();
+
         // v5H84: SO 인라인 빠른 수정 — 호기수 / 금액 즉시 편집 + 💾 저장
         (function(){
           document.querySelectorAll('tr[data-soid]').forEach(tr => {

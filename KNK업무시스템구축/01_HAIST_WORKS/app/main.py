@@ -4504,6 +4504,85 @@ async def auth_verify_password(req: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/sales/orders/{oid:int}/add-unit")
+async def sales_orders_add_unit(req: Request, oid: int):
+    """v5H90: 기존 SO 에 호기 라인 추가 (단가가 다른 추가 발주 대응).
+    동일 SO 안에서 호기별 단가가 다를 수 있게 order_items 새 행 INSERT
+    + orders.unit_qty++/total_amount += amount 갱신."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    label = (form.get("label") or "").strip()
+    raw_a = (form.get("amount") or "0").strip().replace(",", "")
+    note  = (form.get("note") or "").strip()
+    try:
+        amt = float(raw_a) if raw_a else 0
+    except ValueError:
+        return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
+    if amt <= 0:
+        return JSONResponse({"ok": False, "message": "금액은 0보다 커야 합니다"}, 400)
+    with db_session() as c:
+        cur = c.execute(
+            "SELECT status, project_id, unit_qty, unit_label, total_amount "
+            "FROM orders WHERE id=?", (oid,)
+        ).fetchone()
+        if not cur:
+            return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
+        st = (cur["status"] or "").upper()
+        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+            return JSONResponse({
+                "ok": False,
+                "message": f"{st} 상태 SO 는 호기 추가 불가"
+            }, 400)
+        new_qty = int(cur["unit_qty"] or 1) + 1
+        # 라벨 자동 생성 (미입력 시 'N호기')
+        if not label:
+            label = f"{new_qty}호기"
+        new_total = float(cur["total_amount"] or 0) + amt
+        old_lbl = (cur["unit_label"] or "").strip()
+        new_lbl = (old_lbl + " · " + label) if old_lbl else label
+        # order_items INSERT
+        try:
+            c.execute(
+                "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                (oid, amt, amt, label, note)
+            )
+        except Exception:
+            pass
+        # orders 누적
+        c.execute(
+            "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?",
+            (new_qty, new_total, new_lbl, oid)
+        )
+        # 프로젝트 합계 동기화
+        try:
+            pid = cur["project_id"]
+            if pid:
+                row = c.execute(
+                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                    (pid,)
+                ).fetchone()
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                          (float(row[0] or 0), pid))
+        except Exception:
+            pass
+        # 이력
+        try:
+            c.execute(
+                "INSERT INTO order_status_history(order_id, from_status, to_status, "
+                "changed_by, note) VALUES(?,?,?,?,?)",
+                (oid, st, st, u.get("id"),
+                 f"호기 추가: {label} / {amt:,.0f}원" + (f" ({note})" if note else ""))
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "message": f"호기 '{label}' 추가 완료"})
+
+
 @app.post("/sales/orders/{oid:int}/quick-edit")
 async def sales_orders_quick_edit(req: Request, oid: int):
     """v5H84: SO 인라인 빠른 수정 — 호기수(unit_qty) / 금액(total_amount) 즉시 변경.
