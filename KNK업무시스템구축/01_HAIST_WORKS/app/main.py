@@ -3229,6 +3229,9 @@ async def project_detail(req: Request, pid: int):
                     # items 가 0 이면 건드리지 않음 (사용자가 추가 발주만 받고
                     # 아직 호기 라인 안 쪼갠 케이스 보존)
                 # SO total_amount 도 items_sum 과 정합 (items 가 있을 때만)
+                # 라벨도 'N호기' 패턴이면 위치 순서로 자동 재번호
+                import re as _re
+                _hogi_re = _re.compile(r"^\d+호기$")
                 for _oid in so_ids:
                     row = c2.execute(
                         "SELECT COALESCE(SUM(amount),0), COUNT(*) "
@@ -3245,6 +3248,32 @@ async def project_detail(req: Request, pid: int):
                                 "UPDATE orders SET total_amount=? WHERE id=?",
                                 (_isum, _oid)
                             )
+                        # 라벨 자동 정렬 (모든 라벨이 'N호기' 패턴이고 순서 어긋날 때만)
+                        try:
+                            it_rows = c2.execute(
+                                "SELECT id, unit_label FROM order_items "
+                                "WHERE order_id=? ORDER BY id ASC", (_oid,)
+                            ).fetchall()
+                            labels = [(r[0], (r[1] or "")) for r in it_rows]
+                            all_pat = all(_hogi_re.match(lbl) for _, lbl in labels)
+                            need_fix = any(
+                                lbl != f"{i+1}호기"
+                                for i, (_, lbl) in enumerate(labels)
+                            )
+                            if all_pat and need_fix:
+                                for i, (iid, _) in enumerate(labels):
+                                    c2.execute(
+                                        "UPDATE order_items SET unit_label=? WHERE id=?",
+                                        (f"{i+1}호기", iid)
+                                    )
+                                # orders.unit_label 합쳐진 표기도 갱신
+                                joined = " · ".join(f"{i+1}호기" for i in range(len(labels)))
+                                c2.execute(
+                                    "UPDATE orders SET unit_label=? WHERE id=?",
+                                    (joined, _oid)
+                                )
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
@@ -4809,8 +4838,15 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 "ok": False,
                 "message": f"{st} 상태 SO 는 호기 추가 불가"
             }, 400)
-        new_qty = int(cur["unit_qty"] or 1) + 1
-        # 라벨 자동 생성 (미입력 시 'N호기')
+        # v5H105: 자동 라벨은 실제 호기 라인 개수 기준 (unit_qty 와 다를 수 있음)
+        try:
+            items_now = c.execute(
+                "SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)
+            ).fetchone()[0] or 0
+        except Exception:
+            items_now = 0
+        new_qty = items_now + 1
+        # 라벨 자동 생성 (미입력 시 'N호기' = 다음 순번)
         if not label:
             label = f"{new_qty}호기"
         new_total = float(cur["total_amount"] or 0) + amt
