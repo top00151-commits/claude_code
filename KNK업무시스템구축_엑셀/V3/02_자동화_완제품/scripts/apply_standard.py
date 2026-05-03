@@ -205,10 +205,12 @@ def _dept_spec(dept):
     for c in range(1, n_auto + 1):
         r4[c] = "id"
     r4[C_DEPT_PIC] = "dept"
-    # 세부항목 짝: % = status색, 예정일 = payment색 (시각 구분)
+    # v3.1.2 (옵션 B): 한 항목의 [%·예정일] 두 컬럼 = 같은 색
+    #   항목별 청·주황 교대 — 항목 1=청, 2=주황, 3=청, 4=주황, ...
     for i in range(n_sub):
-        r4[sub_start + i*2]     = "status"
-        r4[sub_start + i*2 + 1] = "payment"
+        color = "pair_a" if i % 2 == 0 else "pair_b"
+        r4[sub_start + i*2]     = color   # 진척률
+        r4[sub_start + i*2 + 1] = color   # 예정일 (같은 색)
     for c in range(ms_start, ms_start + n_ms):
         r4[c] = "payment"
     r4[status_col] = "status"

@@ -27,8 +27,8 @@
     <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 / 사양 검색…" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
     <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
       <option value="">사업부 전체</option>
-      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🔧 자재 (M)</option>
-      <option value="T" {% if biz_div=='T' %}selected{% endif %}>⚙ 가공 (T)</option>
+      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🤖 자동화 (M)</option>
+      <option value="T" {% if biz_div=='T' %}selected{% endif %}>🔬 검사기 (T)</option>
     </select>
     <button type="submit" class="btn btn-primary">🔍 검색</button>
     {% if q or biz_div or category %}<a class="btn btn-secondary" href="/parts">초기화</a>{% endif %}

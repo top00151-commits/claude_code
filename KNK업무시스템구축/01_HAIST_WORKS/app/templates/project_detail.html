@@ -220,9 +220,14 @@
         <h3>프로젝트 정보</h3>
         <dl class="def">
           <dt>관리코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
+          <dt>수주번호</dt><dd>
+            {% if project_orders %}
+              {% for so in project_orders %}<span style="font-family:monospace;color:var(--knk-red);font-weight:700;">{{ so.order_no }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+            {% else %}—{% endif %}
+          </dd>
           <dt>프로젝트명</dt><dd><b>{{ p.name }}</b></dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
-          <dt>사업부</dt><dd>{{ p.biz_div|default('—') }}</dd>
+          <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
           <dt>상태</dt><dd>{{ p.status|default('—') }}</dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>

@@ -21,7 +21,7 @@
     <div class="form-card">
       <div class="field-row">
         <div class="field"><label>자재 코드 *</label><input type="text" name="code" required value="{{ part.code|default('') }}"></div>
-        <div class="field"><label>사업부</label><select name="biz_div"><option value="">— 선택 —</option><option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>M (자재)</option><option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>T (가공)</option></select></div>
+        <div class="field"><label>사업부</label><select name="biz_div"><option value="">— 선택 —</option><option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>M (자동화)</option><option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>T (검사기)</option></select></div>
       </div>
       <div class="field-row">
         <div class="field full"><label>자재명 *</label><input type="text" name="name" required value="{{ part.name|default('') }}"></div>

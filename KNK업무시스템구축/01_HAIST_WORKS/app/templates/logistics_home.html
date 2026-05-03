@@ -157,7 +157,7 @@
       <div class="div-grid">
         {% for div, cnt in ps.by_div.items() %}
         <div class="div-card">
-          <div class="name">{{ '🔧 자재' if div == 'M' else '⚙ 가공' if div == 'T' else div }}</div>
+          <div class="name">{{ '🤖 자동화' if div == 'M' else '🔬 검사기' if div == 'T' else div }}</div>
           <div class="num">{{ cnt }}<span style="font-size:13px;color:var(--mute);font-weight:500;"> 종</span></div>
           <div class="sub">활성 자재</div>
         </div>

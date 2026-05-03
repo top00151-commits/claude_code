@@ -123,7 +123,7 @@
         <div class="bar-chart list-scroll-sm">
           {% for b in kpi.by_biz %}
           <div class="bar-row">
-            <div class="bar-label">{{ '🔧 자재' if b.biz_div == 'M' else '⚙ 가공' if b.biz_div == 'T' else b.biz_div }}</div>
+            <div class="bar-label">{{ '🤖 자동화' if b.biz_div == 'M' else '🔬 검사기' if b.biz_div == 'T' else b.biz_div }}</div>
             <div class="bar-track"><div class="bar-fill" style="width: {{ ((b.total / max_biz)*100)|round }}%"></div></div>
             <div class="bar-value">{{ '{:,.0f}'.format(b.total) }} ({{ b.cnt }})</div>
           </div>

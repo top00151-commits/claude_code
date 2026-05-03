@@ -23,8 +23,8 @@
     <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
     <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
       <option value="">사업부 전체</option>
-      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🔧 자재</option>
-      <option value="T" {% if biz_div=='T' %}selected{% endif %}>⚙ 가공</option>
+      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🤖 자동화</option>
+      <option value="T" {% if biz_div=='T' %}selected{% endif %}>🔬 검사기</option>
     </select>
     <select name="stage" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
       <option value="">단계 전체</option>
@@ -60,13 +60,13 @@
           <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="/project/{{ p.id }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
           <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
-          <td class="center"><span class="pill pill-muted">{{ p.biz_div|default('—') }}</span></td>
+          <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}🔬 검사기{% elif p.biz_div == 'M' %}🤖 자동화{% else %}{{ p.biz_div|default('—') }}{% endif %}</span></td>
           <td class="center">{% if p.stage %}<span class="pill pill-progress">{{ p.stage }}</span>{% else %}—{% endif %}</td>
           <td class="center">{% if p.status %}<span class="pill {% if p.status in ('완료','종료') %}pill-done{% elif p.status == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% else %}—{% endif %}</td>
           <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>
           <td style="text-align:center;">
-            <button type="button" onclick="deleteProject({{ p.id }}, '{{ p.name|default(p.project_name|default('-'))|replace(\"'\",'') }}')" title="프로젝트 삭제" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
+            <button type="button" onclick="deleteProject({{ p.id }}, {{ (p.name or p.project_name or '-')|tojson }})" title="프로젝트 삭제" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
           </td>
         </tr>
       {% endfor %}
