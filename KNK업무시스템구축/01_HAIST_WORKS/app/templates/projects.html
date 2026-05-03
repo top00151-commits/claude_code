@@ -75,42 +75,28 @@
       {% endfor %}
       </tbody>
     </table>
+    {% include "_v5_partials/password_confirm.html" %}
     <script>
-    // v5H72: 2단계 확인 다이얼로그 + 권한 거절 시 안내
+    // v5H73: 본인 비밀번호 재인증 후 삭제 (간단·안전)
     async function deleteProject(pid, name) {
-      const c1 = confirm(
-        '⚠ 프로젝트 삭제 — 1단계 확인\n\n' +
-        '프로젝트: ' + name + '\n\n' +
-        '· 연관된 수주(SO)·업무 카드도 영향받습니다.\n' +
-        '· 관리번호도 삭제되어 되돌릴 수 없습니다.\n\n' +
-        '정말 삭제하시겠습니까?'
-      );
-      if (!c1) return;
-      const c2 = prompt(
-        '⚠ 최종 확인 — 2단계\n\n' +
-        '완전히 삭제하려면 프로젝트명을 정확히 입력하세요:\n[' + name + ']'
-      );
-      if (c2 === null) return;
-      if (c2.trim() !== String(name).trim()) {
-        alert('프로젝트명이 일치하지 않습니다. 삭제 취소.');
-        return;
-      }
-      const fd = new FormData();
-      try {
-        const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:fd});
-        if (r.status === 403) {
-          alert('⚠ 권한 없음\n\n프로젝트 삭제는 매출·영업 등록권한자만 가능합니다.');
-          return;
+      await window.knkConfirmWithPassword({
+        title: '⚠ 프로젝트 삭제',
+        message: '프로젝트: ' + name + '\n\n' +
+                 '· 연관된 수주(SO) · 업무 카드도 영향받습니다.\n' +
+                 '· 관리번호도 삭제되어 되돌릴 수 없습니다.\n' +
+                 '· 본인 비밀번호로 재확인 후 진행됩니다.',
+        confirmLabel: '⚠ 프로젝트 삭제',
+        onConfirm: async () => {
+          const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:new FormData()});
+          if (r.status === 403) { alert('⚠ 권한 없음'); throw new Error('권한 없음'); }
+          if (r.ok || r.status === 303 || r.redirected) {
+            alert('✓ 프로젝트 [' + name + '] 삭제 완료');
+            location.reload();
+          } else {
+            throw new Error('HTTP ' + r.status);
+          }
         }
-        if (r.ok || r.status === 303 || r.redirected) {
-          alert('✓ 프로젝트 [' + name + '] 삭제 완료');
-          location.reload();
-        } else {
-          alert('삭제 실패: HTTP ' + r.status);
-        }
-      } catch (e) {
-        alert('네트워크 오류: ' + e.message);
-      }
+      });
     }
     </script>
     {% else %}

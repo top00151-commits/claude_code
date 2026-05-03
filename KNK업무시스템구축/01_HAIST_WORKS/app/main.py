@@ -4481,6 +4481,29 @@ async def projects_confirm_order(req: Request, pid: int):
     return JSONResponse(res)
 
 
+# v5H73: 본인 비밀번호 검증 API (삭제 등 위험 액션 전 재인증)
+@app.post("/auth/verify-password")
+async def auth_verify_password(req: Request):
+    """현재 로그인 사용자의 비밀번호를 검증.
+    Body: password=...
+    응답: {ok: True} 또는 {ok: False, error: '...'}"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    form = await req.form()
+    pw = (form.get("password") or "").strip()
+    if not pw:
+        return JSONResponse({"ok": False, "error": "비밀번호를 입력하세요"})
+    # DB 에서 사용자 password 해시 다시 조회 (세션 객체에 password 없을 수 있음)
+    with db_session() as c:
+        row = c.execute("SELECT password FROM users WHERE id=?", (u["id"],)).fetchone()
+    if not row:
+        return JSONResponse({"ok": False, "error": "사용자 없음"}, 404)
+    if hash_pw(pw) != row["password"]:
+        return JSONResponse({"ok": False, "error": "비밀번호가 일치하지 않습니다"})
+    return JSONResponse({"ok": True})
+
+
 @app.post("/sales/orders/{oid:int}/delete")
 async def sales_orders_delete(req: Request, oid: int):
     """v5H70/v5H72: 수주 삭제 — 기술영업팀 등록권한자(can_use_sales)만 가능."""
