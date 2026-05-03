@@ -3257,6 +3257,8 @@ BIZ_NAME = {v: k for k, v in BIZ_CODE.items()}
 
 STAGES = ["제안작성", "제안제출", "수주확정", "납품"]
 NEEDS_CODE_STAGES = ("수주확정", "납품")
+# v5H86: 상태가 '이미 수주된' 의미면 stage 와 무관하게 관리코드 발급
+WON_STATUSES = ("진행중", "납품완료")
 PO_TYPES = ["신규", "추가", "개조", "A/S", "기타"]
 LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
@@ -3447,7 +3449,14 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     import sqlite3 as _sq
     vals = _project_insert_or_update_values(data)
     now = _logi_now()
-    needs_code = vals["stage"] in NEEDS_CODE_STAGES and vals["biz_div"] in ("T", "M")
+    # v5H86: stage 가 NEEDS_CODE_STAGES 이거나 status 가 WON_STATUSES 면 관리코드 발급
+    needs_code = (
+        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+        and vals["biz_div"] in ("T", "M")
+    )
+    # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
+    if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
+        vals["stage"] = "수주확정"
     last_err = None
     for _attempt in range(5):
         code = generate_mgmt_code(vals["biz_div"]) if needs_code else None
@@ -3479,7 +3488,14 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
         return None
     vals = _project_insert_or_update_values(data)
     new_code = current["mgmt_code"]
-    if not new_code and vals["stage"] in NEEDS_CODE_STAGES and vals["biz_div"] in ("T", "M"):
+    # v5H86: stage 또는 status 가 won 의미면 관리코드 발급
+    needs_code = (
+        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+        and vals["biz_div"] in ("T", "M")
+    )
+    if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
+        vals["stage"] = "수주확정"
+    if not new_code and needs_code:
         new_code = generate_mgmt_code(vals["biz_div"])
     with db_session() as c:
         c.execute("""

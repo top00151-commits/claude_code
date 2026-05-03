@@ -47,9 +47,9 @@
     <input type="hidden" name="currency" value="{{ project.currency|default('KRW') }}">
 
     <div class="pf-hint">
-      ① 제안 단계 등록 시: 관리코드/수주번호 없이 저장 (나중에 "수주 확정" 버튼으로 발급) ·
-      ② 이미 수주된 프로젝트 등록 시: 아래 ③ 섹션의 <b>"수주 확정 동시 발급"</b> 체크 →
-      관리코드 + 수주번호(SO)가 한 번에 발급됩니다.
+      ① 제안 단계 (초기협의 / 제안서전달 / 견적발행 / 수주예정): 관리코드/SO 없이 저장 ·
+      ② <b>상태가 '진행중' 또는 '납품완료'</b> 면 자동으로 관리코드 발급 (이미 수주된 프로젝트로 인식) ·
+      ③ 관리코드 + 수주번호(SO)를 한 번에 발급하려면 아래 ③ 섹션의 <b>"수주 확정 동시 발급"</b> 체크.
     </div>
 
     {% set _err = (request.query_params.get('error') if request else '') %}
