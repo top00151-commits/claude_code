@@ -33,6 +33,51 @@ from shared.styles import (
 )
 
 # ═══════════════════════════════════════════════════════════════
+# v3.1: 헤더 자동 줄바꿈 — 한글/영문 너비 인식, 영문↔한글 경계 우선
+# ═══════════════════════════════════════════════════════════════
+def wrap_label_2lines(name):
+    """입력칸 헤더를 최대 2줄로 분리 (자동 wrap이 3줄 만들지 않도록).
+
+    규칙:
+      - 3글자 이하: 그대로 1줄
+      - 영문↔한글 경계가 있으면 가장 균형있는 경계에서 분리
+      - 경계 없으면 글자 수 절반에서 분리
+
+    예:
+      '메뉴얼'(3)        → '메뉴얼'
+      '상세컨셉'(4 한)   → '상세\n컨셉'  (2+2 균형)
+      'BOM작성'(영3+한2) → 'BOM\n작성'   (영문↔한글 경계)
+      '3D/2D설계'(영5+한2)→ '3D/2D\n설계' (영문↔한글 경계)
+      'IO맵/리스트'(혼합)→ 'IO맵/\n리스트' (가장 균형있는 경계)
+      'TURN-ON'(영7)    → 'TURN\n-ON'   (균형 4+3)
+      '가공품발주'(한5)  → '가공품\n발주' (균형 3+2)
+    """
+    if not name:
+        return name
+    n = len(name)
+    if n <= 3:
+        return name
+
+    # 영문↔한글 경계 후보
+    boundaries = []
+    for i in range(1, n):
+        prev_ascii = ord(name[i-1]) < 0x80
+        cur_ascii  = ord(name[i])   < 0x80
+        if prev_ascii != cur_ascii:
+            boundaries.append(i)
+
+    target = (n + 1) // 2
+
+    if boundaries:
+        # 가장 target에 가까운 경계 선택
+        best = min(boundaries, key=lambda i: abs(i - target))
+        return name[:best] + "\n" + name[best:]
+
+    # 경계 없으면 절반
+    return name[:target] + "\n" + name[target:]
+
+
+# ═══════════════════════════════════════════════════════════════
 # 스펙 상수
 # ═══════════════════════════════════════════════════════════════
 ROW_HEIGHTS = {1: 32, 2: 20, 3: 22, 4: 36}   # R1~R4

@@ -19,7 +19,7 @@ from config import (
     DROPDOWN_MAP,
     pms_path, dept_path,
 )
-from shared.knk_standard import normalize_file
+from shared.knk_standard import normalize_file, wrap_label_2lines
 
 
 def _log(msg):
@@ -168,7 +168,7 @@ def _pms_specs():
 # ═══════════════════════════════════════════════════════════════
 # 부서입력 파일 (부서별 컬럼 다름)
 # ═══════════════════════════════════════════════════════════════
-INPUT_COL_WIDTH = 5   # v3.1: 부서 입력칸 통일 너비
+INPUT_COL_WIDTH = 7   # v3.1: 부서 입력칸 통일 너비 (한3자=6단위 + 여유 1)
 
 
 def _dept_spec(dept):

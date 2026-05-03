@@ -18,7 +18,7 @@ from config import (
     DROPDOWN_MAP,
     pms_path, dept_path,
 )
-from shared.knk_standard import normalize_file
+from shared.knk_standard import normalize_file, wrap_label_2lines
 
 
 def _log(msg):
@@ -155,23 +155,14 @@ def _pms_specs():
     }
 
 
-def _wrap3(name):
-    """v3.1: 부서 입력칸 헤더 — 3글자 초과 시 3글자+\n+나머지 (열너비 통일)
-    예: 'BOM작성'(5)→'BOM\n작성', '상세컨셉'(4)→'상세컨\n셉', '메뉴얼'(3)→그대로
-    """
-    if len(name) > 3:
-        return name[:3] + "\n" + name[3:]
-    return name
-
-
-INPUT_COL_WIDTH = 5   # v3.1: 부서 입력칸 통일 너비 (3글자 + 여유)
+INPUT_COL_WIDTH = 7   # v3.1: 부서 입력칸 통일 너비 (한3자=6단위 + 여유 1)
 
 
 def _dept_spec(dept):
     subs_raw = DEPT_SUB_ITEMS.get(dept, [])
     milestones_raw = DEPT_MILESTONES.get(dept, [])
-    # v3.1: 세부항목 헤더 wrap3 적용 (마일스톤은 config.py에서 이미 \n 분리됨)
-    subs = [_wrap3(s) for s in subs_raw]
+    # v3.1: 세부항목 헤더 — 영문/한글 경계 우선 균형 분리 (최대 2줄)
+    subs = [wrap_label_2lines(s) for s in subs_raw]
     milestones = list(milestones_raw)
     n_sub = len(subs)
     n_ms = len(milestones)
