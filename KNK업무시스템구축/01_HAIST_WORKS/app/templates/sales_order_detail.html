@@ -32,6 +32,25 @@
     <div class="kpi-card"><div class="kpi-label">미수금</div><div class="kpi-num" {% if outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{{ '{:,.0f}'.format(outstanding) }}<span class="unit"> 원</span></div></div>
   </div>
 
+  {# v5H128: 출하 OVER 자가치유 경고 — shipments 누계 > 수주 수량 #}
+  {% if ship_over_warn %}
+  <div class="section" style="margin-top:14px;">
+    <div style="border:1px solid var(--knk-red);background:#fff5f5;border-radius:10px;padding:14px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+      <div style="font-size:22px;">⚠</div>
+      <div style="flex:1;min-width:260px;">
+        <div style="font-weight:700;color:var(--knk-red);margin-bottom:4px;">출하 누계가 수주 수량을 초과했습니다</div>
+        <div style="font-size:13px;color:var(--ink);">
+          수주 <b>{{ '{:,.2f}'.format(ship_over_warn.ord_qty) }}</b> ·
+          출하 누계 <b>{{ '{:,.2f}'.format(ship_over_warn.ship_sum) }}</b> ·
+          초과 <b style="color:var(--knk-red);">+{{ '{:,.2f}'.format(ship_over_warn.over) }}</b>
+        </div>
+        <div style="font-size:11.5px;color:var(--mute);margin-top:4px;">출하 라인 검토 후 수량을 정정하거나 수주 수량을 조정하세요. (자동 보정 안 함)</div>
+      </div>
+      <a href="/sales/shipments-receipts?order_id={{ order.id }}" class="btn" style="background:var(--knk-red);color:#fff;">출하 라인 검토 →</a>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- 라인 -->
   {% set _cur = order.currency or 'KRW' %}
   <div class="section">
