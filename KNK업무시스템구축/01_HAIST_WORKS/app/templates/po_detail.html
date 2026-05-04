@@ -135,7 +135,7 @@ button { font-family: inherit; cursor: pointer; }
             <div class="def-item"><div class="lbl">결제 조건</div><div class="val">{{ po.payment_terms|default('—') }}</div></div>
             <div class="def-item"><div class="lbl">인도 조건</div><div class="val">{{ po.shipping_terms|default('—') }}</div></div>
             <div class="def-item"><div class="lbl">통화</div><div class="val">{{ po.currency|default('KRW') }}{% if po.currency and po.currency != 'KRW' %} (환율 {{ po.exchange_rate|default(1) }}){% endif %}</div></div>
-            <div class="def-item"><div class="lbl">총 금액</div><div class="val amount">{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}{% if not po.currency or po.currency == 'KRW' %}원{% endif %}</div></div>
+            <div class="def-item"><div class="lbl">총 금액</div><div class="val amount">{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}{% if not po.currency or po.currency == 'KRW' %}원{% endif %}{% if po_mismatch %} <span title="라인 합계와 헤더 금액이 달라 자동 동기화되었습니다 (의도된 부가세 차이가 있다면 헤더를 직접 조정하세요)" style="display:inline-block;margin-left:8px;padding:2px 8px;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;font-size:11px;font-weight:700;vertical-align:middle;">⚠ 자동보정</span>{% endif %}</div></div>
           </div>
           {% if po.note %}
           <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line);">

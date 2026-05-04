@@ -1138,12 +1138,46 @@ async def daily_page(req: Request, sel_date: str = ""):
     )
 
 
+_TASK_STATUSES = ("진행중", "완료", "지연", "보류", "취소")
+_TASK_CATEGORIES = ("영업", "구매", "생산", "품질", "기술", "관리", "출장", "회의", "교육", "기타")
+
+
+def _validate_task_payload(d: dict) -> tuple:
+    """v5H121: tasks API 정합성 검증. (title, category, status, hours) 반환.
+    실패 시 ValueError(친절 한국어). 백워드 호환: 미지정/구식 값은 기본값으로 폴백."""
+    title = (d.get("title") or "").strip()
+    if not title:
+        raise ValueError("제목은 필수입니다.")
+    if len(title) > 200:
+        raise ValueError("제목은 200자 이내로 입력하세요.")
+    category = d.get("category") or "기타"
+    if category not in _TASK_CATEGORIES:
+        category = "기타"  # 폴백 — 구식 값 보호
+    status = d.get("status") or "진행중"
+    if status not in _TASK_STATUSES:
+        status = "진행중"  # 폴백
+    try:
+        hours = float(d.get("hours") or 0)
+    except (TypeError, ValueError):
+        hours = 0.0
+    if hours < 0:
+        raise ValueError("공수는 0 이상이어야 합니다.")
+    if hours > 24:
+        raise ValueError("공수는 1일 24시간을 초과할 수 없습니다.")
+    return title, category, status, hours
+
+
 @app.post("/api/task")
 async def api_create_task(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
     d = await req.json()
+    # v5H121: 정합성 검증 + 화이트리스트
+    try:
+        title, category, status, hours = _validate_task_payload(d)
+    except ValueError as ve:
+        return JSONResponse({"ok": False, "error": str(ve)}, 400)
     # v5H28-29: project/customer — FK(매출 프로젝트·고객사) 또는 label(자유 텍스트, 사내업무 등) 자동 분기
     _pid = d.get("project_id") or None
     _plabel = (d.get("project_label") or "").strip() or None
@@ -1158,14 +1192,14 @@ async def api_create_task(req: Request):
             (
                 u["id"],
                 d.get("work_date") or date.today().isoformat(),
-                (d.get("title") or "").strip(),
-                d.get("category") or "기타",
+                title,
+                category,
                 _pid,
                 _plabel if not _pid else None,  # FK 있으면 라벨 무시
                 _cid,
                 _clabel if not _cid else None,
-                d.get("status") or "진행중",
-                float(d.get("hours") or 0),
+                status,
+                hours,
                 d.get("notes") or "",
                 (d.get("next_plan") or "").strip(),
                 d.get("due_date") or None,
@@ -1190,23 +1224,27 @@ async def api_update_task(req: Request, tid: int):
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
     d = await req.json()
+    # v5H121: 정합성 검증
+    try:
+        title, category, new_status, hours = _validate_task_payload(d)
+    except ValueError as ve:
+        return JSONResponse({"ok": False, "error": str(ve)}, 400)
     with db_session() as c:
         prev = c.execute("SELECT user_id, status, title, project_id FROM tasks WHERE id=?", (tid,)).fetchone()
         if not prev or prev["user_id"] != u["id"]:
             return JSONResponse({"error": "권한 없음"}, 403)
-        new_status = d.get("status") or "진행중"
         c.execute(
             """UPDATE tasks SET title=?, category=?, project_id=?, customer_id=?,
                                status=?, hours=?, notes=?, next_plan=?, due_date=?,
                                updated_at=datetime('now','localtime')
                WHERE id=?""",
             (
-                (d.get("title") or "").strip(),
-                d.get("category") or "기타",
+                title,
+                category,
                 d.get("project_id") or None,
                 d.get("customer_id") or None,
                 new_status,
-                float(d.get("hours") or 0),
+                hours,
                 d.get("notes") or "",
                 (d.get("next_plan") or "").strip(),
                 d.get("due_date") or None,
