@@ -5839,6 +5839,9 @@ async def customers_edit_submit(req: Request, cid: int):
         return RedirectResponse(f"/customers/{cid}/edit?error=name_required", status_code=303)
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
+        # v5H112: name 변경 감지 → projects.customer_name 일괄 동기화 + 이력
+        old_row = c.execute("SELECT name FROM customers WHERE id=?", (cid,)).fetchone()
+        old_name = (old_row["name"] if old_row else "") or ""
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
             "UPDATE customers SET name=?, biz_no=?, ceo_name=?, "
@@ -5849,6 +5852,25 @@ async def customers_edit_submit(req: Request, cid: int):
              form.get("address", ""), int(form.get("is_active") or 1),
              form.get("note", ""), cid)
         )
+        # v5H112: name 변경 시 자식(projects) 동기화 + audit_log 기록
+        if old_name and old_name != name:
+            try:
+                c.execute(
+                    "UPDATE projects SET customer_name=? WHERE customer_id=?",
+                    (name, cid),
+                )
+            except Exception:
+                pass
+            # v5H112: customer_history 기록
+            try:
+                c.execute(
+                    "INSERT INTO customer_history(customer_id, changed_by, field, "
+                    "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                    (cid, u.get("id"), "name", old_name, name,
+                     "고객사명 변경 → projects.customer_name 동기화"),
+                )
+            except Exception:
+                pass
         # 담당자: 전체 삭제 후 재삽입 (간단·신뢰)
         c.execute("DELETE FROM customer_contacts WHERE customer_id=?", (cid,))
         for ct in contacts:
@@ -7441,7 +7463,13 @@ async def parts_delete_submit(request: Request, pid: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.parts_delete(pid)
+    # v5H112: cascade 안전망 + JSON 에러 (v5H98 패턴)
+    try:
+        _logi.parts_delete(pid)
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"자재 삭제 실패: {e}"}, status_code=400
+        )
     return RedirectResponse("/parts", status_code=303)
 
 
@@ -7869,7 +7897,13 @@ async def suppliers_delete_submit(request: Request, sid: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.supplier_delete(sid)
+    # v5H112: cascade 안전망 + JSON 에러
+    try:
+        _logi.supplier_delete(sid)
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"공급사 삭제 실패: {e}"}, status_code=400
+        )
     return RedirectResponse("/suppliers", status_code=303)
 
 
@@ -7951,7 +7985,14 @@ async def po_new_submit(request: Request):
             "delivery_date": delivs[i] if i < len(delivs) else "",
             "note": notes[i] if i < len(notes) else "",
         })
-    po_id, po_num = _logi.po_create(header, items, created_by=u["id"])
+    # v5H112: 정합성 검증 ValueError → 친절한 redirect
+    try:
+        po_id, po_num = _logi.po_create(header, items, created_by=u["id"])
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/po/new?error={quote(str(ve))}", status_code=303)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"발주 생성 실패: {e}"}, status_code=400)
     return RedirectResponse(f"/po/{po_id}", status_code=303)
 
 
@@ -8013,6 +8054,8 @@ async def po_edit_submit(request: Request, po_id: int):
         "po_type": form.get("po_type", "일반"),
         "note": form.get("note", ""),
     }
+    # v5H112: 라인 id 파싱 (UPSERT 위해) — 신규 라인은 빈 값
+    line_ids = form.getlist("item_id")
     part_ids = form.getlist("item_part_id")
     qtys = form.getlist("item_qty")
     prices = form.getlist("item_price")
@@ -8023,13 +8066,21 @@ async def po_edit_submit(request: Request, po_id: int):
         if not pid and not (qtys[i] if i < len(qtys) else ""):
             continue
         items.append({
+            "id": line_ids[i] if i < len(line_ids) else "",
             "part_id": pid,
             "quantity": qtys[i] if i < len(qtys) else "0",
             "unit_price": prices[i] if i < len(prices) else "0",
             "delivery_date": delivs[i] if i < len(delivs) else "",
             "note": notes[i] if i < len(notes) else "",
         })
-    _logi.po_update(po_id, header, items)
+    # v5H112: ValueError → 친절한 에러 (입고이력 보존 거부 포함)
+    try:
+        _logi.po_update(po_id, header, items)
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/po/{po_id}/edit?error={quote(str(ve))}", status_code=303)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"발주 수정 실패: {e}"}, status_code=400)
     return RedirectResponse(f"/po/{po_id}", status_code=303)
 
 
@@ -8040,7 +8091,13 @@ async def po_delete_submit(request: Request, po_id: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.po_delete(po_id)
+    # v5H112: cascade 안전망 + JSON 에러
+    try:
+        _logi.po_delete(po_id)
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"발주 삭제 실패: {e}"}, status_code=400
+        )
     return RedirectResponse("/po", status_code=303)
 
 
@@ -8122,7 +8179,8 @@ async def rates_create_submit(
         # S3-1 옵션 A: 수동 등록 시점에도 자동 알림 발동 검사
         check_rate_alerts(from_currency, float(rate))
     except Exception as e:
-        return RedirectResponse(f"/rates?error={e}", 303)
+        from urllib.parse import quote
+        return RedirectResponse(f"/rates?error={quote(str(e))}", 303)
     return RedirectResponse("/rates?success=1", 303)
 
 
@@ -8342,7 +8400,8 @@ async def stock_issue_submit(
             "note": note,
         }, u["id"])
     except ValueError as e:
-        return RedirectResponse(f"/stock/issue?error={e}", 303)
+        from urllib.parse import quote
+        return RedirectResponse(f"/stock/issue?error={quote(str(e))}", 303)
     return RedirectResponse(f"/stock/movements?success={mno}", 303)
 
 
@@ -9909,9 +9968,15 @@ async def sales_quotation_item_add(req: Request, quote_id: int):
     total_price = qty * unit_price
     with db_session() as c:
         # 견적 존재 검증
-        h = c.execute("SELECT id FROM quotations WHERE id=?", (quote_id,)).fetchone()
+        h = c.execute("SELECT id, status FROM quotations WHERE id=?", (quote_id,)).fetchone()
         if not h:
             return JSONResponse({"error": "견적 없음"}, 404)
+        # v5H112: SO 발행된(CONFIRMED) 견적은 라인 편집 거부 — SSOT 보호 (lock 정책)
+        if (h["status"] or "").upper() == "CONFIRMED":
+            return JSONResponse(
+                {"error": "수주 확정된 견적은 라인을 추가할 수 없습니다 (SSOT 보호). "
+                          "변경이 필요하면 새 견적 버전을 작성해주세요."}, 400,
+            )
         # 다음 line_no 채번
         row = c.execute(
             "SELECT COALESCE(MAX(line_no),0)+1 FROM quotation_items WHERE quotation_id=?",
@@ -9945,6 +10010,12 @@ async def sales_quotation_item_delete(req: Request, quote_id: int, item_id: int)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
     with db_session() as c:
+        # v5H112: CONFIRMED 견적은 라인 삭제 거부 (SSOT 보호)
+        st = c.execute("SELECT status FROM quotations WHERE id=?", (quote_id,)).fetchone()
+        if st and (st["status"] or "").upper() == "CONFIRMED":
+            return JSONResponse(
+                {"error": "수주 확정된 견적은 라인을 삭제할 수 없습니다 (SSOT 보호)."}, 400,
+            )
         c.execute(
             "DELETE FROM quotation_items WHERE id=? AND quotation_id=?",
             (item_id, quote_id),
@@ -10213,11 +10284,40 @@ async def sales_shipments_create(req: Request):
     tracking = form.get("tracking") or None
     if not order_id:
         return JSONResponse({"error": "order_id 누락"}, 400)
+    # v5H112: 출하 수량 검증
+    if shipped_qty <= 0:
+        return JSONResponse(
+            {"error": f"출하 수량은 0보다 커야 합니다 (입력값: {shipped_qty})."}, 400
+        )
     with db_session() as c:
         o = c.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
         if not o:
             return JSONResponse({"error": "수주 없음"}, 404)
         prev_status = o[0]
+        # v5H112: 출하 OVER 차단 — 누적 출하 합계 vs 수주 수량 (orders.unit_qty 또는 order_items SUM)
+        try:
+            ord_qty_row = c.execute(
+                "SELECT COALESCE(unit_qty, "
+                "(SELECT SUM(quantity) FROM order_items WHERE order_id=?), 0) AS oq "
+                "FROM orders WHERE id=?",
+                (order_id, order_id),
+            ).fetchone()
+            ord_qty = (ord_qty_row[0] or 0) if ord_qty_row else 0
+            shipped_so_far_row = c.execute(
+                "SELECT COALESCE(SUM(shipped_qty),0) FROM shipments WHERE order_id=?",
+                (order_id,),
+            ).fetchone()
+            shipped_so_far = shipped_so_far_row[0] or 0
+            if ord_qty > 0 and (shipped_so_far + shipped_qty) > ord_qty + 0.0001:
+                return JSONResponse(
+                    {"error": (
+                        f"출하 수량 초과 — 수주 {ord_qty} / 기존 출하 {shipped_so_far} / "
+                        f"이번 출하 {shipped_qty} = 누적 {shipped_so_far + shipped_qty}. "
+                        "수주 수량 내로 입력해주세요."
+                    )}, 400,
+                )
+        except Exception:
+            pass  # 검증 실패 시 통과 (backward compatible)
         cur = c.execute(
             """INSERT INTO shipments
                (order_id, shipped_at, shipped_qty, shipped_by, tracking)
@@ -10260,6 +10360,12 @@ async def sales_receipts_create(req: Request):
     note = form.get("note") or None
     if not order_id:
         return JSONResponse({"error": "order_id 누락"}, 400)
+    # v5H112: 음수/0 수금 차단 — 친절한 에러
+    if amount <= 0:
+        return JSONResponse(
+            {"error": f"수금액은 0보다 커야 합니다 (입력값: {amount}). 양수로 입력해주세요."},
+            400,
+        )
     with db_session() as c:
         o = c.execute(
             "SELECT status, total_amount FROM orders WHERE id=?", (order_id,)
@@ -12447,7 +12553,8 @@ async def fx_rates_create(
             "note": note,
         }, user_id=u["id"])
     except Exception as e:
-        return RedirectResponse(f"/fx/rates?error={e}", 303)
+        from urllib.parse import quote
+        return RedirectResponse(f"/fx/rates?error={quote(str(e))}", 303)
     return RedirectResponse("/fx/rates?success=1", 303)
 
 

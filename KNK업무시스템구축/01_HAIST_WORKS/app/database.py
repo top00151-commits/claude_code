@@ -2068,6 +2068,24 @@ def init_db():
         except Exception:
             pass
 
+        # v5H112: 고객사 변경 이력 테이블 (자료 보존 + 감사 대응)
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS customer_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER NOT NULL,
+                    changed_at TEXT DEFAULT (datetime('now','localtime')),
+                    changed_by INTEGER,
+                    field TEXT,
+                    old_value TEXT,
+                    new_value TEXT,
+                    note TEXT
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_customer_history_cid ON customer_history(customer_id)")
+        except Exception:
+            pass
+
         # v5H89b: 기존 orders.customer_id 가 NULL 인데 project 가 customer_name
         # 또는 customer_id 를 갖고 있으면 backfill (수주관리 리스트 고객사 표시 회복)
         try:
@@ -3392,7 +3410,39 @@ def parts_update(pid: int, data: dict) -> None:
 
 
 def parts_delete(pid: int) -> None:
+    """v5H112: cascade 안전망 — part_id 보유 모든 자식 테이블 자동 정리.
+    SET NULL 시도(이력 보존) 실패 시 DELETE. v5H98 패턴."""
     with db_session() as c:
+        # 명시적 자식 테이블 (po_items, stock_movements, part_prices, quotation_items, parts_safety)
+        for sql in [
+            "UPDATE po_items SET part_id=NULL WHERE part_id=?",
+            "UPDATE quotation_items SET part_id=NULL WHERE part_id=?",
+            "DELETE FROM stock_movements WHERE part_id=?",
+            "DELETE FROM part_prices WHERE part_id=?",
+            "DELETE FROM parts_safety WHERE part_id=?",
+        ]:
+            try: c.execute(sql, (pid,))
+            except Exception: pass
+        # 동적 안전망 — part_id 컬럼이 있는 모든 잔여 테이블
+        try:
+            all_tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name <> 'parts'"
+            ).fetchall()]
+            for tname in all_tables:
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
+                except Exception:
+                    continue
+                if "part_id" not in cols:
+                    continue
+                try:
+                    c.execute(f"UPDATE {tname} SET part_id=NULL WHERE part_id=?", (pid,))
+                except Exception:
+                    try: c.execute(f"DELETE FROM {tname} WHERE part_id=?", (pid,))
+                    except Exception: pass
+        except Exception:
+            pass
         c.execute("DELETE FROM parts WHERE id = ?", (pid,))
 
 
@@ -3893,7 +3943,35 @@ def supplier_update(sid: int, data: dict) -> None:
 
 
 def supplier_delete(sid: int) -> None:
+    """v5H112: cascade 안전망 — supplier_id 보유 자식 테이블 정리.
+    purchase_orders/part_prices SET NULL → 이력 보존."""
     with db_session() as c:
+        for sql in [
+            "UPDATE purchase_orders SET supplier_id=NULL WHERE supplier_id=?",
+            "UPDATE part_prices SET supplier_id=NULL WHERE supplier_id=?",
+        ]:
+            try: c.execute(sql, (sid,))
+            except Exception: pass
+        # 동적 안전망
+        try:
+            all_tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name <> 'suppliers'"
+            ).fetchall()]
+            for tname in all_tables:
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
+                except Exception:
+                    continue
+                if "supplier_id" not in cols:
+                    continue
+                try:
+                    c.execute(f"UPDATE {tname} SET supplier_id=NULL WHERE supplier_id=?", (sid,))
+                except Exception:
+                    try: c.execute(f"DELETE FROM {tname} WHERE supplier_id=?", (sid,))
+                    except Exception: pass
+        except Exception:
+            pass
         c.execute("DELETE FROM suppliers WHERE id = ?", (sid,))
 
 
@@ -3979,7 +4057,22 @@ def po_get(po_id: int):
 
 
 def po_create(data: dict, items: list[dict], created_by: int = 0) -> tuple[int, str]:
-    """발주 헤더 + 라인 일괄 생성. 발주번호는 자동 채번."""
+    """발주 헤더 + 라인 일괄 생성. 발주번호는 자동 채번.
+    v5H112: 정합성 검증 — 라인 0건/qty<=0/price<0 거부."""
+    # v5H112 정합성 검증 (v5H91 패턴)
+    valid_items = [it for it in (items or [])
+                   if (float(it.get("quantity") or 0) > 0)
+                   or (it.get("part_id") and str(it.get("part_id")).strip())]
+    if not valid_items:
+        raise ValueError("발주 라인이 1개 이상 있어야 합니다. 자재와 수량을 입력해주세요.")
+    for idx, it in enumerate(valid_items, start=1):
+        q = float(it.get("quantity") or 0)
+        p = float(it.get("unit_price") or 0)
+        if q <= 0:
+            raise ValueError(f"{idx}번째 라인의 수량이 0 이하입니다. 양수로 입력해주세요.")
+        if p < 0:
+            raise ValueError(f"{idx}번째 라인의 단가가 음수입니다. 0 이상으로 입력해주세요.")
+    items = valid_items
     po_number = generate_po_number()
     order_date = (data.get("order_date") or "").strip() or _date.today().isoformat()
     now = _logi_now()
@@ -4054,7 +4147,27 @@ def po_create(data: dict, items: list[dict], created_by: int = 0) -> tuple[int, 
 
 
 def po_update(po_id: int, data: dict, items: list[dict]) -> None:
-    """발주 헤더 + 라인 전체 교체 방식 (단순화)"""
+    """v5H112: id 기준 UPSERT — received_qty 보존.
+    - id 가 form 에 있고 기존 라인 매칭되면 UPDATE
+    - id 없으면 INSERT
+    - form 에서 사라진 기존 id 는 DELETE (단 received_qty>0 이면 ValueError)
+    - 정합성 검증: qty<=0 / price<0 / 라인 0건 거부
+    """
+    # v5H112 정합성 검증
+    valid_items = [it for it in (items or [])
+                   if (float(it.get("quantity") or 0) > 0)
+                   or (it.get("part_id") and str(it.get("part_id")).strip())
+                   or (it.get("id") and str(it.get("id")).strip())]
+    if not valid_items:
+        raise ValueError("발주 라인이 1개 이상 있어야 합니다.")
+    for idx, it in enumerate(valid_items, start=1):
+        q = float(it.get("quantity") or 0)
+        p = float(it.get("unit_price") or 0)
+        if q <= 0:
+            raise ValueError(f"{idx}번째 라인 수량이 0 이하입니다.")
+        if p < 0:
+            raise ValueError(f"{idx}번째 라인 단가가 음수입니다.")
+    items = valid_items
     now = _logi_now()
     total = 0.0
     with db_session() as c:
@@ -4079,34 +4192,102 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
             (data.get("note") or "").strip(),
             now, po_id,
         ))
-        # 라인 전체 삭제 후 재삽입 (received_qty 보존은 4단계에서 처리)
-        c.execute("DELETE FROM po_items WHERE po_id = ?", (po_id,))
+        # 기존 라인 조회 (id → row)
+        existing = {
+            r["id"]: r for r in c.execute(
+                "SELECT id, received_qty FROM po_items WHERE po_id=?", (po_id,)
+            ).fetchall()
+        }
+        kept_ids = set()
         for idx, it in enumerate(items, start=1):
             qty = float(it.get("quantity") or 0)
             price = float(it.get("unit_price") or 0)
             amt = round(qty * price, 2)
             total += amt
             part_id = int(it.get("part_id") or 0) or None
-            c.execute("""
-                INSERT INTO po_items
-                (po_id, line_no, part_id, part_no_snapshot, part_name_snapshot,
-                 spec_snapshot, unit, quantity, unit_price, amount,
-                 delivery_date, note)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (po_id, idx, part_id,
-                  it.get("part_no_snapshot") or "",
-                  it.get("part_name_snapshot") or "",
-                  it.get("spec_snapshot") or "",
-                  it.get("unit") or "EA",
-                  qty, price, amt,
-                  (it.get("delivery_date") or "").strip() or None,
-                  (it.get("note") or "").strip()))
+            line_id_raw = str(it.get("id") or "").strip()
+            line_id = int(line_id_raw) if line_id_raw.isdigit() else 0
+            if line_id and line_id in existing:
+                # UPDATE — received_qty 보존
+                kept_ids.add(line_id)
+                c.execute("""
+                    UPDATE po_items SET
+                      line_no=?, part_id=?, part_no_snapshot=?, part_name_snapshot=?,
+                      spec_snapshot=?, unit=?, quantity=?, unit_price=?, amount=?,
+                      delivery_date=?, note=?
+                    WHERE id=?
+                """, (idx, part_id,
+                      it.get("part_no_snapshot") or "",
+                      it.get("part_name_snapshot") or "",
+                      it.get("spec_snapshot") or "",
+                      it.get("unit") or "EA",
+                      qty, price, amt,
+                      (it.get("delivery_date") or "").strip() or None,
+                      (it.get("note") or "").strip(),
+                      line_id))
+            else:
+                # INSERT
+                c.execute("""
+                    INSERT INTO po_items
+                    (po_id, line_no, part_id, part_no_snapshot, part_name_snapshot,
+                     spec_snapshot, unit, quantity, unit_price, amount,
+                     delivery_date, note)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (po_id, idx, part_id,
+                      it.get("part_no_snapshot") or "",
+                      it.get("part_name_snapshot") or "",
+                      it.get("spec_snapshot") or "",
+                      it.get("unit") or "EA",
+                      qty, price, amt,
+                      (it.get("delivery_date") or "").strip() or None,
+                      (it.get("note") or "").strip()))
+        # 사라진 라인 — received_qty>0 이면 거부
+        to_delete = [lid for lid in existing.keys() if lid not in kept_ids]
+        for lid in to_delete:
+            recv = existing[lid]["received_qty"] or 0
+            if recv and recv > 0:
+                raise ValueError(
+                    f"입고 이력이 있는 라인(id={lid}, 입고수량={recv})은 삭제할 수 없습니다. "
+                    "입고 취소 후 다시 시도해주세요."
+                )
+            c.execute("DELETE FROM po_items WHERE id=?", (lid,))
         c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?",
                   (round(total, 2), po_id))
 
 
 def po_delete(po_id: int) -> None:
+    """v5H112: cascade 안전망 — po_items + stock_movements.po_id 정리.
+    stock_movements.po_id 는 SET NULL 시도 (이력 보존)."""
     with db_session() as c:
+        # 자식: po_items (FK CASCADE 가능하나 명시)
+        try: c.execute("DELETE FROM po_items WHERE po_id=?", (po_id,))
+        except Exception: pass
+        # stock_movements.po_id 는 이력 — SET NULL 우선
+        for sql in [
+            "UPDATE stock_movements SET po_id=NULL, po_item_id=NULL WHERE po_id=?",
+        ]:
+            try: c.execute(sql, (po_id,))
+            except Exception: pass
+        # 동적 안전망 — po_id 컬럼 보유 모든 테이블
+        try:
+            all_tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name <> 'purchase_orders'"
+            ).fetchall()]
+            for tname in all_tables:
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
+                except Exception:
+                    continue
+                if "po_id" not in cols:
+                    continue
+                try:
+                    c.execute(f"UPDATE {tname} SET po_id=NULL WHERE po_id=?", (po_id,))
+                except Exception:
+                    try: c.execute(f"DELETE FROM {tname} WHERE po_id=?", (po_id,))
+                    except Exception: pass
+        except Exception:
+            pass
         c.execute("DELETE FROM purchase_orders WHERE id = ?", (po_id,))
 
 
@@ -4581,8 +4762,17 @@ def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
             ).fetchone()
             if not item or not item["part_id"]:
                 continue
-            # po_items.received_qty 누적
+            # v5H112: 입고 OVER 차단 — 누적 입고 > 발주 수량 거부
             new_recv = (item["received_qty"] or 0) + qty
+            ord_qty = item["quantity"] or 0
+            if ord_qty > 0 and new_recv > ord_qty + 0.0001:
+                return {
+                    "ok": False,
+                    "error": (
+                        f"입고 수량 초과 — 발주 {ord_qty} / 기존 입고 {item['received_qty'] or 0} / "
+                        f"이번 입고 {qty} = 누적 {new_recv}. 발주 수량 내로 입력해주세요."
+                    ),
+                }
             c.execute(
                 "UPDATE po_items SET received_qty=? WHERE id=?",
                 (new_recv, item_id),
@@ -4635,6 +4825,24 @@ def stock_issue(data: dict, user_id: int) -> tuple[int, str] | None:
     qty = float(data.get("quantity") or 0)
     if qty <= 0:
         raise ValueError("출고 수량은 양수여야 합니다.")
+    # v5H112: 재고 음수 차단 — 현재고 < 출고 수량 시 거부
+    try:
+        with db_session() as _c:
+            cur = _c.execute(
+                "SELECT stock_qty, part_name FROM parts WHERE id=?",
+                (int(data["part_id"]),),
+            ).fetchone()
+            if cur:
+                stock = cur["stock_qty"] or 0
+                if stock < qty:
+                    raise ValueError(
+                        f"재고 부족 — '{cur['part_name'] or ''}' 현재고 {stock} < 출고 요청 {qty}. "
+                        "재고를 확인하거나 입고 후 다시 시도해주세요."
+                    )
+    except ValueError:
+        raise
+    except Exception:
+        pass  # 사전조회 실패는 무시 (기존 동작 유지)
     return stock_movement_create({
         "part_id": data["part_id"],
         "kind": "OUT",
@@ -5211,7 +5419,13 @@ def get_exchange_rate(date_str: str, from_currency: str, to_currency: str = "KRW
 
 
 def exchange_rate_create(data: dict, user_id: int) -> int:
-    """환율 등록 (수동). 같은 날짜·통화쌍은 UPSERT."""
+    """환율 등록 (수동). 같은 날짜·통화쌍은 UPSERT.
+    v5H112: 0/음수 환율 차단."""
+    rate = float(data.get("rate") or 0)
+    if rate <= 0:
+        raise ValueError(f"환율은 0보다 커야 합니다 (입력값: {rate}).")
+    if not (data.get("rate_date") and data.get("from_currency")):
+        raise ValueError("환율일자와 기준통화는 필수입니다.")
     with db_session() as c:
         c.execute(
             """INSERT INTO exchange_rates(rate_date, from_currency, to_currency, rate, source, note, created_by)
