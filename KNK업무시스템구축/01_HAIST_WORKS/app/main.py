@@ -1540,11 +1540,30 @@ async def api_add_comment(req: Request, tid: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
-    d = await req.json()
+    # v5H122 (2026-05-04) Task 서브 API 페이로드 검증 강화
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"error": "잘못된 요청 형식입니다 (JSON 필요)"}, 400)
     body = (d.get("body") or "").strip()
     if not body:
-        return JSONResponse({"error": "내용을 입력하세요"}, 400)
+        return JSONResponse({"error": "댓글 내용을 입력하세요"}, 400)
+    if len(body) > 2000:
+        return JSONResponse({"error": f"댓글은 최대 2000자까지 입력할 수 있습니다 (현재 {len(body)}자)"}, 400)
+    # task 존재 확인 — 없는 카드에 댓글 달리는 것 차단
+    try:
+        with db_session() as _c:
+            _t = _c.execute("SELECT id FROM tasks WHERE id=?", (tid,)).fetchone()
+            if not _t:
+                return JSONResponse({"error": "업무 카드를 찾을 수 없습니다"}, 404)
+    except Exception:
+        pass  # 폴백: 기존 동작
     parent_id = d.get("parent_id") or None
+    if parent_id is not None:
+        try:
+            parent_id = int(parent_id)
+        except Exception:
+            return JSONResponse({"error": "parent_id 형식 오류"}, 400)
     cid = add_comment(tid, u["id"], body, parent_id)
     return JSONResponse({"ok": True, "id": cid})
 
@@ -1650,8 +1669,24 @@ async def api_reaction(req: Request, tid: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"error":"로그인 필요"}, 401)
-    d = await req.json()
-    res = add_reaction(tid, u["id"], d.get("kind") or "")
+    # v5H122 페이로드 검증
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"error":"잘못된 요청 형식입니다 (JSON 필요)"}, 400)
+    kind = (d.get("kind") or "").strip()
+    if not kind:
+        return JSONResponse({"error":"반응 종류를 선택하세요 (ack/question/risk/ok)"}, 400)
+    if kind not in ("ack", "question", "risk", "ok"):
+        return JSONResponse({"error": f"지원하지 않는 반응입니다: {kind} (ack/question/risk/ok 중 하나)"}, 400)
+    # task 존재 확인
+    try:
+        with db_session() as _c:
+            if not _c.execute("SELECT id FROM tasks WHERE id=?", (tid,)).fetchone():
+                return JSONResponse({"error":"업무 카드를 찾을 수 없습니다"}, 404)
+    except Exception:
+        pass
+    res = add_reaction(tid, u["id"], kind)
     if not res:
         return JSONResponse({"error":"잘못된 반응"}, 400)
     return JSONResponse({"ok":True, "result":res, "reactions":get_reactions(tid)})
@@ -1747,12 +1782,36 @@ async def api_delegate(req: Request, tid: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"error":"로그인 필요"}, 401)
-    d = await req.json()
+    # v5H122 페이로드 검증
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"error":"잘못된 요청 형식입니다 (JSON 필요)"}, 400)
     to_id = d.get("to_user_id")
     msg = (d.get("message") or "").strip()
     if not to_id:
         return JSONResponse({"error":"위임 대상을 선택하세요"}, 400)
-    delegate_task(tid, u["id"], int(to_id), msg)
+    try:
+        to_id_i = int(to_id)
+    except Exception:
+        return JSONResponse({"error":"위임 대상 형식 오류 (사용자 ID 숫자 필요)"}, 400)
+    if to_id_i == u["id"]:
+        return JSONResponse({"error":"자기 자신에게는 위임할 수 없습니다"}, 400)
+    if len(msg) > 2000:
+        return JSONResponse({"error": f"위임 메시지는 최대 2000자까지 입력할 수 있습니다 (현재 {len(msg)}자)"}, 400)
+    # task + 대상 사용자 존재 검증
+    try:
+        with db_session() as _c:
+            if not _c.execute("SELECT id FROM tasks WHERE id=?", (tid,)).fetchone():
+                return JSONResponse({"error":"업무 카드를 찾을 수 없습니다"}, 404)
+            tgt = _c.execute("SELECT id, is_active FROM users WHERE id=?", (to_id_i,)).fetchone()
+            if not tgt:
+                return JSONResponse({"error":"위임 대상 사용자를 찾을 수 없습니다"}, 404)
+            if not tgt["is_active"]:
+                return JSONResponse({"error":"비활성 사용자에게는 위임할 수 없습니다"}, 400)
+    except Exception:
+        pass
+    delegate_task(tid, u["id"], to_id_i, msg)
     return JSONResponse({"ok": True})
 
 
