@@ -6416,6 +6416,15 @@ async def changes_new_submit(
     if not u:
         return RedirectResponse("/login", 303)
 
+    # v5H115 #C1: 제목/유형 필수 + urgency 화이트리스트
+    title = (title or "").strip()
+    change_type = (change_type or "").strip()
+    if not title or not change_type:
+        from urllib.parse import quote as _q
+        return RedirectResponse("/changes/new?error=" + _q("제목·변경유형은 필수입니다"), 303)
+    if urgency not in ("일반", "긴급", "낮음", "보통", "높음"):
+        urgency = "일반"
+
     # 프로젝트 ID에서 사업부 자동 추출 (없으면 폼 입력 사용)
     pid = None
     if project_id:
@@ -6779,6 +6788,15 @@ async def tickets_new_submit(
     if not u:
         return RedirectResponse("/login", 303)
 
+    # v5H115 #T1: 제목/카테고리 필수 + urgency 화이트리스트
+    title = (title or "").strip()
+    category = (category or "").strip()
+    if not title or not category:
+        from urllib.parse import quote as _q
+        return RedirectResponse("/tickets?error=" + _q("제목·카테고리는 필수입니다"), 303)
+    if urgency not in ("일반", "긴급", "낮음", "보통"):
+        urgency = "일반"
+
     pid = None
     if project_id:
         try:
@@ -7044,6 +7062,15 @@ async def issues_new_submit(
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    # v5H115 #I1/#I2: 제목 필수 + severity/issue_type 화이트리스트
+    title = (title or "").strip()
+    if not title:
+        from urllib.parse import quote as _q
+        return RedirectResponse("/issues?error=" + _q("제목은 필수입니다"), 303)
+    if severity not in ISSUE_SEVERITIES:
+        severity = "중"
+    if issue_type not in ISSUE_TYPES:
+        issue_type = "기타"
     pid = int(project_id) if project_id and project_id.isdigit() else None
     cid = int(customer_id) if customer_id and customer_id.isdigit() else None
     otid = int(owner_team_id) if owner_team_id and owner_team_id.isdigit() else None
@@ -7124,9 +7151,15 @@ async def issues_update_submit(
         data["owner_team_id"] = int(owner_team_id)
     if cost_estimate:
         try:
-            data["cost_estimate"] = float(cost_estimate)
+            _ce = float(cost_estimate)
+            # v5H115 #I3: 음수 비용 차단
+            if _ce >= 0:
+                data["cost_estimate"] = _ce
         except ValueError:
             pass
+    # v5H115 #I2: 상태 화이트리스트 (변경 시)
+    if status and status not in ISSUE_STATUSES:
+        data.pop("status", None)
     if related_change_id and related_change_id.isdigit():
         data["related_change_id"] = int(related_change_id)
     issue_update(iid, data, user_id=u["id"])
@@ -7264,6 +7297,14 @@ async def board_new_submit(req: Request,
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    # v5H115 #B1: 제목 필수 + 카테고리 화이트리스트
+    title = (title or "").strip()
+    if not title:
+        from urllib.parse import quote as _q
+        return RedirectResponse(f"/board/new?board_id={board_id}&error="
+                                + _q("제목은 필수입니다"), 303)
+    if BOARD_CATEGORIES and category not in BOARD_CATEGORIES:
+        category = "일반" if "일반" in BOARD_CATEGORIES else BOARD_CATEGORIES[0]
     # 전사 게시판: admin/ceo/executive만 → 바로 approved
     # 부서 게시판: 팀장/경영진 → approved, 일반 부서원 → pending
     with db_session() as c:

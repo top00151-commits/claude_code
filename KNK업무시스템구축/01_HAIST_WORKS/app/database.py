@@ -6230,7 +6230,32 @@ def board_post_update(post_id, title, body, category):
 
 
 def board_post_delete(post_id):
+    """v5H115: cascade — board_comments + 동적 안전망 (post_id 컬럼)."""
     with db_session() as c:
+        try:
+            c.execute("DELETE FROM board_comments WHERE post_id=?", (post_id,))
+        except Exception:
+            pass
+        try:
+            tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            for tbl in tables:
+                if tbl in ("board_posts", "board_comments", "sqlite_sequence"):
+                    continue
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()]
+                    if "post_id" in cols:
+                        try:
+                            c.execute(f"UPDATE {tbl} SET post_id=NULL WHERE post_id=?", (post_id,))
+                        except Exception:
+                            try:
+                                c.execute(f"DELETE FROM {tbl} WHERE post_id=?", (post_id,))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
         c.execute("DELETE FROM board_posts WHERE id=?", (post_id,))
 
 
@@ -6722,7 +6747,34 @@ def change_ack(cid: int, user_id: int, note: str = ""):
 
 
 def change_delete(cid: int):
+    """v5H115: cascade — change_impacts + change_reads + 동적 안전망."""
     with db_session() as c:
+        for tbl in ("change_impacts", "change_reads"):
+            try:
+                c.execute(f"DELETE FROM {tbl} WHERE change_id=?", (cid,))
+            except Exception:
+                pass
+        try:
+            tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            for tbl in tables:
+                if tbl in ("changes", "change_impacts", "change_reads",
+                            "sqlite_sequence"):
+                    continue
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()]
+                    if "change_id" in cols:
+                        try:
+                            c.execute(f"UPDATE {tbl} SET change_id=NULL WHERE change_id=?", (cid,))
+                        except Exception:
+                            try:
+                                c.execute(f"DELETE FROM {tbl} WHERE change_id=?", (cid,))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
         c.execute("DELETE FROM changes WHERE id=?", (cid,))
 
 
@@ -7095,7 +7147,32 @@ def ticket_add_comment(tid: int, author_id: int, body: str):
 
 
 def ticket_delete(tid: int):
+    """v5H115: cascade — ticket_comments + 동적 안전망."""
     with db_session() as c:
+        try:
+            c.execute("DELETE FROM ticket_comments WHERE ticket_id=?", (tid,))
+        except Exception:
+            pass
+        try:
+            tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            for tbl in tables:
+                if tbl in ("tickets", "ticket_comments", "sqlite_sequence"):
+                    continue
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()]
+                    if "ticket_id" in cols:
+                        try:
+                            c.execute(f"UPDATE {tbl} SET ticket_id=NULL WHERE ticket_id=?", (tid,))
+                        except Exception:
+                            try:
+                                c.execute(f"DELETE FROM {tbl} WHERE ticket_id=?", (tid,))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
         c.execute("DELETE FROM tickets WHERE id=?", (tid,))
 
 
@@ -7341,7 +7418,33 @@ def issue_update(iid: int, data: dict, user_id: int) -> bool:
 
 
 def issue_delete(iid: int) -> bool:
+    """v5H115: 자식 테이블 cascade — issue_logs 명시 삭제 + 동적 안전망."""
     with db_session() as c:
+        try:
+            c.execute("DELETE FROM issue_logs WHERE issue_id=?", (iid,))
+        except Exception:
+            pass
+        # 동적 안전망: issue_id 컬럼 보유 테이블 자동 정리 (v5H98 패턴)
+        try:
+            tables = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            for tbl in tables:
+                if tbl in ("issues", "issue_logs", "sqlite_sequence"):
+                    continue
+                try:
+                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()]
+                    if "issue_id" in cols:
+                        try:
+                            c.execute(f"UPDATE {tbl} SET issue_id=NULL WHERE issue_id=?", (iid,))
+                        except Exception:
+                            try:
+                                c.execute(f"DELETE FROM {tbl} WHERE issue_id=?", (iid,))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
         c.execute("DELETE FROM issues WHERE id=?", (iid,))
     return True
 
