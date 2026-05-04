@@ -527,45 +527,12 @@
         {% endif %}
       </div>
 
-      {# v5H101b: 프로젝트 변경 이력 — 별도 카드 (SO 유무와 무관, 빈 상태도 노출) #}
+      {# v5H120: 공통 history_card partial 사용 #}
       <div class="section-card">
-        <h3>📜 프로젝트 변경 이력 ({{ (project_history or [])|length }}건)</h3>
-        {% if project_history %}
-        <div class="list-scroll-sm">
-        <table style="width:100%;font-size:12.5px;border-collapse:collapse;">
-          <thead>
-            <tr style="background:var(--paper-2);border-bottom:1px solid var(--line);">
-              <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--amber-deep);width:140px;">일시</th>
-              <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--amber-deep);width:90px;">변경자</th>
-              <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--amber-deep);width:90px;">항목</th>
-              <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--amber-deep);">변경 내용</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for h in project_history %}
-            <tr style="border-bottom:1px solid var(--line);">
-              <td style="padding:7px 10px;color:var(--mute);font-size:11.5px;">{{ h.changed_at|default('-') }}</td>
-              <td style="padding:7px 10px;font-weight:600;">{{ h.changed_by_name or '시스템' }}</td>
-              <td style="padding:7px 10px;"><span style="background:var(--paper-2);padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;color:var(--amber-deep);">{{ h.field|default('-') }}</span></td>
-              <td style="padding:7px 10px;">
-                {% if h.old_value or h.new_value %}
-                  <span style="color:var(--mute);text-decoration:line-through;">{{ h.old_value|default('—') }}</span>
-                  <span style="color:var(--mute);"> → </span>
-                  <span style="color:var(--knk-red);font-weight:700;">{{ h.new_value|default('—') }}</span>
-                {% endif %}
-                {% if h.note %}<span style="color:var(--mute);font-size:11px;margin-left:6px;">({{ h.note }})</span>{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        </div>
-        {% else %}
-        <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">
-          아직 기록된 변경 이력이 없습니다.<br>
-          <span style="font-size:11.5px;">프로젝트를 수정하거나 상태를 변경하면 여기에 자동으로 기록됩니다.</span>
-        </div>
-        {% endif %}
+        {% set entries = project_history %}
+        {% set title = '프로젝트' %}
+        {% set empty_hint = '프로젝트를 수정하거나 상태를 변경하면 여기에 자동으로 기록됩니다.' %}
+        {% include '_v5_partials/history_card.html' %}
       </div>
 
       {% if tasks %}

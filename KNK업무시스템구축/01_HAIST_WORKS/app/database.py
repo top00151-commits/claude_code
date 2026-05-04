@@ -100,6 +100,82 @@ def db_session():
 
 
 # =====================================================
+# v5H119: 공통 cascade 안전망 헬퍼
+# =====================================================
+def _safe_delete_with_cascade(conn, table_name: str, row_id,
+                              fk_column: str = "project_id",
+                              explicit_children: list = None,
+                              keep_tables: tuple = ()) -> dict:
+    """sqlite_master 동적 스캔 → fk_column 보유 자식 테이블 SET NULL 시도 →
+    실패 시 DELETE → 본행 DELETE.
+
+    Args:
+        conn: 활성 sqlite3 connection (db_session() 컨텍스트 내).
+        table_name: 본행 테이블명 (예: 'parts', 'purchase_orders').
+        row_id: 삭제 대상 PK (id 컬럼 기준).
+        fk_column: 자식 테이블의 FK 컬럼명 (예: 'part_id', 'po_id', 'change_id').
+        explicit_children: [(sql, params_tuple), ...] — 동적 스캔 전 명시 실행할 SQL.
+        keep_tables: 동적 스캔에서 제외할 테이블명 튜플 (본인 + 자식 명시 등).
+
+    Returns:
+        {"ok": bool, "table_results": [{"table": str, "action": str}], "error": str|None}
+
+    백워드 호환: 본 함수는 raise 하지 않으며 결과 dict 만 반환. 호출자는 dict["ok"]
+    검사 후 폴백 가능. 본행 DELETE 실패 시에만 ok=False.
+    """
+    results = []
+    err = None
+    try:
+        # 1. 명시적 자식 SQL
+        for item in (explicit_children or []):
+            try:
+                sql, params = item
+                conn.execute(sql, params)
+                results.append({"table": "(explicit)", "action": sql[:60]})
+            except Exception as e:
+                results.append({"table": "(explicit)", "action": f"FAIL: {e}"})
+
+        # 2. 동적 스캔
+        skip = set(keep_tables) | {table_name, "sqlite_sequence"}
+        try:
+            tables = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()]
+        except Exception:
+            tables = []
+        for tbl in tables:
+            if tbl in skip:
+                continue
+            try:
+                cols = [r[1] for r in conn.execute(
+                    f"PRAGMA table_info({tbl})").fetchall()]
+            except Exception:
+                continue
+            if fk_column not in cols:
+                continue
+            try:
+                conn.execute(
+                    f"UPDATE {tbl} SET {fk_column}=NULL WHERE {fk_column}=?",
+                    (row_id,))
+                results.append({"table": tbl, "action": "SET NULL"})
+            except Exception:
+                try:
+                    conn.execute(
+                        f"DELETE FROM {tbl} WHERE {fk_column}=?", (row_id,))
+                    results.append({"table": tbl, "action": "DELETE"})
+                except Exception as e2:
+                    results.append({"table": tbl, "action": f"FAIL: {e2}"})
+
+        # 3. 본행 삭제
+        conn.execute(f"DELETE FROM {table_name} WHERE id=?", (row_id,))
+        return {"ok": True, "table_results": results, "error": None}
+    except Exception as e:
+        err = str(e)
+        return {"ok": False, "table_results": results, "error": err}
+
+
+# =====================================================
 # SCHEMA
 # =====================================================
 SCHEMA = """
@@ -3512,10 +3588,24 @@ def parts_update(pid: int, data: dict) -> None:
 
 
 def parts_delete(pid: int) -> None:
-    """v5H112: cascade 안전망 — part_id 보유 모든 자식 테이블 자동 정리.
-    SET NULL 시도(이력 보존) 실패 시 DELETE. v5H98 패턴."""
+    """v5H119: 공통 헬퍼 _safe_delete_with_cascade 사용. 폴백: v5H112 인라인 로직."""
     with db_session() as c:
-        # 명시적 자식 테이블 (po_items, stock_movements, part_prices, quotation_items, parts_safety)
+        try:
+            res = _safe_delete_with_cascade(
+                c, "parts", pid, fk_column="part_id",
+                explicit_children=[
+                    ("UPDATE po_items SET part_id=NULL WHERE part_id=?", (pid,)),
+                    ("UPDATE quotation_items SET part_id=NULL WHERE part_id=?", (pid,)),
+                    ("DELETE FROM stock_movements WHERE part_id=?", (pid,)),
+                    ("DELETE FROM part_prices WHERE part_id=?", (pid,)),
+                    ("DELETE FROM parts_safety WHERE part_id=?", (pid,)),
+                ],
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
+        # 폴백 (v5H112 원본 인라인) — 헬퍼 실패/예외 시 안전망
         for sql in [
             "UPDATE po_items SET part_id=NULL WHERE part_id=?",
             "UPDATE quotation_items SET part_id=NULL WHERE part_id=?",
@@ -3525,7 +3615,6 @@ def parts_delete(pid: int) -> None:
         ]:
             try: c.execute(sql, (pid,))
             except Exception: pass
-        # 동적 안전망 — part_id 컬럼이 있는 모든 잔여 테이블
         try:
             all_tables = [r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
@@ -4125,16 +4214,26 @@ def supplier_update(sid: int, data: dict) -> None:
 
 
 def supplier_delete(sid: int) -> None:
-    """v5H112: cascade 안전망 — supplier_id 보유 자식 테이블 정리.
-    purchase_orders/part_prices SET NULL → 이력 보존."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H112 인라인."""
     with db_session() as c:
+        try:
+            res = _safe_delete_with_cascade(
+                c, "suppliers", sid, fk_column="supplier_id",
+                explicit_children=[
+                    ("UPDATE purchase_orders SET supplier_id=NULL WHERE supplier_id=?", (sid,)),
+                    ("UPDATE part_prices SET supplier_id=NULL WHERE supplier_id=?", (sid,)),
+                ],
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
         for sql in [
             "UPDATE purchase_orders SET supplier_id=NULL WHERE supplier_id=?",
             "UPDATE part_prices SET supplier_id=NULL WHERE supplier_id=?",
         ]:
             try: c.execute(sql, (sid,))
             except Exception: pass
-        # 동적 안전망
         try:
             all_tables = [r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
@@ -4438,19 +4537,29 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
 
 
 def po_delete(po_id: int) -> None:
-    """v5H112: cascade 안전망 — po_items + stock_movements.po_id 정리.
-    stock_movements.po_id 는 SET NULL 시도 (이력 보존)."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H112 인라인.
+    헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'."""
     with db_session() as c:
-        # 자식: po_items (FK CASCADE 가능하나 명시)
+        try:
+            res = _safe_delete_with_cascade(
+                c, "purchase_orders", po_id, fk_column="po_id",
+                explicit_children=[
+                    ("DELETE FROM po_items WHERE po_id=?", (po_id,)),
+                    ("UPDATE stock_movements SET po_id=NULL, po_item_id=NULL WHERE po_id=?", (po_id,)),
+                ],
+                keep_tables=("po_items",),
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
         try: c.execute("DELETE FROM po_items WHERE po_id=?", (po_id,))
         except Exception: pass
-        # stock_movements.po_id 는 이력 — SET NULL 우선
         for sql in [
             "UPDATE stock_movements SET po_id=NULL, po_item_id=NULL WHERE po_id=?",
         ]:
             try: c.execute(sql, (po_id,))
             except Exception: pass
-        # 동적 안전망 — po_id 컬럼 보유 모든 테이블
         try:
             all_tables = [r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
@@ -6231,8 +6340,20 @@ def board_post_update(post_id, title, body, category):
 
 
 def board_post_delete(post_id):
-    """v5H115: cascade — board_comments + 동적 안전망 (post_id 컬럼)."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H115 인라인."""
     with db_session() as c:
+        try:
+            res = _safe_delete_with_cascade(
+                c, "board_posts", post_id, fk_column="post_id",
+                explicit_children=[
+                    ("DELETE FROM board_comments WHERE post_id=?", (post_id,)),
+                ],
+                keep_tables=("board_comments",),
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
         try:
             c.execute("DELETE FROM board_comments WHERE post_id=?", (post_id,))
         except Exception:
@@ -6748,8 +6869,21 @@ def change_ack(cid: int, user_id: int, note: str = ""):
 
 
 def change_delete(cid: int):
-    """v5H115: cascade — change_impacts + change_reads + 동적 안전망."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H115 인라인."""
     with db_session() as c:
+        try:
+            res = _safe_delete_with_cascade(
+                c, "changes", cid, fk_column="change_id",
+                explicit_children=[
+                    ("DELETE FROM change_impacts WHERE change_id=?", (cid,)),
+                    ("DELETE FROM change_reads WHERE change_id=?", (cid,)),
+                ],
+                keep_tables=("change_impacts", "change_reads"),
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
         for tbl in ("change_impacts", "change_reads"):
             try:
                 c.execute(f"DELETE FROM {tbl} WHERE change_id=?", (cid,))
@@ -7148,8 +7282,20 @@ def ticket_add_comment(tid: int, author_id: int, body: str):
 
 
 def ticket_delete(tid: int):
-    """v5H115: cascade — ticket_comments + 동적 안전망."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H115 인라인."""
     with db_session() as c:
+        try:
+            res = _safe_delete_with_cascade(
+                c, "tickets", tid, fk_column="ticket_id",
+                explicit_children=[
+                    ("DELETE FROM ticket_comments WHERE ticket_id=?", (tid,)),
+                ],
+                keep_tables=("ticket_comments",),
+            )
+            if res.get("ok"):
+                return
+        except Exception:
+            pass
         try:
             c.execute("DELETE FROM ticket_comments WHERE ticket_id=?", (tid,))
         except Exception:
@@ -7419,13 +7565,24 @@ def issue_update(iid: int, data: dict, user_id: int) -> bool:
 
 
 def issue_delete(iid: int) -> bool:
-    """v5H115: 자식 테이블 cascade — issue_logs 명시 삭제 + 동적 안전망."""
+    """v5H119: 공통 헬퍼 사용. 폴백: v5H115 인라인."""
     with db_session() as c:
+        try:
+            res = _safe_delete_with_cascade(
+                c, "issues", iid, fk_column="issue_id",
+                explicit_children=[
+                    ("DELETE FROM issue_logs WHERE issue_id=?", (iid,)),
+                ],
+                keep_tables=("issue_logs",),
+            )
+            if res.get("ok"):
+                return True
+        except Exception:
+            pass
         try:
             c.execute("DELETE FROM issue_logs WHERE issue_id=?", (iid,))
         except Exception:
             pass
-        # 동적 안전망: issue_id 컬럼 보유 테이블 자동 정리 (v5H98 패턴)
         try:
             tables = [r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
