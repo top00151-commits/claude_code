@@ -12387,6 +12387,37 @@ async def qms_capa_dashboard(req: Request):
                items=items, kpi=kpi)
 
 
+def _doc_audit_log(c, doc_type: str, doc_id: int, action: str,
+                   actor_id, note: str = ""):
+    """문서 라이프사이클 감사로그 (v5H116 신설).
+
+    경량 통합 테이블 — FTA 증명서 / QC 출하성적서 / 작업지시서의 발급/발행 액션 추적.
+    테이블이 없으면 자동 생성 (idempotent). 실패는 본 트랜잭션을 깨지 않도록 흡수."""
+    try:
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS doc_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                doc_type TEXT NOT NULL,
+                doc_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                actor_id INTEGER,
+                note TEXT,
+                logged_at TEXT DEFAULT (datetime('now','localtime'))
+            )"""
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_doc_audit_log_doc "
+            "ON doc_audit_log(doc_type, doc_id)"
+        )
+        c.execute(
+            "INSERT INTO doc_audit_log (doc_type, doc_id, action, actor_id, note) "
+            "VALUES (?,?,?,?,?)",
+            (doc_type, int(doc_id), action, actor_id, note or ""),
+        )
+    except Exception:
+        pass
+
+
 def _capa_transition(req: Request, table: str, cid: int, target: str,
                       need_admin: bool, note: str = "") -> bool:
     """CAPA 라이프사이클 전이 헬퍼 — 가드/UPDATE/감사로그 통합. table='corrective_actions' or 'preventive_actions'."""
@@ -12936,6 +12967,51 @@ async def part_prices_create(
     return RedirectResponse(f"/parts/{part_id}/prices?success=1", 303)
 
 
+@app.get("/api/parts/{pid}/active-price")
+async def api_part_active_price(request: Request, pid: int, currency: str = "KRW"):
+    """v5H116: PO 폼 단가 자동완성용 — 부품의 활성 단가 JSON 반환.
+
+    parts.unit_price 폴백 대신 part_prices 의 최신 활성 row 사용.
+    응답: {price, currency, supplier_id, supplier_name, price_type, source}
+    매칭 실패 시 parts.unit_price 폴백 (source='parts.unit_price')."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    cur = (currency or "KRW").strip().upper() or "KRW"
+    ap = part_active_price(pid)
+    if ap and (str(ap.get("currency") or "KRW").upper() == cur):
+        return JSONResponse({
+            "price": float(ap.get("unit_price") or 0),
+            "currency": ap.get("currency") or "KRW",
+            "supplier_id": ap.get("supplier_id"),
+            "supplier_name": ap.get("supplier_name") or "",
+            "price_type": ap.get("price_type") or "",
+            "source": "part_prices",
+        })
+    # 폴백: parts.unit_price (있을 때만)
+    try:
+        with db_session() as c:
+            row = c.execute(
+                "SELECT unit_price, COALESCE(currency,'KRW') AS currency "
+                "FROM parts WHERE id=?", (pid,)
+            ).fetchone()
+        if row:
+            return JSONResponse({
+                "price": float(row["unit_price"] or 0),
+                "currency": row["currency"] or "KRW",
+                "supplier_id": None,
+                "supplier_name": "",
+                "price_type": "",
+                "source": "parts.unit_price",
+            })
+    except Exception:
+        pass
+    return JSONResponse({
+        "price": 0, "currency": cur, "supplier_id": None,
+        "supplier_name": "", "price_type": "", "source": "none",
+    })
+
+
 # =====================================================
 # 사이클 75 — FTA 원산지증명서 (C/O) 발급 모듈 (2026-04-27)
 # 04 시뮬 MISSING #1: 안지연 본업. KAFTA/KEUFTA/RCEP 5종 처리.
@@ -13029,6 +13105,8 @@ async def export_fta_create(req: Request):
     items = []
     total_value = 0.0
     n = max(len(part_names), len(hs_codes), len(qtys))
+    # v5H116: 라인 음수/0 검증 — FTA 증명서 정합성
+    line_errors = []
     for i in range(n):
         pname = (part_names[i] if i < len(part_names) else "").strip()
         hs = (hs_codes[i] if i < len(hs_codes) else "").strip()
@@ -13047,6 +13125,12 @@ async def export_fta_create(req: Request):
             up = float(unit_prices[i]) if i < len(unit_prices) and unit_prices[i] else 0.0
         except Exception:
             up = 0.0
+        if qv <= 0:
+            line_errors.append(f"라인 {i+1}: 수량은 0보다 커야 합니다")
+            continue
+        if up < 0:
+            line_errors.append(f"라인 {i+1}: 단가는 음수일 수 없습니다")
+            continue
         line_total = round(qv * up, 2)
         total_value += line_total
         items.append({
@@ -13059,6 +13143,16 @@ async def export_fta_create(req: Request):
             "origin_country": (origins[i] if i < len(origins) else "") or origin_country,
             "total": line_total,
         })
+    if line_errors:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            "/export/fta/new?error=" + _q(" / ".join(line_errors[:3])), 303
+        )
+    if not items:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            "/export/fta/new?error=" + _q("라인 1건 이상 필요합니다"), 303
+        )
     issuer_id = u["id"] if isinstance(u, dict) else u["id"]
     issuer_name = (u.get("name") if isinstance(u, dict) else u["name"]) or None
     cert_id, cert_no = create_fta_certificate(
@@ -13114,18 +13208,41 @@ async def export_fta_detail(req: Request, cert_id: int):
 
 @app.post("/export/fta/{cert_id}/issue")
 async def export_fta_issue(req: Request, cert_id: int):
-    """원산지증명서 발급 확정 (DRAFT → ISSUED)."""
+    """원산지증명서 발급 확정 (DRAFT → ISSUED).
+
+    v5H116: 존재/상태 검증 강화 + issued_by 기록 + 감사로그(qms_audit_log issue_id=None 사용 불가하므로
+    order_status_history 패턴 대신 doc_audit_log 테이블 통합 — 없으면 즉시 생성)."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    cid = int(cert_id)
     with db_session() as c:
-        c.execute(
-            "UPDATE fta_certificates SET status='ISSUED', "
-            "issued_at=datetime('now','localtime') "
-            "WHERE id=? AND status='DRAFT'",
-            (int(cert_id),)
-        )
-    return RedirectResponse(f"/export/fta/{cert_id}", 303)
+        row = c.execute(
+            "SELECT id, status FROM fta_certificates WHERE id=?", (cid,)
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "원산지증명서 없음"}, 404)
+        if row["status"] != "DRAFT":
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/fta/{cid}?error=" + _q(f"이미 {row['status']} 상태입니다"), 303
+            )
+        # issued_by 컬럼이 있으면 기록 (없으면 무시)
+        try:
+            c.execute(
+                "UPDATE fta_certificates SET status='ISSUED', "
+                "issued_at=datetime('now','localtime'), issued_by=? "
+                "WHERE id=? AND status='DRAFT'",
+                (u["id"], cid),
+            )
+        except Exception:
+            c.execute(
+                "UPDATE fta_certificates SET status='ISSUED', "
+                "issued_at=datetime('now','localtime') WHERE id=? AND status='DRAFT'",
+                (cid,),
+            )
+        _doc_audit_log(c, "fta_certificate", cid, "ISSUE", u["id"], "DRAFT → ISSUED")
+    return RedirectResponse(f"/export/fta/{cid}", 303)
 
 
 @app.get("/export/fta/{cert_id}/print", response_class=HTMLResponse)
@@ -13331,18 +13448,39 @@ async def qc_report_detail(req: Request, report_id: int):
 
 @app.post("/qc/inspection-reports/{report_id}/issue")
 async def qc_report_issue(req: Request, report_id: int):
-    """검사기 출하성적서 발급 확정 (DRAFT → ISSUED)."""
+    """검사기 출하성적서 발급 확정 (DRAFT → ISSUED).
+
+    v5H116: 존재/상태 검증 + 발급자 audit log."""
     u = _qcr_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    rid = int(report_id)
     with db_session() as c:
-        c.execute(
-            "UPDATE qc_inspection_reports SET status='ISSUED', "
-            "issued_at=datetime('now','localtime') "
-            "WHERE id=? AND status='DRAFT'",
-            (int(report_id),)
-        )
-    return RedirectResponse(f"/qc/inspection-reports/{report_id}", 303)
+        row = c.execute(
+            "SELECT id, status FROM qc_inspection_reports WHERE id=?", (rid,)
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "검사 성적서 없음"}, 404)
+        if row["status"] != "DRAFT":
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/qc/inspection-reports/{rid}?error=" + _q(f"이미 {row['status']} 상태입니다"), 303
+            )
+        try:
+            c.execute(
+                "UPDATE qc_inspection_reports SET status='ISSUED', "
+                "issued_at=datetime('now','localtime'), issued_by=? "
+                "WHERE id=? AND status='DRAFT'",
+                (u["id"], rid),
+            )
+        except Exception:
+            c.execute(
+                "UPDATE qc_inspection_reports SET status='ISSUED', "
+                "issued_at=datetime('now','localtime') WHERE id=? AND status='DRAFT'",
+                (rid,),
+            )
+        _doc_audit_log(c, "qc_inspection_report", rid, "ISSUE", u["id"], "DRAFT → ISSUED")
+    return RedirectResponse(f"/qc/inspection-reports/{rid}", 303)
 
 
 @app.get("/qc/inspection-reports/{report_id}/print", response_class=HTMLResponse)
@@ -13534,17 +13672,38 @@ async def wo_detail(req: Request, wo_id: int):
 
 @app.post("/production/work-orders/{wo_id}/release")
 async def wo_release(req: Request, wo_id: int):
-    """가공팀 작업지시서 발행 확정 (DRAFT → RELEASED)."""
+    """가공팀 작업지시서 발행 확정 (DRAFT → RELEASED).
+
+    v5H116: 존재/상태 검증 + 발행자 audit log."""
     u = _wo_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    woid = int(wo_id)
     with db_session() as c:
-        c.execute(
-            "UPDATE work_orders SET status='RELEASED' "
-            "WHERE id=? AND status='DRAFT'",
-            (int(wo_id),)
-        )
-    return RedirectResponse(f"/production/work-orders/{wo_id}", 303)
+        row = c.execute(
+            "SELECT id, status FROM work_orders WHERE id=?", (woid,)
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "작업지시서 없음"}, 404)
+        if row["status"] != "DRAFT":
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/production/work-orders/{woid}?error=" + _q(f"이미 {row['status']} 상태입니다"), 303
+            )
+        try:
+            c.execute(
+                "UPDATE work_orders SET status='RELEASED', "
+                "released_at=datetime('now','localtime'), released_by=? "
+                "WHERE id=? AND status='DRAFT'",
+                (u["id"], woid),
+            )
+        except Exception:
+            c.execute(
+                "UPDATE work_orders SET status='RELEASED' WHERE id=? AND status='DRAFT'",
+                (woid,),
+            )
+        _doc_audit_log(c, "work_order", woid, "RELEASE", u["id"], "DRAFT → RELEASED")
+    return RedirectResponse(f"/production/work-orders/{woid}", 303)
 
 
 @app.get("/production/work-orders/{wo_id}/print", response_class=HTMLResponse)

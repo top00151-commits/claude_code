@@ -471,6 +471,24 @@ function onPartNameInput(el) {
       priceInput.value = pr;
       recalcLine(priceInput);
     }
+    // v5H116: part_prices 활성 단가 비동기 fetch (datalist 폴백 위에 덮어쓰기)
+    const pid = matched.getAttribute('data-part-id');
+    if (pid && priceInput) {
+      const beforeFetchEmpty = (!priceInput.value || parseFloat(priceInput.value) === 0);
+      fetch('/api/parts/' + encodeURIComponent(pid) + '/active-price?currency=KRW')
+        .then(r => r.ok ? r.json() : null)
+        .then(j => {
+          if (!j) return;
+          const apiPrice = parseFloat(j.price || 0) || 0;
+          if (apiPrice <= 0) return;
+          // 사용자가 fetch 사이에 직접 입력했으면 덮어쓰지 않음
+          const cur = parseFloat(priceInput.value || '0') || 0;
+          if (beforeFetchEmpty || cur === pr) {
+            priceInput.value = apiPrice;
+            recalcLine(priceInput);
+          }
+        }).catch(() => {});
+    }
   } else {
     if (partIdInput) partIdInput.value = '';
   }

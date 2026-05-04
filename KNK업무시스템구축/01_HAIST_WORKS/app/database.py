@@ -5675,7 +5675,8 @@ PRICE_TYPES = ["확정", "가", "견적"]
 
 
 # v5H113: 도메인 enum 화이트리스트 (LOW #15/#20/#21)
-CURRENCY_OPTIONS = ("KRW", "USD", "VND", "JPY", "CNY", "EUR")
+# v5H116: CURRENCIES (line 5591) 와 단일 진실 소스로 동기화 — 두 상수가 갈라지지 않도록 파생.
+CURRENCY_OPTIONS = tuple(CURRENCIES)
 PART_UNIT_OPTIONS = ("EA", "SET", "BOX", "M", "KG", "L", "PCS", "PR", "PKG")
 
 
