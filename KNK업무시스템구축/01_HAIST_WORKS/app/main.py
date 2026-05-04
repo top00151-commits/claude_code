@@ -6238,13 +6238,28 @@ async def sales_quote_detail(req: Request, qid: int):
             "SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY line_no",
             (qid,)
         ).fetchall()]
+        # v5H127: 자가치유 — quotations.total_amount vs SUM(quotation_items.total_price)
+        # PO/parts 패턴과 동일. 1원 미만 차이는 무시.
+        quote_mismatch = None
+        try:
+            line_sum = sum(float(it.get("total_price") or 0) for it in items)
+            cur_total = float(quote.get("total_amount") or 0)
+            if abs(line_sum - cur_total) >= 1.0:
+                c.execute(
+                    "UPDATE quotations SET total_amount=? WHERE id=?",
+                    (round(line_sum, 2), qid),
+                )
+                quote_mismatch = {"old": cur_total, "new": round(line_sum, 2)}
+                quote["total_amount"] = round(line_sum, 2)
+        except Exception:
+            quote_mismatch = None
     # v5H114: 견적 변경 이력 카드
     try:
         quotation_history = _logi.get_quotation_history(qid, limit=50)
     except Exception:
         quotation_history = []
     return ctx(req, "sales_quote_detail.html", user=u, active="sales_quotations",
-               quote=quote, items=items,
+               quote=quote, items=items, quote_mismatch=quote_mismatch,
                quotation_history=quotation_history)
 
 
