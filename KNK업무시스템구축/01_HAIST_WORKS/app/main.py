@@ -8252,8 +8252,33 @@ async def po_detail(request: Request, po_id: int):
     header, items = _logi.po_get(po_id)
     if not header:
         return RedirectResponse("/po", 303)
+    # v5H117 P4: 자가치유 — header.total_amount vs SUM(items.qty*unit_price) 비교 후 동기화
+    po_mismatch = False
+    try:
+        line_sum = sum(
+            float(it.get("qty") or 0) * float(it.get("unit_price") or 0)
+            for it in (items or [])
+        )
+        cur_total = float(header.get("total_amount") or 0) if isinstance(header, dict) else float(getattr(header, "total_amount", 0) or 0)
+        # 헤더 부가세 등으로 의도적 차이 가능 — 1원 미만은 무시, 큰 차이만 보정
+        if abs(line_sum - cur_total) >= 1.0:
+            po_mismatch = True
+            try:
+                with db_session() as c:
+                    c.execute(
+                        "UPDATE purchase_orders SET total_amount=? WHERE id=?",
+                        (round(line_sum, 2), po_id),
+                    )
+                if isinstance(header, dict):
+                    header["total_amount"] = round(line_sum, 2)
+                    header["_self_heal_amount"] = round(cur_total, 2)
+            except Exception:
+                pass
+    except Exception:
+        pass
     return ctx(request, "po_detail.html",
-               user=u, active="po", po=header, items=items)
+               user=u, active="po", po=header, items=items,
+               po_mismatch=po_mismatch)
 
 
 @app.get("/po/{po_id}/edit", response_class=HTMLResponse)
@@ -12521,8 +12546,25 @@ def _capa_transition(req: Request, table: str, cid: int, target: str,
         sets.append("effectiveness_note = ?")
         vals.append(note.strip())
     vals.append(cid)
+    # v5H117 P3: 라이프사이클 전이 사전 검증 — 역행 차단
+    valid_from = {
+        "APPROVED":    ("DRAFT",),
+        "IN_PROGRESS": ("APPROVED",),
+        "COMPLETED":   ("IN_PROGRESS", "APPROVED"),
+        "VERIFIED":    ("COMPLETED",),
+    }
     with db_session() as c:
         try:
+            cur_row = c.execute(
+                f"SELECT lifecycle_status FROM {table} WHERE id=?", (cid,)
+            ).fetchone()
+            if not cur_row:
+                return False
+            cur_status = cur_row["lifecycle_status"] or "DRAFT"
+            allowed = valid_from.get(target, ())
+            if allowed and cur_status not in allowed:
+                # 이미 동일 상태이거나 역행 — 거부
+                return False
             c.execute(f"UPDATE {table} SET {', '.join(sets)} WHERE id=?", vals)
             # 감사로그 (issue_id 조회)
             if table == "corrective_actions":
