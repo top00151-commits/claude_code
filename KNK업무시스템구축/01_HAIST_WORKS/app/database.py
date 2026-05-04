@@ -5738,6 +5738,43 @@ def get_exchange_rate(date_str: str, from_currency: str, to_currency: str = "KRW
     return 1.0  # 환율 없으면 1.0 (운영 시작 전 안전 기본)
 
 
+def _get_active_fx_rate(currency: str, ref_date: str = None, to_currency: str = "KRW") -> float | None:
+    """v5H126: 통화·기준일 기준 가장 가까운 (≤ ref_date) 환율 조회.
+    없으면 None (호출측에서 폴백 결정). 같은 통화면 1.0.
+    수금/CI 등록 시 fx_rate snapshot 자동 채움 용도."""
+    if not currency:
+        return None
+    currency = currency.upper()
+    to_currency = (to_currency or "KRW").upper()
+    if currency == to_currency:
+        return 1.0
+    if not ref_date:
+        from datetime import date as _d
+        ref_date = _d.today().isoformat()
+    try:
+        with db_session() as c:
+            r = c.execute(
+                """SELECT rate FROM exchange_rates
+                   WHERE from_currency=? AND to_currency=? AND rate_date <= ?
+                   ORDER BY rate_date DESC LIMIT 1""",
+                (currency, to_currency, ref_date),
+            ).fetchone()
+            if r:
+                return float(r["rate"])
+            # 미래 환율만 있는 케이스 — 가장 빠른 미래 레이트라도 폴백
+            r2 = c.execute(
+                """SELECT rate FROM exchange_rates
+                   WHERE from_currency=? AND to_currency=?
+                   ORDER BY rate_date ASC LIMIT 1""",
+                (currency, to_currency),
+            ).fetchone()
+            if r2:
+                return float(r2["rate"])
+    except Exception:
+        pass
+    return None
+
+
 def exchange_rate_create(data: dict, user_id: int) -> int:
     """환율 등록 (수동). 같은 날짜·통화쌍은 UPSERT.
     v5H112: 0/음수 환율 차단."""

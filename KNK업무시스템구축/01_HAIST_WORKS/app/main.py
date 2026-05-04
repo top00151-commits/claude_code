@@ -10902,6 +10902,15 @@ async def sales_receipts_create(req: Request):
                 fx_rate = None
         except Exception:
             fx_rate = None
+    # v5H126: fx_rate 미입력 + 비KRW 통화 → exchange_rates 에서 자동 snapshot
+    if fx_rate is None and currency != "KRW":
+        try:
+            from .database import _get_active_fx_rate as _gafx
+            _auto = _gafx(currency, ref_date=date.today().isoformat())
+            if _auto and _auto > 0:
+                fx_rate = _auto
+        except Exception:
+            pass
     if not order_id:
         return JSONResponse({"error": "order_id 누락"}, 400)
     # v5H112: 음수/0 수금 차단 — 친절한 에러
@@ -11195,6 +11204,40 @@ def _sales_dashboard_ctx(c):
         cum += t["total"]
         t["pct"] = (t["total"] / grand_total * 100.0)
         t["cum_pct"] = (cum / grand_total * 100.0)
+    # v5H126: 통화별 미수금 (수주 INVOICED+SHIPPED+PAID - 수금) — 외화 가시화
+    outstanding_by_currency = []
+    if has_currency:
+        try:
+            # receipts_payment.currency 컬럼 존재 검사
+            rpcols = {r[1] for r in c.execute("PRAGMA table_info(receipts_payment)").fetchall()}
+            rcv_ccy = "COALESCE(currency,'KRW')" if "currency" in rpcols else "'KRW'"
+            inv_rows = c.execute(
+                """SELECT COALESCE(currency,'KRW') AS ccy,
+                          COALESCE(SUM(total_amount),0) AS inv
+                   FROM orders
+                   WHERE status IN ('INVOICED','PAID','SHIPPED')
+                   GROUP BY COALESCE(currency,'KRW')"""
+            ).fetchall()
+            rcv_rows = c.execute(
+                f"""SELECT {rcv_ccy} AS ccy,
+                           COALESCE(SUM(amount),0) AS rcv
+                    FROM receipts_payment
+                    GROUP BY {rcv_ccy}"""
+            ).fetchall()
+            _rcv_map = {r[0]: float(r[1] or 0) for r in rcv_rows}
+            for r in inv_rows:
+                ccy = r[0]
+                inv = float(r[1] or 0)
+                rcv = _rcv_map.get(ccy, 0.0)
+                out = max(0.0, inv - rcv)
+                if inv > 0 or rcv > 0:
+                    outstanding_by_currency.append({
+                        "currency": ccy, "invoiced": inv,
+                        "received": rcv, "outstanding": out,
+                    })
+            outstanding_by_currency.sort(key=lambda x: -x["outstanding"])
+        except Exception:
+            outstanding_by_currency = []
     series = _sales_monthly_series(c, 12)
     chart_max = max((s["total"] for s in series), default=1) or 1
     return {
@@ -11209,6 +11252,7 @@ def _sales_dashboard_ctx(c):
         "top_customers": top_customers,
         "series": series, "chart_max": chart_max,
         "by_currency": by_currency,  # v5H123 통화별 분포 (KRW 외 외화 노출용)
+        "outstanding_by_currency": outstanding_by_currency,  # v5H126 통화별 미수금
         "primary_currency": "KRW",   # v5H123 KPI 통화 기준 명시
     }
 
@@ -11612,17 +11656,33 @@ async def export_order_detail(req: Request, eo_id: int):
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        eo = c.execute(
-            """SELECT eo.*, COALESCE(o.order_no,'-') AS order_no,
-                      COALESCE(o.total_amount,0) AS order_amount,
-                      COALESCE(o.order_date,'-') AS order_date,
-                      COALESCE(cu.name,'-') AS customer_name
-               FROM export_orders eo
-               LEFT JOIN orders o ON o.id = eo.order_id
-               LEFT JOIN customers cu ON cu.id = o.customer_id
-               WHERE eo.id = ?""",
-            (eo_id,)
-        ).fetchone()
+        # v5H126: orders.currency 함께 조회 (CI 통화 mismatch 환산표용)
+        try:
+            eo = c.execute(
+                """SELECT eo.*, COALESCE(o.order_no,'-') AS order_no,
+                          COALESCE(o.total_amount,0) AS order_amount,
+                          COALESCE(o.order_date,'-') AS order_date,
+                          COALESCE(o.currency,'KRW') AS order_currency,
+                          COALESCE(cu.name,'-') AS customer_name
+                   FROM export_orders eo
+                   LEFT JOIN orders o ON o.id = eo.order_id
+                   LEFT JOIN customers cu ON cu.id = o.customer_id
+                   WHERE eo.id = ?""",
+                (eo_id,)
+            ).fetchone()
+        except Exception:
+            eo = c.execute(
+                """SELECT eo.*, COALESCE(o.order_no,'-') AS order_no,
+                          COALESCE(o.total_amount,0) AS order_amount,
+                          COALESCE(o.order_date,'-') AS order_date,
+                          'KRW' AS order_currency,
+                          COALESCE(cu.name,'-') AS customer_name
+                   FROM export_orders eo
+                   LEFT JOIN orders o ON o.id = eo.order_id
+                   LEFT JOIN customers cu ON cu.id = o.customer_id
+                   WHERE eo.id = ?""",
+                (eo_id,)
+            ).fetchone()
         if not eo:
             return RedirectResponse("/export", 303)
         eo = dict(eo)
@@ -11638,8 +11698,39 @@ async def export_order_detail(req: Request, eo_id: int):
         cu_decl = [dict(r) for r in c.execute(
             "SELECT * FROM customs_declarations WHERE export_order_id=? ORDER BY id DESC",
             (eo_id,)).fetchall()]
+    # v5H126: CI ↔ 수주 통화 mismatch → 환산표 (KRW 기준 차액)
+    ci_fx_table = []
+    try:
+        from .database import _get_active_fx_rate as _gafx
+        order_ccy = (eo.get("order_currency") or "KRW").upper()
+        order_amt = float(eo.get("order_amount") or 0)
+        for _ci in ci:
+            ci_ccy = (_ci.get("currency") or "USD").upper()
+            ci_amt = float(_ci.get("total_amount") or 0)
+            if ci_ccy == order_ccy:
+                continue  # 동일 통화면 환산표 불필요
+            ref = (_ci.get("issue_date") or date.today().isoformat())[:10]
+            ord_fx = _gafx(order_ccy, ref) or 1.0
+            ci_fx = _gafx(ci_ccy, ref) or 1.0
+            ord_krw = order_amt * ord_fx
+            ci_krw = ci_amt * ci_fx
+            ci_fx_table.append({
+                "ci_id": _ci.get("id"),
+                "invoice_no": _ci.get("invoice_no"),
+                "issue_date": ref,
+                "order_currency": order_ccy, "order_amount": order_amt,
+                "order_fx": ord_fx, "order_krw": ord_krw,
+                "ci_currency": ci_ccy, "ci_amount": ci_amt,
+                "ci_fx": ci_fx, "ci_krw": ci_krw,
+                "diff_krw": ci_krw - ord_krw,
+                "fx_missing": (ord_fx == 1.0 and order_ccy != "KRW")
+                              or (ci_fx == 1.0 and ci_ccy != "KRW"),
+            })
+    except Exception:
+        ci_fx_table = []
     return ctx(req, "export_order_detail.html", user=u, active="export",
-               eo=eo, ci=ci, pl=pl, bl=bl, customs=cu_decl)
+               eo=eo, ci=ci, pl=pl, bl=bl, customs=cu_decl,
+               ci_fx_table=ci_fx_table)
 
 
 @app.get("/export/ci/{eo_id}", response_class=HTMLResponse)

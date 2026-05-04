@@ -39,6 +39,28 @@
   </div>
   {% endif %}
 
+  {# v5H126: 통화별 미수금 (Outstanding by Currency) #}
+  {% if outstanding_by_currency and outstanding_by_currency|length > 0 %}
+  <div class="section">
+    <h2>통화별 미수금 <span style="font-size:11px;color:var(--mute);font-weight:400;">· INVOICED+SHIPPED+PAID 수주 − 수금</span></h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>통화</th><th class="num">송장+수주 누계</th><th class="num">수금 누계</th><th class="num">미수금</th></tr></thead>
+        <tbody>
+        {% for r in outstanding_by_currency %}
+          <tr>
+            <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ r.currency }}</td>
+            <td class="num">{{ '{:,.2f}'.format(r.invoiced or 0) }}</td>
+            <td class="num" style="color:var(--success);">{{ '{:,.2f}'.format(r.received or 0) }}</td>
+            <td class="num" {% if (r.outstanding or 0) > 0 %}style="color:var(--knk-red);font-weight:700;"{% endif %}>{{ '{:,.2f}'.format(r.outstanding or 0) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Pareto Top 5 -->
   {% if pareto_top5 %}
   <div class="section">

@@ -63,6 +63,31 @@
       </div>
       {% endif %}
 
+      {# v5H126: CI ↔ 수주 통화 mismatch 환산표 #}
+      {% if ci_fx_table and ci_fx_table|length > 0 %}
+      <div class="section-card" style="border:1px solid var(--knk-red,#c0392b);">
+        <h3 style="color:var(--knk-red,#c0392b);">⚠ CI ↔ 수주 통화 환산표 (KRW 차액)</h3>
+        <div class="tbl-wrap">
+          <table class="tbl" style="font-size:12px;">
+            <thead><tr><th>CI</th><th>수주 (통화×FX=KRW)</th><th>CI (통화×FX=KRW)</th><th class="num">차액 (KRW)</th></tr></thead>
+            <tbody>
+            {% for r in ci_fx_table %}
+            <tr>
+              <td style="font-family:monospace;">{{ r.invoice_no or ('#'~r.ci_id) }}<br><span style="color:var(--mute);font-size:10px;">{{ r.issue_date }}</span></td>
+              <td>{{ '{:,.2f}'.format(r.order_amount) }} {{ r.order_currency }} × {{ '{:,.4f}'.format(r.order_fx) }} = <b>{{ '{:,.0f}'.format(r.order_krw) }}</b></td>
+              <td>{{ '{:,.2f}'.format(r.ci_amount) }} {{ r.ci_currency }} × {{ '{:,.4f}'.format(r.ci_fx) }} = <b>{{ '{:,.0f}'.format(r.ci_krw) }}</b></td>
+              <td class="num" style="font-weight:700;color:{% if r.diff_krw < 0 %}var(--knk-red,#c0392b){% else %}var(--success,#27ae60){% endif %};">{{ '{:,.0f}'.format(r.diff_krw) }}</td>
+            </tr>
+            {% if r.fx_missing %}
+            <tr><td colspan="4" style="font-size:11px;color:var(--knk-red,#c0392b);">※ 환율 미등록 통화 포함 — /admin/exchange-rates 에서 등록 필요</td></tr>
+            {% endif %}
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
       {% if pl %}
       <div class="section-card">
         <h3>📦 Packing List (P/L)</h3>

@@ -94,6 +94,29 @@
           </table>
         </div>
         {% else %}<div class="empty" style="padding:30px;">수금 내역이 없습니다.</div>{% endif %}
+        {# v5H126: 다른 통화 수금 분리 표시 + ⚠ 경고 #}
+        {% if received_other_ccy %}
+        <div style="margin-top:14px;padding:10px;border:1px solid var(--knk-red);border-radius:6px;background:#fff8f7;">
+          <div style="font-size:13px;font-weight:700;color:var(--knk-red);margin-bottom:6px;">
+            ⚠ 다통화 수금 ({{ received_other_ccy|length }}건) — 수주통화: <b>{{ order.currency or 'KRW' }}</b> 와 다름
+          </div>
+          <table class="tbl" style="font-size:12px;">
+            <thead><tr><th>수금일</th><th>통화</th><th class="num">금액</th><th class="num">FX</th><th>비고</th></tr></thead>
+            <tbody>
+            {% for rp in received_other_ccy %}
+            <tr>
+              <td>{{ rp.received_at|default('-')|truncate(10, end='') }}</td>
+              <td><b>{{ rp.currency or 'KRW' }}</b></td>
+              <td class="num">{{ '{:,.2f}'.format(rp.amount or 0) }}</td>
+              <td class="num" style="color:var(--mute);">{{ rp.fx_rate|default('-') }}</td>
+              <td style="color:var(--mute);">{{ rp.note|default('') }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <div style="font-size:11px;color:var(--mute);margin-top:6px;">※ 수주통화와 다른 통화로 입금되어 KPI(수금누계/미수금)에는 미포함됩니다.</div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
