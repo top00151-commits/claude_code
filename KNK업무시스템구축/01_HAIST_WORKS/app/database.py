@@ -5827,6 +5827,24 @@ def part_price_create(data: dict, user_id: int) -> int:
         raise ValueError("단가가 올바른 숫자가 아닙니다.")
     data["currency"] = cur
     with db_session() as c:
+        # v5H124 MED: 활성기간 겹침 검증 — 동일 (part_id, supplier_id) 의 기존 row 와 겹치면 경고 (차단 X)
+        # 정책: '확정(승인)' price_type 는 동일 키로 겹침 시 거부, '견적' 은 허용 (역사 단가 보존)
+        if (data.get("price_type") or "견적") == "확정":
+            overlap = c.execute(
+                """SELECT id, effective_from, effective_to FROM part_prices
+                   WHERE part_id=? AND COALESCE(supplier_id,0)=COALESCE(?,0)
+                     AND price_type='확정'
+                     AND COALESCE(effective_from,'') <= COALESCE(?,'9999-12-31')
+                     AND COALESCE(effective_to,'9999-12-31') >= COALESCE(?,'0000-01-01')""",
+                (int(data["part_id"]), data.get("supplier_id"),
+                 data.get("effective_to") or "9999-12-31", data["effective_from"]),
+            ).fetchone()
+            if overlap:
+                raise ValueError(
+                    f"확정 단가 활성기간 겹침 — 기존 row #{overlap[0]} "
+                    f"({overlap[1]}~{overlap[2] or '무기한'}) 와 충돌. "
+                    "기존 row 의 effective_to 를 먼저 종료시키거나 견적으로 등록해주세요."
+                )
         c.execute(
             """INSERT INTO part_prices
                (part_id, supplier_id, price_type, unit_price, currency,

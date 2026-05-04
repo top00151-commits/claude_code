@@ -6341,7 +6341,36 @@ async def sales_order_detail(req: Request, oid: int):
         ).fetchall()]
     # 핵심 KPI 계산
     invoiced = sum(float(i.get("total_amount") or 0) for i in invoices_)
-    received = sum(float(r.get("amount") or 0) for r in receipts_p)
+    # v5H124: 통화 일치 수금만 합산 (수주 통화 기준). 다른 통화 수금은 ⚠ 표시
+    _order_ccy = (order.get("currency") or "KRW")
+    received = sum(
+        float(r.get("amount") or 0) for r in receipts_p
+        if (r.get("currency") or "KRW") == _order_ccy
+    )
+    received_other_ccy = [
+        r for r in receipts_p if (r.get("currency") or "KRW") != _order_ccy
+    ]
+    # v5H124: shipments OVER 자가치유 감지 — 누적 출하 > 수주 수량이면 warn
+    ship_over_warn = None
+    try:
+        with db_session() as _c2:
+            _qty_row = _c2.execute(
+                "SELECT COALESCE(o.unit_qty,(SELECT SUM(quantity) FROM order_items WHERE order_id=o.id),0) "
+                "FROM orders o WHERE o.id=?",
+                (oid,),
+            ).fetchone()
+            _ord_qty = float(_qty_row[0] or 0) if _qty_row else 0.0
+            _ship_sum = float(_c2.execute(
+                "SELECT COALESCE(SUM(shipped_qty),0) FROM shipments WHERE order_id=?",
+                (oid,),
+            ).fetchone()[0] or 0)
+            if _ord_qty > 0 and _ship_sum > _ord_qty + 0.0001:
+                ship_over_warn = {
+                    "ord_qty": _ord_qty, "ship_sum": _ship_sum,
+                    "over": _ship_sum - _ord_qty,
+                }
+    except Exception:
+        pass
     # v5H102: 연결 프로젝트의 변경 이력도 함께 노출 (SO 상세에서 확인 편의)
     project_history_logs = []
     try:
@@ -6354,6 +6383,8 @@ async def sales_order_detail(req: Request, oid: int):
                receipts=receipts_p, history=history,
                total_invoiced=invoiced, total_received=received,
                outstanding=max(0, invoiced - received),
+               received_other_ccy=received_other_ccy,
+               ship_over_warn=ship_over_warn,
                project_history=project_history_logs)
 
 
@@ -8640,6 +8671,29 @@ async def parts_detail_page(request: Request, pid: int):
     part = _logi.parts_get(pid)
     if not part:
         return RedirectResponse("/parts", 303)
+    part = dict(part)
+    # v5H124 MED: stock_movements 합계 vs parts.stock_qty 정합성 자가치유
+    # 직접 SQL UPDATE 등으로 어긋난 경우 페이지 진입 시 자동 보정 (v5H94 패턴 확장)
+    stock_self_heal = None
+    try:
+        with db_session() as _c:
+            _sm_total = _c.execute(
+                "SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?",
+                (pid,),
+            ).fetchone()[0] or 0
+            _cur_qty = float(part.get("stock_qty") or 0)
+            if abs(float(_sm_total) - _cur_qty) > 0.0001:
+                _c.execute(
+                    "UPDATE parts SET stock_qty=?, updated_at=? WHERE id=?",
+                    (float(_sm_total), datetime.now().isoformat(timespec="seconds"), pid),
+                )
+                stock_self_heal = {
+                    "before": _cur_qty, "after": float(_sm_total),
+                    "delta": float(_sm_total) - _cur_qty,
+                }
+                part["stock_qty"] = float(_sm_total)
+    except Exception:
+        pass
     layers = part_fifo_layers(pid)
     price_hist = part_price_history(pid, limit=30)
     recent_moves = part_stock_history(pid, limit=30)
@@ -8653,13 +8707,14 @@ async def parts_detail_page(request: Request, pid: int):
             "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
         ).fetchall()]
     return ctx(request, "part_detail.html", user=u,
-               part=dict(part), layers=layers,
+               part=part, layers=layers,
                price_history=price_hist["history"],
                by_supplier=price_hist["by_supplier"],
                managed_prices=managed_prices,
                active_price=active_price,
                recent_moves=recent_moves,
                stock_value=stock_value,
+               stock_self_heal=stock_self_heal,
                suppliers=suppliers,
                CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")
