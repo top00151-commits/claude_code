@@ -10833,9 +10833,18 @@ async def sales_receipts_create(req: Request):
 
 def _sales_monthly_series(c, months: int = 12):
     """최근 N개월 매출 시계열 (orders.order_date + total_amount).
-    반환: [{ym, total, cnt}, ...] (오름차순). 빈 달은 0 채움."""
+    반환: [{ym, total, cnt}, ...] (오름차순). 빈 달은 0 채움.
+    v5H123 (2026-05-04): 통화 혼합 집계 결함 수정 — currency 컬럼 존재 시 KRW 만 합산.
+    USD/VND 등은 환율 미반영 단순 합산이 의미 없으므로 KRW 단독 기준이 정확. 폴백: 컬럼 미존재 시 기존 동작."""
     today = date.today()
     out = []
+    # currency 컬럼 존재 여부 확인 (v5H92 이후)
+    has_currency = False
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()]
+        has_currency = "currency" in cols
+    except Exception:
+        pass
     for i in range(months - 1, -1, -1):
         y = today.year
         m = today.month - i
@@ -10843,12 +10852,21 @@ def _sales_monthly_series(c, months: int = 12):
             m += 12
             y -= 1
         ym = f"{y:04d}-{m:02d}"
-        row = c.execute(
-            """SELECT COALESCE(SUM(total_amount),0) AS total, COUNT(*) AS cnt
-               FROM orders WHERE order_date LIKE ?
-                 AND status NOT IN ('CANCELLED','DRAFT')""",
-            (f"{ym}%",),
-        ).fetchone()
+        if has_currency:
+            row = c.execute(
+                """SELECT COALESCE(SUM(total_amount),0) AS total, COUNT(*) AS cnt
+                   FROM orders WHERE order_date LIKE ?
+                     AND status NOT IN ('CANCELLED','DRAFT')
+                     AND COALESCE(currency,'KRW')='KRW'""",
+                (f"{ym}%",),
+            ).fetchone()
+        else:
+            row = c.execute(
+                """SELECT COALESCE(SUM(total_amount),0) AS total, COUNT(*) AS cnt
+                   FROM orders WHERE order_date LIKE ?
+                     AND status NOT IN ('CANCELLED','DRAFT')""",
+                (f"{ym}%",),
+            ).fetchone()
         out.append({"ym": ym, "total": row[0] or 0, "cnt": row[1] or 0})
     return out
 
@@ -10878,7 +10896,11 @@ def _sales_forecast(series, horizon: int = 3):
 
 
 def _sales_dashboard_ctx(c):
-    """대시보드 + 예측 공통 컨텍스트 (KPI 8 + 차트 데이터 + 파이프라인)."""
+    """대시보드 + 예측 공통 컨텍스트 (KPI 8 + 차트 데이터 + 파이프라인).
+    v5H123 (2026-05-04): 통화 혼합 집계 결함 수정 — orders.currency 컬럼 존재 시
+    모든 SUM(total_amount) 쿼리를 KRW 단독으로 제한. 외화(USD/VND/JPY 등)는
+    환율 미반영 단순 합산이 잘못된 KPI 를 만들기 때문 (대표 보고: 수주액 정합성).
+    by_currency 분포는 별도 ctx 로 전달해 템플릿에서 펼침 가능."""
     today = date.today()
     ym = today.strftime("%Y-%m")
     # 전월
@@ -10886,21 +10908,44 @@ def _sales_dashboard_ctx(c):
     if pm <= 0:
         pm += 12; py -= 1
     prev_ym = f"{py:04d}-{pm:02d}"
+    # currency 컬럼 존재 여부 (v5H92 이후)
+    has_currency = False
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()]
+        has_currency = "currency" in cols
+    except Exception:
+        pass
+    krw_filter = " AND COALESCE(currency,'KRW')='KRW'" if has_currency else ""
     month_total = c.execute(
-        """SELECT COALESCE(SUM(total_amount),0) FROM orders
-           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT')""",
+        f"""SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT'){krw_filter}""",
         (f"{ym}%",),
     ).fetchone()[0] or 0
     prev_total = c.execute(
-        """SELECT COALESCE(SUM(total_amount),0) FROM orders
-           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT')""",
+        f"""SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE order_date LIKE ? AND status NOT IN ('CANCELLED','DRAFT'){krw_filter}""",
         (f"{prev_ym}%",),
     ).fetchone()[0] or 0
     mom = ((month_total - prev_total) / prev_total * 100.0) if prev_total > 0 else 0.0
-    # 수금률 = 수금 합계 / INVOICED+PAID 수주 합계
+    # 통화별 분포 (이번달) — 다통화 거래 가시화
+    by_currency = []
+    if has_currency:
+        try:
+            by_currency = [dict(r) for r in c.execute(
+                """SELECT COALESCE(currency,'KRW') AS currency,
+                          COALESCE(SUM(total_amount),0) AS total,
+                          COUNT(*) AS cnt
+                   FROM orders WHERE order_date LIKE ?
+                     AND status NOT IN ('CANCELLED','DRAFT')
+                   GROUP BY COALESCE(currency,'KRW') ORDER BY total DESC""",
+                (f"{ym}%",),
+            ).fetchall()]
+        except Exception:
+            by_currency = []
+    # 수금률 = 수금 합계 / INVOICED+PAID 수주 합계 (KRW 한정)
     inv_total = c.execute(
-        """SELECT COALESCE(SUM(total_amount),0) FROM orders
-           WHERE status IN ('INVOICED','PAID','SHIPPED')"""
+        f"""SELECT COALESCE(SUM(total_amount),0) FROM orders
+           WHERE status IN ('INVOICED','PAID','SHIPPED'){krw_filter}"""
     ).fetchone()[0] or 0
     rcv_total = c.execute(
         "SELECT COALESCE(SUM(amount),0) FROM receipts_payment"
@@ -10952,14 +10997,24 @@ def _sales_dashboard_ctx(c):
     ).fetchall():
         if r[0] in pipeline:
             pipeline[r[0]] = r[1]
-    # 거래처 Top 5 (Pareto)
-    top_customers = [dict(r) for r in c.execute(
-        """SELECT COALESCE(cu.name,'-') AS name,
-                  COUNT(*) AS cnt, COALESCE(SUM(o.total_amount),0) AS total
-           FROM orders o LEFT JOIN customers cu ON cu.id = o.customer_id
-           WHERE o.status NOT IN ('CANCELLED','DRAFT')
-           GROUP BY o.customer_id ORDER BY total DESC LIMIT 5"""
-    ).fetchall()]
+    # 거래처 Top 5 (Pareto) — v5H123 KRW 단독 (통화 혼합 방지)
+    if has_currency:
+        top_customers = [dict(r) for r in c.execute(
+            """SELECT COALESCE(cu.name,'-') AS name,
+                      COUNT(*) AS cnt, COALESCE(SUM(o.total_amount),0) AS total
+               FROM orders o LEFT JOIN customers cu ON cu.id = o.customer_id
+               WHERE o.status NOT IN ('CANCELLED','DRAFT')
+                 AND COALESCE(o.currency,'KRW')='KRW'
+               GROUP BY o.customer_id ORDER BY total DESC LIMIT 5"""
+        ).fetchall()]
+    else:
+        top_customers = [dict(r) for r in c.execute(
+            """SELECT COALESCE(cu.name,'-') AS name,
+                      COUNT(*) AS cnt, COALESCE(SUM(o.total_amount),0) AS total
+               FROM orders o LEFT JOIN customers cu ON cu.id = o.customer_id
+               WHERE o.status NOT IN ('CANCELLED','DRAFT')
+               GROUP BY o.customer_id ORDER BY total DESC LIMIT 5"""
+        ).fetchall()]
     grand_total = sum(t["total"] for t in top_customers) or 1
     cum = 0.0
     for t in top_customers:
@@ -10979,6 +11034,8 @@ def _sales_dashboard_ctx(c):
         "pipeline": pipeline,
         "top_customers": top_customers,
         "series": series, "chart_max": chart_max,
+        "by_currency": by_currency,  # v5H123 통화별 분포 (KRW 외 외화 노출용)
+        "primary_currency": "KRW",   # v5H123 KPI 통화 기준 명시
     }
 
 
@@ -11468,10 +11525,20 @@ async def export_ci_create(req: Request):
     currency = form.get("currency") or "USD"
     raw_amt = form.get("total_amount")
     with db_session() as c:
-        eo = c.execute(
-            """SELECT eo.id, eo.status, COALESCE(o.total_amount,0) AS auto_amt
-               FROM export_orders eo LEFT JOIN orders o ON o.id=eo.order_id
-               WHERE eo.id=?""", (eo_id,)).fetchone()
+        # v5H123: orders.currency 도 함께 조회 (통화 일관성 검증)
+        try:
+            eo = c.execute(
+                """SELECT eo.id, eo.status, COALESCE(o.total_amount,0) AS auto_amt,
+                          COALESCE(o.currency,'KRW') AS order_currency
+                   FROM export_orders eo LEFT JOIN orders o ON o.id=eo.order_id
+                   WHERE eo.id=?""", (eo_id,)).fetchone()
+        except Exception:
+            # currency 컬럼 미존재 폴백
+            eo = c.execute(
+                """SELECT eo.id, eo.status, COALESCE(o.total_amount,0) AS auto_amt,
+                          'KRW' AS order_currency
+                   FROM export_orders eo LEFT JOIN orders o ON o.id=eo.order_id
+                   WHERE eo.id=?""", (eo_id,)).fetchone()
         if not eo:
             return JSONResponse({"error": "수출 수주 없음"}, 404)
         # v5H117: 발행 사후 변경 차단 — DRAFT/BOOKED/CI_ISSUED 외 거부
@@ -11491,6 +11558,20 @@ async def export_ci_create(req: Request):
             return RedirectResponse(
                 f"/export/orders/{eo_id}?error=" + _q("CI 금액은 음수일 수 없습니다"), 303
             )
+        # v5H123: CI 통화 vs orders 통화 불일치 친절 경고 (차단 대신 redirect 안내 — 수출 시 환산이 일반적)
+        try:
+            order_cur = (eo["order_currency"] or "KRW").upper()
+            ci_cur = (currency or "USD").upper()
+            if order_cur and ci_cur and order_cur != ci_cur:
+                # 차단하지 않음 — 수출은 KRW 수주를 USD CI 로 발행하는 사례 정상.
+                # 단, 로그에 명시 기록 (감사 추적용)
+                _ci_currency_warn = (
+                    f"⚠ 통화 불일치: 수주={order_cur} / CI={ci_cur} (환산 확인 필요)"
+                )
+            else:
+                _ci_currency_warn = None
+        except Exception:
+            _ci_currency_warn = None
         invoice_no = _next_seq_no(c, "commercial_invoices", "invoice_no", "CI")
         cur = c.execute(
             """INSERT INTO commercial_invoices
@@ -11505,9 +11586,11 @@ async def export_ci_create(req: Request):
             c.execute(
                 "UPDATE export_orders SET status='CI_ISSUED' WHERE id=?", (eo_id,)
             )
-        # v5H117: 감사로그 (FTA H1 패턴)
-        _doc_audit_log(c, "commercial_invoice", ci_id, "ISSUE", u.get("id"),
-                       f"CI {invoice_no} ISSUED amount={total_amount} {currency}")
+        # v5H117: 감사로그 (FTA H1 패턴) + v5H123 통화 불일치 경고 합성
+        _audit_note = f"CI {invoice_no} ISSUED amount={total_amount} {currency}"
+        if _ci_currency_warn:
+            _audit_note += f" | {_ci_currency_warn}"
+        _doc_audit_log(c, "commercial_invoice", ci_id, "ISSUE", u.get("id"), _audit_note)
     return RedirectResponse(f"/export/orders/{eo_id}", 303)
 
 
