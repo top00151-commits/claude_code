@@ -2111,6 +2111,23 @@ def init_db():
         except Exception:
             pass
 
+        # v5H124 (2026-05-04): receipts_payment.currency — 외화 수금 추적
+        # 백워드 호환: 기존 데이터는 NULL → 조회 시 KRW 로 간주
+        try:
+            rpcols = [r[1] for r in c.execute("PRAGMA table_info(receipts_payment)").fetchall()]
+            if "currency" not in rpcols:
+                try:
+                    c.execute("ALTER TABLE receipts_payment ADD COLUMN currency TEXT DEFAULT 'KRW'")
+                except Exception:
+                    pass
+            if "fx_rate" not in rpcols:
+                try:
+                    c.execute("ALTER TABLE receipts_payment ADD COLUMN fx_rate REAL")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # v5H81: order_items — 호기 라벨 + 라인 비고
         try:
             oicols = [r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()]

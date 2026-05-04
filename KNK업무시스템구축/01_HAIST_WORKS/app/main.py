@@ -3435,6 +3435,32 @@ async def project_detail(req: Request, pid: int):
         all_units_sorted = sorted(_flat, key=_sort_key)
     except Exception:
         pass
+    # v5H124: 프로젝트 SO 통화 혼합 감지 + 통화별 합계 분리
+    currency_mix = []
+    currency_warning = None
+    primary_so_currency = "KRW"
+    try:
+        from collections import Counter as _C
+        ccy_amount = {}
+        ccy_count = {}
+        for _so in (project_orders or []):
+            _c = (_so.get("currency") or "KRW")
+            ccy_amount[_c] = ccy_amount.get(_c, 0) + float(_so.get("total_amount") or 0)
+            ccy_count[_c] = ccy_count.get(_c, 0) + 1
+        if ccy_amount:
+            currency_mix = sorted(
+                [{"currency": k, "total": v, "cnt": ccy_count.get(k, 0)} for k, v in ccy_amount.items()],
+                key=lambda r: -r["total"],
+            )
+            primary_so_currency = currency_mix[0]["currency"]
+            if len(currency_mix) > 1:
+                _list = ", ".join(f"{r['currency']}({r['cnt']}건)" for r in currency_mix)
+                currency_warning = (
+                    f"⚠ 통화 혼합 — {_list}. KPI 수주액은 주 통화({primary_so_currency}) 기준이며, "
+                    "외화 SO 는 환산 없이 별도 표기됩니다."
+                )
+    except Exception:
+        pass
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
@@ -3442,7 +3468,10 @@ async def project_detail(req: Request, pid: int):
                project_orders=project_orders,
                STATUSES=_logi.LOGI_STATUSES,
                project_history=project_history_logs,
-               all_units_sorted=all_units_sorted)
+               all_units_sorted=all_units_sorted,
+               currency_mix=currency_mix,
+               currency_warning=currency_warning,
+               primary_so_currency=primary_so_currency)
 
 
 # =====================================================
@@ -10674,20 +10703,42 @@ async def sales_shipments_receipts_page(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         # 수주별 통합 라인: 출하 합계 + 수금 합계 + 세금계산서 발행 여부
-        rows = c.execute(
-            """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
-                      COALESCE(cu.name,'-') AS customer_name,
-                      (SELECT COALESCE(SUM(s.shipped_qty),0)
-                         FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
-                      (SELECT COALESCE(SUM(r.amount),0)
-                         FROM receipts_payment r WHERE r.order_id = o.id) AS paid_total,
-                      (SELECT COUNT(*) FROM invoices i
-                         WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
-               FROM orders o
-               LEFT JOIN customers cu ON cu.id = o.customer_id
-               WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
-               ORDER BY o.id DESC LIMIT 200"""
-        ).fetchall()
+        # v5H124: currency 인지 — 수주 통화와 동일 통화 수금만 합산해 paid_total 산출
+        try:
+            rows = c.execute(
+                """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
+                          COALESCE(cu.name,'-') AS customer_name,
+                          COALESCE(o.currency,'KRW') AS currency,
+                          (SELECT COALESCE(SUM(s.shipped_qty),0)
+                             FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
+                          (SELECT COALESCE(SUM(r.amount),0)
+                             FROM receipts_payment r
+                             WHERE r.order_id = o.id
+                               AND COALESCE(r.currency,'KRW')=COALESCE(o.currency,'KRW')
+                          ) AS paid_total,
+                          (SELECT COUNT(*) FROM invoices i
+                             WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
+                   FROM orders o
+                   LEFT JOIN customers cu ON cu.id = o.customer_id
+                   WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
+                   ORDER BY o.id DESC LIMIT 200"""
+            ).fetchall()
+        except Exception:
+            rows = c.execute(
+                """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
+                          COALESCE(cu.name,'-') AS customer_name,
+                          'KRW' AS currency,
+                          (SELECT COALESCE(SUM(s.shipped_qty),0)
+                             FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
+                          (SELECT COALESCE(SUM(r.amount),0)
+                             FROM receipts_payment r WHERE r.order_id = o.id) AS paid_total,
+                          (SELECT COUNT(*) FROM invoices i
+                             WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
+                   FROM orders o
+                   LEFT JOIN customers cu ON cu.id = o.customer_id
+                   WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
+                   ORDER BY o.id DESC LIMIT 200"""
+            ).fetchall()
         items = [dict(r) for r in rows]
     return ctx(req, "sales_shipments_receipts.html", user=u, active="sales_shipments",
                tab="shipments", items=items)
@@ -10779,6 +10830,23 @@ async def sales_receipts_create(req: Request):
     amount = float(form.get("amount") or 0)
     method = form.get("method") or None
     note = form.get("note") or None
+    # v5H124: 통화 입력 (화이트리스트, 미입력 시 KRW)
+    _ALLOWED_CCY = {"KRW", "USD", "VND", "JPY", "CNY", "EUR"}
+    currency = (form.get("currency") or "KRW").strip().upper()
+    if currency not in _ALLOWED_CCY:
+        return JSONResponse(
+            {"error": f"허용되지 않는 통화: {currency}. (KRW/USD/VND/JPY/CNY/EUR 중 선택)"},
+            400,
+        )
+    fx_rate_raw = form.get("fx_rate")
+    fx_rate = None
+    if fx_rate_raw:
+        try:
+            fx_rate = float(fx_rate_raw)
+            if fx_rate <= 0:
+                fx_rate = None
+        except Exception:
+            fx_rate = None
     if not order_id:
         return JSONResponse({"error": "order_id 누락"}, 400)
     # v5H112: 음수/0 수금 차단 — 친절한 에러
@@ -10788,26 +10856,75 @@ async def sales_receipts_create(req: Request):
             400,
         )
     with db_session() as c:
-        o = c.execute(
-            "SELECT status, total_amount FROM orders WHERE id=?", (order_id,)
-        ).fetchone()
+        # v5H124: orders.currency 함께 조회 (수주 통화 vs 수금 통화 mismatch 검출)
+        try:
+            o = c.execute(
+                "SELECT status, total_amount, COALESCE(currency,'KRW') FROM orders WHERE id=?",
+                (order_id,),
+            ).fetchone()
+        except Exception:
+            o = c.execute(
+                "SELECT status, total_amount, 'KRW' FROM orders WHERE id=?", (order_id,)
+            ).fetchone()
         if not o:
             return JSONResponse({"error": "수주 없음"}, 404)
-        prev_status, total = o[0], (o[1] or 0)
-        cur = c.execute(
-            """INSERT INTO receipts_payment
-               (order_id, received_at, amount, method, received_by, note)
-               VALUES (?,?,?,?,?,?)""",
-            (order_id, datetime.now().isoformat(timespec="seconds"),
-             amount, method, u.get("id"), note),
-        )
-        # 누적 수금 합계 → PAID 분기 (시안 §3 PAID 강조)
-        row = c.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM receipts_payment WHERE order_id=?",
-            (order_id,),
-        ).fetchone()
+        prev_status, total, order_ccy = o[0], (o[1] or 0), (o[2] or "KRW")
+        # 통화 mismatch 시 audit 경고 (차단 X — 환차 발생 가능, FYI)
+        ccy_warn = None
+        if currency != order_ccy:
+            ccy_warn = (
+                f"⚠ 통화 불일치 — 수주 {order_ccy} vs 수금 {currency} "
+                f"(환산 누락 시 미수금 계산 오차 위험)"
+            )
+        # v5H124: receipts_payment 에 currency / fx_rate 가 있으면 함께 INSERT, 없으면 백워드
+        rpcols2 = set()
+        try:
+            rpcols2 = {r[1] for r in c.execute("PRAGMA table_info(receipts_payment)").fetchall()}
+        except Exception:
+            pass
+        if "currency" in rpcols2 and "fx_rate" in rpcols2:
+            cur = c.execute(
+                """INSERT INTO receipts_payment
+                   (order_id, received_at, amount, method, received_by, note, currency, fx_rate)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (order_id, datetime.now().isoformat(timespec="seconds"),
+                 amount, method, u.get("id"), note, currency, fx_rate),
+            )
+        else:
+            cur = c.execute(
+                """INSERT INTO receipts_payment
+                   (order_id, received_at, amount, method, received_by, note)
+                   VALUES (?,?,?,?,?,?)""",
+                (order_id, datetime.now().isoformat(timespec="seconds"),
+                 amount, method, u.get("id"), note),
+            )
+        # v5H124: doc_audit_log — 수금 등록 + 통화 mismatch 경고 합성
+        try:
+            _audit_note = f"amount={amount} {currency}"
+            if ccy_warn:
+                _audit_note += f" | {ccy_warn}"
+            _doc_audit_log(c, "receipts_payment", cur.lastrowid, "RECEIVE",
+                           u.get("id"), _audit_note)
+        except Exception:
+            pass
+        # 누적 수금 합계 → PAID 분기 (v5H124 — 수주 통화와 동일 통화만 합산해 PAID 판정)
+        if "currency" in rpcols2:
+            row = c.execute(
+                """SELECT COALESCE(SUM(amount),0) FROM receipts_payment
+                   WHERE order_id=? AND COALESCE(currency,'KRW')=?""",
+                (order_id, order_ccy),
+            ).fetchone()
+        else:
+            row = c.execute(
+                "SELECT COALESCE(SUM(amount),0) FROM receipts_payment WHERE order_id=?",
+                (order_id,),
+            ).fetchone()
         paid_total = row[0] or 0
-        new_status = "PAID" if paid_total >= total and total > 0 else prev_status
+        # 통화가 같을 때만 PAID 자동 전환 (이종 통화는 수동 정산 권장)
+        new_status = (
+            "PAID" if (currency == order_ccy and paid_total >= total and total > 0)
+            else prev_status
+        )
         if new_status != prev_status:
             c.execute(
                 "UPDATE orders SET status=? WHERE id=?", (new_status, order_id)
@@ -10822,6 +10939,8 @@ async def sales_receipts_create(req: Request):
         return JSONResponse({
             "ok": True, "receipt_id": cur.lastrowid,
             "paid_total": paid_total, "status": new_status,
+            "currency": currency, "order_currency": order_ccy,
+            "warning": ccy_warn,
         })
 
 

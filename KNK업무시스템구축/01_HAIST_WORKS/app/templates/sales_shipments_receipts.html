@@ -14,17 +14,37 @@
   <div class="tbl-wrap tbl-sticky">
     {% if items %}
     <table class="tbl">
-      <thead><tr><th>출하 #</th><th>수주번호</th><th>고객사</th><th class="num">출하수량</th><th>출하일</th><th class="center">상태</th><th>운송</th></tr></thead>
+      <thead><tr><th>수주번호</th><th>고객사</th><th>통화</th><th class="num">수주액</th><th class="num">수금</th><th>출하수량</th><th class="center">상태</th><th class="center">수금</th></tr></thead>
       <tbody>
       {% for s in items %}
-        <tr onclick="location.href='/sales/shipments/{{ s.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ s.id }}</td>
+        {% set _ccy = s.currency|default('KRW') %}
+        {% set _outstanding = ((s.total_amount or 0) - (s.paid_total or 0)) %}
+        <tr>
           <td><a href="/orders/{{ s.order_id }}" style="font-family:monospace;color:var(--amber-deep);">{{ s.order_no|default('#' ~ s.order_id) }}</a></td>
           <td><b>{{ s.customer_name|default('—') }}</b></td>
-          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(s.shipped_qty|default(0)) }}</td>
-          <td style="font-family:monospace;font-size:11px;">{{ s.shipped_at|default('—') }}</td>
-          <td class="center"><span class="pill {% if s.status == 'DELIVERED' %}pill-done{% elif s.status == 'IN_TRANSIT' %}pill-progress{% else %}pill-muted{% endif %}">{{ s.status|default('—') }}</span></td>
-          <td style="font-size:12px;color:var(--mute);">{{ s.carrier|default('—') }}{% if s.tracking_no %} · {{ s.tracking_no }}{% endif %}</td>
+          <td style="font-family:monospace;font-size:11px;">{{ _ccy }}</td>
+          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(s.total_amount|default(0)) }}</td>
+          <td class="num">{{ '{:,.0f}'.format(s.paid_total|default(0)) }}</td>
+          <td class="num">{{ '{:,.0f}'.format(s.shipped_qty_sum|default(0)) }}</td>
+          <td class="center"><span class="pill {% if s.status == 'PAID' %}pill-done{% elif s.status in ('SHIPPED','INVOICED') %}pill-progress{% else %}pill-muted{% endif %}">{{ s.status|default('—') }}</span></td>
+          <td class="center">
+            {% if s.status != 'PAID' %}
+            <form method="post" action="/sales/receipts" style="display:inline-flex;gap:4px;align-items:center;"
+                  title="미수금: {{ '{:,.0f}'.format(_outstanding if _outstanding > 0 else 0) }} {{ _ccy }}">
+              <input type="hidden" name="order_id" value="{{ s.order_id }}">
+              <select name="currency" style="padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:11px;">
+                <option value="{{ _ccy }}" selected>{{ _ccy }}</option>
+                {% for cc in ['KRW','USD','VND','JPY','CNY','EUR'] %}{% if cc != _ccy %}<option value="{{ cc }}">{{ cc }}</option>{% endif %}{% endfor %}
+              </select>
+              <input name="amount" type="number" step="0.01" required
+                     placeholder="미수: {{ '{:,.0f}'.format(_outstanding if _outstanding > 0 else 0) }}"
+                     style="width:110px;padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:12px;">
+              <input name="fx_rate" type="number" step="0.0001" placeholder="환율"
+                     style="width:70px;padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:11px;">
+              <button type="submit" style="background:var(--knk-red,#E11D48);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">수금</button>
+            </form>
+            {% else %}<span style="color:var(--ink-400);font-size:12px;">완료</span>{% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>

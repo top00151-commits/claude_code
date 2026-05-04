@@ -132,8 +132,20 @@
     {# v5H94: 수주액 KPI 는 SO 합계가 우선 (단일 진실 소스). SO 가 없으면 폼 입력값 폴백. #}
     {% set _so_total = (project_orders|sum(attribute='total_amount')) if project_orders else 0 %}
     {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
-    <div class="kpi-card"><div class="kpi-label">수주액</div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">원</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--mute);">({{ primary_so_currency|default('KRW') }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ primary_so_currency|default('KRW') }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
   </div>
+
+  {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
+  {% if currency_warning %}
+  <div style="margin: var(--space-3) var(--content-pad,16px); padding: 10px 14px; background: #FFF7E6; border: 1px solid #F59E0B; border-radius: 8px; font-size: 13px; color: #92400E;">
+    <b>{{ currency_warning }}</b>
+    <div style="margin-top:6px; display:flex; gap:14px; flex-wrap:wrap; font-size:12px;">
+    {% for r in currency_mix %}
+      <span style="font-family:monospace;"><b>{{ r.currency }}</b> · {{ '{:,.0f}'.format(r.total) }} ({{ r.cnt }}건)</span>
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
