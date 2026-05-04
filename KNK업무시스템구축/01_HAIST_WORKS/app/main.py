@@ -4329,6 +4329,15 @@ async def change_password(req: Request,
             return RedirectResponse("/profile?err=현재 비밀번호가 맞지 않습니다", 303)
         c.execute("UPDATE users SET password=? WHERE id=?",
                   (hash_pw(new_pw), u["id"]))
+        # v5H115: 본인 비번 변경도 user_history 에 기록 (감사 추적)
+        try:
+            c.execute(
+                "INSERT INTO user_history(user_id, changed_by, field, "
+                "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                (u["id"], u["id"], "비밀번호", "***", "***", "본인 변경")
+            )
+        except Exception:
+            pass
     return RedirectResponse("/profile?msg=비밀번호가 변경되었습니다", 303)
 
 
@@ -13457,6 +13466,12 @@ async def wo_create(req: Request):
         qty = float(form.get("qty") or 0)
     except Exception:
         qty = 0
+    # v5H115 #W1: 수량 0 이하 차단
+    if qty <= 0:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            "/production/work-orders?error=" + _q("작업지시 수량은 0보다 커야 합니다"), 303
+        )
     assigned_raw = form.get("assigned_to")
     assigned_to = int(assigned_raw) if (assigned_raw and assigned_raw.isdigit()) else None
     assigned_name = (form.get("assigned_name") or "").strip() or None
