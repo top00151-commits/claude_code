@@ -2086,6 +2086,49 @@ def init_db():
         except Exception:
             pass
 
+        # v5H113: 견적 라인 변경 이력 (M10)
+        try:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS quotation_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    quotation_id INTEGER NOT NULL,
+                    changed_at TEXT DEFAULT (datetime('now','localtime')),
+                    changed_by INTEGER,
+                    field TEXT,
+                    old_value TEXT,
+                    new_value TEXT,
+                    note TEXT
+                )
+            """)
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_quotation_history_qid "
+                "ON quotation_history(quotation_id)"
+            )
+        except Exception:
+            pass
+
+        # v5H113: user/team 변경 이력 (LOW#18/#19)
+        for _ent in ("user", "team"):
+            try:
+                c.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {_ent}_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {_ent}_id INTEGER NOT NULL,
+                        changed_at TEXT DEFAULT (datetime('now','localtime')),
+                        changed_by INTEGER,
+                        field TEXT,
+                        old_value TEXT,
+                        new_value TEXT,
+                        note TEXT
+                    )
+                """)
+                c.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_{_ent}_history_eid "
+                    f"ON {_ent}_history({_ent}_id)"
+                )
+            except Exception:
+                pass
+
         # v5H89b: 기존 orders.customer_id 가 NULL 인데 project 가 customer_name
         # 또는 customer_id 를 갖고 있으면 backfill (수주관리 리스트 고객사 표시 회복)
         try:
@@ -3352,7 +3395,52 @@ def parts_get(pid: int):
         return c.execute("SELECT * FROM parts WHERE id = ?", (pid,)).fetchone()
 
 
+def _validate_parts_payload(data: dict) -> None:
+    """v5H113 LOW#21: parts 도메인 enum/필수 검증."""
+    if not (data.get("part_name") or "").strip():
+        raise ValueError("부품명(part_name)은 필수입니다.")
+    cur = (data.get("currency") or "KRW").strip().upper() or "KRW"
+    if cur not in CURRENCY_OPTIONS:
+        raise ValueError(f"통화는 {', '.join(CURRENCY_OPTIONS)} 중 하나여야 합니다. (입력: {cur})")
+    data["currency"] = cur
+    unit = (data.get("unit") or "EA").strip().upper() or "EA"
+    # unit 은 자유롭게 허용하되, 잘못된 값 잡기 위한 너그러운 화이트리스트 (경고만)
+    if unit not in PART_UNIT_OPTIONS:
+        # 사용자 정의 unit 도 허용 (예: '병', '캔') — 단, 길이 제한
+        if len(unit) > 8:
+            raise ValueError(f"단위(unit)는 8자 이내여야 합니다. (입력: {unit})")
+    data["unit"] = unit
+    # is_active 화이트리스트
+    ia_raw = data.get("is_active", 1)
+    try:
+        ia = int(ia_raw) if str(ia_raw) not in ("", None) else 1
+    except (TypeError, ValueError):
+        raise ValueError(f"is_active 는 0 또는 1이어야 합니다. (입력: {ia_raw})")
+    if ia not in (0, 1):
+        raise ValueError(f"is_active 는 0 또는 1이어야 합니다. (입력: {ia_raw})")
+    data["is_active"] = ia
+    # std_price 음수 차단
+    try:
+        if float(data.get("std_price") or 0) < 0:
+            raise ValueError("표준 단가(std_price)는 0 이상이어야 합니다.")
+    except (TypeError, ValueError) as _e:
+        if "표준 단가" in str(_e):
+            raise
+        raise ValueError("표준 단가(std_price)가 올바른 숫자가 아닙니다.")
+
+
 def parts_create(data: dict) -> int:
+    _validate_parts_payload(data)
+    # v5H113 LOW#21: part_no 중복 친절 처리
+    pno = (data.get("part_no") or "").strip()
+    if pno:
+        with db_session() as c:
+            dup = c.execute("SELECT id, part_name FROM parts WHERE part_no=?", (pno,)).fetchone()
+            if dup:
+                raise ValueError(
+                    f"부품 코드 '{pno}' 는 이미 등록되어 있습니다 "
+                    f"(기존: [{dup['id']}] {dup['part_name']}). 다른 코드를 사용하거나 기존 부품을 수정해주세요."
+                )
     cols = ["part_no", "part_name", "spec", "maker", "origin", "unit",
             "currency", "std_price", "biz_div", "category", "note",
             "is_active", "safety_stock", "location", "created_at", "updated_at"]
@@ -3384,6 +3472,20 @@ def parts_create(data: dict) -> int:
 
 
 def parts_update(pid: int, data: dict) -> None:
+    _validate_parts_payload(data)
+    # v5H113 LOW#21: 다른 row 와 part_no 중복 차단
+    pno = (data.get("part_no") or "").strip()
+    if pno:
+        with db_session() as c:
+            dup = c.execute(
+                "SELECT id, part_name FROM parts WHERE part_no=? AND id<>?",
+                (pno, pid)
+            ).fetchone()
+            if dup:
+                raise ValueError(
+                    f"부품 코드 '{pno}' 는 이미 다른 부품에서 사용 중입니다 "
+                    f"(기존: [{dup['id']}] {dup['part_name']})."
+                )
     fields = ["part_no", "part_name", "spec", "maker", "origin", "unit",
               "currency", "std_price", "biz_div", "category", "note", "is_active",
               "safety_stock", "location"]
@@ -3621,6 +3723,22 @@ def get_project_history(project_id: int, limit: int = 50) -> list[dict]:
                 "LEFT JOIN users u ON u.id = ph.changed_by "
                 "WHERE ph.project_id=? ORDER BY ph.id DESC LIMIT ?",
                 (project_id, int(limit))
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
+def get_customer_history(customer_id: int, limit: int = 50) -> list[dict]:
+    """v5H113: 고객사 변경 이력 최근 N건 (project_history 동형)."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT ch.*, COALESCE(u.name,'시스템') AS changed_by_name "
+                "FROM customer_history ch "
+                "LEFT JOIN users u ON u.id = ch.changed_by "
+                "WHERE ch.customer_id=? ORDER BY ch.id DESC LIMIT ?",
+                (customer_id, int(limit))
             ).fetchall()
             return [dict(r) for r in rows]
         except Exception:
@@ -3896,7 +4014,19 @@ def supplier_get(sid: int):
         return c.execute("SELECT * FROM suppliers WHERE id = ?", (sid,)).fetchone()
 
 
+def _validate_currency(data: dict) -> str:
+    """v5H113 LOW#20/#21: currency 화이트리스트 정규화."""
+    cur = (data.get("currency") or "KRW").strip().upper() or "KRW"
+    if cur not in CURRENCY_OPTIONS:
+        raise ValueError(f"통화는 {', '.join(CURRENCY_OPTIONS)} 중 하나여야 합니다. (입력: {cur})")
+    return cur
+
+
 def supplier_create(data: dict) -> int:
+    # v5H113 LOW#20: currency 화이트리스트 + 이름 필수
+    if not (data.get("name") or "").strip():
+        raise ValueError("공급사명은 필수입니다.")
+    data["currency"] = _validate_currency(data)
     now = _logi_now()
     with db_session() as c:
         cur = c.execute("""
@@ -3921,6 +4051,10 @@ def supplier_create(data: dict) -> int:
 
 
 def supplier_update(sid: int, data: dict) -> None:
+    # v5H113 LOW#20: currency 화이트리스트
+    if not (data.get("name") or "").strip():
+        raise ValueError("공급사명은 필수입니다.")
+    data["currency"] = _validate_currency(data)
     with db_session() as c:
         c.execute("""
             UPDATE suppliers SET
@@ -4864,12 +4998,24 @@ def stock_adjust(data: dict, user_id: int) -> tuple[int, str]:
     data 필수:
       - part_id, quantity (+/- 조정값)
       - reason (실사 사유, 필수)
+    v5H113 LOW#17: 사유 빈문자열 차단, 음수 한도(±1,000,000) 검증.
     """
+    reason = (data.get("reason") or "").strip()
+    if not reason:
+        raise ValueError("실사 조정 사유는 필수입니다. (예: 분실/파손/실사 차이 등)")
+    try:
+        qty = float(data.get("quantity") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("조정 수량이 올바른 숫자가 아닙니다.")
+    if qty == 0:
+        raise ValueError("조정 수량이 0입니다. 변경할 차이를 입력해주세요.")
+    if abs(qty) > 1_000_000:
+        raise ValueError(f"조정 수량({qty}) 절대값이 1,000,000을 초과합니다. 사이트 한도를 확인해주세요.")
     return stock_movement_create({
         "part_id": data["part_id"],
         "kind": "ADJUST",
-        "quantity": float(data.get("quantity") or 0),
-        "reason": (data.get("reason") or "실사 조정").strip(),
+        "quantity": qty,
+        "reason": reason,
         "note": data.get("note"),
         "occurred_at": data.get("occurred_at"),
     }, user_id)
@@ -5480,8 +5626,31 @@ def exchange_rates_latest() -> dict:
 PRICE_TYPES = ["확정", "가", "견적"]
 
 
+# v5H113: 도메인 enum 화이트리스트 (LOW #15/#20/#21)
+CURRENCY_OPTIONS = ("KRW", "USD", "VND", "JPY", "CNY", "EUR")
+PART_UNIT_OPTIONS = ("EA", "SET", "BOX", "M", "KG", "L", "PCS", "PR", "PKG")
+
+
 def part_price_create(data: dict, user_id: int) -> int:
-    """적용일자 단가 등록. effective_from 필수."""
+    """적용일자 단가 등록. effective_from 필수.
+    v5H113 LOW#15: effective_from <= effective_to 검증, currency 화이트리스트.
+    """
+    # v5H113 검증
+    cur = (data.get("currency") or "KRW").strip().upper()
+    if cur not in CURRENCY_OPTIONS:
+        raise ValueError(f"통화는 {', '.join(CURRENCY_OPTIONS)} 중 하나여야 합니다.")
+    ef = (data.get("effective_from") or "").strip()
+    et = (data.get("effective_to") or "").strip()
+    if ef and et and ef > et:
+        raise ValueError(f"적용 시작일({ef})은 종료일({et})보다 이전이어야 합니다.")
+    try:
+        if float(data.get("unit_price") or 0) < 0:
+            raise ValueError("단가는 0 이상이어야 합니다.")
+    except (TypeError, ValueError) as _e:
+        if "단가" in str(_e):
+            raise
+        raise ValueError("단가가 올바른 숫자가 아닙니다.")
+    data["currency"] = cur
     with db_session() as c:
         c.execute(
             """INSERT INTO part_prices

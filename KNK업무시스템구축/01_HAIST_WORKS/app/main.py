@@ -3436,10 +3436,16 @@ async def customer_detail(req: Request, cid: int):
     # v5H58: 등급 점수 breakdown
     from . import customer_tier as _ct
     tier_breakdown = _ct.parse_breakdown(cu.get("tier_breakdown"))
+    # v5H113: 고객사 변경 이력 (최근 50건)
+    try:
+        customer_history = _logi.get_customer_history(cid, limit=50)
+    except Exception:
+        customer_history = []
     return ctx(req, "customer_detail.html",
                user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
                stats=stats, by_team=by_team_list, total_tasks=len(tasks),
-               contacts=contacts, tier_breakdown=tier_breakdown)
+               contacts=contacts, tier_breakdown=tier_breakdown,
+               customer_history=customer_history)
 
 
 # =====================================================
@@ -4476,6 +4482,12 @@ async def admin_users_edit_submit(req: Request, uid: int):
     if not name:
         return RedirectResponse(f"/admin/users/{uid}/edit?error=required", 303)
     with db_session() as c:
+        # v5H113 LOW#18: 변경 전 스냅샷
+        old_row = c.execute(
+            "SELECT name, role, team_id, rank, email, is_active "
+            "FROM users WHERE id=?", (uid,)
+        ).fetchone()
+        old_data = dict(old_row) if old_row else {}
         # 비번 변경된 경우만 갱신
         new_pw = (form.get("password") or "").strip()
         if new_pw:
@@ -4496,6 +4508,38 @@ async def admin_users_edit_submit(req: Request, uid: int):
                  form.get("rank", ""), form.get("email", ""),
                  int(form.get("is_active") or 1), uid)
             )
+        # v5H113 LOW#18: user_history diff 기록
+        new_data = {
+            "name": name,
+            "role": form.get("role", "member"),
+            "team_id": form.get("team_id") or None,
+            "rank": form.get("rank", ""),
+            "email": form.get("email", ""),
+            "is_active": int(form.get("is_active") or 1),
+        }
+        _label_map = {"name":"이름","role":"권한","team_id":"팀","rank":"직급","email":"이메일","is_active":"활성"}
+        for _k, _label in _label_map.items():
+            ov = "" if old_data.get(_k) is None else str(old_data.get(_k))
+            nv = "" if new_data.get(_k) is None else str(new_data.get(_k))
+            if ov == nv:
+                continue
+            try:
+                c.execute(
+                    "INSERT INTO user_history(user_id, changed_by, field, "
+                    "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                    (uid, u.get("id"), _label, ov, nv, "")
+                )
+            except Exception:
+                pass
+        if new_pw:
+            try:
+                c.execute(
+                    "INSERT INTO user_history(user_id, changed_by, field, "
+                    "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                    (uid, u.get("id"), "비밀번호", "***", "***", "비밀번호 재설정")
+                )
+            except Exception:
+                pass
     return RedirectResponse("/admin", 303)
 
 
@@ -4563,14 +4607,45 @@ async def admin_teams_edit_submit(req: Request, tid: int):
     if not name:
         return RedirectResponse(f"/admin/teams/{tid}/edit?error=required", 303)
     with db_session() as c:
+        # v5H113 LOW#19: 변경 전 스냅샷
+        old_row = c.execute(
+            "SELECT code, name, sector, display_order, is_lab, leader_id "
+            "FROM teams WHERE id=?", (tid,)
+        ).fetchone()
+        old_data = dict(old_row) if old_row else {}
+        new_data = {
+            "code": form.get("code", ""),
+            "name": name,
+            "sector": form.get("sector", "공통"),
+            "display_order": int(form.get("display_order") or 99),
+            "is_lab": int(form.get("is_lab") or 0),
+            "leader_id": form.get("leader_id") or None,
+        }
         c.execute(
             "UPDATE teams SET code=?, name=?, sector=?, display_order=?, "
             "is_lab=?, leader_id=? WHERE id=?",
-            (form.get("code", ""), name, form.get("sector", "공통"),
-             int(form.get("display_order") or 99),
-             int(form.get("is_lab") or 0),
-             form.get("leader_id") or None, tid)
+            (new_data["code"], new_data["name"], new_data["sector"],
+             new_data["display_order"], new_data["is_lab"],
+             new_data["leader_id"], tid)
         )
+        # v5H113 LOW#19: team_history diff 기록
+        _label_map = {
+            "code":"코드","name":"이름","sector":"섹터",
+            "display_order":"표시순","is_lab":"연구소","leader_id":"팀장"
+        }
+        for _k, _label in _label_map.items():
+            ov = "" if old_data.get(_k) is None else str(old_data.get(_k))
+            nv = "" if new_data.get(_k) is None else str(new_data.get(_k))
+            if ov == nv:
+                continue
+            try:
+                c.execute(
+                    "INSERT INTO team_history(team_id, changed_by, field, "
+                    "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                    (tid, u.get("id"), _label, ov, nv, "")
+                )
+            except Exception:
+                pass
     return RedirectResponse("/admin", 303)
 
 
@@ -5840,19 +5915,34 @@ async def customers_edit_submit(req: Request, cid: int):
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
         # v5H112: name 변경 감지 → projects.customer_name 일괄 동기화 + 이력
-        old_row = c.execute("SELECT name FROM customers WHERE id=?", (cid,)).fetchone()
-        old_name = (old_row["name"] if old_row else "") or ""
+        # v5H113: 핵심 7필드 전체 변경 이력화
+        old_row = c.execute(
+            "SELECT name, biz_no, ceo_name, phone, email, address, is_active, note "
+            "FROM customers WHERE id=?", (cid,)
+        ).fetchone()
+        old_data = dict(old_row) if old_row else {}
+        old_name = (old_data.get("name") or "")
+        new_is_active = int(form.get("is_active") or 1)
+        new_data = {
+            "name": name,
+            "biz_no": form.get("biz_no", ""),
+            "ceo_name": form.get("ceo_name", ""),
+            "phone": form.get("phone", ""),
+            "email": form.get("email", ""),
+            "address": form.get("address", ""),
+            "is_active": new_is_active,
+            "note": form.get("note", ""),
+        }
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
             "UPDATE customers SET name=?, biz_no=?, ceo_name=?, "
             "phone=?, email=?, address=?, is_active=?, note=? "
             "WHERE id=?",
-            (name, form.get("biz_no", ""), form.get("ceo_name", ""),
-             form.get("phone", ""), form.get("email", ""),
-             form.get("address", ""), int(form.get("is_active") or 1),
-             form.get("note", ""), cid)
+            (new_data["name"], new_data["biz_no"], new_data["ceo_name"],
+             new_data["phone"], new_data["email"], new_data["address"],
+             new_data["is_active"], new_data["note"], cid)
         )
-        # v5H112: name 변경 시 자식(projects) 동기화 + audit_log 기록
+        # v5H112: name 변경 시 자식(projects) 동기화
         if old_name and old_name != name:
             try:
                 c.execute(
@@ -5861,13 +5951,27 @@ async def customers_edit_submit(req: Request, cid: int):
                 )
             except Exception:
                 pass
-            # v5H112: customer_history 기록
+        # v5H113: 7필드 모두 diff → customer_history 기록
+        _label_map = {
+            "name": "고객사명", "biz_no": "사업자번호", "ceo_name": "대표자",
+            "phone": "전화", "email": "이메일", "address": "주소",
+            "is_active": "활성여부", "note": "비고",
+        }
+        for _key, _label in _label_map.items():
+            ov = old_data.get(_key)
+            nv = new_data.get(_key)
+            ov_s = "" if ov is None else str(ov)
+            nv_s = "" if nv is None else str(nv)
+            if ov_s == nv_s:
+                continue
+            _note = ""
+            if _key == "name":
+                _note = "고객사명 변경 → projects.customer_name 동기화"
             try:
                 c.execute(
                     "INSERT INTO customer_history(customer_id, changed_by, field, "
                     "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                    (cid, u.get("id"), "name", old_name, name,
-                     "고객사명 변경 → projects.customer_name 동기화"),
+                    (cid, u.get("id"), _label, ov_s, nv_s, _note),
                 )
             except Exception:
                 pass
@@ -7406,14 +7510,19 @@ async def parts_new_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.parts_create({
-        "part_no": part_no, "part_name": part_name, "spec": spec,
-        "maker": maker, "origin": origin, "unit": unit,
-        "currency": currency, "std_price": std_price,
-        "biz_div": biz_div, "category": category, "note": note,
-        "is_active": is_active,
-        "safety_stock": safety_stock, "location": location,
-    })
+    # v5H113: 검증 실패 친절한 에러
+    try:
+        _logi.parts_create({
+            "part_no": part_no, "part_name": part_name, "spec": spec,
+            "maker": maker, "origin": origin, "unit": unit,
+            "currency": currency, "std_price": std_price,
+            "biz_div": biz_div, "category": category, "note": note,
+            "is_active": is_active,
+            "safety_stock": safety_stock, "location": location,
+        })
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/parts/new?error={quote(str(ve))}", status_code=303)
     return RedirectResponse("/parts", status_code=303)
 
 
@@ -7445,14 +7554,19 @@ async def parts_edit_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.parts_update(pid, {
-        "part_no": part_no, "part_name": part_name, "spec": spec,
-        "maker": maker, "origin": origin, "unit": unit,
-        "currency": currency, "std_price": std_price,
-        "biz_div": biz_div, "category": category, "note": note,
-        "is_active": is_active,
-        "safety_stock": safety_stock, "location": location,
-    })
+    # v5H113: 검증 실패 친절한 에러
+    try:
+        _logi.parts_update(pid, {
+            "part_no": part_no, "part_name": part_name, "spec": spec,
+            "maker": maker, "origin": origin, "unit": unit,
+            "currency": currency, "std_price": std_price,
+            "biz_div": biz_div, "category": category, "note": note,
+            "is_active": is_active,
+            "safety_stock": safety_stock, "location": location,
+        })
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/parts/{pid}/edit?error={quote(str(ve))}", status_code=303)
     return RedirectResponse("/parts", status_code=303)
 
 
@@ -7843,11 +7957,16 @@ async def suppliers_new_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.supplier_create({
-        "name": name, "code": code, "contact": contact, "email": email,
-        "phone": phone, "country": country, "currency": currency,
-        "payment_terms": payment_terms, "note": note, "is_active": is_active,
-    })
+    # v5H113: 검증 실패 친절한 에러
+    try:
+        _logi.supplier_create({
+            "name": name, "code": code, "contact": contact, "email": email,
+            "phone": phone, "country": country, "currency": currency,
+            "payment_terms": payment_terms, "note": note, "is_active": is_active,
+        })
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/suppliers/new?error={quote(str(ve))}", status_code=303)
     return RedirectResponse("/suppliers", status_code=303)
 
 
@@ -7882,11 +8001,16 @@ async def suppliers_edit_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
-    _logi.supplier_update(sid, {
-        "name": name, "code": code, "contact": contact, "email": email,
-        "phone": phone, "country": country, "currency": currency,
-        "payment_terms": payment_terms, "note": note, "is_active": is_active,
-    })
+    # v5H113: 검증 실패 친절한 에러
+    try:
+        _logi.supplier_update(sid, {
+            "name": name, "code": code, "contact": contact, "email": email,
+            "phone": phone, "country": country, "currency": currency,
+            "payment_terms": payment_terms, "note": note, "is_active": is_active,
+        })
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/suppliers/{sid}/edit?error={quote(str(ve))}", status_code=303)
     return RedirectResponse("/suppliers", status_code=303)
 
 
@@ -7910,6 +8034,73 @@ async def suppliers_delete_submit(request: Request, sid: int):
 # =====================================================
 # HAIST WORKS — 발주 (purchase_orders) 라우트
 # =====================================================
+def _parse_po_lines_from_form(form, with_id: bool = False):
+    """v5H113: PO 폼 라인 파싱 — 두 가지 패턴 지원
+       (A) item_part_id[]/item_qty[]/item_price[]/item_delivery[]/item_note[]/item_id[]
+       (B) line_name_N/line_code_N/line_qty_N/line_price_N/line_id_N (현재 po_form.html)
+       — A 우선, A 비어있으면 B 폴백. B 는 part_no/part_name 스냅샷으로 전달.
+    """
+    items = []
+    # 패턴 A
+    part_ids = form.getlist("item_part_id")
+    qtys_a = form.getlist("item_qty")
+    prices_a = form.getlist("item_price")
+    delivs_a = form.getlist("item_delivery")
+    notes_a = form.getlist("item_note")
+    ids_a = form.getlist("item_id")
+    if part_ids or any((q for q in qtys_a if q)):
+        for i, pid in enumerate(part_ids):
+            qv = qtys_a[i] if i < len(qtys_a) else ""
+            if not pid and not qv:
+                continue
+            row = {
+                "part_id": pid,
+                "quantity": qv or "0",
+                "unit_price": prices_a[i] if i < len(prices_a) else "0",
+                "delivery_date": delivs_a[i] if i < len(delivs_a) else "",
+                "note": notes_a[i] if i < len(notes_a) else "",
+            }
+            if with_id:
+                row["id"] = ids_a[i] if i < len(ids_a) else ""
+            items.append(row)
+        if items:
+            return items
+    # 패턴 B (인덱스 기반) — 현재 po_form.html
+    indices = sorted({
+        int(k.split("_")[-1])
+        for k in form.keys()
+        if (k.startswith("line_name_") or k.startswith("line_qty_")
+            or k.startswith("line_price_") or k.startswith("line_code_")
+            or k.startswith("line_id_"))
+        and k.split("_")[-1].isdigit()
+    })
+    for idx in indices:
+        name = (form.get(f"line_name_{idx}") or "").strip()
+        code = (form.get(f"line_code_{idx}") or "").strip()
+        qv = (form.get(f"line_qty_{idx}") or "").strip()
+        pv = (form.get(f"line_price_{idx}") or "").strip()
+        # 빈 라인 스킵
+        try:
+            q_num = float(qv or 0)
+        except Exception:
+            q_num = 0
+        if not name and not code and q_num <= 0:
+            continue
+        row = {
+            "part_id": "",
+            "part_no_snapshot": code,
+            "part_name_snapshot": name,
+            "quantity": qv or "0",
+            "unit_price": pv or "0",
+            "delivery_date": "",
+            "note": "",
+        }
+        if with_id:
+            row["id"] = (form.get(f"line_id_{idx}") or "").strip()
+        items.append(row)
+    return items
+
+
 @app.get("/po", response_class=HTMLResponse)
 async def po_list_page(request: Request, q: str = "", status: str = ""):
     u = get_user(request)
@@ -7969,22 +8160,7 @@ async def po_new_submit(request: Request):
         "note": form.get("note", ""),
     }
     # 라인 파싱: item_part_id[], item_qty[], item_price[], item_delivery[], item_note[]
-    part_ids = form.getlist("item_part_id")
-    qtys = form.getlist("item_qty")
-    prices = form.getlist("item_price")
-    delivs = form.getlist("item_delivery")
-    notes = form.getlist("item_note")
-    items = []
-    for i, pid in enumerate(part_ids):
-        if not pid and not (qtys[i] if i < len(qtys) else ""):
-            continue
-        items.append({
-            "part_id": pid,
-            "quantity": qtys[i] if i < len(qtys) else "0",
-            "unit_price": prices[i] if i < len(prices) else "0",
-            "delivery_date": delivs[i] if i < len(delivs) else "",
-            "note": notes[i] if i < len(notes) else "",
-        })
+    items = _parse_po_lines_from_form(form)
     # v5H112: 정합성 검증 ValueError → 친절한 redirect
     try:
         po_id, po_num = _logi.po_create(header, items, created_by=u["id"])
@@ -8055,24 +8231,7 @@ async def po_edit_submit(request: Request, po_id: int):
         "note": form.get("note", ""),
     }
     # v5H112: 라인 id 파싱 (UPSERT 위해) — 신규 라인은 빈 값
-    line_ids = form.getlist("item_id")
-    part_ids = form.getlist("item_part_id")
-    qtys = form.getlist("item_qty")
-    prices = form.getlist("item_price")
-    delivs = form.getlist("item_delivery")
-    notes = form.getlist("item_note")
-    items = []
-    for i, pid in enumerate(part_ids):
-        if not pid and not (qtys[i] if i < len(qtys) else ""):
-            continue
-        items.append({
-            "id": line_ids[i] if i < len(line_ids) else "",
-            "part_id": pid,
-            "quantity": qtys[i] if i < len(qtys) else "0",
-            "unit_price": prices[i] if i < len(prices) else "0",
-            "delivery_date": delivs[i] if i < len(delivs) else "",
-            "note": notes[i] if i < len(notes) else "",
-        })
+    items = _parse_po_lines_from_form(form, with_id=True)
     # v5H112: ValueError → 친절한 에러 (입고이력 보존 거부 포함)
     try:
         _logi.po_update(po_id, header, items)
@@ -8232,7 +8391,8 @@ async def parts_price_create_submit(
         except Exception:
             pass  # 본 등록은 성공했으므로 훅 실패는 흡수
     except Exception as e:
-        return RedirectResponse(f"/parts/{pid}?error={e}", 303)
+        from urllib.parse import quote
+        return RedirectResponse(f"/parts/{pid}?error={quote(str(e))}", 303)
     return RedirectResponse(f"/parts/{pid}?price_added=1", 303)
 
 
@@ -8440,12 +8600,17 @@ async def stock_adjust_submit(
         qty = float(quantity)
     except ValueError:
         return RedirectResponse("/stock/adjust?error=invalid", 303)
-    stock_adjust({
-        "part_id": pid,
-        "quantity": qty,
-        "reason": reason,
-        "note": note,
-    }, u["id"])
+    # v5H113 LOW#17: 친절한 에러
+    try:
+        stock_adjust({
+            "part_id": pid,
+            "quantity": qty,
+            "reason": reason,
+            "note": note,
+        }, u["id"])
+    except ValueError as ve:
+        from urllib.parse import quote
+        return RedirectResponse(f"/stock/adjust?error={quote(str(ve))}", 303)
     return RedirectResponse("/stock/movements?success=adjust", 303)
 
 
@@ -9853,7 +10018,8 @@ async def sales_quotations_create(req: Request):
         return JSONResponse({"error": "권한 없음"}, 401)
     form = await req.form()
     customer_id = form.get("customer_id") or None
-    total_amount = float(form.get("total_amount") or 0)
+    # v5H113 M9: 헤더 단독 생성 시 total_amount 임의 입력 방지 — 0 으로 고정 (라인 추가 시 자동 합산)
+    total_amount = 0.0
     valid_until = form.get("valid_until") or None
     version = int(form.get("version") or 1)
     with db_session() as c:
@@ -10000,6 +10166,17 @@ async def sales_quotation_item_add(req: Request, quote_id: int):
             "UPDATE quotations SET total_amount=? WHERE id=?",
             (float(s[0] or 0), quote_id),
         )
+        # v5H113 M10: 라인 추가 이력
+        try:
+            c.execute(
+                "INSERT INTO quotation_history(quotation_id, changed_by, field, "
+                "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                (quote_id, u.get("id"), "라인추가", "",
+                 f"{item_name} · 수량 {qty} · 단가 {unit_price:,.0f}",
+                 f"line_no={line_no} · 합계 {float(s[0] or 0):,.0f}")
+            )
+        except Exception:
+            pass
     return RedirectResponse(f"/sales/quotations", 303)
 
 
@@ -10016,6 +10193,12 @@ async def sales_quotation_item_delete(req: Request, quote_id: int, item_id: int)
             return JSONResponse(
                 {"error": "수주 확정된 견적은 라인을 삭제할 수 없습니다 (SSOT 보호)."}, 400,
             )
+        # v5H113 M10: 삭제 전 라인 정보 캡처
+        old_line = c.execute(
+            "SELECT item_name, qty, unit_price, total_price FROM quotation_items "
+            "WHERE id=? AND quotation_id=?",
+            (item_id, quote_id),
+        ).fetchone()
         c.execute(
             "DELETE FROM quotation_items WHERE id=? AND quotation_id=?",
             (item_id, quote_id),
@@ -10028,6 +10211,19 @@ async def sales_quotation_item_delete(req: Request, quote_id: int, item_id: int)
             "UPDATE quotations SET total_amount=? WHERE id=?",
             (float(s[0] or 0), quote_id),
         )
+        # v5H113 M10: 라인 삭제 이력
+        if old_line:
+            try:
+                c.execute(
+                    "INSERT INTO quotation_history(quotation_id, changed_by, field, "
+                    "old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                    (quote_id, u.get("id"), "라인삭제",
+                     f"{old_line['item_name']} · 수량 {old_line['qty']} · 단가 {old_line['unit_price']:,.0f}",
+                     "",
+                     f"합계 {float(s[0] or 0):,.0f}")
+                )
+            except Exception:
+                pass
     return RedirectResponse(f"/sales/quotations", 303)
 
 
@@ -10064,6 +10260,39 @@ async def sales_quotation_convert_to_order(req: Request, quote_id: int):
             (order_id, "DRAFT", "CONFIRMED", u.get("id"),
              "견적→수주 전환 (라인 자동 복제)"),
         )
+        # v5H113 M11: customer_id NULL 폴백 — projects 연계가 있으면 backfill
+        try:
+            new_order = c.execute(
+                "SELECT customer_id FROM orders WHERE id=?", (order_id,)
+            ).fetchone()
+            if new_order and not new_order["customer_id"]:
+                # quotations 테이블에 project_id 가 있을 수 있음
+                qrow = c.execute(
+                    "SELECT customer_id FROM quotations WHERE id=?", (quote_id,)
+                ).fetchone()
+                fallback_cid = (qrow["customer_id"] if qrow else None)
+                if fallback_cid:
+                    c.execute(
+                        "UPDATE orders SET customer_id=? WHERE id=?",
+                        (fallback_cid, order_id)
+                    )
+                    c.execute(
+                        """INSERT INTO order_status_history
+                           (order_id, from_status, to_status, changed_by, note)
+                           VALUES (?,?,?,?,?)""",
+                        (order_id, "CONFIRMED", "CONFIRMED", u.get("id"),
+                         f"customer_id NULL 폴백 → 견적의 customer_id={fallback_cid} 로 backfill")
+                    )
+                else:
+                    c.execute(
+                        """INSERT INTO order_status_history
+                           (order_id, from_status, to_status, changed_by, note)
+                           VALUES (?,?,?,?,?)""",
+                        (order_id, "CONFIRMED", "CONFIRMED", u.get("id"),
+                         "⚠ customer_id NULL — 견적·수주에 고객사 미지정. 수주 상세에서 지정 필요.")
+                    )
+        except Exception:
+            pass
     return RedirectResponse("/sales/orders", 303)
 
 
@@ -12632,7 +12861,8 @@ async def part_prices_create(
         except Exception:
             pass  # 본 등록은 성공했으므로 훅 실패는 흡수
     except Exception as e:
-        return RedirectResponse(f"/parts/{part_id}/prices?error={e}", 303)
+        from urllib.parse import quote
+        return RedirectResponse(f"/parts/{part_id}/prices?error={quote(str(e))}", 303)
     return RedirectResponse(f"/parts/{part_id}/prices?success=1", 303)
 
 
