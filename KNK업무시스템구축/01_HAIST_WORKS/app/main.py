@@ -11352,11 +11352,23 @@ async def export_ci_create(req: Request):
                WHERE eo.id=?""", (eo_id,)).fetchone()
         if not eo:
             return JSONResponse({"error": "수출 수주 없음"}, 404)
+        # v5H117: 발행 사후 변경 차단 — DRAFT/BOOKED/CI_ISSUED 외 거부
+        if eo["status"] not in ("DRAFT", "BOOKED", "CI_ISSUED"):
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/orders/{eo_id}?error=" + _q(f"이미 {eo['status']} 상태 — CI 추가 발행 불가"), 303
+            )
         # 매출 자동 채움 — 폼 미입력 시 orders.total_amount
         try:
             total_amount = float(raw_amt) if raw_amt not in (None, "") else float(eo["auto_amt"] or 0)
         except Exception:
             total_amount = float(eo["auto_amt"] or 0)
+        # v5H117: 음수 금액 차단
+        if total_amount < 0:
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/orders/{eo_id}?error=" + _q("CI 금액은 음수일 수 없습니다"), 303
+            )
         invoice_no = _next_seq_no(c, "commercial_invoices", "invoice_no", "CI")
         cur = c.execute(
             """INSERT INTO commercial_invoices
@@ -11365,11 +11377,15 @@ async def export_ci_create(req: Request):
                VALUES (?,?,?,?,?,?, 'ISSUED')""",
             (invoice_no, eo_id, issue_date, total_amount, currency, u.get("id")),
         )
+        ci_id = cur.lastrowid
         # 상태 전이: DRAFT/BOOKED → CI_ISSUED
         if eo["status"] in ("DRAFT", "BOOKED"):
             c.execute(
                 "UPDATE export_orders SET status='CI_ISSUED' WHERE id=?", (eo_id,)
             )
+        # v5H117: 감사로그 (FTA H1 패턴)
+        _doc_audit_log(c, "commercial_invoice", ci_id, "ISSUE", u.get("id"),
+                       f"CI {invoice_no} ISSUED amount={total_amount} {currency}")
     return RedirectResponse(f"/export/orders/{eo_id}", 303)
 
 
@@ -11423,11 +11439,45 @@ async def export_pl_create(req: Request):
         tot_w = sum(_f(w) for w in line_ws)
     if tot_v == 0 and line_vs:
         tot_v = sum(_f(v) for v in line_vs)
+    # v5H117: 음수 헤더 차단
+    if tot_pkg < 0 or tot_w < 0 or tot_v < 0:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            f"/export/pl/{eo_id}?error=" + _q("PL 헤더 합계는 음수일 수 없습니다"), 303
+        )
+    # v5H117: 라인 음수/0 사전 검증 — 잘못된 입력은 명시적 에러
+    line_errors = []
+    valid_lines = 0
+    for i in range(max(len(line_parts), len(line_qtys))):
+        q = _f(line_qtys[i] if i < len(line_qtys) else 0)
+        w = _f(line_ws[i] if i < len(line_ws) else 0)
+        v = _f(line_vs[i] if i < len(line_vs) else 0)
+        if q < 0 or w < 0 or v < 0:
+            line_errors.append(f"라인 {i+1}: 음수 값 불가")
+            continue
+        if q > 0:
+            valid_lines += 1
+    if line_errors:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            f"/export/pl/{eo_id}?error=" + _q(" / ".join(line_errors[:3])), 303
+        )
+    if valid_lines == 0:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            f"/export/pl/{eo_id}?error=" + _q("PL 라인 1건 이상 필요합니다"), 303
+        )
     with db_session() as c:
         eo = c.execute(
             "SELECT id, status FROM export_orders WHERE id=?", (eo_id,)).fetchone()
         if not eo:
             return JSONResponse({"error": "수출 수주 없음"}, 404)
+        # v5H117: 발행 사후 변경 차단
+        if eo["status"] in ("SHIPPED", "CLEARED", "CANCELLED"):
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/orders/{eo_id}?error=" + _q(f"이미 {eo['status']} 상태 — PL 추가 발행 불가"), 303
+            )
         pl_no = _next_seq_no(c, "packing_lists", "pl_no", "PL")
         cur = c.execute(
             """INSERT INTO packing_lists
@@ -11456,6 +11506,8 @@ async def export_pl_create(req: Request):
             c.execute(
                 "UPDATE export_orders SET status='PL_READY' WHERE id=?", (eo_id,)
             )
+        _doc_audit_log(c, "packing_list", pl_id, "ISSUE", u.get("id"),
+                       f"PL {pl_no} lines={valid_lines} pkg={tot_pkg} w={tot_w}")
     return RedirectResponse(f"/export/orders/{eo_id}", 303)
 
 
@@ -11505,7 +11557,13 @@ async def export_bl_create(req: Request):
             "SELECT id, status FROM export_orders WHERE id=?", (eo_id,)).fetchone()
         if not eo:
             return JSONResponse({"error": "수출 수주 없음"}, 404)
-        c.execute(
+        # v5H117: CLEARED/CANCELLED 후 추가 발행 차단
+        if eo["status"] in ("CLEARED", "CANCELLED"):
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/orders/{eo_id}?error=" + _q(f"이미 {eo['status']} 상태 — BL 추가 발행 불가"), 303
+            )
+        cur = c.execute(
             """INSERT INTO bills_of_lading
                (bl_no, export_order_id, shipping_company, vessel,
                 departure_date, arrival_date, tracking_no, status)
@@ -11517,11 +11575,14 @@ async def export_bl_create(req: Request):
              form.get("arrival_date") or None,
              form.get("tracking_no") or None),
         )
+        bl_id = cur.lastrowid
         # 상태 전이: PL_READY/CI_ISSUED/BOOKED → SHIPPED
         if eo["status"] in ("DRAFT", "BOOKED", "CI_ISSUED", "PL_READY"):
             c.execute(
                 "UPDATE export_orders SET status='SHIPPED' WHERE id=?", (eo_id,)
             )
+        _doc_audit_log(c, "bill_of_lading", bl_id, "ISSUE", u.get("id"),
+                       f"BL {bl_no} eo={eo_id}")
     return RedirectResponse(f"/export/orders/{eo_id}", 303)
 
 
@@ -11560,6 +11621,17 @@ async def export_customs_create(req: Request):
             declared_value = float(raw_dv) if raw_dv not in (None, "") else 0.0
         except Exception:
             declared_value = 0.0
+        if declared_value < 0:
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/bl/{eo_id}?error=" + _q("관세 신고 가액은 음수 불가"), 303
+            )
+        # v5H117: CLEARED/CANCELLED 후 추가 신고 차단
+        if eo["status"] in ("CLEARED", "CANCELLED"):
+            from urllib.parse import quote as _q
+            return RedirectResponse(
+                f"/export/orders/{eo_id}?error=" + _q(f"이미 {eo['status']} 상태 — 관세 신고 추가 불가"), 303
+            )
         if declared_value <= 0:
             ci_row = c.execute(
                 """SELECT total_amount FROM commercial_invoices
@@ -11567,18 +11639,21 @@ async def export_customs_create(req: Request):
                    ORDER BY id DESC LIMIT 1""", (eo_id,)).fetchone()
             if ci_row:
                 declared_value = float(ci_row["total_amount"] or 0)
-        c.execute(
+        cur = c.execute(
             """INSERT INTO customs_declarations
                (declaration_no, export_order_id, hs_code, fta_origin,
                 declared_value, cleared_at, status)
                VALUES (?,?,?,?,?, datetime('now','localtime'), 'CLEARED')""",
             (declaration_no, eo_id, hs_code, fta_origin, declared_value),
         )
+        cd_id = cur.lastrowid
         # 상태 전이: SHIPPED → CLEARED
         if eo["status"] in ("DRAFT", "BOOKED", "CI_ISSUED", "PL_READY", "SHIPPED"):
             c.execute(
                 "UPDATE export_orders SET status='CLEARED' WHERE id=?", (eo_id,)
             )
+        _doc_audit_log(c, "customs_declaration", cd_id, "CLEAR", u.get("id"),
+                       f"hs={hs_code} value={declared_value}")
     return RedirectResponse(f"/export/orders/{eo_id}", 303)
 
 
