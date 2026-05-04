@@ -4468,8 +4468,14 @@ async def admin_users_edit_form(req: Request, uid: int):
             return RedirectResponse("/admin", 303)
         teams = [dict(r) for r in c.execute(
             "SELECT id, code, name FROM teams ORDER BY display_order").fetchall()]
+    # v5H114: 사용자 변경 이력 카드
+    try:
+        user_history = _logi.get_user_history(uid, limit=50)
+    except Exception:
+        user_history = []
     return ctx(req, "admin_user_form.html", user=u, active="admin",
-               target_user=dict(row), teams=teams)
+               target_user=dict(row), teams=teams,
+               user_history=user_history)
 
 
 @app.post("/admin/users/{uid:int}/edit")
@@ -4593,8 +4599,14 @@ async def admin_teams_edit_form(req: Request, tid: int):
         users = [dict(r) for r in c.execute(
             "SELECT id, name, rank FROM users WHERE is_active=1 "
             "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+    # v5H114: 팀 변경 이력 카드
+    try:
+        team_history = _logi.get_team_history(tid, limit=50)
+    except Exception:
+        team_history = []
     return ctx(req, "admin_team_form.html", user=u, active="admin",
-               team=dict(row), users=users)
+               team=dict(row), users=users,
+               team_history=team_history)
 
 
 @app.post("/admin/teams/{tid:int}/edit")
@@ -6091,8 +6103,14 @@ async def sales_quote_detail(req: Request, qid: int):
             "SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY line_no",
             (qid,)
         ).fetchall()]
+    # v5H114: 견적 변경 이력 카드
+    try:
+        quotation_history = _logi.get_quotation_history(qid, limit=50)
+    except Exception:
+        quotation_history = []
     return ctx(req, "sales_quote_detail.html", user=u, active="sales_quotations",
-               quote=quote, items=items)
+               quote=quote, items=items,
+               quotation_history=quotation_history)
 
 
 @app.get("/sales/shipments/new", response_class=HTMLResponse)
@@ -8086,8 +8104,10 @@ def _parse_po_lines_from_form(form, with_id: bool = False):
             q_num = 0
         if not name and not code and q_num <= 0:
             continue
+        # v5H114: 폼이 datalist 매칭 시 line_part_id_N 도 함께 전달 (FK 자동매핑)
+        part_id_b = (form.get(f"line_part_id_{idx}") or "").strip()
         row = {
-            "part_id": "",
+            "part_id": part_id_b,
             "part_no_snapshot": code,
             "part_name_snapshot": name,
             "quantity": qv or "0",

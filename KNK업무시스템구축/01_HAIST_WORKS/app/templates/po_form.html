@@ -277,7 +277,8 @@ button { font-family: inherit; cursor: pointer; }
                 <div class="lines-row" data-line="{{ loop.index0 }}">
                   <div class="line-num">{{ '%02d'|format(loop.index) }}</div>
                   <input type="hidden" name="line_id_{{ loop.index0 }}" value="{{ it.id|default('') }}" />
-                  <input class="line-input" name="line_name_{{ loop.index0 }}" value="{{ it.part_name_snapshot|default(it.part_name|default('')) }}" placeholder="자재명" />
+                  <input type="hidden" name="line_part_id_{{ loop.index0 }}" value="{{ it.part_id|default('') }}" class="line-part-id" />
+                  <input class="line-input line-name" list="partsList" name="line_name_{{ loop.index0 }}" value="{{ it.part_name_snapshot|default(it.part_name|default('')) }}" placeholder="자재명 (선택 시 코드·단가 자동)" oninput="onPartNameInput(this)" />
                   <input class="line-input code" name="line_code_{{ loop.index0 }}" value="{{ it.part_no_snapshot|default(it.part_code|default('')) }}" placeholder="코드" />
                   <input class="line-input qty" name="line_qty_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.qty|default(1) }}" oninput="recalcLine(this)" />
                   <input class="line-input price" name="line_price_{{ loop.index0 }}" type="number" step="1" value="{{ it.unit_price|default(0) }}" oninput="recalcLine(this)" />
@@ -288,7 +289,8 @@ button { font-family: inherit; cursor: pointer; }
                 {% else %}
                 <div class="lines-row" data-line="0">
                   <div class="line-num">01</div>
-                  <input class="line-input" name="line_name_0" placeholder="자재명 입력" />
+                  <input type="hidden" name="line_part_id_0" value="" class="line-part-id" />
+                  <input class="line-input line-name" list="partsList" name="line_name_0" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
                   <input class="line-input code" name="line_code_0" placeholder="코드" />
                   <input class="line-input qty" name="line_qty_0" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
                   <input class="line-input price" name="line_price_0" type="number" step="1" value="0" oninput="recalcLine(this)" />
@@ -297,6 +299,13 @@ button { font-family: inherit; cursor: pointer; }
                 </div>
                 {% endif %}
               </div>
+
+              {# v5H114: 등록 자재 datalist (part_id 자동매핑용) #}
+              <datalist id="partsList">
+                {% for p in (parts_all or []) %}
+                <option value="{{ p.part_name|default(p.name|default('')) }}" data-part-id="{{ p.id }}" data-part-no="{{ p.part_no|default('') }}" data-price="{{ p.last_price|default(p.unit_price|default(0)) }}"></option>
+                {% endfor %}
+              </datalist>
               <div class="lines-add">
                 <button type="button" class="btn-add-line" onclick="addLine()">＋ 새 품목 추가</button>
               </div>
@@ -427,7 +436,8 @@ function addLine() {
   div.innerHTML = `
     <div class="line-num">${String(idx + 1).padStart(2, '0')}</div>
     <input type="hidden" name="line_id_${idx}" value="" />
-    <input class="line-input" name="line_name_${idx}" placeholder="자재명 입력" />
+    <input type="hidden" name="line_part_id_${idx}" value="" class="line-part-id" />
+    <input class="line-input line-name" list="partsList" name="line_name_${idx}" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
     <input class="line-input code" name="line_code_${idx}" placeholder="코드" />
     <input class="line-input qty" name="line_qty_${idx}" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
     <input class="line-input price" name="line_price_${idx}" type="number" step="1" value="0" oninput="recalcLine(this)" />
@@ -437,6 +447,33 @@ function addLine() {
   body.appendChild(div);
   recalcTotals();
   div.querySelector('input[name^="line_name_"]').focus();
+}
+
+// v5H114: datalist 옵션 매칭 시 part_id/code/단가 자동 입력
+function onPartNameInput(el) {
+  const row = el.closest('.lines-row');
+  const list = document.getElementById('partsList');
+  if (!list) return;
+  const val = el.value.trim();
+  let matched = null;
+  for (const opt of list.querySelectorAll('option')) {
+    if (opt.value === val) { matched = opt; break; }
+  }
+  const partIdInput = row.querySelector('.line-part-id');
+  const codeInput = row.querySelector('.line-input.code');
+  const priceInput = row.querySelector('.line-input.price');
+  if (matched) {
+    if (partIdInput) partIdInput.value = matched.getAttribute('data-part-id') || '';
+    const pn = matched.getAttribute('data-part-no') || '';
+    if (codeInput && !codeInput.value) codeInput.value = pn;
+    const pr = parseFloat(matched.getAttribute('data-price') || '0') || 0;
+    if (priceInput && (!priceInput.value || parseFloat(priceInput.value) === 0)) {
+      priceInput.value = pr;
+      recalcLine(priceInput);
+    }
+  } else {
+    if (partIdInput) partIdInput.value = '';
+  }
 }
 
 function delLine(btn) {

@@ -3745,6 +3745,54 @@ def get_customer_history(customer_id: int, limit: int = 50) -> list[dict]:
             return []
 
 
+def get_user_history(user_id: int, limit: int = 50) -> list[dict]:
+    """v5H114: 사용자 변경 이력 최근 N건 (project_history 동형)."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT uh.*, COALESCE(u2.name,'시스템') AS changed_by_name "
+                "FROM user_history uh "
+                "LEFT JOIN users u2 ON u2.id = uh.changed_by "
+                "WHERE uh.user_id=? ORDER BY uh.id DESC LIMIT ?",
+                (user_id, int(limit))
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
+def get_team_history(team_id: int, limit: int = 50) -> list[dict]:
+    """v5H114: 팀 변경 이력 최근 N건."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT th.*, COALESCE(u.name,'시스템') AS changed_by_name "
+                "FROM team_history th "
+                "LEFT JOIN users u ON u.id = th.changed_by "
+                "WHERE th.team_id=? ORDER BY th.id DESC LIMIT ?",
+                (team_id, int(limit))
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
+def get_quotation_history(quotation_id: int, limit: int = 50) -> list[dict]:
+    """v5H114: 견적 변경 이력 최근 N건."""
+    with db_session() as c:
+        try:
+            rows = c.execute(
+                "SELECT qh.*, COALESCE(u.name,'시스템') AS changed_by_name "
+                "FROM quotation_history qh "
+                "LEFT JOIN users u ON u.id = qh.changed_by "
+                "WHERE qh.quotation_id=? ORDER BY qh.id DESC LIMIT ?",
+                (quotation_id, int(limit))
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
 def projects_update_logi(pid: int, data: dict) -> str | None:
     current = projects_get_logi(pid)
     if not current:
