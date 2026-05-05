@@ -109,13 +109,18 @@
       <div class="pf-row solo">
         <div class="pf-field full">
           <label>프로젝트 유형 <span class="req">*</span> <span class="sub">(자동 SO 라벨이 유형별로 달라집니다 — 호기 / 회차 / 차 / 건)</span></label>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;padding:6px 0;">
+          {% set _ptype_kr = {'NEW_EQUIP':('🔧','신규 장비'),'CONSUMABLE':('📦','소모품·부품'),'SERVICE':('🔨','수리·유지보수'),'OTHER':('🌐','기타')} %}
+          <div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 0;">
             {% for code in (PROJECT_TYPES or ['NEW_EQUIP','CONSUMABLE','SERVICE','OTHER']) %}
-            <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;font-size:13px;">
+            {% set _meta = _ptype_kr.get(code, ('','')) %}
+            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;border:1px solid var(--cream-line, #d6cdb6);border-radius:8px;background:{% if _cur_ptype == code %}#fff7e0{% else %}#fff{% endif %};">
               <input type="radio" name="project_type" value="{{ code }}"
                      {% if _cur_ptype == code %}checked{% endif %}
                      onchange="pfTogglePtype()" style="accent-color:var(--amber-deep);">
-              {{ (PROJECT_TYPE_LABELS or {}).get(code, code) }}
+              <span style="display:inline-flex;flex-direction:column;line-height:1.2;">
+                <span style="font-family:Consolas,monospace;font-size:11px;color:#666;font-weight:600;letter-spacing:.02em;">{{ code }}</span>
+                <span style="font-size:13px;font-weight:700;color:#222;">{{ _meta[0] }} {{ _meta[1] }}</span>
+              </span>
             </label>
             {% endfor %}
           </div>

@@ -4,6 +4,11 @@
 
 ---
 
+## v5H139 (2026-05-05) — 프로젝트 유형 라디오 라벨 2줄(영문+한글) 표기
+- project_form.html 라디오 라벨이 PROJECT_TYPE_LABELS 컨텍스트 미전달로 영문만 노출되는 결함 수정
+- 인라인 dict으로 한글 매핑 하드코딩 + 라벨을 카드형으로 변경 (선택시 애버 배경)
+- v5H138 partial 패턴과 동일한 영문(응고릴)+한글(이모지+라벨) 2줄 표기
+
 ## v5H138 (2026-05-05) — 프로젝트 유형 pill 영문+한글 2줄 표기 (대표 직접 요청, so-pill 패턴 통일)
 - **요청 배경**: v5H135 SO 상태 pill 처럼 프로젝트 유형도 영문 enum + 한글 의미를 2줄로 (NEW_EQUIP / 🔧 신규 장비 등). 영문은 시스템 enum 가시화, 한글은 직관성.
 - **partial 신설 — `app/templates/_v5_partials/project_type_pill.html`**: 4종 매핑 (NEW_EQUIP→🔧 신규 장비 / CONSUMABLE→📦 소모품·부품 / SERVICE→🔨 수리·유지보수 / OTHER→🌐 기타). `<span class="pt-pill pt-pill-{code}">` + `.en` (monospace 영문) + `.kr` (이모지+한글) 2줄 inline-flex column. `size='sm'` 인자로 작은 크기 (목록 표 셀용). 4색 분기: NEW_EQUIP 주황(#ffedd5/#9a3412) · CONSUMABLE 녹색(#d1fae5/#065f46) · SERVICE 파랑(#dbeafe/#1e3a8a) · OTHER 회색(#e5e7eb/#374151). 매핑에 없는 enum 은 영문만 표시 — backward compatible.
