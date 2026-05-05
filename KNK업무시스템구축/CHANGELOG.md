@@ -4,6 +4,12 @@
 
 ---
 
+## v5H134 (2026-05-05) — SO 카드 호기 라인 내림차순 강제 (v5H133 미반영 핫픽스)
+- **요청 배경**: v5H133 배포 후 대표 스크린샷에서 SO 카드 호기 라인이 여전히 오름차순(3→12호기, 1→2호기)으로 표시. 백엔드 `get_project_orders` 의 in-Python sort 가 적용되었음에도 화면 미반영 의심
+- **백엔드 보강 — `app/project_workflow.py` `get_project_orders`**: 각 unit dict 에 정렬 키 `_sort_n` (unit_label 의 숫자 prefix, 미매칭 9999) 을 미리 계산해 내장. 정렬 함수도 이 키 사용. 데이터 자체에 키가 박혀 있어 다운스트림(템플릿/JSON 직렬화) 어디서든 재정렬 가능
+- **템플릿 보강 — `app/templates/project_detail.html` SO 카드**: `{% for u in so.units %}` → `{% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}` + `{% for u in _units_desc %}`. 백엔드 정렬이 어떤 이유로든 누락되어도 화면단에서 재정렬되는 이중 안전망
+- **데이터 흐름 추적 결과**: SO 카드는 `so.units` (= `get_project_orders` 반환의 units 키) 만 사용. 다른 데이터 소스(order_items, items) 우회 경로 없음 확인. 정렬 누락 원인은 서버 재시작 미수행 또는 캐시로 추정 — 데이터에 키 내장으로 향후 동일 증상 재발 차단
+
 ## v5H133 (2026-05-05) — 호기 표시 순서 반전 (최근 호기 → 1호기, 대표 직접 요청)
 - **요청 배경**: 호기 라인이 1호기 → N호기 (오름차순) 으로 표시되어 신규 호기 확인 시 스크롤 필요. 가장 최근 발주된 호기를 맨 위에 배치하기 위해 내림차순으로 반전
 - **`app/main.py` `/project/{pid}` (`all_units_sorted`)**: `sorted(_flat, key=_sort_key)` → `sorted(_flat, key=_sort_key, reverse=True)`. 사이드패널 호기 분해 라인이 N → 1 순으로 표시

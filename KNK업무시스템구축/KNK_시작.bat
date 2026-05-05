@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H133 호기 표시 순서 반전 — 최근 호기 → 1호기 (내림차순) project_detail 사이드패널/SO카드/SO상세 동시 적용 (대표 요청)
+REM   LAST UPDATE: 2026-05-05 v5H134 SO 카드 호기 라인 내림차순 강제 — 백엔드 _sort_n 키 내장 + 템플릿 sort 필터 이중 안전망 (v5H133 미반영 핫픽스)
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H132]
+title KNK HAIST WORKS [v5H134]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H132  2026-05-05]
+echo    [v5H134  2026-05-05]
 echo ============================================================
 echo.
 

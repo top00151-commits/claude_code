@@ -622,12 +622,15 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             ).fetchall()
             d["units"] = [dict(it) for it in items]
             # v5H133: 호기 표시 순서를 내림차순(최근 호기 → 1호기)으로 반전 (대표 요청)
+            # v5H134: 정렬 키를 각 행에 _sort_n 으로 내장 → 템플릿 sort 필터에서도 동일 키 사용
             try:
                 import re as _re_u
-                def _u_key(_u):
+                for _u in d["units"]:
                     _lbl = (_u.get("unit_label") or "") if isinstance(_u, dict) else ""
                     _m = _re_u.match(r"^(\d+)", _lbl)
-                    return (int(_m.group(1)) if _m else 9999, _lbl)
+                    _u["_sort_n"] = int(_m.group(1)) if _m else 9999
+                def _u_key(_u):
+                    return (_u.get("_sort_n", 9999), _u.get("unit_label") or "")
                 d["units"].sort(key=_u_key, reverse=True)
             except Exception:
                 pass

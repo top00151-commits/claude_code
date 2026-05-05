@@ -327,6 +327,9 @@
 
             <!-- 호기 라인 — 항상 노출, 직접 편집 가능 -->
             {% if so.units %}
+            {# v5H134: 템플릿 측에서도 호기 라인 내림차순 강제 (백엔드 정렬 누락 대비 이중 안전망) #}
+            {# 백엔드(_sort_n) 키 우선 사용. 누락 시 unit_label 사전순으로 fallback. #}
+            {% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}
             <table class="so-units">
               <thead>
                 <tr>
@@ -337,7 +340,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for u in so.units %}
+                {% for u in _units_desc %}
                 <tr data-uid="{{ u.id }}">
                   <td style="white-space:nowrap;">
                     {# v5H109: 최초/추가 배지 제거 (대표 지시) — 라벨만 노출 #}
