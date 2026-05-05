@@ -4,6 +4,14 @@
 
 ---
 
+## v5H147 (2026-05-05) — 프로젝트 등록과 소모품 등록 메뉴 명확 분리 (대표 직접 지시)
+- 사이드바 라벨 명확화: '🔧 프로젝트 (검사기·자동화)' / '📦 소모품 발주 (관리코드 없음)'
+- 두 메뉴를 매출영업 그룹에 나란히 배치 (소모품을 프로젝트 바로 다음으로)
+- project_form: 유형 라디오를 NEW_EQUIP / OTHER 2종으로 단순화 (CONSUMABLE/SERVICE 제거)
+- 폼 안에 시안색 안내 박스: "소모품·부품·수리는 관리코드 없음 → /consumables 메뉴로" 링크
+- 연관 관리번호 입력칸 영구 숨김 (관리코드 필요 항목만 등록하므로)
+- 백워드 호환: 기존 CONSUMABLE/SERVICE 프로젝트 수정 시 OTHER로 표시 (DB는 그대로)
+
 ## v5H146 (2026-05-05) — 소모품 발주 페이지 active_tab 수정
 - consumables.html / consumable_detail.html / consumable_form_upload.html 의 active_tab을 'logi' → 'sales' 변경
 - v5H143 에서 메뉴는 매출영업으로 이동했으나 페이지 진입 시 상단 탭이 자재구매센터로 표시되던 결함
