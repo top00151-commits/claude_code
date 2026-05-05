@@ -464,6 +464,23 @@ CREATE TABLE IF NOT EXISTS po_items (
 CREATE INDEX IF NOT EXISTS idx_poitem_po ON po_items(po_id);
 CREATE INDEX IF NOT EXISTS idx_poitem_part ON po_items(part_id);
 
+-- v5H136 (2026-05-05): PO 라인 ↔ 프로젝트 다대다 연결
+-- 목적: 검사기/장비 소모품 발주를 해당 장비(관리번호)에 귀속시켜
+--   ① 자주 나가는 소모품 식별  ② 수리 이력 추적  ③ 장비별 운영비 집계
+-- 공통 부품(연결 0건) 은 자연 폴백 — 기존 PO 데이터 무영향
+CREATE TABLE IF NOT EXISTS po_item_project_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_item_id      INTEGER NOT NULL REFERENCES po_items(id) ON DELETE CASCADE,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    allocated_qty   REAL,                              -- 분배 수량 (NULL=라인 전체)
+    allocation_pct  REAL,                              -- 또는 % (NULL=미사용)
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    created_by      INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_popl_po_item ON po_item_project_links(po_item_id);
+CREATE INDEX IF NOT EXISTS idx_popl_project ON po_item_project_links(project_id);
+
 -- =====================================================
 -- STOCK MOVEMENTS — 입출고 원장 (수불부) (2026-04-20)
 -- 모든 재고 증감은 여기 기록 → parts.stock_qty는 합계 결과
@@ -9722,4 +9739,143 @@ def seed_recent_tasks_topup() -> int:
                     )
                     added += 1
         return added
+
+
+# =====================================================
+# v5H136 (2026-05-05) — PO 라인 ↔ 프로젝트 다대다 연결 헬퍼
+# 목적: 장비(관리번호)별 소모품·수리 이력 추적
+# =====================================================
+def po_item_link_project(po_item_id: int, project_id: int,
+                         allocated_qty=None, allocation_pct=None,
+                         note: str = None, user_id: int = None) -> int:
+    """PO 라인을 프로젝트에 연결. (link.id 반환).
+    동일 (po_item_id, project_id) 중복 등록은 거부 (이미 있으면 기존 id 반환)."""
+    with db_session() as c:
+        existing = c.execute(
+            "SELECT id FROM po_item_project_links WHERE po_item_id=? AND project_id=?",
+            (int(po_item_id), int(project_id))
+        ).fetchone()
+        if existing:
+            return int(existing[0])
+        cur = c.execute(
+            """INSERT INTO po_item_project_links
+               (po_item_id, project_id, allocated_qty, allocation_pct, note, created_by)
+               VALUES (?,?,?,?,?,?)""",
+            (int(po_item_id), int(project_id),
+             (float(allocated_qty) if allocated_qty not in (None, "", "None") else None),
+             (float(allocation_pct) if allocation_pct not in (None, "", "None") else None),
+             (note or None),
+             (int(user_id) if user_id else None))
+        )
+        return int(cur.lastrowid)
+
+
+def po_item_unlink_project(link_id: int) -> bool:
+    """링크 1건 삭제."""
+    with db_session() as c:
+        c.execute("DELETE FROM po_item_project_links WHERE id=?", (int(link_id),))
+    return True
+
+
+def get_po_item_links(po_item_id: int) -> list:
+    """PO 라인 1건에 연결된 프로젝트 목록 (project_detail 표시용)."""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT l.id AS link_id, l.po_item_id, l.project_id,
+                      l.allocated_qty, l.allocation_pct, l.note, l.created_at,
+                      p.mgmt_code, p.name AS project_name, p.equip_type
+               FROM po_item_project_links l
+               JOIN projects p ON l.project_id = p.id
+               WHERE l.po_item_id = ?
+               ORDER BY l.id""",
+            (int(po_item_id),)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_project_consumables(project_id: int, limit: int = 200) -> dict:
+    """프로젝트 1건에 연결된 모든 PO 라인 + 합계.
+    반환: {'rows': [...], 'total_amount': float, 'total_qty': float}"""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT l.id AS link_id,
+                      l.allocated_qty, l.allocation_pct, l.note AS link_note,
+                      pi.id AS po_item_id, pi.line_no,
+                      pi.part_id, pi.part_no_snapshot, pi.part_name_snapshot,
+                      pi.spec_snapshot, pi.unit, pi.quantity, pi.unit_price,
+                      pi.amount, pi.delivery_date,
+                      po.id AS po_id, po.po_number, po.order_date,
+                      po.status AS po_status, po.currency,
+                      s.name AS supplier_name,
+                      pa.code AS part_code, pa.name AS part_name
+               FROM po_item_project_links l
+               JOIN po_items pi ON l.po_item_id = pi.id
+               JOIN purchase_orders po ON pi.po_id = po.id
+               LEFT JOIN suppliers s ON po.supplier_id = s.id
+               LEFT JOIN parts pa ON pi.part_id = pa.id
+               WHERE l.project_id = ?
+               ORDER BY po.order_date DESC, po.id DESC, pi.line_no""",
+            (int(project_id),)
+        ).fetchall()
+    out_rows = []
+    total_amount = 0.0
+    total_qty = 0.0
+    for r in rows[:limit]:
+        d = dict(r)
+        # 분배 수량 우선: allocated_qty > (allocation_pct % of quantity) > quantity
+        qty_full = float(d.get("quantity") or 0)
+        up = float(d.get("unit_price") or 0)
+        if d.get("allocated_qty") is not None:
+            eff_qty = float(d["allocated_qty"])
+        elif d.get("allocation_pct") is not None:
+            eff_qty = qty_full * float(d["allocation_pct"]) / 100.0
+        else:
+            eff_qty = qty_full
+        d["effective_qty"] = eff_qty
+        d["effective_amount"] = round(eff_qty * up, 2)
+        total_qty += eff_qty
+        total_amount += d["effective_amount"]
+        out_rows.append(d)
+    return {
+        "rows": out_rows,
+        "total_amount": round(total_amount, 2),
+        "total_qty": round(total_qty, 4),
+        "count": len(out_rows),
+    }
+
+
+def get_part_project_usage(part_id: int, limit: int = 50) -> list:
+    """자재 1건이 어떤 프로젝트에서 누적 얼마나 쓰였는지.
+    반환: [{project_id, mgmt_code, project_name, total_qty, total_amount, last_order_date, link_count}, ...]
+    누적수량 내림차순."""
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT p.id AS project_id, p.mgmt_code, p.name AS project_name,
+                      COUNT(l.id) AS link_count,
+                      SUM(
+                        CASE
+                          WHEN l.allocated_qty IS NOT NULL THEN l.allocated_qty
+                          WHEN l.allocation_pct IS NOT NULL THEN pi.quantity * l.allocation_pct / 100.0
+                          ELSE pi.quantity
+                        END
+                      ) AS total_qty,
+                      SUM(
+                        CASE
+                          WHEN l.allocated_qty IS NOT NULL THEN l.allocated_qty * pi.unit_price
+                          WHEN l.allocation_pct IS NOT NULL THEN pi.quantity * pi.unit_price * l.allocation_pct / 100.0
+                          ELSE pi.quantity * pi.unit_price
+                        END
+                      ) AS total_amount,
+                      MAX(po.order_date) AS last_order_date
+               FROM po_item_project_links l
+               JOIN po_items pi ON l.po_item_id = pi.id
+               JOIN purchase_orders po ON pi.po_id = po.id
+               JOIN projects p ON l.project_id = p.id
+               WHERE pi.part_id = ?
+               GROUP BY p.id, p.mgmt_code, p.name
+               ORDER BY total_qty DESC
+               LIMIT ?""",
+            (int(part_id), int(limit))
+        ).fetchall()
+    return [dict(r) for r in rows]
 

@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H135 SO 상태 pill 영문+한글 2줄 표기 통일 — _v5_partials/so_status_pill.html partial 신설 + project_detail/sales_order_detail/sales_orders 3곳 일괄 적용
+REM   LAST UPDATE: 2026-05-05 v5H136 PO 라인 ↔ 프로젝트 다대다 연결 — 장비(관리번호)별 소모품/수리이력/운영비 추적 (po_item_project_links 신규 테이블 + 5 헬퍼 + 3 라우트 + 3 카드 UI)
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H134]
+title KNK HAIST WORKS [v5H136]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H134  2026-05-05]
+echo    [v5H136  2026-05-05]
 echo ============================================================
 echo.
 

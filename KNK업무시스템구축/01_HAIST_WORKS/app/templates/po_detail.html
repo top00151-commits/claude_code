@@ -158,31 +158,70 @@ button { font-family: inherit; cursor: pointer; }
                 <th class="num" style="width:90px;">수량</th>
                 <th class="num" style="width:120px;">단가</th>
                 <th class="num" style="width:140px;">금액</th>
+                <th style="width:100px;">프로젝트</th>
               </tr>
             </thead>
             <tbody>
             {% for it in items %}
-              <tr>
+              <tr id="item-{{ it.id }}">
                 <td style="color:var(--mute);font-weight:700;text-align:center;">{{ '%02d'|format(loop.index) }}</td>
-                <td><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.spec %}<span style="display:block;font-size:11px;color:var(--mute);margin-top:2px;">{{ it.spec }}</span>{% endif %}</td>
+                <td><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.spec %}<span style="display:block;font-size:11px;color:var(--mute);margin-top:2px;">{{ it.spec }}</span>{% endif %}
+                  {# v5H136: 연결된 프로젝트 칩 #}
+                  {% if it.links %}
+                  <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
+                    {% for ln in it.links %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--paper-2);border:1px solid var(--line);border-radius:12px;font-size:11px;">
+                      <a href="/project/{{ ln.project_id }}" style="color:var(--amber-deep);text-decoration:none;font-family:monospace;font-weight:700;">{{ ln.mgmt_code }}</a>
+                      <span style="color:var(--ink);">{{ ln.project_name|truncate(20) }}</span>
+                      {% if ln.allocated_qty %}<span style="color:var(--mute);">· {{ '{:,.0f}'.format(ln.allocated_qty) }}</span>{% elif ln.allocation_pct %}<span style="color:var(--mute);">· {{ ln.allocation_pct }}%</span>{% endif %}
+                      <form method="post" action="/po/links/{{ ln.link_id }}/delete" style="display:inline;" onsubmit="return confirm('연결 해제?')">
+                        <button type="submit" style="background:none;border:0;color:var(--mute);cursor:pointer;padding:0;font-size:12px;">×</button>
+                      </form>
+                    </span>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
                 <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ it.part_code|default('—') }}</td>
                 <td class="num">{{ '{:,.0f}'.format(it.qty|default(0)) }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
                 <td class="num">{{ '{:,.0f}'.format(it.unit_price|default(0)) }}</td>
                 <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format((it.qty|default(0)) * (it.unit_price|default(0))) }}</td>
+                <td style="text-align:center;">
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="document.getElementById('link-form-{{ it.id }}').style.display=(document.getElementById('link-form-{{ it.id }}').style.display==='none'?'table-row':'none')">🔗 연결</button>
+                </td>
+              </tr>
+              {# v5H136: 인라인 연결 폼 #}
+              <tr id="link-form-{{ it.id }}" style="display:none;background:var(--paper-2);">
+                <td colspan="7" style="padding:12px 16px;">
+                  <form method="post" action="/po/{{ po.id }}/items/{{ it.id }}/link-project" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <label style="font-size:12px;color:var(--mute);font-weight:600;">프로젝트(관리번호):</label>
+                    <select name="project_id" required style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;min-width:280px;">
+                      <option value="">— 선택 —</option>
+                      {% for pj in link_projects|default([]) %}
+                      <option value="{{ pj.id }}">{{ pj.mgmt_code }} · {{ pj.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <input type="number" step="0.01" name="allocated_qty" placeholder="분배수량(선택)" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;width:130px;">
+                    <input type="number" step="0.1" name="allocation_pct" placeholder="또는 %" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;width:90px;">
+                    <input type="text" name="note" placeholder="비고(선택)" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;flex:1;min-width:160px;">
+                    <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">+ 연결 추가</button>
+                  </form>
+                  <div style="margin-top:6px;font-size:11px;color:var(--mute);">분배수량/% 모두 비우면 라인 전체 수량이 해당 프로젝트에 귀속됩니다. 공통 부품은 연결하지 않아도 됩니다.</div>
+                </td>
               </tr>
             {% endfor %}
               <tr class="total-row">
-                <td colspan="5" style="text-align:right;">소계</td>
+                <td colspan="6" style="text-align:right;">소계</td>
                 <td class="num">{{ '{:,.0f}'.format(sub_total) }}</td>
               </tr>
               {% if vat %}
               <tr class="total-row">
-                <td colspan="5" style="text-align:right;">부가세</td>
+                <td colspan="6" style="text-align:right;">부가세</td>
                 <td class="num">{{ '{:,.0f}'.format(vat) }}</td>
               </tr>
               {% endif %}
               <tr class="total-row">
-                <td colspan="5" style="text-align:right;font-size:15px;">총 발주액</td>
+                <td colspan="6" style="text-align:right;font-size:15px;">총 발주액</td>
                 <td class="num"><span class="amount-grand">{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}</span></td>
               </tr>
             </tbody>

@@ -3506,6 +3506,12 @@ async def project_detail(req: Request, pid: int):
                 )
     except Exception:
         pass
+    # v5H136 (2026-05-05): 이 프로젝트(장비)에 연결된 PO 라인 = 소모품·부품 사용 이력
+    consumables = {"rows": [], "total_amount": 0, "total_qty": 0, "count": 0}
+    try:
+        consumables = _logi.get_project_consumables(pid, limit=200)
+    except Exception:
+        pass
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
@@ -3516,7 +3522,8 @@ async def project_detail(req: Request, pid: int):
                all_units_sorted=all_units_sorted,
                currency_mix=currency_mix,
                currency_warning=currency_warning,
-               primary_so_currency=primary_so_currency)
+               primary_so_currency=primary_so_currency,
+               consumables=consumables)
 
 
 # =====================================================
@@ -8632,9 +8639,31 @@ async def po_detail(request: Request, po_id: int):
                 pass
     except Exception:
         pass
+    # v5H136 (2026-05-05): 각 라인에 연결된 프로젝트 (다대다) fetch
+    items_with_links = []
+    try:
+        for it in (items or []):
+            it_d = dict(it) if not isinstance(it, dict) else dict(it)
+            iid = it_d.get("id")
+            if iid:
+                try:
+                    it_d["links"] = _logi.get_po_item_links(int(iid))
+                except Exception:
+                    it_d["links"] = []
+            else:
+                it_d["links"] = []
+            items_with_links.append(it_d)
+    except Exception:
+        items_with_links = items
+    # 연결 폼용 프로젝트 목록 (mgmt_code 있는 활성 프로젝트만)
+    link_projects = []
+    try:
+        link_projects = [p for p in _logi.projects_list_logi() if p.get("mgmt_code")]
+    except Exception:
+        pass
     return ctx(request, "po_detail.html",
-               user=u, active="po", po=header, items=items,
-               po_mismatch=po_mismatch)
+               user=u, active="po", po=header, items=items_with_links,
+               po_mismatch=po_mismatch, link_projects=link_projects)
 
 
 @app.get("/po/{po_id}/edit", response_class=HTMLResponse)
@@ -8913,6 +8942,12 @@ async def parts_detail_page(request: Request, pid: int):
         attachments = part_attachments_list(pid)
     except Exception:
         attachments = []
+    # v5H136 (2026-05-05): 자재가 어떤 프로젝트(장비)에서 얼마나 쓰였는지 (소모품 식별)
+    project_usage = []
+    try:
+        project_usage = _logi.get_part_project_usage(pid, limit=50)
+    except Exception:
+        pass
     return ctx(request, "part_detail.html", user=u,
                part=part, layers=layers,
                price_history=price_hist["history"],
@@ -8924,6 +8959,7 @@ async def parts_detail_page(request: Request, pid: int):
                stock_self_heal=stock_self_heal,
                suppliers=suppliers,
                attachments=attachments,
+               project_usage=project_usage,
                CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")
 
@@ -14610,3 +14646,106 @@ async def wo_print(req: Request, wo_id: int):
     company = _company_info_dict()
     return ctx(req, "wo_print.html", user=u,
                wo=wo, company=company)
+
+
+# =====================================================
+# v5H136 (2026-05-05) — PO 라인 ↔ 프로젝트 다대다 연결 라우트
+# 검사기/장비 소모품 발주를 관리번호에 귀속 → 수리 이력·운영비 추적
+# =====================================================
+@app.post("/po/{po_id}/items/{iid}/link-project")
+async def po_item_link_project_route(request: Request, po_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    try:
+        project_id = int(form.get("project_id") or 0)
+    except ValueError:
+        project_id = 0
+    if not project_id:
+        return RedirectResponse(f"/po/{po_id}?error=프로젝트를+선택하세요", 303)
+    allocated_qty = form.get("allocated_qty") or None
+    allocation_pct = form.get("allocation_pct") or None
+    note = (form.get("note") or "").strip() or None
+    try:
+        _logi.po_item_link_project(
+            po_item_id=iid, project_id=project_id,
+            allocated_qty=allocated_qty, allocation_pct=allocation_pct,
+            note=note,
+            user_id=(u.get("id") if isinstance(u, dict) else u["id"]),
+        )
+    except Exception as e:
+        return RedirectResponse(f"/po/{po_id}?error=연결+실패:{e}", 303)
+    return RedirectResponse(f"/po/{po_id}#item-{iid}", 303)
+
+
+@app.post("/po/links/{link_id}/delete")
+async def po_item_unlink_project_route(request: Request, link_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    po_id = None
+    try:
+        with db_session() as c:
+            row = c.execute(
+                """SELECT pi.po_id FROM po_item_project_links l
+                   JOIN po_items pi ON l.po_item_id=pi.id
+                   WHERE l.id=?""", (link_id,)
+            ).fetchone()
+            if row:
+                po_id = row[0]
+    except Exception:
+        pass
+    try:
+        _logi.po_item_unlink_project(link_id)
+    except Exception:
+        pass
+    if po_id:
+        return RedirectResponse(f"/po/{po_id}", 303)
+    ref = request.headers.get("referer", "/po")
+    return RedirectResponse(ref, 303)
+
+
+@app.get("/api/projects/search")
+async def api_projects_search(request: Request, q: str = ""):
+    """프로젝트 자동완성 — 관리번호 또는 이름 부분일치.
+    PO 라인 → 프로젝트 연결 폼에서 사용."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not can_use_logistics(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    q = (q or "").strip()
+    rows = []
+    try:
+        with db_session() as c:
+            if q:
+                like = f"%{q}%"
+                rs = c.execute(
+                    """SELECT p.id, p.mgmt_code, p.name, p.equip_type, p.status,
+                              cu.name AS customer_name
+                       FROM projects p
+                       LEFT JOIN customers cu ON p.customer_id=cu.id
+                       WHERE (p.mgmt_code LIKE ? OR p.name LIKE ?)
+                         AND p.mgmt_code IS NOT NULL AND p.mgmt_code != ''
+                       ORDER BY p.id DESC LIMIT 30""",
+                    (like, like)
+                ).fetchall()
+            else:
+                rs = c.execute(
+                    """SELECT p.id, p.mgmt_code, p.name, p.equip_type, p.status,
+                              cu.name AS customer_name
+                       FROM projects p
+                       LEFT JOIN customers cu ON p.customer_id=cu.id
+                       WHERE p.mgmt_code IS NOT NULL AND p.mgmt_code != ''
+                       ORDER BY p.id DESC LIMIT 30"""
+                ).fetchall()
+            rows = [dict(r) for r in rs]
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    return JSONResponse({"ok": True, "rows": rows})
+

@@ -4,6 +4,19 @@
 
 ---
 
+## v5H136 (2026-05-05) — PO 라인 ↔ 프로젝트 다대다 연결 (대표 직접 요청, 장비 소모품/수리이력 추적)
+- **요청 배경**: 검사기/장비에 소모품 발주 요청이 오면 해당 장비 관리번호와 PO 라인을 연결해 ① 자주 나가는 소모품 식별 ② 수리 이력 누적 ③ 장비별 운영비(TCO) 추적이 가능하도록. 공통 부품(공구·범용 소모품)은 연결하지 않아도 자연 폴백.
+- **DB 스키마 — `app/database.py` SCHEMA**: `po_item_project_links` 신규 테이블 (id / po_item_id FK CASCADE / project_id FK CASCADE / allocated_qty / allocation_pct / note / created_at / created_by) + 2 인덱스. ALTER 없이 `IF NOT EXISTS` 신규 테이블이라 기존 PO 데이터 무영향.
+- **헬퍼 5종 — `app/database.py` 말미**: `po_item_link_project()` (중복 거부 후 lastrowid 반환), `po_item_unlink_project()`, `get_po_item_links(po_item_id)` (mgmt_code/project_name/equip_type 조인), `get_project_consumables(project_id)` (PO·자재·공급사 풀 조인 + 분배수량/% 우선순위 계산 + 합계), `get_part_project_usage(part_id)` (자재별 프로젝트 누적 GROUP BY, 수량 내림차순).
+- **라우트 3종 — `app/main.py` 말미**: `POST /po/{po_id}/items/{iid}/link-project` (form: project_id 필수 + allocated_qty/allocation_pct/note 선택), `POST /po/links/{link_id}/delete` (link → po_item → po 역추적 후 PO 상세로 리다이렉트), `GET /api/projects/search?q=` (mgmt_code OR name LIKE, mgmt_code 있는 활성 프로젝트만 30건). 3종 모두 `can_use_logistics` 가드.
+- **기존 라우트 ctx 보강**: `po_detail` → 각 라인에 `links` 어태치 + `link_projects` 선택지 추가. `project_detail` → `consumables` (rows/total_amount/total_qty/count) 추가. `parts_detail_page` → `project_usage` 추가. 모두 try/except 폴백.
+- **UI 카드 3종**:
+  - `app/templates/po_detail.html`: 라인 행 우측 [🔗 연결] 버튼 + 인라인 폼 (프로젝트 select / 분배수량 / % / 비고). 연결된 프로젝트는 라인 아래 칩(관리번호 + 프로젝트명 + 분배 + ×)으로 표시. 합계 colspan 5→6 자동 조정.
+  - `app/templates/project_detail.html`: "🔧 소모품·부품 사용 이력" 카드 신설 (발주일/자재코드/자재명/수량(분배 표기)/단가/금액/PO/공급사/비고 + 합계 행). 빈 상태 안내.
+  - `app/templates/part_detail.html`: "📊 프로젝트별 사용 현황" 카드 신설 (관리번호/프로젝트명/누적수량/누적금액/마지막발주일/연결수). 빈 상태에는 "🌐 공통 부품" 칩 + 안전재고 후보 안내.
+- **테스트 방법**: ① /po/{id} 진입 → 라인 [🔗 연결] → 프로젝트 선택 → 칩 등장 확인 → 칩 × 클릭 시 해제 ② /project/{id} 진입 → 소모품 카드에 방금 연결한 라인 표시 + 합계 행 ③ /parts/{id} 진입 → 프로젝트별 사용 현황 카드 ④ 0건 자재는 "공통 부품" 안내 표시.
+- **검증**: py_compile (database.py + main.py) PASS. Jinja parse (po_detail/project_detail/part_detail) PASS. 백워드 호환 — 기존 PO/프로젝트/자재 데이터에 연결 0건이면 모든 카드가 빈 상태 안내로 안전하게 폴백. 모든 신규 fetch 는 try/except 로 감싸 회귀 차단.
+
 ## v5H135 (2026-05-05) — SO 상태 pill 영문+한글 2줄 표기 통일 (대표 직접 요청)
 - **요청 배경**: SO 상태가 영문 enum (CONFIRMED/SHIPPED 등) 만 표시되어 비영어 사용자 직관성 저하. 영문(원본 enum) + 한글 의미를 한 pill 안에 2줄로 함께 표기하여 가독성·검색성·국제화 동시 확보
 - **partial 신설 — `app/templates/_v5_partials/so_status_pill.html`**: 매핑 dict (DRAFT→임시 / CONFIRMED→수주확정 / SHIPPED→출하 / INVOICED→송장발행 / PAID→수금완료 / CANCELLED→취소) + flex-column 2줄 레이아웃 + 상태별 6색 (amber/gray/blue/violet/green/red). 매핑에 없는 상태는 영문만 표시 (backward compatible)

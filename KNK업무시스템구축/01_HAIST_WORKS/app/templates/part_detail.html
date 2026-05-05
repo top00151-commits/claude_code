@@ -82,6 +82,37 @@
       </div>
       {% endif %}
 
+      {# v5H136: 프로젝트(장비)별 사용 현황 — 자주 나가는 소모품/공통 부품 식별 #}
+      <div class="section-card">
+        <h3>📊 프로젝트별 사용 현황 ({{ (project_usage|default([]))|length }})</h3>
+        {% if project_usage %}
+        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;font-size:12.5px;">
+          <thead><tr>
+            <th>관리번호</th><th>프로젝트명</th>
+            <th class="num">누적수량</th><th class="num">누적금액</th>
+            <th>마지막 발주일</th><th class="num">연결</th>
+          </tr></thead>
+          <tbody>
+          {% for pu in project_usage %}
+            <tr>
+              <td><a href="/project/{{ pu.project_id }}" style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ pu.mgmt_code|default('—') }}</a></td>
+              <td>{{ pu.project_name|default('—') }}</td>
+              <td class="num" style="font-weight:700;">{{ '{:,.2f}'.format(pu.total_qty|default(0)) }}{% if p.unit %} {{ p.unit }}{% endif %}</td>
+              <td class="num">{{ '{:,.0f}'.format(pu.total_amount|default(0)) }}</td>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ pu.last_order_date|default('—') }}</td>
+              <td class="num" style="color:var(--mute);">{{ pu.link_count }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% else %}
+        <div style="padding:20px;text-align:center;color:var(--mute);font-size:12.5px;">
+          <span style="display:inline-block;padding:4px 10px;background:var(--paper-2);border-radius:12px;font-size:11px;">🌐 공통 부품</span>
+          <div style="margin-top:8px;">아직 특정 프로젝트(장비)에 귀속된 발주가 없습니다.<br><span style="font-size:11px;">공통 부품(공구·소모품)일 가능성이 큽니다 — 안전재고 후보로 고려하세요.</span></div>
+        </div>
+        {% endif %}
+      </div>
+
       {% if recent_moves %}
       <div class="section-card">
         <h3>최근 입출고 ({{ recent_moves|length }})</h3>
