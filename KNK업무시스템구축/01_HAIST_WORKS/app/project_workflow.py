@@ -169,11 +169,25 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
 def add_followup_order(c, project_id: int, order_date: str | None = None,
                         total_amount: float = 0, due_date: str = "",
                         created_by: int = 0, po_number: str = "",
-                        note: str = "") -> dict:
+                        note: str = "", qty: int = 1) -> dict:
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
-    Returns: {ok, mgmt_code (기존), so_no (신규), order_id, ...}
+    v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
+      - total_amount 는 **1대 단가** 의미. SO 총액 = 단가 × qty
+      - 라벨은 프로젝트 전체 기준 연속번호 (예: 3호기, 4호기, ...)
+      - 백워드 호환: qty 미전달 시 1로 동작 (기존 호출부 영향 없음)
+
+    Returns: {ok, mgmt_code (기존), so_no (신규), order_id, qty, ...}
     """
+    # qty 검증
+    try:
+        qty = int(qty)
+    except (TypeError, ValueError):
+        qty = 1
+    if qty < 1:
+        qty = 1
+    if qty > 100:
+        return {"ok": False, "message": "한 번에 100대 초과 불가 (qty ≤ 100)"}
     proj = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     if not proj:
         return {"ok": False, "message": "프로젝트를 찾을 수 없음"}
@@ -198,54 +212,74 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
 
     # 신규 SO 발행 (관리번호는 그대로 유지) — v5H69: 사업부 인자
     # v5H106: 호기 라인도 함께 1건 자동 생성 (번호는 프로젝트 내 연속)
+    # v5H131: qty 대 일괄 (각 라인 단가 = total_amount, SO 총액 = total_amount × qty)
+    unit_price = float(total_amount or 0)
+    so_total = unit_price * qty
     so_no = generate_so_no(c, biz_div, ref_d)
     # 프로젝트 전체에서 다음 호기 번호 계산 (모든 SO 의 items count + 1)
     try:
-        next_no = c.execute(
+        base_no = c.execute(
             "SELECT COUNT(*) FROM order_items oi "
             "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
             (project_id,)
         ).fetchone()[0] + 1
     except Exception:
-        next_no = 1
-    auto_label = f"{next_no}호기"
+        base_no = 1
+    labels_bulk = [f"{base_no + i}호기" for i in range(qty)]
+    auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
     cur = c.execute(
         "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
         "due_date, total_amount, status, created_by, unit_label, unit_qty) "
-        "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,1)",
+        "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
         (so_no, customer_id, project_id, order_date, due_date or None,
-         total_amount or 0, created_by or None, auto_label)
+         so_total, created_by or None, auto_label, qty)
     )
     order_id = cur.lastrowid
-    # 호기 라인도 1건 자동 생성 (이후 사용자가 단가/라벨/비고 직접 편집)
-    try:
-        c.execute(
-            "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-            "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-            (order_id, total_amount or 0, total_amount or 0, auto_label, note or None)
-        )
-    except Exception:
-        pass
+    # 호기 라인 N개 INSERT — 각 라인 동일 단가
+    for _lbl in labels_bulk:
+        try:
+            c.execute(
+                "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                (order_id, unit_price, unit_price, _lbl, note or None)
+            )
+        except Exception:
+            pass
 
     # 상태 이력
     try:
+        if qty == 1:
+            hist_msg = (f"추가 발주 (관리번호 {mgmt_code} · {auto_label} "
+                        f"/ {unit_price:,.0f}원)")
+        else:
+            hist_msg = (f"추가 발주 (관리번호 {mgmt_code} · {auto_label} · "
+                        f"{qty}대 × 단가 {unit_price:,.0f}원 = {so_total:,.0f}원)")
+        if po_number:
+            hist_msg += f" / 고객 PO {po_number}"
         c.execute(
             "INSERT INTO order_status_history(order_id, from_status, to_status, "
             "changed_by, note) VALUES(?,?,?,?,?)",
-            (order_id, "DRAFT", "CONFIRMED", created_by or None,
-             f"추가 발주 (관리번호 {mgmt_code} · {auto_label} / {total_amount or 0:,.0f}원)"
-             + (f" / 고객 PO {po_number}" if po_number else ""))
+            (order_id, "DRAFT", "CONFIRMED", created_by or None, hist_msg)
         )
     except Exception:
         pass
 
+    if qty == 1:
+        msg = f"추가 수주번호 {so_no} 발행 완료 ({auto_label} / 관리번호 {mgmt_code} 유지)"
+    else:
+        msg = (f"추가 수주번호 {so_no} 발행 완료 ({auto_label} · {qty}대 / "
+               f"단가 {unit_price:,.0f} × {qty} = {so_total:,.0f}원 / "
+               f"관리번호 {mgmt_code} 유지)")
     return {
         "ok": True,
         "mgmt_code": mgmt_code,
         "so_no": so_no,
         "order_id": order_id,
         "auto_label": auto_label,
-        "message": f"추가 수주번호 {so_no} 발행 완료 ({auto_label} / 관리번호 {mgmt_code} 유지)",
+        "qty": qty,
+        "unit_price": unit_price,
+        "total_amount": so_total,
+        "message": msg,
     }
 
 

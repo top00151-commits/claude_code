@@ -5422,11 +5422,21 @@ async def projects_add_followup(req: Request, pid: int):
     due_date = (form.get("due_date") or "").strip()
     po_number = (form.get("po_number") or "").strip()
     note = (form.get("note") or "").strip()
+    # v5H131: qty (1~100) — N대 일괄 등록. 미전달 시 1.
+    raw_qty = (form.get("qty") or "1").strip()
+    try:
+        qty = int(float(raw_qty))
+    except (TypeError, ValueError):
+        qty = 1
+    if qty < 1:
+        qty = 1
+    if qty > 100:
+        return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
     with db_session() as c:
         res = _pwf.add_followup_order(c, pid, order_date=order_date,
                                         total_amount=total, due_date=due_date,
                                         created_by=u.get("id"),
-                                        po_number=po_number, note=note)
+                                        po_number=po_number, note=note, qty=qty)
     return JSONResponse(res)
 
 

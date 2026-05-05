@@ -69,15 +69,28 @@
         동일 프로젝트에 추가 발주가 들어왔을 때 사용합니다.<br>
         <b>관리번호 {{ p.mgmt_code }}</b> 유지 + 신규 수주번호(SO)만 발행하여 날짜별 추적이 가능합니다.
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
         <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
           <input type="date" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div><label style="font-size:11px; color:var(--mute);">납기일</label>
           <input type="date" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">수주액 (원)</label>
-          <input type="text" id="fup_total_amount" class="knk-money" placeholder="50,000,000" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
+        <div><label style="font-size:11px; color:var(--mute);">1대 단가 (원) *</label>
+          <input type="text" id="fup_total_amount" class="knk-money" placeholder="4,900,000" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">수량 (대) *</label>
+          <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
           <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+      </div>
+      <!-- v5H131: 단가 × 수량 = 총액 라이브 표시 + 안내 -->
+      <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:var(--mute);">SO 총액 (단가 × 수량)</span>
+          <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> KRW</b>
+        </div>
+        <div style="font-size:11px; color:var(--mute); margin-top:6px; line-height:1.5;">
+          수량을 N대로 입력하면 <b>N개 호기 라인이 자동 생성</b>됩니다 (각 라인 = 동일 단가).<br>
+          예: 단가 4,900,000 × 4대 = 19,600,000 KRW (3호기·4호기·5호기·6호기 자동 라벨링)
+        </div>
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="document.getElementById('followupOrderModal').style.display='none'">취소</button>
@@ -109,7 +122,20 @@
       if (!ok) return;
     }
     document.getElementById('fup_order_date').value = new Date().toISOString().slice(0,10);
+    // v5H131: 수량 기본 1, 합계 초기화
+    document.getElementById('fup_qty').value = 1;
+    recalcFollowupTotal();
     document.getElementById('followupOrderModal').style.display = 'flex';
+  }
+  // v5H131: 단가 × 수량 라이브 합계
+  function recalcFollowupTotal() {
+    var raw = (document.getElementById('fup_total_amount').value || '').replace(/,/g, '');
+    var unit = parseFloat(raw) || 0;
+    var q = parseInt(document.getElementById('fup_qty').value, 10) || 1;
+    if (q < 1) q = 1;
+    if (q > 100) q = 100;
+    var total = unit * q;
+    document.getElementById('followup-total').textContent = total.toLocaleString('en-US');
   }
   async function submitConfirmOrder() {
     const fd = new FormData();
@@ -125,15 +151,25 @@
     } else { alert('실패: ' + j.message); }
   }
   async function submitFollowupOrder() {
+    // v5H131: qty 추가. total_amount 는 1대 단가 의미 (서버에서 단가 × qty 계산)
+    var unitRaw = document.getElementById('fup_total_amount').value.replace(/,/g,'');
+    var unit = parseFloat(unitRaw) || 0;
+    var qty = parseInt(document.getElementById('fup_qty').value, 10) || 1;
+    if (unit <= 0) { alert('1대 단가를 입력하세요'); return; }
+    if (qty < 1 || qty > 100) { alert('수량은 1~100 사이 정수'); return; }
     const fd = new FormData();
     fd.append('order_date', document.getElementById('fup_order_date').value);
     fd.append('due_date', document.getElementById('fup_due_date').value);
-    fd.append('total_amount', document.getElementById('fup_total_amount').value.replace(/,/g,''));
+    fd.append('total_amount', String(unit));   // 1대 단가
+    fd.append('qty', String(qty));
     fd.append('po_number', document.getElementById('fup_po_number').value);
     const r = await fetch('/projects/{{ p.id }}/add-followup-order', {method:'POST', body:fd});
     const j = await r.json();
     if (j.ok) {
-      alert(`＋ 추가 발주 완료\n\n관리번호: ${j.mgmt_code} (유지)\n신규 수주번호: ${j.so_no}`);
+      var detail = (j.qty && j.qty > 1)
+        ? `\n수량: ${j.qty}대\n단가: ${(j.unit_price||0).toLocaleString()} KRW\n총액: ${(j.total_amount||0).toLocaleString()} KRW`
+        : '';
+      alert(`＋ 추가 발주 완료\n\n관리번호: ${j.mgmt_code} (유지)\n신규 수주번호: ${j.so_no}${detail}`);
       location.reload();
     } else { alert('실패: ' + j.message); }
   }

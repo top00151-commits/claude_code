@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H130 quick-status auto-SO + project_detail self-heal safety net + followup guard
+REM   LAST UPDATE: 2026-05-05 v5H131 추가 발주 모달 수량 필드 (1~100, 단가×수량 라이브 합계, N개 호기 라인 자동 생성)
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [v5H129]
+title KNK HAIST WORKS - HAIST Innovation [v5H131]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H129  2026-05-05]
+echo    [v5H131  2026-05-05]
 echo ============================================================
 echo.
 
