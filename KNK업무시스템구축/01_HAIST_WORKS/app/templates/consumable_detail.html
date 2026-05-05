@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{{ co.co_no }} · 소모품 발주 상세 · KNK HAIST WORKS</title>
-{# v5H142 (2026-05-05) — 소모품 발주 상세 (인라인 편집) #}
-<link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
+{# v5H145 (2026-05-05) — 소모품 발주 상세: [📤 관련부서 통보] 버튼 추가 #}
+<link href="/static/css/v5_tokens.css?v=20260505v5H145" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,6 +17,11 @@ a { text-decoration: none; color: inherit; }
 .page-title em { font-style: normal; color: var(--amber-deep); }
 .btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
 .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.btn-notify { background: linear-gradient(135deg, #059669, #047857); color: white; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-notify:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(5,150,105,.3); }
+#notifyMsg { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-left: 8px; display:none; }
+#notifyMsg.ok { background:#d1fae5; color:#065f46; display:inline-block; }
+#notifyMsg.err { background:#fee2e2; color:#991b1b; display:inline-block; }
 .card { background: var(--paper-3); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
 .header-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 .h-cell .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
@@ -47,8 +52,11 @@ tfoot td { background: #fafafa; font-weight: 700; }
         <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>{{ co.co_no }}</b></div>
         <h1 class="page-title">{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;">
         <a class="btn-secondary" href="/consumables">← 목록</a>
+        {# v5H145 — 관련부서 통보 발송 (자재구매·생산팀 + admin) #}
+        <button id="notifyBtn" class="btn-notify" type="button" onclick="sendNotify()">📤 관련부서 통보</button>
+        <span id="notifyMsg"></span>
         <form method="post" action="/consumables/{{ co.id }}/delete" onsubmit="return confirm('정말 이 발주를 삭제하시겠습니까? (라인 + 이미지 모두 삭제)');" style="display:inline;">
           <button class="btn-danger" type="submit">🗑 삭제</button>
         </form>
@@ -178,6 +186,28 @@ async function delLine(iid) {
   const res = await fetch(`/consumables/${CO_ID}/items/${iid}/delete`, {method:'POST'});
   const data = await res.json();
   if (data.ok) location.reload();
+}
+
+// v5H145 — 관련부서 통보 발송
+async function sendNotify() {
+  const btn = document.getElementById('notifyBtn');
+  const msg = document.getElementById('notifyMsg');
+  if (!confirm('자재구매팀·생산팀에 이 소모품 발주를 통보하시겠습니까?')) return;
+  btn.disabled = true; btn.textContent = '⏳ 발송 중...';
+  try {
+    const r = await fetch(`/consumables/${CO_ID}/notify`, {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      msg.className = 'ok'; msg.textContent = `✅ ${d.sent_to||0}명에게 발송됨`;
+      btn.textContent = '✓ 통보 완료';
+    } else {
+      msg.className = 'err'; msg.textContent = '⚠ ' + (d.error||'발송 실패');
+      btn.disabled = false; btn.textContent = '📤 관련부서 통보';
+    }
+  } catch (e) {
+    msg.className = 'err'; msg.textContent = '⚠ ' + e;
+    btn.disabled = false; btn.textContent = '📤 관련부서 통보';
+  }
 }
 
 document.querySelectorAll('.s-pill').forEach(pill => {

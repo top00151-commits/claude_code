@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>소모품 발주 신규 · KNK HAIST WORKS</title>
-{# v5H142 (2026-05-05) — 소모품 발주 신규 (엑셀 업로드 + 미리보기 + 매칭 확인) #}
-<link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
+{# v5H145 (2026-05-05) — 소모품 발주 신규: 등록 완료 흐름 강화 (성공 배너 + 3개 다음단계 버튼) #}
+<link href="/static/css/v5_tokens.css?v=20260505v5H145" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,6 +41,22 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--lin
 #statusMsg.ok { background: #d1fae5; color: #065f46; display: block; }
 #statusMsg.err { background: #fee2e2; color: #991b1b; display: block; }
 #statusMsg.info { background: #dbeafe; color: #1e40af; display: block; }
+/* v5H145 — 등록 완료 배너 + 다음단계 카드 */
+.success-card { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #059669; border-radius: 12px; padding: 24px; margin: 0 32px 16px; display:none; }
+.success-card.show { display:block; animation: fadeUp .3s ease; }
+@keyframes fadeUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+.success-banner { font-size: 22px; font-weight: 800; color: #065f46; margin-bottom: 6px; }
+.success-sub { font-size: 13px; color: #047857; margin-bottom: 18px; line-height:1.5; }
+.next-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+.btn-next-primary { background: linear-gradient(135deg, #059669, #047857); color: white; border: 0; border-radius: 10px; padding: 16px 18px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center; box-shadow: 0 4px 12px rgba(5,150,105,.3); display:block; }
+.btn-next-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(5,150,105,.4); }
+.btn-next-secondary { background: white; color: #065f46; border: 1.5px solid #059669; border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
+.btn-next-secondary:hover { background: #d1fae5; }
+.btn-next-ghost { background: transparent; color: #047857; border: 1px dashed #059669; border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
+.btn-next-ghost:hover { background: #ecfdf5; }
+.next-actions a { text-decoration:none; }
+.notify-toast { font-size: 12px; color: #047857; margin-top: 10px; display:none; }
+.notify-toast.show { display:block; }
 </style>
 </head>
 <body>
@@ -83,6 +99,21 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--lin
         </div>
       </form>
       <div id="statusMsg"></div>
+    </div>
+
+    {# v5H145 — 등록 완료 성공 카드 (확정 후 표시, 자동 redirect 직전 사용자에게 다음 단계 명시) #}
+    <div id="successCard" class="success-card">
+      <div class="success-banner" id="successBanner">✓ 엑셀 라인 자동 등록됨</div>
+      <div class="success-sub">
+        등록된 라인의 단가를 입력하고 견적을 회신할 수 있습니다.<br/>
+        다음 단계를 선택하세요 — 잠시 후 <b>라인 검토 화면</b>으로 자동 이동합니다.
+      </div>
+      <div class="next-actions">
+        <a id="nextDetail" class="btn-next-primary" href="#">📋 라인 검토 + 단가 입력</a>
+        <button id="nextNotify" type="button" class="btn-next-secondary">📤 관련부서 통보 발송</button>
+        <a class="btn-next-ghost" href="/consumables/new">＋ 추가 발주 등록</a>
+      </div>
+      <div id="notifyToast" class="notify-toast"></div>
     </div>
 
     <div id="previewCard" class="card" style="display:none;">
@@ -211,8 +242,35 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (data.ok) {
-      msg.className = 'ok'; msg.textContent = `✅ ${data.inserted}건 등록 완료. 상세 페이지로 이동...`;
-      setTimeout(() => location.href = `/consumables/${_co_id}`, 700);
+      // v5H145: 강한 성공 배너 + 3개 다음단계 버튼 표시 (3.5초 후 자동 redirect, 사용자가 버튼 누르면 즉시 이동)
+      msg.className = 'ok'; msg.textContent = `✅ ${data.inserted}건 등록 완료`;
+      const card = document.getElementById('successCard');
+      const banner = document.getElementById('successBanner');
+      const detailUrl = `/consumables/${_co_id}`;
+      banner.textContent = `✓ 엑셀 ${data.inserted}개 라인 자동 등록됨`;
+      document.getElementById('nextDetail').href = detailUrl;
+      // 통보 버튼 — POST /consumables/{co_id}/notify
+      document.getElementById('nextNotify').onclick = async () => {
+        const t = document.getElementById('notifyToast');
+        t.className = 'notify-toast show';
+        t.textContent = '⏳ 관련부서 통보 발송 중...';
+        try {
+          const r = await fetch(`/consumables/${_co_id}/notify`, {method:'POST'});
+          const d = await r.json();
+          if (d.ok) {
+            t.textContent = `✅ ${d.sent_to||0}명에게 알림 발송됨 (자재구매·생산팀)`;
+          } else {
+            t.textContent = '⚠ ' + (d.error||'통보 발송 실패');
+          }
+        } catch (er) { t.textContent = '⚠ ' + er; }
+      };
+      card.classList.add('show');
+      // 미리보기 카드는 숨김 (성공 카드와 시각 충돌 방지)
+      document.getElementById('previewCard').style.display = 'none';
+      card.scrollIntoView({behavior:'smooth', block:'center'});
+      // 사용자가 버튼을 누르지 않아도 3.5초 후 상세로 자동 이동 (대표 의도: 자연스러운 redirect)
+      setTimeout(() => { if (!window._knkNotifyClicked) location.href = detailUrl; }, 3500);
+      document.getElementById('nextNotify').addEventListener('click', () => { window._knkNotifyClicked = true; });
     } else {
       msg.className = 'err'; msg.textContent = '❌ ' + (data.error||'등록 실패');
     }

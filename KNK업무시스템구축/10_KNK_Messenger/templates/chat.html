@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>KNK 메신저</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KNK 메신저">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="chat-body">
+  <div id="app" class="chat-app"
+       data-me-id="{{ me['id'] }}"
+       data-me-name="{{ me['display_name'] }}"
+       data-me-color="{{ me['avatar_color'] }}">
+
+    <aside class="sidebar" id="sidebar">
+      <header class="sidebar-head">
+        <div class="me">
+          <div class="avatar" style="background: {{ me['avatar_color'] }}">{{ me['display_name'][0] }}</div>
+          <div class="me-name">{{ me['display_name'] }}</div>
+        </div>
+        <div class="head-actions">
+          <a href="/dashboard" title="📊 아이템 대시보드">📊</a>
+          <button id="digestBtn" title="🌅 오늘 할 일 다이제스트">🌅</button>
+          <button id="newRoomBtn" title="새 아이템/대화">＋</button>
+          <a href="/logout" class="logout" title="로그아웃">↩</a>
+        </div>
+      </header>
+      <div class="search-box">
+        <input id="globalSearch" type="search" placeholder="🔍 메시지·파일·아이템 전체 검색">
+      </div>
+      <nav class="filter-bar" id="filterBar">
+        <button class="chip active" data-filter="all" type="button">전체</button>
+        <button class="chip" data-filter="item" type="button">아이템</button>
+        <button class="chip" data-filter="direct" type="button">1:1</button>
+        <button class="chip" data-filter="group" type="button">그룹</button>
+        <button class="chip" data-filter="channel" type="button">채널</button>
+        <button class="chip my-tasks" data-filter="my-tasks" type="button">📌 내 요청</button>
+      </nav>
+      <ul id="roomList" class="room-list"></ul>
+      <div id="searchResults" class="search-results" hidden></div>
+      <div id="myTasks" class="my-tasks-panel" hidden></div>
+    </aside>
+
+    <section class="chat-pane" id="chatPane">
+      <header class="chat-head" id="chatHead">
+        <button class="back" id="backBtn" type="button" aria-label="뒤로">←</button>
+        <div class="title-block">
+          <div class="title" id="chatTitle">대화를 선택하세요</div>
+          <div class="item-meta" id="itemMeta" hidden></div>
+        </div>
+        <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
+        <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
+        <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
+        <button class="head-btn" id="itemEditBtn" type="button" hidden title="아이템 정보 수정">⚙</button>
+      </header>
+      <ol class="messages" id="messages"></ol>
+      <form class="composer" id="composer" autocomplete="off">
+        <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
+        <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
+        <input id="msgInput" placeholder="메시지 입력..." disabled>
+        <button id="sendBtn" type="submit" disabled>전송</button>
+      </form>
+    </section>
+
+    <dialog id="newRoomDialog">
+      <form id="newRoomForm">
+        <div class="dialog-tabs">
+          <button type="button" class="tab active" data-tab="item">아이템</button>
+          <button type="button" class="tab" data-tab="dm">1:1 / 그룹</button>
+        </div>
+
+        <div class="tab-pane active" data-tab-pane="item">
+          <p class="dialog-hint">고객사 × 모델 단위로 방을 만듭니다. 모든 메시지·사진·파일이 이 아이템에 자동으로 묶여 정리됩니다.</p>
+          <div class="form-grid">
+            <label>고객사
+              <input id="itemCustomer" placeholder="예: 삼성전자">
+            </label>
+            <label>모델/품번
+              <input id="itemCode" placeholder="예: 003M2501">
+            </label>
+            <label class="full">아이템명 *
+              <input id="itemName" placeholder="예: Watch Molding 자동화" required>
+            </label>
+            <label>상태
+              <select id="itemStatus">
+                <option value="active">진행중</option>
+                <option value="hold">보류</option>
+                <option value="done">완료</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </label>
+            <label>납기 (선택)
+              <input id="itemDue" type="date">
+            </label>
+          </div>
+          <div class="member-section">
+            <div class="member-section-label">참여자 선택</div>
+            <div id="itemUserPicker" class="user-picker"></div>
+          </div>
+        </div>
+
+        <div class="tab-pane" data-tab-pane="dm">
+          <p class="dialog-hint">사람을 선택하세요. 1명 → 1:1 / 2명 이상 → 그룹채팅.</p>
+          <div id="userPicker" class="user-picker"></div>
+          <label class="group-name-label">그룹 이름 (선택)
+            <input id="roomName" placeholder="예: 영업팀, 프로젝트A 등">
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button type="button" id="cancelNewRoom">취소</button>
+          <button type="submit" id="createRoom">만들기</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="itemEditDialog">
+      <form id="itemEditForm">
+        <h3>아이템 정보 수정</h3>
+        <div class="form-grid">
+          <label>고객사
+            <input id="editCustomer">
+          </label>
+          <label>모델/품번
+            <input id="editCode">
+          </label>
+          <label class="full">아이템명
+            <input id="editName">
+          </label>
+          <label>상태
+            <select id="editStatus">
+              <option value="active">진행중</option>
+              <option value="hold">보류</option>
+              <option value="done">완료</option>
+              <option value="cancelled">취소</option>
+            </select>
+          </label>
+          <label>납기
+            <input id="editDue" type="date">
+          </label>
+          <label class="full keep-forever-label">
+            <input id="editKeepForever" type="checkbox">
+            <span>📌 영구 보존 — 자동삭제 정책 무시 (감사·법무·중요 사례)</span>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" id="cancelEdit">취소</button>
+          <button type="submit" id="saveEdit">저장</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 갤러리 다이얼로그 -->
+    <dialog id="galleryDialog" class="big-dialog">
+      <header class="big-dialog-head">
+        <h3 id="galleryTitle">사진·파일 갤러리</h3>
+        <div class="gallery-tabs">
+          <button type="button" class="gtab active" data-gtab="image">🖼 사진</button>
+          <button type="button" class="gtab" data-gtab="file">📎 파일</button>
+          <button type="button" class="gtab" data-gtab="timeline">📋 타임라인</button>
+        </div>
+        <button type="button" class="close-x" id="closeGallery">✕</button>
+      </header>
+      <div class="gallery-content" id="galleryContent"></div>
+    </dialog>
+
+    <!-- 다이제스트 다이얼로그 -->
+    <dialog id="digestDialog" class="big-dialog">
+      <header class="big-dialog-head">
+        <h3>🌅 오늘 할 일 — KNK 다이제스트</h3>
+        <button type="button" class="close-x" id="closeDigest">✕</button>
+      </header>
+      <div class="gallery-content" id="digestContent"></div>
+    </dialog>
+
+    <!-- 라이트박스 -->
+    <dialog id="lightbox" class="lightbox">
+      <button type="button" class="close-x" id="closeLightbox">✕</button>
+      <img id="lightboxImg" src="" alt="">
+      <div class="lightbox-meta" id="lightboxMeta"></div>
+    </dialog>
+
+    <!-- 요청 목록 다이얼로그 -->
+    <dialog id="requestsDialog" class="big-dialog">
+      <header class="big-dialog-head">
+        <h3>📌 요청 목록 (<span id="requestsCount">0</span>건)</h3>
+        <div class="gallery-tabs">
+          <button type="button" class="gtab active" data-rtab="open">열림</button>
+          <button type="button" class="gtab" data-rtab="in_progress">진행중</button>
+          <button type="button" class="gtab" data-rtab="done">완료</button>
+          <button type="button" class="gtab" data-rtab="all">전체</button>
+        </div>
+        <button type="button" class="close-x" id="closeRequests">✕</button>
+      </header>
+      <div class="requests-list" id="requestsList"></div>
+      <div class="requests-actions">
+        <button type="button" id="newRequestBtn" class="primary-btn">＋ 새 요청 등록</button>
+      </div>
+    </dialog>
+
+    <!-- 새 요청 다이얼로그 -->
+    <dialog id="newRequestDialog">
+      <form id="newRequestForm">
+        <h3>📌 새 요청 등록</h3>
+        <p class="dialog-hint" id="newReqSourceHint" hidden></p>
+        <div class="form-grid">
+          <label class="full">제목 *
+            <input id="reqTitle" required placeholder="예: 도면 수정 후 재공유 부탁드립니다">
+          </label>
+          <label class="full">상세 (선택)
+            <textarea id="reqDescription" rows="3" placeholder="배경·요건"></textarea>
+          </label>
+          <label>담당자
+            <select id="reqAssignedTo">
+              <option value="">(미지정)</option>
+            </select>
+          </label>
+          <label>마감일
+            <input id="reqDueDate" type="date">
+          </label>
+          <label>우선순위
+            <select id="reqPriority">
+              <option value="normal">보통</option>
+              <option value="high">높음</option>
+              <option value="low">낮음</option>
+            </select>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" id="cancelNewRequest">취소</button>
+          <button type="submit" id="saveNewRequest">등록</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

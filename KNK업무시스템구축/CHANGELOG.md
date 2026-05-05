@@ -4,6 +4,17 @@
 
 ---
 
+## v5H145 (2026-05-05) — 소모품 발주 등록 완료 흐름 강화 + 관련부서 통보
+- **결함 1 (메뉴 위치)**: 이미 v5H143 에서 `📦 소모품 발주` 를 매출·영업 그룹(M-01-14, 수출입 다음)으로 이동 완료. 본 사이클에서 자재 그룹에 잔존 링크 없음 재확인. 권한은 `can_use_logistics OR can_use_sales` 양쪽 허용 유지(영업 입력 + 자재 후속 작업).
+- **결함 2 (등록 후 다음 단계 불명확)**: 엑셀 업로드 → "✅ N건 등록 완료" 한 줄로 끝나 다음 액션 미안내. **수정**: `consumable_form_upload.html` 확정 직후 큰 그라디언트 성공 카드(`#successCard`) 표시:
+  - 배너: `✓ 엑셀 N개 라인 자동 등록됨`
+  - 안내: "등록된 라인의 단가를 입력하고 견적을 회신할 수 있습니다 — 잠시 후 라인 검토 화면으로 자동 이동합니다"
+  - 3개 버튼: **[📋 라인 검토 + 단가 입력]**(primary, /consumables/{id}) / **[📤 관련부서 통보 발송]**(secondary, fetch POST) / **[＋ 추가 발주 등록]**(ghost, /consumables/new)
+  - 사용자가 통보 버튼 안 누르면 3.5초 후 상세 페이지로 자동 redirect (대표 의도: 자연스러운 흐름).
+- **신설 — `POST /consumables/{co_id}/notify`** (`main.py`): `notifications` 테이블에 일괄 INSERT. 대상: `can_use_logistics=1 OR role IN ('admin','ceo')` 의 활성 사용자(발신자 본인 제외). title `📦 소모품 발주 [CO-XXX] 등록됨`, body 에 고객사·라인 수·합계(통화 포맷)·등록자·검토 요청 문구, link `/consumables/{co_id}` → 사용자 다음 로그인 시 🔔 자동 표시. 트랜잭션은 `db_session()` 단일 컨텍스트.
+- **`consumable_detail.html`**: 헤더 우측 (← 목록 / 🗑 삭제) 사이에 `[📤 관련부서 통보]` 그린 그라디언트 버튼 + 발송 결과 인라인 토스트(`#notifyMsg`). confirm 후 fetch, 성공 시 "✅ N명에게 발송됨" + 버튼 비활성화.
+- 메일 통보는 다음 사이클(현재 알림 시스템 인프라만 활용). 부서 분류(생산팀 별도 플래그) 미구현 → 자재구매 + admin 으로 충분히 커버.
+
 ## v5H144 (2026-05-05) — 전역 드래그앤드롭 (모든 file input 자동 dropzone 화)
 - **대표 요청**: "파일은 항상 드래그해도 올릴 수 있게."
 - **신설 — `app/templates/_v5_partials/dragdrop.html`**: `.knk-dropzone` 자동 init + `input[type=file]:not([data-knk-no-dropzone])` 자동 wrap. 클릭/드래그 양쪽 지원, 드래그 중 hover 강조(amber 보더 + scale), 드롭 후 파일명+크기 표시, `DataTransfer` 로 input.files 동기화, change 이벤트 재발생으로 기존 핸들러(이미지 압축 등) 호환. MutationObserver 로 동적 폼도 자동 감지.

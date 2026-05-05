@@ -1,0 +1,33 @@
+{# v5H142: SO 종류 pill — 영문(원본 enum) + 한글 의미 2줄 통일 표기
+   사용:
+     {% with stype=so.so_type %}{% include '_v5_partials/so_type_pill.html' %}{% endwith %}
+   (옵션) size='sm' 변수 전달 시 작은 크기
+#}
+{% set _st_kr = {
+  'EQUIPMENT':  ('🔧', '장비'),
+  'CONSUMABLE': ('📦', '소모품'),
+  'SERVICE':    ('🔨', '정비'),
+  'OTHER':      ('🌐', '기타'),
+} %}
+{% set _st_code = (stype or 'EQUIPMENT')|upper %}
+{% if _st_code not in _st_kr %}{% set _st_code = 'EQUIPMENT' %}{% endif %}
+{% set _meta = _st_kr.get(_st_code, ('','')) %}
+<span class="st-pill st-pill-{{ _st_code|lower }}{% if size=='sm' %} st-pill-sm{% endif %}">
+  <span class="en">{{ _st_code }}</span>
+  {% if _meta[1] %}<span class="kr">{{ _meta[0] }} {{ _meta[1] }}</span>{% endif %}
+</span>
+<style>
+.st-pill { display:inline-flex; flex-direction:column; align-items:center;
+           padding:4px 10px; border-radius:8px; font-size:.78em; line-height:1.15;
+           font-weight:700; letter-spacing:.02em; text-align:center;
+           background:#e5e7eb; color:#374151; }
+.st-pill .en { font-size:.95em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.st-pill .kr { font-size:.85em; opacity:.9; font-weight:600; margin-top:1px; }
+.st-pill-sm { padding:2px 7px; font-size:.7em; }
+.st-pill-sm .en { font-size:.92em; }
+.st-pill-sm .kr { font-size:.82em; }
+.st-pill-equipment  { background:#ffedd5; color:#9a3412; }   /* 주황 — 장비 */
+.st-pill-consumable { background:#d1fae5; color:#065f46; }   /* 녹색 — 소모품 */
+.st-pill-service    { background:#dbeafe; color:#1e3a8a; }   /* 파랑 — 정비 */
+.st-pill-other      { background:#e5e7eb; color:#374151; }   /* 회색 — 기타 */
+</style>

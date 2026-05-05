@@ -170,13 +170,17 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         total_amount: float = 0, due_date: str = "",
                         created_by: int = 0, po_number: str = "",
                         note: str = "", qty: int = 1,
-                        unit_label_pattern: str | None = None) -> dict:
+                        unit_label_pattern: str | None = None,
+                        so_type: str | None = None) -> dict:
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
       - total_amount 는 **1대 단가** 의미. SO 총액 = 단가 × qty
       - 라벨은 프로젝트 전체 기준 연속번호 (예: 3호기, 4호기, ...)
       - 백워드 호환: qty 미전달 시 1로 동작 (기존 호출부 영향 없음)
+    v5H142: so_type 파라미터 추가 (EQUIPMENT/CONSUMABLE/SERVICE/OTHER).
+      - 라벨/연속번호 카운트가 so_type 별로 분리.
+      - 백워드 호환: so_type 미전달 → EQUIPMENT (기존 동작 동일)
 
     Returns: {ok, mgmt_code (기존), so_no (신규), order_id, qty, ...}
     """
@@ -217,36 +221,85 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     unit_price = float(total_amount or 0)
     so_total = unit_price * qty
     so_no = generate_so_no(c, biz_div, ref_d)
-    # 프로젝트 전체에서 다음 호기 번호 계산 (모든 SO 의 items count + 1)
+    # v5H142: so_type 정규화. 미지원/미전달 → EQUIPMENT.
     try:
-        base_no = c.execute(
-            "SELECT COUNT(*) FROM order_items oi "
-            "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
-            (project_id,)
-        ).fetchone()[0] + 1
+        from .database import (PROJECT_TYPE_UNIT_LABEL, PROJECT_TYPES,
+                                SO_TYPES, SO_TYPE_UNIT_LABEL)
     except Exception:
-        base_no = 1
-    # v5H137: 라벨 패턴 — 호출자가 unit_label_pattern 으로 '{n}회차' 등 전달 가능
-    #   미전달 시 프로젝트 row 의 project_type 으로 자동 결정 (백워드 호환: NEW_EQUIP → '{n}호기')
+        PROJECT_TYPE_UNIT_LABEL = {"NEW_EQUIP": "{n}호기"}
+        PROJECT_TYPES = ("NEW_EQUIP",)
+        SO_TYPES = ("EQUIPMENT", "CONSUMABLE", "SERVICE", "OTHER")
+        SO_TYPE_UNIT_LABEL = {"EQUIPMENT": "{n}호기",
+                              "CONSUMABLE": "소모품-{n}차",
+                              "SERVICE": "정비-{n}차",
+                              "OTHER": "{n}건"}
+    _st = (so_type or "").upper().strip()
+    if _st not in SO_TYPES:
+        _st = "EQUIPMENT"
+
+    # v5H142: 연속번호도 so_type 별로 분리 카운트.
+    #   소모품-1차/소모품-2차 (CONSUMABLE) 와 정비-1차/정비-2차 (SERVICE) 와
+    #   1호기/2호기 (EQUIPMENT) 는 서로 독립 카운터.
+    try:
+        if _st == "EQUIPMENT":
+            # 호기는 기존처럼 모든 EQUIPMENT(또는 NULL=호환) SO 의 items 합산 + 1
+            base_no = c.execute(
+                "SELECT COUNT(*) FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id "
+                "WHERE o.project_id=? AND COALESCE(o.so_type,'EQUIPMENT')='EQUIPMENT'",
+                (project_id,)
+            ).fetchone()[0] + 1
+        else:
+            base_no = c.execute(
+                "SELECT COUNT(*) FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id "
+                "WHERE o.project_id=? AND o.so_type=?",
+                (project_id, _st)
+            ).fetchone()[0] + 1
+    except Exception:
+        # so_type 컬럼 미생성 환경 폴백 — 기존 v5H131 동작
+        try:
+            base_no = c.execute(
+                "SELECT COUNT(*) FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
+                (project_id,)
+            ).fetchone()[0] + 1
+        except Exception:
+            base_no = 1
+
+    # v5H137 + v5H142: 라벨 패턴 — 호출자가 unit_label_pattern 우선, 없으면
+    #   so_type 으로 결정, 그래도 없으면 project_type 폴백.
     _pattern = unit_label_pattern
     if not _pattern:
-        try:
-            from .database import PROJECT_TYPE_UNIT_LABEL, PROJECT_TYPES
-            _pt = (proj.get("project_type") or "NEW_EQUIP").upper()
-            if _pt not in PROJECT_TYPES:
-                _pt = "NEW_EQUIP"
-            _pattern = PROJECT_TYPE_UNIT_LABEL[_pt]
-        except Exception:
-            _pattern = "{n}호기"
+        if _st in SO_TYPE_UNIT_LABEL:
+            _pattern = SO_TYPE_UNIT_LABEL[_st]
+        else:
+            try:
+                _pt = (proj.get("project_type") or "NEW_EQUIP").upper()
+                if _pt not in PROJECT_TYPES:
+                    _pt = "NEW_EQUIP"
+                _pattern = PROJECT_TYPE_UNIT_LABEL[_pt]
+            except Exception:
+                _pattern = "{n}호기"
     labels_bulk = [_pattern.format(n=base_no + i) for i in range(qty)]
     auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
-    cur = c.execute(
-        "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-        "due_date, total_amount, status, created_by, unit_label, unit_qty) "
-        "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
-        (so_no, customer_id, project_id, order_date, due_date or None,
-         so_total, created_by or None, auto_label, qty)
-    )
+    # v5H142: so_type 컬럼 INSERT — 폴백 (구 스키마) 시 컬럼 제외 INSERT
+    try:
+        cur = c.execute(
+            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+            "due_date, total_amount, status, created_by, unit_label, unit_qty, so_type) "
+            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?)",
+            (so_no, customer_id, project_id, order_date, due_date or None,
+             so_total, created_by or None, auto_label, qty, _st)
+        )
+    except Exception:
+        cur = c.execute(
+            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+            "due_date, total_amount, status, created_by, unit_label, unit_qty) "
+            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
+            (so_no, customer_id, project_id, order_date, due_date or None,
+             so_total, created_by or None, auto_label, qty)
+        )
     order_id = cur.lastrowid
     # 호기 라인 N개 INSERT — 각 라인 동일 단가
     for _lbl in labels_bulk:
@@ -292,6 +345,7 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         "qty": qty,
         "unit_price": unit_price,
         "total_amount": so_total,
+        "so_type": _st,
         "message": msg,
     }
 
@@ -591,7 +645,7 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     except Exception:
         cols = set()
     extra = []
-    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency"):
+    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type"):
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
@@ -616,6 +670,9 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             d["unit_note"] = None
         if "currency" not in d or not d.get("currency"):
             d["currency"] = "KRW"
+        # v5H142: so_type — NULL → EQUIPMENT (백워드 호환)
+        if "so_type" not in d or not d.get("so_type"):
+            d["so_type"] = "EQUIPMENT"
 
         # 호기별 라인 (order_items) — 있을 때만
         try:

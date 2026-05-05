@@ -15086,6 +15086,59 @@ async def consumables_set_status(request: Request, co_id: int):
     return JSONResponse({"ok": True, "status": st})
 
 
+# v5H145 (2026-05-05) — 관련부서 통보 발송
+# 대표 의도: 영업이 소모품 발주 등록 → 자재구매팀·생산팀이 시스템 알림으로 즉시 인지
+# 대상: can_use_logistics=1 (자재팀) + can_use_production=1 (생산팀이 있다면) + role IN admin/ceo
+@app.post("/consumables/{co_id:int}/notify")
+async def consumables_notify(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    co = _co.co_get(co_id)
+    if not co:
+        return JSONResponse({"ok": False, "error": "not_found"}, 404)
+    items = _co.coi_list(co_id) or []
+    line_count = len(items)
+    total = co.get("total_amount") or 0
+    curr = co.get("currency") or "KRW"
+    co_no = co.get("co_no") or f"CO-{co_id}"
+    cust = co.get("customer_name") or "—"
+    if curr == "KRW":
+        amt_txt = f"{total:,.0f}원"
+    else:
+        amt_txt = f"{curr} {total:,.2f}"
+    title = f"📦 소모품 발주 [{co_no}] 등록됨"
+    body = (f"고객사: {cust} · 라인 {line_count}건 · 합계 {amt_txt}\n"
+            f"등록자: {u.get('name') or u.get('username') or '—'}\n"
+            f"검토 부탁드립니다.")
+    link = f"/consumables/{co_id}"
+    sender_id = u.get("id")
+    sent_to = 0
+    try:
+        with db_session() as c:
+            # 통보 대상: 자재구매(logistics) + admin/ceo. 발신자 본인은 제외.
+            rows = c.execute(
+                "SELECT id FROM users "
+                "WHERE (COALESCE(can_use_logistics,0)=1 OR role IN ('admin','ceo')) "
+                "  AND COALESCE(is_active,1)=1 "
+                "  AND id != ?",
+                (sender_id,)
+            ).fetchall()
+            for r in rows:
+                uid = r[0] if not isinstance(r, dict) else r["id"]
+                c.execute(
+                    "INSERT INTO notifications(user_id, kind, title, body, link) "
+                    "VALUES(?,?,?,?,?)",
+                    (uid, "consumable_order", title, body, link)
+                )
+                sent_to += 1
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"db_error: {e}"}, 500)
+    return JSONResponse({"ok": True, "sent_to": sent_to, "co_no": co_no})
+
+
 @app.post("/consumables/{co_id:int}/delete")
 async def consumables_delete(request: Request, co_id: int):
     u = get_user(request)

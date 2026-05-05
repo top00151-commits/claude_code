@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>KNK 메신저 — 아이템 대시보드</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard-body">
+  <header class="dash-head">
+    <div class="dash-head-left">
+      <a href="/chat" class="back-to-chat">← 채팅으로</a>
+      <h1>📊 아이템 대시보드</h1>
+    </div>
+    <div class="dash-head-right">
+      <span class="me-name-pill">
+        <span class="avatar" style="width:24px;height:24px;font-size:12px;background:{{ me['avatar_color'] }}">{{ me['display_name'][0] }}</span>
+        {{ me['display_name'] }}
+      </span>
+      <a href="/logout" class="logout-link">로그아웃</a>
+    </div>
+  </header>
+
+  <section class="dash-summary" id="dashSummary"></section>
+
+  <section class="dash-controls">
+    <input id="dashSearch" type="search" placeholder="🔍 고객사·아이템·코드 검색">
+    <div class="dash-filter-bar" id="dashFilterBar">
+      <button class="chip active" data-status="all" type="button">전체</button>
+      <button class="chip" data-status="active" type="button">진행중</button>
+      <button class="chip" data-status="hold" type="button">보류</button>
+      <button class="chip" data-status="done" type="button">완료</button>
+    </div>
+    <div class="dash-sort">
+      정렬:
+      <select id="dashSort">
+        <option value="recent">최근 활동순</option>
+        <option value="due">납기 임박순</option>
+        <option value="open_requests">열린 요청 많은순</option>
+        <option value="customer">고객사 가나다</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="dash-grid" id="dashGrid"></section>
+
+  <script>
+    const DASH = (() => {
+      const grid = document.getElementById('dashGrid');
+      const summary = document.getElementById('dashSummary');
+      const search = document.getElementById('dashSearch');
+      const sort = document.getElementById('dashSort');
+      const filterBar = document.getElementById('dashFilterBar');
+      let items = [];
+      let filterStatus = 'all';
+      let sortKey = 'recent';
+      let searchQ = '';
+
+      const STATUS_LABEL = { active: "진행중", hold: "보류", done: "완료", cancelled: "취소" };
+
+      const escapeHtml = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      const fmtDate = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }); };
+      const fmtTime = iso => { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; const now = new Date(); const sameDay = d.toDateString() === now.toDateString(); return d.toLocaleString("ko-KR", sameDay ? { hour: "2-digit", minute: "2-digit" } : { month: "2-digit", day: "2-digit" }); };
+
+      function filtered() {
+        let out = items;
+        if (filterStatus !== 'all') out = out.filter(i => i.status === filterStatus);
+        if (searchQ) {
+          const q = searchQ.toLowerCase();
+          out = out.filter(i =>
+            (i.name || '').toLowerCase().includes(q) ||
+            (i.customer || '').toLowerCase().includes(q) ||
+            (i.code || '').toLowerCase().includes(q)
+          );
+        }
+        switch (sortKey) {
+          case 'recent':
+            out = [...out].sort((a, b) => (b.last_activity || '').localeCompare(a.last_activity || ''));
+            break;
+          case 'due':
+            out = [...out].sort((a, b) => {
+              if (!a.due_date && !b.due_date) return 0;
+              if (!a.due_date) return 1;
+              if (!b.due_date) return -1;
+              return a.due_date.localeCompare(b.due_date);
+            });
+            break;
+          case 'open_requests':
+            out = [...out].sort((a, b) => (b.open_requests + b.active_requests) - (a.open_requests + a.active_requests));
+            break;
+          case 'customer':
+            out = [...out].sort((a, b) => (a.customer || '').localeCompare(b.customer || '', 'ko'));
+            break;
+        }
+        return out;
+      }
+
+      function renderSummary() {
+        const total = items.length;
+        const active = items.filter(i => i.status === 'active').length;
+        const totalReqs = items.reduce((s, i) => s + i.open_requests + i.active_requests, 0);
+        const totalImg = items.reduce((s, i) => s + i.image_count, 0);
+        const totalFile = items.reduce((s, i) => s + i.file_count, 0);
+        summary.innerHTML = `
+          <div class="dash-stat"><div class="dash-stat-num">${total}</div><div class="dash-stat-label">아이템 (진행 ${active})</div></div>
+          <div class="dash-stat"><div class="dash-stat-num">${totalReqs}</div><div class="dash-stat-label">열린 요청</div></div>
+          <div class="dash-stat"><div class="dash-stat-num">${totalImg}</div><div class="dash-stat-label">사진</div></div>
+          <div class="dash-stat"><div class="dash-stat-num">${totalFile}</div><div class="dash-stat-label">파일</div></div>
+        `;
+      }
+
+      function render() {
+        const list = filtered();
+        if (!list.length) {
+          grid.innerHTML = `<div class="empty-state" style="padding:48px;color:#9ca3af;text-align:center;width:100%">조건에 맞는 아이템이 없습니다.</div>`;
+          return;
+        }
+        grid.innerHTML = list.map(i => {
+          const today = new Date().toISOString().slice(0, 10);
+          let dueCls = '', dueText = '';
+          if (i.due_date) {
+            const d = new Date(i.due_date); const t = new Date(today);
+            const days = Math.round((d - t) / 86400000);
+            dueText = `납기 ${fmtDate(i.due_date)}`;
+            if (days < 0) { dueCls = 'card-overdue'; dueText += ` (${-days}일 지남)`; }
+            else if (days <= 3) { dueCls = 'card-due-soon'; dueText += days === 0 ? ' (오늘!)' : days === 1 ? ' (내일)' : ` (D-${days})`; }
+          }
+          const reqAttn = (i.open_requests + i.active_requests) > 0 ? ' attn' : '';
+          return `
+            <a class="dash-card ${dueCls}" href="/chat?room=${i.room_id}">
+              <div class="dash-card-head">
+                ${i.customer ? `<span class="customer-chip">${escapeHtml(i.customer)}</span>` : ''}
+                ${i.code ? `<span class="code-chip">${escapeHtml(i.code)}</span>` : ''}
+                <span class="status-pill status-${i.status}">${STATUS_LABEL[i.status] || i.status}</span>
+              </div>
+              <div class="dash-card-name">${escapeHtml(i.name)}</div>
+              <div class="dash-card-stats">
+                <span>📷 ${i.image_count}</span>
+                <span>📎 ${i.file_count}</span>
+                <span class="${reqAttn ? 'sm-item attn' : ''}">📌 ${i.open_requests + i.active_requests} 진행</span>
+              </div>
+              <div class="dash-card-foot">
+                ${dueText ? `<span class="dash-card-due">${dueText}</span>` : '<span></span>'}
+                <span class="dash-card-time">${i.last_activity ? '최근 ' + fmtTime(i.last_activity) : '활동 없음'}</span>
+              </div>
+            </a>`;
+        }).join('');
+      }
+
+      async function load() {
+        items = await fetch('/api/items/dashboard').then(r => r.json());
+        renderSummary();
+        render();
+      }
+
+      search.addEventListener('input', e => { searchQ = e.target.value.trim(); render(); });
+      sort.addEventListener('change', e => { sortKey = e.target.value; render(); });
+      filterBar.querySelectorAll('.chip').forEach(c => {
+        c.addEventListener('click', () => {
+          filterStatus = c.dataset.status;
+          filterBar.querySelectorAll('.chip').forEach(x => x.classList.toggle('active', x === c));
+          render();
+        });
+      });
+
+      load();
+      setInterval(load, 30000);
+    })();
+  </script>
+</body>
+</html>
