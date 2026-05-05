@@ -1,9 +1,9 @@
-﻿@echo off
+@echo off
 REM ============================================================
 REM   LAST UPDATE: 2026-05-05 v5H129 parts attachment + auto image compression
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
-chcp 65001 > /dev/null
+chcp 65001 >nul
 title KNK HAIST WORKS [v5H129]
 cd /d "%~dp001_HAIST_WORKS"
 
@@ -15,7 +15,7 @@ echo    [v5H129  2026-05-05]
 echo ============================================================
 echo.
 
-where python >/dev/null 2>/dev/null
+where python >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Python is not installed.
     echo Install Python 3.10+ from https://www.python.org/downloads/
@@ -23,23 +23,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
-python -c "import fastapi, uvicorn, jinja2" >/dev/null 2>/dev/null
+python -c "import fastapi, uvicorn, jinja2" >nul 2>nul
 if errorlevel 1 (
     echo [First Run] Installing required packages...
-    python -m pip install --upgrade pip >/dev/null
+    python -m pip install --upgrade pip >nul
     python -m pip install -r requirements.txt
     if errorlevel 1 (
-        echo [ERROR] Package installation failed. Check your internet connection.
+        echo [ERROR] Package installation failed.
         pause
         exit /b 1
     )
     echo [OK] Installation complete.
 )
 
-start "" /b cmd /c "timeout /t 3 /nobreak >/dev/null ^&^& start http://localhost:8081"
+start "" /b cmd /c "timeout /t 3 /nobreak >nul ^&^& start http://localhost:8081"
 
 python run.py
 
 echo.
 echo Server stopped. Press any key to close.
-pause >/dev/null
+pause >nul
