@@ -582,12 +582,16 @@ dialog h3 { margin: 0 0 8px; }
 }
 .big-dialog-head h3 { margin: 0; font-size: 16px; flex-shrink: 0; }
 .close-x {
-  width: 30px; height: 30px;
+  width: 38px; height: 38px;
   border-radius: 50%;
-  font-size: 16px; color: var(--text-soft);
+  font-size: 22px; font-weight: 700;
+  color: var(--text);
+  background: var(--bg);
   margin-left: auto;
+  display: grid; place-items: center;
+  transition: all .15s;
 }
-.close-x:hover { background: var(--bg); color: var(--text); }
+.close-x:hover { background: var(--danger); color: #fff; transform: rotate(90deg); }
 
 .gallery-tabs { display: flex; gap: 4px; }
 .gallery-tabs .gtab {

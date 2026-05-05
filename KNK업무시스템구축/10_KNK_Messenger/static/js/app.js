@@ -1126,6 +1126,19 @@
     if (e.target === els.lightbox) els.lightbox.close();
   });
 
+  // 모든 다이얼로그: 배경 클릭으로 닫기 (네이티브 ESC는 자동 동작)
+  document.querySelectorAll("dialog").forEach(d => {
+    d.addEventListener("click", (e) => {
+      // 다이얼로그 자체에 클릭 = 백드롭 클릭 (내부 자식은 dialog가 아닌 다른 요소)
+      const rect = d.getBoundingClientRect();
+      const inside = (
+        e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom
+      );
+      if (!inside) d.close();
+    });
+  });
+
   els.requestsBtn.addEventListener("click", openRequests);
   els.closeRequests.addEventListener("click", () => els.requestsDialog.close());
   els.requestsDialog.querySelectorAll(".gtab").forEach(t => {

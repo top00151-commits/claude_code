@@ -4,6 +4,11 @@
 
 ---
 
+## v5H146 (2026-05-05) — 소모품 발주 페이지 active_tab 수정
+- consumables.html / consumable_detail.html / consumable_form_upload.html 의 active_tab을 'logi' → 'sales' 변경
+- v5H143 에서 메뉴는 매출영업으로 이동했으나 페이지 진입 시 상단 탭이 자재구매센터로 표시되던 결함
+- 이제 클릭 시 매출영업센터 탭이 활성화된 상태 유지
+
 ## v5H145 (2026-05-05) — 소모품 발주 등록 완료 흐름 강화 + 관련부서 통보
 - **결함 1 (메뉴 위치)**: 이미 v5H143 에서 `📦 소모품 발주` 를 매출·영업 그룹(M-01-14, 수출입 다음)으로 이동 완료. 본 사이클에서 자재 그룹에 잔존 링크 없음 재확인. 권한은 `can_use_logistics OR can_use_sales` 양쪽 허용 유지(영업 입력 + 자재 후속 작업).
 - **결함 2 (등록 후 다음 단계 불명확)**: 엑셀 업로드 → "✅ N건 등록 완료" 한 줄로 끝나 다음 액션 미안내. **수정**: `consumable_form_upload.html` 확정 직후 큰 그라디언트 성공 카드(`#successCard`) 표시:
