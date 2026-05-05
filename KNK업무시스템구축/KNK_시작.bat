@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H137 프로젝트 유형 분류 — 등록 시점부터 신규장비/소모품/수리/기타 4종 구분 + 소모품·수리는 연관 관리번호(부모 프로젝트) 연결 (project_type/parent_project_id 컬럼 + 자동 SO 라벨 호기/회차/차/건 토글 + 폼 라디오/자동완성/안내 배너 + 목록 필터·컬럼)
+REM   LAST UPDATE: 2026-05-05 v5H138 프로젝트 유형 pill 영문+한글 2줄 표기 (so-pill 패턴 통일) — _v5_partials/project_type_pill.html 신설 + project_detail 헤더/사이드 + projects 목록 표 적용 (4색 분기: NEW_EQUIP 주황 / CONSUMABLE 녹색 / SERVICE 파랑 / OTHER 회색)
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H137]
+title KNK HAIST WORKS [v5H138]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H137  2026-05-05]
+echo    [v5H138  2026-05-05]
 echo ============================================================
 echo.
 

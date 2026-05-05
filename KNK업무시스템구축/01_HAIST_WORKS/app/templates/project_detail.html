@@ -21,11 +21,8 @@
         <span style="font-family:monospace;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</span>
         <span>{{ p.name }}</span>
         {% if p.stage %}<span class="pill pill-progress" style="font-size:13px;">{{ p.stage }}</span>{% endif %}
-        {# v5H137: 프로젝트 유형 pill (대표 직접 요청 — 등록 시점부터 분류) #}
-        {% set _ptype_disp = (p.project_type or 'NEW_EQUIP') %}
-        <span class="pill" style="font-size:12.5px;background:var(--paper-2);color:var(--ink);border:1px solid var(--line);">
-          {{ (PROJECT_TYPE_LABELS or {}).get(_ptype_disp, _ptype_disp) }}
-        </span>
+        {# v5H138: 프로젝트 유형 pill — 영문 enum + 한글 의미 2줄 (so-pill 패턴 통일) #}
+        {% with ptype=p.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}
       </h1>
     </div>
     <div style="display:flex;gap:8px;">
@@ -705,8 +702,8 @@
           <dt>프로젝트명</dt><dd><b>{{ p.name }}</b></dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
-          {# v5H137: 프로젝트 유형 + 연관 관리번호 #}
-          <dt>유형</dt><dd>{{ (PROJECT_TYPE_LABELS or {}).get(p.project_type or 'NEW_EQUIP', p.project_type or 'NEW_EQUIP') }}</dd>
+          {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
+          <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
           {% if parent_project %}
           <dt>연관 관리번호</dt><dd>
             <a href="/project/{{ parent_project.id }}"

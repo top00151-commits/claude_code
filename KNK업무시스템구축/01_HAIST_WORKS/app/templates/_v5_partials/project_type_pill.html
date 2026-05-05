@@ -1,0 +1,32 @@
+{# v5H138: 프로젝트 유형 pill — 영문(원본 enum) + 한글 의미 2줄 통일 표기
+   사용:
+     {% with ptype=project.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}
+   (옵션) size='sm' 변수 전달 시 작은 크기 (목록 표 셀 등)
+#}
+{% set _pt_kr = {
+  'NEW_EQUIP':  ('🔧', '신규 장비'),
+  'CONSUMABLE': ('📦', '소모품·부품'),
+  'SERVICE':    ('🔨', '수리·유지보수'),
+  'OTHER':      ('🌐', '기타'),
+} %}
+{% set _pt_code = (ptype or 'NEW_EQUIP') %}
+{% set _meta = _pt_kr.get(_pt_code, ('','')) %}
+<span class="pt-pill pt-pill-{{ _pt_code|lower }}{% if size=='sm' %} pt-pill-sm{% endif %}">
+  <span class="en">{{ _pt_code }}</span>
+  {% if _meta[1] %}<span class="kr">{{ _meta[0] }} {{ _meta[1] }}</span>{% endif %}
+</span>
+<style>
+.pt-pill { display:inline-flex; flex-direction:column; align-items:center;
+           padding:4px 10px; border-radius:8px; font-size:.78em; line-height:1.15;
+           font-weight:700; letter-spacing:.02em; text-align:center;
+           background:#e5e7eb; color:#374151; }
+.pt-pill .en { font-size:.95em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pt-pill .kr { font-size:.85em; opacity:.9; font-weight:600; margin-top:1px; }
+.pt-pill-sm { padding:2px 7px; font-size:.7em; }
+.pt-pill-sm .en { font-size:.92em; }
+.pt-pill-sm .kr { font-size:.82em; }
+.pt-pill-new_equip  { background:#ffedd5; color:#9a3412; }   /* 주황 */
+.pt-pill-consumable { background:#d1fae5; color:#065f46; }   /* 녹색 */
+.pt-pill-service    { background:#dbeafe; color:#1e3a8a; }   /* 파랑 */
+.pt-pill-other      { background:#e5e7eb; color:#374151; }   /* 회색 */
+</style>

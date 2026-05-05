@@ -4,6 +4,14 @@
 
 ---
 
+## v5H138 (2026-05-05) — 프로젝트 유형 pill 영문+한글 2줄 표기 (대표 직접 요청, so-pill 패턴 통일)
+- **요청 배경**: v5H135 SO 상태 pill 처럼 프로젝트 유형도 영문 enum + 한글 의미를 2줄로 (NEW_EQUIP / 🔧 신규 장비 등). 영문은 시스템 enum 가시화, 한글은 직관성.
+- **partial 신설 — `app/templates/_v5_partials/project_type_pill.html`**: 4종 매핑 (NEW_EQUIP→🔧 신규 장비 / CONSUMABLE→📦 소모품·부품 / SERVICE→🔨 수리·유지보수 / OTHER→🌐 기타). `<span class="pt-pill pt-pill-{code}">` + `.en` (monospace 영문) + `.kr` (이모지+한글) 2줄 inline-flex column. `size='sm'` 인자로 작은 크기 (목록 표 셀용). 4색 분기: NEW_EQUIP 주황(#ffedd5/#9a3412) · CONSUMABLE 녹색(#d1fae5/#065f46) · SERVICE 파랑(#dbeafe/#1e3a8a) · OTHER 회색(#e5e7eb/#374151). 매핑에 없는 enum 은 영문만 표시 — backward compatible.
+- **적용 — `project_detail.html`**: 헤더 H1 의 stage pill 옆 단일 라벨 pill → partial (full size). 사이드 패널 "프로젝트 정보" `<dt>유형</dt>` → partial (size='sm').
+- **적용 — `projects.html`**: 목록 표 "유형" 컬럼 셀 → partial (size='sm'). 검색 폼 셀렉트 옵션은 그대로 유지 (드롭다운은 단일 라인이 자연).
+- **유지 (변경 없음)**: `project_form.html` 라디오 라벨 텍스트 (대표 지시 — "라디오는 그대로 두고 pill 만"). 백엔드 enum/상수/라우트 무변경.
+- **검증**: Jinja parse PASS (project_type_pill / project_detail / projects / project_form 4종). v5H137 기능(자동 SO 라벨 토글, 연관 관리번호 자동완성, 안내 배너) 무영향.
+
 ## v5H137 (2026-05-05) — 프로젝트 유형 분류 신설 (대표 직접 요청)
 - **요청 배경**: 등록할 때부터 소모품인지 기타인지 구분해서 등록해야 함. 소모품 등록 시 연관 관리번호 연결 가능, 없으면 단독 진행. SO 자동 라벨도 유형에 맞게 (검사기는 호기, 소모품은 회차, 수리는 차, 기타는 건).
 - **DB 마이그 — `app/database.py`**: `projects` 테이블에 `project_type TEXT DEFAULT 'NEW_EQUIP'` + `parent_project_id INTEGER` 2개 컬럼 ALTER (PRAGMA 가드 + try/except 폴백). `idx_projects_parent` 인덱스 추가 (소모품 → 부모 장비 역조회 가속). 기존 행은 NULL → DEFAULT 'NEW_EQUIP' 으로 동작 (백워드 호환).
