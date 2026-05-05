@@ -19,7 +19,7 @@
         <span style="color:var(--mute);">📅 {{ order.order_date }} → {{ order.due_date|default('-') }}</span>
         {% if order.ship_to %}<span style="color:var(--mute);">📍 {{ order.ship_to }}</span>{% endif %}
         <span style="color:var(--mute);">💱 {{ order.currency or 'KRW' }}</span>
-        <span class="pill {% if order.status == 'PAID' %}pill-done{% elif order.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ order.status }}</span>
+        {% with status=order.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
       </div>
     </div>
   </div>

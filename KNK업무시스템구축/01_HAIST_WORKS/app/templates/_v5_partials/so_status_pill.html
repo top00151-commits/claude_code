@@ -1,0 +1,32 @@
+{# v5H135: SO 상태 pill — 영문(원본 enum) + 한글 의미 2줄 통일 표기
+   사용:
+     {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
+   매핑에 없는 상태는 영문만 표시 (한글 라인 생략) — backward compatible
+#}
+{% set _so_status_kr = {
+  'DRAFT':'임시',
+  'CONFIRMED':'수주확정',
+  'SHIPPED':'출하',
+  'INVOICED':'송장발행',
+  'PAID':'수금완료',
+  'CANCELLED':'취소'
+} %}
+{% set _kr = _so_status_kr.get(status, '') %}
+<span class="so-pill so-pill-{{ (status or 'unknown')|lower }}">
+  <span class="en">{{ status or '—' }}</span>
+  {% if _kr %}<span class="kr">{{ _kr }}</span>{% endif %}
+</span>
+<style>
+.so-pill { display:inline-flex; flex-direction:column; align-items:center;
+           padding:4px 10px; border-radius:8px; font-size:.78em; line-height:1.15;
+           font-weight:700; letter-spacing:.02em; text-align:center;
+           background:#e5e7eb; color:#374151; }
+.so-pill .en { font-size:.95em; }
+.so-pill .kr { font-size:.85em; opacity:.85; font-weight:600; margin-top:1px; }
+.so-pill-confirmed { background:#fef0c7; color:#7c2d12; }
+.so-pill-draft     { background:#e5e7eb; color:#374151; }
+.so-pill-shipped   { background:#dbeafe; color:#1e3a8a; }
+.so-pill-invoiced  { background:#ede9fe; color:#5b21b6; }
+.so-pill-paid      { background:#d1fae5; color:#065f46; }
+.so-pill-cancelled { background:#fee2e2; color:#991b1b; }
+</style>

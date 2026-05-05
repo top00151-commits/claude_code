@@ -293,7 +293,7 @@
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
-              <span class="pill {% if so.status in ('PAID','SHIPPED','INVOICED') %}pill-done{% elif so.status == 'CANCELLED' %}pill-warn{% else %}pill-progress{% endif %}">{{ so.status }}</span>
+              {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
               <div class="so-meta">
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>

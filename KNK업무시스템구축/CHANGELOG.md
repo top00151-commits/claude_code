@@ -4,6 +4,16 @@
 
 ---
 
+## v5H135 (2026-05-05) — SO 상태 pill 영문+한글 2줄 표기 통일 (대표 직접 요청)
+- **요청 배경**: SO 상태가 영문 enum (CONFIRMED/SHIPPED 등) 만 표시되어 비영어 사용자 직관성 저하. 영문(원본 enum) + 한글 의미를 한 pill 안에 2줄로 함께 표기하여 가독성·검색성·국제화 동시 확보
+- **partial 신설 — `app/templates/_v5_partials/so_status_pill.html`**: 매핑 dict (DRAFT→임시 / CONFIRMED→수주확정 / SHIPPED→출하 / INVOICED→송장발행 / PAID→수금완료 / CANCELLED→취소) + flex-column 2줄 레이아웃 + 상태별 6색 (amber/gray/blue/violet/green/red). 매핑에 없는 상태는 영문만 표시 (backward compatible)
+- **적용 위치 3곳 일괄 통일**:
+  - `project_detail.html:296` — 프로젝트 상세 SO 카드 헤더
+  - `sales_order_detail.html:22` — SO 상세 헤더
+  - `sales_orders.html:71` — SO 목록 상태 컬럼
+- **호출 방식**: `{% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}` — 호출부 변수명(so/order/o) 무관하게 `status` 키로 통일
+- **검증**: Jinja parse 4파일 PASS. PO/quotation 상태는 별도 enum 이라 이번 작업 범위 외 (요청 시 후속)
+
 ## v5H134 (2026-05-05) — SO 카드 호기 라인 내림차순 강제 (v5H133 미반영 핫픽스)
 - **요청 배경**: v5H133 배포 후 대표 스크린샷에서 SO 카드 호기 라인이 여전히 오름차순(3→12호기, 1→2호기)으로 표시. 백엔드 `get_project_orders` 의 in-Python sort 가 적용되었음에도 화면 미반영 의심
 - **백엔드 보강 — `app/project_workflow.py` `get_project_orders`**: 각 unit dict 에 정렬 키 `_sort_n` (unit_label 의 숫자 prefix, 미매칭 9999) 을 미리 계산해 내장. 정렬 함수도 이 키 사용. 데이터 자체에 키가 박혀 있어 다운스트림(템플릿/JSON 직렬화) 어디서든 재정렬 가능

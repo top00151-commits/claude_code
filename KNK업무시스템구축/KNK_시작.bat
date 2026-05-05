@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H134 SO 카드 호기 라인 내림차순 강제 — 백엔드 _sort_n 키 내장 + 템플릿 sort 필터 이중 안전망 (v5H133 미반영 핫픽스)
+REM   LAST UPDATE: 2026-05-05 v5H135 SO 상태 pill 영문+한글 2줄 표기 통일 — _v5_partials/so_status_pill.html partial 신설 + project_detail/sales_order_detail/sales_orders 3곳 일괄 적용
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
