@@ -7776,7 +7776,13 @@ async def parts_edit_form(request: Request, pid: int):
     p = _logi.parts_get(pid)
     if not p:
         return RedirectResponse("/parts", status_code=303)
-    return ctx(request, "part_form.html", user=u, active="parts", part=p)
+    # v5H129: 첨부 목록 같이 표시
+    try:
+        attachments = part_attachments_list(pid)
+    except Exception:
+        attachments = []
+    return ctx(request, "part_form.html", user=u, active="parts",
+               part=p, attachments=attachments)
 
 
 @app.post("/parts/{pid}/edit")
@@ -8550,6 +8556,9 @@ from .database import (stock_movement_create, po_receive, stock_issue,
                         audit_attachment_create, audit_attachments_list,
                         audit_attachment_get, stock_audit_close,
                         stock_audit_effect_summary,
+                        # 자재 첨부 (v5H129 — 2026-05-04): 사진/도면
+                        part_attachment_create, part_attachments_list,
+                        part_attachment_get, part_attachment_delete,
                         # 환율·단가 강화 (Top10 #9 — 2026-04-26)
                         cost_simulation_create, cost_simulations_list,
                         price_change_log, price_change_history_list,
@@ -8721,6 +8730,11 @@ async def parts_detail_page(request: Request, pid: int):
         suppliers = [dict(r) for r in c.execute(
             "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
         ).fetchall()]
+    # v5H129 (2026-05-04): 자재 첨부(사진/도면) 목록
+    try:
+        attachments = part_attachments_list(pid)
+    except Exception:
+        attachments = []
     return ctx(request, "part_detail.html", user=u,
                part=part, layers=layers,
                price_history=price_hist["history"],
@@ -8731,6 +8745,7 @@ async def parts_detail_page(request: Request, pid: int):
                stock_value=stock_value,
                stock_self_heal=stock_self_heal,
                suppliers=suppliers,
+               attachments=attachments,
                CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")
 
@@ -9160,6 +9175,128 @@ async def stock_audits_close_route(request: Request, audit_id: int):
         return RedirectResponse(f"/stock/audits/{audit_id}?error={msg}", 303)
     return RedirectResponse(f"/stock/audits/{audit_id}?success=closed", 303)
 # ===== /재고실사 2차 =====
+
+
+# =====================================================
+# 자재 첨부 (v5H129 — 2026-05-04): 사진/도면 업로드
+# 클라이언트 측 Canvas API 로 이미지 압축 후 업로드 → 용량 90%+ 절감
+# 외부 저장소 0건 — 로컬 ./uploads/parts/<part_id>/<file>
+# =====================================================
+_PARTS_UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "uploads", "parts")
+_PARTS_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".pdf", ".dwg", ".dxf", ".gif"}
+_PARTS_MAX_BYTES = 20 * 1024 * 1024  # 20MB (원본 — 클라이언트에서 더 줄여 보내라고 안내)
+_PARTS_KIND_WHITELIST = {"photo", "drawing", "spec"}
+
+
+def _parts_safe_filename(name: str) -> str:
+    """path traversal 방지 — basename + 영숫자/한글/._- 허용 + 그 외 _."""
+    base = os.path.basename((name or "").replace("\\", "/"))
+    base = base.lstrip(".") or "file"
+    out = []
+    for ch in base:
+        # 영숫자, 한글(가-힣, ㄱ-ㅎ, ㅏ-ㅣ), . _ - 허용
+        if ch.isalnum() or ch in "._-" or ('가' <= ch <= '힣'):
+            out.append(ch)
+        else:
+            out.append("_")
+    safe = "".join(out)[:120]
+    return safe or "file"
+
+
+@app.post("/parts/{pid}/attach")
+async def parts_attach_upload(request: Request, pid: int,
+                              file: UploadFile = File(...),
+                              kind: str = Form("photo")):
+    """v5H129: 자재 사진/도면 첨부 업로드. 클라이언트가 이미 압축한 파일을 받음."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    # 자재 존재 확인
+    p = _logi.parts_get(pid)
+    if not p:
+        return RedirectResponse("/parts?error=part_not_found", 303)
+    raw = await file.read()
+    if len(raw) == 0:
+        return RedirectResponse(f"/parts/{pid}/edit?error=빈+파일입니다", 303)
+    if len(raw) > _PARTS_MAX_BYTES:
+        return RedirectResponse(
+            f"/parts/{pid}/edit?error=파일이+너무+큽니다+%2820MB+초과%29.+사진은+자동압축되며+도면은+10MB+이하+권장",
+            303)
+    safe_name = _parts_safe_filename(file.filename or "upload")
+    ext = os.path.splitext(safe_name)[1].lower()
+    if ext not in _PARTS_ALLOWED_EXT:
+        return RedirectResponse(
+            f"/parts/{pid}/edit?error=허용되지+않은+확장자입니다+%28jpg%2Fpng%2Fwebp%2Fpdf%2Fdwg%2Fdxf%29",
+            303)
+    kind_v = (kind or "photo").strip().lower()
+    if kind_v not in _PARTS_KIND_WHITELIST:
+        kind_v = "photo"
+    target_dir = os.path.join(_PARTS_UPLOAD_ROOT, str(int(pid)))
+    os.makedirs(target_dir, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    final_name = f"{ts}_{safe_name}"
+    final_path = os.path.join(target_dir, final_name)
+    # path traversal 2차 검증
+    abs_root = os.path.abspath(_PARTS_UPLOAD_ROOT)
+    abs_final = os.path.abspath(final_path)
+    if not abs_final.startswith(abs_root + os.sep):
+        return RedirectResponse(f"/parts/{pid}/edit?error=잘못된+경로", 303)
+    with open(final_path, "wb") as fp:
+        fp.write(raw)
+    mime = (file.content_type or "").split(";")[0].strip() or "application/octet-stream"
+    part_attachment_create(pid, abs_final, safe_name, len(raw), mime, kind_v, u["id"])
+    return RedirectResponse(f"/parts/{pid}/edit?success=첨부+완료", 303)
+
+
+@app.get("/parts/{pid}/attachments/{aid}")
+async def parts_attachment_download(request: Request, pid: int, aid: int):
+    """v5H129: 자재 첨부 다운로드 (이미지는 inline 표시 가능)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    rec = part_attachment_get(aid)
+    if not rec or int(rec["part_id"]) != int(pid):
+        return RedirectResponse(f"/parts/{pid}/edit?error=첨부+없음", 303)
+    fp = rec["file_path"]
+    abs_root = os.path.abspath(_PARTS_UPLOAD_ROOT)
+    abs_fp = os.path.abspath(fp)
+    if not abs_fp.startswith(abs_root + os.sep) or not os.path.exists(abs_fp):
+        return RedirectResponse(f"/parts/{pid}/edit?error=파일+소실", 303)
+    return FileResponse(
+        abs_fp,
+        filename=rec.get("file_name") or os.path.basename(abs_fp),
+        media_type=rec.get("mime_type") or "application/octet-stream",
+    )
+
+
+@app.post("/parts/{pid}/attachments/{aid}/delete")
+async def parts_attachment_delete(request: Request, pid: int, aid: int):
+    """v5H129: 자재 첨부 삭제 (DB + 디스크)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    rec = part_attachment_get(aid)
+    if not rec or int(rec["part_id"]) != int(pid):
+        return RedirectResponse(f"/parts/{pid}/edit?error=첨부+없음", 303)
+    # 디스크 파일 삭제 (path traversal 검증)
+    fp = rec["file_path"]
+    abs_root = os.path.abspath(_PARTS_UPLOAD_ROOT)
+    abs_fp = os.path.abspath(fp)
+    if abs_fp.startswith(abs_root + os.sep) and os.path.exists(abs_fp):
+        try:
+            os.remove(abs_fp)
+        except OSError:
+            pass
+    part_attachment_delete(aid)
+    return RedirectResponse(f"/parts/{pid}/edit?success=첨부+삭제됨", 303)
+# ===== /자재 첨부 =====
 
 
 @app.get("/stock/movements", response_class=HTMLResponse)

@@ -9,6 +9,15 @@
 .def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
 .def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
 @media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+/* v5H129: 첨부 썸네일 갤러리 */
+.att-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.att-cell { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px; display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: var(--ink); }
+.att-cell:hover { border-color: var(--amber); }
+.att-cell .thumb { width: 100%; height: 100px; background: #f3f0e8; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.att-cell .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.att-cell .thumb .icon { font-size: 32px; color: var(--mute); }
+.att-cell .nm { font-size: 11px; font-weight: 600; word-break: break-all; line-height: 1.25; }
+.att-cell .mt { font-size: 10px; color: var(--mute); }
 </style></head>
 <body>
 {% set p = part %}
@@ -38,6 +47,41 @@
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
+      {% if attachments %}
+      <!-- v5H129: 자재 첨부 (사진/도면) -->
+      <div class="section-card">
+        <h3>📷 사진 / 📐 도면 ({{ attachments|length }})</h3>
+        <div class="att-grid">
+          {% for a in attachments %}
+          <a class="att-cell" href="/parts/{{ p.id }}/attachments/{{ a.id }}" target="_blank" title="{{ a.file_name }}">
+            <div class="thumb">
+              {% if a.mime_type and a.mime_type.startswith('image/') %}
+              <img src="/parts/{{ p.id }}/attachments/{{ a.id }}" alt="{{ a.file_name }}">
+              {% elif a.mime_type == 'application/pdf' %}
+              <span class="icon">📄</span>
+              {% elif a.kind == 'drawing' %}
+              <span class="icon">📐</span>
+              {% else %}
+              <span class="icon">📎</span>
+              {% endif %}
+            </div>
+            <div class="nm">{{ a.file_name|default('파일') }}</div>
+            <div class="mt">
+              {% set sz = a.file_size|default(0) %}
+              {% if sz >= 1048576 %}{{ '%.1f'|format(sz/1048576) }}MB
+              {% elif sz >= 1024 %}{{ '%.0f'|format(sz/1024) }}KB
+              {% else %}{{ sz }}B{% endif %}
+              · {{ a.kind|default('photo') }}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--mute);">
+          첨부 추가/삭제는 <a href="/parts/{{ p.id }}/edit" style="color:var(--amber-deep);">수정 페이지</a>에서.
+        </div>
+      </div>
+      {% endif %}
+
       {% if recent_moves %}
       <div class="section-card">
         <h3>최근 입출고 ({{ recent_moves|length }})</h3>

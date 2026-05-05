@@ -9,6 +9,30 @@
 .field label { font-size: 12px; font-weight: 600; }
 .field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+/* v5H129: 첨부 업로드 UI */
+.attach-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.attach-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.attach-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.attach-help { font-size: 12px; color: var(--mute); margin-bottom: 12px; line-height: 1.6; }
+.attach-help b { color: var(--knk-red); }
+.upload-row { display: grid; grid-template-columns: 1fr 160px 120px; gap: 10px; align-items: end; margin-bottom: 10px; }
+.upload-row input[type=file] { padding: 8px; font-size: 12.5px; background: var(--paper); border: 1px dashed var(--line); border-radius: var(--radius-md); }
+#compressInfo { font-size: 12px; color: var(--mute); padding: 8px 12px; background: var(--paper); border-left: 3px solid var(--amber); border-radius: 4px; margin: 6px 0 12px; min-height: 18px; }
+#compressInfo.success { color: var(--success); border-left-color: var(--success); font-weight: 600; }
+#compressInfo.error { color: var(--knk-red); border-left-color: var(--knk-red); }
+.attach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; }
+.attach-item { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.attach-thumb { width: 100%; height: 110px; background: #f3f0e8; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.attach-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.attach-thumb .icon { font-size: 36px; color: var(--mute); }
+.attach-name { font-size: 12px; font-weight: 600; color: var(--ink); word-break: break-all; line-height: 1.3; }
+.attach-meta { font-size: 11px; color: var(--mute); }
+.attach-actions { display: flex; gap: 6px; }
+.attach-actions a, .attach-actions button { flex: 1; font-size: 11px; padding: 5px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink); text-align: center; text-decoration: none; cursor: pointer; }
+.attach-actions button.del { background: #fff0f0; color: var(--knk-red); border-color: #f5c6c6; }
+.banner { margin: 0 var(--content-pad) var(--space-3); padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; }
+.banner.success { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+.banner.error { background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -17,6 +41,14 @@
     <div><div class="crumbs"><a href="/parts">자재 마스터</a> · <b>{% if part %}수정{% else %}등록{% endif %}</b></div>
     <h1 class="page-title">{% if part %}자재 <em>수정</em>{% else %}자재 <em>등록</em>{% endif %}</h1></div>
   </div>
+
+  {% if request.query_params.get('success') %}
+  <div class="banner success">✓ {{ request.query_params.get('success') }}</div>
+  {% endif %}
+  {% if request.query_params.get('error') %}
+  <div class="banner error">⚠ {{ request.query_params.get('error') }}</div>
+  {% endif %}
+
   <form method="post" action="{% if part %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}">
     <div class="form-card">
       <div class="field-row">
@@ -44,4 +76,185 @@
       <button type="submit" class="btn btn-primary">📤 {% if part %}저장{% else %}등록{% endif %}</button>
     </div>
   </form>
+
+  {% if part %}
+  <!-- v5H129: 자재 첨부 (사진/도면) — 자동 용량 최소화 -->
+  <div class="attach-card">
+    <h3>📷 사진 / 📐 도면 첨부</h3>
+    <div class="attach-help">
+      • 이미지(JPG/PNG/WebP)는 업로드 직전 <b>자동으로 압축</b>됩니다 (긴 변 1600px·JPEG 80% 품질, 보통 90%+ 용량 절감).<br/>
+      • 도면(PDF/DWG/DXF)은 원본 그대로 저장됩니다 (최대 10MB 권장, 20MB 초과 차단).<br/>
+      • 파일 1개씩 업로드해주세요. 등록 후 아래 목록에서 다운로드·삭제 가능합니다.
+    </div>
+    <form id="attachForm" method="post" action="/parts/{{ part.id }}/attach" enctype="multipart/form-data">
+      <div class="upload-row">
+        <input type="file" id="attachFile" name="file" accept="image/*,application/pdf,.dwg,.dxf" required>
+        <select name="kind" style="padding:10px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);">
+          <option value="photo">사진</option>
+          <option value="drawing">도면</option>
+          <option value="spec">사양서</option>
+        </select>
+        <button type="submit" class="btn btn-primary" id="attachBtn">⬆ 업로드</button>
+      </div>
+      <div id="compressInfo">파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.</div>
+    </form>
+
+    {% if attachments %}
+    <div class="attach-list">
+      {% for a in attachments %}
+      <div class="attach-item">
+        <div class="attach-thumb">
+          {% if a.mime_type and a.mime_type.startswith('image/') %}
+          <img src="/parts/{{ part.id }}/attachments/{{ a.id }}" alt="{{ a.file_name }}">
+          {% elif a.mime_type == 'application/pdf' %}
+          <span class="icon">📄</span>
+          {% elif a.kind == 'drawing' %}
+          <span class="icon">📐</span>
+          {% else %}
+          <span class="icon">📎</span>
+          {% endif %}
+        </div>
+        <div class="attach-name">{{ a.file_name|default('파일') }}</div>
+        <div class="attach-meta">
+          {% set sz = a.file_size|default(0) %}
+          {% if sz >= 1048576 %}{{ '%.1f'|format(sz/1048576) }} MB
+          {% elif sz >= 1024 %}{{ '%.0f'|format(sz/1024) }} KB
+          {% else %}{{ sz }} B{% endif %}
+          · {{ a.kind|default('photo') }}
+          {% if a.uploaded_at %}<br/>{{ a.uploaded_at }}{% endif %}
+        </div>
+        <div class="attach-actions">
+          <a href="/parts/{{ part.id }}/attachments/{{ a.id }}" target="_blank">다운로드</a>
+          <form method="post" action="/parts/{{ part.id }}/attachments/{{ a.id }}/delete" style="margin:0;flex:1;" onsubmit="return confirm('이 첨부를 삭제하시겠습니까?');">
+            <button type="submit" class="del">삭제</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="margin-top:14px;padding:20px;text-align:center;color:var(--mute);font-size:13px;background:var(--paper);border:1px dashed var(--line);border-radius:var(--radius-md);">
+      등록된 첨부가 없습니다. 위에서 사진이나 도면을 추가해보세요.
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+  // v5H129: 클라이언트 측 이미지 압축 (Canvas API)
+  // 이미지 → 긴 변 1600px 리사이즈 + JPEG 80% 재인코딩 (보통 90%+ 절감)
+  (function(){
+    const fileInput = document.getElementById('attachFile');
+    const form = document.getElementById('attachForm');
+    const info = document.getElementById('compressInfo');
+    const btn = document.getElementById('attachBtn');
+    const MAX_DIM = 1600;
+    const QUALITY = 0.8;
+
+    function fmtSize(b){
+      if (b >= 1048576) return (b/1048576).toFixed(2) + ' MB';
+      if (b >= 1024) return (b/1024).toFixed(0) + ' KB';
+      return b + ' B';
+    }
+
+    async function compressImage(file){
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = function(){
+          let { width, height } = img;
+          const ratio = Math.min(1, MAX_DIM / Math.max(width, height));
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(function(blob){
+            URL.revokeObjectURL(url);
+            if (!blob) { reject(new Error('압축 실패')); return; }
+            // 원본 이름 유지 + .jpg 확장자
+            const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+            const compressed = new File([blob], baseName + '.jpg', { type: 'image/jpeg' });
+            resolve(compressed);
+          }, 'image/jpeg', QUALITY);
+        };
+        img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('이미지 읽기 실패')); };
+        img.src = url;
+      });
+    }
+
+    let processedFile = null;
+
+    fileInput.addEventListener('change', async function(){
+      processedFile = null;
+      info.className = '';
+      const f = fileInput.files[0];
+      if (!f) { info.textContent = '파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.'; return; }
+      if (f.type.startsWith('image/')) {
+        info.textContent = '이미지 압축 중... (' + fmtSize(f.size) + ')';
+        try {
+          const compressed = await compressImage(f);
+          processedFile = compressed;
+          const saved = f.size > 0 ? Math.round((1 - compressed.size / f.size) * 100) : 0;
+          info.className = 'success';
+          info.textContent = '✓ 압축 완료: ' + fmtSize(f.size) + ' → ' + fmtSize(compressed.size) +
+                             ' (' + saved + '% 절감) — 업로드 버튼을 눌러주세요.';
+        } catch (e) {
+          info.className = 'error';
+          info.textContent = '⚠ 압축 실패: ' + e.message + ' — 원본으로 업로드됩니다.';
+          processedFile = f;
+        }
+      } else {
+        // 비이미지 (PDF, DWG 등) — 압축 없이 size cap 안내
+        const MAX_NON_IMG = 20 * 1024 * 1024;
+        if (f.size > MAX_NON_IMG) {
+          info.className = 'error';
+          info.textContent = '⚠ 파일이 너무 큽니다 (' + fmtSize(f.size) + '). 20MB 이하만 업로드 가능합니다.';
+          processedFile = null;
+          return;
+        }
+        const warn = f.size > 10 * 1024 * 1024 ? ' ⚠ 10MB 초과 — 가능하면 줄여주세요.' : '';
+        info.textContent = '파일 준비 완료 (' + fmtSize(f.size) + ')' + warn + ' — 업로드 버튼을 눌러주세요.';
+        processedFile = f;
+      }
+    });
+
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      if (!processedFile) {
+        // 파일 선택 직후 미처리 (빠른 클릭) — 원본으로
+        const f = fileInput.files[0];
+        if (!f) { info.className = 'error'; info.textContent = '파일을 선택해주세요.'; return; }
+        processedFile = f;
+      }
+      btn.disabled = true;
+      btn.textContent = '업로드 중...';
+      const fd = new FormData();
+      fd.append('file', processedFile, processedFile.name);
+      const kindEl = form.querySelector('select[name=kind]');
+      fd.append('kind', kindEl ? kindEl.value : 'photo');
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: fd, redirect: 'follow' });
+        // 서버가 303 리다이렉트 → fetch 가 따라가서 res.url 이 최종 URL
+        if (res.redirected) {
+          window.location.href = res.url;
+        } else if (res.ok) {
+          window.location.href = '/parts/{{ part.id }}/edit?success=업로드+완료';
+        } else {
+          info.className = 'error';
+          info.textContent = '⚠ 업로드 실패 (HTTP ' + res.status + ')';
+          btn.disabled = false;
+          btn.textContent = '⬆ 업로드';
+        }
+      } catch (err) {
+        info.className = 'error';
+        info.textContent = '⚠ 네트워크 오류: ' + err.message;
+        btn.disabled = false;
+        btn.textContent = '⬆ 업로드';
+      }
+    });
+  })();
+  </script>
+  {% endif %}
 </main></div></body></html>

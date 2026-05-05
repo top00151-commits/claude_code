@@ -1463,6 +1463,23 @@ CREATE TABLE IF NOT EXISTS audit_attachments (
 CREATE INDEX IF NOT EXISTS idx_aatt_adj ON audit_attachments(adjustment_id);
 
 -- =====================================================
+-- 자재 첨부 (v5H129 — 2026-05-04): 사진/도면 (클라이언트 압축 후 저장)
+-- 외부 저장소 0건 — 로컬 ./uploads/parts/<part_id>/<file>
+-- =====================================================
+CREATE TABLE IF NOT EXISTS part_attachments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id         INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+    file_path       TEXT NOT NULL,
+    file_name       TEXT,
+    file_size       INTEGER DEFAULT 0,
+    mime_type       TEXT,
+    kind            TEXT DEFAULT 'photo',
+    uploaded_by     INTEGER REFERENCES users(id),
+    uploaded_at     TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_patt_part ON part_attachments(part_id);
+
+-- =====================================================
 -- 환율·단가 강화 (2026-04-26 Top10 #9 P4 구매팀 월 1회) — idempotent
 -- 외부 환율 API 미사용 (수동 + CSV 업로드만)
 -- =====================================================
@@ -5415,6 +5432,52 @@ def audit_attachment_get(att_id: int) -> dict | None:
             "SELECT * FROM audit_attachments WHERE id=?", (att_id,),
         ).fetchone()
         return dict(r) if r else None
+
+
+# ---- 자재 첨부 (v5H129 — 2026-05-04) ----
+def part_attachment_create(part_id: int, file_path: str, file_name: str,
+                           file_size: int, mime_type: str, kind: str,
+                           user_id: int) -> int:
+    """자재 첨부 INSERT — 디스크 저장은 라우트에서 (sanitize 후)."""
+    with db_session() as c:
+        cur = c.execute(
+            """INSERT INTO part_attachments
+               (part_id, file_path, file_name, file_size, mime_type, kind, uploaded_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (part_id, file_path, file_name, int(file_size or 0),
+             mime_type or "", kind or "photo", user_id),
+        )
+        return cur.lastrowid
+
+
+def part_attachments_list(part_id: int) -> list[dict]:
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT att.*, u.name AS uploaded_by_name
+               FROM part_attachments att
+               LEFT JOIN users u ON att.uploaded_by=u.id
+               WHERE att.part_id=? ORDER BY att.id DESC""",
+            (part_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def part_attachment_get(att_id: int) -> dict | None:
+    with db_session() as c:
+        r = c.execute(
+            "SELECT * FROM part_attachments WHERE id=?", (att_id,),
+        ).fetchone()
+        return dict(r) if r else None
+
+
+def part_attachment_delete(att_id: int) -> dict | None:
+    """삭제 — DB 레코드 반환(라우트에서 디스크 파일 삭제용)."""
+    rec = part_attachment_get(att_id)
+    if not rec:
+        return None
+    with db_session() as c:
+        c.execute("DELETE FROM part_attachments WHERE id=?", (att_id,))
+    return rec
 
 
 def stock_audit_close(audit_id: int) -> tuple[bool, str]:
