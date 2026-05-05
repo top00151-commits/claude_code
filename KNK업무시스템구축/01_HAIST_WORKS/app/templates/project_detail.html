@@ -29,7 +29,15 @@
       {% if not p.mgmt_code %}
       <button class="btn btn-primary" onclick="openConfirmOrder()" style="background:var(--success);">✓ 수주 확정 (관리번호 발급)</button>
       {% else %}
-      <button class="btn btn-primary" onclick="openFollowupOrder()" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
+      {# v5H142: NEW_EQUIP 부모일 때만 3종 발주 버튼 노출 (장비/소모품/정비).
+         CONSUMABLE/SERVICE/OTHER 부모는 그 유형의 추가 발주 1개만 노출 (기존 동작 유지). #}
+      {% if (p.project_type or 'NEW_EQUIP')|upper == 'NEW_EQUIP' %}
+      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 검사기 발주</button>
+      <button class="btn btn-primary" onclick="openFollowupOrder('CONSUMABLE')" style="background:#065f46;">＋ 소모품 발주</button>
+      <button class="btn btn-primary" onclick="openFollowupOrder('SERVICE')" style="background:#1e3a8a;">＋ 수리·정비</button>
+      {% else %}
+      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
+      {% endif %}
       {% endif %}
       <a class="btn btn-secondary" href="/projects/{{ p.id }}/edit">📂 수정</a>
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
@@ -66,19 +74,21 @@
   <!-- v5H68: 추가 발주 모달 (관리번호 유지, SO만 신규) -->
   <div id="followupOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
-      <h3 style="font-size:18px; font-weight:700; margin-bottom:8px;">＋ 추가 발주 (관리번호 {{ p.mgmt_code }})</h3>
-      <div style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
+      <h3 id="fup_modal_title" style="font-size:18px; font-weight:700; margin-bottom:8px;">＋ 추가 발주 (관리번호 {{ p.mgmt_code }})</h3>
+      <div id="fup_modal_hint" style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
         동일 프로젝트에 추가 발주가 들어왔을 때 사용합니다.<br>
         <b>관리번호 {{ p.mgmt_code }}</b> 유지 + 신규 수주번호(SO)만 발행하여 날짜별 추적이 가능합니다.
       </div>
+      {# v5H142: hidden so_type — openFollowupOrder(type) 가 세팅 #}
+      <input type="hidden" id="fup_so_type" value="EQUIPMENT">
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
         <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
           <input type="date" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div><label style="font-size:11px; color:var(--mute);">납기일</label>
           <input type="date" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">1대 단가 (원) *</label>
+        <div><label id="fup_unit_label" style="font-size:11px; color:var(--mute);">1대 단가 (원) *</label>
           <input type="text" id="fup_total_amount" class="knk-money" placeholder="4,900,000" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">수량 (대) *</label>
+        <div><label id="fup_qty_label" style="font-size:11px; color:var(--mute);">수량 (대) *</label>
           <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
           <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
@@ -107,10 +117,33 @@
     document.getElementById('cfm_order_date').value = new Date().toISOString().slice(0,10);
     document.getElementById('confirmOrderModal').style.display = 'flex';
   }
-  function openFollowupOrder() {
-    // v5H130: 기존 SO 0건이면 경고 — 이 발주가 1호기로 기록됨을 명시
+  function openFollowupOrder(soType) {
+    // v5H142: so_type (EQUIPMENT/CONSUMABLE/SERVICE/OTHER) — 모달 라벨/패턴 분기
+    soType = (soType || 'EQUIPMENT').toUpperCase();
+    if (['EQUIPMENT','CONSUMABLE','SERVICE','OTHER'].indexOf(soType) < 0) soType = 'EQUIPMENT';
+    document.getElementById('fup_so_type').value = soType;
+    var presets = {
+      EQUIPMENT:  { title: '＋ 추가 검사기 발주 (관리번호 {{ p.mgmt_code }})',
+                    hint:  '추가 검사기 발주 — <b>1대 단가 × 수량</b>. N대 입력 시 N개 호기 라인 자동 생성.',
+                    unitL: '1대 단가 (원) *', qtyL: '수량 (대) *' },
+      CONSUMABLE: { title: '＋ 소모품 발주 (관리번호 {{ p.mgmt_code }})',
+                    hint:  '소모품 발주 — 자재명은 PO 비고에 메모 권장. <b>소모품-N차</b> 라벨 자동.',
+                    unitL: '단가 (원) *', qtyL: '수량 *' },
+      SERVICE:    { title: '＋ 수리·정비 등록 (관리번호 {{ p.mgmt_code }})',
+                    hint:  '수리·정비 — <b>정비-N차</b> 라벨 자동 부여 (회차 독립 카운트).',
+                    unitL: '정비 단가 (원) *', qtyL: '회차/수량 *' },
+      OTHER:      { title: '＋ 기타 발주 (관리번호 {{ p.mgmt_code }})',
+                    hint:  '기타 발주 — <b>{n}건</b> 라벨 자동.',
+                    unitL: '단가 (원) *', qtyL: '수량 *' },
+    };
+    var ps = presets[soType];
+    document.getElementById('fup_modal_title').textContent = ps.title;
+    document.getElementById('fup_modal_hint').innerHTML = ps.hint;
+    document.getElementById('fup_unit_label').textContent = ps.unitL;
+    document.getElementById('fup_qty_label').textContent = ps.qtyL;
+    // v5H130: 기존 SO 0건이면 경고 — 이 발주가 1호기로 기록됨을 명시 (EQUIPMENT 만)
     var soCount = {{ (project_orders|length) if project_orders else 0 }};
-    if (soCount === 0) {
+    if (soType === 'EQUIPMENT' && soCount === 0) {
       var ok = confirm(
         '⚠ 이 프로젝트에 등록된 수주(SO)가 0건입니다.\n\n' +
         '"추가 발주"로 진행하면 이 발주가 1호기로 기록됩니다.\n' +
@@ -165,6 +198,8 @@
     fd.append('total_amount', String(unit));   // 1대 단가
     fd.append('qty', String(qty));
     fd.append('po_number', document.getElementById('fup_po_number').value);
+    // v5H142: so_type 전달 (EQUIPMENT/CONSUMABLE/SERVICE/OTHER)
+    fd.append('so_type', document.getElementById('fup_so_type').value || 'EQUIPMENT');
     const r = await fetch('/projects/{{ p.id }}/add-followup-order', {method:'POST', body:fd});
     const j = await r.json();
     if (j.ok) {
@@ -296,6 +331,8 @@
             <div class="so-card-head">
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
+              {# v5H142: SO 종류 pill — 장비/소모품/정비/기타 #}
+              {% with stype=so.so_type, size='sm' %}{% include '_v5_partials/so_type_pill.html' %}{% endwith %}
               <div class="so-meta">
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
@@ -704,6 +741,42 @@
         </div>
         {% endif %}
       </div>
+
+      {# v5H142 (2026-05-05): 소모품 발주 도메인(consumable_orders) 라인 #}
+      {% if consumable_orders and consumable_orders.rows %}
+      <div class="section-card">
+        <h3>📦 소모품 발주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--amber-deep);font-size:13px;">전체보기</a>)</h3>
+        <div style="overflow-x:auto;"><table style="width:100%;font-size:12.5px;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid var(--line);">
+            <th style="text-align:left;padding:6px;">발주번호</th>
+            <th style="text-align:left;padding:6px;">사진</th>
+            <th style="text-align:left;padding:6px;">품명</th>
+            <th class="num" style="text-align:right;padding:6px;">수량</th>
+            <th class="num" style="text-align:right;padding:6px;">단가</th>
+            <th class="num" style="text-align:right;padding:6px;">합계</th>
+            <th style="text-align:left;padding:6px;">발주일</th>
+          </tr></thead>
+          <tbody>
+          {% for r in consumable_orders.rows %}
+            <tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:6px;"><a href="/consumables/{{ r.co_id }}" style="color:var(--amber-deep);font-weight:600;">{{ r.co_no }}</a></td>
+              <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
+              <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
+              <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.unit_price or 0) }}</td>
+              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{{ '{:,.0f}'.format(r.amount or 0) }}</td>
+              <td style="padding:6px;">{{ r.order_date or '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot><tr style="background:#fafafa;font-weight:700;">
+            <td colspan="5" style="text-align:right;padding:6px;">합계</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{{ '{:,.0f}'.format(consumable_orders.total_amount) }}</td>
+            <td></td>
+          </tr></tfoot>
+        </table></div>
+      </div>
+      {% endif %}
 
       {% if all_comments %}
       <div class="section-card">

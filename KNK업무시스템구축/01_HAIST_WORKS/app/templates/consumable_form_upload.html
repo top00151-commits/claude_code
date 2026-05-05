@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>소모품 발주 신규 · KNK HAIST WORKS</title>
+{# v5H142 (2026-05-05) — 소모품 발주 신규 (엑셀 업로드 + 미리보기 + 매칭 확인) #}
+<link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--paper); color: var(--ink); }
+a { text-decoration: none; color: inherit; }
+.page-head { padding: 24px 32px 8px; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.page-title { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.card { background: var(--paper-3); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
+.card h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--ink); }
+.row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.field label { display:block; font-size: 11px; color: var(--mute); margin-bottom: 4px; font-weight: 600; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--paper);
+}
+.field input[type=file] { padding: 6px; }
+.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
+.btn-success { background: #059669; color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+table.preview { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+table.preview th, table.preview td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.preview th { background: #f8f8f8; font-weight: 600; color: var(--mute); position: sticky; top: 0; }
+table.preview img { max-width: 80px; max-height: 60px; border-radius: 4px; cursor: pointer; }
+table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+.match-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; margin-left: 4px; }
+.match-exact { background: #d1fae5; color: #065f46; }
+.match-partial { background: #fef3c7; color: #92400e; }
+.match-none { background: #f3f4f6; color: #6b7280; }
+.preview-wrap { max-height: 65vh; overflow: auto; }
+#statusMsg { padding: 10px 14px; border-radius: 8px; margin: 8px 0; font-size: 13px; display: none; }
+#statusMsg.ok { background: #d1fae5; color: #065f46; display: block; }
+#statusMsg.err { background: #fee2e2; color: #991b1b; display: block; }
+#statusMsg.info { background: #dbeafe; color: #1e40af; display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <div class="page-head">
+      <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>신규 등록</b></div>
+      <div class="page-title">새 소모품 발주</div>
+    </div>
+
+    <div class="card">
+      <h2>① 발주 헤더 + 엑셀 업로드</h2>
+      <form id="uploadForm">
+        <div class="row">
+          <div class="field"><label>고객사 <a href="/customers" target="_blank" style="font-size:10px;color:var(--amber-deep);">+신규</a></label>
+            <input list="custList" name="customer_name" placeholder="고객사명" />
+            <datalist id="custList">
+              {% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="field"><label>발주일</label><input type="date" name="order_date" /></div>
+          <div class="field"><label>납기</label><input type="date" name="due_date" /></div>
+          <div class="field"><label>통화</label>
+            <select name="currency"><option>KRW</option><option>USD</option></select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="field" style="grid-column: span 3;"><label>비고</label>
+            <input type="text" name="note" placeholder="발주 메모 / 참고사항" />
+          </div>
+          <div class="field"><label>엑셀 파일 (.xlsx)</label>
+            <input type="file" name="file" accept=".xlsx,.xls" required />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn-primary">📂 업로드 + 미리보기</button>
+          <a class="btn-secondary" href="/consumables">취소</a>
+        </div>
+      </form>
+      <div id="statusMsg"></div>
+    </div>
+
+    <div id="previewCard" class="card" style="display:none;">
+      <h2>② 미리보기 + 매칭 확인 (수정 가능)</h2>
+      <div style="font-size:12px;color:var(--mute);margin-bottom:8px;">
+        💡 자재 매칭 / 관리번호 연결은 자동 추정값입니다. 단가 등 라인을 수정하고 <b>등록 확정</b> 버튼을 누르세요.
+      </div>
+      <div class="preview-wrap">
+        <table class="preview">
+          <thead><tr>
+            <th>No</th><th>이미지</th><th>모델</th><th>품명</th>
+            <th style="width:60px;">수량</th><th style="width:50px;">단위</th>
+            <th style="width:90px;">단가</th>
+            <th>자재매칭</th><th>관리번호</th>
+          </tr></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button id="confirmBtn" type="button" class="btn-success">✅ 등록 확정</button>
+        <a class="btn-secondary" href="/consumables">취소</a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+let _co_id = null;
+let _lines = [];
+
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const msg = document.getElementById('statusMsg');
+  msg.className = 'info'; msg.textContent = '⏳ 업로드 + 파싱 중...';
+  try {
+    const res = await fetch('/consumables/upload-xlsx', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.ok) {
+      msg.className = 'err'; msg.textContent = '❌ ' + (data.error || '업로드 실패');
+      return;
+    }
+    if (data.error) {
+      msg.className = 'err'; msg.textContent = '❌ ' + data.error;
+      return;
+    }
+    _co_id = data.co_id;
+    _lines = data.lines || [];
+    msg.className = 'ok';
+    msg.textContent = `✅ ${data.co_no} 헤더 생성 · 라인 ${_lines.length}건 · 이미지 ${data.image_count}장 (헤더 row=${data.header_row})`;
+    renderPreview();
+    document.getElementById('previewCard').style.display = 'block';
+    document.getElementById('previewCard').scrollIntoView({behavior:'smooth'});
+  } catch (err) {
+    msg.className = 'err'; msg.textContent = '❌ ' + err;
+  }
+});
+
+function renderPreview() {
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  _lines.forEach((ln, idx) => {
+    const tr = document.createElement('tr');
+    const imgCell = (ln.images && ln.images[0])
+      ? `<a href="${ln.images[0].full_url}" target="_blank"><img src="${ln.images[0].thumb_url}" /></a>`
+      : '<span style="color:#aaa;font-size:11px;">—</span>';
+    const partBadge = ln.part_match
+      ? `<span class="match-badge match-${ln.part_match.match_level==='exact'?'exact':'partial'}">${ln.part_match.match_level==='exact'?'완전일치':'부분일치'}</span><div style="font-size:11px;color:var(--mute);">${ln.part_match.part_no} · ${ln.part_match.part_name}</div>`
+      : `<span class="match-badge match-none">매칭 없음</span>`;
+    const projBadge = ln.project_match
+      ? `<span class="match-badge match-partial">추정</span><div style="font-size:11px;color:var(--mute);">${ln.project_match.mgmt_code||'(코드없음)'} · ${ln.project_match.name}</div>`
+      : `<span class="match-badge match-none">미연결</span>`;
+    tr.innerHTML = `
+      <td><b>${ln.line_no}</b></td>
+      <td>${imgCell}</td>
+      <td><input data-idx="${idx}" data-k="model_use" value="${esc(ln.model_use)}" /></td>
+      <td><input data-idx="${idx}" data-k="part_name" value="${esc(ln.part_name)}" /></td>
+      <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
+      <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
+      <td><input data-idx="${idx}" data-k="unit_price" type="number" step="0.01" value="${ln.unit_price||0}" /></td>
+      <td>${partBadge}<input type="hidden" data-idx="${idx}" data-k="part_id" value="${ln.part_match?ln.part_match.id:''}" /></td>
+      <td>${projBadge}<input type="hidden" data-idx="${idx}" data-k="linked_project_id" value="${ln.project_match?ln.project_match.id:''}" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // bind change to update _lines
+  tbody.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const i = parseInt(inp.dataset.idx);
+      const k = inp.dataset.k;
+      let v = inp.value;
+      if (k === 'qty' || k === 'unit_price') v = parseFloat(v) || 0;
+      if (k === 'part_id' || k === 'linked_project_id') v = v ? parseInt(v) : null;
+      _lines[i][k] = v;
+    });
+  });
+}
+
+function esc(s) {
+  return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  if (!_co_id) return;
+  const items = _lines.map(ln => ({
+    line_no: ln.line_no,
+    model_use: ln.model_use,
+    part_name: ln.part_name,
+    spec: ln.spec || '',
+    qty: ln.qty,
+    unit: ln.unit,
+    unit_price: ln.unit_price || 0,
+    part_id: ln.part_id || (ln.part_match?ln.part_match.id:null),
+    linked_project_id: ln.linked_project_id || (ln.project_match?ln.project_match.id:null),
+    image_full_file: (ln.images && ln.images[0]) ? ln.images[0].full_file : null,
+    image_thumb_file: (ln.images && ln.images[0]) ? ln.images[0].thumb_file : null,
+    note: ln.note || '',
+  }));
+  const msg = document.getElementById('statusMsg');
+  msg.className = 'info'; msg.textContent = '⏳ 등록 중...';
+  try {
+    const res = await fetch(`/consumables/${_co_id}/import-confirmed`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({items})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.className = 'ok'; msg.textContent = `✅ ${data.inserted}건 등록 완료. 상세 페이지로 이동...`;
+      setTimeout(() => location.href = `/consumables/${_co_id}`, 700);
+    } else {
+      msg.className = 'err'; msg.textContent = '❌ ' + (data.error||'등록 실패');
+    }
+  } catch (err) {
+    msg.className = 'err'; msg.textContent = '❌ ' + err;
+  }
+});
+</script>
+</body>
+</html>

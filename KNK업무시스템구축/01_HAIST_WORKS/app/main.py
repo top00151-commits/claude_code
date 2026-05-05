@@ -152,6 +152,10 @@ BASE = os.path.dirname(os.path.dirname(__file__))
 app = FastAPI(title="KNK 일일업무일지 v2")
 app.add_middleware(SessionMiddleware, secret_key="knk-haist-2026-phase1")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
+# v5H142: 업로드 파일(소모품 발주 이미지 등) 정적 서빙
+_uploads_root = os.path.join(BASE, "uploads")
+os.makedirs(_uploads_root, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_uploads_root), name="uploads")
 tpl = Jinja2Templates(directory=os.path.join(BASE, "app", "templates"))
 
 # v5H5 (2026-05-02) — t() Jinja 전역: 어느 템플릿에서든 {{ t('키', '기본값') }} 호출 가능
@@ -3393,9 +3397,10 @@ async def project_detail(req: Request, pid: int):
                 ).fetchone()
                 _p_status = (p.get("status") if isinstance(p, dict) else p["status"]) or ""
                 _p_amt = float(p.get("order_amount") or 0) if isinstance(p, dict) else float(p["order_amount"] or 0)
-                if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0):
-                    # v5H137: project_type 기준 라벨 (백워드 호환 — NEW_EQUIP 폴백)
-                    _ptype_h = (p.get("project_type") if isinstance(p, dict) else (p["project_type"] if "project_type" in p.keys() else "")) or "NEW_EQUIP"
+                # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 별도 도메인 사용)
+                _ptype_h = (p.get("project_type") if isinstance(p, dict) else (p["project_type"] if "project_type" in p.keys() else "")) or "NEW_EQUIP"
+                if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0
+                    and _ptype_h == "NEW_EQUIP"):
                     res = _pwf.confirm_order_multi(
                         c2, int(pid),
                         units=[{
@@ -3514,6 +3519,13 @@ async def project_detail(req: Request, pid: int):
         consumables = _logi.get_project_consumables(pid, limit=200)
     except Exception:
         pass
+    # v5H142 (2026-05-05): 이 프로젝트에 연결된 소모품 발주(consumable_order_items) 라인
+    consumable_orders = {"rows": [], "total_amount": 0, "total_qty": 0, "count": 0}
+    try:
+        from . import consumables as _co_mod
+        consumable_orders = _co_mod.get_project_consumable_orders(pid, limit=200)
+    except Exception:
+        pass
     # v5H137 (2026-05-05): 부모 프로젝트 정보 — CONSUMABLE/SERVICE 인 경우 안내 배너용
     parent_project = None
     try:
@@ -3546,6 +3558,7 @@ async def project_detail(req: Request, pid: int):
                currency_warning=currency_warning,
                primary_so_currency=primary_so_currency,
                consumables=consumables,
+               consumable_orders=consumable_orders,
                PROJECT_TYPES=_logi.PROJECT_TYPES,
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
                parent_project=parent_project,
@@ -4971,8 +4984,10 @@ async def projects_quick_status(req: Request, pid: int):
         _logi.log_project_change(c, pid, u.get("id"), "상태", old_status, new_status,
                                   note="인라인 빠른 변경")
         # status 가 won 으로 바뀌었는데 mgmt_code 없으면 발급
+        # v5H142: NEW_EQUIP 만 관리번호 발급 (소모품/수리/기타 제외)
         if (new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
-            and cur["biz_div"] in ("T", "M")):
+            and cur["biz_div"] in ("T", "M")
+            and _cur_ptype == "NEW_EQUIP"):
             try:
                 code = _logi.generate_mgmt_code(cur["biz_div"])
                 c.execute("UPDATE projects SET mgmt_code=?, stage='수주확정' WHERE id=?",
@@ -4981,7 +4996,9 @@ async def projects_quick_status(req: Request, pid: int):
                 pass
         # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 SO 발행
         # v5H132: unit_qty N → N개 호기 라인 (단가=unit_price 또는 amt/qty)
-        if new_status in _logi.WON_STATUSES:
+        # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 consumable_orders 도메인)
+        _cur_ptype = (cur["project_type"] if "project_type" in cur.keys() else "") or "NEW_EQUIP"
+        if new_status in _logi.WON_STATUSES and _cur_ptype == "NEW_EQUIP":
             try:
                 amt0 = float(cur["order_amount"] or 0)
                 if amt0 > 0:
@@ -5487,11 +5504,16 @@ async def projects_add_followup(req: Request, pid: int):
         qty = 1
     if qty > 100:
         return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
+    # v5H142: so_type — EQUIPMENT(기본) / CONSUMABLE / SERVICE / OTHER
+    so_type = (form.get("so_type") or "EQUIPMENT").strip().upper()
+    if so_type not in ("EQUIPMENT", "CONSUMABLE", "SERVICE", "OTHER"):
+        so_type = "EQUIPMENT"
     with db_session() as c:
         res = _pwf.add_followup_order(c, pid, order_date=order_date,
                                         total_amount=total, due_date=due_date,
                                         created_by=u.get("id"),
-                                        po_number=po_number, note=note, qty=qty)
+                                        po_number=po_number, note=note, qty=qty,
+                                        so_type=so_type)
     return JSONResponse(res)
 
 
@@ -8185,8 +8207,9 @@ async def projects_new_submit(request: Request):
     # v5H87: confirm_now 미체크 + status 가 won (진행중/납품완료) 인 경우
     # 자동으로 SO 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
     # v5H132: 수량 N → N개 호기 라인 자동 생성 (단가=unit_price)
+    # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 consumable_orders 도메인)
     status_val = (form.get("status") or "").strip()
-    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES:
+    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES and _ptype == "NEW_EQUIP":
         try:
             with db_session() as c:
                 # 이미 SO 가 있으면 발행 안 함 (재진입 방지)
@@ -8353,7 +8376,8 @@ async def projects_edit_submit(request: Request, pid: int):
     })
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
-    if status_val in _logi.WON_STATUSES:
+    # v5H142: NEW_EQUIP 만 자동 SO 발행
+    if status_val in _logi.WON_STATUSES and _ptype == "NEW_EQUIP":
         try:
             with db_session() as c:
                 exists = c.execute(
@@ -14815,3 +14839,277 @@ async def api_projects_search(request: Request, q: str = ""):
         return JSONResponse({"ok": False, "error": str(e)}, 500)
     return JSONResponse({"ok": True, "rows": rows})
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v5H142 (2026-05-05) — 소모품 발주 전용 도메인 (대표 직접 요청)
+# 신규 검사기와 분리. 관리번호 발급 X. 엑셀 일괄 import + 이미지 자동 압축
+# ═══════════════════════════════════════════════════════════════════════════════
+from . import consumables as _co
+import shutil
+
+
+@app.get("/consumables", response_class=HTMLResponse)
+async def consumables_list(request: Request, status: str = "", q: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    rows = _co.co_list(status=status, q=q, limit=300)
+    groups: dict = {}
+    for r in rows:
+        ym = (r.get("order_date") or "")[:7] or "기타"
+        groups.setdefault(ym, []).append(r)
+    months = sorted(groups.keys(), reverse=True)
+    return ctx(request, "consumables.html",
+               user=u, active="consumables",
+               rows=rows, months=months, groups=groups,
+               status=status, q=q,
+               STATUS_LABELS=_co.CO_STATUS_LABELS,
+               STATUSES=_co.CO_STATUSES)
+
+
+@app.get("/consumables/new", response_class=HTMLResponse)
+async def consumables_new_form(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    return ctx(request, "consumable_form_upload.html",
+               user=u, active="consumables",
+               customers=_logi.customers_for_picker())
+
+
+@app.post("/consumables/upload-xlsx")
+async def consumables_upload_xlsx(request: Request,
+                                   file: UploadFile = File(...),
+                                   customer_name: str = Form(""),
+                                   order_date: str = Form(""),
+                                   due_date: str = Form(""),
+                                   currency: str = Form("KRW"),
+                                   note: str = Form("")):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    co_id, co_no = _co.co_create(
+        customer_name=customer_name, order_date=order_date, due_date=due_date,
+        currency=currency, note=note, source_file=file.filename or "",
+        created_by=u.get("id"),
+    )
+    raw = await file.read()
+    tmp_dir = tempfile.mkdtemp(prefix=f"co_{co_id}_")
+    tmp_path = os.path.join(tmp_dir, file.filename or "upload.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    img_dir = _co.co_image_dir(co_id)
+    parsed = _co.parse_consumable_xlsx(tmp_path, image_out_dir=img_dir)
+    enriched = []
+    for ln in parsed["lines"]:
+        part_match = _co.match_part_by_name(ln.get("part_name", ""))
+        proj_match = _co.match_project_by_model(ln.get("model_use", ""))
+        imgs_v = parsed["images"].get(ln["line_no"], [])
+        if not isinstance(imgs_v, list):
+            imgs_v = []
+        ln_out = {
+            **ln,
+            "part_match": part_match,
+            "project_match": proj_match,
+            "images": [{
+                "thumb_url": _co.co_image_url(co_id, im["thumb"]),
+                "full_url": _co.co_image_url(co_id, im["full"]),
+                "thumb_file": im["thumb"], "full_file": im["full"],
+                "orig_size": im.get("orig_size", 0),
+                "compressed_size": im.get("compressed", 0),
+            } for im in imgs_v],
+        }
+        enriched.append(ln_out)
+    try:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    except Exception:
+        pass
+    return JSONResponse({
+        "ok": True,
+        "co_id": co_id, "co_no": co_no,
+        "header_row": parsed.get("header_row"),
+        "col_map": parsed.get("col_map"),
+        "lines": enriched,
+        "image_count": parsed.get("image_count", 0),
+        "error": parsed.get("error"),
+    })
+
+
+@app.post("/consumables/{co_id:int}/import-confirmed")
+async def consumables_import_confirmed(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    items_in = body.get("items") or []
+    items_out = []
+    for it in items_in:
+        items_out.append({
+            "line_no": it.get("line_no") or 0,
+            "model_use": it.get("model_use") or "",
+            "part_name": it.get("part_name") or "",
+            "spec": it.get("spec") or "",
+            "qty": it.get("qty") or 0,
+            "unit": it.get("unit") or "EA",
+            "unit_price": it.get("unit_price") or 0,
+            "part_id": it.get("part_id"),
+            "linked_project_id": it.get("linked_project_id"),
+            "image_path": (_co.co_image_url(co_id, it["image_full_file"])
+                            if it.get("image_full_file") else None),
+            "image_thumb_path": (_co.co_image_url(co_id, it["image_thumb_file"])
+                                  if it.get("image_thumb_file") else None),
+            "note": it.get("note") or "",
+        })
+    n = _co.coi_bulk_insert(co_id, items_out)
+    return JSONResponse({"ok": True, "co_id": co_id, "inserted": n})
+
+
+@app.get("/consumables/{co_id:int}", response_class=HTMLResponse)
+async def consumables_detail(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    co = _co.co_get(co_id)
+    if not co:
+        return RedirectResponse("/consumables", 303)
+    items = _co.coi_list(co_id)
+    return ctx(request, "consumable_detail.html",
+               user=u, active="consumables",
+               co=co, items=items,
+               STATUS_LABELS=_co.CO_STATUS_LABELS,
+               STATUSES=_co.CO_STATUSES)
+
+
+@app.post("/consumables/{co_id:int}/items/{iid:int}/edit")
+async def consumables_item_edit(request: Request, co_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    form = await request.form()
+    fields = {}
+    for k in ("model_use", "part_name", "spec", "unit", "note"):
+        if k in form:
+            fields[k] = (form.get(k) or "").strip()
+    for k in ("qty", "unit_price"):
+        if k in form:
+            try:
+                fields[k] = float((form.get(k) or "0").replace(",", ""))
+            except ValueError:
+                fields[k] = 0
+    for k in ("part_id", "linked_project_id"):
+        if k in form:
+            v = (form.get(k) or "").strip()
+            fields[k] = int(v) if v.isdigit() else None
+    _co.coi_update(iid, fields)
+    co = _co.co_get(co_id)
+    return JSONResponse({"ok": True, "total_amount": (co or {}).get("total_amount", 0)})
+
+
+@app.post("/consumables/{co_id:int}/items/{iid:int}/link-project")
+async def consumables_item_link_project(request: Request, co_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    form = await request.form()
+    pid_raw = (form.get("project_id") or "").strip()
+    pid = int(pid_raw) if pid_raw.isdigit() else None
+    _co.coi_update(iid, {"linked_project_id": pid})
+    return JSONResponse({"ok": True, "linked_project_id": pid})
+
+
+@app.post("/consumables/{co_id:int}/items/{iid:int}/match-part")
+async def consumables_item_match_part(request: Request, co_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    form = await request.form()
+    pid_raw = (form.get("part_id") or "").strip()
+    pid = int(pid_raw) if pid_raw.isdigit() else None
+    _co.coi_update(iid, {"part_id": pid})
+    return JSONResponse({"ok": True, "part_id": pid})
+
+
+@app.post("/consumables/{co_id:int}/items/{iid:int}/delete")
+async def consumables_item_delete(request: Request, co_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    _co.coi_delete(iid)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/consumables/{co_id:int}/status")
+async def consumables_set_status(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    form = await request.form()
+    st = (form.get("status") or "").strip().upper()
+    if st not in _co.CO_STATUSES:
+        return JSONResponse({"ok": False, "error": "invalid status"}, 400)
+    with db_session() as c:
+        c.execute("UPDATE consumable_orders SET status=? WHERE id=?", (st, int(co_id)))
+    return JSONResponse({"ok": True, "status": st})
+
+
+@app.post("/consumables/{co_id:int}/delete")
+async def consumables_delete(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    _co.co_delete(co_id)
+    return RedirectResponse("/consumables", 303)
+
+
+@app.get("/api/parts/search")
+async def api_parts_search(request: Request, q: str = ""):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    q = (q or "").strip()
+    rows = []
+    try:
+        with db_session() as c:
+            if q:
+                like = f"%{q}%"
+                rs = c.execute(
+                    "SELECT id, part_no, part_name, std_price, unit FROM parts "
+                    "WHERE (part_no LIKE ? OR part_name LIKE ?) "
+                    "  AND COALESCE(is_active,1)=1 LIMIT 30",
+                    (like, like)
+                ).fetchall()
+            else:
+                rs = c.execute(
+                    "SELECT id, part_no, part_name, std_price, unit FROM parts "
+                    "WHERE COALESCE(is_active,1)=1 ORDER BY id DESC LIMIT 30"
+                ).fetchall()
+            rows = [dict(r) for r in rs]
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    return JSONResponse({"ok": True, "rows": rows})

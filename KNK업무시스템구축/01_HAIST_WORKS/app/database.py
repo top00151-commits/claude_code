@@ -482,6 +482,50 @@ CREATE INDEX IF NOT EXISTS idx_popl_po_item ON po_item_project_links(po_item_id)
 CREATE INDEX IF NOT EXISTS idx_popl_project ON po_item_project_links(project_id);
 
 -- =====================================================
+-- v5H142 (2026-05-05): 소모품 발주 전용 도메인 (대표 직접 요청)
+-- 신규 검사기와 분리 — 관리번호 발급 X, 엑셀 일괄 import + 이미지 자동 압축
+-- =====================================================
+CREATE TABLE IF NOT EXISTS consumable_orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    co_no           TEXT,                            -- CO-YYMMNN 자동 채번
+    customer_id     INTEGER REFERENCES customers(id),
+    customer_name   TEXT,
+    order_date      TEXT,
+    due_date        TEXT,
+    currency        TEXT DEFAULT 'KRW',
+    total_amount    REAL DEFAULT 0,
+    status          TEXT DEFAULT 'DRAFT',            -- DRAFT/QUOTED/CONFIRMED/SHIPPED/PAID/CANCELLED
+    note            TEXT,
+    source_file     TEXT,                            -- 업로드 원본 파일명
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    created_by      INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_co_cust ON consumable_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_co_status ON consumable_orders(status);
+CREATE INDEX IF NOT EXISTS idx_co_date ON consumable_orders(order_date);
+
+CREATE TABLE IF NOT EXISTS consumable_order_items (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    co_id              INTEGER NOT NULL REFERENCES consumable_orders(id) ON DELETE CASCADE,
+    line_no            INTEGER,
+    model_use          TEXT,                         -- 엑셀 MODEL USE
+    part_id            INTEGER REFERENCES parts(id), -- 자재 마스터 매칭(선택)
+    part_name          TEXT,                         -- 엑셀 SUPPLIER NAME (품명)
+    spec               TEXT,
+    qty                REAL,
+    unit               TEXT DEFAULT 'EA',
+    unit_price         REAL DEFAULT 0,
+    amount             REAL DEFAULT 0,
+    linked_project_id  INTEGER REFERENCES projects(id), -- 관리번호 연결(선택)
+    note               TEXT,
+    image_path         TEXT,                         -- 압축본 경로
+    image_thumb_path   TEXT                          -- 썸네일 경로
+);
+CREATE INDEX IF NOT EXISTS idx_coi_co ON consumable_order_items(co_id);
+CREATE INDEX IF NOT EXISTS idx_coi_proj ON consumable_order_items(linked_project_id);
+CREATE INDEX IF NOT EXISTS idx_coi_part ON consumable_order_items(part_id);
+
+-- =====================================================
 -- STOCK MOVEMENTS — 입출고 원장 (수불부) (2026-04-20)
 -- 모든 재고 증감은 여기 기록 → parts.stock_qty는 합계 결과
 -- =====================================================
@@ -2148,6 +2192,9 @@ def init_db():
                 ("unit_qty",           "ALTER TABLE orders ADD COLUMN unit_qty INTEGER DEFAULT 1"),
                 # v5H92: 통화 (KRW / USD) — SO 단위
                 ("currency",           "ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'KRW'"),
+                # v5H142 (2026-05-05): SO 종류 — 부모 프로젝트 안에서 SO 단위로 종류 분리
+                # EQUIPMENT/CONSUMABLE/SERVICE/OTHER. NULL → EQUIPMENT 폴백.
+                ("so_type",            "ALTER TABLE orders ADD COLUMN so_type TEXT DEFAULT 'EQUIPMENT'"),
             ]:
                 if col not in ocols:
                     try:
@@ -3532,6 +3579,31 @@ def project_unit_label(project_type: str | None, n: int) -> str:
     return PROJECT_TYPE_UNIT_LABEL[pt].format(n=n)
 
 
+# v5H142 (2026-05-05) — 부모 프로젝트 안 SO 단위 종류 분리 (대표 직접 요청)
+# 소모품/정비를 매번 새 관리번호 발급하지 않고 부모 SO 로 직접 추가
+SO_TYPES = ("EQUIPMENT", "CONSUMABLE", "SERVICE", "OTHER")
+SO_TYPE_LABELS = {
+    "EQUIPMENT":  ("🔧", "장비"),
+    "CONSUMABLE": ("📦", "소모품"),
+    "SERVICE":    ("🔨", "정비"),
+    "OTHER":      ("🌐", "기타"),
+}
+SO_TYPE_UNIT_LABEL = {
+    "EQUIPMENT":  "{n}호기",
+    "CONSUMABLE": "소모품-{n}차",
+    "SERVICE":    "정비-{n}차",
+    "OTHER":      "{n}건",
+}
+
+
+def so_unit_label(so_type: str | None, project_type: str | None, n: int) -> str:
+    """v5H142: SO 단위 라벨. so_type 우선 → 폴백 project_type → 폴백 '{n}호기'."""
+    st = (so_type or "").upper()
+    if st in SO_TYPE_UNIT_LABEL:
+        return SO_TYPE_UNIT_LABEL[st].format(n=n)
+    return project_unit_label(project_type, n)
+
+
 def _logi_now() -> str:
     return _dt.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -3844,9 +3916,12 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     vals = _project_insert_or_update_values(data)
     now = _logi_now()
     # v5H86: stage 가 NEEDS_CODE_STAGES 이거나 status 가 WON_STATUSES 면 관리코드 발급
+    # v5H142 (2026-05-05): CONSUMABLE/SERVICE/OTHER 는 관리번호 발급 안 함 (대표 직접 지시)
+    _ptype_in = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
         (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
         and vals["biz_div"] in ("T", "M")
+        and _ptype_in == "NEW_EQUIP"
     )
     # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
@@ -4035,9 +4110,12 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
             _pending_logs.append((label, old_v, new_v))
     new_code = current["mgmt_code"]
     # v5H86: stage 또는 status 가 won 의미면 관리코드 발급
+    # v5H142 (2026-05-05): CONSUMABLE/SERVICE/OTHER 는 관리번호 발급 안 함
+    _ptype_up = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
         (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
         and vals["biz_div"] in ("T", "M")
+        and _ptype_up == "NEW_EQUIP"
     )
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"

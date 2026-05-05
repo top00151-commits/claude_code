@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H141 부모 프로젝트 상세에 "연결된 자식 프로젝트(소모품·수리)" 카드 신설 — get_child_projects 헬퍼 + /project/{pid} ctx + project_detail.html 신규 섹션 (관리번호/유형pill/상태/최근SO/합계). 부모↔자식 가시화 결함 수정 (자식 0건이면 카드 미노출)
+REM   LAST UPDATE: 2026-05-05 v5H142 소모품 발주 전용 도메인 신설 — consumable_orders/items 테이블 + 엑셀 일괄 import + 이미지 자동 압축(1920px JPEG q85, 평균 88% 절감) + 자재/관리번호 자동매칭 + /consumables 라우트 8건 + 3개 신규 템플릿. 관리번호 발급/자동 SO 모두 NEW_EQUIP만 트리거(소모품·수리·기타 차단). 프로젝트 상세에 "📦 소모품 발주 이력" 카드 추가.
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H140]
+title KNK HAIST WORKS [v5H142]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H140  2026-05-05]
+echo    [v5H142  2026-05-05]
 echo ============================================================
 echo.
 

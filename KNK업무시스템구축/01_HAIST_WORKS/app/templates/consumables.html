@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>소모품 발주 목록 · KNK HAIST WORKS</title>
+{# v5H142 (2026-05-05) — 소모품 발주 목록 (대표 직접 요청) #}
+<link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); }
+a { text-decoration: none; color: inherit; }
+.page-head { padding: 24px 32px 8px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.crumbs b { color: var(--ink); }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--ink); }
+.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-amber); display: inline-flex; align-items: center; gap: 6px; }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--ink); }
+.summary-row { margin: 0 32px 16px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; }
+.summary-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; cursor: pointer; }
+.summary-card.active { background: var(--amber-glow); border-color: var(--amber); }
+.summary-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.summary-card .num { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.toolbar { padding: 0 32px 12px; display: flex; gap: 8px; align-items: center; }
+.toolbar .search { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.month-block { margin: 0 32px 24px; }
+.month-title { font-size: 14px; font-weight: 700; color: var(--mute); margin: 12px 0 6px; }
+table.list { width: 100%; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+table.list th, table.list td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--line); }
+table.list th { background: var(--paper-2, #f8f8f8); text-align: left; font-weight: 600; color: var(--mute); }
+table.list tbody tr { cursor: pointer; }
+table.list tbody tr:hover { background: var(--amber-glow); }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--paper-2); border: 1px solid var(--line); }
+.pill-draft { background: #f3f4f6; color: #4b5563; }
+.pill-quoted { background: #fef3c7; color: #92400e; }
+.pill-confirmed { background: #dbeafe; color: #1e40af; }
+.pill-shipped { background: #d1fae5; color: #065f46; }
+.pill-paid { background: #d1fae5; color: #065f46; }
+.pill-cancelled { background: #fee2e2; color: #991b1b; }
+.empty-state { padding: 60px 20px; text-align: center; color: var(--mute); background: var(--paper-3); border: 1px dashed var(--line); border-radius: 12px; margin: 0 32px; }
+.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>소모품 발주</b></div>
+        <h1 class="page-title">소모품 <em>발주</em></h1>
+      </div>
+      <div>
+        <a class="btn-primary" href="/consumables/new">＋ 새 소모품 발주</a>
+      </div>
+    </div>
+
+    {% set total_cnt = rows|length %}
+    {% set d_cnt = rows|selectattr('status','equalto','DRAFT')|list|length %}
+    {% set q_cnt = rows|selectattr('status','equalto','QUOTED')|list|length %}
+    {% set c_cnt = rows|selectattr('status','equalto','CONFIRMED')|list|length %}
+    {% set s_cnt = rows|selectattr('status','equalto','SHIPPED')|list|length %}
+    {% set p_cnt = rows|selectattr('status','equalto','PAID')|list|length %}
+    {% set x_cnt = rows|selectattr('status','equalto','CANCELLED')|list|length %}
+    <div class="summary-row">
+      <a class="summary-card {% if not status %}active{% endif %}" href="/consumables">
+        <div class="lbl">전체</div><div class="num">{{ total_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='DRAFT' %}active{% endif %}" href="/consumables?status=DRAFT">
+        <div class="lbl">작성중</div><div class="num">{{ d_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='QUOTED' %}active{% endif %}" href="/consumables?status=QUOTED">
+        <div class="lbl">견적완료</div><div class="num">{{ q_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='CONFIRMED' %}active{% endif %}" href="/consumables?status=CONFIRMED">
+        <div class="lbl">발주확정</div><div class="num">{{ c_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='SHIPPED' %}active{% endif %}" href="/consumables?status=SHIPPED">
+        <div class="lbl">납품완료</div><div class="num">{{ s_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='PAID' %}active{% endif %}" href="/consumables?status=PAID">
+        <div class="lbl">수금완료</div><div class="num">{{ p_cnt }}</div>
+      </a>
+      <a class="summary-card {% if status=='CANCELLED' %}active{% endif %}" href="/consumables?status=CANCELLED">
+        <div class="lbl">취소</div><div class="num">{{ x_cnt }}</div>
+      </a>
+    </div>
+
+    <form class="toolbar" method="get" action="/consumables">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input class="search" type="search" name="q" value="{{ q }}" placeholder="발주번호 / 고객사 / 비고…" />
+      <button type="submit" class="btn-secondary">검색</button>
+    </form>
+
+    {% if rows %}
+      {% for ym in months %}
+      <div class="month-block">
+        <div class="month-title">📅 {{ ym }}</div>
+        <table class="list">
+          <thead><tr>
+            <th>발주번호</th><th>고객사</th><th>상태</th>
+            <th class="amount">합계</th><th>발주일</th><th>비고</th>
+          </tr></thead>
+          <tbody>
+          {% for r in groups[ym] %}
+            <tr onclick="location.href='/consumables/{{ r.id }}'">
+              <td><b>{{ r.co_no or '—' }}</b></td>
+              <td>{{ r.customer_name or '—' }}</td>
+              <td><span class="pill pill-{{ r.status|lower }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
+              <td class="amount">
+                {% if r.currency and r.currency != 'KRW' %}{{ r.currency }} {% endif %}{{ '{:,.0f}'.format(r.total_amount or 0) }}{% if not r.currency or r.currency=='KRW' %}원{% endif %}
+              </td>
+              <td>{{ r.order_date or '—' }}</td>
+              <td style="color:var(--mute);font-size:12px;">{{ (r.note or '')[:40] }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div style="font-size:18px;margin-bottom:8px;">📦 등록된 소모품 발주가 없습니다</div>
+        <div>오른쪽 위 <b>＋ 새 소모품 발주</b> 버튼으로 엑셀을 업로드하거나 수동 등록하세요.</div>
+      </div>
+    {% endif %}
+  </main>
+</div>
+</body>
+</html>

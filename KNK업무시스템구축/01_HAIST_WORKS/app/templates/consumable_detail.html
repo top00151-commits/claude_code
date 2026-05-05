@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ co.co_no }} · 소모품 발주 상세 · KNK HAIST WORKS</title>
+{# v5H142 (2026-05-05) — 소모품 발주 상세 (인라인 편집) #}
+<link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', sans-serif; background: var(--paper); color: var(--ink); }
+a { text-decoration: none; color: inherit; }
+.page-head { padding: 24px 32px 8px; display: flex; justify-content: space-between; align-items: flex-end; }
+.crumbs { font-size: 12px; color: var(--mute); }
+.page-title { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.page-title em { font-style: normal; color: var(--amber-deep); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.card { background: var(--paper-3); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
+.header-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.h-cell .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.h-cell .val { font-size: 16px; font-weight: 700; margin-top: 2px; }
+.h-cell .val.amount { color: var(--amber-deep); font-size: 20px; }
+.status-pills { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.s-pill { padding: 4px 10px; border-radius: 99px; font-size: 11px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); }
+.s-pill.active { background: var(--grad-amber); color: white; border-color: transparent; }
+table.items { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.items th, table.items td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+table.items th { background: #f8f8f8; font-weight: 600; color: var(--mute); }
+table.items img { width: 60px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+table.items input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; width: 100%; }
+table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
+.modal-bg.show { display: flex; }
+.modal-bg img { max-width: 90vw; max-height: 90vh; }
+tfoot td { background: #fafafa; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>{{ co.co_no }}</b></div>
+        <h1 class="page-title">{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <a class="btn-secondary" href="/consumables">← 목록</a>
+        <form method="post" action="/consumables/{{ co.id }}/delete" onsubmit="return confirm('정말 이 발주를 삭제하시겠습니까? (라인 + 이미지 모두 삭제)');" style="display:inline;">
+          <button class="btn-danger" type="submit">🗑 삭제</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="header-grid">
+        <div class="h-cell"><div class="lbl">발주번호</div><div class="val">{{ co.co_no }}</div></div>
+        <div class="h-cell"><div class="lbl">고객사</div><div class="val">{{ co.customer_name or '—' }}</div></div>
+        <div class="h-cell"><div class="lbl">발주일</div><div class="val">{{ co.order_date or '—' }}</div></div>
+        <div class="h-cell"><div class="lbl">납기</div><div class="val">{{ co.due_date or '—' }}</div></div>
+        <div class="h-cell"><div class="lbl">합계</div>
+          <div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <div class="lbl" style="font-size:11px;color:var(--mute);font-weight:600;margin-bottom:4px;">상태 변경</div>
+        <div class="status-pills">
+          {% for st in STATUSES %}
+            <span class="s-pill {% if st==co.status %}active{% endif %}" data-status="{{ st }}">{{ STATUS_LABELS[st] }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% if co.note %}
+      <div style="margin-top:14px;font-size:13px;color:var(--mute);">📝 {{ co.note }}</div>
+      {% endif %}
+      {% if co.source_file %}
+      <div style="margin-top:6px;font-size:12px;color:var(--mute);">📂 원본 파일: {{ co.source_file }}</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;">라인 항목 ({{ items|length }})</h2>
+      {% if items %}
+      <table class="items">
+        <thead><tr>
+          <th style="width:40px;">No</th>
+          <th style="width:80px;">이미지</th>
+          <th>모델 / 품명</th>
+          <th style="width:80px;">수량</th>
+          <th style="width:60px;">단위</th>
+          <th style="width:110px;">단가</th>
+          <th style="width:130px;" class="amount">합계</th>
+          <th style="width:160px;">관리번호</th>
+          <th style="width:50px;"></th>
+        </tr></thead>
+        <tbody>
+        {% for it in items %}
+          <tr data-iid="{{ it.id }}">
+            <td><b>{{ it.line_no }}</b></td>
+            <td>
+              {% if it.image_thumb_path %}
+                <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank">
+                  <img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" />
+                </a>
+              {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
+            </td>
+            <td>
+              <input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" />
+              <input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" style="margin-top:4px;" />
+              {% if it.part_no %}<div style="font-size:10px;color:var(--mute);margin-top:2px;">자재: {{ it.part_no }}</div>{% endif %}
+            </td>
+            <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>
+            <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
+            <td><input data-k="unit_price" type="number" step="0.01" value="{{ it.unit_price or 0 }}" /></td>
+            <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+            <td>
+              {% if it.linked_mgmt_code %}
+                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:var(--amber-deep);font-weight:600;">{{ it.linked_mgmt_code }}</a>
+                <div style="font-size:10px;color:var(--mute);">{{ it.linked_project_name }}</div>
+              {% elif it.linked_project_id %}
+                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="font-size:11px;color:var(--mute);">PID {{ it.linked_project_id }}</a>
+              {% else %}
+                <span style="color:#aaa;font-size:11px;">미연결</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn-danger" type="button" onclick="delLine({{ it.id }})" style="padding:4px 8px;font-size:11px;">삭제</button>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align:right;">합계</td>
+            <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+      {% else %}
+        <div style="padding:30px;text-align:center;color:var(--mute);">라인이 없습니다.</div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+
+<script>
+const CO_ID = {{ co.id }};
+const CURR = "{{ co.currency or 'KRW' }}";
+
+document.querySelectorAll('table.items input').forEach(inp => {
+  inp.addEventListener('change', async () => {
+    const tr = inp.closest('tr');
+    const iid = tr.dataset.iid;
+    const k = inp.dataset.k;
+    const v = inp.value;
+    const fd = new FormData(); fd.append(k, v);
+    const res = await fetch(`/consumables/${CO_ID}/items/${iid}/edit`, {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.ok) {
+      // recompute row amount client-side too
+      const qty = parseFloat(tr.querySelector('input[data-k=qty]').value)||0;
+      const up  = parseFloat(tr.querySelector('input[data-k=unit_price]').value)||0;
+      tr.querySelector('.cell-amount').textContent = (qty*up).toLocaleString('ko-KR',{maximumFractionDigits:0});
+      const tot = data.total_amount || 0;
+      const txt = (CURR!=='KRW'? CURR+' ':'') + tot.toLocaleString('ko-KR',{maximumFractionDigits:0}) + (CURR==='KRW'?'원':'');
+      document.getElementById('totalAmount').textContent = txt;
+      document.getElementById('footTotal').textContent = tot.toLocaleString('ko-KR',{maximumFractionDigits:0}) + (CURR==='KRW'?'원':'');
+    }
+  });
+});
+
+async function delLine(iid) {
+  if (!confirm('이 라인을 삭제하시겠습니까?')) return;
+  const res = await fetch(`/consumables/${CO_ID}/items/${iid}/delete`, {method:'POST'});
+  const data = await res.json();
+  if (data.ok) location.reload();
+}
+
+document.querySelectorAll('.s-pill').forEach(pill => {
+  pill.addEventListener('click', async () => {
+    const st = pill.dataset.status;
+    const fd = new FormData(); fd.append('status', st);
+    const res = await fetch(`/consumables/${CO_ID}/status`, {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.ok) location.reload();
+  });
+});
+</script>
+</body>
+</html>

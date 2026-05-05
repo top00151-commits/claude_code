@@ -98,9 +98,12 @@
           </select>
         </div>
         <div class="pf-field">
-          <label>관리코드</label>
+          <label>관리코드 <span class="sub" style="color:#a07a30;">(신규 장비만 자동 발급 · 소모품·수리·기타 제외)</span></label>
           <input type="text" name="mgmt_code" value="{{ project.mgmt_code|default('') }}"
-                 placeholder="저장 시 자동 발급" {% if not project %}readonly{% endif %}>
+                 placeholder="신규 장비 저장 시 자동 발급" {% if not project %}readonly{% endif %}>
+          <div style="font-size:11px;color:var(--mute);margin-top:4px;">
+            💡 v5H142 (대표 지시): 소모품 발주는 <a href="/consumables/new" style="color:var(--amber-deep);font-weight:600;">/소모품 발주</a> 메뉴에서 엑셀 업로드로 일괄 등록하세요.
+          </div>
         </div>
       </div>
       {# v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
