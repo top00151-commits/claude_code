@@ -4,6 +4,16 @@
 
 ---
 
+## v5H130 (2026-05-05) — 자동 SO 발행 누락 결함 3중 차단 (대표 직접 보고)
+- **재현 케이스**: 009T2605 김성준1 검사기 — 인라인 "초기협의 → 진행중" 클릭 후 SO 0건, 사용자가 "추가 발주" 누름 → 1호기가 4.9M으로 기록되며 초기 5M 흔적 소실
+- **근본 원인**: `POST /projects/{pid}/quick-status` 라우트(main.py:4862)에 v5H87 자동 SO 발행 로직이 누락. form-POST 경로(`/projects/new`, `/projects/{pid}/edit`)에는 있으나 인라인 상태변경 경로에는 없었음
+- **수정 1 (HIGH)**: quick-status 라우트가 WON_STATUSES 진입 시 + SO 0건 + order_amount > 0 → `confirm_order_multi`로 1호기 자동 발행. 이력에 "수주발행(자동) v5H130 자동" 기록
+- **수정 2 (HIGH 백업 안전망)**: `GET /project/{pid}` 진입 시 동일 조건이면 자동 1호기 발행 — 어떤 경로로 들어왔든 상세 페이지 한 번 열면 자가치유. 또한 `order_amount` 자가치유 시 `log_project_change`로 변경 이력 기록 (이전엔 무로그 덮어쓰기였음)
+- **수정 3 (MED UX 가드)**: `openFollowupOrder()` JS — 기존 SO 0건이면 confirm 모달로 경고 ("이 발주가 1호기로 기록됨, 새로고침하면 자가치유"). 사용자 의도가 "추가"인데 실제는 "초기"가 되는 함정 차단
+- 부수 수정: quick-status의 `generate_mgmt_code(biz_div)` 호출은 database.py 시그니처(1-arg) 그대로 유지 (project_workflow.py 의 3-arg 변종과 혼동 방지)
+- 백워드 호환: 기존 라우트 응답 스키마 유지 + try/except로 모든 자동 발행 swallow (실패해도 상태 변경은 성공). JSON 응답에 `auto_so_issued`, `auto_so_no` 필드만 추가
+- py_compile PASS (main.py / database.py / project_workflow.py)
+
 ## v5H129 (2026-05-04) — 자재 등록 사진/도면 첨부 + 자동 용량 최소화
 - 대표 직접 요청
 - DB: `part_attachments` 테이블 신설 (part_id FK CASCADE + idx)

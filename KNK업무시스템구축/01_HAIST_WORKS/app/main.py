@@ -3383,6 +3383,41 @@ async def project_detail(req: Request, pid: int):
             except Exception:
                 pass
 
+            # v5H130: WON status + SO 0건 + order_amount > 0 → 백업 안전망
+            #   인라인/폼 경로 모두 놓친 케이스를 상세 페이지 진입 시 보강.
+            #   사용자 시나리오(009T2605)에서 v5H87 quick-status 누락으로
+            #   SO가 발행 안 된 상태가 발견된 결함의 최후 차단막.
+            try:
+                _pre_sos = c2.execute(
+                    "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
+                ).fetchone()
+                _p_status = (p.get("status") if isinstance(p, dict) else p["status"]) or ""
+                _p_amt = float(p.get("order_amount") or 0) if isinstance(p, dict) else float(p["order_amount"] or 0)
+                if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0):
+                    res = _pwf.confirm_order_multi(
+                        c2, int(pid),
+                        units=[{
+                            "label": "1호기",
+                            "amount": _p_amt,
+                            "due_date": (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or "",
+                            "ship_to": "",
+                            "note": "",
+                        }],
+                        order_date=(p.get("order_date") if isinstance(p, dict) else p["order_date"]) or "",
+                        created_by=u.get("id") or 0,
+                        po_number=(p.get("customer_po") if isinstance(p, dict) else (p["customer_po"] if "customer_po" in p.keys() else "")) or "",
+                    )
+                    if res and res.get("ok"):
+                        grp = (res.get("groups") or [{}])[0]
+                        _auto_no = grp.get("so_no") or res.get("so_no") or ""
+                        _logi.log_project_change(
+                            c2, pid, u.get("id"), "수주발행(자동)",
+                            "", _auto_no or "1호기",
+                            note=f"v5H130 자가치유 — 상세 진입 시 누락된 1호기 SO 자동 발행 ({_p_amt:,.0f})"
+                        )
+            except Exception:
+                pass
+
             project_orders = _pwf.get_project_orders(c2, pid)
             if project_orders:
                 _so_sum = sum(float(o.get("total_amount") or 0) for o in project_orders)
@@ -3390,6 +3425,15 @@ async def project_detail(req: Request, pid: int):
                 if abs(_so_sum - _curr) > 0.5:
                     c2.execute("UPDATE projects SET order_amount=? WHERE id=?",
                                (_so_sum, pid))
+                    # v5H130: 자가치유 변경 이력 기록 (이전 누락분)
+                    try:
+                        _logi.log_project_change(
+                            c2, pid, u.get("id"), "수주액(자가치유)",
+                            f"{_curr:,.0f}", f"{_so_sum:,.0f}",
+                            note="v5H130 SO 합계 기준 자동 정정"
+                        )
+                    except Exception:
+                        pass
                     if isinstance(p, dict):
                         p["order_amount"] = _so_sum
                 # 납기 자가치유 (MAX)
@@ -4861,7 +4905,10 @@ async def auth_verify_password(req: Request):
 
 @app.post("/projects/{pid:int}/quick-status")
 async def projects_quick_status(req: Request, pid: int):
-    """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번)."""
+    """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번).
+    v5H130 (2026-05-05): WON_STATUSES 진입 시 SO 자동 발행 (1호기) — form-POST
+    경로(projects/new, projects/{pid}/edit)와 동일한 v5H87 안전망. 인라인
+    경로에서 SO 누락 → '추가 발주' 버튼이 1호기를 덮어쓰던 결함을 차단."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
@@ -4871,8 +4918,13 @@ async def projects_quick_status(req: Request, pid: int):
     new_status = (form.get("status") or "").strip()
     if new_status not in _logi.LOGI_STATUSES:
         return JSONResponse({"ok": False, "message": "유효하지 않은 상태"}, 400)
+    auto_so_issued = False
+    auto_so_no = None
     with db_session() as c:
-        cur = c.execute("SELECT status, mgmt_code, biz_div FROM projects WHERE id=?", (pid,)).fetchone()
+        cur = c.execute(
+            "SELECT status, mgmt_code, biz_div, order_amount, order_date, "
+            "due_date, customer_po FROM projects WHERE id=?", (pid,)
+        ).fetchone()
         if not cur:
             return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
         old_status = cur["status"] or ""
@@ -4890,7 +4942,45 @@ async def projects_quick_status(req: Request, pid: int):
                           (code, pid))
             except Exception:
                 pass
-    return JSONResponse({"ok": True, "message": f"상태 → {new_status}"})
+        # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 1호기 SO 발행
+        if new_status in _logi.WON_STATUSES:
+            try:
+                amt0 = float(cur["order_amount"] or 0)
+                if amt0 > 0:
+                    exists = c.execute(
+                        "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
+                    ).fetchone()
+                    if not exists:
+                        res = _pwf.confirm_order_multi(
+                            c, int(pid),
+                            units=[{
+                                "label": "1호기",
+                                "amount": amt0,
+                                "due_date": cur["due_date"] or "",
+                                "ship_to": "",
+                                "note": "",
+                            }],
+                            order_date=cur["order_date"] or "",
+                            created_by=u.get("id") or 0,
+                            po_number=cur["customer_po"] or "",
+                        )
+                        if res and res.get("ok"):
+                            auto_so_issued = True
+                            grp = (res.get("groups") or [{}])[0]
+                            auto_so_no = grp.get("so_no") or res.get("so_no")
+                            _logi.log_project_change(
+                                c, pid, u.get("id"), "수주발행(자동)",
+                                "", auto_so_no or "1호기",
+                                note=f"v5H130 자동 — 진행중 진입 시 1호기 SO 발행 ({amt0:,.0f})"
+                            )
+            except Exception:
+                pass
+    msg = f"상태 → {new_status}"
+    if auto_so_issued:
+        msg += f" · 1호기 SO {auto_so_no or ''} 자동 발행"
+    return JSONResponse({"ok": True, "message": msg,
+                         "auto_so_issued": auto_so_issued,
+                         "auto_so_no": auto_so_no})
 
 
 @app.post("/sales/orders/items/{iid:int}/edit")

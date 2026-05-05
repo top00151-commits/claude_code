@@ -93,6 +93,21 @@
     document.getElementById('confirmOrderModal').style.display = 'flex';
   }
   function openFollowupOrder() {
+    // v5H130: 기존 SO 0건이면 경고 — 이 발주가 1호기로 기록됨을 명시
+    var soCount = {{ (project_orders|length) if project_orders else 0 }};
+    if (soCount === 0) {
+      var ok = confirm(
+        '⚠ 이 프로젝트에 등록된 수주(SO)가 0건입니다.\n\n' +
+        '"추가 발주"로 진행하면 이 발주가 1호기로 기록됩니다.\n' +
+        '초기 1호기 수주가 누락된 상태일 수 있으니 다음을 먼저 확인하세요:\n\n' +
+        '  1) 프로젝트 상태가 "진행중/납품완료"로 표시되어 있는데\n' +
+        '     수주 내역이 비어 있다면, 페이지를 새로고침하세요.\n' +
+        '     (v5H130 자가치유가 1호기 SO를 자동 발행합니다)\n\n' +
+        '  2) 그래도 비어 있으면 "수주 확정" 버튼이 더 적절합니다.\n\n' +
+        '계속 추가 발주로 진행하시겠습니까?'
+      );
+      if (!ok) return;
+    }
     document.getElementById('fup_order_date').value = new Date().toISOString().slice(0,10);
     document.getElementById('followupOrderModal').style.display = 'flex';
   }

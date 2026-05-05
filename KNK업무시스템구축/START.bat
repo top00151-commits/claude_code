@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H129 parts attachment + auto image compression
+REM   LAST UPDATE: 2026-05-05 v5H130 quick-status auto-SO + project_detail self-heal safety net + followup guard
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
