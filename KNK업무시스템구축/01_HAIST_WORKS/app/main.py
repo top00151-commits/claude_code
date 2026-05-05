@@ -3528,6 +3528,12 @@ async def project_detail(req: Request, pid: int):
                     parent_project = dict(_pp)
     except Exception:
         parent_project = None
+    # v5H141 (2026-05-05): 자식 프로젝트(소모품/수리) 목록 — 부모 상세에 노출
+    child_projects = []
+    try:
+        child_projects = _logi.get_child_projects(pid, limit=200)
+    except Exception:
+        child_projects = []
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
@@ -3542,7 +3548,8 @@ async def project_detail(req: Request, pid: int):
                consumables=consumables,
                PROJECT_TYPES=_logi.PROJECT_TYPES,
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
-               parent_project=parent_project)
+               parent_project=parent_project,
+               child_projects=child_projects)
 
 
 # =====================================================

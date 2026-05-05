@@ -4,6 +4,13 @@
 
 ---
 
+## v5H141 (2026-05-05) — 부모 프로젝트 상세에 "연결된 자식 프로젝트(소모품/수리)" 카드 신설
+- **결함 배경**: 자식 프로젝트(예: 013T2605 케이블, CONSUMABLE)에 `parent_project_id=005T2605` 로 연결해도, 부모(005T2605) 상세 화면에는 어디에도 자식 목록이 안 보였음. 자식 상세에는 "...의 소모품 건입니다" 배너가 정상 표시됐지만 부모↔자식 가시화는 단방향이었음. 기존 "🔧 소모품·부품 사용 이력" 카드는 `po_item_project_links`(PO 라인 직접 귀속)만 조회 → 별도 자식 프로젝트 데이터 경로는 누락.
+- **헬퍼 신설 — `database.py:get_child_projects(parent_project_id, limit=200)`**: projects.parent_project_id=? + orders.project_id 서브쿼리로 SO 합계/최근일/최근 order_no 동시 산출. 반환 필드: id / mgmt_code / name / project_type / status / customer_name / total_so_amount / total_units / currency / last_so_date / latest_so_no.
+- **라우트 — `main.py /project/{pid}`**: `child_projects = _logi.get_child_projects(pid, limit=200)` ctx 전달 (try/except silent fallback).
+- **템플릿 — `project_detail.html`**: 기존 "🔧 소모품·부품 사용 이력" 카드 위에 "📦 연결된 소모품·수리 프로젝트 (N)" 신규 섹션. 표 컬럼: 관리번호(링크) / 유형(`_v5_partials/project_type_pill.html` 재사용) / 프로젝트명+고객사 / 상태 / 최근 SO / 발주일 / 합계+통화. 합계 행은 amber 배경 `child_projects|sum(attribute='total_so_amount')` 누적. **자식 0건이면 카드 자체 미노출** (백워드 호환).
+- 향후 사이드패널 "🔗 자식 프로젝트 N건" 빠른 링크는 별도 핫패치로.
+
 ## v5H140 (2026-05-05) — 연관 관리번호 선택 시 고객사/사업부/모델 자동 채움
 - /api/projects/search 응답에 customer_id / biz_div / model_name / po_type / is_export 추가
 - project_form.html JS: 부모 프로젝트 선택 시 위 5필드 자동 입력 (빈 칸일 때만, 사용자 입력 보존)

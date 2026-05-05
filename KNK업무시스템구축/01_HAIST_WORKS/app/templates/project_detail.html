@@ -632,6 +632,37 @@
       </div>
       {% endif %}
 
+      {# v5H141 (2026-05-05): 연결된 자식 프로젝트(소모품/수리) — 부모(NEW_EQUIP) 에서 한눈에 보기 #}
+      {% if child_projects %}
+      <section class="section-card" style="margin-top:14px;">
+        <h3 style="margin:0 0 10px 0;">📦 연결된 소모품·수리 프로젝트 ({{ child_projects|length }})</h3>
+        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;font-size:12.5px;">
+          <thead><tr>
+            <th>관리번호</th><th>유형</th><th>프로젝트명</th><th>상태</th>
+            <th>최근 SO</th><th>발주일</th><th class="num">합계</th>
+          </tr></thead>
+          <tbody>
+          {% for cp in child_projects %}
+            <tr>
+              <td><a href="/project/{{ cp.id }}" style="color:var(--knk-red);font-family:monospace;text-decoration:none;font-weight:700;">{{ cp.mgmt_code|default('—') }}</a></td>
+              <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
+              <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
+              <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
+              <td style="font-family:monospace;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
+              <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(cp.total_so_amount|default(0)) }} <span style="font-size:10.5px;color:var(--mute);">{{ cp.currency|default('KRW') }}</span></td>
+            </tr>
+          {% endfor %}
+            <tr style="background:#fef3c7;font-weight:700;">
+              <td colspan="6" style="text-align:right;">소모품·수리 누적</td>
+              <td class="num" style="color:var(--knk-red);">{{ '{:,.0f}'.format(child_projects|sum(attribute='total_so_amount')) }} KRW</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">자식 프로젝트는 등록 시 <b>parent_project_id</b> 로 이 장비에 귀속됩니다. 합계는 각 자식 프로젝트의 SO(수주) 총액 단순 합산입니다(통화 환산 미포함).</div>
+      </section>
+      {% endif %}
+
       {# v5H136: 소모품·부품 사용 이력 (PO 라인 ↔ 프로젝트 다대다 연결 결과) #}
       <div class="section-card">
         <h3>🔧 소모품 · 부품 사용 이력 ({{ consumables.count|default(0) }})</h3>

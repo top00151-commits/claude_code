@@ -9906,6 +9906,37 @@ def get_project_consumables(project_id: int, limit: int = 200) -> dict:
     }
 
 
+def get_child_projects(parent_project_id: int, limit: int = 200) -> list:
+    """v5H141 (2026-05-05): 부모 프로젝트(장비)에 연결된 자식 프로젝트(소모품/수리) 목록 + SO 합계.
+    각 row: id, mgmt_code, name, project_type, status, customer_name,
+            total_so_amount, total_units, currency, last_so_date, latest_so_no
+    """
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT p.id, p.mgmt_code, p.name,
+                      COALESCE(p.project_type,'NEW_EQUIP') AS project_type,
+                      COALESCE(p.status,'진행중')          AS status,
+                      COALESCE(p.customer_name,'')        AS customer_name,
+                      COALESCE(p.currency,'KRW')          AS currency,
+                      COALESCE(p.unit_qty, 1)             AS total_units,
+                      (SELECT COALESCE(SUM(o.total_amount),0)
+                         FROM orders o
+                        WHERE o.project_id = p.id)        AS total_so_amount,
+                      (SELECT MAX(o.order_date)
+                         FROM orders o
+                        WHERE o.project_id = p.id)        AS last_so_date,
+                      (SELECT o.order_no FROM orders o
+                        WHERE o.project_id = p.id
+                        ORDER BY o.order_date DESC, o.id DESC LIMIT 1) AS latest_so_no
+                 FROM projects p
+                WHERE p.parent_project_id = ?
+                ORDER BY p.created_at DESC, p.id DESC
+                LIMIT ?""",
+            (int(parent_project_id), int(limit))
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_part_project_usage(part_id: int, limit: int = 50) -> list:
     """자재 1건이 어떤 프로젝트에서 누적 얼마나 쓰였는지.
     반환: [{project_id, mgmt_code, project_name, total_qty, total_amount, last_order_date, link_count}, ...]

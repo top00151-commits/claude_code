@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H140 프로젝트 유형 pill 영문+한글 2줄 표기 (so-pill 패턴 통일) — _v5_partials/project_type_pill.html 신설 + project_detail 헤더/사이드 + projects 목록 표 적용 (4색 분기: NEW_EQUIP 주황 / CONSUMABLE 녹색 / SERVICE 파랑 / OTHER 회색)
+REM   LAST UPDATE: 2026-05-05 v5H141 부모 프로젝트 상세에 "연결된 자식 프로젝트(소모품·수리)" 카드 신설 — get_child_projects 헬퍼 + /project/{pid} ctx + project_detail.html 신규 섹션 (관리번호/유형pill/상태/최근SO/합계). 부모↔자식 가시화 결함 수정 (자식 0건이면 카드 미노출)
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
