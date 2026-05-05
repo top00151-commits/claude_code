@@ -4967,7 +4967,8 @@ async def projects_quick_status(req: Request, pid: int):
         return JSONResponse({"ok": False, "message": "유효하지 않은 상태"}, 400)
     auto_so_issued = False
     auto_so_no = None
-    with db_session() as c:
+    try:
+      with db_session() as c:
         cur = c.execute(
             "SELECT status, mgmt_code, biz_div, order_amount, order_date, "
             "due_date, customer_po, "
@@ -4978,6 +4979,11 @@ async def projects_quick_status(req: Request, pid: int):
         if not cur:
             return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
         old_status = cur["status"] or ""
+        # v5H143: project_type 먼저 확정 (이전엔 분기 이후에 정의돼 NameError → HTTP 500 결함 1)
+        try:
+            _cur_ptype = (cur["project_type"] if "project_type" in cur.keys() else "") or "NEW_EQUIP"
+        except Exception:
+            _cur_ptype = "NEW_EQUIP"
         c.execute("UPDATE projects SET status=?, updated_at=? WHERE id=?",
                   (new_status, _logi._logi_now() if hasattr(_logi, "_logi_now") else None, pid))
         # v5H101: 변경 이력
@@ -4997,7 +5003,6 @@ async def projects_quick_status(req: Request, pid: int):
         # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 SO 발행
         # v5H132: unit_qty N → N개 호기 라인 (단가=unit_price 또는 amt/qty)
         # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 consumable_orders 도메인)
-        _cur_ptype = (cur["project_type"] if "project_type" in cur.keys() else "") or "NEW_EQUIP"
         if new_status in _logi.WON_STATUSES and _cur_ptype == "NEW_EQUIP":
             try:
                 amt0 = float(cur["order_amount"] or 0)
@@ -5047,6 +5052,11 @@ async def projects_quick_status(req: Request, pid: int):
                             )
             except Exception:
                 pass
+    except Exception as _qs_err:
+        # v5H143: HTTP 500 대신 친절 JSON (모달/토스트 표시 가능)
+        return JSONResponse({"ok": False,
+                             "message": f"상태 변경 중 오류: {type(_qs_err).__name__} — {str(_qs_err)[:160]}"},
+                            500)
     msg = f"상태 → {new_status}"
     if auto_so_issued:
         msg += f" · SO {auto_so_no or ''} 자동 발행"

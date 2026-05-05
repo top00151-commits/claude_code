@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H142 소모품 발주 전용 도메인 신설 — consumable_orders/items 테이블 + 엑셀 일괄 import + 이미지 자동 압축(1920px JPEG q85, 평균 88% 절감) + 자재/관리번호 자동매칭 + /consumables 라우트 8건 + 3개 신규 템플릿. 관리번호 발급/자동 SO 모두 NEW_EQUIP만 트리거(소모품·수리·기타 차단). 프로젝트 상세에 "📦 소모품 발주 이력" 카드 추가.
+REM   LAST UPDATE: 2026-05-05 v5H143 quick-status NameError(_cur_ptype) 핫픽스 — v5H142에서 NEW_EQUIP 분기 추가 시 _cur_ptype 정의가 사용 뒤로 밀려 CONSUMABLE 프로젝트 상태 변경 시 HTTP 500 발생. _cur_ptype 정의를 분기 직전으로 이동 + 외곽 try/except로 모든 예외를 친절 JSON 응답. 사이드바 매출·영업 그룹에 "📦 소모품 발주 (M-01-14)" 노출.
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [v5H142]
+title KNK HAIST WORKS - HAIST Innovation [v5H143]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H142  2026-05-05]
+echo    [v5H143  2026-05-05]
 echo ============================================================
 echo.
 

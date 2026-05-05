@@ -4,6 +4,12 @@
 
 ---
 
+## v5H143 (2026-05-05) — quick-status NameError 핫픽스 + 사이드바 소모품 발주 노출
+- **결함 1 (HIGH)**: CONSUMABLE 프로젝트(예: id=716 GOOX 소모품) 사이드패널 상태 → "진행중" 변경 시 HTTP 500. **원인**: `app/main.py` `projects_quick_status()` 에서 v5H142 분기 추가 시 `_cur_ptype == "NEW_EQUIP"` 체크가 라인 4990(mgmt_code 발급)에 들어갔는데, `_cur_ptype` 자체는 라인 5000(SO 발행 분기 직전)에서 정의돼 있어 `NameError`. NEW_EQUIP 라면 두 번째 정의가 동일값으로 덮어쓰여 우연히 동작했지만 CONSUMABLE 흐름은 첫 번째 분기에서 즉시 실패 → 500.
+- **수정**: `_cur_ptype` 정의를 status UPDATE 직후·모든 분기 직전으로 이동. 외곽 `try/except`로 모든 예외를 `JSONResponse({"ok":False, "message": ...}, 500)` 친절 응답으로 변환 (모달/토스트 표시 가능, 무음 500 차단).
+- **결함 2 (MED)**: `/consumables` 사이드바 미노출. **수정**: `chrome.html` 매출·영업 그룹 마지막에 `📦 소모품 발주 (M-01-14)` 추가 (수출입 다음). `menu_catalog.py` 에 M-01-14 / M-01-14-N 등록 (별칭: 소모품, Consumable, Excel 발주, 신규/등록/작성).
+- 백워드 호환: NEW_EQUIP 흐름은 무영향. 자동 SO 발행 로직 변경 없음.
+
 ## v5H141 (2026-05-05) — 부모 프로젝트 상세에 "연결된 자식 프로젝트(소모품/수리)" 카드 신설
 - **결함 배경**: 자식 프로젝트(예: 013T2605 케이블, CONSUMABLE)에 `parent_project_id=005T2605` 로 연결해도, 부모(005T2605) 상세 화면에는 어디에도 자식 목록이 안 보였음. 자식 상세에는 "...의 소모품 건입니다" 배너가 정상 표시됐지만 부모↔자식 가시화는 단방향이었음. 기존 "🔧 소모품·부품 사용 이력" 카드는 `po_item_project_links`(PO 라인 직접 귀속)만 조회 → 별도 자식 프로젝트 데이터 경로는 누락.
 - **헬퍼 신설 — `database.py:get_child_projects(parent_project_id, limit=200)`**: projects.parent_project_id=? + orders.project_id 서브쿼리로 SO 합계/최근일/최근 order_no 동시 산출. 반환 필드: id / mgmt_code / name / project_type / status / customer_name / total_so_amount / total_units / currency / last_so_date / latest_so_no.
