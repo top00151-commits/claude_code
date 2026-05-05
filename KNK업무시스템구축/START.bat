@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H136 PO 라인 ↔ 프로젝트 다대다 연결 — 장비(관리번호)별 소모품/수리이력/운영비 추적 (po_item_project_links 신규 테이블 + 5 헬퍼 + 3 라우트 + 3 카드 UI)
+REM   LAST UPDATE: 2026-05-05 v5H137 프로젝트 유형 분류 — 등록 시점부터 신규장비/소모품/수리/기타 4종 구분 + 소모품·수리는 연관 관리번호(부모 프로젝트) 연결 (project_type/parent_project_id 컬럼 + 자동 SO 라벨 호기/회차/차/건 토글 + 폼 라디오/자동완성/안내 배너 + 목록 필터·컬럼)
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [v5H136]
+title KNK HAIST WORKS - HAIST Innovation [v5H137]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H136  2026-05-05]
+echo    [v5H137  2026-05-05]
 echo ============================================================
 echo.
 

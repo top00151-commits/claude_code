@@ -4,6 +4,19 @@
 
 ---
 
+## v5H137 (2026-05-05) — 프로젝트 유형 분류 신설 (대표 직접 요청)
+- **요청 배경**: 등록할 때부터 소모품인지 기타인지 구분해서 등록해야 함. 소모품 등록 시 연관 관리번호 연결 가능, 없으면 단독 진행. SO 자동 라벨도 유형에 맞게 (검사기는 호기, 소모품은 회차, 수리는 차, 기타는 건).
+- **DB 마이그 — `app/database.py`**: `projects` 테이블에 `project_type TEXT DEFAULT 'NEW_EQUIP'` + `parent_project_id INTEGER` 2개 컬럼 ALTER (PRAGMA 가드 + try/except 폴백). `idx_projects_parent` 인덱스 추가 (소모품 → 부모 장비 역조회 가속). 기존 행은 NULL → DEFAULT 'NEW_EQUIP' 으로 동작 (백워드 호환).
+- **상수 4종 — `app/database.py`**: `PROJECT_TYPES` 튜플 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER) + `PROJECT_TYPE_LABELS` (이모지+한글) + `PROJECT_TYPE_UNIT_LABEL` 라벨 패턴 dict + `project_unit_label(ptype, n)` 헬퍼 (NEW_EQUIP→'1호기', CONSUMABLE→'1회차', SERVICE→'1차', OTHER→'1건'; NULL/미지원 → NEW_EQUIP 폴백).
+- **헬퍼 확장**: `_project_insert_or_update_values()` 에 project_type/parent_project_id 정규화. `projects_create_logi()` INSERT + `projects_update_logi()` UPDATE 양쪽에 두 컬럼 반영. `projects_list_logi(project_type=)` 필터 인자 추가. `projects_update_logi` 변경 이력 diff 키에 두 컬럼 추가.
+- **자동 SO 호기 라벨 토글 — `app/main.py`**: `/projects/new` POST + `/projects/{pid}/edit` POST + `/projects/{pid}/quick-status` POST + `project_detail` v5H130 자가치유 진입 시 SO 발행 코드 4곳 모두 하드코딩 `f"{i+1}호기"` → `_logi.project_unit_label(_ptype, i+1)` 로 교체. confirm_order_multi 호출 시 폼의 `unit_label[]` 빈 칸 폴백도 project_type 기준. 백워드 호환 — 기존 NEW_EQUIP 프로젝트는 정확히 동일하게 '1호기/2호기...' 로 동작.
+- **`app/project_workflow.py`**: `add_followup_order(unit_label_pattern=None)` 인자 추가 — 미전달 시 프로젝트 row 의 `project_type` 으로 PROJECT_TYPE_UNIT_LABEL 자동 조회. 기존 호출부(qty 인자만) 영향 없음.
+- **폼 UI — `app/templates/project_form.html`**: 사업부/PO유형 그리드 다음 줄에 "프로젝트 유형" 라디오 4종 (이모지+한글) + 토글 JS (`pfTogglePtype()`). CONSUMABLE/SERVICE 선택 시 "🔗 연관 관리번호 (선택)" 입력칸 노출 — `/api/projects/search` (v5H136) 재사용한 자동완성 (200ms debounce, mgmt_code+이름+고객사 표시, 클릭 시 hidden parent_project_id 채움). 다른 유형으로 바꾸면 hidden 자동 초기화.
+- **상세 UI — `app/templates/project_detail.html`**: 헤더 H1 에 stage pill 옆에 프로젝트 유형 pill 추가. 사이드패널 "프로젝트 정보" 에 "유형" + (있을 때) "연관 관리번호" 링크 표시. CONSUMABLE/SERVICE + parent_project 있으면 소모품 카드 위에 amber 안내 배너 ("📦 이 프로젝트는 [009T2605 …] 의 소모품/부품 발주 건입니다"). `project_detail` 라우트 ctx 에 `parent_project` 단건 조회 + PROJECT_TYPES/LABELS 전달.
+- **목록 UI — `app/templates/projects.html`**: 검색 폼에 "유형 전체" 셀렉트 추가. 표 헤더에 "유형" 컬럼 + 행마다 PROJECT_TYPE_LABELS pill. 초기화 버튼 조건에 project_type 추가.
+- **검증**: `py_compile` (database.py + main.py + project_workflow.py) PASS. Jinja parse (project_form/project_detail/projects) PASS. `init_db()` 후 `PRAGMA table_info(projects)` 에서 두 컬럼 + 인덱스 존재 확인. 라벨 헬퍼 6개 케이스 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER/NULL/미지원 폴백) PASS.
+- **백워드 호환**: 기존 프로젝트는 project_type NULL → DEFAULT 'NEW_EQUIP' 으로 동작, 자동 SO 라벨도 기존 그대로 '1호기/2호기...'. parent_project_id NULL → 단독 진행 (정상). v5H136 소모품 카드 + v5H132 단가×수량 + v5H81 호기 그룹화 SO 발행 모두 무영향.
+
 ## v5H136 (2026-05-05) — PO 라인 ↔ 프로젝트 다대다 연결 (대표 직접 요청, 장비 소모품/수리이력 추적)
 - **요청 배경**: 검사기/장비에 소모품 발주 요청이 오면 해당 장비 관리번호와 PO 라인을 연결해 ① 자주 나가는 소모품 식별 ② 수리 이력 누적 ③ 장비별 운영비(TCO) 추적이 가능하도록. 공통 부품(공구·범용 소모품)은 연결하지 않아도 자연 폴백.
 - **DB 스키마 — `app/database.py` SCHEMA**: `po_item_project_links` 신규 테이블 (id / po_item_id FK CASCADE / project_id FK CASCADE / allocated_qty / allocation_pct / note / created_at / created_by) + 2 인덱스. ALTER 없이 `IF NOT EXISTS` 신규 테이블이라 기존 PO 데이터 무영향.

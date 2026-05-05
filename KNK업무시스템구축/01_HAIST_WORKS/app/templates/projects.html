@@ -30,8 +30,15 @@
       <option value="">상태 전체</option>
       {% for s in STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
+    {# v5H137: 프로젝트 유형 필터 #}
+    <select name="project_type" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+      <option value="">유형 전체</option>
+      {% for code in (PROJECT_TYPES or []) %}
+      <option value="{{ code }}" {% if project_type==code %}selected{% endif %}>{{ (PROJECT_TYPE_LABELS or {}).get(code, code) }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q or biz_div or status %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
+    {% if q or biz_div or status or project_type %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
   <div class="tbl-wrap tbl-sticky">
@@ -43,6 +50,7 @@
           <th>프로젝트명</th>
           <th>고객사</th>
           <th class="center">사업부</th>
+          <th class="center">유형</th>
           <th class="center">상태</th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
@@ -56,6 +64,8 @@
           <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
           <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}🔬 검사기{% elif p.biz_div == 'M' %}🤖 자동화{% else %}{{ p.biz_div|default('—') }}{% endif %}</span></td>
+          {# v5H137: 프로젝트 유형 pill #}
+          <td class="center"><span class="pill pill-muted" style="font-size:11px;">{{ (PROJECT_TYPE_LABELS or {}).get(p.project_type or 'NEW_EQUIP', p.project_type or 'NEW_EQUIP') }}</span></td>
           <td class="center">{% if p.status %}<span class="pill {% if p.status in ('납품완료','완료','종료') %}pill-done{% elif p.status in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% else %}—{% endif %}</td>
           <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>

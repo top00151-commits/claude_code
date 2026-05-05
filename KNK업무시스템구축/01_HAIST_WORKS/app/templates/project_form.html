@@ -103,6 +103,96 @@
                  placeholder="저장 시 자동 발급" {% if not project %}readonly{% endif %}>
         </div>
       </div>
+      {# v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
+         소모품/수리 선택 시 연관 관리번호(부모 프로젝트) 입력칸 노출 #}
+      {% set _cur_ptype = (project.project_type if project and project.project_type else 'NEW_EQUIP') %}
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <label>프로젝트 유형 <span class="req">*</span> <span class="sub">(자동 SO 라벨이 유형별로 달라집니다 — 호기 / 회차 / 차 / 건)</span></label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;padding:6px 0;">
+            {% for code in (PROJECT_TYPES or ['NEW_EQUIP','CONSUMABLE','SERVICE','OTHER']) %}
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;font-size:13px;">
+              <input type="radio" name="project_type" value="{{ code }}"
+                     {% if _cur_ptype == code %}checked{% endif %}
+                     onchange="pfTogglePtype()" style="accent-color:var(--amber-deep);">
+              {{ (PROJECT_TYPE_LABELS or {}).get(code, code) }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="pf-row solo" id="pfParentRow"
+           style="display:{% if _cur_ptype in ('CONSUMABLE','SERVICE') %}block{% else %}none{% endif %};">
+        <div class="pf-field full">
+          <label>🔗 연관 관리번호 <span class="sub">(선택 — 어느 장비에 들어가는 소모품/수리인지)</span></label>
+          <input type="text" id="pfParentSearch" autocomplete="off"
+                 placeholder="관리번호 또는 프로젝트명 입력 (예: 009T2605)"
+                 value="{% if project and project.parent_project_id %}#{{ project.parent_project_id }}{% endif %}">
+          <input type="hidden" name="parent_project_id" id="pfParentId"
+                 value="{{ project.parent_project_id if project and project.parent_project_id else '' }}">
+          <div id="pfParentResults" style="display:none;position:relative;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:4px;max-height:240px;overflow:auto;z-index:50;"></div>
+          <div style="font-size:11px;color:var(--mute);margin-top:4px;line-height:1.5;">
+            없으면 비워두세요 — 단독 프로젝트로 진행됩니다.
+          </div>
+        </div>
+      </div>
+      <script>
+      function pfTogglePtype() {
+        var sel = document.querySelector('input[name="project_type"]:checked');
+        var v = sel ? sel.value : 'NEW_EQUIP';
+        var row = document.getElementById('pfParentRow');
+        if (!row) return;
+        if (v === 'CONSUMABLE' || v === 'SERVICE') {
+          row.style.display = 'block';
+        } else {
+          row.style.display = 'none';
+          var hid = document.getElementById('pfParentId');
+          if (hid) hid.value = '';  // 해제 시 부모 ID 비움
+        }
+      }
+      (function(){
+        var inp = document.getElementById('pfParentSearch');
+        var box = document.getElementById('pfParentResults');
+        var hid = document.getElementById('pfParentId');
+        if (!inp || !box || !hid) return;
+        var t = null;
+        async function search(q){
+          try {
+            const r = await fetch('/api/projects/search?q=' + encodeURIComponent(q));
+            const j = await r.json();
+            if (!j.ok) { box.style.display='none'; return; }
+            box.innerHTML = '';
+            (j.rows || []).forEach(function(row){
+              var d = document.createElement('div');
+              d.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px;';
+              d.innerHTML = '<b style="font-family:monospace;color:var(--amber-deep);">' + (row.mgmt_code||'—') + '</b>'
+                          + ' · ' + (row.name||'') + ' <span style="color:var(--mute);font-size:11px;">(' + (row.customer_name||'—') + ')</span>';
+              d.onmouseover = function(){ d.style.background = 'var(--paper-2)'; };
+              d.onmouseout = function(){ d.style.background = ''; };
+              d.onclick = function(){
+                hid.value = row.id;
+                inp.value = (row.mgmt_code||('#'+row.id)) + ' · ' + (row.name||'');
+                box.style.display = 'none';
+              };
+              box.appendChild(d);
+            });
+            box.style.display = box.children.length ? 'block' : 'none';
+          } catch(e) { box.style.display='none'; }
+        }
+        inp.addEventListener('input', function(){
+          if (t) clearTimeout(t);
+          var q = inp.value.trim();
+          if (!q) { hid.value = ''; box.style.display='none'; return; }
+          t = setTimeout(function(){ search(q); }, 200);
+        });
+        inp.addEventListener('focus', function(){
+          if (inp.value.trim()) search(inp.value.trim());
+        });
+        document.addEventListener('click', function(e){
+          if (!box.contains(e.target) && e.target !== inp) box.style.display='none';
+        });
+      })();
+      </script>
       {# v5H97: 거래 구분 (내수/수출) — 회계/통화/세관 처리 분기 키 #}
       <div class="pf-row">
         <div class="pf-field">

@@ -21,6 +21,11 @@
         <span style="font-family:monospace;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</span>
         <span>{{ p.name }}</span>
         {% if p.stage %}<span class="pill pill-progress" style="font-size:13px;">{{ p.stage }}</span>{% endif %}
+        {# v5H137: 프로젝트 유형 pill (대표 직접 요청 — 등록 시점부터 분류) #}
+        {% set _ptype_disp = (p.project_type or 'NEW_EQUIP') %}
+        <span class="pill" style="font-size:12.5px;background:var(--paper-2);color:var(--ink);border:1px solid var(--line);">
+          {{ (PROJECT_TYPE_LABELS or {}).get(_ptype_disp, _ptype_disp) }}
+        </span>
       </h1>
     </div>
     <div style="display:flex;gap:8px;">
@@ -615,6 +620,21 @@
       </div>
       {% endif %}
 
+      {# v5H137 (2026-05-05): 부모 프로젝트(장비) 안내 배너 — 소모품·수리 유형일 때 #}
+      {% if (p.project_type in ('CONSUMABLE','SERVICE')) and parent_project %}
+      <div class="section-card" style="background:#fff7e6;border-color:var(--amber);">
+        <div style="font-size:13px;line-height:1.6;color:var(--ink);">
+          {% if p.project_type == 'CONSUMABLE' %}📦 이 프로젝트는{% else %}🔨 이 프로젝트는{% endif %}
+          <a href="/project/{{ parent_project.id }}"
+             style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
+            [{{ parent_project.mgmt_code|default('—') }} {{ parent_project.name }}]
+          </a>
+          {% if p.project_type == 'CONSUMABLE' %}의 <b>소모품/부품</b> 발주 건입니다{% else %}의 <b>수리·유지보수</b> 건입니다{% endif %}.
+          <span style="color:var(--mute);font-size:11.5px;">(고객사: {{ parent_project.customer_name|default('—') }})</span>
+        </div>
+      </div>
+      {% endif %}
+
       {# v5H136: 소모품·부품 사용 이력 (PO 라인 ↔ 프로젝트 다대다 연결 결과) #}
       <div class="section-card">
         <h3>🔧 소모품 · 부품 사용 이력 ({{ consumables.count|default(0) }})</h3>
@@ -685,6 +705,17 @@
           <dt>프로젝트명</dt><dd><b>{{ p.name }}</b></dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
+          {# v5H137: 프로젝트 유형 + 연관 관리번호 #}
+          <dt>유형</dt><dd>{{ (PROJECT_TYPE_LABELS or {}).get(p.project_type or 'NEW_EQUIP', p.project_type or 'NEW_EQUIP') }}</dd>
+          {% if parent_project %}
+          <dt>연관 관리번호</dt><dd>
+            <a href="/project/{{ parent_project.id }}"
+               style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
+              {{ parent_project.mgmt_code|default('#'~parent_project.id) }}
+            </a>
+            <span style="font-size:11px;color:var(--mute);"> · {{ parent_project.name }}</span>
+          </dd>
+          {% endif %}
           <dt>거래 구분</dt><dd>{% if p.is_export %}<span style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}</dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
           <dt>상태</dt><dd>

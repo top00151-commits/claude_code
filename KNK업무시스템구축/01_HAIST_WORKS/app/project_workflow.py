@@ -169,7 +169,8 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
 def add_followup_order(c, project_id: int, order_date: str | None = None,
                         total_amount: float = 0, due_date: str = "",
                         created_by: int = 0, po_number: str = "",
-                        note: str = "", qty: int = 1) -> dict:
+                        note: str = "", qty: int = 1,
+                        unit_label_pattern: str | None = None) -> dict:
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -225,7 +226,19 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         ).fetchone()[0] + 1
     except Exception:
         base_no = 1
-    labels_bulk = [f"{base_no + i}호기" for i in range(qty)]
+    # v5H137: 라벨 패턴 — 호출자가 unit_label_pattern 으로 '{n}회차' 등 전달 가능
+    #   미전달 시 프로젝트 row 의 project_type 으로 자동 결정 (백워드 호환: NEW_EQUIP → '{n}호기')
+    _pattern = unit_label_pattern
+    if not _pattern:
+        try:
+            from .database import PROJECT_TYPE_UNIT_LABEL, PROJECT_TYPES
+            _pt = (proj.get("project_type") or "NEW_EQUIP").upper()
+            if _pt not in PROJECT_TYPES:
+                _pt = "NEW_EQUIP"
+            _pattern = PROJECT_TYPE_UNIT_LABEL[_pt]
+        except Exception:
+            _pattern = "{n}호기"
+    labels_bulk = [_pattern.format(n=base_no + i) for i in range(qty)]
     auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
     cur = c.execute(
         "INSERT INTO orders(order_no, customer_id, project_id, order_date, "

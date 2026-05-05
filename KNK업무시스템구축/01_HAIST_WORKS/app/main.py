@@ -3394,10 +3394,12 @@ async def project_detail(req: Request, pid: int):
                 _p_status = (p.get("status") if isinstance(p, dict) else p["status"]) or ""
                 _p_amt = float(p.get("order_amount") or 0) if isinstance(p, dict) else float(p["order_amount"] or 0)
                 if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0):
+                    # v5H137: project_type 기준 라벨 (백워드 호환 — NEW_EQUIP 폴백)
+                    _ptype_h = (p.get("project_type") if isinstance(p, dict) else (p["project_type"] if "project_type" in p.keys() else "")) or "NEW_EQUIP"
                     res = _pwf.confirm_order_multi(
                         c2, int(pid),
                         units=[{
-                            "label": "1호기",
+                            "label": _logi.project_unit_label(_ptype_h, 1),
                             "amount": _p_amt,
                             "due_date": (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or "",
                             "ship_to": "",
@@ -3412,8 +3414,8 @@ async def project_detail(req: Request, pid: int):
                         _auto_no = grp.get("so_no") or res.get("so_no") or ""
                         _logi.log_project_change(
                             c2, pid, u.get("id"), "수주발행(자동)",
-                            "", _auto_no or "1호기",
-                            note=f"v5H130 자가치유 — 상세 진입 시 누락된 1호기 SO 자동 발행 ({_p_amt:,.0f})"
+                            "", _auto_no or _logi.project_unit_label(_ptype_h, 1),
+                            note=f"v5H130 자가치유 — 상세 진입 시 누락된 SO 자동 발행 ({_p_amt:,.0f})"
                         )
             except Exception:
                 pass
@@ -3512,6 +3514,20 @@ async def project_detail(req: Request, pid: int):
         consumables = _logi.get_project_consumables(pid, limit=200)
     except Exception:
         pass
+    # v5H137 (2026-05-05): 부모 프로젝트 정보 — CONSUMABLE/SERVICE 인 경우 안내 배너용
+    parent_project = None
+    try:
+        _pp_id = p.get("parent_project_id") if isinstance(p, dict) else (p["parent_project_id"] if "parent_project_id" in p.keys() else None)
+        if _pp_id:
+            with db_session() as _cp:
+                _pp = _cp.execute(
+                    "SELECT id, mgmt_code, name, customer_name FROM projects WHERE id=?",
+                    (int(_pp_id),)
+                ).fetchone()
+                if _pp:
+                    parent_project = dict(_pp)
+    except Exception:
+        parent_project = None
     return ctx(req, "project_detail.html",
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
@@ -3523,7 +3539,10 @@ async def project_detail(req: Request, pid: int):
                currency_mix=currency_mix,
                currency_warning=currency_warning,
                primary_so_currency=primary_so_currency,
-               consumables=consumables)
+               consumables=consumables,
+               PROJECT_TYPES=_logi.PROJECT_TYPES,
+               PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
+               parent_project=parent_project)
 
 
 # =====================================================
@@ -4932,7 +4951,8 @@ async def projects_quick_status(req: Request, pid: int):
         cur = c.execute(
             "SELECT status, mgmt_code, biz_div, order_amount, order_date, "
             "due_date, customer_po, "
-            "COALESCE(unit_qty,1) AS unit_qty, unit_price "
+            "COALESCE(unit_qty,1) AS unit_qty, unit_price, "
+            "COALESCE(project_type,'NEW_EQUIP') AS project_type "
             "FROM projects WHERE id=?", (pid,)
         ).fetchone()
         if not cur:
@@ -4972,8 +4992,10 @@ async def projects_quick_status(req: Request, pid: int):
                             _up0 = 0.0
                         if _up0 <= 0:
                             _up0 = amt0 / _qty0
+                        # v5H137: project_type 기준 라벨
+                        _ptype_q = cur["project_type"] or "NEW_EQUIP"
                         _units_list = [{
-                            "label": f"{i+1}호기",
+                            "label": _logi.project_unit_label(_ptype_q, i + 1),
                             "amount": _up0,
                             "due_date": cur["due_date"] or "",
                             "ship_to": "",
@@ -4990,7 +5012,10 @@ async def projects_quick_status(req: Request, pid: int):
                             auto_so_issued = True
                             grp = (res.get("groups") or [{}])[0]
                             auto_so_no = grp.get("so_no") or res.get("so_no")
-                            _lbl = f"{_qty0}호기" if _qty0 > 1 else "1호기"
+                            # v5H137: project_type 라벨
+                            _lbl = (_logi.project_unit_label(_ptype_q, _qty0)
+                                    if _qty0 > 1
+                                    else _logi.project_unit_label(_ptype_q, 1))
                             _logi.log_project_change(
                                 c, pid, u.get("id"), "수주발행(자동)",
                                 "", auto_so_no or _lbl,
@@ -5000,7 +5025,7 @@ async def projects_quick_status(req: Request, pid: int):
                 pass
     msg = f"상태 → {new_status}"
     if auto_so_issued:
-        msg += f" · 1호기 SO {auto_so_no or ''} 자동 발행"
+        msg += f" · SO {auto_so_no or ''} 자동 발행"
     return JSONResponse({"ok": True, "message": msg,
                          "auto_so_issued": auto_so_issued,
                          "auto_so_no": auto_so_no})
@@ -7969,17 +7994,23 @@ async def parts_delete_submit(request: Request, pid: int):
 # ── 프로젝트 / 관리코드 발행대장 ─────────────────────────
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
-                             stage: str = "", status: str = ""):
+                             stage: str = "", status: str = "",
+                             project_type: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
         return RedirectResponse("/home", 303)
-    rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status)
+    # v5H137: project_type 필터
+    rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
+                                     project_type=project_type)
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
-               STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES)
+               project_type=project_type,
+               STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
+               PROJECT_TYPES=_logi.PROJECT_TYPES,
+               PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS)
 
 
 @app.get("/projects/new", response_class=HTMLResponse)
@@ -8061,6 +8092,15 @@ async def projects_new_submit(request: Request):
     if confirm_now:
         # 수주 확정과 함께 등록하면 stage 를 즉시 '수주확정' 으로
         stage_val = "수주확정"
+    # v5H137: 프로젝트 유형 + 부모 프로젝트 — 폼에서 받음 (백워드 호환: 미전달 → NEW_EQUIP/None)
+    _ptype = (form.get("project_type") or "NEW_EQUIP").strip().upper()
+    if _ptype not in _logi.PROJECT_TYPES:
+        _ptype = "NEW_EQUIP"
+    _parent_id_raw = (form.get("parent_project_id") or "").strip()
+    _parent_id = int(_parent_id_raw) if _parent_id_raw.isdigit() else None
+    # parent_project_id 는 CONSUMABLE/SERVICE 일 때만 의미 있음 (그 외엔 무시)
+    if _ptype not in ("CONSUMABLE", "SERVICE"):
+        _parent_id = None
     new_pid, _new_code = _logi.projects_create_logi({
         "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
@@ -8078,6 +8118,8 @@ async def projects_new_submit(request: Request):
         "due_date": form.get("due_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
+        "project_type": _ptype,
+        "parent_project_id": _parent_id,
     })
     if confirm_now and new_pid:
         # v5H81: 호기 라인 — (납기, 납품지) 그룹화 키 포함
@@ -8090,7 +8132,8 @@ async def projects_new_submit(request: Request):
         currs = form.getlist("unit_currency[]")
         units = []
         for i in range(max(len(labels), len(amounts))):
-            lbl = (labels[i] if i < len(labels) else "").strip() or f"{i+1}호기"
+            # v5H137: 폼에서 라벨 비어 있으면 project_type 기준 자동 라벨
+            lbl = (labels[i] if i < len(labels) else "").strip() or _logi.project_unit_label(_ptype, i + 1)
             raw = (amounts[i] if i < len(amounts) else "0").strip().replace(",", "")
             try:
                 u_amt = float(raw) if raw else 0
@@ -8145,9 +8188,10 @@ async def projects_new_submit(request: Request):
                 ).fetchone()
                 if not exists:
                     # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
+                    # v5H137: 라벨 패턴은 project_type 기준 (NEW_EQUIP→호기, CONSUMABLE→회차, SERVICE→차, OTHER→건)
                     _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
                     _units_list = [{
-                        "label": f"{i+1}호기",
+                        "label": _logi.project_unit_label(_ptype, i + 1),
                         "amount": _per_unit,
                         "due_date": form.get("due_date", ""),
                         "ship_to": "",
@@ -8214,6 +8258,8 @@ async def projects_edit_form(request: Request, pid: int):
                project=p,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
+               PROJECT_TYPES=_logi.PROJECT_TYPES,
+               PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
                customers=_logi.customers_for_picker(),
                has_orders=has_orders)
 
@@ -8270,6 +8316,14 @@ async def projects_edit_submit(request: Request, pid: int):
     elif amt > 0 and unit_qty >= 1:
         unit_price = amt / unit_qty
     status_val = form.get("status", "초기협의") or "초기협의"
+    # v5H137: 프로젝트 유형 + 부모 프로젝트
+    _ptype = (form.get("project_type") or "NEW_EQUIP").strip().upper()
+    if _ptype not in _logi.PROJECT_TYPES:
+        _ptype = "NEW_EQUIP"
+    _parent_id_raw = (form.get("parent_project_id") or "").strip()
+    _parent_id = int(_parent_id_raw) if _parent_id_raw.isdigit() else None
+    if _ptype not in ("CONSUMABLE", "SERVICE"):
+        _parent_id = None
     _logi.projects_update_logi(pid, {
         "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
@@ -8287,6 +8341,8 @@ async def projects_edit_submit(request: Request, pid: int):
         "due_date": form.get("due_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
+        "project_type": _ptype,
+        "parent_project_id": _parent_id,
     })
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
@@ -8298,8 +8354,9 @@ async def projects_edit_submit(request: Request, pid: int):
                 ).fetchone()
                 if not exists:
                     _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                    # v5H137: project_type 기준 라벨
                     _units_list = [{
-                        "label": f"{i+1}호기",
+                        "label": _logi.project_unit_label(_ptype, i + 1),
                         "amount": _per_unit,
                         "due_date": form.get("due_date", ""),
                         "ship_to": "",

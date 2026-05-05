@@ -1981,6 +1981,11 @@ def init_db():
             ("is_export",     "INTEGER DEFAULT 0"),       # v5H97: 0=내수, 1=수출
             ("unit_qty",      "INTEGER DEFAULT 1"),       # v5H132: 등록 시 호기 수량
             ("unit_price",    "REAL"),                     # v5H132: 1대 단가 (NULL → order_amount 폴백)
+            # v5H137 (2026-05-05): 프로젝트 유형 분류 + 부모 프로젝트 연결 (대표 직접 요청)
+            #   project_type: NEW_EQUIP(기본)/CONSUMABLE/SERVICE/OTHER
+            #   parent_project_id: 소모품·수리 시 어느 장비(관리번호) 의 건인지 연결 (NULL 허용)
+            ("project_type",       "TEXT DEFAULT 'NEW_EQUIP'"),
+            ("parent_project_id",  "INTEGER"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -1988,6 +1993,11 @@ def init_db():
                     c.execute(f"ALTER TABLE projects ADD COLUMN {col} {decl}")
                 except Exception:
                     pass
+        # v5H137: parent_project_id 인덱스 (소모품 → 부모 장비 역조회 가속)
+        try:
+            c.execute("CREATE INDEX IF NOT EXISTS idx_projects_parent ON projects(parent_project_id)")
+        except Exception:
+            pass
 
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
@@ -3495,6 +3505,32 @@ TRADE_TYPES = ("내수", "수출")
 PO_TYPES = ["신규", "추가", "개조", "A/S", "기타"]
 LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
+# v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
+# 등록 시점부터 신규장비/소모품/수리/기타 구분 + 소모품·수리는 부모 프로젝트 연결 가능
+PROJECT_TYPES = ("NEW_EQUIP", "CONSUMABLE", "SERVICE", "OTHER")
+PROJECT_TYPE_LABELS = {
+    "NEW_EQUIP":   "🔧 신규 장비",
+    "CONSUMABLE":  "📦 소모품·부품",
+    "SERVICE":     "🔨 수리·유지보수",
+    "OTHER":       "🌐 기타",
+}
+PROJECT_TYPE_UNIT_LABEL = {
+    "NEW_EQUIP":   "{n}호기",
+    "CONSUMABLE":  "{n}회차",
+    "SERVICE":     "{n}차",
+    "OTHER":       "{n}건",
+}
+
+
+def project_unit_label(project_type: str | None, n: int) -> str:
+    """v5H137: 프로젝트 유형별 자동 SO 호기 라벨 생성.
+    NEW_EQUIP/None → '1호기', CONSUMABLE → '1회차', SERVICE → '1차', OTHER → '1건'.
+    백워드 호환: project_type NULL 또는 미지원 값 → '호기' 패턴."""
+    pt = (project_type or "NEW_EQUIP").upper()
+    if pt not in PROJECT_TYPES:
+        pt = "NEW_EQUIP"
+    return PROJECT_TYPE_UNIT_LABEL[pt].format(n=n)
+
 
 def _logi_now() -> str:
     return _dt.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -3728,7 +3764,8 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
 
 
 def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
-                       status: str = ""):
+                       status: str = "", project_type: str = ""):
+    """v5H137: project_type 필터 추가 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER)."""
     sql = ("SELECT p.*, p.name AS project_name "
            "FROM projects p WHERE 1=1")
     params: list = []
@@ -3746,6 +3783,9 @@ def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
     if status:
         sql += " AND p.status = ?"
         params.append(status)
+    if project_type and project_type.upper() in PROJECT_TYPES:
+        sql += " AND COALESCE(p.project_type,'NEW_EQUIP') = ?"
+        params.append(project_type.upper())
     sql += " ORDER BY p.id DESC"
     with db_session() as c:
         return c.execute(sql, params).fetchall()
@@ -3783,6 +3823,17 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "pm_name": (data.get("pm_name") or data.get("pm") or "").strip(),
         "sales_name": (data.get("sales_name") or data.get("sales") or "").strip(),
         "logi_note": (data.get("logi_note") or data.get("note") or "").strip(),
+        # v5H137: 프로젝트 유형 + 부모 프로젝트 (소모품/수리 연결)
+        "project_type": (
+            (data.get("project_type") or "NEW_EQUIP").strip().upper()
+            if (data.get("project_type") or "NEW_EQUIP").strip().upper() in PROJECT_TYPES
+            else "NEW_EQUIP"
+        ),
+        "parent_project_id": (
+            int(data.get("parent_project_id"))
+            if str(data.get("parent_project_id") or "").strip().isdigit()
+            else None
+        ),
     }
 
 
@@ -3819,14 +3870,19 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                     (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
                      stage, po_type, status, customer_po, currency, order_amount,
                      order_date, due_date, pm_name, sales_name, logi_note,
-                     is_export, unit_qty, unit_price, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     is_export, unit_qty, unit_price,
+                     project_type, parent_project_id,
+                     created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
                       vals["sales_name"], vals["logi_note"], vals["is_export"],
-                      vals.get("unit_qty") or 1, vals.get("unit_price"), now, now))
+                      vals.get("unit_qty") or 1, vals.get("unit_price"),
+                      vals.get("project_type") or "NEW_EQUIP",
+                      vals.get("parent_project_id"),
+                      now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
                 log_project_change(c, new_id, data.get("_changed_by"),
@@ -3959,6 +4015,8 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
         ("order_date", "발주일"),
         ("due_date", "납기"),
         ("logi_note", "비고"),
+        ("project_type", "프로젝트유형"),
+        ("parent_project_id", "연관관리번호ID"),
     ]
     _pending_logs = []
     for k, label in _diff_keys:
@@ -4001,7 +4059,9 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
                 stage=?, po_type=?, status=?, customer_po=?, currency=?,
                 order_amount=?, order_date=?, due_date=?,
                 pm_name=?, sales_name=?, logi_note=?, is_export=?,
-                unit_qty=?, unit_price=?, updated_at=?
+                unit_qty=?, unit_price=?,
+                project_type=?, parent_project_id=?,
+                updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
               vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
@@ -4009,6 +4069,8 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
               vals["order_date"], vals["due_date"], vals["pm_name"],
               vals["sales_name"], vals["logi_note"], vals["is_export"],
               vals.get("unit_qty") or 1, vals.get("unit_price"),
+              vals.get("project_type") or "NEW_EQUIP",
+              vals.get("parent_project_id"),
               _logi_now(), pid))
         # v5H101: 변경 이력 적재 (UPDATE 성공 후)
         for label, ov, nv in _pending_logs:
