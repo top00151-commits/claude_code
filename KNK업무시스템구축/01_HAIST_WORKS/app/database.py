@@ -1962,6 +1962,8 @@ def init_db():
             ("logi_note",     "TEXT"),                   # 물류 비고
             ("updated_at",    "TEXT"),
             ("is_export",     "INTEGER DEFAULT 0"),       # v5H97: 0=내수, 1=수출
+            ("unit_qty",      "INTEGER DEFAULT 1"),       # v5H132: 등록 시 호기 수량
+            ("unit_price",    "REAL"),                     # v5H132: 1대 단가 (NULL → order_amount 폴백)
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -3756,6 +3758,9 @@ def _project_insert_or_update_values(data: dict) -> dict:
                      else "KRW"),
         "is_export": 1 if str(data.get("is_export") or data.get("trade_type") or "").lower() in ("1","true","수출","export") else 0,
         "order_amount": float(data.get("order_amount") or 0),
+        # v5H132: 단가/수량 — 폼에서 받지 않으면 None/1 폴백 (백워드 호환)
+        "unit_qty": max(1, min(100, int(float(data.get("unit_qty") or 1)))) if str(data.get("unit_qty") or "").strip() else 1,
+        "unit_price": (float(data.get("unit_price")) if str(data.get("unit_price") or "").strip() not in ("", "0") else None),
         "order_date": (data.get("order_date") or "").strip(),
         "due_date": (data.get("due_date") or "").strip(),
         "pm_name": (data.get("pm_name") or data.get("pm") or "").strip(),
@@ -3797,13 +3802,14 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                     (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
                      stage, po_type, status, customer_po, currency, order_amount,
                      order_date, due_date, pm_name, sales_name, logi_note,
-                     is_export, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     is_export, unit_qty, unit_price, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
-                      vals["sales_name"], vals["logi_note"], vals["is_export"], now, now))
+                      vals["sales_name"], vals["logi_note"], vals["is_export"],
+                      vals.get("unit_qty") or 1, vals.get("unit_price"), now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
                 log_project_change(c, new_id, data.get("_changed_by"),
@@ -3977,13 +3983,15 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
             SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
                 stage=?, po_type=?, status=?, customer_po=?, currency=?,
                 order_amount=?, order_date=?, due_date=?,
-                pm_name=?, sales_name=?, logi_note=?, is_export=?, updated_at=?
+                pm_name=?, sales_name=?, logi_note=?, is_export=?,
+                unit_qty=?, unit_price=?, updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
               vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
               vals["customer_po"], vals["currency"], vals["order_amount"],
               vals["order_date"], vals["due_date"], vals["pm_name"],
               vals["sales_name"], vals["logi_note"], vals["is_export"],
+              vals.get("unit_qty") or 1, vals.get("unit_price"),
               _logi_now(), pid))
         # v5H101: 변경 이력 적재 (UPDATE 성공 후)
         for label, ov, nv in _pending_logs:

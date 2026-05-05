@@ -4,6 +4,19 @@
 
 ---
 
+## v5H132 (2026-05-05) — 프로젝트 등록/수정 폼 단가·수량·금액 3-필드 (대표 후속 요청)
+- **요청 배경**: v5H131 은 추가 발주만 처리. 초기 등록 시점에도 수량 조정 필드가 없어 진행 중 1대 SO 만 발행되던 결함. "단가, 수량, 금액으로 표현" 요청
+- **schema** (`database.py`): `projects` 에 `unit_qty INTEGER DEFAULT 1`, `unit_price REAL` 컬럼 ALTER (PRAGMA 가드 idempotent). 기존 row 는 NULL/1 폴백
+- **UI** (`templates/project_form.html` ③ 금액 섹션): "수주액" 단일 → **단가 / 수량 / 금액(자동·readonly)** 3-필드 그리드. 단가 또는 수량 변경 시 JS 가 `금액 = 단가 × 수량` 라이브 계산, hidden `order_amount` 동기화. 통화는 별도 행. 안내문 "수량 N대 → N개 호기 라인 SO 자동 발행" 명시. SO 발행됨 상태에서는 단가/수량 readonly
+- **수정폼**: 동일 폼이 project edit 도 사용 — `project.unit_qty`, `project.unit_price` 폴백 (NULL 이면 `_p_qty=1`, `_p_price=order_amount/qty`)
+- **라우트** (`main.py`):
+  - `POST /projects/new`: `unit_price`, `unit_qty` 폼 파싱(1~100 클램프) → `order_amount = unit_price × unit_qty` 서버 재계산. v5H87 자동 SO 분기에서 1호기 단건 → **N개 호기 라인** (각 단가=unit_price) `confirm_order_multi` 호출
+  - `POST /projects/{pid}/edit`: 동일 처리 + `projects_update_logi` 에 `unit_qty`/`unit_price` 전달
+  - `POST /projects/{pid}/quick-status` (v5H130): `projects` 에서 `unit_qty`, `unit_price` 함께 SELECT → WON 진입 자동 SO 발행 시 N개 호기 라인 생성. 이력 메시지 "단가 X × N대 = TOTAL"
+- **DB 헬퍼** (`database.py`): `_project_insert_or_update_values` 에 `unit_qty`(1~100 클램프), `unit_price`(빈/0 → None) 추가. INSERT/UPDATE SQL 양쪽에 컬럼 추가
+- **UI 보강** (`templates/project_detail.html` 사이드패널): 수주액 dd 에 `단가 X × N대 = TOTAL CUR` 라인 추가 (unit_qty/unit_price NULL 시 폴백 계산)
+- **백워드 호환**: 기존 프로젝트 (unit_qty/unit_price NULL) 는 quick-status·edit 폴백으로 1호기 단건 처리됨. 추가 발주 (v5H131) 모달은 변경 없음 — 이미 일관성 있음
+
 ## v5H131 (2026-05-05) — "+ 추가 발주" 모달 수량 필드 추가 (대표 직접 요청)
 - **요청 배경**: 추가 발주가 여러 대일 수 있는데 수량 조정 필드 부재. 4호기 4.9M씩 4대 = 19.6M 일괄 입력 시나리오
 - **의미 결정**: `total_amount` 필드 = **1대 단가** (옵션 A 채택). 사용자는 단가만 알면 되므로 더 직관적

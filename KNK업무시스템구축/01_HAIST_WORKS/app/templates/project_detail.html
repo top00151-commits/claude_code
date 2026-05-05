@@ -660,6 +660,14 @@
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
+            {# v5H132: 단가 × 수량 = 금액 분해 표시 (등록폼 unit_qty/unit_price 폴백 포함) #}
+            {% set _pq = p.unit_qty if p.unit_qty else 1 %}
+            {% set _pp = p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt) %}
+            {% if _displayed_amt and _pq and _pp %}
+            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:4px;line-height:1.5;">
+              단가 <b style="color:var(--ink);">{{ '{:,.0f}'.format(_pp) }}</b> × <b style="color:var(--ink);">{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ '{:,.0f}'.format(_displayed_amt) }}</b> {{ p.currency or 'KRW' }}
+            </div>
+            {% endif %}
             {# v5H111: 호기별 분해 — 라벨 숫자 순으로 정렬 (서버 all_units_sorted) #}
             {% if all_units_sorted %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">

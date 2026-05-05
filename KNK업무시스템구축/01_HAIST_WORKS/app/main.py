@@ -4923,7 +4923,9 @@ async def projects_quick_status(req: Request, pid: int):
     with db_session() as c:
         cur = c.execute(
             "SELECT status, mgmt_code, biz_div, order_amount, order_date, "
-            "due_date, customer_po FROM projects WHERE id=?", (pid,)
+            "due_date, customer_po, "
+            "COALESCE(unit_qty,1) AS unit_qty, unit_price "
+            "FROM projects WHERE id=?", (pid,)
         ).fetchone()
         if not cur:
             return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
@@ -4942,7 +4944,8 @@ async def projects_quick_status(req: Request, pid: int):
                           (code, pid))
             except Exception:
                 pass
-        # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 1호기 SO 발행
+        # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 SO 발행
+        # v5H132: unit_qty N → N개 호기 라인 (단가=unit_price 또는 amt/qty)
         if new_status in _logi.WON_STATUSES:
             try:
                 amt0 = float(cur["order_amount"] or 0)
@@ -4951,15 +4954,26 @@ async def projects_quick_status(req: Request, pid: int):
                         "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
                     ).fetchone()
                     if not exists:
+                        try:
+                            _qty0 = max(1, min(100, int(cur["unit_qty"] or 1)))
+                        except Exception:
+                            _qty0 = 1
+                        try:
+                            _up0 = float(cur["unit_price"]) if cur["unit_price"] is not None else 0.0
+                        except Exception:
+                            _up0 = 0.0
+                        if _up0 <= 0:
+                            _up0 = amt0 / _qty0
+                        _units_list = [{
+                            "label": f"{i+1}호기",
+                            "amount": _up0,
+                            "due_date": cur["due_date"] or "",
+                            "ship_to": "",
+                            "note": "",
+                        } for i in range(_qty0)]
                         res = _pwf.confirm_order_multi(
                             c, int(pid),
-                            units=[{
-                                "label": "1호기",
-                                "amount": amt0,
-                                "due_date": cur["due_date"] or "",
-                                "ship_to": "",
-                                "note": "",
-                            }],
+                            units=_units_list,
                             order_date=cur["order_date"] or "",
                             created_by=u.get("id") or 0,
                             po_number=cur["customer_po"] or "",
@@ -4968,10 +4982,11 @@ async def projects_quick_status(req: Request, pid: int):
                             auto_so_issued = True
                             grp = (res.get("groups") or [{}])[0]
                             auto_so_no = grp.get("so_no") or res.get("so_no")
+                            _lbl = f"{_qty0}호기" if _qty0 > 1 else "1호기"
                             _logi.log_project_change(
                                 c, pid, u.get("id"), "수주발행(자동)",
-                                "", auto_so_no or "1호기",
-                                note=f"v5H130 자동 — 진행중 진입 시 1호기 SO 발행 ({amt0:,.0f})"
+                                "", auto_so_no or _lbl,
+                                note=f"v5H132 자동 — 진행중 진입 시 {_qty0}대 SO 발행 (단가 {_up0:,.0f} × {_qty0} = {amt0:,.0f})"
                             )
             except Exception:
                 pass
@@ -8000,6 +8015,28 @@ async def projects_new_submit(request: Request):
         amt = float(raw_amt) if raw_amt else 0
     except ValueError:
         amt = 0
+    # v5H132: 단가 × 수량 = 금액 (폼이 hidden order_amount 를 미리 계산해 보내지만 서버 재검증)
+    raw_price = (form.get("unit_price") or "0").strip().replace(",", "")
+    try:
+        unit_price = float(raw_price) if raw_price else 0.0
+    except ValueError:
+        unit_price = 0.0
+    raw_qty = (form.get("unit_qty") or "1").strip()
+    try:
+        unit_qty = int(float(raw_qty))
+    except (TypeError, ValueError):
+        unit_qty = 1
+    if unit_qty < 1:
+        unit_qty = 1
+    if unit_qty > 100:
+        unit_qty = 100
+    # 폼 hidden order_amount 가 있으면 우선 사용, 없으면 단가×수량으로 계산.
+    # 0 이거나 단가>0 이면 항상 단가×수량으로 재계산 (자가치유)
+    if unit_price > 0:
+        amt = unit_price * unit_qty
+    elif amt > 0 and unit_qty >= 1:
+        # 폴백: 단가 미입력이면 amt/qty 를 단가로 추정
+        unit_price = amt / unit_qty
     # v5H77: '수주확정 동시발급' 체크 — 등록 직후 confirm_order 호출
     confirm_now = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
     stage_val = form.get("stage", "제안작성") or "제안작성"
@@ -8017,6 +8054,8 @@ async def projects_new_submit(request: Request):
         "currency": (form.get("currency", "KRW") or "KRW").upper(),
         "is_export": form.get("is_export", "0"),
         "order_amount": amt,
+        "unit_qty": unit_qty,
+        "unit_price": unit_price if unit_price > 0 else None,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
@@ -8076,7 +8115,8 @@ async def projects_new_submit(request: Request):
             )
         return RedirectResponse(f"/project/{new_pid}", status_code=303)
     # v5H87: confirm_now 미체크 + status 가 won (진행중/납품완료) 인 경우
-    # 자동으로 SO 1건 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
+    # 자동으로 SO 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
+    # v5H132: 수량 N → N개 호기 라인 자동 생성 (단가=unit_price)
     status_val = (form.get("status") or "").strip()
     if not confirm_now and new_pid and status_val in _logi.WON_STATUSES:
         try:
@@ -8086,15 +8126,18 @@ async def projects_new_submit(request: Request):
                     "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (new_pid,)
                 ).fetchone()
                 if not exists:
+                    # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
+                    _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                    _units_list = [{
+                        "label": f"{i+1}호기",
+                        "amount": _per_unit,
+                        "due_date": form.get("due_date", ""),
+                        "ship_to": "",
+                        "note": "",
+                    } for i in range(max(1, unit_qty))]
                     _pwf.confirm_order_multi(
                         c, int(new_pid),
-                        units=[{
-                            "label": "1호기",
-                            "amount": amt,
-                            "due_date": form.get("due_date", ""),
-                            "ship_to": "",
-                            "note": "",
-                        }],
+                        units=_units_list,
                         order_date=form.get("order_date", ""),
                         created_by=_u.get("id") or 0,
                         po_number=form.get("customer_po", ""),
@@ -8189,6 +8232,25 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = float(raw_amt) if raw_amt else 0
     except ValueError:
         amt = 0
+    # v5H132: 단가/수량 받아서 amt 재계산
+    raw_price = (form.get("unit_price") or "0").strip().replace(",", "")
+    try:
+        unit_price = float(raw_price) if raw_price else 0.0
+    except ValueError:
+        unit_price = 0.0
+    raw_qty = (form.get("unit_qty") or "1").strip()
+    try:
+        unit_qty = int(float(raw_qty))
+    except (TypeError, ValueError):
+        unit_qty = 1
+    if unit_qty < 1:
+        unit_qty = 1
+    if unit_qty > 100:
+        unit_qty = 100
+    if unit_price > 0:
+        amt = unit_price * unit_qty
+    elif amt > 0 and unit_qty >= 1:
+        unit_price = amt / unit_qty
     status_val = form.get("status", "초기협의") or "초기협의"
     _logi.projects_update_logi(pid, {
         "_changed_by": _u.get("id"),
@@ -8201,12 +8263,15 @@ async def projects_edit_submit(request: Request, pid: int):
         "currency": (form.get("currency", "KRW") or "KRW").upper(),
         "is_export": form.get("is_export", "0"),
         "order_amount": amt,
+        "unit_qty": unit_qty,
+        "unit_price": unit_price if unit_price > 0 else None,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
     })
-    # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 1건 발행
+    # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
+    # v5H132: 수량 N → N개 호기 라인
     if status_val in _logi.WON_STATUSES:
         try:
             with db_session() as c:
@@ -8214,15 +8279,17 @@ async def projects_edit_submit(request: Request, pid: int):
                     "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
                 ).fetchone()
                 if not exists:
+                    _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                    _units_list = [{
+                        "label": f"{i+1}호기",
+                        "amount": _per_unit,
+                        "due_date": form.get("due_date", ""),
+                        "ship_to": "",
+                        "note": "",
+                    } for i in range(max(1, unit_qty))]
                     _pwf.confirm_order_multi(
                         c, int(pid),
-                        units=[{
-                            "label": "1호기",
-                            "amount": amt,
-                            "due_date": form.get("due_date", ""),
-                            "ship_to": "",
-                            "note": "",
-                        }],
+                        units=_units_list,
                         order_date=form.get("order_date", ""),
                         created_by=_u.get("id") or 0,
                         po_number=form.get("customer_po", ""),

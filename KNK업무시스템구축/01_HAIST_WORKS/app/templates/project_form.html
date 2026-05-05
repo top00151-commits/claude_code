@@ -147,22 +147,34 @@
       </div>
     </div>
 
-    <!-- ③ 금액 -->
+    <!-- ③ 금액 (v5H132: 단가 × 수량 = 금액 3-필드 레이아웃) -->
     <div class="pf-section">
-      <h3>③ 금액</h3>
-      <div class="pf-row">
+      <h3>③ 금액 <span class="sub" style="font-size:11px;color:var(--mute);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">단가 × 수량 = 금액 (자동 계산)</span></h3>
+      {% set _p_qty = project.unit_qty if (project and project.unit_qty) else 1 %}
+      {% set _p_amt = (project.order_amount if project else 0) or 0 %}
+      {% set _p_price = project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt) %}
+      <div class="pf-row three">
         <div class="pf-field">
-          <label>수주액 {% if has_orders %}<span class="sub" style="color:var(--knk-red);">(SO 합계로 자동 계산 — 수정 불가)</span>{% endif %}</label>
-          <input type="text" name="order_amount" inputmode="numeric"
-                 value="{{ project.order_amount|default(0) }}" placeholder="0"
+          <label>1대 단가 <span class="req">*</span> {% if has_orders %}<span class="sub" style="color:var(--knk-red);font-size:11px;">(SO 발행됨 — 변경 시 자가치유 위험)</span>{% endif %}</label>
+          <input type="text" id="pf_unit_price" name="unit_price" inputmode="numeric"
+                 value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}" placeholder="0"
                  {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
-          {% if has_orders %}
-          <div style="font-size:11px;color:var(--mute);margin-top:4px;line-height:1.5;">
-            ⓘ 호기 단가/추가는 <a href="/project/{{ project.id }}" style="color:var(--amber-deep);font-weight:700;">프로젝트 상세 → 수주 카드</a>에서 직접 편집하세요.<br>
-            여기서 입력한 값은 SO 합계로 자동 덮어써집니다.
-          </div>
-          {% endif %}
         </div>
+        <div class="pf-field">
+          <label>수량 <span class="sub">(1~100)</span></label>
+          <input type="number" id="pf_unit_qty" name="unit_qty" min="1" max="100"
+                 value="{{ _p_qty }}"
+                 {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
+        </div>
+        <div class="pf-field">
+          <label>금액 <span class="sub">(자동 계산)</span></label>
+          <input type="text" id="pf_amount_display" inputmode="numeric"
+                 value="{{ '{:,.0f}'.format(_p_amt) }}" readonly
+                 style="background:var(--paper-2);color:var(--knk-red);font-weight:700;cursor:not-allowed;text-align:right;">
+          <input type="hidden" id="pf_order_amount" name="order_amount" value="{{ _p_amt }}">
+        </div>
+      </div>
+      <div class="pf-row">
         <div class="pf-field">
           <label>통화</label>
           <select name="currency">
@@ -171,7 +183,37 @@
             <option value="VND" {% if project and project.currency == 'VND' %}selected{% endif %}>VND (동)</option>
           </select>
         </div>
+        <div class="pf-field">
+          <div style="font-size:11.5px;color:var(--mute);line-height:1.55;padding:8px 0;">
+            ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.<br>
+            저장 시 <b>수량 N대</b> 면 <b>N개 호기 라인 SO</b> 가 자동 발행됩니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
+            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 SO 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
+          </div>
+        </div>
       </div>
+      <script>
+      (function(){
+        const priceInp = document.getElementById('pf_unit_price');
+        const qtyInp = document.getElementById('pf_unit_qty');
+        const amtDisp = document.getElementById('pf_amount_display');
+        const amtHidden = document.getElementById('pf_order_amount');
+        if (!priceInp || !qtyInp || !amtDisp || !amtHidden) return;
+        function fmt(n){ return (Math.round(n||0)).toLocaleString('ko-KR'); }
+        function recalc(){
+          const p = parseFloat((priceInp.value||'0').replace(/,/g,'')) || 0;
+          const q = parseInt(qtyInp.value||'1', 10) || 1;
+          const total = p * q;
+          amtDisp.value = fmt(total);
+          amtHidden.value = total;
+        }
+        if (window.knkAttachMoney) { window.knkAttachMoney(priceInp); }
+        priceInp.addEventListener('input', recalc);
+        priceInp.addEventListener('blur', recalc);
+        qtyInp.addEventListener('input', recalc);
+        qtyInp.addEventListener('change', recalc);
+        recalc();
+      })();
+      </script>
       {# v5H97: 초기 상태만 설정 — 이후 변경은 프로젝트 상세에서 인라인 클릭으로 #}
       <div class="pf-row">
         <div class="pf-field full">

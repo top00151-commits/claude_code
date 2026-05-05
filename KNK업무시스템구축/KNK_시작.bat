@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H131 추가 발주 모달 수량 필드 (1~100, 단가×수량 라이브 합계, N개 호기 라인 자동 생성)
+REM   LAST UPDATE: 2026-05-05 v5H132 프로젝트 등록/수정 폼에도 단가/수량/금액 3-필드 + 자동 SO N개 호기 라인 (등록 시 수량 N → N개 SO)
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H131]
+title KNK HAIST WORKS [v5H132]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H131  2026-05-05]
+echo    [v5H132  2026-05-05]
 echo ============================================================
 echo.
 
