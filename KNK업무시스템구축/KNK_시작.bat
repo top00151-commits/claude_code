@@ -36,7 +36,7 @@ if errorlevel 1 (
     echo [OK] Installation complete.
 )
 
-start "" /b cmd /c "timeout /t 3 /nobreak >nul ^&^& start http://localhost:8081"
+start "" /b cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:8081"
 
 python run.py
 
