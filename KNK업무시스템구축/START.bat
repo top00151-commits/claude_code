@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H143 quick-status NameError(_cur_ptype) 핫픽스 — v5H142에서 NEW_EQUIP 분기 추가 시 _cur_ptype 정의가 사용 뒤로 밀려 CONSUMABLE 프로젝트 상태 변경 시 HTTP 500 발생. _cur_ptype 정의를 분기 직전으로 이동 + 외곽 try/except로 모든 예외를 친절 JSON 응답. 사이드바 매출·영업 그룹에 "📦 소모품 발주 (M-01-14)" 노출.
+REM   LAST UPDATE: 2026-05-05 v5H144 전역 드래그앤드롭 — _v5_partials/dragdrop.html 신설 + chrome.html include. 모든 페이지의 file input(.knk-dropzone 옵트인 또는 자동 wrap)을 드롭존으로 변환. 옵트아웃: data-knk-no-dropzone. 기존 change 이벤트 핸들러(이미지 압축 등) 호환.
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [v5H143]
+title KNK HAIST WORKS - HAIST Innovation [v5H144]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H143  2026-05-05]
+echo    [v5H144  2026-05-05]
 echo ============================================================
 echo.
 

@@ -1,0 +1,115 @@
+<style>
+.knk-dropzone {
+  position: relative;
+  border: 2px dashed var(--cream-line, #d6cdb6);
+  border-radius: 8px;
+  padding: 20px;
+  background: #fffaf0;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  min-height: 80px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+}
+.knk-dropzone:hover { background: #fff5e0; border-color: var(--amber, #d4a574); }
+.knk-dropzone.dragover {
+  background: #fef3c7;
+  border-color: var(--amber-deep, #b8852e);
+  border-style: solid;
+  transform: scale(1.01);
+}
+.knk-dropzone .dz-icon { font-size: 24px; opacity: .7; }
+.knk-dropzone .dz-text { font-size: 13px; color: #555; font-weight: 600; }
+.knk-dropzone .dz-sub { font-size: 11px; color: #888; }
+.knk-dropzone .dz-files { font-size: 12px; color: var(--amber-deep, #b8852e); font-weight: 700; margin-top: 4px; }
+.knk-dropzone input[type="file"] { display: none; }
+</style>
+<script>
+(function(){
+  function initDropzone(zone){
+    if (zone._knkInit) return; zone._knkInit = true;
+    var input = zone.querySelector('input[type="file"]');
+    if (!input) return;
+    function setFiles(files){
+      try {
+        var dt = new DataTransfer();
+        for (var i=0;i<files.length;i++) dt.items.add(files[i]);
+        input.files = dt.files;
+      } catch(e) {}
+      var fl = zone.querySelector('.dz-files');
+      if (!fl) {
+        fl = document.createElement('div');
+        fl.className = 'dz-files';
+        zone.appendChild(fl);
+      }
+      var names = [];
+      for (var j=0;j<files.length;j++) names.push(files[j].name + ' (' + Math.round(files[j].size/1024) + 'KB)');
+      fl.textContent = '✓ ' + names.join(', ');
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+    zone.addEventListener('click', function(e){
+      if (e.target === input) return;
+      input.click();
+    });
+    input.addEventListener('change', function(){
+      if (input.files && input.files.length) {
+        var fl = zone.querySelector('.dz-files');
+        if (!fl) {
+          fl = document.createElement('div');
+          fl.className = 'dz-files';
+          zone.appendChild(fl);
+        }
+        var names = [];
+        for (var k=0;k<input.files.length;k++) names.push(input.files[k].name + ' (' + Math.round(input.files[k].size/1024) + 'KB)');
+        fl.textContent = '✓ ' + names.join(', ');
+      }
+    });
+    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function(e){ if (e.target === zone) zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e){
+      e.preventDefault(); zone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) setFiles(e.dataTransfer.files);
+    });
+  }
+  function autoWrap(inp){
+    if (inp.closest('.knk-dropzone')) return;
+    var zone = document.createElement('label');
+    zone.className = 'knk-dropzone';
+    zone.style.cssText = 'display:flex;margin:8px 0;';
+    var icon = document.createElement('div'); icon.className='dz-icon'; icon.textContent='📎';
+    var txt = document.createElement('div'); txt.className='dz-text';
+    var accept = inp.accept || '';
+    txt.textContent = accept ? ('클릭 또는 드래그해서 파일 선택 (' + accept + ')') : '클릭 또는 드래그해서 파일 선택';
+    var sub = document.createElement('div'); sub.className='dz-sub';
+    sub.textContent = inp.multiple ? '여러 파일 가능' : '파일 1개';
+    zone.appendChild(icon); zone.appendChild(txt); zone.appendChild(sub);
+    inp.parentNode.insertBefore(zone, inp);
+    zone.appendChild(inp);
+    initDropzone(zone);
+  }
+  function init(){
+    document.querySelectorAll('.knk-dropzone').forEach(initDropzone);
+    document.querySelectorAll('input[type="file"]:not([data-knk-no-dropzone])').forEach(autoWrap);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  try {
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        m.addedNodes.forEach(function(n){
+          if (n.nodeType !== 1) return;
+          if (n.matches && n.matches('.knk-dropzone')) initDropzone(n);
+          if (n.querySelectorAll) {
+            n.querySelectorAll('.knk-dropzone').forEach(initDropzone);
+            n.querySelectorAll('input[type="file"]:not([data-knk-no-dropzone])').forEach(autoWrap);
+          }
+        });
+      });
+    }).observe(document.body, {childList:true, subtree:true});
+  } catch(e) {}
+})();
+</script>

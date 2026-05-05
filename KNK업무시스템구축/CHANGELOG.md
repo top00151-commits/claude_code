@@ -4,6 +4,12 @@
 
 ---
 
+## v5H144 (2026-05-05) — 전역 드래그앤드롭 (모든 file input 자동 dropzone 화)
+- **대표 요청**: "파일은 항상 드래그해도 올릴 수 있게."
+- **신설 — `app/templates/_v5_partials/dragdrop.html`**: `.knk-dropzone` 자동 init + `input[type=file]:not([data-knk-no-dropzone])` 자동 wrap. 클릭/드래그 양쪽 지원, 드래그 중 hover 강조(amber 보더 + scale), 드롭 후 파일명+크기 표시, `DataTransfer` 로 input.files 동기화, change 이벤트 재발생으로 기존 핸들러(이미지 압축 등) 호환. MutationObserver 로 동적 폼도 자동 감지.
+- **`chrome.html` 마지막**: `{% include "_v5_partials/dragdrop.html" ignore missing %}` 추가 → 사이드바 포함 모든 페이지 공통 적용.
+- **호환성**: v5H129 part_form.html 사진/도면 업로드(자체 압축 JS) — change 이벤트 그대로 발생, 압축 로직 정상 동작. v5H142 consumable_form_upload.html 엑셀 input — 자동 wrap 으로 dropzone 화. 깨지는 페이지 발견 시 해당 input 에 `data-knk-no-dropzone` 속성으로 옵트아웃 가능.
+
 ## v5H143 (2026-05-05) — quick-status NameError 핫픽스 + 사이드바 소모품 발주 노출
 - **결함 1 (HIGH)**: CONSUMABLE 프로젝트(예: id=716 GOOX 소모품) 사이드패널 상태 → "진행중" 변경 시 HTTP 500. **원인**: `app/main.py` `projects_quick_status()` 에서 v5H142 분기 추가 시 `_cur_ptype == "NEW_EQUIP"` 체크가 라인 4990(mgmt_code 발급)에 들어갔는데, `_cur_ptype` 자체는 라인 5000(SO 발행 분기 직전)에서 정의돼 있어 `NameError`. NEW_EQUIP 라면 두 번째 정의가 동일값으로 덮어쓰여 우연히 동작했지만 CONSUMABLE 흐름은 첫 번째 분기에서 즉시 실패 → 500.
 - **수정**: `_cur_ptype` 정의를 status UPDATE 직후·모든 분기 직전으로 이동. 외곽 `try/except`로 모든 예외를 `JSONResponse({"ok":False, "message": ...}, 500)` 친절 응답으로 변환 (모달/토스트 표시 가능, 무음 500 차단).
