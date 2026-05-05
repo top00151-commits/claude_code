@@ -14784,6 +14784,7 @@ async def api_projects_search(request: Request, q: str = ""):
                 like = f"%{q}%"
                 rs = c.execute(
                     """SELECT p.id, p.mgmt_code, p.name, p.equip_type, p.status,
+                              p.customer_id, p.biz_div, p.model_name, p.po_type, p.is_export,
                               cu.name AS customer_name
                        FROM projects p
                        LEFT JOIN customers cu ON p.customer_id=cu.id
@@ -14795,6 +14796,7 @@ async def api_projects_search(request: Request, q: str = ""):
             else:
                 rs = c.execute(
                     """SELECT p.id, p.mgmt_code, p.name, p.equip_type, p.status,
+                              p.customer_id, p.biz_div, p.model_name, p.po_type, p.is_export,
                               cu.name AS customer_name
                        FROM projects p
                        LEFT JOIN customers cu ON p.customer_id=cu.id

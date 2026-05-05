@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H139 프로젝트 유형 pill 영문+한글 2줄 표기 (so-pill 패턴 통일) — _v5_partials/project_type_pill.html 신설 + project_detail 헤더/사이드 + projects 목록 표 적용 (4색 분기: NEW_EQUIP 주황 / CONSUMABLE 녹색 / SERVICE 파랑 / OTHER 회색)
+REM   LAST UPDATE: 2026-05-05 v5H140 프로젝트 유형 pill 영문+한글 2줄 표기 (so-pill 패턴 통일) — _v5_partials/project_type_pill.html 신설 + project_detail 헤더/사이드 + projects 목록 표 적용 (4색 분기: NEW_EQUIP 주황 / CONSUMABLE 녹색 / SERVICE 파랑 / OTHER 회색)
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
-title KNK HAIST WORKS [v5H139]
+title KNK HAIST WORKS [v5H140]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H139  2026-05-05]
+echo    [v5H140  2026-05-05]
 echo ============================================================
 echo.
 

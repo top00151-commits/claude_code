@@ -178,6 +178,41 @@
                 hid.value = row.id;
                 inp.value = (row.mgmt_code||('#'+row.id)) + ' · ' + (row.name||'');
                 box.style.display = 'none';
+                // v5H140: 부모 프로젝트의 고객사/사업부/모델/PO유형/거래구분 자동 채움
+                try {
+                  if (row.customer_name) {
+                    var cn = document.querySelector('input[name="customer_name"]');
+                    if (cn && !cn.value.trim()) cn.value = row.customer_name;
+                  }
+                  if (row.biz_div) {
+                    var bd = document.querySelector('select[name="biz_div"], input[name="biz_div"]');
+                    if (bd && !bd.value) bd.value = row.biz_div;
+                  }
+                  if (row.model_name) {
+                    var mn = document.querySelector('input[name="model_name"]');
+                    if (mn && !mn.value.trim()) mn.value = row.model_name;
+                  }
+                  if (row.po_type) {
+                    var pt = document.querySelector('select[name="po_type"], input[name="po_type"]');
+                    if (pt && !pt.value) pt.value = row.po_type;
+                  }
+                  if (row.is_export === 1 || row.is_export === '1') {
+                    var ex = document.querySelector('input[name="is_export"][value="1"]');
+                    if (ex && !ex.checked) ex.checked = true;
+                  } else if (row.is_export === 0 || row.is_export === '0') {
+                    var dom = document.querySelector('input[name="is_export"][value="0"]');
+                    if (dom && !dom.checked) dom.checked = true;
+                  }
+                  // 자동채움 안내 토스트 (간단 인라인)
+                  var hint = document.getElementById('pfParentAutofill');
+                  if (!hint) {
+                    hint = document.createElement('div');
+                    hint.id = 'pfParentAutofill';
+                    hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:4px;font-size:12px;color:#1b5e20;';
+                    inp.parentElement.appendChild(hint);
+                  }
+                  hint.textContent = '✓ 연관 프로젝트 정보로 고객사/사업부/모델 자동 채움됨 (필요 시 수정 가능)';
+                } catch(e) { /* silent */ }
               };
               box.appendChild(d);
             });

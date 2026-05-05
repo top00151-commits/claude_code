@@ -4,6 +4,12 @@
 
 ---
 
+## v5H140 (2026-05-05) — 연관 관리번호 선택 시 고객사/사업부/모델 자동 채움
+- /api/projects/search 응답에 customer_id / biz_div / model_name / po_type / is_export 추가
+- project_form.html JS: 부모 프로젝트 선택 시 위 5필드 자동 입력 (빈 칸일 때만, 사용자 입력 보존)
+- 안내 토스트 "✓ 연관 프로젝트 정보로 자동 채움됨 (필요 시 수정 가능)"
+- 백워드 호환: 부모 프로젝트 정보 누락 시 silent 폴백
+
 ## v5H139 (2026-05-05) — 프로젝트 유형 라디오 라벨 2줄(영문+한글) 표기
 - project_form.html 라디오 라벨이 PROJECT_TYPE_LABELS 컨텍스트 미전달로 영문만 노출되는 결함 수정
 - 인라인 dict으로 한글 매핑 하드코딩 + 라벨을 카드형으로 변경 (선택시 애버 배경)
