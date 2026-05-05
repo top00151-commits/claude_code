@@ -3465,6 +3465,7 @@ async def project_detail(req: Request, pid: int):
     except Exception:
         pass
     # v5H111: 사이드패널 호기 분해용 — 모든 SO 의 units 를 라벨 숫자 순 정렬
+    # v5H133: 표시 순서를 내림차순(최근 호기 → 1호기)으로 반전 (대표 요청)
     all_units_sorted = []
     try:
         import re as _re_n
@@ -3476,7 +3477,7 @@ async def project_detail(req: Request, pid: int):
             lbl = (u.get("unit_label") or "")
             m = _re_n.match(r"^(\d+)", lbl)
             return (int(m.group(1)) if m else 9999, lbl)
-        all_units_sorted = sorted(_flat, key=_sort_key)
+        all_units_sorted = sorted(_flat, key=_sort_key, reverse=True)
     except Exception:
         pass
     # v5H124: 프로젝트 SO 통화 혼합 감지 + 통화별 합계 분리
@@ -6456,6 +6457,16 @@ async def sales_order_detail(req: Request, oid: int):
                 it["part_no"] = "—"
             if not it.get("part_name"):
                 it["part_name"] = it.get("unit_label") or "호기"
+        # v5H133: 호기 표시 순서를 내림차순(최근 호기 → 1호기)으로 반전 (대표 요청)
+        try:
+            import re as _re_so
+            def _it_key(_it):
+                _lbl = (_it.get("unit_label") or "")
+                _m = _re_so.match(r"^(\d+)", _lbl)
+                return (int(_m.group(1)) if _m else 9999, _lbl, _it.get("id") or 0)
+            items.sort(key=_it_key, reverse=True)
+        except Exception:
+            pass
         invoices_ = [dict(r) for r in c.execute(
             "SELECT * FROM invoices WHERE order_id=? ORDER BY id DESC", (oid,)
         ).fetchall()]

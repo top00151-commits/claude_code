@@ -4,6 +4,14 @@
 
 ---
 
+## v5H133 (2026-05-05) — 호기 표시 순서 반전 (최근 호기 → 1호기, 대표 직접 요청)
+- **요청 배경**: 호기 라인이 1호기 → N호기 (오름차순) 으로 표시되어 신규 호기 확인 시 스크롤 필요. 가장 최근 발주된 호기를 맨 위에 배치하기 위해 내림차순으로 반전
+- **`app/main.py` `/project/{pid}` (`all_units_sorted`)**: `sorted(_flat, key=_sort_key)` → `sorted(_flat, key=_sort_key, reverse=True)`. 사이드패널 호기 분해 라인이 N → 1 순으로 표시
+- **`app/main.py` `/sales/orders/{oid}` (`sales_order_detail`)**: SQL `ORDER BY oi.id` 결과를 in-Python 으로 `unit_label` 숫자 prefix 기준 reverse=True 재정렬. SO 상세의 "수주 라인" 테이블이 N → 1 순
+- **`app/project_workflow.py` `get_project_orders.units`**: SQL `ORDER BY id ASC` 후 in-Python 으로 `unit_label` 숫자 prefix 기준 reverse=True 재정렬. project_detail SO 카드의 호기 라인이 N → 1 순 (`so.units` 소비처 동시 영향)
+- **백워드 호환**: 데이터 구조/컬럼/스키마 변경 없음. 정렬 순서만 표시단에서 반전. 라벨 숫자 추출 실패 라인은 `9999` 키로 정렬 후 reverse → 무라벨 라인이 항상 최상단(또는 라벨 라인보다 위)에 위치 (기존도 9999 → 최하단이었던 것을 의도적으로 뒤집음)
+- **영향 없음**: sales_orders.html 목록(SO 1줄당 unit_label 단일 칩 표시), 엑셀 export, biz_doc 생성, stock 자가치유 — 모두 단일 라인 표시 또는 불변 데이터 흐름
+
 ## v5H132 (2026-05-05) — 프로젝트 등록/수정 폼 단가·수량·금액 3-필드 (대표 후속 요청)
 - **요청 배경**: v5H131 은 추가 발주만 처리. 초기 등록 시점에도 수량 조정 필드가 없어 진행 중 1대 SO 만 발행되던 결함. "단가, 수량, 금액으로 표현" 요청
 - **schema** (`database.py`): `projects` 에 `unit_qty INTEGER DEFAULT 1`, `unit_price REAL` 컬럼 ALTER (PRAGMA 가드 idempotent). 기존 row 는 NULL/1 폴백

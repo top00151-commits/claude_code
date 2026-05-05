@@ -621,6 +621,16 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                 (d["id"],)
             ).fetchall()
             d["units"] = [dict(it) for it in items]
+            # v5H133: 호기 표시 순서를 내림차순(최근 호기 → 1호기)으로 반전 (대표 요청)
+            try:
+                import re as _re_u
+                def _u_key(_u):
+                    _lbl = (_u.get("unit_label") or "") if isinstance(_u, dict) else ""
+                    _m = _re_u.match(r"^(\d+)", _lbl)
+                    return (int(_m.group(1)) if _m else 9999, _lbl)
+                d["units"].sort(key=_u_key, reverse=True)
+            except Exception:
+                pass
         except Exception:
             d["units"] = []
 
