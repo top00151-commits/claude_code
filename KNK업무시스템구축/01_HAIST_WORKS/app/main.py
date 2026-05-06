@@ -11980,10 +11980,11 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
         _prev_y, _prev_m = _start_y - 1, 12
     else:
         _prev_y, _prev_m = _start_y, _start_m - 1
-    if _start2_m == 12:
-        _next_y, _next_m_nav = _start2_y + 1, 1
+    # v5H168: 한 달씩 이동 (이전/다음 = ±1개월)
+    if _start_m == 12:
+        _next_y, _next_m_nav = _start_y + 1, 1
     else:
-        _next_y, _next_m_nav = _start2_y, _start2_m + 1
+        _next_y, _next_m_nav = _start_y, _start_m + 1
 
     cal_months = []
     try:
@@ -12033,7 +12034,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
             upcoming.append({**it, "d_left": d_left, "_cls": cls})
         # 정렬: 오버듀 먼저(가장 오래된), 그 다음 임박순
         upcoming.sort(key=lambda x: (0 if x["d_left"] < 0 else 1, x["d_left"]))
-        upcoming = upcoming[:20]  # 상위 20건
+        upcoming = upcoming[:60]  # v5H168: 상위 60건 (리스트 더 많이 표시)
     except Exception:
         upcoming = []
 

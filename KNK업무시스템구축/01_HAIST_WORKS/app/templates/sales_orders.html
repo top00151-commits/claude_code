@@ -26,7 +26,7 @@
     <div>
       <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div>
       <h1 class="page-title">📑 <em>수주</em> 관리
-        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H167 · 대체공휴일 추가</span>
+        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H168 · 한달이동·리스트확장</span>
       </h1>
     </div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
@@ -136,13 +136,13 @@
   {% if _nav %}
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
     <a href="?{% if biz %}biz={{ biz }}&{% endif %}cal_ym={{ _nav.prev }}"
-       style="padding:6px 12px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:700;color:#475569;text-decoration:none;">← 이전 2개월</a>
+       style="padding:6px 12px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:700;color:#475569;text-decoration:none;">← 이전 달</a>
     {% if not _nav.is_today_view %}
     <a href="?{% if biz %}biz={{ biz }}{% endif %}"
        style="padding:6px 12px;background:#fff7e0;border:1px solid #d4a574;border-radius:6px;font-size:13px;font-weight:700;color:#7c4a03;text-decoration:none;">📅 이번달로</a>
     {% endif %}
     <a href="?{% if biz %}biz={{ biz }}&{% endif %}cal_ym={{ _nav.next }}"
-       style="padding:6px 12px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:700;color:#475569;text-decoration:none;">다음 2개월 →</a>
+       style="padding:6px 12px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:700;color:#475569;text-decoration:none;">다음 달 →</a>
     <span style="margin-left:auto;font-size:12px;color:#94a3b8;">달력 빠른 이동:</span>
     <input type="month" value="{{ _nav.current }}"
            onchange="if(this.value) location.href='?{% if biz %}biz={{ biz }}&{% endif %}cal_ym='+this.value;"
@@ -191,7 +191,11 @@
                     color:#fff; border-radius:4px; font-size:12px; font-weight:700; text-decoration:none; }
 
     /* 임박 납기 리스트 */
-    .so-up { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:14px 16px; max-height:600px; overflow-y:auto; }
+    /* v5H168: 임박납기 리스트 높이를 달력 그리드 하단에 맞춤 (스크롤 내부) */
+    .so-cal-wrap { align-items:stretch; }
+    .so-up { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:14px 16px;
+             display:flex; flex-direction:column; min-height:0; align-self:stretch; }
+    .so-up-list { flex:1; overflow-y:auto; min-height:0; }
     .so-up-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #f1e8d4; }
     .so-up-title { font-size:15px; font-weight:800; color:#1e293b; }
     .so-up-cnt { font-size:11px; color:#94a3b8; font-weight:600; }
@@ -258,6 +262,7 @@
         <div class="so-up-title">🔔 임박 납기 ({{ _up|length }})</div>
         <div class="so-up-cnt">오버듀 → 60일 이내</div>
       </div>
+      <div class="so-up-list">
       {% if _up %}
         {% for u in _up %}
         <a class="so-up-item" href="/sales/orders/{{ u.id }}">
@@ -289,6 +294,7 @@
       {% else %}
         <div class="so-up-empty">📭 임박 납기 없음 (60일 이내 미출하 SO 없음)</div>
       {% endif %}
+      </div>
     </div>
   </div>
 
