@@ -128,7 +128,18 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("KNK_MSG_SECRET", "knk-dev-secret-CHANGE-ME")
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # 정적 자원 캐시 비활성 (개발/베타 단계)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading", max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024)
+
+
+@app.after_request
+def no_cache_html_js(resp):
+    """모든 응답에 캐시 방지 헤더 — 브라우저가 항상 최신 코드 받도록."""
+    if resp.mimetype in ("text/html", "application/javascript", "text/css", "application/json"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+    return resp
 
 
 # ---------- DB ----------

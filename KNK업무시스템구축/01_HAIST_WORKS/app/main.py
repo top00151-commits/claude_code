@@ -4990,12 +4990,19 @@ async def projects_quick_status(req: Request, pid: int):
         _logi.log_project_change(c, pid, u.get("id"), "상태", old_status, new_status,
                                   note="인라인 빠른 변경")
         # status 가 won 으로 바뀌었는데 mgmt_code 없으면 발급
-        # v5H142: NEW_EQUIP 만 관리번호 발급 (소모품/수리/기타 제외)
-        if (new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
-            and cur["biz_div"] in ("T", "M")
-            and _cur_ptype == "NEW_EQUIP"):
+        # v5H142: NEW_EQUIP(T/M) 만 관리번호 발급
+        # v5H150: OTHER 는 'K' prefix 로 발급
+        _need_code_qs = (
+            new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
+            and (
+                (cur["biz_div"] in ("T", "M") and _cur_ptype == "NEW_EQUIP")
+                or _cur_ptype == "OTHER"
+            )
+        )
+        if _need_code_qs:
             try:
-                code = _logi.generate_mgmt_code(cur["biz_div"])
+                _prefix_qs = "K" if _cur_ptype == "OTHER" else cur["biz_div"]
+                code = _logi.generate_mgmt_code(_prefix_qs)
                 c.execute("UPDATE projects SET mgmt_code=?, stage='수주확정' WHERE id=?",
                           (code, pid))
             except Exception:

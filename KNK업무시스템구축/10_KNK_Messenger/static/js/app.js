@@ -1144,6 +1144,26 @@
   document.getElementById("closeRequestsBottom")?.addEventListener("click", () => els.requestsDialog.close());
   document.getElementById("closeGalleryBottom")?.addEventListener("click", () => els.galleryDialog.close());
   document.getElementById("closeDigestBottom")?.addEventListener("click", () => els.digestDialog.close());
+
+  // 안전망 — 모든 close-x / secondary-btn(닫기) 클릭 시 부모 dialog 닫기
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".close-x");
+    if (btn) {
+      const dlg = btn.closest("dialog");
+      if (dlg && dlg.open) { dlg.close(); return; }
+    }
+    const sec = e.target.closest(".secondary-btn");
+    if (sec && /닫기/.test(sec.textContent)) {
+      const dlg = sec.closest("dialog");
+      if (dlg && dlg.open) { dlg.close(); return; }
+    }
+  }, true);  // capture phase — 다른 핸들러보다 먼저
+  // ESC 키 — 모든 열린 다이얼로그 닫기 (브라우저 기본 + 안전망)
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll("dialog[open]").forEach(d => d.close());
+    }
+  });
   els.requestsDialog.querySelectorAll(".gtab").forEach(t => {
     t.addEventListener("click", async () => {
       activeReqTab = t.dataset.rtab;

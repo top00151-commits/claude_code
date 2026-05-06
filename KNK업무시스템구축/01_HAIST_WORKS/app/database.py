@@ -3814,9 +3814,10 @@ def parts_count() -> dict:
 
 # ── 프로젝트 / 관리코드 발행대장 (projects) CRUD ──────────
 def generate_mgmt_code(biz_div: str, today=None) -> str:
-    """KNK PMS 8자리 관리코드: [일련3][T/M][YYMM]. 같은 사업부·연월 내 +1"""
-    if biz_div not in ("T", "M"):
-        raise ValueError(f"biz_div must be T or M (got: {biz_div})")
+    """KNK PMS 8자리 관리코드: [일련3][T/M/K][YYMM]. 같은 prefix·연월 내 +1
+    v5H150: K(기타) 추가 — project_type=OTHER 일 때 호출측에서 'K' 전달."""
+    if biz_div not in ("T", "M", "K"):
+        raise ValueError(f"biz_div must be T, M, or K (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
@@ -3916,19 +3917,24 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     vals = _project_insert_or_update_values(data)
     now = _logi_now()
     # v5H86: stage 가 NEEDS_CODE_STAGES 이거나 status 가 WON_STATUSES 면 관리코드 발급
-    # v5H142 (2026-05-05): CONSUMABLE/SERVICE/OTHER 는 관리번호 발급 안 함 (대표 직접 지시)
+    # v5H142 (2026-05-05): CONSUMABLE/SERVICE 는 관리번호 발급 안 함
+    # v5H150 (2026-05-05): OTHER 도 관리번호 발급 — prefix 'K' (대표 지시)
     _ptype_in = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
         (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-        and vals["biz_div"] in ("T", "M")
-        and _ptype_in == "NEW_EQUIP"
+        and (
+            (vals["biz_div"] in ("T", "M") and _ptype_in == "NEW_EQUIP")
+            or _ptype_in == "OTHER"
+        )
     )
     # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"
     last_err = None
     for _attempt in range(5):
-        code = generate_mgmt_code(vals["biz_div"]) if needs_code else None
+        # OTHER 는 biz_div 무관하게 'K' prefix 사용
+        _code_prefix = "K" if _ptype_in == "OTHER" else vals["biz_div"]
+        code = generate_mgmt_code(_code_prefix) if needs_code else None
         try:
             with db_session() as c:
                 # v5H89b: customer_name → customer_id 자동 매핑 (orders FK 연결용)
@@ -4110,17 +4116,21 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
             _pending_logs.append((label, old_v, new_v))
     new_code = current["mgmt_code"]
     # v5H86: stage 또는 status 가 won 의미면 관리코드 발급
-    # v5H142 (2026-05-05): CONSUMABLE/SERVICE/OTHER 는 관리번호 발급 안 함
+    # v5H142: CONSUMABLE/SERVICE 는 발급 안 함
+    # v5H150: OTHER 는 'K' prefix 로 발급
     _ptype_up = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
         (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-        and vals["biz_div"] in ("T", "M")
-        and _ptype_up == "NEW_EQUIP"
+        and (
+            (vals["biz_div"] in ("T", "M") and _ptype_up == "NEW_EQUIP")
+            or _ptype_up == "OTHER"
+        )
     )
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"
     if not new_code and needs_code:
-        new_code = generate_mgmt_code(vals["biz_div"])
+        _code_prefix = "K" if _ptype_up == "OTHER" else vals["biz_div"]
+        new_code = generate_mgmt_code(_code_prefix)
     with db_session() as c:
         # v5H89b: customer_name → customer_id 자동 매핑
         cust_id = None

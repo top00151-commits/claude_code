@@ -4,6 +4,14 @@
 
 ---
 
+## v5H150 (2026-05-05) — 기타(OTHER) 프로젝트 관리코드 'K' prefix 발급 (대표 지시)
+- generate_mgmt_code: T/M 외 'K' 허용 (8자리 형식 그대로: 001K2605)
+- projects_create_logi/update_logi: project_type=OTHER 일 때 'K' prefix 자동 사용 (biz_div 무관)
+- main.py quick-status: OTHER 도 자동 관리코드 발급 트리거
+- project_form: 사업부 select 에 'K (기타)' 옵션 추가
+- chooser: 기타 카드가 /projects/new?type=OTHER&biz_div=K 로 진입
+- chooser hint: '관리코드 (예: 001K2605) 자동 발급'
+
 ## v5H149 (2026-05-05) — 사이드바 정리 (대표 지시)
 - 사이드바에서 '프로젝트 목록' / '소모품 발주 목록' 제거 (등록 chooser 와 중복)
 - 매출·영업 그룹: 매출 홈 / 🆕 프로젝트 등록 / 고객사 / 견적서 / 수주 / 출하·수금 / 미수금 / 수출입
