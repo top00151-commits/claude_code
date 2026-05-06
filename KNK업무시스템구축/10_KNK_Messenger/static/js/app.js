@@ -370,7 +370,16 @@
         e.stopPropagation();
         const li = b.closest(".msg");
         const mid = parseInt(li.dataset.msgId, 10);
-        const content = li.querySelector(".bubble")?.textContent?.trim() || "";
+        let content;
+        if (li.classList.contains("image")) {
+          const fname = li.querySelector("img")?.alt || "사진";
+          content = `[사진] ${fname}`;
+        } else if (li.classList.contains("file")) {
+          const fname = li.querySelector(".file-name")?.textContent?.trim() || "파일";
+          content = `[파일] ${fname}`;
+        } else {
+          content = li.querySelector(".bubble")?.textContent?.trim() || "";
+        }
         openNewRequest({ messageId: mid, sourceContent: content });
       });
     });

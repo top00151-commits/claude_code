@@ -26,7 +26,7 @@
     <div>
       <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div>
       <h1 class="page-title">📑 <em>수주</em> 관리
-        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H163 · 4탭+KPI+캘린더</span>
+        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H164 · 4탭+KPI+캘린더+임박리스트</span>
       </h1>
     </div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
@@ -126,30 +126,32 @@
     </div>
   </div>
 
-  {# v5H162 Phase 3: 출하 캘린더 (이번달+다음달) #}
+  {# v5H164 Phase 3+: 출하 캘린더 (확대) + 임박 납기 리스트 (좌우 배치) #}
   {% set _cm = cal_months|default([]) %}
+  {% set _up = upcoming|default([]) %}
   {% set _dd = due_date|default('') %}
   {% if _cm %}
   <style>
-    .so-cal-wrap { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px; }
-    @media (max-width:900px) { .so-cal-wrap { grid-template-columns:1fr; } }
-    .so-cal { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:12px 14px; }
-    .so-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .so-cal-title { font-size:13px; font-weight:800; color:#475569; }
-    .so-cal-legend { font-size:10px; color:#94a3b8; display:flex; gap:8px; }
-    .so-cal-legend i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:3px; vertical-align:middle; }
-    .so-cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
-    .so-cal-dow { text-align:center; font-size:10.5px; color:#94a3b8; font-weight:700; padding:4px 0; }
+    .so-cal-wrap { display:grid; grid-template-columns:1.4fr 1fr; gap:14px; margin-bottom:16px; }
+    @media (max-width:1100px) { .so-cal-wrap { grid-template-columns:1fr; } }
+    .so-cal-months { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:700px) { .so-cal-months { grid-template-columns:1fr; } }
+    .so-cal { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:14px 16px; }
+    .so-cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .so-cal-title { font-size:15px; font-weight:800; color:#1e293b; }
+    .so-cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; }
+    .so-cal-dow { text-align:center; font-size:11.5px; color:#94a3b8; font-weight:800; padding:6px 0; }
     .so-cal-dow.sun { color:#dc2626; } .so-cal-dow.sat { color:#2563eb; }
-    .so-cal-day { aspect-ratio:1; padding:4px 5px 4px; border-radius:5px; font-size:11px;
+    .so-cal-day { min-height:54px; padding:6px 6px 5px; border-radius:6px; font-size:13px;
                   background:#fafaf7; border:1px solid transparent; display:flex; flex-direction:column;
-                  text-decoration:none; color:#475569; cursor:pointer; transition:transform .1s; }
-    .so-cal-day:hover { transform:scale(1.05); border-color:#d4a574; }
-    .so-cal-day.out { opacity:0.3; cursor:default; pointer-events:none; }
-    .so-cal-day.today { border-color:#d4a574; box-shadow:inset 0 0 0 1px #d4a574; }
+                  text-decoration:none; color:#475569; cursor:pointer; transition:transform .08s, box-shadow .12s;
+                  align-items:flex-start; justify-content:flex-start; }
+    .so-cal-day:hover { transform:scale(1.03); border-color:#d4a574; box-shadow:0 3px 8px rgba(212,165,116,0.3); z-index:5; position:relative; }
+    .so-cal-day.out { opacity:0.25; cursor:default; pointer-events:none; }
+    .so-cal-day.today { border-color:#d4a574; box-shadow:inset 0 0 0 2px #d4a574; }
     .so-cal-day.selected { background:#fef3c7 !important; border-color:#b91c1c !important; box-shadow:inset 0 0 0 2px #b91c1c; }
-    .so-cal-day .d { font-weight:700; }
-    .so-cal-day .cnt { font-size:10px; font-weight:800; margin-top:auto; }
+    .so-cal-day .d { font-weight:800; font-size:15px; line-height:1; margin-bottom:4px; }
+    .so-cal-day .cnt { font-size:11px; font-weight:800; margin-top:auto; padding:2px 6px; border-radius:8px; align-self:center; background:rgba(255,255,255,0.6); }
     .so-cal-day.cls-empty { background:#fafaf7; }
     .so-cal-day.cls-overdue { background:#fee2e2; color:#991b1b; }
     .so-cal-day.cls-overdue .cnt::before { content:'⚠ '; }
@@ -157,45 +159,106 @@
     .so-cal-day.cls-d3 { background:#fed7aa; color:#7c2d12; }
     .so-cal-day.cls-d7 { background:#fef3c7; color:#713f12; }
     .so-cal-day.cls-future { background:#d1fae5; color:#065f46; }
-    .so-cal-clear { display:inline-block; margin-left:8px; padding:3px 10px; background:#dc2626;
-                    color:#fff; border-radius:4px; font-size:11px; font-weight:700; text-decoration:none; }
+    .so-cal-clear { display:inline-block; margin-left:8px; padding:4px 12px; background:#dc2626;
+                    color:#fff; border-radius:4px; font-size:12px; font-weight:700; text-decoration:none; }
+
+    /* 임박 납기 리스트 */
+    .so-up { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:14px 16px; max-height:600px; overflow-y:auto; }
+    .so-up-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #f1e8d4; }
+    .so-up-title { font-size:15px; font-weight:800; color:#1e293b; }
+    .so-up-cnt { font-size:11px; color:#94a3b8; font-weight:600; }
+    .so-up-empty { padding:30px 14px; text-align:center; color:#94a3b8; font-size:12.5px; }
+    .so-up-item { display:flex; gap:10px; padding:10px 6px; border-bottom:1px dashed #f1e8d4;
+                  align-items:center; text-decoration:none; color:inherit; transition:background .1s; }
+    .so-up-item:hover { background:#fff8e8; }
+    .so-up-item:last-child { border-bottom:none; }
+    .so-up-dday { flex-shrink:0; min-width:54px; text-align:center; padding:6px 4px; border-radius:6px;
+                  font-size:11px; font-weight:800; }
+    .so-up-dday .num { font-size:18px; line-height:1; display:block; margin-bottom:1px; }
+    .so-up-dday.overdue { background:#dc2626; color:#fff; }
+    .so-up-dday.d3 { background:#fb923c; color:#fff; }
+    .so-up-dday.d7 { background:#facc15; color:#7c4a03; }
+    .so-up-dday.d30 { background:#bfdbfe; color:#1e3a8a; }
+    .so-up-dday.future { background:#d1fae5; color:#065f46; }
+    .so-up-body { flex:1; min-width:0; }
+    .so-up-row1 { display:flex; gap:8px; align-items:center; margin-bottom:3px; }
+    .so-up-no { font-family:monospace; font-weight:700; color:#b91c1c; font-size:12.5px; }
+    .so-up-cust { font-size:12px; color:#475569; font-weight:600; }
+    .so-up-row2 { font-size:11.5px; color:#64748b; display:flex; gap:8px; }
+    .so-up-amt { font-weight:700; color:#1e293b; }
   </style>
   <div class="so-cal-wrap">
-    {% for m in _cm %}
-    <div class="so-cal">
-      <div class="so-cal-head">
-        <div class="so-cal-title">📅 {{ m.year }}년 {{ m.month }}월</div>
-        <div class="so-cal-legend">
-          <span><i style="background:#fee2e2;"></i>오버듀</span>
-          <span><i style="background:#fed7aa;"></i>D-3</span>
-          <span><i style="background:#fef3c7;"></i>D-7</span>
-          <span><i style="background:#d1fae5;"></i>여유</span>
+    <div class="so-cal-months">
+      {% for m in _cm %}
+      <div class="so-cal">
+        <div class="so-cal-head">
+          <div class="so-cal-title">📅 {{ m.year }}.{{ '%02d'|format(m.month) }}</div>
+        </div>
+        <div class="so-cal-grid">
+          <div class="so-cal-dow sun">일</div><div class="so-cal-dow">월</div><div class="so-cal-dow">화</div>
+          <div class="so-cal-dow">수</div><div class="so-cal-dow">목</div><div class="so-cal-dow">금</div>
+          <div class="so-cal-dow sat">토</div>
+          {% for week in m.weeks %}
+            {% for d in week %}
+              {% if d.in_month %}
+              <a class="so-cal-day cls-{{ d.cls }} {% if d.is_today %}today{% endif %} {% if d.is_selected %}selected{% endif %}"
+                 href="?{% if biz %}biz={{ biz }}&{% endif %}due_date={{ d.date }}"
+                 title="{{ d.date }} · {{ d.count }}건{% if d.amount %} · {{ '{:,.0f}'.format(d.amount) }}원{% endif %}">
+                <span class="d">{{ d.day }}</span>
+                {% if d.count %}<span class="cnt">{{ d.count }}건</span>{% endif %}
+              </a>
+              {% else %}
+              <div class="so-cal-day out"><span class="d">{{ d.day }}</span></div>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
         </div>
       </div>
-      <div class="so-cal-grid">
-        <div class="so-cal-dow sun">일</div><div class="so-cal-dow">월</div><div class="so-cal-dow">화</div>
-        <div class="so-cal-dow">수</div><div class="so-cal-dow">목</div><div class="so-cal-dow">금</div>
-        <div class="so-cal-dow sat">토</div>
-        {% for week in m.weeks %}
-          {% for d in week %}
-            {% if d.in_month %}
-            <a class="so-cal-day cls-{{ d.cls }} {% if d.is_today %}today{% endif %} {% if d.is_selected %}selected{% endif %}"
-               href="?{% if biz %}biz={{ biz }}&{% endif %}due_date={{ d.date }}"
-               title="{{ d.date }} · {{ d.count }}건{% if d.amount %} · {{ '{:,.0f}'.format(d.amount) }}원{% endif %}">
-              <span class="d">{{ d.day }}</span>
-              {% if d.count %}<span class="cnt">{{ d.count }}건</span>{% endif %}
-            </a>
-            {% else %}
-            <div class="so-cal-day out"><span class="d">{{ d.day }}</span></div>
-            {% endif %}
-          {% endfor %}
-        {% endfor %}
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
+
+    {# 임박 납기 리스트 (오른쪽) #}
+    <div class="so-up">
+      <div class="so-up-head">
+        <div class="so-up-title">🔔 임박 납기 ({{ _up|length }})</div>
+        <div class="so-up-cnt">오버듀 → 60일 이내</div>
+      </div>
+      {% if _up %}
+        {% for u in _up %}
+        <a class="so-up-item" href="/sales/orders/{{ u.id }}">
+          <div class="so-up-dday {{ u._cls }}">
+            {% if u.d_left < 0 %}
+              <span class="num">{{ -u.d_left }}</span>
+              지남
+            {% elif u.d_left == 0 %}
+              <span class="num">D</span>
+              오늘
+            {% else %}
+              <span class="num">{{ u.d_left }}</span>
+              일후
+            {% endif %}
+          </div>
+          <div class="so-up-body">
+            <div class="so-up-row1">
+              <span class="so-up-no">{{ u.order_no }}</span>
+              <span class="so-up-cust">{{ u.customer_name|default('—') }}</span>
+            </div>
+            <div class="so-up-row2">
+              <span>📅 {{ u.due_date|default('') }}</span>
+              {% if u.total_amount %}<span class="so-up-amt">{{ '{:,.0f}'.format(u.total_amount) }} {{ u.currency or 'KRW' }}</span>{% endif %}
+              {% if u.project_name %}<span style="color:#94a3b8;">· {{ u.project_name }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="so-up-empty">📭 임박 납기 없음 (60일 이내 미출하 SO 없음)</div>
+      {% endif %}
+    </div>
   </div>
+
   {% if _dd %}
-  <div style="margin-bottom:10px; padding:8px 14px; background:#fff3f3; border:1px solid #f99; border-radius:6px; font-size:12.5px;">
+  <div style="margin-bottom:10px; padding:10px 14px; background:#fff3f3; border:1px solid #f99; border-radius:6px; font-size:13px;">
     📅 <b>{{ _dd }}</b> 납기 SO 만 표시 중
     <a class="so-cal-clear" href="?{% if biz %}biz={{ biz }}{% endif %}">✕ 필터 해제</a>
   </div>

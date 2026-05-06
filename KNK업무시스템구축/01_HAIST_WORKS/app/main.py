@@ -11920,6 +11920,42 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
     except Exception:
         cal_months = []
 
+    # v5H164: 임박 납기 리스트 (필터 적용 전 — 전체 기준)
+    upcoming = []
+    try:
+        for it in items:
+            dd = (it.get("due_date") or "")[:10]
+            st = (it.get("status") or "").upper()
+            if not dd or st in ("PAID", "CANCELLED"):
+                continue
+            from datetime import datetime as _dt
+            try:
+                ddate = _dt.strptime(dd, "%Y-%m-%d").date()
+                d_left = (ddate - _today).days
+            except Exception:
+                continue
+            # 표시 대상: 오버듀(미출하) + 60일 이내
+            if st in ("CONFIRMED", "DRAFT") and d_left < 0:
+                cls = "overdue"
+            elif d_left < 0:
+                continue  # 출하 완료된 지난 건 제외
+            elif d_left <= 3:
+                cls = "d3"
+            elif d_left <= 7:
+                cls = "d7"
+            elif d_left <= 30:
+                cls = "d30"
+            elif d_left <= 60:
+                cls = "future"
+            else:
+                continue
+            upcoming.append({**it, "d_left": d_left, "_cls": cls})
+        # 정렬: 오버듀 먼저(가장 오래된), 그 다음 임박순
+        upcoming.sort(key=lambda x: (0 if x["d_left"] < 0 else 1, x["d_left"]))
+        upcoming = upcoming[:20]  # 상위 20건
+    except Exception:
+        upcoming = []
+
     # 필터 적용 (캘린더 날짜 클릭 시)
     if due_date:
         items = [it for it in items if (it.get("due_date") or "")[:10] == due_date[:10]]
@@ -11928,7 +11964,8 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
                tab="orders", items=items,
                biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"),
                kpi=kpi, today_iso=_today_iso,
-               cal_months=cal_months, due_date=due_date)
+               cal_months=cal_months, due_date=due_date,
+               upcoming=upcoming)
 
 
 @app.post("/sales/orders")
