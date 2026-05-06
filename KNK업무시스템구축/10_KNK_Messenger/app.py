@@ -4,6 +4,7 @@
 """
 import os
 import re
+import sys
 import uuid
 import json
 import base64
@@ -1702,19 +1703,23 @@ def _local_ips():
 
 
 if __name__ == "__main__":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     init_db()
     print()
     print(" ============================================")
-    print("  KNK Messenger — 서버 시작")
+    print("  KNK Messenger - server start")
     print(" ============================================")
-    print(f"   PC(이 서버):     http://localhost:{PORT}")
+    print(f"   PC (this server):  http://localhost:{PORT}")
     for ip in _local_ips():
-        print(f"   직원 접속 URL:   http://{ip}:{PORT}")
-    print(f"   포트:            {PORT}  (방화벽 인바운드 허용 필요)")
-    print(f"   업로드 폴더:     {UPLOAD_DIR}")
-    print(f"   DB:              {DB_PATH}")
-    print(f"   메시지 보존:     {MESSAGE_RETENTION_MONTHS}개월 (CEO 수동 cleanup)")
+        print(f"   employee URL:      http://{ip}:{PORT}")
+    print(f"   port:              {PORT}  (open in firewall)")
+    print(f"   upload dir:        {UPLOAD_DIR}")
+    print(f"   DB:                {DB_PATH}")
+    print(f"   retention:         {MESSAGE_RETENTION_MONTHS} months")
     print(" ============================================")
     print()
     socketio.run(app, host="0.0.0.0", port=PORT, debug=False, allow_unsafe_werkzeug=True)
