@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ title|default('오류') }} · KNK</title>
+{% include "_v5_partials/styles.html" %}</head>
+<body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div style="max-width:880px;margin:40px auto;padding:0 var(--content-pad);">
+    <div style="background:#fff;border:1px solid var(--knk-red);border-left:6px solid var(--knk-red);border-radius:10px;padding:28px 32px;">
+      <h1 style="margin:0 0 12px;font-size:22px;color:var(--knk-red);">⚠ {{ title|default('오류 발생') }}</h1>
+      <pre style="background:#fff3f3;padding:14px 16px;border:1px solid #f99;border-radius:6px;white-space:pre-wrap;word-break:break-all;font-size:12.5px;color:#7a1f1f;font-family:Consolas,monospace;">{{ message|default('알 수 없는 오류') }}</pre>
+      {% if hint %}
+      <p style="margin-top:14px;font-size:13.5px;color:#555;background:#fff7e0;padding:10px 14px;border-radius:6px;border-left:3px solid #d4a574;">💡 {{ hint }}</p>
+      {% endif %}
+      <div style="margin-top:18px;display:flex;gap:10px;">
+        {% if back_url %}<a href="{{ back_url }}" style="padding:9px 18px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:600;color:#333;text-decoration:none;">← 돌아가기</a>{% endif %}
+        <a href="/" style="padding:9px 18px;background:var(--knk-red);color:#fff;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;">🏠 홈</a>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+</body></html>

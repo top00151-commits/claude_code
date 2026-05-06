@@ -11692,16 +11692,39 @@ async def sales_orders_page(req: Request,
                             q: str = "",
                             sort: str = "due",
                             due_date: str = ""):
-    """v5H155: 수주관리 전면 재설계 — 4탭(T/M/K/소모품) + KPI + 파이프라인 + 캘린더 + 강화 목록.
+    """v5H155: 수주관리 4탭 + KPI + 파이프라인 + 캘린더 + 강화 목록.
+    v5H156: 외곽 try/except — HTTP 500 시 친절한 에러 페이지."""
+    try:
+        return await _sales_orders_page_impl(req, tab, status, period, currency, q, sort, due_date)
+    except Exception as _e:
+        import traceback as _tb
+        _err_msg = f"{type(_e).__name__}: {_e}"
+        _tb.print_exc()
+        try:
+            return ctx(req, "error_simple.html",
+                       title="수주관리 페이지 오류",
+                       message=_err_msg,
+                       hint="서버 재시작이 필요할 수 있습니다 (KNK_시작.bat 닫고 다시 실행).",
+                       back_url="/sales")
+        except Exception:
+            return HTMLResponse(
+                f"<html><body style='font-family:sans-serif;padding:40px;'>"
+                f"<h2>⚠ 수주관리 페이지 오류</h2>"
+                f"<pre style='background:#fff3f3;padding:14px;border:1px solid #f99;'>{_err_msg}</pre>"
+                f"<p>서버를 재시작해주세요 (KNK_시작.bat 닫고 다시 실행).</p>"
+                f"<p><a href='/sales'>← 매출영업으로</a></p></body></html>",
+                status_code=500
+            )
 
-    tab: T(검사기) / M(자동화) / K(기타) / consumable(소모품)
-    status: 단계별 필터 (DRAFT/CONFIRMED/SHIPPED/INVOICED/PAID/CANCELLED)
-    period: this_week / this_month / 3months / all
-    currency: KRW/USD/VND
-    q: 수주번호/프로젝트명/고객사 검색
-    sort: due / amount / order_date
-    due_date: 특정일 필터 (캘린더 클릭 시)
-    """
+
+async def _sales_orders_page_impl(req: Request,
+                                   tab: str = "T",
+                                   status: str = "",
+                                   period: str = "",
+                                   currency: str = "",
+                                   q: str = "",
+                                   sort: str = "due",
+                                   due_date: str = ""):
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
