@@ -4,6 +4,11 @@
 
 ---
 
+## v5H151 (2026-05-05) — 프로젝트 폼에서 유형 라디오 + 소모품 안내 박스 제거
+- chooser 에서 이미 유형 선택하므로 폼에 라디오 노출 불필요
+- project_type 은 hidden input 으로만 전달 (preset 또는 기존값)
+- "소모품·부품·수리는 관리코드 필요 없음" 안내 박스도 제거 (chooser 에서 이미 안내됨)
+
 ## v5H150 (2026-05-05) — 기타(OTHER) 프로젝트 관리코드 'K' prefix 발급 (대표 지시)
 - generate_mgmt_code: T/M 외 'K' 허용 (8자리 형식 그대로: 001K2605)
 - projects_create_logi/update_logi: project_type=OTHER 일 때 'K' prefix 자동 사용 (biz_div 무관)

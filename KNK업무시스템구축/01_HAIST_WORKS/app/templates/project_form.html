@@ -116,35 +116,11 @@
           </div>
         </div>
       </div>
-      {# v5H147 (2026-05-05) — 대표 지시: 프로젝트 등록은 관리코드 필요 항목만 (소모품은 별도 메뉴)
-         project_type 라디오 = NEW_EQUIP (검사기·자동화) / OTHER (관리코드 필요 기타)
-         소모품·수리는 /consumables 안내 #}
+      {# v5H151 (2026-05-05) — 대표 지시: 유형 라디오 + 소모품 안내 박스 제거
+         (chooser 에서 이미 유형 선택했으므로 폼에서는 hidden 으로만 전달) #}
       {% set _cur_ptype = (project.project_type if project and project.project_type else (preset.project_type if preset and preset.project_type else 'NEW_EQUIP')) %}
-      {# 기존 데이터 호환 — CONSUMABLE/SERVICE 인 기존 프로젝트는 OTHER 로 표시 #}
       {% if _cur_ptype in ('CONSUMABLE','SERVICE') %}{% set _cur_ptype = 'OTHER' %}{% endif %}
-      <div class="pf-row solo">
-        <div class="pf-field full">
-          <label>프로젝트 유형 <span class="req">*</span> <span class="sub">(검사기/자동화 = 호기 단위 SO 자동, 기타 = 건 단위)</span></label>
-          {% set _ptype_kr = {'NEW_EQUIP':('🔧','신규 장비 (검사기·자동화)'),'OTHER':('🌐','기타 (관리코드 필요)')} %}
-          <div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 0;">
-            {% for code in ['NEW_EQUIP','OTHER'] %}
-            {% set _meta = _ptype_kr.get(code, ('','')) %}
-            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;border:1px solid var(--cream-line, #d6cdb6);border-radius:8px;background:{% if _cur_ptype == code %}#fff7e0{% else %}#fff{% endif %};">
-              <input type="radio" name="project_type" value="{{ code }}"
-                     {% if _cur_ptype == code %}checked{% endif %}
-                     style="accent-color:var(--amber-deep);">
-              <span style="display:inline-flex;flex-direction:column;line-height:1.2;">
-                <span style="font-family:Consolas,monospace;font-size:11px;color:#666;font-weight:600;letter-spacing:.02em;">{{ code }}</span>
-                <span style="font-size:13px;font-weight:700;color:#222;">{{ _meta[0] }} {{ _meta[1] }}</span>
-              </span>
-            </label>
-            {% endfor %}
-          </div>
-          <div style="margin-top:8px;padding:10px 12px;background:#e0f2fe;border-left:3px solid #0284c7;border-radius:6px;font-size:12.5px;color:#0c4a6e;">
-            💡 <b>소모품·부품·수리</b> 는 관리코드가 필요 없습니다 — <a href="/consumables" style="color:#0284c7;font-weight:700;text-decoration:underline;">📦 소모품 발주 메뉴</a> 에서 엑셀 일괄 등록하세요.
-          </div>
-        </div>
-      </div>
+      <input type="hidden" name="project_type" value="{{ _cur_ptype }}">
       {# v5H147: 관리코드 필요 항목만이라 연관 관리번호 입력은 더 이상 노출 안 함 (소모품 메뉴로 이동) #}
       <div class="pf-row solo" id="pfParentRow" style="display:none;">
         <div class="pf-field full">
