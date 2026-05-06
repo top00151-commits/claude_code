@@ -2,297 +2,80 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>수주 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H155: 수주관리 전면 재설계 — 4탭 + KPI + 파이프라인 + 캘린더 + 강화 목록 */
-
-/* ─── 4 탭 ─── */
-.so-tabs { display:flex; gap:6px; padding:6px; background:#fff; border-radius:14px; border:1px solid #f1e8d4; margin-bottom:14px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
-.so-tab { flex:1; padding:14px 16px; border-radius:10px; text-decoration:none; color:#64748b;
-          background:transparent; border:1px solid transparent; transition:all .15s;
-          display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
-.so-tab:hover { background:#fafaf7; color:#1e293b; }
-.so-tab .tab-ico { font-size:22px; line-height:1; }
-.so-tab .tab-lbl { font-size:14px; font-weight:700; }
-.so-tab .tab-cnt { font-size:11px; font-weight:800; padding:3px 9px; border-radius:10px; background:#e5e7eb; color:#475569; }
-.so-tab.active { background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);
-                 color:#78350f; border-color:#f59e0b; box-shadow:inset 0 -3px 0 #b45309; }
-.so-tab.active .tab-cnt { background:#b45309; color:#fff; }
-.so-tab.tab-T.active { background:linear-gradient(135deg,#ffedd5,#fed7aa); color:#7c2d12; border-color:#ea580c; box-shadow:inset 0 -3px 0 #c2410c; }
-.so-tab.tab-T.active .tab-cnt { background:#c2410c; }
-.so-tab.tab-M.active { background:linear-gradient(135deg,#dbeafe,#bfdbfe); color:#1e3a8a; border-color:#2563eb; box-shadow:inset 0 -3px 0 #1d4ed8; }
-.so-tab.tab-M.active .tab-cnt { background:#1d4ed8; }
-.so-tab.tab-K.active { background:linear-gradient(135deg,#f3e8ff,#e9d5ff); color:#581c87; border-color:#9333ea; box-shadow:inset 0 -3px 0 #7e22ce; }
-.so-tab.tab-K.active .tab-cnt { background:#7e22ce; }
-.so-tab.tab-CONSUMABLE.active { background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#064e3b; border-color:#10b981; box-shadow:inset 0 -3px 0 #047857; }
-.so-tab.tab-CONSUMABLE.active .tab-cnt { background:#047857; }
-
-/* ─── KPI 카드 ─── */
-.kpi-row { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
-.kpi-card { background:#fff; border:1px solid #f1e8d4; border-radius:12px; padding:12px 14px;
-            position:relative; overflow:hidden; }
-.kpi-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--kpi-c,#94a3b8); }
-.kpi-card.c1 { --kpi-c:#dc2626; }
-.kpi-card.c2 { --kpi-c:#ea580c; }
-.kpi-card.c3 { --kpi-c:#fb923c; }
-.kpi-card.c4 { --kpi-c:#3b82f6; }
-.kpi-card.c5 { --kpi-c:#10b981; }
-.kpi-card.c6 { --kpi-c:#b91c1c; }
-.kpi-lbl { font-size:11px; color:#64748b; font-weight:700; letter-spacing:.02em; margin-bottom:6px; }
-.kpi-val { font-size:22px; font-weight:800; color:#1e293b; line-height:1.1; }
-.kpi-sub { font-size:10.5px; color:#94a3b8; margin-top:4px; font-weight:600; }
-.kpi-val .unit { font-size:12px; color:#94a3b8; font-weight:600; margin-left:2px; }
-
-/* ─── Section 헤더 ─── */
-.sec-head { display:flex; align-items:center; gap:10px; margin:18px 0 8px; padding:0 4px; }
-.sec-head h3 { margin:0; font-size:13px; font-weight:800; color:#475569; letter-spacing:.04em; }
-.sec-head .sec-meta { font-size:11px; color:#94a3b8; font-weight:600; }
-.sec-head .sec-line { flex:1; height:1px; background:#f1e8d4; }
-
-/* ─── 필터 바 ─── */
-.so-filters { display:flex; flex-wrap:wrap; gap:8px; padding:10px 12px; background:#fff;
-              border:1px solid #f1e8d4; border-radius:10px; margin-bottom:8px; align-items:center; }
-.so-filters select, .so-filters input[type=search] { padding:6px 10px; border:1px solid #e5e7eb;
-              border-radius:6px; font-size:12.5px; background:#fafaf7; }
-.so-filters input[type=search] { min-width:200px; }
-.so-filters label { font-size:11px; color:#64748b; font-weight:700; }
-.so-filters .btn-apply { padding:6px 14px; background:var(--knk-red,#b91c1c); color:#fff; border:none;
-                        border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; }
-.so-filters .btn-clear { padding:6px 12px; background:#f3f4f6; color:#475569; border:none;
-                        border-radius:6px; font-size:12px; font-weight:600; text-decoration:none; }
-
-/* ─── SO 목록 표 (강화) ─── */
-.so-list { font-size:12.5px; }
-.so-list th, .so-list td { padding:10px 10px; vertical-align:middle; }
-.so-list th { font-size:11px; letter-spacing:.04em; background:#fafaf7; color:#475569; }
-.so-list .so-no { font-family:monospace; font-weight:700; color:var(--knk-red); white-space:nowrap; }
-.so-list .mgmt { font-family:monospace; font-weight:700; color:#b45309; white-space:nowrap; font-size:12px; }
-.so-list .pname { font-weight:700; color:#1e293b; }
-.so-list .pname-sub { font-size:10.5px; color:#94a3b8; margin-top:2px; }
-.so-list .qty-cell { text-align:center; font-weight:700; color:#1e293b; }
-.so-list tr.row-overdue td { background:#fef2f2; }
-.so-list tr.row-d3 td { background:#fff7ed; }
-.so-list tr.row-d7 td { background:#fefce8; }
-.so-list tr:hover td { background:#fff8e8 !important; cursor:pointer; }
-.dday { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10.5px; font-weight:800; margin-left:4px; }
-.dday.overdue { background:#dc2626; color:#fff; }
-.dday.d3 { background:#fb923c; color:#fff; }
-.dday.d7 { background:#facc15; color:#713f12; }
-.dday.ok { background:#e5e7eb; color:#475569; }
-.prog-bar { width:60px; height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
-.prog-fill { height:100%; background:linear-gradient(90deg,#fb923c,#10b981); transition:width .3s; }
-.prog-lbl { font-size:10px; color:#64748b; font-weight:700; margin-left:6px; vertical-align:middle; }
+/* v5H89: 수주관리 리스트 — 정보 컬럼 확장 */
+.so-list { font-size: 13px; }
+.so-list th, .so-list td { padding: 9px 10px; vertical-align: middle; }
+.so-list th { font-size: 11.5px; letter-spacing: 0.04em; }
+.so-list .so-no { font-family: monospace; font-weight: 700; color: var(--knk-red); white-space: nowrap; }
+.so-list .mgmt { font-family: monospace; font-weight: 700; color: var(--amber-deep); white-space: nowrap; font-size: 12.5px; }
+.so-list .pname { font-weight: 600; color: var(--ink); }
+.so-list .pname-sub { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.so-list .biz-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700; }
+.so-list .biz-T { background: #fff1ec; color: #c64c1f; }
+.so-list .biz-M { background: #ecf5ff; color: #1f5fc6; }
+.so-list .qty-cell { text-align: center; font-weight: 700; color: var(--ink); }
+.so-list .qty-cell .lbl { font-size: 10.5px; color: var(--mute); display: block; font-weight: 500; margin-top: 2px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.so-list .ship { font-size: 12px; color: var(--ink); }
+.so-list tr:hover td { background: var(--amber-glow); cursor: pointer; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
   <div class="page-head">
-    <div>
-      <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주관리</b></div>
-      <h1 class="page-title">📑 <em>수주</em> 관리 <span style="font-size:13px;color:#94a3b8;font-weight:600;margin-left:8px;">v5H155 · 4탭 종합대시보드</span></h1>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
-      <a class="btn btn-primary" href="/orders/new">＋ 새 수주</a>
-    </div>
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div><h1 class="page-title">📑 <em>수주</em> 관리</h1></div>
+    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
   </div>
-
-  {# ─── Section 1: 4 탭 ─── #}
-  <div class="so-tabs" role="tablist">
-    <a class="so-tab tab-T {% if tab == 'T' %}active{% endif %}" href="?tab=T">
-      <span class="tab-ico">🔬</span>
-      <div><div class="tab-lbl">T 검사기</div></div>
-      <span class="tab-cnt">{{ tab_counts.T }}</span>
-    </a>
-    <a class="so-tab tab-M {% if tab == 'M' %}active{% endif %}" href="?tab=M">
-      <span class="tab-ico">🤖</span>
-      <div><div class="tab-lbl">M 자동화</div></div>
-      <span class="tab-cnt">{{ tab_counts.M }}</span>
-    </a>
-    <a class="so-tab tab-K {% if tab == 'K' %}active{% endif %}" href="?tab=K">
-      <span class="tab-ico">🌐</span>
-      <div><div class="tab-lbl">K 기타</div></div>
-      <span class="tab-cnt">{{ tab_counts.K }}</span>
-    </a>
-    <a class="so-tab tab-CONSUMABLE {% if tab == 'CONSUMABLE' %}active{% endif %}" href="?tab=CONSUMABLE">
-      <span class="tab-ico">📦</span>
-      <div><div class="tab-lbl">소모품</div></div>
-      <span class="tab-cnt">{{ tab_counts.CONSUMABLE }}</span>
-    </a>
-  </div>
-
-  {# ─── Section 2: KPI ─── #}
-  <div class="kpi-row">
-    <div class="kpi-card c1">
-      <div class="kpi-lbl">📅 이번주 납기</div>
-      <div class="kpi-val">{{ kpi.week_count }}<span class="unit">건</span></div>
-      <div class="kpi-sub">{% if kpi.week_amount %}{{ '{:,.0f}'.format(kpi.week_amount) }}원{% else %}—{% endif %}</div>
-    </div>
-    <div class="kpi-card c2">
-      <div class="kpi-lbl">🗓️ 이번달 납기</div>
-      <div class="kpi-val">{{ kpi.month_count }}<span class="unit">건</span></div>
-      <div class="kpi-sub">{% if kpi.month_amount %}{{ '{:,.0f}'.format(kpi.month_amount) }}원{% else %}—{% endif %}</div>
-    </div>
-    <div class="kpi-card c3">
-      <div class="kpi-lbl">🟡 출하 대기</div>
-      <div class="kpi-val">{{ kpi.wait_ship }}<span class="unit">건</span></div>
-      <div class="kpi-sub">CONFIRMED</div>
-    </div>
-    <div class="kpi-card c4">
-      <div class="kpi-lbl">🔵 송장 대기</div>
-      <div class="kpi-val">{{ kpi.wait_invoice }}<span class="unit">건</span></div>
-      <div class="kpi-sub">SHIPPED</div>
-    </div>
-    <div class="kpi-card c5">
-      <div class="kpi-lbl">🟢 수금 대기</div>
-      <div class="kpi-val">{{ kpi.wait_payment }}<span class="unit">건</span></div>
-      <div class="kpi-sub">INVOICED</div>
-    </div>
-    <div class="kpi-card c6">
-      <div class="kpi-lbl">💰 미수금 합계</div>
-      <div class="kpi-val" style="font-size:16px;">{% if kpi.outstanding %}{{ '{:,.0f}'.format(kpi.outstanding) }}<span class="unit">원</span>{% else %}—{% endif %}</div>
-      <div class="kpi-sub">미출하+미송장+미수금</div>
-    </div>
-  </div>
-
-  {# ─── Section 3: 파이프라인 ─── #}
-  <div class="sec-head">
-    <h3>📊 단계별 진행 현황</h3>
-    <span class="sec-meta">상태 클릭 시 해당 단계 필터</span>
-    <div class="sec-line"></div>
-  </div>
-  {% include "_v5_partials/so_pipeline.html" with context %}
-
-  {# ─── Section 4: 캘린더 ─── #}
-  <div class="sec-head">
-    <h3>📅 출하 일정 캘린더</h3>
-    <span class="sec-meta">이번달 + 다음달 · 날짜 클릭 시 필터</span>
-    <div class="sec-line"></div>
-  </div>
-  {% include "_v5_partials/so_calendar.html" with context %}
-
-  {# ─── Section 5: SO 목록 표 ─── #}
-  <div class="sec-head">
-    <h3>📋 수주 목록 ({{ items|length }}건 / 전체 {{ all_items_count }}건)</h3>
-    {% if filter_due_date or filter_status or filter_period or filter_currency or filter_q %}
-    <span class="sec-meta">필터 적용 중</span>
-    {% endif %}
-    <div class="sec-line"></div>
-  </div>
-
-  <form method="get" action="/sales/orders" class="so-filters">
-    <input type="hidden" name="tab" value="{{ tab }}"/>
-    {% if filter_due_date %}<input type="hidden" name="due_date" value="{{ filter_due_date }}"/>{% endif %}
-    <label>상태</label>
-    <select name="status">
-      <option value="">전체</option>
-      {% for st in pipeline %}<option value="{{ st.code }}" {% if filter_status == st.code %}selected{% endif %}>{{ st.label }} ({{ st.count }})</option>{% endfor %}
-    </select>
-    <label>기간</label>
-    <select name="period">
-      <option value="" {% if not filter_period %}selected{% endif %}>전체</option>
-      <option value="this_week" {% if filter_period == 'this_week' %}selected{% endif %}>이번주</option>
-      <option value="this_month" {% if filter_period == 'this_month' %}selected{% endif %}>이번달</option>
-      <option value="3months" {% if filter_period == '3months' %}selected{% endif %}>향후 3개월</option>
-    </select>
-    <label>통화</label>
-    <select name="currency">
-      <option value="">전체</option>
-      <option value="KRW" {% if filter_currency == 'KRW' %}selected{% endif %}>KRW</option>
-      <option value="USD" {% if filter_currency == 'USD' %}selected{% endif %}>USD</option>
-      <option value="VND" {% if filter_currency == 'VND' %}selected{% endif %}>VND</option>
-    </select>
-    <label>정렬</label>
-    <select name="sort">
-      <option value="due" {% if filter_sort == 'due' %}selected{% endif %}>납기 임박순</option>
-      <option value="amount" {% if filter_sort == 'amount' %}selected{% endif %}>금액 큰순</option>
-      <option value="order_date" {% if filter_sort == 'order_date' %}selected{% endif %}>수주일 최신순</option>
-    </select>
-    <input type="search" name="q" value="{{ filter_q or '' }}" placeholder="수주번호 / 프로젝트 / 고객사"/>
-    <button type="submit" class="btn-apply">적용</button>
-    <a href="?tab={{ tab }}" class="btn-clear">초기화</a>
-  </form>
-
   <div class="tbl-wrap tbl-sticky">
     {% if items %}
     <table class="tbl so-list">
       <thead><tr>
         <th>수주번호</th>
-        {% if not is_consumable %}<th>관리번호</th>{% endif %}
-        <th>{% if is_consumable %}항목{% else %}프로젝트 / 모델{% endif %}</th>
+        <th>관리번호</th>
+        <th>프로젝트 / 모델</th>
+        <th class="center">사업부</th>
         <th>고객사</th>
-        <th class="center">{% if is_consumable %}품목수{% else %}수량{% endif %}</th>
-        <th class="num">금액</th>
+        <th class="center">수량</th>
+        <th>납품처</th>
+        <th class="num">금액(원)</th>
         <th class="center">상태</th>
-        <th class="center">진행률</th>
         <th class="center">수주일</th>
-        <th class="center">납기 (D-day)</th>
+        <th class="center">납기</th>
       </tr></thead>
       <tbody>
       {% for o in items %}
-        <tr class="{% if o.d_class == 'overdue' %}row-overdue{% elif o.d_class == 'd3' %}row-d3{% elif o.d_class == 'd7' %}row-d7{% endif %}"
-            onclick="location.href='{% if is_consumable %}/consumables/{{ o.id }}{% else %}/sales/orders/{{ o.id }}{% endif %}'">
+        <tr onclick="location.href='/sales/orders/{{ o.id }}'">
           <td class="so-no">{{ o.order_no|default('#' ~ o.id) }}</td>
-          {% if not is_consumable %}
           <td class="mgmt">{% if o.mgmt_code %}<a href="/project/{{ o.project_id }}" style="color:inherit;" onclick="event.stopPropagation();">{{ o.mgmt_code }}</a>{% else %}—{% endif %}</td>
-          {% endif %}
           <td>
-            {% if is_consumable %}
-              <div class="pname">소모품 주문</div>
-              <div class="pname-sub">{{ o.item_count|default(0) }}개 라인</div>
-            {% else %}
-              <div class="pname">{{ o.project_name|default('—') }}</div>
-              {% if o.model_name or o.po_type %}
-              <div class="pname-sub">
-                {% if o.model_name %}{{ o.model_name }}{% endif %}
-                {% if o.po_type %}{% if o.model_name %} · {% endif %}<span style="color:#b45309;">{{ o.po_type }}</span>{% endif %}
-              </div>
-              {% endif %}
+            <div class="pname">{{ o.project_name|default('—') }}</div>
+            {% if o.model_name or o.po_type %}
+            <div class="pname-sub">
+              {% if o.model_name %}{{ o.model_name }}{% endif %}
+              {% if o.po_type %}{% if o.model_name %} · {% endif %}<span style="color:var(--amber-deep);">{{ o.po_type }}</span>{% endif %}
+            </div>
             {% endif %}
+          </td>
+          <td class="center">
+            {% if o.biz_div == 'T' %}<span class="biz-pill biz-T">T·검사기</span>
+            {% elif o.biz_div == 'M' %}<span class="biz-pill biz-M">M·자동화</span>
+            {% else %}—{% endif %}
           </td>
           <td><b>{{ o.customer_name|default('—') }}</b></td>
           <td class="qty-cell">
-            {% if is_consumable %}
-              {{ o.item_count|default(0) }}
-            {% else %}
-              {{ o.unit_qty|default(1) }}대
-            {% endif %}
+            {{ o.unit_qty|default(1) }}대
+            {% if o.unit_label %}<span class="lbl" title="{{ o.unit_label }}">{{ o.unit_label }}</span>{% endif %}
           </td>
-          <td class="num" style="font-weight:700;">{% if o.total_amount %}{{ '{:,.0f}'.format(o.total_amount) }} <span style="color:#94a3b8;font-weight:500;font-size:11px;">{{ o.currency or 'KRW' }}</span>{% else %}—{% endif %}</td>
+          <td class="ship">{{ o.ship_to|default('—') }}</td>
+          <td class="num" style="font-weight:700;">{% if o.total_amount %}{{ '{:,.0f}'.format(o.total_amount) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ o.currency or 'KRW' }}</span>{% else %}—{% endif %}</td>
           <td class="center">{% with status=o.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}</td>
-          <td class="center">
-            <div class="prog-bar"><div class="prog-fill" style="width:{{ o.progress }}%;"></div></div>
-            <span class="prog-lbl">{{ o.progress }}%</span>
-          </td>
-          <td class="center" style="font-size:11.5px;color:#94a3b8;">{{ o.order_date|default('—') }}</td>
-          <td class="center" style="font-size:11.5px;color:#475569;">
-            {{ o.due_date|default('—') }}
-            {% if o.d_left is not none %}
-              {% if o.d_class == 'overdue' %}<span class="dday overdue">! {{ -o.d_left }}일 지남</span>
-              {% elif o.d_class == 'd3' %}<span class="dday d3">D{% if o.d_left == 0 %}-DAY{% else %}-{{ o.d_left }}{% endif %}</span>
-              {% elif o.d_class == 'd7' %}<span class="dday d7">D-{{ o.d_left }}</span>
-              {% else %}<span class="dday ok">D-{{ o.d_left }}</span>{% endif %}
-            {% endif %}
-          </td>
+          <td class="center" style="font-size:12px;color:var(--mute);">{{ o.order_date|default('—') }}</td>
+          <td class="center" style="font-size:12px;color:var(--mute);">{{ o.due_date|default('—') }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <div class="empty">
-      <div class="ico">📑</div>
-      <div class="ttl">조건에 맞는 수주가 없습니다</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:6px;">탭을 바꾸거나 필터를 초기화해 보세요</div>
-    </div>
-    {% endif %}
+    {% else %}<div class="empty"><div class="ico">📑</div><div class="ttl">수주가 없습니다</div></div>{% endif %}
   </div>
-
-  <div style="height:var(--space-7);"></div>
-</main></div>
-
-<script>
-// 필터 셀렉트 변경 시 자동 제출
-document.querySelectorAll('.so-filters select').forEach(function(s){
-  s.addEventListener('change', function(){ s.form.submit(); });
-});
-</script>
-</body></html>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>
