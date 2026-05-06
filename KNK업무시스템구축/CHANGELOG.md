@@ -4,6 +4,16 @@
 
 ---
 
+## v5H153 (2026-05-05) — 고객사 엑셀 일괄 등록 신설
+- 라우트 3개 신설 (모두 `can_use_sales` 권한):
+  - `GET  /customers/import-template` → `app/static/templates/고객사_일괄등록_양식.xlsx` 다운로드 (`KNK_고객사_일괄등록_양식.xlsx`)
+  - `POST /customers/import-xlsx`     → openpyxl 파싱 + 검증 → 미리보기 JSON (rows / total / create_count / update_count / warning_count / error_count)
+  - `POST /customers/import-confirm`  → UPSERT 일괄 실행, created/updated/failed 반환
+- 양식 구조: 시트 `📖_안내` (스킵) + `고객사` (row1-2 제목/안내, row3 헤더, row4-6 예제, row7+ 입력). 10컬럼 — 고객사명/사업자등록번호/대표자명/담당자명/전화번호/이메일/주소/등급/활성/비고.
+- 검증: 고객사명 필수(빈 행 자동 스킵, '예)' 시작 행 방어) / 사업자번호 정규화(대시 제거 후 10자리 숫자 검증, 표준 표기 999-99-99999 자동 변환) / 이메일 정규식 (있을 때만) / 등급 화이트리스트 A/B/C/VIP/공란 / 활성 1·0·공란(공란→1·활성·Y·True 등 허용).
+- UPSERT 로직: 동일 이름 존재 → **빈 칸이 아닌 필드만 UPDATE** (기존 데이터 보호, is_active 는 명시값 반영). 신규 → INSERT (tier 공란이면 '신규' → customer_tier.refresh_customer_tier 자동 산정). 사업자번호 중복(다른 이름) → 경고만, 등록 진행.
+- UI: `customers_list.html` 상단 액션 영역에 `[📥 양식 다운로드]` `[📤 엑셀 일괄 업로드]` 버튼 추가. 업로드 시 미리보기 모달(행/고객사명/사업자번호/담당자/등급/활성/동작 pill[신규/업데이트]/검증결과). 오류 행 빨간 배경(❌), 경고 행 노란 배경(⚠), 정상 행 ✓. 신규 N건+업데이트 M건 카운트 표시, 정상+경고 행만 등록 확정 전송 → 결과 alert → 페이지 reload.
+
 ## v5H152 (2026-05-05) — 프로젝트 엑셀 일괄 등록 신설
 - 라우트 3개 신설 (모두 `can_use_sales` 권한):
   - `GET  /projects/import-template` → `app/static/templates/프로젝트_일괄등록_양식.xlsx` 다운로드 (`KNK_프로젝트_일괄등록_양식.xlsx`)

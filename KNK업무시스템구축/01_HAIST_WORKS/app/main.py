@@ -8594,6 +8594,311 @@ async def projects_import_confirm(request: Request):
     })
 
 
+# =====================================================
+# v5H153 (2026-05-05): 고객사 엑셀 일괄 등록
+#   - GET  /customers/import-template  → 양식 .xlsx 다운로드
+#   - POST /customers/import-xlsx      → 업로드 + 파싱 + 검증 + 미리보기 JSON
+#   - POST /customers/import-confirm   → 확정 INSERT/UPDATE (UPSERT by name)
+#  양식: app/static/templates/고객사_일괄등록_양식.xlsx
+#  시트 '고객사' (row3=헤더, row4-6=예제, row7+=입력)
+#  컬럼: 고객사명/사업자등록번호/대표자명/담당자명/전화번호/이메일/주소/등급/활성/비고
+# =====================================================
+CUST_IMPORT_HEADERS = [
+    "고객사명", "사업자등록번호", "대표자명", "담당자명",
+    "전화번호", "이메일", "주소", "등급", "활성", "비고"
+]
+CUST_IMPORT_TIERS = {"A", "B", "C", "VIP", ""}
+
+
+def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
+    """고객사 일괄 등록 양식 파싱.
+    시트 '고객사' row7+ 데이터, 빈 고객사명 행 자동 스킵.
+    예제 row 4-6 도 고객사명이 '예) ...' 또는 자연 스킵 대상."""
+    from openpyxl import load_workbook
+    import io as _io
+    import re as _re
+    wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
+    if "고객사" not in wb.sheetnames:
+        raise ValueError("'고객사' 시트를 찾을 수 없습니다 (양식 파일 확인)")
+    ws = wb["고객사"]
+
+    def _to_str(v) -> str:
+        if v is None:
+            return ""
+        return str(v).strip()
+
+    # 기존 고객사 인덱스 (이름 / 사업자번호 정규화) 캐시
+    name_map: dict[str, int] = {}
+    bizno_map: dict[str, tuple[int, str]] = {}
+    try:
+        with db_session() as _cc:
+            for r in _cc.execute("SELECT id, name, biz_no FROM customers"):
+                if r and r[0] and r[1]:
+                    name_map[r[1]] = r[0]
+                    bn = _re.sub(r"\D", "", r[2] or "")
+                    if bn:
+                        bizno_map[bn] = (r[0], r[1])
+    except Exception:
+        pass
+
+    email_re = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    out = []
+    row_no = 0
+    # row7+ 데이터 (row1-2=제목/안내, row3=헤더, row4-6=예제)
+    for r in ws.iter_rows(min_row=7, values_only=True):
+        row_no += 1
+        actual_row = row_no + 6
+        if not r or all((c is None or str(c).strip() == "") for c in r):
+            continue
+        cells = list(r) + [None] * (10 - len(r)) if len(r) < 10 else list(r[:10])
+        name = _to_str(cells[0])
+        if not name:
+            continue
+        # 예제 행 잔존 방어
+        if name.startswith("예)") or name.startswith("예 )"):
+            continue
+        biz_no_raw = _to_str(cells[1])
+        ceo = _to_str(cells[2])
+        manager = _to_str(cells[3])
+        phone = _to_str(cells[4])
+        email = _to_str(cells[5])
+        address = _to_str(cells[6])
+        tier = _to_str(cells[7]).upper()
+        active_raw = _to_str(cells[8])
+        note = _to_str(cells[9])
+
+        errors = []
+        warnings = []
+
+        # 사업자번호: 대시 제거 후 10자리 숫자 검증 (입력 있을 때만)
+        biz_no_norm = _re.sub(r"\D", "", biz_no_raw) if biz_no_raw else ""
+        biz_no_display = biz_no_raw
+        if biz_no_raw:
+            if len(biz_no_norm) != 10 or not biz_no_norm.isdigit():
+                errors.append(f"사업자번호 형식 오류(10자리 숫자): '{biz_no_raw}'")
+            else:
+                # 표준 표기 999-99-99999
+                biz_no_display = (
+                    f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
+                )
+
+        # 이메일
+        if email and not email_re.match(email):
+            errors.append(f"이메일 형식 오류: '{email}'")
+
+        # 등급
+        if tier not in CUST_IMPORT_TIERS:
+            errors.append(f"등급 화이트리스트 위반: '{tier}' (A/B/C/VIP/공란)")
+            tier = ""
+
+        # 활성: 1/0/공란 → 공란은 1
+        if active_raw == "":
+            is_active = 1
+        elif active_raw in ("1", "활성", "Y", "y", "True", "true"):
+            is_active = 1
+        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
+            is_active = 0
+        else:
+            errors.append(f"활성 값 오류(1/0): '{active_raw}'")
+            is_active = 1
+
+        # UPSERT 모드 판정
+        existing_id = name_map.get(name)
+        action = "update" if existing_id else "create"
+
+        # 사업자번호 중복 (다른 이름) → 경고만
+        if biz_no_norm and biz_no_norm in bizno_map:
+            other_id, other_name = bizno_map[biz_no_norm]
+            if other_name != name:
+                warnings.append(
+                    f"사업자번호 중복: 기존 '{other_name}' (#{other_id}) 와 동일"
+                )
+
+        out.append({
+            "row_no": actual_row,
+            "name": name,
+            "biz_no": biz_no_display,
+            "biz_no_norm": biz_no_norm,
+            "ceo_name": ceo,
+            "manager_name": manager,
+            "phone": phone,
+            "email": email,
+            "address": address,
+            "tier": tier,
+            "is_active": is_active,
+            "note": note,
+            "_existing_id": existing_id,
+            "_action": action,
+            "_errors": errors,
+            "_warnings": warnings,
+        })
+    return out
+
+
+@app.get("/customers/import-template")
+async def customers_import_template(request: Request):
+    """고객사 일괄 등록 양식 다운로드 (v5H153)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "static" / "templates" / "고객사_일괄등록_양식.xlsx"
+    if not p.exists():
+        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    return FileResponse(
+        str(p),
+        filename="KNK_고객사_일괄등록_양식.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.post("/customers/import-xlsx")
+async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
+    """고객사 엑셀 업로드 → 파싱 + 검증 → 미리보기 JSON 반환 (v5H153)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        body = await xlsx.read()
+        rows = _cust_import_parse_xlsx(body)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"파싱 실패: {e}"}, 400)
+    create_count = sum(1 for r in rows if r["_action"] == "create" and not r["_errors"])
+    update_count = sum(1 for r in rows if r["_action"] == "update" and not r["_errors"])
+    error_count = sum(1 for r in rows if r["_errors"])
+    warning_count = sum(1 for r in rows if r["_warnings"] and not r["_errors"])
+    return JSONResponse({
+        "ok": True,
+        "rows": rows,
+        "total": len(rows),
+        "create_count": create_count,
+        "update_count": update_count,
+        "error_count": error_count,
+        "warning_count": warning_count,
+    })
+
+
+@app.post("/customers/import-confirm")
+async def customers_import_confirm(request: Request):
+    """미리보기 확정 → INSERT/UPDATE 실행 (v5H153).
+    body JSON: {rows: [...]}.
+    UPDATE 시 빈 칸이 아닌 필드만 갱신(기존 데이터 보호)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    rows = body.get("rows") or []
+    if not isinstance(rows, list) or not rows:
+        return JSONResponse({"ok": False, "error": "no_rows"}, 400)
+
+    created, updated, failed = [], [], []
+    try:
+        from . import customer_tier as _ct
+    except Exception:
+        _ct = None
+
+    with db_session() as c:
+        for r in rows:
+            try:
+                name = (r.get("name") or "").strip()
+                if not name:
+                    failed.append({"row_no": r.get("row_no"), "name": "",
+                                   "error": "고객사명 누락"})
+                    continue
+                biz_no = (r.get("biz_no") or "").strip()
+                ceo = (r.get("ceo_name") or "").strip()
+                manager = (r.get("manager_name") or "").strip()
+                phone = (r.get("phone") or "").strip()
+                email = (r.get("email") or "").strip()
+                address = (r.get("address") or "").strip()
+                tier = (r.get("tier") or "").strip().upper()
+                is_active = int(r.get("is_active") if r.get("is_active") is not None else 1)
+                note = (r.get("note") or "").strip()
+
+                # 이름으로 기존 행 재조회 (preview 후 동시 변경 가능성 방어)
+                existing = c.execute(
+                    "SELECT id FROM customers WHERE name=?", (name,)
+                ).fetchone()
+                if existing:
+                    cid = existing["id"] if hasattr(existing, "keys") else existing[0]
+                    # 빈 칸이 아닌 필드만 UPDATE
+                    sets, vals = [], []
+                    for col, v in (
+                        ("biz_no", biz_no), ("ceo_name", ceo),
+                        ("manager_name", manager), ("phone", phone),
+                        ("email", email), ("address", address),
+                        ("note", note),
+                    ):
+                        if v:
+                            sets.append(f"{col}=?")
+                            vals.append(v)
+                    # 활성은 명시값 항상 반영
+                    sets.append("is_active=?")
+                    vals.append(is_active)
+                    if sets:
+                        vals.append(cid)
+                        c.execute(
+                            f"UPDATE customers SET {','.join(sets)} WHERE id=?",
+                            tuple(vals)
+                        )
+                    if _ct:
+                        try:
+                            _ct.refresh_customer_tier(c, cid)
+                        except Exception:
+                            pass
+                    updated.append({"row_no": r.get("row_no"),
+                                    "id": cid, "name": name})
+                else:
+                    fields = {
+                        "name": name,
+                        "tier": tier or "신규",
+                        "biz_no": biz_no,
+                        "ceo_name": ceo,
+                        "manager_name": manager,
+                        "phone": phone,
+                        "email": email,
+                        "address": address,
+                        "is_active": is_active,
+                        "note": note,
+                    }
+                    cols = ",".join(fields.keys())
+                    ph = ",".join(["?"] * len(fields))
+                    c.execute(
+                        f"INSERT INTO customers({cols}) VALUES({ph})",
+                        tuple(fields.values())
+                    )
+                    new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    if _ct:
+                        try:
+                            _ct.refresh_customer_tier(c, new_id)
+                        except Exception:
+                            pass
+                    created.append({"row_no": r.get("row_no"),
+                                    "id": new_id, "name": name})
+            except Exception as e:
+                failed.append({"row_no": r.get("row_no"),
+                               "name": r.get("name"), "error": str(e)})
+
+    return JSONResponse({
+        "ok": True,
+        "created_count": len(created),
+        "updated_count": len(updated),
+        "failed_count": len(failed),
+        "created": created,
+        "updated": updated,
+        "failed": failed,
+    })
+
+
 @app.get("/projects/{pid}/edit", response_class=HTMLResponse)
 async def projects_edit_form(request: Request, pid: int):
     u = get_user(request)

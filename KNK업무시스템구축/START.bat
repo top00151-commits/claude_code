@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H152 프로젝트 엑셀 일괄 등록 신설. /projects/import-template (양식 .xlsx 다운로드) + /projects/import-xlsx (업로드·파싱·검증·미리보기 JSON) + /projects/import-confirm (확정 INSERT) 3개 라우트 신설. T_검사기/M_자동화 시트 row5+ 파싱, 16컬럼 매핑, 검증(통화 KRW/USD/VND·상태 화이트리스트·수량 1-100·단가≥0·날짜 YYYY-MM-DD), 미등록 고객사는 경고만. chooser 페이지에 [📥 양식 다운로드][📤 엑셀 업로드] 버튼 + 미리보기 모달(표·검증결과·정상건수 카운트·등록확정).
+REM   LAST UPDATE: 2026-05-05 v5H153 고객사 엑셀 일괄 등록 신설. /customers/import-template (양식 다운로드) + /customers/import-xlsx (파싱·검증·미리보기 JSON) + /customers/import-confirm (UPSERT) 3개 라우트 신설. '고객사' 시트 row7+ 파싱, 10컬럼 매핑(고객사명/사업자번호/대표/담당자/전화/이메일/주소/등급/활성/비고), 검증(사업자번호 10자리·이메일 형식·등급 A/B/C/VIP·활성 1/0). 동일 이름 존재 시 빈 칸 아닌 필드만 UPDATE(기존 데이터 보호) / 신규 INSERT, 사업자번호 중복(다른 이름)은 경고만. customers_list.html 상단에 [📥 양식 다운로드][📤 엑셀 일괄 업로드] 버튼 + 미리보기 모달(신규/업데이트 카운트·동작 pill·검증결과). 권한: can_use_sales.
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
