@@ -305,6 +305,9 @@
             <option value="KRW" {% if _cur_ccy == 'KRW' %}selected{% endif %}>KRW (원)</option>
             <option value="USD" {% if _cur_ccy == 'USD' %}selected{% endif %}>USD (달러)</option>
             <option value="VND" {% if _cur_ccy == 'VND' %}selected{% endif %}>VND (동)</option>
+            <option value="JPY" {% if _cur_ccy == 'JPY' %}selected{% endif %}>JPY (엔)</option>
+            <option value="CNY" {% if _cur_ccy == 'CNY' %}selected{% endif %}>CNY (위안)</option>
+            <option value="EUR" {% if _cur_ccy == 'EUR' %}selected{% endif %}>EUR (유로)</option>
           </select>
         </div>
         {# v5H154: 외화 선택 시 기준환율 + 원화 환산금액 자동 계산 #}
@@ -338,6 +341,10 @@
         var isKrw = (ccy === 'KRW');
         document.getElementById('pf_fx_field').style.display = isKrw ? 'none' : 'flex';
         document.getElementById('pf_krw_field').style.display = isKrw ? 'none' : 'flex';
+        // v5H171: 헤더 통화 변경 시 호기 라인 unit_currency[] 도 따라 변경 (사용자가 개별 변경한 행은 보존하지 않음 — 전부 헤더값으로 정렬)
+        document.querySelectorAll('select.unit_ccy_sel').forEach(function(sel){
+          sel.value = ccy;
+        });
         // 라벨 통화 코드 갱신
         var lbl = document.querySelector('#pf_fx_field label .sub');
         if (lbl && !isKrw) lbl.textContent = '(1 ' + ccy + ' → KRW)';
@@ -478,7 +485,7 @@
           tr.style.borderTop = '1px solid var(--line)';
           tr.innerHTML = `
             <td style="padding:6px 8px;"><input type="text" name="unit_label[]" value="${label||(counter+'호기')}" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><select name="unit_currency[]" style="width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"><option value="KRW">KRW</option><option value="USD">USD</option><option value="VND">VND</option></select></td>
+            <td style="padding:6px 8px;"><select name="unit_currency[]" class="unit_ccy_sel" style="width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"><option value="KRW">KRW</option><option value="USD">USD</option><option value="VND">VND</option><option value="JPY">JPY</option><option value="CNY">CNY</option><option value="EUR">EUR</option></select></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_amount[]" inputmode="numeric" placeholder="0" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="date" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_ship[]" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
@@ -486,6 +493,10 @@
             <td style="padding:6px 4px;text-align:center;"><button type="button" class="rmU" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:16px;">×</button></td>
           `;
           tbody.appendChild(tr);
+          // v5H171: 새 호기 라인은 헤더 통화를 default 로 사용
+          const _hdrSel = document.getElementById('pf_currency');
+          const _newCcySel = tr.querySelector('select.unit_ccy_sel');
+          if (_hdrSel && _newCcySel) _newCcySel.value = _hdrSel.value;
           const amtInp = tr.querySelector('input[name="unit_amount[]"]');
           if (window.knkAttachMoney) { window.knkAttachMoney(amtInp); }
           amtInp.addEventListener('input', recalc);

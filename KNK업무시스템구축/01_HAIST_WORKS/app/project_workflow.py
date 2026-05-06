@@ -135,14 +135,30 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
         )
 
     # 2. 수주번호 발행 — 관리코드 채번 후만 (KNK 표준)
+    # v5H171: 프로젝트 헤더의 currency 를 SO 에 상속 (단일 SO 경로 누락 버그 수정)
     so_no = generate_so_no(c, biz_div, ref_d)
-    cur = c.execute(
-        "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-        "due_date, total_amount, status, created_by) "
-        "VALUES(?,?,?,?,?,?,'CONFIRMED',?)",
-        (so_no, customer_id, project_id, order_date, due_date or None,
-         total_amount or 0, created_by or None)
-    )
+    _proj_ccy = (proj.get("currency") or "KRW").upper()
+    # orders 테이블에 currency 컬럼이 있을 때만 포함 (백워드 호환)
+    try:
+        _ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    except Exception:
+        _ord_cols = set()
+    if "currency" in _ord_cols:
+        cur = c.execute(
+            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+            "due_date, total_amount, currency, status, created_by) "
+            "VALUES(?,?,?,?,?,?,?,'CONFIRMED',?)",
+            (so_no, customer_id, project_id, order_date, due_date or None,
+             total_amount or 0, _proj_ccy, created_by or None)
+        )
+    else:
+        cur = c.execute(
+            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+            "due_date, total_amount, status, created_by) "
+            "VALUES(?,?,?,?,?,?,'CONFIRMED',?)",
+            (so_no, customer_id, project_id, order_date, due_date or None,
+             total_amount or 0, created_by or None)
+        )
     order_id = cur.lastrowid
 
     # 3. 상태 이력 기록 (테이블 있으면)

@@ -8258,9 +8258,12 @@ async def projects_new_submit(request: Request):
             u_due = (dues[i] if i < len(dues) else "").strip()
             u_ship = (ships[i] if i < len(ships) else "").strip()
             u_note = (notes_u[i] if i < len(notes_u) else "").strip()
-            u_cur = (currs[i] if i < len(currs) else "").strip().upper() or "KRW"
-            if u_cur not in ("KRW", "USD"):
-                u_cur = "KRW"
+            # v5H171: 화이트리스트 KRW/USD/VND/JPY/CNY/EUR (폼 옵션과 일치, VND 묵음 손실 버그 수정)
+            # 헤더 통화로 대체(빈 셀 시) — 사용자가 헤더에서 USD 선택했으면 호기 라인도 USD 가 default
+            _hdr_cur = (form.get("currency", "KRW") or "KRW").upper()
+            u_cur = (currs[i] if i < len(currs) else "").strip().upper() or _hdr_cur
+            if u_cur not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+                u_cur = _hdr_cur if _hdr_cur in ("KRW","USD","VND","JPY","CNY","EUR") else "KRW"
             if not (labels[i] if i < len(labels) else "") and u_amt == 0:
                 continue
             units.append({"label": lbl, "amount": u_amt,
@@ -9065,6 +9068,9 @@ async def projects_edit_submit(request: Request, pid: int):
         "status": status_val,
         "customer_po": form.get("customer_po", ""),
         "currency": (form.get("currency", "KRW") or "KRW").upper(),
+        # v5H171: 수정 시에도 fx_rate / amount_krw 저장
+        "fx_rate": (lambda v: float(v) if (v or "").strip() else None)(form.get("fx_rate", "")),
+        "amount_krw": (lambda v: float(v) if (v or "").strip() else None)(form.get("amount_krw", "")),
         "is_export": form.get("is_export", "0"),
         "order_amount": amt,
         "unit_qty": unit_qty,
