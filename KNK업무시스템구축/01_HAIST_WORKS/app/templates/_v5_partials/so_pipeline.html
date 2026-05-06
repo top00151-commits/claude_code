@@ -1,0 +1,46 @@
+{# v5H155: 수주 상태 파이프라인 (수평 칸반)
+   변수: pipeline=[{code,label,color,count,amount,pct}], filter_status, tab
+#}
+<div class="so-pipe">
+  {% for st in pipeline %}
+  <a class="so-pipe-stage {% if filter_status == st.code %}active{% endif %}"
+     href="?tab={{ tab }}&status={{ st.code }}{% if filter_period %}&period={{ filter_period }}{% endif %}{% if filter_currency %}&currency={{ filter_currency }}{% endif %}"
+     style="--stage-color: {{ st.color }};">
+    <div class="so-pipe-head">
+      <span class="so-pipe-dot"></span>
+      <span class="so-pipe-label">{{ st.label }}</span>
+      <span class="so-pipe-count">{{ st.count }}</span>
+    </div>
+    <div class="so-pipe-bar"><div class="so-pipe-fill" style="width: {{ st.pct }}%;"></div></div>
+    <div class="so-pipe-amt">
+      {% if st.amount %}{{ '{:,.0f}'.format(st.amount) }}<span class="cu">원</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}
+    </div>
+  </a>
+  {% if not loop.last %}<div class="so-pipe-arrow">›</div>{% endif %}
+  {% endfor %}
+</div>
+<style>
+.so-pipe { display:flex; align-items:stretch; gap:4px; padding:14px 16px;
+           background:#fff; border-radius:12px; border:1px solid #f1e8d4;
+           overflow-x:auto; }
+.so-pipe-stage { flex:1; min-width:130px; padding:10px 12px; border-radius:10px;
+                 text-decoration:none; color:#1e293b; background:#fafaf7;
+                 border:1px solid #f1e8d4; transition:all .15s; cursor:pointer; display:block; }
+.so-pipe-stage:hover { background:#fff8e8; border-color:var(--amber-deep,#d97706); transform:translateY(-1px); }
+.so-pipe-stage.active { background:var(--stage-color); color:#fff; border-color:var(--stage-color);
+                        box-shadow:0 4px 12px rgba(0,0,0,.12); }
+.so-pipe-stage.active .so-pipe-bar { background:rgba(255,255,255,.3); }
+.so-pipe-stage.active .so-pipe-fill { background:#fff; }
+.so-pipe-stage.active .so-pipe-amt .cu { color:rgba(255,255,255,.7); }
+.so-pipe-head { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.so-pipe-dot { width:8px; height:8px; border-radius:50%; background:var(--stage-color); }
+.so-pipe-stage.active .so-pipe-dot { background:#fff; }
+.so-pipe-label { font-size:12px; font-weight:700; flex:1; }
+.so-pipe-count { font-size:18px; font-weight:800; }
+.so-pipe-bar { height:3px; background:#e5e7eb; border-radius:2px; overflow:hidden; margin-bottom:6px; }
+.so-pipe-fill { height:100%; background:var(--stage-color); transition:width .3s; }
+.so-pipe-amt { font-size:11px; font-weight:600; color:#64748b; font-family:ui-monospace,Menlo,Consolas,monospace; }
+.so-pipe-amt .cu { font-size:9.5px; margin-left:2px; color:#94a3b8; }
+.so-pipe-arrow { display:flex; align-items:center; color:#cbd5e1; font-size:20px; font-weight:300; padding:0 2px; }
+@media (max-width:880px) { .so-pipe { padding:8px; } .so-pipe-stage { min-width:110px; padding:8px; } .so-pipe-arrow { display:none; } }
+</style>

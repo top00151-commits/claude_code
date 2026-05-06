@@ -1,0 +1,79 @@
+{# v5H155: 수주 출하 캘린더 — 이번달+다음달 미니 뷰
+   변수: cal_months=[{year, month, weeks=[[{date,day,in_month,count,amount,cls,is_today}]]}], tab, filter_due_date
+#}
+<div class="so-cal-grid">
+  {% for cm in cal_months %}
+  <div class="so-cal">
+    <div class="so-cal-head">{{ cm.year }}년 {{ cm.month }}월</div>
+    <div class="so-cal-dow">
+      <span class="dow sun">일</span><span class="dow">월</span><span class="dow">화</span><span class="dow">수</span><span class="dow">목</span><span class="dow">금</span><span class="dow sat">토</span>
+    </div>
+    {% for week in cm.weeks %}
+    <div class="so-cal-week">
+      {% for d in week %}
+        {% if d.count > 0 %}
+        <a class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if filter_due_date == d.date %}sel{% endif %}"
+           href="?tab={{ tab }}&due_date={{ d.date }}" title="{{ d.date }} · {{ d.count }}건 · {{ '{:,.0f}'.format(d.amount) }}원">
+          <span class="d-num">{{ d.day }}</span>
+          <span class="d-cnt">{{ d.count }}</span>
+        </a>
+        {% else %}
+        <div class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %}">
+          <span class="d-num">{{ d.day }}</span>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+<div class="so-cal-legend">
+  <span class="lg overdue">● 오버듀/지난미출하</span>
+  <span class="lg d3">● D-3 이내</span>
+  <span class="lg d7">● D-7 이내</span>
+  <span class="lg future">● 여유</span>
+  {% if filter_due_date %}
+  <a href="?tab={{ tab }}" class="lg-clear">✕ 날짜필터 해제</a>
+  {% endif %}
+</div>
+<style>
+.so-cal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.so-cal { background:#fff; border:1px solid #f1e8d4; border-radius:12px; padding:12px; }
+.so-cal-head { font-size:13px; font-weight:800; color:var(--knk-red,#b91c1c); margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #f1e8d4; }
+.so-cal-dow { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px; }
+.so-cal-dow .dow { text-align:center; font-size:10.5px; font-weight:700; color:#64748b; padding:3px 0; }
+.so-cal-dow .sun { color:#dc2626; }
+.so-cal-dow .sat { color:#2563eb; }
+.so-cal-week { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.so-cal-day { position:relative; aspect-ratio:1/1; min-height:32px; border-radius:6px;
+              display:flex; flex-direction:column; align-items:center; justify-content:center;
+              background:#fafaf7; border:1px solid transparent; text-decoration:none; color:#475569;
+              font-size:11px; transition:all .12s; }
+.so-cal-day .d-num { font-size:11px; font-weight:600; }
+.so-cal-day .d-cnt { font-size:10px; font-weight:800; line-height:1; padding:1px 4px; border-radius:8px;
+                     background:rgba(0,0,0,.12); margin-top:1px; min-width:14px; text-align:center; }
+.so-cal-day.out { color:#cbd5e1; background:transparent; }
+.so-cal-day.out .d-cnt { display:none; }
+.so-cal-day.today { box-shadow:inset 0 0 0 2px #f59e0b; }
+.so-cal-day.sel { box-shadow:inset 0 0 0 2px #b91c1c; }
+.so-cal-day.empty { }
+.so-cal-day.future { background:#f0fdf4; color:#166534; }
+.so-cal-day.future .d-cnt { background:#86efac; color:#14532d; }
+.so-cal-day.d7 { background:#fef9c3; color:#713f12; }
+.so-cal-day.d7 .d-cnt { background:#fde047; color:#713f12; }
+.so-cal-day.d3 { background:#fed7aa; color:#7c2d12; }
+.so-cal-day.d3 .d-cnt { background:#fb923c; color:#fff; }
+.so-cal-day.overdue, .so-cal-day.past { background:#fecaca; color:#991b1b; }
+.so-cal-day.overdue .d-cnt, .so-cal-day.past .d-cnt { background:#dc2626; color:#fff; }
+.so-cal-day:hover:not(.out):not(.empty) { transform:scale(1.06); z-index:2; box-shadow:0 4px 12px rgba(0,0,0,.18); }
+.so-cal-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; padding:0 4px; font-size:11px; color:#64748b; }
+.so-cal-legend .lg { font-weight:600; }
+.so-cal-legend .lg.overdue { color:#dc2626; }
+.so-cal-legend .lg.d3 { color:#ea580c; }
+.so-cal-legend .lg.d7 { color:#ca8a04; }
+.so-cal-legend .lg.future { color:#16a34a; }
+.so-cal-legend .lg-clear { color:#b91c1c; font-weight:700; text-decoration:none; padding:2px 8px; border:1px solid #b91c1c; border-radius:6px; }
+.so-cal-legend .lg-clear:hover { background:#b91c1c; color:#fff; }
+@media (max-width:760px) { .so-cal-grid { grid-template-columns:1fr; } }
+</style>

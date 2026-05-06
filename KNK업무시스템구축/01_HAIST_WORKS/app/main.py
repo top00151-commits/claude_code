@@ -11684,47 +11684,317 @@ async def sales_quotation_convert_to_order(req: Request, quote_id: int):
 
 
 @app.get("/sales/orders", response_class=HTMLResponse)
-async def sales_orders_page(req: Request):
-    """수주 탭 (시안 §1 탭2 SO) — orders 리스트 + status tag (시안 §3)"""
+async def sales_orders_page(req: Request,
+                            tab: str = "T",
+                            status: str = "",
+                            period: str = "",
+                            currency: str = "",
+                            q: str = "",
+                            sort: str = "due",
+                            due_date: str = ""):
+    """v5H155: 수주관리 전면 재설계 — 4탭(T/M/K/소모품) + KPI + 파이프라인 + 캘린더 + 강화 목록.
+
+    tab: T(검사기) / M(자동화) / K(기타) / consumable(소모품)
+    status: 단계별 필터 (DRAFT/CONFIRMED/SHIPPED/INVOICED/PAID/CANCELLED)
+    period: this_week / this_month / 3months / all
+    currency: KRW/USD/VND
+    q: 수주번호/프로젝트명/고객사 검색
+    sort: due / amount / order_date
+    due_date: 특정일 필터 (캘린더 클릭 시)
+    """
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+
+    tab = (tab or "T").upper()
+    if tab not in ("T", "M", "K", "CONSUMABLE"):
+        tab = "T"
+    is_consumable = (tab == "CONSUMABLE")
+
+    today = date.today()
+    today_iso = today.isoformat()
+
+    # 이번주 / 이번달 범위
+    week_start = (today - timedelta(days=today.weekday())).isoformat()
+    week_end = (today + timedelta(days=(6 - today.weekday()))).isoformat()
+    month_start = today.replace(day=1).isoformat()
+    if today.month == 12:
+        next_m = today.replace(year=today.year + 1, month=1, day=1)
+    else:
+        next_m = today.replace(month=today.month + 1, day=1)
+    month_end = (next_m - timedelta(days=1)).isoformat()
+    # 캘린더(이번달+다음달) 범위
+    if next_m.month == 12:
+        next_next_m = next_m.replace(year=next_m.year + 1, month=1, day=1)
+    else:
+        next_next_m = next_m.replace(month=next_m.month + 1, day=1)
+    cal_end = (next_next_m - timedelta(days=1)).isoformat()
+
     with db_session() as c:
-        # v5H89: 컬럼 동적 감지 — orders 의 ship_to/unit_qty/unit_label 등은
-        # ALTER 미적용 DB 와 호환을 위해 PRAGMA 로 존재 확인
+        # 컬럼 동적 감지
         try:
             ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
         except Exception:
             ocols = set()
-        extra = []
-        for cn in ("ship_to", "unit_qty", "unit_label", "currency"):
-            if cn in ocols:
-                extra.append(f"o.{cn}")
-        # projects 조인 — 관리번호/프로젝트명/사업부/모델
-        pj_extra = (
-            ", p.id AS project_id, p.mgmt_code AS mgmt_code, "
-            "p.name AS project_name, p.biz_div AS biz_div, "
-            "p.model_name AS model_name, p.po_type AS po_type"
-        )
-        sel_extra = (", " + ", ".join(extra)) if extra else ""
-        rows = c.execute(
-            f"""SELECT o.id, o.order_no, o.customer_id,
-                      COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
-                      o.total_amount, o.due_date, o.status,
-                      o.order_date,
-                      COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
-                      o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
-                      {sel_extra}
-                      {pj_extra}
-               FROM orders o
-               LEFT JOIN customers cu  ON cu.id  = o.customer_id
-               LEFT JOIN projects p    ON p.id   = o.project_id
-               LEFT JOIN customers pcu ON pcu.id = p.customer_id
-               ORDER BY o.id DESC LIMIT 200"""
-        ).fetchall()
-        items = [dict(r) for r in rows]
+
+        # ============= 1) 4 탭별 카운트 =============
+        tab_counts = {"T": 0, "M": 0, "K": 0, "CONSUMABLE": 0}
+        try:
+            for div in ("T", "M", "K"):
+                row = c.execute(
+                    """SELECT COUNT(*) FROM orders o
+                       LEFT JOIN projects p ON p.id = o.project_id
+                       WHERE COALESCE(p.biz_div,'') = ?
+                         AND COALESCE(o.status,'') NOT IN ('CANCELLED','PAID')""",
+                    (div,)
+                ).fetchone()
+                tab_counts[div] = row[0] if row else 0
+            row = c.execute(
+                "SELECT COUNT(*) FROM consumable_orders WHERE COALESCE(status,'') NOT IN ('CANCELLED','PAID')"
+            ).fetchone()
+            tab_counts["CONSUMABLE"] = row[0] if row else 0
+        except Exception:
+            pass
+
+        # ============= 2) 데이터 로딩 (선택 탭) =============
+        items = []
+        if is_consumable:
+            # 소모품 탭 — consumable_orders
+            rows = c.execute(
+                """SELECT co.id, co.co_no AS order_no,
+                          COALESCE(cu.name, co.customer_name, '-') AS customer_name,
+                          co.total_amount, co.due_date, co.status,
+                          co.order_date, co.currency,
+                          NULL AS project_id, NULL AS mgmt_code,
+                          NULL AS project_name, NULL AS biz_div,
+                          NULL AS model_name, NULL AS po_type,
+                          NULL AS so_type, NULL AS ship_to, NULL AS unit_qty, NULL AS unit_label,
+                          (SELECT COUNT(*) FROM consumable_order_items i WHERE i.co_id=co.id) AS item_count
+                   FROM consumable_orders co
+                   LEFT JOIN customers cu ON cu.id = co.customer_id
+                   ORDER BY co.id DESC
+                   LIMIT 500"""
+            ).fetchall()
+            items = [dict(r) for r in rows]
+        else:
+            extra = []
+            for cn in ("ship_to", "unit_qty", "unit_label", "currency", "so_type"):
+                if cn in ocols:
+                    extra.append(f"o.{cn}")
+            sel_extra = (", " + ", ".join(extra)) if extra else ""
+            rows = c.execute(
+                f"""SELECT o.id, o.order_no, o.customer_id,
+                          COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
+                          o.total_amount, o.due_date, o.status,
+                          o.order_date,
+                          COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
+                          o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
+                          {sel_extra},
+                          p.id AS project_id, p.mgmt_code AS mgmt_code,
+                          p.name AS project_name, p.biz_div AS biz_div,
+                          p.model_name AS model_name, p.po_type AS po_type
+                   FROM orders o
+                   LEFT JOIN customers cu  ON cu.id  = o.customer_id
+                   LEFT JOIN projects p    ON p.id   = o.project_id
+                   LEFT JOIN customers pcu ON pcu.id = p.customer_id
+                   WHERE COALESCE(p.biz_div,'') = ?
+                   ORDER BY o.id DESC
+                   LIMIT 500""",
+                (tab,)
+            ).fetchall()
+            items = [dict(r) for r in rows]
+
+    # ============= 3) D-day, 진행률 계산 =============
+    STATUS_PROGRESS = {
+        "DRAFT": 0, "QUOTED": 10, "CONFIRMED": 20,
+        "SHIPPED": 50, "INVOICED": 80, "PAID": 100, "CANCELLED": 0,
+    }
+    for it in items:
+        dd = (it.get("due_date") or "").strip()
+        d_left = None
+        d_class = "ok"
+        if dd:
+            try:
+                ddate = datetime.strptime(dd[:10], "%Y-%m-%d").date()
+                d_left = (ddate - today).days
+                st = (it.get("status") or "").upper()
+                shipped = st in ("SHIPPED", "INVOICED", "PAID")
+                if d_left < 0 and not shipped:
+                    d_class = "overdue"
+                elif d_left <= 3 and not shipped:
+                    d_class = "d3"
+                elif d_left <= 7 and not shipped:
+                    d_class = "d7"
+                else:
+                    d_class = "ok"
+            except Exception:
+                pass
+        it["d_left"] = d_left
+        it["d_class"] = d_class
+        it["progress"] = STATUS_PROGRESS.get((it.get("status") or "").upper(), 0)
+
+    # ============= 4) KPI 산출 (선택 탭 한정) =============
+    def _amt(it):
+        try:
+            return float(it.get("total_amount") or 0)
+        except Exception:
+            return 0.0
+
+    kpi = {
+        "week_count": 0, "week_amount": 0.0,
+        "month_count": 0, "month_amount": 0.0,
+        "wait_ship": 0,
+        "wait_invoice": 0,
+        "wait_payment": 0,
+        "outstanding": 0.0,
+    }
+    for it in items:
+        st = (it.get("status") or "").upper()
+        dd = (it.get("due_date") or "")[:10]
+        if dd and week_start <= dd <= week_end and st not in ("CANCELLED",):
+            kpi["week_count"] += 1
+            kpi["week_amount"] += _amt(it)
+        if dd and month_start <= dd <= month_end and st not in ("CANCELLED",):
+            kpi["month_count"] += 1
+            kpi["month_amount"] += _amt(it)
+        if st == "CONFIRMED":
+            kpi["wait_ship"] += 1
+            kpi["outstanding"] += _amt(it)
+        elif st == "SHIPPED":
+            kpi["wait_invoice"] += 1
+            kpi["outstanding"] += _amt(it)
+        elif st == "INVOICED":
+            kpi["wait_payment"] += 1
+            kpi["outstanding"] += _amt(it)
+
+    # ============= 5) 파이프라인 (상태별 건수+금액합) =============
+    if is_consumable:
+        PIPELINE_STAGES = [
+            ("DRAFT", "작성중", "#94a3b8"),
+            ("QUOTED", "견적", "#f59e0b"),
+            ("CONFIRMED", "확정", "#fb923c"),
+            ("SHIPPED", "출하", "#3b82f6"),
+            ("PAID", "수금", "#10b981"),
+            ("CANCELLED", "취소", "#ef4444"),
+        ]
+    else:
+        PIPELINE_STAGES = [
+            ("DRAFT", "작성중", "#94a3b8"),
+            ("CONFIRMED", "확정", "#fb923c"),
+            ("SHIPPED", "출하", "#3b82f6"),
+            ("INVOICED", "송장", "#8b5cf6"),
+            ("PAID", "수금완료", "#10b981"),
+            ("CANCELLED", "취소", "#ef4444"),
+        ]
+    pipeline = []
+    total_pipeline_count = 0
+    for code, label, color in PIPELINE_STAGES:
+        n = sum(1 for it in items if (it.get("status") or "").upper() == code)
+        amt = sum(_amt(it) for it in items if (it.get("status") or "").upper() == code)
+        pipeline.append({"code": code, "label": label, "color": color,
+                         "count": n, "amount": amt})
+        if code != "CANCELLED":
+            total_pipeline_count += n
+    for st in pipeline:
+        st["pct"] = (st["count"] / total_pipeline_count * 100.0) if total_pipeline_count else 0
+
+    # ============= 6) 캘린더 데이터 (이번달+다음달) =============
+    cal_buckets = {}  # iso date -> {count, amount, statuses}
+    for it in items:
+        dd = (it.get("due_date") or "")[:10]
+        if dd and month_start <= dd <= cal_end:
+            b = cal_buckets.setdefault(dd, {"count": 0, "amount": 0.0, "overdue": 0})
+            b["count"] += 1
+            b["amount"] += _amt(it)
+            if it.get("d_class") == "overdue":
+                b["overdue"] += 1
+
+    def _build_month(year, month):
+        import calendar as _cal
+        cal = _cal.Calendar(firstweekday=6)  # Sunday-first
+        weeks = []
+        for week in cal.monthdatescalendar(year, month):
+            row = []
+            for dt in week:
+                in_month = (dt.month == month)
+                iso = dt.isoformat()
+                b = cal_buckets.get(iso) or {"count": 0, "amount": 0.0, "overdue": 0}
+                d_left = (dt - today).days
+                if b["count"] == 0:
+                    cls = "empty"
+                elif b["overdue"] > 0:
+                    cls = "overdue"
+                elif d_left < 0:
+                    cls = "past"
+                elif d_left <= 3:
+                    cls = "d3"
+                elif d_left <= 7:
+                    cls = "d7"
+                else:
+                    cls = "future"
+                row.append({"date": iso, "day": dt.day, "in_month": in_month,
+                            "count": b["count"], "amount": b["amount"],
+                            "cls": cls, "is_today": (iso == today_iso)})
+            weeks.append(row)
+        return {"year": year, "month": month, "weeks": weeks}
+
+    cal_months = [
+        _build_month(today.year, today.month),
+        _build_month(next_m.year, next_m.month),
+    ]
+
+    # ============= 7) 필터 적용 (목록용) =============
+    filtered = list(items)
+    if status:
+        filtered = [it for it in filtered if (it.get("status") or "").upper() == status.upper()]
+    if currency:
+        filtered = [it for it in filtered if (it.get("currency") or "KRW").upper() == currency.upper()]
+    if period == "this_week":
+        filtered = [it for it in filtered if (it.get("due_date") or "")[:10] >= week_start
+                                          and (it.get("due_date") or "")[:10] <= week_end]
+    elif period == "this_month":
+        filtered = [it for it in filtered if (it.get("due_date") or "")[:10] >= month_start
+                                          and (it.get("due_date") or "")[:10] <= month_end]
+    elif period == "3months":
+        cutoff = (today + timedelta(days=90)).isoformat()
+        filtered = [it for it in filtered if (it.get("due_date") or "")[:10] <= cutoff
+                                          and (it.get("due_date") or "")[:10] >= today_iso]
+    if due_date:
+        filtered = [it for it in filtered if (it.get("due_date") or "")[:10] == due_date[:10]]
+    if q:
+        ql = q.lower()
+        def _match(it):
+            return any(ql in (str(it.get(k) or "")).lower()
+                       for k in ("order_no", "project_name", "customer_name", "mgmt_code", "model_name"))
+        filtered = [it for it in filtered if _match(it)]
+
+    # 정렬
+    if sort == "amount":
+        filtered.sort(key=lambda x: -_amt(x))
+    elif sort == "order_date":
+        filtered.sort(key=lambda x: (x.get("order_date") or ""), reverse=True)
+    else:  # due — 오버듀 → 임박 → 여유 → 납기없음
+        def _sk(it):
+            dl = it.get("d_left")
+            if dl is None:
+                return (3, 999999)
+            if dl < 0:
+                return (0, dl)  # 가장 오래된 오버듀 먼저
+            return (1, dl)
+        filtered.sort(key=_sk)
+
     return ctx(req, "sales_orders.html", user=u, active="sales_orders",
-               tab="orders", items=items)
+               tab=tab, is_consumable=is_consumable,
+               tab_counts=tab_counts,
+               items=filtered, all_items_count=len(items),
+               kpi=kpi, pipeline=pipeline,
+               cal_months=cal_months,
+               filter_status=status, filter_period=period,
+               filter_currency=currency, filter_q=q, filter_sort=sort,
+               filter_due_date=due_date,
+               today_iso=today_iso,
+               week_start=week_start, week_end=week_end,
+               month_start=month_start, month_end=month_end)
 
 
 @app.post("/sales/orders")
