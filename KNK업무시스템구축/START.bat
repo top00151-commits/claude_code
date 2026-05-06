@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H148 프로젝트 등록 진입점 통합(대표 직접 지시). 사이드바 재편: 🆕 프로젝트 등록 / 📊 프로젝트 목록 / 📦 소모품 발주 목록. /projects/new GET 가 type 없으면 4-카드 chooser(T검사기·M자동화·기타·소모품)를 렌더, type 있으면 기존 폼 + biz_div/project_type 사전 선택 + "← 다른 유형으로 변경" 링크. project_new_chooser.html 신설(KNK 톤 카드 4종). 백워드 호환 유지.
+REM   LAST UPDATE: 2026-05-05 v5H149 프로젝트 등록 진입점 통합(대표 직접 지시). 사이드바 재편: 🆕 프로젝트 등록 / 📊 프로젝트 목록 / 📦 소모품 발주 목록. /projects/new GET 가 type 없으면 4-카드 chooser(T검사기·M자동화·기타·소모품)를 렌더, type 있으면 기존 폼 + biz_div/project_type 사전 선택 + "← 다른 유형으로 변경" 링크. project_new_chooser.html 신설(KNK 톤 카드 4종). 백워드 호환 유지.
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================

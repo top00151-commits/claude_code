@@ -167,18 +167,24 @@
           <button type="button" class="gtab" data-gtab="file">📎 파일</button>
           <button type="button" class="gtab" data-gtab="timeline">📋 타임라인</button>
         </div>
-        <button type="button" class="close-x" id="closeGallery">✕</button>
+        <button type="button" class="close-x" id="closeGallery" title="닫기 (ESC)">✕</button>
       </header>
       <div class="gallery-content" id="galleryContent"></div>
+      <div class="requests-actions">
+        <button type="button" id="closeGalleryBottom" class="secondary-btn">✕ 닫기</button>
+      </div>
     </dialog>
 
     <!-- 다이제스트 다이얼로그 -->
     <dialog id="digestDialog" class="big-dialog">
       <header class="big-dialog-head">
         <h3>🌅 오늘 할 일 — KNK 다이제스트</h3>
-        <button type="button" class="close-x" id="closeDigest">✕</button>
+        <button type="button" class="close-x" id="closeDigest" title="닫기 (ESC)">✕</button>
       </header>
       <div class="gallery-content" id="digestContent"></div>
+      <div class="requests-actions">
+        <button type="button" id="closeDigestBottom" class="secondary-btn">✕ 닫기</button>
+      </div>
     </dialog>
 
     <!-- 라이트박스 -->
@@ -198,10 +204,11 @@
           <button type="button" class="gtab" data-rtab="done">완료</button>
           <button type="button" class="gtab" data-rtab="all">전체</button>
         </div>
-        <button type="button" class="close-x" id="closeRequests">✕</button>
+        <button type="button" class="close-x" id="closeRequests" title="닫기 (ESC)">✕</button>
       </header>
       <div class="requests-list" id="requestsList"></div>
       <div class="requests-actions">
+        <button type="button" id="closeRequestsBottom" class="secondary-btn">✕ 닫기</button>
         <button type="button" id="newRequestBtn" class="primary-btn">＋ 새 요청 등록</button>
       </div>
     </dialog>

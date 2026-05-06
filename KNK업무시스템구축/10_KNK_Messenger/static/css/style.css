@@ -739,6 +739,21 @@ dialog h3 { margin: 0 0 8px; }
 }
 .primary-btn:hover { background: #1d4ed8; }
 
+.secondary-btn {
+  background: var(--bg); color: var(--text);
+  padding: 10px 20px; border-radius: 8px;
+  font-weight: 600;
+  transition: all .15s;
+  border: 1px solid var(--border);
+}
+.secondary-btn:hover { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
+
+.requests-actions {
+  display: flex; gap: 8px; justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+
 #newRequestForm textarea {
   border: 1px solid var(--border); border-radius: 8px;
   padding: 9px 11px; background: #f9fafb; outline: none;

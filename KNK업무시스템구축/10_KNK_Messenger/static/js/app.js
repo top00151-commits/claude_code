@@ -1141,6 +1141,9 @@
 
   els.requestsBtn.addEventListener("click", openRequests);
   els.closeRequests.addEventListener("click", () => els.requestsDialog.close());
+  document.getElementById("closeRequestsBottom")?.addEventListener("click", () => els.requestsDialog.close());
+  document.getElementById("closeGalleryBottom")?.addEventListener("click", () => els.galleryDialog.close());
+  document.getElementById("closeDigestBottom")?.addEventListener("click", () => els.digestDialog.close());
   els.requestsDialog.querySelectorAll(".gtab").forEach(t => {
     t.addEventListener("click", async () => {
       activeReqTab = t.dataset.rtab;

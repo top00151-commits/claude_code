@@ -1,5 +1,5 @@
 // KNK Messenger Service Worker — 정적 자원 캐시 + 오프라인 폴백
-const CACHE = "knk-messenger-v1";
+const CACHE = "knk-messenger-v3";
 const PRECACHE = [
   "/static/css/style.css",
   "/static/js/app.js",
