@@ -11729,45 +11729,95 @@ async def sales_quotation_convert_to_order(req: Request, quote_id: int):
 
 
 @app.get("/sales/orders", response_class=HTMLResponse)
-async def sales_orders_page(req: Request):
-    """수주 탭 — orders 리스트 (v5H159 안전 복구: v5H135 동작 버전).
-    v5H155 4탭 재설계는 일시 보류 — 디버깅 후 재도입."""
+async def sales_orders_page(req: Request, biz: str = ""):
+    """수주 탭 — orders 리스트.
+    v5H160 Phase 1: 사업부 4탭 (T 검사기 / M 자동화 / K 기타 / 소모품) 추가.
+    biz='' (전체) | T | M | K | C(소모품)"""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    biz = (biz or "").upper().strip()
+    if biz not in ("", "T", "M", "K", "C"):
+        biz = ""
     with db_session() as c:
         try:
             ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
         except Exception:
             ocols = set()
-        extra = []
-        for cn in ("ship_to", "unit_qty", "unit_label", "currency"):
-            if cn in ocols:
-                extra.append(f"o.{cn}")
-        pj_extra = (
-            ", p.id AS project_id, p.mgmt_code AS mgmt_code, "
-            "p.name AS project_name, p.biz_div AS biz_div, "
-            "p.model_name AS model_name, p.po_type AS po_type"
-        )
-        sel_extra = (", " + ", ".join(extra)) if extra else ""
-        rows = c.execute(
-            f"""SELECT o.id, o.order_no, o.customer_id,
-                      COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
-                      o.total_amount, o.due_date, o.status,
-                      o.order_date,
-                      COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
-                      o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
-                      {sel_extra}
-                      {pj_extra}
-               FROM orders o
-               LEFT JOIN customers cu  ON cu.id  = o.customer_id
-               LEFT JOIN projects p    ON p.id   = o.project_id
-               LEFT JOIN customers pcu ON pcu.id = p.customer_id
-               ORDER BY o.id DESC LIMIT 200"""
-        ).fetchall()
-        items = [dict(r) for r in rows]
+        # 4 탭 카운트 (안전: 실패해도 0)
+        tab_counts = {"all": 0, "T": 0, "M": 0, "K": 0, "C": 0}
+        try:
+            tab_counts["all"] = (c.execute("SELECT COUNT(*) FROM orders").fetchone() or [0])[0]
+            for div in ("T", "M", "K"):
+                row = c.execute(
+                    "SELECT COUNT(*) FROM orders o LEFT JOIN projects p ON p.id=o.project_id "
+                    "WHERE COALESCE(p.biz_div,'')=?", (div,)
+                ).fetchone()
+                tab_counts[div] = row[0] if row else 0
+            row = c.execute("SELECT COUNT(*) FROM consumable_orders").fetchone()
+            tab_counts["C"] = row[0] if row else 0
+        except Exception:
+            pass
+
+        items = []
+        if biz == "C":
+            # 소모품 탭 — consumable_orders 표시 (다른 스키마, 같은 표 형태로 정규화)
+            try:
+                crows = c.execute(
+                    """SELECT co.id, co.co_no AS order_no,
+                              COALESCE(cu.name, co.customer_name, '-') AS customer_name,
+                              co.total_amount, co.due_date, co.status, co.order_date,
+                              0 AS tax_invoice_issued,
+                              NULL AS tax_invoice_no, NULL AS tax_invoice_date, NULL AS tax_invoice_note,
+                              NULL AS ship_to, NULL AS unit_qty, NULL AS unit_label,
+                              co.currency AS currency,
+                              NULL AS project_id, NULL AS mgmt_code,
+                              NULL AS project_name, NULL AS biz_div,
+                              NULL AS model_name, NULL AS po_type
+                       FROM consumable_orders co
+                       LEFT JOIN customers cu ON cu.id=co.customer_id
+                       ORDER BY co.id DESC LIMIT 200"""
+                ).fetchall()
+                items = [dict(r) for r in crows]
+            except Exception:
+                items = []
+        else:
+            extra = []
+            for cn in ("ship_to", "unit_qty", "unit_label", "currency"):
+                if cn in ocols:
+                    extra.append(f"o.{cn}")
+            pj_extra = (
+                ", p.id AS project_id, p.mgmt_code AS mgmt_code, "
+                "p.name AS project_name, p.biz_div AS biz_div, "
+                "p.model_name AS model_name, p.po_type AS po_type"
+            )
+            sel_extra = (", " + ", ".join(extra)) if extra else ""
+            where_biz = ""
+            params = []
+            if biz in ("T", "M", "K"):
+                where_biz = " WHERE COALESCE(p.biz_div,'')=?"
+                params = [biz]
+            rows = c.execute(
+                f"""SELECT o.id, o.order_no, o.customer_id,
+                          COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
+                          o.total_amount, o.due_date, o.status,
+                          o.order_date,
+                          COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
+                          o.tax_invoice_no, o.tax_invoice_date, o.tax_invoice_note
+                          {sel_extra}
+                          {pj_extra}
+                   FROM orders o
+                   LEFT JOIN customers cu  ON cu.id  = o.customer_id
+                   LEFT JOIN projects p    ON p.id   = o.project_id
+                   LEFT JOIN customers pcu ON pcu.id = p.customer_id
+                   {where_biz}
+                   ORDER BY o.id DESC LIMIT 200""",
+                params
+            ).fetchall()
+            items = [dict(r) for r in rows]
     return ctx(req, "sales_orders.html", user=u, active="sales_orders",
-               tab="orders", items=items)
+               tab="orders", items=items,
+               biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"))
 
 
 @app.post("/sales/orders")

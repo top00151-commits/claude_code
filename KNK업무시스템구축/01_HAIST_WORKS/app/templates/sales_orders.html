@@ -26,6 +26,40 @@
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div><h1 class="page-title">📑 <em>수주</em> 관리</h1></div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
   </div>
+
+  {# v5H160 Phase 1: 사업부 4 탭 #}
+  {% set _biz_cur = biz|default('') %}
+  {% set _tc = tab_counts|default({}) %}
+  <style>
+    .so-tabs { display:flex; gap:8px; margin:14px 0 16px; padding:6px; background:#fff;
+               border:1px solid #f1e8d4; border-radius:12px; }
+    .so-tab { flex:1; padding:12px 14px; border-radius:8px; text-decoration:none;
+              color:#64748b; transition:all .15s; display:flex; align-items:center;
+              justify-content:center; gap:8px; border:1px solid transparent;
+              font-weight:600; font-size:13.5px; }
+    .so-tab:hover { background:#fafaf7; color:#1e293b; }
+    .so-tab.active { background:linear-gradient(135deg,#fef3c7,#fde68a); color:#78350f;
+                     border-color:#f59e0b; box-shadow:inset 0 -3px 0 #b45309; }
+    .so-tab .cnt { font-size:11px; padding:2px 8px; border-radius:10px; background:#e5e7eb;
+                   color:#475569; font-weight:800; }
+    .so-tab.active .cnt { background:#b45309; color:#fff; }
+    .so-tab.t-T.active { background:linear-gradient(135deg,#ffedd5,#fed7aa); color:#7c2d12; border-color:#ea580c; box-shadow:inset 0 -3px 0 #c2410c; }
+    .so-tab.t-T.active .cnt { background:#c2410c; }
+    .so-tab.t-M.active { background:linear-gradient(135deg,#dbeafe,#bfdbfe); color:#1e3a8a; border-color:#2563eb; box-shadow:inset 0 -3px 0 #1d4ed8; }
+    .so-tab.t-M.active .cnt { background:#1d4ed8; }
+    .so-tab.t-K.active { background:linear-gradient(135deg,#f3e8ff,#e9d5ff); color:#581c87; border-color:#9333ea; box-shadow:inset 0 -3px 0 #7e22ce; }
+    .so-tab.t-K.active .cnt { background:#7e22ce; }
+    .so-tab.t-C.active { background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#064e3b; border-color:#10b981; box-shadow:inset 0 -3px 0 #047857; }
+    .so-tab.t-C.active .cnt { background:#047857; }
+  </style>
+  <div class="so-tabs">
+    <a class="so-tab t-all {% if _biz_cur == '' %}active{% endif %}" href="/sales/orders">📋 전체 <span class="cnt">{{ _tc.get('all', 0) }}</span></a>
+    <a class="so-tab t-T {% if _biz_cur == 'T' %}active{% endif %}" href="/sales/orders?biz=T">🔬 T 검사기 <span class="cnt">{{ _tc.get('T', 0) }}</span></a>
+    <a class="so-tab t-M {% if _biz_cur == 'M' %}active{% endif %}" href="/sales/orders?biz=M">🤖 M 자동화 <span class="cnt">{{ _tc.get('M', 0) }}</span></a>
+    <a class="so-tab t-K {% if _biz_cur == 'K' %}active{% endif %}" href="/sales/orders?biz=K">🌐 K 기타 <span class="cnt">{{ _tc.get('K', 0) }}</span></a>
+    <a class="so-tab t-C {% if _biz_cur == 'C' %}active{% endif %}" href="/sales/orders?biz=C">📦 소모품 <span class="cnt">{{ _tc.get('C', 0) }}</span></a>
+  </div>
+
   <div class="tbl-wrap tbl-sticky">
     {% if items %}
     <table class="tbl so-list">
