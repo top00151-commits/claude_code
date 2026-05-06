@@ -129,6 +129,7 @@
   let activeRoom = null;
   let rooms = [];
   let users = [];
+  let roomReadStatus = { members: [], total: 0 };  // 현재 방의 읽음 상태
   let activeFilter = "all";
   let activeTab = "item";
   let activeGalleryTab = "image";
@@ -204,6 +205,7 @@
     },
     summary: (rid) => fetch(`/api/rooms/${rid}/summary`).then(r => r.json()),
     timeline: (rid) => fetch(`/api/rooms/${rid}/timeline`).then(r => r.json()),
+    readStatus: (rid) => fetch(`/api/rooms/${rid}/read_status`).then(r => r.json()),
     digest: () => fetch("/api/digest").then(r => r.json()),
     createRequest: (payload) => fetch("/api/requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json()),
     updateRequest: (id, payload) => fetch(`/api/requests/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json()),
@@ -327,6 +329,19 @@
     const rxHtml = Object.entries(rxAgg).map(([e, info]) =>
       `<button type="button" class="rx-chip ${info.byMe ? 'mine' : ''}" data-emoji="${escapeHtml(e)}" title="${escapeHtml(info.by.join(', '))}">${escapeHtml(e)} ${info.count}</button>`
     ).join("");
+
+    // 읽음/안읽음 — 내 메시지에만 표시 (카톡 스타일)
+    let readBadge = "";
+    if (mine && roomReadStatus.members && roomReadStatus.members.length > 1) {
+      const others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+      const unreadBy = others.filter(mb => (mb.last_read_message_id || 0) < m.id);
+      if (unreadBy.length > 0) {
+        const unreadNames = unreadBy.map(mb => mb.display_name).join(", ");
+        readBadge = `<span class="read-badge unread" title="${escapeHtml('안 읽음: ' + unreadNames)}">${unreadBy.length}</span>`;
+      } else {
+        readBadge = `<span class="read-badge all-read" title="모두 읽음">읽음</span>`;
+      }
+    }
     return `
       <li class="${cls}" data-msg-id="${m.id}">
         <div class="avatar" style="background:${m.avatar_color || "#3b82f6"}">${escapeHtml(initial(m.display_name))}</div>
@@ -334,7 +349,7 @@
           ${mine ? "" : `<div class="author">${escapeHtml(m.display_name)}</div>`}
           ${bubble}
           ${rxHtml ? `<div class="reactions">${rxHtml}</div>` : ""}
-          <div class="time">${fmtTime(m.created_at)}</div>
+          <div class="time">${readBadge}${fmtTime(m.created_at)}</div>
         </div>
         <div class="msg-action-bar">
           <button type="button" class="msg-action-btn" data-act="rx" data-emoji="👍" title="좋아요">👍</button>
@@ -496,10 +511,28 @@
     els.attachBtn.disabled = false;
     els.msgInput.focus();
     socket.emit("join", { room_id: room.id });
-    const msgs = await api.messages(room.id);
+    // 메시지 + 읽음 상태 병렬 로드
+    const [msgs, rs] = await Promise.all([
+      api.messages(room.id),
+      api.readStatus(room.id).catch(() => ({ members: [], total: 0 })),
+    ]);
+    roomReadStatus = rs || { members: [], total: 0 };
     renderMessages(msgs);
     await api.markRead(room.id);
     await refreshRooms();
+  }
+
+  async function refreshReadStatus() {
+    if (!activeRoom) return;
+    try {
+      roomReadStatus = await api.readStatus(activeRoom.id);
+      // 메시지 다시 그리기 (읽음 배지 갱신)
+      const currentMsgs = [...els.messages.querySelectorAll(".msg")].map(li => li.dataset.msgId);
+      if (currentMsgs.length) {
+        const msgs = await api.messages(activeRoom.id);
+        renderMessages(msgs);
+      }
+    } catch (e) { /* ignore */ }
   }
 
   async function refreshRooms() {
@@ -1113,6 +1146,31 @@
         wireMessageActions();
       }
     });
+    // 다른 사람이 메시지를 읽으면 → 내 화면의 "안 읽음 N" 숫자 갱신
+    socket.on("read_status", (e) => {
+      if (!activeRoom || e.room_id !== activeRoom.id) return;
+      // 메모리 상태만 빠르게 업데이트 (API 재호출 없이)
+      const m = roomReadStatus.members.find(x => x.user_id === e.user_id);
+      if (m) m.last_read_message_id = e.last_read;
+      // 내 메시지의 read-badge만 다시 그리기
+      els.messages.querySelectorAll(".msg.mine").forEach(li => {
+        const mid = parseInt(li.dataset.msgId, 10);
+        const badge = li.querySelector(".read-badge");
+        const others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+        const unreadBy = others.filter(mb => (mb.last_read_message_id || 0) < mid);
+        if (badge) {
+          if (unreadBy.length === 0) {
+            badge.className = "read-badge all-read";
+            badge.textContent = "읽음";
+            badge.title = "모두 읽음";
+          } else {
+            badge.className = "read-badge unread";
+            badge.textContent = unreadBy.length;
+            badge.title = "안 읽음: " + unreadBy.map(x => x.display_name).join(", ");
+          }
+        }
+      });
+    });
   }
 
   // ---------- wire ----------
@@ -1181,9 +1239,27 @@
       a.href = `/api/rooms/${rid}/export.xlsx`;
       a.click();
       // 다운로드 트리거 후 약간 대기
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1200));
     }
-    const res = await fetch(`/api/rooms/${rid}/membership`, { method: "DELETE" }).then(r => r.json());
+    let res;
+    try {
+      const resp = await fetch(`/api/rooms/${rid}/membership`, { method: "DELETE" });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        const isHtml = txt.trim().startsWith("<");
+        alert(
+          `나가기 실패 (HTTP ${resp.status})\n\n` +
+          (isHtml
+            ? "서버에 새 엔드포인트가 아직 없습니다.\n\n👉 검은 CMD 창에서 Ctrl+C 한 번 → START.bat 다시 더블클릭으로 서버 재시작해주세요."
+            : txt.slice(0, 300))
+        );
+        return;
+      }
+      res = await resp.json();
+    } catch (e) {
+      alert("나가기 실패: " + e.message + "\n\n서버 재시작이 필요할 수 있습니다.");
+      return;
+    }
     if (res.error) { alert(res.error); return; }
     els.leaveRoomDialog.close();
     // 사이드바로 복귀

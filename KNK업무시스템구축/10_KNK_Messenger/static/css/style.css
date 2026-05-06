@@ -181,7 +181,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
   box-shadow: none;
 }
 .msg.system .avatar, .msg.system .author { display: none; }
-.msg .time { font-size: 11px; color: var(--text-soft); padding: 0 4px; }
+.msg .time { font-size: 11px; color: var(--text-soft); padding: 0 4px; display: flex; gap: 5px; align-items: center; }
+.msg.mine .time { justify-content: flex-end; }
+
+/* 읽음/안읽음 배지 (카톡 스타일 — 내 메시지 옆에 작은 숫자) */
+.read-badge {
+  font-size: 11px; font-weight: 700;
+  padding: 0 5px; border-radius: 999px;
+  cursor: help;
+}
+.read-badge.unread { color: #f59e0b; background: #fef3c7; }
+.read-badge.all-read { color: #6b7280; background: transparent; font-size: 10px; font-weight: 600; }
 
 .empty-state {
   flex: 1; display: grid; place-items: center;

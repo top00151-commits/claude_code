@@ -1646,7 +1646,34 @@ def api_mark_read(room_id):
             (last["m"], room_id, me["id"]),
         )
         db.commit()
-    return jsonify({"ok": True})
+        # 같은 방의 다른 클라이언트에 읽음 알림 → 그쪽 UI에서 "안 읽음 N" 숫자 갱신
+        socketio.emit("read_status", {
+            "room_id": room_id,
+            "user_id": me["id"],
+            "last_read": last["m"],
+        }, to=f"room_{room_id}")
+    return jsonify({"ok": True, "last_read": last["m"] if last else 0})
+
+
+@app.route("/api/rooms/<int:room_id>/read_status")
+@login_required
+def api_read_status(room_id):
+    """방 멤버별 마지막으로 읽은 메시지 ID 반환 (읽음/안읽음 표시용)."""
+    me = current_user()
+    db = get_db()
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?", (room_id, me["id"])
+    ).fetchone():
+        abort(403)
+    rows = db.execute("""
+        SELECT rm.user_id, rm.last_read_message_id, u.display_name, u.avatar_color
+          FROM room_members rm JOIN users u ON u.id = rm.user_id
+         WHERE rm.room_id = ?
+    """, (room_id,)).fetchall()
+    return jsonify({
+        "members": [dict(r) for r in rows],
+        "total": len(rows),
+    })
 
 
 # ---------- SocketIO ----------

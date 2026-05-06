@@ -1,18 +1,18 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H166 수주관리 페이지 전면 재설계 — 4탭(T 검사기/M 자동화/K 기타/소모품) + KPI 6카드 + 상태 파이프라인(수평 칸반) + 출하 캘린더(이번달+다음달) + 강화 목록표(D-day 뱃지·진행률 바·납기색상행). /sales/orders 라우트 매개변수 추가(tab/status/period/currency/q/sort/due_date). 소모품 탭은 consumable_orders 테이블 별도 조회. 신규 partial 2종(_v5_partials/so_pipeline.html, so_calendar.html). 백워드 호환 PRAGMA 컬럼 동적 감지 유지. 정렬 기본 = 납기 임박순. 권한: can_use_sales.
+REM   LAST UPDATE: 2026-05-05 v5H167 수주관리 페이지 전면 재설계 — 4탭(T 검사기/M 자동화/K 기타/소모품) + KPI 6카드 + 상태 파이프라인(수평 칸반) + 출하 캘린더(이번달+다음달) + 강화 목록표(D-day 뱃지·진행률 바·납기색상행). /sales/orders 라우트 매개변수 추가(tab/status/period/currency/q/sort/due_date). 소모품 탭은 consumable_orders 테이블 별도 조회. 신규 partial 2종(_v5_partials/so_pipeline.html, so_calendar.html). 백워드 호환 PRAGMA 컬럼 동적 감지 유지. 정렬 기본 = 납기 임박순. 권한: can_use_sales.
 REM   PREV: 2026-05-05 v5H154 고객사 엑셀 일괄 등록 신설. /customers/import-template (양식 다운로드) + /customers/import-xlsx (파싱·검증·미리보기 JSON) + /customers/import-confirm (UPSERT) 3개 라우트 신설. '고객사' 시트 row7+ 파싱, 10컬럼 매핑(고객사명/사업자번호/대표/담당자/전화/이메일/주소/등급/활성/비고), 검증(사업자번호 10자리·이메일 형식·등급 A/B/C/VIP·활성 1/0). 동일 이름 존재 시 빈 칸 아닌 필드만 UPDATE(기존 데이터 보호) / 신규 INSERT, 사업자번호 중복(다른 이름)은 경고만. customers_list.html 상단에 [📥 양식 다운로드][📤 엑셀 일괄 업로드] 버튼 + 미리보기 모달(신규/업데이트 카운트·동작 pill·검증결과). 권한: can_use_sales.
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
 cd /d "%~dp001_HAIST_WORKS"
-title KNK HAIST WORKS - HAIST Innovation [v5H166]
+title KNK HAIST WORKS - HAIST Innovation [v5H167]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H166  2026-05-05]
+echo    [v5H167  2026-05-05]
 echo ============================================================
 echo.
 
