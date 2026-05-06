@@ -11815,9 +11815,58 @@ async def sales_orders_page(req: Request, biz: str = ""):
                 params
             ).fetchall()
             items = [dict(r) for r in rows]
+    # v5H161 Phase 2: KPI 산출 (선택 탭 한정)
+    from datetime import date as _d, timedelta as _td
+    _today = _d.today()
+    _today_iso = _today.isoformat()
+    _week_start = (_today - _td(days=_today.weekday())).isoformat()
+    _week_end = (_today + _td(days=(6 - _today.weekday()))).isoformat()
+    _month_start = _today.replace(day=1).isoformat()
+    if _today.month == 12:
+        _next_m = _today.replace(year=_today.year + 1, month=1, day=1)
+    else:
+        _next_m = _today.replace(month=_today.month + 1, day=1)
+    _month_end = (_next_m - _td(days=1)).isoformat()
+
+    def _amt(it):
+        try:
+            return float(it.get("total_amount") or 0)
+        except Exception:
+            return 0.0
+
+    kpi = {"week_count": 0, "week_amount": 0.0,
+           "month_count": 0, "month_amount": 0.0,
+           "wait_ship": 0, "wait_invoice": 0, "wait_payment": 0,
+           "outstanding": 0.0,
+           "overdue_count": 0}
+    for it in items:
+        st = (it.get("status") or "").upper()
+        dd = (it.get("due_date") or "")[:10]
+        amt = _amt(it)
+        if st == "CANCELLED":
+            continue
+        if dd and _week_start <= dd <= _week_end:
+            kpi["week_count"] += 1
+            kpi["week_amount"] += amt
+        if dd and _month_start <= dd <= _month_end:
+            kpi["month_count"] += 1
+            kpi["month_amount"] += amt
+        if st == "CONFIRMED":
+            kpi["wait_ship"] += 1
+            kpi["outstanding"] += amt
+            if dd and dd < _today_iso:
+                kpi["overdue_count"] += 1
+        elif st == "SHIPPED":
+            kpi["wait_invoice"] += 1
+            kpi["outstanding"] += amt
+        elif st == "INVOICED":
+            kpi["wait_payment"] += 1
+            kpi["outstanding"] += amt
+
     return ctx(req, "sales_orders.html", user=u, active="sales_orders",
                tab="orders", items=items,
-               biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"))
+               biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"),
+               kpi=kpi, today_iso=_today_iso)
 
 
 @app.post("/sales/orders")

@@ -60,6 +60,67 @@
     <a class="so-tab t-C {% if _biz_cur == 'C' %}active{% endif %}" href="/sales/orders?biz=C">📦 소모품 <span class="cnt">{{ _tc.get('C', 0) }}</span></a>
   </div>
 
+  {# v5H161 Phase 2: KPI 카드 6개 #}
+  {% set _k = kpi|default({}) %}
+  <style>
+    .so-kpi { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
+    @media (max-width:1200px) { .so-kpi { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:640px)  { .so-kpi { grid-template-columns:repeat(2,1fr); } }
+    .so-kpi-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px;
+                   padding:12px 14px; position:relative; overflow:hidden;
+                   transition:transform .12s, box-shadow .15s; cursor:default; }
+    .so-kpi-card::before { content:''; position:absolute; left:0; top:0; bottom:0;
+                           width:4px; background:var(--c, #94a3b8); }
+    .so-kpi-card.k1 { --c:#dc2626; }
+    .so-kpi-card.k2 { --c:#ea580c; }
+    .so-kpi-card.k3 { --c:#fb923c; }
+    .so-kpi-card.k4 { --c:#3b82f6; }
+    .so-kpi-card.k5 { --c:#8b5cf6; }
+    .so-kpi-card.k6 { --c:#10b981; }
+    .so-kpi-card.k7 { --c:#b91c1c; }
+    .so-kpi-lbl { font-size:11px; color:#64748b; font-weight:700; letter-spacing:.02em; margin-bottom:4px; }
+    .so-kpi-val { font-size:22px; font-weight:800; color:#1e293b; line-height:1.1; }
+    .so-kpi-val .u { font-size:12px; color:#94a3b8; font-weight:600; margin-left:2px; }
+    .so-kpi-sub { font-size:10.5px; color:#94a3b8; margin-top:4px; font-weight:600; }
+    .so-kpi-sub.danger { color:#dc2626; font-weight:800; }
+  </style>
+  <div class="so-kpi">
+    <div class="so-kpi-card k1">
+      <div class="so-kpi-lbl">📅 이번주 납기</div>
+      <div class="so-kpi-val">{{ _k.get('week_count', 0) }}<span class="u">건</span></div>
+      <div class="so-kpi-sub">{% if _k.get('week_amount') %}{{ '{:,.0f}'.format(_k.get('week_amount', 0)) }}원{% else %}—{% endif %}</div>
+    </div>
+    <div class="so-kpi-card k2">
+      <div class="so-kpi-lbl">📅 이번달 납기</div>
+      <div class="so-kpi-val">{{ _k.get('month_count', 0) }}<span class="u">건</span></div>
+      <div class="so-kpi-sub">{% if _k.get('month_amount') %}{{ '{:,.0f}'.format(_k.get('month_amount', 0)) }}원{% else %}—{% endif %}</div>
+    </div>
+    <div class="so-kpi-card k3">
+      <div class="so-kpi-lbl">🟡 출하 대기</div>
+      <div class="so-kpi-val">{{ _k.get('wait_ship', 0) }}<span class="u">건</span></div>
+      <div class="so-kpi-sub {% if _k.get('overdue_count', 0) > 0 %}danger{% endif %}">
+        {% if _k.get('overdue_count', 0) > 0 %}⚠ 오버듀 {{ _k.get('overdue_count') }}건{% else %}CONFIRMED{% endif %}
+      </div>
+    </div>
+    <div class="so-kpi-card k4">
+      <div class="so-kpi-lbl">🔵 송장 대기</div>
+      <div class="so-kpi-val">{{ _k.get('wait_invoice', 0) }}<span class="u">건</span></div>
+      <div class="so-kpi-sub">SHIPPED</div>
+    </div>
+    <div class="so-kpi-card k5">
+      <div class="so-kpi-lbl">🟣 수금 대기</div>
+      <div class="so-kpi-val">{{ _k.get('wait_payment', 0) }}<span class="u">건</span></div>
+      <div class="so-kpi-sub">INVOICED</div>
+    </div>
+    <div class="so-kpi-card k7">
+      <div class="so-kpi-lbl">💰 미수금</div>
+      <div class="so-kpi-val" style="font-size:16px;">
+        {% if _k.get('outstanding') %}{{ '{:,.0f}'.format(_k.get('outstanding', 0)) }}<span class="u">원</span>{% else %}—{% endif %}
+      </div>
+      <div class="so-kpi-sub">확정+출하+송장 합 (수금 전)</div>
+    </div>
+  </div>
+
   <div class="tbl-wrap tbl-sticky">
     {% if items %}
     <table class="tbl so-list">
