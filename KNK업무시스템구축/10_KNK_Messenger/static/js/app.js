@@ -13,6 +13,11 @@
     requestsBadge: $("requestsBadge"),
     galleryBtn: $("galleryBtn"),
     exportBtn: $("exportBtn"),
+    leaveRoomBtn: $("leaveRoomBtn"),
+    leaveRoomDialog: $("leaveRoomDialog"),
+    leaveMyName: $("leaveMyName"),
+    leaveWithExportBtn: $("leaveWithExportBtn"),
+    leaveJustBtn: $("leaveJustBtn"),
     messages: $("messages"),
     composer: $("composer"),
     msgInput: $("msgInput"),
@@ -448,6 +453,7 @@
     els.galleryBtn.hidden = false;
     els.requestsBtn.hidden = false;
     if (els.exportBtn) els.exportBtn.hidden = false;
+    if (els.leaveRoomBtn) els.leaveRoomBtn.hidden = false;
     refreshRequestsBadge();
     // 요약 카운트 옆에 미니 표시
     try {
@@ -1123,6 +1129,7 @@
     els.requestsBtn.hidden = true;
     els.requestsBadge.hidden = true;
     if (els.exportBtn) els.exportBtn.hidden = true;
+    if (els.leaveRoomBtn) els.leaveRoomBtn.hidden = true;
     els.msgInput.disabled = true;
     els.sendBtn.disabled = true;
     els.attachBtn.disabled = true;
@@ -1163,6 +1170,49 @@
       window.location.href = `/api/rooms/${activeRoom.id}/export.xlsx`;
     });
   }
+
+  // 방 나가기 — 정리 옵션 다이얼로그 노출
+  async function doLeaveRoom(withExport) {
+    if (!activeRoom) return;
+    const rid = activeRoom.id;
+    if (withExport) {
+      // Excel 다운로드 (브라우저가 알아서 받음)
+      const a = document.createElement("a");
+      a.href = `/api/rooms/${rid}/export.xlsx`;
+      a.click();
+      // 다운로드 트리거 후 약간 대기
+      await new Promise(r => setTimeout(r, 800));
+    }
+    const res = await fetch(`/api/rooms/${rid}/membership`, { method: "DELETE" }).then(r => r.json());
+    if (res.error) { alert(res.error); return; }
+    els.leaveRoomDialog.close();
+    // 사이드바로 복귀
+    if (socket) socket.emit("leave", { room_id: rid });
+    activeRoom = null;
+    app.classList.remove("viewing-chat");
+    els.chatTitle.textContent = "대화를 선택하세요";
+    els.itemMeta.hidden = true; els.itemMeta.innerHTML = "";
+    els.itemEditBtn.hidden = true; els.galleryBtn.hidden = true;
+    els.requestsBtn.hidden = true; els.requestsBadge.hidden = true;
+    if (els.exportBtn) els.exportBtn.hidden = true;
+    if (els.leaveRoomBtn) els.leaveRoomBtn.hidden = true;
+    els.msgInput.disabled = true; els.sendBtn.disabled = true; els.attachBtn.disabled = true;
+    els.messages.innerHTML = "";
+    await refreshRooms();
+  }
+
+  if (els.leaveRoomBtn) {
+    els.leaveRoomBtn.addEventListener("click", () => {
+      if (!activeRoom) return;
+      els.leaveMyName.textContent = (app.dataset.meName || "나");
+      els.leaveRoomDialog.classList.add("open");
+    });
+  }
+  if (els.leaveWithExportBtn) els.leaveWithExportBtn.addEventListener("click", () => doLeaveRoom(true));
+  if (els.leaveJustBtn) els.leaveJustBtn.addEventListener("click", () => {
+    if (!confirm("정말 나가시겠습니까? Excel 저장 없이 즉시 나갑니다.")) return;
+    doLeaveRoom(false);
+  });
   els.galleryBtn.addEventListener("click", () => openGallery("image"));
   els.closeGallery.addEventListener("click", () => els.galleryDialog.close());
   els.galleryDialog.querySelectorAll(".gtab").forEach(t => {

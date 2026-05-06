@@ -11729,11 +11729,9 @@ async def sales_quotation_convert_to_order(req: Request, quote_id: int):
 
 
 @app.get("/sales/orders", response_class=HTMLResponse)
-async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
+async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal_ym: str = ""):
     """수주 탭 — orders 리스트.
-    v5H160 Phase 1: 사업부 4탭. v5H161 Phase 2: KPI 6 카드.
-    v5H162 Phase 3: 출하 캘린더 (이번달+다음달, 날짜 클릭 시 필터).
-    biz='' (전체) | T | M | K | C(소모품) ; due_date=YYYY-MM-DD"""
+    v5H166: cal_ym=YYYY-MM 으로 캘린더 표시 월 변경 (기본: 이번달)."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
@@ -11940,14 +11938,43 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
             weeks.append(row)
         return {"year": year, "month": month, "weeks": weeks}
 
+    # v5H166: cal_ym 파라미터로 시작 월 결정 (기본: 오늘 월)
+    _start_y, _start_m = _today.year, _today.month
+    if cal_ym:
+        try:
+            _start_y, _start_m = int(cal_ym[:4]), int(cal_ym[5:7])
+            if not (1 <= _start_m <= 12):
+                _start_y, _start_m = _today.year, _today.month
+        except Exception:
+            _start_y, _start_m = _today.year, _today.month
+    if _start_m == 12:
+        _start2_y, _start2_m = _start_y + 1, 1
+    else:
+        _start2_y, _start2_m = _start_y, _start_m + 1
+    if _start_m == 1:
+        _prev_y, _prev_m = _start_y - 1, 12
+    else:
+        _prev_y, _prev_m = _start_y, _start_m - 1
+    if _start2_m == 12:
+        _next_y, _next_m_nav = _start2_y + 1, 1
+    else:
+        _next_y, _next_m_nav = _start2_y, _start2_m + 1
+
     cal_months = []
     try:
         cal_months = [
-            _build_month(_today.year, _today.month),
-            _build_month(_next_m.year, _next_m.month),
+            _build_month(_start_y, _start_m),
+            _build_month(_start2_y, _start2_m),
         ]
     except Exception:
         cal_months = []
+    cal_nav = {
+        "prev": f"{_prev_y:04d}-{_prev_m:02d}",
+        "next": f"{_next_y:04d}-{_next_m_nav:02d}",
+        "today": f"{_today.year:04d}-{_today.month:02d}",
+        "current": f"{_start_y:04d}-{_start_m:02d}",
+        "is_today_view": (_start_y == _today.year and _start_m == _today.month),
+    }
 
     # v5H164: 임박 납기 리스트 (필터 적용 전 — 전체 기준)
     upcoming = []
@@ -11994,7 +12021,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
                biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"),
                kpi=kpi, today_iso=_today_iso,
                cal_months=cal_months, due_date=due_date,
-               upcoming=upcoming)
+               upcoming=upcoming, cal_nav=cal_nav)
 
 
 @app.post("/sales/orders")

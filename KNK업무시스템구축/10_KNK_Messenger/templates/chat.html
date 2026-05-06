@@ -60,6 +60,7 @@
         <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
         <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
         <button class="head-btn" id="itemEditBtn" type="button" hidden title="아이템 정보 수정">⚙</button>
+        <button class="head-btn" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
       </header>
       <ol class="messages" id="messages"></ol>
       <form class="composer" id="composer" autocomplete="off">
@@ -201,6 +202,37 @@
         <div class="requests-actions">
           <button type="button" class="secondary-btn" data-close>✕ 닫기</button>
           <button type="button" id="newRequestBtn" class="primary-btn">＋ 새 요청 등록</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 방 나가기 다이얼로그 -->
+    <div class="modal" id="leaveRoomDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>🚪 이 방을 나가시겠어요?</h3>
+        <p class="dialog-hint" id="leaveRoomHint">
+          나가시면 이 대화가 사이드바에서 사라지고, 새 메시지를 받지 않습니다.<br>
+          다른 멤버에게는 "[<span id="leaveMyName"></span>] 님이 나갔습니다" 시스템 메시지가 표시됩니다.
+        </p>
+        <div class="leave-options">
+          <button type="button" id="leaveWithExportBtn" class="leave-option export">
+            <div class="leave-option-icon">📥</div>
+            <div class="leave-option-text">
+              <div class="leave-option-title">내용 정리해서 저장 후 나가기</div>
+              <div class="leave-option-desc">Excel 5시트 보고서로 다운로드 (메시지·요청·첨부·멤버 다 포함) → 그 다음 나가기</div>
+            </div>
+          </button>
+          <button type="button" id="leaveJustBtn" class="leave-option just">
+            <div class="leave-option-icon">🚪</div>
+            <div class="leave-option-text">
+              <div class="leave-option-title">그냥 나가기</div>
+              <div class="leave-option-desc">정리 없이 즉시 나가기. 서버에는 대화가 그대로 남아있음 (다른 멤버들은 계속 사용)</div>
+            </div>
+          </button>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" data-close>취소</button>
         </div>
       </div>
     </div>

@@ -769,6 +769,26 @@ dialog h3 { margin: 0 0 8px; }
 }
 .secondary-btn:hover { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
 
+/* ---- Leave room options ---- */
+.leave-options { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+.leave-option {
+  display: flex; gap: 14px; align-items: center;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.leave-option:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+.leave-option.export:hover { background: #eff6ff; border-color: var(--accent); }
+.leave-option.just:hover { background: #fef2f2; border-color: var(--danger); }
+.leave-option-icon { font-size: 28px; flex-shrink: 0; }
+.leave-option-text { flex: 1; min-width: 0; }
+.leave-option-title { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
+.leave-option-desc { font-size: 12.5px; color: var(--text-soft); line-height: 1.45; }
+
 .requests-actions {
   display: flex; gap: 8px; justify-content: space-between;
   padding: 12px 20px;

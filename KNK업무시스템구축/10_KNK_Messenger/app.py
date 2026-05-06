@@ -1597,6 +1597,43 @@ def api_rooms_create():
     return jsonify({"id": rid, "existing": False})
 
 
+@app.route("/api/rooms/<int:room_id>/membership", methods=["DELETE"])
+@login_required
+def api_leave_room(room_id):
+    """방 나가기 — 본인을 room_members에서 제거 + 시스템 메시지로 다른 멤버에 알림."""
+    me = current_user()
+    db = get_db()
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?", (room_id, me["id"])
+    ).fetchone():
+        return jsonify({"error": "이 방의 멤버가 아닙니다."}), 404
+
+    room = db.execute("SELECT type, name FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        return jsonify({"error": "방이 없습니다."}), 404
+
+    now = datetime.now(timezone.utc).isoformat()
+    sys_text = f"[{me['display_name']}] 님이 나갔습니다."
+    cur = db.execute(
+        "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
+        (room_id, me["id"], sys_text, "system", now),
+    )
+    sys_mid = cur.lastrowid
+    db.execute(
+        "DELETE FROM room_members WHERE room_id=? AND user_id=?", (room_id, me["id"])
+    )
+    db.commit()
+
+    # 남은 멤버에게 시스템 메시지 emit
+    socketio.emit("new_message", {
+        "id": sys_mid, "room_id": room_id, "user_id": me["id"],
+        "display_name": me["display_name"], "avatar_color": me["avatar_color"],
+        "content": sys_text, "kind": "system", "created_at": now,
+    }, to=f"room_{room_id}")
+
+    return jsonify({"ok": True, "room_type": room["type"], "room_name": room["name"]})
+
+
 @app.route("/api/rooms/<int:room_id>/read", methods=["POST"])
 @login_required
 def api_mark_read(room_id):
