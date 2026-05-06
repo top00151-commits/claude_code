@@ -110,7 +110,144 @@
         <a href="/consumables" style="padding:8px 16px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:600;color:#333;text-decoration:none;">📦 소모품 발주 목록</a>
       </div>
     </div>
+
+    <!-- v5H152: 프로젝트 엑셀 일괄 등록 -->
+    <div style="margin-top:14px;padding:16px 20px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div style="font-size:13px;color:#555;line-height:1.55;">
+        📥 <b>엑셀 일괄 등록</b> · T 검사기 / M 자동화 다수 건을 한 번에 등록
+        <div style="font-size:11.5px;color:#8a7842;margin-top:4px;">양식 다운로드 → 입력 → 업로드 → 미리보기 확인 → 확정</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <a href="/projects/import-template" style="padding:8px 16px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:600;color:#333;text-decoration:none;">📥 양식 다운로드</a>
+        <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 16px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
+        <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
+      </div>
+    </div>
   </div>
+
+  <!-- v5H152: 미리보기 모달 -->
+  <div id="importPreviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;overflow-y:auto;padding:30px 20px;">
+    <div style="max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;font-size:18px;font-weight:800;">엑셀 일괄 등록 — 미리보기</h2>
+        <button type="button" onclick="closeImportPreview()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:#666;">×</button>
+      </div>
+      <div id="importPreviewSummary" style="padding:10px 14px;background:#f7f3e8;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+      <div style="max-height:60vh;overflow:auto;border:1px solid #e6dcc0;border-radius:6px;">
+        <table id="importPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead style="background:#f5efde;position:sticky;top:0;">
+            <tr>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">행</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">사업부</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">프로젝트명</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">고객사</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">상태</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">단가×수량=금액</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">검증</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" onclick="closeImportPreview()" style="padding:9px 20px;background:#fff;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer;">취소</button>
+        <button type="button" id="importConfirmBtn" onclick="confirmImport()" disabled style="padding:9px 20px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;">등록 확정</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let _importRows = [];
+  async function uploadProjectsXlsx(file) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('xlsx', file);
+    let r;
+    try {
+      r = await fetch('/projects/import-xlsx', {method:'POST', body: fd});
+    } catch (e) {
+      alert('업로드 실패: ' + e); return;
+    }
+    const j = await r.json();
+    if (!j.ok) { alert('파싱 실패: ' + (j.error || '알 수 없음')); return; }
+    _importRows = j.rows || [];
+    renderImportPreview(j);
+    document.getElementById('importPreviewModal').style.display = 'block';
+    document.getElementById('importXlsx').value = '';
+  }
+  function renderImportPreview(j) {
+    const sum = document.getElementById('importPreviewSummary');
+    sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
+    const tb = document.querySelector('#importPreviewTable tbody');
+    tb.innerHTML = '';
+    j.rows.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      const hasErr = r._errors && r._errors.length > 0;
+      tr.style.background = hasErr ? '#fff0f0' : (idx % 2 ? '#fafaf5' : '#fff');
+      const fmt = (n) => Number(n||0).toLocaleString();
+      const errHtml = hasErr ? r._errors.map(e => '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>').join('') : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>';
+      tr.innerHTML =
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + r.row_no + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;"><b>' + r.biz_div + '</b></td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.name) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.customer_name || '-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmt(r.unit_price) + ' × ' + r.unit_qty + ' = <b>' + fmt(r.amount) + '</b> ' + r.currency + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + '</td>';
+      tb.appendChild(tr);
+    });
+    const btn = document.getElementById('importConfirmBtn');
+    // 정상 건이 1개 이상이면 활성 (오류 행은 서버에서 스킵하지 않고 받은 그대로 등록 시도하므로,
+    //  단순 경고(미등록 고객사)만 있는 경우도 통과시키기 위해 등록 가능 여부는 정상+경고만 카운트)
+    const okCount = j.rows.filter(r => !r._errors || r._errors.length === 0 || r._is_warning_only).length;
+    if (okCount > 0) {
+      btn.disabled = false; btn.style.opacity = '1.0';
+      btn.textContent = '등록 확정 (' + okCount + '건)';
+    } else {
+      btn.disabled = true; btn.style.opacity = '0.5';
+      btn.textContent = '등록 확정 (0건)';
+    }
+  }
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function closeImportPreview() {
+    document.getElementById('importPreviewModal').style.display = 'none';
+    _importRows = [];
+  }
+  async function confirmImport() {
+    if (!_importRows.length) return;
+    // 단순 경고만 있는 행 + 오류 없는 행만 전송
+    const send = _importRows.filter(r => !r._errors || r._errors.length === 0 || r._is_warning_only);
+    if (!send.length) { alert('등록할 정상 행이 없습니다.'); return; }
+    const btn = document.getElementById('importConfirmBtn');
+    btn.disabled = true; btn.textContent = '등록 중...';
+    let r;
+    try {
+      r = await fetch('/projects/import-confirm', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({rows: send})
+      });
+    } catch (e) {
+      alert('등록 실패: ' + e); btn.disabled = false; return;
+    }
+    const j = await r.json();
+    if (!j.ok) { alert('등록 실패: ' + (j.error || '알 수 없음')); btn.disabled = false; return; }
+    let msg = '등록 완료: ' + j.created_count + '건';
+    if (j.failed_count > 0) {
+      msg += '\n실패 ' + j.failed_count + '건:\n' + j.failed.map(f => '  · 행 ' + f.row_no + ' (' + (f.name||'') + '): ' + f.error).join('\n');
+    }
+    alert(msg);
+    closeImportPreview();
+    if (j.created_count > 0) {
+      window.location.href = '/projects';
+    } else {
+      btn.disabled = false;
+    }
+  }
+  </script>
 </main>
 </div>
 </body></html>

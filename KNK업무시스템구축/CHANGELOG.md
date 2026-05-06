@@ -4,6 +4,16 @@
 
 ---
 
+## v5H152 (2026-05-05) — 프로젝트 엑셀 일괄 등록 신설
+- 라우트 3개 신설 (모두 `can_use_sales` 권한):
+  - `GET  /projects/import-template` → `app/static/templates/프로젝트_일괄등록_양식.xlsx` 다운로드 (`KNK_프로젝트_일괄등록_양식.xlsx`)
+  - `POST /projects/import-xlsx`     → 업로드된 .xlsx 를 openpyxl 로 파싱 → 미리보기 JSON 반환 (rows / total / valid_count / error_count)
+  - `POST /projects/import-confirm`  → 확정된 rows 배열을 `projects_create_logi` 로 일괄 INSERT, 결과 created/failed 반환
+- 파싱 규칙: `T_검사기` / `M_자동화` 시트만 처리 (안내 시트 스킵). row1=제목·row2=안내·row3=헤더·row4=예제 → row5+ 데이터. 16개 컬럼(프로젝트명/관리코드/PO유형/고객사명/모델명/거래구분/발주일/납기일/단가/수량/통화/상태/PM/영업담당/납품처/비고). 시트명으로 biz_div 매핑(T/M).
+- 검증: 프로젝트명 빈 행 자동 스킵 / 통화 화이트리스트(KRW·USD·VND) / 상태 화이트리스트(초기협의·제안서전달·견적발행·수주예정·진행중·납품완료·취소·보류) / 거래구분 내수=0·수출=1 / 날짜 YYYY-MM-DD·YYYY/MM/DD·YYYY.MM.DD + 엑셀 datetime 자동 변환 / 수량 1~100 정수 / 단가 ≥ 0. 미등록 고객사는 경고만(텍스트로 저장, customer_id NULL → projects_create_logi 가 자동 매핑 시도).
+- 일괄 INSERT: project_type='NEW_EQUIP' 강제(양식이 검사기/자동화 전용). 상태가 진행중/납품완료(WON_STATUSES)면 `confirm_order_multi` 자동 호출하여 N개 호기 라인 SO 자동 발행(기존 단건 등록과 동일 흐름).
+- UI: `project_new_chooser.html` 하단에 [📥 양식 다운로드] / [📤 엑셀 업로드] 버튼 박스 추가. 업로드 시 미리보기 모달(행/사업부/프로젝트명/고객사/상태/단가×수량=금액/검증) 표시. 오류 행 빨간 배경 + ⚠ 메시지, 정상 행 ✓ 표기. 정상 건수 ≥1 일 때만 [등록 확정] 버튼 활성, 클릭 시 정상+경고만 행 전송 → 결과 alert → /projects 이동.
+
 ## v5H151 (2026-05-05) — 프로젝트 폼에서 유형 라디오 + 소모품 안내 박스 제거
 - chooser 에서 이미 유형 선택하므로 폼에 라디오 노출 불필요
 - project_type 은 hidden input 으로만 전달 (preset 또는 기존값)

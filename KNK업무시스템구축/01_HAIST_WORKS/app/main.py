@@ -8284,6 +8284,316 @@ async def projects_new_submit(request: Request):
     return RedirectResponse("/projects", status_code=303)
 
 
+# =====================================================
+# v5H152 (2026-05-05): 프로젝트 엑셀 일괄 등록
+#   - GET  /projects/import-template  → 양식 .xlsx 다운로드
+#   - POST /projects/import-xlsx      → 업로드 + 파싱 + 미리보기 JSON
+#   - POST /projects/import-confirm   → 확정 INSERT (행 배열 수신)
+# =====================================================
+PROJ_IMPORT_HEADERS = [
+    "프로젝트명", "관리코드", "PO유형", "고객사명", "모델명",
+    "거래구분", "발주일", "납기일", "단가", "수량",
+    "통화", "상태", "PM", "영업담당", "납품처", "비고"
+]
+PROJ_IMPORT_CURRENCIES = {"KRW", "USD", "VND"}
+PROJ_IMPORT_STATUSES = {
+    "초기협의", "제안서전달", "견적발행", "수주예정",
+    "진행중", "납품완료", "취소", "보류"
+}
+
+
+def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
+    """업로드된 엑셀을 파싱해 row dict 리스트 반환.
+    각 dict: {sheet, row_no, biz_div, name, customer_name, ..., _errors: [...]}.
+    빈 프로젝트명 행 / 예제 row(4) 자동 스킵."""
+    from openpyxl import load_workbook
+    from datetime import datetime, date
+    import io as _io
+    wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
+    out = []
+    # 사업부 매핑: 시트명 → biz_div
+    sheet_div_map = {
+        "T_검사기": "T",
+        "M_자동화": "M",
+    }
+    # 등록된 고객사 캐시 (대소문자 무시 비교용은 안 함 — 정확 매칭)
+    customer_set = set()
+    try:
+        with db_session() as _cc:
+            for r in _cc.execute("SELECT name FROM customers"):
+                if r and r[0]:
+                    customer_set.add(r[0])
+    except Exception:
+        pass
+
+    def _to_str(v) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (datetime, date)):
+            return v.strftime("%Y-%m-%d")
+        return str(v).strip()
+
+    def _to_date(v) -> str:
+        if v is None or v == "":
+            return ""
+        if isinstance(v, (datetime, date)):
+            return v.strftime("%Y-%m-%d")
+        s = str(v).strip()
+        if not s:
+            return ""
+        # YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD 허용
+        for sep in ("-", "/", "."):
+            parts = s.replace(sep, "-").split("-")
+            if len(parts) == 3:
+                try:
+                    y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                    return f"{y:04d}-{m:02d}-{d:02d}"
+                except ValueError:
+                    continue
+        return s  # 파싱 실패 시 원문 (검증에서 잡음)
+
+    for sh_name in wb.sheetnames:
+        if sh_name not in sheet_div_map:
+            continue  # 안내 시트 등 스킵
+        biz_div = sheet_div_map[sh_name]
+        ws = wb[sh_name]
+        # 데이터 row 5+ (row1=제목, row2=안내, row3=헤더, row4=예제)
+        row_no = 0
+        for r in ws.iter_rows(min_row=5, values_only=True):
+            row_no += 1
+            actual_row = row_no + 4  # 사용자에게 표시할 엑셀 행번호
+            if not r or all((c is None or str(c).strip() == "") for c in r):
+                continue
+            # 16개 컬럼 패딩
+            cells = list(r) + [None] * (16 - len(r)) if len(r) < 16 else list(r[:16])
+            name = _to_str(cells[0])
+            if not name:
+                continue  # 프로젝트명 빈 행 스킵
+            mgmt_code = _to_str(cells[1])
+            po_type = _to_str(cells[2]) or "신규"
+            customer = _to_str(cells[3])
+            model = _to_str(cells[4])
+            trade_raw = _to_str(cells[5])
+            order_date = _to_date(cells[6])
+            due_date = _to_date(cells[7])
+            unit_price_raw = _to_str(cells[8])
+            unit_qty_raw = _to_str(cells[9])
+            currency = _to_str(cells[10]).upper() or "KRW"
+            status = _to_str(cells[11]) or "초기협의"
+            pm = _to_str(cells[12])
+            sales = _to_str(cells[13])
+            ship_to = _to_str(cells[14])
+            note = _to_str(cells[15])
+            errors = []
+            # 거래구분
+            is_export = 1 if trade_raw in ("수출", "export", "1") else 0
+            # 단가
+            try:
+                unit_price = float(str(unit_price_raw).replace(",", "")) if unit_price_raw else 0.0
+            except ValueError:
+                unit_price = 0.0
+                errors.append(f"단가 형식 오류: '{unit_price_raw}'")
+            if unit_price < 0:
+                errors.append("단가는 0 이상이어야 합니다")
+                unit_price = 0.0
+            # 수량
+            try:
+                unit_qty = int(float(str(unit_qty_raw).replace(",", ""))) if unit_qty_raw else 1
+            except ValueError:
+                unit_qty = 1
+                errors.append(f"수량 형식 오류: '{unit_qty_raw}'")
+            if unit_qty < 1 or unit_qty > 100:
+                errors.append(f"수량 범위(1~100) 오류: {unit_qty}")
+                unit_qty = max(1, min(100, unit_qty))
+            # 통화
+            if currency not in PROJ_IMPORT_CURRENCIES:
+                errors.append(f"통화 화이트리스트 위반: '{currency}' (KRW/USD/VND)")
+                currency = "KRW"
+            # 상태
+            if status not in PROJ_IMPORT_STATUSES:
+                errors.append(f"상태 화이트리스트 위반: '{status}'")
+                status = "초기협의"
+            # 고객사
+            cust_warn = ""
+            if customer and customer not in customer_set:
+                cust_warn = f"미등록 고객사 (텍스트로 저장): '{customer}'"
+                errors.append(cust_warn)
+            # 날짜 파싱 검증 (YYYY-MM-DD 패턴)
+            for dn, dv in (("발주일", order_date), ("납기일", due_date)):
+                if dv:
+                    parts = dv.split("-")
+                    if not (len(parts) == 3 and all(p.isdigit() for p in parts)):
+                        errors.append(f"{dn} 날짜 파싱 실패: '{dv}'")
+            out.append({
+                "sheet": sh_name,
+                "biz_div": biz_div,
+                "row_no": actual_row,
+                "name": name,
+                "mgmt_code_input": mgmt_code,
+                "po_type": po_type,
+                "customer_name": customer,
+                "model_name": model,
+                "is_export": is_export,
+                "trade_label": "수출" if is_export else "내수",
+                "order_date": order_date,
+                "due_date": due_date,
+                "unit_price": unit_price,
+                "unit_qty": unit_qty,
+                "amount": unit_price * unit_qty,
+                "currency": currency,
+                "status": status,
+                "pm_name": pm,
+                "sales_name": sales,
+                "ship_to": ship_to,
+                "note": note,
+                "_errors": errors,
+                "_is_warning_only": (len(errors) == 1 and errors[0] == cust_warn),
+            })
+    return out
+
+
+@app.get("/projects/import-template")
+async def projects_import_template(request: Request):
+    """양식 엑셀 파일 다운로드 (v5H152)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_양식.xlsx"
+    if not p.exists():
+        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    return FileResponse(
+        str(p),
+        filename="KNK_프로젝트_일괄등록_양식.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.post("/projects/import-xlsx")
+async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
+    """엑셀 업로드 → 파싱 → 미리보기 JSON 반환 (v5H152)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        body = await xlsx.read()
+        rows = _proj_import_parse_xlsx(body)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"파싱 실패: {e}"}, 400)
+    valid_count = sum(1 for r in rows if not r["_errors"])
+    error_count = sum(1 for r in rows if r["_errors"])
+    return JSONResponse({
+        "ok": True,
+        "rows": rows,
+        "total": len(rows),
+        "valid_count": valid_count,
+        "error_count": error_count,
+    })
+
+
+@app.post("/projects/import-confirm")
+async def projects_import_confirm(request: Request):
+    """미리보기 후 사용자 확정 → 일괄 INSERT (v5H152).
+    body JSON: {rows: [{...}, ...]}.
+    각 row 는 projects_create_logi 호출. project_type='NEW_EQUIP' 강제."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    rows = body.get("rows") or []
+    if not isinstance(rows, list) or not rows:
+        return JSONResponse({"ok": False, "error": "no_rows"}, 400)
+    created = []
+    failed = []
+    for r in rows:
+        try:
+            # 미등록 고객사 경고만 있는 행도 통과 (텍스트로 저장)
+            biz_div = (r.get("biz_div") or "").upper()
+            if biz_div not in ("T", "M"):
+                failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
+                               "error": f"biz_div 미상: {biz_div}"})
+                continue
+            name = (r.get("name") or "").strip()
+            if not name:
+                failed.append({"row_no": r.get("row_no"), "name": "",
+                               "error": "프로젝트명 누락"})
+                continue
+            unit_price = float(r.get("unit_price") or 0)
+            unit_qty = int(r.get("unit_qty") or 1)
+            amt = unit_price * unit_qty
+            new_pid, new_code = _logi.projects_create_logi({
+                "_changed_by": u.get("id"),
+                "biz_div": biz_div,
+                "project_name": name,
+                "customer": r.get("customer_name") or "",
+                "model": r.get("model_name") or "",
+                "stage": "수주확정" if (r.get("status") in _logi.WON_STATUSES) else "제안작성",
+                "po_type": r.get("po_type") or "신규",
+                "status": r.get("status") or "초기협의",
+                "customer_po": "",
+                "currency": (r.get("currency") or "KRW").upper(),
+                "is_export": int(r.get("is_export") or 0),
+                "order_amount": amt,
+                "unit_qty": unit_qty,
+                "unit_price": unit_price if unit_price > 0 else None,
+                "order_date": r.get("order_date") or "",
+                "due_date": r.get("due_date") or "",
+                "pm": r.get("pm_name") or "",
+                "sales": r.get("sales_name") or "",
+                "note": r.get("note") or "",
+                "project_type": "NEW_EQUIP",  # 양식이 검사기/자동화 전용
+                "parent_project_id": None,
+            })
+            # 상태가 won 이면 자동 SO 발행 (단일 호기, 사용자 폴백 경로 모방)
+            status_v = r.get("status") or ""
+            if new_pid and status_v in _logi.WON_STATUSES:
+                try:
+                    with db_session() as c:
+                        exists = c.execute(
+                            "SELECT 1 FROM orders WHERE project_id=? LIMIT 1",
+                            (new_pid,)
+                        ).fetchone()
+                        if not exists:
+                            per = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                            units_list = [{
+                                "label": _logi.project_unit_label("NEW_EQUIP", i + 1),
+                                "amount": per,
+                                "due_date": r.get("due_date") or "",
+                                "ship_to": r.get("ship_to") or "",
+                                "note": "",
+                            } for i in range(max(1, unit_qty))]
+                            _pwf.confirm_order_multi(
+                                c, int(new_pid),
+                                units=units_list,
+                                order_date=r.get("order_date") or "",
+                                created_by=u.get("id") or 0,
+                                po_number="",
+                            )
+                except Exception:
+                    pass  # SO 실패는 등록 자체는 성공으로 (편집 화면에서 자가치유)
+            created.append({"row_no": r.get("row_no"), "id": new_pid,
+                            "mgmt_code": new_code, "name": name})
+        except Exception as e:
+            failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
+                           "error": str(e)})
+    return JSONResponse({
+        "ok": True,
+        "created_count": len(created),
+        "failed_count": len(failed),
+        "created": created,
+        "failed": failed,
+    })
+
+
 @app.get("/projects/{pid}/edit", response_class=HTMLResponse)
 async def projects_edit_form(request: Request, pid: int):
     u = get_user(request)

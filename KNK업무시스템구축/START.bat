@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H151 프로젝트 등록 진입점 통합(대표 직접 지시). 사이드바 재편: 🆕 프로젝트 등록 / 📊 프로젝트 목록 / 📦 소모품 발주 목록. /projects/new GET 가 type 없으면 4-카드 chooser(T검사기·M자동화·기타·소모품)를 렌더, type 있으면 기존 폼 + biz_div/project_type 사전 선택 + "← 다른 유형으로 변경" 링크. project_new_chooser.html 신설(KNK 톤 카드 4종). 백워드 호환 유지.
+REM   LAST UPDATE: 2026-05-05 v5H152 프로젝트 엑셀 일괄 등록 신설. /projects/import-template (양식 .xlsx 다운로드) + /projects/import-xlsx (업로드·파싱·검증·미리보기 JSON) + /projects/import-confirm (확정 INSERT) 3개 라우트 신설. T_검사기/M_자동화 시트 row5+ 파싱, 16컬럼 매핑, 검증(통화 KRW/USD/VND·상태 화이트리스트·수량 1-100·단가≥0·날짜 YYYY-MM-DD), 미등록 고객사는 경고만. chooser 페이지에 [📥 양식 다운로드][📤 엑셀 업로드] 버튼 + 미리보기 모달(표·검증결과·정상건수 카운트·등록확정).
 REM   (full changelog: ../CHANGELOG.md)
 REM   Rule: 01 session updates this single-line summary on each code change
 REM ============================================================
