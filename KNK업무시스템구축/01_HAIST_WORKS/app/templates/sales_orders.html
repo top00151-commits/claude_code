@@ -26,7 +26,7 @@
     <div>
       <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div>
       <h1 class="page-title">📑 <em>수주</em> 관리
-        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H168 · 한달이동·리스트확장</span>
+        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H169 · 리스트높이=달력높이</span>
       </h1>
     </div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
@@ -191,10 +191,10 @@
                     color:#fff; border-radius:4px; font-size:12px; font-weight:700; text-decoration:none; }
 
     /* 임박 납기 리스트 */
-    /* v5H168: 임박납기 리스트 높이를 달력 그리드 하단에 맞춤 (스크롤 내부) */
-    .so-cal-wrap { align-items:stretch; }
+    /* v5H169: 달력은 자연 높이 유지, 임박납기는 달력 높이에 맞춰 내부 스크롤 */
+    .so-cal-wrap { align-items:start; }
     .so-up { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:14px 16px;
-             display:flex; flex-direction:column; min-height:0; align-self:stretch; }
+             display:flex; flex-direction:column; min-height:0; }
     .so-up-list { flex:1; overflow-y:auto; min-height:0; }
     .so-up-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #f1e8d4; }
     .so-up-title { font-size:15px; font-weight:800; color:#1e293b; }
@@ -297,6 +297,19 @@
       </div>
     </div>
   </div>
+  <script>
+    // v5H169: 임박납기 박스 높이를 달력 그리드 실제 높이에 맞춤
+    (function(){
+      function syncH(){
+        var cal = document.querySelector('.so-cal-months');
+        var up  = document.querySelector('.so-up');
+        if (cal && up) up.style.height = cal.offsetHeight + 'px';
+      }
+      syncH();
+      window.addEventListener('resize', syncH);
+      window.addEventListener('load', syncH);
+    })();
+  </script>
 
   {% if _dd %}
   <div style="margin-bottom:10px; padding:10px 14px; background:#fff3f3; border:1px solid #f99; border-radius:6px; font-size:13px;">
