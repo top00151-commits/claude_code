@@ -26,7 +26,7 @@
     <div>
       <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수주</b></div>
       <h1 class="page-title">📑 <em>수주</em> 관리
-        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H164 · 4탭+KPI+캘린더+임박리스트</span>
+        <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-left:10px;background:#f5f5f5;padding:3px 8px;border-radius:4px;">v5H165 · 캘린더+공휴일(K/V)</span>
       </h1>
     </div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/sales/orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/orders/new">＋ 새 수주</a></div>
@@ -145,7 +145,14 @@
     .so-cal-day { min-height:54px; padding:6px 6px 5px; border-radius:6px; font-size:13px;
                   background:#fafaf7; border:1px solid transparent; display:flex; flex-direction:column;
                   text-decoration:none; color:#475569; cursor:pointer; transition:transform .08s, box-shadow .12s;
-                  align-items:flex-start; justify-content:flex-start; }
+                  align-items:flex-start; justify-content:flex-start; position:relative; }
+    .so-cal-day .d.sun, .so-cal-day .d.hol { color:#dc2626 !important; }
+    .so-cal-day .d.sat { color:#2563eb; }
+    .so-cal-day .hol-badge { position:absolute; top:3px; right:4px; display:flex; gap:2px; }
+    .so-cal-day .hol-badge .b { display:inline-block; width:14px; height:14px; line-height:14px;
+                                text-align:center; border-radius:3px; font-size:9px; font-weight:800;
+                                background:#dc2626; color:#fff; }
+    .so-cal-day .hol-badge .b.vn { background:#fb923c; }
     .so-cal-day:hover { transform:scale(1.03); border-color:#d4a574; box-shadow:0 3px 8px rgba(212,165,116,0.3); z-index:5; position:relative; }
     .so-cal-day.out { opacity:0.25; cursor:default; pointer-events:none; }
     .so-cal-day.today { border-color:#d4a574; box-shadow:inset 0 0 0 2px #d4a574; }
@@ -201,10 +208,17 @@
           {% for week in m.weeks %}
             {% for d in week %}
               {% if d.in_month %}
+              {% set _is_hol = d.hol_kr or d.hol_vn %}
               <a class="so-cal-day cls-{{ d.cls }} {% if d.is_today %}today{% endif %} {% if d.is_selected %}selected{% endif %}"
                  href="?{% if biz %}biz={{ biz }}&{% endif %}due_date={{ d.date }}"
-                 title="{{ d.date }} · {{ d.count }}건{% if d.amount %} · {{ '{:,.0f}'.format(d.amount) }}원{% endif %}">
-                <span class="d">{{ d.day }}</span>
+                 title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ '{:,.0f}'.format(d.amount) }}원{% endif %}">
+                {% if d.hol_kr or d.hol_vn %}
+                <span class="hol-badge">
+                  {% if d.hol_kr %}<span class="b kr" title="{{ d.hol_kr }}">K</span>{% endif %}
+                  {% if d.hol_vn %}<span class="b vn" title="{{ d.hol_vn }}">V</span>{% endif %}
+                </span>
+                {% endif %}
+                <span class="d {% if d.is_sun or _is_hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>
                 {% if d.count %}<span class="cnt">{{ d.count }}건</span>{% endif %}
               </a>
               {% else %}

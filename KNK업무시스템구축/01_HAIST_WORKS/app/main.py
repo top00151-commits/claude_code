@@ -11864,6 +11864,30 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
             kpi["wait_payment"] += 1
             kpi["outstanding"] += amt
 
+    # v5H165: 한국 + 베트남 공휴일 (2026~2027)
+    HOLIDAYS_KR = {
+        "2026-01-01": "신정", "2026-02-16": "설날", "2026-02-17": "설날", "2026-02-18": "설날",
+        "2026-03-01": "삼일절", "2026-05-05": "어린이날", "2026-05-24": "부처님오신날",
+        "2026-06-06": "현충일", "2026-08-15": "광복절",
+        "2026-09-24": "추석", "2026-09-25": "추석", "2026-09-26": "추석",
+        "2026-10-03": "개천절", "2026-10-09": "한글날", "2026-12-25": "성탄절",
+        "2027-01-01": "신정", "2027-02-05": "설날", "2027-02-06": "설날", "2027-02-07": "설날",
+        "2027-03-01": "삼일절", "2027-05-05": "어린이날", "2027-05-13": "부처님오신날",
+        "2027-06-06": "현충일", "2027-08-15": "광복절",
+        "2027-09-13": "추석", "2027-09-14": "추석", "2027-09-15": "추석",
+        "2027-10-03": "개천절", "2027-10-09": "한글날", "2027-12-25": "성탄절",
+    }
+    HOLIDAYS_VN = {
+        "2026-01-01": "Tết Dương lịch", "2026-02-16": "Tết Nguyên Đán", "2026-02-17": "Tết",
+        "2026-02-18": "Tết", "2026-02-19": "Tết", "2026-02-20": "Tết",
+        "2026-04-26": "Giỗ Tổ Hùng Vương", "2026-04-30": "Thống Nhất",
+        "2026-05-01": "Quốc tế Lao động", "2026-09-02": "Quốc Khánh", "2026-09-03": "Quốc Khánh",
+        "2027-01-01": "Tết Dương lịch", "2027-02-05": "Tết Nguyên Đán", "2027-02-06": "Tết",
+        "2027-02-07": "Tết", "2027-02-08": "Tết", "2027-02-09": "Tết",
+        "2027-04-15": "Giỗ Tổ Hùng Vương", "2027-04-30": "Thống Nhất",
+        "2027-05-01": "Quốc tế Lao động", "2027-09-02": "Quốc Khánh",
+    }
+
     # v5H162 Phase 3: 캘린더 buckets (이번달+다음달)
     cal_buckets = {}
     for it in items:
@@ -11904,10 +11928,15 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
                     cls = "d7"
                 else:
                     cls = "future"
+                hol_kr = HOLIDAYS_KR.get(iso)
+                hol_vn = HOLIDAYS_VN.get(iso)
                 row.append({"date": iso, "day": dt.day, "in_month": in_month,
                             "count": b["count"], "amount": b["amount"],
                             "cls": cls, "is_today": (iso == _today_iso),
-                            "is_selected": (iso == due_date)})
+                            "is_selected": (iso == due_date),
+                            "hol_kr": hol_kr, "hol_vn": hol_vn,
+                            "is_sun": (dt.weekday() == 6),
+                            "is_sat": (dt.weekday() == 5)})
             weeks.append(row)
         return {"year": year, "month": month, "weeks": weeks}
 
