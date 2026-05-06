@@ -11698,8 +11698,12 @@ async def sales_orders_page(req: Request,
         return await _sales_orders_page_impl(req, tab, status, period, currency, q, sort, due_date)
     except Exception as _e:
         import traceback as _tb
+        _tb_str = _tb.format_exc()
         _err_msg = f"{type(_e).__name__}: {_e}"
-        _tb.print_exc()
+        print("=" * 60)
+        print(f"[v5H157] /sales/orders ERROR: {_err_msg}")
+        print(_tb_str)
+        print("=" * 60)
         try:
             return ctx(req, "error_simple.html",
                        title="수주관리 페이지 오류",
@@ -11708,11 +11712,12 @@ async def sales_orders_page(req: Request,
                        back_url="/sales")
         except Exception:
             return HTMLResponse(
-                f"<html><body style='font-family:sans-serif;padding:40px;'>"
-                f"<h2>⚠ 수주관리 페이지 오류</h2>"
-                f"<pre style='background:#fff3f3;padding:14px;border:1px solid #f99;'>{_err_msg}</pre>"
-                f"<p>서버를 재시작해주세요 (KNK_시작.bat 닫고 다시 실행).</p>"
-                f"<p><a href='/sales'>← 매출영업으로</a></p></body></html>",
+                f"<html><body style='font-family:sans-serif;padding:40px;line-height:1.6;'>"
+                f"<h2 style='color:#c00;'>⚠ 수주관리 페이지 오류 (v5H157)</h2>"
+                f"<pre style='background:#fff3f3;padding:14px;border:1px solid #f99;white-space:pre-wrap;font-size:12px;'>{_err_msg}\n\n{_tb_str}</pre>"
+                f"<p>서버 콘솔(KNK_시작.bat 검은 창)에서도 위 트레이스 확인 가능.</p>"
+                f"<p><a href='/sales'>← 매출영업으로</a> | <a href='/sales/orders?tab=T'>↻ 다시 시도 (T 탭)</a></p>"
+                f"</body></html>",
                 status_code=500
             )
 
