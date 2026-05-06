@@ -87,16 +87,15 @@
                  placeholder="예: ○○고객사 검사기 1호기">
         </div>
       </div>
-      <div class="pf-row three">
+      {# v5H154: 사업부는 chooser 에서 이미 선택 → hidden 으로 전달, 폼 노출 제거 #}
+      {% set _bd_cur = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else 'T')) %}
+      <input type="hidden" name="biz_div" value="{{ _bd_cur }}">
+      {% set _bd_kr = {'T':'T (검사기)', 'M':'M (자동화)', 'K':'K (기타)'} %}
+      <div class="pf-row" style="grid-template-columns: 1fr 1fr;">
         <div class="pf-field">
-          <label>사업부<span class="req">*</span></label>
-          {% set _bd_cur = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else '')) %}
-          <select name="biz_div" required>
-            <option value="">— 선택 —</option>
-            <option value="T" {% if _bd_cur == 'T' %}selected{% endif %}>T (검사기)</option>
-            <option value="M" {% if _bd_cur == 'M' %}selected{% endif %}>M (자동화)</option>
-            <option value="K" {% if _bd_cur == 'K' %}selected{% endif %}>K (기타)</option>
-          </select>
+          <label>사업부 <span class="sub">(앞에서 선택됨)</span></label>
+          <input type="text" value="{{ _bd_kr.get(_bd_cur, _bd_cur) }}" readonly
+                 style="background:var(--paper-2);color:var(--ink);font-weight:600;">
         </div>
         <div class="pf-field">
           <label>PO 유형</label>
@@ -107,13 +106,12 @@
             {% endfor %}
           </select>
         </div>
-        <div class="pf-field">
-          <label>관리코드 <span class="sub" style="color:#a07a30;">(신규 장비만 자동 발급 · 소모품·수리·기타 제외)</span></label>
+      </div>
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <label>관리코드 <span class="sub" style="color:#a07a30;">(저장 시 자동 발급)</span></label>
           <input type="text" name="mgmt_code" value="{{ project.mgmt_code|default('') }}"
-                 placeholder="신규 장비 저장 시 자동 발급" {% if not project %}readonly{% endif %}>
-          <div style="font-size:11px;color:var(--mute);margin-top:4px;">
-            💡 v5H142 (대표 지시): 소모품 발주는 <a href="/consumables/new" style="color:var(--amber-deep);font-weight:600;">/소모품 발주</a> 메뉴에서 엑셀 업로드로 일괄 등록하세요.
-          </div>
+                 placeholder="저장 시 자동 발급" {% if not project %}readonly{% endif %}>
         </div>
       </div>
       {# v5H151 (2026-05-05) — 대표 지시: 유형 라디오 + 소모품 안내 박스 제거
@@ -299,23 +297,71 @@
           <input type="hidden" id="pf_order_amount" name="order_amount" value="{{ _p_amt }}">
         </div>
       </div>
-      <div class="pf-row">
+      <div class="pf-row three">
         <div class="pf-field">
           <label>통화</label>
-          <select name="currency">
-            <option value="KRW" {% if not project or (project.currency or 'KRW') == 'KRW' %}selected{% endif %}>KRW (원)</option>
-            <option value="USD" {% if project and project.currency == 'USD' %}selected{% endif %}>USD (달러)</option>
-            <option value="VND" {% if project and project.currency == 'VND' %}selected{% endif %}>VND (동)</option>
+          {% set _cur_ccy = project.currency if project and project.currency else 'KRW' %}
+          <select name="currency" id="pf_currency" onchange="pfCurrencyChanged()">
+            <option value="KRW" {% if _cur_ccy == 'KRW' %}selected{% endif %}>KRW (원)</option>
+            <option value="USD" {% if _cur_ccy == 'USD' %}selected{% endif %}>USD (달러)</option>
+            <option value="VND" {% if _cur_ccy == 'VND' %}selected{% endif %}>VND (동)</option>
           </select>
         </div>
-        <div class="pf-field">
-          <div style="font-size:11.5px;color:var(--mute);line-height:1.55;padding:8px 0;">
-            ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.<br>
+        {# v5H154: 외화 선택 시 기준환율 + 원화 환산금액 자동 계산 #}
+        <div class="pf-field" id="pf_fx_field" style="display:{% if _cur_ccy != 'KRW' %}flex{% else %}none{% endif %};">
+          <label>기준환율 <span class="sub">(1 {{ _cur_ccy if _cur_ccy != 'KRW' else 'USD' }} → KRW)</span></label>
+          <input type="number" step="0.01" min="0" id="pf_fx_rate" name="fx_rate"
+                 value="{{ project.fx_rate if project and project.fx_rate else '' }}"
+                 placeholder="예: 1330" oninput="pfRecalcKrw()">
+        </div>
+        <div class="pf-field" id="pf_krw_field" style="display:{% if _cur_ccy != 'KRW' %}flex{% else %}none{% endif %};">
+          <label>원화 환산 <span class="sub">(자동)</span></label>
+          <input type="text" id="pf_amount_krw" readonly
+                 style="background:var(--paper-2);color:var(--knk-red);font-weight:700;text-align:right;cursor:not-allowed;"
+                 value="0">
+          <input type="hidden" name="amount_krw" id="pf_amount_krw_h" value="0">
+        </div>
+      </div>
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <div style="font-size:11.5px;color:var(--mute);line-height:1.55;padding:0;">
+            ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.
+            외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
             저장 시 <b>수량 N대</b> 면 <b>N개 호기 라인 SO</b> 가 자동 발행됩니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
             {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 SO 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
           </div>
         </div>
       </div>
+      <script>
+      function pfCurrencyChanged(){
+        var ccy = document.getElementById('pf_currency').value;
+        var isKrw = (ccy === 'KRW');
+        document.getElementById('pf_fx_field').style.display = isKrw ? 'none' : 'flex';
+        document.getElementById('pf_krw_field').style.display = isKrw ? 'none' : 'flex';
+        // 라벨 통화 코드 갱신
+        var lbl = document.querySelector('#pf_fx_field label .sub');
+        if (lbl && !isKrw) lbl.textContent = '(1 ' + ccy + ' → KRW)';
+        if (isKrw) {
+          document.getElementById('pf_fx_rate').value = '';
+          document.getElementById('pf_amount_krw').value = '0';
+          document.getElementById('pf_amount_krw_h').value = '0';
+        } else {
+          pfRecalcKrw();
+        }
+      }
+      function pfRecalcKrw(){
+        var amt = parseFloat((document.getElementById('pf_order_amount').value || '0').toString().replace(/,/g,'')) || 0;
+        var fx = parseFloat(document.getElementById('pf_fx_rate').value || '0') || 0;
+        var krw = Math.round(amt * fx);
+        document.getElementById('pf_amount_krw').value = krw.toLocaleString('en-US');
+        document.getElementById('pf_amount_krw_h').value = krw;
+      }
+      // 단가/수량 변경 시 환산 재계산 트리거
+      ['pf_unit_price','pf_unit_qty'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', function(){ setTimeout(pfRecalcKrw, 50); });
+      });
+      </script>
       <script>
       (function(){
         const priceInp = document.getElementById('pf_unit_price');

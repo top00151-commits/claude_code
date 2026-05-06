@@ -4,6 +4,14 @@
 
 ---
 
+## v5H154 (2026-05-05) — 사업부 select 제거 + 외화 기준환율 보존 (대표 지시)
+- project_form: 사업부 select 제거 (chooser 에서 이미 선택) → readonly 텍스트로 표시 + hidden input
+- 통화 != KRW 선택 시 [기준환율] [원화 환산] 입력칸 자동 노출
+- JS 라이브: 단가/수량/환율 변경 시 amount_krw = unit_price × qty × fx_rate 자동 계산
+- DB: projects 테이블에 fx_rate REAL, amount_krw REAL 컬럼 추가 (PRAGMA 가드)
+- create/update SQL 양쪽 fx_rate/amount_krw 반영
+- 백워드 호환: KRW 또는 외화지만 환율 미입력 시 두 컬럼 NULL → 향후 매출 분석 시 환율 재조회 폴백 가능
+
 ## v5H153 (2026-05-05) — 고객사 엑셀 일괄 등록 신설
 - 라우트 3개 신설 (모두 `can_use_sales` 권한):
   - `GET  /customers/import-template` → `app/static/templates/고객사_일괄등록_양식.xlsx` 다운로드 (`KNK_고객사_일괄등록_양식.xlsx`)

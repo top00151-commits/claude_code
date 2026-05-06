@@ -213,7 +213,35 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
 .composer button:disabled { opacity: 0.4; cursor: not-allowed; }
 .composer button:not(:disabled):hover { background: #1d4ed8; }
 
-/* ---- Dialog ---- */
+/* ---- Modal (div based, 100% controlled) ---- */
+.modal {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+.modal.open { display: flex; }
+.modal-content {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.modal-close-x {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 2;
+}
+
+/* keep legacy "dialog" selector working if any remains */
 dialog {
   border: none;
   border-radius: 16px;
@@ -375,7 +403,7 @@ dialog h3 { margin: 0 0 8px; }
 .keep-forever-label input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
 
 /* Bigger dialog for item form */
-#newRoomDialog, #itemEditDialog { max-width: 460px; }
+#newRoomDialog .modal-content, #itemEditDialog .modal-content { max-width: 460px; }
 
 /* ---- Search box (sidebar top) ---- */
 .search-box {
@@ -565,15 +593,14 @@ dialog h3 { margin: 0 0 8px; }
   display: grid; place-items: center;
 }
 
-/* ---- Big dialogs (gallery / requests) ---- */
+/* ---- Big dialogs (gallery / requests / digest) ---- */
 .big-dialog {
-  max-width: 720px;
-  width: calc(100% - 32px);
-  max-height: 80vh;
-  padding: 0;
+  max-width: 720px !important;
+  width: 100%;
+  max-height: 85vh !important;
+  padding: 0 !important;
   display: flex; flex-direction: column;
 }
-.big-dialog::backdrop { background: rgba(0,0,0,0.5); }
 .big-dialog-head {
   display: flex; align-items: center; gap: 14px;
   padding: 16px 20px;
@@ -652,24 +679,18 @@ dialog h3 { margin: 0 0 8px; }
   font-size: 12px; font-weight: 600;
 }
 
-/* ---- Lightbox ---- */
-.lightbox {
-  background: transparent;
-  border: none;
-  max-width: 90vw; max-height: 90vh;
-  padding: 0;
-}
-.lightbox::backdrop { background: rgba(0,0,0,0.85); }
-.lightbox img {
+/* ---- Lightbox (image fullscreen) ---- */
+.lightbox-modal { background: rgba(0,0,0,0.85); }
+.lightbox-modal img {
   max-width: 90vw; max-height: 80vh;
   border-radius: 8px;
   display: block;
 }
-.lightbox .close-x {
-  position: absolute;
-  top: -40px; right: 0;
-  background: rgba(255,255,255,0.2);
-  color: #fff;
+.lightbox-x {
+  position: absolute !important;
+  top: 20px; right: 20px;
+  background: rgba(255,255,255,0.2) !important;
+  color: #fff !important;
 }
 .lightbox-meta {
   margin-top: 12px;

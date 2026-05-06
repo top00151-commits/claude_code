@@ -124,11 +124,33 @@ ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {
     "mp4", "mov", "avi", "mkv", "mp3", "wav",
 }
 
+def _load_or_generate_secret():
+    """SECRET_KEY 자동 생성·영속화. 환경변수 우선, 없으면 data/secret.key 사용·생성."""
+    env_key = os.environ.get("KNK_MSG_SECRET")
+    if env_key and len(env_key) >= 16:
+        return env_key
+    sec_path = os.path.join(APP_DIR, "data", "secret.key")
+    os.makedirs(os.path.dirname(sec_path), exist_ok=True)
+    if os.path.exists(sec_path):
+        with open(sec_path, "r", encoding="utf-8") as f:
+            v = f.read().strip()
+            if len(v) >= 16:
+                return v
+    import secrets as _secrets
+    new_key = _secrets.token_hex(32)
+    with open(sec_path, "w", encoding="utf-8") as f:
+        f.write(new_key)
+    print(f" * SECRET_KEY 신규 생성·저장: {sec_path}")
+    return new_key
+
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("KNK_MSG_SECRET", "knk-dev-secret-CHANGE-ME")
+app.config["SECRET_KEY"] = _load_or_generate_secret()
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # 정적 자원 캐시 비활성 (개발/베타 단계)
+app.config["TEMPLATES_AUTO_RELOAD"] = True   # 템플릿 자동 리로드 — 디스크 변경 시 즉시 반영
+app.jinja_env.auto_reload = True
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading", max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024)
 
 
@@ -1664,8 +1686,35 @@ def on_send(data):
         ).start()
 
 
+def _local_ips():
+    """이 PC의 LAN/VPN IP들을 모두 반환."""
+    ips = set()
+    try:
+        import socket as _sock
+        host = _sock.gethostname()
+        for info in _sock.getaddrinfo(host, None):
+            ip = info[4][0]
+            if ip and ":" not in ip and not ip.startswith("127."):
+                ips.add(ip)
+    except Exception:
+        pass
+    return sorted(ips)
+
+
 if __name__ == "__main__":
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     init_db()
-    print(f" * KNK Messenger running on http://0.0.0.0:{PORT}")
+    print()
+    print(" ============================================")
+    print("  KNK Messenger — 서버 시작")
+    print(" ============================================")
+    print(f"   PC(이 서버):     http://localhost:{PORT}")
+    for ip in _local_ips():
+        print(f"   직원 접속 URL:   http://{ip}:{PORT}")
+    print(f"   포트:            {PORT}  (방화벽 인바운드 허용 필요)")
+    print(f"   업로드 폴더:     {UPLOAD_DIR}")
+    print(f"   DB:              {DB_PATH}")
+    print(f"   메시지 보존:     {MESSAGE_RETENTION_MONTHS}개월 (CEO 수동 cleanup)")
+    print(" ============================================")
+    print()
     socketio.run(app, host="0.0.0.0", port=PORT, debug=False, allow_unsafe_werkzeug=True)

@@ -82,6 +82,44 @@
   const STATUS_LABEL = { active: "진행중", hold: "보류", done: "완료", cancelled: "취소" };
   const REQ_STATUS_LABEL = { open: "열림", in_progress: "진행중", done: "완료", cancelled: "취소" };
 
+  // ===== 모달 폴리필: <dialog> 네이티브 API를 .modal div에서 동일하게 동작 =====
+  // 모든 .modal 요소가 .showModal() / .close() / .open 인터페이스를 가짐 → 기존 코드 그대로 작동
+  document.querySelectorAll(".modal").forEach(m => {
+    if (m._polyfilled) return;
+    m._polyfilled = true;
+    m.showModal = function() { m.classList.add("open"); document.body.style.overflow = "hidden"; };
+    m.show      = function() { m.classList.add("open"); };
+    m.close     = function() { m.classList.remove("open"); if (!document.querySelector(".modal.open")) document.body.style.overflow = ""; };
+    try {
+      Object.defineProperty(m, "open", {
+        configurable: true,
+        get() { return m.classList.contains("open"); },
+      });
+    } catch (e) { /* 이미 정의돼 있어도 무시 */ }
+  });
+
+  // ===== 글로벌 닫기 위임 =====
+  // 1) [data-close] 버튼 클릭 → 부모 .modal 닫기
+  // 2) .modal 자체 클릭(=백드롭 영역) → 닫기 (.modal-content 클릭은 정지)
+  document.addEventListener("click", (e) => {
+    const closeTrigger = e.target.closest("[data-close]");
+    if (closeTrigger) {
+      const modal = closeTrigger.closest(".modal");
+      if (modal) { modal.close(); e.stopPropagation(); return; }
+    }
+    if (e.target.classList && e.target.classList.contains("modal")) {
+      e.target.close();
+    }
+  }, true);
+
+  // 3) ESC 키 → 가장 위 열린 모달 1개만 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const opens = document.querySelectorAll(".modal.open");
+      if (opens.length) opens[opens.length - 1].close();
+    }
+  });
+
   let socket = null;
   let activeRoom = null;
   let rooms = [];
@@ -1121,47 +1159,42 @@
   els.galleryDialog.querySelectorAll(".gtab").forEach(t => {
     t.addEventListener("click", () => openGallery(t.dataset.gtab));
   });
-  els.closeLightbox.addEventListener("click", () => els.lightbox.close());
-  els.lightbox.addEventListener("click", (e) => {
-    if (e.target === els.lightbox) els.lightbox.close();
-  });
-
-  // 모든 다이얼로그: 배경 클릭으로 닫기 (네이티브 ESC는 자동 동작)
-  document.querySelectorAll("dialog").forEach(d => {
-    d.addEventListener("click", (e) => {
-      // 다이얼로그 자체에 클릭 = 백드롭 클릭 (내부 자식은 dialog가 아닌 다른 요소)
-      const rect = d.getBoundingClientRect();
-      const inside = (
-        e.clientX >= rect.left && e.clientX <= rect.right &&
-        e.clientY >= rect.top && e.clientY <= rect.bottom
-      );
-      if (!inside) d.close();
-    });
-  });
-
   els.requestsBtn.addEventListener("click", openRequests);
-  els.closeRequests.addEventListener("click", () => els.requestsDialog.close());
-  document.getElementById("closeRequestsBottom")?.addEventListener("click", () => els.requestsDialog.close());
-  document.getElementById("closeGalleryBottom")?.addEventListener("click", () => els.galleryDialog.close());
-  document.getElementById("closeDigestBottom")?.addEventListener("click", () => els.digestDialog.close());
 
-  // 안전망 — 모든 close-x / secondary-btn(닫기) 클릭 시 부모 dialog 닫기
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".close-x");
-    if (btn) {
-      const dlg = btn.closest("dialog");
-      if (dlg && dlg.open) { dlg.close(); return; }
-    }
-    const sec = e.target.closest(".secondary-btn");
-    if (sec && /닫기/.test(sec.textContent)) {
-      const dlg = sec.closest("dialog");
-      if (dlg && dlg.open) { dlg.close(); return; }
-    }
-  }, true);  // capture phase — 다른 핸들러보다 먼저
-  // ESC 키 — 모든 열린 다이얼로그 닫기 (브라우저 기본 + 안전망)
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  // ===== 명시적 닫기 핸들러 (옛/새 HTML 모두 호환) =====
+  // [data-close] 위임이 안 잡히는 옛 HTML에 대비해 ID 기반으로도 wire-up
+  const wireClose = (btnId, modalRef) => {
+    const btn = document.getElementById(btnId);
+    if (btn && modalRef) btn.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try { modalRef.close(); } catch(_) {}
+      // 폴리필 미적용 옛 dialog도 강제로 숨기기
+      if (modalRef.classList) modalRef.classList.remove("open");
+      modalRef.removeAttribute("open");
+      modalRef.style.display = "none";
+    });
+  };
+  wireClose("closeRequests", els.requestsDialog);
+  wireClose("closeGallery", els.galleryDialog);
+  wireClose("closeDigest", els.digestDialog);
+  wireClose("closeLightbox", els.lightbox);
+  wireClose("cancelEdit", els.itemEditDialog);
+  wireClose("cancelNewRoom", els.newRoomDialog);
+  wireClose("cancelNewRequest", els.newRequestDialog);
+  // 옛 HTML의 하단 닫기 버튼들 (있으면)
+  wireClose("closeRequestsBottom", els.requestsDialog);
+  wireClose("closeGalleryBottom", els.galleryDialog);
+  wireClose("closeDigestBottom", els.digestDialog);
+
+  // 모든 dialog/modal 우클릭 시 즉시 강제 닫기 (긴급 탈출)
+  document.addEventListener("contextmenu", (e) => {
+    const dlg = e.target.closest("dialog, .modal");
+    if (dlg && (dlg.open || dlg.classList?.contains("open"))) {
+      e.preventDefault();
+      try { dlg.close(); } catch(_){}
+      dlg.classList?.remove("open");
+      dlg.removeAttribute("open");
+      dlg.style.display = "none";
     }
   });
   els.requestsDialog.querySelectorAll(".gtab").forEach(t => {
