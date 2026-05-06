@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>프로젝트 등록 · 유형 선택 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H148: 프로젝트 등록 진입 chooser — 4개 카드 */
+.pc-wrap { max-width: 1100px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.pc-intro { font-size: 13.5px; color: var(--mute); line-height: 1.65; margin: var(--space-3) 0 var(--space-5); }
+.pc-intro b { color: var(--ink); }
+.pc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+@media (max-width: 980px) { .pc-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .pc-grid { grid-template-columns: 1fr; } }
+.pc-card {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--paper-3, #fffaf0);
+  border: 1px solid var(--cream-line, #e6dcc0);
+  border-radius: var(--radius-xl, 14px);
+  padding: 22px 20px 20px;
+  text-decoration: none; color: inherit;
+  transition: transform .15s ease, box-shadow .18s ease, border-color .18s;
+  position: relative; overflow: hidden;
+}
+.pc-card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--amber, #f5b942); opacity: 0.65;
+}
+.pc-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px -8px rgba(180, 130, 40, 0.22);
+  border-color: var(--amber, #f5b942);
+}
+.pc-card .ic { font-size: 38px; line-height: 1; margin-bottom: 4px; }
+.pc-card .code { font-family: Consolas, monospace; font-size: 11px; color: #8a7842; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.pc-card h3 { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink, #2a2418); letter-spacing: -0.01em; }
+.pc-card .desc { font-size: 13px; color: var(--mute, #6b6353); line-height: 1.55; flex: 1; }
+.pc-card .hint { font-size: 11.5px; color: #8a7842; padding: 8px 10px; background: rgba(245, 185, 66, 0.10); border-radius: 6px; line-height: 1.45; }
+.pc-card .go {
+  margin-top: 4px; align-self: flex-end;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--amber-deep, #b07a18);
+}
+.pc-card:hover .go { color: #8a5a08; }
+.pc-card.consumable::before { background: #4a90e2; }
+.pc-card.consumable .hint { background: rgba(74, 144, 226, 0.08); color: #2a5a8a; }
+.pc-card.consumable .go { color: #2a5a8a; }
+.pc-card.other::before { background: #7d6cb1; }
+.pc-card.other .hint { background: rgba(125, 108, 177, 0.08); color: #4a3d80; }
+.pc-card.other .go { color: #4a3d80; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/sales">매출·영업</a> · <b>프로젝트 등록</b></div>
+      <h1 class="page-title">프로젝트 <em>등록</em> — 유형 선택</h1>
+    </div>
+  </div>
+
+  <div class="pc-wrap">
+    <p class="pc-intro">
+      등록할 항목의 <b>유형</b>을 먼저 선택하세요. 검사기/자동화는 <b>관리코드(예: 001T2605)</b>가 자동 발급되며,
+      소모품 발주는 별도 메뉴로 엑셀 일괄 등록을 사용합니다.
+    </p>
+
+    <div class="pc-grid">
+      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=T">
+        <div class="ic">🔬</div>
+        <div class="code">NEW_EQUIP · T</div>
+        <h3>T 검사기</h3>
+        <div class="desc">신규 검사기 장비 등록 (관리코드 자동 발급)</div>
+        <div class="hint">관리코드(예: 001T2605) 자동 발급 + SO 자동 발행</div>
+        <span class="go">선택 →</span>
+      </a>
+
+      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=M">
+        <div class="ic">🤖</div>
+        <div class="code">NEW_EQUIP · M</div>
+        <h3>M 자동화</h3>
+        <div class="desc">신규 자동화 장비 등록 (관리코드 자동 발급)</div>
+        <div class="hint">관리코드(예: 001M2605) 자동 발급 + SO 자동 발행</div>
+        <span class="go">선택 →</span>
+      </a>
+
+      <a class="pc-card other" href="/projects/new?type=OTHER">
+        <div class="ic">🌐</div>
+        <div class="code">OTHER</div>
+        <h3>기타 (관리코드 필요)</h3>
+        <div class="desc">검사기/자동화 외 관리코드가 필요한 항목</div>
+        <div class="hint">관리코드 발급. 호기 라벨 대신 '건' 단위</div>
+        <span class="go">선택 →</span>
+      </a>
+
+      <a class="pc-card consumable" href="/consumables/new">
+        <div class="ic">📦</div>
+        <div class="code">CONSUMABLE</div>
+        <h3>소모품 발주</h3>
+        <div class="desc">관리코드 없음. 엑셀로 일괄 등록</div>
+        <div class="hint">엑셀 업로드 → 라인 일괄 등록 → 사진 자동 추출</div>
+        <span class="go">선택 →</span>
+      </a>
+    </div>
+  </div>
+</main>
+</div>
+</body></html>

@@ -8053,15 +8053,40 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
 
 
 @app.get("/projects/new", response_class=HTMLResponse)
-async def projects_new_form(request: Request):
+async def projects_new_form(request: Request,
+                            type: str = "", biz_div: str = ""):
+    """v5H148 (2026-05-05) — 대표 직접 지시: 프로젝트 등록 진입점 통합.
+    - type 파라미터 없으면 4-카드 chooser (T검사기/M자동화/기타/소모품)
+    - type 있으면 기존 폼 + biz_div/project_type 사전 선택
+    백워드 호환: 직접 ?type=NEW_EQUIP 진입 정상 동작."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
+    # type 없으면 chooser 페이지
+    _t = (type or "").strip().upper()
+    if not _t:
+        return ctx(request, "project_new_chooser.html",
+                   user=u, active="sales_projects")
+    # type 정규화 (CONSUMABLE/SERVICE 는 더이상 폼에서 노출 안 함 → OTHER)
+    if _t not in ("NEW_EQUIP", "OTHER"):
+        _t = "OTHER" if _t in ("CONSUMABLE", "SERVICE") else "NEW_EQUIP"
+    _bd = (biz_div or "").strip().upper()
+    if _bd not in ("T", "M"):
+        _bd = ""
+    # 폼이 project.* 로 prefill 을 읽으므로 가벼운 placeholder 객체 전달
+    _preset = {
+        "project_type": _t,
+        "biz_div": _bd,
+        "name": "", "customer_name": "", "po_type": "",
+        "mgmt_code": "", "stage": "제안작성", "currency": "KRW",
+        "id": None, "parent_project_id": None,
+    }
     return ctx(request, "project_form.html",
                user=u, active="sales_projects",
                project=None,
+               preset=_preset,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
                customers=_logi.customers_for_picker())

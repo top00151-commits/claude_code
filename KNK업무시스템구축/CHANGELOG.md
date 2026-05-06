@@ -4,6 +4,19 @@
 
 ---
 
+## v5H148 (2026-05-05) — 프로젝트 등록 진입점 통합 (대표 직접 지시)
+- **사이드바 재편 (매출·영업)**: `🆕 프로젝트 등록` (M-01-11, /projects/new) / `📊 프로젝트 목록` (M-01-12, /projects) / `📦 소모품 발주 목록` (M-01-14, /consumables) — 등록은 통합, 조회는 분리
+- **신규 chooser 페이지** (`templates/project_new_chooser.html`): /projects/new GET 가 type 파라미터 없으면 4-카드 chooser 렌더
+  - 🔬 **T 검사기** → `/projects/new?type=NEW_EQUIP&biz_div=T`
+  - 🤖 **M 자동화** → `/projects/new?type=NEW_EQUIP&biz_div=M`
+  - 🌐 **기타** → `/projects/new?type=OTHER`
+  - 📦 **소모품 발주** → `/consumables/new`
+  - KNK 톤(크림 배경, 앰버 액센트 바, hover 시 살짝 들리는 효과). 카드별 색 구분(앰버/퍼플/블루).
+- **GET /projects/new** 시그니처 확장: `type`, `biz_div` 쿼리 수신 → 프리셋 dict 를 폼에 전달. type 없으면 chooser, 있으면 폼.
+- **project_form.html**: `_bd_cur` / `_cur_ptype` 가 `project` 우선, 없으면 `preset` 폴백. 페이지 상단에 "← 다른 유형으로 변경" 링크 추가 (chooser 로 복귀). 빵부스러기에 "등록 · 유형 입력" 표시.
+- **백워드 호환**: 직접 `/projects/new?type=NEW_EQUIP` URL 진입, CONSUMABLE/SERVICE 구 type 정규화(→ OTHER), 기존 POST 핸들러 무변경.
+- 검증: py_compile PASS · Jinja parse PASS (chooser/form/chrome).
+
 ## v5H147 (2026-05-05) — 프로젝트 등록과 소모품 등록 메뉴 명확 분리 (대표 직접 지시)
 - 사이드바 라벨 명확화: '🔧 프로젝트 (검사기·자동화)' / '📦 소모품 발주 (관리코드 없음)'
 - 두 메뉴를 매출영업 그룹에 나란히 배치 (소모품을 프로젝트 바로 다음으로)

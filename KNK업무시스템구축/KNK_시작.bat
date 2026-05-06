@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-05 v5H147 소모품 발주 등록 흐름 강화 + 관련부서 통보. 엑셀 업로드 확정 후 큰 성공 카드(라인검토/통보발송/추가등록 3버튼) + 3.5초 자동 redirect. POST /consumables/{co_id}/notify 신설(자재구매·admin 일괄 알림 INSERT). consumable_detail.html 에 [📤 관련부서 통보] 버튼. 메뉴 위치는 v5H143 에서 이미 M-01 이동 완료.
+REM   LAST UPDATE: 2026-05-05 v5H148 프로젝트 등록 진입점 통합(대표 직접 지시). 사이드바 재편: 🆕 프로젝트 등록 / 📊 프로젝트 목록 / 📦 소모품 발주 목록. /projects/new GET 가 type 없으면 4-카드 chooser(T검사기·M자동화·기타·소모품)를 렌더, type 있으면 기존 폼 + biz_div/project_type 사전 선택 + "← 다른 유형으로 변경" 링크. project_new_chooser.html 신설(KNK 톤 카드 4종). 백워드 호환 유지.
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
