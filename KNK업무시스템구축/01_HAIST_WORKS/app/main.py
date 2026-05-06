@@ -11729,10 +11729,11 @@ async def sales_quotation_convert_to_order(req: Request, quote_id: int):
 
 
 @app.get("/sales/orders", response_class=HTMLResponse)
-async def sales_orders_page(req: Request, biz: str = ""):
+async def sales_orders_page(req: Request, biz: str = "", due_date: str = ""):
     """수주 탭 — orders 리스트.
-    v5H160 Phase 1: 사업부 4탭 (T 검사기 / M 자동화 / K 기타 / 소모품) 추가.
-    biz='' (전체) | T | M | K | C(소모품)"""
+    v5H160 Phase 1: 사업부 4탭. v5H161 Phase 2: KPI 6 카드.
+    v5H162 Phase 3: 출하 캘린더 (이번달+다음달, 날짜 클릭 시 필터).
+    biz='' (전체) | T | M | K | C(소모품) ; due_date=YYYY-MM-DD"""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
@@ -11863,10 +11864,71 @@ async def sales_orders_page(req: Request, biz: str = ""):
             kpi["wait_payment"] += 1
             kpi["outstanding"] += amt
 
+    # v5H162 Phase 3: 캘린더 buckets (이번달+다음달)
+    cal_buckets = {}
+    for it in items:
+        dd = (it.get("due_date") or "")[:10]
+        if not dd:
+            continue
+        if dd < _month_start or dd > (_next_m.replace(month=(_next_m.month % 12 + 1) if _next_m.month != 12 else 1,
+                                                       year=_next_m.year if _next_m.month != 12 else _next_m.year + 1,
+                                                       day=1) - _td(days=1)).isoformat():
+            continue
+        b = cal_buckets.setdefault(dd, {"count": 0, "amount": 0.0, "overdue": 0})
+        b["count"] += 1
+        b["amount"] += _amt(it)
+        st = (it.get("status") or "").upper()
+        if dd < _today_iso and st in ("CONFIRMED", "DRAFT"):
+            b["overdue"] += 1
+
+    def _build_month(year, month):
+        import calendar as _cal
+        cal = _cal.Calendar(firstweekday=6)  # Sunday-first
+        weeks = []
+        for week in cal.monthdatescalendar(year, month):
+            row = []
+            for dt in week:
+                in_month = (dt.month == month)
+                iso = dt.isoformat()
+                b = cal_buckets.get(iso) or {"count": 0, "amount": 0.0, "overdue": 0}
+                d_left = (dt - _today).days
+                if b["count"] == 0:
+                    cls = "empty"
+                elif b["overdue"] > 0:
+                    cls = "overdue"
+                elif d_left < 0:
+                    cls = "past"
+                elif d_left <= 3:
+                    cls = "d3"
+                elif d_left <= 7:
+                    cls = "d7"
+                else:
+                    cls = "future"
+                row.append({"date": iso, "day": dt.day, "in_month": in_month,
+                            "count": b["count"], "amount": b["amount"],
+                            "cls": cls, "is_today": (iso == _today_iso),
+                            "is_selected": (iso == due_date)})
+            weeks.append(row)
+        return {"year": year, "month": month, "weeks": weeks}
+
+    cal_months = []
+    try:
+        cal_months = [
+            _build_month(_today.year, _today.month),
+            _build_month(_next_m.year, _next_m.month),
+        ]
+    except Exception:
+        cal_months = []
+
+    # 필터 적용 (캘린더 날짜 클릭 시)
+    if due_date:
+        items = [it for it in items if (it.get("due_date") or "")[:10] == due_date[:10]]
+
     return ctx(req, "sales_orders.html", user=u, active="sales_orders",
                tab="orders", items=items,
                biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"),
-               kpi=kpi, today_iso=_today_iso)
+               kpi=kpi, today_iso=_today_iso,
+               cal_months=cal_months, due_date=due_date)
 
 
 @app.post("/sales/orders")
