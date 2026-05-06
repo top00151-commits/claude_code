@@ -197,6 +197,51 @@ async def _v5_http_exception_handler(request: Request, exc: _StarletteHTTPExcept
     return JSONResponse({"error": str(exc.detail), "status": code}, status_code=code)
 
 
+# v5H158: 전역 Exception 핸들러 — 모든 미처리 예외를 가시화 (5xx 무음 차단)
+@app.exception_handler(Exception)
+async def _v5_global_exception_handler(request: Request, exc: Exception):
+    import traceback as _tb
+    _tb_str = _tb.format_exc()
+    _err_msg = f"{type(exc).__name__}: {exc}"
+    print("=" * 70)
+    print(f"[v5H158 GLOBAL EXC] {request.method} {request.url.path}")
+    print(f"  → {_err_msg}")
+    print(_tb_str)
+    print("=" * 70)
+    # 사용자에게 친절한 HTML
+    safe_path = str(request.url.path)
+    return HTMLResponse(
+        f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<title>오류 - KNK</title>
+<style>
+  body {{ font-family: 'Malgun Gothic', sans-serif; padding: 40px; background: #fef9f3; color: #2a2418; line-height: 1.6; }}
+  .box {{ max-width: 900px; margin: 0 auto; background: #fff; border: 1px solid #f3d2d2; border-left: 6px solid #c00; border-radius: 10px; padding: 28px 32px; box-shadow: 0 4px 18px rgba(0,0,0,0.05); }}
+  h1 {{ color: #c00; margin: 0 0 12px; font-size: 22px; }}
+  .url {{ font-family: monospace; background: #f5f5f5; padding: 4px 10px; border-radius: 4px; font-size: 12.5px; color: #555; }}
+  pre {{ background: #fff3f3; padding: 14px 16px; border: 1px solid #f99; border-radius: 6px; white-space: pre-wrap; word-break: break-all; font-size: 12px; color: #7a1f1f; max-height: 50vh; overflow: auto; margin-top: 14px; }}
+  .actions {{ margin-top: 18px; display: flex; gap: 10px; }}
+  .btn {{ padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 700; text-decoration: none; }}
+  .btn-pri {{ background: #b91c1c; color: #fff; }}
+  .btn-sec {{ background: #fff; color: #333; border: 1px solid #d6cdb6; }}
+  .hint {{ background: #fff7e0; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #d4a574; margin-top: 14px; font-size: 13px; color: #555; }}
+</style></head><body>
+<div class="box">
+  <h1>⚠ 페이지 오류</h1>
+  <div>요청: <span class="url">{request.method} {safe_path}</span></div>
+  <div class="hint">💡 KNK_시작.bat 검은 창에 더 자세한 정보가 출력됩니다. 캡처해서 빅터에게 전달해주세요.</div>
+  <pre>{_err_msg}
+
+{_tb_str}</pre>
+  <div class="actions">
+    <a class="btn btn-sec" href="javascript:history.back()">← 뒤로</a>
+    <a class="btn btn-pri" href="/home">🏠 홈</a>
+  </div>
+</div>
+</body></html>""",
+        status_code=500
+    )
+
+
 @app.on_event("startup")
 def startup():
     init_db()
