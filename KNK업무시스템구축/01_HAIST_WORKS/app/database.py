@@ -3992,6 +3992,46 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                 log_project_change(c, new_id, data.get("_changed_by"),
                                    "프로젝트", "", vals["name"],
                                    note=f"신규 등록 (관리코드 {code or '미발급'})")
+                # v5H183: 등록 시 모든 초기값 상세 로깅 (이력이 상세하게 기록되어야 한다는 대표 지시)
+                _ptype = (vals.get("project_type") or "NEW_EQUIP").upper()
+                _ptype_label = {"NEW_EQUIP":"신규 장비","CONSUMABLE":"소모품",
+                                "SERVICE":"수리·정비","OTHER":"기타"}.get(_ptype, _ptype)
+                _bd_label = {"T":"T (검사기)","M":"M (자동화)","K":"K (기타)"}.get(
+                    vals.get("biz_div") or "", vals.get("biz_div") or "")
+                _initial_fields = [
+                    ("사업부",       "", _bd_label),
+                    ("프로젝트유형", "", _ptype_label),
+                    ("PO유형",       "", vals.get("po_type") or ""),
+                    ("고객사",       "", vals.get("customer_name") or ""),
+                    ("모델",         "", vals.get("model_name") or ""),
+                    ("거래구분",     "", "수출" if vals.get("is_export") else "내수"),
+                    ("통화",         "", vals.get("currency") or "KRW"),
+                    ("기준환율",     "",
+                     (f"1 {vals.get('currency')} = {float(vals.get('fx_rate')):,.2f} KRW"
+                      if vals.get("fx_rate") and vals.get("currency") and vals.get("currency") != "KRW"
+                      else "")),
+                    ("수량",         "", str(vals.get("unit_qty") or 1) + "대"),
+                    ("단가",
+                     "",
+                     (f"{float(vals.get('unit_price') or 0):,.0f} {vals.get('currency') or 'KRW'}"
+                      if vals.get("unit_price") else "")),
+                    ("수주액",
+                     "",
+                     (f"{float(vals.get('order_amount') or 0):,.0f} {vals.get('currency') or 'KRW'}"
+                      + (f" (≈ {float(vals.get('amount_krw') or 0):,.0f} KRW)"
+                         if vals.get("amount_krw") else ""))),
+                    ("발주일",       "", vals.get("order_date") or ""),
+                    ("납기",         "", vals.get("due_date") or ""),
+                    ("초기 상태",    "", vals.get("status") or ""),
+                    ("PM",           "", vals.get("pm_name") or ""),
+                    ("영업담당",     "", vals.get("sales_name") or ""),
+                    ("비고",         "", (vals.get("logi_note") or "")[:120]),
+                ]
+                for _label, _ov, _nv in _initial_fields:
+                    if _nv:  # 값이 있는 항목만 기록 (빈값은 노이즈)
+                        log_project_change(c, new_id, data.get("_changed_by"),
+                                           _label, _ov, _nv,
+                                           note="등록 시 초기값")
                 return new_id, code
         except _sq.IntegrityError as e:
             last_err = e

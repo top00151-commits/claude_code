@@ -5200,6 +5200,7 @@ async def projects_quick_status(req: Request, pid: int):
             "SELECT status, mgmt_code, biz_div, order_amount, order_date, "
             "due_date, customer_po, "
             "COALESCE(unit_qty,1) AS unit_qty, unit_price, "
+            "COALESCE(currency,'KRW') AS currency, "
             "COALESCE(project_type,'NEW_EQUIP') AS project_type "
             "FROM projects WHERE id=?", (pid,)
         ).fetchone()
@@ -5279,11 +5280,24 @@ async def projects_quick_status(req: Request, pid: int):
                             _lbl = (_logi.project_unit_label(_ptype_q, _qty0)
                                     if _qty0 > 1
                                     else _logi.project_unit_label(_ptype_q, 1))
+                            # v5H183: SO 발행 상세 — 통화·납기·단가·합계 풀 로깅
+                            _ccy_h = (cur["currency"] if "currency" in cur.keys() else None) or "KRW"
+                            _due_h = cur["due_date"] or "(미지정)"
                             _logi.log_project_change(
                                 c, pid, u.get("id"), "수주발행(자동)",
                                 "", auto_so_no or _lbl,
-                                note=f"v5H132 자동 — 진행중 진입 시 {_qty0}대 SO 발행 (단가 {_up0:,.0f} × {_qty0} = {amt0:,.0f})"
+                                note=(f"진행중 진입 시 {_qty0}대 SO 자동 발행 — "
+                                      f"단가 {_up0:,.0f} {_ccy_h} × {_qty0}대 = {amt0:,.0f} {_ccy_h} · "
+                                      f"납기 {_due_h} · 라벨 {_lbl}")
                             )
+                            # 각 호기 라인 개별 기록
+                            for _i in range(_qty0):
+                                _i_lbl = _logi.project_unit_label(_ptype_q, _i + 1)
+                                _logi.log_project_change(
+                                    c, pid, u.get("id"), f"호기 추가({_i_lbl})",
+                                    "", f"{_up0:,.0f} {_ccy_h}",
+                                    note=f"SO {auto_so_no} · 납기 {_due_h}"
+                                )
             except Exception:
                 pass
     except Exception as _qs_err:
@@ -5322,11 +5336,17 @@ async def sales_order_item_edit(req: Request, iid: int):
     if amt < 0:
         return JSONResponse({"ok": False, "message": "금액은 0 이상이어야 합니다"}, 400)
     with db_session() as c:
-        # v5H100: 변경 전 값 캡처 (이력 기록용)
+        # v5H100 / v5H183: 변경 전 값 캡처 (이력 기록용) — order_date/due_date/ship_to 도 포함
         it = c.execute(
             "SELECT oi.order_id, oi.unit_label AS old_lbl, oi.amount AS old_amt, "
             "       oi.line_note AS old_note, "
-            "       o.status, o.project_id, o.total_amount AS old_total "
+            "       oi.order_date AS old_oi_ord, oi.due_date AS old_oi_due, "
+            "       oi.ship_to AS old_oi_ship, "
+            "       o.status, o.project_id, o.total_amount AS old_total, "
+            "       o.order_no AS old_order_no, "
+            "       COALESCE(o.currency,'KRW') AS o_ccy, "
+            "       o.order_date AS o_order_date, o.due_date AS o_due_date, "
+            "       o.ship_to AS o_ship "
             "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
             "WHERE oi.id=?", (iid,)
         ).fetchone()
@@ -5386,7 +5406,7 @@ async def sales_order_item_edit(req: Request, iid: int):
                           (float(row[0] or 0), pid))
         except Exception:
             pass
-        # v5H100: 변경 이력 기록 (before → after)
+        # v5H100: 변경 이력 기록 (before → after) — order_status_history
         try:
             old_lbl = it["old_lbl"] or "—"
             old_amt = float(it["old_amt"] or 0)
@@ -5411,6 +5431,45 @@ async def sales_order_item_edit(req: Request, iid: int):
                 "changed_by, note) VALUES(?,?,?,?,?)",
                 (oid, st, st, u.get("id"), note_msg)
             )
+        except Exception:
+            pass
+        # v5H183: project_history 에도 호기별 변경 상세 기록 (이력 페이지 노출용)
+        try:
+            _pid = it["project_id"]
+            if _pid:
+                _ccy = it["o_ccy"] or "KRW"
+                _order_no = it["old_order_no"] or ""
+                _new_lbl = (label or old_lbl)
+                _detail_changes = []
+                if abs(old_amt - amt) > 0.5:
+                    _detail_changes.append(f"단가 {old_amt:,.0f} → {amt:,.0f} {_ccy}")
+                # 호기별 발주일 / 납기 / 납품처 (override) 변경 검출
+                _so_ord = (it["o_order_date"] or "")
+                _so_due = (it["o_due_date"] or "")
+                _so_sh = (it["o_ship"] or "")
+                _old_eff_ord = (it["old_oi_ord"] or _so_ord) or ""
+                _old_eff_due = (it["old_oi_due"] or _so_due) or ""
+                _old_eff_sh  = (it["old_oi_ship"] or _so_sh) or ""
+                _new_eff_ord = (u_order or _so_ord) or ""
+                _new_eff_due = (u_due or _so_due) or ""
+                _new_eff_sh  = (u_ship or _so_sh) or ""
+                if _old_eff_ord != _new_eff_ord:
+                    _detail_changes.append(f"발주일 {_old_eff_ord or '(미)'} → {_new_eff_ord or '(미)'}")
+                if _old_eff_due != _new_eff_due:
+                    _detail_changes.append(f"납기 {_old_eff_due or '(미)'} → {_new_eff_due or '(미)'}")
+                if _old_eff_sh != _new_eff_sh:
+                    _detail_changes.append(f"납품처 {_old_eff_sh or '(미)'} → {_new_eff_sh or '(미)'}")
+                if (it["old_note"] or "") != (note or ""):
+                    _detail_changes.append(f"비고 변경")
+                if (old_lbl or "") != (label or ""):
+                    _detail_changes.append(f"라벨 {old_lbl or '—'} → {label or '—'}")
+                if _detail_changes:
+                    _logi.log_project_change(
+                        c, _pid, u.get("id"),
+                        f"호기 수정({_new_lbl})",
+                        "", " / ".join(_detail_changes),
+                        note=f"SO {_order_no}"
+                    )
         except Exception:
             pass
     return JSONResponse({"ok": True, "message": "라인 수정 완료"})
