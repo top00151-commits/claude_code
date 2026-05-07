@@ -310,26 +310,53 @@
         .so-grand-total .label { font-size: 13px; color: var(--mute); font-weight: 600; }
         .so-grand-total .value { font-size: 22px; font-weight: 700; color: var(--knk-red); font-family: monospace; }
 
-        /* v5H188: 호기 라인 항상 편집 가능 — '편집 모드' 토글 폐기.
-           편집 가능한 SO 카드(.so-card.editable)는 input 항상 노출.
-           편집 불가(완료/취소 상태)는 display-val 텍스트만 노출. */
+        /* v5H197: 잠금/해제 패턴 — input 은 항상 보이지만 기본은 disabled.
+           '✏️ 수정' 버튼 클릭 → unlocked 클래스 추가 → 입력 활성화. */
         .so-card .so-meta-edit,
         .so-card .unit-edit { display: none; }
         .so-card .display-val { display: inline; }
+        /* editable = SO 자체가 잠금 해제 가능 (완료/취소 아님). 기본 = 잠금 상태 */
         .so-card.editable .so-meta-edit,
         .so-card.editable .unit-edit { display: inline-block; }
         .so-card.editable .display-val { display: none; }
         .so-card .add-unit-card { display: none; }
-        .so-card.editable .add-unit-card.open { display: block; }
-        .so-card.editable .row-del,
-        .so-card.editable .add-unit { display: inline-block; }
+        .so-card.editable.unlocked .add-unit-card.open { display: block; }
+        .so-card.editable.unlocked .row-del,
+        .so-card.editable.unlocked .add-unit { display: inline-block; }
         .so-card .row-save,
         .so-card .so-meta-save { display: none !important; }
         .so-card.editable .edit-only { display: table-cell; }
         .so-card .edit-only { display: none; }
-        /* 일괄 저장 버튼 (이전 toggle-edit 위치 재사용) */
-        .so-card .toggle-edit { background: var(--amber-deep); border: 1px solid var(--amber-deep); color: #fff; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
-        .so-card .toggle-edit:hover { filter: brightness(1.05); }
+        /* 잠금 상태(.editable 만 있고 .unlocked 없음) — input/select 가 시각적으로 비활성화 */
+        .so-card.editable:not(.unlocked) input.unit-edit,
+        .so-card.editable:not(.unlocked) select.unit-edit,
+        .so-card.editable:not(.unlocked) select.unit-status-sel {
+          background: #f5f5f1 !important;
+          color: var(--mute) !important;
+          cursor: not-allowed !important;
+          pointer-events: none;
+          border-color: var(--line) !important;
+          opacity: 0.7;
+        }
+        /* unlock 시 정상 색상 */
+        .so-card.editable.unlocked input.unit-edit,
+        .so-card.editable.unlocked select.unit-edit {
+          background: var(--paper);
+          color: var(--ink);
+          cursor: text;
+          pointer-events: auto;
+          opacity: 1;
+        }
+        /* 잠금 상태에서 일괄적용 / 호기 추가 / 라인삭제 / 호기 상태 일괄 모두 숨김 */
+        .so-card.editable:not(.unlocked) .bulk-status-tools,
+        .so-card.editable:not(.unlocked) .add-unit-card,
+        .so-card.editable:not(.unlocked) .row-del,
+        .so-card.editable:not(.unlocked) .add-unit { display: none !important; }
+        /* '✏️ 수정' / '💾 변경사항 저장' 토글 버튼 */
+        .so-card .toggle-edit { background: var(--paper); border: 1px solid var(--line); color: #475569; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card .toggle-edit:hover { background: var(--paper-2); }
+        .so-card.editable.unlocked .toggle-edit { background: var(--amber-deep); border-color: var(--amber-deep); color: #fff; }
+        .so-card.editable.unlocked .toggle-edit:hover { filter: brightness(1.05); }
       </style>
 
       <div class="section-card">
@@ -374,7 +401,7 @@
               </div>
               <div class="so-actions">
                 {% if _editable %}
-                <button type="button" class="toggle-edit" title="변경사항 저장">💾 변경사항 저장</button>
+                <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
@@ -392,9 +419,9 @@
             {# 백엔드(_sort_n) 키 우선 사용. 누락 시 unit_label 사전순으로 fallback. #}
             {% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}
             {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
-            {# v5H186: 호기 일괄 상태 적용 툴바 #}
+            {# v5H186: 호기 일괄 상태 적용 툴바 — v5H197: 잠금 시 숨김 #}
             {% if _editable %}
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--amber);font-size:12px;flex-wrap:wrap;">
+            <div class="bulk-status-tools" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--amber);font-size:12px;flex-wrap:wrap;">
               <span style="font-weight:700;color:var(--amber-deep);">호기 상태 일괄 적용:</span>
               <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:#fff;">
                 <option value="진행중">진행중</option>
@@ -412,15 +439,16 @@
             <table class="so-units">
               <thead>
                 <tr>
-                  <th style="width:90px;">호기</th>
-                  <th class="num" style="width:130px;">단가</th>
-                  <th style="width:78px;">통화</th>
-                  <th style="width:108px;">발주일</th>
-                  <th style="width:108px;">납기</th>
-                  <th style="width:120px;">납품처</th>
-                  <th style="width:110px;">상태</th>
+                  <th style="width:80px;">호기</th>
+                  <th class="num" style="width:120px;">단가</th>
+                  <th style="width:74px;">통화</th>
+                  <th style="width:78px;">거래</th>
+                  <th style="width:104px;">발주일</th>
+                  <th style="width:104px;">납기</th>
+                  <th style="width:110px;">납품처</th>
+                  <th style="width:106px;">상태</th>
                   <th>비고</th>
-                  {% if _editable %}<th class="center edit-only" style="width:90px;">동작</th>{% endif %}
+                  {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -444,13 +472,26 @@
                   <td>
                     <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
                     {% if _editable %}
-                    <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:78px;">
+                    <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:74px;">
                       <option value="KRW" {% if _u_ccy == 'KRW' %}selected{% endif %}>KRW</option>
                       <option value="USD" {% if _u_ccy == 'USD' %}selected{% endif %}>USD</option>
                       <option value="VND" {% if _u_ccy == 'VND' %}selected{% endif %}>VND</option>
                       <option value="JPY" {% if _u_ccy == 'JPY' %}selected{% endif %}>JPY</option>
                       <option value="CNY" {% if _u_ccy == 'CNY' %}selected{% endif %}>CNY</option>
                       <option value="EUR" {% if _u_ccy == 'EUR' %}selected{% endif %}>EUR</option>
+                    </select>
+                    {% endif %}
+                  </td>
+                  {# v5H197: 호기별 거래구분 — NULL=프로젝트 상속, 0=내수, 1=수출 #}
+                  {% set _u_iex_raw = u.is_export %}
+                  {% set _u_iex_eff = (_u_iex_raw if _u_iex_raw is not none else (1 if p.is_export else 0)) %}
+                  {% set _ov_iex = (_u_iex_raw is not none and _u_iex_raw != (1 if p.is_export else 0)) %}
+                  <td>
+                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}✈ 수출{% else %}🏠 내수{% endif %}</span>
+                    {% if _editable %}
+                    <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:78px;">
+                      <option value="0" {% if not _u_iex_eff %}selected{% endif %}>🏠 내수</option>
+                      <option value="1" {% if _u_iex_eff %}selected{% endif %}>✈ 수출</option>
                     </select>
                     {% endif %}
                   </td>
@@ -592,6 +633,8 @@
                 const shipInp = row.querySelector('.ship-inp');
                 // v5H189: 호기별 통화 select
                 const curSel = row.querySelector('select.cur-sel');
+                // v5H197: 호기별 거래구분 select
+                const iexSel = row.querySelector('select.iex-sel');
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
                 const dirty =
@@ -601,8 +644,9 @@
                   || (ordInp && ordInp.value !== ordInp.dataset.orig)
                   || (dueInp && dueInp.value !== dueInp.dataset.orig)
                   || (shipInp && shipInp.value !== shipInp.dataset.orig)
-                  || (curSel && curSel.value !== curSel.dataset.orig);
-                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel });
+                  || (curSel && curSel.value !== curSel.dataset.orig)
+                  || (iexSel && iexSel.value !== iexSel.dataset.orig);
+                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel });
               });
               return out;
             }
@@ -625,6 +669,8 @@
                 if (r.shipInp) body.set('ship_to', r.shipInp.value || '');
                 // v5H189: 호기별 통화 (override)
                 if (r.curSel) body.set('currency', r.curSel.value || '');
+                // v5H197: 호기별 거래구분
+                if (r.iexSel) body.set('is_export', r.iexSel.value || '');
                 try {
                   const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
                                            { method:'POST', body });
@@ -652,10 +698,19 @@
               return { changed: okCount, failed };
             }
             if (toggleBtn) {
-              // v5H188: 편집 모드 토글 폐기. 버튼은 항상 '변경사항 저장' 동작.
+              // v5H197: 잠금/해제 토글
+              //   잠금 상태 클릭 → unlocked 추가 (편집 활성화). 라벨: '✏️ 수정' → '💾 저장 (편집중)'
+              //   잠금 해제 상태 클릭 → 일괄 저장 후 잠금 복귀
               toggleBtn.addEventListener('click', async () => {
+                if (!card.classList.contains('unlocked')) {
+                  // 잠금 → 편집 모드 진입
+                  card.classList.add('unlocked');
+                  toggleBtn.textContent = '💾 저장';
+                  toggleBtn.title = '변경사항 저장';
+                  return;
+                }
+                // 편집 모드에서 클릭 → 저장
                 toggleBtn.disabled = true;
-                const orig = toggleBtn.textContent;
                 toggleBtn.textContent = '저장 중...';
                 try {
                   const res = await saveAllRows();
@@ -666,17 +721,18 @@
                   if (res.changed > 0) {
                     window.location.href = window.location.pathname + '?_t=' + Date.now();
                     return;
-                  } else {
-                    // 변경사항 없음 — 사용자에게 짧게 알림
-                    toggleBtn.textContent = '변경사항 없음';
-                    setTimeout(() => { toggleBtn.textContent = orig; }, 1200);
-                    return;
                   }
+                  // 변경 없음 → 잠금 복귀
+                  card.classList.remove('unlocked');
+                  toggleBtn.textContent = '변경사항 없음';
+                  setTimeout(() => {
+                    toggleBtn.textContent = '✏️ 수정';
+                    toggleBtn.title = '수정 / 저장 토글';
+                  }, 1200);
                 } catch(e) {
                   alert('⚠ ' + e.message);
                 } finally {
                   toggleBtn.disabled = false;
-                  if (toggleBtn.textContent === '저장 중...') toggleBtn.textContent = orig;
                 }
               });
             }

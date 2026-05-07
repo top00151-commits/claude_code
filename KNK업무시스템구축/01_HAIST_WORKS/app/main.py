@@ -5403,6 +5403,12 @@ async def sales_order_item_edit(req: Request, iid: int):
     # v5H189: 호기별 통화 override (KRW/USD/VND/JPY/CNY/EUR)
     u_cur_raw = (form.get("currency") or "").strip().upper()
     u_cur = u_cur_raw if u_cur_raw in ("KRW","USD","VND","JPY","CNY","EUR") else None
+    # v5H197: 호기별 거래구분 (0=내수, 1=수출, "" = 프로젝트 상속)
+    u_iex_raw = (form.get("is_export") or "").strip()
+    if u_iex_raw in ("0", "1"):
+        u_iex = int(u_iex_raw)
+    else:
+        u_iex = None  # 비전송 = 변경 안함
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -5448,21 +5454,22 @@ async def sales_order_item_edit(req: Request, iid: int):
             ov_d = u_due if (u_due and u_due != (_so_d.get("due_date") or "")) else None
             ov_s = u_ship if (u_ship and u_ship != (_so_d.get("ship_to") or "")) else None
             # v5H189: 통화 — SO 부모와 동일하면 NULL(상속), 다르면 override
+            ov_c = None
             if "currency" in _oicols and u_cur:
                 ov_c = u_cur if u_cur != (_so_d.get("currency") or "KRW") else None
-                c.execute(
-                    "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
-                    "order_date=?, due_date=?, ship_to=?, currency=? WHERE id=?",
-                    (label or None, amt, amt, note or None,
-                     ov_o, ov_d, ov_s, ov_c, iid)
-                )
-            else:
-                c.execute(
-                    "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
-                    "order_date=?, due_date=?, ship_to=? WHERE id=?",
-                    (label or None, amt, amt, note or None,
-                     ov_o, ov_d, ov_s, iid)
-                )
+            # v5H197: 거래구분 — 폼에서 받은 그대로 (NULL = 변경 안 함이 아니라 명시 입력만)
+            cols_set = ["unit_label=?", "unit_price=?", "amount=?", "line_note=?",
+                        "order_date=?", "due_date=?", "ship_to=?"]
+            vals_set = [label or None, amt, amt, note or None, ov_o, ov_d, ov_s]
+            if "currency" in _oicols:
+                cols_set.append("currency=?"); vals_set.append(ov_c)
+            if "is_export" in _oicols and u_iex is not None:
+                cols_set.append("is_export=?"); vals_set.append(u_iex)
+            vals_set.append(iid)
+            c.execute(
+                f"UPDATE order_items SET {','.join(cols_set)} WHERE id=?",
+                tuple(vals_set)
+            )
         else:
             c.execute(
                 "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",

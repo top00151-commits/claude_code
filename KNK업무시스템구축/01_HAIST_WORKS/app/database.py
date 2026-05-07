@@ -2237,6 +2237,8 @@ def init_db():
                 ("currency",   "ALTER TABLE order_items ADD COLUMN currency TEXT"),
                 # v5H186: 호기별 상태 — 진행중/납품완료/취소/보류 등
                 ("unit_status", "ALTER TABLE order_items ADD COLUMN unit_status TEXT DEFAULT '진행중'"),
+                # v5H197: 호기별 거래구분 — NULL=프로젝트 상속, 0=내수, 1=수출
+                ("is_export",   "ALTER TABLE order_items ADD COLUMN is_export INTEGER"),
             ]:
                 if col not in oicols:
                     try:
