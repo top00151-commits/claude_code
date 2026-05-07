@@ -41,11 +41,11 @@
   {% set _is_consumable = (_ptype_title == 'CONSUMABLE') %}
   {% if _is_consumable %}
     {% set _form_kind_emoji = '📦' %}
-    {% set _form_kind_name = 'S 소모품' %}
+    {% set _form_kind_name = 'C 소모품' %}
     {% set _form_kind_color = '#16a34a' %}
   {% elif _ptype_title == 'OTHER' %}
     {% set _form_kind_emoji = '🌐' %}
-    {% set _form_kind_name = 'K 기타' %}
+    {% set _form_kind_name = 'E 기타' %}
     {% set _form_kind_color = '#f59e0b' %}
   {% elif _bd_title == 'T' %}
     {% set _form_kind_emoji = '🔬' %}
@@ -136,7 +136,7 @@
     {# v5H195: password_confirm 모달은 폼 밖으로 이동 (form 안에 두면 setLocked 가 모달 input 까지 잠금) #}
     {% else %}
     <div class="pf-hint">
-      ① 제안 단계 (초기협의 / 제안서전달 / 견적발행 / 수주예정): 관리코드/SO 없이 저장 ·
+      ① 제안 단계 (초기협의 / 제안서전달 / 견적발행 / 수주예정): 관리코드/수주번호 없이 저장 ·
       ② <b>상태가 '진행중' 또는 '납품완료'</b> 면 자동으로 <b>관리코드 + 수주번호(SO)</b> 가 함께 발급됩니다 (이미 제작 진행 중이라는 의미) ·
       ③ 호기별 단가/납품처를 따로 입력하려면 아래 ③ 섹션의 <b>"수주 확정 동시 발급"</b> 체크.
     </div>
@@ -657,8 +657,8 @@
           호기별 발주 라인
         </h4>
         <p style="font-size:11.5px;color:var(--mute);margin-bottom:8px;line-height:1.55;">
-          <b>SO 발행 규칙</b>: 호기들의 <b>(납기일 + 납품처)</b> 가 모두 같으면 → SO 1개로 묶이고 호기는 그 SO의 라인으로 들어갑니다.<br>
-          <b>납기 또는 납품처가 다르면</b> → 그 그룹마다 SO 가 별도 발행됩니다 (진행/납품 추적 단위).
+          <b>수주번호 발행 규칙</b>: 호기들의 <b>(납기일 + 납품처)</b> 가 모두 같으면 → 수주번호 1개로 묶이고 호기는 그 수주번호의 라인으로 들어갑니다.<br>
+          <b>납기 또는 납품처가 다르면</b> → 그 그룹마다 수주번호가 별도 발행됩니다 (진행/납품 추적 단위).
         </p>
         <table id="unitsTable" style="width:100%;border-collapse:collapse;font-size:13px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;">
           <thead style="background:var(--paper-2);">
@@ -709,7 +709,7 @@
           const n = groups.size;
           const rows = tbody.querySelectorAll('tr').length;
           hintCell.textContent = rows > 0
-            ? `호기 ${rows}대 → SO ${n}건 발행 예정`
+            ? `호기 ${rows}대 → 수주번호 ${n}건 발행 예정`
             : '';
         }
         function addRow(label){

@@ -86,12 +86,12 @@
           <td>{{ p.customer_name|default('—') }}</td>
           {# v5H218: 진행 사업부(T/M) — 매출 집계 분류 #}
           <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}검사기사업부{% elif p.biz_div == 'M' %}자동화사업부{% else %}<span style="color:var(--knk-red);">미분류</span>{% endif %}</span></td>
-          {# 유형 — T 검사기·M 자동화·K 기타·S 소모품 #}
+          {# 유형 — T 검사기·M 자동화·E 기타·C 소모품 #}
           <td class="center">
-            {% if p._kind == 'consumable' %}
-              <span class="pill pill-progress">S 소모품</span>
+            {% if p._kind == 'consumable' or p.project_type == 'CONSUMABLE' %}
+              <span class="pill pill-progress">C 소모품</span>
             {% elif p.project_type == 'OTHER' %}
-              <span class="pill pill-warn">K 기타</span>
+              <span class="pill pill-warn">E 기타</span>
             {% elif p.biz_div == 'T' %}
               <span class="pill" style="background:#dbeafe;color:#1e40af;">T 검사기</span>
             {% elif p.biz_div == 'M' %}

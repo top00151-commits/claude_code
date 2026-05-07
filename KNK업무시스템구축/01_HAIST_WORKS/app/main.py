@@ -5461,10 +5461,11 @@ async def projects_quick_status(req: Request, pid: int):
         )
         if _need_code_qs:
             try:
+                # v5H225: OTHER → E, CONSUMABLE → C, NEW_EQUIP → biz_div
                 if _cur_ptype == "OTHER":
-                    _prefix_qs = "K"
+                    _prefix_qs = "E"
                 elif _cur_ptype == "CONSUMABLE":
-                    _prefix_qs = "S"
+                    _prefix_qs = "C"
                 else:
                     _prefix_qs = cur["biz_div"]
                 code = _logi.generate_mgmt_code(_prefix_qs)

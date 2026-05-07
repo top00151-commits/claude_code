@@ -92,7 +92,7 @@
       <!-- v5H131: 단가 × 수량 = 총액 라이브 표시 + 안내 -->
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="color:var(--mute);">SO 총액 (단가 × 수량)</span>
+          <span style="color:var(--mute);">수주 총액 (단가 × 수량)</span>
           <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> <span id="followup-cur">KRW</span></b>
         </div>
         <div style="font-size:11px; color:var(--mute); margin-top:6px; line-height:1.5;">
@@ -634,7 +634,7 @@
                 <option value="보류">보류</option>
               </select>
               <button type="button" class="bulk-status-apply" data-pid="{{ p.id }}" data-oid="{{ so.id }}"
-                      style="padding:4px 12px;background:var(--amber-deep);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 SO 전체 적용</button>
+                      style="padding:4px 12px;background:var(--amber-deep);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 수주번호 전체 적용</button>
               <button type="button" class="bulk-status-apply-all" data-pid="{{ p.id }}"
                       style="padding:4px 12px;background:#1e3a8a;color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">프로젝트 전체 호기 적용</button>
               <span style="color:var(--mute);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
@@ -741,7 +741,7 @@
               </tbody>
             </table>
             <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
-              ⓘ 발주일/납기/납품처 빈 칸은 SO 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
+              ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
               · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
             </div>
             {% else %}
@@ -803,11 +803,11 @@
         {% set _gt_ccy = p.currency or 'KRW' %}
         <div class="so-grand-total">
           <div>
-            <div class="label">총 SO {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
+            <div class="label">총 수주번호 {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
           </div>
           <div class="value">
             {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">{{ _gt_ccy }}</span>
-            <span style="font-size:11px;color:var(--mute);font-weight:500;">(SO 합계)</span>
+            <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
             {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
               ≈ {{ '{:,.0f}'.format(_gtotal.t * p.fx_rate) }} KRW

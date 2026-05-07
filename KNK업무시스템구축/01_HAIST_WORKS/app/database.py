@@ -2065,19 +2065,63 @@ def init_db():
             if "biz_div" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")
                 print("[v5H218] consumable_orders.biz_div 컬럼 추가됨")
-            # v5H219: 관리코드 prefix ↔ project_type 불일치 검증 (자동 수정 안 함, 경고만)
+            # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
+            # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
+            try:
+                _migrated = 0
+                for _old_p, _new_p in (("K", "E"), ("S", "C")):
+                    rows_old = c.execute(
+                        "SELECT id, mgmt_code FROM projects "
+                        "WHERE mgmt_code IS NOT NULL AND length(mgmt_code) = 8 "
+                        "AND substr(mgmt_code, 4, 1) = ?",
+                        (_old_p,)
+                    ).fetchall()
+                    for r in rows_old:
+                        old = r["mgmt_code"]
+                        new = old[:3] + _new_p + old[4:]
+                        c.execute("UPDATE projects SET mgmt_code=? WHERE id=?", (new, r["id"]))
+                        try:
+                            c.execute(
+                                "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
+                                "VALUES(?,?,?,?,?,?)",
+                                (r["id"], None, "관리코드 prefix 정책 변경", old, new,
+                                 f"v5H225: {_old_p} prefix → {_new_p} prefix 일괄 마이그레이션")
+                            )
+                        except Exception:
+                            pass
+                        _migrated += 1
+                # legacy consumable_orders.mgmt_code (S → C)
+                try:
+                    co_rows = c.execute(
+                        "SELECT id, mgmt_code FROM consumable_orders "
+                        "WHERE mgmt_code IS NOT NULL AND length(mgmt_code) = 8 "
+                        "AND substr(mgmt_code, 4, 1) = 'S'"
+                    ).fetchall()
+                    for r in co_rows:
+                        old = r["mgmt_code"]
+                        new = old[:3] + "C" + old[4:]
+                        c.execute("UPDATE consumable_orders SET mgmt_code=? WHERE id=?", (new, r["id"]))
+                        _migrated += 1
+                except Exception:
+                    pass
+                if _migrated > 0:
+                    print(f"[v5H225] 관리코드 prefix 백필: {_migrated}건 (K→E / S→C)")
+            except Exception as _e:
+                print(f"[v5H225] 백필 실패: {_e}")
+            # v5H225: 불일치 검증 (E/C 새 prefix 기준)
             try:
                 anomalies = c.execute("""
                     SELECT id, mgmt_code, biz_div, project_type FROM projects
                     WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
                       AND length(mgmt_code) >= 4
                       AND (
-                        (project_type='OTHER'    AND substr(mgmt_code,4,1) != 'K') OR
-                        (project_type='NEW_EQUIP' AND substr(mgmt_code,4,1) NOT IN ('T','M'))
+                        (project_type='OTHER'      AND substr(mgmt_code,4,1) != 'E') OR
+                        (project_type='CONSUMABLE' AND substr(mgmt_code,4,1) != 'C') OR
+                        (project_type='NEW_EQUIP'  AND substr(mgmt_code,4,1) NOT IN ('T','M'))
                       )
                 """).fetchall()
                 if anomalies:
-                    print(f"[v5H219] ⚠ 관리코드/유형 불일치 {len(anomalies)}건 감지 (자동 수정 안 함):")
+                    print(f"[v5H225] ⚠ 관리코드/유형 불일치 {len(anomalies)}건 감지 (자동 수정 안 함):")
                     for a in anomalies:
                         print(f"  · pid={a['id']} code={a['mgmt_code']} biz={a['biz_div']} type={a['project_type']}")
             except Exception:
@@ -3910,8 +3954,8 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
     v5H216: S(소모품) 추가.
     v5H222: S 도 projects 테이블에서 검색 (CONSUMABLE 신규 등록은 projects 도메인으로 통일).
             consumable_orders 도 함께 스캔(legacy 데이터와 sequence 충돌 방지)."""
-    if biz_div not in ("T", "M", "K", "S"):
-        raise ValueError(f"biz_div must be T, M, K, or S (got: {biz_div})")
+    if biz_div not in ("T", "M", "E", "C"):
+        raise ValueError(f"biz_div must be T, M, E, or C (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
@@ -3919,7 +3963,7 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
         rows = c.execute(
             "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
         ).fetchall()
-        if biz_div == "S":
+        if biz_div == "C":
             # legacy consumable_orders.mgmt_code 도 함께 — sequence 충돌 방지
             try:
                 rows = list(rows) + list(c.execute(
@@ -4051,11 +4095,11 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
         vals["stage"] = "수주확정"
     last_err = None
     for _attempt in range(5):
-        # 유형별 prefix: OTHER→K, CONSUMABLE→S, NEW_EQUIP→biz_div(T/M)
+        # v5H225: 유형별 prefix — OTHER→E (Etc.), CONSUMABLE→C (Consumable), NEW_EQUIP→biz_div(T/M)
         if _ptype_in == "OTHER":
-            _code_prefix = "K"
+            _code_prefix = "E"
         elif _ptype_in == "CONSUMABLE":
-            _code_prefix = "S"
+            _code_prefix = "C"
         else:
             _code_prefix = vals["biz_div"]
         code = generate_mgmt_code(_code_prefix) if needs_code else None
@@ -4298,11 +4342,11 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"
     if not new_code and needs_code:
-        # v5H222: CONSUMABLE → 'S', OTHER → 'K', NEW_EQUIP → biz_div
+        # v5H225: OTHER → 'E' (Etc.), CONSUMABLE → 'C' (Consumable), NEW_EQUIP → biz_div
         if _ptype_up == "OTHER":
-            _code_prefix = "K"
+            _code_prefix = "E"
         elif _ptype_up == "CONSUMABLE":
-            _code_prefix = "S"
+            _code_prefix = "C"
         else:
             _code_prefix = vals["biz_div"]
         new_code = generate_mgmt_code(_code_prefix)

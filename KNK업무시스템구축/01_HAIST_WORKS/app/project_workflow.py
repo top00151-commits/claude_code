@@ -451,9 +451,14 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         order_date = ref_d.isoformat()
 
     # 1. 관리번호 — 미발급 시 1회만 발급
-    # v5H223: project_type='CONSUMABLE' 이면 'S' prefix
+    # v5H225: OTHER → E (Etc.), CONSUMABLE → C (Consumable), NEW_EQUIP → biz_div
     _ptype_proj = (proj.get("project_type") or "NEW_EQUIP").upper()
-    _code_prefix = "S" if _ptype_proj == "CONSUMABLE" else biz_div
+    if _ptype_proj == "OTHER":
+        _code_prefix = "E"
+    elif _ptype_proj == "CONSUMABLE":
+        _code_prefix = "C"
+    else:
+        _code_prefix = biz_div
     mgmt_code = (proj.get("mgmt_code") or "").strip()
     total = sum(float(u.get("amount") or 0) for u in units)
     if not mgmt_code:
