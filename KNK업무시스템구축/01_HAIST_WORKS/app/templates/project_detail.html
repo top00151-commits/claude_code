@@ -81,12 +81,25 @@
       </div>
       {# v5H142: hidden so_type — openFollowupOrder(type) 가 세팅 #}
       <input type="hidden" id="fup_so_type" value="EQUIPMENT">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
         <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
           <input type="date" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div><label style="font-size:11px; color:var(--mute);">납기일</label>
           <input type="date" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label id="fup_unit_label" style="font-size:11px; color:var(--mute);">1대 단가 (원) *</label>
+        {# v5H178: 납품처 #}
+        <div><label style="font-size:11px; color:var(--mute);">납품처</label>
+          <input type="text" id="fup_ship_to" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        {# v5H178: 통화 — 프로젝트 헤더 통화 default #}
+        <div><label style="font-size:11px; color:var(--mute);">통화 *</label>
+          <select id="fup_currency" onchange="onFupCurrencyChange()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);">
+            <option value="KRW" {% if (p.currency or 'KRW') == 'KRW' %}selected{% endif %}>KRW (원)</option>
+            <option value="USD" {% if p.currency == 'USD' %}selected{% endif %}>USD (달러)</option>
+            <option value="VND" {% if p.currency == 'VND' %}selected{% endif %}>VND (동)</option>
+            <option value="JPY" {% if p.currency == 'JPY' %}selected{% endif %}>JPY (엔)</option>
+            <option value="CNY" {% if p.currency == 'CNY' %}selected{% endif %}>CNY (위안)</option>
+            <option value="EUR" {% if p.currency == 'EUR' %}selected{% endif %}>EUR (유로)</option>
+          </select></div>
+        <div><label id="fup_unit_label" style="font-size:11px; color:var(--mute);">1대 단가 *</label>
           <input type="text" id="fup_total_amount" class="knk-money" placeholder="4,900,000" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div><label id="fup_qty_label" style="font-size:11px; color:var(--mute);">수량 (대) *</label>
           <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
@@ -97,7 +110,7 @@
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="color:var(--mute);">SO 총액 (단가 × 수량)</span>
-          <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> KRW</b>
+          <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> <span id="followup-cur">KRW</span></b>
         </div>
         <div style="font-size:11px; color:var(--mute); margin-top:6px; line-height:1.5;">
           수량을 N대로 입력하면 <b>N개 호기 라인이 자동 생성</b>됩니다 (각 라인 = 동일 단가).<br>
@@ -159,10 +172,29 @@
     document.getElementById('fup_order_date').value = new Date().toISOString().slice(0,10);
     // v5H131: 수량 기본 1, 합계 초기화
     document.getElementById('fup_qty').value = 1;
+    document.getElementById('fup_total_amount').value = '';
+    document.getElementById('fup_ship_to').value = '';
+    document.getElementById('fup_po_number').value = '';
+    document.getElementById('fup_due_date').value = '';
+    // v5H178: 통화는 항상 프로젝트 헤더 통화로 reset
+    var fupCcy = document.getElementById('fup_currency');
+    if (fupCcy) fupCcy.value = '{{ p.currency or "KRW" }}';
+    onFupCurrencyChange();
     recalcFollowupTotal();
     document.getElementById('followupOrderModal').style.display = 'flex';
   }
   // v5H131: 단가 × 수량 라이브 합계
+  // v5H178: 통화 표기 동기화
+  function onFupCurrencyChange(){
+    var ccy = (document.getElementById('fup_currency').value || 'KRW');
+    document.getElementById('followup-cur').textContent = ccy;
+    // 단가 라벨도 동적 표기
+    var lbl = document.getElementById('fup_unit_label');
+    if (lbl) {
+      var base = lbl.textContent.split(' (')[0];  // "1대 단가" 또는 "단가" 또는 "정비 단가"
+      lbl.textContent = base + ' (' + ccy + ') *';
+    }
+  }
   function recalcFollowupTotal() {
     var raw = (document.getElementById('fup_total_amount').value || '').replace(/,/g, '');
     var unit = parseFloat(raw) || 0;
@@ -171,6 +203,8 @@
     if (q > 100) q = 100;
     var total = unit * q;
     document.getElementById('followup-total').textContent = total.toLocaleString('en-US');
+    var ccy = (document.getElementById('fup_currency').value || 'KRW');
+    document.getElementById('followup-cur').textContent = ccy;
   }
   async function submitConfirmOrder() {
     const fd = new FormData();
@@ -200,6 +234,9 @@
     fd.append('po_number', document.getElementById('fup_po_number').value);
     // v5H142: so_type 전달 (EQUIPMENT/CONSUMABLE/SERVICE/OTHER)
     fd.append('so_type', document.getElementById('fup_so_type').value || 'EQUIPMENT');
+    // v5H178: 통화 + 납품처 전달
+    fd.append('currency', document.getElementById('fup_currency').value || 'KRW');
+    fd.append('ship_to', document.getElementById('fup_ship_to').value || '');
     const r = await fetch('/projects/{{ p.id }}/add-followup-order', {method:'POST', body:fd});
     const j = await r.json();
     if (j.ok) {

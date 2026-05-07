@@ -187,7 +187,9 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         created_by: int = 0, po_number: str = "",
                         note: str = "", qty: int = 1,
                         unit_label_pattern: str | None = None,
-                        so_type: str | None = None) -> dict:
+                        so_type: str | None = None,
+                        currency: str = "",
+                        ship_to: str = "") -> dict:
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -299,32 +301,56 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                 _pattern = "{n}호기"
     labels_bulk = [_pattern.format(n=base_no + i) for i in range(qty)]
     auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
-    # v5H142: so_type 컬럼 INSERT — 폴백 (구 스키마) 시 컬럼 제외 INSERT
+    # v5H178: 통화 — 호출자 지정값이 있으면 그것, 없으면 프로젝트 헤더 통화
+    eff_currency = (currency or "").strip().upper() or (proj.get("currency") or "KRW").upper()
+    if eff_currency not in ("KRW","USD","VND","JPY","CNY","EUR"):
+        eff_currency = "KRW"
+    eff_ship = (ship_to or "").strip() or None
+    # v5H142+v5H178: so_type + currency + ship_to 컬럼 INSERT (스키마 동적 감지)
     try:
-        cur = c.execute(
-            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-            "due_date, total_amount, status, created_by, unit_label, unit_qty, so_type) "
-            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?)",
-            (so_no, customer_id, project_id, order_date, due_date or None,
-             so_total, created_by or None, auto_label, qty, _st)
-        )
+        _ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
     except Exception:
-        cur = c.execute(
-            "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-            "due_date, total_amount, status, created_by, unit_label, unit_qty) "
-            "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?)",
-            (so_no, customer_id, project_id, order_date, due_date or None,
-             so_total, created_by or None, auto_label, qty)
-        )
+        _ord_cols = set()
+    _has_currency = "currency" in _ord_cols
+    _has_ship = "ship_to" in _ord_cols
+    _has_sotype = "so_type" in _ord_cols
+    cols = ["order_no","customer_id","project_id","order_date","due_date",
+            "total_amount","status","created_by","unit_label","unit_qty"]
+    vals = [so_no, customer_id, project_id, order_date, due_date or None,
+            so_total, "CONFIRMED", created_by or None, auto_label, qty]
+    if _has_sotype:
+        cols.append("so_type"); vals.append(_st)
+    if _has_currency:
+        cols.append("currency"); vals.append(eff_currency)
+    if _has_ship:
+        cols.append("ship_to"); vals.append(eff_ship)
+    placeholders = ",".join("?" * len(cols))
+    cur = c.execute(
+        f"INSERT INTO orders({','.join(cols)}) VALUES({placeholders})",
+        vals
+    )
     order_id = cur.lastrowid
     # 호기 라인 N개 INSERT — 각 라인 동일 단가
+    # v5H178: order_items.currency 도 SO 와 동일하게 저장 (override 가 아니라 명시 — 표시 일관성)
+    try:
+        _oi_cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        _oi_cols = set()
+    _oi_has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols and "currency" in _oi_cols)
     for _lbl in labels_bulk:
         try:
-            c.execute(
-                "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-                (order_id, unit_price, unit_price, _lbl, note or None)
-            )
+            if _oi_has_extra:
+                c.execute(
+                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                    "unit_label, line_note, currency) VALUES(?,1,?,?,?,?,?)",
+                    (order_id, unit_price, unit_price, _lbl, note or None, eff_currency)
+                )
+            else:
+                c.execute(
+                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                    "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                    (order_id, unit_price, unit_price, _lbl, note or None)
+                )
         except Exception:
             pass
 

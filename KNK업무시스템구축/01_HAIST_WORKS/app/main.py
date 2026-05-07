@@ -5706,12 +5706,18 @@ async def projects_add_followup(req: Request, pid: int):
     so_type = (form.get("so_type") or "EQUIPMENT").strip().upper()
     if so_type not in ("EQUIPMENT", "CONSUMABLE", "SERVICE", "OTHER"):
         so_type = "EQUIPMENT"
+    # v5H178: 통화 + 납품처 (미전달 시 프로젝트 헤더 통화 사용)
+    currency = (form.get("currency") or "").strip().upper()
+    if currency not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+        currency = ""  # 빈 값 → add_followup_order 가 프로젝트 헤더 통화 사용
+    ship_to = (form.get("ship_to") or "").strip()
     with db_session() as c:
         res = _pwf.add_followup_order(c, pid, order_date=order_date,
                                         total_amount=total, due_date=due_date,
                                         created_by=u.get("id"),
                                         po_number=po_number, note=note, qty=qty,
-                                        so_type=so_type)
+                                        so_type=so_type, currency=currency,
+                                        ship_to=ship_to)
     return JSONResponse(res)
 
 
