@@ -5481,28 +5481,55 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     so_ord = srow["order_date"] or ""
     so_due = srow["due_date"] or ""
     so_ship = srow["ship_to"] or ""
-    # 컬럼 정의 (CONSUMABLE 분기)
+    # v5H226k: 헤더를 파서(parse_consumable_xlsx) 가 인식하는 키워드로 정렬
+    # → 다운로드한 파일을 그대로(또는 편집 후) 다시 업로드해도 자동 매칭됨
+    # CONSUMABLE: A~H 는 파서 자동 인식 컬럼, I~P 는 추가 정보 (파서 무시)
     if is_co:
-        headers = ["사진", "No", "품명", "연결 관리코드", "연결 장비명", "수량", "단가",
-                   "금액", "통화", "거래", "발주일", "납기일", "납품처",
-                   "상태", "비고", "이미지 경로"]
+        headers = ["사진",
+                   "NO",
+                   "MODEL USE (모델)",
+                   "SUPPLIER NAME (품명)",
+                   "SPEC (규격)",
+                   "Q'TY (수량)",
+                   "UNIT (단위)",
+                   "ORDER DATE (발주일)",
+                   "단가",
+                   "금액",
+                   "통화",
+                   "거래",
+                   "납기일",
+                   "납품처",
+                   "상태",
+                   "비고"]
     else:
-        headers = ["No", "호기", "수량", "단가", "금액", "통화",
+        headers = ["NO", "호기", "수량", "단가", "금액", "통화",
                    "거래", "발주일", "납기일", "납품처", "상태", "비고"]
     wb = Workbook()
     ws = wb.active
-    ws.title = "수주라인"
-    # 메타 정보 (상단 4줄)
-    ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
-               f"프로젝트: {prow['name'] or '-'}"])
-    ws.append([f"수주번호: {srow['order_no'] or '-'}",
-               f"발주일: {so_ord}", f"납기일: {so_due}",
-               f"납품처: {so_ship or '-'}",
-               f"통화: {so_ccy}",
-               f"상태: {srow['status'] or '-'}"])
-    ws.append([f"수주 총액: {float(srow['total_amount'] or 0):,.0f} {so_ccy}",
-               f"라인 수: {len(items)}건"])
-    ws.append([])  # 빈 줄
+    ws.title = "소모품" if is_co else "수주라인"
+    # v5H226k: 상단 메타 (CONSUMABLE 5줄, 그 외 4줄)
+    if is_co:
+        ws.append(["KNK HAIST WORKS — 소모품 발주 표준 양식"])
+        ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
+                   "", f"프로젝트: {prow['name'] or '-'}"])
+        ws.append([f"수주번호: {srow['order_no'] or '-'}",
+                   "", f"발주일: {so_ord}",
+                   "", f"납기: {so_due}",
+                   "", f"통화: {so_ccy}",
+                   "", f"상태: {srow['status'] or '-'}"])
+        ws.append(["⚠ 헤더 행(6행)은 변경하지 마세요. NO/MODEL USE/SUPPLIER NAME/Q'TY/UNIT/ORDER DATE 자동 인식. 라인 데이터만 추가/수정 가능."])
+        ws.append([])  # 빈 줄
+    else:
+        ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
+                   f"프로젝트: {prow['name'] or '-'}"])
+        ws.append([f"수주번호: {srow['order_no'] or '-'}",
+                   f"발주일: {so_ord}", f"납기일: {so_due}",
+                   f"납품처: {so_ship or '-'}",
+                   f"통화: {so_ccy}",
+                   f"상태: {srow['status'] or '-'}"])
+        ws.append([f"수주 총액: {float(srow['total_amount'] or 0):,.0f} {so_ccy}",
+                   f"라인 수: {len(items)}건"])
+        ws.append([])  # 빈 줄
     # 헤더 행
     hdr_row_idx = ws.max_row + 1
     ws.append(headers)
@@ -5516,6 +5543,17 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         cell.font = hdr_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = border
+    # v5H226k: 메타 영역 셀 스타일 (CONSUMABLE)
+    if is_co:
+        title_cell = ws.cell(1, 1)
+        title_cell.font = Font(bold=True, size=14, color="7C4A03", name="Arial")
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 24
+        # 안내 행 (4행)
+        guide_cell = ws.cell(4, 1)
+        guide_cell.font = Font(italic=True, size=10, color="888888", name="Arial")
+        ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=len(headers))
     # 데이터 행
     for idx, it in enumerate(items, 1):
         eff_ord = it.get("order_date") or so_ord
@@ -5526,23 +5564,27 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         iex_label = "수출" if iex_raw == 1 else "내수"
         ust = it.get("unit_status") or "진행중"
         if is_co:
+            # v5H226k: 파서 인식 컬럼 순서 (NO/MODEL USE/SUPPLIER NAME/SPEC/Q'TY/UNIT/ORDER DATE)
+            #          + 추가 정보 (단가/금액/통화/거래/납기일/납품처/상태/비고)
+            # MODEL USE 에는 연결관리코드 우선, 없으면 unit_label 끝의 model 토큰
+            model_field = it.get("linked_mgmt_code") or ""
             row = [
-                "",  # v5H226j: 사진 셀 자리 — 아래에서 Image 객체로 삽입
-                idx,
-                it.get("unit_label") or "",
-                it.get("linked_mgmt_code") or "",
-                it.get("linked_project_name") or "",
-                float(it.get("qty") or 0),
-                float(it.get("unit_price") or 0),
-                float(it.get("amount") or 0),
-                eff_ccy,
-                iex_label,
-                eff_ord,
-                eff_due,
-                eff_ship,
-                ust,
-                it.get("line_note") or "",
-                it.get("image_path") or "",
+                "",  # A: 사진 — 아래에서 Image 객체로 삽입
+                idx,                                    # B: NO
+                model_field,                            # C: MODEL USE (모델)
+                it.get("unit_label") or "",             # D: SUPPLIER NAME (품명)
+                "",                                     # E: SPEC (규격) — 향후 확장
+                float(it.get("qty") or 0),              # F: Q'TY (수량)
+                "EA",                                   # G: UNIT (단위)
+                eff_ord,                                # H: ORDER DATE (발주일)
+                float(it.get("unit_price") or 0),       # I: 단가
+                float(it.get("amount") or 0),           # J: 금액
+                eff_ccy,                                # K: 통화
+                iex_label,                              # L: 거래
+                eff_due,                                # M: 납기일
+                eff_ship,                               # N: 납품처
+                ust,                                    # O: 상태
+                it.get("line_note") or "",              # P: 비고
             ]
         else:
             row = [
@@ -5560,16 +5602,19 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                 it.get("line_note") or "",
             ]
         ws.append(row)
-    # 컬럼 폭 자동 (간단). CONSUMABLE 은 첫 컬럼이 '사진' 으로 추가됨.
-    widths_co = [12, 5, 32, 16, 28, 8, 12, 14, 8, 8, 12, 12, 18, 10, 24, 40]
+    # 컬럼 폭. v5H226k: CONSUMABLE 새 배치 (A 사진 / B NO / C MODEL USE / D SUPPLIER NAME /
+    # E SPEC / F Q'TY / G UNIT / H ORDER DATE / I 단가 / J 금액 / K 통화 / L 거래 /
+    # M 납기일 / N 납품처 / O 상태 / P 비고)
+    widths_co = [12, 5, 18, 30, 16, 8, 8, 13, 12, 14, 8, 8, 13, 18, 10, 28]
     widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
     widths = widths_co if is_co else widths_eq
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[ws.cell(1, i).column_letter].width = w
-    # 숫자 포맷 (CONSUMABLE 은 사진 컬럼 + No 컬럼 때문에 +1 시프트)
-    qty_col = 6 if is_co else 3
-    price_col = qty_col + 1
-    amount_col = price_col + 1
+    # 숫자 포맷 (CONSUMABLE: F=qty, I=unit_price, J=amount / 그 외: C=qty, D=unit_price, E=amount)
+    if is_co:
+        qty_col, price_col, amount_col = 6, 9, 10
+    else:
+        qty_col, price_col, amount_col = 3, 4, 5
     for r in range(hdr_row_idx + 1, ws.max_row + 1):
         for c_idx in (price_col, amount_col):
             ws.cell(r, c_idx).number_format = '#,##0'

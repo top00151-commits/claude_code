@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-08 v5H226j (수주 라인 엑셀 다운로드 - 셀에 이미지 직접 삽입)
+REM   LAST UPDATE: 2026-05-08 v5H226k (소모품 다운로드 양식 = KNK 표준 양식 + 라운드트립 호환)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226j]
+title KNK HAIST WORKS [v5H226k]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226j  2026-05-08]
+echo    [v5H226k  2026-05-08]
 echo ============================================================
 echo.
 
