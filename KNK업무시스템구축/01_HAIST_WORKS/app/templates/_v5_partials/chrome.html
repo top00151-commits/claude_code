@@ -78,6 +78,59 @@
   </div>
 </header>
 
+{# v5H175: 전역 '이전 페이지' 플로팅 버튼 — 모든 페이지 공통.
+   - 홈/탑탭 메인(현재 위치)에서는 의미가 없으므로 숨김.
+   - history 길이 ≤ 1 (새 탭 직접 진입) 이면 sidebar의 부모 메뉴(/sales 또는 /logistics)로 fallback.
+   - Alt+← 와 동일 동작이지만 마우스 사용자도 즉시 클릭 가능하도록 노출. #}
+{% set _hide_back_paths = ['/home','/sales','/logistics','/login'] %}
+{% if _path not in _hide_back_paths %}
+<a id="knkBackBtn" href="javascript:void(0)" onclick="knkGoBack(event)" title="이전 페이지로 (Alt+←)"
+   style="position:fixed;left:230px;bottom:18px;z-index:900;display:flex;align-items:center;gap:6px;
+          padding:9px 14px 9px 11px;background:#fff;color:var(--knk-red);
+          border:1px solid var(--line);border-radius:24px;
+          box-shadow:0 3px 10px rgba(0,0,0,0.10);
+          font-size:13px;font-weight:700;text-decoration:none;
+          transition:transform .1s, box-shadow .15s, background .12s;">
+  <span style="font-size:15px;line-height:1;">←</span>
+  <span>이전 페이지</span>
+</a>
+<style>
+  #knkBackBtn:hover { background:var(--paper-2); transform:translateY(-1px); box-shadow:0 5px 14px rgba(0,0,0,0.14); }
+  @media (max-width: 980px) { #knkBackBtn { left: 14px; bottom: 14px; } }
+</style>
+<script>
+  function knkGoBack(ev){
+    if (ev) ev.preventDefault();
+    // 같은 origin 의 referrer 가 있으면 우선 사용 (history.back 보다 신뢰성 높음)
+    var ref = document.referrer || '';
+    var sameOrigin = ref && ref.indexOf(location.origin) === 0 && ref !== location.href;
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    if (sameOrigin) { window.location.href = ref; return; }
+    // fallback: 현재 탭의 허브 홈으로
+    var p = location.pathname;
+    if (p.indexOf('/sales') === 0 || p.indexOf('/projects') === 0 || p.indexOf('/customer') === 0
+        || p.indexOf('/quote') === 0 || p.indexOf('/order') === 0 || p.indexOf('/export') === 0) {
+      window.location.href = '/sales';
+    } else if (p.indexOf('/logistics') === 0 || p.indexOf('/po') === 0 || p.indexOf('/parts') === 0
+        || p.indexOf('/supplier') === 0 || p.indexOf('/stock') === 0 || p.indexOf('/rates') === 0) {
+      window.location.href = '/logistics';
+    } else {
+      window.location.href = '/home';
+    }
+  }
+  // Alt+← 단축키 보조 (브라우저 기본 동작과 합치, 없으면 처리)
+  document.addEventListener('keydown', function(e){
+    if (e.altKey && e.key === 'ArrowLeft' && !e.target.matches('input,textarea,select')) {
+      // 브라우저가 기본적으로 처리하지만, 일부 환경에서 막힐 때를 대비
+      // (기본 동작 그대로 두고 추가 처리는 하지 않음)
+    }
+  });
+</script>
+{% endif %}
+
 <aside class="sidebar">
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
