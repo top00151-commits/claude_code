@@ -3907,25 +3907,26 @@ def parts_count() -> dict:
 def generate_mgmt_code(biz_div: str, today=None) -> str:
     """KNK PMS 8자리 관리코드: [일련3][T/M/K/S][YYMM]. 같은 prefix·연월 내 +1
     v5H150: K(기타) 추가 — project_type=OTHER 일 때 호출측에서 'K' 전달.
-    v5H216: S(소모품) 추가 — consumable_orders.mgmt_code 에서 검색."""
+    v5H216: S(소모품) 추가.
+    v5H222: S 도 projects 테이블에서 검색 (CONSUMABLE 신규 등록은 projects 도메인으로 통일).
+            consumable_orders 도 함께 스캔(legacy 데이터와 sequence 충돌 방지)."""
     if biz_div not in ("T", "M", "K", "S"):
         raise ValueError(f"biz_div must be T, M, K, or S (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
     with db_session() as c:
+        rows = c.execute(
+            "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
+        ).fetchall()
         if biz_div == "S":
-            # 소모품 묶음 — 별도 테이블에서 검색
+            # legacy consumable_orders.mgmt_code 도 함께 — sequence 충돌 방지
             try:
-                rows = c.execute(
+                rows = list(rows) + list(c.execute(
                     "SELECT mgmt_code FROM consumable_orders WHERE mgmt_code LIKE ?", (pat,)
-                ).fetchall()
+                ).fetchall())
             except Exception:
-                rows = []
-        else:
-            rows = c.execute(
-                "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
-            ).fetchall()
+                pass
     max_seq = 0
     for r in rows:
         code = r["mgmt_code"] or ""
@@ -4036,12 +4037,17 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     # v5H86: stage 가 NEEDS_CODE_STAGES 이거나 status 가 WON_STATUSES 면 관리코드 발급
     # v5H142 (2026-05-05): CONSUMABLE/SERVICE 는 관리번호 발급 안 함
     # v5H150 (2026-05-05): OTHER 도 관리번호 발급 — prefix 'K' (대표 지시)
+    # v5H222 (2026-05-08): CONSUMABLE 도 projects 테이블에 등록 + 'S' prefix 발급 (즉시 발주 도메인)
     _ptype_in = (vals.get("project_type") or "NEW_EQUIP").upper()
+    # CONSUMABLE 은 즉시 발주라 항상 코드 발급 (status 에 관계없이)
     needs_code = (
-        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-        and (
-            (vals["biz_div"] in ("T", "M") and _ptype_in == "NEW_EQUIP")
-            or _ptype_in == "OTHER"
+        _ptype_in == "CONSUMABLE"
+        or (
+            (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+            and (
+                (vals["biz_div"] in ("T", "M") and _ptype_in == "NEW_EQUIP")
+                or _ptype_in == "OTHER"
+            )
         )
     )
     # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
@@ -4049,8 +4055,13 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
         vals["stage"] = "수주확정"
     last_err = None
     for _attempt in range(5):
-        # OTHER 는 biz_div 무관하게 'K' prefix 사용
-        _code_prefix = "K" if _ptype_in == "OTHER" else vals["biz_div"]
+        # 유형별 prefix: OTHER→K, CONSUMABLE→S, NEW_EQUIP→biz_div(T/M)
+        if _ptype_in == "OTHER":
+            _code_prefix = "K"
+        elif _ptype_in == "CONSUMABLE":
+            _code_prefix = "S"
+        else:
+            _code_prefix = vals["biz_div"]
         code = generate_mgmt_code(_code_prefix) if needs_code else None
         try:
             with db_session() as c:
@@ -4281,16 +4292,25 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
     # v5H150: OTHER 는 'K' prefix 로 발급
     _ptype_up = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
-        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-        and (
-            (vals["biz_div"] in ("T", "M") and _ptype_up == "NEW_EQUIP")
-            or _ptype_up == "OTHER"
+        _ptype_up == "CONSUMABLE"
+        or (
+            (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+            and (
+                (vals["biz_div"] in ("T", "M") and _ptype_up == "NEW_EQUIP")
+                or _ptype_up == "OTHER"
+            )
         )
     )
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"
     if not new_code and needs_code:
-        _code_prefix = "K" if _ptype_up == "OTHER" else vals["biz_div"]
+        # v5H222: CONSUMABLE → 'S', OTHER → 'K', NEW_EQUIP → biz_div
+        if _ptype_up == "OTHER":
+            _code_prefix = "K"
+        elif _ptype_up == "CONSUMABLE":
+            _code_prefix = "S"
+        else:
+            _code_prefix = vals["biz_div"]
         new_code = generate_mgmt_code(_code_prefix)
     with db_session() as c:
         # v5H89b: customer_name → customer_id 자동 매핑

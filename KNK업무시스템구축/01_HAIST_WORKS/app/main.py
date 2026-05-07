@@ -8841,32 +8841,8 @@ async def projects_new_submit(request: Request):
     _ptype_form = (form.get("project_type") or "NEW_EQUIP").strip().upper()
     if _ptype_form not in ("NEW_EQUIP", "OTHER", "CONSUMABLE", "SERVICE"):
         _ptype_form = "NEW_EQUIP"
-    # v5H221: CONSUMABLE 은 consumable_orders 로 분기 (헤더만 저장 후 상세 페이지로 이동)
-    if _ptype_form == "CONSUMABLE":
-        if not project_name:
-            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=name_required", 303)
-        if biz_div not in ("T", "M"):
-            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=biz_div_required", 303)
-        try:
-            from . import consumables as _co_local
-            co_id, _co_no = _co_local.co_create(
-                customer_name=customer, biz_div=biz_div,
-                order_date=(form.get("order_date") or "").strip(),
-                due_date=(form.get("due_date") or "").strip(),
-                currency=(form.get("currency") or "KRW").strip().upper(),
-                note=(form.get("note") or "").strip(),
-                source_file="",
-                created_by=_u.get("id"),
-            )
-            # 프로젝트명을 비고 앞에 prepend (consumable_orders 에 name 컬럼 없음)
-            with db_session() as _c:
-                _existing_note = _c.execute("SELECT note FROM consumable_orders WHERE id=?", (co_id,)).fetchone()
-                _new_note = f"[{project_name}] " + ((_existing_note["note"] or "") if _existing_note else "")
-                _c.execute("UPDATE consumable_orders SET note=? WHERE id=?", (_new_note, co_id))
-            return RedirectResponse(f"/consumables/{co_id}", 303)
-        except Exception as _e:
-            print(f"[v5H221] CONSUMABLE 생성 실패: {_e}")
-            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=create_failed", 303)
+    # v5H222: CONSUMABLE 도 projects 테이블에 정상 등록 (다른 3종과 동일 흐름).
+    # consumable_orders 분기 제거 — 헤더만 저장 + 라인은 상세에서 추가.
     _back_qs = f"type={_ptype_form}"
     if biz_div:
         _back_qs += f"&biz_div={biz_div}"
@@ -8902,7 +8878,9 @@ async def projects_new_submit(request: Request):
         _up_v = 0
     _status_v = (form.get("status") or "초기협의").strip()
     _confirm_now_v = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
-    _strict = _status_v in ("진행중", "납품완료") or _confirm_now_v
+    # v5H222: 소모품(CONSUMABLE)은 라인이 비어있는 상태로 등록 → 단가/수량 검증 면제
+    _is_consumable = (_ptype_form == "CONSUMABLE")
+    _strict = (_status_v in ("진행중", "납품완료") or _confirm_now_v) and not _is_consumable
     # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
         return _err_redirect("po_type_required")
