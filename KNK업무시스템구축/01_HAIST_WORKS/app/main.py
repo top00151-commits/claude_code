@@ -214,6 +214,16 @@ def _build_holidays_auto():
 HOLIDAYS_KR, HOLIDAYS_VN = _build_holidays_auto()
 print(f"[holidays] 자동 생성 완료 — KR {len(HOLIDAYS_KR)}건 / VN {len(HOLIDAYS_VN)}건")
 
+
+# v5H214 (2026-05-08) — status → stage 자동 매핑
+# 단계(stage) 는 큰 분류, 상태(status) 는 세부 단계. 사용자는 status 만 선택, stage 는 자동 도출.
+def stage_from_status(status: str) -> str:
+    s = (status or "").strip()
+    if s == "진행중": return "진행중"
+    if s == "납품완료": return "납품완료"
+    if s == "취소": return "취소"
+    return "제안작성"
+
 # v5H203: 공휴일 dict 을 Jinja 전역으로 노출 (knk_datepicker partial 에서 사용)
 tpl.env.globals["KNK_HOLIDAYS_KR"] = HOLIDAYS_KR
 tpl.env.globals["KNK_HOLIDAYS_VN"] = HOLIDAYS_VN
@@ -3772,10 +3782,13 @@ async def project_detail(req: Request, pid: int):
     except Exception:
         child_projects = []
     # v5H200: 호기 상태로부터 종합 표시 상태 산출 (A안)
+    # v5H214: 호기 0건(수주확정 전)이면 fallback 으로 stage 가 아닌 status 사용 — 사용자가 선택한 세부 상태 노출
     try:
         with db_session() as _cdc:
+            _fb_status = (p.get("status") if isinstance(p, dict) else (p["status"] if "status" in p.keys() else "")) or ""
+            _fb_stage  = (p.get("stage")  if isinstance(p, dict) else (p["stage"]  if "stage"  in p.keys() else "")) or ""
             project_display_status = _pwf.compute_project_display_status(
-                _cdc, pid, fallback_stage=(p.get("stage") if isinstance(p, dict) else (p["stage"] if "stage" in p.keys() else "")) or ""
+                _cdc, pid, fallback_stage=(_fb_status or _fb_stage)
             )
     except Exception:
         project_display_status = {"label": "—", "tone": "muted",
@@ -5426,8 +5439,10 @@ async def projects_quick_status(req: Request, pid: int):
             _cur_ptype = (cur["project_type"] if "project_type" in cur.keys() else "") or "NEW_EQUIP"
         except Exception:
             _cur_ptype = "NEW_EQUIP"
-        c.execute("UPDATE projects SET status=?, updated_at=? WHERE id=?",
-                  (new_status, _logi._logi_now() if hasattr(_logi, "_logi_now") else None, pid))
+        # v5H214: status 변경 시 stage 도 자동 동기화 (수주확정 코드 발급 분기 전에 선반영)
+        _new_stage = stage_from_status(new_status)
+        c.execute("UPDATE projects SET status=?, stage=?, updated_at=? WHERE id=?",
+                  (new_status, _new_stage, _logi._logi_now() if hasattr(_logi, "_logi_now") else None, pid))
         # v5H101: 변경 이력
         _logi.log_project_change(c, pid, u.get("id"), "상태", old_status, new_status,
                                   note="인라인 빠른 변경")
@@ -8717,7 +8732,8 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                 if _pid:
                     r["_disp_status"] = _pwf.compute_project_display_status(
                         _ds, int(_pid),
-                        fallback_stage=(r.get("stage") or r.get("status") or "")
+                        # v5H214: status 우선 (사용자가 선택한 세부 상태), stage 는 fallback
+                        fallback_stage=(r.get("status") or r.get("stage") or "")
                     )
     except Exception:
         pass
@@ -8874,7 +8890,9 @@ async def projects_new_submit(request: Request):
         unit_price = amt / unit_qty
     # v5H77: '수주확정 동시발급' 체크 — 등록 직후 confirm_order 호출
     confirm_now = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
-    stage_val = form.get("stage", "제안작성") or "제안작성"
+    # v5H214: stage 는 status 에서 자동 매핑 (사용자는 status 만 선택)
+    _status_form = (form.get("status") or "초기협의").strip()
+    stage_val = stage_from_status(_status_form)
     if confirm_now:
         # 수주 확정과 함께 등록하면 stage 를 즉시 '수주확정' 으로
         stage_val = "수주확정"
@@ -9761,7 +9779,8 @@ async def projects_edit_submit(request: Request, pid: int):
         "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
-        "stage": form.get("stage", "제안작성") or "제안작성",
+        # v5H214: stage 는 status 에서 자동 매핑
+        "stage": stage_from_status(status_val),
         "po_type": form.get("po_type", "신규") or "신규",
         "status": status_val,
         "customer_po": form.get("customer_po", ""),
