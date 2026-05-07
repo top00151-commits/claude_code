@@ -215,14 +215,12 @@ HOLIDAYS_KR, HOLIDAYS_VN = _build_holidays_auto()
 print(f"[holidays] 자동 생성 완료 — KR {len(HOLIDAYS_KR)}건 / VN {len(HOLIDAYS_VN)}건")
 
 
-# v5H214 (2026-05-08) — status → stage 자동 매핑
-# 단계(stage) 는 큰 분류, 상태(status) 는 세부 단계. 사용자는 status 만 선택, stage 는 자동 도출.
+# v5H215 (2026-05-08) — status → stage 자동 매핑 (단순화)
+# 사용자가 선택한 세부 status 를 그대로 stage 로 표시 — 별도 일반화 라벨 없음.
+# (예전 일괄 '제안작성' 라벨은 검사기 '제안서 해당없음' 케이스와 의미 충돌 → 폐기)
+# 수주확정(mgmt_code 발급) 시점만 코드 흐름에서 stage='수주확정' 으로 별도 마킹 — 이건 기존 그대로.
 def stage_from_status(status: str) -> str:
-    s = (status or "").strip()
-    if s == "진행중": return "진행중"
-    if s == "납품완료": return "납품완료"
-    if s == "취소": return "취소"
-    return "제안작성"
+    return (status or "초기협의").strip() or "초기협의"
 
 # v5H203: 공휴일 dict 을 Jinja 전역으로 노출 (knk_datepicker partial 에서 사용)
 tpl.env.globals["KNK_HOLIDAYS_KR"] = HOLIDAYS_KR
