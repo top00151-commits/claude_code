@@ -319,10 +319,12 @@
         </div>
         <div class="pf-field" id="pf_krw_field" style="display:{% if _cur_ccy != 'KRW' %}flex{% else %}none{% endif %};">
           <label>원화 환산 <span class="sub">(자동)</span></label>
+          {# v5H173: 저장된 amount_krw 가 있으면 그 값으로 초기화 (없으면 0, 이후 JS 가 fx_rate × order_amount 로 재계산) #}
+          {% set _krw_init = project.amount_krw if project and project.amount_krw else 0 %}
           <input type="text" id="pf_amount_krw" readonly
                  style="background:var(--paper-2);color:var(--knk-red);font-weight:700;text-align:right;cursor:not-allowed;"
-                 value="0">
-          <input type="hidden" name="amount_krw" id="pf_amount_krw_h" value="0">
+                 value="{{ '{:,.0f}'.format(_krw_init) if _krw_init else '0' }}">
+          <input type="hidden" name="amount_krw" id="pf_amount_krw_h" value="{{ _krw_init or 0 }}">
         </div>
       </div>
       <div class="pf-row solo">
@@ -368,6 +370,16 @@
         var el = document.getElementById(id);
         if (el) el.addEventListener('input', function(){ setTimeout(pfRecalcKrw, 50); });
       });
+      // v5H173: 페이지 로드 시 fx_rate 가 입력되어 있으면 즉시 원화 환산 재계산 + 표시
+      // (수정 진입 시 저장된 fx_rate 가 살아 있어도 환산값이 0 으로 보이던 문제 해결)
+      (function(){
+        var ccy = document.getElementById('pf_currency');
+        var fx = document.getElementById('pf_fx_rate');
+        if (ccy && fx && ccy.value !== 'KRW' && parseFloat(fx.value || '0') > 0) {
+          // 단가 × 수량 계산이 끝난 후에 호출 (위 IIFE 의 recalc() 다음 tick)
+          setTimeout(pfRecalcKrw, 80);
+        }
+      })();
       </script>
       <script>
       (function(){

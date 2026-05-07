@@ -844,6 +844,14 @@
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
+            {# v5H173: 외화 + fx_rate 있으면 원화 환산 표시 (저장된 amount_krw 우선, 없으면 fx_rate × _displayed_amt 즉석 환산) #}
+            {% if p.currency and p.currency != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
+              {% set _krw_eq = p.amount_krw if p.amount_krw else (_displayed_amt * p.fx_rate) %}
+              <div style="font-size:11px;color:var(--mute);font-weight:600;margin-top:3px;">
+                ≈ <span style="color:#1e3a8a;">{{ '{:,.0f}'.format(_krw_eq) }} KRW</span>
+                <span style="color:#94a3b8;font-weight:500;">(환율 1 {{ p.currency }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
+              </div>
+            {% endif %}
             {# v5H132: 단가 × 수량 = 금액 분해 표시 (등록폼 unit_qty/unit_price 폴백 포함) #}
             {% set _pq = p.unit_qty if p.unit_qty else 1 %}
             {% set _pp = p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt) %}
