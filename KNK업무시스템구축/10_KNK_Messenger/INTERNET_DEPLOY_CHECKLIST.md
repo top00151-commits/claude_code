@@ -1,6 +1,12 @@
 # KNK Messenger 인터넷 운영 전환 체크리스트
 
-대표가 위에서부터 차례로 진행. 각 단계 끝에 **빅터에게 보고할 출력**을 적어놨음. 막히면 그 출력을 그대로 빅터에게 붙여넣으면 됨.
+> **워크플로우 변경 (2026-05-07)**: "로컬 개발 → 운영 배포" 대신 **"클라우드에서 개발하면서 검증 → 안정되면 운영 모드 전환"** 으로 진행. HTTPS 전용 기능(PWA 설치·Web Push·서비스워커·secure 쿠키·iOS 동작·베트남 네트워크)은 localhost에서 안 잡힘 — 처음부터 인터넷에서 만들고 다듬음.
+
+## 두 단계
+1. **dev-on-cloud** — Lightsail에 띄우되 dev 모드. 코드 변경 시 빅터가 `sync_to_cloud.ps1` 1번 실행 → 3초 후 인터넷에서 검증.
+2. **운영 모드 전환** — 며칠 안정 운영 확인 후 `promote_to_production.sh` 한 번 실행.
+
+대표가 위에서부터 차례로 진행. 각 단계 끝에 **빅터에게 보고할 출력**을 적어놨음.
 
 진행 상태: **[ ] 대기 / [x] 완료 / [!] 막힘**
 
@@ -122,80 +128,140 @@ rm -rf /opt/knk_messenger/backups/*
 
 ---
 
-## E단계 — 1줄 셋업 (빅터, 약 5분)
+## E단계 — 1줄 셋업 (dev-on-cloud, 빅터, 약 5분)
 
-### E-1. 셋업 스크립트 실행 [ ]
+### E-1. dev-on-cloud 셋업 스크립트 실행 [ ]
 SSH 창에서:
 ```bash
 cd /opt/knk_messenger
-sudo bash deploy/setup_server.sh msg.knk.co.kr admin@knk.kr
+sudo bash deploy/setup_server_dev.sh msg.knk.co.kr admin@knk.kr
 ```
 (도메인·이메일은 본인 것으로)
+
+> **중요**: `setup_server_dev.sh` 는 `KNK_MSG_ENV=development` 로 띄움 — 인터넷에서 보면서 개발 진행 중이라는 뜻. 안정되면 G-4 단계에서 운영 전환.
 
 이 명령 하나가 다음을 모두 처리:
 - python3 + nginx + certbot + ufw + fail2ban 설치
 - venv + requirements 설치
-- `.env.production` 자동 생성 (SECRET 자동 채움)
-- systemd 서비스 등록 + 시작
+- `.env.production` 자동 생성 (dev 모드, SECRET 자동 채움, CORS=*)
+- systemd 서비스 (eventlet worker) 등록 + 시작
 - nginx 사이트 설정 + reload
-- Let's Encrypt SSL 발급 + 자동갱신
+- Let's Encrypt SSL 발급 + 자동갱신 (PWA·푸시 위해 필수)
 - UFW 방화벽 활성화
 - cron 백업 등록
 
-마지막에 `셋업 완료!` 출력 + `https://msg.knk.co.kr` 줄이 보이면 성공.
+마지막에 `DEV-ON-CLOUD 셋업 완료` 출력이 보이면 성공.
 
 ### E-2. 브라우저 접속 [ ]
 - `https://msg.knk.co.kr` → 자물쇠 아이콘 ✓ + 로그인 화면
 - 시드 계정: `kjr` / `knk1234`
 - **막히면 빅터에게 보고**: `sudo journalctl -u knk-messenger -n 50` 출력 그대로
 
+### E-3. Windows에서 sync 환경변수 설정 [ ] (1번만)
+대표 PC PowerShell:
+```powershell
+[Environment]::SetEnvironmentVariable("KNK_CLOUD_HOST", "<정적IP>", "User")
+[Environment]::SetEnvironmentVariable("KNK_CLOUD_KEY",  "C:\Users\top00\.ssh\LightsailDefaultKey-ap-northeast-1.pem", "User")
+```
+PowerShell 새 창 열어서 다음 동작 확인:
+```powershell
+echo $env:KNK_CLOUD_HOST   # IP 보이면 OK
+echo $env:KNK_CLOUD_KEY    # 키 경로 보이면 OK
+```
+
 ---
 
-## F단계 — 운영 안전망 (빅터, 약 10분)
+## F단계 — 클라우드에서 개발하면서 검증 (빅터 + 대표, 며칠)
 
-### F-1. UptimeRobot 등록 [ ]
+### F-1. 코드 변경 → 1줄 sync [ ]
+빅터가 로컬에서 코드 수정 후:
+```powershell
+cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\10_KNK_Messenger"
+.\deploy\sync_to_cloud.ps1
+```
+3-5초 안에:
+- 변경 파일만 압축 → 서버 업로드
+- `sudo systemctl restart knk-messenger`
+- HTTP 200/302 헬스체크
+- `SYNC COMPLETE` 출력
+
+→ 즉시 `https://msg.knk.co.kr` 새로고침해서 변경 확인.
+
+### F-2. 인터넷에서만 잡히는 항목 점검 [ ]
+이 항목들은 localhost에서는 안 잡히고 HTTPS 도메인에서만 검증 가능:
+- [ ] **PWA 설치** — Android Chrome 메뉴 → "홈 화면에 추가" 정상 작동
+- [ ] **PWA 설치 (iOS)** — Safari 공유 → "홈 화면에 추가" + 아이콘 표시
+- [ ] **Web Push 구독** — 브라우저 알림 권한 허용 → 구독 등록 확인 (DB push_subscriptions 테이블)
+- [ ] **Push 도착** — 다른 사용자가 메시지 보냈을 때 백그라운드 알림 표시
+- [ ] **Service Worker** — DevTools > Application > Service Workers 에서 등록 + activated 확인
+- [ ] **Secure cookie** — DevTools > Application > Cookies에 `Secure` 표시 (운영 모드 후)
+- [ ] **베트남 응답속도** — 베트남 직원이 직접 접속해서 메시지 왕복 시간 100ms 이내 확인
+- [ ] **모바일 입력 어색함** — 한국어 IME, 첨부 카메라, 사진 갤러리 자연스러움
+- [ ] **사진 업로드 25MB 한도** — nginx도 30M 통과 확인
+
+### F-3. 발견된 문제는 빅터가 즉시 패치 [ ]
+- 변경 → `.\deploy\sync_to_cloud.ps1` → 검증 사이클을 매번 1분 안에 반복
+- 큰 변경(DB 스키마 등)은 cron 백업 후
+
+---
+
+## G단계 — 사용자 전환 + 운영 모드 전환 (대표, 1주)
+
+### G-1. 본인 단독 사용 (1~2일, dev 모드) [ ]
+- PC + 휴대폰에서 `https://msg.knk.co.kr` 접속
+- PWA 설치 (Android: 메뉴 → 홈화면 추가, iOS: 공유 → 홈화면 추가)
+- 어색한 점 발견 → 빅터에게 보고 → `sync_to_cloud.ps1` → 즉시 반영
+
+### G-2. 기술영업팀 합류 (3~5일, dev 모드) [ ]
+- 6명에게 URL + ID/임시비번 안내 (시드: lhr, lh, okh, bsj, ajy, lsr / 모두 `knk1234`)
+- 카톡 그룹과 병행, 자료는 우리 메신저에 업로드
+- 발견된 문제 → 빅터 sync로 즉시 패치
+
+### G-3. UptimeRobot 등록 [ ]
 - https://uptimerobot.com 무료 가입
 - New monitor → HTTP(s) → URL: `https://msg.knk.co.kr/healthz`
-- 5분 간격 → 다운 시 이메일 발송
+- 5분 간격 → 다운 시 이메일
 
-### F-2. 백업 동작 확인 [ ]
-SSH에서 즉시 1회 실행:
+### G-4. 운영 모드 전환 (며칠 안정 확인 후) [ ]
+SSH에서 1번:
 ```bash
-bash /opt/knk_messenger/deploy/backup.sh
-ls -lh /opt/knk_messenger/backups/
+sudo bash /opt/knk_messenger/deploy/promote_to_production.sh
 ```
-→ `messenger_20260507_*.db` 파일 보이면 OK.
+이 한 줄이:
+- 즉시 백업
+- `KNK_MSG_ENV` 를 `development → production` 으로
+- CORS 를 실제 도메인(`https://msg.knk.co.kr`)으로 제한
+- HSTS · secure 쿠키 · 보안 헤더 자동 활성
+- systemd 재시작 + 헬스체크
+- 실패 시 자동 롤백 명령 출력
 
-### F-3. (선택) S3 백업 연결 [ ]
-A-3에서 (a) 선택했으면:
+전환 후 확인:
+- DevTools > Application > Cookies → `session` 쿠키 `Secure` 마크 ✓
+- 응답 헤더 `Strict-Transport-Security`, `X-Frame-Options` 등 ✓
+
+### G-5. 베트남법인 합류 (운영 전환 후) [ ]
+- 동일 URL — VPN 불필요
+- 한/베 이중 안내 메일 (빅터 초안 작성)
+- 응답속도 (~70-100ms) 체감 확인
+
+### G-6. 카톡 → 메신저 전환 공지 [ ]
+- 카톡 전사 공지: "신규 자료는 메신저로, 카톡은 1개월 읽기전용 병행"
+- 1개월 후 카톡 그룹 정리
+
+### G-7. (선택) S3 백업 연결 [ ]
 1. AWS S3 → 버킷 생성 `knk-messenger-backup` (Tokyo)
 2. IAM → 사용자 생성 → S3 PutObject 권한만
 3. 액세스 키 발급 → 서버에 `aws configure`
 4. `.env.production` 에 `KNK_BACKUP_S3=s3://knk-messenger-backup/` 추가
 5. `sudo systemctl restart knk-messenger`
 
----
-
-## G단계 — 사용자 전환 (대표, 1주)
-
-### G-1. 본인 단독 사용 (1~2일) [ ]
-- PC + 휴대폰에서 `https://msg.knk.co.kr` 접속
-- PWA 설치 (Android: 메뉴 → 홈화면 추가, iOS: 공유 → 홈화면 추가)
-- 어색한 점 발견 → 빅터에게 즉시 보고
-
-### G-2. 기술영업팀 합류 (3~5일) [ ]
-- 6명에게 URL + ID/임시비번 안내 (시드: lhr, lh, okh, bsj, ajy, lsr / 모두 `knk1234`)
-- 카톡 그룹과 병행, 자료는 우리 메신저에 업로드
-- 만족도·문제점 수집
-
-### G-3. 베트남법인 합류 (6일~) [ ]
-- 동일 URL — VPN 불필요
-- 한/베 이중 안내 메일 (빅터가 초안 작성)
-- 응답속도 (~70-100ms) 체감 확인
-
-### G-4. 카톡 → 메신저 전환 공지 (만족 시) [ ]
-- 카톡 전사 공지: "신규 자료는 메신저로, 카톡은 1개월 읽기전용 병행"
-- 1개월 후 카톡 그룹 정리
+### G-8. 백업 동작 확인 [ ]
+SSH에서:
+```bash
+bash /opt/knk_messenger/deploy/backup.sh
+ls -lh /opt/knk_messenger/backups/
+```
+→ `messenger_20260507_*.db` 보이면 OK.
 
 ---
 
@@ -230,12 +296,30 @@ A-3에서 (a) 선택했으면:
 
 ## 빅터 전권 가능 항목
 
-빅터가 SSH 접근권 받으면 다음은 알아서 가능:
-- 코드 갱신 (`update.sh`)
+대표가 환경변수(`KNK_CLOUD_HOST`, `KNK_CLOUD_KEY`)만 PC에 설정하면 빅터가 다음을 알아서 처리:
+- **코드 갱신**: `.\deploy\sync_to_cloud.ps1` (3-5초, 자동 백업+재시작+헬스체크)
 - 패키지 업데이트
 - nginx 설정 변경
 - 백업 검증
-- 로그 분석
+- 로그 분석 (`ssh ubuntu@... sudo journalctl -u knk-messenger -f`)
 - 사용자 비번 리셋
+- dev → 운영 모드 전환 시 빅터가 SSH로 `promote_to_production.sh` 실행
 
 대표 결재 필요: 도메인 변경, 인스턴스 사양 업그레이드, 신규 사용자 일괄 등록, 데이터 거주지 이전.
+
+---
+
+## 개발 사이클 요약 (인터넷에서 만들면서 검증)
+
+```
+[로컬 코드 수정] -> [.\deploy\sync_to_cloud.ps1] -> 3-5초 -> [https://msg.knk.co.kr 새로고침]
+                                                                       |
+                                                                  문제 발견
+                                                                       |
+                                                            [로컬 코드 수정] (반복)
+
+며칠 안정 확인 후:
+[ssh -> promote_to_production.sh] -> 운영 모드 전환 -> 카톡 전환 공지
+```
+
+각 사이클 1분 이내. 베트남·iOS·푸시·PWA 모두 진짜 환경에서 검증된 상태로 운영 모드 진입.
