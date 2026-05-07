@@ -2065,6 +2065,23 @@ def init_db():
             if "biz_div" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")
                 print("[v5H218] consumable_orders.biz_div 컬럼 추가됨")
+            # v5H219: 관리코드 prefix ↔ project_type 불일치 검증 (자동 수정 안 함, 경고만)
+            try:
+                anomalies = c.execute("""
+                    SELECT id, mgmt_code, biz_div, project_type FROM projects
+                    WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
+                      AND length(mgmt_code) >= 4
+                      AND (
+                        (project_type='OTHER'    AND substr(mgmt_code,4,1) != 'K') OR
+                        (project_type='NEW_EQUIP' AND substr(mgmt_code,4,1) NOT IN ('T','M'))
+                      )
+                """).fetchall()
+                if anomalies:
+                    print(f"[v5H219] ⚠ 관리코드/유형 불일치 {len(anomalies)}건 감지 (자동 수정 안 함):")
+                    for a in anomalies:
+                        print(f"  · pid={a['id']} code={a['mgmt_code']} biz={a['biz_div']} type={a['project_type']}")
+            except Exception:
+                pass
             # 기존 묶음 중 mgmt_code NULL 인 행 백필
             # 같은 conn 안에서 generate_mgmt_code() 가 별도 conn 으로 검색해 미커밋 UPDATE 못 봄 → 직접 SQL 로 sequence 추적
             try:
