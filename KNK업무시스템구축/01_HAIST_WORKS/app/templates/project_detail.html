@@ -220,7 +220,9 @@
     {# v5H94: 수주액 KPI 는 SO 합계가 우선 (단일 진실 소스). SO 가 없으면 폼 입력값 폴백. #}
     {% set _so_total = (project_orders|sum(attribute='total_amount')) if project_orders else 0 %}
     {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
-    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--mute);">({{ primary_so_currency|default('KRW') }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ primary_so_currency|default('KRW') }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
+    {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
+    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--mute);">({{ _kpi_ccy }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
   </div>
 
   {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
@@ -322,7 +324,8 @@
         <div class="list-scroll">
         {% for so in project_orders %}
           {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
-          {% set _cur = so.currency|default('KRW') %}
+          {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
+          {% set _cur = so.currency or p.currency or 'KRW' %}
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
           {% set _sym = '' %}
           {% set _qq = so.unit_qty|default(1) %}
@@ -422,6 +425,9 @@
                   <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>KRW</option>
                   <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>USD</option>
                   <option value="VND" {% if _cur == 'VND' %}selected{% endif %}>VND</option>
+                  <option value="JPY" {% if _cur == 'JPY' %}selected{% endif %}>JPY</option>
+                  <option value="CNY" {% if _cur == 'CNY' %}selected{% endif %}>CNY</option>
+                  <option value="EUR" {% if _cur == 'EUR' %}selected{% endif %}>EUR</option>
                 </select>
                 <input type="text" name="amount" inputmode="numeric" placeholder="단가 (1대당)" class="amt knk-money">
                 <input type="text" name="note" placeholder="비고 (선택)" class="note">
@@ -503,7 +509,8 @@
                   if (r.ok && j.ok) {
                     metaInputs.forEach(inp => { inp.dataset.orig = inp.value; });
                     metaSaveBtn.style.display = 'none';
-                    setTimeout(() => location.reload(), 400);
+                    // v5H172: 캐시버스터로 강제 갱신
+                    window.location.href = window.location.pathname + '?_t=' + Date.now();
                   } else {
                     alert('⚠ ' + (j.message || j.error || '실패'));
                   }
@@ -544,7 +551,7 @@
                     method: 'POST', body: body
                   });
                   const j = await r.json();
-                  if (j.ok) { location.reload(); }
+                  if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
                   else { alert('⚠ ' + (j.message || j.error || '실패')); }
                 } catch(e) { alert('⚠ 네트워크 오류: ' + e.message); }
               });
@@ -578,7 +585,7 @@
                     method: 'POST', body: body
                   });
                   const j = await r.json();
-                  if (j.ok) { location.reload(); }
+                  if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
                   else { alert('⚠ ' + (j.message || j.error || '실패')); }
                 } catch(e) { alert('⚠ ' + e.message); }
               });
@@ -588,7 +595,7 @@
                   try {
                     const r = await fetch('/sales/orders/items/' + uid + '/delete', { method: 'POST' });
                     const j = await r.json();
-                    if (j.ok) { location.reload(); }
+                    if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
                     else { alert('⚠ ' + (j.message || j.error || '실패')); }
                   } catch(e) { alert('⚠ ' + e.message); }
                 });

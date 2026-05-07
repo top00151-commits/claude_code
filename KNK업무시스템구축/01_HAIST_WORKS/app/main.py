@@ -270,6 +270,48 @@ def startup():
     _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+    # v5H172 (2026-05-06): 통화 데이터 백필.
+    #   orders.currency 컬럼은 DEFAULT 'KRW' 라 NULL 이 아니라 'KRW' 명시값이 들어있음.
+    #   v5H171 이전 발행 SO 는 실제 프로젝트 통화와 무관하게 'KRW' 가 박혀 있으므로,
+    #   "수금이력 0 건" 인 SO 만 안전하게 프로젝트 헤더 통화로 sync.
+    try:
+        with db_session() as c:
+            ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            if "currency" in ord_cols:
+                _r = c.execute("""
+                    UPDATE orders
+                       SET currency = (SELECT p.currency FROM projects p WHERE p.id = orders.project_id)
+                     WHERE project_id IS NOT NULL
+                       AND COALESCE(currency,'KRW') != COALESCE(
+                             (SELECT p.currency FROM projects p WHERE p.id = orders.project_id),
+                             'KRW')
+                       AND COALESCE(
+                             (SELECT p.currency FROM projects p WHERE p.id = orders.project_id),
+                             '') != ''
+                       AND NOT EXISTS (
+                             SELECT 1 FROM receipts_payment rp WHERE rp.order_id = orders.id)
+                """)
+                if _r.rowcount:
+                    print(f"[CCY-BACKFILL] orders.currency 백필 {_r.rowcount}건 (수금이력 없는 SO 만)")
+                else:
+                    print(f"[CCY-BACKFILL] 백필 대상 0건 (모든 SO 가 프로젝트 통화와 일치)")
+            # order_items 도 동일 처리 (있으면)
+            try:
+                oi_cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                if "currency" in oi_cols:
+                    _r2 = c.execute("""
+                        UPDATE order_items
+                           SET currency = COALESCE(
+                               (SELECT currency FROM orders WHERE orders.id = order_items.order_id),
+                               'KRW')
+                         WHERE (currency IS NULL OR currency = '')
+                    """)
+                    if _r2.rowcount:
+                        print(f"[CCY-BACKFILL] order_items.currency 백필 {_r2.rowcount}건")
+            except Exception:
+                pass
+    except Exception as _e:
+        print(f"[CCY-BACKFILL ERR] {_e}")
 
 
 # v5H58: 24시간마다 자동 재계산 (백그라운드 타이머)
