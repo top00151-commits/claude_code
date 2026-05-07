@@ -8587,12 +8587,24 @@ async def projects_new_submit(request: Request):
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
     # v5H192: 필수 필드 종합 검증 (비고 제외) — 빈 항목이 있으면 즉시 안내
+    # v5H193: 검증 실패 redirect 시 type/biz_div 보존 (chooser 로 빠지지 않도록)
+    _ptype_form = (form.get("project_type") or "NEW_EQUIP").strip().upper()
+    if _ptype_form not in ("NEW_EQUIP", "OTHER", "CONSUMABLE", "SERVICE"):
+        _ptype_form = "NEW_EQUIP"
+    _back_qs = f"type={_ptype_form}"
+    if biz_div:
+        _back_qs += f"&biz_div={biz_div}"
+    def _err_redirect(code: str, extra: str = "") -> RedirectResponse:
+        url = f"/projects/new?{_back_qs}&error={code}"
+        if extra:
+            url += "&" + extra
+        return RedirectResponse(url, status_code=303)
     if not project_name:
-        return RedirectResponse("/projects/new?error=name_required", status_code=303)
+        return _err_redirect("name_required")
     if not biz_div:
-        return RedirectResponse("/projects/new?error=biz_div_required", status_code=303)
+        return _err_redirect("biz_div_required")
     if not customer:
-        return RedirectResponse("/projects/new?error=customer_required", status_code=303)
+        return _err_redirect("customer_required")
     # 고객사 화이트리스트 검증
     with db_session() as _cc:
         _ok = _cc.execute(
@@ -8600,10 +8612,7 @@ async def projects_new_submit(request: Request):
         ).fetchone()
     if not _ok:
         from urllib.parse import quote as _q
-        return RedirectResponse(
-            f"/projects/new?error=customer_not_registered&cust={_q(customer)}",
-            status_code=303
-        )
+        return _err_redirect("customer_not_registered", f"cust={_q(customer)}")
     # v5H192: PO유형 / 발주일 / 납기 / 단가 필수
     po_type_v = (form.get("po_type") or "").strip()
     order_date_v = (form.get("order_date") or "").strip()
@@ -8614,13 +8623,13 @@ async def projects_new_submit(request: Request):
     except ValueError:
         _up_v = 0
     if not po_type_v:
-        return RedirectResponse("/projects/new?error=po_type_required", status_code=303)
+        return _err_redirect("po_type_required")
     if not order_date_v:
-        return RedirectResponse("/projects/new?error=order_date_required", status_code=303)
+        return _err_redirect("order_date_required")
     if not due_date_v:
-        return RedirectResponse("/projects/new?error=due_date_required", status_code=303)
+        return _err_redirect("due_date_required")
     if _up_v <= 0:
-        return RedirectResponse("/projects/new?error=unit_price_required", status_code=303)
+        return _err_redirect("unit_price_required")
     # 외화 시 기준환율 필수
     _ccy_v = (form.get("currency") or "KRW").strip().upper()
     if _ccy_v != "KRW":
@@ -8630,10 +8639,7 @@ async def projects_new_submit(request: Request):
         except ValueError:
             _fx_v = 0
         if _fx_v <= 0:
-            return RedirectResponse(
-                f"/projects/new?error=fx_rate_required&ccy={_ccy_v}",
-                status_code=303
-            )
+            return _err_redirect("fx_rate_required", f"ccy={_ccy_v}")
     # 콤마 제거 후 숫자로
     raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
     try:
