@@ -623,7 +623,84 @@
       <button type="submit" class="btn btn-primary">📤 등록</button>
       {% endif %}
     </div>
+    {# v5H194: 클라이언트사이드 검증 안내 영역 — 빈 항목들을 한 번에 표시 #}
+    <div id="pfValidateBanner" style="display:none;margin-top:14px;padding:12px 14px;background:#fff3f3;border:1px solid var(--knk-red);border-radius:var(--radius-md);color:var(--knk-red);font-size:13px;font-weight:600;line-height:1.7;"></div>
   </form>
+  <style>
+    /* v5H194: 빈 필수 필드 빨간 테두리 강조 */
+    .pf-field input.pf-missing,
+    .pf-field select.pf-missing,
+    .pf-field textarea.pf-missing { border-color: var(--knk-red) !important; box-shadow: 0 0 0 2px rgba(218,72,76,0.20) !important; background: #fff3f3 !important; }
+  </style>
+  {# v5H194: 신규 등록 클라이언트 검증 — 페이지 reload 없이 빈 필드 즉시 표시 + 입력값 보존 #}
+  {% if not project %}
+  <script>
+  (function(){
+    var form = document.querySelector('form.pf-wrap');
+    if (!form) return;
+    var banner = document.getElementById('pfValidateBanner');
+    function findField(name){
+      return form.querySelector('[name="' + name + '"]');
+    }
+    function clearMissing(){
+      form.querySelectorAll('.pf-missing').forEach(function(el){ el.classList.remove('pf-missing'); });
+      if (banner){ banner.style.display = 'none'; banner.innerHTML = ''; }
+    }
+    form.addEventListener('input', clearMissing, true);
+    form.addEventListener('change', clearMissing, true);
+    form.addEventListener('submit', function(e){
+      // 검증할 항목: [name, label, getValue]
+      var checks = [
+        { name:'name',         label:'프로젝트명' },
+        { name:'customer_name',label:'고객사', alt:'customer' },
+        { name:'po_type',      label:'PO 유형' },
+        { name:'order_date',   label:'발주일' },
+        { name:'due_date',     label:'납기' },
+        { name:'unit_price',   label:'1대 단가', isMoney:true },
+      ];
+      var missing = [];
+      var firstEl = null;
+      checks.forEach(function(c){
+        var el = findField(c.name) || (c.alt ? findField(c.alt) : null);
+        if (!el) return;
+        var v = (el.value || '').trim();
+        if (c.isMoney) v = v.replace(/,/g, '');
+        var empty = !v || (c.isMoney && (parseFloat(v) <= 0));
+        if (empty) {
+          el.classList.add('pf-missing');
+          missing.push(c.label);
+          if (!firstEl) firstEl = el;
+        }
+      });
+      // 외화 + 기준환율 검증
+      var ccyEl = findField('currency');
+      if (ccyEl && ccyEl.value !== 'KRW') {
+        var fxEl = findField('fx_rate');
+        if (fxEl) {
+          var fxRaw = (fxEl.value || '').trim().replace(/,/g, '');
+          var fxV = parseFloat(fxRaw) || 0;
+          if (fxV <= 0) {
+            fxEl.classList.add('pf-missing');
+            missing.push('기준환율 (' + ccyEl.value + ')');
+            if (!firstEl) firstEl = fxEl;
+          }
+        }
+      }
+      if (missing.length) {
+        e.preventDefault();
+        if (banner) {
+          banner.innerHTML = '⚠ 다음 항목을 입력해주세요 — <b>' + missing.join('</b>, <b>') + '</b>';
+          banner.style.display = 'block';
+          banner.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+        if (firstEl) {
+          setTimeout(function(){ firstEl.focus(); }, 300);
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
 
   {% if project %}
   {# v5H192: 수정 모드 — 비밀번호 잠금. 잠금 해제 시 입력 활성화 + submit 허용 #}
