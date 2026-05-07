@@ -34,10 +34,16 @@
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
-  {# v5H220: 진입 유형별 명확한 페이지 제목 — 사용자가 무엇을 등록 중인지 즉시 인식 #}
+  {# v5H220: 진입 유형별 명확한 페이지 제목 — 사용자가 무엇을 등록 중인지 즉시 인식
+     v5H221: CONSUMABLE 도 동일 폼 재활용 (제안서 일정·금액 섹션만 숨김) #}
   {% set _ptype_title = (project.project_type if project and project.project_type else (preset.project_type if preset and preset.project_type else 'NEW_EQUIP')) %}
   {% set _bd_title = (project.biz_div if project and project.biz_div else (preset.biz_div if preset and preset.biz_div else '')) %}
-  {% if _ptype_title == 'OTHER' %}
+  {% set _is_consumable = (_ptype_title == 'CONSUMABLE') %}
+  {% if _is_consumable %}
+    {% set _form_kind_emoji = '📦' %}
+    {% set _form_kind_name = 'S 소모품' %}
+    {% set _form_kind_color = '#16a34a' %}
+  {% elif _ptype_title == 'OTHER' %}
     {% set _form_kind_emoji = '🌐' %}
     {% set _form_kind_name = 'K 기타' %}
     {% set _form_kind_color = '#f59e0b' %}
@@ -228,7 +234,8 @@
       {# v5H151 (2026-05-05) — 대표 지시: 유형 라디오 + 소모품 안내 박스 제거
          (chooser 에서 이미 유형 선택했으므로 폼에서는 hidden 으로만 전달) #}
       {% set _cur_ptype = (project.project_type if project and project.project_type else (preset.project_type if preset and preset.project_type else 'NEW_EQUIP')) %}
-      {% if _cur_ptype in ('CONSUMABLE','SERVICE') %}{% set _cur_ptype = 'OTHER' %}{% endif %}
+      {# v5H221: CONSUMABLE 보존, SERVICE 만 OTHER 로 (서비스 메뉴는 별도 도메인) #}
+      {% if _cur_ptype == 'SERVICE' %}{% set _cur_ptype = 'OTHER' %}{% endif %}
       <input type="hidden" name="project_type" value="{{ _cur_ptype }}">
       {# v5H147: 관리코드 필요 항목만이라 연관 관리번호 입력은 더 이상 노출 안 함 (소모품 메뉴로 이동) #}
       <div class="pf-row solo" id="pfParentRow" style="display:none;">
@@ -380,7 +387,9 @@
         </div>
       </div>
       {# v5H201: 제안 단계 일정 — 수주확정 전 스케줄 관리용.
-         검사기(T) 는 타임라인 짧아 기본 '해당없음' 체크. 자동화(M) 는 입력 가능. #}
+         검사기(T) 는 타임라인 짧아 기본 '해당없음' 체크. 자동화(M) 는 입력 가능.
+         v5H221: 소모품(S)은 즉시 발주 도메인이라 제안 단계 자체가 없음 → 섹션 통째로 숨김 #}
+      {% if not _is_consumable %}
       {% set _bd_for_sched = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else 'T')) %}
       {% set _is_T = (_bd_for_sched == 'T') %}
       {% set _proposal_v = project.proposal_date if project and project.proposal_date else '' %}
@@ -450,9 +459,13 @@
         applyToggle(qNa, qInp);
       })();
       </script>
+      {% endif %}{# /not _is_consumable — 제안서·견적서 일정 #}
     </div>
 
-    <!-- ③ 금액 (v5H132: 단가 × 수량 = 금액 3-필드 레이아웃) -->
+    <!-- ③ 금액 (v5H132: 단가 × 수량 = 금액 3-필드 레이아웃)
+         v5H221: 소모품(S)은 라인이 여러 개라 헤더 단계 금액 입력 의미 없음 → 섹션 통째로 숨김.
+                 라인·금액은 등록 후 상세 페이지의 엑셀 업로드/라인 편집에서 입력 -->
+    {% if not _is_consumable %}
     <div class="pf-section">
       <h3>③ 금액 <span class="sub" style="font-size:11px;color:var(--mute);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">단가 × 수량 = 금액 (자동 계산)</span></h3>
       {% set _p_qty = project.unit_qty if (project and project.unit_qty) else 1 %}
@@ -735,9 +748,11 @@
       {% endif %}
     </div>
 
+    {% endif %}{# /not _is_consumable — ③ 금액 섹션 #}
+
     <!-- ④ 비고 -->
     <div class="pf-section">
-      <h3>④ 비고</h3>
+      <h3>{% if _is_consumable %}③{% else %}④{% endif %} 비고</h3>
       <div class="pf-row solo">
         <div class="pf-field full">
           <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note|default('') }}</textarea>

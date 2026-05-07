@@ -8799,9 +8799,9 @@ async def projects_new_form(request: Request,
     if not _t:
         return ctx(request, "project_new_chooser.html",
                    user=u, active="sales_projects")
-    # type 정규화 (CONSUMABLE/SERVICE 는 더이상 폼에서 노출 안 함 → OTHER)
-    if _t not in ("NEW_EQUIP", "OTHER"):
-        _t = "OTHER" if _t in ("CONSUMABLE", "SERVICE") else "NEW_EQUIP"
+    # v5H221: CONSUMABLE 도 폼 재활용 (project_form.html — 일정/금액 숨김), SERVICE 만 OTHER 흡수
+    if _t not in ("NEW_EQUIP", "OTHER", "CONSUMABLE"):
+        _t = "OTHER" if _t == "SERVICE" else "NEW_EQUIP"
     _bd = (biz_div or "").strip().upper()
     if _bd not in ("T", "M"):
         _bd = ""
@@ -8841,6 +8841,32 @@ async def projects_new_submit(request: Request):
     _ptype_form = (form.get("project_type") or "NEW_EQUIP").strip().upper()
     if _ptype_form not in ("NEW_EQUIP", "OTHER", "CONSUMABLE", "SERVICE"):
         _ptype_form = "NEW_EQUIP"
+    # v5H221: CONSUMABLE 은 consumable_orders 로 분기 (헤더만 저장 후 상세 페이지로 이동)
+    if _ptype_form == "CONSUMABLE":
+        if not project_name:
+            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=name_required", 303)
+        if biz_div not in ("T", "M"):
+            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=biz_div_required", 303)
+        try:
+            from . import consumables as _co_local
+            co_id, _co_no = _co_local.co_create(
+                customer_name=customer, biz_div=biz_div,
+                order_date=(form.get("order_date") or "").strip(),
+                due_date=(form.get("due_date") or "").strip(),
+                currency=(form.get("currency") or "KRW").strip().upper(),
+                note=(form.get("note") or "").strip(),
+                source_file="",
+                created_by=_u.get("id"),
+            )
+            # 프로젝트명을 비고 앞에 prepend (consumable_orders 에 name 컬럼 없음)
+            with db_session() as _c:
+                _existing_note = _c.execute("SELECT note FROM consumable_orders WHERE id=?", (co_id,)).fetchone()
+                _new_note = f"[{project_name}] " + ((_existing_note["note"] or "") if _existing_note else "")
+                _c.execute("UPDATE consumable_orders SET note=? WHERE id=?", (_new_note, co_id))
+            return RedirectResponse(f"/consumables/{co_id}", 303)
+        except Exception as _e:
+            print(f"[v5H221] CONSUMABLE 생성 실패: {_e}")
+            return RedirectResponse(f"/projects/new?type=CONSUMABLE&error=create_failed", 303)
     _back_qs = f"type={_ptype_form}"
     if biz_div:
         _back_qs += f"&biz_div={biz_div}"
