@@ -150,7 +150,13 @@ from .database import (db_session, init_db, seed_all, seed_sample_tasks,
 
 BASE = os.path.dirname(os.path.dirname(__file__))
 app = FastAPI(title="KNK 일일업무일지 v2")
-app.add_middleware(SessionMiddleware, secret_key="knk-haist-2026-phase1")
+# v5H226f: SECRET_KEY 환경변수화 — 운영에서는 KNK_SECRET_KEY 환경변수 필수.
+# 미설정 시 개발 fallback (운영 노출 시 콘솔 경고).
+_SECRET = os.environ.get("KNK_SECRET_KEY", "knk-haist-2026-phase1-DEV")
+if _SECRET.endswith("-DEV"):
+    print("[security] ⚠ KNK_SECRET_KEY 환경변수 미설정 — 개발 기본값 사용 중. "
+          "인터넷 노출 전에 OS 환경변수로 임의 32+ 문자열 설정 필수.")
+app.add_middleware(SessionMiddleware, secret_key=_SECRET)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
 # v5H142: 업로드 파일(소모품 발주 이미지 등) 정적 서빙
 _uploads_root = os.path.join(BASE, "uploads")
@@ -227,8 +233,11 @@ tpl.env.globals["KNK_HOLIDAYS_KR"] = HOLIDAYS_KR
 tpl.env.globals["KNK_HOLIDAYS_VN"] = HOLIDAYS_VN
 
 # v5H210: 공휴일 데이터 진단 엔드포인트 — 자동 계산 결과 확인용
+# v5H226f: 로그인 가드 추가 (외부 노출 시 데이터 누설 방지)
 @app.get("/_debug/holidays")
-async def _debug_holidays():
+async def _debug_holidays(req: Request):
+    if not get_user(req):
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     try:
         import holidays as _hl
         lib_ver = getattr(_hl, "__version__", "?")
@@ -5421,9 +5430,22 @@ async def projects_import_consumable_parse(req: Request, pid: int,
         from . import consumables as _co_local
     except Exception as e:
         return JSONResponse({"ok": False, "message": f"파서 로드 실패: {e}"}, 500)
+    # v5H226f: 업로드 파일 검증 — 확장자 화이트리스트 + 크기 제한 (50MB)
+    _orig_name = file.filename or "upload.xlsx"
+    _ext = os.path.splitext(_orig_name)[1].lower()
+    if _ext not in (".xlsx", ".xls"):
+        return JSONResponse({"ok": False,
+                              "message": f"엑셀 파일만 업로드 가능 (.xlsx/.xls). 현재: {_ext or '(확장자 없음)'}"}, 400)
     raw = await file.read()
+    if len(raw) > 50 * 1024 * 1024:
+        return JSONResponse({"ok": False,
+                              "message": f"파일 크기가 너무 큽니다 ({len(raw)//1024//1024}MB). 최대 50MB."}, 400)
+    if len(raw) < 100:
+        return JSONResponse({"ok": False, "message": "빈 파일이거나 손상된 파일입니다"}, 400)
+    # 안전한 파일명 (디렉토리 traversal 방지)
+    _safe_name = "".join(c for c in os.path.basename(_orig_name) if c.isalnum() or c in "._-") or "upload.xlsx"
     tmp_dir = tempfile.mkdtemp(prefix=f"co_import_{pid}_")
-    tmp_path = os.path.join(tmp_dir, file.filename or "upload.xlsx")
+    tmp_path = os.path.join(tmp_dir, _safe_name)
     with open(tmp_path, "wb") as f:
         f.write(raw)
     # v5H226c: 이미지 영구 저장 폴더 (프로젝트 단위) — /uploads/consumables/proj_{pid}/
