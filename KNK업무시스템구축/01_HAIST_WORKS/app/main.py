@@ -5164,17 +5164,52 @@ async def projects_header_edit(req: Request, pid: int):
         if (old_val or "") == (val or ""):
             return JSONResponse({"ok": True, "message": "변동 없음", "value": val})
         c.execute(f"UPDATE projects SET {field}=? WHERE id=?", (val, pid))
+        # v5H187: 통화 변경 시 자식(orders, order_items) 도 즉시 cascade.
+        #   기존엔 startup 백필에만 의존 → 인라인 편집 후 즉시 반영 안되던 결함.
+        #   안전: 수금이력 없는 SO 만 변경 (이미 수금된 외화는 그대로 유지).
+        cascade_info = None
+        if field == "currency" and val:
+            try:
+                _ord_cols = {r2[1] for r2 in c.execute("PRAGMA table_info(orders)").fetchall()}
+                if "currency" in _ord_cols:
+                    _r1 = c.execute("""
+                        UPDATE orders SET currency = ?
+                         WHERE project_id = ?
+                           AND COALESCE(currency,'KRW') != ?
+                           AND NOT EXISTS (
+                                 SELECT 1 FROM receipts_payment rp WHERE rp.order_id = orders.id)
+                    """, (val, pid, val))
+                    n_orders = _r1.rowcount
+                else:
+                    n_orders = 0
+                _oi_cols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                if "currency" in _oi_cols:
+                    _r2 = c.execute("""
+                        UPDATE order_items SET currency = ?
+                         WHERE order_id IN (SELECT id FROM orders WHERE project_id = ?)
+                           AND COALESCE(currency,'') != ?
+                    """, (val, pid, val))
+                    n_items = _r2.rowcount
+                else:
+                    n_items = 0
+                if n_orders or n_items:
+                    cascade_info = f"SO {n_orders}건 + 호기 {n_items}건 통화 동기화"
+            except Exception:
+                pass
         # 변경 이력 (project_history 가 있으면)
         try:
+            _note = f"인라인 편집 ({field})"
+            if cascade_info:
+                _note += f" · {cascade_info}"
             c.execute(
                 "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
                 "VALUES(?,?,?,?,?,?)",
-                (pid, u.get("id"), field, str(old_val or ""), str(val or ""),
-                 f"인라인 편집 ({field})")
+                (pid, u.get("id"), field, str(old_val or ""), str(val or ""), _note)
             )
         except Exception:
             pass
-    return JSONResponse({"ok": True, "field": field, "value": val})
+    return JSONResponse({"ok": True, "field": field, "value": val,
+                          "cascade": cascade_info})
 
 
 @app.post("/projects/{pid:int}/quick-status")
