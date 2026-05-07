@@ -348,6 +348,9 @@
         .so-card .toggle-edit { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
         .so-card.edit-mode .toggle-edit { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
         .so-card.edit-mode .toggle-edit::after { content: " 완료"; }
+        /* v5H182: 행별 저장 버튼 + 메타 저장 버튼 숨김 — '편집 완료' 한 번에 일괄 저장 */
+        .so-card .row-save,
+        .so-card .so-meta-save { display: none !important; }
         /* 편집모드일 때만 호기 추가 카드 표시 가능하게 (open + edit-mode) */
         .so-card.edit-mode .add-unit-card.open { display: block; }
         /* 동작 컬럼은 편집 모드에서만 */
@@ -543,12 +546,105 @@
         (function(){
           document.querySelectorAll('.so-card').forEach(card => {
             const soid = card.dataset.soid;
-            // v5H107: 편집 모드 토글
+            // v5H107 / v5H182: 편집 모드 토글 — '편집 완료' 시 모든 dirty 행 일괄 저장
             const toggleBtn = card.querySelector('.toggle-edit');
+            // 행 단위 dirty 감지 함수 (각 row 의 input.dataset.orig 와 비교)
+            function collectDirtyRows(){
+              const out = [];
+              card.querySelectorAll('tr[data-uid]').forEach(row => {
+                const uid = row.dataset.uid;
+                const lblInp = row.querySelector('.lbl-inp');
+                const amtInp = row.querySelector('.amt');
+                const noteInp = row.querySelector('.note-inp');
+                const ordInp = row.querySelector('.ord-inp');
+                const dueInp = row.querySelector('.due-inp');
+                const shipInp = row.querySelector('.ship-inp');
+                const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
+                const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
+                const dirty =
+                     (lblInp && lblInp.value !== lblInp.dataset.orig)
+                  || (amtInp && parseFloat(aRaw) !== parseFloat(aOrig))
+                  || (noteInp && noteInp.value !== noteInp.dataset.orig)
+                  || (ordInp && ordInp.value !== ordInp.dataset.orig)
+                  || (dueInp && dueInp.value !== dueInp.dataset.orig)
+                  || (shipInp && shipInp.value !== shipInp.dataset.orig);
+                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp });
+              });
+              return out;
+            }
+            async function saveAllRows(){
+              const dirtyRows = collectDirtyRows();
+              const metaInputs = card.querySelectorAll('.so-meta-edit');
+              const metaDirty = Array.from(metaInputs).some(inp =>
+                (inp.value || '') !== (inp.dataset.orig || ''));
+              if (!dirtyRows.length && !metaDirty) return { changed: 0 };
+              let okCount = 0;
+              let failed = [];
+              // 호기 라인 sequential save (FK/total_amount 정합 위해)
+              for (const r of dirtyRows) {
+                const body = new URLSearchParams();
+                body.set('label', r.lblInp ? (r.lblInp.value || '') : '');
+                body.set('amount', r.amtInp ? (r.amtInp.value || '0').replace(/,/g,'') : '0');
+                body.set('note', r.noteInp ? (r.noteInp.value || '') : '');
+                if (r.ordInp) body.set('order_date', r.ordInp.value || '');
+                if (r.dueInp) body.set('due_date', r.dueInp.value || '');
+                if (r.shipInp) body.set('ship_to', r.shipInp.value || '');
+                try {
+                  const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
+                                           { method:'POST', body });
+                  const j = await resp.json().catch(() => ({}));
+                  if (resp.ok && j.ok) okCount++;
+                  else failed.push({ uid: r.uid, msg: j.message || j.error || ('HTTP '+resp.status) });
+                } catch (e) {
+                  failed.push({ uid: r.uid, msg: e.message });
+                }
+              }
+              // SO 헤더 메타 저장 (있을 때)
+              if (metaDirty) {
+                const body = new URLSearchParams();
+                metaInputs.forEach(inp => body.set(inp.dataset.field, inp.value || ''));
+                try {
+                  const resp = await fetch('/sales/orders/' + soid + '/quick-edit',
+                                           { method:'POST', body });
+                  const j = await resp.json().catch(() => ({}));
+                  if (resp.ok && j.ok) okCount++;
+                  else failed.push({ meta: true, msg: j.message || j.error });
+                } catch (e) {
+                  failed.push({ meta: true, msg: e.message });
+                }
+              }
+              return { changed: okCount, failed };
+            }
             if (toggleBtn) {
-              toggleBtn.addEventListener('click', () => {
-                card.classList.toggle('edit-mode');
-                toggleBtn.textContent = card.classList.contains('edit-mode') ? '✏️ 편집' : '✏️ 편집';
+              toggleBtn.addEventListener('click', async () => {
+                if (card.classList.contains('edit-mode')) {
+                  // 편집 완료 클릭 — 일괄 저장
+                  toggleBtn.disabled = true;
+                  const orig = toggleBtn.textContent;
+                  toggleBtn.textContent = '저장 중...';
+                  try {
+                    const res = await saveAllRows();
+                    if (res.failed && res.failed.length) {
+                      alert('⚠ 일부 저장 실패:\n' +
+                            res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
+                    }
+                    if (res.changed > 0) {
+                      // 변경 내용 반영 위해 캐시버스터 새로고침
+                      window.location.href = window.location.pathname + '?_t=' + Date.now();
+                      return;
+                    }
+                  } catch(e) {
+                    alert('⚠ ' + e.message);
+                  } finally {
+                    toggleBtn.disabled = false;
+                    toggleBtn.textContent = orig;
+                  }
+                  // 변경 없음 → 단순히 읽기 모드로 전환
+                  card.classList.remove('edit-mode');
+                } else {
+                  // 편집 모드 진입
+                  card.classList.add('edit-mode');
+                }
               });
             }
             // SO 헤더 메타 인라인 편집
@@ -636,38 +732,10 @@
               const ordInp = row.querySelector('.ord-inp');
               const dueInp = row.querySelector('.due-inp');
               const shipInp = row.querySelector('.ship-inp');
-              const saveBtn = row.querySelector('.row-save');
+              // v5H182: 행별 저장 버튼은 숨김 (CSS) — 저장은 카드 상단 '편집 완료' 가 일괄 처리.
+              // 입력 필드의 knkAttachMoney 만 유지 (천단위 콤마).
               const delBtn = row.querySelector('.row-del');
-              if (!saveBtn) return;
               if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
-              function dirty(){
-                const dl = lblInp && (lblInp.value !== lblInp.dataset.orig);
-                const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
-                const da = amtInp && (parseFloat(aRaw) !== parseFloat(amtInp.dataset.orig));
-                const dn = noteInp && (noteInp.value !== noteInp.dataset.orig);
-                const dord = ordInp && (ordInp.value !== ordInp.dataset.orig);
-                const ddue = dueInp && (dueInp.value !== dueInp.dataset.orig);
-                const dship = shipInp && (shipInp.value !== shipInp.dataset.orig);
-                saveBtn.style.display = (dl || da || dn || dord || ddue || dship) ? 'inline-block' : 'none';
-              }
-              [lblInp, amtInp, noteInp, ordInp, dueInp, shipInp].forEach(i => i && i.addEventListener('input', dirty));
-              saveBtn.addEventListener('click', async () => {
-                const body = new URLSearchParams();
-                body.set('label', lblInp.value || '');
-                body.set('amount', (amtInp.value || '0').replace(/,/g,''));
-                body.set('note', noteInp.value || '');
-                if (ordInp) body.set('order_date', ordInp.value || '');
-                if (dueInp) body.set('due_date', dueInp.value || '');
-                if (shipInp) body.set('ship_to', shipInp.value || '');
-                try {
-                  const r = await fetch('/sales/orders/items/' + uid + '/edit', {
-                    method: 'POST', body: body
-                  });
-                  const j = await r.json();
-                  if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
-                  else { alert('⚠ ' + (j.message || j.error || '실패')); }
-                } catch(e) { alert('⚠ ' + e.message); }
-              });
               if (delBtn) {
                 delBtn.addEventListener('click', async () => {
                   if (!confirm('이 호기 라인을 삭제하시겠습니까?\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;
