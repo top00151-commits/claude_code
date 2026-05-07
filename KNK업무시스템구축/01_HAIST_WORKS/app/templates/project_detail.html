@@ -358,23 +358,11 @@
       </style>
 
       <div class="section-card">
+        {# v5H190: 프로젝트 레벨 편집 툴바 제거 — 호기별 인라인 편집(통화/단가/납기/납품처/상태)이
+           대체. 거래구분·비고가 필요하면 추후 별도 위치에 재배치 가능. #}
         <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span>📋 수주 내역 ({{ project_orders|default([])|length }}건)</span>
           {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
-          {# v5H185: 프로젝트 정보 편집 툴바 — 우측 패널 ✏️ 들을 여기로 이전 #}
-          {% if can_sales %}
-          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" class="hf-toggle-export" data-pid="{{ p.id }}" data-now="{{ '1' if p.is_export else '0' }}"
-                    title="내수 ↔ 수출 전환"
-                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">⇄ 거래구분</button>
-            <button type="button" class="hf-edit-currency" data-pid="{{ p.id }}" data-cur="{{ p.currency or 'KRW' }}" data-fx="{{ p.fx_rate or '' }}"
-                    title="통화/환율 편집"
-                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 통화/환율</button>
-            <button type="button" class="hf-edit-btn" data-field="note" data-pid="{{ p.id }}"
-                    title="비고 편집"
-                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 비고</button>
-          </span>
-          {% endif %}
         </h3>
         {% if project_orders %}
         <div class="list-scroll">
