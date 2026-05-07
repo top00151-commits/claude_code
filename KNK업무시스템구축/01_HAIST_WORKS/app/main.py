@@ -5608,8 +5608,9 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     widths_co = [12, 5, 18, 30, 16, 8, 8, 13, 12, 14, 8, 8, 13, 18, 10, 28]
     widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
     widths = widths_co if is_co else widths_eq
+    from openpyxl.utils import get_column_letter as _gcl
     for i, w in enumerate(widths, 1):
-        ws.column_dimensions[ws.cell(1, i).column_letter].width = w
+        ws.column_dimensions[_gcl(i)].width = w
     # 숫자 포맷 (CONSUMABLE: F=qty, I=unit_price, J=amount / 그 외: C=qty, D=unit_price, E=amount)
     if is_co:
         qty_col, price_col, amount_col = 6, 9, 10
