@@ -416,9 +416,8 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
 
     Returns: {ok, mgmt_code, groups: [{so_no, order_id, due_date, ship_to,
               total_amount, units: [...]}], total_amount, message}
+    v5H223: units=[] 일 때는 빈 SO 생성 (CONSUMABLE 흐름 — 라인은 후속 추가).
     """
-    if not units:
-        return {"ok": False, "message": "호기 정보가 없습니다"}
     proj = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     if not proj:
         return {"ok": False, "message": "프로젝트를 찾을 수 없음"}
@@ -452,10 +451,13 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         order_date = ref_d.isoformat()
 
     # 1. 관리번호 — 미발급 시 1회만 발급
+    # v5H223: project_type='CONSUMABLE' 이면 'S' prefix
+    _ptype_proj = (proj.get("project_type") or "NEW_EQUIP").upper()
+    _code_prefix = "S" if _ptype_proj == "CONSUMABLE" else biz_div
     mgmt_code = (proj.get("mgmt_code") or "").strip()
     total = sum(float(u.get("amount") or 0) for u in units)
     if not mgmt_code:
-        mgmt_code = generate_mgmt_code(c, biz_div, ref_d)
+        mgmt_code = generate_mgmt_code(c, _code_prefix, ref_d)
         c.execute(
             "UPDATE projects SET mgmt_code=?, code=COALESCE(NULLIF(code,''),?), "
             "status='수주확정', stage='수주', "
@@ -468,6 +470,41 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             "UPDATE projects SET order_amount=COALESCE(order_amount,0)+? WHERE id=?",
             (total, project_id)
         )
+
+    # v5H223: units 가 비어있고 CONSUMABLE 인 경우 — 빈 SO 1건 발행 (라인은 후속 추가)
+    if not units:
+        if _ptype_proj == "CONSUMABLE":
+            so_no = generate_so_no(c, biz_div, ref_d)
+            try:
+                _cur_ins = c.execute(
+                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
+                    "ship_to, unit_qty, currency) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?)",
+                    (so_no, customer_id, project_id, order_date, None,
+                     0, created_by or None, "(라인 미입력)",
+                     (po_number or None), None, 0, (proj.get("currency") or "KRW"))
+                )
+            except Exception:
+                _cur_ins = c.execute(
+                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
+                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
+                    "ship_to, unit_qty) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
+                    (so_no, customer_id, project_id, order_date, None,
+                     0, created_by or None, "(라인 미입력)",
+                     (po_number or None), None, 0)
+                )
+            return {
+                "ok": True, "mgmt_code": mgmt_code,
+                "groups": [{"so_no": so_no, "order_id": _cur_ins.lastrowid,
+                             "due_date": None, "ship_to": None,
+                             "total_amount": 0, "units": []}],
+                "total_amount": 0, "so_no": so_no,
+                "message": "빈 SO 발행 (라인은 상세에서 추가)",
+            }
+        else:
+            return {"ok": False, "message": "호기 정보가 없습니다"}
 
     # 2. (납기, 납품지, 통화) 그룹화 — v5H92: 통화도 그룹키
     groups: dict[tuple, list[dict]] = {}

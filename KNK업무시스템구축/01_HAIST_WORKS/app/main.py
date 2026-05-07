@@ -5191,16 +5191,20 @@ async def projects_confirm_order(req: Request, pid: int):
             _up = _amt_total / _qty
         # 호기 라벨: project_type 기준 (NEW_EQUIP→N호기 / OTHER→N건 등)
         _ptype = (proj["project_type"] or "NEW_EQUIP").upper()
-        _units = []
-        for i in range(_qty):
-            _units.append({
-                "label": _logi.project_unit_label(_ptype, i + 1),
-                "amount": _up,
-                "due_date": proj["due_date"] or "",
-                "ship_to": "",
-                "currency": proj["currency"] or "KRW",
-                "note": "",
-            })
+        # v5H223: CONSUMABLE 은 빈 SO 발행 (라인 미입력 + 단가 0 → 호기 라인 만들지 않음)
+        if _ptype == "CONSUMABLE":
+            _units = []
+        else:
+            _units = []
+            for i in range(_qty):
+                _units.append({
+                    "label": _logi.project_unit_label(_ptype, i + 1),
+                    "amount": _up,
+                    "due_date": proj["due_date"] or "",
+                    "ship_to": "",
+                    "currency": proj["currency"] or "KRW",
+                    "note": "",
+                })
         res = _pwf.confirm_order_multi(
             c, pid,
             units=_units,
@@ -5447,16 +5451,22 @@ async def projects_quick_status(req: Request, pid: int):
         # status 가 won 으로 바뀌었는데 mgmt_code 없으면 발급
         # v5H142: NEW_EQUIP(T/M) 만 관리번호 발급
         # v5H150: OTHER 는 'K' prefix 로 발급
+        # v5H223: CONSUMABLE 도 수주확정 시 관리코드 발급 (다른 3종과 동일)
         _need_code_qs = (
             new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
             and (
-                (cur["biz_div"] in ("T", "M") and _cur_ptype == "NEW_EQUIP")
+                (cur["biz_div"] in ("T", "M") and _cur_ptype in ("NEW_EQUIP", "CONSUMABLE"))
                 or _cur_ptype == "OTHER"
             )
         )
         if _need_code_qs:
             try:
-                _prefix_qs = "K" if _cur_ptype == "OTHER" else cur["biz_div"]
+                if _cur_ptype == "OTHER":
+                    _prefix_qs = "K"
+                elif _cur_ptype == "CONSUMABLE":
+                    _prefix_qs = "S"
+                else:
+                    _prefix_qs = cur["biz_div"]
                 code = _logi.generate_mgmt_code(_prefix_qs)
                 c.execute("UPDATE projects SET mgmt_code=?, stage='수주확정' WHERE id=?",
                           (code, pid))
@@ -5464,11 +5474,12 @@ async def projects_quick_status(req: Request, pid: int):
                 pass
         # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 SO 발행
         # v5H132: unit_qty N → N개 호기 라인 (단가=unit_price 또는 amt/qty)
-        # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 consumable_orders 도메인)
-        if new_status in _logi.WON_STATUSES and _cur_ptype == "NEW_EQUIP":
+        # v5H223: CONSUMABLE 도 자동 SO 발행 (단, 라인이 없는 빈 SO 로 시작)
+        if new_status in _logi.WON_STATUSES and _cur_ptype in ("NEW_EQUIP", "CONSUMABLE"):
             try:
                 amt0 = float(cur["order_amount"] or 0)
-                if amt0 > 0:
+                # CONSUMABLE 은 amt=0 이어도 빈 SO 발행 (라인은 후속 추가)
+                if amt0 > 0 or _cur_ptype == "CONSUMABLE":
                     exists = c.execute(
                         "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
                     ).fetchone()
@@ -5481,17 +5492,20 @@ async def projects_quick_status(req: Request, pid: int):
                             _up0 = float(cur["unit_price"]) if cur["unit_price"] is not None else 0.0
                         except Exception:
                             _up0 = 0.0
-                        if _up0 <= 0:
-                            _up0 = amt0 / _qty0
-                        # v5H137: project_type 기준 라벨
+                        if _up0 <= 0 and _qty0 > 0:
+                            _up0 = amt0 / _qty0 if _qty0 else 0
                         _ptype_q = cur["project_type"] or "NEW_EQUIP"
-                        _units_list = [{
-                            "label": _logi.project_unit_label(_ptype_q, i + 1),
-                            "amount": _up0,
-                            "due_date": cur["due_date"] or "",
-                            "ship_to": "",
-                            "note": "",
-                        } for i in range(_qty0)]
+                        # v5H223: CONSUMABLE 은 빈 SO (라인은 상세에서 후속 추가)
+                        if _ptype_q == "CONSUMABLE":
+                            _units_list = []
+                        else:
+                            _units_list = [{
+                                "label": _logi.project_unit_label(_ptype_q, i + 1),
+                                "amount": _up0,
+                                "due_date": cur["due_date"] or "",
+                                "ship_to": "",
+                                "note": "",
+                            } for i in range(_qty0)]
                         res = _pwf.confirm_order_multi(
                             c, int(pid),
                             units=_units_list,
@@ -9029,9 +9043,9 @@ async def projects_new_submit(request: Request):
     # v5H87: confirm_now 미체크 + status 가 won (진행중/납품완료) 인 경우
     # 자동으로 SO 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
     # v5H132: 수량 N → N개 호기 라인 자동 생성 (단가=unit_price)
-    # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 consumable_orders 도메인)
+    # v5H223: CONSUMABLE 도 자동 SO 발행 (빈 SO — 라인은 후속 추가)
     status_val = (form.get("status") or "").strip()
-    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES and _ptype == "NEW_EQUIP":
+    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES and _ptype in ("NEW_EQUIP", "CONSUMABLE"):
         try:
             with db_session() as c:
                 # 이미 SO 가 있으면 발행 안 함 (재진입 방지)
@@ -9040,15 +9054,18 @@ async def projects_new_submit(request: Request):
                 ).fetchone()
                 if not exists:
                     # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
-                    # v5H137: 라벨 패턴은 project_type 기준 (NEW_EQUIP→호기, CONSUMABLE→회차, SERVICE→차, OTHER→건)
-                    _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
-                    _units_list = [{
-                        "label": _logi.project_unit_label(_ptype, i + 1),
-                        "amount": _per_unit,
-                        "due_date": form.get("due_date", ""),
-                        "ship_to": "",
-                        "note": "",
-                    } for i in range(max(1, unit_qty))]
+                    # v5H223: CONSUMABLE 은 빈 SO (라인 후속 추가)
+                    if _ptype == "CONSUMABLE":
+                        _units_list = []
+                    else:
+                        _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                        _units_list = [{
+                            "label": _logi.project_unit_label(_ptype, i + 1),
+                            "amount": _per_unit,
+                            "due_date": form.get("due_date", ""),
+                            "ship_to": "",
+                            "note": "",
+                        } for i in range(max(1, unit_qty))]
                     _pwf.confirm_order_multi(
                         c, int(new_pid),
                         units=_units_list,

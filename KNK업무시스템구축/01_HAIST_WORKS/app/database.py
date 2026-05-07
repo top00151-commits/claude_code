@@ -4037,17 +4037,13 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     # v5H86: stage 가 NEEDS_CODE_STAGES 이거나 status 가 WON_STATUSES 면 관리코드 발급
     # v5H142 (2026-05-05): CONSUMABLE/SERVICE 는 관리번호 발급 안 함
     # v5H150 (2026-05-05): OTHER 도 관리번호 발급 — prefix 'K' (대표 지시)
-    # v5H222 (2026-05-08): CONSUMABLE 도 projects 테이블에 등록 + 'S' prefix 발급 (즉시 발주 도메인)
+    # v5H223 (2026-05-08): CONSUMABLE 도 다른 3종과 동일하게 status 기반 발급 (수주확정 시점)
     _ptype_in = (vals.get("project_type") or "NEW_EQUIP").upper()
-    # CONSUMABLE 은 즉시 발주라 항상 코드 발급 (status 에 관계없이)
     needs_code = (
-        _ptype_in == "CONSUMABLE"
-        or (
-            (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-            and (
-                (vals["biz_div"] in ("T", "M") and _ptype_in == "NEW_EQUIP")
-                or _ptype_in == "OTHER"
-            )
+        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+        and (
+            (vals["biz_div"] in ("T", "M") and _ptype_in in ("NEW_EQUIP", "CONSUMABLE"))
+            or _ptype_in == "OTHER"
         )
     )
     # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
@@ -4290,15 +4286,13 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
     # v5H86: stage 또는 status 가 won 의미면 관리코드 발급
     # v5H142: CONSUMABLE/SERVICE 는 발급 안 함
     # v5H150: OTHER 는 'K' prefix 로 발급
+    # v5H223: CONSUMABLE 도 status 기반 발급 (다른 3종과 동일)
     _ptype_up = (vals.get("project_type") or "NEW_EQUIP").upper()
     needs_code = (
-        _ptype_up == "CONSUMABLE"
-        or (
-            (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-            and (
-                (vals["biz_div"] in ("T", "M") and _ptype_up == "NEW_EQUIP")
-                or _ptype_up == "OTHER"
-            )
+        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
+        and (
+            (vals["biz_div"] in ("T", "M") and _ptype_up in ("NEW_EQUIP", "CONSUMABLE"))
+            or _ptype_up == "OTHER"
         )
     )
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
