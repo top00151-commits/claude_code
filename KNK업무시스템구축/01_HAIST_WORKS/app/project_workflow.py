@@ -870,7 +870,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             # v5H177: 호기별 발주일/납기/납품처/통화 override 컬럼
             # v5H186: unit_status (호기별 상태)
             # v5H197: is_export (호기별 거래구분)
-            for _c in ("order_date", "due_date", "ship_to", "currency", "unit_status", "is_export"):
+            for _c in ("order_date", "due_date", "ship_to", "currency", "unit_status", "is_export",
+                       "image_path", "image_thumb_path"):  # v5H226e: 소모품 라인 이미지
                 if _c in oicols: sel_extra.append(_c)
             sel_extra_sql = (", " + ", ".join(sel_extra)) if sel_extra else ""
             items = c.execute(
