@@ -2036,6 +2036,11 @@ def init_db():
             # v5H201 (2026-05-07): 제안 단계 일정 — 수주확정 전 스케줄 관리용
             ("proposal_date",      "TEXT"),       # 제안서 (예정/실제) 일정. NULL=미정·해당없음
             ("quotation_date",     "TEXT"),       # 견적서 일정. NULL=미정·해당없음
+            # v5H212 (2026-05-08): 수주 전 내역 — 제출 여부 + 자유 메모
+            ("proposal_submitted", "INTEGER DEFAULT 0"),  # 0=미제출, 1=제출완료
+            ("proposal_memo",      "TEXT"),                # 진행 메모 (자유 기록)
+            ("quotation_submitted","INTEGER DEFAULT 0"),
+            ("quotation_memo",     "TEXT"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:

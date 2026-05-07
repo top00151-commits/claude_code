@@ -257,6 +257,141 @@
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
+      <!-- v5H212: 수주 전 내역 — 제안서·견적서 진행 추적 (수주확정 후엔 기본 접힘) -->
+      {% set _has_proposal = p.proposal_date %}
+      {% set _has_quotation = p.quotation_date %}
+      {% if _has_proposal or _has_quotation %}
+      {% set _is_won = p.status in ('진행중', '납품완료') %}
+      <div class="presales-card" id="presalesCard">
+        <style>
+          .presales-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+          .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; }
+          .presales-head:hover { background: var(--amber-glow); }
+          .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--ink); flex: 1; display: flex; align-items: center; gap: 8px; }
+          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+                                        background: var(--amber-glow); color: var(--amber-deep); }
+          .presales-head .toggle { font-size: 14px; color: var(--mute); transition: transform .2s; }
+          .presales-card.collapsed .toggle { transform: rotate(-90deg); }
+          .presales-card.collapsed .presales-body { display: none; }
+          .presales-card.collapsed .presales-head { border-bottom: none; }
+          .presales-body { padding: 14px 18px; }
+          .ps-row { display: grid; grid-template-columns: 110px 110px 36px 1fr; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+          .ps-row:last-child { border-bottom: none; }
+          .ps-row .lbl { font-size: 13px; font-weight: 700; color: var(--ink); }
+          .ps-row .date { font-size: 12.5px; color: var(--mute); font-family: monospace; }
+          .ps-row .chk { display: flex; align-items: center; justify-content: center; }
+          .ps-row .chk input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--success); cursor: pointer; }
+          .ps-row .chk-label { font-size: 11.5px; font-weight: 600; color: var(--mute); margin-left: 4px; }
+          .ps-row.submitted .chk-label { color: var(--success); }
+          .ps-row .memo-wrap { display: flex; flex-direction: column; gap: 3px; }
+          .ps-row .memo-wrap input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); color: var(--ink); transition: border-color .15s; }
+          .ps-row .memo-wrap input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
+          .ps-row .memo-wrap input::placeholder { color: var(--mute); font-size: 12px; }
+          .ps-row .save-status { font-size: 10.5px; color: var(--mute); height: 12px; }
+          .ps-row .save-status.ok { color: var(--success); }
+          .ps-row .save-status.err { color: var(--knk-red); }
+        </style>
+        <div class="presales-head" onclick="togglePresales()">
+          <div class="ttl">
+            🗂 수주 전 내역
+            {% if p.stage %}<span class="stage-pill">{{ p.stage }}</span>{% endif %}
+            {% if _is_won %}<span class="stage-pill" style="background:#d1fae5;color:#065f46;">수주 확정됨</span>{% endif %}
+          </div>
+          <span class="toggle">▼</span>
+        </div>
+        <div class="presales-body">
+          {% if _has_proposal %}
+          <div class="ps-row {% if p.proposal_submitted %}submitted{% endif %}" data-key="proposal">
+            <div class="lbl">📝 제안서</div>
+            <div class="date">{{ p.proposal_date }}</div>
+            <div class="chk">
+              <input type="checkbox" id="ps_proposal_sub" {% if p.proposal_submitted %}checked{% endif %}
+                     onchange="savePresales('proposal_submitted', this.checked ? '1' : '0', this)">
+              <label for="ps_proposal_sub" class="chk-label">제출완료</label>
+            </div>
+            <div class="memo-wrap">
+              <input type="text" placeholder="진행 메모 — 자유 기록 (예: 김부장 검토 중, 5/15 미팅 후 제출 예정)"
+                     value="{{ p.proposal_memo|default('') }}"
+                     data-orig="{{ p.proposal_memo|default('') }}"
+                     onblur="savePresales('proposal_memo', this.value, this)">
+              <div class="save-status"></div>
+            </div>
+          </div>
+          {% endif %}
+          {% if _has_quotation %}
+          <div class="ps-row {% if p.quotation_submitted %}submitted{% endif %}" data-key="quotation">
+            <div class="lbl">💰 견적서</div>
+            <div class="date">{{ p.quotation_date }}</div>
+            <div class="chk">
+              <input type="checkbox" id="ps_quotation_sub" {% if p.quotation_submitted %}checked{% endif %}
+                     onchange="savePresales('quotation_submitted', this.checked ? '1' : '0', this)">
+              <label for="ps_quotation_sub" class="chk-label">제출완료</label>
+            </div>
+            <div class="memo-wrap">
+              <input type="text" placeholder="진행 메모 — 자유 기록 (예: 자재비 재산정 중, 외화 환율 반영 필요)"
+                     value="{{ p.quotation_memo|default('') }}"
+                     data-orig="{{ p.quotation_memo|default('') }}"
+                     onblur="savePresales('quotation_memo', this.value, this)">
+              <div class="save-status"></div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <script>
+      (function(){
+        var card = document.getElementById('presalesCard');
+        if (!card) return;
+        var pid = {{ p.id }};
+        var isWon = {{ 'true' if _is_won else 'false' }};
+        var lsKey = 'knk_presales_collapsed_' + pid;
+        // 초기 접힘 상태: localStorage > 수주확정여부
+        var saved = localStorage.getItem(lsKey);
+        var collapsed;
+        if (saved === 'open') collapsed = false;
+        else if (saved === 'closed') collapsed = true;
+        else collapsed = isWon;  // localStorage 없으면 수주확정 여부 따라감
+        if (collapsed) card.classList.add('collapsed');
+        window.togglePresales = function(){
+          card.classList.toggle('collapsed');
+          localStorage.setItem(lsKey, card.classList.contains('collapsed') ? 'closed' : 'open');
+        };
+        window.savePresales = function(field, value, el){
+          var row = el.closest('.ps-row');
+          var statusEl = row.querySelector('.save-status');
+          // 메모는 변동 없으면 skip
+          if (field.endsWith('_memo')) {
+            var inp = row.querySelector('input[type="text"]');
+            if ((inp.dataset.orig || '') === (value || '')) return;
+          }
+          if (statusEl) { statusEl.textContent = '저장 중…'; statusEl.className = 'save-status'; }
+          var fd = new FormData();
+          fd.append('field', field);
+          fd.append('value', value);
+          fetch('/projects/' + pid + '/presales-edit', { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+              if (j.ok) {
+                if (statusEl) { statusEl.textContent = '✓ 저장됨'; statusEl.className = 'save-status ok'; }
+                if (field.endsWith('_submitted')) {
+                  if (value === '1') row.classList.add('submitted'); else row.classList.remove('submitted');
+                } else {
+                  var inp = row.querySelector('input[type="text"]');
+                  if (inp) inp.dataset.orig = value;
+                }
+                setTimeout(function(){ if (statusEl) statusEl.textContent = ''; }, 2500);
+              } else {
+                if (statusEl) { statusEl.textContent = '✗ ' + (j.message || '실패'); statusEl.className = 'save-status err'; }
+              }
+            })
+            .catch(function(e){
+              if (statusEl) { statusEl.textContent = '✗ 네트워크 오류'; statusEl.className = 'save-status err'; }
+            });
+        };
+      })();
+      </script>
+      {% endif %}
+
       <!-- v5H93: 수주 내역 — 카드형 레이아웃 (한 SO = 한 카드, 호기 라인 항상 노출) -->
       <style>
         .so-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); overflow: hidden; box-shadow: var(--shadow-sm); }

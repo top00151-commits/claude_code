@@ -5336,6 +5336,61 @@ async def projects_header_edit(req: Request, pid: int):
                           "cascade": cascade_info})
 
 
+@app.post("/projects/{pid:int}/presales-edit")
+async def projects_presales_edit(req: Request, pid: int):
+    """v5H212: 수주 전 내역 인라인 편집 — proposal/quotation 의 submitted/memo 단건 PATCH.
+    필드: proposal_submitted | proposal_memo | quotation_submitted | quotation_memo
+    """
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    field = (form.get("field") or "").strip()
+    raw_value = form.get("value", "")
+    ALLOWED = {"proposal_submitted", "proposal_memo",
+               "quotation_submitted", "quotation_memo"}
+    if field not in ALLOWED:
+        return JSONResponse({"ok": False, "message": f"허용되지 않은 필드: {field}"}, 400)
+    if field.endswith("_submitted"):
+        val: object = 1 if str(raw_value).strip() in ("1", "true", "True", "on", "yes") else 0
+    else:
+        val = (raw_value or "").strip() if isinstance(raw_value, str) else (raw_value or "")
+        if val == "":
+            val = None
+    with db_session() as c:
+        old_row = c.execute(f"SELECT {field} FROM projects WHERE id=?", (pid,)).fetchone()
+        if not old_row:
+            return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        old_val = old_row[0]
+        if (old_val or 0 if field.endswith("_submitted") else (old_val or "")) == (val or 0 if field.endswith("_submitted") else (val or "")):
+            return JSONResponse({"ok": True, "message": "변동 없음", "value": val})
+        c.execute(f"UPDATE projects SET {field}=? WHERE id=?", (val, pid))
+        # 변경 이력 — 사람이 읽기 쉬운 라벨로
+        _label_map = {
+            "proposal_submitted": "제안서 제출 여부",
+            "proposal_memo":      "제안서 메모",
+            "quotation_submitted":"견적서 제출 여부",
+            "quotation_memo":     "견적서 메모",
+        }
+        try:
+            if field.endswith("_submitted"):
+                ov = "제출완료" if old_val else "미제출"
+                nv = "제출완료" if val else "미제출"
+            else:
+                ov = (old_val or "")[:80]
+                nv = (val or "")[:80] if val else ""
+            c.execute(
+                "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (pid, u.get("id"), _label_map.get(field, field), str(ov), str(nv), "수주 전 내역 편집")
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "field": field, "value": val})
+
+
 @app.post("/projects/{pid:int}/quick-status")
 async def projects_quick_status(req: Request, pid: int):
     """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번).
