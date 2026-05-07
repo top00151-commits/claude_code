@@ -646,10 +646,12 @@
               <span style="color:var(--mute);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
             </div>
             {% endif %}
+            {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             <table class="so-units">
               <thead>
                 <tr>
-                  <th style="width:80px;">호기</th>
+                  {% if _is_co %}<th style="width:60px;">사진</th>{% endif %}
+                  <th style="width:80px;">{% if _is_co %}품명{% else %}호기{% endif %}</th>
                   <th class="num" style="width:120px;">단가</th>
                   <th style="width:74px;">통화</th>
                   <th style="width:78px;">거래</th>
@@ -670,6 +672,15 @@
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 <tr data-uid="{{ u.id }}">
+                  {% if _is_co %}
+                  <td style="text-align:center;padding:4px;">
+                    {% if u.image_thumb_path %}
+                    <a href="{{ u.image_path or u.image_thumb_path }}" target="_blank" title="원본 보기">
+                      <img src="{{ u.image_thumb_path }}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">
+                    </a>
+                    {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
+                  </td>
+                  {% endif %}
                   <td style="white-space:nowrap;">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
@@ -1626,15 +1637,17 @@
         <input type="file" id="coImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
       </div>
       <div id="coImportPreview" style="margin-top:14px;display:none;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)</div>
-        <div style="max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
+        <div id="coImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)<span id="coImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead style="position:sticky;top:0;background:var(--paper-2);">
               <tr>
+                <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--line);width:60px;">사진</th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">품명</th>
                 <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">수량</th>
-                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">단가</th>
-                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">금액</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">단위</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">발주일</th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">모델/매칭</th>
               </tr>
             </thead>
@@ -1683,18 +1696,40 @@
       }
       _coImportRows = j.rows || [];
       document.getElementById('coImportCount').textContent = _coImportRows.length;
+      // v5H226c: 헤더 자동 매핑 결과 노출 (학습형 매핑 가시화)
+      const mapBox = document.getElementById('coImportMapping');
+      const labels = {part_name:'품명', qty:'수량', unit:'단위', model_use:'모델', order_date:'발주일/요청일', spec:'규격/SPEC', supplier:'업체', no:'번호'};
+      const mp = j.mapping || {};
+      const mappedKeys = Object.keys(mp);
+      const missing = ['part_name','qty'].filter(k => !mp[k]);
+      let mapHtml = '<b>📋 헤더 자동 인식</b> (헤더 행 ' + (j.header_row || '?') + ')';
+      if (mappedKeys.length){
+        mapHtml += '<br>' + mappedKeys.map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:#fff;border:1px solid #d4b75a;border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k].col} <span style="color:#888;">(${mp[k].header || '?'})</span></span>`).join('');
+      }
+      if (missing.length){
+        mapHtml += '<br><span style="color:#b91c1c;font-weight:600;">⚠ 미매핑: ' + missing.map(k => labels[k]||k).join(', ') + ' — 헤더 행 또는 컬럼명을 확인해 주세요.</span>';
+      } else {
+        mapHtml += '<br><span style="color:#666;">매핑이 잘못되었으면 알려 주세요 — 다음 업로드부터 학습 반영합니다.</span>';
+      }
+      mapBox.innerHTML = mapHtml;
+      // 이미지 카운트
+      document.getElementById('coImportImgCount').textContent = j.image_count ? ('· 이미지 ' + j.image_count + '장 추출됨') : '';
+      const _imgPref = j.image_url_prefix || '';
       const tbody = document.getElementById('coImportRows');
-      tbody.innerHTML = _coImportRows.map(r => `
+      tbody.innerHTML = _coImportRows.map(r => {
+        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">` : '<span style="color:var(--mute);">—</span>';
+        return `
         <tr>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:center;">${thumb}</td>
           <td style="padding:5px 8px;border-bottom:1px dashed var(--line);">${r.part_name || '—'}</td>
           <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;">${r.qty || 0}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;">${(r.unit_price || 0).toLocaleString()}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;font-weight:600;">${((r.qty || 0) * (r.unit_price || 0)).toLocaleString()}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.unit || 'EA'}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.order_date || '—'}</td>
           <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.model_use || '—'}${r.linked_mgmt_code ? ' · 🔗 ' + r.linked_mgmt_code : ''}</td>
-        </tr>
-      `).join('');
+        </tr>`;
+      }).join('');
       document.getElementById('coImportPreview').style.display = 'block';
-      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + _coImportRows.length + '개 라인 파싱 완료. [확정 등록] 클릭으로 추가하세요.</span>';
+      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + _coImportRows.length + '개 라인 파싱 완료' + (j.image_count ? ', 이미지 ' + j.image_count + '장' : '') + '. [확정 등록] 클릭으로 추가하세요.</span>';
       const btn = document.getElementById('coImportConfirmBtn');
       btn.disabled = false; btn.style.opacity = '1';
     } catch(err) {

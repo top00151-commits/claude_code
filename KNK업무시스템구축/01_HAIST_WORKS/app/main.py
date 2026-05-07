@@ -5426,14 +5426,33 @@ async def projects_import_consumable_parse(req: Request, pid: int,
     tmp_path = os.path.join(tmp_dir, file.filename or "upload.xlsx")
     with open(tmp_path, "wb") as f:
         f.write(raw)
+    # v5H226c: 이미지 영구 저장 폴더 (프로젝트 단위) — /uploads/consumables/proj_{pid}/
+    img_dir = os.path.join(BASE, "uploads", "consumables", f"proj_{pid}")
+    os.makedirs(img_dir, exist_ok=True)
     try:
-        result = _co_local.parse_consumable_xlsx(tmp_path)
+        result = _co_local.parse_consumable_xlsx(tmp_path, image_out_dir=img_dir)
     except Exception as e:
         return JSONResponse({"ok": False, "message": f"파싱 실패: {e}"}, 400)
     lines = result.get("lines") or []
     if not lines:
         return JSONResponse({"ok": False,
                               "message": result.get("error") or "유효한 라인이 없습니다"}, 400)
+    # v5H226c: 헤더 raw text + col_map → 미리보기 모달에 노출 (학습형 매핑 가시화)
+    col_map = result.get("col_map") or {}
+    hdr_row = result.get("header_row") or 0
+    images = result.get("images") or {}
+    raw_headers = []
+    try:
+        from openpyxl import load_workbook
+        _wb = load_workbook(tmp_path, data_only=True, read_only=True)
+        _ws = _wb.worksheets[0]
+        if hdr_row:
+            for cidx in range(1, min(_ws.max_column or 30, 30) + 1):
+                v = _ws.cell(hdr_row, cidx).value
+                raw_headers.append(str(v) if v is not None else "")
+        _wb.close()
+    except Exception:
+        pass
     # model_use → 장비 mgmt_code 자동 매칭 (간단 — projects.model_name 또는 mgmt_code substring)
     out_rows = []
     with db_session() as c:
@@ -5454,18 +5473,61 @@ async def projects_import_consumable_parse(req: Request, pid: int,
                         linked_code = cand["mgmt_code"]
                 except Exception:
                     pass
+            ln_no = ln.get("line_no")
+            # v5H226c: 라인별 이미지 — 첫번째 컷만 사용 (다중 첨부는 추후)
+            img_full = ""
+            img_thumb = ""
+            try:
+                _imgs = images.get(ln_no) if isinstance(images, dict) else None
+                if _imgs and isinstance(_imgs, list) and _imgs:
+                    img_full = _imgs[0].get("full") or ""
+                    img_thumb = _imgs[0].get("thumb") or ""
+            except Exception:
+                pass
             out_rows.append({
-                "line_no": ln.get("line_no"),
+                "line_no": ln_no,
                 "model_use": mu,
                 "part_name": ln.get("part_name") or "",
                 "spec": ln.get("spec") or "",
                 "qty": float(ln.get("qty") or 0),
                 "unit": ln.get("unit") or "EA",
                 "unit_price": 0,  # 엑셀에 단가 컬럼 별도 매핑 시 보정
+                "order_date": ln.get("order_date") or "",
                 "linked_project_id": linked_pid,
                 "linked_mgmt_code": linked_code,
+                # 이미지 — 상대 파일명 (URL prefix 는 클라이언트에서 부착)
+                "image_file": img_full,
+                "image_thumb_file": img_thumb,
             })
-    return JSONResponse({"ok": True, "rows": out_rows, "count": len(out_rows)})
+    # 매핑 표시용 — col_idx 를 엑셀 컬럼문자(A/B/...) 로 변환
+    def _col_letter(idx):
+        s = ""
+        n = int(idx)
+        while n > 0:
+            n, r = divmod(n - 1, 26)
+            s = chr(65 + r) + s
+        return s or "?"
+    mapping_pretty = {}
+    for k, cidx in col_map.items():
+        try:
+            mapping_pretty[k] = {
+                "col": _col_letter(cidx),
+                "header": raw_headers[cidx - 1] if cidx - 1 < len(raw_headers) else ""
+            }
+        except Exception:
+            pass
+    img_count = sum(len(v) for k, v in images.items()
+                    if isinstance(v, list) and k != "_errors") if isinstance(images, dict) else 0
+    return JSONResponse({
+        "ok": True,
+        "rows": out_rows,
+        "count": len(out_rows),
+        "header_row": hdr_row,
+        "raw_headers": raw_headers,
+        "mapping": mapping_pretty,
+        "image_count": img_count,
+        "image_url_prefix": f"/uploads/consumables/proj_{pid}/",
+    })
 
 
 @app.post("/projects/{pid:int}/import-consumable-lines/confirm")
@@ -5512,6 +5574,18 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
                 if "linked_project_id" in oicols and r.get("linked_project_id"):
                     cols.append("linked_project_id")
                     vals.append(int(r["linked_project_id"]))
+                # v5H226c: order_date override
+                if "order_date" in oicols and r.get("order_date"):
+                    cols.append("order_date")
+                    vals.append(str(r.get("order_date")).strip())
+                # v5H226c: 이미지 경로 (URL prefix 포함)
+                _img_pref = f"/uploads/consumables/proj_{pid}/"
+                if "image_path" in oicols and r.get("image_file"):
+                    cols.append("image_path")
+                    vals.append(_img_pref + str(r.get("image_file")))
+                if "image_thumb_path" in oicols and r.get("image_thumb_file"):
+                    cols.append("image_thumb_path")
+                    vals.append(_img_pref + str(r.get("image_thumb_file")))
                 placeholders = ",".join(["?"] * len(vals))
                 c.execute(
                     f"INSERT INTO order_items({','.join(cols)}) VALUES({placeholders})",

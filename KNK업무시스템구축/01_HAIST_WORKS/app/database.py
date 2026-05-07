@@ -2362,6 +2362,9 @@ def init_db():
                 ("unit_status", "ALTER TABLE order_items ADD COLUMN unit_status TEXT DEFAULT '진행중'"),
                 # v5H197: 호기별 거래구분 — NULL=프로젝트 상속, 0=내수, 1=수출
                 ("is_export",   "ALTER TABLE order_items ADD COLUMN is_export INTEGER"),
+                # v5H226c: 소모품 라인 이미지 (엑셀 셀에 박힌 이미지 추출/압축본)
+                ("image_path",       "ALTER TABLE order_items ADD COLUMN image_path TEXT"),
+                ("image_thumb_path", "ALTER TABLE order_items ADD COLUMN image_thumb_path TEXT"),
             ]:
                 if col not in oicols:
                     try:
