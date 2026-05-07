@@ -85,11 +85,23 @@
     <input type="hidden" name="stage" value="{{ project.stage|default('제안작성') }}">
     <input type="hidden" name="currency" value="{{ project.currency|default('KRW') }}">
 
+    {% if project %}
+    {# v5H177: 수정 모드 진입 시 — 기본 정보는 등록값 보존 정책 안내 + 상세 페이지 인라인 편집으로 유도 #}
+    <div style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--amber); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 12px;">
+      <span style="font-size:22px;">🔒</span>
+      <div style="flex:1;font-size:13px;line-height:1.65;color:var(--ink);">
+        <b style="color:var(--amber-deep);">기본 등록 정보는 보존됩니다.</b>
+        프로젝트명·고객사·통화·환율·비고 등은 <a href="/project/{{ project.id }}" style="color:var(--knk-red);font-weight:700;text-decoration:underline;">프로젝트 상세 페이지</a> 의 인라인 편집(✏️ 클릭) 으로 수정하세요.
+        <br><span style="font-size:11.5px;color:var(--mute);">관리코드·사업부·유형·PO유형·등록자/등록일시 는 영구 잠금 (감사 무결성)</span>
+      </div>
+    </div>
+    {% else %}
     <div class="pf-hint">
       ① 제안 단계 (초기협의 / 제안서전달 / 견적발행 / 수주예정): 관리코드/SO 없이 저장 ·
       ② <b>상태가 '진행중' 또는 '납품완료'</b> 면 자동으로 <b>관리코드 + 수주번호(SO)</b> 가 함께 발급됩니다 (이미 제작 진행 중이라는 의미) ·
       ③ 호기별 단가/납품처를 따로 입력하려면 아래 ③ 섹션의 <b>"수주 확정 동시 발급"</b> 체크.
     </div>
+    {% endif %}
 
     {% set _err = (request.query_params.get('error') if request else '') %}
     {% if _err %}
@@ -129,13 +141,20 @@
                  style="background:var(--paper-2);color:var(--ink);font-weight:600;">
         </div>
         <div class="pf-field">
-          <label>PO 유형</label>
-          <select name="po_type">
-            <option value="">— 선택 —</option>
-            {% for t in PO_TYPES %}
-            <option value="{{ t }}" {% if project and project.po_type == t %}selected{% endif %}>{{ t }}</option>
-            {% endfor %}
-          </select>
+          <label>PO 유형 {% if project %}<span class="sub" style="color:var(--mute);">(등록 후 잠금 — 상세 페이지에서 변경)</span>{% endif %}</label>
+          {% if project %}
+            {# v5H177: Tier 1 — 등록 후 영구 잠금 #}
+            <input type="text" value="{{ project.po_type|default('—') }}" readonly
+                   style="background:var(--paper-2);color:var(--ink);font-weight:600;cursor:not-allowed;">
+            <input type="hidden" name="po_type" value="{{ project.po_type|default('') }}">
+          {% else %}
+            <select name="po_type">
+              <option value="">— 선택 —</option>
+              {% for t in PO_TYPES %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
         </div>
       </div>
       <div class="pf-row solo">
@@ -569,8 +588,41 @@
     </div>
 
     <div class="pf-actions">
+      {% if project %}
+      <a class="btn btn-secondary" href="/project/{{ project.id }}">← 상세 페이지로 (인라인 편집)</a>
+      {% else %}
       <a class="btn btn-secondary" href="/projects">취소</a>
-      <button type="submit" class="btn btn-primary">📤 {% if project %}저장{% else %}등록{% endif %}</button>
+      <button type="submit" class="btn btn-primary">📤 등록</button>
+      {% endif %}
     </div>
   </form>
+
+  {% if project %}
+  {# v5H177: 수정 모드 — 모든 필드를 readonly/disabled 처리. 저장 액션도 차단. #}
+  <script>
+  (function(){
+    var form = document.querySelector('form.pf-wrap');
+    if (!form) return;
+    form.querySelectorAll('input, select, textarea').forEach(function(el){
+      // hidden 은 그대로 둠 (POST 시 데이터 보존용)
+      if (el.type === 'hidden') return;
+      // readonly/disabled 처리
+      if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
+        el.disabled = true;
+      } else {
+        el.readOnly = true;
+      }
+      el.style.background = 'var(--paper-2)';
+      el.style.cursor = 'not-allowed';
+      el.style.color = 'var(--mute)';
+    });
+    // 폼 submit 차단
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      alert('🔒 기본 등록 정보는 보존됩니다.\n수정은 프로젝트 상세 페이지의 인라인 편집을 사용하세요.');
+      window.location.href = '/project/{{ project.id }}';
+    });
+  })();
+  </script>
+  {% endif %}
 </main></div></body></html>

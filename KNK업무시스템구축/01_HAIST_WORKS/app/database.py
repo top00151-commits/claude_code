@@ -2225,11 +2225,16 @@ def init_db():
             pass
 
         # v5H81: order_items — 호기 라벨 + 라인 비고
+        # v5H177: 호기별 발주일/납기/납품처/통화 override (NULL 이면 SO 부모값 상속)
         try:
             oicols = [r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()]
             for col, decl in [
                 ("unit_label", "ALTER TABLE order_items ADD COLUMN unit_label TEXT"),
                 ("line_note",  "ALTER TABLE order_items ADD COLUMN line_note TEXT"),
+                ("order_date", "ALTER TABLE order_items ADD COLUMN order_date TEXT"),
+                ("due_date",   "ALTER TABLE order_items ADD COLUMN due_date TEXT"),
+                ("ship_to",    "ALTER TABLE order_items ADD COLUMN ship_to TEXT"),
+                ("currency",   "ALTER TABLE order_items ADD COLUMN currency TEXT"),
             ]:
                 if col not in oicols:
                     try:

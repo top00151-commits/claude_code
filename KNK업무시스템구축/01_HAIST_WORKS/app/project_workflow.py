@@ -525,16 +525,41 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             reused = False
 
         # 호기별 라인은 order_items 에 적재 (재사용/신규 모두 공통)
+        # v5H177: 호기별 발주일/납기/납품처 override 지원. SO 그룹값과 같으면 NULL 저장(상속).
+        try:
+            _oi_cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        except Exception:
+            _oi_cols = set()
+        _has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols
+                      and "order_date" in _oi_cols and "currency" in _oi_cols)
         for i, u in enumerate(g_units):
             lbl = (u.get("label") or "").strip() or f"{i+1}호기"
             amt = float(u.get("amount") or 0)
             note_u = (u.get("note") or "").strip()
+            u_due = (u.get("due_date") or "").strip()
+            u_ship = (u.get("ship_to") or "").strip()
+            u_ord = (u.get("order_date") or "").strip()
+            u_cur = (u.get("currency") or "").strip().upper()
+            # SO 그룹값과 동일하면 NULL (상속) — 다르면 override 값 저장
+            ov_due = u_due if (u_due and u_due != (g_due or "")) else None
+            ov_ship = u_ship if (u_ship and u_ship != (g_ship or "")) else None
+            ov_ord = u_ord if (u_ord and u_ord != order_date) else None
+            ov_cur = u_cur if (u_cur and u_cur != g_cur) else None
             try:
-                c.execute(
-                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                    "unit_label, line_note) VALUES(?,?,?,?,?,?)",
-                    (oid, 1, amt, amt, lbl, note_u)
-                )
+                if _has_extra:
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note, order_date, due_date, ship_to, currency) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (oid, 1, amt, amt, lbl, note_u,
+                         ov_ord, ov_due, ov_ship, ov_cur)
+                    )
+                else:
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note) VALUES(?,?,?,?,?,?)",
+                        (oid, 1, amt, amt, lbl, note_u)
+                    )
             except Exception:
                 pass
 
@@ -700,6 +725,9 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             sel_extra = []
             if "unit_label" in oicols: sel_extra.append("unit_label")
             if "line_note" in oicols:  sel_extra.append("line_note")
+            # v5H177: 호기별 발주일/납기/납품처/통화 override 컬럼
+            for _c in ("order_date", "due_date", "ship_to", "currency"):
+                if _c in oicols: sel_extra.append(_c)
             sel_extra_sql = (", " + ", ".join(sel_extra)) if sel_extra else ""
             items = c.execute(
                 f"SELECT id, qty, unit_price, amount{sel_extra_sql} "
@@ -707,6 +735,12 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                 (d["id"],)
             ).fetchall()
             d["units"] = [dict(it) for it in items]
+            # v5H177: 각 호기에 effective 값 (override 없으면 SO 부모값) 채워줌
+            for _u in d["units"]:
+                _u["eff_order_date"] = _u.get("order_date") or d.get("order_date")
+                _u["eff_due_date"]   = _u.get("due_date")   or d.get("due_date")
+                _u["eff_ship_to"]    = _u.get("ship_to")    or d.get("ship_to")
+                _u["eff_currency"]   = _u.get("currency")   or d.get("currency") or "KRW"
             # v5H133: 호기 표시 순서를 내림차순(최근 호기 → 1호기)으로 반전 (대표 요청)
             # v5H134: 정렬 키를 각 행에 _sort_n 으로 내장 → 템플릿 sort 필터에서도 동일 키 사용
             try:

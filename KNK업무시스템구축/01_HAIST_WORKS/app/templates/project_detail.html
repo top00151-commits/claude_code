@@ -372,26 +372,44 @@
             {# v5H134: 템플릿 측에서도 호기 라인 내림차순 강제 (백엔드 정렬 누락 대비 이중 안전망) #}
             {# 백엔드(_sort_n) 키 우선 사용. 누락 시 unit_label 사전순으로 fallback. #}
             {% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}
+            {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
             <table class="so-units">
               <thead>
                 <tr>
-                  <th style="width:120px;">호기</th>
-                  <th class="num" style="width:170px;">단가 ({{ _cur }})</th>
+                  <th style="width:90px;">호기</th>
+                  <th class="num" style="width:130px;">단가 ({{ _cur }})</th>
+                  <th style="width:115px;">발주일</th>
+                  <th style="width:115px;">납기</th>
+                  <th style="width:140px;">납품처</th>
                   <th>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:90px;">동작</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
                 {% for u in _units_desc %}
+                {% set _ov_o = (u.order_date and u.order_date != so.order_date) %}
+                {% set _ov_d = (u.due_date and u.due_date != so.due_date) %}
+                {% set _ov_s = (u.ship_to and u.ship_to != so.ship_to) %}
                 <tr data-uid="{{ u.id }}">
                   <td style="white-space:nowrap;">
-                    {# v5H109: 최초/추가 배지 제거 (대표 지시) — 라벨만 노출 #}
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
                   </td>
                   <td class="num">
                     <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
+                  </td>
+                  <td>
+                    <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
+                    {% if _editable %}<input type="date" class="unit-edit ord-inp" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                  </td>
+                  <td>
+                    <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
+                    {% if _editable %}<input type="date" class="unit-edit due-inp" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                  </td>
+                  <td>
+                    <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" placeholder="(부모 상속)" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   <td>
                     <span class="display-val note">{{ u.line_note or '' }}</span>
@@ -407,6 +425,9 @@
                 {% endfor %}
               </tbody>
             </table>
+            <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
+              ⓘ 발주일/납기/납품처 빈 칸은 SO 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
+            </div>
             {% else %}
             <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
               호기 라인이 없습니다 — '＋ 호기 추가' 로 입력하세요.
@@ -574,6 +595,10 @@
               const lblInp = row.querySelector('.lbl-inp');
               const amtInp = row.querySelector('.amt');
               const noteInp = row.querySelector('.note-inp');
+              // v5H177: 호기별 발주일/납기/납품처
+              const ordInp = row.querySelector('.ord-inp');
+              const dueInp = row.querySelector('.due-inp');
+              const shipInp = row.querySelector('.ship-inp');
               const saveBtn = row.querySelector('.row-save');
               const delBtn = row.querySelector('.row-del');
               if (!saveBtn) return;
@@ -583,14 +608,20 @@
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const da = amtInp && (parseFloat(aRaw) !== parseFloat(amtInp.dataset.orig));
                 const dn = noteInp && (noteInp.value !== noteInp.dataset.orig);
-                saveBtn.style.display = (dl || da || dn) ? 'inline-block' : 'none';
+                const dord = ordInp && (ordInp.value !== ordInp.dataset.orig);
+                const ddue = dueInp && (dueInp.value !== dueInp.dataset.orig);
+                const dship = shipInp && (shipInp.value !== shipInp.dataset.orig);
+                saveBtn.style.display = (dl || da || dn || dord || ddue || dship) ? 'inline-block' : 'none';
               }
-              [lblInp, amtInp, noteInp].forEach(i => i && i.addEventListener('input', dirty));
+              [lblInp, amtInp, noteInp, ordInp, dueInp, shipInp].forEach(i => i && i.addEventListener('input', dirty));
               saveBtn.addEventListener('click', async () => {
                 const body = new URLSearchParams();
                 body.set('label', lblInp.value || '');
                 body.set('amount', (amtInp.value || '0').replace(/,/g,''));
                 body.set('note', noteInp.value || '');
+                if (ordInp) body.set('order_date', ordInp.value || '');
+                if (dueInp) body.set('due_date', dueInp.value || '');
+                if (shipInp) body.set('ship_to', shipInp.value || '');
                 try {
                   const r = await fetch('/sales/orders/items/' + uid + '/edit', {
                     method: 'POST', body: body
@@ -821,9 +852,14 @@
               {% for so in project_orders %}<span style="font-family:monospace;color:var(--knk-red);font-weight:700;">{{ so.order_no }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
             {% else %}—{% endif %}
           </dd>
-          <dt>프로젝트명</dt><dd><b>{{ p.name }}</b></dd>
+          {# v5H177: 프로젝트명/고객사/거래구분 인라인 편집 (✏️ 클릭) #}
+          <dt>프로젝트명</dt><dd>
+            <span class="hf-display"><b id="hf_name_disp">{{ p.name }}</b>
+              {% if can_sales %}<button type="button" class="hf-edit-btn" data-field="name" data-pid="{{ p.id }}" title="이름 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
+            </span>
+          </dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
-          <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
+          <dt>사업부</dt><dd style="background:var(--paper-2);">{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %} <span style="font-size:10px;color:var(--mute);">🔒</span></dd>
           {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
           <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
           {% if parent_project %}
@@ -835,7 +871,12 @@
             <span style="font-size:11px;color:var(--mute);"> · {{ parent_project.name }}</span>
           </dd>
           {% endif %}
-          <dt>거래 구분</dt><dd>{% if p.is_export %}<span style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}</dd>
+          <dt>거래 구분</dt><dd>
+            <span class="hf-display">
+              {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
+              {% if can_sales %}<button type="button" class="hf-toggle-export" data-pid="{{ p.id }}" data-now="{{ '1' if p.is_export else '0' }}" title="내수↔수출 전환" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">⇄</button>{% endif %}
+            </span>
+          </dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
           <dt>상태</dt><dd>
             {% if can_sales %}
@@ -852,6 +893,20 @@
           </dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
+          {# v5H177: 통화/환율 인라인 편집 (✏️ 클릭) #}
+          <dt>통화 / 환율</dt><dd>
+            <span class="hf-display">
+              <b id="hf_currency_disp">{{ p.currency or 'KRW' }}</b>
+              {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--mute);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--mute);font-size:11px;"> KRW</span>{% endif %}
+              {% if can_sales %}<button type="button" class="hf-edit-currency" data-pid="{{ p.id }}" data-cur="{{ p.currency or 'KRW' }}" data-fx="{{ p.fx_rate or '' }}" title="통화/환율 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
+            </span>
+          </dd>
+          <dt>비고</dt><dd>
+            <span class="hf-display">
+              <span id="hf_note_disp" style="font-size:12.5px;color:var(--ink);">{{ p.note|default('—') }}</span>
+              {% if can_sales %}<button type="button" class="hf-edit-btn" data-field="note" data-pid="{{ p.id }}" title="비고 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
+            </span>
+          </dd>
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
@@ -899,6 +954,95 @@
     </aside>
   </div>
   <div style="height: var(--space-7);"></div>
+
+{# v5H177: 헤더 필드 인라인 편집 (이름/비고/통화·환율/거래구분) #}
+<script>
+(function(){
+  async function patchField(pid, field, value){
+    const body = new URLSearchParams();
+    body.set('field', field);
+    body.set('value', value === null || value === undefined ? '' : String(value));
+    const r = await fetch('/projects/' + pid + '/header-edit', {method:'POST', body: body});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) {
+      alert('⚠ ' + (j.message || j.error || ('HTTP ' + r.status)));
+      return null;
+    }
+    return j;
+  }
+  // 이름 / 비고 등 단순 텍스트 필드
+  document.querySelectorAll('.hf-edit-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pid = btn.dataset.pid;
+      const field = btn.dataset.field;
+      const dispMap = {'name':'hf_name_disp', 'note':'hf_note_disp'};
+      const labelMap = {'name':'프로젝트명', 'note':'비고'};
+      const cur = (document.getElementById(dispMap[field]) || {}).textContent || '';
+      const v = prompt(labelMap[field] + ' 변경:', cur === '—' ? '' : cur.trim());
+      if (v === null) return;
+      const j = await patchField(pid, field, v);
+      if (j) {
+        const el = document.getElementById(dispMap[field]);
+        if (el) el.textContent = (v.trim() || '—');
+      }
+    });
+  });
+  // 거래구분 토글 (내수 ⇄ 수출)
+  document.querySelectorAll('.hf-toggle-export').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pid = btn.dataset.pid;
+      const now = btn.dataset.now === '1';
+      const next = now ? '0' : '1';
+      if (!confirm('거래구분을 ' + (next === '1' ? '✈ 수출' : '🏠 내수') + ' 로 변경하시겠습니까?')) return;
+      const j = await patchField(pid, 'is_export', next);
+      if (j) {
+        btn.dataset.now = next;
+        const el = document.getElementById('hf_export_disp');
+        if (el) {
+          if (next === '1') {
+            el.style.background = '#ecf5ff'; el.style.color = '#1f5fc6';
+            el.textContent = '✈ 수출';
+          } else {
+            el.style.background = '#fff7e6'; el.style.color = '#c64c1f';
+            el.textContent = '🏠 내수';
+          }
+        }
+      }
+    });
+  });
+  // 통화 / 환율 편집 (한 번에)
+  document.querySelectorAll('.hf-edit-currency').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pid = btn.dataset.pid;
+      const curCcy = btn.dataset.cur || 'KRW';
+      const curFx = btn.dataset.fx || '';
+      const newCcy = prompt('통화 (KRW/USD/VND/JPY/CNY/EUR):', curCcy);
+      if (newCcy === null) return;
+      const ccy = (newCcy || 'KRW').trim().toUpperCase();
+      if (!['KRW','USD','VND','JPY','CNY','EUR'].includes(ccy)) {
+        alert('⚠ 허용 통화: KRW/USD/VND/JPY/CNY/EUR');
+        return;
+      }
+      let fx = '';
+      if (ccy !== 'KRW') {
+        const fxStr = prompt('기준환율 (1 ' + ccy + ' = X KRW):', curFx);
+        if (fxStr === null) return;
+        fx = fxStr.trim();
+        if (fx && (isNaN(parseFloat(fx)) || parseFloat(fx) <= 0)) {
+          alert('⚠ 환율은 양수 숫자'); return;
+        }
+      }
+      const j1 = await patchField(pid, 'currency', ccy);
+      if (!j1) return;
+      const j2 = await patchField(pid, 'fx_rate', fx);
+      if (j2) {
+        // 새로고침 (환산 표시도 갱신 필요)
+        window.location.href = window.location.pathname + '?_t=' + Date.now();
+      }
+    });
+  });
+})();
+</script>
 
 {# v5H102b: 상태 인라인 빠른 변경 — 페이지 최하단(조건 밖) 으로 이동 #}
 <script>

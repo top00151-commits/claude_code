@@ -5037,6 +5037,74 @@ async def auth_verify_password(req: Request):
     return JSONResponse({"ok": True})
 
 
+@app.post("/projects/{pid:int}/header-edit")
+async def projects_header_edit(req: Request, pid: int):
+    """v5H177: 프로젝트 상세 헤더 인라인 편집.
+    필드별 단건 PATCH — name / customer_id / currency / fx_rate / is_export / note / order_date / due_date.
+    Tier 1 필드(mgmt_code, biz_div, project_type, po_type, created_*) 는 수정 불가.
+    """
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    field = (form.get("field") or "").strip()
+    raw_value = form.get("value", "")
+    LOCKED = {"mgmt_code", "biz_div", "project_type", "po_type",
+              "created_at", "created_by", "id", "code"}
+    EDITABLE = {"name", "customer_id", "currency", "fx_rate", "amount_krw",
+                "is_export", "note", "order_date", "due_date", "model"}
+    if field in LOCKED:
+        return JSONResponse({"ok": False, "message": f"'{field}' 은 영구 잠금 필드"}, 400)
+    if field not in EDITABLE:
+        return JSONResponse({"ok": False, "message": f"허용되지 않은 필드: {field}"}, 400)
+    # 값 정규화
+    val: object = (raw_value or "").strip() if isinstance(raw_value, str) else raw_value
+    if field == "currency":
+        val = (val or "KRW").upper()
+        if val not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+            return JSONResponse({"ok": False, "message": "허용 통화: KRW/USD/VND/JPY/CNY/EUR"}, 400)
+    elif field == "fx_rate":
+        try:
+            val = float(val) if val else None
+            if val is not None and val <= 0: val = None
+        except ValueError:
+            return JSONResponse({"ok": False, "message": "환율 형식 오류"}, 400)
+    elif field == "amount_krw":
+        try:
+            val = float(str(val).replace(",", "")) if val else None
+        except ValueError:
+            val = None
+    elif field == "customer_id":
+        try:
+            val = int(val) if val else None
+        except ValueError:
+            return JSONResponse({"ok": False, "message": "고객 ID 형식 오류"}, 400)
+    elif field == "is_export":
+        val = "1" if str(val).strip() in ("1", "true", "True", "on", "yes") else "0"
+    # DB 업데이트 + 이력 기록
+    with db_session() as c:
+        old_row = c.execute(f"SELECT {field} FROM projects WHERE id=?", (pid,)).fetchone()
+        if not old_row:
+            return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        old_val = old_row[0]
+        if (old_val or "") == (val or ""):
+            return JSONResponse({"ok": True, "message": "변동 없음", "value": val})
+        c.execute(f"UPDATE projects SET {field}=? WHERE id=?", (val, pid))
+        # 변경 이력 (project_history 가 있으면)
+        try:
+            c.execute(
+                "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (pid, u.get("id"), field, str(old_val or ""), str(val or ""),
+                 f"인라인 편집 ({field})")
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "field": field, "value": val})
+
+
 @app.post("/projects/{pid:int}/quick-status")
 async def projects_quick_status(req: Request, pid: int):
     """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번).
@@ -5171,6 +5239,10 @@ async def sales_order_item_edit(req: Request, iid: int):
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
+    # v5H177: 호기별 발주일/납기/납품처 override
+    u_order = (form.get("order_date") or "").strip() or None
+    u_due = (form.get("due_date") or "").strip() or None
+    u_ship = (form.get("ship_to") or "").strip() or None
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -5194,10 +5266,32 @@ async def sales_order_item_edit(req: Request, iid: int):
                 "ok": False,
                 "message": f"{st} 상태 SO 의 호기는 수정 불가"
             }, 400)
-        c.execute(
-            "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",
-            (label or None, amt, amt, note or None, iid)
-        )
+        # v5H177: order_items 에 override 컬럼이 있을 때만 같이 업데이트 (백워드 호환)
+        try:
+            _oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        except Exception:
+            _oicols = set()
+        if {"order_date","due_date","ship_to"} <= _oicols:
+            # SO 그룹값(부모) 조회 — 동일하면 override NULL 로 저장 (상속)
+            _so = c.execute(
+                "SELECT order_date, due_date, ship_to FROM orders WHERE id=?",
+                (it["order_id"],)
+            ).fetchone()
+            _so_d = dict(_so) if _so else {}
+            ov_o = u_order if (u_order and u_order != (_so_d.get("order_date") or "")) else None
+            ov_d = u_due if (u_due and u_due != (_so_d.get("due_date") or "")) else None
+            ov_s = u_ship if (u_ship and u_ship != (_so_d.get("ship_to") or "")) else None
+            c.execute(
+                "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
+                "order_date=?, due_date=?, ship_to=? WHERE id=?",
+                (label or None, amt, amt, note or None,
+                 ov_o, ov_d, ov_s, iid)
+            )
+        else:
+            c.execute(
+                "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",
+                (label or None, amt, amt, note or None, iid)
+            )
         # SO total_amount = SUM(items.amount), unit_label 재구성
         oid = it["order_id"]
         rows = c.execute(
