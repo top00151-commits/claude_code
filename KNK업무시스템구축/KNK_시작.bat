@@ -5,6 +5,8 @@ REM   PREV: 2026-05-05 v5H154 고객사 엑셀 일괄 등록 신설. /customers/
 REM   Full changelog: ../CHANGELOG.md
 REM ============================================================
 chcp 65001 >nul
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 title KNK HAIST WORKS [v5H178]
 cd /d "%~dp001_HAIST_WORKS"
 
