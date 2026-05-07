@@ -171,6 +171,12 @@ def _t_helper(key: str, default: str = "", lang: str = "ko"):
     return default or key
 tpl.env.globals["t"] = _t_helper
 
+# v5H203: 공휴일 데이터를 Jinja 전역으로 노출 (데이트픽커 partial에서 사용)
+def _holidays_globals():
+    return {"kr": HOLIDAYS_KR, "vn": HOLIDAYS_VN}
+# 모듈 후반에서 정의되므로 lazy import — 여기선 함수만 등록
+tpl.env.globals["get_holidays"] = _holidays_globals
+
 
 # =====================================================
 # v5H202 (2026-05-07) — 공휴일 상수 (전체 캘린더 공유)

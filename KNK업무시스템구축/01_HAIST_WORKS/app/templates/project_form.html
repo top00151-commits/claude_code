@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %} · KNK</title>
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_datepicker.html" %}
 <style>
 /* v5H76: 프로젝트 등록 폼 — 단정한 섹션형 레이아웃 (기본정보 → 고객·일정 → 금액·상태 → 비고) */
 .pf-wrap { max-width: 880px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
@@ -335,11 +336,11 @@
       <div class="pf-row">
         <div class="pf-field">
           <label>발주일</label>
-          <input type="date" name="order_date" value="{{ project.order_date|default('') }}">
+          <input type="date" class="knk-cal" name="order_date" value="{{ project.order_date|default('') }}">
         </div>
         <div class="pf-field">
           <label>납기</label>
-          <input type="date" name="due_date" value="{{ project.due_date|default('') }}">
+          <input type="date" class="knk-cal" name="due_date" value="{{ project.due_date|default('') }}">
         </div>
       </div>
       {# v5H201: 제안 단계 일정 — 수주확정 전 스케줄 관리용.
@@ -357,7 +358,7 @@
               <span style="vertical-align:middle;">해당없음</span>
             </span>
           </label>
-          <input type="date" id="pf_proposal_date" name="proposal_date" value="{{ _proposal_v }}">
+          <input type="date" class="knk-cal" id="pf_proposal_date" name="proposal_date" value="{{ _proposal_v }}">
         </div>
         <div class="pf-field">
           <label>
@@ -367,7 +368,7 @@
               <span style="vertical-align:middle;">해당없음</span>
             </span>
           </label>
-          <input type="date" id="pf_quotation_date" name="quotation_date" value="{{ _quotation_v }}">
+          <input type="date" class="knk-cal" id="pf_quotation_date" name="quotation_date" value="{{ _quotation_v }}">
         </div>
       </div>
       <div class="pf-row solo" style="margin-top:-2px;">
@@ -646,7 +647,7 @@
             <td style="padding:6px 8px;"><input type="text" name="unit_label[]" value="${label||(counter+'호기')}" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><select name="unit_currency[]" class="unit_ccy_sel" style="width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"><option value="KRW">KRW</option><option value="USD">USD</option><option value="VND">VND</option><option value="JPY">JPY</option><option value="CNY">CNY</option><option value="EUR">EUR</option></select></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_amount[]" inputmode="numeric" placeholder="0" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><input type="date" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
+            <td style="padding:6px 8px;"><input type="date" class="knk-cal" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_ship[]" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 8px;"><input type="text" name="unit_note[]" placeholder="(선택)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
             <td style="padding:6px 4px;text-align:center;"><button type="button" class="rmU" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:16px;">×</button></td>

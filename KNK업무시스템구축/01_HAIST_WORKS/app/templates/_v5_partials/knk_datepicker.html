@@ -1,0 +1,255 @@
+{# v5H203: 공휴일 표시 데이트픽커 — 수주관리 캘린더 기준 통일
+   사용법: 페이지 어디에 한 번 include 하고, 날짜 input 에 class="knk-cal" 추가
+   (동적으로 추가된 input 은 KnkCal.attach(el) 호출)
+#}
+<style>
+.knk-cal-pop { position: absolute; z-index: 9999; background: #fff; border: 1px solid #f1e8d4;
+               border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); padding: 12px;
+               width: 280px; font-family: inherit; }
+.knk-cal-pop.hidden { display: none; }
+.knk-cal-pop .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.knk-cal-pop .head .title { font-weight: 800; font-size: 13px; color: #b91c1c; }
+.knk-cal-pop .head .nav { display: flex; gap: 4px; }
+.knk-cal-pop .head .nav button { background: #fafaf7; border: 1px solid #f1e8d4; border-radius: 6px;
+                                  width: 26px; height: 26px; cursor: pointer; font-size: 13px; color: #475569;
+                                  display: flex; align-items: center; justify-content: center; padding: 0; }
+.knk-cal-pop .head .nav button:hover { background: #fef3c7; border-color: #d4a574; }
+.knk-cal-pop .dow-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+.knk-cal-pop .dow { text-align: center; font-size: 10.5px; font-weight: 700; color: #64748b; padding: 4px 0; }
+.knk-cal-pop .dow.sun { color: #dc2626; }
+.knk-cal-pop .dow.sat { color: #2563eb; }
+.knk-cal-pop .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.knk-cal-pop .day { aspect-ratio: 1/1; min-height: 32px; border-radius: 6px;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    background: #fafaf7; border: 1px solid transparent; cursor: pointer;
+                    font-size: 12px; color: #1e293b; font-weight: 600; position: relative;
+                    transition: all .12s; }
+.knk-cal-pop .day:hover { background: #fef3c7; border-color: #d4a574; transform: scale(1.05); }
+.knk-cal-pop .day.out { color: #cbd5e1; background: transparent; cursor: default; }
+.knk-cal-pop .day.out:hover { background: transparent; border-color: transparent; transform: none; }
+.knk-cal-pop .day.today { box-shadow: inset 0 0 0 2px #f59e0b; }
+.knk-cal-pop .day.selected { background: #b91c1c !important; color: #fff !important; }
+.knk-cal-pop .day.sun, .knk-cal-pop .day.holiday { color: #dc2626; }
+.knk-cal-pop .day.sat { color: #2563eb; }
+.knk-cal-pop .day.holiday { background: #fef2f2; }
+.knk-cal-pop .day .badge { position: absolute; top: 2px; right: 2px; display: flex; gap: 1px; }
+.knk-cal-pop .day .badge .b { display: inline-block; min-width: 11px; height: 11px; line-height: 11px;
+                               padding: 0 2px; text-align: center; border-radius: 2px;
+                               font-size: 8px; font-weight: 800; background: #dc2626; color: #fff; }
+.knk-cal-pop .day .badge .b.vn { background: #fb923c; }
+.knk-cal-pop .day .badge .b.alt { background: #fff; color: #dc2626; border: 1px dashed #dc2626; }
+.knk-cal-pop .day .badge .b.alt.vn { color: #fb923c; border-color: #fb923c; }
+.knk-cal-pop .foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 8px;
+                     border-top: 1px solid #f1e8d4; font-size: 11px; }
+.knk-cal-pop .foot button { background: #fafaf7; border: 1px solid #f1e8d4; border-radius: 5px;
+                            padding: 4px 10px; cursor: pointer; font-size: 11px; color: #475569; }
+.knk-cal-pop .foot button:hover { background: #fef3c7; border-color: #d4a574; }
+.knk-cal-pop .foot .clear { color: #b91c1c; }
+.knk-cal-pop .holname { font-size: 10.5px; color: #dc2626; margin-top: 6px; padding-top: 6px;
+                         border-top: 1px dashed #fecaca; font-weight: 600; min-height: 14px; }
+/* knk-cal input 자체는 그대로 (브라우저 native date 동작 유지) — 픽커 popup 만 덮어쓰기 */
+input.knk-cal { cursor: pointer; }
+</style>
+<script>
+(function(){
+  // 서버에서 주입된 공휴일 데이터
+  var H = (window.KNK_HOLIDAYS = window.KNK_HOLIDAYS || {{ get_holidays()|tojson }});
+  var HKR = H.kr || {}, HVN = H.vn || {};
+
+  function pad2(n){ return (n<10?'0':'') + n; }
+  function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+  function parseISO(s){
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]);
+  }
+
+  var pop = null, currentInput = null, viewY = 0, viewM = 0;
+
+  function ensurePop(){
+    if (pop) return pop;
+    pop = document.createElement('div');
+    pop.className = 'knk-cal-pop hidden';
+    pop.innerHTML = ''
+      + '<div class="head"><div class="title"></div>'
+      + '<div class="nav">'
+      + '<button type="button" data-act="prev" title="이전 달">‹</button>'
+      + '<button type="button" data-act="today" title="오늘로">●</button>'
+      + '<button type="button" data-act="next" title="다음 달">›</button>'
+      + '</div></div>'
+      + '<div class="dow-row">'
+      + '<div class="dow sun">일</div><div class="dow">월</div><div class="dow">화</div>'
+      + '<div class="dow">수</div><div class="dow">목</div><div class="dow">금</div>'
+      + '<div class="dow sat">토</div></div>'
+      + '<div class="grid"></div>'
+      + '<div class="holname"></div>'
+      + '<div class="foot">'
+      + '<button type="button" class="clear" data-act="clear">✕ 지우기</button>'
+      + '<button type="button" data-act="close">닫기</button>'
+      + '</div>';
+    document.body.appendChild(pop);
+    pop.addEventListener('click', function(e){
+      var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+      if (act === 'prev') { shift(-1); }
+      else if (act === 'next') { shift(1); }
+      else if (act === 'today') { var t = new Date(); viewY = t.getFullYear(); viewM = t.getMonth(); render(); }
+      else if (act === 'clear') { if (currentInput) { currentInput.value = ''; fireChange(currentInput); } hide(); }
+      else if (act === 'close') { hide(); }
+    });
+    document.addEventListener('mousedown', function(e){
+      if (!pop || pop.classList.contains('hidden')) return;
+      if (pop.contains(e.target)) return;
+      if (currentInput && currentInput.contains(e.target)) return;
+      hide();
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') hide();
+    });
+    return pop;
+  }
+
+  function fireChange(input){
+    try { input.dispatchEvent(new Event('change', {bubbles: true})); } catch(e){}
+    try { input.dispatchEvent(new Event('input', {bubbles: true})); } catch(e){}
+  }
+
+  function shift(delta){
+    viewM += delta;
+    while (viewM < 0) { viewM += 12; viewY -= 1; }
+    while (viewM > 11) { viewM -= 12; viewY += 1; }
+    render();
+  }
+
+  function render(){
+    var p = ensurePop();
+    p.querySelector('.title').textContent = viewY + '년 ' + (viewM+1) + '월';
+    var grid = p.querySelector('.grid');
+    grid.innerHTML = '';
+    var first = new Date(viewY, viewM, 1);
+    var startDow = first.getDay(); // 0=Sun
+    var daysInMonth = new Date(viewY, viewM+1, 0).getDate();
+    var prevDays = new Date(viewY, viewM, 0).getDate();
+    var todayIso = isoOf(new Date());
+    var selVal = currentInput && currentInput.value ? currentInput.value : '';
+    var holNamesShown = [];
+
+    for (var i = 0; i < 42; i++){
+      var dnum, mY, mM, inMonth;
+      if (i < startDow) { dnum = prevDays - (startDow - 1 - i); mY = viewY; mM = viewM - 1; inMonth = false; }
+      else if (i >= startDow + daysInMonth) { dnum = i - startDow - daysInMonth + 1; mY = viewY; mM = viewM + 1; inMonth = false; }
+      else { dnum = i - startDow + 1; mY = viewY; mM = viewM; inMonth = true; }
+      var dt = new Date(mY, mM, dnum);
+      var iso = isoOf(dt);
+      var dow = dt.getDay();
+      var holKr = HKR[iso], holVn = HVN[iso];
+      var isHol = !!(holKr || holVn);
+
+      var cls = ['day'];
+      if (!inMonth) cls.push('out');
+      if (iso === todayIso) cls.push('today');
+      if (iso === selVal) cls.push('selected');
+      if (dow === 0 || isHol) cls.push('sun');
+      else if (dow === 6) cls.push('sat');
+      if (isHol) cls.push('holiday');
+
+      var cell = document.createElement(inMonth ? 'div' : 'div');
+      cell.className = cls.join(' ');
+      cell.setAttribute('data-iso', iso);
+      var inner = '<span>' + dnum + '</span>';
+      if (inMonth && isHol) {
+        inner = '<span class="badge">'
+          + (holKr ? '<span class="b' + (/대체/.test(holKr) ? ' alt' : '') + '" title="' + holKr + '">K</span>' : '')
+          + (holVn ? '<span class="b vn' + (/Nghỉ bù/.test(holVn) ? ' alt' : '') + '" title="' + holVn + '">V</span>' : '')
+          + '</span>' + inner;
+        if (holKr) holNamesShown.push(holKr);
+      }
+      cell.innerHTML = inner;
+
+      if (inMonth) {
+        cell.addEventListener('click', function(){
+          var v = this.getAttribute('data-iso');
+          if (currentInput) {
+            currentInput.value = v;
+            fireChange(currentInput);
+          }
+          hide();
+        });
+      }
+      grid.appendChild(cell);
+    }
+
+    var hn = p.querySelector('.holname');
+    if (holNamesShown.length) {
+      hn.textContent = '🏷 ' + Array.from(new Set(holNamesShown)).slice(0,3).join(' · ');
+      hn.style.display = 'block';
+    } else {
+      hn.textContent = '';
+      hn.style.display = 'none';
+    }
+  }
+
+  function show(input){
+    var p = ensurePop();
+    currentInput = input;
+    var v = input.value;
+    var d = parseISO(v) || new Date();
+    viewY = d.getFullYear(); viewM = d.getMonth();
+    render();
+    var r = input.getBoundingClientRect();
+    var top = window.pageYOffset + r.bottom + 4;
+    var left = window.pageXOffset + r.left;
+    var maxLeft = window.pageXOffset + window.innerWidth - 296;
+    if (left > maxLeft) left = maxLeft;
+    p.style.top = top + 'px';
+    p.style.left = left + 'px';
+    p.classList.remove('hidden');
+  }
+
+  function hide(){
+    if (pop) pop.classList.add('hidden');
+    currentInput = null;
+  }
+
+  function attach(input){
+    if (!input || input._knkCalBound) return;
+    input._knkCalBound = true;
+    // 브라우저 native picker 무력화 → 우리 popup 만 사용
+    try { input.setAttribute('type', 'text'); input.setAttribute('placeholder', 'YYYY-MM-DD'); input.setAttribute('inputmode', 'numeric'); } catch(e){}
+    input.addEventListener('focus', function(){ show(this); });
+    input.addEventListener('click', function(){ show(this); });
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') hide();
+    });
+  }
+
+  // 페이지 로드 시 .knk-cal 자동 부착
+  function autoAttach(root){
+    var nodes = (root || document).querySelectorAll('input.knk-cal');
+    for (var i = 0; i < nodes.length; i++) attach(nodes[i]);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ autoAttach(); });
+  } else {
+    autoAttach();
+  }
+
+  // 동적 추가 input 도 대응 — MutationObserver
+  try {
+    new MutationObserver(function(mut){
+      for (var i = 0; i < mut.length; i++) {
+        var added = mut[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var n = added[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches('input.knk-cal')) attach(n);
+          if (n.querySelectorAll) {
+            var sub = n.querySelectorAll('input.knk-cal');
+            for (var k = 0; k < sub.length; k++) attach(sub[k]);
+          }
+        }
+      }
+    }).observe(document.body, {childList:true, subtree:true});
+  } catch(e){}
+
+  window.KnkCal = { attach: attach, attachAll: autoAttach, show: show, hide: hide };
+})();
+</script>

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.name }} · 프로젝트</title>
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_datepicker.html" %}
 <style>
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
@@ -65,9 +66,9 @@
       <input type="hidden" id="fup_so_type" value="EQUIPMENT">
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
         <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
-          <input type="date" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+          <input type="date" class="knk-cal" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div><label style="font-size:11px; color:var(--mute);">납기일</label>
-          <input type="date" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+          <input type="date" class="knk-cal" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         {# v5H178: 납품처 #}
         <div><label style="font-size:11px; color:var(--mute);">납품처</label>
           <input type="text" id="fup_ship_to" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
@@ -400,11 +401,11 @@
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
                   <span class="v display-val">{{ so.order_date|default('-') }}</span>
-                  {% if _editable %}<input type="date" class="so-meta-edit" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
+                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">→ 납기</span>
                   <span class="v display-val">{{ so.due_date|default('-') }}</span>
-                  {% if _editable %}<input type="date" class="so-meta-edit" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
+                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">📍 납품처</span>
                   <span class="v display-val">{{ so.ship_to|default('미지정') }}</span>
@@ -511,11 +512,11 @@
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit ord-inp" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit due-inp" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
