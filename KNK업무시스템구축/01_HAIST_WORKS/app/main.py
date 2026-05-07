@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, date
 from .i18n import LANGS, t as i18n_t, get_all_translations
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
-                        seed_business_data, seed_recent_tasks_topup, hash_pw,
+                        seed_business_data, seed_recent_tasks_topup, hash_pw, verify_pw, is_legacy_hash,
                         parse_mgmt_xls, parse_mgmt_csv, import_mgmt_rows,
                         regenerate_user_passwords, build_password_csv,
                         add_comment, get_task_comments, delete_comment,
@@ -156,7 +156,16 @@ _SECRET = os.environ.get("KNK_SECRET_KEY", "knk-haist-2026-phase1-DEV")
 if _SECRET.endswith("-DEV"):
     print("[security] ⚠ KNK_SECRET_KEY 환경변수 미설정 — 개발 기본값 사용 중. "
           "인터넷 노출 전에 OS 환경변수로 임의 32+ 문자열 설정 필수.")
-app.add_middleware(SessionMiddleware, secret_key=_SECRET)
+# v5H226f-3: 세션 쿠키 보안 플래그 — 운영 모드에서 HTTPS 전용 + same_site=lax (CSRF 완화).
+# 개발 모드는 HTTP 도 허용 (https_only=False) 해서 기존 동작 유지.
+_PROD = os.environ.get("KNK_MODE", "dev").lower() in ("prod", "production")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_SECRET,
+    same_site="lax",
+    https_only=_PROD,
+    max_age=14 * 24 * 60 * 60,  # 14일
+)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
 # v5H142: 업로드 파일(소모품 발주 이미지 등) 정적 서빙
 _uploads_root = os.path.join(BASE, "uploads")
@@ -1034,12 +1043,19 @@ async def login_page(req: Request):
 
 @app.post("/login")
 async def login_post(req: Request, login_id: str = Form(...), password: str = Form(...)):
+    # v5H226f-4: verify_pw 로 pbkdf2 + legacy sha256 모두 지원, legacy 면 즉시 pbkdf2 로 업그레이드.
     with db_session() as c:
         u = c.execute(
-            "SELECT * FROM users WHERE login_id=? AND password=? AND is_active=1",
-            (login_id.strip(), hash_pw(password)),
+            "SELECT * FROM users WHERE login_id=? AND is_active=1",
+            (login_id.strip(),),
         ).fetchone()
-        if u:
+        if u and verify_pw(password, u["password"]):
+            if is_legacy_hash(u["password"]):
+                try:
+                    c.execute("UPDATE users SET password=? WHERE id=?",
+                              (hash_pw(password), u["id"]))
+                except Exception:
+                    pass
             req.session["user_id"] = u["id"]
             r = u["role"]
             if r == "admin":
@@ -4809,7 +4825,7 @@ async def change_password(req: Request,
         return RedirectResponse("/profile?err=비밀번호는 6자 이상", 303)
     with db_session() as c:
         row = c.execute("SELECT password FROM users WHERE id=?", (u["id"],)).fetchone()
-        if not row or row["password"] != hash_pw(current_pw):
+        if not row or not verify_pw(current_pw, row["password"]):
             return RedirectResponse("/profile?err=현재 비밀번호가 맞지 않습니다", 303)
         c.execute("UPDATE users SET password=? WHERE id=?",
                   (hash_pw(new_pw), u["id"]))
@@ -5252,7 +5268,7 @@ async def auth_verify_password(req: Request):
         row = c.execute("SELECT password FROM users WHERE id=?", (u["id"],)).fetchone()
     if not row:
         return JSONResponse({"ok": False, "error": "사용자 없음"}, 404)
-    if hash_pw(pw) != row["password"]:
+    if not verify_pw(pw, row["password"]):
         return JSONResponse({"ok": False, "error": "비밀번호가 일치하지 않습니다"})
     return JSONResponse({"ok": True})
 
@@ -10030,7 +10046,7 @@ async def projects_edit_submit(request: Request, pid: int):
         return RedirectResponse(f"/projects/{pid}/edit?error=password_required", status_code=303)
     with db_session() as _pwc:
         _row = _pwc.execute("SELECT password FROM users WHERE id=?", (_u.get("id"),)).fetchone()
-    if not _row or hash_pw(_pw) != _row["password"]:
+    if not _row or not verify_pw(_pw, _row["password"]):
         return RedirectResponse(f"/projects/{pid}/edit?error=password_invalid", status_code=303)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()

@@ -72,13 +72,49 @@ Phase 1 MVP - Task Card 기반 구조
   - 행 수가 정확하지 않을 수 있음 (수정 시 변동) — _INDEX_코드구조.md 참조
 ═══════════════════════════════════════════════════════════════════════════════
 """
-import sqlite3, os, hashlib
+import sqlite3, os, hashlib, secrets
 from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "knk.db")
 
-def hash_pw(pw: str) -> str:
+# v5H226f-4: 비밀번호 해시 강화 (stdlib pbkdf2, 사용자별 솔트, 200k 반복)
+# 기존 sha256 정적 솔트 → 레인보우 테이블 취약. 점진 마이그레이션 전략:
+#   - 신규 생성/변경: pbkdf2 형식 ("pbkdf2$<iter>$<salt>$<hash>")
+#   - 검증: 새 형식 우선, 미일치 시 legacy sha256 fallback (verify_pw 헬퍼)
+#   - 기존 사용자는 다음 로그인/비번 변경 시 자동 업그레이드 (main 의 login 흐름 참조)
+_PBKDF2_ITER = 200_000
+
+def _legacy_hash(pw: str) -> str:
+    """v5H226f 이전의 정적 솔트 sha256 — verify_pw 의 fallback 용도."""
     return hashlib.sha256(("knk-haist-" + pw).encode()).hexdigest()
+
+def hash_pw(pw: str) -> str:
+    """신규 비밀번호 해시 (pbkdf2-sha256, 사용자별 16바이트 솔트, 200k 반복).
+    형식: pbkdf2$200000$<salt_hex>$<hash_hex>"""
+    salt = secrets.token_bytes(16)
+    h = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, _PBKDF2_ITER)
+    return f"pbkdf2${_PBKDF2_ITER}${salt.hex()}${h.hex()}"
+
+def verify_pw(pw: str, stored: str) -> bool:
+    """비밀번호 검증 — pbkdf2 신규 형식 + legacy sha256 모두 지원.
+    True 반환 후 호출자가 legacy 면 hash_pw() 결과로 UPDATE 권장(점진 업그레이드)."""
+    if not stored:
+        return False
+    if stored.startswith("pbkdf2$"):
+        try:
+            _, iter_s, salt_hex, hash_hex = stored.split("$", 3)
+            it = int(iter_s)
+            salt = bytes.fromhex(salt_hex)
+            h = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, it)
+            return secrets.compare_digest(h.hex(), hash_hex)
+        except Exception:
+            return False
+    # legacy sha256 fallback
+    return secrets.compare_digest(stored, _legacy_hash(pw))
+
+def is_legacy_hash(stored: str) -> bool:
+    """저장된 해시가 legacy(sha256) 형식이면 True — 점진 업그레이드 판단용."""
+    return bool(stored) and not stored.startswith("pbkdf2$")
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
