@@ -2235,6 +2235,8 @@ def init_db():
                 ("due_date",   "ALTER TABLE order_items ADD COLUMN due_date TEXT"),
                 ("ship_to",    "ALTER TABLE order_items ADD COLUMN ship_to TEXT"),
                 ("currency",   "ALTER TABLE order_items ADD COLUMN currency TEXT"),
+                # v5H186: 호기별 상태 — 진행중/납품완료/취소/보류 등
+                ("unit_status", "ALTER TABLE order_items ADD COLUMN unit_status TEXT DEFAULT '진행중'"),
             ]:
                 if col not in oicols:
                     try:

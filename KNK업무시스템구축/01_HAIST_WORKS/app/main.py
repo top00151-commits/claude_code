@@ -5475,6 +5475,110 @@ async def sales_order_item_edit(req: Request, iid: int):
     return JSONResponse({"ok": True, "message": "라인 수정 완료"})
 
 
+UNIT_STATUSES = ("진행중", "납품완료", "취소", "보류")
+
+
+@app.post("/sales/orders/items/{iid:int}/status")
+async def sales_order_item_status(req: Request, iid: int):
+    """v5H186: 호기 라인 상태 변경 (개별)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    new_status = (form.get("status") or "").strip()
+    if new_status not in UNIT_STATUSES:
+        return JSONResponse({"ok": False,
+                              "message": f"허용: {' / '.join(UNIT_STATUSES)}"}, 400)
+    with db_session() as c:
+        try:
+            _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        except Exception:
+            _oicols = set()
+        if "unit_status" not in _oicols:
+            return JSONResponse({"ok": False,
+                                  "message": "unit_status 컬럼 미생성 — 서버 재시작 필요"}, 500)
+        it = c.execute(
+            "SELECT oi.unit_label, oi.unit_status, o.project_id, o.order_no "
+            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+            "WHERE oi.id=?", (iid,)
+        ).fetchone()
+        if not it:
+            return JSONResponse({"ok": False, "message": "라인 없음"}, 404)
+        old_st = it["unit_status"] or "진행중"
+        if old_st == new_status:
+            return JSONResponse({"ok": True, "message": "변동 없음"})
+        c.execute("UPDATE order_items SET unit_status=? WHERE id=?",
+                  (new_status, iid))
+        # 이력 기록
+        try:
+            _logi.log_project_change(
+                c, it["project_id"], u.get("id"),
+                f"호기 상태({it['unit_label'] or '—'})",
+                old_st, new_status,
+                note=f"SO {it['order_no']} · 인라인 변경"
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "old": old_st, "new": new_status})
+
+
+@app.post("/projects/{pid:int}/units/bulk-status")
+async def projects_units_bulk_status(req: Request, pid: int):
+    """v5H186: 프로젝트 전체 호기 라인 상태 일괄 변경.
+    옵션: order_id 지정 시 해당 SO 호기들만, 미지정 시 프로젝트 전체."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
+    form = await req.form()
+    new_status = (form.get("status") or "").strip()
+    if new_status not in UNIT_STATUSES:
+        return JSONResponse({"ok": False,
+                              "message": f"허용: {' / '.join(UNIT_STATUSES)}"}, 400)
+    scope_oid = form.get("order_id")
+    try:
+        scope_oid_i = int(scope_oid) if scope_oid else None
+    except (TypeError, ValueError):
+        scope_oid_i = None
+    with db_session() as c:
+        try:
+            _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        except Exception:
+            _oicols = set()
+        if "unit_status" not in _oicols:
+            return JSONResponse({"ok": False,
+                                  "message": "unit_status 컬럼 미생성"}, 500)
+        if scope_oid_i:
+            r = c.execute(
+                "UPDATE order_items SET unit_status=? "
+                "WHERE order_id=? AND COALESCE(unit_status,'진행중') != ?",
+                (new_status, scope_oid_i, new_status)
+            )
+        else:
+            r = c.execute(
+                "UPDATE order_items SET unit_status=? "
+                "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?) "
+                "  AND COALESCE(unit_status,'진행중') != ?",
+                (new_status, pid, new_status)
+            )
+        # 이력 기록
+        try:
+            scope_lbl = (f"SO #{scope_oid_i}" if scope_oid_i else "전체 호기")
+            _logi.log_project_change(
+                c, pid, u.get("id"),
+                f"호기 상태 일괄 변경 ({scope_lbl})",
+                "", new_status,
+                note=f"{r.rowcount}건 변경"
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "changed": r.rowcount,
+                          "message": f"{r.rowcount}건 변경 완료"})
+
+
 @app.post("/sales/orders/items/{iid:int}/delete")
 async def sales_order_item_delete(req: Request, iid: int):
     """v5H93: 호기 라인 삭제 — 1건만 제거. unit_qty/total_amount 자동 재계산."""

@@ -435,14 +435,32 @@
             {# 백엔드(_sort_n) 키 우선 사용. 누락 시 unit_label 사전순으로 fallback. #}
             {% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}
             {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
+            {# v5H186: 호기 일괄 상태 적용 툴바 #}
+            {% if _editable %}
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--amber);font-size:12px;flex-wrap:wrap;">
+              <span style="font-weight:700;color:var(--amber-deep);">호기 상태 일괄 적용:</span>
+              <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:#fff;">
+                <option value="진행중">진행중</option>
+                <option value="납품완료">납품완료</option>
+                <option value="취소">취소</option>
+                <option value="보류">보류</option>
+              </select>
+              <button type="button" class="bulk-status-apply" data-pid="{{ p.id }}" data-oid="{{ so.id }}"
+                      style="padding:4px 12px;background:var(--amber-deep);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 SO 전체 적용</button>
+              <button type="button" class="bulk-status-apply-all" data-pid="{{ p.id }}"
+                      style="padding:4px 12px;background:#1e3a8a;color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">프로젝트 전체 호기 적용</button>
+              <span style="color:var(--mute);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
+            </div>
+            {% endif %}
             <table class="so-units">
               <thead>
                 <tr>
                   <th style="width:90px;">호기</th>
-                  <th class="num" style="width:130px;">단가 ({{ _cur }})</th>
-                  <th style="width:115px;">발주일</th>
-                  <th style="width:115px;">납기</th>
-                  <th style="width:140px;">납품처</th>
+                  <th class="num" style="width:120px;">단가 ({{ _cur }})</th>
+                  <th style="width:108px;">발주일</th>
+                  <th style="width:108px;">납기</th>
+                  <th style="width:120px;">납품처</th>
+                  <th style="width:110px;">상태</th>
                   <th>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:90px;">동작</th>{% endif %}
                 </tr>
@@ -452,6 +470,7 @@
                 {% set _ov_o = (u.order_date and u.order_date != so.order_date) %}
                 {% set _ov_d = (u.due_date and u.due_date != so.due_date) %}
                 {% set _ov_s = (u.ship_to and u.ship_to != so.ship_to) %}
+                {% set _ust = u.unit_status or '진행중' %}
                 <tr data-uid="{{ u.id }}">
                   <td style="white-space:nowrap;">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
@@ -473,6 +492,21 @@
                     <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" placeholder="(부모 상속)" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
+                  {# v5H186: 호기 상태 — 항상 select 노출 (편집 모드와 무관, 인라인 즉시 변경) #}
+                  <td>
+                    {% if can_sales %}
+                    <select class="unit-status-sel" data-uid="{{ u.id }}" data-orig="{{ _ust }}"
+                            style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11.5px;font-weight:700;background:
+                              {%- if _ust == '납품완료' %}#dcfce7;color:#15803d{% elif _ust == '취소' %}#fee2e2;color:#991b1b{% elif _ust == '보류' %}#f3f4f6;color:#6b7280{% else %}#fef3c7;color:#7c4a03{% endif %};cursor:pointer;">
+                      <option value="진행중" {% if _ust == '진행중' %}selected{% endif %}>진행중</option>
+                      <option value="납품완료" {% if _ust == '납품완료' %}selected{% endif %}>납품완료</option>
+                      <option value="취소" {% if _ust == '취소' %}selected{% endif %}>취소</option>
+                      <option value="보류" {% if _ust == '보류' %}selected{% endif %}>보류</option>
+                    </select>
+                    {% else %}
+                    <span class="pill {% if _ust == '납품완료' %}pill-done{% elif _ust == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ _ust }}</span>
+                    {% endif %}
+                  </td>
                   <td>
                     <span class="display-val note">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
@@ -489,6 +523,7 @@
             </table>
             <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
               ⓘ 발주일/납기/납품처 빈 칸은 SO 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
+              · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
             </div>
             {% else %}
             <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
@@ -1121,7 +1156,7 @@
       }
     });
   });
-  // 거래구분 토글 (내수 ⇄ 수출)
+  // v5H186: 거래구분 토글 — 변경 후 전체 reload (KPI/배지/이력 동시 갱신)
   document.querySelectorAll('.hf-toggle-export').forEach(btn => {
     btn.addEventListener('click', async () => {
       const pid = btn.dataset.pid;
@@ -1130,21 +1165,81 @@
       if (!confirm('거래구분을 ' + (next === '1' ? '✈ 수출' : '🏠 내수') + ' 로 변경하시겠습니까?')) return;
       const j = await patchField(pid, 'is_export', next);
       if (j) {
-        btn.dataset.now = next;
-        const el = document.getElementById('hf_export_disp');
-        if (el) {
-          if (next === '1') {
-            el.style.background = '#ecf5ff'; el.style.color = '#1f5fc6';
-            el.textContent = '✈ 수출';
-          } else {
-            el.style.background = '#fff7e6'; el.style.color = '#c64c1f';
-            el.textContent = '🏠 내수';
-          }
-        }
+        // 캐시버스터 reload 로 모든 표시 영역(우측 패널/이력) 동시 갱신
+        window.location.href = window.location.pathname + '?_t=' + Date.now();
       }
     });
   });
-  // 통화 / 환율 편집 (한 번에)
+  // v5H186: 호기별 상태 변경 (개별 select)
+  function _statusBg(st){
+    if (st === '납품완료') return ['#dcfce7','#15803d'];
+    if (st === '취소') return ['#fee2e2','#991b1b'];
+    if (st === '보류') return ['#f3f4f6','#6b7280'];
+    return ['#fef3c7','#7c4a03'];  // 진행중
+  }
+  document.querySelectorAll('.unit-status-sel').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const uid = sel.dataset.uid;
+      const newSt = sel.value;
+      const oldSt = sel.dataset.orig || '진행중';
+      const body = new URLSearchParams();
+      body.set('status', newSt);
+      try {
+        const r = await fetch('/sales/orders/items/' + uid + '/status',
+                              { method:'POST', body });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.ok) {
+          sel.dataset.orig = newSt;
+          const [bg, fg] = _statusBg(newSt);
+          sel.style.background = bg;
+          sel.style.color = fg;
+        } else {
+          alert('⚠ ' + (j.message || ('HTTP ' + r.status)));
+          sel.value = oldSt;
+        }
+      } catch(e) {
+        alert('⚠ ' + e.message);
+        sel.value = oldSt;
+      }
+    });
+  });
+  // v5H186: 호기 상태 일괄 적용 — 이 SO 만 / 프로젝트 전체
+  async function _bulkApplyStatus(pid, oid, status, scope_label){
+    const body = new URLSearchParams();
+    body.set('status', status);
+    if (oid) body.set('order_id', oid);
+    try {
+      const r = await fetch('/projects/' + pid + '/units/bulk-status',
+                            { method:'POST', body });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) {
+        alert(`✓ ${scope_label} → 상태 "${status}" 일괄 적용 (${j.changed}건)`);
+        window.location.href = window.location.pathname + '?_t=' + Date.now();
+      } else {
+        alert('⚠ ' + (j.message || ('HTTP ' + r.status)));
+      }
+    } catch(e) { alert('⚠ ' + e.message); }
+  }
+  document.querySelectorAll('.bulk-status-apply').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.pid;
+      const oid = btn.dataset.oid;
+      const sel = btn.parentElement.querySelector('.bulk-status-sel');
+      const st = sel ? sel.value : '진행중';
+      if (!confirm(`이 SO 의 모든 호기를 "${st}" 상태로 변경하시겠습니까?`)) return;
+      _bulkApplyStatus(pid, oid, st, '이 SO 전체 호기');
+    });
+  });
+  document.querySelectorAll('.bulk-status-apply-all').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.pid;
+      const sel = btn.parentElement.querySelector('.bulk-status-sel');
+      const st = sel ? sel.value : '진행중';
+      if (!confirm(`프로젝트의 ALL SO·ALL 호기를 "${st}" 상태로 변경하시겠습니까?`)) return;
+      _bulkApplyStatus(pid, null, st, '프로젝트 전체 호기');
+    });
+  });
+  // v5H186: 통화 / 환율 편집 — KRW 선택 시 fx_rate 도 None 으로 명시 정리, 항상 reload
   document.querySelectorAll('.hf-edit-currency').forEach(btn => {
     btn.addEventListener('click', async () => {
       const pid = btn.dataset.pid;
@@ -1168,11 +1263,10 @@
       }
       const j1 = await patchField(pid, 'currency', ccy);
       if (!j1) return;
+      // KRW 면 fx_rate 도 NULL 로 클리어 (서버가 빈 값 → None 처리)
       const j2 = await patchField(pid, 'fx_rate', fx);
-      if (j2) {
-        // 새로고침 (환산 표시도 갱신 필요)
-        window.location.href = window.location.pathname + '?_t=' + Date.now();
-      }
+      // 통화 변경 자체는 j1 성공으로 충분 — fx 실패해도 reload
+      window.location.href = window.location.pathname + '?_t=' + Date.now();
     });
   });
 })();
