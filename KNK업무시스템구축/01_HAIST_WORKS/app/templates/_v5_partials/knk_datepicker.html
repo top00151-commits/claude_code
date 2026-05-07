@@ -53,8 +53,8 @@ input.knk-cal { cursor: pointer; }
 <script>
 (function(){
   // 서버에서 주입된 공휴일 데이터
-  var H = (window.KNK_HOLIDAYS = window.KNK_HOLIDAYS || {{ get_holidays()|tojson }});
-  var HKR = H.kr || {}, HVN = H.vn || {};
+  var HKR = (window.KNK_HOLIDAYS_KR = window.KNK_HOLIDAYS_KR || {{ (KNK_HOLIDAYS_KR or {})|tojson }});
+  var HVN = (window.KNK_HOLIDAYS_VN = window.KNK_HOLIDAYS_VN || {{ (KNK_HOLIDAYS_VN or {})|tojson }});
 
   function pad2(n){ return (n<10?'0':'') + n; }
   function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
