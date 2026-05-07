@@ -367,6 +367,14 @@ def startup():
                 print(f"[LBL-FIX] 중복 호기 라벨 자동 재번호 {fixed}건 (orders.unit_qty/total_amount 동기화)")
     except Exception as _e:
         print(f"[LBL-FIX ERR] {_e}")
+    # v5H181 (2026-05-06): customers.tier='신규' 비표준 → '일반' 으로 정리
+    try:
+        with db_session() as c:
+            _r = c.execute("UPDATE customers SET tier='일반' WHERE tier='신규'")
+            if _r.rowcount:
+                print(f"[TIER-FIX] customers.tier='신규' → '일반' 정리 {_r.rowcount}건")
+    except Exception as _e:
+        print(f"[TIER-FIX ERR] {_e}")
 
 
 # v5H58: 24시간마다 자동 재계산 (백그라운드 타이머)
@@ -3723,8 +3731,12 @@ async def customers_list(req: Request):
     with db_session() as c:
         try:
             # v5H58: 자동 산정 등급 점수(tier_score) 우선 정렬
+            # v5H181: manager_name / phone / email / is_active / address 도 SELECT
+            #         (이전엔 누락되어 list 페이지에서 빈 칸으로 보이던 버그)
             rows = c.execute(
                 """SELECT cu.id, cu.name, cu.tier, cu.note, cu.biz_no, cu.ceo_name,
+                          cu.manager_name, cu.phone, cu.email, cu.address,
+                          COALESCE(cu.is_active, 1) AS is_active,
                           COALESCE(cu.tier_score, 0) AS tier_score,
                           cu.tier_computed_at,
                           COUNT(DISTINCT p.id) AS proj_count,
@@ -9110,7 +9122,8 @@ async def customers_import_confirm(request: Request):
                 else:
                     fields = {
                         "name": name,
-                        "tier": tier or "신규",
+                        # v5H181: '신규' 는 비표준 — 비어있으면 DB DEFAULT '일반' 사용 위해 미포함
+                        "tier": tier or "일반",
                         "biz_no": biz_no,
                         "ceo_name": ceo,
                         "manager_name": manager,

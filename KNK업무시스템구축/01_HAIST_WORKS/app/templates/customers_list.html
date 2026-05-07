@@ -40,9 +40,10 @@
           {% if can_sales_del %}<td style="text-align:center;" onclick="event.stopPropagation();"><input type="checkbox" class="cuChkRow" value="{{ c.id }}" data-name="{{ c.name }}" style="cursor:pointer;"></td>{% endif %}
           <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
           <td><b>{{ c.name }}</b></td>
-          <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.business_no|default('—') }}</td>
+          {# v5H181: 컬럼명 수정 — business_no→biz_no, contact_person→manager_name #}
+          <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.biz_no|default('—') }}</td>
           <td>{{ c.ceo_name|default('—') }}</td>
-          <td>{{ c.contact_person|default('—') }}{% if c.phone %}<div style="font-size:11px;color:var(--mute);">📞 {{ c.phone }}</div>{% endif %}</td>
+          <td>{{ c.manager_name|default('—') }}{% if c.phone %}<div style="font-size:11px;color:var(--mute);">📞 {{ c.phone }}</div>{% endif %}</td>
           <td class="center">{% if c.tier %}<span class="pill {% if c.tier == 'A' %}pill-danger{% elif c.tier == 'B' %}pill-warn{% else %}pill-muted{% endif %}">{{ c.tier }}</span>{% else %}—{% endif %}</td>
           <td class="center">{% if c.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
         </tr>
