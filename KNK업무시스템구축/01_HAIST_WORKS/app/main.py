@@ -296,22 +296,77 @@ def startup():
                 else:
                     print(f"[CCY-BACKFILL] 백필 대상 0건 (모든 SO 가 프로젝트 통화와 일치)")
             # order_items 도 동일 처리 (있으면)
+            # v5H178b: 부모 orders.currency 변경분이 자식 order_items.currency 와
+            # 불일치할 경우 — 수금이력 없는 라인은 부모 따라 재동기화 (NULL 만 채우는 게 아니라
+            # mismatch 도 정리). 이로써 안지연3(USD) 처럼 v5H171 이전 발행 SO 의 KRW 잔재 제거.
             try:
                 oi_cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
                 if "currency" in oi_cols:
                     _r2 = c.execute("""
                         UPDATE order_items
-                           SET currency = COALESCE(
-                               (SELECT currency FROM orders WHERE orders.id = order_items.order_id),
-                               'KRW')
-                         WHERE (currency IS NULL OR currency = '')
+                           SET currency = (SELECT currency FROM orders WHERE orders.id = order_items.order_id)
+                         WHERE COALESCE(currency,'') != COALESCE(
+                                 (SELECT currency FROM orders WHERE orders.id = order_items.order_id),
+                                 '')
+                           AND NOT EXISTS (
+                                 SELECT 1 FROM receipts_payment rp
+                                  WHERE rp.order_id = order_items.order_id)
                     """)
                     if _r2.rowcount:
-                        print(f"[CCY-BACKFILL] order_items.currency 백필 {_r2.rowcount}건")
+                        print(f"[CCY-BACKFILL] order_items.currency 부모 sync {_r2.rowcount}건")
             except Exception:
                 pass
     except Exception as _e:
         print(f"[CCY-BACKFILL ERR] {_e}")
+    # v5H178b (2026-05-06): 호기 라벨 중복 자동 정리 — 같은 SO 안에 동일 unit_label
+    # 이 2개 이상이면 (예: '2호기' × 4) 첫 라벨의 시작 숫자를 추출해 순차 재번호.
+    #   '2호기' × 4 → 2호기, 3호기, 4호기, 5호기
+    #   '소모품-1차' × 3 → 소모품-1차, 소모품-2차, 소모품-3차
+    # 안전 장치: 모든 라인이 *완전히 동일한* 라벨일 때만 작동. 부분 중복은 수기 정리.
+    try:
+        import re as _re_lbl
+        with db_session() as c:
+            sos = c.execute("""
+                SELECT order_id, MIN(unit_label) AS lbl, COUNT(*) AS n
+                  FROM order_items
+                 WHERE unit_label IS NOT NULL AND unit_label != ''
+                 GROUP BY order_id
+                HAVING COUNT(DISTINCT unit_label) = 1 AND COUNT(*) > 1
+            """).fetchall()
+            fixed = 0
+            for r in sos:
+                oid = r["order_id"]
+                lbl = r["lbl"]
+                # 시작 숫자 + 접미사 분리 (예: '2호기' → 2 + '호기', '소모품-1차' → 1 + '차', prefix='소모품-')
+                m = _re_lbl.match(r"^(.*?)(\d+)([^\d]*)$", lbl)
+                if not m:
+                    continue
+                prefix, start_n, suffix = m.group(1), int(m.group(2)), m.group(3)
+                items = c.execute(
+                    "SELECT id FROM order_items WHERE order_id=? ORDER BY id ASC",
+                    (oid,)
+                ).fetchall()
+                for i, it in enumerate(items):
+                    new_lbl = f"{prefix}{start_n + i}{suffix}"
+                    c.execute("UPDATE order_items SET unit_label=? WHERE id=?",
+                              (new_lbl, it["id"]))
+                # orders.unit_label / unit_qty / total_amount 재계산
+                rows = c.execute(
+                    "SELECT unit_label, amount FROM order_items WHERE order_id=? ORDER BY id ASC",
+                    (oid,)
+                ).fetchall()
+                new_lbl_join = " · ".join(rr["unit_label"] for rr in rows)
+                new_qty = len(rows)
+                new_total = sum(float(rr["amount"] or 0) for rr in rows)
+                c.execute(
+                    "UPDATE orders SET unit_label=?, unit_qty=?, total_amount=? WHERE id=?",
+                    (new_lbl_join, new_qty, new_total, oid)
+                )
+                fixed += 1
+            if fixed:
+                print(f"[LBL-FIX] 중복 호기 라벨 자동 재번호 {fixed}건 (orders.unit_qty/total_amount 동기화)")
+    except Exception as _e:
+        print(f"[LBL-FIX ERR] {_e}")
 
 
 # v5H58: 24시간마다 자동 재계산 (백그라운드 타이머)
@@ -687,7 +742,12 @@ def ctx(request, name, **kwargs):
     base["can_logi"]       = can_use_logistics(user) if user else False
     base["is_admin"]       = bool(user and user.get("role") in ("admin", "ceo"))
     base.update(kwargs)
-    return tpl.TemplateResponse(request=request, name=name, context=base)
+    # v5H178b: HTML 페이지는 캐시 금지 — 인라인 편집 후 다른 탭/뒤로가기에서 stale 데이터 방지
+    resp = tpl.TemplateResponse(request=request, name=name, context=base)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 def get_user(req: Request):
