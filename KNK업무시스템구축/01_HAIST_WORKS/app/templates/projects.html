@@ -62,7 +62,7 @@
           <th>고객사</th>
           <th class="center">진행 사업부</th>
           <th class="center">유형</th>
-          <th class="center">상태</th>
+          <th class="center" title="🟡 진행중 / 🟢 납품완료 / 🔴 취소 / ⚫ 보류 — 숫자는 호기 수">상태 <span style="font-weight:400;font-size:10.5px;color:var(--mute);white-space:nowrap;">🟡진행중 🟢완료 🔴취소 ⚫보류</span></th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
           <th style="width:50px;">삭제</th>
@@ -75,11 +75,7 @@
         {% set _link = '/consumables/' ~ p.id if _is_co else '/project/' ~ p.id %}
         <tr>
           {% if can_sales_del %}
-            {% if _is_co %}
-            <td style="text-align:center;color:var(--line);" title="소모품은 목록에서 일괄 삭제 미지원">—</td>
-            {% else %}
-            <td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" style="cursor:pointer;"></td>
-            {% endif %}
+            <td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" data-kind="{{ p._kind|default('project') }}" style="cursor:pointer;"></td>
           {% endif %}
           <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="{{ _link }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
           <td><a href="{{ _link }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
@@ -119,7 +115,7 @@
           <td class="center" style="font-size:12px;color:var(--mute);">{{ p.order_date|default('—') }}</td>
           <td style="text-align:center;">
             {% if can_sales_del %}
-            <button type="button" onclick='deleteProject({{ p.id }}, {{ (p.name or p.project_name or "-")|tojson }})' title="프로젝트 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
+            <button type="button" onclick='deleteProject({{ p.id }}, {{ (p.name or p.project_name or "-")|tojson }}, {{ (p._kind or "project")|tojson }})' title="프로젝트 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
             {% else %}
             <span style="color:var(--line);font-size:13px;" title="삭제 권한 없음 (영업팀 등록권한자만)">🔒</span>
             {% endif %}
@@ -178,7 +174,13 @@
             confirmLabel: `⚠ ${checked.length}건 삭제`,
             onConfirm: async () => {
               const fd = new FormData();
-              checked.forEach(c => fd.append('ids[]', c.value));
+              checked.forEach(c => {
+                if ((c.dataset.kind || 'project') === 'consumable') {
+                  fd.append('co_ids[]', c.value);
+                } else {
+                  fd.append('ids[]', c.value);
+                }
+              });
               const r = await fetch('/projects/bulk-delete', {method:'POST', body:fd});
               const j = await r.json().catch(() => ({}));
               if (r.ok && j.ok) {
@@ -198,16 +200,20 @@
     {% endif %}
     <script>
     // v5H73: 본인 비밀번호 재인증 후 삭제 (간단·안전)
-    async function deleteProject(pid, name) {
+    async function deleteProject(pid, name, kind) {
+      kind = kind || 'project';
+      const _label = (kind === 'consumable') ? '소모품 발주' : '프로젝트';
       await window.knkConfirmWithPassword({
-        title: '⚠ 프로젝트 삭제',
-        message: '프로젝트: ' + name + '\n\n' +
-                 '· 연관된 수주(SO) · 업무 카드도 영향받습니다.\n' +
+        title: '⚠ ' + _label + ' 삭제',
+        message: _label + ': ' + name + '\n\n' +
+                 '· 연관된 라인·이미지·이력도 함께 삭제됩니다.\n' +
                  '· 관리번호도 삭제되어 되돌릴 수 없습니다.\n' +
                  '· 본인 비밀번호로 재확인 후 진행됩니다.',
-        confirmLabel: '⚠ 프로젝트 삭제',
+        confirmLabel: '⚠ ' + _label + ' 삭제',
         onConfirm: async () => {
-          const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:new FormData()});
+          const _fd = new FormData();
+          _fd.append('kind', kind);
+          const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:_fd});
           if (r.status === 403) {
             const j = await r.json().catch(() => ({}));
             alert('⚠ 권한 없음\n\n' + (j.message || ''));

@@ -10392,15 +10392,22 @@ async def projects_edit_submit(request: Request, pid: int):
 @app.post("/projects/{pid}/delete")
 async def projects_delete_submit(request: Request, pid: int):
     """v5H72: 프로젝트 삭제 — 더 엄격한 can_delete_sales 권한.
-    v5H98: 삭제 실패 시 구체적 FK/sqlite 에러 메시지 JSON 으로 반환."""
+    v5H98: 삭제 실패 시 구체적 FK/sqlite 에러 메시지 JSON 으로 반환.
+    v5H226l: kind=consumable 이면 legacy consumable_orders 행 삭제로 분기."""
     _u = get_user(request)
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_delete_sales(_u):
         return JSONResponse({"error": "권한 없음",
                               "message": "프로젝트 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."}, 403)
+    _form = await request.form()
+    _kind = (_form.get("kind") or "project").strip().lower()
     try:
-        _logi.projects_delete_logi(pid)
+        if _kind == "consumable":
+            from . import consumables as _co_mod
+            _co_mod.co_delete(pid)
+        else:
+            _logi.projects_delete_logi(pid)
     except Exception as e:
         import traceback
         err_msg = str(e)
@@ -10433,15 +10440,22 @@ async def projects_bulk_delete(request: Request):
     raw = form.getlist("ids[]") or form.getlist("ids")
     if not raw and form.get("ids"):
         raw = [s.strip() for s in str(form.get("ids")).split(",") if s.strip()]
+    co_raw = form.getlist("co_ids[]") or form.getlist("co_ids")  # v5H226l: legacy 소모품 묶음
     pids: list[int] = []
     for v in raw:
         try:
             pids.append(int(v))
         except (TypeError, ValueError):
             continue
-    if not pids:
+    co_ids: list[int] = []
+    for v in co_raw:
+        try:
+            co_ids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    if not pids and not co_ids:
         return JSONResponse({"ok": False, "message": "삭제할 ID 가 없습니다"}, 400)
-    if len(pids) > 200:
+    if len(pids) + len(co_ids) > 200:
         return JSONResponse({"ok": False, "message": "한 번에 200건 초과 불가"}, 400)
     ok, fail = [], []
     for pid in pids:
@@ -10449,7 +10463,20 @@ async def projects_bulk_delete(request: Request):
             _logi.projects_delete_logi(pid)
             ok.append(pid)
         except Exception as e:
-            fail.append({"id": pid, "error": str(e)[:200]})
+            fail.append({"id": pid, "kind": "project", "error": str(e)[:200]})
+    if co_ids:
+        try:
+            from . import consumables as _co_mod
+        except Exception:
+            _co_mod = None
+        for cid in co_ids:
+            try:
+                if _co_mod is None:
+                    raise RuntimeError("consumables 모듈 로드 실패")
+                _co_mod.co_delete(cid)
+                ok.append(cid)
+            except Exception as e:
+                fail.append({"id": cid, "kind": "consumable", "error": str(e)[:200]})
     return JSONResponse({
         "ok": True,
         "deleted": len(ok),

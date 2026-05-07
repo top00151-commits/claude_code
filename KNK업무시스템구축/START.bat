@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-08 v5H226k (소모품 다운로드 양식 = KNK 표준 양식 + 라운드트립 호환)
+REM   LAST UPDATE: 2026-05-08 v5H226l (상태 컬럼 색상 범례 + legacy 소모품 삭제 가능)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226k]
+title KNK HAIST WORKS - HAIST Innovation [v5H226l]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226k  2026-05-08]
+echo    [v5H226l  2026-05-08]
 echo ============================================================
 echo.
 
