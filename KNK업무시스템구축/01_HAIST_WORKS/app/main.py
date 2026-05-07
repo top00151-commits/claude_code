@@ -280,6 +280,20 @@ HOLIDAYS_VN = {
 tpl.env.globals["KNK_HOLIDAYS_KR"] = HOLIDAYS_KR
 tpl.env.globals["KNK_HOLIDAYS_VN"] = HOLIDAYS_VN
 
+# v5H209: 공휴일 데이터 진단 엔드포인트 — 서버 새 코드 로드 여부 확인용
+@app.get("/_debug/holidays")
+async def _debug_holidays():
+    return {
+        "version": "v5H209",
+        "kr_count": len(HOLIDAYS_KR),
+        "vn_count": len(HOLIDAYS_VN),
+        "kr_sample": dict(list(HOLIDAYS_KR.items())[:5]),
+        "vn_sample": dict(list(HOLIDAYS_VN.items())[:5]),
+        "globals_kr": "KNK_HOLIDAYS_KR" in tpl.env.globals,
+        "globals_vn": "KNK_HOLIDAYS_VN" in tpl.env.globals,
+        "globals_kr_count": len(tpl.env.globals.get("KNK_HOLIDAYS_KR", {})),
+    }
+
 
 # =====================================================
 # v5 H5 (2026-04-29 대표 일괄 승인) — 에러 페이지 핸들러 (404/500)
