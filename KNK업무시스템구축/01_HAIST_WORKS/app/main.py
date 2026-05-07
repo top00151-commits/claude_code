@@ -8756,7 +8756,8 @@ async def projects_new_submit(request: Request):
     if not _ok:
         from urllib.parse import quote as _q
         return _err_redirect("customer_not_registered", f"cust={_q(customer)}")
-    # v5H192: PO유형 / 발주일 / 납기 / 단가 필수
+    # v5H211: 단계별 차등 검증 — 진행중/납품완료(또는 즉시 수주확정)면 strict, 그 전 단계는 단가·발주일·납기·환율 옵션
+    # 제안 단계(초기협의/제안서전달/견적발행/수주예정/보류/기타)는 추상적 견적이라 강제 입력 부담 제거
     po_type_v = (form.get("po_type") or "").strip()
     order_date_v = (form.get("order_date") or "").strip()
     due_date_v = (form.get("due_date") or "").strip()
@@ -8765,17 +8766,22 @@ async def projects_new_submit(request: Request):
         _up_v = float(raw_price_v) if raw_price_v else 0
     except ValueError:
         _up_v = 0
+    _status_v = (form.get("status") or "초기협의").strip()
+    _confirm_now_v = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
+    _strict = _status_v in ("진행중", "납품완료") or _confirm_now_v
+    # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
         return _err_redirect("po_type_required")
-    if not order_date_v:
-        return _err_redirect("order_date_required")
-    if not due_date_v:
-        return _err_redirect("due_date_required")
-    if _up_v <= 0:
-        return _err_redirect("unit_price_required")
-    # 외화 시 기준환율 필수
+    if _strict:
+        if not order_date_v:
+            return _err_redirect("order_date_required")
+        if not due_date_v:
+            return _err_redirect("due_date_required")
+        if _up_v <= 0:
+            return _err_redirect("unit_price_required")
+    # 외화 시 기준환율 — strict 단계에서만 필수 (제안 단계는 환율 미정 OK)
     _ccy_v = (form.get("currency") or "KRW").strip().upper()
-    if _ccy_v != "KRW":
+    if _strict and _ccy_v != "KRW":
         _fx_raw = (form.get("fx_rate") or "").strip().replace(",", "")
         try:
             _fx_v = float(_fx_raw) if _fx_raw else 0

@@ -307,10 +307,10 @@
           <label>거래 구분 <span class="sub">(수출이면 통화는 USD/VND 권장)</span></label>
           <div style="display:flex;gap:14px;padding:8px 0;">
             <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
-              <input type="radio" name="is_export" value="0" {% if not project or not project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 🏠 내수
+              <input type="radio" name="is_export" value="0" {% if not project or not project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 내수
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
-              <input type="radio" name="is_export" value="1" {% if project and project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> ✈ 수출
+              <input type="radio" name="is_export" value="1" {% if project and project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 수출
             </label>
           </div>
         </div>
@@ -553,6 +553,7 @@
       })();
       </script>
       {# v5H97: 초기 상태만 설정 — 이후 변경은 프로젝트 상세에서 인라인 클릭으로 #}
+      {# v5H211: 단계별 차등 검증 — 진행중/납품완료 선택 시에만 단가/발주일/납기 필수 #}
       <div class="pf-row">
         <div class="pf-field full">
           <label>초기 상태 <span class="sub">(저장 후 프로젝트 상세에서 클릭으로 수시 변경 가능)</span></label>
@@ -561,8 +562,31 @@
             <option value="{{ s }}" {% if project and project.status == s %}selected{% elif not project and s == '초기협의' %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
+          <div id="pfStageHint" style="margin-top:8px; font-size:11.5px; line-height:1.55; padding:8px 10px; border-radius:6px; background:var(--paper-2); color:var(--mute);"></div>
         </div>
       </div>
+      <script>
+      (function(){
+        var sel = document.querySelector('select[name="status"]');
+        var hint = document.getElementById('pfStageHint');
+        if (!sel || !hint) return;
+        function update(){
+          var v = sel.value;
+          var strict = (v === '진행중' || v === '납품완료');
+          if (strict) {
+            hint.style.background = '#fff8e8';
+            hint.style.color = '#7c4a03';
+            hint.innerHTML = '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — <b>1대 단가 · 발주일 · 납기</b> 입력 필수입니다.';
+          } else {
+            hint.style.background = 'var(--paper-2)';
+            hint.style.color = 'var(--mute)';
+            hint.innerHTML = 'ⓘ 제안 단계 — 단가·발주일·납기는 비워두고 저장 가능합니다. 진행중/납품완료로 전환 시 입력하세요.';
+          }
+        }
+        sel.addEventListener('change', update);
+        update();
+      })();
+      </script>
       {% if not project %}
       {# v5H77: 등록 시점에 이미 수주된 프로젝트라면 SO 까지 한 번에 발급 #}
       {# v5H78: 호기별 다중 SO 발급 — 1호기/2호기 ... 단가 다른 동시 수주 처리 #}
@@ -721,15 +745,25 @@
     form.addEventListener('input', clearMissing, true);
     form.addEventListener('change', clearMissing, true);
     form.addEventListener('submit', function(e){
-      // 검증할 항목: [name, label, getValue]
+      // v5H211: 단계별 차등 검증 — 진행중/납품완료(또는 즉시 수주확정)면 strict
+      // 그 전 단계(초기협의/제안서전달/견적발행/수주예정 등)는 추상적 견적이라 단가·발주일·납기 옵션
+      var stEl = findField('status');
+      var stVal = stEl ? (stEl.value || '').trim() : '';
+      var cnEl = findField('confirm_now');
+      var confirmNow = cnEl && cnEl.checked;
+      var strict = (stVal === '진행중' || stVal === '납품완료' || confirmNow);
+      // 항상 필수
       var checks = [
         { name:'name',         label:'프로젝트명' },
         { name:'customer_name',label:'고객사', alt:'customer' },
         { name:'po_type',      label:'PO 유형' },
-        { name:'order_date',   label:'발주일' },
-        { name:'due_date',     label:'납기' },
-        { name:'unit_price',   label:'1대 단가', isMoney:true },
       ];
+      // strict 단계만 필수
+      if (strict) {
+        checks.push({ name:'order_date',   label:'발주일' });
+        checks.push({ name:'due_date',     label:'납기' });
+        checks.push({ name:'unit_price',   label:'1대 단가', isMoney:true });
+      }
       var missing = [];
       var firstEl = null;
       checks.forEach(function(c){
@@ -744,17 +778,19 @@
           if (!firstEl) firstEl = el;
         }
       });
-      // 외화 + 기준환율 검증
-      var ccyEl = findField('currency');
-      if (ccyEl && ccyEl.value !== 'KRW') {
-        var fxEl = findField('fx_rate');
-        if (fxEl) {
-          var fxRaw = (fxEl.value || '').trim().replace(/,/g, '');
-          var fxV = parseFloat(fxRaw) || 0;
-          if (fxV <= 0) {
-            fxEl.classList.add('pf-missing');
-            missing.push('기준환율 (' + ccyEl.value + ')');
-            if (!firstEl) firstEl = fxEl;
+      // 외화 + 기준환율 검증 — strict 단계만
+      if (strict) {
+        var ccyEl = findField('currency');
+        if (ccyEl && ccyEl.value !== 'KRW') {
+          var fxEl = findField('fx_rate');
+          if (fxEl) {
+            var fxRaw = (fxEl.value || '').trim().replace(/,/g, '');
+            var fxV = parseFloat(fxRaw) || 0;
+            if (fxV <= 0) {
+              fxEl.classList.add('pf-missing');
+              missing.push('기준환율 (' + ccyEl.value + ')');
+              if (!firstEl) firstEl = fxEl;
+            }
           }
         }
       }
