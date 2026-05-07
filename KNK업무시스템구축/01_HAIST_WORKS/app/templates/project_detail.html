@@ -257,7 +257,7 @@
 
   <div class="detail-grid" style="margin-top: var(--space-5);">
     <div>
-      <!-- v5H212: 수주 전 내역 — 제안서·견적서 진행 추적 (수주확정 후엔 기본 접힘) -->
+      <!-- v5H213: 수주 전 내역 — 수정 버튼 + 저장 패턴 (수주내역과 동일 UX) -->
       {% set _has_proposal = p.proposal_date %}
       {% set _has_quotation = p.quotation_date %}
       {% if _has_proposal or _has_quotation %}
@@ -265,39 +265,51 @@
       <div class="presales-card" id="presalesCard">
         <style>
           .presales-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
-          .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; }
-          .presales-head:hover { background: var(--amber-glow); }
-          .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--ink); flex: 1; display: flex; align-items: center; gap: 8px; }
-          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
-                                        background: var(--amber-glow); color: var(--amber-deep); }
+          .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); user-select: none; }
+          .presales-head .head-toggle { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
+          .presales-head .head-toggle:hover { color: var(--amber-deep); }
+          .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--amber-glow); color: var(--amber-deep); }
           .presales-head .toggle { font-size: 14px; color: var(--mute); transition: transform .2s; }
           .presales-card.collapsed .toggle { transform: rotate(-90deg); }
           .presales-card.collapsed .presales-body { display: none; }
           .presales-card.collapsed .presales-head { border-bottom: none; }
-          .presales-body { padding: 14px 18px; }
-          .ps-row { display: grid; grid-template-columns: 110px 110px 36px 1fr; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+          .presales-head .head-actions { display: flex; gap: 6px; }
+          .presales-head .btn-mini { font-size: 12.5px; padding: 5px 11px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
+          .presales-head .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
+          .presales-head .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
+          .presales-head .btn-mini.primary:hover { background: var(--amber); }
+          .presales-body { padding: 12px 18px; }
+          .ps-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: nowrap; }
           .ps-row:last-child { border-bottom: none; }
-          .ps-row .lbl { font-size: 13px; font-weight: 700; color: var(--ink); }
-          .ps-row .date { font-size: 12.5px; color: var(--mute); font-family: monospace; }
-          .ps-row .chk { display: flex; align-items: center; justify-content: center; }
-          .ps-row .chk input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--success); cursor: pointer; }
-          .ps-row .chk-label { font-size: 11.5px; font-weight: 600; color: var(--mute); margin-left: 4px; }
+          .ps-row .lbl { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; min-width: 80px; }
+          .ps-row .date { font-size: 12.5px; color: var(--mute); font-family: monospace; white-space: nowrap; min-width: 100px; }
+          .ps-row .chk { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-width: 100px; }
+          .ps-row .chk input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--success); cursor: pointer; flex-shrink: 0; }
+          .ps-row .chk-label { font-size: 12px; font-weight: 600; color: var(--mute); white-space: nowrap; }
           .ps-row.submitted .chk-label { color: var(--success); }
-          .ps-row .memo-wrap { display: flex; flex-direction: column; gap: 3px; }
+          .ps-row .memo-wrap { flex: 1; min-width: 0; }
           .ps-row .memo-wrap input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); color: var(--ink); transition: border-color .15s; }
           .ps-row .memo-wrap input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
-          .ps-row .memo-wrap input::placeholder { color: var(--mute); font-size: 12px; }
-          .ps-row .save-status { font-size: 10.5px; color: var(--mute); height: 12px; }
-          .ps-row .save-status.ok { color: var(--success); }
-          .ps-row .save-status.err { color: var(--knk-red); }
+          /* 잠금 상태 — 체크박스·메모 input 비활성화 (가독성 유지: 텍스트는 진하게 + 점선 테두리) */
+          .presales-card:not(.unlocked) .ps-row input[type="checkbox"] { pointer-events: none; }
+          .presales-card:not(.unlocked) .ps-row .memo-wrap input { background: transparent; border-style: dashed; pointer-events: none; }
+          .presales-card.unlocked .ps-row .memo-wrap input { background: var(--paper); border-style: solid; }
         </style>
-        <div class="presales-head" onclick="togglePresales()">
-          <div class="ttl">
-            🗂 수주 전 내역
-            {% if p.stage %}<span class="stage-pill">{{ p.stage }}</span>{% endif %}
-            {% if _is_won %}<span class="stage-pill" style="background:#d1fae5;color:#065f46;">수주 확정됨</span>{% endif %}
+        <div class="presales-head">
+          <div class="head-toggle" onclick="togglePresales()">
+            <span class="ttl">
+              🗂 수주 전 내역
+              {% if p.stage %}<span class="stage-pill">{{ p.stage }}</span>{% endif %}
+              {% if _is_won %}<span class="stage-pill" style="background:#d1fae5;color:#065f46;">수주 확정됨</span>{% endif %}
+            </span>
+            <span class="toggle">▼</span>
           </div>
-          <span class="toggle">▼</span>
+          <div class="head-actions">
+            <button type="button" class="btn-mini" id="psEditBtn" onclick="psEnterEdit()">✏️ 수정</button>
+            <button type="button" class="btn-mini primary" id="psSaveBtn" onclick="psSaveAll()" style="display:none;">💾 저장</button>
+            <button type="button" class="btn-mini" id="psCancelBtn" onclick="psCancelEdit()" style="display:none;">취소</button>
+          </div>
         </div>
         <div class="presales-body">
           {% if _has_proposal %}
@@ -306,15 +318,13 @@
             <div class="date">{{ p.proposal_date }}</div>
             <div class="chk">
               <input type="checkbox" id="ps_proposal_sub" {% if p.proposal_submitted %}checked{% endif %}
-                     onchange="savePresales('proposal_submitted', this.checked ? '1' : '0', this)">
+                     data-orig="{{ '1' if p.proposal_submitted else '0' }}">
               <label for="ps_proposal_sub" class="chk-label">제출완료</label>
             </div>
             <div class="memo-wrap">
-              <input type="text" placeholder="진행 메모 — 자유 기록 (예: 김부장 검토 중, 5/15 미팅 후 제출 예정)"
+              <input type="text" name="proposal_memo"
                      value="{{ p.proposal_memo|default('') }}"
-                     data-orig="{{ p.proposal_memo|default('') }}"
-                     onblur="savePresales('proposal_memo', this.value, this)">
-              <div class="save-status"></div>
+                     data-orig="{{ p.proposal_memo|default('') }}">
             </div>
           </div>
           {% endif %}
@@ -324,15 +334,13 @@
             <div class="date">{{ p.quotation_date }}</div>
             <div class="chk">
               <input type="checkbox" id="ps_quotation_sub" {% if p.quotation_submitted %}checked{% endif %}
-                     onchange="savePresales('quotation_submitted', this.checked ? '1' : '0', this)">
+                     data-orig="{{ '1' if p.quotation_submitted else '0' }}">
               <label for="ps_quotation_sub" class="chk-label">제출완료</label>
             </div>
             <div class="memo-wrap">
-              <input type="text" placeholder="진행 메모 — 자유 기록 (예: 자재비 재산정 중, 외화 환율 반영 필요)"
+              <input type="text" name="quotation_memo"
                      value="{{ p.quotation_memo|default('') }}"
-                     data-orig="{{ p.quotation_memo|default('') }}"
-                     onblur="savePresales('quotation_memo', this.value, this)">
-              <div class="save-status"></div>
+                     data-orig="{{ p.quotation_memo|default('') }}">
             </div>
           </div>
           {% endif %}
@@ -350,43 +358,89 @@
         var collapsed;
         if (saved === 'open') collapsed = false;
         else if (saved === 'closed') collapsed = true;
-        else collapsed = isWon;  // localStorage 없으면 수주확정 여부 따라감
+        else collapsed = isWon;
         if (collapsed) card.classList.add('collapsed');
         window.togglePresales = function(){
           card.classList.toggle('collapsed');
           localStorage.setItem(lsKey, card.classList.contains('collapsed') ? 'closed' : 'open');
         };
-        window.savePresales = function(field, value, el){
-          var row = el.closest('.ps-row');
-          var statusEl = row.querySelector('.save-status');
-          // 메모는 변동 없으면 skip
-          if (field.endsWith('_memo')) {
-            var inp = row.querySelector('input[type="text"]');
-            if ((inp.dataset.orig || '') === (value || '')) return;
+        // 편집 모드 진입
+        window.psEnterEdit = function(){
+          card.classList.add('unlocked');
+          document.getElementById('psEditBtn').style.display = 'none';
+          document.getElementById('psSaveBtn').style.display = '';
+          document.getElementById('psCancelBtn').style.display = '';
+          // 펼친 상태로 전환
+          if (card.classList.contains('collapsed')) togglePresales();
+        };
+        // 편집 취소 — 원본값으로 복원
+        window.psCancelEdit = function(){
+          card.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
+            cb.checked = cb.dataset.orig === '1';
+            var row = cb.closest('.ps-row');
+            if (cb.checked) row.classList.add('submitted'); else row.classList.remove('submitted');
+          });
+          card.querySelectorAll('input[type="text"]').forEach(function(inp){
+            inp.value = inp.dataset.orig || '';
+          });
+          card.classList.remove('unlocked');
+          document.getElementById('psEditBtn').style.display = '';
+          document.getElementById('psSaveBtn').style.display = 'none';
+          document.getElementById('psCancelBtn').style.display = 'none';
+        };
+        // 저장 — dirty 항목 sequential POST
+        window.psSaveAll = async function(){
+          var btn = document.getElementById('psSaveBtn');
+          btn.disabled = true; btn.textContent = '저장 중…';
+          var dirty = [];
+          card.querySelectorAll('.ps-row').forEach(function(row){
+            var key = row.dataset.key;  // proposal | quotation
+            var cb = row.querySelector('input[type="checkbox"]');
+            var memo = row.querySelector('input[type="text"]');
+            var cbVal = cb.checked ? '1' : '0';
+            if (cbVal !== (cb.dataset.orig || '0')) {
+              dirty.push({ field: key + '_submitted', value: cbVal, cb: cb });
+            }
+            var memoVal = memo.value || '';
+            if (memoVal !== (memo.dataset.orig || '')) {
+              dirty.push({ field: key + '_memo', value: memoVal, inp: memo });
+            }
+          });
+          if (dirty.length === 0) {
+            // 변동 없음 → 그냥 잠금 복귀
+            card.classList.remove('unlocked');
+            document.getElementById('psEditBtn').style.display = '';
+            btn.style.display = 'none';
+            document.getElementById('psCancelBtn').style.display = 'none';
+            btn.disabled = false; btn.textContent = '💾 저장';
+            return;
           }
-          if (statusEl) { statusEl.textContent = '저장 중…'; statusEl.className = 'save-status'; }
-          var fd = new FormData();
-          fd.append('field', field);
-          fd.append('value', value);
-          fetch('/projects/' + pid + '/presales-edit', { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(j){
-              if (j.ok) {
-                if (statusEl) { statusEl.textContent = '✓ 저장됨'; statusEl.className = 'save-status ok'; }
-                if (field.endsWith('_submitted')) {
-                  if (value === '1') row.classList.add('submitted'); else row.classList.remove('submitted');
-                } else {
-                  var inp = row.querySelector('input[type="text"]');
-                  if (inp) inp.dataset.orig = value;
-                }
-                setTimeout(function(){ if (statusEl) statusEl.textContent = ''; }, 2500);
-              } else {
-                if (statusEl) { statusEl.textContent = '✗ ' + (j.message || '실패'); statusEl.className = 'save-status err'; }
-              }
-            })
-            .catch(function(e){
-              if (statusEl) { statusEl.textContent = '✗ 네트워크 오류'; statusEl.className = 'save-status err'; }
-            });
+          var failed = [];
+          for (var i = 0; i < dirty.length; i++) {
+            var d = dirty[i];
+            try {
+              var fd = new FormData();
+              fd.append('field', d.field);
+              fd.append('value', d.value);
+              var r = await fetch('/projects/' + pid + '/presales-edit', { method: 'POST', body: fd });
+              var j = await r.json();
+              if (!j.ok) { failed.push(d.field + ': ' + (j.message || '실패')); continue; }
+              if (d.cb) d.cb.dataset.orig = d.value;
+              if (d.inp) d.inp.dataset.orig = d.value;
+            } catch(e) {
+              failed.push(d.field + ': 네트워크 오류');
+            }
+          }
+          btn.disabled = false; btn.textContent = '💾 저장';
+          if (failed.length) {
+            alert('일부 항목 저장 실패:\n' + failed.join('\n'));
+          } else {
+            // 잠금 복귀
+            card.classList.remove('unlocked');
+            document.getElementById('psEditBtn').style.display = '';
+            btn.style.display = 'none';
+            document.getElementById('psCancelBtn').style.display = 'none';
+          }
         };
       })();
       </script>
@@ -637,11 +691,11 @@
                   {% set _u_iex_eff = (_u_iex_raw if _u_iex_raw is not none else (1 if p.is_export else 0)) %}
                   {% set _ov_iex = (_u_iex_raw is not none and _u_iex_raw != (1 if p.is_export else 0)) %}
                   <td>
-                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}✈ 수출{% else %}🏠 내수{% endif %}</span>
+                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
                     <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:78px;">
-                      <option value="0" {% if not _u_iex_eff %}selected{% endif %}>🏠 내수</option>
-                      <option value="1" {% if _u_iex_eff %}selected{% endif %}>✈ 수출</option>
+                      <option value="0" {% if not _u_iex_eff %}selected{% endif %}>내수</option>
+                      <option value="1" {% if _u_iex_eff %}selected{% endif %}>수출</option>
                     </select>
                     {% endif %}
                   </td>
@@ -1229,7 +1283,7 @@
           </dd>
           {% endif %}
           <dt>거래 구분</dt><dd>
-            {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
+            {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}
           </dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
           {# v5H200: 상태는 호기별 상태로부터 자동 집계 (A안). 분포 칩 항상 노출 — 취소/보류 0건도 표시 #}
@@ -1374,7 +1428,7 @@
       const pid = btn.dataset.pid;
       const now = btn.dataset.now === '1';
       const next = now ? '0' : '1';
-      if (!confirm('거래구분을 ' + (next === '1' ? '✈ 수출' : '🏠 내수') + ' 로 변경하시겠습니까?')) return;
+      if (!confirm('거래구분을 ' + (next === '1' ? '수출' : '내수') + ' 로 변경하시겠습니까?')) return;
       const j = await patchField(pid, 'is_export', next);
       if (j) {
         // 캐시버스터 reload 로 모든 표시 영역(우측 패널/이력) 동시 갱신
