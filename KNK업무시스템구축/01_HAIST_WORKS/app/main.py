@@ -5406,6 +5406,161 @@ async def projects_presales_edit(req: Request, pid: int):
     return JSONResponse({"ok": True, "field": field, "value": val})
 
 
+@app.post("/projects/{pid:int}/import-consumable-lines/parse")
+async def projects_import_consumable_parse(req: Request, pid: int,
+                                            file: UploadFile = File(...)):
+    """v5H226: 소모품 엑셀 업로드 — 1단계: 파싱 + 미리보기 JSON 반환.
+    기존 consumables.parse_consumable_xlsx 파서 재활용.
+    각 라인의 model_use 로 장비 mgmt_code 자동 매칭 시도(linked_mgmt_code 필드)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    try:
+        from . import consumables as _co_local
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": f"파서 로드 실패: {e}"}, 500)
+    raw = await file.read()
+    tmp_dir = tempfile.mkdtemp(prefix=f"co_import_{pid}_")
+    tmp_path = os.path.join(tmp_dir, file.filename or "upload.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    try:
+        result = _co_local.parse_consumable_xlsx(tmp_path)
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": f"파싱 실패: {e}"}, 400)
+    lines = result.get("lines") or []
+    if not lines:
+        return JSONResponse({"ok": False,
+                              "message": result.get("error") or "유효한 라인이 없습니다"}, 400)
+    # model_use → 장비 mgmt_code 자동 매칭 (간단 — projects.model_name 또는 mgmt_code substring)
+    out_rows = []
+    with db_session() as c:
+        for ln in lines:
+            mu = (ln.get("model_use") or "").strip()
+            linked_pid = None
+            linked_code = None
+            if mu:
+                try:
+                    cand = c.execute(
+                        "SELECT id, mgmt_code FROM projects WHERE "
+                        "mgmt_code = ? OR model_name LIKE ? OR name LIKE ? "
+                        "ORDER BY id DESC LIMIT 1",
+                        (mu, f"%{mu}%", f"%{mu}%")
+                    ).fetchone()
+                    if cand:
+                        linked_pid = cand["id"]
+                        linked_code = cand["mgmt_code"]
+                except Exception:
+                    pass
+            out_rows.append({
+                "line_no": ln.get("line_no"),
+                "model_use": mu,
+                "part_name": ln.get("part_name") or "",
+                "spec": ln.get("spec") or "",
+                "qty": float(ln.get("qty") or 0),
+                "unit": ln.get("unit") or "EA",
+                "unit_price": 0,  # 엑셀에 단가 컬럼 별도 매핑 시 보정
+                "linked_project_id": linked_pid,
+                "linked_mgmt_code": linked_code,
+            })
+    return JSONResponse({"ok": True, "rows": out_rows, "count": len(out_rows)})
+
+
+@app.post("/projects/{pid:int}/import-consumable-lines/confirm")
+async def projects_import_consumable_confirm(req: Request, pid: int):
+    """v5H226: 소모품 엑셀 업로드 — 2단계: 미리보기 행을 order_items 에 일괄 INSERT.
+    기존 SO(order_id) 에 라인 추가 + total_amount/unit_qty 자동 갱신."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    body = await req.json()
+    so_id = int(body.get("so_id") or 0)
+    rows = body.get("rows") or []
+    if not so_id or not rows:
+        return JSONResponse({"ok": False, "message": "so_id 또는 rows 누락"}, 400)
+    inserted = 0
+    with db_session() as c:
+        # SO 검증
+        so = c.execute("SELECT id, project_id, currency FROM orders WHERE id=?",
+                        (so_id,)).fetchone()
+        if not so or so["project_id"] != pid:
+            return JSONResponse({"ok": False, "message": "수주번호 매칭 안됨"}, 400)
+        oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        # 현재 SO 의 max line_no
+        try:
+            cur_max = c.execute(
+                "SELECT COALESCE(MAX(line_no), 0) FROM order_items WHERE order_id=?",
+                (so_id,)
+            ).fetchone()[0] or 0
+        except Exception:
+            cur_max = 0
+        for r in rows:
+            try:
+                qty = float(r.get("qty") or 0)
+                up = float(r.get("unit_price") or 0)
+                amt = round(qty * up, 2)
+                cur_max += 1
+                cols = ["order_id", "line_no", "unit_label", "unit_qty",
+                        "unit_amount", "unit_total", "unit_status"]
+                vals = [so_id, cur_max, (r.get("part_name") or "").strip(),
+                        qty, up, amt, "진행중"]
+                # spec / 비고
+                if "unit_note" in oicols:
+                    cols.append("unit_note")
+                    vals.append((r.get("spec") or "").strip())
+                # currency 부모 상속
+                if "currency" in oicols:
+                    cols.append("currency")
+                    vals.append(so["currency"] or "KRW")
+                # linked_project_id (장비 매칭)
+                if "linked_project_id" in oicols and r.get("linked_project_id"):
+                    cols.append("linked_project_id")
+                    vals.append(int(r["linked_project_id"]))
+                placeholders = ",".join(["?"] * len(vals))
+                c.execute(
+                    f"INSERT INTO order_items({','.join(cols)}) VALUES({placeholders})",
+                    vals
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"[v5H226] line insert err: {e}")
+        # SO 합계·수량 갱신
+        try:
+            agg = c.execute(
+                "SELECT COALESCE(SUM(unit_total),0) AS t, COUNT(*) AS n "
+                "FROM order_items WHERE order_id=?",
+                (so_id,)
+            ).fetchone()
+            c.execute(
+                "UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
+                (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
+            )
+            # 프로젝트 order_amount 도 갱신
+            proj_total = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                (pid,)
+            ).fetchone()[0] or 0
+            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                      (float(proj_total), pid))
+        except Exception:
+            pass
+        # 변경 이력
+        try:
+            c.execute(
+                "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (pid, u.get("id"), "엑셀 업로드", "", f"{inserted}건",
+                 f"수주번호 #{so_id} 에 라인 {inserted}건 일괄 추가")
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "inserted": inserted})
+
+
 @app.post("/projects/{pid:int}/quick-status")
 async def projects_quick_status(req: Request, pid: int):
     """v5H97: 프로젝트 상태 인라인 변경 (상세 페이지에서 클릭 한 번).

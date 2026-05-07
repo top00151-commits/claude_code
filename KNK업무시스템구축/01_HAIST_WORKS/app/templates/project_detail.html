@@ -606,7 +606,13 @@
               <div class="so-actions">
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
+                {# v5H226: CONSUMABLE 은 '+ 항목 추가' + 엑셀 업로드 버튼 #}
+                {% if (p.project_type or '')|upper == 'CONSUMABLE' %}
+                <button type="button" class="btn-mini" onclick="openConsumableImport({{ so.id }})" title="엑셀로 라인 일괄 업로드">📤 엑셀 업로드</button>
+                <button type="button" class="btn-mini primary add-unit">＋ 항목 추가</button>
+                {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
+                {% endif %}
                 <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
                 {% if can_sales_del %}
@@ -745,19 +751,31 @@
               · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
             </div>
             {% else %}
+            {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
+              {% if _is_co %}
+              항목이 없습니다 — '＋ 항목 추가' 또는 '📤 엑셀 업로드' 로 입력하세요.
+              {% else %}
               호기 라인이 없습니다 — '＋ 호기 추가' 로 입력하세요.
+              {% endif %}
             </div>
             {% endif %}
 
-            <!-- 호기 추가 인라인 폼 -->
+            <!-- 호기/항목 추가 인라인 폼 -->
             {% if _editable %}
+            {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             <div class="add-unit-card">
               <div class="row">
-                <span style="font-weight:700;color:var(--amber-deep);">＋ 호기 추가</span>
+                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
+                {% if _is_co %}
+                <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
+                <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="수량">
+                <span style="color:var(--mute);font-size:12px;">EA ×</span>
+                {% else %}
                 <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
                 <span style="color:var(--mute);font-size:12px;">대 ×</span>
+                {% endif %}
                 <select name="cur">
                   <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>KRW</option>
                   <option value="USD" {% if _cur == 'USD' %}selected{% endif %}>USD</option>
@@ -1590,4 +1608,124 @@
   });
 })();
 </script>
+
+{# v5H226: 소모품 엑셀 업로드 모달 #}
+{% if (p.project_type or '')|upper == 'CONSUMABLE' %}
+<div id="coImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:min(720px, 92vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 소모품 엑셀 일괄 업로드</div>
+      <button type="button" onclick="closeConsumableImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
+    </div>
+    <div style="padding:18px;">
+      <div style="font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px;">
+        ⓘ 엑셀 헤더 자동 감지 — 품명(SUPPLIER NAME), 수량(QTY), 단가(UNIT PRICE), 모델(MODEL USE) 등.<br>
+        업로드 후 미리보기에서 확정하면 현재 수주번호에 라인이 일괄 추가됩니다.
+      </div>
+      <div style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--paper-2);">
+        <input type="file" id="coImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
+      </div>
+      <div id="coImportPreview" style="margin-top:14px;display:none;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)</div>
+        <div style="max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="position:sticky;top:0;background:var(--paper-2);">
+              <tr>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">품명</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">수량</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">단가</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">금액</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">모델/매칭</th>
+              </tr>
+            </thead>
+            <tbody id="coImportRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="coImportMsg" style="margin-top:10px;font-size:12.5px;"></div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" onclick="closeConsumableImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
+      <button type="button" id="coImportConfirmBtn" onclick="confirmConsumableImport()" disabled
+              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  let _coImportSoId = null;
+  let _coImportRows = [];
+  window.openConsumableImport = function(soId){
+    _coImportSoId = soId;
+    _coImportRows = [];
+    document.getElementById('coImportFile').value = '';
+    document.getElementById('coImportPreview').style.display = 'none';
+    document.getElementById('coImportMsg').innerHTML = '';
+    const btn = document.getElementById('coImportConfirmBtn');
+    btn.disabled = true; btn.style.opacity = '0.5';
+    document.getElementById('coImportModal').style.display = 'flex';
+  };
+  window.closeConsumableImport = function(){
+    document.getElementById('coImportModal').style.display = 'none';
+  };
+  document.getElementById('coImportFile').addEventListener('change', async function(e){
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--mute);">파싱 중…</span>';
+    try {
+      const r = await fetch('/projects/{{ p.id }}/import-consumable-lines/parse', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!j.ok) {
+        document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ ' + (j.message || '파싱 실패') + '</span>';
+        return;
+      }
+      _coImportRows = j.rows || [];
+      document.getElementById('coImportCount').textContent = _coImportRows.length;
+      const tbody = document.getElementById('coImportRows');
+      tbody.innerHTML = _coImportRows.map(r => `
+        <tr>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);">${r.part_name || '—'}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;">${r.qty || 0}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;">${(r.unit_price || 0).toLocaleString()}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;font-weight:600;">${((r.qty || 0) * (r.unit_price || 0)).toLocaleString()}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.model_use || '—'}${r.linked_mgmt_code ? ' · 🔗 ' + r.linked_mgmt_code : ''}</td>
+        </tr>
+      `).join('');
+      document.getElementById('coImportPreview').style.display = 'block';
+      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + _coImportRows.length + '개 라인 파싱 완료. [확정 등록] 클릭으로 추가하세요.</span>';
+      const btn = document.getElementById('coImportConfirmBtn');
+      btn.disabled = false; btn.style.opacity = '1';
+    } catch(err) {
+      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류: ' + err.message + '</span>';
+    }
+  });
+  window.confirmConsumableImport = async function(){
+    if (!_coImportRows.length || !_coImportSoId) return;
+    const btn = document.getElementById('coImportConfirmBtn');
+    btn.disabled = true; btn.textContent = '저장 중…';
+    try {
+      const r = await fetch('/projects/{{ p.id }}/import-consumable-lines/confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({so_id: _coImportSoId, rows: _coImportRows})
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ ' + (j.message || '저장 실패') + '</span>';
+        btn.disabled = false; btn.textContent = '✓ 확정 등록';
+        return;
+      }
+      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + j.inserted + '개 라인 추가 완료. 새로고침합니다…</span>';
+      setTimeout(() => location.reload(), 800);
+    } catch(err) {
+      document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류</span>';
+      btn.disabled = false; btn.textContent = '✓ 확정 등록';
+    }
+  };
+})();
+</script>
+{% endif %}
+
 </main></div></body></html>
