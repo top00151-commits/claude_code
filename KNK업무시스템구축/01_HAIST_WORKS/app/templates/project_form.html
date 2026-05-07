@@ -86,15 +86,23 @@
     <input type="hidden" name="currency" value="{{ project.currency|default('KRW') }}">
 
     {% if project %}
-    {# v5H177: 수정 모드 진입 시 — 기본 정보는 등록값 보존 정책 안내 + 상세 페이지 인라인 편집으로 유도 #}
-    <div style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--amber); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 12px;">
+    {# v5H192: 수정 모드 — 기본은 잠금. '🔓 수정 잠금 해제' 클릭 → 비밀번호 인증 → 편집 가능 #}
+    <div id="pfLockBanner" style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--amber); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
       <span style="font-size:22px;">🔒</span>
       <div style="flex:1;font-size:13px;line-height:1.65;color:var(--ink);">
-        <b style="color:var(--amber-deep);">기본 등록 정보는 보존됩니다.</b>
-        프로젝트명·고객사·통화·환율·비고 등은 <a href="/project/{{ project.id }}" style="color:var(--knk-red);font-weight:700;text-decoration:underline;">프로젝트 상세 페이지</a> 의 인라인 편집(✏️ 클릭) 으로 수정하세요.
+        <b style="color:var(--amber-deep);">기본 등록 정보는 보존 모드</b>
+        — 변경하려면 비밀번호로 잠금을 해제하세요.
         <br><span style="font-size:11.5px;color:var(--mute);">관리코드·사업부·유형·PO유형·등록자/등록일시 는 영구 잠금 (감사 무결성)</span>
       </div>
+      <button type="button" id="pfUnlockBtn"
+              style="padding:8px 16px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        🔓 수정 잠금 해제
+      </button>
     </div>
+    <div id="pfUnlockedBanner" style="display:none;margin: 0 0 var(--space-4); padding: 12px 18px; background: #d1fae5; border: 1px solid #10b981; border-radius: var(--radius-md); align-items: center; gap: 12px; color: #065f46; font-weight: 700; font-size: 13px;">
+      ✓ 잠금 해제됨 — 변경 후 [💾 저장] 클릭. 일부 필드(관리코드/사업부/유형/PO유형)는 여전히 영구 잠금입니다.
+    </div>
+    {% include "_v5_partials/password_confirm.html" %}
     {% else %}
     <div class="pf-hint">
       ① 제안 단계 (초기협의 / 제안서전달 / 견적발행 / 수주예정): 관리코드/SO 없이 저장 ·
@@ -110,9 +118,25 @@
         ⚠ "{{ request.query_params.get('cust') }}" 은(는) 등록된 고객사가 아닙니다.
         먼저 <a href="/customers/new" style="color:var(--knk-red);text-decoration:underline;font-weight:700;">/customers/new</a> 에서 고객사를 등록한 뒤 선택해주세요.
       {% elif _err == 'name_required' %}
-        ⚠ 프로젝트명을 입력해주세요.
+        ⚠ <b>프로젝트명</b> 을 입력해주세요.
       {% elif _err == 'biz_div_required' %}
-        ⚠ 사업부를 선택해주세요.
+        ⚠ <b>사업부</b> 를 선택해주세요.
+      {% elif _err == 'customer_required' %}
+        ⚠ <b>고객사</b> 를 선택해주세요. <span style="font-weight:500;">— 등록된 고객사 중에서 선택해야 합니다.</span>
+      {% elif _err == 'po_type_required' %}
+        ⚠ <b>PO 유형</b> 을 선택해주세요 (신규/추가 등).
+      {% elif _err == 'order_date_required' %}
+        ⚠ <b>발주일</b> 을 입력해주세요.
+      {% elif _err == 'due_date_required' %}
+        ⚠ <b>납기</b> 를 입력해주세요.
+      {% elif _err == 'unit_price_required' %}
+        ⚠ <b>1대 단가</b> 를 입력해주세요. <span style="font-weight:500;">— 0보다 큰 값이어야 합니다.</span>
+      {% elif _err == 'fx_rate_required' %}
+        ⚠ <b>{{ request.query_params.get('ccy', '외화') }}</b> 통화는 <b>기준환율</b> 입력이 필수입니다.
+      {% elif _err == 'password_required' %}
+        ⚠ <b>비밀번호</b> 를 입력해야 수정 가능합니다.
+      {% elif _err == 'password_invalid' %}
+        ⚠ 비밀번호가 일치하지 않습니다. 다시 시도해주세요.
       {% else %}
         ⚠ 입력값을 확인해주세요 ({{ _err }})
       {% endif %}
@@ -591,7 +615,9 @@
 
     <div class="pf-actions">
       {% if project %}
-      <a class="btn btn-secondary" href="/project/{{ project.id }}">← 상세 페이지로 (인라인 편집)</a>
+      <a class="btn btn-secondary" href="/project/{{ project.id }}">← 상세 페이지로</a>
+      <button type="submit" class="btn btn-primary" id="pfSaveBtn" disabled
+              style="opacity:0.45;cursor:not-allowed;">💾 저장 (잠금 해제 필요)</button>
       {% else %}
       <a class="btn btn-secondary" href="/projects">취소</a>
       <button type="submit" class="btn btn-primary">📤 등록</button>
@@ -600,30 +626,102 @@
   </form>
 
   {% if project %}
-  {# v5H177: 수정 모드 — 모든 필드를 readonly/disabled 처리. 저장 액션도 차단. #}
+  {# v5H192: 수정 모드 — 비밀번호 잠금. 잠금 해제 시 입력 활성화 + submit 허용 #}
   <script>
   (function(){
     var form = document.querySelector('form.pf-wrap');
     if (!form) return;
-    form.querySelectorAll('input, select, textarea').forEach(function(el){
-      // hidden 은 그대로 둠 (POST 시 데이터 보존용)
-      if (el.type === 'hidden') return;
-      // readonly/disabled 처리
-      if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
-        el.disabled = true;
-      } else {
-        el.readOnly = true;
-      }
-      el.style.background = 'var(--paper-2)';
-      el.style.cursor = 'not-allowed';
-      el.style.color = 'var(--mute)';
-    });
-    // 폼 submit 차단
+    var saveBtn = document.getElementById('pfSaveBtn');
+    var unlockBtn = document.getElementById('pfUnlockBtn');
+    var lockBanner = document.getElementById('pfLockBanner');
+    var unlockedBanner = document.getElementById('pfUnlockedBanner');
+    // Tier 1 영구 잠금 필드 (이름 기반) — 잠금 해제 후에도 비활성
+    var TIER1_LOCKED = new Set(['mgmt_code','biz_div','po_type','project_type']);
+    function setLocked(locked){
+      form.querySelectorAll('input, select, textarea').forEach(function(el){
+        if (el.type === 'hidden') return;
+        var nm = el.getAttribute('name') || '';
+        // Tier 1 은 항상 잠금
+        if (TIER1_LOCKED.has(nm)) {
+          if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
+            el.disabled = true;
+          } else {
+            el.readOnly = true;
+          }
+          el.style.background = 'var(--paper-2)';
+          el.style.cursor = 'not-allowed';
+          el.style.color = 'var(--mute)';
+          return;
+        }
+        if (locked) {
+          if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
+            el.disabled = true;
+          } else {
+            el.readOnly = true;
+          }
+          el.style.background = 'var(--paper-2)';
+          el.style.cursor = 'not-allowed';
+          el.style.color = 'var(--mute)';
+        } else {
+          if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
+            el.disabled = false;
+          } else {
+            el.readOnly = false;
+          }
+          el.style.background = '';
+          el.style.cursor = '';
+          el.style.color = '';
+        }
+      });
+    }
+    // 초기 상태 = 잠금
+    setLocked(true);
+    // 잠금 상태 submit 차단
+    var unlocked = false;
     form.addEventListener('submit', function(e){
-      e.preventDefault();
-      alert('🔒 기본 등록 정보는 보존됩니다.\n수정은 프로젝트 상세 페이지의 인라인 편집을 사용하세요.');
-      window.location.href = '/project/{{ project.id }}';
+      if (!unlocked) {
+        e.preventDefault();
+        alert('🔒 잠금 해제 후 저장 가능합니다.\n[🔓 수정 잠금 해제] 버튼을 눌러 비밀번호로 인증하세요.');
+        return;
+      }
     });
+    // 잠금 해제 버튼 — 비밀번호 모달
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', async function(){
+        if (!window.knkConfirmWithPassword) {
+          alert('비밀번호 인증 모듈을 찾을 수 없습니다.');
+          return;
+        }
+        try {
+          await window.knkConfirmWithPassword({
+            title: '🔓 프로젝트 수정 잠금 해제',
+            message: '프로젝트 등록 정보를 수정하려면 본인 비밀번호로 인증이 필요합니다.\n' +
+                     '(관리코드 · 사업부 · 유형 · PO유형 은 인증 후에도 영구 잠금)',
+            confirmLabel: '🔓 잠금 해제',
+            onConfirm: async (verifiedPw) => {
+              // 잠금 해제
+              unlocked = true;
+              setLocked(false);
+              if (lockBanner) lockBanner.style.display = 'none';
+              if (unlockedBanner) unlockedBanner.style.display = 'flex';
+              if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '';
+                saveBtn.style.cursor = '';
+                saveBtn.textContent = '💾 저장';
+              }
+              // v5H192: hidden 으로 잠금 해제 플래그 + 검증된 비밀번호 (서버 재검증)
+              var hid = document.createElement('input');
+              hid.type = 'hidden'; hid.name = 'unlock_verified'; hid.value = '1';
+              form.appendChild(hid);
+              var hidPw = document.createElement('input');
+              hidPw.type = 'hidden'; hidPw.name = 'password'; hidPw.value = verifiedPw || '';
+              form.appendChild(hidPw);
+            }
+          });
+        } catch(e) { /* 사용자 취소 등 */ }
+      });
+    }
   })();
   </script>
   {% endif %}

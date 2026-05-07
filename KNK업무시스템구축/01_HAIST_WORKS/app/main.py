@@ -8586,20 +8586,52 @@ async def projects_new_submit(request: Request):
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
+    # v5H192: 필수 필드 종합 검증 (비고 제외) — 빈 항목이 있으면 즉시 안내
     if not project_name:
         return RedirectResponse("/projects/new?error=name_required", status_code=303)
     if not biz_div:
         return RedirectResponse("/projects/new?error=biz_div_required", status_code=303)
-    # v5H82: 고객사 서버사이드 검증 — 등록된 고객사가 아니면 거부
-    if customer:
-        with db_session() as _cc:
-            _ok = _cc.execute(
-                "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
-            ).fetchone()
-        if not _ok:
-            from urllib.parse import quote as _q
+    if not customer:
+        return RedirectResponse("/projects/new?error=customer_required", status_code=303)
+    # 고객사 화이트리스트 검증
+    with db_session() as _cc:
+        _ok = _cc.execute(
+            "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
+        ).fetchone()
+    if not _ok:
+        from urllib.parse import quote as _q
+        return RedirectResponse(
+            f"/projects/new?error=customer_not_registered&cust={_q(customer)}",
+            status_code=303
+        )
+    # v5H192: PO유형 / 발주일 / 납기 / 단가 필수
+    po_type_v = (form.get("po_type") or "").strip()
+    order_date_v = (form.get("order_date") or "").strip()
+    due_date_v = (form.get("due_date") or "").strip()
+    raw_price_v = (form.get("unit_price") or "0").strip().replace(",", "")
+    try:
+        _up_v = float(raw_price_v) if raw_price_v else 0
+    except ValueError:
+        _up_v = 0
+    if not po_type_v:
+        return RedirectResponse("/projects/new?error=po_type_required", status_code=303)
+    if not order_date_v:
+        return RedirectResponse("/projects/new?error=order_date_required", status_code=303)
+    if not due_date_v:
+        return RedirectResponse("/projects/new?error=due_date_required", status_code=303)
+    if _up_v <= 0:
+        return RedirectResponse("/projects/new?error=unit_price_required", status_code=303)
+    # 외화 시 기준환율 필수
+    _ccy_v = (form.get("currency") or "KRW").strip().upper()
+    if _ccy_v != "KRW":
+        _fx_raw = (form.get("fx_rate") or "").strip().replace(",", "")
+        try:
+            _fx_v = float(_fx_raw) if _fx_raw else 0
+        except ValueError:
+            _fx_v = 0
+        if _fx_v <= 0:
             return RedirectResponse(
-                f"/projects/new?error=customer_not_registered&cust={_q(customer)}",
+                f"/projects/new?error=fx_rate_required&ccy={_ccy_v}",
                 status_code=303
             )
     # 콤마 제거 후 숫자로
@@ -9450,12 +9482,24 @@ async def projects_edit_submit(request: Request, pid: int):
     if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
     form = await request.form()
+    # v5H192: 잠금 해제 검증 — 폼에 unlock_verified=1 + password 가 함께 와야 수정 허용
+    if (form.get("unlock_verified") or "") != "1":
+        return RedirectResponse(f"/projects/{pid}/edit?error=password_required", status_code=303)
+    _pw = (form.get("password") or "").strip()
+    if not _pw:
+        return RedirectResponse(f"/projects/{pid}/edit?error=password_required", status_code=303)
+    with db_session() as _pwc:
+        _row = _pwc.execute("SELECT password FROM users WHERE id=?", (_u.get("id"),)).fetchone()
+    if not _row or hash_pw(_pw) != _row["password"]:
+        return RedirectResponse(f"/projects/{pid}/edit?error=password_invalid", status_code=303)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
+    # v5H192: 필수 필드 검증 (비고 제외)
     if not project_name:
         return RedirectResponse(f"/projects/{pid}/edit?error=name_required", status_code=303)
-    # v5H82: 고객사 검증 (등록된 고객사만 허용)
+    if not customer:
+        return RedirectResponse(f"/projects/{pid}/edit?error=customer_required", status_code=303)
     if customer:
         with db_session() as _cc:
             _ok = _cc.execute(
