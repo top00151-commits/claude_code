@@ -9397,6 +9397,77 @@ async def projects_bulk_delete(request: Request):
     })
 
 
+@app.post("/customers/bulk-delete")
+async def customers_bulk_delete(request: Request):
+    """v5H180: 다건 고객사 일괄 삭제.
+    안전 정책:
+      - can_delete_sales 권한 필요 (영업팀 팀장/등록권한자)
+      - 프로젝트(또는 SO/견적)가 연결된 고객사는 삭제 거부 (FK 안전)
+      - 한 번에 200건 제한
+      - 개별 실패는 집계 후 계속 진행
+    """
+    _u = get_user(request)
+    if not _u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_delete_sales(_u):
+        return JSONResponse({
+            "error": "권한 없음",
+            "message": "고객사 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."
+        }, 403)
+    form = await request.form()
+    raw = form.getlist("ids[]") or form.getlist("ids")
+    if not raw and form.get("ids"):
+        raw = [s.strip() for s in str(form.get("ids")).split(",") if s.strip()]
+    cids: list[int] = []
+    for v in raw:
+        try:
+            cids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    if not cids:
+        return JSONResponse({"ok": False, "message": "삭제할 ID 가 없습니다"}, 400)
+    if len(cids) > 200:
+        return JSONResponse({"ok": False, "message": "한 번에 200건 초과 불가"}, 400)
+    ok, fail = [], []
+    with db_session() as c:
+        for cid in cids:
+            try:
+                # FK 검증: 프로젝트/SO/견적/PO 연결 여부 확인
+                proj_n = (c.execute(
+                    "SELECT COUNT(*) FROM projects WHERE customer_id=?", (cid,)
+                ).fetchone() or [0])[0]
+                ord_n = 0
+                try:
+                    ord_n = (c.execute(
+                        "SELECT COUNT(*) FROM orders WHERE customer_id=?", (cid,)
+                    ).fetchone() or [0])[0]
+                except Exception:
+                    pass
+                if proj_n or ord_n:
+                    parts = []
+                    if proj_n: parts.append(f"프로젝트 {proj_n}건")
+                    if ord_n: parts.append(f"수주 {ord_n}건")
+                    fail.append({"id": cid,
+                                 "error": f"연결 데이터 존재 — {', '.join(parts)}. 먼저 정리 필요"})
+                    continue
+                # 고객사 담당자 (있으면) → cascade 삭제
+                try:
+                    c.execute("DELETE FROM customer_contacts WHERE customer_id=?", (cid,))
+                except Exception:
+                    pass
+                c.execute("DELETE FROM customers WHERE id=?", (cid,))
+                ok.append(cid)
+            except Exception as e:
+                fail.append({"id": cid, "error": str(e)[:200]})
+    return JSONResponse({
+        "ok": True,
+        "deleted": len(ok),
+        "failed": len(fail),
+        "fail_details": fail[:20],
+        "message": f"{len(ok)}건 삭제 완료" + (f", {len(fail)}건 실패" if fail else ""),
+    })
+
+
 # =====================================================
 # HAIST WORKS — 공급사 (suppliers) 라우트
 # =====================================================
