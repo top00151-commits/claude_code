@@ -5065,25 +5065,61 @@ from . import project_workflow as _pwf
 @app.post("/projects/{pid:int}/confirm-order")
 async def projects_confirm_order(req: Request, pid: int):
     """프로젝트 수주 확정 — 관리번호 자동 발급 + 수주번호(SO) 발행.
-    KNK 표준: 제안 단계 → 수주 확정 시 (NNN+T/M+YYMM) 형식 발급."""
+    v5H196: 모달 폐기. 프로젝트 등록값(order_date/due_date/order_amount/
+            unit_qty/unit_price/customer_po) 기준으로 자동 발행.
+            unit_qty=N 면 호기 N개(1호기, 2호기 ... N호기) 자동 생성."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
-    form = await req.form()
-    order_date = (form.get("order_date") or "").strip()
-    raw_amt = (form.get("total_amount") or "0").replace(",", "")
-    try:
-        total = float(raw_amt) if raw_amt else 0
-    except ValueError:
-        total = 0
-    due_date = (form.get("due_date") or "").strip()
-    po_number = (form.get("po_number") or "").strip()
-    note = (form.get("note") or "").strip()
     with db_session() as c:
-        res = _pwf.confirm_order(c, pid, order_date=order_date, total_amount=total,
-                                  due_date=due_date, created_by=u.get("id"),
-                                  po_number=po_number, note=note)
-    return JSONResponse(res)
+        # 프로젝트 등록값 조회
+        proj = c.execute(
+            "SELECT order_date, due_date, order_amount, customer_po, "
+            "       COALESCE(unit_qty,1) AS unit_qty, unit_price, "
+            "       COALESCE(currency,'KRW') AS currency, "
+            "       COALESCE(project_type,'NEW_EQUIP') AS project_type "
+            "FROM projects WHERE id=?", (pid,)
+        ).fetchone()
+        if not proj:
+            return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        _qty = max(1, min(100, int(proj["unit_qty"] or 1)))
+        try:
+            _up = float(proj["unit_price"]) if proj["unit_price"] is not None else 0.0
+        except Exception:
+            _up = 0.0
+        _amt_total = float(proj["order_amount"] or 0)
+        if _up <= 0 and _qty > 0:
+            _up = _amt_total / _qty
+        # 호기 라벨: project_type 기준 (NEW_EQUIP→N호기 / OTHER→N건 등)
+        _ptype = (proj["project_type"] or "NEW_EQUIP").upper()
+        _units = []
+        for i in range(_qty):
+            _units.append({
+                "label": _logi.project_unit_label(_ptype, i + 1),
+                "amount": _up,
+                "due_date": proj["due_date"] or "",
+                "ship_to": "",
+                "currency": proj["currency"] or "KRW",
+                "note": "",
+            })
+        res = _pwf.confirm_order_multi(
+            c, pid,
+            units=_units,
+            order_date=proj["order_date"] or "",
+            created_by=u.get("id") or 0,
+            po_number=proj["customer_po"] or "",
+        )
+    if not res or not res.get("ok"):
+        return JSONResponse(res or {"ok": False, "message": "발행 실패"}, 500)
+    # 결과: groups 안의 첫 번째 SO 정보 + 기본 응답
+    grp = (res.get("groups") or [{}])[0]
+    return JSONResponse({
+        "ok": True,
+        "mgmt_code": res.get("mgmt_code") or grp.get("mgmt_code"),
+        "so_no": grp.get("so_no") or res.get("so_no"),
+        "qty": _qty,
+        "message": f"수주 확정 완료 — {_qty}대 호기 자동 발행",
+    })
 
 
 # v5H73: 본인 비밀번호 검증 API (삭제 등 위험 액션 전 재인증)

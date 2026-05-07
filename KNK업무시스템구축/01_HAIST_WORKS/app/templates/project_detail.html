@@ -32,7 +32,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       {% if not p.mgmt_code %}
-      <button class="btn btn-primary" onclick="openConfirmOrder()" style="background:var(--success);">✓ 수주 확정 (관리번호 발급)</button>
+      <button class="btn btn-primary" onclick="confirmOrderDirect()" style="background:var(--success);">✓ 수주 확정 (관리번호 발급)</button>
       {% else %}
       {# v5H142: NEW_EQUIP 부모일 때만 3종 발주 버튼 노출 (장비/소모품/정비).
          CONSUMABLE/SERVICE/OTHER 부모는 그 유형의 추가 발주 1개만 노출 (기존 동작 유지). #}
@@ -49,32 +49,9 @@
     </div>
   </div>
 
-  <!-- v5H68: 수주 확정 모달 (제안 → 수주) -->
+  {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
   {% if not p.mgmt_code %}
-  <div id="confirmOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-    <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
-      <h3 style="font-size:18px; font-weight:700; margin-bottom:8px;">✓ 수주 확정 + 관리번호 발급</h3>
-      <div style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
-        프로젝트 <b>{{ p.name }}</b> 의 수주를 확정합니다.<br>
-        관리번호는 사업부({{ p.biz_div|default('T') }}) + 발주년월 기준으로 자동 발급됩니다.<br>
-        수주번호(SO)는 발주일자 기준으로 발행됩니다.
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
-        <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
-          <input type="date" id="cfm_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">납기일</label>
-          <input type="date" id="cfm_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">수주액 (원)</label>
-          <input type="text" id="cfm_total_amount" class="knk-money" placeholder="120,000,000" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
-          <input type="text" id="cfm_po_number" placeholder="예: SAMSUNG-PO-2026-001" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
-      </div>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="document.getElementById('confirmOrderModal').style.display='none'">취소</button>
-        <button class="btn btn-primary" onclick="submitConfirmOrder()" style="background:var(--success);">확정</button>
-      </div>
-    </div>
-  </div>
+  {# (수주확정은 confirmOrderDirect() 가 직접 처리) #}
   {% else %}
   <!-- v5H68: 추가 발주 모달 (관리번호 유지, SO만 신규) -->
   <div id="followupOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
@@ -131,9 +108,19 @@
   {% endif %}
 
   <script>
-  function openConfirmOrder() {
-    document.getElementById('cfm_order_date').value = new Date().toISOString().slice(0,10);
-    document.getElementById('confirmOrderModal').style.display = 'flex';
+  // v5H196: 수주 확정 — 모달 없이 등록값 기준 즉시 발행
+  async function confirmOrderDirect() {
+    if (!confirm('프로젝트 등록값으로 수주를 확정합니다.\n\n· 수량 {{ p.unit_qty|default(1) }}대 → {{ p.unit_qty|default(1) }}개 호기 라인 자동 생성\n· 관리번호({{ p.biz_div|default("T") }}+년월) + 수주번호(SO) 동시 발급\n\n진행하시겠습니까?')) return;
+    try {
+      const r = await fetch('/projects/{{ p.id }}/confirm-order', {method:'POST', body:new FormData()});
+      const j = await r.json();
+      if (j.ok) {
+        // 알림 없이 바로 새로고침 (수주내역에 호기들 노출됨)
+        window.location.href = window.location.pathname + '?_t=' + Date.now();
+      } else {
+        alert('⚠ ' + (j.message || j.error || ('HTTP ' + r.status)));
+      }
+    } catch(e) { alert('⚠ ' + e.message); }
   }
   function openFollowupOrder(soType) {
     // v5H142: so_type (EQUIPMENT/CONSUMABLE/SERVICE/OTHER) — 모달 라벨/패턴 분기
@@ -211,19 +198,7 @@
     var ccy = (document.getElementById('fup_currency').value || 'KRW');
     document.getElementById('followup-cur').textContent = ccy;
   }
-  async function submitConfirmOrder() {
-    const fd = new FormData();
-    fd.append('order_date', document.getElementById('cfm_order_date').value);
-    fd.append('due_date', document.getElementById('cfm_due_date').value);
-    fd.append('total_amount', document.getElementById('cfm_total_amount').value.replace(/,/g,''));
-    fd.append('po_number', document.getElementById('cfm_po_number').value);
-    const r = await fetch('/projects/{{ p.id }}/confirm-order', {method:'POST', body:fd});
-    const j = await r.json();
-    if (j.ok) {
-      alert(`✓ 수주 확정 완료\n\n관리번호: ${j.mgmt_code}\n수주번호: ${j.so_no}`);
-      location.reload();
-    } else { alert('실패: ' + j.message); }
-  }
+  // v5H196: submitConfirmOrder 폐기 — confirmOrderDirect 가 대체
   async function submitFollowupOrder() {
     // v5H131: qty 추가. total_amount 는 1대 단가 의미 (서버에서 단가 × qty 계산)
     var unitRaw = document.getElementById('fup_total_amount').value.replace(/,/g,'');
