@@ -9078,6 +9078,9 @@ async def projects_new_submit(request: Request):
                 f"/project/{new_pid}?warn=so_issue_failed", status_code=303
             )
         return RedirectResponse(f"/project/{new_pid}", status_code=303)
+    # v5H224: 모든 등록은 항상 프로젝트 상세 페이지로 이동 (이전: /projects 목록으로 이동했음)
+    if new_pid:
+        return RedirectResponse(f"/project/{new_pid}", status_code=303)
     return RedirectResponse("/projects", status_code=303)
 
 
