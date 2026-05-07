@@ -342,6 +342,77 @@
           <input type="date" name="due_date" value="{{ project.due_date|default('') }}">
         </div>
       </div>
+      {# v5H201: 제안 단계 일정 — 수주확정 전 스케줄 관리용.
+         검사기(T) 는 타임라인 짧아 기본 '해당없음' 체크. 자동화(M) 는 입력 가능. #}
+      {% set _bd_for_sched = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else 'T')) %}
+      {% set _is_T = (_bd_for_sched == 'T') %}
+      {% set _proposal_v = project.proposal_date if project and project.proposal_date else '' %}
+      {% set _quotation_v = project.quotation_date if project and project.quotation_date else '' %}
+      <div class="pf-row" style="margin-top:6px;">
+        <div class="pf-field">
+          <label>
+            제안서 일정
+            <span class="sub" style="font-weight:500;">
+              <input type="checkbox" id="pf_proposal_na" style="vertical-align:middle;margin-left:6px;">
+              <span style="vertical-align:middle;">해당없음</span>
+            </span>
+          </label>
+          <input type="date" id="pf_proposal_date" name="proposal_date" value="{{ _proposal_v }}">
+        </div>
+        <div class="pf-field">
+          <label>
+            견적서 일정
+            <span class="sub" style="font-weight:500;">
+              <input type="checkbox" id="pf_quotation_na" style="vertical-align:middle;margin-left:6px;">
+              <span style="vertical-align:middle;">해당없음</span>
+            </span>
+          </label>
+          <input type="date" id="pf_quotation_date" name="quotation_date" value="{{ _quotation_v }}">
+        </div>
+      </div>
+      <div class="pf-row solo" style="margin-top:-2px;">
+        <div class="pf-field full">
+          <div style="font-size:11px;color:var(--mute);line-height:1.55;">
+            ⓘ 수주 확정 전 단계의 일정 입력 — 캘린더/스케줄에 자동 노출됩니다.
+            {% if _is_T %}<span style="color:var(--knk-red);">(검사기는 타임라인이 짧아 기본 '해당없음').</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      <script>
+      (function(){
+        var biz = "{{ _bd_for_sched }}";
+        var pNa = document.getElementById('pf_proposal_na');
+        var qNa = document.getElementById('pf_quotation_na');
+        var pInp = document.getElementById('pf_proposal_date');
+        var qInp = document.getElementById('pf_quotation_date');
+        if (!pNa || !qNa || !pInp || !qInp) return;
+        function applyToggle(naBox, dateInp){
+          if (naBox.checked) {
+            dateInp.value = '';
+            dateInp.disabled = true;
+            dateInp.style.background = 'var(--paper-2)';
+            dateInp.style.color = 'var(--mute)';
+            dateInp.style.cursor = 'not-allowed';
+          } else {
+            dateInp.disabled = false;
+            dateInp.style.background = '';
+            dateInp.style.color = '';
+            dateInp.style.cursor = '';
+          }
+        }
+        pNa.addEventListener('change', function(){ applyToggle(pNa, pInp); });
+        qNa.addEventListener('change', function(){ applyToggle(qNa, qInp); });
+        // 초기값: 검사기(T) + 등록값 없으면 기본 체크. 기존 값이 있으면 미체크.
+        var pHasValue = !!pInp.value;
+        var qHasValue = !!qInp.value;
+        if (biz === 'T') {
+          pNa.checked = !pHasValue;
+          qNa.checked = !qHasValue;
+        }
+        applyToggle(pNa, pInp);
+        applyToggle(qNa, qInp);
+      })();
+      </script>
     </div>
 
     <!-- ③ 금액 (v5H132: 단가 × 수량 = 금액 3-필드 레이아웃) -->

@@ -8765,6 +8765,9 @@ async def projects_new_submit(request: Request):
         "unit_price": unit_price if unit_price > 0 else None,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
+        # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
+        "proposal_date": form.get("proposal_date", ""),
+        "quotation_date": form.get("quotation_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
         "project_type": _ptype,
@@ -9635,6 +9638,9 @@ async def projects_edit_submit(request: Request, pid: int):
         "unit_price": unit_price if unit_price > 0 else None,
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
+        # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
+        "proposal_date": form.get("proposal_date", ""),
+        "quotation_date": form.get("quotation_date", ""),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
         "project_type": _ptype,

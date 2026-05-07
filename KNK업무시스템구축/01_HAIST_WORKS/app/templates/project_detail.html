@@ -1119,6 +1119,9 @@
             </div>
             {% endif %}
           </dd>
+          {# v5H201: 제안 단계 일정 (수주확정 전 스케줄용) #}
+          <dt>제안서</dt><dd>{{ p.proposal_date|default('—') }}</dd>
+          <dt>견적서</dt><dd>{{ p.quotation_date|default('—') }}</dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
           <dt>통화 / 환율</dt><dd>

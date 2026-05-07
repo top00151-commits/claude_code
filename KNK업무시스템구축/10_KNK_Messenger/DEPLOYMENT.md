@@ -2,6 +2,10 @@
 
 대표 결재 (2026-05-05): 클라우드 안정형, 베트남법인 동시 사용.
 
+> **🚀 빠른 진행**: 이 문서 읽지 말고 [INTERNET_DEPLOY_CHECKLIST.md](INTERNET_DEPLOY_CHECKLIST.md) 한 페이지만 따라하세요. 모든 셋업이 `deploy/setup_server.sh` **명령어 한 줄**로 끝납니다.
+
+---
+
 ## 추천 호스팅 비교 (KR + VN 동시 사용 기준)
 
 | 옵션 | 월 비용 | KR latency | VN latency | 데이터 거주 | 신뢰성 | 추천도 |
@@ -23,99 +27,58 @@
 3. **SSL** — Let's Encrypt 무료 (certbot)
 4. **VPN** (선택) — 직원 외부 접속 차단 시 OpenVPN 또는 WireGuard
 
-## Lightsail 인스턴스 1회 셋업
+## Lightsail 인스턴스 1줄 셋업 (2026-05-07 자동화 완료)
 
+### 사전 준비 — 대표만 가능
+1. Lightsail Tokyo region / Ubuntu 22.04 LTS / $10 plan 인스턴스 생성
+2. 정적 IP 부여 (인스턴스에 attach)
+3. 방화벽: 22(SSH 사무실IP만), 80, 443
+4. 도메인 DNS A 레코드: `msg.knk.co.kr → 정적IP`
+5. SSH key 다운로드 + scp/git으로 코드를 `/opt/knk_messenger` 에 올리기
+
+### 1줄 자동 셋업 — 빅터/관리자
 ```bash
-# 1. Lightsail Tokyo region에 Ubuntu 22.04 LTS / $10 plan 인스턴스 생성
-# 2. 정적 IP 부여
-# 3. 방화벽: 80, 443 만 공개. 5050 차단
-
-# 인스턴스 SSH 접속 후:
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3.11 python3.11-venv git nginx certbot python3-certbot-nginx ufw
-
-# Python 환경
-mkdir -p /opt/knk_messenger && cd /opt/knk_messenger
-git clone <your private repo> .   # 또는 scp 로 코드 업로드
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt gunicorn
-
-# systemd 서비스
-sudo tee /etc/systemd/system/knk-messenger.service > /dev/null <<'EOF'
-[Unit]
-Description=KNK Messenger
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/opt/knk_messenger
-Environment="KNK_MSG_SECRET=PRODUCTION_RANDOM_SECRET_HERE_32_CHARS"
-Environment="KNK_MSG_RETENTION_MONTHS=12"
-ExecStart=/opt/knk_messenger/.venv/bin/gunicorn -k eventlet -w 1 -b 127.0.0.1:5050 app:app
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl enable --now knk-messenger
+ssh ubuntu@<정적IP>
+cd /opt/knk_messenger
+sudo bash deploy/setup_server.sh msg.knk.co.kr admin@knk.kr
 ```
 
-## Nginx 리버스 프록시 + SSL
+이 한 줄이 처리하는 것:
+- Python 3 + nginx + certbot + ufw + fail2ban + sqlite3 설치
+- `/opt/knk_messenger/.venv` 생성 + requirements 설치
+- `.env.production` 자동 생성 + SECRET 랜덤 채움
+- systemd 서비스 (`/etc/systemd/system/knk-messenger.service`) 등록 + 시작
+- nginx 사이트 (`__DOMAIN__` 자동 치환) 설정
+- Let's Encrypt SSL 자동 발급 + HTTP→HTTPS 리다이렉트 + 90일 자동갱신
+- UFW 방화벽 + fail2ban 활성
+- 매일 03:00 백업 cron + 매월 1일 보존정책 cron
 
-```nginx
-# /etc/nginx/sites-available/knk-messenger
-server {
-    listen 80;
-    server_name messenger.knk.co.kr;
-    client_max_body_size 30M;
-
-    location / {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:5050;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-}
-```
-
+### 운영 명령어
 ```bash
-sudo ln -s /etc/nginx/sites-available/knk-messenger /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d messenger.knk.co.kr   # SSL 자동 설정 + auto-renewal
+sudo systemctl status knk-messenger      # 상태 확인
+sudo systemctl restart knk-messenger     # 재시작
+sudo journalctl -u knk-messenger -f      # 실시간 로그
+bash /opt/knk_messenger/deploy/update.sh # 코드 업데이트 (자동 백업 + 재시작 + 헬스체크)
+bash /opt/knk_messenger/deploy/backup.sh # 즉시 백업
 ```
 
-## 자동 백업
+## 배포 키트 파일 구조 (2026-05-07)
 
-```bash
-# /opt/knk_messenger/backup.sh
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M)
-DEST=/opt/knk_messenger/backups
-mkdir -p $DEST
-sqlite3 /opt/knk_messenger/data/messenger.db ".backup $DEST/messenger_$DATE.db"
-# 7일 이상 백업 삭제
-find $DEST -name "messenger_*.db" -mtime +7 -delete
-# S3 업로드 (선택)
-# aws s3 sync $DEST s3://knk-messenger-backup/
+```
+10_KNK_Messenger/
+├── wsgi.py                            # gunicorn 진입점
+├── requirements.txt                   # eventlet/gunicorn/pywebpush 포함
+├── INTERNET_DEPLOY_CHECKLIST.md       # ⭐ 대표가 따라할 한 페이지 가이드
+└── deploy/
+    ├── setup_server.sh                # Ubuntu 1회 셋업 (전체 자동)
+    ├── nginx.conf                     # __DOMAIN__ 치환 템플릿
+    ├── knk-messenger.service          # systemd 유닛 (eventlet 워커)
+    ├── backup.sh                      # 일일 백업 (DB 30일·uploads 7일)
+    ├── update.sh                      # 코드 업데이트 (백업+pip+재시작+헬스)
+    └── .env.production.example        # 환경변수 템플릿
 ```
 
-```cron
-# crontab -e
-0 3 * * * /opt/knk_messenger/backup.sh
-0 4 1 * * curl -X POST -b "session=..." https://messenger.knk.co.kr/api/admin/cleanup   # 매월 1일 보존정책 실행
-```
+각 파일의 역할은 `INTERNET_DEPLOY_CHECKLIST.md` 참고.
 
 ## 보안 체크리스트
 

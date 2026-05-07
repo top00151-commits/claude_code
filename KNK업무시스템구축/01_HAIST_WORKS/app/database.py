@@ -2033,6 +2033,9 @@ def init_db():
             # v5H154 (2026-05-05): 외화 수주 시 기준환율 + 원화 환산 보존 (대표 지시)
             ("fx_rate",            "REAL"),
             ("amount_krw",         "REAL"),
+            # v5H201 (2026-05-07): 제안 단계 일정 — 수주확정 전 스케줄 관리용
+            ("proposal_date",      "TEXT"),       # 제안서 (예정/실제) 일정. NULL=미정·해당없음
+            ("quotation_date",     "TEXT"),       # 견적서 일정. NULL=미정·해당없음
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -3932,6 +3935,9 @@ def _project_insert_or_update_values(data: dict) -> dict:
             and float(str(data.get("amount_krw") or "0").replace(",", "")) > 0
             else None
         ),
+        # v5H201: 제안 단계 일정 (수주확정 전 스케줄용). 빈 문자열은 None 으로.
+        "proposal_date":  (data.get("proposal_date") or "").strip() or None,
+        "quotation_date": (data.get("quotation_date") or "").strip() or None,
     }
 
 
@@ -3979,8 +3985,9 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                      is_export, unit_qty, unit_price,
                      project_type, parent_project_id,
                      fx_rate, amount_krw,
+                     proposal_date, quotation_date,
                      created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
@@ -3990,6 +3997,7 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals.get("project_type") or "NEW_EQUIP",
                       vals.get("parent_project_id"),
                       vals.get("fx_rate"), vals.get("amount_krw"),
+                      vals.get("proposal_date"), vals.get("quotation_date"),
                       now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
@@ -4217,6 +4225,7 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
                 unit_qty=?, unit_price=?,
                 project_type=?, parent_project_id=?,
                 fx_rate=?, amount_krw=?,
+                proposal_date=?, quotation_date=?,
                 updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
@@ -4228,6 +4237,7 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
               vals.get("project_type") or "NEW_EQUIP",
               vals.get("parent_project_id"),
               vals.get("fx_rate"), vals.get("amount_krw"),
+              vals.get("proposal_date"), vals.get("quotation_date"),
               _logi_now(), pid))
         # v5H101: 변경 이력 적재 (UPDATE 성공 후)
         for label, ov, nv in _pending_logs:
