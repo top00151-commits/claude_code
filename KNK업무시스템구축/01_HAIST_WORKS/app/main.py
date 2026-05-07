@@ -9357,6 +9357,46 @@ async def projects_delete_submit(request: Request, pid: int):
     return JSONResponse({"ok": True, "message": "프로젝트 삭제 완료"})
 
 
+@app.post("/projects/bulk-delete")
+async def projects_bulk_delete(request: Request):
+    """v5H179: 다건 프로젝트 일괄 삭제. ids=콤마구분 또는 ids[]=반복.
+    개별 실패는 무시하고 계속 진행 — 결과 집계 반환."""
+    _u = get_user(request)
+    if not _u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_delete_sales(_u):
+        return JSONResponse({"error": "권한 없음",
+                              "message": "프로젝트 삭제는 영업팀 팀장 또는 위임받은 등록권한자만 가능합니다."}, 403)
+    form = await request.form()
+    raw = form.getlist("ids[]") or form.getlist("ids")
+    if not raw and form.get("ids"):
+        raw = [s.strip() for s in str(form.get("ids")).split(",") if s.strip()]
+    pids: list[int] = []
+    for v in raw:
+        try:
+            pids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    if not pids:
+        return JSONResponse({"ok": False, "message": "삭제할 ID 가 없습니다"}, 400)
+    if len(pids) > 200:
+        return JSONResponse({"ok": False, "message": "한 번에 200건 초과 불가"}, 400)
+    ok, fail = [], []
+    for pid in pids:
+        try:
+            _logi.projects_delete_logi(pid)
+            ok.append(pid)
+        except Exception as e:
+            fail.append({"id": pid, "error": str(e)[:200]})
+    return JSONResponse({
+        "ok": True,
+        "deleted": len(ok),
+        "failed": len(fail),
+        "fail_details": fail[:20],  # 처음 20건만
+        "message": f"{len(ok)}건 삭제 완료" + (f", {len(fail)}건 실패" if fail else ""),
+    })
+
+
 # =====================================================
 # HAIST WORKS — 공급사 (suppliers) 라우트
 # =====================================================

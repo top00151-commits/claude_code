@@ -41,11 +41,22 @@
     {% if q or biz_div or status or project_type %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
+  {# v5H179: 다건 선택 삭제 툴바 — 체크박스 1개라도 선택되면 노출 #}
+  {% if can_sales_del %}
+  <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:20;margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fff7e0;border:1px solid var(--amber);border-radius:8px;align-items:center;gap:14px;">
+    <span style="font-size:13px;font-weight:700;color:var(--amber-deep);">
+      ☑ 선택됨: <span id="bulkCount">0</span>건
+    </span>
+    <button type="button" id="bulkDelBtn" style="padding:6px 14px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🗑 선택 삭제</button>
+    <button type="button" id="bulkClearBtn" style="padding:6px 12px;background:#fff;border:1px solid var(--line);color:var(--mute);border-radius:6px;font-size:12.5px;cursor:pointer;">선택 해제</button>
+  </div>
+  {% endif %}
   <div class="tbl-wrap tbl-sticky">
     {% if projects %}
     <table class="tbl">
       <thead>
         <tr>
+          {% if can_sales_del %}<th style="width:36px;text-align:center;"><input type="checkbox" id="chkAll" title="전체 선택" style="cursor:pointer;"></th>{% endif %}
           <th>관리코드</th>
           <th>프로젝트명</th>
           <th>고객사</th>
@@ -60,6 +71,7 @@
       <tbody>
       {% for p in projects %}
         <tr>
+          {% if can_sales_del %}<td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" style="cursor:pointer;"></td>{% endif %}
           <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="/project/{{ p.id }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
           <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
@@ -81,6 +93,73 @@
       </tbody>
     </table>
     {% include "_v5_partials/password_confirm.html" %}
+    {% if can_sales_del %}
+    <script>
+    // v5H179: 다건 선택 삭제 — 체크박스 토글 + 비밀번호 재인증 + 일괄 호출
+    (function(){
+      const bar = document.getElementById('bulkBar');
+      const cnt = document.getElementById('bulkCount');
+      const chkAll = document.getElementById('chkAll');
+      const rows = document.querySelectorAll('.chkRow');
+      const delBtn = document.getElementById('bulkDelBtn');
+      const clearBtn = document.getElementById('bulkClearBtn');
+      function refresh(){
+        const checked = Array.from(rows).filter(c => c.checked);
+        const n = checked.length;
+        cnt.textContent = n;
+        bar.style.display = n > 0 ? 'flex' : 'none';
+        if (chkAll) {
+          chkAll.checked = (n === rows.length && rows.length > 0);
+          chkAll.indeterminate = (n > 0 && n < rows.length);
+        }
+        return checked;
+      }
+      rows.forEach(c => c.addEventListener('change', refresh));
+      if (chkAll) {
+        chkAll.addEventListener('change', () => {
+          rows.forEach(c => c.checked = chkAll.checked);
+          refresh();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          rows.forEach(c => c.checked = false);
+          refresh();
+        });
+      }
+      if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+          const checked = refresh();
+          if (!checked.length) return;
+          const names = checked.slice(0, 5).map(c => c.dataset.name);
+          const more = checked.length > 5 ? ` 외 ${checked.length - 5}건` : '';
+          await window.knkConfirmWithPassword({
+            title: `⚠ 프로젝트 ${checked.length}건 일괄 삭제`,
+            message: `삭제 대상:\n  · ${names.join('\n  · ')}${more}\n\n` +
+                     `· 연관된 수주(SO) · 업무 카드도 영향받습니다.\n` +
+                     `· 관리번호도 삭제되어 되돌릴 수 없습니다.\n` +
+                     `· 본인 비밀번호로 재확인 후 진행됩니다.`,
+            confirmLabel: `⚠ ${checked.length}건 삭제`,
+            onConfirm: async () => {
+              const fd = new FormData();
+              checked.forEach(c => fd.append('ids[]', c.value));
+              const r = await fetch('/projects/bulk-delete', {method:'POST', body:fd});
+              const j = await r.json().catch(() => ({}));
+              if (r.ok && j.ok) {
+                let msg = `✓ ${j.deleted}건 삭제 완료`;
+                if (j.failed) msg += `\n⚠ ${j.failed}건 실패 (FK 제약 등)`;
+                alert(msg);
+                location.reload();
+              } else {
+                throw new Error(j.message || j.error || ('HTTP ' + r.status));
+              }
+            }
+          });
+        });
+      }
+    })();
+    </script>
+    {% endif %}
     <script>
     // v5H73: 본인 비밀번호 재인증 후 삭제 (간단·안전)
     async function deleteProject(pid, name) {
