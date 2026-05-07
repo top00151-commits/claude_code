@@ -34,13 +34,37 @@
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
+  {# v5H220: 진입 유형별 명확한 페이지 제목 — 사용자가 무엇을 등록 중인지 즉시 인식 #}
+  {% set _ptype_title = (project.project_type if project and project.project_type else (preset.project_type if preset and preset.project_type else 'NEW_EQUIP')) %}
+  {% set _bd_title = (project.biz_div if project and project.biz_div else (preset.biz_div if preset and preset.biz_div else '')) %}
+  {% if _ptype_title == 'OTHER' %}
+    {% set _form_kind_emoji = '🌐' %}
+    {% set _form_kind_name = 'K 기타' %}
+    {% set _form_kind_color = '#f59e0b' %}
+  {% elif _bd_title == 'T' %}
+    {% set _form_kind_emoji = '🔬' %}
+    {% set _form_kind_name = 'T 검사기' %}
+    {% set _form_kind_color = '#1e40af' %}
+  {% elif _bd_title == 'M' %}
+    {% set _form_kind_emoji = '🤖' %}
+    {% set _form_kind_name = 'M 자동화' %}
+    {% set _form_kind_color = '#9d174d' %}
+  {% else %}
+    {% set _form_kind_emoji = '📋' %}
+    {% set _form_kind_name = '프로젝트' %}
+    {% set _form_kind_color = '#475569' %}
+  {% endif %}
   <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
     <div>
       <div class="crumbs">
         <a href="/projects">프로젝트</a> ·
-        {% if not project %}<a href="/projects/new">등록</a> · <b>유형 입력</b>{% else %}<b>수정</b>{% endif %}
+        {% if not project %}<a href="/projects/new">등록</a> · <b>{{ _form_kind_name }} 입력</b>{% else %}<b>수정</b>{% endif %}
       </div>
-      <h1 class="page-title">{% if project %}프로젝트 <em>수정</em>{% else %}프로젝트 <em>등록</em>{% endif %}</h1>
+      <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:30px;">{{ _form_kind_emoji }}</span>
+        <span style="background:{{ _form_kind_color }};color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">{{ _form_kind_name }}</span>
+        <em>{% if project %}수정{% else %}등록{% endif %}</em>
+      </h1>
       {% if not project and preset %}
       <div style="margin-top:6px;">
         <a href="/projects/new" style="font-size:12px;color:var(--mute);text-decoration:none;">← 다른 유형으로 변경</a>

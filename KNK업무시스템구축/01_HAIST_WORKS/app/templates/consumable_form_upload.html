@@ -65,8 +65,15 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--lin
   {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
     <div class="page-head">
-      <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>신규 등록</b></div>
-      <div class="page-title">새 소모품 발주</div>
+      <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>S 소모품 입력</b></div>
+      <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:30px;">📦</span>
+        <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">S 소모품</span>
+        <em>등록</em>
+      </h1>
+      <div style="margin-top:6px;">
+        <a href="/projects/new" style="font-size:12px;color:var(--mute);text-decoration:none;">← 다른 유형으로 변경</a>
+      </div>
     </div>
 
     <div class="card">
