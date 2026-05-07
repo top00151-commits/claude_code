@@ -5483,7 +5483,7 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     so_ship = srow["ship_to"] or ""
     # 컬럼 정의 (CONSUMABLE 분기)
     if is_co:
-        headers = ["No", "품명", "연결 관리코드", "연결 장비명", "수량", "단가",
+        headers = ["사진", "No", "품명", "연결 관리코드", "연결 장비명", "수량", "단가",
                    "금액", "통화", "거래", "발주일", "납기일", "납품처",
                    "상태", "비고", "이미지 경로"]
     else:
@@ -5527,6 +5527,7 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         ust = it.get("unit_status") or "진행중"
         if is_co:
             row = [
+                "",  # v5H226j: 사진 셀 자리 — 아래에서 Image 객체로 삽입
                 idx,
                 it.get("unit_label") or "",
                 it.get("linked_mgmt_code") or "",
@@ -5559,20 +5560,45 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                 it.get("line_note") or "",
             ]
         ws.append(row)
-    # 컬럼 폭 자동 (간단)
-    widths_co = [5, 32, 16, 28, 8, 12, 14, 8, 8, 12, 12, 18, 10, 24, 40]
+    # 컬럼 폭 자동 (간단). CONSUMABLE 은 첫 컬럼이 '사진' 으로 추가됨.
+    widths_co = [12, 5, 32, 16, 28, 8, 12, 14, 8, 8, 12, 12, 18, 10, 24, 40]
     widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
     widths = widths_co if is_co else widths_eq
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[ws.cell(1, i).column_letter].width = w
-    # 숫자 포맷
-    qty_col = 5 if is_co else 3
+    # 숫자 포맷 (CONSUMABLE 은 사진 컬럼 + No 컬럼 때문에 +1 시프트)
+    qty_col = 6 if is_co else 3
     price_col = qty_col + 1
     amount_col = price_col + 1
     for r in range(hdr_row_idx + 1, ws.max_row + 1):
         for c_idx in (price_col, amount_col):
             ws.cell(r, c_idx).number_format = '#,##0'
         ws.cell(r, qty_col).number_format = '#,##0.##'
+    # v5H226j: CONSUMABLE 일 때 썸네일 이미지를 사진 컬럼(A) 에 직접 삽입
+    if is_co:
+        from openpyxl.drawing.image import Image as XLImage
+        from PIL import Image as PILImage
+        img_root = os.path.join(BASE, "uploads")
+        for line_idx, it in enumerate(items):
+            thumb_url = it.get("image_thumb_path") or ""
+            if not thumb_url:
+                continue
+            # /uploads/consumables/proj_X/file.jpg → 디스크 절대 경로
+            rel = thumb_url.lstrip("/").replace("uploads/", "", 1)
+            disk_path = os.path.join(img_root, rel)
+            if not os.path.isfile(disk_path):
+                continue
+            try:
+                xli = XLImage(disk_path)
+                # 셀 안에 들어가도록 80x60 픽셀로 축소 (썸네일이 240인 경우 줄임)
+                xli.width = 80
+                xli.height = 60
+                cell_addr = ws.cell(hdr_row_idx + 1 + line_idx, 1).coordinate
+                ws.add_image(xli, cell_addr)
+                # 행 높이 (포인트 단위, 1pt ~ 1.33px)
+                ws.row_dimensions[hdr_row_idx + 1 + line_idx].height = 50
+            except Exception as e:
+                print(f"[v5H226j] xlsx image insert err line {line_idx+1}: {e}")
     # 출력
     buf = BytesIO()
     wb.save(buf)
