@@ -4,6 +4,54 @@
 
 ---
 
+## v5H226d (2026-05-08) — BAT 8192자 라인 한계 재발 fix
+- 직전 v5H226c 까지 LAST UPDATE REM 줄이 누적되며 KNK_시작.bat 라인 3 이 8759자, START.bat 18852자 → cmd.exe 8192자 한계 초과로 BAT 더블클릭 시 검은 창 깜빡 후 즉시 종료
+- BAT 두 파일 짧은 요약 + CHANGELOG.md 참조 형태로 재정리 (라인 max 82자)
+- 운영 규칙: 향후 LAST UPDATE 는 짧은 한 줄 요약만, 상세는 CHANGELOG.md
+
+## v5H226c (2026-05-08) — 소모품 엑셀 업로드: 이미지 추출 + 헤더 자동 매핑 가시화
+- /parse 가 image_out_dir 전달 → 셀 박힌 이미지 추출/Pillow 압축/썸네일 (uploads/consumables/proj_{pid}/)
+- 응답에 col_map(엑셀 컬럼문자 + 원본 헤더 텍스트), header_row, raw_headers, image_count, image_url_prefix
+- order_items 에 image_path/image_thumb_path 컬럼 추가 (startup ALTER)
+- /confirm 이 image_path/image_thumb_path + order_date 함께 INSERT
+- 미리보기 모달 UI: 헤더 자동 인식 배지 + chip 노출 + 미매핑 경고 + 사진(48px 썸네일)/단위/발주일 컬럼
+- 프로젝트 상세 SO 라인 테이블: _is_co 일 때 첫 컬럼 사진(44px 썸네일·원본 새창) + '호기' → '품명' 라벨
+- 학습형 매핑 2단계(사용자 재매핑 UI + 고객사별 기억)는 1단계 검증 후 진행
+
+## v5H226b (2026-05-08) — 소모품 엑셀 업로드 INSERT 컬럼명 버그 수정
+- order_items 실제 컬럼은 qty/unit_price/amount 인데 v5H226 가 unit_qty/unit_amount/unit_total 로 잘못 적어서 모든 행이 silent 예외로 빠져 0건 등록되던 문제
+- cols/SUM 모두 올바른 이름으로 수정, line_no 컬럼 없으므로 cur_max 로직 제거, unit_note → line_note
+- confirm endpoint 가 inserted=0 일 때 last_err 메시지를 500 으로 반환
+
+## v5H226 (2026-05-08) — 소모품 프로젝트 상세 라인 입력 기능
+- project_detail.html: project_type='CONSUMABLE' 일 때 '+ 호기 추가' → '+ 항목 추가' + '📤 엑셀 업로드' 버튼
+- 호기 추가 인라인 폼 _is_co 분기 (품명 input placeholder, 'EA ×' 단위)
+- 페이지 끝에 #coImportModal — file input + 파싱/미리보기 테이블 + [✓ 확정 등록]
+- 신규 라우트: /projects/{pid}/import-consumable-lines/parse + /confirm
+- order_items 일괄 INSERT + total_amount 자동 갱신 + project.order_amount 동기화 + 변경 이력
+
+## v5H225 (2026-05-08) — 관리코드 prefix 정책 변경 K→E, S→C + UI 라벨 통일
+- prefix: K(기타)→E(Etc.), S(소모품)→C(Consumable)
+- generate_mgmt_code 허용 prefix (T,M,K,S)→(T,M,E,C)
+- startup 자동 백필 (기존 6건 K/S→E/C, 변경 이력 자동 기록)
+- 추가 이상 데이터 2건 (CONSUMABLE+T prefix) 직접 보정
+- 카드 라벨: NEW_EQUIP·T→TESTER, NEW_EQUIP·M→MACHINE, OTHER→ETC.
+- 'SO' 사용자 노출 텍스트 → '수주번호' 일괄 변경
+
+## v5H224 (2026-05-08) — 등록 후 항상 상세 페이지 이동
+- /projects/new POST 의 fallback redirect '/projects' (목록) → '/project/{new_pid}' (상세)
+- T·M·K·S 4종 모두 동일 흐름
+
+## v5H155 ~ v5H223 (2026-05-05 ~ 2026-05-08)
+v5H155 ~ v5H223 의 상세 변경이력은 git log + 각 커밋 메시지를 참조하세요. 주요 마일스톤:
+- v5H210 holidays 라이브러리 도입 (자동 공휴일)
+- v5H212 수주 전 내역 섹션 신설
+- v5H214 status → stage 자동 매핑
+- v5H216~v5H218 소모품 발주 묶음 관리코드 + 사업부 분리
+- v5H220~v5H223 소모품 등록 폼 통일 + projects 테이블 통합
+
+---
+
 ## v5H154 (2026-05-05) — 사업부 select 제거 + 외화 기준환율 보존 (대표 지시)
 - project_form: 사업부 select 제거 (chooser 에서 이미 선택) → readonly 텍스트로 표시 + hidden input
 - 통화 != KRW 선택 시 [기준환율] [원화 환산] 입력칸 자동 노출
