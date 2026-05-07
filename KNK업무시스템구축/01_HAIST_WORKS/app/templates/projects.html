@@ -21,9 +21,11 @@
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
     <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
     <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-      <option value="">사업부 전체</option>
-      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🤖 자동화</option>
-      <option value="T" {% if biz_div=='T' %}selected{% endif %}>🔬 검사기</option>
+      <option value="">사업부 전체 (T·M·K·S)</option>
+      <option value="T" {% if biz_div=='T' %}selected{% endif %}>T 검사기</option>
+      <option value="M" {% if biz_div=='M' %}selected{% endif %}>M 자동화</option>
+      <option value="K" {% if biz_div=='K' %}selected{% endif %}>K 기타</option>
+      <option value="S" {% if biz_div=='S' %}selected{% endif %}>S 소모품</option>
     </select>
     {# v5H99: 단계 필터 제거 — 상태로 통합 (사용자 가시 정보는 상태만) #}
     <select name="status" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
@@ -70,12 +72,21 @@
       </thead>
       <tbody>
       {% for p in projects %}
+        {# v5H217: _kind 에 따라 라우팅 분기 — 소모품은 /consumables/{id}, 그 외는 /project/{id} #}
+        {% set _is_co = (p._kind == 'consumable') %}
+        {% set _link = '/consumables/' ~ p.id if _is_co else '/project/' ~ p.id %}
         <tr>
-          {% if can_sales_del %}<td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" style="cursor:pointer;"></td>{% endif %}
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="/project/{{ p.id }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
-          <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
+          {% if can_sales_del %}
+            {% if _is_co %}
+            <td style="text-align:center;color:var(--line);" title="소모품은 목록에서 일괄 삭제 미지원">—</td>
+            {% else %}
+            <td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" style="cursor:pointer;"></td>
+            {% endif %}
+          {% endif %}
+          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);"><a href="{{ _link }}" style="color:inherit;">{{ p.mgmt_code|default('—') }}</a></td>
+          <td><a href="{{ _link }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
           <td>{{ p.customer_name|default('—') }}</td>
-          <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}🔬 검사기{% elif p.biz_div == 'M' %}🤖 자동화{% else %}{{ p.biz_div|default('—') }}{% endif %}</span></td>
+          <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}T 검사기{% elif p.biz_div == 'M' %}M 자동화{% elif p.biz_div == 'K' %}K 기타{% elif p.biz_div == 'S' %}S 소모품{% else %}{{ p.biz_div|default('—') }}{% endif %}</span></td>
           {# v5H138: 프로젝트 유형 pill — 영문+한글 2줄 #}
           <td class="center">{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
           {# v5H200: 호기 종합 상태 (A안) — 분포 칩 항상 노출 (취소·보류 0건도) #}

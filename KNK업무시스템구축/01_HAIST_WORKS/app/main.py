@@ -8720,21 +8720,57 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     if not can_view_sales(u):
         return RedirectResponse("/home", 303)
     # v5H137: project_type 필터
-    rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
-                                     project_type=project_type)
-    # v5H200: 호기 상태로부터 종합 표시 상태를 각 행에 부착
-    try:
-        with db_session() as _ds:
-            for r in rows:
-                _pid = r.get("id") if isinstance(r, dict) else r["id"]
-                if _pid:
-                    r["_disp_status"] = _pwf.compute_project_display_status(
-                        _ds, int(_pid),
-                        # v5H214: status 우선 (사용자가 선택한 세부 상태), stage 는 fallback
-                        fallback_stage=(r.get("status") or r.get("stage") or "")
-                    )
-    except Exception:
-        pass
+    # v5H217: biz_div='S' 면 소모품만, 그 외엔 projects + 소모품 통합 목록
+    rows: list = []
+    if biz_div != "S":
+        rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
+                                         project_type=project_type)
+        # v5H200: 호기 상태로부터 종합 표시 상태를 각 행에 부착
+        try:
+            with db_session() as _ds:
+                for r in rows:
+                    r["_kind"] = "project"
+                    _pid = r.get("id") if isinstance(r, dict) else r["id"]
+                    if _pid:
+                        r["_disp_status"] = _pwf.compute_project_display_status(
+                            _ds, int(_pid),
+                            # v5H214: status 우선
+                            fallback_stage=(r.get("status") or r.get("stage") or "")
+                        )
+        except Exception:
+            pass
+    # v5H217: 소모품 묶음(consumable_orders) 도 통합 표시 (biz_div 필터 없거나 'S' 일 때만)
+    if biz_div in ("", "S") and project_type in ("", "CONSUMABLE"):
+        try:
+            from . import consumables as _co_mod
+            _co_status_map = {"DRAFT": "초기협의", "QUOTED": "견적발행",
+                               "CONFIRMED": "진행중", "SHIPPED": "납품완료",
+                               "PAID": "납품완료", "CANCELLED": "취소"}
+            _co_rows = _co_mod.co_list(status="", q=q, limit=500)
+            for cr in _co_rows:
+                _st_logi = _co_status_map.get(cr.get("status") or "DRAFT", "초기협의")
+                if status and _st_logi != status:
+                    continue
+                _name_disp = (cr.get("customer_name") or "고객사 미정") + " 소모품 발주 (" + (cr.get("co_no") or f"#{cr.get('id')}") + ")"
+                rows.append({
+                    "_kind": "consumable",
+                    "id": cr.get("id"),
+                    "mgmt_code": cr.get("mgmt_code") or "—",
+                    "name": _name_disp,
+                    "project_name": _name_disp,
+                    "customer_name": cr.get("customer_name") or "—",
+                    "biz_div": "S",
+                    "project_type": "CONSUMABLE",
+                    "status": _st_logi,
+                    "stage": _st_logi,
+                    "order_amount": cr.get("total_amount") or 0,
+                    "order_date": cr.get("order_date") or "",
+                    "_co_no": cr.get("co_no"),
+                })
+        except Exception as _e:
+            print(f"[v5H217] 소모품 병합 실패: {_e}")
+    # 정렬: 발주일 desc → 관리코드 desc
+    rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
