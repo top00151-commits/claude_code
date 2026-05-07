@@ -651,7 +651,8 @@
               <thead>
                 <tr>
                   {% if _is_co %}<th style="width:60px;">사진</th>{% endif %}
-                  <th style="width:80px;">{% if _is_co %}품명{% else %}호기{% endif %}</th>
+                  <th style="width:{% if _is_co %}220px{% else %}80px{% endif %};">{% if _is_co %}품명{% else %}호기{% endif %}</th>
+                  {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num" style="width:120px;">단가</th>
                   <th style="width:74px;">통화</th>
                   <th style="width:78px;">거래</th>
@@ -681,10 +682,17 @@
                     {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
                   </td>
                   {% endif %}
-                  <td style="white-space:nowrap;">
-                    <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
-                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
+                  <td style="{% if _is_co %}min-width:200px;{% else %}white-space:nowrap;{% endif %}">
+                    <span class="display-val" style="{% if _is_co %}display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;{% endif %}" title="{{ u.unit_label or '' }}"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co %} style="width:200px;"{% endif %}>{% endif %}
                   </td>
+                  {% if _is_co %}
+                  <td style="font-size:11.5px;">
+                    {% if u.linked_mgmt_code %}
+                    <a href="/project/{{ u.linked_project_id }}" style="color:#1e3a8a;font-weight:600;text-decoration:none;" title="{{ u.linked_project_name or '' }}">🔗 {{ u.linked_mgmt_code }}</a>
+                    {% else %}<span style="color:var(--mute);">—</span>{% endif %}
+                  </td>
+                  {% endif %}
                   <td class="num">
                     <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}

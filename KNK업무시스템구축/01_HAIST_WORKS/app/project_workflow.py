@@ -871,12 +871,18 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             # v5H186: unit_status (호기별 상태)
             # v5H197: is_export (호기별 거래구분)
             for _c in ("order_date", "due_date", "ship_to", "currency", "unit_status", "is_export",
-                       "image_path", "image_thumb_path"):  # v5H226e: 소모품 라인 이미지
+                       "image_path", "image_thumb_path",  # v5H226e: 소모품 라인 이미지
+                       "linked_project_id"):              # v5H226g: 소모품 라인 → 장비 매칭
                 if _c in oicols: sel_extra.append(_c)
-            sel_extra_sql = (", " + ", ".join(sel_extra)) if sel_extra else ""
+            sel_extra_sql = (", " + ", ".join("oi." + _c for _c in sel_extra)) if sel_extra else ""
+            # v5H226g: linked_project_id → projects.mgmt_code/name 자동 JOIN (소모품 행 표시용)
+            _has_link = "linked_project_id" in oicols
+            _join_sql = " LEFT JOIN projects lp ON lp.id = oi.linked_project_id" if _has_link else ""
+            _link_cols = ", lp.mgmt_code AS linked_mgmt_code, lp.name AS linked_project_name" if _has_link else ""
             items = c.execute(
-                f"SELECT id, qty, unit_price, amount{sel_extra_sql} "
-                f"FROM order_items WHERE order_id=? ORDER BY id ASC",
+                f"SELECT oi.id, oi.qty, oi.unit_price, oi.amount{sel_extra_sql}{_link_cols} "
+                f"FROM order_items oi{_join_sql} "
+                f"WHERE oi.order_id=? ORDER BY oi.id ASC",
                 (d["id"],)
             ).fetchall()
             d["units"] = [dict(it) for it in items]
