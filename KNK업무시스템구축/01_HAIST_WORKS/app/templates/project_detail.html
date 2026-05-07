@@ -19,7 +19,12 @@
       <div class="crumbs"><a href="/projects">프로젝트</a> · <b>{{ p.mgmt_code|default(p.id) }}</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <span style="font-family:monospace;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</span>
-        <span>{{ p.name }}</span>
+        <span id="hf_title_name">{{ p.name }}</span>
+        {# v5H185: 프로젝트명 인라인 편집 ✏️ — 우측 패널에서 이동 #}
+        {% if can_sales %}<button type="button" id="hf_title_edit" data-pid="{{ p.id }}" title="프로젝트명 편집"
+                style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px;"
+                onmouseover="this.style.background='var(--paper-2)'"
+                onmouseout="this.style.background='transparent'">✏️</button>{% endif %}
         {% if p.stage %}<span class="pill pill-progress" style="font-size:13px;">{{ p.stage }}</span>{% endif %}
         {# v5H138: 프로젝트 유형 pill — 영문 enum + 한글 의미 2줄 (so-pill 패턴 통일) #}
         {% with ptype=p.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}
@@ -359,7 +364,24 @@
       </style>
 
       <div class="section-card">
-        <h3>📋 수주 내역 ({{ project_orders|default([])|length }}건) {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);margin-left:8px;">관리번호 {{ p.mgmt_code }}</span>{% endif %}</h3>
+        <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span>📋 수주 내역 ({{ project_orders|default([])|length }}건)</span>
+          {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
+          {# v5H185: 프로젝트 정보 편집 툴바 — 우측 패널 ✏️ 들을 여기로 이전 #}
+          {% if can_sales %}
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="hf-toggle-export" data-pid="{{ p.id }}" data-now="{{ '1' if p.is_export else '0' }}"
+                    title="내수 ↔ 수출 전환"
+                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">⇄ 거래구분</button>
+            <button type="button" class="hf-edit-currency" data-pid="{{ p.id }}" data-cur="{{ p.currency or 'KRW' }}" data-fx="{{ p.fx_rate or '' }}"
+                    title="통화/환율 편집"
+                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 통화/환율</button>
+            <button type="button" class="hf-edit-btn" data-field="note" data-pid="{{ p.id }}"
+                    title="비고 편집"
+                    style="padding:5px 11px;background:#fff;border:1px solid var(--line);color:#475569;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 비고</button>
+          </span>
+          {% endif %}
+        </h3>
         {% if project_orders %}
         <div class="list-scroll">
         {% for so in project_orders %}
@@ -957,14 +979,10 @@
               {% for so in project_orders %}<span style="font-family:monospace;color:var(--knk-red);font-weight:700;">{{ so.order_no }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
             {% else %}—{% endif %}
           </dd>
-          {# v5H177: 프로젝트명/고객사/거래구분 인라인 편집 (✏️ 클릭) #}
-          <dt>프로젝트명</dt><dd>
-            <span class="hf-display"><b id="hf_name_disp">{{ p.name }}</b>
-              {% if can_sales %}<button type="button" class="hf-edit-btn" data-field="name" data-pid="{{ p.id }}" title="이름 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
-            </span>
-          </dd>
+          {# v5H185: 우측 패널은 정보 확인만. 수정은 상단 타이틀 옆 ✏️ + SO 영역 툴바에서. #}
+          <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
-          <dt>사업부</dt><dd style="background:var(--paper-2);">{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %} <span style="font-size:10px;color:var(--mute);">🔒</span></dd>
+          <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
           <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
           {% if parent_project %}
@@ -977,10 +995,7 @@
           </dd>
           {% endif %}
           <dt>거래 구분</dt><dd>
-            <span class="hf-display">
-              {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
-              {% if can_sales %}<button type="button" class="hf-toggle-export" data-pid="{{ p.id }}" data-now="{{ '1' if p.is_export else '0' }}" title="내수↔수출 전환" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">⇄</button>{% endif %}
-            </span>
+            {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
           </dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
           <dt>상태</dt><dd>
@@ -998,19 +1013,12 @@
           </dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
-          {# v5H177: 통화/환율 인라인 편집 (✏️ 클릭) #}
           <dt>통화 / 환율</dt><dd>
-            <span class="hf-display">
-              <b id="hf_currency_disp">{{ p.currency or 'KRW' }}</b>
-              {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--mute);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--mute);font-size:11px;"> KRW</span>{% endif %}
-              {% if can_sales %}<button type="button" class="hf-edit-currency" data-pid="{{ p.id }}" data-cur="{{ p.currency or 'KRW' }}" data-fx="{{ p.fx_rate or '' }}" title="통화/환율 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
-            </span>
+            <b id="hf_currency_disp">{{ p.currency or 'KRW' }}</b>
+            {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--mute);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--mute);font-size:11px;"> KRW</span>{% endif %}
           </dd>
           <dt>비고</dt><dd>
-            <span class="hf-display">
-              <span id="hf_note_disp" style="font-size:12.5px;color:var(--ink);">{{ p.note|default('—') }}</span>
-              {% if can_sales %}<button type="button" class="hf-edit-btn" data-field="note" data-pid="{{ p.id }}" title="비고 편집" style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:11px;margin-left:4px;">✏️</button>{% endif %}
-            </span>
+            <span id="hf_note_disp" style="font-size:12.5px;color:var(--ink);">{{ p.note|default('—') }}</span>
           </dd>
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
@@ -1074,6 +1082,27 @@
       return null;
     }
     return j;
+  }
+  // v5H185: 타이틀 옆 ✏️ — 프로젝트명 편집
+  const titleBtn = document.getElementById('hf_title_edit');
+  if (titleBtn) {
+    titleBtn.addEventListener('click', async () => {
+      const pid = titleBtn.dataset.pid;
+      const titleEl = document.getElementById('hf_title_name');
+      const cur = (titleEl ? titleEl.textContent : '').trim();
+      const v = prompt('프로젝트명 변경:', cur);
+      if (v === null) return;
+      const newName = v.trim();
+      if (!newName) { alert('⚠ 프로젝트명은 비울 수 없습니다'); return; }
+      const j = await patchField(pid, 'name', newName);
+      if (j) {
+        if (titleEl) titleEl.textContent = newName;
+        document.title = newName + ' · 프로젝트';
+        // 우측 패널의 동일 필드도 동기화
+        const sideEl = document.getElementById('hf_name_disp');
+        if (sideEl) sideEl.textContent = newName;
+      }
+    });
   }
   // 이름 / 비고 등 단순 텍스트 필드
   document.querySelectorAll('.hf-edit-btn').forEach(btn => {
