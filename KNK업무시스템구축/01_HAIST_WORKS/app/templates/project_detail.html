@@ -1034,18 +1034,12 @@
             {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
           </dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
+          {# v5H191: 우측 패널 '상태' 도 read-only — 정보 확인 전용. 변경은 호기별 상태 select 또는
+             상태 변경이 의미를 갖는 곳에서만 수행. #}
           <dt>상태</dt><dd>
-            {% if can_sales %}
-            <select id="quickStatus" data-pid="{{ p.id }}" data-orig="{{ p.status|default('') }}"
-                    style="padding:4px 10px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;font-weight:700;background:var(--paper);cursor:pointer;">
-              {% for s in (STATUSES or []) %}
-              <option value="{{ s }}" {% if p.status == s %}selected{% endif %}>{{ s }}</option>
-              {% endfor %}
-            </select>
-            <span id="quickStatusMsg" style="font-size:11px;color:var(--success);margin-left:6px;display:none;">✓</span>
-            {% else %}
-            <b>{{ p.status|default('—') }}</b>
-            {% endif %}
+            {% set _pst = p.status|default('—') %}
+            <span class="pill {% if _pst in ('납품완료','완료','종료') %}pill-done{% elif _pst in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}"
+                  style="font-size:12px;font-weight:700;">{{ _pst }}</span>
           </dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
