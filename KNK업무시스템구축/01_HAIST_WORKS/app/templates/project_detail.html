@@ -335,32 +335,26 @@
         .so-grand-total .label { font-size: 13px; color: var(--mute); font-weight: 600; }
         .so-grand-total .value { font-size: 22px; font-weight: 700; color: var(--knk-red); font-family: monospace; }
 
-        /* v5H107: 읽기 모드 기본, 편집 모드 토글 */
+        /* v5H188: 호기 라인 항상 편집 가능 — '편집 모드' 토글 폐기.
+           편집 가능한 SO 카드(.so-card.editable)는 input 항상 노출.
+           편집 불가(완료/취소 상태)는 display-val 텍스트만 노출. */
         .so-card .so-meta-edit,
         .so-card .unit-edit { display: none; }
         .so-card .display-val { display: inline; }
-        .so-card .add-unit-card,
-        .so-card .row-save,
-        .so-card .row-del,
-        .so-card .so-meta-save,
-        .so-card .add-unit { display: none; }
-        .so-card.edit-mode .so-meta-edit,
-        .so-card.edit-mode .unit-edit { display: inline-block; }
-        .so-card.edit-mode .display-val { display: none; }
-        .so-card.edit-mode .row-save,
-        .so-card.edit-mode .row-del,
-        .so-card.edit-mode .add-unit { display: inline-block; }
-        .so-card .toggle-edit { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-        .so-card.edit-mode .toggle-edit { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
-        .so-card.edit-mode .toggle-edit::after { content: " 완료"; }
-        /* v5H182: 행별 저장 버튼 + 메타 저장 버튼 숨김 — '편집 완료' 한 번에 일괄 저장 */
+        .so-card.editable .so-meta-edit,
+        .so-card.editable .unit-edit { display: inline-block; }
+        .so-card.editable .display-val { display: none; }
+        .so-card .add-unit-card { display: none; }
+        .so-card.editable .add-unit-card.open { display: block; }
+        .so-card.editable .row-del,
+        .so-card.editable .add-unit { display: inline-block; }
         .so-card .row-save,
         .so-card .so-meta-save { display: none !important; }
-        /* 편집모드일 때만 호기 추가 카드 표시 가능하게 (open + edit-mode) */
-        .so-card.edit-mode .add-unit-card.open { display: block; }
-        /* 동작 컬럼은 편집 모드에서만 */
+        .so-card.editable .edit-only { display: table-cell; }
         .so-card .edit-only { display: none; }
-        .so-card.edit-mode .edit-only { display: table-cell; }
+        /* 일괄 저장 버튼 (이전 toggle-edit 위치 재사용) */
+        .so-card .toggle-edit { background: var(--amber-deep); border: 1px solid var(--amber-deep); color: #fff; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card .toggle-edit:hover { filter: brightness(1.05); }
       </style>
 
       <div class="section-card">
@@ -391,7 +385,7 @@
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
           {% set _sym = '' %}
           {% set _qq = so.unit_qty|default(1) %}
-          <div class="so-card" data-soid="{{ so.id }}">
+          <div class="so-card{% if _editable %} editable{% endif %}" data-soid="{{ so.id }}">
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
@@ -417,7 +411,7 @@
               </div>
               <div class="so-actions">
                 {% if _editable %}
-                <button type="button" class="toggle-edit" title="이 SO 편집 모드">✏️ 편집</button>
+                <button type="button" class="toggle-edit" title="변경사항 저장">💾 변경사항 저장</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
@@ -673,34 +667,31 @@
               return { changed: okCount, failed };
             }
             if (toggleBtn) {
+              // v5H188: 편집 모드 토글 폐기. 버튼은 항상 '변경사항 저장' 동작.
               toggleBtn.addEventListener('click', async () => {
-                if (card.classList.contains('edit-mode')) {
-                  // 편집 완료 클릭 — 일괄 저장
-                  toggleBtn.disabled = true;
-                  const orig = toggleBtn.textContent;
-                  toggleBtn.textContent = '저장 중...';
-                  try {
-                    const res = await saveAllRows();
-                    if (res.failed && res.failed.length) {
-                      alert('⚠ 일부 저장 실패:\n' +
-                            res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
-                    }
-                    if (res.changed > 0) {
-                      // 변경 내용 반영 위해 캐시버스터 새로고침
-                      window.location.href = window.location.pathname + '?_t=' + Date.now();
-                      return;
-                    }
-                  } catch(e) {
-                    alert('⚠ ' + e.message);
-                  } finally {
-                    toggleBtn.disabled = false;
-                    toggleBtn.textContent = orig;
+                toggleBtn.disabled = true;
+                const orig = toggleBtn.textContent;
+                toggleBtn.textContent = '저장 중...';
+                try {
+                  const res = await saveAllRows();
+                  if (res.failed && res.failed.length) {
+                    alert('⚠ 일부 저장 실패:\n' +
+                          res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
                   }
-                  // 변경 없음 → 단순히 읽기 모드로 전환
-                  card.classList.remove('edit-mode');
-                } else {
-                  // 편집 모드 진입
-                  card.classList.add('edit-mode');
+                  if (res.changed > 0) {
+                    window.location.href = window.location.pathname + '?_t=' + Date.now();
+                    return;
+                  } else {
+                    // 변경사항 없음 — 사용자에게 짧게 알림
+                    toggleBtn.textContent = '변경사항 없음';
+                    setTimeout(() => { toggleBtn.textContent = orig; }, 1200);
+                    return;
+                  }
+                } catch(e) {
+                  alert('⚠ ' + e.message);
+                } finally {
+                  toggleBtn.disabled = false;
+                  if (toggleBtn.textContent === '저장 중...') toggleBtn.textContent = orig;
                 }
               });
             }
