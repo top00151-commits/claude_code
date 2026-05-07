@@ -462,11 +462,22 @@
           {% set _gtotal.t = _gtotal.t + (_so.total_amount or 0) %}
           {% set _gtotal.q = _gtotal.q + (_so.unit_qty or 1) %}
         {% endfor %}
+        {# v5H176: 합계 통화는 프로젝트 헤더 통화 기준. 외화 + fx_rate 있으면 KRW 환산 병기. #}
+        {% set _gt_ccy = p.currency or 'KRW' %}
         <div class="so-grand-total">
           <div>
             <div class="label">총 SO {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
           </div>
-          <div class="value">{{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">KRW</span> <span style="font-size:11px;color:var(--mute);font-weight:500;">(환산 합계)</span></div>
+          <div class="value">
+            {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">{{ _gt_ccy }}</span>
+            <span style="font-size:11px;color:var(--mute);font-weight:500;">(SO 합계)</span>
+            {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
+            <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
+              ≈ {{ '{:,.0f}'.format(_gtotal.t * p.fx_rate) }} KRW
+              <span style="color:#94a3b8;font-weight:500;font-size:11px;">(환율 1 {{ _gt_ccy }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
+            </div>
+            {% endif %}
+          </div>
         </div>
 
         <script>
