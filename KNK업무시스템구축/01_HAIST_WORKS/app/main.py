@@ -8723,18 +8723,19 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     # v5H217: biz_div='S' 면 소모품만, 그 외엔 projects + 소모품 통합 목록
     rows: list = []
     if biz_div != "S":
-        rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
-                                         project_type=project_type)
+        _proj_rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
+                                               project_type=project_type)
+        # v5H217b: sqlite3.Row 는 .get() 미지원 → dict 로 변환 (정렬·필드 추가 대비)
+        rows = [dict(r) for r in _proj_rows]
         # v5H200: 호기 상태로부터 종합 표시 상태를 각 행에 부착
         try:
             with db_session() as _ds:
                 for r in rows:
                     r["_kind"] = "project"
-                    _pid = r.get("id") if isinstance(r, dict) else r["id"]
+                    _pid = r.get("id")
                     if _pid:
                         r["_disp_status"] = _pwf.compute_project_display_status(
                             _ds, int(_pid),
-                            # v5H214: status 우선
                             fallback_stage=(r.get("status") or r.get("stage") or "")
                         )
         except Exception:
