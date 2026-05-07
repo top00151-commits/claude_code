@@ -8719,29 +8719,26 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
         return RedirectResponse("/home", 303)
-    # v5H137: project_type 필터
-    # v5H217: biz_div='S' 면 소모품만, 그 외엔 projects + 소모품 통합 목록
+    # v5H218: biz_div(T/M) = 진행 사업부, project_type 으로 유형(검사기/자동화/기타/소모품) 구분
     rows: list = []
-    if biz_div != "S":
-        _proj_rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
-                                               project_type=project_type)
-        # v5H217b: sqlite3.Row 는 .get() 미지원 → dict 로 변환 (정렬·필드 추가 대비)
-        rows = [dict(r) for r in _proj_rows]
-        # v5H200: 호기 상태로부터 종합 표시 상태를 각 행에 부착
-        try:
-            with db_session() as _ds:
-                for r in rows:
-                    r["_kind"] = "project"
-                    _pid = r.get("id")
-                    if _pid:
-                        r["_disp_status"] = _pwf.compute_project_display_status(
-                            _ds, int(_pid),
-                            fallback_stage=(r.get("status") or r.get("stage") or "")
-                        )
-        except Exception:
-            pass
-    # v5H217: 소모품 묶음(consumable_orders) 도 통합 표시 (biz_div 필터 없거나 'S' 일 때만)
-    if biz_div in ("", "S") and project_type in ("", "CONSUMABLE"):
+    _proj_rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
+                                           project_type=project_type)
+    # v5H217b: sqlite3.Row 는 .get() 미지원 → dict 변환
+    rows = [dict(r) for r in _proj_rows]
+    try:
+        with db_session() as _ds:
+            for r in rows:
+                r["_kind"] = "project"
+                _pid = r.get("id")
+                if _pid:
+                    r["_disp_status"] = _pwf.compute_project_display_status(
+                        _ds, int(_pid),
+                        fallback_stage=(r.get("status") or r.get("stage") or "")
+                    )
+    except Exception:
+        pass
+    # v5H217+v5H218: 소모품 묶음(consumable_orders) 도 통합. biz_div 필터 시 consumable.biz_div 매칭
+    if project_type in ("", "CONSUMABLE"):
         try:
             from . import consumables as _co_mod
             _co_status_map = {"DRAFT": "초기협의", "QUOTED": "견적발행",
@@ -8749,6 +8746,10 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                                "PAID": "납품완료", "CANCELLED": "취소"}
             _co_rows = _co_mod.co_list(status="", q=q, limit=500)
             for cr in _co_rows:
+                _co_biz = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
+                # 사업부 필터 적용 (T/M)
+                if biz_div and biz_div in ("T", "M") and _co_biz != biz_div:
+                    continue
                 _st_logi = _co_status_map.get(cr.get("status") or "DRAFT", "초기협의")
                 if status and _st_logi != status:
                     continue
@@ -8760,7 +8761,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                     "name": _name_disp,
                     "project_name": _name_disp,
                     "customer_name": cr.get("customer_name") or "—",
-                    "biz_div": "S",
+                    "biz_div": _co_biz or None,  # T/M (미선택 시 None → '미분류' 노출)
                     "project_type": "CONSUMABLE",
                     "status": _st_logi,
                     "stage": _st_logi,
@@ -8769,7 +8770,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                     "_co_no": cr.get("co_no"),
                 })
         except Exception as _e:
-            print(f"[v5H217] 소모품 병합 실패: {_e}")
+            print(f"[v5H218] 소모품 병합 실패: {_e}")
     # 정렬: 발주일 desc → 관리코드 desc
     rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
     return ctx(request, "projects.html",
@@ -8850,7 +8851,8 @@ async def projects_new_submit(request: Request):
         return RedirectResponse(url, status_code=303)
     if not project_name:
         return _err_redirect("name_required")
-    if not biz_div:
+    # v5H218: 진행 사업부는 항상 T 또는 M 이어야 함 (K 기타는 chooser 에서 K 로 들어와도 폼에서 T/M 으로 보정)
+    if biz_div not in ("T", "M"):
         return _err_redirect("biz_div_required")
     if not customer:
         return _err_redirect("customer_required")
@@ -16691,6 +16693,7 @@ async def consumables_new_form(request: Request):
 async def consumables_upload_xlsx(request: Request,
                                    file: UploadFile = File(...),
                                    customer_name: str = Form(""),
+                                   biz_div: str = Form(""),
                                    order_date: str = Form(""),
                                    due_date: str = Form(""),
                                    currency: str = Form("KRW"),
@@ -16700,8 +16703,12 @@ async def consumables_upload_xlsx(request: Request,
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    # v5H218: 진행 사업부 필수 (T/M)
+    if biz_div not in ("T", "M"):
+        return JSONResponse({"ok": False, "error": "biz_div_required",
+                              "message": "진행 사업부(검사기/자동화)를 선택해주세요"}, 400)
     co_id, co_no = _co.co_create(
-        customer_name=customer_name, order_date=order_date, due_date=due_date,
+        customer_name=customer_name, biz_div=biz_div, order_date=order_date, due_date=due_date,
         currency=currency, note=note, source_file=file.filename or "",
         created_by=u.get("id"),
     )

@@ -2056,11 +2056,15 @@ def init_db():
 
         # v5H216 (2026-05-08): consumable_orders 에 mgmt_code 컬럼 추가 + 백필
         # 소모품 발주 묶음에도 'S' prefix 관리번호 부여 (예: 001S2605)
+        # v5H218 (2026-05-08): biz_div 컬럼 추가 (진행 사업부 — 매출 집계 분류)
         try:
             cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
             if "mgmt_code" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN mgmt_code TEXT")
                 print("[v5H216] consumable_orders.mgmt_code 컬럼 추가됨")
+            if "biz_div" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")
+                print("[v5H218] consumable_orders.biz_div 컬럼 추가됨")
             # 기존 묶음 중 mgmt_code NULL 인 행 백필
             # 같은 conn 안에서 generate_mgmt_code() 가 별도 conn 으로 검색해 미커밋 UPDATE 못 봄 → 직접 SQL 로 sequence 추적
             try:

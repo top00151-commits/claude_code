@@ -73,6 +73,13 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--lin
       <h2>① 발주 헤더 + 엑셀 업로드</h2>
       <form id="uploadForm">
         <div class="row">
+          <div class="field"><label>진행 사업부 <span style="color:var(--knk-red);">*</span></label>
+            <select name="biz_div" required>
+              <option value="">— 사업부 선택 —</option>
+              <option value="T">검사기사업부</option>
+              <option value="M">자동화사업부</option>
+            </select>
+          </div>
           <div class="field"><label>고객사 <a href="/customers" target="_blank" style="font-size:10px;color:var(--amber-deep);">+신규</a></label>
             <input list="custList" name="customer_name" placeholder="고객사명" />
             <datalist id="custList">

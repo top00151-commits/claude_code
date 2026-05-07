@@ -305,12 +305,13 @@ def match_project_by_model(model_use: str) -> dict | None:
 # ────────────────────────────────────────────────────────────────────
 # CRUD
 # ────────────────────────────────────────────────────────────────────
-def co_create(customer_name: str = "", order_date: str = "", due_date: str = "",
+def co_create(customer_name: str = "", biz_div: str = "",
+              order_date: str = "", due_date: str = "",
               currency: str = "KRW", note: str = "", source_file: str = "",
               created_by: int | None = None) -> tuple[int, str]:
-    """v5H216: 소모품 묶음 생성 시 'S' prefix 관리번호(mgmt_code) 자동 발급."""
+    """v5H216: 소모품 묶음 생성 시 'S' prefix 관리번호 자동 발급.
+    v5H218: biz_div(T/M) 추가 — 진행 사업부 별 매출 집계용."""
     co_no = generate_co_no()
-    # v5H216: 묶음 단위 관리번호 발급 (예: 001S2605)
     try:
         from .database import generate_mgmt_code
         mgmt_code = generate_mgmt_code("S")
@@ -323,10 +324,25 @@ def co_create(customer_name: str = "", order_date: str = "", due_date: str = "",
                           (customer_name,)).fetchone()
             if r:
                 cust_id = r[0]
+    _bd = (biz_div or "").strip().upper()
+    if _bd not in ("T", "M"):
+        _bd = None  # 미선택 허용 (백워드 호환); UI 에서는 검증 강제
     with db_session() as c:
-        # mgmt_code 컬럼 존재 여부 확인 (백워드 호환)
         cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
-        if "mgmt_code" in cocols:
+        # v5H218: biz_div 컬럼 동적 감지 — startup 마이그레이션이 추가한 후엔 always present
+        _has_mgmt = "mgmt_code" in cocols
+        _has_biz = "biz_div" in cocols
+        if _has_mgmt and _has_biz:
+            cur = c.execute(
+                """INSERT INTO consumable_orders
+                   (co_no, mgmt_code, biz_div, customer_id, customer_name, order_date, due_date,
+                    currency, note, source_file, created_by)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (co_no, mgmt_code, _bd, cust_id, customer_name, order_date or "", due_date or "",
+                 (currency or "KRW").upper(), note or "", source_file or "",
+                 created_by)
+            )
+        elif _has_mgmt:
             cur = c.execute(
                 """INSERT INTO consumable_orders
                    (co_no, mgmt_code, customer_id, customer_name, order_date, due_date,

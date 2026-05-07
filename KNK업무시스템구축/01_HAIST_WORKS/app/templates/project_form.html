@@ -155,15 +155,27 @@
                  placeholder="예: ○○고객사 검사기 1호기">
         </div>
       </div>
-      {# v5H154: 사업부는 chooser 에서 이미 선택 → hidden 으로 전달, 폼 노출 제거 #}
+      {# v5H218: 사업부 라벨 통일 — '자동화사업부'/'검사기사업부'.
+         T/M 검사기·자동화는 chooser 에서 자동 선택(읽기전용), K 기타·S 소모품은 사용자가 직접 선택 #}
+      {% set _ptype_cur = (project.project_type if project and project.project_type else (preset.project_type if preset else 'NEW_EQUIP')) %}
       {% set _bd_cur = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else 'T')) %}
-      <input type="hidden" name="biz_div" value="{{ _bd_cur }}">
-      {% set _bd_kr = {'T':'T (검사기)', 'M':'M (자동화)', 'K':'K (기타)'} %}
+      {# K 기타는 chooser 에서 biz_div='K' 로 들어옴 → 사용자가 사업부 골라야 함 #}
+      {% set _bd_locked = _bd_cur in ('T', 'M') and _ptype_cur == 'NEW_EQUIP' %}
+      {% set _bd_label = {'T':'검사기사업부', 'M':'자동화사업부'} %}
       <div class="pf-row" style="grid-template-columns: 1fr 1fr;">
         <div class="pf-field">
-          <label>사업부 <span class="sub">(앞에서 선택됨)</span></label>
-          <input type="text" value="{{ _bd_kr.get(_bd_cur, _bd_cur) }}" readonly
-                 style="background:var(--paper-2);color:var(--ink);font-weight:600;">
+          <label>진행 사업부 {% if _bd_locked %}<span class="sub">(앞에서 선택됨)</span>{% else %}<span class="req">*</span>{% endif %}</label>
+          {% if _bd_locked %}
+            <input type="text" value="{{ _bd_label.get(_bd_cur, _bd_cur) }}" readonly
+                   style="background:var(--paper-2);color:var(--ink);font-weight:600;">
+            <input type="hidden" name="biz_div" value="{{ _bd_cur }}">
+          {% else %}
+            <select name="biz_div" required>
+              <option value="">— 사업부 선택 —</option>
+              <option value="T" {% if _bd_cur == 'T' %}selected{% endif %}>검사기사업부</option>
+              <option value="M" {% if _bd_cur == 'M' %}selected{% endif %}>자동화사업부</option>
+            </select>
+          {% endif %}
         </div>
         <div class="pf-field">
           <label>PO 유형 {% if project %}<span class="sub" style="color:var(--mute);">(등록 후 잠금 — 상세 페이지에서 변경)</span>{% endif %}</label>
