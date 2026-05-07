@@ -656,8 +656,8 @@
                   <th class="num" style="width:120px;">단가</th>
                   <th style="width:74px;">통화</th>
                   <th style="width:78px;">거래</th>
-                  <th style="width:104px;">발주일</th>
-                  <th style="width:104px;">납기</th>
+                  <th style="width:90px;">발주일</th>
+                  <th style="width:90px;">납기일</th>
                   <th style="width:110px;">납품처</th>
                   <th style="width:106px;">상태</th>
                   <th>비고</th>
@@ -682,8 +682,8 @@
                     {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
                   </td>
                   {% endif %}
-                  <td style="{% if _is_co %}min-width:200px;{% else %}white-space:nowrap;{% endif %}">
-                    <span class="display-val" style="{% if _is_co %}display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;{% endif %}" title="{{ u.unit_label or '' }}"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
+                  <td style="white-space:nowrap;{% if _is_co %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
+                    <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co %} style="width:200px;"{% endif %}>{% endif %}
                   </td>
                   {% if _is_co %}
@@ -726,15 +726,15 @@
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" placeholder="(부모 상속)" style="font-size:12px;padding:5px 6px;">{% endif %}
+                    {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   {# v5H186: 호기 상태 — 항상 select 노출 (편집 모드와 무관, 인라인 즉시 변경) #}
                   <td>
