@@ -450,7 +450,8 @@
               <thead>
                 <tr>
                   <th style="width:90px;">호기</th>
-                  <th class="num" style="width:120px;">단가 ({{ _cur }})</th>
+                  <th class="num" style="width:130px;">단가</th>
+                  <th style="width:78px;">통화</th>
                   <th style="width:108px;">발주일</th>
                   <th style="width:108px;">납기</th>
                   <th style="width:120px;">납품처</th>
@@ -465,14 +466,30 @@
                 {% set _ov_d = (u.due_date and u.due_date != so.due_date) %}
                 {% set _ov_s = (u.ship_to and u.ship_to != so.ship_to) %}
                 {% set _ust = u.unit_status or '진행중' %}
+                {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
+                {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 <tr data-uid="{{ u.id }}">
                   <td style="white-space:nowrap;">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}">{% endif %}
                   </td>
                   <td class="num">
-                    <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
+                    <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
+                  </td>
+                  {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
+                  <td>
+                    <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
+                    {% if _editable %}
+                    <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:78px;">
+                      <option value="KRW" {% if _u_ccy == 'KRW' %}selected{% endif %}>KRW</option>
+                      <option value="USD" {% if _u_ccy == 'USD' %}selected{% endif %}>USD</option>
+                      <option value="VND" {% if _u_ccy == 'VND' %}selected{% endif %}>VND</option>
+                      <option value="JPY" {% if _u_ccy == 'JPY' %}selected{% endif %}>JPY</option>
+                      <option value="CNY" {% if _u_ccy == 'CNY' %}selected{% endif %}>CNY</option>
+                      <option value="EUR" {% if _u_ccy == 'EUR' %}selected{% endif %}>EUR</option>
+                    </select>
+                    {% endif %}
                   </td>
                   <td>
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
@@ -610,6 +627,8 @@
                 const ordInp = row.querySelector('.ord-inp');
                 const dueInp = row.querySelector('.due-inp');
                 const shipInp = row.querySelector('.ship-inp');
+                // v5H189: 호기별 통화 select
+                const curSel = row.querySelector('select.cur-sel');
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
                 const dirty =
@@ -618,8 +637,9 @@
                   || (noteInp && noteInp.value !== noteInp.dataset.orig)
                   || (ordInp && ordInp.value !== ordInp.dataset.orig)
                   || (dueInp && dueInp.value !== dueInp.dataset.orig)
-                  || (shipInp && shipInp.value !== shipInp.dataset.orig);
-                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp });
+                  || (shipInp && shipInp.value !== shipInp.dataset.orig)
+                  || (curSel && curSel.value !== curSel.dataset.orig);
+                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel });
               });
               return out;
             }
@@ -640,6 +660,8 @@
                 if (r.ordInp) body.set('order_date', r.ordInp.value || '');
                 if (r.dueInp) body.set('due_date', r.dueInp.value || '');
                 if (r.shipInp) body.set('ship_to', r.shipInp.value || '');
+                // v5H189: 호기별 통화 (override)
+                if (r.curSel) body.set('currency', r.curSel.value || '');
                 try {
                   const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
                                            { method:'POST', body });

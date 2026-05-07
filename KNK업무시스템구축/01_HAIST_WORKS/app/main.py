@@ -5364,6 +5364,9 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_order = (form.get("order_date") or "").strip() or None
     u_due = (form.get("due_date") or "").strip() or None
     u_ship = (form.get("ship_to") or "").strip() or None
+    # v5H189: 호기별 통화 override (KRW/USD/VND/JPY/CNY/EUR)
+    u_cur_raw = (form.get("currency") or "").strip().upper()
+    u_cur = u_cur_raw if u_cur_raw in ("KRW","USD","VND","JPY","CNY","EUR") else None
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -5401,19 +5404,29 @@ async def sales_order_item_edit(req: Request, iid: int):
         if {"order_date","due_date","ship_to"} <= _oicols:
             # SO 그룹값(부모) 조회 — 동일하면 override NULL 로 저장 (상속)
             _so = c.execute(
-                "SELECT order_date, due_date, ship_to FROM orders WHERE id=?",
+                "SELECT order_date, due_date, ship_to, COALESCE(currency,'KRW') AS currency FROM orders WHERE id=?",
                 (it["order_id"],)
             ).fetchone()
             _so_d = dict(_so) if _so else {}
             ov_o = u_order if (u_order and u_order != (_so_d.get("order_date") or "")) else None
             ov_d = u_due if (u_due and u_due != (_so_d.get("due_date") or "")) else None
             ov_s = u_ship if (u_ship and u_ship != (_so_d.get("ship_to") or "")) else None
-            c.execute(
-                "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
-                "order_date=?, due_date=?, ship_to=? WHERE id=?",
-                (label or None, amt, amt, note or None,
-                 ov_o, ov_d, ov_s, iid)
-            )
+            # v5H189: 통화 — SO 부모와 동일하면 NULL(상속), 다르면 override
+            if "currency" in _oicols and u_cur:
+                ov_c = u_cur if u_cur != (_so_d.get("currency") or "KRW") else None
+                c.execute(
+                    "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
+                    "order_date=?, due_date=?, ship_to=?, currency=? WHERE id=?",
+                    (label or None, amt, amt, note or None,
+                     ov_o, ov_d, ov_s, ov_c, iid)
+                )
+            else:
+                c.execute(
+                    "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, "
+                    "order_date=?, due_date=?, ship_to=? WHERE id=?",
+                    (label or None, amt, amt, note or None,
+                     ov_o, ov_d, ov_s, iid)
+                )
         else:
             c.execute(
                 "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",
@@ -5498,6 +5511,9 @@ async def sales_order_item_edit(req: Request, iid: int):
                     _detail_changes.append(f"비고 변경")
                 if (old_lbl or "") != (label or ""):
                     _detail_changes.append(f"라벨 {old_lbl or '—'} → {label or '—'}")
+                # v5H189: 호기별 통화 변경 감지
+                if u_cur and u_cur != _ccy:
+                    _detail_changes.append(f"통화 {_ccy} → {u_cur}")
                 if _detail_changes:
                     _logi.log_project_change(
                         c, _pid, u.get("id"),
