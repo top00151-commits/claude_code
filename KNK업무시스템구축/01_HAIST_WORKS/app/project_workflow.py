@@ -702,6 +702,80 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
     }
 
 
+def compute_project_display_status(c, project_id: int, fallback_stage: str = "") -> dict:
+    """v5H200: 호기(order_items.unit_status) 들로부터 프로젝트 종합 상태 산출 (A안).
+    반환: {label, tone, dist:{진행중,납품완료,취소,보류}, total, done, ratio_text}.
+    호기 0건이면 fallback_stage(예: '제안작성') 사용.
+    """
+    out = {
+        "label": fallback_stage or "—",
+        "tone": "muted",
+        "dist": {"진행중": 0, "납품완료": 0, "취소": 0, "보류": 0},
+        "total": 0, "done": 0, "ratio_text": "",
+        "has_canceled": False, "has_held": False,
+    }
+    try:
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        oicols = set()
+    if "unit_status" not in oicols:
+        return out
+    try:
+        rows = c.execute(
+            "SELECT COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
+            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+            "WHERE o.project_id = ? "
+            "GROUP BY COALESCE(oi.unit_status,'진행중')",
+            (project_id,)
+        ).fetchall()
+    except Exception:
+        rows = []
+    for r in rows:
+        st = r["st"] or "진행중"
+        n = int(r["n"] or 0)
+        if st in out["dist"]:
+            out["dist"][st] = n
+        else:
+            # unknown 상태 — 진행중으로 합산
+            out["dist"]["진행중"] += n
+    out["total"] = sum(out["dist"].values())
+    out["done"] = out["dist"]["납품완료"]
+    out["has_canceled"] = out["dist"]["취소"] > 0
+    out["has_held"] = out["dist"]["보류"] > 0
+    if out["total"] == 0:
+        # 호기 없음 → fallback
+        out["label"] = fallback_stage or "—"
+        out["tone"] = "muted"
+        return out
+    n_prog = out["dist"]["진행중"]
+    n_done = out["dist"]["납품완료"]
+    n_cancel = out["dist"]["취소"]
+    n_hold = out["dist"]["보류"]
+    n_active = out["total"] - n_cancel  # 취소 제외 활성 호기
+    # 분류 우선순위
+    if out["total"] == n_cancel and n_cancel > 0:
+        out["label"] = "취소"
+        out["tone"] = "danger"
+    elif n_prog == 0 and n_done > 0 and n_active == n_done:
+        # 활성 호기 모두 납품완료
+        out["label"] = "납품완료"
+        out["tone"] = "done"
+    elif n_done > 0 and n_prog > 0:
+        out["label"] = f"진행중 ({n_done}/{out['total']} 완료)"
+        out["tone"] = "progress"
+        out["ratio_text"] = f"{n_done}/{out['total']}"
+    elif n_prog > 0:
+        out["label"] = "진행중"
+        out["tone"] = "progress"
+    elif n_hold > 0 and n_active == n_hold:
+        out["label"] = "보류"
+        out["tone"] = "warn"
+    else:
+        out["label"] = "진행중"
+        out["tone"] = "progress"
+    return out
+
+
 def get_project_orders(c, project_id: int) -> list[dict]:
     """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순.
     v5H85: 호기별 라인(order_items) 도 함께 fetch → 호기마다 금액이

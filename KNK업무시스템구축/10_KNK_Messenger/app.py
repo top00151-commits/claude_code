@@ -37,6 +37,20 @@ MESSAGE_RETENTION_MONTHS = int(os.environ.get("KNK_MSG_RETENTION_MONTHS", "12"))
 VAPID_PRIV_PATH = os.path.join(APP_DIR, "data", "vapid_private.pem")
 VAPID_CONTACT = os.environ.get("KNK_MSG_CONTACT", "mailto:admin@knk.kr")
 
+# ---------- 운영(인터넷) 배포용 환경변수 ----------
+# 운영 모드: KNK_MSG_ENV=production 으로 켜면 보안 헤더·HTTPS 강제·CORS 제한 활성
+ENV = os.environ.get("KNK_MSG_ENV", "development").lower()
+IS_PRODUCTION = ENV == "production"
+# Socket.IO async_mode: 개발=threading(Windows OK), 운영=eventlet(gunicorn worker)
+ASYNC_MODE = os.environ.get("KNK_MSG_ASYNC", "threading")
+# CORS allowed origins: 콤마 구분. 예) "https://msg.knk.co.kr"
+_cors_env = os.environ.get("KNK_MSG_CORS", "*")
+CORS_ALLOWED = [o.strip() for o in _cors_env.split(",")] if _cors_env != "*" else "*"
+# 정적 파일 캐시 (운영은 1일, 개발은 0)
+STATIC_CACHE_AGE = int(os.environ.get("KNK_MSG_STATIC_CACHE", "86400" if IS_PRODUCTION else "0"))
+# 신뢰할 프록시 수 (nginx 등 리버스 프록시 뒤에서 X-Forwarded-* 신뢰)
+TRUSTED_PROXIES = int(os.environ.get("KNK_MSG_PROXIES", "1" if IS_PRODUCTION else "0"))
+
 
 def vapid_private_key():
     if os.path.exists(VAPID_PRIV_PATH):
@@ -149,19 +163,49 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = _load_or_generate_secret()
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # 정적 자원 캐시 비활성 (개발/베타 단계)
-app.config["TEMPLATES_AUTO_RELOAD"] = True   # 템플릿 자동 리로드 — 디스크 변경 시 즉시 반영
-app.jinja_env.auto_reload = True
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading", max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024)
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = STATIC_CACHE_AGE
+app.config["TEMPLATES_AUTO_RELOAD"] = not IS_PRODUCTION  # 개발만 자동 리로드
+app.jinja_env.auto_reload = not IS_PRODUCTION
+
+# 운영 환경: 세션 쿠키 보안 강화 + HTTPS 강제
+if IS_PRODUCTION:
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+    # nginx 등 리버스 프록시 뒤에서 X-Forwarded-Proto/Host 신뢰
+    if TRUSTED_PROXIES > 0:
+        try:
+            from werkzeug.middleware.proxy_fix import ProxyFix
+            app.wsgi_app = ProxyFix(
+                app.wsgi_app,
+                x_for=TRUSTED_PROXIES, x_proto=TRUSTED_PROXIES,
+                x_host=TRUSTED_PROXIES, x_prefix=TRUSTED_PROXIES,
+            )
+        except Exception:
+            pass
+
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=CORS_ALLOWED,
+    async_mode=ASYNC_MODE,
+    max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024,
+)
 
 
 @app.after_request
 def no_cache_html_js(resp):
-    """모든 응답에 캐시 방지 헤더 — 브라우저가 항상 최신 코드 받도록."""
+    """동적 응답(HTML/JS/CSS/JSON)에 캐시 방지 헤더. 운영에서도 코드 수정 즉시 반영을 위해 유지.
+    + 운영 환경에서는 보안 헤더 추가."""
     if resp.mimetype in ("text/html", "application/javascript", "text/css", "application/json"):
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
+    if IS_PRODUCTION:
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return resp
 
 
@@ -1784,6 +1828,7 @@ if __name__ == "__main__":
     print(f"   upload dir:        {UPLOAD_DIR}")
     print(f"   DB:                {DB_PATH}")
     print(f"   retention:         {MESSAGE_RETENTION_MONTHS} months")
+    print(f"   env:               {ENV}  async_mode={ASYNC_MODE}")
     print(" ============================================")
     print()
     socketio.run(app, host="0.0.0.0", port=PORT, debug=False, allow_unsafe_werkzeug=True)

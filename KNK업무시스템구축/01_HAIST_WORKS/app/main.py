@@ -3701,7 +3701,19 @@ async def project_detail(req: Request, pid: int):
         child_projects = _logi.get_child_projects(pid, limit=200)
     except Exception:
         child_projects = []
+    # v5H200: 호기 상태로부터 종합 표시 상태 산출 (A안)
+    try:
+        with db_session() as _cdc:
+            project_display_status = _pwf.compute_project_display_status(
+                _cdc, pid, fallback_stage=(p.get("stage") if isinstance(p, dict) else (p["stage"] if "stage" in p.keys() else "")) or ""
+            )
+    except Exception:
+        project_display_status = {"label": "—", "tone": "muted",
+                                   "dist": {"진행중":0,"납품완료":0,"취소":0,"보류":0},
+                                   "total": 0, "done": 0, "ratio_text": "",
+                                   "has_canceled": False, "has_held": False}
     return ctx(req, "project_detail.html",
+               project_display_status=project_display_status,
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
@@ -8566,6 +8578,18 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     # v5H137: project_type 필터
     rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
                                      project_type=project_type)
+    # v5H200: 호기 상태로부터 종합 표시 상태를 각 행에 부착
+    try:
+        with db_session() as _ds:
+            for r in rows:
+                _pid = r.get("id") if isinstance(r, dict) else r["id"]
+                if _pid:
+                    r["_disp_status"] = _pwf.compute_project_display_status(
+                        _ds, int(_pid),
+                        fallback_stage=(r.get("stage") or r.get("status") or "")
+                    )
+    except Exception:
+        pass
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,

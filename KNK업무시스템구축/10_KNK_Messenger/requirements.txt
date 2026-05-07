@@ -1,3 +1,11 @@
 Flask>=3.0
 Flask-SocketIO>=5.3
 simple-websocket>=1.0
+# --- 운영 배포용 (Linux/Ubuntu) ---
+gunicorn>=21.2
+eventlet>=0.36
+# --- 기능: Web Push, Excel 내보내기, 이미지 ---
+pywebpush>=1.14
+cryptography>=42.0
+openpyxl>=3.1
+Pillow>=10.0

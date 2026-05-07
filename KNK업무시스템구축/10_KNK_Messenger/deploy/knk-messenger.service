@@ -1,0 +1,31 @@
+[Unit]
+Description=KNK Messenger (Flask + Socket.IO)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/knk_messenger
+EnvironmentFile=/opt/knk_messenger/.env.production
+ExecStart=/opt/knk_messenger/.venv/bin/gunicorn \
+          -k eventlet -w 1 \
+          --bind 127.0.0.1:5050 \
+          --timeout 120 \
+          --access-logfile - \
+          --error-logfile - \
+          wsgi:app
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=knk-messenger
+
+# 보안 강화
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/knk_messenger/data /opt/knk_messenger/backups
+
+[Install]
+WantedBy=multi-user.target

@@ -1096,12 +1096,28 @@
             {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">✈ 수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">🏠 내수</span>{% endif %}
           </dd>
           <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
-          {# v5H191: 우측 패널 '상태' 도 read-only — 정보 확인 전용. 변경은 호기별 상태 select 또는
-             상태 변경이 의미를 갖는 곳에서만 수행. #}
+          {# v5H200: 상태는 호기별 상태로부터 자동 집계 (A안). 분포 칩 항상 노출 — 취소/보류 0건도 표시 #}
+          {% set _pds = project_display_status|default({'label': p.status|default('—'), 'tone':'muted', 'dist': {'진행중':0,'납품완료':0,'취소':0,'보류':0}, 'total': 0}) %}
           <dt>상태</dt><dd>
-            {% set _pst = p.status|default('—') %}
-            <span class="pill {% if _pst in ('납품완료','완료','종료') %}pill-done{% elif _pst in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}"
-                  style="font-size:12px;font-weight:700;">{{ _pst }}</span>
+            <span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}"
+                  style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>
+            {% if _pds.total > 0 %}
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;font-size:10.5px;font-weight:700;">
+              {% if _pds.dist['진행중'] > 0 %}
+              <span style="padding:1px 6px;border-radius:3px;background:#fef3c7;color:#7c4a03;">🟡 진행중 {{ _pds.dist['진행중'] }}</span>
+              {% endif %}
+              {% if _pds.dist['납품완료'] > 0 %}
+              <span style="padding:1px 6px;border-radius:3px;background:#dcfce7;color:#15803d;">🟢 완료 {{ _pds.dist['납품완료'] }}</span>
+              {% endif %}
+              {# 취소·보류는 0건도 항상 표시 (놓치지 않도록) #}
+              <span style="padding:1px 6px;border-radius:3px;background:{% if _pds.dist['취소'] > 0 %}#fee2e2{% else %}#f5f5f1{% endif %};color:{% if _pds.dist['취소'] > 0 %}#991b1b{% else %}#94a3b8{% endif %};">
+                🔴 취소 {{ _pds.dist['취소'] }}
+              </span>
+              <span style="padding:1px 6px;border-radius:3px;background:{% if _pds.dist['보류'] > 0 %}#e5e7eb{% else %}#f5f5f1{% endif %};color:{% if _pds.dist['보류'] > 0 %}#374151{% else %}#94a3b8{% endif %};">
+                ⚫ 보류 {{ _pds.dist['보류'] }}
+              </span>
+            </div>
+            {% endif %}
           </dd>
           <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
