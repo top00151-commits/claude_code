@@ -328,7 +328,8 @@
       {% set _p_price = project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt) %}
       <div class="pf-row three">
         <div class="pf-field">
-          <label>1대 단가 <span class="req">*</span> {% if has_orders %}<span class="sub" style="color:var(--knk-red);font-size:11px;">(SO 발행됨 — 변경 시 자가치유 위험)</span>{% endif %}</label>
+          <label>1대 단가 <span class="req">*</span>
+            {% if has_orders %}<span class="sub" style="color:var(--knk-red);font-size:11px;font-weight:600;" title="이미 수주번호가 발행된 프로젝트. 단가는 호기별로 다를 수 있으므로 [프로젝트 상세] → 호기 편집 으로 수정하세요. 여기서 변경하면 다음 화면 진입 시 호기 합계 기준으로 되돌려집니다.">(이미 수주 발행됨 — 호기별 단가는 [상세 화면]에서 편집)</span>{% endif %}</label>
           <input type="text" id="pf_unit_price" name="unit_price" inputmode="numeric"
                  value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}" placeholder="0"
                  {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
@@ -382,8 +383,9 @@
           <div style="font-size:11.5px;color:var(--mute);line-height:1.55;padding:0;">
             ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.
             외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
-            저장 시 <b>수량 N대</b> 면 <b>N개 호기 라인 SO</b> 가 자동 발행됩니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
-            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 SO 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
+            저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
+            <br><span style="font-size:11px;color:var(--mute);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
+            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
           </div>
         </div>
       </div>
