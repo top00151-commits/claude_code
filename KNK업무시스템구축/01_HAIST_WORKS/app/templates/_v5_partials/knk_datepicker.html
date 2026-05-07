@@ -56,9 +56,12 @@ input.knk-cal { cursor: pointer; }
 </style>
 <script>
 (function(){
-  // 서버에서 주입된 공휴일 데이터
-  var HKR = (window.KNK_HOLIDAYS_KR = window.KNK_HOLIDAYS_KR || {{ (KNK_HOLIDAYS_KR or {})|tojson }});
-  var HVN = (window.KNK_HOLIDAYS_VN = window.KNK_HOLIDAYS_VN || {{ (KNK_HOLIDAYS_VN or {})|tojson }});
+  // 서버에서 주입된 공휴일 데이터 (Jinja 전역 KNK_HOLIDAYS_KR / KNK_HOLIDAYS_VN)
+  var _hkrData = {{ KNK_HOLIDAYS_KR|tojson if KNK_HOLIDAYS_KR is defined else '{}' }};
+  var _hvnData = {{ KNK_HOLIDAYS_VN|tojson if KNK_HOLIDAYS_VN is defined else '{}' }};
+  var HKR = (window.KNK_HOLIDAYS_KR = window.KNK_HOLIDAYS_KR || _hkrData);
+  var HVN = (window.KNK_HOLIDAYS_VN = window.KNK_HOLIDAYS_VN || _hvnData);
+  try { console.log('[KnkCal] holidays loaded:', Object.keys(HKR).length, 'KR /', Object.keys(HVN).length, 'VN'); } catch(e){}
 
   function pad2(n){ return (n<10?'0':'') + n; }
   function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
@@ -202,14 +205,28 @@ input.knk-cal { cursor: pointer; }
     var d = parseISO(v) || new Date();
     viewY = d.getFullYear(); viewM = d.getMonth();
     render();
+    // 먼저 보여주고 실제 사이즈 측정 — 그 후 위치 결정
+    p.classList.remove('hidden');
+    p.style.top = '-9999px'; p.style.left = '0px';
+    var ph = p.offsetHeight || 360;
+    var pw = p.offsetWidth || 340;
     var r = input.getBoundingClientRect();
-    var top = window.pageYOffset + r.bottom + 4;
-    var left = window.pageXOffset + r.left;
-    var maxLeft = window.pageXOffset + window.innerWidth - 296;
+    var spaceBelow = window.innerHeight - r.bottom;
+    var spaceAbove = r.top;
+    var top, left;
+    // 아래 공간 부족하고 위 공간이 더 많으면 위에 띄움
+    if (spaceBelow < ph + 10 && spaceAbove > spaceBelow) {
+      top = window.pageYOffset + r.top - ph - 4;
+    } else {
+      top = window.pageYOffset + r.bottom + 4;
+    }
+    left = window.pageXOffset + r.left;
+    var maxLeft = window.pageXOffset + window.innerWidth - pw - 8;
+    var minLeft = window.pageXOffset + 8;
     if (left > maxLeft) left = maxLeft;
+    if (left < minLeft) left = minLeft;
     p.style.top = top + 'px';
     p.style.left = left + 'px';
-    p.classList.remove('hidden');
   }
 
   function hide(){
