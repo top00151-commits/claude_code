@@ -5483,6 +5483,7 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
     if not so_id or not rows:
         return JSONResponse({"ok": False, "message": "so_id 또는 rows 누락"}, 400)
     inserted = 0
+    last_err = None
     with db_session() as c:
         # SO 검증
         so = c.execute("SELECT id, project_id, currency FROM orders WHERE id=?",
@@ -5490,27 +5491,18 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
         if not so or so["project_id"] != pid:
             return JSONResponse({"ok": False, "message": "수주번호 매칭 안됨"}, 400)
         oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
-        # 현재 SO 의 max line_no
-        try:
-            cur_max = c.execute(
-                "SELECT COALESCE(MAX(line_no), 0) FROM order_items WHERE order_id=?",
-                (so_id,)
-            ).fetchone()[0] or 0
-        except Exception:
-            cur_max = 0
         for r in rows:
             try:
                 qty = float(r.get("qty") or 0)
                 up = float(r.get("unit_price") or 0)
                 amt = round(qty * up, 2)
-                cur_max += 1
-                cols = ["order_id", "line_no", "unit_label", "unit_qty",
-                        "unit_amount", "unit_total", "unit_status"]
-                vals = [so_id, cur_max, (r.get("part_name") or "").strip(),
+                cols = ["order_id", "unit_label", "qty",
+                        "unit_price", "amount", "unit_status"]
+                vals = [so_id, (r.get("part_name") or "").strip(),
                         qty, up, amt, "진행중"]
-                # spec / 비고
-                if "unit_note" in oicols:
-                    cols.append("unit_note")
+                # 라인 비고 (spec)
+                if "line_note" in oicols:
+                    cols.append("line_note")
                     vals.append((r.get("spec") or "").strip())
                 # currency 부모 상속
                 if "currency" in oicols:
@@ -5527,11 +5519,12 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
                 )
                 inserted += 1
             except Exception as e:
+                last_err = str(e)
                 print(f"[v5H226] line insert err: {e}")
         # SO 합계·수량 갱신
         try:
             agg = c.execute(
-                "SELECT COALESCE(SUM(unit_total),0) AS t, COUNT(*) AS n "
+                "SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS n "
                 "FROM order_items WHERE order_id=?",
                 (so_id,)
             ).fetchone()
@@ -5558,6 +5551,9 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
             )
         except Exception:
             pass
+    if inserted == 0:
+        return JSONResponse({"ok": False,
+                              "message": f"0건 등록 — DB 오류: {last_err or '알 수 없음'}"}, 500)
     return JSONResponse({"ok": True, "inserted": inserted})
 
 
