@@ -2054,6 +2054,56 @@ def init_db():
         except Exception:
             pass
 
+        # v5H216 (2026-05-08): consumable_orders 에 mgmt_code 컬럼 추가 + 백필
+        # 소모품 발주 묶음에도 'S' prefix 관리번호 부여 (예: 001S2605)
+        try:
+            cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+            if "mgmt_code" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN mgmt_code TEXT")
+                print("[v5H216] consumable_orders.mgmt_code 컬럼 추가됨")
+            # 기존 묶음 중 mgmt_code NULL 인 행 백필
+            # 같은 conn 안에서 generate_mgmt_code() 가 별도 conn 으로 검색해 미커밋 UPDATE 못 봄 → 직접 SQL 로 sequence 추적
+            try:
+                _missing = c.execute(
+                    "SELECT id, COALESCE(order_date, created_at, date('now')) AS d "
+                    "FROM consumable_orders WHERE mgmt_code IS NULL OR mgmt_code = '' "
+                    "ORDER BY id ASC"
+                ).fetchall()
+                _backfilled = 0
+                _seq_by_yymm = {}  # YYMM → 이번 백필 내 발급된 max sequence
+                # 기존 DB 의 max sequence 도 미리 스캔
+                for _row in c.execute(
+                    "SELECT mgmt_code FROM consumable_orders WHERE mgmt_code IS NOT NULL"
+                ).fetchall():
+                    _code = _row["mgmt_code"] or ""
+                    if len(_code) == 8 and _code[3] == "S":
+                        try:
+                            _seq_by_yymm[_code[4:]] = max(_seq_by_yymm.get(_code[4:], 0), int(_code[:3]))
+                        except ValueError:
+                            pass
+                for _r in _missing:
+                    try:
+                        _d_iso = (_r["d"] or "")[:10]
+                        if _d_iso and len(_d_iso) >= 7:
+                            _y, _m = int(_d_iso[:4]), int(_d_iso[5:7])
+                            _yymm = f"{_y % 100:02d}{_m:02d}"
+                        else:
+                            from datetime import date as _dt
+                            _today = _dt.today()
+                            _yymm = f"{_today.year % 100:02d}{_today.month:02d}"
+                        _seq_by_yymm[_yymm] = _seq_by_yymm.get(_yymm, 0) + 1
+                        _code_new = f"{_seq_by_yymm[_yymm]:03d}S{_yymm}"
+                        c.execute("UPDATE consumable_orders SET mgmt_code=? WHERE id=?", (_code_new, _r["id"]))
+                        _backfilled += 1
+                    except Exception:
+                        pass
+                if _backfilled > 0:
+                    print(f"[v5H216] 소모품 묶음 mgmt_code 백필: {_backfilled}건")
+            except Exception as _e:
+                print(f"[v5H216] 백필 실패: {_e}")
+        except Exception:
+            pass
+
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
         #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
@@ -3834,17 +3884,27 @@ def parts_count() -> dict:
 
 # ── 프로젝트 / 관리코드 발행대장 (projects) CRUD ──────────
 def generate_mgmt_code(biz_div: str, today=None) -> str:
-    """KNK PMS 8자리 관리코드: [일련3][T/M/K][YYMM]. 같은 prefix·연월 내 +1
-    v5H150: K(기타) 추가 — project_type=OTHER 일 때 호출측에서 'K' 전달."""
-    if biz_div not in ("T", "M", "K"):
-        raise ValueError(f"biz_div must be T, M, or K (got: {biz_div})")
+    """KNK PMS 8자리 관리코드: [일련3][T/M/K/S][YYMM]. 같은 prefix·연월 내 +1
+    v5H150: K(기타) 추가 — project_type=OTHER 일 때 호출측에서 'K' 전달.
+    v5H216: S(소모품) 추가 — consumable_orders.mgmt_code 에서 검색."""
+    if biz_div not in ("T", "M", "K", "S"):
+        raise ValueError(f"biz_div must be T, M, K, or S (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
     with db_session() as c:
-        rows = c.execute(
-            "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
-        ).fetchall()
+        if biz_div == "S":
+            # 소모품 묶음 — 별도 테이블에서 검색
+            try:
+                rows = c.execute(
+                    "SELECT mgmt_code FROM consumable_orders WHERE mgmt_code LIKE ?", (pat,)
+                ).fetchall()
+            except Exception:
+                rows = []
+        else:
+            rows = c.execute(
+                "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
+            ).fetchall()
     max_seq = 0
     for r in rows:
         code = r["mgmt_code"] or ""

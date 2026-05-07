@@ -308,7 +308,14 @@ def match_project_by_model(model_use: str) -> dict | None:
 def co_create(customer_name: str = "", order_date: str = "", due_date: str = "",
               currency: str = "KRW", note: str = "", source_file: str = "",
               created_by: int | None = None) -> tuple[int, str]:
+    """v5H216: 소모품 묶음 생성 시 'S' prefix 관리번호(mgmt_code) 자동 발급."""
     co_no = generate_co_no()
+    # v5H216: 묶음 단위 관리번호 발급 (예: 001S2605)
+    try:
+        from .database import generate_mgmt_code
+        mgmt_code = generate_mgmt_code("S")
+    except Exception:
+        mgmt_code = None
     cust_id = None
     if customer_name:
         with db_session() as c:
@@ -317,15 +324,28 @@ def co_create(customer_name: str = "", order_date: str = "", due_date: str = "",
             if r:
                 cust_id = r[0]
     with db_session() as c:
-        cur = c.execute(
-            """INSERT INTO consumable_orders
-               (co_no, customer_id, customer_name, order_date, due_date,
-                currency, note, source_file, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (co_no, cust_id, customer_name, order_date or "", due_date or "",
-             (currency or "KRW").upper(), note or "", source_file or "",
-             created_by)
-        )
+        # mgmt_code 컬럼 존재 여부 확인 (백워드 호환)
+        cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+        if "mgmt_code" in cocols:
+            cur = c.execute(
+                """INSERT INTO consumable_orders
+                   (co_no, mgmt_code, customer_id, customer_name, order_date, due_date,
+                    currency, note, source_file, created_by)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (co_no, mgmt_code, cust_id, customer_name, order_date or "", due_date or "",
+                 (currency or "KRW").upper(), note or "", source_file or "",
+                 created_by)
+            )
+        else:
+            cur = c.execute(
+                """INSERT INTO consumable_orders
+                   (co_no, customer_id, customer_name, order_date, due_date,
+                    currency, note, source_file, created_by)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (co_no, cust_id, customer_name, order_date or "", due_date or "",
+                 (currency or "KRW").upper(), note or "", source_file or "",
+                 created_by)
+            )
         return int(cur.lastrowid), co_no
 
 

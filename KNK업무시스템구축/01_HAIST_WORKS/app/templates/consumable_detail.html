@@ -49,8 +49,8 @@ tfoot td { background: #fafafa; font-weight: 700; }
   <main class="main">
     <div class="page-head">
       <div>
-        <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>{{ co.co_no }}</b></div>
-        <h1 class="page-title">{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
+        <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>{{ co.mgmt_code or co.co_no }}</b></div>
+        <h1 class="page-title">{% if co.mgmt_code %}<span style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code }}</span> {% endif %}{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <a class="btn-secondary" href="/consumables">← 목록</a>
@@ -65,6 +65,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
 
     <div class="card">
       <div class="header-grid">
+        <div class="h-cell"><div class="lbl">관리코드</div><div class="val" style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">발주번호</div><div class="val">{{ co.co_no }}</div></div>
         <div class="h-cell"><div class="lbl">고객사</div><div class="val">{{ co.customer_name or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">발주일</div><div class="val">{{ co.order_date or '—' }}</div></div>

@@ -12605,7 +12605,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                               NULL AS tax_invoice_no, NULL AS tax_invoice_date, NULL AS tax_invoice_note,
                               NULL AS ship_to, NULL AS unit_qty, NULL AS unit_label,
                               co.currency AS currency,
-                              NULL AS project_id, NULL AS mgmt_code,
+                              NULL AS project_id, co.mgmt_code AS mgmt_code,
                               NULL AS project_name, NULL AS biz_div,
                               NULL AS model_name, NULL AS po_type
                        FROM consumable_orders co
