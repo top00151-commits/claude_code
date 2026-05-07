@@ -3,7 +3,7 @@ KNK 일일업무일지 v2 - Phase 1 MVP
 Task Card 기반 일일업무 + 팀장 뷰 + 경영진 대시보드 + 개인 히스토리
 """
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -5429,6 +5429,165 @@ async def projects_presales_edit(req: Request, pid: int):
         except Exception:
             pass
     return JSONResponse({"ok": True, "field": field, "value": val})
+
+
+@app.get("/projects/{pid:int}/orders/{so_id:int}/export-xlsx")
+async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
+    """v5H226i: 수주(SO) 라인 항목을 엑셀로 다운로드.
+    CONSUMABLE 은 품명·연결관리코드·이미지경로 포함, 그 외는 호기 위주."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return PlainTextResponse("권한 없음", 403)
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from io import BytesIO
+    with db_session() as c:
+        prow = c.execute(
+            "SELECT id, mgmt_code, name, project_type, currency FROM projects WHERE id=?",
+            (pid,)
+        ).fetchone()
+        if not prow:
+            return PlainTextResponse("프로젝트 없음", 404)
+        srow = c.execute(
+            "SELECT id, order_no, order_date, due_date, ship_to, currency, total_amount, status "
+            "FROM orders WHERE id=? AND project_id=?",
+            (so_id, pid)
+        ).fetchone()
+        if not srow:
+            return PlainTextResponse("수주번호 매칭 안됨", 404)
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        sel_extra = []
+        for col in ("unit_label", "line_note", "order_date", "due_date", "ship_to",
+                    "currency", "unit_status", "is_export", "image_path",
+                    "image_thumb_path", "linked_project_id"):
+            if col in oicols:
+                sel_extra.append(col)
+        sel_extra_sql = (", " + ", ".join("oi." + x for x in sel_extra)) if sel_extra else ""
+        join_sql = ""
+        link_cols = ""
+        if "linked_project_id" in oicols:
+            join_sql = " LEFT JOIN projects lp ON lp.id = oi.linked_project_id"
+            link_cols = ", lp.mgmt_code AS linked_mgmt_code, lp.name AS linked_project_name"
+        items = [dict(r) for r in c.execute(
+            f"SELECT oi.id, oi.qty, oi.unit_price, oi.amount{sel_extra_sql}{link_cols} "
+            f"FROM order_items oi{join_sql} "
+            f"WHERE oi.order_id=? ORDER BY oi.id ASC",
+            (so_id,)
+        ).fetchall()]
+    is_co = (prow["project_type"] or "").upper() == "CONSUMABLE"
+    so_ccy = srow["currency"] or prow["currency"] or "KRW"
+    so_ord = srow["order_date"] or ""
+    so_due = srow["due_date"] or ""
+    so_ship = srow["ship_to"] or ""
+    # 컬럼 정의 (CONSUMABLE 분기)
+    if is_co:
+        headers = ["No", "품명", "연결 관리코드", "연결 장비명", "수량", "단가",
+                   "금액", "통화", "거래", "발주일", "납기일", "납품처",
+                   "상태", "비고", "이미지 경로"]
+    else:
+        headers = ["No", "호기", "수량", "단가", "금액", "통화",
+                   "거래", "발주일", "납기일", "납품처", "상태", "비고"]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "수주라인"
+    # 메타 정보 (상단 4줄)
+    ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
+               f"프로젝트: {prow['name'] or '-'}"])
+    ws.append([f"수주번호: {srow['order_no'] or '-'}",
+               f"발주일: {so_ord}", f"납기일: {so_due}",
+               f"납품처: {so_ship or '-'}",
+               f"통화: {so_ccy}",
+               f"상태: {srow['status'] or '-'}"])
+    ws.append([f"수주 총액: {float(srow['total_amount'] or 0):,.0f} {so_ccy}",
+               f"라인 수: {len(items)}건"])
+    ws.append([])  # 빈 줄
+    # 헤더 행
+    hdr_row_idx = ws.max_row + 1
+    ws.append(headers)
+    hdr_fill = PatternFill("solid", start_color="FEF3C7")
+    hdr_font = Font(bold=True, name="Arial")
+    thin = Side(border_style="thin", color="999999")
+    border = Border(top=thin, bottom=thin, left=thin, right=thin)
+    for col_i in range(1, len(headers) + 1):
+        cell = ws.cell(hdr_row_idx, col_i)
+        cell.fill = hdr_fill
+        cell.font = hdr_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+    # 데이터 행
+    for idx, it in enumerate(items, 1):
+        eff_ord = it.get("order_date") or so_ord
+        eff_due = it.get("due_date") or so_due
+        eff_ship = it.get("ship_to") or so_ship
+        eff_ccy = it.get("currency") or so_ccy
+        iex_raw = it.get("is_export")
+        iex_label = "수출" if iex_raw == 1 else "내수"
+        ust = it.get("unit_status") or "진행중"
+        if is_co:
+            row = [
+                idx,
+                it.get("unit_label") or "",
+                it.get("linked_mgmt_code") or "",
+                it.get("linked_project_name") or "",
+                float(it.get("qty") or 0),
+                float(it.get("unit_price") or 0),
+                float(it.get("amount") or 0),
+                eff_ccy,
+                iex_label,
+                eff_ord,
+                eff_due,
+                eff_ship,
+                ust,
+                it.get("line_note") or "",
+                it.get("image_path") or "",
+            ]
+        else:
+            row = [
+                idx,
+                it.get("unit_label") or f"호기 {idx}",
+                float(it.get("qty") or 0),
+                float(it.get("unit_price") or 0),
+                float(it.get("amount") or 0),
+                eff_ccy,
+                iex_label,
+                eff_ord,
+                eff_due,
+                eff_ship,
+                ust,
+                it.get("line_note") or "",
+            ]
+        ws.append(row)
+    # 컬럼 폭 자동 (간단)
+    widths_co = [5, 32, 16, 28, 8, 12, 14, 8, 8, 12, 12, 18, 10, 24, 40]
+    widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
+    widths = widths_co if is_co else widths_eq
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(1, i).column_letter].width = w
+    # 숫자 포맷
+    qty_col = 5 if is_co else 3
+    price_col = qty_col + 1
+    amount_col = price_col + 1
+    for r in range(hdr_row_idx + 1, ws.max_row + 1):
+        for c_idx in (price_col, amount_col):
+            ws.cell(r, c_idx).number_format = '#,##0'
+        ws.cell(r, qty_col).number_format = '#,##0.##'
+    # 출력
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fn_safe = f"{prow['mgmt_code'] or 'NA'}_{srow['order_no'] or 'SO'}_{so_ord or ''}.xlsx".replace(" ", "_")
+    from urllib.parse import quote
+    headers_resp = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn_safe)}",
+        "Cache-Control": "no-store",
+    }
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers_resp,
+    )
 
 
 @app.post("/projects/{pid:int}/import-consumable-lines/parse")

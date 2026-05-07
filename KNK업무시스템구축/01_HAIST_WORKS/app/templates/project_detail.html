@@ -604,6 +604,8 @@
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
+                {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
+                <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드" style="text-decoration:none;">📥 엑셀 다운로드</a>
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
                 {# v5H226: CONSUMABLE 은 '+ 항목 추가' + 엑셀 업로드 버튼 #}
