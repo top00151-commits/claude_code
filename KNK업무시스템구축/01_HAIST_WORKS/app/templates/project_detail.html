@@ -327,25 +327,39 @@
         .so-card .so-meta-save { display: none !important; }
         .so-card.editable .edit-only { display: table-cell; }
         .so-card .edit-only { display: none; }
-        /* 잠금 상태(.editable 만 있고 .unlocked 없음) — input/select 가 시각적으로 비활성화 */
+        /* v5H198: 잠금 상태 — 글씨는 진하게(읽기 쉽게) 유지, 배경만 옅게 + 점선 테두리로
+           '비활성' 시각 신호. opacity 제거. unit-status-sel 은 본래 컬러 배지 유지. */
         .so-card.editable:not(.unlocked) input.unit-edit,
-        .so-card.editable:not(.unlocked) select.unit-edit,
-        .so-card.editable:not(.unlocked) select.unit-status-sel {
-          background: #f5f5f1 !important;
-          color: var(--mute) !important;
+        .so-card.editable:not(.unlocked) select.unit-edit {
+          background: #fbfaf6 !important;
+          color: var(--ink) !important;
+          font-weight: 600 !important;
           cursor: not-allowed !important;
           pointer-events: none;
-          border-color: var(--line) !important;
-          opacity: 0.7;
+          border: 1px dashed var(--line) !important;
+          opacity: 1 !important;
         }
-        /* unlock 시 정상 색상 */
+        /* 잠금 상태에서도 단가는 빨강 강조 유지 (수주액 가독성) */
+        .so-card.editable:not(.unlocked) input.unit-edit.amt {
+          color: var(--knk-red) !important;
+          font-weight: 700 !important;
+        }
+        /* 호기 상태 select 는 잠금 상태에서도 본래 컬러 배지 유지 (가독성) */
+        .so-card.editable:not(.unlocked) select.unit-status-sel {
+          cursor: not-allowed !important;
+          pointer-events: none;
+          opacity: 1 !important;
+          border-style: dashed !important;
+        }
+        /* unlock 시 정상 입력 스타일 */
         .so-card.editable.unlocked input.unit-edit,
         .so-card.editable.unlocked select.unit-edit {
           background: var(--paper);
           color: var(--ink);
+          font-weight: 500;
           cursor: text;
           pointer-events: auto;
-          opacity: 1;
+          border: 1px solid var(--line);
         }
         /* 잠금 상태에서 일괄적용 / 호기 추가 / 라인삭제 / 호기 상태 일괄 모두 숨김 */
         .so-card.editable:not(.unlocked) .bulk-status-tools,
