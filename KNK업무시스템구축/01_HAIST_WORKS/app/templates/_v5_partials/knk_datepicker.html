@@ -56,12 +56,18 @@ input.knk-cal { cursor: pointer; }
 </style>
 <script>
 (function(){
-  // 서버에서 주입된 공휴일 데이터 (Jinja 전역 KNK_HOLIDAYS_KR / KNK_HOLIDAYS_VN)
-  var _hkrData = {{ KNK_HOLIDAYS_KR|tojson if KNK_HOLIDAYS_KR is defined else '{}' }};
-  var _hvnData = {{ KNK_HOLIDAYS_VN|tojson if KNK_HOLIDAYS_VN is defined else '{}' }};
+  // 서버에서 주입된 공휴일 데이터 (context + globals 양쪽 안전망)
+  var _hkrData = {{ (KNK_HOLIDAYS_KR | default({}, true)) | tojson }};
+  var _hvnData = {{ (KNK_HOLIDAYS_VN | default({}, true)) | tojson }};
   var HKR = (window.KNK_HOLIDAYS_KR = window.KNK_HOLIDAYS_KR || _hkrData);
   var HVN = (window.KNK_HOLIDAYS_VN = window.KNK_HOLIDAYS_VN || _hvnData);
-  try { console.log('[KnkCal] holidays loaded:', Object.keys(HKR).length, 'KR /', Object.keys(HVN).length, 'VN'); } catch(e){}
+  try {
+    var _kn = Object.keys(HKR).length, _vn = Object.keys(HVN).length;
+    console.log('[KnkCal] holidays loaded:', _kn, 'KR /', _vn, 'VN');
+    if (_kn === 0) {
+      console.warn('[KnkCal] ⚠️ 공휴일 데이터 비어있음 — Python 서버 재시작 필요 (KNK_시작.bat 닫고 다시 실행)');
+    }
+  } catch(e){}
 
   function pad2(n){ return (n<10?'0':'') + n; }
   function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }

@@ -843,6 +843,9 @@ def ctx(request, name, **kwargs):
         "WORKSPACES":          workspaces_for(user) if user else [],
         # Phase 1 (대표 결재 2026-04-29): 메뉴 식별번호 — 현재 페이지 M-코드 + 도움말
         "current_menu":        _current_menu_for(str(request.url.path) if hasattr(request, "url") else ""),
+        # v5H208: 공휴일 데이터를 context 로도 직접 전달 (globals 미적용 환경 안전망)
+        "KNK_HOLIDAYS_KR":     HOLIDAYS_KR,
+        "KNK_HOLIDAYS_VN":     HOLIDAYS_VN,
     }
     # 글로벌 알림 카운트 (로그인 상태일 때만)
     uid = request.session.get("user_id") if hasattr(request, "session") else None
