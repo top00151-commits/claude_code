@@ -33,7 +33,7 @@
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
-  <div class="page-head">
+  <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
     <div>
       <div class="crumbs">
         <a href="/projects">프로젝트</a> ·
@@ -44,6 +44,37 @@
       <div style="margin-top:6px;">
         <a href="/projects/new" style="font-size:12px;color:var(--mute);text-decoration:none;">← 다른 유형으로 변경</a>
       </div>
+      {% endif %}
+    </div>
+    {# v5H174: 등록자 / 등록일시 — 우측 상단 항상 표시 #}
+    <div style="text-align:right;font-size:12px;color:var(--mute);line-height:1.7;background:var(--paper-3);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:200px;">
+      {% if project %}
+        <div><span style="color:var(--mute);">등록자</span>
+          <b style="color:var(--ink);margin-left:6px;">{{ project.created_by_name|default(project.created_by|default('—')) }}</b></div>
+        <div><span style="color:var(--mute);">등록일시</span>
+          <b style="color:var(--ink);margin-left:6px;font-family:monospace;">{{ (project.created_at|default(''))[:19] or '—' }}</b></div>
+        {% if project.updated_at and project.updated_at != project.created_at %}
+        <div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--line);">
+          <span style="color:var(--mute);">최근 수정</span>
+          <b style="color:var(--ink);margin-left:6px;font-family:monospace;font-size:11.5px;">{{ (project.updated_at|default(''))[:19] }}</b>
+        </div>
+        {% endif %}
+      {% else %}
+        <div><span style="color:var(--mute);">등록자</span>
+          <b style="color:var(--ink);margin-left:6px;">{{ user.name|default('—') }}</b></div>
+        <div><span style="color:var(--mute);">등록일시</span>
+          <b style="color:var(--ink);margin-left:6px;font-family:monospace;" id="pf_now_ts">—</b></div>
+        <script>
+          (function(){
+            var el = document.getElementById('pf_now_ts');
+            function pad(n){ return n < 10 ? '0'+n : ''+n; }
+            function tick(){
+              var d = new Date();
+              if (el) el.textContent = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+            }
+            tick(); setInterval(tick, 1000);
+          })();
+        </script>
       {% endif %}
     </div>
   </div>

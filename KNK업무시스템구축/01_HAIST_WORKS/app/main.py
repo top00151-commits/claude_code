@@ -9020,6 +9020,18 @@ async def projects_edit_form(request: Request, pid: int):
     p = _logi.projects_get_logi(pid)
     if not p:
         return RedirectResponse("/projects", status_code=303)
+    # v5H174: 등록자/등록일시 표시용 — created_by → 사용자명 lookup
+    p = dict(p)
+    try:
+        if p.get("created_by"):
+            with db_session() as _c:
+                _u_row = _c.execute(
+                    "SELECT name FROM users WHERE id=?", (p.get("created_by"),)
+                ).fetchone()
+                if _u_row:
+                    p["created_by_name"] = _u_row[0]
+    except Exception:
+        pass
     # v5H103: SO 존재 여부 → 폼 수주액 readonly 안내용
     has_orders = False
     try:
