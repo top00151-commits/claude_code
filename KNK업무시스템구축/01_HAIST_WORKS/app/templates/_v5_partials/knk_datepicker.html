@@ -4,8 +4,8 @@
 #}
 <style>
 .knk-cal-pop { position: absolute; z-index: 9999; background: #fff; border: 1px solid #f1e8d4;
-               border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); padding: 12px;
-               width: 280px; font-family: inherit; }
+               border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); padding: 14px;
+               width: 340px; font-family: inherit; }
 .knk-cal-pop.hidden { display: none; }
 .knk-cal-pop .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .knk-cal-pop .head .title { font-weight: 800; font-size: 13px; color: #b91c1c; }
@@ -19,28 +19,29 @@
 .knk-cal-pop .dow.sun { color: #dc2626; }
 .knk-cal-pop .dow.sat { color: #2563eb; }
 .knk-cal-pop .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.knk-cal-pop .day { aspect-ratio: 1/1; min-height: 32px; border-radius: 6px;
+.knk-cal-pop .day { min-height: 42px; padding: 4px; border-radius: 6px;
                     display: flex; flex-direction: column; align-items: center; justify-content: center;
                     background: #fafaf7; border: 1px solid transparent; cursor: pointer;
                     position: relative; transition: all .12s; }
-.knk-cal-pop .day .d { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1; }
-.knk-cal-pop .day:hover { background: #fef3c7; border-color: #d4a574; transform: scale(1.05); }
+.knk-cal-pop .day .d { font-size: 14px; font-weight: 800; color: #1e293b; line-height: 1; }
+.knk-cal-pop .day:hover { background: #fef3c7; border-color: #d4a574; transform: scale(1.05); z-index: 2; }
 .knk-cal-pop .day.out { background: transparent; cursor: default; }
 .knk-cal-pop .day.out .d { color: #cbd5e1; }
 .knk-cal-pop .day.out:hover { background: transparent; border-color: transparent; transform: none; }
 .knk-cal-pop .day.today { box-shadow: inset 0 0 0 2px #f59e0b; }
-.knk-cal-pop .day.selected { background: #b91c1c !important; }
-.knk-cal-pop .day.selected .d { color: #fff !important; }
-/* 일요일·공휴일 적색 / 토요일 청색 — 수주관리 캘린더 동일 패턴 */
+.knk-cal-pop .day.selected { background: #fef3c7 !important; box-shadow: inset 0 0 0 2px #b91c1c; }
+/* 일요일·공휴일 적색 / 토요일 청색 — 수주관리 캘린더 동일 패턴 (!important 로 무력화 방지) */
 .knk-cal-pop .day .d.sun, .knk-cal-pop .day .d.hol { color: #dc2626 !important; }
 .knk-cal-pop .day .d.sat { color: #2563eb !important; }
 .knk-cal-pop .day.holiday { background: #fef2f2; }
-.knk-cal-pop .day .badge { position: absolute; top: 2px; right: 2px; display: flex; gap: 1px; }
-.knk-cal-pop .day .badge .b { display: inline-block; min-width: 11px; height: 11px; line-height: 11px;
-                               padding: 0 2px; text-align: center; border-radius: 2px;
-                               font-size: 8px; font-weight: 800; background: #dc2626; color: #fff; }
-.knk-cal-pop .day .badge .b.vn { background: #fb923c; }
-.knk-cal-pop .day .badge .b.alt { background: #fff; color: #dc2626; border: 1px dashed #dc2626; }
+/* K/V 공휴일 배지 — 수주관리 동일 18px 사이즈 */
+.knk-cal-pop .day .badge { position: absolute; top: 2px; right: 2px; display: flex; gap: 2px; z-index: 3; }
+.knk-cal-pop .day .badge .b { display: inline-block; min-width: 16px; height: 16px; line-height: 16px;
+                               padding: 0 3px; text-align: center; border-radius: 3px;
+                               font-size: 10px; font-weight: 800;
+                               background: #dc2626; color: #fff; box-shadow: 0 1px 2px rgba(220,38,38,0.4); }
+.knk-cal-pop .day .badge .b.vn { background: #fb923c; box-shadow: 0 1px 2px rgba(251,146,60,0.4); }
+.knk-cal-pop .day .badge .b.alt { background: #fff; color: #dc2626; border: 1px dashed #dc2626; box-shadow: none; }
 .knk-cal-pop .day .badge .b.alt.vn { color: #fb923c; border-color: #fb923c; }
 .knk-cal-pop .foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 8px;
                      border-top: 1px solid #f1e8d4; font-size: 11px; }
