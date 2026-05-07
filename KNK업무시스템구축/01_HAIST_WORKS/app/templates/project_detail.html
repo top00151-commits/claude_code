@@ -649,6 +649,8 @@
                 const curSel = row.querySelector('select.cur-sel');
                 // v5H197: 호기별 거래구분 select
                 const iexSel = row.querySelector('select.iex-sel');
+                // v5H199: 호기별 상태 select (일괄 적용 후 저장 시 함께 commit)
+                const statusSel = row.querySelector('select.unit-status-sel');
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
                 const dirty =
@@ -659,8 +661,9 @@
                   || (dueInp && dueInp.value !== dueInp.dataset.orig)
                   || (shipInp && shipInp.value !== shipInp.dataset.orig)
                   || (curSel && curSel.value !== curSel.dataset.orig)
-                  || (iexSel && iexSel.value !== iexSel.dataset.orig);
-                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel });
+                  || (iexSel && iexSel.value !== iexSel.dataset.orig)
+                  || (statusSel && statusSel.value !== statusSel.dataset.orig);
+                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel });
               });
               return out;
             }
@@ -693,6 +696,20 @@
                   else failed.push({ uid: r.uid, msg: j.message || j.error || ('HTTP '+resp.status) });
                 } catch (e) {
                   failed.push({ uid: r.uid, msg: e.message });
+                }
+                // v5H199: 호기 상태가 dirty 면 별도 endpoint 로 저장
+                if (r.statusSel && r.statusSel.value !== r.statusSel.dataset.orig) {
+                  try {
+                    const sBody = new URLSearchParams();
+                    sBody.set('status', r.statusSel.value);
+                    const sResp = await fetch('/sales/orders/items/' + r.uid + '/status',
+                                              { method:'POST', body: sBody });
+                    const sJ = await sResp.json().catch(() => ({}));
+                    if (sResp.ok && sJ.ok) okCount++;
+                    else failed.push({ uid: r.uid, msg: '(상태)' + (sJ.message || sJ.error || ('HTTP '+sResp.status)) });
+                  } catch (e) {
+                    failed.push({ uid: r.uid, msg: '(상태)' + e.message });
+                  }
                 }
               }
               // SO 헤더 메타 저장 (있을 때)
@@ -1217,66 +1234,86 @@
     if (st === '보류') return ['#f3f4f6','#6b7280'];
     return ['#fef3c7','#7c4a03'];  // 진행중
   }
+  // v5H199: 호기 상태 select — 색상만 즉시 갱신, 저장은 [💾 저장] 버튼이 일괄 commit
   document.querySelectorAll('.unit-status-sel').forEach(sel => {
-    sel.addEventListener('change', async () => {
-      const uid = sel.dataset.uid;
+    sel.addEventListener('change', () => {
       const newSt = sel.value;
-      const oldSt = sel.dataset.orig || '진행중';
-      const body = new URLSearchParams();
-      body.set('status', newSt);
-      try {
-        const r = await fetch('/sales/orders/items/' + uid + '/status',
-                              { method:'POST', body });
-        const j = await r.json().catch(() => ({}));
-        if (r.ok && j.ok) {
-          sel.dataset.orig = newSt;
-          const [bg, fg] = _statusBg(newSt);
-          sel.style.background = bg;
-          sel.style.color = fg;
-        } else {
-          alert('⚠ ' + (j.message || ('HTTP ' + r.status)));
-          sel.value = oldSt;
-        }
-      } catch(e) {
-        alert('⚠ ' + e.message);
-        sel.value = oldSt;
-      }
+      const [bg, fg] = _statusBg(newSt);
+      sel.style.background = bg;
+      sel.style.color = fg;
     });
   });
-  // v5H186: 호기 상태 일괄 적용 — 이 SO 만 / 프로젝트 전체
-  async function _bulkApplyStatus(pid, oid, status, scope_label){
-    const body = new URLSearchParams();
-    body.set('status', status);
-    if (oid) body.set('order_id', oid);
-    try {
-      const r = await fetch('/projects/' + pid + '/units/bulk-status',
-                            { method:'POST', body });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok && j.ok) {
-        alert(`✓ ${scope_label} → 상태 "${status}" 일괄 적용 (${j.changed}건)`);
-        window.location.href = window.location.pathname + '?_t=' + Date.now();
-      } else {
-        alert('⚠ ' + (j.message || ('HTTP ' + r.status)));
+  // v5H199: 호기 상태 일괄 적용 — 클라이언트사이드만 (DOM 갱신 + dirty 표시).
+  //   사용자가 결과 확인 후 [💾 저장] 버튼을 눌러야 서버 commit.
+  function _applyBulkStatusClient(targets, status){
+    var n = 0;
+    targets.forEach(function(sel){
+      if (sel.value !== status) {
+        sel.value = status;
+        // 컬러 배지 갱신 (_statusBg 는 위에 정의됨)
+        try {
+          var bgFg = _statusBg(status);
+          sel.style.background = bgFg[0];
+          sel.style.color = bgFg[1];
+        } catch(_) {}
+        n++;
       }
-    } catch(e) { alert('⚠ ' + e.message); }
+    });
+    return n;
+  }
+  function _showBulkAck(btn, n, status){
+    // 버튼 옆에 임시 안내 노출
+    var ack = btn.parentElement.querySelector('.bulk-ack');
+    if (!ack) {
+      ack = document.createElement('span');
+      ack.className = 'bulk-ack';
+      ack.style.cssText = 'margin-left:8px;font-size:11.5px;color:#15803d;font-weight:700;';
+      btn.parentElement.appendChild(ack);
+    }
+    if (n === 0) {
+      ack.textContent = '· 변경 없음';
+      ack.style.color = 'var(--mute)';
+    } else {
+      ack.innerHTML = '· ✓ ' + n + '건 적용됨 — <span style="color:var(--knk-red);">[💾 저장] 눌러야 확정</span>';
+      ack.style.color = '#15803d';
+    }
+    // 카드 상단 토글 버튼이 'unlocked' 상태가 아니면 자동 unlock (저장 가능 상태로 진입)
+    var card = btn.closest('.so-card');
+    if (card && card.classList.contains('editable') && !card.classList.contains('unlocked')) {
+      card.classList.add('unlocked');
+      var tBtn = card.querySelector('.toggle-edit');
+      if (tBtn) { tBtn.textContent = '💾 저장'; tBtn.title = '변경사항 저장'; }
+    }
   }
   document.querySelectorAll('.bulk-status-apply').forEach(btn => {
     btn.addEventListener('click', () => {
-      const pid = btn.dataset.pid;
-      const oid = btn.dataset.oid;
+      const card = btn.closest('.so-card');
       const sel = btn.parentElement.querySelector('.bulk-status-sel');
       const st = sel ? sel.value : '진행중';
-      if (!confirm(`이 SO 의 모든 호기를 "${st}" 상태로 변경하시겠습니까?`)) return;
-      _bulkApplyStatus(pid, oid, st, '이 SO 전체 호기');
+      const targets = card.querySelectorAll('.unit-status-sel');
+      const n = _applyBulkStatusClient(targets, st);
+      _showBulkAck(btn, n, st);
     });
   });
   document.querySelectorAll('.bulk-status-apply-all').forEach(btn => {
     btn.addEventListener('click', () => {
-      const pid = btn.dataset.pid;
       const sel = btn.parentElement.querySelector('.bulk-status-sel');
       const st = sel ? sel.value : '진행중';
-      if (!confirm(`프로젝트의 ALL SO·ALL 호기를 "${st}" 상태로 변경하시겠습니까?`)) return;
-      _bulkApplyStatus(pid, null, st, '프로젝트 전체 호기');
+      // 프로젝트 전체 SO 의 모든 호기 select
+      const targets = document.querySelectorAll('.unit-status-sel');
+      const n = _applyBulkStatusClient(targets, st);
+      _showBulkAck(btn, n, st);
+      // 모든 카드 unlock (변경된 카드만)
+      document.querySelectorAll('.so-card.editable').forEach(function(c){
+        var hasDirty = Array.from(c.querySelectorAll('.unit-status-sel')).some(function(s){
+          return s.value !== (s.dataset.orig || '진행중');
+        });
+        if (hasDirty && !c.classList.contains('unlocked')) {
+          c.classList.add('unlocked');
+          var tBtn = c.querySelector('.toggle-edit');
+          if (tBtn) { tBtn.textContent = '💾 저장'; tBtn.title = '변경사항 저장'; }
+        }
+      });
     });
   });
   // v5H186: 통화 / 환율 편집 — KRW 선택 시 fx_rate 도 None 으로 명시 정리, 항상 reload
