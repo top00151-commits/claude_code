@@ -6570,6 +6570,29 @@ async def sales_order_item_edit(req: Request, iid: int):
         u_qty = float(u_qty_raw) if u_qty_raw else None
     except Exception:
         u_qty = None
+    # v5H226z6: 통관 메타 (PARTS 라인 인라인 편집)
+    def _opt_float(key):
+        v = form.get(key)
+        if v is None:
+            return ("__SKIP__", None)
+        v = v.strip().replace(",", "")
+        if v == "":
+            return (None, None)
+        try:
+            return (float(v), None)
+        except Exception:
+            return ("__SKIP__", None)
+    u_hs_code = form.get("hs_code")
+    u_duty_rate, _ = _opt_float("duty_rate")
+    u_vat_rate, _ = _opt_float("vat_rate")
+    u_inv_up_usd, _ = _opt_float("invoice_unit_price_usd")
+    u_inv_amt_usd, _ = _opt_float("invoice_amount_usd")
+    u_duty_krw, _ = _opt_float("duty_krw")
+    u_duty_usd, _ = _opt_float("duty_usd")
+    u_final_usd, _ = _opt_float("final_amount_usd")
+    u_description = form.get("description")
+    u_pallet = form.get("pallet_size")
+    u_weight, _ = _opt_float("weight_kg")
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -6643,6 +6666,21 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("unit=?"); vals_set.append((u_unit or "EA").strip() or "EA")
             if u_qty is not None:
                 cols_set.append("qty=?"); vals_set.append(u_qty)
+            # v5H226z6: 통관 메타 인라인 편집
+            if u_hs_code is not None and "hs_code" in _oicols:
+                cols_set.append("hs_code=?"); vals_set.append((u_hs_code or "").strip() or None)
+            for _key, _val in [("duty_rate", u_duty_rate), ("vat_rate", u_vat_rate),
+                                ("invoice_unit_price_usd", u_inv_up_usd),
+                                ("invoice_amount_usd", u_inv_amt_usd),
+                                ("duty_krw", u_duty_krw), ("duty_usd", u_duty_usd),
+                                ("final_amount_usd", u_final_usd),
+                                ("weight_kg", u_weight)]:
+                if _val != "__SKIP__" and _key in _oicols:
+                    cols_set.append(f"{_key}=?"); vals_set.append(_val)
+            if u_description is not None and "description" in _oicols:
+                cols_set.append("description=?"); vals_set.append((u_description or "").strip() or None)
+            if u_pallet is not None and "pallet_size" in _oicols:
+                cols_set.append("pallet_size=?"); vals_set.append((u_pallet or "").strip() or None)
             vals_set.append(iid)
             c.execute(
                 f"UPDATE order_items SET {','.join(cols_set)} WHERE id=?",
