@@ -771,10 +771,9 @@ body.so-fs-on { overflow: hidden; }
             </div>
             {% endif %}
             <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
-              {# v5H226z18: SO 영역이 viewport 안에 들어가도록 max-height 복구. #}
-              {# 88행 같이 행이 많으면 wrapper 안에서 세로 스크롤 (불가피). #}
-              {# 페이지 스크롤은 발생 안 하고 SO 영역 내부에서만 처리됨. #}
-              <div{% if _is_parts %} class="so-units-wrapper" style="overflow:auto;max-width:100%;max-height:calc(100vh - 460px);min-height:300px;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
+              {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
+              {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
+              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
             <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:2500px;table-layout:fixed;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
@@ -1014,6 +1013,12 @@ body.so-fs-on { overflow: hidden; }
               </tbody>
             </table>
               </div>{# /inner overflow-x:auto #}
+              {# v5H226z19: sticky 가로 스크롤 프록시 — viewport 하단 고정 #}
+              {% if _is_parts %}
+              <div class="parts-h-proxy" style="position:sticky;bottom:0;left:0;width:100%;height:18px;overflow-x:auto;overflow-y:hidden;background:#f4f1e8;border-top:1px solid #b07a18;border-bottom:1px solid #b07a18;z-index:8;">
+                <div class="parts-h-proxy-inner" style="height:1px;"></div>
+              </div>
+              {% endif %}
             </div>{# /outer width:100%;overflow:hidden — 부모 늘어남 방지 #}
             <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
               ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
@@ -2168,7 +2173,36 @@ body.so-fs-on { overflow: hidden; }
     });
   });
 
-  // 4) 행 접기/펴기 — # (행번호) 셀의 버튼 클릭 시 해당 row 접음
+  // 4) v5H226z19: sticky 가로 스크롤 프록시 — wrapper 와 proxy scrollLeft 동기화
+  document.querySelectorAll('.so-card .parts-h-proxy').forEach(proxy => {
+    const card = proxy.closest('.so-card');
+    if (!card) return;
+    const wrapper = card.querySelector('.so-units-wrapper');
+    if (!wrapper) return;
+    const inner = proxy.querySelector('.parts-h-proxy-inner');
+    if (!inner) return;
+    // proxy 안의 spacer 폭 = table scrollWidth (wrapper 의 가로 스크롤 가능 폭)
+    function syncWidth() {
+      const tbl = wrapper.querySelector('table');
+      if (tbl) inner.style.width = tbl.offsetWidth + 'px';
+    }
+    syncWidth();
+    window.addEventListener('resize', syncWidth);
+    // 양방향 scrollLeft sync (양쪽 누가 이동해도 다른 쪽 따라감)
+    let lock = false;
+    wrapper.addEventListener('scroll', () => {
+      if (lock) return; lock = true;
+      proxy.scrollLeft = wrapper.scrollLeft;
+      requestAnimationFrame(() => { lock = false; });
+    });
+    proxy.addEventListener('scroll', () => {
+      if (lock) return; lock = true;
+      wrapper.scrollLeft = proxy.scrollLeft;
+      requestAnimationFrame(() => { lock = false; });
+    });
+  });
+
+  // 5) 행 접기/펴기 — # (행번호) 셀의 버튼 클릭 시 해당 row 접음
   document.querySelectorAll('table.so-units.parts-excel tbody tr').forEach(tr => {
     const btn = tr.querySelector('.row-toggle');
     if (!btn) return;
