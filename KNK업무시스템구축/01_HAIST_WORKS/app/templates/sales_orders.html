@@ -216,6 +216,8 @@
     .so-up-body { flex:1; min-width:0; }
     .so-up-row1 { display:flex; gap:8px; align-items:center; margin-bottom:3px; }
     .so-up-no { font-family:monospace; font-weight:700; color:#b91c1c; font-size:12.5px; }
+    .so-up-mgmt { font-family:monospace; font-weight:700; color:#7c4a03; font-size:11.5px;
+                  background:#fef3c7; padding:1px 6px; border-radius:3px; letter-spacing:0.02em; }
     .so-up-cust { font-size:12px; color:#475569; font-weight:600; }
     .so-up-row2 { font-size:11.5px; color:#64748b; display:flex; gap:8px; }
     .so-up-amt { font-weight:700; color:#1e293b; }
@@ -281,7 +283,8 @@
           </div>
           <div class="so-up-body">
             <div class="so-up-row1">
-              <span class="so-up-no">{{ u.order_no }}</span>
+              {% if u.mgmt_code %}<span class="so-up-mgmt" title="관리번호">{{ u.mgmt_code }}</span>{% endif %}
+              <span class="so-up-no" title="수주번호">{{ u.order_no }}</span>
               <span class="so-up-cust">{{ u.customer_name|default('—') }}</span>
             </div>
             <div class="so-up-row2">
