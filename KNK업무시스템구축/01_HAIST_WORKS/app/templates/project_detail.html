@@ -573,7 +573,7 @@
         {% if project_orders %}
         <div class="list-scroll">
         {% for so in project_orders %}
-          {% set _editable = can_sales and so.status not in ('SHIPPED','INVOICED','PAID','CANCELLED') %}
+          {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') %}{# v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능) #}
           {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
           {% set _cur = so.currency or p.currency or 'KRW' %}
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}

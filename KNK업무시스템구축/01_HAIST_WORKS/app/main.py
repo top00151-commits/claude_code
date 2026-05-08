@@ -6087,7 +6087,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         if not it:
             return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
         st = (it["status"] or "").upper()
-        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
                 "ok": False,
                 "message": f"{st} 상태 SO 의 호기는 수정 불가"
@@ -6356,7 +6356,7 @@ async def sales_order_item_delete(req: Request, iid: int):
         if not it:
             return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
         st = (it["status"] or "").upper()
-        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
                 "ok": False,
                 "message": f"{st} 상태 SO 의 호기는 삭제 불가"
@@ -6443,7 +6443,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
         if not cur:
             return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
         st = (cur["status"] or "").upper()
-        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
                 "ok": False,
                 "message": f"{st} 상태 SO 는 호기 추가 불가"
@@ -6587,7 +6587,7 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         if not cur:
             return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
         st = (cur["status"] or "").upper()
-        if st in ("SHIPPED", "INVOICED", "PAID", "CANCELLED"):
+        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
                 "ok": False,
                 "message": f"이미 {st} 상태인 SO 는 인라인 수정 불가 (필요 시 삭제 후 재발급)"
