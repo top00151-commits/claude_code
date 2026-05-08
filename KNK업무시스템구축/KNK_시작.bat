@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-08 v5H226s (메타필드 due_date/order_date/currency cascade 추가)
+REM   LAST UPDATE: 2026-05-08 v5H226t (startup cascade 자가치유 백필 - stale 데이터 자동 보정)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226s]
+title KNK HAIST WORKS [v5H226t]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226s  2026-05-08]
+echo    [v5H226t  2026-05-08]
 echo ============================================================
 echo.
 

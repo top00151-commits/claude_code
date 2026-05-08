@@ -2509,6 +2509,31 @@ def init_db():
         except Exception:
             pass
 
+        # v5H226t: 상태 cascade 자가치유 백필
+        # (1) 모든 호기가 동일 terminal 상태인데 부모 프로젝트가 다르면 → 부모 갱신 (상방)
+        # (2) 부모가 terminal 인데 자식 SO/호기가 동기 안 됐으면 → 자식 갱신 (하방)
+        try:
+            from . import project_workflow as _pwf_csc
+            # (1) 상방 backfill — 모든 프로젝트에 대해 호기 종합 검사
+            pids = [r[0] for r in c.execute(
+                "SELECT DISTINCT id FROM projects WHERE id IN "
+                "  (SELECT DISTINCT project_id FROM orders WHERE project_id IS NOT NULL)"
+            ).fetchall()]
+            up_promoted = 0
+            for _pid in pids:
+                _r = _pwf_csc.cascade_unit_status_to_project(c, _pid, None)
+                if _r.get("changed"):
+                    up_promoted += 1
+            # (2) 하방 backfill — 프로젝트가 terminal 인데 자식 미반영
+            for _pid, _st in c.execute(
+                "SELECT id, status FROM projects WHERE status IN ('진행중','납품완료','취소','보류')"
+            ).fetchall():
+                _pwf_csc.cascade_project_status_to_so(c, _pid, _st, None)
+            if up_promoted:
+                print(f"[v5H226t] cascade 백필: 프로젝트 {up_promoted}건 상태 자동 승급")
+        except Exception as _e:
+            print(f"[v5H226t] cascade 백필 실패: {_e}")
+
 
 def seed_all():
     """최초 1회: 조직도/사용자/고객사 시드"""
