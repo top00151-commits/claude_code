@@ -6,6 +6,73 @@
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
 /* v5H226z7: 그리드 아이템이 자식(넓은 PARTS 표) min-width 에 의해 늘어나는 것 방지 */
 .detail-grid > * { min-width: 0; }
+
+/* v5H226z10: PARTS 표 Excel 풍 디자인 */
+table.so-units.parts-excel { border-collapse: separate; border-spacing: 0; font-size: 11.5px; }
+table.so-units.parts-excel th,
+table.so-units.parts-excel td {
+  border-right: 1px solid #d4d4d4;
+  border-bottom: 1px solid #d4d4d4;
+  padding: 4px 6px;
+  position: relative;
+  vertical-align: middle;
+}
+table.so-units.parts-excel th {
+  background: #f4f1e8;
+  font-weight: 700;
+  color: #4a4030;
+  text-align: center;
+  border-top: 1px solid #d4d4d4;
+}
+table.so-units.parts-excel th:first-child,
+table.so-units.parts-excel td:first-child {
+  border-left: 1px solid #d4d4d4;
+}
+table.so-units.parts-excel tbody tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+table.so-units.parts-excel tbody tr:hover td { background: #fef9c3 !important; }
+table.so-units.parts-excel tbody tr.row-collapsed td { display: none; }
+table.so-units.parts-excel tbody tr.row-collapsed td:first-child,
+table.so-units.parts-excel tbody tr.row-collapsed td:nth-child(2) { display: table-cell; opacity: 0.55; }
+
+/* 컬럼 폭 조정 핸들 (헤더 우측 5px 잡기) */
+table.so-units.parts-excel th .col-resize-handle {
+  position: absolute; top: 0; right: -2px; width: 5px; height: 100%;
+  cursor: col-resize; user-select: none; z-index: 6;
+}
+table.so-units.parts-excel th .col-resize-handle:hover,
+table.so-units.parts-excel th .col-resize-handle.dragging { background: rgba(176,122,24,0.55); }
+
+/* 컬럼 그룹 hide 클래스 */
+table.so-units.parts-excel.hide-basic   [data-pgroup~="basic"],
+table.so-units.parts-excel.hide-customs [data-pgroup~="customs"],
+table.so-units.parts-excel.hide-invoice [data-pgroup~="invoice"],
+table.so-units.parts-excel.hide-duty    [data-pgroup~="duty"],
+table.so-units.parts-excel.hide-meta    [data-pgroup~="meta"],
+table.so-units.parts-excel.hide-somet   [data-pgroup~="somet"] { display: none !important; }
+
+/* 행 접기 토글 버튼 (행 좌측 3행번호 영역) */
+table.so-units.parts-excel .row-toggle {
+  background: transparent; border: 0; cursor: pointer; padding: 0 4px;
+  font-size: 10px; color: #888; user-select: none;
+}
+table.so-units.parts-excel .row-toggle:hover { color: var(--knk-red); }
+
+/* 그룹 chip 토글 바 */
+.parts-col-toggle {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px 12px; margin-bottom: 8px;
+  background: #f5efde; border: 1px solid #d4b75a; border-radius: 6px;
+  font-size: 11.5px;
+}
+.parts-col-toggle .lbl { font-weight: 700; color: #5a4a00; margin-right: 4px; }
+.parts-col-toggle button {
+  padding: 3px 10px; border: 1px solid #b07a18; border-radius: 14px;
+  background: #fff; color: #7c4a03; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all .12s;
+}
+.parts-col-toggle button.active { background: #b07a18; color: #fff; }
+.parts-col-toggle button:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.parts-col-toggle button.reset { margin-left: auto; background: #fff; color: #555; border-color: #ccc; }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
@@ -661,45 +728,59 @@
             {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
             {# (1) 가로 스크롤 wrapper 에 width:100%/overflow:hidden 명시 → 자식이 부모를 못 늘림 #}
             {# (2) inner wrapper 가 실제 overflow-x:auto + 표 자체는 자연 폭 #}
+            {% if _is_parts %}
+            {# v5H226z10: 컬럼 그룹 토글 chip 바 — 28컬럼 중 필요 그룹만 보기 #}
+            <div class="parts-col-toggle" data-so="{{ so.id }}">
+              <span class="lbl">📋 컬럼 그룹:</span>
+              <button type="button" data-pgroup="basic"   class="active">기본 (사진·품명·규격·수량 등)</button>
+              <button type="button" data-pgroup="customs" class="active">통관 (HS/DUTY/VAT)</button>
+              <button type="button" data-pgroup="invoice" class="active">인보이스 USD</button>
+              <button type="button" data-pgroup="duty"    class="active">관세·최종</button>
+              <button type="button" data-pgroup="meta"    class="active">상세·PALLET·중량</button>
+              <button type="button" data-pgroup="somet"   class="active">SO 메타 (단가·일정·상태)</button>
+              <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
+            </div>
+            {% endif %}
             <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
               {# v5H226z8: PARTS 표는 max-height 박스 안에 가둠 → 가로 스크롤 바가 항상 화면 안에 보임 #}
-              <div{% if _is_parts %} style="overflow:auto;max-width:100%;max-height:65vh;border:1px solid var(--line);border-radius:6px;"{% endif %}>
-            <table class="so-units"{% if _is_parts %} style="white-space:nowrap;"{% endif %}>
-              <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:var(--paper-3);box-shadow:0 1px 0 var(--line);"{% endif %}>
+              <div{% if _is_parts %} style="overflow:auto;max-width:100%;max-height:65vh;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
+            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;"{% endif %}>
+              <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
-                  {% if _is_co or _is_parts %}<th style="width:60px;">사진</th>{% endif %}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};">{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
+                  {% if _is_co or _is_parts %}<th style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
-                  <th style="width:130px;">규격</th>
-                  <th style="width:80px;">메이커</th>
-                  <th style="width:80px;">업체명</th>
-                  <th style="width:70px;">원산지</th>
-                  <th style="width:60px;">BOX</th>
-                  <th class="num" style="width:60px;">수량</th>
-                  <th style="width:50px;">단위</th>
-                  <th class="num" style="width:90px;background:#fef9e6;">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
-                  <th style="width:80px;background:#e0f2fe;">HS CODE</th>
-                  <th class="num" style="width:55px;background:#e0f2fe;">DUTY</th>
-                  <th class="num" style="width:55px;background:#e0f2fe;">VAT</th>
-                  <th class="num" style="width:80px;background:#dcfce7;">인보이스<br><span style="font-size:10px;font-weight:400;">단가 USD</span></th>
-                  <th class="num" style="width:90px;background:#dcfce7;">인보이스<br><span style="font-size:10px;font-weight:400;">금액 USD</span></th>
-                  <th class="num" style="width:80px;background:#fee2e2;">관세<br><span style="font-size:10px;font-weight:400;">KRW</span></th>
-                  <th class="num" style="width:70px;background:#fee2e2;">관세<br><span style="font-size:10px;font-weight:400;">USD</span></th>
-                  <th class="num" style="width:90px;background:#fef3c7;">최종 금액<br><span style="font-size:10px;font-weight:400;">USD</span></th>
-                  <th style="width:140px;">상세 내용</th>
-                  <th style="width:120px;">PALLET<br><span style="font-size:10px;font-weight:400;">가로*세로*높이</span></th>
-                  <th class="num" style="width:65px;">중량<br><span style="font-size:10px;font-weight:400;">kg</span></th>
+                  <th style="width:130px;" data-pgroup="basic">규격</th>
+                  <th style="width:80px;"  data-pgroup="basic">메이커</th>
+                  <th style="width:80px;"  data-pgroup="basic">업체명</th>
+                  <th style="width:70px;"  data-pgroup="basic">원산지</th>
+                  <th style="width:60px;"  data-pgroup="basic">BOX</th>
+                  <th class="num" style="width:60px;" data-pgroup="basic">수량</th>
+                  <th style="width:50px;"  data-pgroup="basic">단위</th>
+                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="customs">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
+                  <th style="width:80px;background:#e0f2fe;" data-pgroup="customs">HS CODE</th>
+                  <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">DUTY</th>
+                  <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">VAT</th>
+                  <th class="num" style="width:80px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">단가 USD</span></th>
+                  <th class="num" style="width:90px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">금액 USD</span></th>
+                  <th class="num" style="width:80px;background:#fee2e2;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">KRW</span></th>
+                  <th class="num" style="width:70px;background:#fee2e2;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">USD</span></th>
+                  <th class="num" style="width:90px;background:#fef3c7;" data-pgroup="duty">최종 금액<br><span style="font-size:10px;font-weight:400;">USD</span></th>
+                  <th style="width:140px;" data-pgroup="meta">상세 내용</th>
+                  <th style="width:120px;" data-pgroup="meta">PALLET<br><span style="font-size:10px;font-weight:400;">가로*세로*높이</span></th>
+                  <th class="num" style="width:65px;" data-pgroup="meta">중량<br><span style="font-size:10px;font-weight:400;">kg</span></th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
-                  <th class="num" style="width:120px;">단가</th>
-                  <th style="width:74px;">통화</th>
+                  <th class="num" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가</th>
+                  <th style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {% if not _is_parts %}<th style="width:78px;">거래</th>{% endif %}
-                  <th style="width:90px;">발주일</th>
-                  <th style="width:90px;">납기일</th>
-                  {% if _is_parts %}<th style="width:120px;">입고일정</th>{% endif %}
+                  <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
+                  <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
+                  {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
                   {% if not _is_parts %}<th style="width:110px;">납품처</th>{% endif %}
-                  <th style="width:106px;">상태</th>
-                  <th>비고</th>
+                  <th style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
+                  <th {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
                 </tr>
               </thead>
@@ -712,6 +793,11 @@
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 <tr data-uid="{{ u.id }}">
+                  {% if _is_parts %}
+                  <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
+                    <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
+                  </td>
+                  {% endif %}
                   {% if _is_co or _is_parts %}
                   <td style="text-align:center;padding:4px;">
                     {% if u.image_thumb_path %}
@@ -1921,6 +2007,95 @@
 })();
 </script>
 {% endif %}{# /if CONSUMABLE — 소모품 모달 블록 끝 #}
+
+{# v5H226z10: PARTS Excel-style 표 — 컬럼 리사이즈 + 그룹 토글 + 행 접기/펴기 #}
+{% if (p.shipment_form or '')|upper == 'PARTS' %}
+<script>
+(function(){
+  // 1) tbody td 에 thead th 의 data-pgroup 자동 복사 (반복 마킹 회피)
+  document.querySelectorAll('table.so-units.parts-excel').forEach(tbl => {
+    const headTh = Array.from(tbl.querySelectorAll('thead th'));
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      Array.from(tr.children).forEach((td, i) => {
+        const g = headTh[i] && headTh[i].dataset.pgroup;
+        if (g) td.dataset.pgroup = g;
+      });
+    });
+  });
+
+  // 2) 컬럼 리사이즈 — 각 헤더 우측에 drag handle, 마우스로 폭 조정
+  document.querySelectorAll('table.so-units.parts-excel thead th').forEach(th => {
+    if (th.querySelector('.col-resize-handle')) return;
+    const h = document.createElement('div');
+    h.className = 'col-resize-handle';
+    th.appendChild(h);
+    h.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.pageX;
+      const startW = th.offsetWidth;
+      h.classList.add('dragging');
+      function onMove(ev) {
+        const w = Math.max(28, startW + (ev.pageX - startX));
+        th.style.width = w + 'px';
+        th.style.minWidth = w + 'px';
+      }
+      function onUp() {
+        h.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    h.addEventListener('click', e => e.stopPropagation());
+    h.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      th.style.width = ''; th.style.minWidth = '';  // 더블클릭으로 자동 폭
+    });
+  });
+
+  // 3) 컬럼 그룹 토글 — chip 클릭 시 해당 그룹 hide/show
+  document.querySelectorAll('.parts-col-toggle').forEach(bar => {
+    const soId = bar.dataset.so;
+    const card = bar.closest('.so-card');
+    const tbl = card ? card.querySelector('table.so-units.parts-excel') : null;
+    if (!tbl) return;
+    bar.querySelectorAll('button[data-pgroup]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const g = btn.dataset.pgroup;
+        const active = btn.classList.toggle('active');
+        tbl.classList.toggle('hide-' + g, !active);
+        // 영구 기억
+        try { localStorage.setItem('knk_parts_g_' + soId + '_' + g, active ? '1' : '0'); } catch(_){}
+      });
+      // 초기 상태 복원
+      try {
+        const saved = localStorage.getItem('knk_parts_g_' + soId + '_' + btn.dataset.pgroup);
+        if (saved === '0') {
+          btn.classList.remove('active');
+          tbl.classList.add('hide-' + btn.dataset.pgroup);
+        }
+      } catch(_){}
+    });
+    // 폭 리셋
+    const resetBtn = bar.querySelector('.reset');
+    if (resetBtn) resetBtn.addEventListener('click', () => {
+      tbl.querySelectorAll('thead th').forEach(th => { th.style.width = ''; th.style.minWidth = ''; });
+    });
+  });
+
+  // 4) 행 접기/펴기 — # (행번호) 셀의 버튼 클릭 시 해당 row 접음
+  document.querySelectorAll('table.so-units.parts-excel tbody tr').forEach(tr => {
+    const btn = tr.querySelector('.row-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      tr.classList.toggle('row-collapsed');
+      btn.textContent = tr.classList.contains('row-collapsed') ? '▶' : btn.textContent.replace(/[▶▼]/g, '').trim() || '#';
+    });
+  });
+})();
+</script>
+{% endif %}
 
 {# v5H226z: 부품 형태 출고 (정식 PACKING LIST) — NEW_EQUIP + shipment_form='PARTS' 일 때만 #}
 {% if (p.project_type or '')|upper == 'NEW_EQUIP' and (p.shipment_form or '')|upper == 'PARTS' %}
