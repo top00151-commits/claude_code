@@ -1014,6 +1014,104 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
             "target_unit": target_unit, "target_so": target_so}
 
 
+def cascade_project_meta_to_so(c, project_id: int,
+                                old_meta: dict, new_meta: dict,
+                                changed_by: int | None = None) -> list[str]:
+    """v5H226s — 프로젝트 메타필드(due_date/order_date/currency) 변경 시 자식 SO·호기 동기화.
+    원칙: '변경 전 부모값과 동일했던 행만' cascade. override(다른 값 명시)된 행은 보존.
+    INVOICED/PAID SO 는 제외 (수금 시작분 보존)."""
+    PROTECTED = ("INVOICED", "PAID")
+    summary: list[str] = []
+    # 1) due_date cascade
+    new_due = new_meta.get("due_date")
+    old_due = old_meta.get("due_date")
+    if new_due is not None and (new_due or "") != (old_due or ""):
+        try:
+            r1 = c.execute(
+                f"""UPDATE orders SET due_date=?
+                    WHERE project_id=?
+                      AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))})
+                      AND COALESCE(due_date,'') = COALESCE(?,'')""",
+                (new_due, project_id, *PROTECTED, old_due or "")
+            )
+            n_so = r1.rowcount or 0
+            r2 = c.execute(
+                f"""UPDATE order_items SET due_date=?
+                    WHERE order_id IN (
+                        SELECT id FROM orders WHERE project_id=?
+                          AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))})
+                    )
+                    AND (due_date IS NULL OR COALESCE(due_date,'') = COALESCE(?,''))""",
+                (new_due, project_id, *PROTECTED, old_due or "")
+            )
+            n_it = r2.rowcount or 0
+            if n_so or n_it:
+                summary.append(f"납기일 SO {n_so}건·호기 {n_it}건")
+        except Exception as e:
+            print(f"[v5H226s] due cascade err pid={project_id}: {e}")
+    # 2) order_date cascade
+    new_ord = new_meta.get("order_date")
+    old_ord = old_meta.get("order_date")
+    if new_ord is not None and (new_ord or "") != (old_ord or ""):
+        try:
+            r1 = c.execute(
+                f"""UPDATE orders SET order_date=?
+                    WHERE project_id=?
+                      AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))})
+                      AND COALESCE(order_date,'') = COALESCE(?,'')""",
+                (new_ord, project_id, *PROTECTED, old_ord or "")
+            )
+            n_so = r1.rowcount or 0
+            r2 = c.execute(
+                f"""UPDATE order_items SET order_date=?
+                    WHERE order_id IN (
+                        SELECT id FROM orders WHERE project_id=?
+                          AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))})
+                    )
+                    AND (order_date IS NULL OR COALESCE(order_date,'') = COALESCE(?,''))""",
+                (new_ord, project_id, *PROTECTED, old_ord or "")
+            )
+            n_it = r2.rowcount or 0
+            if n_so or n_it:
+                summary.append(f"발주일 SO {n_so}건·호기 {n_it}건")
+        except Exception as e:
+            print(f"[v5H226s] ord cascade err pid={project_id}: {e}")
+    # 3) currency cascade — 수금 없는 SO 만 (v5H187 정책)
+    new_ccy = new_meta.get("currency")
+    old_ccy = old_meta.get("currency")
+    if new_ccy and (new_ccy or "") != (old_ccy or ""):
+        try:
+            r1 = c.execute(
+                """UPDATE orders SET currency=?
+                   WHERE project_id=?
+                     AND COALESCE(currency,'KRW') != ?
+                     AND NOT EXISTS (SELECT 1 FROM receipts_payment rp WHERE rp.order_id = orders.id)""",
+                (new_ccy, project_id, new_ccy)
+            )
+            n_so = r1.rowcount or 0
+            r2 = c.execute(
+                """UPDATE order_items SET currency=?
+                   WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)
+                     AND COALESCE(currency,'') != ?""",
+                (new_ccy, project_id, new_ccy)
+            )
+            n_it = r2.rowcount or 0
+            if n_so or n_it:
+                summary.append(f"통화 SO {n_so}건·호기 {n_it}건")
+        except Exception as e:
+            print(f"[v5H226s] ccy cascade err pid={project_id}: {e}")
+    # 4) 변경 이력 (요약 1줄)
+    if summary:
+        try:
+            from .database import log_project_change
+            log_project_change(c, project_id, changed_by,
+                                "메타 cascade 동기화", "", " · ".join(summary),
+                                note="프로젝트 메타필드 변경 → 자식 동기화")
+        except Exception:
+            pass
+    return summary
+
+
 def cascade_unit_status_to_project(c, project_id: int,
                                     changed_by: int | None = None) -> dict:
     """v5H226r — 호기 unit_status 변경 시 부모 프로젝트 status 자동 동기화.

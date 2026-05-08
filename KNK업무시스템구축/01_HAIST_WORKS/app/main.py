@@ -5328,38 +5328,21 @@ async def projects_header_edit(req: Request, pid: int):
         if (old_val or "") == (val or ""):
             return JSONResponse({"ok": True, "message": "변동 없음", "value": val})
         c.execute(f"UPDATE projects SET {field}=? WHERE id=?", (val, pid))
-        # v5H187: 통화 변경 시 자식(orders, order_items) 도 즉시 cascade.
-        #   기존엔 startup 백필에만 의존 → 인라인 편집 후 즉시 반영 안되던 결함.
-        #   안전: 수금이력 없는 SO 만 변경 (이미 수금된 외화는 그대로 유지).
+        # v5H226s: 메타필드(due_date/order_date/currency) 변경 → 자식 SO·호기 cascade
+        # (이전 v5H187 currency-only 인라인 로직을 통합 헬퍼로 대체)
         cascade_info = None
-        if field == "currency" and val:
+        if field in ("due_date", "order_date", "currency"):
             try:
-                _ord_cols = {r2[1] for r2 in c.execute("PRAGMA table_info(orders)").fetchall()}
-                if "currency" in _ord_cols:
-                    _r1 = c.execute("""
-                        UPDATE orders SET currency = ?
-                         WHERE project_id = ?
-                           AND COALESCE(currency,'KRW') != ?
-                           AND NOT EXISTS (
-                                 SELECT 1 FROM receipts_payment rp WHERE rp.order_id = orders.id)
-                    """, (val, pid, val))
-                    n_orders = _r1.rowcount
-                else:
-                    n_orders = 0
-                _oi_cols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
-                if "currency" in _oi_cols:
-                    _r2 = c.execute("""
-                        UPDATE order_items SET currency = ?
-                         WHERE order_id IN (SELECT id FROM orders WHERE project_id = ?)
-                           AND COALESCE(currency,'') != ?
-                    """, (val, pid, val))
-                    n_items = _r2.rowcount
-                else:
-                    n_items = 0
-                if n_orders or n_items:
-                    cascade_info = f"SO {n_orders}건 + 호기 {n_items}건 통화 동기화"
-            except Exception:
-                pass
+                _summary = _pwf.cascade_project_meta_to_so(
+                    c, pid,
+                    old_meta={field: old_val},
+                    new_meta={field: val},
+                    changed_by=u.get("id"),
+                )
+                if _summary:
+                    cascade_info = " · ".join(_summary)
+            except Exception as _csc_err:
+                print(f"[v5H226s] header-edit cascade err: {_csc_err}")
         # 변경 이력 (project_history 가 있으면)
         try:
             _note = f"인라인 편집 ({field})"
@@ -10298,6 +10281,18 @@ async def projects_edit_submit(request: Request, pid: int):
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
+    # v5H226s: 변경 전 메타값 캡처 (cascade 비교용)
+    _old_meta = {}
+    try:
+        with db_session() as _mc:
+            _mr = _mc.execute(
+                "SELECT due_date, order_date, currency FROM projects WHERE id=?", (pid,)
+            ).fetchone()
+            if _mr:
+                _old_meta = {"due_date": _mr["due_date"], "order_date": _mr["order_date"],
+                             "currency": _mr["currency"]}
+    except Exception:
+        _old_meta = {}
     # v5H192: 필수 필드 검증 (비고 제외)
     if not project_name:
         return RedirectResponse(f"/projects/{pid}/edit?error=name_required", status_code=303)
@@ -10408,6 +10403,17 @@ async def projects_edit_submit(request: Request, pid: int):
             _pwf.cascade_project_status_to_so(c, int(pid), status_val, _u.get("id"))
     except Exception as _csc_err:
         print(f"[v5H226r] edit-submit cascade err: {_csc_err}")
+    # v5H226s: 메타필드(due_date/order_date/currency) cascade
+    try:
+        _new_meta = {
+            "due_date":   form.get("due_date", "") or "",
+            "order_date": form.get("order_date", "") or "",
+            "currency":   (form.get("currency", "KRW") or "KRW").upper(),
+        }
+        with db_session() as c:
+            _pwf.cascade_project_meta_to_so(c, int(pid), _old_meta, _new_meta, _u.get("id"))
+    except Exception as _csc_err:
+        print(f"[v5H226s] edit-submit meta cascade err: {_csc_err}")
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
