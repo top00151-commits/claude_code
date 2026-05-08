@@ -6,6 +6,8 @@
 {% set _so_status_kr = {
   'DRAFT':'임시',
   'CONFIRMED':'수주확정',
+  'IN_PRODUCTION':'진행중',
+  'READY_TO_SHIP':'납품대기',
   'SHIPPED':'납품완료',
   'INVOICED':'송장발행',
   'PAID':'수금완료',
@@ -23,10 +25,12 @@
            background:#e5e7eb; color:#374151; }
 .so-pill .en { font-size:.95em; }
 .so-pill .kr { font-size:.85em; opacity:.85; font-weight:600; margin-top:1px; }
-.so-pill-confirmed { background:#fef0c7; color:#7c2d12; }
-.so-pill-draft     { background:#e5e7eb; color:#374151; }
-.so-pill-shipped   { background:#dbeafe; color:#1e3a8a; }
-.so-pill-invoiced  { background:#ede9fe; color:#5b21b6; }
-.so-pill-paid      { background:#d1fae5; color:#065f46; }
-.so-pill-cancelled { background:#fee2e2; color:#991b1b; }
+.so-pill-confirmed     { background:#fef0c7; color:#7c2d12; }
+.so-pill-in_production { background:#fef3c7; color:#7c4a03; }
+.so-pill-ready_to_ship { background:#fed7aa; color:#7c2d12; }
+.so-pill-draft         { background:#e5e7eb; color:#374151; }
+.so-pill-shipped       { background:#dbeafe; color:#1e3a8a; }
+.so-pill-invoiced      { background:#ede9fe; color:#5b21b6; }
+.so-pill-paid          { background:#d1fae5; color:#065f46; }
+.so-pill-cancelled     { background:#fee2e2; color:#991b1b; }
 </style>

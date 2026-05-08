@@ -944,7 +944,7 @@ PROJECT_TO_UNIT_STATUS = {
     "보류":     "보류",
 }
 PROJECT_TO_SO_STATUS = {
-    "진행중":   "CONFIRMED",
+    "진행중":   "IN_PRODUCTION",  # v5H226y: CONFIRMED 는 transient (수주발행 직후), 진행중 = IN_PRODUCTION 이 의미상 일치
     "납품완료": "SHIPPED",
     "취소":     "CANCELLED",
     "보류":     None,  # 보류는 SO 자체 상태 변경 안함
