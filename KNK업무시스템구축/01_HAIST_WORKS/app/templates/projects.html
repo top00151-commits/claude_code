@@ -41,6 +41,14 @@
     {% if q or biz_div or status or project_type %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
+  {# v5H226o: 페이지 안내 — 모든 단계의 프로젝트가 섞여 있어 수주액/발주일 등은 변경될 수 있음 #}
+  <div style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef9e6;border:1px solid #f0d97a;border-left:4px solid #d4b75a;border-radius:6px;font-size:12.5px;line-height:1.65;color:#5a4a00;">
+    ⓘ 이 목록은 <b>초기협의·제안서전달·견적발행·수주예정·수주확정·진행중·납품완료·취소·보류</b> 모든 단계의 프로젝트를 함께 보여줍니다.
+    <span style="color:#7c4a03;">수주확정 전 항목의 <b>수주액·발주일·납기·단가</b>는 견적/제안 단계 임시값으로 추후 변경될 수 있습니다.</span>
+    <span style="color:#7c4a03;">관리코드 <code style="font-family:Consolas,monospace;background:#fff;padding:1px 5px;border-radius:3px;">None</code> 은 수주확정 전이라 아직 발급 안 된 상태입니다.</span>
+    행 클릭 시 해당 프로젝트 상세 화면으로 이동합니다.
+  </div>
+
   {# v5H179: 다건 선택 삭제 툴바 — 체크박스 1개라도 선택되면 노출 #}
   {% if can_sales_del %}
   <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:20;margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fff7e0;border:1px solid var(--amber);border-radius:8px;align-items:center;gap:14px;">
