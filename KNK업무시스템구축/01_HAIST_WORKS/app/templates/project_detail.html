@@ -74,24 +74,26 @@ table.so-units.parts-excel .row-toggle:hover { color: var(--knk-red); }
 .parts-col-toggle button:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .parts-col-toggle button.reset { margin-left: auto; background: #fff; color: #555; border-color: #ccc; }
 
-/* v5H226z11: SO 카드 풀스크린 팝업 */
+/* v5H226z11/z12: SO 카드 풀스크린 팝업 — 모니터 최대 크기 */
 .so-card.so-fullscreen {
   position: fixed !important;
-  inset: 3vh 3vw;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
   z-index: 9990;
   background: #fff;
   box-shadow: 0 12px 50px rgba(0,0,0,0.35);
   overflow: auto;
-  border: 2px solid #b07a18;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 0;
   margin: 0 !important;
+  padding: 14px 18px !important;
 }
 body.so-fs-on { overflow: hidden; }
-body.so-fs-on::before {
-  content: ''; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9985;
-}
-/* 풀스크린 상태에선 max-height 박스 더 크게 (행 더 많이 보이게) */
-.so-card.so-fullscreen .so-units-wrapper { max-height: calc(94vh - 200px) !important; }
+/* 풀스크린 상태에선 max-height 박스를 viewport 기준 최대로 (header + chip 영역만 빼고) */
+.so-card.so-fullscreen .so-units-wrapper { max-height: calc(100vh - 200px) !important; }
+/* 풀스크린에선 SO 카드 내부 콘텐츠가 화면 전체 폭 사용 — 가로 스크롤 영역도 viewport 폭 #1 */
+.so-card.so-fullscreen > div { max-width: 100% !important; }
 .so-fs-btn {
   padding: 4px 10px; border: 1px solid #b07a18; border-radius: 5px;
   background: #fff7e0; color: #7c4a03; font-size: 12px; font-weight: 700;
@@ -2135,10 +2137,32 @@ body.so-fs-on::before {
       document.body.classList.toggle('so-fs-on', on);
       btn.textContent = on ? '🗙 작게 보기' : '🔍 크게 보기';
       if (on) {
-        // 스크롤 맨 위로
         card.scrollTop = 0;
+        // v5H226z12: Fullscreen API — 모니터 최대 크기 (브라우저 탭/URL 바도 사라짐, F11 효과)
+        if (card.requestFullscreen) {
+          card.requestFullscreen().catch(() => {});
+        } else if (card.webkitRequestFullscreen) {
+          card.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
       }
     });
+  });
+  // Fullscreen API 가 외부에서 종료되면(예: 브라우저 ESC) 클래스도 동기화
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      document.querySelectorAll('.so-card.so-fullscreen').forEach(card => {
+        card.classList.remove('so-fullscreen');
+        const btn = card.querySelector('.so-fs-btn');
+        if (btn) btn.textContent = '🔍 크게 보기';
+      });
+      document.body.classList.remove('so-fs-on');
+    }
   });
   // ESC 로 풀스크린 해제
   document.addEventListener('keydown', e => {
