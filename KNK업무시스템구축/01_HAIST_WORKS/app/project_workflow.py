@@ -880,7 +880,13 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "image_path", "image_thumb_path",  # v5H226e: 소모품 라인 이미지
                        "linked_project_id",               # v5H226g: 소모품 라인 → 장비 매칭
                        "maker", "origin", "box_no", "spec", "arrival_status",  # v5H226z: 정식 PACKING LIST
-                       "supplier", "unit"):  # v5H226z4: 업체명/단위 별도
+                       "supplier", "unit",  # v5H226z4: 업체명/단위 별도
+                       # v5H226z5: 통관 컬럼
+                       "hs_code", "duty_rate", "vat_rate",
+                       "invoice_unit_price", "invoice_amount",
+                       "invoice_unit_price_usd", "invoice_amount_usd",
+                       "duty_krw", "duty_usd", "final_amount_usd",
+                       "description", "pallet_size", "weight_kg"):
                 if _c in oicols: sel_extra.append(_c)
             sel_extra_sql = (", " + ", ".join("oi." + _c for _c in sel_extra)) if sel_extra else ""
             # v5H226g: linked_project_id → projects.mgmt_code/name 자동 JOIN (소모품 행 표시용)

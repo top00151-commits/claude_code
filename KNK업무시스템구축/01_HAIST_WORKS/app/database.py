@@ -2412,6 +2412,20 @@ def init_db():
                 # v5H226z4: 업체명(supplier) + 단위(unit) 별도 컬럼화
                 ("supplier",         "ALTER TABLE order_items ADD COLUMN supplier TEXT"),
                 ("unit",             "ALTER TABLE order_items ADD COLUMN unit TEXT"),
+                # v5H226z5: 정식 PACKING LIST 통관 컬럼 — HS CODE/DUTY/VAT/인보이스/관세/최종/상세/PALLET/중량
+                ("hs_code",                "ALTER TABLE order_items ADD COLUMN hs_code TEXT"),
+                ("duty_rate",              "ALTER TABLE order_items ADD COLUMN duty_rate REAL"),
+                ("vat_rate",               "ALTER TABLE order_items ADD COLUMN vat_rate REAL"),
+                ("invoice_unit_price",     "ALTER TABLE order_items ADD COLUMN invoice_unit_price REAL"),
+                ("invoice_amount",         "ALTER TABLE order_items ADD COLUMN invoice_amount REAL"),
+                ("invoice_unit_price_usd", "ALTER TABLE order_items ADD COLUMN invoice_unit_price_usd REAL"),
+                ("invoice_amount_usd",     "ALTER TABLE order_items ADD COLUMN invoice_amount_usd REAL"),
+                ("duty_krw",               "ALTER TABLE order_items ADD COLUMN duty_krw REAL"),
+                ("duty_usd",               "ALTER TABLE order_items ADD COLUMN duty_usd REAL"),
+                ("final_amount_usd",       "ALTER TABLE order_items ADD COLUMN final_amount_usd REAL"),
+                ("description",            "ALTER TABLE order_items ADD COLUMN description TEXT"),
+                ("pallet_size",            "ALTER TABLE order_items ADD COLUMN pallet_size TEXT"),
+                ("weight_kg",              "ALTER TABLE order_items ADD COLUMN weight_kg REAL"),
             ]:
                 if col not in oicols:
                     try:

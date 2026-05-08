@@ -5476,13 +5476,37 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     # → 다운로드한 파일을 그대로(또는 편집 후) 다시 업로드해도 자동 매칭됨
     # CONSUMABLE: A~H 는 파서 자동 인식 컬럼, I~P 는 추가 정보 (파서 무시)
     if is_parts:
-        # v5H226z: 정식 PACKING LIST 양식 — 원본 엑셀 헤더 그대로 반영
-        # (회사 표준 양식 '정식 통관 품목 목록.xlsx' 기준)
-        headers = ["사진", "순번", "관리코드", "수주번호", "BOX번호",
-                   "품명", "규격", "메이커", "업체명", "단위",
-                   "원산지", "출고수량", "단가\n(VAT 별도)", "금액\n(VAT 별도)",
-                   "입고 일정",
-                   "통화", "상태", "비고"]
+        # v5H226z/z5: 정식 PACKING LIST — 원본 엑셀 28컬럼 헤더 그대로 반영
+        headers = [
+            "사진",                          # A
+            "순번",                          # B
+            "관리코드",                      # C
+            "수주번호",                      # D
+            "BOX번호",                       # E
+            "품명",                          # F
+            "규격",                          # G
+            "메이커",                        # H
+            "업체명",                        # I
+            "단위",                          # J
+            "원산지",                        # K
+            "출고수량",                      # L
+            "단가\n(VAT 별도)",              # M
+            "금액\n(VAT 별도)",              # N
+            "입고 일정",                     # O
+            "HS CODE",                       # P
+            "DUTY",                          # Q
+            "VAT",                           # R
+            "인보이스 단가\n(VAT 별도)",     # S
+            "인보이스 금액\n(VAT 별도)",     # T
+            "인보이스 단가\n(USD)",          # U
+            "인보이스 금액\n(USD)",          # V
+            "관세\n(KRW)",                   # W
+            "관세\n(USD)",                   # X
+            "최종 금액\n(USD)",              # Y
+            "상세 내용",                     # Z
+            "PALLET SIZE\n(가로*세로*높이)", # AA
+            "중량\n(kg)",                    # AB
+        ]
     elif is_co:
         headers = ["사진",
                    "NO",
@@ -5516,7 +5540,7 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                    "", f"상태: {srow['status'] or '-'}"])
         ws.append([f"수주 총액: {float(srow['total_amount'] or 0):,.0f} {so_ccy}",
                    f"라인 수: {len(items)}건"])
-        ws.append(["⚠ 헤더 행(5행)은 변경하지 마세요. 순번/관리코드/품명/규격/메이커/원산지/출고수량/단가 자동 인식. 라인만 추가/수정."])
+        ws.append(["⚠ 헤더 행(5행)은 변경하지 마세요. 28컬럼 자동 인식 (순번/관리코드/품명/규격/메이커/업체명/원산지/수량/단가/금액/입고일정/HS CODE/DUTY/VAT/인보이스(KRW·USD)/관세(KRW·USD)/최종 USD/상세/PALLET/중량). 라인만 추가/수정."])
         ws.append([])  # 빈 줄
     elif is_co:
         ws.append(["KNK HAIST WORKS — 소모품 발주 표준 양식"])
@@ -5578,27 +5602,36 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         iex_label = "수출" if iex_raw == 1 else "내수"
         ust = it.get("unit_status") or "진행중"
         if is_parts:
-            # v5H226z: 정식 PACKING LIST (사진/순번/관리코드/수주번호/BOX/품명/규격/메이커/
-            #          업체명/단위/원산지/출고수량/단가/금액/입고일정/통화/상태/비고)
+            # v5H226z/z5: 정식 PACKING LIST 28컬럼 풀
             row = [
-                "",                                       # A: 사진
-                idx,                                      # B: 순번
-                prow["mgmt_code"] or "",                  # C: 관리코드 (장비 코드 그대로)
-                srow["order_no"] or "",                   # D: 수주번호
-                it.get("box_no") or "",                   # E: BOX번호
-                it.get("unit_label") or "",               # F: 품명
-                it.get("spec") or "",                     # G: 규격
-                it.get("maker") or "",                    # H: 메이커
-                it.get("supplier") or "",                 # I: 업체명 (v5H226z4: 별도 컬럼)
-                it.get("unit") or "EA",                   # J: 단위 (v5H226z4: 별도 컬럼)
-                it.get("origin") or "",                   # K: 원산지
-                float(it.get("qty") or 0),                # L: 출고수량
-                float(it.get("unit_price") or 0),         # M: 단가
-                float(it.get("amount") or 0),             # N: 금액
-                it.get("arrival_status") or "",           # O: 입고일정
-                eff_ccy,                                  # P: 통화
-                ust,                                      # Q: 상태
-                it.get("line_note") or "",                # R: 비고
+                "",                                          # A: 사진
+                idx,                                         # B: 순번
+                prow["mgmt_code"] or "",                     # C: 관리코드
+                srow["order_no"] or "",                      # D: 수주번호
+                it.get("box_no") or "",                      # E: BOX번호
+                it.get("unit_label") or "",                  # F: 품명
+                it.get("spec") or "",                        # G: 규격
+                it.get("maker") or "",                       # H: 메이커
+                it.get("supplier") or "",                    # I: 업체명
+                it.get("unit") or "EA",                      # J: 단위
+                it.get("origin") or "",                      # K: 원산지
+                float(it.get("qty") or 0),                   # L: 출고수량
+                float(it.get("unit_price") or 0),            # M: 단가(VAT 별도)
+                float(it.get("amount") or 0),                # N: 금액(VAT 별도)
+                it.get("arrival_status") or "",              # O: 입고 일정
+                it.get("hs_code") or "",                     # P: HS CODE
+                float(it.get("duty_rate") or 0) if it.get("duty_rate") not in (None, "") else "",  # Q: DUTY
+                float(it.get("vat_rate") or 0) if it.get("vat_rate") not in (None, "") else "",    # R: VAT
+                float(it.get("invoice_unit_price") or 0) if it.get("invoice_unit_price") not in (None, "") else "",   # S
+                float(it.get("invoice_amount") or 0) if it.get("invoice_amount") not in (None, "") else "",           # T
+                float(it.get("invoice_unit_price_usd") or 0) if it.get("invoice_unit_price_usd") not in (None, "") else "",  # U
+                float(it.get("invoice_amount_usd") or 0) if it.get("invoice_amount_usd") not in (None, "") else "",   # V
+                float(it.get("duty_krw") or 0) if it.get("duty_krw") not in (None, "") else "",   # W
+                float(it.get("duty_usd") or 0) if it.get("duty_usd") not in (None, "") else "",   # X
+                float(it.get("final_amount_usd") or 0) if it.get("final_amount_usd") not in (None, "") else "",  # Y
+                it.get("description") or "",                 # Z
+                it.get("pallet_size") or "",                 # AA
+                float(it.get("weight_kg") or 0) if it.get("weight_kg") not in (None, "") else "",  # AB
             ]
         elif is_co:
             # v5H226k: 파서 인식 컬럼 순서 (NO/MODEL USE/SUPPLIER NAME/SPEC/Q'TY/UNIT/ORDER DATE)
@@ -5642,7 +5675,11 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     # 컬럼 폭. v5H226k: CONSUMABLE / v5H226z: PARTS
     widths_co = [12, 5, 18, 30, 16, 8, 8, 13, 12, 14, 8, 8, 13, 18, 10, 28]
     widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
-    widths_parts = [12, 5, 14, 14, 8, 28, 18, 14, 14, 6, 10, 9, 12, 14, 14, 8, 10, 24]
+    # v5H226z5: 28컬럼 (사진/순번/관리코드/수주번호/BOX/품명/규격/메이커/업체명/단위/원산지/
+    #          출고수량/단가/금액/입고일정/HS/DUTY/VAT/인보이스(KRW단가/금액)/(USD단가/금액)/
+    #          관세(KRW)/관세(USD)/최종USD/상세/PALLET/중량)
+    widths_parts = [12, 5, 13, 14, 7, 26, 18, 12, 12, 6, 10, 9, 12, 14, 13,
+                    11, 7, 7, 13, 13, 13, 13, 12, 12, 13, 22, 14, 9]
     if is_parts:
         widths = widths_parts
     elif is_co:
@@ -5653,7 +5690,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[_gcl(i)].width = w
     # 숫자 포맷
-    # PARTS: L=출고수량, M=단가, N=금액 (12,13,14)
+    # PARTS: L=출고수량(12), M=단가(13), N=금액(14), 추가 숫자: Q DUTY(17), R VAT(18),
+    #        S~V 인보이스(19~22), W,X 관세(23,24), Y 최종USD(25), AB 중량(28)
     # CONSUMABLE: F=qty, I=unit_price, J=amount (6,9,10)
     # EQ: C=qty, D=unit_price, E=amount (3,4,5)
     if is_parts:
@@ -5666,6 +5704,21 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         for c_idx in (price_col, amount_col):
             ws.cell(r, c_idx).number_format = '#,##0'
         ws.cell(r, qty_col).number_format = '#,##0.##'
+        # v5H226z5: 추가 숫자 컬럼 포맷
+        if is_parts:
+            # DUTY/VAT 는 비율 (0.1 = 10%) — 소수 표시
+            for c_idx in (17, 18):
+                ws.cell(r, c_idx).number_format = '0.0%'
+            # 인보이스 KRW 단가/금액 (정수)
+            for c_idx in (19, 20):
+                ws.cell(r, c_idx).number_format = '#,##0'
+            # 인보이스 USD 단가/금액 (소수 2자리)
+            for c_idx in (21, 22, 24, 25):
+                ws.cell(r, c_idx).number_format = '#,##0.00'
+            # 관세 KRW (정수)
+            ws.cell(r, 23).number_format = '#,##0'
+            # 중량 (소수)
+            ws.cell(r, 28).number_format = '#,##0.##'
     # v5H226j/z: CONSUMABLE / PARTS 일 때 썸네일 이미지를 사진 컬럼(A) 에 직접 삽입
     if is_co or is_parts:
         from openpyxl.drawing.image import Image as XLImage
@@ -5975,6 +6028,25 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
         ("amount",      ["금액", "AMOUNT", "TOTALPRICE", "TOTAL"]),
         # 입고 일정 (공백 포함 원본) / 입고일정 / ARRIVAL DATE / ETA 등
         ("arrival_status", ["입고일정", "입고", "ARRIVAL", "ETA", "DELIVERY"]),
+        # v5H226z5: 통관 (정식 PACKING LIST 추가 컬럼)
+        ("hs_code",                ["HSCODE", "HS코드", "HS"]),
+        ("duty_rate",              ["DUTY", "관세율"]),
+        ("vat_rate",               ["VAT", "부가세율"]),
+        # 인보이스 단가/금액 (KRW VAT 별도)
+        ("invoice_unit_price",     ["인보이스단가(VAT별도)", "인보이스단가(VAT", "인보이스단가KRW", "INVOICEUNITPRICEKRW"]),
+        ("invoice_amount",         ["인보이스금액(VAT별도)", "인보이스금액(VAT", "인보이스금액KRW", "INVOICEAMOUNTKRW"]),
+        # 인보이스 단가/금액 (USD)
+        ("invoice_unit_price_usd", ["인보이스단가(USD)", "인보이스단가USD", "INVOICEPRICEUSD"]),
+        ("invoice_amount_usd",     ["인보이스금액(USD)", "인보이스금액USD", "INVOICEAMOUNTUSD"]),
+        # 관세 (KRW/USD)
+        ("duty_krw",               ["관세KRW", "관세(KRW)", "관세원"]),
+        ("duty_usd",               ["관세USD", "관세(USD)", "관세달러"]),
+        # 최종 금액 USD (인보이스+관세)
+        ("final_amount_usd",       ["최종금액USD", "최종금액", "FINALUSD", "TOTALUSD"]),
+        # 상세 내용 / PALLET / 중량
+        ("description",            ["상세내용", "DETAIL", "DESCRIPTION", "REMARK", "비고"]),
+        ("pallet_size",            ["PALLETSIZE", "PALLET", "팔레트", "팔렛"]),
+        ("weight_kg",              ["중량KG", "중량", "WEIGHT", "GROSSWEIGHT", "G/W"]),
     ]
     def _norm(s):
         if s is None: return ""
@@ -6003,6 +6075,21 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
     if best_row == 0 or "part_name" not in best_map:
         return {"lines": [], "header_row": 0, "col_map": {},
                 "error": "헤더를 찾지 못했습니다 (품명/수량 컬럼이 1~10행 안에 있어야 합니다)"}
+    # v5H226z5: 병합된 헤더 셀 처리 — '관세(KRW) (USD)' 같이 한 셀에 KRW/USD 합쳐진 경우
+    # duty_krw 만 매핑되고 duty_usd 가 누락됐을 때 → 다음 컬럼이 비어있으면 duty_usd 로 추정
+    if "duty_krw" in best_map and "duty_usd" not in best_map:
+        _next_col = best_map["duty_krw"] + 1
+        _next_v = _norm(ws.cell(best_row, _next_col).value)
+        if not _next_v:  # 병합된 빈 헤더 — USD 라고 추정
+            best_map["duty_usd"] = _next_col
+    # v5H226z5: 다른 KRW/USD 페어도 동일 처리 (인보이스 단가/금액)
+    for _krw_key, _usd_key in [("invoice_unit_price", "invoice_unit_price_usd"),
+                                ("invoice_amount", "invoice_amount_usd")]:
+        if _krw_key in best_map and _usd_key not in best_map:
+            _next_col = best_map[_krw_key] + 1
+            _next_v = _norm(ws.cell(best_row, _next_col).value)
+            if not _next_v:
+                best_map[_usd_key] = _next_col
     pn_col = best_map["part_name"]
     lines = []
     line_no = 0
@@ -6034,6 +6121,20 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
             "amount":    gnum("amount"),
             "arrival_status": (str(gv("arrival_status") or "").strip()),
             "mgmt_code": (str(gv("mgmt_code") or "").strip()),
+            # v5H226z5: 통관 (HS CODE / DUTY / VAT / 인보이스 / 관세 / 최종 / 상세 / PALLET / 중량)
+            "hs_code":   (str(gv("hs_code") or "").strip()),
+            "duty_rate": gnum("duty_rate"),
+            "vat_rate":  gnum("vat_rate"),
+            "invoice_unit_price":     gnum("invoice_unit_price"),
+            "invoice_amount":         gnum("invoice_amount"),
+            "invoice_unit_price_usd": gnum("invoice_unit_price_usd"),
+            "invoice_amount_usd":     gnum("invoice_amount_usd"),
+            "duty_krw":         gnum("duty_krw"),
+            "duty_usd":         gnum("duty_usd"),
+            "final_amount_usd": gnum("final_amount_usd"),
+            "description":      (str(gv("description") or "").strip()),
+            "pallet_size":      (str(gv("pallet_size") or "").strip()),
+            "weight_kg":        gnum("weight_kg"),
         })
     return {"lines": lines, "header_row": best_row, "col_map": best_map}
 
@@ -6114,6 +6215,7 @@ async def projects_import_parts_parse(req: Request, pid: int,
             "part_name": ln["part_name"],
             "spec": ln["spec"],
             "maker": ln["maker"],
+            "supplier": ln["supplier"],
             "origin": ln["origin"],
             "box_no": ln["box_no"],
             "qty": ln["qty"],
@@ -6122,6 +6224,20 @@ async def projects_import_parts_parse(req: Request, pid: int,
             "amount": ln["amount"],
             "arrival_status": ln["arrival_status"],
             "mgmt_code": ln["mgmt_code"],
+            # v5H226z5: 통관 메타
+            "hs_code":  ln.get("hs_code", ""),
+            "duty_rate": ln.get("duty_rate", 0),
+            "vat_rate":  ln.get("vat_rate", 0),
+            "invoice_unit_price":     ln.get("invoice_unit_price", 0),
+            "invoice_amount":         ln.get("invoice_amount", 0),
+            "invoice_unit_price_usd": ln.get("invoice_unit_price_usd", 0),
+            "invoice_amount_usd":     ln.get("invoice_amount_usd", 0),
+            "duty_krw":         ln.get("duty_krw", 0),
+            "duty_usd":         ln.get("duty_usd", 0),
+            "final_amount_usd": ln.get("final_amount_usd", 0),
+            "description":      ln.get("description", ""),
+            "pallet_size":      ln.get("pallet_size", ""),
+            "weight_kg":        ln.get("weight_kg", 0),
             "image_file": img_full,
             "image_thumb_file": img_thumb,
         })
@@ -6177,7 +6293,7 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                         "unit_price", "amount", "unit_status"]
                 vals = [so_id, (r.get("part_name") or "").strip(),
                         qty, up, amt, "진행중"]
-                # v5H226z 부품 메타 / v5H226z4: supplier/unit 별도 컬럼
+                # v5H226z 부품 메타 / v5H226z4: supplier/unit / v5H226z5: 통관
                 _img_pref = f"/uploads/consumables/proj_{pid}/"
                 _meta_cols = [
                     ("maker", r.get("maker")),
@@ -6185,9 +6301,23 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                     ("box_no", r.get("box_no")),
                     ("spec", r.get("spec")),
                     ("arrival_status", r.get("arrival_status")),
-                    ("supplier", r.get("supplier")),  # v5H226z4: 업체명 별도
-                    ("unit", r.get("unit") or "EA"),  # v5H226z4: 단위 별도
+                    ("supplier", r.get("supplier")),
+                    ("unit", r.get("unit") or "EA"),
                     ("currency", so["currency"] or "KRW"),
+                    # v5H226z5: 통관 메타 (정식 PACKING LIST 추가 컬럼)
+                    ("hs_code",                r.get("hs_code")),
+                    ("duty_rate",              r.get("duty_rate")),
+                    ("vat_rate",               r.get("vat_rate")),
+                    ("invoice_unit_price",     r.get("invoice_unit_price")),
+                    ("invoice_amount",         r.get("invoice_amount")),
+                    ("invoice_unit_price_usd", r.get("invoice_unit_price_usd")),
+                    ("invoice_amount_usd",     r.get("invoice_amount_usd")),
+                    ("duty_krw",               r.get("duty_krw")),
+                    ("duty_usd",               r.get("duty_usd")),
+                    ("final_amount_usd",       r.get("final_amount_usd")),
+                    ("description",            r.get("description")),
+                    ("pallet_size",            r.get("pallet_size")),
+                    ("weight_kg",              r.get("weight_kg")),
                 ]
                 for col_name, col_val in _meta_cols:
                     if col_name in oicols and col_val not in (None, ""):
