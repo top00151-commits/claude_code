@@ -4,6 +4,8 @@
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+/* v5H226z7: 그리드 아이템이 자식(넓은 PARTS 표) min-width 에 의해 늘어나는 것 방지 */
+.detail-grid > * { min-width: 0; }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
@@ -655,9 +657,13 @@
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {# v5H226z: 부품 형태 출고 (정식 PACKING LIST) — SO 단위 so_type 또는 프로젝트 shipment_form 으로 판별 #}
             {% set _is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
-            {# v5H226z6: PARTS 일 때 28컬럼이라 가로 스크롤 활성 #}
-            <div style="{% if _is_parts %}overflow-x:auto;max-width:100%;{% endif %}">
-            <table class="so-units"{% if _is_parts %} style="min-width:2400px;"{% endif %}>
+            {# v5H226z6/z7: PARTS 일 때 28컬럼이라 가로 스크롤 — SO 카드 안에서만 #}
+            {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
+            {# (1) 가로 스크롤 wrapper 에 width:100%/overflow:hidden 명시 → 자식이 부모를 못 늘림 #}
+            {# (2) inner wrapper 가 실제 overflow-x:auto + 표 자체는 자연 폭 #}
+            <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
+              <div{% if _is_parts %} style="overflow-x:auto;max-width:100%;"{% endif %}>
+            <table class="so-units"{% if _is_parts %} style="white-space:nowrap;"{% endif %}>
               <thead>
                 <tr>
                   {% if _is_co or _is_parts %}<th style="width:60px;">사진</th>{% endif %}
@@ -889,7 +895,8 @@
                 {% endfor %}
               </tbody>
             </table>
-            </div>{# /so-units 가로 스크롤 wrapper #}
+              </div>{# /inner overflow-x:auto #}
+            </div>{# /outer width:100%;overflow:hidden — 부모 늘어남 방지 #}
             <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
               ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
               · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
