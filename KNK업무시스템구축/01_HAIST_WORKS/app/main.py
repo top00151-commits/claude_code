@@ -5476,10 +5476,12 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     # → 다운로드한 파일을 그대로(또는 편집 후) 다시 업로드해도 자동 매칭됨
     # CONSUMABLE: A~H 는 파서 자동 인식 컬럼, I~P 는 추가 정보 (파서 무시)
     if is_parts:
-        # v5H226z: 정식 PACKING LIST 양식 (회사 표준)
+        # v5H226z: 정식 PACKING LIST 양식 — 원본 엑셀 헤더 그대로 반영
+        # (회사 표준 양식 '정식 통관 품목 목록.xlsx' 기준)
         headers = ["사진", "순번", "관리코드", "수주번호", "BOX번호",
                    "품명", "규격", "메이커", "업체명", "단위",
-                   "원산지", "출고수량", "단가", "금액", "입고일정",
+                   "원산지", "출고수량", "단가\n(VAT 별도)", "금액\n(VAT 별도)",
+                   "입고 일정",
                    "통화", "상태", "비고"]
     elif is_co:
         headers = ["사진",
@@ -5549,8 +5551,12 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         cell = ws.cell(hdr_row_idx, col_i)
         cell.fill = hdr_fill
         cell.font = hdr_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+        # v5H226z2: 줄바꿈 헤더 (단가\n(VAT 별도) 등) wrap 활성화
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = border
+    # 헤더 행 높이 — PARTS 는 줄바꿈 헤더가 있어 더 크게
+    if is_parts:
+        ws.row_dimensions[hdr_row_idx].height = 32
     # v5H226k/z: 메타 영역 셀 스타일 (CONSUMABLE / PARTS)
     if is_co or is_parts:
         title_cell = ws.cell(1, 1)
@@ -5949,21 +5955,26 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
                               단위/원산지/출고수량(수량)/단가/금액/입고일정"""
     from openpyxl import load_workbook
     import re as _re_pl
+    # v5H226z2: 헤더 키워드 보강 — 원본 엑셀 표기(단가(VAT 별도) / 입고 일정 / 줄바꿈) 흡수
+    # _norm() 가 공백·줄바꿈 제거 + 대문자화 → 키워드도 동일 정규화 후 부분일치
     HEADER_KEYS = [
-        ("no",          ["순번", "NO", "번호"]),
-        ("mgmt_code",   ["관리코드", "MGMTCODE"]),
-        ("order_no",    ["수주번호", "ORDERNO", "SO번호"]),
-        ("box_no",      ["BOX번호", "BOX"]),
-        ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME"]),
-        ("spec",        ["규격", "SPEC", "MODEL"]),
-        ("maker",       ["메이커", "MAKER", "BRAND"]),
-        ("supplier",    ["업체명", "SUPPLIER", "VENDOR"]),
-        ("unit",        ["단위", "UNIT"]),
-        ("origin",      ["원산지", "ORIGIN", "MADEIN"]),
-        ("qty",         ["출고수량", "수량", "Q'TY", "QTY"]),
-        ("unit_price",  ["단가", "UNITPRICE", "PRICE"]),
-        ("amount",      ["금액", "AMOUNT"]),
-        ("arrival_status", ["입고일정", "입고", "ARRIVAL"]),
+        ("no",          ["순번", "NO", "번호", "ITEMNO", "SEQ"]),
+        ("mgmt_code",   ["관리코드", "관리번호", "MGMTCODE", "MGMT", "MNGCODE"]),
+        ("order_no",    ["수주번호", "수주No", "ORDERNO", "SO번호", "PO번호", "PONO"]),
+        ("box_no",      ["BOX번호", "BOXNO", "BOX", "포장번호", "PALLET"]),
+        ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME", "DESCRIPTION", "PRODUCT"]),
+        ("spec",        ["규격", "SPEC", "MODEL", "SPECIFICATION", "SIZE"]),
+        ("maker",       ["메이커", "MAKER", "BRAND", "제조사", "MANUFACTURER", "MFR"]),
+        ("supplier",    ["업체명", "SUPPLIER", "VENDOR", "공급사", "거래처"]),
+        ("unit",        ["단위", "UNIT", "UOM"]),
+        ("origin",      ["원산지", "ORIGIN", "MADEIN", "MADE IN", "COO", "COUNTRYOFORIGIN"]),
+        # 출고수량/수량 — '단가/금액' 보다 먼저 평가되어 '수량' substring 충돌 회피
+        ("qty",         ["출고수량", "수량", "Q'TY", "QTY", "QUANTITY", "EA"]),
+        # 단가/금액 — VAT 별도 등 부속 텍스트 포함된 셀과 매칭. 'PRICE' 도 흡수
+        ("unit_price",  ["단가", "UNITPRICE", "UNIT PRICE", "PRICE", "U/PRICE", "UPRICE"]),
+        ("amount",      ["금액", "AMOUNT", "TOTALPRICE", "TOTAL"]),
+        # 입고 일정 (공백 포함 원본) / 입고일정 / ARRIVAL DATE / ETA 등
+        ("arrival_status", ["입고일정", "입고", "ARRIVAL", "ETA", "DELIVERY"]),
     ]
     def _norm(s):
         if s is None: return ""
