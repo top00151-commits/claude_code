@@ -774,7 +774,7 @@ body.so-fs-on { overflow: hidden; }
               {# v5H226z8/z15: PARTS 표 — max-height 를 viewport - 페이지 상단 영역 만큼만 #}
               {# 가로 스크롤바가 항상 화면 하단에 보이도록 (표가 화면 밖으로 안 나감) #}
               <div{% if _is_parts %} class="so-units-wrapper" style="overflow:auto;max-width:100%;max-height:calc(100vh - 480px);min-height:240px;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
-            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;"{% endif %}>
+            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:2500px;table-layout:fixed;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
