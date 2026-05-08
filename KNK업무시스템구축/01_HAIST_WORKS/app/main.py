@@ -5428,14 +5428,19 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     from io import BytesIO
     with db_session() as c:
         prow = c.execute(
-            "SELECT id, mgmt_code, name, project_type, currency FROM projects WHERE id=?",
+            "SELECT id, mgmt_code, name, project_type, currency, "
+            "       COALESCE(shipment_form,'ASSEMBLY') AS shipment_form "
+            "FROM projects WHERE id=?",
             (pid,)
         ).fetchone()
         if not prow:
             return PlainTextResponse("프로젝트 없음", 404)
+        # v5H226z: SO 컬럼에 so_type 동적 포함 (백워드 호환)
+        _ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        _so_type_col = ", COALESCE(so_type,'EQUIPMENT') AS so_type" if "so_type" in _ord_cols else ", 'EQUIPMENT' AS so_type"
         srow = c.execute(
-            "SELECT id, order_no, order_date, due_date, ship_to, currency, total_amount, status "
-            "FROM orders WHERE id=? AND project_id=?",
+            f"SELECT id, order_no, order_date, due_date, ship_to, currency, total_amount, status{_so_type_col} "
+            f"FROM orders WHERE id=? AND project_id=?",
             (so_id, pid)
         ).fetchone()
         if not srow:
@@ -5444,7 +5449,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         sel_extra = []
         for col in ("unit_label", "line_note", "order_date", "due_date", "ship_to",
                     "currency", "unit_status", "is_export", "image_path",
-                    "image_thumb_path", "linked_project_id"):
+                    "image_thumb_path", "linked_project_id",
+                    "maker", "origin", "box_no", "spec", "arrival_status"):  # v5H226z: PARTS
             if col in oicols:
                 sel_extra.append(col)
         sel_extra_sql = (", " + ", ".join("oi." + x for x in sel_extra)) if sel_extra else ""
@@ -5460,6 +5466,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
             (so_id,)
         ).fetchall()]
     is_co = (prow["project_type"] or "").upper() == "CONSUMABLE"
+    # v5H226z: 부품 수출 (정식 PACKING LIST) — so_type 또는 프로젝트 shipment_form 으로 판별
+    is_parts = ((srow["so_type"] or "").upper() == "PARTS_EXPORT") or ((prow["shipment_form"] or "").upper() == "PARTS")
     so_ccy = srow["currency"] or prow["currency"] or "KRW"
     so_ord = srow["order_date"] or ""
     so_due = srow["due_date"] or ""
@@ -5467,7 +5475,13 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     # v5H226k: 헤더를 파서(parse_consumable_xlsx) 가 인식하는 키워드로 정렬
     # → 다운로드한 파일을 그대로(또는 편집 후) 다시 업로드해도 자동 매칭됨
     # CONSUMABLE: A~H 는 파서 자동 인식 컬럼, I~P 는 추가 정보 (파서 무시)
-    if is_co:
+    if is_parts:
+        # v5H226z: 정식 PACKING LIST 양식 (회사 표준)
+        headers = ["사진", "순번", "관리코드", "수주번호", "BOX번호",
+                   "품명", "규격", "메이커", "업체명", "단위",
+                   "원산지", "출고수량", "단가", "금액", "입고일정",
+                   "통화", "상태", "비고"]
+    elif is_co:
         headers = ["사진",
                    "NO",
                    "MODEL USE (모델)",
@@ -5489,9 +5503,20 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                    "거래", "발주일", "납기일", "납품처", "상태", "비고"]
     wb = Workbook()
     ws = wb.active
-    ws.title = "소모품" if is_co else "수주라인"
-    # v5H226k: 상단 메타 (CONSUMABLE 5줄, 그 외 4줄)
-    if is_co:
+    ws.title = "정식 PACKING LIST" if is_parts else ("소모품" if is_co else "수주라인")
+    # v5H226z: 부품 수출 (정식 PACKING LIST) — KNK 표준 회사 양식 5줄 메타
+    if is_parts:
+        ws.append(["KNK HAIST WORKS — 정식 PACKING LIST"])
+        ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
+                   "", f"프로젝트: {prow['name'] or '-'}",
+                   "", f"수주번호: {srow['order_no'] or '-'}",
+                   "", f"발주일: {so_ord}", "", f"통화: {so_ccy}",
+                   "", f"상태: {srow['status'] or '-'}"])
+        ws.append([f"수주 총액: {float(srow['total_amount'] or 0):,.0f} {so_ccy}",
+                   f"라인 수: {len(items)}건"])
+        ws.append(["⚠ 헤더 행(5행)은 변경하지 마세요. 순번/관리코드/품명/규격/메이커/원산지/출고수량/단가 자동 인식. 라인만 추가/수정."])
+        ws.append([])  # 빈 줄
+    elif is_co:
         ws.append(["KNK HAIST WORKS — 소모품 발주 표준 양식"])
         ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
                    "", f"프로젝트: {prow['name'] or '-'}"])
@@ -5526,8 +5551,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         cell.font = hdr_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = border
-    # v5H226k: 메타 영역 셀 스타일 (CONSUMABLE)
-    if is_co:
+    # v5H226k/z: 메타 영역 셀 스타일 (CONSUMABLE / PARTS)
+    if is_co or is_parts:
         title_cell = ws.cell(1, 1)
         title_cell.font = Font(bold=True, size=14, color="7C4A03", name="Arial")
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
@@ -5546,7 +5571,30 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         iex_raw = it.get("is_export")
         iex_label = "수출" if iex_raw == 1 else "내수"
         ust = it.get("unit_status") or "진행중"
-        if is_co:
+        if is_parts:
+            # v5H226z: 정식 PACKING LIST (사진/순번/관리코드/수주번호/BOX/품명/규격/메이커/
+            #          업체명/단위/원산지/출고수량/단가/금액/입고일정/통화/상태/비고)
+            row = [
+                "",                                       # A: 사진
+                idx,                                      # B: 순번
+                prow["mgmt_code"] or "",                  # C: 관리코드 (장비 코드 그대로)
+                srow["order_no"] or "",                   # D: 수주번호
+                it.get("box_no") or "",                   # E: BOX번호
+                it.get("unit_label") or "",               # F: 품명
+                it.get("spec") or "",                     # G: 규격
+                it.get("maker") or "",                    # H: 메이커
+                "",                                       # I: 업체명 (조달처) — 향후 확장
+                "EA",                                     # J: 단위
+                it.get("origin") or "",                   # K: 원산지
+                float(it.get("qty") or 0),                # L: 출고수량
+                float(it.get("unit_price") or 0),         # M: 단가
+                float(it.get("amount") or 0),             # N: 금액
+                it.get("arrival_status") or "",           # O: 입고일정
+                eff_ccy,                                  # P: 통화
+                ust,                                      # Q: 상태
+                it.get("line_note") or "",                # R: 비고
+            ]
+        elif is_co:
             # v5H226k: 파서 인식 컬럼 순서 (NO/MODEL USE/SUPPLIER NAME/SPEC/Q'TY/UNIT/ORDER DATE)
             #          + 추가 정보 (단가/금액/통화/거래/납기일/납품처/상태/비고)
             # MODEL USE 에는 연결관리코드 우선, 없으면 unit_label 끝의 model 토큰
@@ -5556,7 +5604,7 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                 idx,                                    # B: NO
                 model_field,                            # C: MODEL USE (모델)
                 it.get("unit_label") or "",             # D: SUPPLIER NAME (품명)
-                "",                                     # E: SPEC (규격) — 향후 확장
+                it.get("spec") or "",                   # E: SPEC (규격)
                 float(it.get("qty") or 0),              # F: Q'TY (수량)
                 "EA",                                   # G: UNIT (단위)
                 eff_ord,                                # H: ORDER DATE (발주일)
@@ -5585,17 +5633,26 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                 it.get("line_note") or "",
             ]
         ws.append(row)
-    # 컬럼 폭. v5H226k: CONSUMABLE 새 배치 (A 사진 / B NO / C MODEL USE / D SUPPLIER NAME /
-    # E SPEC / F Q'TY / G UNIT / H ORDER DATE / I 단가 / J 금액 / K 통화 / L 거래 /
-    # M 납기일 / N 납품처 / O 상태 / P 비고)
+    # 컬럼 폭. v5H226k: CONSUMABLE / v5H226z: PARTS
     widths_co = [12, 5, 18, 30, 16, 8, 8, 13, 12, 14, 8, 8, 13, 18, 10, 28]
     widths_eq = [5, 14, 8, 14, 16, 8, 8, 12, 12, 18, 10, 24]
-    widths = widths_co if is_co else widths_eq
+    widths_parts = [12, 5, 14, 14, 8, 28, 18, 14, 14, 6, 10, 9, 12, 14, 14, 8, 10, 24]
+    if is_parts:
+        widths = widths_parts
+    elif is_co:
+        widths = widths_co
+    else:
+        widths = widths_eq
     from openpyxl.utils import get_column_letter as _gcl
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[_gcl(i)].width = w
-    # 숫자 포맷 (CONSUMABLE: F=qty, I=unit_price, J=amount / 그 외: C=qty, D=unit_price, E=amount)
-    if is_co:
+    # 숫자 포맷
+    # PARTS: L=출고수량, M=단가, N=금액 (12,13,14)
+    # CONSUMABLE: F=qty, I=unit_price, J=amount (6,9,10)
+    # EQ: C=qty, D=unit_price, E=amount (3,4,5)
+    if is_parts:
+        qty_col, price_col, amount_col = 12, 13, 14
+    elif is_co:
         qty_col, price_col, amount_col = 6, 9, 10
     else:
         qty_col, price_col, amount_col = 3, 4, 5
@@ -5603,8 +5660,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         for c_idx in (price_col, amount_col):
             ws.cell(r, c_idx).number_format = '#,##0'
         ws.cell(r, qty_col).number_format = '#,##0.##'
-    # v5H226j: CONSUMABLE 일 때 썸네일 이미지를 사진 컬럼(A) 에 직접 삽입
-    if is_co:
+    # v5H226j/z: CONSUMABLE / PARTS 일 때 썸네일 이미지를 사진 컬럼(A) 에 직접 삽입
+    if is_co or is_parts:
         from openpyxl.drawing.image import Image as XLImage
         from PIL import Image as PILImage
         img_root = os.path.join(BASE, "uploads")
@@ -5874,6 +5931,293 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
                 "VALUES(?,?,?,?,?,?)",
                 (pid, u.get("id"), "엑셀 업로드", "", f"{inserted}건",
                  f"수주번호 #{so_id} 에 라인 {inserted}건 일괄 추가")
+            )
+        except Exception:
+            pass
+    if inserted == 0:
+        return JSONResponse({"ok": False,
+                              "message": f"0건 등록 — DB 오류: {last_err or '알 수 없음'}"}, 500)
+    return JSONResponse({"ok": True, "inserted": inserted})
+
+
+# ============================================================
+# v5H226z: 정식 PACKING LIST (부품 형태 출고) 엑셀 업로드 파서
+# ============================================================
+def _parse_packing_list_xlsx(file_path: str) -> dict:
+    """KNK 정식 PACKING LIST 양식 파서.
+    헤더 키워드 자동 인식: 순번/관리코드/수주번호/BOX/품명/규격/메이커/업체명/
+                              단위/원산지/출고수량(수량)/단가/금액/입고일정"""
+    from openpyxl import load_workbook
+    import re as _re_pl
+    HEADER_KEYS = [
+        ("no",          ["순번", "NO", "번호"]),
+        ("mgmt_code",   ["관리코드", "MGMTCODE"]),
+        ("order_no",    ["수주번호", "ORDERNO", "SO번호"]),
+        ("box_no",      ["BOX번호", "BOX"]),
+        ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME"]),
+        ("spec",        ["규격", "SPEC", "MODEL"]),
+        ("maker",       ["메이커", "MAKER", "BRAND"]),
+        ("supplier",    ["업체명", "SUPPLIER", "VENDOR"]),
+        ("unit",        ["단위", "UNIT"]),
+        ("origin",      ["원산지", "ORIGIN", "MADEIN"]),
+        ("qty",         ["출고수량", "수량", "Q'TY", "QTY"]),
+        ("unit_price",  ["단가", "UNITPRICE", "PRICE"]),
+        ("amount",      ["금액", "AMOUNT"]),
+        ("arrival_status", ["입고일정", "입고", "ARRIVAL"]),
+    ]
+    def _norm(s):
+        if s is None: return ""
+        return _re_pl.sub(r"\s+", "", str(s)).upper()
+    wb = load_workbook(file_path, data_only=True)
+    ws = wb.worksheets[0]
+    # 헤더 행 자동 감지 (1~10행)
+    best_row, best_map = 0, {}
+    for r in range(1, min(ws.max_row, 10) + 1):
+        cur_map, used = {}, set()
+        for c in range(1, min(ws.max_column, 30) + 1):
+            v = _norm(ws.cell(r, c).value)
+            if not v:
+                continue
+            for key, kws in HEADER_KEYS:
+                if key in cur_map or c in used:
+                    continue
+                for kw in kws:
+                    if _norm(kw) in v:
+                        cur_map[key] = c
+                        used.add(c)
+                        break
+        if "part_name" in cur_map and "qty" in cur_map:
+            if len(cur_map) > len(best_map):
+                best_row, best_map = r, cur_map
+    if best_row == 0 or "part_name" not in best_map:
+        return {"lines": [], "header_row": 0, "col_map": {},
+                "error": "헤더를 찾지 못했습니다 (품명/수량 컬럼이 1~10행 안에 있어야 합니다)"}
+    pn_col = best_map["part_name"]
+    lines = []
+    line_no = 0
+    for r in range(best_row + 1, ws.max_row + 1):
+        pn = ws.cell(r, pn_col).value
+        if pn is None or str(pn).strip() == "":
+            continue
+        line_no += 1
+        def gv(key):
+            return ws.cell(r, best_map[key]).value if key in best_map else None
+        def gnum(key):
+            v = gv(key)
+            if v is None or v == "": return 0
+            try:
+                return float(str(v).replace(",", "").strip())
+            except Exception:
+                return 0
+        lines.append({
+            "row": r, "line_no": line_no,
+            "part_name": str(pn).strip(),
+            "spec":      (str(gv("spec") or "").strip()),
+            "maker":     (str(gv("maker") or "").strip()),
+            "origin":    (str(gv("origin") or "").strip()),
+            "box_no":    (str(gv("box_no") or "").strip()),
+            "supplier":  (str(gv("supplier") or "").strip()),
+            "unit":      (str(gv("unit") or "EA").strip()) or "EA",
+            "qty":       gnum("qty"),
+            "unit_price": gnum("unit_price"),
+            "amount":    gnum("amount"),
+            "arrival_status": (str(gv("arrival_status") or "").strip()),
+            "mgmt_code": (str(gv("mgmt_code") or "").strip()),
+        })
+    return {"lines": lines, "header_row": best_row, "col_map": best_map}
+
+
+@app.post("/projects/{pid:int}/import-parts-lines/parse")
+async def projects_import_parts_parse(req: Request, pid: int,
+                                       file: UploadFile = File(...)):
+    """v5H226z: 정식 PACKING LIST 엑셀 업로드 — 1단계: 파싱 + 미리보기 JSON.
+    소모품 흐름과 동일 패턴, 다만 PACKING LIST 14컬럼 헤더 자동 인식."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    raw = await file.read()
+    if len(raw) > 50 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "파일 크기 50MB 초과"}, 413)
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        return JSONResponse({"ok": False, "message": "엑셀 파일(.xlsx/.xls) 만 허용"}, 400)
+    tmp_dir = tempfile.mkdtemp(prefix=f"parts_import_{pid}_")
+    tmp_path = os.path.join(tmp_dir, file.filename or "upload.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    # 이미지 영구 저장 폴더
+    img_dir = os.path.join(BASE, "uploads", "consumables", f"proj_{pid}")
+    os.makedirs(img_dir, exist_ok=True)
+    try:
+        result = _parse_packing_list_xlsx(tmp_path)
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": f"파싱 실패: {e}"}, 400)
+    lines = result.get("lines") or []
+    if not lines:
+        return JSONResponse({"ok": False,
+                              "message": result.get("error") or "유효한 라인이 없습니다"}, 400)
+    # v5H226z: 이미지 추출 (소모품과 동일 — anchor row 매칭)
+    images = {}
+    try:
+        from . import consumables as _co_local
+        from PIL import Image as _PIL
+        from openpyxl import load_workbook as _lwb
+        _wb_img = _lwb(tmp_path, data_only=True)
+        _ws_img = _wb_img.worksheets[0]
+        for idx, img in enumerate(getattr(_ws_img, "_images", []) or []):
+            try:
+                a = img.anchor
+                row1 = a._from.row + 1
+                raw_img = img._data()
+                if not raw_img:
+                    continue
+                # 가장 가까운 라인 매칭
+                cands = [ln for ln in lines if ln["row"] <= row1 + 2]
+                matched = max(cands, key=lambda ln: ln["row"]) if cands else min(lines, key=lambda ln: abs(ln["row"] - row1))
+                if not matched:
+                    continue
+                fn = f"parts_line_{matched['line_no']:03d}_{idx+1}.jpg"
+                fn_thumb = f"parts_line_{matched['line_no']:03d}_{idx+1}_thumb.jpg"
+                full = os.path.join(img_dir, fn)
+                thumb = os.path.join(img_dir, fn_thumb)
+                big_b, thumb_b, _ = _co_local.compress_image_bytes(raw_img)
+                with open(full, "wb") as f: f.write(big_b)
+                with open(thumb, "wb") as f: f.write(thumb_b)
+                images.setdefault(matched["line_no"], []).append({"full": fn, "thumb": fn_thumb})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    out_rows = []
+    for ln in lines:
+        ln_no = ln.get("line_no")
+        img_full = ""
+        img_thumb = ""
+        _imgs = images.get(ln_no) if isinstance(images, dict) else None
+        if _imgs and _imgs:
+            img_full = _imgs[0].get("full") or ""
+            img_thumb = _imgs[0].get("thumb") or ""
+        out_rows.append({
+            "line_no": ln_no,
+            "part_name": ln["part_name"],
+            "spec": ln["spec"],
+            "maker": ln["maker"],
+            "origin": ln["origin"],
+            "box_no": ln["box_no"],
+            "qty": ln["qty"],
+            "unit": ln["unit"],
+            "unit_price": ln["unit_price"],
+            "amount": ln["amount"],
+            "arrival_status": ln["arrival_status"],
+            "mgmt_code": ln["mgmt_code"],
+            "image_file": img_full,
+            "image_thumb_file": img_thumb,
+        })
+    img_count = sum(len(v) for v in images.values() if isinstance(v, list))
+    # mapping 미리보기
+    def _col_letter(idx):
+        s = ""
+        n = int(idx)
+        while n > 0:
+            n, r = divmod(n - 1, 26)
+            s = chr(65 + r) + s
+        return s or "?"
+    mapping = {k: _col_letter(c) for k, c in result["col_map"].items()}
+    return JSONResponse({
+        "ok": True, "rows": out_rows, "count": len(out_rows),
+        "header_row": result["header_row"],
+        "mapping": mapping,
+        "image_count": img_count,
+        "image_url_prefix": f"/uploads/consumables/proj_{pid}/",
+    })
+
+
+@app.post("/projects/{pid:int}/import-parts-lines/confirm")
+async def projects_import_parts_confirm(req: Request, pid: int):
+    """v5H226z: 정식 PACKING LIST 라인 일괄 INSERT.
+    필요 컬럼: maker / origin / box_no / spec / arrival_status (v5H226z ALTER)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    body = await req.json()
+    so_id = int(body.get("so_id") or 0)
+    rows = body.get("rows") or []
+    if not so_id or not rows:
+        return JSONResponse({"ok": False, "message": "so_id 또는 rows 누락"}, 400)
+    inserted = 0
+    last_err = None
+    with db_session() as c:
+        so = c.execute("SELECT id, project_id, currency FROM orders WHERE id=?",
+                        (so_id,)).fetchone()
+        if not so or so["project_id"] != pid:
+            return JSONResponse({"ok": False, "message": "수주번호 매칭 안됨"}, 400)
+        oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        for r in rows:
+            try:
+                qty = float(r.get("qty") or 0)
+                up = float(r.get("unit_price") or 0)
+                amt = float(r.get("amount") or 0)
+                if amt <= 0 and qty > 0 and up > 0:
+                    amt = round(qty * up, 2)
+                cols = ["order_id", "unit_label", "qty",
+                        "unit_price", "amount", "unit_status"]
+                vals = [so_id, (r.get("part_name") or "").strip(),
+                        qty, up, amt, "진행중"]
+                # v5H226z 부품 메타
+                _img_pref = f"/uploads/consumables/proj_{pid}/"
+                _meta_cols = [
+                    ("maker", r.get("maker")),
+                    ("origin", r.get("origin")),
+                    ("box_no", r.get("box_no")),
+                    ("spec", r.get("spec")),
+                    ("arrival_status", r.get("arrival_status")),
+                    ("currency", so["currency"] or "KRW"),
+                    ("line_note", r.get("supplier") or ""),  # 업체명 → line_note 임시 매핑
+                ]
+                for col_name, col_val in _meta_cols:
+                    if col_name in oicols and col_val not in (None, ""):
+                        cols.append(col_name)
+                        vals.append(str(col_val).strip() if isinstance(col_val, str) else col_val)
+                if "image_path" in oicols and r.get("image_file"):
+                    cols.append("image_path"); vals.append(_img_pref + str(r.get("image_file")))
+                if "image_thumb_path" in oicols and r.get("image_thumb_file"):
+                    cols.append("image_thumb_path"); vals.append(_img_pref + str(r.get("image_thumb_file")))
+                placeholders = ",".join(["?"] * len(vals))
+                c.execute(
+                    f"INSERT INTO order_items({','.join(cols)}) VALUES({placeholders})",
+                    vals
+                )
+                inserted += 1
+            except Exception as e:
+                last_err = str(e)
+                print(f"[v5H226z] parts insert err: {e}")
+        # SO 합계 갱신
+        try:
+            agg = c.execute(
+                "SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS n "
+                "FROM order_items WHERE order_id=?", (so_id,)
+            ).fetchone()
+            c.execute(
+                "UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
+                (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
+            )
+            proj_total = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                (pid,)
+            ).fetchone()[0] or 0
+            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                      (float(proj_total), pid))
+        except Exception:
+            pass
+        try:
+            c.execute(
+                "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
+                "VALUES(?,?,?,?,?,?)",
+                (pid, u.get("id"), "정식 PACKING LIST 업로드", "", f"{inserted}건",
+                 f"수주번호 #{so_id} 에 부품 {inserted}건 일괄 추가")
             )
         except Exception:
             pass

@@ -1824,6 +1824,137 @@
   };
 })();
 </script>
+
+<!-- v5H226z: 부품 형태 출고 (정식 PACKING LIST) 엑셀 업로드 모달 -->
+<div id="partsImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:min(900px, 94vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 정식 PACKING LIST 엑셀 업로드 (부품 수출)</div>
+      <button type="button" onclick="closePartsImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
+    </div>
+    <div style="padding:18px;">
+      <div style="font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px;">
+        ⓘ <b>정식 PACKING LIST 표준 양식</b> — 헤더 자동 인식: 순번/관리코드/품명/규격/메이커/원산지/출고수량/단가/금액/입고일정 등.<br>
+        <span style="color:#7c4a03;">📥 [엑셀 다운로드]</span> 로 받은 양식을 채워서 업로드하면 라인이 일괄 추가됩니다.
+      </div>
+      <div style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--paper-2);">
+        <input type="file" id="partsImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
+      </div>
+      <div id="partsImportPreview" style="margin-top:14px;display:none;">
+        <div id="partsImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="partsImportCount">0</span> 건)<span id="partsImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
+        <div style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+            <thead style="position:sticky;top:0;background:var(--paper-2);">
+              <tr>
+                <th style="padding:5px 6px;text-align:center;width:50px;">사진</th>
+                <th style="padding:5px 6px;text-align:left;">품명</th>
+                <th style="padding:5px 6px;text-align:left;">규격</th>
+                <th style="padding:5px 6px;text-align:left;">메이커</th>
+                <th style="padding:5px 6px;text-align:left;">원산지</th>
+                <th style="padding:5px 6px;text-align:center;">BOX</th>
+                <th style="padding:5px 6px;text-align:right;">수량</th>
+                <th style="padding:5px 6px;text-align:right;">단가</th>
+                <th style="padding:5px 6px;text-align:right;">금액</th>
+              </tr>
+            </thead>
+            <tbody id="partsImportRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="partsImportMsg" style="margin-top:10px;font-size:12.5px;"></div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" onclick="closePartsImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
+      <button type="button" id="partsImportConfirmBtn" onclick="confirmPartsImport()" disabled
+              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  let _ptsSoId = null;
+  let _ptsRows = [];
+  window.openPartsImport = function(soId){
+    _ptsSoId = soId; _ptsRows = [];
+    document.getElementById('partsImportFile').value = '';
+    document.getElementById('partsImportPreview').style.display = 'none';
+    document.getElementById('partsImportMsg').innerHTML = '';
+    const btn = document.getElementById('partsImportConfirmBtn');
+    btn.disabled = true; btn.style.opacity = '0.5';
+    document.getElementById('partsImportModal').style.display = 'flex';
+  };
+  window.closePartsImport = function(){
+    document.getElementById('partsImportModal').style.display = 'none';
+  };
+  document.getElementById('partsImportFile').addEventListener('change', async function(e){
+    const file = e.target.files[0]; if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--mute);">파싱 중…</span>';
+    try {
+      const r = await fetch('/projects/{{ p.id }}/import-parts-lines/parse', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!j.ok) {
+        document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ ' + (j.message || '파싱 실패') + '</span>';
+        return;
+      }
+      _ptsRows = j.rows || [];
+      document.getElementById('partsImportCount').textContent = _ptsRows.length;
+      document.getElementById('partsImportImgCount').textContent = j.image_count ? ('· 이미지 ' + j.image_count + '장') : '';
+      const mapBox = document.getElementById('partsImportMapping');
+      const labels = {part_name:'품명', qty:'수량', spec:'규격', maker:'메이커', origin:'원산지', box_no:'BOX', unit_price:'단가', amount:'금액', arrival_status:'입고일정', mgmt_code:'관리코드', supplier:'업체명', unit:'단위', no:'순번'};
+      const mp = j.mapping || {};
+      let mapHtml = '<b>📋 헤더 자동 인식</b> (헤더 행 ' + (j.header_row || '?') + ')<br>';
+      mapHtml += Object.keys(mp).map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:#fff;border:1px solid #d4b75a;border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k]}</span>`).join('');
+      mapBox.innerHTML = mapHtml;
+      const _imgPref = j.image_url_prefix || '';
+      const tbody = document.getElementById('partsImportRows');
+      tbody.innerHTML = _ptsRows.map(r => {
+        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:42px;height:42px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">` : '<span style="color:var(--mute);">—</span>';
+        return `<tr>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);text-align:center;">${thumb}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);">${r.part_name||'—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);font-size:11px;">${r.spec||'—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);font-size:11px;">${r.maker||'—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);font-size:11px;">${r.origin||'—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);text-align:center;">${r.box_no||'—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);text-align:right;">${(r.qty||0).toLocaleString()}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);text-align:right;">${(r.unit_price||0).toLocaleString()}</td>
+          <td style="padding:4px 6px;border-bottom:1px dashed var(--line);text-align:right;font-weight:600;">${(r.amount||(r.qty*r.unit_price)||0).toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('partsImportPreview').style.display = 'block';
+      document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + _ptsRows.length + '개 부품 라인 파싱 완료' + (j.image_count ? ', 이미지 ' + j.image_count + '장' : '') + '</span>';
+      const btn = document.getElementById('partsImportConfirmBtn');
+      btn.disabled = false; btn.style.opacity = '1';
+    } catch(err) {
+      document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류: ' + err.message + '</span>';
+    }
+  });
+  window.confirmPartsImport = async function(){
+    if (!_ptsRows.length || !_ptsSoId) return;
+    const btn = document.getElementById('partsImportConfirmBtn');
+    btn.disabled = true; btn.textContent = '저장 중…';
+    try {
+      const r = await fetch('/projects/{{ p.id }}/import-parts-lines/confirm', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({so_id: _ptsSoId, rows: _ptsRows})
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ ' + (j.message || '저장 실패') + '</span>';
+        btn.disabled = false; btn.textContent = '✓ 확정 등록';
+        return;
+      }
+      document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + j.inserted + '개 부품 추가 완료. 새로고침합니다…</span>';
+      setTimeout(() => location.reload(), 800);
+    } catch(err) {
+      document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류</span>';
+      btn.disabled = false; btn.textContent = '✓ 확정 등록';
+    }
+  };
+})();
+</script>
 {% endif %}
 
 </main></div></body></html>
