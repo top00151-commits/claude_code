@@ -6036,6 +6036,12 @@ async def projects_quick_status(req: Request, pid: int):
                                 )
             except Exception:
                 pass
+        # v5H226r: 프로젝트 status 변경 → SO/호기 cascade (보호 SO 제외)
+        try:
+            from . import project_workflow as _pwf_csc
+            _csc = _pwf_csc.cascade_project_status_to_so(c, pid, new_status, u.get("id"))
+        except Exception as _csc_err:
+            print(f"[v5H226r] quick-status cascade err: {_csc_err}")
     except Exception as _qs_err:
         # v5H143: HTTP 500 대신 친절 JSON (모달/토스트 표시 가능)
         return JSONResponse({"ok": False,
@@ -6280,6 +6286,11 @@ async def sales_order_item_status(req: Request, iid: int):
             )
         except Exception:
             pass
+        # v5H226r: 호기 → 프로젝트 cascade (모든 호기 동일 terminal 상태일 때)
+        try:
+            _pwf.cascade_unit_status_to_project(c, it["project_id"], u.get("id"))
+        except Exception as _csc_err:
+            print(f"[v5H226r] item-status cascade err: {_csc_err}")
     return JSONResponse({"ok": True, "old": old_st, "new": new_status})
 
 
@@ -6334,6 +6345,11 @@ async def projects_units_bulk_status(req: Request, pid: int):
             )
         except Exception:
             pass
+        # v5H226r: 일괄 변경 후도 프로젝트 cascade
+        try:
+            _pwf.cascade_unit_status_to_project(c, pid, u.get("id"))
+        except Exception as _csc_err:
+            print(f"[v5H226r] bulk-status cascade err: {_csc_err}")
     return JSONResponse({"ok": True, "changed": r.rowcount,
                           "message": f"{r.rowcount}건 변경 완료"})
 
@@ -10386,6 +10402,12 @@ async def projects_edit_submit(request: Request, pid: int):
                     )
         except Exception:
             pass
+    # v5H226r: 수정 후 status 변경분 SO/호기 cascade
+    try:
+        with db_session() as c:
+            _pwf.cascade_project_status_to_so(c, int(pid), status_val, _u.get("id"))
+    except Exception as _csc_err:
+        print(f"[v5H226r] edit-submit cascade err: {_csc_err}")
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
