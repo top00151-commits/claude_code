@@ -9915,6 +9915,158 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS)
 
 
+@app.get("/projects/bulk-template.xlsx")
+async def projects_bulk_template_download(request: Request):
+    """v5H226z29 (2026-05-08) — 프로젝트 일괄등록 엑셀 양식 다운로드.
+    대표 직접 지시: 전체 초기화 후 진행 프로젝트를 엑셀로 일괄 등록.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+    import io
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "프로젝트 일괄등록"
+
+    # 컬럼 정의
+    cols = [
+        ("관리코드",   16, "012T2605",     "필수. 사용자 직접 입력. 형식 자유 (예: 012T2605, M-260508 등)"),
+        ("프로젝트명", 28, "안지연8 검사기8", "필수."),
+        ("사업부",     8,  "T",            "필수. T=검사기, M=자동화, E=기타, C=소모품"),
+        ("출고형태",   10, "ASSEMBLY",     "T/M 만 해당. ASSEMBLY=완제품 / PARTS=부품수출"),
+        ("모델",       18, "검사기8",       "선택"),
+        ("고객사",     20, "(주)성수기전",   "필수. DB 등록된 고객사명과 정확히 일치"),
+        ("납품처",     14, "평택",          "선택"),
+        ("수량",       8,  1,              "필수. 숫자(대 단위)"),
+        ("단가",       14, 50000000,       "필수. 숫자(원/외화). 콤마 없이"),
+        ("통화",       8,  "KRW",          "KRW / USD / VND. 비우면 KRW"),
+        ("수주일",     12, "2026-05-08",   "YYYY-MM-DD 형식"),
+        ("납기",       12, "2026-06-15",   "YYYY-MM-DD 형식"),
+        ("상태",       12, "진행중",        "초기협의/제안서전달/견적발행/수주예정/진행중/납품완료/취소/보류"),
+        ("메모",       30, "",             "선택"),
+    ]
+
+    # 헤더 스타일
+    hdr_fill = PatternFill("solid", start_color="B45309")
+    hdr_font = Font(name="맑은 고딕", size=11, bold=True, color="FFFFFF")
+    hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border = Border(
+        left=Side(style="thin", color="999999"),
+        right=Side(style="thin", color="999999"),
+        top=Side(style="thin", color="999999"),
+        bottom=Side(style="thin", color="999999"),
+    )
+
+    # 헤더 행
+    for i, (name, w, _ex, _desc) in enumerate(cols, start=1):
+        c = ws.cell(row=1, column=i, value=name)
+        c.fill = hdr_fill
+        c.font = hdr_font
+        c.alignment = hdr_align
+        c.border = border
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[1].height = 30
+
+    # 안내 행 (2행) — 회색 배경 설명
+    desc_fill = PatternFill("solid", start_color="FEF3C7")
+    desc_font = Font(name="맑은 고딕", size=9, italic=True, color="78350F")
+    desc_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    for i, (_n, _w, _ex, desc) in enumerate(cols, start=1):
+        c = ws.cell(row=2, column=i, value=desc)
+        c.fill = desc_fill
+        c.font = desc_font
+        c.alignment = desc_align
+        c.border = border
+    ws.row_dimensions[2].height = 42
+
+    # 샘플 행 5개 (3~7행) — 실무자가 참고용
+    sample_font = Font(name="맑은 고딕", size=10, color="94A3B8", italic=True)
+    samples = [
+        ("012T2605", "안지연8 검사기8",  "T", "ASSEMBLY", "검사기8", "(주)성수기전",   "평택", 1, 59612628, "KRW", "2026-05-08", "2026-05-29", "진행중", "샘플"),
+        ("008M2605", "안지연9 자동화9",  "M", "ASSEMBLY", "자동화9", "(주)유니온",     "",    1, 59612628, "KRW", "2026-05-08", "2026-05-29", "진행중", "샘플"),
+        ("001M2605", "김정락1 자동화장비1","M","ASSEMBLY", "자동화1", "(주)성수기전",   "",    1, 50000000, "KRW", "2026-05-07", "2026-06-13", "진행중", "샘플"),
+        ("004T2605", "김정락1 검사기1",  "T", "PARTS",    "검사기1", "(주)글로베스트안산", "평택", 21, 94800000, "USD", "2026-05-07", "2026-05-14", "진행중", "베트남 부품수출"),
+        ("M-260508", "에스아이플렉스",   "C", "",         "소모품",  "에스아이플렉스",  "",    1, 305812,   "KRW", "2026-05-08", "",           "진행중", "소모품"),
+    ]
+    for r_off, sample in enumerate(samples, start=3):
+        for ci, val in enumerate(sample, start=1):
+            c = ws.cell(row=r_off, column=ci, value=val)
+            c.font = sample_font
+            c.border = border
+            c.alignment = Alignment(horizontal="left" if ci not in (3, 4, 8, 9, 10, 13) else "center", vertical="center")
+
+    # 빈 입력행 50개 (8행~57행) — 사용자가 채울 영역
+    empty_font = Font(name="맑은 고딕", size=10, color="1E293B")
+    for r in range(8, 58):
+        for ci in range(1, len(cols) + 1):
+            c = ws.cell(row=r, column=ci, value=None)
+            c.font = empty_font
+            c.border = border
+
+    # 데이터 검증 (드롭다운)
+    dv_biz = DataValidation(type="list", formula1='"T,M,E,C"', allow_blank=False)
+    dv_biz.add(f"C3:C57")
+    ws.add_data_validation(dv_biz)
+    dv_form = DataValidation(type="list", formula1='"ASSEMBLY,PARTS"', allow_blank=True)
+    dv_form.add(f"D3:D57")
+    ws.add_data_validation(dv_form)
+    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND"', allow_blank=True)
+    dv_ccy.add(f"J3:J57")
+    ws.add_data_validation(dv_ccy)
+    dv_st = DataValidation(type="list",
+                           formula1='"초기협의,제안서전달,견적발행,수주예정,진행중,납품완료,취소,보류"',
+                           allow_blank=False)
+    dv_st.add(f"M3:M57")
+    ws.add_data_validation(dv_st)
+
+    # 첫 행 freeze + 자동필터
+    ws.freeze_panes = "A3"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}57"
+
+    # 안내 시트
+    ws2 = wb.create_sheet("사용법")
+    ws2.column_dimensions['A'].width = 18
+    ws2.column_dimensions['B'].width = 60
+    title_font = Font(name="맑은 고딕", size=13, bold=True, color="B45309")
+    ws2.cell(row=1, column=1, value="📑 프로젝트 일괄등록 양식 사용법").font = title_font
+    ws2.merge_cells("A1:B1")
+    guide = [
+        ("작성 위치", "1번 시트 '프로젝트 일괄등록'의 8행부터 입력 (3~7행 샘플은 업로드 시 자동 제거)"),
+        ("필수 컬럼", "관리코드 / 프로젝트명 / 사업부 / 고객사 / 수량 / 단가 / 상태"),
+        ("관리코드", "기존 형식 그대로 사용 가능 (예: 012T2605, M-260508). 중복 금지."),
+        ("사업부", "T=검사기, M=자동화, E=기타, C=소모품 (대문자)"),
+        ("출고형태", "T/M 사업부에서만. ASSEMBLY=완제품 / PARTS=부품수출"),
+        ("고객사", "DB에 등록된 고객사명과 정확히 일치해야 함. 띄어쓰기/괄호 주의."),
+        ("날짜", "YYYY-MM-DD 형식 (예: 2026-05-08)"),
+        ("통화", "KRW / USD / VND. 비우면 KRW로 처리."),
+        ("상태", "초기협의 / 제안서전달 / 견적발행 / 수주예정 / 진행중 / 납품완료 / 취소 / 보류"),
+        ("업로드", "관리자 메뉴 → '프로젝트 일괄등록'에서 이 파일 그대로 업로드"),
+        ("주의", "업로드 전 반드시 '전체 초기화' 단계가 먼저 수행되어야 함 (대표 직접 지시)"),
+        ("진행 순서", "① 양식 다운로드 → ② 채우기 → ③ DB 백업 → ④ 전체 초기화 → ⑤ 일괄 업로드"),
+    ]
+    body_font = Font(name="맑은 고딕", size=10, color="1E293B")
+    body_align = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    key_font = Font(name="맑은 고딕", size=10, bold=True, color="7C4A03")
+    for i, (k, v) in enumerate(guide, start=3):
+        a = ws2.cell(row=i, column=1, value=k); a.font = key_font; a.alignment = body_align
+        b = ws2.cell(row=i, column=2, value=v); b.font = body_font; b.alignment = body_align
+        ws2.row_dimensions[i].height = 26
+
+    # 출력
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"KNK_프로젝트_일괄등록양식_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    from urllib.parse import quote
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"},
+    )
+
+
 @app.get("/projects/new", response_class=HTMLResponse)
 async def projects_new_form(request: Request,
                             type: str = "", biz_div: str = ""):
@@ -14088,7 +14240,14 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
     if due_date:
         items = [it for it in items if (it.get("due_date") or "")[:10] == due_date[:10]]
 
-    return ctx(req, "sales_orders.html", user=u, active="sales_orders",
+    # v5H226z22: 레이아웃 미리보기 (?preview=a 또는 ?preview=b)
+    _preview = (req.query_params.get("preview") or "").strip().lower()
+    _tpl = "sales_orders.html"
+    if _preview == "a":
+        _tpl = "sales_orders_preview_a.html"
+    elif _preview == "b":
+        _tpl = "sales_orders_preview_b.html"
+    return ctx(req, _tpl, user=u, active="sales_orders",
                tab="orders", items=items,
                biz=biz, tab_counts=tab_counts, is_consumable=(biz == "C"),
                kpi=kpi, today_iso=_today_iso,

@@ -51,7 +51,7 @@
 </div>
 <style>body { padding-top: 32px; }</style>
 {% endif %}
-<header class="top">
+<header class="top" data-dn="top-bar" data-dn-tone="amber">
   {# v5H16 — 좌: KNK 로고+탭 / 중앙: HAIST WORKS 큰 타이틀 / 우: 아이콘+사용자 #}
   <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="메뉴">☰</button>
   <a class="tb-brand" href="/home" style="padding:0 var(--space-5);display:flex;align-items:center;height:100%;text-decoration:none;color:inherit;flex-shrink:0;">
@@ -131,7 +131,7 @@
 </script>
 {% endif %}
 
-<aside class="sidebar">
+<aside class="sidebar" data-dn="sidebar" data-dn-tone="blue">
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
     <div class="sb-group">매출·영업</div>
@@ -384,3 +384,6 @@ window.setFakeDate = async function(dateStr){
 
 {# v5H144 (2026-05-05): 전역 드래그앤드롭 — 모든 file input 자동 dropzone 화 #}
 {% include "_v5_partials/dragdrop.html" ignore missing %}
+
+{# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
+{% include "_v5_partials/debug_overlay.html" ignore missing %}

@@ -1,0 +1,141 @@
+{# v5H226z27: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
+{# 사용법: 페이지에 include 후, 영역에 data-dn="이름" 속성 부착 #}
+{# 예) <div class="kpi-slim" data-dn="kpi-bar"> #}
+<style>
+/* === 디버그 오버레이 (debug=1 일 때만 활성화) === */
+body.knk-debug [data-dn] { outline: 2px dashed rgba(220, 38, 38, 0.5) !important; outline-offset: -2px; position: relative; }
+body.knk-debug [data-dn]::before {
+    content: attr(data-dn) " · " attr(data-dn-size);
+    position: absolute; top: 0; left: 0; z-index: 9999;
+    background: #b91c1c; color: #fff;
+    padding: 3px 8px;
+    font-size: 11.5px; font-weight: 600;
+    font-family: 'Segoe UI', 'Malgun Gothic', system-ui, sans-serif;
+    letter-spacing: 0;
+    border-radius: 0 0 5px 0;
+    pointer-events: none; white-space: nowrap;
+    line-height: 1.4;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+/* 색깔 톤별 (depth) */
+body.knk-debug [data-dn-tone="blue"] { outline-color: rgba(37, 99, 235, 0.6) !important; }
+body.knk-debug [data-dn-tone="blue"]::before { background: #1d4ed8; }
+body.knk-debug [data-dn-tone="green"] { outline-color: rgba(5, 150, 105, 0.6) !important; }
+body.knk-debug [data-dn-tone="green"]::before { background: #047857; }
+body.knk-debug [data-dn-tone="purple"] { outline-color: rgba(139, 92, 246, 0.6) !important; }
+body.knk-debug [data-dn-tone="purple"]::before { background: #7c3aed; }
+body.knk-debug [data-dn-tone="amber"] { outline-color: rgba(217, 119, 6, 0.6) !important; }
+body.knk-debug [data-dn-tone="amber"]::before { background: #b45309; }
+
+/* 우측 하단 컨트롤 패널 */
+.knk-debug-panel { position: fixed; right: 14px; bottom: 14px; z-index: 99999;
+    background: #1e293b; color: #fff; border-radius: 8px; padding: 10px 14px;
+    font-family: monospace; font-size: 11.5px; line-height: 1.6; min-width: 220px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4); display: none; }
+body.knk-debug .knk-debug-panel { display: block; }
+.knk-debug-panel h4 { margin: 0 0 6px; font-size: 12px; color: #fbbf24; font-weight: 800; letter-spacing: 0.05em; }
+.knk-debug-panel .dim { color: #94a3b8; font-size: 10.5px; }
+.knk-debug-panel .key { color: #f87171; font-weight: 700; }
+.knk-debug-panel a { color: #60a5fa; text-decoration: none; font-weight: 700; }
+.knk-debug-panel a:hover { color: #93c5fd; }
+
+/* 디버그 모드에서만 표시되는 요소 (.knk-debug-only) */
+.knk-debug-only { display: none !important; }
+body.knk-debug .knk-debug-only { display: inline-block !important; }
+
+/* 메뉴 코드 (M-01-01 등) - 평소 숨김, 디버그 시만 노출 */
+.menu-code { display: none !important; }
+body.knk-debug .menu-code { display: inline-block !important;
+    background: #fef3c7; color: #b91c1c; font-family: monospace;
+    font-size: 10px; font-weight: 800; padding: 1px 5px;
+    border-radius: 3px; margin-left: 6px; letter-spacing: 0.04em; }
+
+/* 디버그 진입 버튼 (debug=1 아닐 때) */
+.knk-debug-toggle { position: fixed; right: 14px; bottom: 14px; z-index: 99999;
+    background: rgba(30,41,59,0.85); color: #fff; border-radius: 6px; padding: 4px 10px;
+    font-family: monospace; font-size: 11px; font-weight: 700; cursor: pointer;
+    text-decoration: none; border: 1px solid #475569; }
+.knk-debug-toggle:hover { background: #1e293b; }
+body.knk-debug .knk-debug-toggle { display: none; }
+</style>
+
+<script>
+(function(){
+    var qs = new URLSearchParams(location.search);
+    var on = qs.get('debug') === '1';
+    if (on) document.body.classList.add('knk-debug');
+
+    // === 자동 영역 감지: data-dn 없어도 공통 패턴 자동 라벨링 ===
+    // [선택자, 영역명, 색깔톤]
+    var AUTO_ZONES = [
+        ['main.main',          'main',        'amber'],
+        ['.page-head',         'page-head',   ''],
+        ['h1.page-title',      'title',       ''],
+        ['.crumbs',            'crumb',       ''],
+        ['.bento',             'bento',       'green'],
+        ['.kpi-card',          'kpi-card',    'green'],
+        ['.tbl-wrap',          'table-wrap',  'purple'],
+        ['table.tbl',          'table',       'purple'],
+        ['table.tbl thead',    'thead-row',   'purple'],
+        ['.empty',             'empty-state', ''],
+        ['.so-card',           'so-card',     'blue'],
+        ['.so-units-wrapper',  'so-units',    'blue'],
+        ['.parts-h-proxy',     'h-scrollbar', 'amber'],
+    ];
+    function autoLabel(){
+        AUTO_ZONES.forEach(function(z){
+            document.querySelectorAll(z[0]).forEach(function(el, i){
+                if (!el.hasAttribute('data-dn')) {
+                    el.setAttribute('data-dn', z[1] + (i > 0 ? '#' + (i+1) : ''));
+                    if (z[2]) el.setAttribute('data-dn-tone', z[2]);
+                    el.setAttribute('data-dn-auto', '1');
+                }
+            });
+        });
+    }
+
+    // 영역 크기 자동 측정
+    function measureAll(){
+        document.querySelectorAll('[data-dn]').forEach(function(el){
+            var r = el.getBoundingClientRect();
+            el.setAttribute('data-dn-size', Math.round(r.width) + '×' + Math.round(r.height));
+        });
+    }
+    if (on) {
+        autoLabel();
+        measureAll();
+        window.addEventListener('resize', measureAll);
+        new MutationObserver(function(){ autoLabel(); measureAll(); })
+            .observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
+    }
+
+    // 단축키: Ctrl+Shift+D 로 디버그 토글
+    document.addEventListener('keydown', function(e){
+        if (e.key === 'd' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+            e.preventDefault();
+            var url = new URL(location.href);
+            if (on) url.searchParams.delete('debug');
+            else url.searchParams.set('debug', '1');
+            location.href = url.toString();
+        }
+    });
+})();
+</script>
+
+{# 토글 버튼 (debug=0 일 때 화면에 노출) #}
+{% set _qs = request.query_params if request is defined else {} %}
+<a class="knk-debug-toggle" href="?debug=1" title="디버그 모드: 영역명·크기 표시 (Ctrl+Shift+D)">🔍 영역 보기</a>
+
+<div class="knk-debug-panel">
+  <h4>🔍 디버그 모드 ON</h4>
+  <div><span class="key">버전</span> v5H226z38</div>
+  <div class="dim">─────────────────</div>
+  <div>각 영역에 <span class="key">이름·크기</span> 표시 중</div>
+  <div>"kpi-bar 높이 줄여" 처럼<br>영역 이름 그대로 말씀하시면 됩니다.</div>
+  <div class="dim">─────────────────</div>
+  <div><span class="key">단축키</span> Ctrl+Shift+D : 토글</div>
+  <div><a href="?">✕ 디버그 끄기</a></div>
+</div>

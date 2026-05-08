@@ -327,7 +327,24 @@ body.so-fs-on { overflow: hidden; }
   </script>
 
   <!-- KPI -->
-  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+  <style>
+    /* v5H226z21: KPI 카드 칸 높이 직접 축소 (한줄 인라인 형태) */
+    .bento.kpi-compact { gap: 6px !important; margin-top: 6px !important; margin-bottom: 6px !important; padding: 0 !important; }
+    .bento.kpi-compact .kpi-card {
+      padding: 4px 10px !important;
+      min-height: 0 !important;
+      height: 36px !important;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+    .bento.kpi-compact .kpi-label { font-size: 11px !important; margin: 0 !important; color: var(--mute); white-space: nowrap; }
+    .bento.kpi-compact .kpi-num { font-size: 15px !important; margin: 0 !important; line-height: 1 !important; font-weight: 700; margin-left: auto !important; }
+    .bento.kpi-compact .kpi-num .unit { font-size: 9px !important; margin-left: 2px; color: var(--mute); font-weight: 500; }
+    .bento.kpi-compact .kpi-trend { font-size: 10px !important; margin: 0 0 0 4px !important; }
+  </style>
+  <div class="bento kpi-compact" style="grid-template-columns:repeat(4,1fr);">
     <div class="kpi-card"><div class="kpi-label">전체 업무</div><div class="kpi-num">{{ total_tasks }}</div></div>
     <div class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-num" style="color:var(--success);">{{ s.done|default(0) }}</div><div class="kpi-trend up">{% if total_tasks %}{{ ((s.done*100/total_tasks)|round|int) }}%{% else %}0%{% endif %}</div></div>
     <div class="kpi-card"><div class="kpi-label">누적 공수</div><div class="kpi-num">{{ '%.1f'|format(s.hours|default(0)) }}<span class="unit">h</span></div></div>
