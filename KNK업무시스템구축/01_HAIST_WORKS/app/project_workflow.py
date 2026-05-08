@@ -950,14 +950,15 @@ PROJECT_TO_SO_STATUS = {
     "보류":     None,  # 보류는 SO 자체 상태 변경 안함
 }
 PROTECTED_SO_STATUSES = ("INVOICED", "PAID")
-TERMINAL_UNIT_STATUSES = ("납품완료", "취소")
+# v5H226w: terminal 보호 폐지 — 프로젝트 상태가 마스터, 호기는 따라옴.
+# 재무 잠금(SO INVOICED/PAID) 만 보호. 호기 unit_status 는 모두 cascade 가능.
 
 
 def cascade_project_status_to_so(c, project_id: int, new_status: str,
                                   changed_by: int | None = None) -> dict:
-    """v5H226r — 프로젝트 status 변경 시 자식 SO·호기 자동 동기화.
+    """v5H226r/w — 프로젝트 status 변경 시 자식 SO·호기 자동 동기화.
     cascade 대상이 아닌 status (제안작성/초기협의/...) 는 no-op.
-    INVOICED/PAID SO 와 이미 terminal 상태의 호기는 보호."""
+    INVOICED/PAID SO 만 보호 (재무 기록). 호기는 모두 cascade — 사용자 직관(프로젝트=마스터)."""
     target_unit = PROJECT_TO_UNIT_STATUS.get(new_status)
     target_so = PROJECT_TO_SO_STATUS.get(new_status)
     if not target_unit:
@@ -965,7 +966,9 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
     units_changed = 0
     orders_changed = 0
     try:
-        # 호기 unit_status 일괄 갱신 — terminal 제외, 보호 SO 제외
+        # 호기 unit_status 일괄 갱신 — 보호 SO(INVOICED/PAID)에 속한 것만 제외
+        # v5H226w: terminal 보호('납품완료','취소') 폐지 → 프로젝트→진행중 등
+        # 역방향 변경도 호기까지 일괄 cascade
         try:
             _r = c.execute(
                 f"""UPDATE order_items SET unit_status=?
@@ -973,7 +976,6 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
                       SELECT oi.id FROM order_items oi
                       JOIN orders o ON o.id = oi.order_id
                       WHERE o.project_id=?
-                        AND COALESCE(oi.unit_status,'진행중') NOT IN ('납품완료','취소')
                         AND COALESCE(oi.unit_status,'진행중') != ?
                         AND COALESCE(o.status,'') NOT IN ({','.join('?'*len(PROTECTED_SO_STATUSES))})
                     )""",

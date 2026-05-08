@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-08 v5H226v (SHIPPED 상태도 호기 편집 허용 - 수금 시작 전엔 정정 가능)
+REM   LAST UPDATE: 2026-05-08 v5H226w (cascade terminal 보호 폐지 - 프로젝트 마스터, 호기 모두 따라옴)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226v]
+title KNK HAIST WORKS [v5H226w]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226v  2026-05-08]
+echo    [v5H226w  2026-05-08]
 echo ============================================================
 echo.
 
