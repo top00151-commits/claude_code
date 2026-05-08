@@ -101,7 +101,7 @@
       <div class="so-kpi-sub">{% if _k.get('month_amount') %}{{ '{:,.0f}'.format(_k.get('month_amount', 0)) }}원{% else %}—{% endif %}</div>
     </div>
     <div class="so-kpi-card k3">
-      <div class="so-kpi-lbl">🟡 출하 대기</div>
+      <div class="so-kpi-lbl">🟡 납품 대기</div>
       <div class="so-kpi-val">{{ _k.get('wait_ship', 0) }}<span class="u">건</span></div>
       <div class="so-kpi-sub {% if _k.get('overdue_count', 0) > 0 %}danger{% endif %}">
         {% if _k.get('overdue_count', 0) > 0 %}⚠ 오버듀 {{ _k.get('overdue_count') }}건{% else %}CONFIRMED{% endif %}
@@ -122,11 +122,11 @@
       <div class="so-kpi-val" style="font-size:16px;">
         {% if _k.get('outstanding') %}{{ '{:,.0f}'.format(_k.get('outstanding', 0)) }}<span class="u">원</span>{% else %}—{% endif %}
       </div>
-      <div class="so-kpi-sub">확정+출하+송장 합 (수금 전)</div>
+      <div class="so-kpi-sub">확정+납품+송장 합 (수금 전)</div>
     </div>
   </div>
 
-  {# v5H164 Phase 3+: 출하 캘린더 (확대) + 임박 납기 리스트 (좌우 배치) #}
+  {# v5H164 Phase 3+: 납품 캘린더 (확대) + 임박 납기 리스트 (좌우 배치) #}
   {% set _cm = cal_months|default([]) %}
   {% set _up = upcoming|default([]) %}
   {% set _dd = due_date|default('') %}
@@ -296,7 +296,7 @@
         </a>
         {% endfor %}
       {% else %}
-        <div class="so-up-empty">📭 임박 납기 없음 (60일 이내 미출하 SO 없음)</div>
+        <div class="so-up-empty">📭 임박 납기 없음 (60일 이내 미납품 SO 없음)</div>
       {% endif %}
       </div>
     </div>

@@ -7,7 +7,7 @@
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>생산 진행</b></div><h1 class="page-title">🏭 생산 <em>진행</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">수주 → 생산 시작 → 출하 워크플로우</div></div>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">수주 → 생산 시작 → 납품 워크플로우</div></div>
   </div>
 
   <div class="tbl-wrap tbl-sticky">
@@ -27,7 +27,7 @@
             {% if o.status == 'CONFIRMED' %}
             <form method="post" action="/sales/production/start" style="margin:0;display:inline;"><input type="hidden" name="order_id" value="{{ o.id }}"><button class="btn btn-primary" style="padding:5px 10px;font-size:11px;">▶ 생산 시작</button></form>
             {% elif o.status == 'IN_PRODUCTION' %}
-            <a class="btn btn-secondary" href="/sales/shipments?order_id={{ o.id }}" style="padding:5px 10px;font-size:11px;">📦 출하</a>
+            <a class="btn btn-secondary" href="/sales/shipments?order_id={{ o.id }}" style="padding:5px 10px;font-size:11px;">📦 납품</a>
             {% else %}—{% endif %}
           </td>
         </tr>

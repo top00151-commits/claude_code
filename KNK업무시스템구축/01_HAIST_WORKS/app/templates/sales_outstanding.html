@@ -8,7 +8,7 @@
 <main class="main">
   <div class="page-head">
     <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>미수금</b></div><h1 class="page-title">💸 <em>미수금</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">출하 후 미수금 현황 + 거래처별 잔액</div></div>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">납품 후 미수금 현황 + 거래처별 잔액</div></div>
     <a class="btn btn-secondary" href="/sales/aging">📊 연체 분석</a>
   </div>
 
@@ -23,7 +23,7 @@
   <div class="tbl-wrap tbl-sticky">
     {% if items %}
     <table class="tbl">
-      <thead><tr><th>고객사</th><th class="num">미수액</th><th class="num">최근 출하</th><th class="num">연체일</th><th class="center">위험도</th></tr></thead>
+      <thead><tr><th>고객사</th><th class="num">미수액</th><th class="num">최근 납품</th><th class="num">연체일</th><th class="center">위험도</th></tr></thead>
       <tbody>
       {% for it in items %}
         <tr>

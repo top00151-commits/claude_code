@@ -1,4 +1,4 @@
-{# v5H155: 수주 출하 캘린더 — 이번달+다음달 미니 뷰
+{# v5H155: 수주 납품 캘린더 — 이번달+다음달 미니 뷰
    변수: cal_months=[{year, month, weeks=[[{date,day,in_month,count,amount,cls,is_today}]]}], tab, filter_due_date
 #}
 <div class="so-cal-grid">
@@ -29,7 +29,7 @@
   {% endfor %}
 </div>
 <div class="so-cal-legend">
-  <span class="lg overdue">● 오버듀/지난미출하</span>
+  <span class="lg overdue">● 오버듀/지난 미납품</span>
   <span class="lg d3">● D-3 이내</span>
   <span class="lg d7">● D-7 이내</span>
   <span class="lg future">● 여유</span>
