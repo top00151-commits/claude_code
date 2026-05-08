@@ -5589,8 +5589,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                 it.get("unit_label") or "",               # F: 품명
                 it.get("spec") or "",                     # G: 규격
                 it.get("maker") or "",                    # H: 메이커
-                "",                                       # I: 업체명 (조달처) — 향후 확장
-                "EA",                                     # J: 단위
+                it.get("supplier") or "",                 # I: 업체명 (v5H226z4: 별도 컬럼)
+                it.get("unit") or "EA",                   # J: 단위 (v5H226z4: 별도 컬럼)
                 it.get("origin") or "",                   # K: 원산지
                 float(it.get("qty") or 0),                # L: 출고수량
                 float(it.get("unit_price") or 0),         # M: 단가
@@ -6177,7 +6177,7 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                         "unit_price", "amount", "unit_status"]
                 vals = [so_id, (r.get("part_name") or "").strip(),
                         qty, up, amt, "진행중"]
-                # v5H226z 부품 메타
+                # v5H226z 부품 메타 / v5H226z4: supplier/unit 별도 컬럼
                 _img_pref = f"/uploads/consumables/proj_{pid}/"
                 _meta_cols = [
                     ("maker", r.get("maker")),
@@ -6185,8 +6185,9 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                     ("box_no", r.get("box_no")),
                     ("spec", r.get("spec")),
                     ("arrival_status", r.get("arrival_status")),
+                    ("supplier", r.get("supplier")),  # v5H226z4: 업체명 별도
+                    ("unit", r.get("unit") or "EA"),  # v5H226z4: 단위 별도
                     ("currency", so["currency"] or "KRW"),
-                    ("line_note", r.get("supplier") or ""),  # 업체명 → line_note 임시 매핑
                 ]
                 for col_name, col_val in _meta_cols:
                     if col_name in oicols and col_val not in (None, ""):
@@ -6432,6 +6433,8 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_box = form.get("box_no")
     u_spec = form.get("spec")
     u_arrival = form.get("arrival_status")
+    u_supplier = form.get("supplier")  # v5H226z4
+    u_unit = form.get("unit")          # v5H226z4
     u_qty_raw = (form.get("qty") or "").strip().replace(",", "")
     try:
         u_qty = float(u_qty_raw) if u_qty_raw else None
@@ -6504,6 +6507,10 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("spec=?"); vals_set.append((u_spec or "").strip() or None)
             if u_arrival is not None and "arrival_status" in _oicols:
                 cols_set.append("arrival_status=?"); vals_set.append((u_arrival or "").strip() or None)
+            if u_supplier is not None and "supplier" in _oicols:
+                cols_set.append("supplier=?"); vals_set.append((u_supplier or "").strip() or None)
+            if u_unit is not None and "unit" in _oicols:
+                cols_set.append("unit=?"); vals_set.append((u_unit or "EA").strip() or "EA")
             if u_qty is not None:
                 cols_set.append("qty=?"); vals_set.append(u_qty)
             vals_set.append(iid)

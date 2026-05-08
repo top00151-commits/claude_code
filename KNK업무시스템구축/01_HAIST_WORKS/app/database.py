@@ -2409,6 +2409,9 @@ def init_db():
                 ("box_no",           "ALTER TABLE order_items ADD COLUMN box_no TEXT"),
                 ("spec",             "ALTER TABLE order_items ADD COLUMN spec TEXT"),
                 ("arrival_status",   "ALTER TABLE order_items ADD COLUMN arrival_status TEXT"),
+                # v5H226z4: 업체명(supplier) + 단위(unit) 별도 컬럼화
+                ("supplier",         "ALTER TABLE order_items ADD COLUMN supplier TEXT"),
+                ("unit",             "ALTER TABLE order_items ADD COLUMN unit TEXT"),
             ]:
                 if col not in oicols:
                     try:
