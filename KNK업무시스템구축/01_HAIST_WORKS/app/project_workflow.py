@@ -1116,9 +1116,9 @@ def cascade_project_meta_to_so(c, project_id: int,
 
 def cascade_unit_status_to_project(c, project_id: int,
                                     changed_by: int | None = None) -> dict:
-    """v5H226r — 호기 unit_status 변경 시 부모 프로젝트 status 자동 동기화.
-    모든 호기가 동일 terminal 상태일 때만 부모 상태 변경.
-    부모가 이미 그 상태면 no-op. 호기 0건이면 no-op."""
+    """v5H226r/x — 호기 unit_status 변경 시 부모 프로젝트 status + SO orders.status 동기화.
+    모든 호기가 동일 상태일 때만 부모 상태 변경. 혼합/0건이면 no-op.
+    v5H226x: 4종 모두(진행중/납품완료/취소/보류) 매핑 + SO orders.status 도 함께 동기화."""
     try:
         rows = c.execute(
             """SELECT COALESCE(oi.unit_status,'진행중') AS st
@@ -1136,11 +1136,12 @@ def cascade_unit_status_to_project(c, project_id: int,
     if len(statuses) != 1:
         return {"changed": False, "reason": f"혼합 상태 ({len(statuses)}종)"}
     only = statuses.pop()
-    # 호기 → 프로젝트 매핑 (terminal 만)
-    UNIT_TO_PROJECT = {"납품완료": "납품완료", "취소": "취소"}
+    # v5H226x: 호기 → 프로젝트 매핑 4종 모두
+    UNIT_TO_PROJECT = {"진행중": "진행중", "납품완료": "납품완료",
+                        "취소": "취소", "보류": "보류"}
     new_proj_status = UNIT_TO_PROJECT.get(only)
     if not new_proj_status:
-        return {"changed": False, "reason": f"비-terminal 상태 ({only})"}
+        return {"changed": False, "reason": f"매핑 외 상태 ({only})"}
     try:
         cur = c.execute(
             "SELECT status FROM projects WHERE id=?", (project_id,)
@@ -1148,8 +1149,25 @@ def cascade_unit_status_to_project(c, project_id: int,
         if not cur:
             return {"changed": False, "reason": "프로젝트 없음"}
         old_status = cur[0] or ""
+        # v5H226x: SO orders.status 도 함께 cascade (재무 잠금 SO 제외)
+        target_so = PROJECT_TO_SO_STATUS.get(new_proj_status)
+        so_changed = 0
+        if target_so:
+            try:
+                _r = c.execute(
+                    f"""UPDATE orders SET status=?
+                        WHERE project_id=?
+                          AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED_SO_STATUSES))})
+                          AND COALESCE(status,'') != ?""",
+                    (target_so, project_id, *PROTECTED_SO_STATUSES, target_so)
+                )
+                so_changed = _r.rowcount or 0
+            except Exception:
+                so_changed = 0
+        # 프로젝트 status 가 동일하면 SO 만 갱신하고 종료
         if old_status == new_proj_status:
-            return {"changed": False, "reason": "이미 동일 상태"}
+            return {"changed": (so_changed > 0), "reason": "프로젝트 동일 상태 (SO 만 동기화)",
+                    "so_changed": so_changed}
         # stage 도 동기화 (status 와 동일 — v5H215 정책)
         c.execute(
             "UPDATE projects SET status=?, stage=? WHERE id=?",
@@ -1160,10 +1178,11 @@ def cascade_unit_status_to_project(c, project_id: int,
             log_project_change(c, project_id, changed_by,
                                 "프로젝트 상태",
                                 old_status, new_proj_status,
-                                note="호기 전체 cascade")
+                                note=f"호기 전체 cascade (SO {so_changed}건)")
         except Exception:
             pass
-        return {"changed": True, "old": old_status, "new": new_proj_status}
+        return {"changed": True, "old": old_status, "new": new_proj_status,
+                "so_changed": so_changed}
     except Exception as e:
-        print(f"[v5H226r] up-cascade err pid={project_id}: {e}")
+        print(f"[v5H226x] up-cascade err pid={project_id}: {e}")
         return {"changed": False, "reason": str(e)}
