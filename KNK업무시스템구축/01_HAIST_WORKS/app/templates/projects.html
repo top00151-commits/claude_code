@@ -9,16 +9,16 @@
 <div class="app">
 {% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
-<main class="main">
+<main class="main" data-loc="page:프로젝트목록">
   <div class="page-head">
     <div>
       <div class="crumbs"><a href="/sales">매출영업센터</a> · <b>프로젝트 관리코드</b></div>
       <h1 class="page-title">프로젝트 <em>관리코드</em></h1>
     </div>
-    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/projects/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/projects/new">＋ 프로젝트 등록</a></div>
+    <div style="display:flex; gap:8px;" data-loc="section:상단버튼"><a class="btn btn-secondary" href="/projects/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/projects/new">＋ 프로젝트 등록</a></div>
   </div>
 
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
+  <form data-loc="section:검색필터" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
     <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
     <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
       <option value="">사업부 전체</option>
@@ -53,19 +53,19 @@
   {% endif %}
   <div class="tbl-wrap tbl-sticky">
     {% if projects %}
-    <table class="tbl">
+    <table class="tbl" data-loc="section:프로젝트표">
       <thead>
         <tr>
           {% if can_sales_del %}<th style="width:36px;text-align:center;"><input type="checkbox" id="chkAll" title="전체 선택" style="cursor:pointer;"></th>{% endif %}
-          <th>관리코드</th>
-          <th>프로젝트명</th>
-          <th>고객사</th>
-          <th class="center">진행 사업부</th>
-          <th class="center">유형</th>
-          <th class="center" title="🟡 진행중 / 🟢 납품완료 / 🔴 취소 / ⚫ 보류 — 숫자는 호기 수">상태 <span style="font-weight:400;font-size:10.5px;color:var(--mute);white-space:nowrap;">🟡진행중 🟢완료 🔴취소 ⚫보류</span></th>
-          <th class="num">수주액</th>
-          <th class="center">발주일</th>
-          <th style="width:50px;">삭제</th>
+          <th data-loc="col:관리코드">관리코드</th>
+          <th data-loc="col:프로젝트명">프로젝트명</th>
+          <th data-loc="col:고객사">고객사</th>
+          <th class="center" data-loc="col:진행사업부">진행 사업부</th>
+          <th class="center" data-loc="col:유형">유형</th>
+          <th class="center" data-loc="col:상태" title="🟡 진행중 / 🟢 납품완료 / 🔴 취소 / ⚫ 보류 — 숫자는 호기 수">상태 <span style="font-weight:400;font-size:10.5px;color:var(--mute);white-space:nowrap;">🟡진행중 🟢완료 🔴취소 ⚫보류</span></th>
+          <th class="num" data-loc="col:수주액">수주액</th>
+          <th class="center" data-loc="col:발주일">발주일</th>
+          <th style="width:50px;" data-loc="col:삭제">삭제</th>
         </tr>
       </thead>
       <tbody>

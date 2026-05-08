@@ -1,0 +1,71 @@
+{# ============================================================
+   _v5_partials/loc_overlay.html — v5H226m 위치 라벨 오버레이 (대표 지시 2026-05-08)
+   - 대표/관리자만 좌하단 [🏷 위치] 토글 버튼 노출
+   - 토글 ON → data-loc 속성이 있는 모든 요소 우상단에 작은 라벨 표시
+   - 라벨 형식: 🪟 MODAL: 이름 / 🗂 SECTION: 이름 / 📍 PAGE: 이름 / 🔘 BTN: 이름
+   - localStorage 키 'knk_loc_overlay' (1=ON / 0=OFF) 영구 기억
+   - 일반 사용자에겐 토글 버튼 자체가 안 보임 → 화면 동일
+
+   요소 마킹 규칙 (개발자 가이드):
+   - 페이지 최상단:  data-loc="page:프로젝트목록"
+   - 카드/섹션:       data-loc="section:수주내역"
+   - 모달:           data-loc="modal:소모품엑셀업로드"
+   - 컬럼 헤더:      data-loc="col:상태"
+   - 중요 버튼:      data-loc="btn:엑셀업로드"
+   - 배지 색상은 prefix(page/section/modal/col/btn) 자동 분류
+
+   사용:
+     {% include "_v5_partials/loc_overlay.html" with context %}
+   (chrome.html 끝에서 자동 include — 모든 페이지에 자동 적용)
+   ============================================================ #}
+{% if user and (user.role or '')|lower in ('admin','ceo') %}
+<style>
+/* 토글 버튼 (좌하단, '← 이전 페이지' 옆) */
+#knkLocToggle {
+  position: fixed; bottom: 12px; left: 76px; z-index: 9995;
+  padding: 6px 12px; border: 1px solid #d4b75a; border-radius: 18px;
+  background: #fef9e6; color: #5a4a00; font-size: 12px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.15s;
+}
+#knkLocToggle:hover { background: #fef3c7; box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+#knkLocToggle.on { background: #16a34a; border-color: #15803d; color: #fff; }
+
+/* 라벨 오버레이 — body.knk-loc-on 일 때만 활성 */
+body.knk-loc-on [data-loc] { position: relative; outline: 1px dashed rgba(22,163,74,0.35); outline-offset: 1px; }
+body.knk-loc-on [data-loc]::before {
+  content: attr(data-loc);
+  position: absolute; top: -10px; left: 4px; z-index: 9990;
+  padding: 1px 7px; border-radius: 3px;
+  background: #16a34a; color: #fff; font-size: 10px; font-weight: 700;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  white-space: nowrap; pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+/* prefix 별 색상 */
+body.knk-loc-on [data-loc^="page:"]::before    { background: #1e3a8a; }   /* 페이지 = 짙은 파랑 */
+body.knk-loc-on [data-loc^="modal:"]::before   { background: #b91c1c; }   /* 모달 = 빨강 */
+body.knk-loc-on [data-loc^="section:"]::before { background: #16a34a; }   /* 섹션 = 초록 */
+body.knk-loc-on [data-loc^="col:"]::before     { background: #7c4a03; }   /* 컬럼 = 갈색 */
+body.knk-loc-on [data-loc^="btn:"]::before     { background: #6b21a8; }   /* 버튼 = 보라 */
+body.knk-loc-on [data-loc^="card:"]::before    { background: #0e7490; }   /* 카드 = 청록 */
+</style>
+<button type="button" id="knkLocToggle" title="대표/관리자 전용 — 화면 요소에 위치 라벨을 표시합니다 (수정 지시 시 활용)">🏷 위치</button>
+<script>
+(function(){
+  var KEY = 'knk_loc_overlay';
+  var btn = document.getElementById('knkLocToggle');
+  function apply(on){
+    document.body.classList.toggle('knk-loc-on', !!on);
+    btn.classList.toggle('on', !!on);
+    btn.textContent = on ? '🏷 위치 ON' : '🏷 위치';
+  }
+  try { apply(localStorage.getItem(KEY) === '1'); } catch(_){}
+  btn.addEventListener('click', function(){
+    var cur = document.body.classList.contains('knk-loc-on');
+    try { localStorage.setItem(KEY, cur ? '0' : '1'); } catch(_){}
+    apply(!cur);
+  });
+})();
+</script>
+{% endif %}
