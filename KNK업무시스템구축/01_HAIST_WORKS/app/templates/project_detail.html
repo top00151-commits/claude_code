@@ -1519,8 +1519,12 @@
               단가 <b style="color:var(--ink);">{{ '{:,.0f}'.format(_pp) }}</b> × <b style="color:var(--ink);">{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ '{:,.0f}'.format(_displayed_amt) }}</b> {{ p.currency or 'KRW' }}
             </div>
             {% endif %}
-            {# v5H111: 호기별 분해 — 라벨 숫자 순으로 정렬 (서버 all_units_sorted) #}
-            {% if all_units_sorted %}
+            {# v5H111: 호기별 분해 — 라벨 숫자 순으로 정렬 (서버 all_units_sorted)
+               v5H226z9: PARTS/CONSUMABLE 은 라인 수가 100+ 이므로 우측 패널 분해 숨김
+                         (총 건수만 요약 표시 — 상세는 SO 카드 표에서 확인) #}
+            {% set _is_parts_panel = (p.shipment_form or '')|upper == 'PARTS' %}
+            {% set _is_co_panel = (p.project_type or '')|upper == 'CONSUMABLE' %}
+            {% if all_units_sorted and not (_is_parts_panel or _is_co_panel) %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">
               {% for u in all_units_sorted %}
               <div>
@@ -1528,6 +1532,11 @@
                 <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
               </div>
               {% endfor %}
+            </div>
+            {% elif all_units_sorted and (_is_parts_panel or _is_co_panel) %}
+            {# v5H226z9: 라인 다수형 — 요약만 표시, 상세는 SO 카드 #}
+            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.5;border-top:1px dashed var(--line);padding-top:6px;">
+              📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
             </div>
             {% endif %}
           </dd>
