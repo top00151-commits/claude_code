@@ -771,8 +771,10 @@ body.so-fs-on { overflow: hidden; }
             </div>
             {% endif %}
             <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
-              {# v5H226z17: max-height 제거 → 세로 스크롤 X (페이지가 처리). 가로 스크롤만. #}
-              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
+              {# v5H226z18: SO 영역이 viewport 안에 들어가도록 max-height 복구. #}
+              {# 88행 같이 행이 많으면 wrapper 안에서 세로 스크롤 (불가피). #}
+              {# 페이지 스크롤은 발생 안 하고 SO 영역 내부에서만 처리됨. #}
+              <div{% if _is_parts %} class="so-units-wrapper" style="overflow:auto;max-width:100%;max-height:calc(100vh - 460px);min-height:300px;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
             <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:2500px;table-layout:fixed;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
