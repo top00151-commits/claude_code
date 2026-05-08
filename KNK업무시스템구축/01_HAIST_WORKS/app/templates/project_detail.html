@@ -1135,8 +1135,35 @@ body.so-fs-on { overflow: hidden; }
                 const iexSel = row.querySelector('select.iex-sel');
                 // v5H199: 호기별 상태 select (일괄 적용 후 저장 시 함께 commit)
                 const statusSel = row.querySelector('select.unit-status-sel');
+                // v5H226z14: PARTS 부품 메타 + 통관 input 들 (편집 시 누락되면 저장 안되어 데이터 유실)
+                const specInp     = row.querySelector('.spec-inp');
+                const makerInp    = row.querySelector('.maker-inp');
+                const supplierInp = row.querySelector('.supplier-inp');
+                const originInp   = row.querySelector('.origin-inp');
+                const boxInp      = row.querySelector('.box-inp');
+                const qtyInp      = row.querySelector('.qty-inp');
+                const unitInp     = row.querySelector('.unit-inp');
+                const arrivalInp  = row.querySelector('.arrival-inp');
+                const hsInp       = row.querySelector('.hs-inp');
+                const dutyRateInp = row.querySelector('.duty-rate-inp');
+                const vatRateInp  = row.querySelector('.vat-rate-inp');
+                const invUpUsdInp = row.querySelector('.inv-up-usd-inp');
+                const invAmtUsdInp= row.querySelector('.inv-amt-usd-inp');
+                const dutyKrwInp  = row.querySelector('.duty-krw-inp');
+                const dutyUsdInp  = row.querySelector('.duty-usd-inp');
+                const finalUsdInp = row.querySelector('.final-usd-inp');
+                const descInp     = row.querySelector('.desc-inp');
+                const palletInp   = row.querySelector('.pallet-inp');
+                const weightInp   = row.querySelector('.weight-inp');
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
+                // 헬퍼 — input dirty 검사 (값이 dataset.orig 와 다르면 dirty)
+                const dirtyInp = inp => inp && inp.value !== (inp.dataset.orig || '');
+                const partsInputs = [specInp, makerInp, supplierInp, originInp, boxInp,
+                                     qtyInp, unitInp, arrivalInp, hsInp, dutyRateInp,
+                                     vatRateInp, invUpUsdInp, invAmtUsdInp, dutyKrwInp,
+                                     dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp];
+                const partsDirty = partsInputs.some(dirtyInp);
                 const dirty =
                      (lblInp && lblInp.value !== lblInp.dataset.orig)
                   || (amtInp && parseFloat(aRaw) !== parseFloat(aOrig))
@@ -1146,8 +1173,14 @@ body.so-fs-on { overflow: hidden; }
                   || (shipInp && shipInp.value !== shipInp.dataset.orig)
                   || (curSel && curSel.value !== curSel.dataset.orig)
                   || (iexSel && iexSel.value !== iexSel.dataset.orig)
-                  || (statusSel && statusSel.value !== statusSel.dataset.orig);
-                if (dirty) out.push({ uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel });
+                  || (statusSel && statusSel.value !== statusSel.dataset.orig)
+                  || partsDirty;
+                if (dirty) out.push({
+                  uid, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel,
+                  specInp, makerInp, supplierInp, originInp, boxInp, qtyInp, unitInp, arrivalInp,
+                  hsInp, dutyRateInp, vatRateInp, invUpUsdInp, invAmtUsdInp,
+                  dutyKrwInp, dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp
+                });
               });
               return out;
             }
@@ -1172,6 +1205,26 @@ body.so-fs-on { overflow: hidden; }
                 if (r.curSel) body.set('currency', r.curSel.value || '');
                 // v5H197: 호기별 거래구분
                 if (r.iexSel) body.set('is_export', r.iexSel.value || '');
+                // v5H226z14: PARTS 부품 메타 + 통관 (input 존재 시에만 전송 — 호기 layout 영향 X)
+                if (r.specInp)     body.set('spec',           r.specInp.value || '');
+                if (r.makerInp)    body.set('maker',          r.makerInp.value || '');
+                if (r.supplierInp) body.set('supplier',       r.supplierInp.value || '');
+                if (r.originInp)   body.set('origin',         r.originInp.value || '');
+                if (r.boxInp)      body.set('box_no',         r.boxInp.value || '');
+                if (r.qtyInp)      body.set('qty',            (r.qtyInp.value || '0').replace(/,/g,''));
+                if (r.unitInp)     body.set('unit',           r.unitInp.value || '');
+                if (r.arrivalInp)  body.set('arrival_status', r.arrivalInp.value || '');
+                if (r.hsInp)       body.set('hs_code',        r.hsInp.value || '');
+                if (r.dutyRateInp) body.set('duty_rate',      r.dutyRateInp.value || '');
+                if (r.vatRateInp)  body.set('vat_rate',       r.vatRateInp.value || '');
+                if (r.invUpUsdInp) body.set('invoice_unit_price_usd', r.invUpUsdInp.value || '');
+                if (r.invAmtUsdInp)body.set('invoice_amount_usd',     r.invAmtUsdInp.value || '');
+                if (r.dutyKrwInp)  body.set('duty_krw',       r.dutyKrwInp.value || '');
+                if (r.dutyUsdInp)  body.set('duty_usd',       r.dutyUsdInp.value || '');
+                if (r.finalUsdInp) body.set('final_amount_usd', r.finalUsdInp.value || '');
+                if (r.descInp)     body.set('description',    r.descInp.value || '');
+                if (r.palletInp)   body.set('pallet_size',    r.palletInp.value || '');
+                if (r.weightInp)   body.set('weight_kg',      r.weightInp.value || '');
                 try {
                   const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
                                            { method:'POST', body });
