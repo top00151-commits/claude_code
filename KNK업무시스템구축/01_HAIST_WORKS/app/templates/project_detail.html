@@ -662,9 +662,10 @@
             {# (1) 가로 스크롤 wrapper 에 width:100%/overflow:hidden 명시 → 자식이 부모를 못 늘림 #}
             {# (2) inner wrapper 가 실제 overflow-x:auto + 표 자체는 자연 폭 #}
             <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
-              <div{% if _is_parts %} style="overflow-x:auto;max-width:100%;"{% endif %}>
+              {# v5H226z8: PARTS 표는 max-height 박스 안에 가둠 → 가로 스크롤 바가 항상 화면 안에 보임 #}
+              <div{% if _is_parts %} style="overflow:auto;max-width:100%;max-height:65vh;border:1px solid var(--line);border-radius:6px;"{% endif %}>
             <table class="so-units"{% if _is_parts %} style="white-space:nowrap;"{% endif %}>
-              <thead>
+              <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:var(--paper-3);box-shadow:0 1px 0 var(--line);"{% endif %}>
                 <tr>
                   {% if _is_co or _is_parts %}<th style="width:60px;">사진</th>{% endif %}
                   <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};">{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
