@@ -5447,10 +5447,19 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
             return PlainTextResponse("수주번호 매칭 안됨", 404)
         oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
         sel_extra = []
+        # v5H226z13: 다운로드 SELECT 에 모든 부품/통관 컬럼 포함
         for col in ("unit_label", "line_note", "order_date", "due_date", "ship_to",
                     "currency", "unit_status", "is_export", "image_path",
                     "image_thumb_path", "linked_project_id",
-                    "maker", "origin", "box_no", "spec", "arrival_status"):  # v5H226z: PARTS
+                    # PARTS 기본 메타
+                    "maker", "origin", "box_no", "spec", "arrival_status",
+                    "supplier", "unit",
+                    # PARTS 통관 (v5H226z5)
+                    "hs_code", "duty_rate", "vat_rate",
+                    "invoice_unit_price", "invoice_amount",
+                    "invoice_unit_price_usd", "invoice_amount_usd",
+                    "duty_krw", "duty_usd", "final_amount_usd",
+                    "description", "pallet_size", "weight_kg"):
             if col in oicols:
                 sel_extra.append(col)
         sel_extra_sql = (", " + ", ".join("oi." + x for x in sel_extra)) if sel_extra else ""
@@ -5567,30 +5576,43 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     # 헤더 행
     hdr_row_idx = ws.max_row + 1
     ws.append(headers)
-    hdr_fill = PatternFill("solid", start_color="FEF3C7")
-    hdr_font = Font(bold=True, name="Arial")
-    thin = Side(border_style="thin", color="999999")
+    # v5H226z13: 통일 폰트 9pt (대표 지시) + 깔끔한 디자인
+    BASE_FONT = "맑은 고딕"  # 한글/영문 모두 가독성 우수
+    BASE_SIZE = 9
+    hdr_fill = PatternFill("solid", start_color="F4F1E8")  # 옅은 베이지 (Excel 표준 헤더 느낌)
+    hdr_font = Font(bold=True, name=BASE_FONT, size=BASE_SIZE, color="3D3328")
+    thin = Side(border_style="thin", color="BFBFBF")
     border = Border(top=thin, bottom=thin, left=thin, right=thin)
     for col_i in range(1, len(headers) + 1):
         cell = ws.cell(hdr_row_idx, col_i)
         cell.fill = hdr_fill
         cell.font = hdr_font
-        # v5H226z2: 줄바꿈 헤더 (단가\n(VAT 별도) 등) wrap 활성화
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = border
-    # 헤더 행 높이 — PARTS 는 줄바꿈 헤더가 있어 더 크게
+    # 헤더 행 높이 — 줄바꿈 있으니 충분히 크게
     if is_parts:
-        ws.row_dimensions[hdr_row_idx].height = 32
-    # v5H226k/z: 메타 영역 셀 스타일 (CONSUMABLE / PARTS)
+        ws.row_dimensions[hdr_row_idx].height = 36
+    elif is_co:
+        ws.row_dimensions[hdr_row_idx].height = 28
+    else:
+        ws.row_dimensions[hdr_row_idx].height = 22
+    # v5H226k/z/z13: 메타 영역 셀 스타일 (CONSUMABLE / PARTS) — 폰트 9pt 통일
     if is_co or is_parts:
         title_cell = ws.cell(1, 1)
-        title_cell.font = Font(bold=True, size=14, color="7C4A03", name="Arial")
+        title_cell.font = Font(bold=True, size=13, color="7C4A03", name=BASE_FONT)
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
         title_cell.alignment = Alignment(horizontal="center", vertical="center")
-        ws.row_dimensions[1].height = 24
-        # 안내 행 (4행)
+        ws.row_dimensions[1].height = 22
+        # 메타 라인 2,3행 폰트 9pt
+        for _row_idx in (2, 3):
+            for _col_idx in range(1, len(headers) + 1):
+                _c = ws.cell(_row_idx, _col_idx)
+                if _c.value:
+                    _c.font = Font(name=BASE_FONT, size=BASE_SIZE, color="3D3328")
+                    _c.alignment = Alignment(vertical="center")
+        # 안내 행 (4행) — 작은 회색 안내문
         guide_cell = ws.cell(4, 1)
-        guide_cell.font = Font(italic=True, size=10, color="888888", name="Arial")
+        guide_cell.font = Font(italic=True, size=8, color="888888", name=BASE_FONT)
         ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=len(headers))
     # 데이터 행
     for idx, it in enumerate(items, 1):
@@ -5700,25 +5722,66 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         qty_col, price_col, amount_col = 6, 9, 10
     else:
         qty_col, price_col, amount_col = 3, 4, 5
+    # v5H226z13: 데이터 행 일괄 스타일 — 폰트 9pt, 테두리, 줄무늬, None → "" 정리
+    data_font = Font(name=BASE_FONT, size=BASE_SIZE, color="3D3328")
+    data_font_bold = Font(name=BASE_FONT, size=BASE_SIZE, color="3D3328", bold=True)
+    stripe_fill = PatternFill("solid", start_color="FAF9F5")  # 짝수 행 살짝 회색
+    thin_data = Side(border_style="thin", color="E0DDD5")
+    data_border = Border(top=thin_data, bottom=thin_data, left=thin_data, right=thin_data)
     for r in range(hdr_row_idx + 1, ws.max_row + 1):
+        # 줄무늬 (짝수 데이터 행)
+        is_stripe = ((r - hdr_row_idx) % 2 == 0)
+        for c_idx in range(1, len(headers) + 1):
+            cell = ws.cell(r, c_idx)
+            cell.font = data_font
+            cell.border = data_border
+            if is_stripe:
+                cell.fill = stripe_fill
+            # None 값을 빈 문자열로 (엑셀에 None 표시 안 되도록)
+            if cell.value is None:
+                cell.value = ""
+            # 정렬 — 숫자 컬럼은 우측, 텍스트는 좌측, 짧은 식별 컬럼은 가운데
+            cell.alignment = Alignment(vertical="center", wrap_text=False)
+        # 숫자 포맷
         for c_idx in (price_col, amount_col):
             ws.cell(r, c_idx).number_format = '#,##0'
+            ws.cell(r, c_idx).alignment = Alignment(horizontal="right", vertical="center")
         ws.cell(r, qty_col).number_format = '#,##0.##'
+        ws.cell(r, qty_col).alignment = Alignment(horizontal="right", vertical="center")
         # v5H226z5: 추가 숫자 컬럼 포맷
         if is_parts:
-            # DUTY/VAT 는 비율 (0.1 = 10%) — 소수 표시
+            # 가운데 정렬 컬럼 (B 순번, E BOX, J 단위)
+            for c_idx in (2, 5, 10):
+                ws.cell(r, c_idx).alignment = Alignment(horizontal="center", vertical="center")
+            # DUTY/VAT 는 비율 (0.1 = 10%)
             for c_idx in (17, 18):
                 ws.cell(r, c_idx).number_format = '0.0%'
+                ws.cell(r, c_idx).alignment = Alignment(horizontal="right", vertical="center")
             # 인보이스 KRW 단가/금액 (정수)
             for c_idx in (19, 20):
                 ws.cell(r, c_idx).number_format = '#,##0'
-            # 인보이스 USD 단가/금액 (소수 2자리)
+                ws.cell(r, c_idx).alignment = Alignment(horizontal="right", vertical="center")
+            # 인보이스 USD 단가/금액, 관세 USD, 최종 USD (소수 2자리)
             for c_idx in (21, 22, 24, 25):
                 ws.cell(r, c_idx).number_format = '#,##0.00'
+                ws.cell(r, c_idx).alignment = Alignment(horizontal="right", vertical="center")
             # 관세 KRW (정수)
             ws.cell(r, 23).number_format = '#,##0'
+            ws.cell(r, 23).alignment = Alignment(horizontal="right", vertical="center")
             # 중량 (소수)
             ws.cell(r, 28).number_format = '#,##0.##'
+            ws.cell(r, 28).alignment = Alignment(horizontal="right", vertical="center")
+            # 최종 금액 USD 굵게 강조
+            ws.cell(r, 25).font = data_font_bold
+            # HS CODE monospace 느낌 (가운데 정렬)
+            ws.cell(r, 16).alignment = Alignment(horizontal="center", vertical="center")
+        # 데이터 행 높이 (PARTS 는 사진 행이라 더 크게)
+        if is_parts and (r > hdr_row_idx):
+            ws.row_dimensions[r].height = 50
+        elif is_co and (r > hdr_row_idx):
+            ws.row_dimensions[r].height = 50
+    # v5H226z13: 헤더 고정 (스크롤 시 헤더 보임)
+    ws.freeze_panes = ws.cell(hdr_row_idx + 1, 3 if (is_co or is_parts) else 2).coordinate
     # v5H226j/z: CONSUMABLE / PARTS 일 때 썸네일 이미지를 사진 컬럼(A) 에 직접 삽입
     if is_co or is_parts:
         from openpyxl.drawing.image import Image as XLImage
