@@ -395,7 +395,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
 def confirm_order_multi(c, project_id: int, units: list[dict],
                          order_date: str | None = None,
                          created_by: int = 0,
-                         po_number: str = "") -> dict:
+                         po_number: str = "",
+                         so_type: str | None = None) -> dict:
     """v5H81: 호기별 발주를 (납기, 납품지) 그룹화하여 SO 발행.
 
     KNK 표준 (대표 정의):
@@ -477,36 +478,41 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         )
 
     # v5H223: units 가 비어있고 CONSUMABLE 인 경우 — 빈 SO 1건 발행 (라인은 후속 추가)
+    # v5H226z: shipment_form='PARTS' (정식 PACKING LIST) 도 빈 SO 1건 발행
+    _empty_so_allowed = (_ptype_proj == "CONSUMABLE")
+    _so_type_for_empty = "CONSUMABLE"
+    _ship_form_proj = (proj.get("shipment_form") or "ASSEMBLY").upper()
+    if _ship_form_proj == "PARTS":
+        _empty_so_allowed = True
+        _so_type_for_empty = "PARTS_EXPORT"
     if not units:
-        if _ptype_proj == "CONSUMABLE":
+        if _empty_so_allowed:
             so_no = generate_so_no(c, biz_div, ref_d)
-            try:
-                _cur_ins = c.execute(
-                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
-                    "ship_to, unit_qty, currency) "
-                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?)",
-                    (so_no, customer_id, project_id, order_date, None,
-                     0, created_by or None, "(라인 미입력)",
-                     (po_number or None), None, 0, (proj.get("currency") or "KRW"))
-                )
-            except Exception:
-                _cur_ins = c.execute(
-                    "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
-                    "due_date, total_amount, status, created_by, unit_label, unit_note, "
-                    "ship_to, unit_qty) "
-                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?)",
-                    (so_no, customer_id, project_id, order_date, None,
-                     0, created_by or None, "(라인 미입력)",
-                     (po_number or None), None, 0)
-                )
+            _ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            _cols = ["order_no", "customer_id", "project_id", "order_date",
+                     "due_date", "total_amount", "status", "created_by",
+                     "unit_label", "unit_note", "ship_to", "unit_qty"]
+            _vals = [so_no, customer_id, project_id, order_date, None,
+                     0, "CONFIRMED", created_by or None,
+                     "(라인 미입력)", (po_number or None), None, 0]
+            if "currency" in _ord_cols:
+                _cols.append("currency")
+                _vals.append(proj.get("currency") or "KRW")
+            if "so_type" in _ord_cols:
+                _cols.append("so_type")
+                _vals.append((so_type or _so_type_for_empty).upper())
+            _ph = ",".join(["?"] * len(_vals))
+            _cur_ins = c.execute(
+                f"INSERT INTO orders({','.join(_cols)}) VALUES({_ph})",
+                _vals
+            )
             return {
                 "ok": True, "mgmt_code": mgmt_code,
                 "groups": [{"so_no": so_no, "order_id": _cur_ins.lastrowid,
                              "due_date": None, "ship_to": None,
                              "total_amount": 0, "units": []}],
                 "total_amount": 0, "so_no": so_no,
-                "message": "빈 SO 발행 (라인은 상세에서 추가)",
+                "message": f"빈 SO 발행 (so_type={_so_type_for_empty}, 라인은 상세에서 추가)",
             }
         else:
             return {"ok": False, "message": "호기 정보가 없습니다"}
@@ -872,7 +878,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
             # v5H197: is_export (호기별 거래구분)
             for _c in ("order_date", "due_date", "ship_to", "currency", "unit_status", "is_export",
                        "image_path", "image_thumb_path",  # v5H226e: 소모품 라인 이미지
-                       "linked_project_id"):              # v5H226g: 소모품 라인 → 장비 매칭
+                       "linked_project_id",               # v5H226g: 소모품 라인 → 장비 매칭
+                       "maker", "origin", "box_no", "spec", "arrival_status"):  # v5H226z: 정식 PACKING LIST
                 if _c in oicols: sel_extra.append(_c)
             sel_extra_sql = (", " + ", ".join("oi." + _c for _c in sel_extra)) if sel_extra else ""
             # v5H226g: linked_project_id → projects.mgmt_code/name 자동 JOIN (소모품 행 표시용)

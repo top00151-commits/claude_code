@@ -2077,6 +2077,8 @@ def init_db():
             ("proposal_memo",      "TEXT"),                # 진행 메모 (자유 기록)
             ("quotation_submitted","INTEGER DEFAULT 0"),
             ("quotation_memo",     "TEXT"),
+            # v5H226z (2026-05-08): 출고 형태 — ASSEMBLY(완제품, 호기)/PARTS(부품, PACKING LIST)
+            ("shipment_form",      "TEXT DEFAULT 'ASSEMBLY'"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -2401,6 +2403,12 @@ def init_db():
                 # v5H226c: 소모품 라인 이미지 (엑셀 셀에 박힌 이미지 추출/압축본)
                 ("image_path",       "ALTER TABLE order_items ADD COLUMN image_path TEXT"),
                 ("image_thumb_path", "ALTER TABLE order_items ADD COLUMN image_thumb_path TEXT"),
+                # v5H226z: 부품 형태 출고용 (정식 PACKING LIST) — 메이커/원산지/BOX/규격/입고일정
+                ("maker",            "ALTER TABLE order_items ADD COLUMN maker TEXT"),
+                ("origin",           "ALTER TABLE order_items ADD COLUMN origin TEXT"),
+                ("box_no",           "ALTER TABLE order_items ADD COLUMN box_no TEXT"),
+                ("spec",             "ALTER TABLE order_items ADD COLUMN spec TEXT"),
+                ("arrival_status",   "ALTER TABLE order_items ADD COLUMN arrival_status TEXT"),
             ]:
                 if col not in oicols:
                     try:
@@ -4133,6 +4141,12 @@ def _project_insert_or_update_values(data: dict) -> dict:
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용). 빈 문자열은 None 으로.
         "proposal_date":  (data.get("proposal_date") or "").strip() or None,
         "quotation_date": (data.get("quotation_date") or "").strip() or None,
+        # v5H226z: 출고 형태 — ASSEMBLY(default) / PARTS(정식 PACKING LIST)
+        "shipment_form": (
+            (data.get("shipment_form") or "ASSEMBLY").strip().upper()
+            if (data.get("shipment_form") or "ASSEMBLY").strip().upper() in ("ASSEMBLY", "PARTS")
+            else "ASSEMBLY"
+        ),
     }
 
 
@@ -4187,8 +4201,9 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                      project_type, parent_project_id,
                      fx_rate, amount_krw,
                      proposal_date, quotation_date,
+                     shipment_form,
                      created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
@@ -4199,6 +4214,7 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals.get("parent_project_id"),
                       vals.get("fx_rate"), vals.get("amount_krw"),
                       vals.get("proposal_date"), vals.get("quotation_date"),
+                      vals.get("shipment_form") or "ASSEMBLY",
                       now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
@@ -4434,6 +4450,7 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
                 project_type=?, parent_project_id=?,
                 fx_rate=?, amount_krw=?,
                 proposal_date=?, quotation_date=?,
+                shipment_form=?,
                 updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
@@ -4446,6 +4463,7 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
               vals.get("parent_project_id"),
               vals.get("fx_rate"), vals.get("amount_krw"),
               vals.get("proposal_date"), vals.get("quotation_date"),
+              vals.get("shipment_form") or "ASSEMBLY",
               _logi_now(), pid))
         # v5H101: 변경 이력 적재 (UPDATE 성공 후)
         for label, ov, nv in _pending_logs:

@@ -604,14 +604,18 @@
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
+                {% set _so_is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
                 {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
-                <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드" style="text-decoration:none;">📥 엑셀 다운로드</a>
+                <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 ({% if _so_is_parts %}정식 PACKING LIST 양식{% else %}KNK 표준 양식{% endif %})" style="text-decoration:none;">📥 엑셀 다운로드</a>
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
-                {# v5H226: CONSUMABLE 은 '+ 항목 추가' + 엑셀 업로드 버튼 #}
+                {# v5H226: CONSUMABLE / v5H226z: PARTS 는 '+ 항목 추가' + 엑셀 업로드 버튼 #}
                 {% if (p.project_type or '')|upper == 'CONSUMABLE' %}
                 <button type="button" class="btn-mini" onclick="openConsumableImport({{ so.id }})" title="엑셀로 라인 일괄 업로드">📤 엑셀 업로드</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 항목 추가</button>
+                {% elif _so_is_parts %}
+                <button type="button" class="btn-mini" onclick="openPartsImport({{ so.id }})" title="정식 PACKING LIST 엑셀로 부품 일괄 업로드">📤 엑셀 업로드</button>
+                <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 {% endif %}
@@ -649,18 +653,28 @@
             </div>
             {% endif %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
+            {# v5H226z: 부품 형태 출고 (정식 PACKING LIST) — SO 단위 so_type 또는 프로젝트 shipment_form 으로 판별 #}
+            {% set _is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
             <table class="so-units">
               <thead>
                 <tr>
-                  {% if _is_co %}<th style="width:60px;">사진</th>{% endif %}
-                  <th style="width:{% if _is_co %}220px{% else %}80px{% endif %};">{% if _is_co %}품명{% else %}호기{% endif %}</th>
+                  {% if _is_co or _is_parts %}<th style="width:60px;">사진</th>{% endif %}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};">{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {% if _is_parts %}
+                  <th style="width:140px;">규격</th>
+                  <th style="width:90px;">메이커</th>
+                  <th style="width:80px;">원산지</th>
+                  <th style="width:60px;">BOX</th>
+                  <th class="num" style="width:60px;">수량</th>
+                  {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num" style="width:120px;">단가</th>
                   <th style="width:74px;">통화</th>
-                  <th style="width:78px;">거래</th>
+                  {% if not _is_parts %}<th style="width:78px;">거래</th>{% endif %}
                   <th style="width:90px;">발주일</th>
                   <th style="width:90px;">납기일</th>
-                  <th style="width:110px;">납품처</th>
+                  {% if _is_parts %}<th style="width:120px;">입고일정</th>{% endif %}
+                  {% if not _is_parts %}<th style="width:110px;">납품처</th>{% endif %}
                   <th style="width:106px;">상태</th>
                   <th>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
@@ -675,7 +689,7 @@
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 <tr data-uid="{{ u.id }}">
-                  {% if _is_co %}
+                  {% if _is_co or _is_parts %}
                   <td style="text-align:center;padding:4px;">
                     {% if u.image_thumb_path %}
                     <a href="{{ u.image_path or u.image_thumb_path }}" target="_blank" title="원본 보기">
@@ -684,10 +698,32 @@
                     {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
                   </td>
                   {% endif %}
-                  <td style="white-space:nowrap;{% if _is_co %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
+                  <td style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
-                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co %} style="width:200px;"{% endif %}>{% endif %}
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                   </td>
+                  {% if _is_parts %}
+                  <td style="font-size:11.5px;">
+                    <span class="display-val">{{ u.spec or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:130px;font-size:11.5px;">{% endif %}
+                  </td>
+                  <td style="font-size:11.5px;">
+                    <span class="display-val">{{ u.maker or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit maker-inp" data-orig="{{ u.maker or '' }}" value="{{ u.maker or '' }}" style="width:80px;font-size:11.5px;">{% endif %}
+                  </td>
+                  <td style="font-size:11.5px;">
+                    <span class="display-val">{{ u.origin or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit origin-inp" data-orig="{{ u.origin or '' }}" value="{{ u.origin or '' }}" style="width:70px;font-size:11.5px;">{% endif %}
+                  </td>
+                  <td style="font-size:11.5px;text-align:center;">
+                    <span class="display-val">{{ u.box_no or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit box-inp" data-orig="{{ u.box_no or '' }}" value="{{ u.box_no or '' }}" style="width:50px;font-size:11.5px;text-align:center;">{% endif %}
+                  </td>
+                  <td class="num" style="font-size:11.5px;">
+                    <span class="display-val">{{ '{:,.0f}'.format(u.qty or 0) }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit qty-inp" data-orig="{{ u.qty or 0 }}" value="{{ u.qty or 0 }}" style="width:50px;font-size:11.5px;text-align:right;">{% endif %}
+                  </td>
+                  {% endif %}
                   {% if _is_co %}
                   <td style="font-size:11.5px;">
                     {% if u.linked_mgmt_code %}
@@ -717,6 +753,7 @@
                   {% set _u_iex_raw = u.is_export %}
                   {% set _u_iex_eff = (_u_iex_raw if _u_iex_raw is not none else (1 if p.is_export else 0)) %}
                   {% set _ov_iex = (_u_iex_raw is not none and _u_iex_raw != (1 if p.is_export else 0)) %}
+                  {% if not _is_parts %}
                   <td>
                     <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
@@ -726,6 +763,7 @@
                     </select>
                     {% endif %}
                   </td>
+                  {% endif %}
                   <td>
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
@@ -734,10 +772,17 @@
                     <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
                   </td>
+                  {% if _is_parts %}
+                  <td style="font-size:11.5px;">
+                    <span class="display-val">{{ u.arrival_status or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit arrival-inp" data-orig="{{ u.arrival_status or '' }}" value="{{ u.arrival_status or '' }}" placeholder="예: 입고 완료" style="width:110px;font-size:11.5px;">{% endif %}
+                  </td>
+                  {% else %}
                   <td>
                     <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
+                  {% endif %}
                   {# v5H186: 호기 상태 — 항상 select 노출 (편집 모드와 무관, 인라인 즉시 변경) #}
                   <td>
                     {% if can_sales %}
@@ -773,8 +818,11 @@
             </div>
             {% else %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
+            {% set _is_parts_empty = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
             <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
-              {% if _is_co %}
+              {% if _is_parts_empty %}
+              부품이 없습니다 — '＋ 부품 추가' 또는 '📤 엑셀 업로드' (정식 PACKING LIST) 로 입력하세요.
+              {% elif _is_co %}
               항목이 없습니다 — '＋ 항목 추가' 또는 '📤 엑셀 업로드' 로 입력하세요.
               {% else %}
               호기 라인이 없습니다 — '＋ 호기 추가' 로 입력하세요.
@@ -782,13 +830,18 @@
             </div>
             {% endif %}
 
-            <!-- 호기/항목 추가 인라인 폼 -->
+            <!-- 호기/항목/부품 추가 인라인 폼 -->
             {% if _editable %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
+            {% set _is_parts_add = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
             <div class="add-unit-card">
               <div class="row">
-                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
-                {% if _is_co %}
+                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
+                {% if _is_parts_add %}
+                <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
+                <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
+                <span style="color:var(--mute);font-size:12px;">EA ×</span>
+                {% elif _is_co %}
                 <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="수량">
                 <span style="color:var(--mute);font-size:12px;">EA ×</span>

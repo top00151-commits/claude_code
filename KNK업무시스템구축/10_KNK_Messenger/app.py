@@ -35,7 +35,7 @@ PORT = int(os.environ.get("KNK_MSG_PORT", "5050"))
 MAX_UPLOAD_MB = 25
 MESSAGE_RETENTION_MONTHS = int(os.environ.get("KNK_MSG_RETENTION_MONTHS", "12"))
 VAPID_PRIV_PATH = os.path.join(APP_DIR, "data", "vapid_private.pem")
-VAPID_CONTACT = os.environ.get("KNK_MSG_CONTACT", "mailto:admin@knk.kr")
+VAPID_CONTACT = os.environ.get("KNK_MSG_CONTACT", "mailto:admin@knknara.com")
 
 # ---------- 운영(인터넷) 배포용 환경변수 ----------
 # 운영 모드: KNK_MSG_ENV=production 으로 켜면 보안 헤더·HTTPS 강제·CORS 제한 활성
@@ -43,7 +43,7 @@ ENV = os.environ.get("KNK_MSG_ENV", "development").lower()
 IS_PRODUCTION = ENV == "production"
 # Socket.IO async_mode: 개발=threading(Windows OK), 운영=eventlet(gunicorn worker)
 ASYNC_MODE = os.environ.get("KNK_MSG_ASYNC", "threading")
-# CORS allowed origins: 콤마 구분. 예) "https://msg.knk.co.kr"
+# CORS allowed origins: 콤마 구분. 예) "https://msg.knknara.com"
 _cors_env = os.environ.get("KNK_MSG_CORS", "*")
 CORS_ALLOWED = [o.strip() for o in _cors_env.split(",")] if _cors_env != "*" else "*"
 # 정적 파일 캐시 (운영은 1일, 개발은 0)

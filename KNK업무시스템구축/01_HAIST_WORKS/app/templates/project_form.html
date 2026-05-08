@@ -185,6 +185,28 @@
                  placeholder="예: ○○고객사 검사기 1호기">
         </div>
       </div>
+      {# v5H226z: 출고 형태 (T/M 검사기·자동화 한정). ASSEMBLY=호기/완제품, PARTS=정식 PACKING LIST 부품 #}
+      {% set _ship_form = (project.shipment_form if project and project.shipment_form else 'ASSEMBLY') %}
+      {% set _ptype_top = (project.project_type if project and project.project_type else (preset.project_type if preset else 'NEW_EQUIP')) %}
+      {% if _ptype_top == 'NEW_EQUIP' %}
+      <div class="pf-row solo">
+        <div class="pf-field full">
+          <label>출고 형태 <span class="sub">(베트남 법인 부품 수출 시 PACKING LIST 모드 선택)</span></label>
+          <div style="display:flex;gap:18px;padding:8px 4px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+              <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form != 'PARTS' %}checked{% endif %}>
+              📦 ASS'Y 형태 <span style="color:var(--mute);font-weight:400;font-size:12px;">(완제품·호기 단위)</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+              <input type="radio" name="shipment_form" value="PARTS" {% if _ship_form == 'PARTS' %}checked{% endif %}>
+              🧰 부품 형태 <span style="color:var(--mute);font-weight:400;font-size:12px;">(정식 PACKING LIST · 라인 명세)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <input type="hidden" name="shipment_form" value="ASSEMBLY">
+      {% endif %}
       {# v5H218: 사업부 라벨 통일 — '자동화사업부'/'검사기사업부'.
          T/M 검사기·자동화는 chooser 에서 자동 선택(읽기전용), K 기타·S 소모품은 사용자가 직접 선택 #}
       {% set _ptype_cur = (project.project_type if project and project.project_type else (preset.project_type if preset else 'NEW_EQUIP')) %}
@@ -464,8 +486,9 @@
 
     <!-- ③ 금액 (v5H132: 단가 × 수량 = 금액 3-필드 레이아웃)
          v5H221: 소모품(S)은 라인이 여러 개라 헤더 단계 금액 입력 의미 없음 → 섹션 통째로 숨김.
-                 라인·금액은 등록 후 상세 페이지의 엑셀 업로드/라인 편집에서 입력 -->
-    {% if not _is_consumable %}
+         v5H226z: 부품 형태 출고도 라인 명세라 헤더 금액 의미 없음 → 동일 숨김 -->
+    {% set _is_parts_form = (_ship_form == 'PARTS') %}
+    {% if not _is_consumable and not _is_parts_form %}
     <div class="pf-section">
       <h3>③ 금액 <span class="sub" style="font-size:11px;color:var(--mute);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">단가 × 수량 = 금액 (자동 계산)</span></h3>
       {% set _p_qty = project.unit_qty if (project and project.unit_qty) else 1 %}
@@ -748,11 +771,20 @@
       {% endif %}
     </div>
 
-    {% endif %}{# /not _is_consumable — ③ 금액 섹션 #}
+    {% endif %}{# /not _is_consumable and not _is_parts_form — ③ 금액 섹션 #}
+    {% if _is_parts_form %}
+    <div class="pf-section" style="background:#fef9e6;border:1px dashed #d4b75a;">
+      <h3 style="color:#7c4a03;">🧰 부품 형태 출고</h3>
+      <div style="font-size:12.5px;color:#5a4a00;line-height:1.65;padding:0 4px;">
+        등록 후 <b>프로젝트 상세 화면</b> 에서 정식 PACKING LIST 양식으로 부품 라인을 일괄 추가/편집합니다.<br>
+        엑셀 양식 다운로드 → 부품 채워서 업로드 → 자동 매칭(품명/규격/메이커/원산지/BOX/수량/단가).
+      </div>
+    </div>
+    {% endif %}
 
     <!-- ④ 비고 -->
     <div class="pf-section">
-      <h3>{% if _is_consumable %}③{% else %}④{% endif %} 비고</h3>
+      <h3>{% if _is_consumable or _is_parts_form %}③{% else %}④{% endif %} 비고</h3>
       <div class="pf-row solo">
         <div class="pf-field full">
           <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note|default('') }}</textarea>

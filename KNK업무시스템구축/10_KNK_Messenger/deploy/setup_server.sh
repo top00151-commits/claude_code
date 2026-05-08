@@ -3,10 +3,10 @@
 # KNK Messenger - Ubuntu 22.04 서버 1회 셋업 스크립트
 # ============================================================
 # 사용법:
-#   sudo bash setup_server.sh msg.knk.co.kr admin@knk.kr
+#   sudo bash setup_server.sh msg.knknara.com admin@knknara.com
 #
 # 인자:
-#   $1 = 도메인 (예: msg.knk.co.kr)
+#   $1 = 도메인 (예: msg.knknara.com)
 #   $2 = 관리자 이메일 (Let's Encrypt 알림용)
 #
 # 동작:

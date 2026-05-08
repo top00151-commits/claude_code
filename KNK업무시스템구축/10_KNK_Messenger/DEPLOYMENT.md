@@ -22,7 +22,7 @@
 
 ## 사전 준비
 
-1. **도메인** — 카페24/가비아 등에서 `knk.kr` 또는 `messenger.knk.co.kr` (서브도메인 권장)
+1. **도메인** — 확정: `msg.knknara.com` (knknara.com 서브도메인, DNS A 레코드만 추가)
 2. **AWS 계정** — Lightsail 인스턴스 1개
 3. **SSL** — Let's Encrypt 무료 (certbot)
 4. **VPN** (선택) — 직원 외부 접속 차단 시 OpenVPN 또는 WireGuard
@@ -33,14 +33,18 @@
 1. Lightsail Tokyo region / Ubuntu 22.04 LTS / $10 plan 인스턴스 생성
 2. 정적 IP 부여 (인스턴스에 attach)
 3. 방화벽: 22(SSH 사무실IP만), 80, 443
-4. 도메인 DNS A 레코드: `msg.knk.co.kr → 정적IP`
+4. 도메인 DNS A 레코드: `msg.knknara.com → 정적IP`
 5. SSH key 다운로드 + scp/git으로 코드를 `/opt/knk_messenger` 에 올리기
 
 ### 1줄 자동 셋업 — 빅터/관리자
 ```bash
 ssh ubuntu@<정적IP>
 cd /opt/knk_messenger
-sudo bash deploy/setup_server.sh msg.knk.co.kr admin@knk.kr
+# 인터넷에서 개발하면서 검증 → 안정 후 운영 전환 (권장)
+sudo bash deploy/setup_server_dev.sh msg.knknara.com admin@knknara.com
+
+# 또는 처음부터 운영 모드
+sudo bash deploy/setup_server.sh msg.knknara.com admin@knknara.com
 ```
 
 이 한 줄이 처리하는 것:
@@ -94,7 +98,7 @@ bash /opt/knk_messenger/deploy/backup.sh # 즉시 백업
 
 ## 베트남법인 접속
 
-- 동일 URL (`https://messenger.knk.co.kr`) — 인터넷 통해서 접속
+- 동일 URL (`https://msg.knknara.com`) — 인터넷 통해서 접속
 - 베트남 통신 환경상 ~70-100ms 응답, 채팅에 무리 없음
 - VPN 필요 없음 (HTTPS면 충분)
 - 화상회의 추가 시 별도 검토 (WebRTC TURN 서버 필요)
@@ -105,7 +109,7 @@ bash /opt/knk_messenger/deploy/backup.sh # 즉시 백업
 |---|---|
 | Lightsail $10 인스턴스 | ₩14,000 |
 | 자동 백업 ($1) | ₩1,400 |
-| 도메인 (.co.kr 연 ₩22,000) | ~₩1,800 |
+| 도메인 서브도메인 (knknara.com 보유 시) | ₩0 |
 | TestFlight Internal($99/년) | ~₩11,500 |
 | **합계** | **약 ₩28,700/월** |
 
@@ -113,7 +117,7 @@ bash /opt/knk_messenger/deploy/backup.sh # 즉시 백업
 
 ## 운영 모니터링
 
-- 헬스체크: `curl https://messenger.knk.co.kr/login` → 200 확인
+- 헬스체크: `curl https://msg.knknara.com/login` → 200 확인
 - 디스크 사용량 모니터링: `df -h` (60GB SSD 기준 매월 점검)
 - 로그: `journalctl -u knk-messenger -f`
 - 사용자 수 증가 시 → Lightsail $20 plan(4GB RAM) 업그레이드 고려

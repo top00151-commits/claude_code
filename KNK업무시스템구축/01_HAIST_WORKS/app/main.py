@@ -5907,7 +5907,8 @@ async def projects_quick_status(req: Request, pid: int):
             "due_date, customer_po, "
             "COALESCE(unit_qty,1) AS unit_qty, unit_price, "
             "COALESCE(currency,'KRW') AS currency, "
-            "COALESCE(project_type,'NEW_EQUIP') AS project_type "
+            "COALESCE(project_type,'NEW_EQUIP') AS project_type, "
+            "COALESCE(shipment_form,'ASSEMBLY') AS shipment_form "
             "FROM projects WHERE id=?", (pid,)
         ).fetchone()
         if not cur:
@@ -5953,11 +5954,14 @@ async def projects_quick_status(req: Request, pid: int):
         # v5H130: WON_STATUSES + SO 0건 + order_amount > 0 → 자동 SO 발행
         # v5H132: unit_qty N → N개 호기 라인 (단가=unit_price 또는 amt/qty)
         # v5H223: CONSUMABLE 도 자동 SO 발행 (단, 라인이 없는 빈 SO 로 시작)
+        # v5H226z: shipment_form='PARTS' 도 빈 SO (라인은 정식 PACKING LIST 양식으로 후속 추가)
+        _ship_form_q = (cur["shipment_form"] if "shipment_form" in cur.keys() else "ASSEMBLY") or "ASSEMBLY"
+        _is_parts_q = (_ship_form_q.upper() == "PARTS")
         if new_status in _logi.WON_STATUSES and _cur_ptype in ("NEW_EQUIP", "CONSUMABLE"):
             try:
                 amt0 = float(cur["order_amount"] or 0)
-                # CONSUMABLE 은 amt=0 이어도 빈 SO 발행 (라인은 후속 추가)
-                if amt0 > 0 or _cur_ptype == "CONSUMABLE":
+                # CONSUMABLE/PARTS 는 amt=0 이어도 빈 SO 발행 (라인은 후속 추가)
+                if amt0 > 0 or _cur_ptype == "CONSUMABLE" or _is_parts_q:
                     exists = c.execute(
                         "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (pid,)
                     ).fetchone()
@@ -5974,7 +5978,8 @@ async def projects_quick_status(req: Request, pid: int):
                             _up0 = amt0 / _qty0 if _qty0 else 0
                         _ptype_q = cur["project_type"] or "NEW_EQUIP"
                         # v5H223: CONSUMABLE 은 빈 SO (라인은 상세에서 후속 추가)
-                        if _ptype_q == "CONSUMABLE":
+                        # v5H226z: PARTS shipment_form 도 동일 (정식 PACKING LIST)
+                        if _ptype_q == "CONSUMABLE" or _is_parts_q:
                             _units_list = []
                         else:
                             _units_list = [{
@@ -5984,12 +5989,15 @@ async def projects_quick_status(req: Request, pid: int):
                                 "ship_to": "",
                                 "note": "",
                             } for i in range(_qty0)]
+                        # v5H226z: so_type 결정 (PARTS → PARTS_EXPORT)
+                        _so_type_q = "PARTS_EXPORT" if _is_parts_q else None
                         res = _pwf.confirm_order_multi(
                             c, int(pid),
                             units=_units_list,
                             order_date=cur["order_date"] or "",
                             created_by=u.get("id") or 0,
                             po_number=cur["customer_po"] or "",
+                            so_type=_so_type_q,
                         )
                         if res and res.get("ok"):
                             auto_so_issued = True
@@ -6063,6 +6071,17 @@ async def sales_order_item_edit(req: Request, iid: int):
         u_iex = int(u_iex_raw)
     else:
         u_iex = None  # 비전송 = 변경 안함
+    # v5H226z: 정식 PACKING LIST 부품 라인 추가 메타 (form 에 있을 때만 갱신)
+    u_maker = form.get("maker")
+    u_origin = form.get("origin")
+    u_box = form.get("box_no")
+    u_spec = form.get("spec")
+    u_arrival = form.get("arrival_status")
+    u_qty_raw = (form.get("qty") or "").strip().replace(",", "")
+    try:
+        u_qty = float(u_qty_raw) if u_qty_raw else None
+    except Exception:
+        u_qty = None
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -6119,6 +6138,19 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("currency=?"); vals_set.append(ov_c)
             if "is_export" in _oicols and u_iex is not None:
                 cols_set.append("is_export=?"); vals_set.append(u_iex)
+            # v5H226z: 부품 메타 — form 에 키가 있을 때만 추가 (호기 편집과 충돌 X)
+            if u_maker is not None and "maker" in _oicols:
+                cols_set.append("maker=?"); vals_set.append((u_maker or "").strip() or None)
+            if u_origin is not None and "origin" in _oicols:
+                cols_set.append("origin=?"); vals_set.append((u_origin or "").strip() or None)
+            if u_box is not None and "box_no" in _oicols:
+                cols_set.append("box_no=?"); vals_set.append((u_box or "").strip() or None)
+            if u_spec is not None and "spec" in _oicols:
+                cols_set.append("spec=?"); vals_set.append((u_spec or "").strip() or None)
+            if u_arrival is not None and "arrival_status" in _oicols:
+                cols_set.append("arrival_status=?"); vals_set.append((u_arrival or "").strip() or None)
+            if u_qty is not None:
+                cols_set.append("qty=?"); vals_set.append(u_qty)
             vals_set.append(iid)
             c.execute(
                 f"UPDATE order_items SET {','.join(cols_set)} WHERE id=?",
@@ -9472,6 +9504,8 @@ async def projects_new_submit(request: Request):
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
         "proposal_date": form.get("proposal_date", ""),
         "quotation_date": form.get("quotation_date", ""),
+        # v5H226z: 출고 형태 (NEW_EQUIP 만 의미 있음, 그 외는 ASSEMBLY 폴백)
+        "shipment_form": (form.get("shipment_form") or "ASSEMBLY").strip().upper(),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
         "project_type": _ptype,
@@ -10364,6 +10398,8 @@ async def projects_edit_submit(request: Request, pid: int):
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
         "proposal_date": form.get("proposal_date", ""),
         "quotation_date": form.get("quotation_date", ""),
+        # v5H226z: 출고 형태 (NEW_EQUIP 만 의미 있음, 그 외는 ASSEMBLY 폴백)
+        "shipment_form": (form.get("shipment_form") or "ASSEMBLY").strip().upper(),
         "pm": form.get("pm", ""), "sales": form.get("sales", ""),
         "note": form.get("note", ""),
         "project_type": _ptype,

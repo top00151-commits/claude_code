@@ -46,7 +46,7 @@ schtasks /delete /tn "KNK_Messenger_Backup" /f
 ```bash
 # crontab -e
 0 3 * * * cd /opt/knk_messenger && sqlite3 data/messenger.db ".backup backups/messenger_$(date +\%Y\%m\%d).db"
-0 4 1 * * curl -X POST -H "X-Admin-Token: $ADMIN_TOKEN" https://messenger.knk.co.kr/api/admin/cleanup
+0 4 1 * * curl -X POST -H "X-Admin-Token: $ADMIN_TOKEN" https://msg.knknara.com/api/admin/cleanup
 ```
 
 (클라우드 운영 시 `X-Admin-Token` 인증 추가 필요 — 다음 사이클)
