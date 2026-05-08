@@ -9887,9 +9887,19 @@ async def projects_new_submit(request: Request):
             units.append({"label": lbl, "amount": u_amt,
                           "due_date": u_due, "ship_to": u_ship,
                           "note": u_note, "currency": u_cur})
+        # v5H226z: PARTS 형태는 호기 라인 없이 빈 SO + so_type=PARTS_EXPORT
+        _ship_form_cn = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
         try:
             with db_session() as c:
-                if units:
+                if _ship_form_cn == "PARTS":
+                    _pwf.confirm_order_multi(
+                        c, int(new_pid), units=[],
+                        order_date=form.get("order_date", ""),
+                        created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""),
+                        so_type="PARTS_EXPORT",
+                    )
+                elif units:
                     _pwf.confirm_order_multi(
                         c, int(new_pid), units=units,
                         order_date=form.get("order_date", ""),
@@ -9917,6 +9927,9 @@ async def projects_new_submit(request: Request):
     # v5H132: 수량 N → N개 호기 라인 자동 생성 (단가=unit_price)
     # v5H223: CONSUMABLE 도 자동 SO 발행 (빈 SO — 라인은 후속 추가)
     status_val = (form.get("status") or "").strip()
+    # v5H226z: 출고 형태 PARTS 면 자동 SO 빈 SO + so_type=PARTS_EXPORT
+    _ship_form_new = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
+    _is_parts_new = (_ship_form_new == "PARTS")
     if not confirm_now and new_pid and status_val in _logi.WON_STATUSES and _ptype in ("NEW_EQUIP", "CONSUMABLE"):
         try:
             with db_session() as c:
@@ -9927,7 +9940,8 @@ async def projects_new_submit(request: Request):
                 if not exists:
                     # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
                     # v5H223: CONSUMABLE 은 빈 SO (라인 후속 추가)
-                    if _ptype == "CONSUMABLE":
+                    # v5H226z: PARTS 도 빈 SO (정식 PACKING LIST 후속 추가)
+                    if _ptype == "CONSUMABLE" or _is_parts_new:
                         _units_list = []
                     else:
                         _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
@@ -9938,12 +9952,14 @@ async def projects_new_submit(request: Request):
                             "ship_to": "",
                             "note": "",
                         } for i in range(max(1, unit_qty))]
+                    _so_type_new = "PARTS_EXPORT" if _is_parts_new else None
                     _pwf.confirm_order_multi(
                         c, int(new_pid),
                         units=_units_list,
                         order_date=form.get("order_date", ""),
                         created_by=_u.get("id") or 0,
                         po_number=form.get("customer_po", ""),
+                        so_type=_so_type_new,
                     )
         except Exception:
             return RedirectResponse(

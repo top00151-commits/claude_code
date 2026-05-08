@@ -15,8 +15,8 @@
 ## A단계 — 결재·계약 (대표만 가능, 약 30분)
 
 ### A-1. 도메인 결정 [x]
-- **확정 (2026-05-07): `msg.knknara.com`**
-- knknara.com 등록업체에서 **DNS A 레코드** 추가만 하면 됨 (별도 비용 없음)
+- **확정 (2026-05-07): `msg.knknara.co.kr`**
+- knknara.co.kr 등록업체에서 **DNS A 레코드** 추가만 하면 됨 (별도 비용 없음)
   - Type: `A`
   - Host/Name: `msg`
   - Value: Lightsail 정적 IP (B-2에서 받음)
@@ -86,7 +86,7 @@
 ### C-2. 전파 확인 [ ]
 PowerShell에서:
 ```powershell
-nslookup msg.knknara.com 8.8.8.8
+nslookup msg.knknara.co.kr 8.8.8.8
 ```
 → 정적 IP가 보이면 OK. 보통 5분~1시간 소요.
 
@@ -137,7 +137,7 @@ rm -rf /opt/knk_messenger/backups/*
 SSH 창에서:
 ```bash
 cd /opt/knk_messenger
-sudo bash deploy/setup_server_dev.sh msg.knknara.com admin@knknara.com
+sudo bash deploy/setup_server_dev.sh msg.knknara.co.kr admin@knknara.co.kr
 ```
 (도메인·이메일은 본인 것으로)
 
@@ -156,7 +156,7 @@ sudo bash deploy/setup_server_dev.sh msg.knknara.com admin@knknara.com
 마지막에 `DEV-ON-CLOUD 셋업 완료` 출력이 보이면 성공.
 
 ### E-2. 브라우저 접속 [ ]
-- `https://msg.knknara.com` → 자물쇠 아이콘 ✓ + 로그인 화면
+- `https://msg.knknara.co.kr` → 자물쇠 아이콘 ✓ + 로그인 화면
 - 시드 계정: `kjr` / `knk1234`
 - **막히면 빅터에게 보고**: `sudo journalctl -u knk-messenger -n 50` 출력 그대로
 
@@ -188,7 +188,7 @@ cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\10_KNK_Messenger"
 - HTTP 200/302 헬스체크
 - `SYNC COMPLETE` 출력
 
-→ 즉시 `https://msg.knknara.com` 새로고침해서 변경 확인.
+→ 즉시 `https://msg.knknara.co.kr` 새로고침해서 변경 확인.
 
 ### F-2. 인터넷에서만 잡히는 항목 점검 [ ]
 이 항목들은 localhost에서는 안 잡히고 HTTPS 도메인에서만 검증 가능:
@@ -211,7 +211,7 @@ cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\10_KNK_Messenger"
 ## G단계 — 사용자 전환 + 운영 모드 전환 (대표, 1주)
 
 ### G-1. 본인 단독 사용 (1~2일, dev 모드) [ ]
-- PC + 휴대폰에서 `https://msg.knknara.com` 접속
+- PC + 휴대폰에서 `https://msg.knknara.co.kr` 접속
 - PWA 설치 (Android: 메뉴 → 홈화면 추가, iOS: 공유 → 홈화면 추가)
 - 어색한 점 발견 → 빅터에게 보고 → `sync_to_cloud.ps1` → 즉시 반영
 
@@ -222,7 +222,7 @@ cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\10_KNK_Messenger"
 
 ### G-3. UptimeRobot 등록 [ ]
 - https://uptimerobot.com 무료 가입
-- New monitor → HTTP(s) → URL: `https://msg.knknara.com/healthz`
+- New monitor → HTTP(s) → URL: `https://msg.knknara.co.kr/healthz`
 - 5분 간격 → 다운 시 이메일
 
 ### G-4. 운영 모드 전환 (며칠 안정 확인 후) [ ]
@@ -233,7 +233,7 @@ sudo bash /opt/knk_messenger/deploy/promote_to_production.sh
 이 한 줄이:
 - 즉시 백업
 - `KNK_MSG_ENV` 를 `development → production` 으로
-- CORS 를 실제 도메인(`https://msg.knknara.com`)으로 제한
+- CORS 를 실제 도메인(`https://msg.knknara.co.kr`)으로 제한
 - HSTS · secure 쿠키 · 보안 헤더 자동 활성
 - systemd 재시작 + 헬스체크
 - 실패 시 자동 롤백 명령 출력
@@ -315,7 +315,7 @@ ls -lh /opt/knk_messenger/backups/
 ## 개발 사이클 요약 (인터넷에서 만들면서 검증)
 
 ```
-[로컬 코드 수정] -> [.\deploy\sync_to_cloud.ps1] -> 3-5초 -> [https://msg.knknara.com 새로고침]
+[로컬 코드 수정] -> [.\deploy\sync_to_cloud.ps1] -> 3-5초 -> [https://msg.knknara.co.kr 새로고침]
                                                                        |
                                                                   문제 발견
                                                                        |

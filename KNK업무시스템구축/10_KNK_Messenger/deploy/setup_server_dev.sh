@@ -12,7 +12,7 @@
 # 운영 모드 전환.
 # ============================================================
 # 사용법:
-#   sudo bash setup_server_dev.sh msg.knknara.com admin@knknara.com
+#   sudo bash setup_server_dev.sh msg.knknara.co.kr admin@knknara.co.kr
 # ============================================================
 set -e
 

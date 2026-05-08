@@ -5,7 +5,7 @@
 #   1) 빅터/대표가 로컬에서 코드 수정
 #   2) 이 스크립트 1번 실행 -> 변경된 파일만 서버로 업로드
 #   3) 서버 자동 재시작 + 헬스체크
-#   4) https://msg.knknara.com 에서 즉시 확인
+#   4) https://msg.knknara.co.kr 에서 즉시 확인
 #
 # 첫 사용 전 환경변수 1회 설정 (PowerShell 영구):
 #   [Environment]::SetEnvironmentVariable("KNK_CLOUD_HOST", "1.2.3.4", "User")
