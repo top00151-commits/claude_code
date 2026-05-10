@@ -2,6 +2,13 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>연체 분석 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z59: 시안1 토큰 — sales_aging v1+v2 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+@media (max-width:1100px){ .page-title{font-size:22px;} .bento{grid-template-columns:repeat(3,1fr) !important;} }
 .heat-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .heat-tbl th { background: var(--paper-2); padding: 8px 10px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); }
 .heat-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -16,13 +23,13 @@
 {% set s = summary or {} %}
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>연체 분석</b></div><h1 class="page-title">📊 <em>연체</em> 분석 (Aging)</h1>
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>연체 분석</b></div><h1 class="page-title" data-dn="title">📊 <em>연체</em> 분석 (Aging)</h1>
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">연체일 구간별 매트릭스 · 0-30 / 31-60 / 61-90 / 90+ 일</div></div>
   </div>
 
-  <div class="bento" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">
+  <div class="bento" data-dn="kpi-buckets" data-dn-tone="green" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">
     <div class="kpi-card"><div class="kpi-label">총 미수</div><div class="kpi-num">{{ '{:,.0f}'.format(s.total|default(0)) }}<span class="unit">원</span></div></div>
     <div class="kpi-card"><div class="kpi-label">정상 (0-30)</div><div class="kpi-num" style="color:var(--success);">{{ '{:,.0f}'.format(s.bucket_0_30|default(0)) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">경고 (31-60)</div><div class="kpi-num" style="color:var(--amber-deep);">{{ '{:,.0f}'.format(s.bucket_31_60|default(0)) }}</div></div>
@@ -31,10 +38,10 @@
   </div>
 
   <div style="margin: var(--space-5) var(--content-pad) 0;"></div>
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-dn="aging-heatmap" data-dn-tone="purple">
     {% if rows %}
     <table class="heat-tbl">
-      <thead><tr><th class="name" style="text-align:left;">거래처</th><th>0-30일</th><th>31-60일</th><th>61-90일</th><th>90+ 일</th><th>합계</th></tr></thead>
+      <thead data-dn="thead-row"><tr><th class="name" style="text-align:left;">거래처</th><th>0-30일</th><th>31-60일</th><th>61-90일</th><th>90+ 일</th><th>합계</th></tr></thead>
       <tbody>
       {% for r in rows %}
         <tr>
