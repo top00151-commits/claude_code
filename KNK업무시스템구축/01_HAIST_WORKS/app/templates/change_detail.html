@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ change.title }} · 변경 공지</title>
+{# change_detail.html — 변경 상세 + 이력
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
-.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
 .def { display: grid; grid-template-columns: 90px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
+.def dt { color: var(--qv-ink-3); font-weight: 600; } .def dd { color: var(--qv-ink); }
 @media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="change-main">
+  <div class="page-head" data-dn="change-pagehead">
     <div>
       <div class="crumbs"><a href="/changes">변경 공지</a> · <b>#{{ change.id }}</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;">
-        <span style="font-family:monospace;color:var(--amber-deep);">#{{ change.id }}</span>
+        <span style="font-family:monospace;color:var(--qv-ink-2);">#{{ change.id }}</span>
         <span>{{ change.title }}</span>
         <span class="pill {% if change.urgency in ('긴급','매우긴급') %}pill-danger{% elif change.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ change.urgency|default('—') }}</span>
       </h1>
@@ -28,24 +30,24 @@
     </div>
   </div>
 
-  <div class="detail-grid">
+  <div class="detail-grid" data-dn="change-grid">
     <div>
       {% if change.summary %}
-      <div class="section-card" style="background:var(--amber-glow);border-color:var(--amber);">
-        <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ change.summary }}</div>
+      <div class="section-card" style="background:var(--qv-surface-2);border-color:var(--qv-line-3);">
+        <div style="font-size:14px;font-weight:600;color:var(--qv-ink);">{{ change.summary }}</div>
       </div>
       {% endif %}
       <div class="section-card">
         <h3>변경 내용</h3>
-        <div style="font-size:14px;color:var(--ink);line-height:1.7;white-space:pre-wrap;">{{ change.body|default('(상세 내용 없음)') }}</div>
+        <div style="font-size:14px;color:var(--qv-ink);line-height:1.7;white-space:pre-wrap;">{{ change.body|default('(상세 내용 없음)') }}</div>
       </div>
       {% if logs %}
       <div class="section-card">
         <h3>이력 ({{ logs|length }})</h3>
         {% for l in logs %}
-        <div style="padding:10px 12px;background:var(--paper-2);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12.5px;">
+        <div style="padding:10px 12px;background:var(--qv-surface-3);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12.5px;">
           <b>{{ l.actor_name|default('시스템') }}</b>
-          <span style="color:var(--mute);font-size:11px;margin-left:6px;">{{ l.created_at }}</span>
+          <span style="color:var(--qv-ink-3);font-size:11px;margin-left:6px;">{{ l.created_at }}</span>
           <div style="margin-top:4px;">{{ l.action }}</div>
         </div>
         {% endfor %}

@@ -2,77 +2,308 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>자재 마스터 · KNK HAIST WORKS</title>
+
+{# v5H226z57 (2026-05-11) — 시안1 ERP + 룰 v4 적용
+   실무팀3 (자재구매센터) — 부품 마스터 목록
+   - chip-biz (T/M/E/C 색 토큰)
+   - tbl-dense 32px + zebra + sticky thead
+   - filterbar (사업부 + 카테고리 + 검색 + 활성여부)
+   - chip 상태 (활성/비활성/안전재고미달)
+   - data-dn + debug_overlay #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  --biz-t: #c2410c;       --biz-t-soft: #fff7ed;
+  --biz-m: #1e40af;       --biz-m-soft: #eff6ff;
+  --biz-e: #6d28d9;       --biz-e-soft: #f5f3ff;
+  --biz-c: #047857;       --biz-c-soft: #ecfdf5;
+}
+
+.pl-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pl-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pl-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
+.pl-head .crumb a { color: var(--pq-ink-2); }
+.pl-head .crumb b { color: var(--pq-ink); }
+.pl-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
+.pl-meta { font-size: 12px; color: var(--pq-ink-3); }
+.pl-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.pl-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.pl-actions .btn-ghost { height: 32px; padding: 0 12px; background: transparent; border: 1px solid var(--pq-line-2); border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--pq-ink-2); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
+.pl-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
+.pl-actions .btn-dark { height: 32px; padding: 0 14px; background: var(--pq-ink); border: 0; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #fff; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
+.pl-actions .btn-dark:hover { background: #1e293b; }
+
+/* KPI strip */
+.kpi-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; transition: background .12s; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell:hover { background: var(--pq-surface-2); }
+.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+
+/* FilterBar */
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500; text-decoration: none; }
+.fb-chip:hover { border-color: var(--pq-line-3); background: var(--pq-surface-3); }
+.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.fb-divider { width: 1px; height: 18px; background: var(--pq-line-2); margin: 0 4px; }
+.fb-search { height: 28px; padding: 0 10px 0 28px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink); min-width: 240px; font-family: inherit; position: relative; }
+.fb-search:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
+.fb-search-wrap { position: relative; margin-left: 8px; }
+.fb-search-wrap .fb-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--pq-ink-4); pointer-events: none; }
+.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
+.fb-go:hover { background: var(--pq-surface-3); }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+
+/* Dense table */
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--pq-surface); min-width: 1100px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); vertical-align: middle; font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr { transition: background-color .1s ease; cursor: pointer; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); }
+.tbl-erp tbody tr:hover:nth-child(even) > td { background: var(--pq-surface-3); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+/* chip-biz (사업부 dot + 라벨) */
+.chip-biz { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--pq-surface-3); color: var(--pq-ink); }
+.chip-biz::before { content: ""; width: 7px; height: 7px; border-radius: 2px; }
+.chip-biz.b-t::before { background: var(--biz-t); }
+.chip-biz.b-m::before { background: var(--biz-m); }
+.chip-biz.b-e::before { background: var(--biz-e); }
+.chip-biz.b-c::before { background: var(--biz-c); }
+.chip-biz.b-x::before { background: var(--pq-ink-4); }
+
+/* status pill */
+.pill-active { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-ok-soft); color: var(--pq-ok); }
+.pill-inactive { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-4); }
+
+/* Stock bar (재고 시각화) */
+.stk-mini { position: relative; width: 80px; height: 12px; background: var(--pq-surface-3); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.stk-mini .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pq-ok); }
+.stk-mini .fill.is-low { background: var(--pq-warn); }
+.stk-mini .fill.is-critical { background: var(--pq-danger); }
+
+/* Empty state */
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; margin-bottom: 10px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin-bottom: 4px; }
+.po-empty .sub { font-size: 12.5px; }
+.po-empty .cta { margin-top: 16px; }
+.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 1280px) {
+  .kpi-strip { grid-template-columns: repeat(4, 1fr); }
+  .kpi-cell:nth-child(4n) { border-right: 0; }
+  .kpi-cell:nth-child(-n+4) { border-bottom: 1px solid var(--pq-line); }
+}
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .pl-head { padding: 12px 16px; }
+  .filterbar { padding: 10px 16px; }
+  .tbl-erp { min-width: 720px; }
+}
+</style>
 </head>
 <body>
+
+{% set total_cnt = parts|length %}
+{% set active_cnt = parts|selectattr('is_active','equalto',1)|list|length %}
+{% set t_cnt = parts|selectattr('biz_div','equalto','T')|list|length %}
+{% set m_cnt = parts|selectattr('biz_div','equalto','M')|list|length %}
+{% set e_cnt = parts|selectattr('biz_div','equalto','E')|list|length %}
+{% set c_cnt = parts|selectattr('biz_div','equalto','C')|list|length %}
+{% set x_cnt = total_cnt - t_cnt - m_cnt - e_cnt - c_cnt %}
+
 <div class="app">
-{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div>
-      <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>자재 마스터</b></div>
-      <h1 class="page-title">자재 <em>마스터</em></h1>
-    </div>
-    <div style="display:flex;gap:10px;">
-      <a class="btn btn-secondary" href="/parts/import">📥 일괄 등록</a>
-      <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/parts/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/parts/new">＋ 자재 등록</a></div>
-    </div>
-  </div>
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
 
-  <!-- 필터 -->
-  <form class="qa-bar" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);" method="get" action="/parts">
-    <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 / 사양 검색…" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
-    <select name="biz_div" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-      <option value="">사업부 전체</option>
-      <option value="M" {% if biz_div=='M' %}selected{% endif %}>🤖 자동화 (M)</option>
-      <option value="T" {% if biz_div=='T' %}selected{% endif %}>🔬 검사기 (T)</option>
-    </select>
-    <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q or biz_div or category %}<a class="btn btn-secondary" href="/parts">초기화</a>{% endif %}
-  </form>
+  <main class="main">
+    <div class="pl-page">
 
-  <!-- 테이블 -->
-  <div class="tbl-wrap tbl-sticky">
-    {% if parts %}
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th>코드</th>
-          <th>자재명 · 사양</th>
-          <th class="center">사업부</th>
-          <th class="center">분류</th>
-          <th class="num">단가</th>
-          <th class="center">단위</th>
-          <th class="center">상태</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for p in parts %}
-        <tr onclick="location.href='/parts/{{ p.id }}'">
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.code|default('—') }}</td>
-          <td><b>{{ p.name|default('—') }}</b>{% if p.spec %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ p.spec }}</div>{% endif %}</td>
-          <td class="center"><span class="pill pill-muted">{{ p.biz_div|default('—') }}</span></td>
-          <td class="center" style="font-size:12px;color:var(--mute);">{{ p.category|default('—') }}</td>
-          <td class="num">{% if p.unit_price %}{{ '{:,.0f}'.format(p.unit_price) }}{% else %}—{% endif %}</td>
-          <td class="center" style="font-size:12px;">{{ p.unit|default('—') }}</td>
-          <td class="center">{% if p.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty">
-      <div class="ico">📊</div>
-      <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 자재가 없습니다{% endif %}</div>
-      <div style="margin-top:14px;"><a class="btn btn-primary" href="/parts/new">＋ 첫 자재 등록</a></div>
+      <div class="pl-head" data-dn="parts:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>자재 마스터</b></div>
+          <div class="pl-title">자재 마스터</div>
+        </div>
+        <div class="pl-meta">
+          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
+          <span>·</span>
+          <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
+        </div>
+        <div class="pl-actions">
+          <a class="btn-ghost" href="/parts/import">📥 일괄 등록</a>
+          <a class="btn-ghost" href="/parts/export.xlsx">⤓ Excel</a>
+          <a class="btn-dark" href="/parts/new">＋ 자재 등록</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="parts:kpi" data-dn-tone="green">
+        <a class="kpi-cell {% if not biz_div %}active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">
+          <div class="l">전체</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
+          <div class="sub">필터 미적용</div>
+        </a>
+        <a class="kpi-cell {% if biz_div=='T' %}active{% endif %}" href="/parts?biz_div=T{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">🔬 검사기 (T)</div>
+          <div class="v">{{ '{:,}'.format(t_cnt) }}<span class="u">종</span></div>
+          <div class="sub">정밀 사업부</div>
+        </a>
+        <a class="kpi-cell {% if biz_div=='M' %}active{% endif %}" href="/parts?biz_div=M{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">🤖 자동화 (M)</div>
+          <div class="v">{{ '{:,}'.format(m_cnt) }}<span class="u">종</span></div>
+          <div class="sub">가공·기계</div>
+        </a>
+        <a class="kpi-cell {% if biz_div=='E' %}active{% endif %}" href="/parts?biz_div=E{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">⚡ 전기 (E)</div>
+          <div class="v">{{ '{:,}'.format(e_cnt) }}<span class="u">종</span></div>
+          <div class="sub">전장·PCB</div>
+        </a>
+        <a class="kpi-cell {% if biz_div=='C' %}active{% endif %}" href="/parts?biz_div=C{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">🧪 화학 (C)</div>
+          <div class="v">{{ '{:,}'.format(c_cnt) }}<span class="u">종</span></div>
+          <div class="sub">표면처리·도장</div>
+        </a>
+        <div class="kpi-cell">
+          <div class="l">미지정</div>
+          <div class="v">{{ '{:,}'.format(x_cnt) }}<span class="u">종</span></div>
+          <div class="sub">사업부 미배정</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">활성 비율</div>
+          <div class="v">{{ '{:.1f}'.format(active_cnt / total_cnt * 100) if total_cnt else '0' }}<span class="u">%</span></div>
+          <div class="sub">활성 / 전체</div>
+        </div>
+      </div>
+
+      <form class="filterbar" method="get" action="/parts" data-dn="parts:filter" data-dn-tone="blue">
+        <span class="fb-label">사업부</span>
+        <a class="fb-chip {% if not biz_div %}is-active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">전체</a>
+        <a class="fb-chip {% if biz_div=='T' %}is-active{% endif %}" href="/parts?biz_div=T{% if q %}&q={{ q }}{% endif %}">T</a>
+        <a class="fb-chip {% if biz_div=='M' %}is-active{% endif %}" href="/parts?biz_div=M{% if q %}&q={{ q }}{% endif %}">M</a>
+        <a class="fb-chip {% if biz_div=='E' %}is-active{% endif %}" href="/parts?biz_div=E{% if q %}&q={{ q }}{% endif %}">E</a>
+        <a class="fb-chip {% if biz_div=='C' %}is-active{% endif %}" href="/parts?biz_div=C{% if q %}&q={{ q }}{% endif %}">C</a>
+        <span class="fb-divider"></span>
+        <span class="fb-label">분류</span>
+        <a class="fb-chip {% if not category %}is-active{% endif %}" href="/parts{% if biz_div %}?biz_div={{ biz_div }}{% endif %}{% if q %}{% if biz_div %}&{% else %}?{% endif %}q={{ q }}{% endif %}">전체</a>
+        <a class="fb-chip {% if category=='완성품' %}is-active{% endif %}" href="/parts?category=완성품">완성품</a>
+        <a class="fb-chip {% if category=='자재' %}is-active{% endif %}" href="/parts?category=자재">자재</a>
+        <a class="fb-chip {% if category=='소모품' %}is-active{% endif %}" href="/parts?category=소모품">소모품</a>
+        <span class="fb-divider"></span>
+        <input type="hidden" name="biz_div" value="{{ biz_div|default('') }}">
+        <input type="hidden" name="category" value="{{ category|default('') }}">
+        <div class="fb-search-wrap">
+          <span class="fb-ic">⌕</span>
+          <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · 사양 · 제조사 검색" />
+        </div>
+        <button type="submit" class="fb-go">검색</button>
+        {% if q or biz_div or category %}
+          <a class="fb-chip" href="/parts" style="border-style: dashed;">↺ 필터 해제</a>
+        {% endif %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </form>
+
+      {% if parts %}
+      <div class="tbl-zone" data-dn="parts:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:160px;">코드</th>
+              <th>자재명</th>
+              <th>규격 / 제조사</th>
+              <th class="center" style="width:80px;">사업부</th>
+              <th class="center" style="width:80px;">분류</th>
+              <th class="num" style="width:100px;">표준가</th>
+              <th class="center" style="width:60px;">단위</th>
+              <th class="num" style="width:100px;">재고</th>
+              <th class="center" style="width:120px;">안전재고</th>
+              <th class="center" style="width:70px;">상태</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for p in parts %}
+            {% set biz_div_v = p.biz_div|default('') %}
+            {% set biz_cls = 'b-t' if biz_div_v=='T' else ('b-m' if biz_div_v=='M' else ('b-e' if biz_div_v=='E' else ('b-c' if biz_div_v=='C' else 'b-x'))) %}
+            {% set sq = p.stock_qty|default(0)|float %}
+            {% set ss = p.safety_stock|default(0)|float %}
+            {% set stk_max = (ss * 1.5) if ss > 0 else (sq if sq > 0 else 1) %}
+            {% set stk_pct = (sq / stk_max * 100) if stk_max else 0 %}
+            {% set stk_cls = 'is-critical' if (ss > 0 and sq < ss * 0.5) else ('is-low' if (ss > 0 and sq < ss) else '') %}
+            <tr onclick="location.href='/parts/{{ p.id }}'">
+              <td class="code">{{ p.part_no|default('—') }}</td>
+              <td><b>{{ p.part_name|default('—') }}</b></td>
+              <td>
+                {% if p.spec %}<span>{{ p.spec }}</span>{% endif %}
+                {% if p.maker %}<span class="mute" style="font-size:11px;"> · {{ p.maker }}</span>{% endif %}
+                {% if not p.spec and not p.maker %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="center">
+                {% if biz_div_v %}<span class="chip-biz {{ biz_cls }}">{{ biz_div_v }}</span>{% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="center mute" style="font-size:11.5px;">{{ p.category|default('—') }}</td>
+              <td class="num">
+                {% if p.std_price %}<b>{{ '{:,.0f}'.format(p.std_price) }}</b>{% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="center mute">{{ p.unit|default('EA') }}</td>
+              <td class="num">{{ '{:,.0f}'.format(sq) }}</td>
+              <td class="center">
+                {% if ss > 0 %}
+                <div class="stk-mini" title="현재 {{ '{:,.0f}'.format(sq) }} / 안전 {{ '{:,.0f}'.format(ss) }}">
+                  <div class="fill {{ stk_cls }}" style="width: {{ stk_pct if stk_pct < 100 else 100 }}%;"></div>
+                </div>
+                {% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="center">
+                {% if p.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">중지</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="parts:empty">
+        <div class="ico">🔧</div>
+        <div class="ttl">{% if q or biz_div or category %}검색 결과 없음{% else %}등록된 자재가 없습니다{% endif %}</div>
+        <div class="sub">{% if q or biz_div or category %}필터를 해제하거나 다른 조건으로 검색해보세요.{% else %}＋ 자재 등록 또는 일괄 등록(CSV)으로 마스터를 만드세요.{% endif %}</div>
+        <div class="cta"><a href="/parts/new">＋ 자재 등록</a></div>
+      </div>
+      {% endif %}
+
     </div>
-    {% endif %}
-  </div>
-
-  <div style="height: var(--space-7);"></div>
-</main>
+  </main>
 </div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>

@@ -1,43 +1,221 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>작업지시 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>작업지시 목록 · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 작업지시 목록 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>작업지시</b></div><h1 class="page-title">🔨 작업 <em>지시 (Work Order)</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">생산 현장 작업지시 발행 + 진행률 추적</div></div>
-    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/production/work-orders/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/production/work-orders/new">＋ 작업지시 발행</a></div>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.wo-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wo-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wo-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.wo-head .crumb a { color: var(--pq-ink-2); }
+.wo-head .crumb b { color: var(--pq-ink); }
+.wo-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.wo-meta { font-size: 12px; color: var(--pq-ink-3); }
+.wo-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.wo-actions { margin-left: auto; display: flex; gap: 8px; }
+.wo-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.wo-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.wo-actions a.btn-dark { background: var(--pq-ink); color: #fff; padding: 0 14px; font-weight: 600; }
+.wo-actions a.btn-dark:hover { background: #1e293b; }
+.wo-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <form style="display:flex;gap:8px;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-3);" method="get">
-    <a class="btn btn-secondary" href="/production/work-orders" style="padding:6px 12px;font-size:12px;">전체</a>
-    <a class="btn btn-secondary" href="?status=PLANNED" style="padding:6px 12px;font-size:12px;">계획</a>
-    <a class="btn btn-secondary" href="?status=IN_PROGRESS" style="padding:6px 12px;font-size:12px;">진행</a>
-    <a class="btn btn-secondary" href="?status=DONE" style="padding:6px 12px;font-size:12px;">완료</a>
-  </form>
+.kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell:hover { background: var(--pq-surface-2); }
+.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
 
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th>WO 번호</th><th>제품</th><th>관리코드</th><th class="num">수량</th><th class="center">상태</th><th>담당</th><th>시작</th><th>완료</th></tr></thead>
-      <tbody>
-      {% for w in items %}
-        <tr onclick="location.href='/production/work-orders/{{ w.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ w.wo_no|default('#' ~ w.id) }}</td>
-          <td><b>{{ w.product_name|default('—') }}</b></td>
-          <td style="font-family:monospace;font-size:11px;">{{ w.mgmt_code|default('—') }}</td>
-          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(w.qty|default(0)) }}</td>
-          <td class="center"><span class="pill {% if w.status == 'DONE' %}pill-done{% elif w.status == 'IN_PROGRESS' %}pill-progress{% elif w.status == 'CANCELLED' %}pill-danger{% else %}pill-muted{% endif %}">{{ w.status|default('—') }}</span></td>
-          <td style="font-size:12px;">{{ w.assignee_name|default('—') }}</td>
-          <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ w.start_date|default('—') }}</td>
-          <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ w.end_date|default('—') }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">🔨</div><div class="ttl">작업지시 없음</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500; text-decoration: none; }
+.fb-chip:hover { border-color: var(--pq-line-3); background: var(--pq-surface-3); }
+.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1200px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-wo { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
+.chip-wo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-wo.s-DRAFT { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-wo.s-RELEASED { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-wo.s-IN_PROGRESS { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-wo.s-COMPLETED { background: var(--pq-ink); color: #fff; }
+.chip-wo.s-CANCELLED { background: var(--pq-surface-3); color: var(--pq-ink-4); text-decoration: line-through; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.po-empty .cta { margin-top: 16px; }
+.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 1280px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .wo-head { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+
+{% set total_cnt = items|length %}
+{% set draft_cnt = items|selectattr('status','equalto','DRAFT')|list|length %}
+{% set rel_cnt = items|selectattr('status','equalto','RELEASED')|list|length %}
+{% set ip_cnt = items|selectattr('status','equalto','IN_PROGRESS')|list|length %}
+{% set comp_cnt = items|selectattr('status','equalto','COMPLETED')|list|length %}
+{% set can_cnt = items|selectattr('status','equalto','CANCELLED')|list|length %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="wo-page">
+
+      <div class="wo-head" data-dn="wo:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>작업지시 목록</b></div>
+          <div class="wo-title">작업지시 (WO)</div>
+        </div>
+        <div class="wo-meta">
+          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
+          <span>·</span>
+          <span>진행 <span class="pm-num">{{ ip_cnt }}</span></span>
+          <span>·</span>
+          <span>완료 <span class="pm-num">{{ comp_cnt }}</span></span>
+        </div>
+        <div class="wo-actions">
+          <a class="btn-ghost" href="/logistics">↩ 자재 홈</a>
+          <a class="btn-dark" href="/production/work-orders/new">＋ 신규 작업지시</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="wo:kpi" data-dn-tone="green">
+        <a class="kpi-cell {% if not filter_status %}active{% endif %}" href="/production/work-orders">
+          <div class="l">전체</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">건</span></div>
+          <div class="sub">필터 미적용</div>
+        </a>
+        <a class="kpi-cell {% if filter_status=='DRAFT' %}active{% endif %}" href="/production/work-orders?status=DRAFT">
+          <div class="l">DRAFT</div>
+          <div class="v">{{ draft_cnt }}<span class="u">건</span></div>
+          <div class="sub">작성 중</div>
+        </a>
+        <a class="kpi-cell {% if filter_status=='RELEASED' %}active{% endif %}" href="/production/work-orders?status=RELEASED">
+          <div class="l">RELEASED</div>
+          <div class="v">{{ rel_cnt }}<span class="u">건</span></div>
+          <div class="sub">발행</div>
+        </a>
+        <a class="kpi-cell {% if filter_status=='IN_PROGRESS' %}active{% endif %}" href="/production/work-orders?status=IN_PROGRESS">
+          <div class="l">IN_PROGRESS</div>
+          <div class="v">{{ ip_cnt }}<span class="u">건</span></div>
+          <div class="sub">진행 중</div>
+        </a>
+        <a class="kpi-cell {% if filter_status=='COMPLETED' %}active{% endif %}" href="/production/work-orders?status=COMPLETED">
+          <div class="l">COMPLETED</div>
+          <div class="v">{{ comp_cnt }}<span class="u">건</span></div>
+          <div class="sub">완료</div>
+        </a>
+        <a class="kpi-cell {% if filter_status=='CANCELLED' %}active{% endif %}" href="/production/work-orders?status=CANCELLED">
+          <div class="l">CANCELLED</div>
+          <div class="v">{{ can_cnt }}<span class="u">건</span></div>
+          <div class="sub">취소</div>
+        </a>
+      </div>
+
+      <div class="filterbar" data-dn="wo:filter" data-dn-tone="blue">
+        <span class="fb-label">상태</span>
+        <a class="fb-chip {% if not filter_status %}is-active{% endif %}" href="/production/work-orders">전체</a>
+        {% for k, label in WO_STATUS_OPTIONS %}
+        <a class="fb-chip {% if filter_status==k %}is-active{% endif %}" href="/production/work-orders?status={{ k }}">{{ k }}</a>
+        {% endfor %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </div>
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="wo:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:140px;">WO 번호</th>
+              <th class="center" style="width:104px;">상태</th>
+              <th>품목 (가공)</th>
+              <th class="num" style="width:90px;">수량</th>
+              <th class="center" style="width:120px;">계획 시작</th>
+              <th class="center" style="width:120px;">계획 종료</th>
+              <th class="center" style="width:120px;">실제 완료</th>
+              <th>작업자</th>
+              <th class="mute">작성자</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for w in items %}
+            {% set st = w.status|default('DRAFT') %}
+            <tr onclick="location.href='/production/work-orders/{{ w.id }}/edit'">
+              <td class="code">{{ w.wo_no|default('—') }}</td>
+              <td class="center"><span class="chip-wo s-{{ st }}">{{ st }}</span></td>
+              <td>
+                {% if w.part_name %}<b>{{ w.part_name }}</b>{% else %}<span class="mute">—</span>{% endif %}
+                {% if w.part_no %}<div class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ w.part_no }}</div>{% endif %}
+              </td>
+              <td class="num">{{ '{:,.0f}'.format(w.qty|default(0)) }}</td>
+              <td class="center mute">{{ w.planned_start|default('—') }}</td>
+              <td class="center mute">{{ w.planned_end|default('—') }}</td>
+              <td class="center">{% if w.actual_end %}<b style="color:var(--pq-ok);">{{ w.actual_end }}</b>{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td>{{ w.assigned_name|default('—') }}</td>
+              <td class="mute">{{ w.created_by_name|default('—') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="wo:empty">
+        <div class="ico">🛠</div>
+        <div class="ttl">{% if filter_status %}{{ filter_status }} 상태 작업지시 없음{% else %}등록된 작업지시 없음{% endif %}</div>
+        <div class="cta"><a href="/production/work-orders/new">＋ 신규 작업지시</a></div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

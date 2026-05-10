@@ -1,34 +1,36 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>변경 공지 · KNK</title>
+{# changes_list.html — 변경 공지 목록
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="changes-main">
+  <div class="page-head" data-dn="changes-pagehead">
     <div><div class="page-meta">변경 공지 · Change Notice</div><h1 class="page-title">📌 변경 <em>공지</em></h1></div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/changes/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/changes/new">＋ 변경 등록</a></div>
   </div>
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/changes">
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/changes">
     <input type="hidden" name="scope" value="{{ scope|default('all') }}">
-    <input type="search" name="q" value="{{ q }}" placeholder="제목/내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
-    <select name="change_type" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">유형 전체</option>{% for c in CHANGE_TYPES %}<option value="{{ c }}" {% if change_type==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-    <select name="urgency" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">긴급 전체</option>{% for u_ in CHANGE_URGENCIES %}<option value="{{ u_ }}" {% if urgency==u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}</select>
+    <input type="search" name="q" value="{{ q }}" placeholder="제목/내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
+    <select name="change_type" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);"><option value="">유형 전체</option>{% for c in CHANGE_TYPES %}<option value="{{ c }}" {% if change_type==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <select name="urgency" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);"><option value="">긴급 전체</option>{% for u_ in CHANGE_URGENCIES %}<option value="{{ u_ }}" {% if urgency==u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}</select>
     <button type="submit" class="btn btn-primary">🔍</button>
   </form>
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-dn="changes-table">
     {% if changes %}
     <table class="tbl">
       <thead><tr><th>#</th><th>제목</th><th class="center">유형</th><th class="center">긴급</th><th>작성자</th><th class="center">읽음</th><th class="center">날짜</th></tr></thead>
       <tbody>
       {% for c in changes %}
         <tr onclick="location.href='/changes/{{ c.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ c.id }}</td>
-          <td><b>{{ c.title }}</b>{% if c.summary %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ c.summary|truncate(60) }}</div>{% endif %}</td>
+          <td style="font-family:monospace;color:var(--qv-ink-2);font-weight:700;">#{{ c.id }}</td>
+          <td><b>{{ c.title }}</b>{% if c.summary %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">{{ c.summary|truncate(60) }}</div>{% endif %}</td>
           <td class="center"><span class="pill pill-muted">{{ c.change_type|default('—') }}</span></td>
           <td class="center"><span class="pill {% if c.urgency in ('긴급','매우긴급') %}pill-danger{% elif c.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}">{{ c.urgency|default('—') }}</span></td>
           <td>{{ c.author_name|default('—') }}</td>
-          <td class="center" style="font-size:12px;color:var(--mute);">{% if c.read_count %}👁 {{ c.read_count }}{% else %}—{% endif %}</td>
-          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ c.created_at }}</td>
+          <td class="center" style="font-size:12px;color:var(--qv-ink-3);">{% if c.read_count %}👁 {{ c.read_count }}{% else %}—{% endif %}</td>
+          <td class="center" style="font-size:11px;color:var(--qv-ink-3);font-family:monospace;">{{ c.created_at }}</td>
         </tr>
       {% endfor %}
       </tbody>

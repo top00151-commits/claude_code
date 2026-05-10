@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ ticket.title }} · 티켓</title>
+{# ticket_detail.html — 티켓 상세 + 댓글
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
-.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
 .def { display: grid; grid-template-columns: 90px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--mute); font-weight: 600; }
-.def dd { color: var(--ink); }
-.cmt { padding: 10px 12px; background: var(--paper-2); border-radius: var(--radius-sm); margin-bottom: 8px; border-left: 3px solid var(--amber); }
+.def dt { color: var(--qv-ink-3); font-weight: 600; }
+.def dd { color: var(--qv-ink); }
+.cmt { padding: 10px 12px; background: var(--qv-surface-3); border-radius: var(--radius-sm); margin-bottom: 8px; border-left: 3px solid var(--qv-line-3); }
 .cmt .who { font-weight: 700; font-size: 13px; }
-.cmt .when { font-size: 11px; color: var(--mute); margin-left: 6px; }
+.cmt .when { font-size: 11px; color: var(--qv-ink-3); margin-left: 6px; }
 .cmt .body { font-size: 13px; margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
 @media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="ticket-main">
+  <div class="page-head" data-dn="ticket-pagehead">
     <div>
       <div class="crumbs"><a href="/tickets">티켓</a> · <b>#{{ ticket.id }}</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;">
-        <span style="font-family:monospace;color:var(--amber-deep);">#{{ ticket.id }}</span>
+        <span style="font-family:monospace;color:var(--qv-ink-2);">#{{ ticket.id }}</span>
         <span>{{ ticket.title }}</span>
         <span class="pill {% if ticket.status == '완료' %}pill-done{% elif ticket.status == '진행중' %}pill-progress{% elif ticket.status in ('지연','반려') %}pill-danger{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ ticket.status }}</span>
       </h1>
@@ -33,11 +35,11 @@
     </div>
   </div>
 
-  <div class="detail-grid">
+  <div class="detail-grid" data-dn="ticket-grid">
     <div>
       <div class="section-card">
         <h3>요청 내용</h3>
-        <div style="font-size:14px;color:var(--ink);line-height:1.7;white-space:pre-wrap;">{{ ticket.description|default('(설명 없음)') }}</div>
+        <div style="font-size:14px;color:var(--qv-ink);line-height:1.7;white-space:pre-wrap;">{{ ticket.description|default('(설명 없음)') }}</div>
       </div>
 
       <div class="section-card">
@@ -48,10 +50,10 @@
           <div class="body">{{ c.body }}</div>
         </div>
         {% else %}
-        <div style="font-size:13px;color:var(--mute);text-align:center;padding:14px;">아직 댓글이 없습니다.</div>
+        <div style="font-size:13px;color:var(--qv-ink-3);text-align:center;padding:14px;">아직 댓글이 없습니다.</div>
         {% endfor %}
         <form method="post" action="/tickets/{{ ticket.id }}/comment" style="margin-top:14px;">
-          <textarea name="body" required placeholder="댓글 입력 (Enter+Shift 줄바꿈)" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);color:var(--ink);min-height:70px;resize:vertical;"></textarea>
+          <textarea name="body" required placeholder="댓글 입력 (Enter+Shift 줄바꿈)" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--qv-line);border-radius:var(--radius-md);background:var(--qv-surface-2);color:var(--qv-ink);min-height:70px;resize:vertical;"></textarea>
           <div style="margin-top:8px;text-align:right;"><button type="submit" class="btn btn-primary">💬 댓글 등록</button></div>
         </form>
       </div>
@@ -71,9 +73,9 @@
         </dl>
       </div>
 
-      <div class="section-card" style="background:var(--amber-glow);border-color:var(--amber);">
+      <div class="section-card" style="background:var(--qv-surface-2);border-color:var(--qv-line-3);">
         <h3>💡 빅터</h3>
-        <div style="font-size:12.5px;line-height:1.6;color:var(--ink);">
+        <div style="font-size:12.5px;line-height:1.6;color:var(--qv-ink);">
           {% if ticket.status == '완료' %}완료된 티켓입니다.
           {% elif ticket.status == '진행중' %}현재 <b>{{ ticket.assignee_name|default('담당자') }}</b>가 처리 중입니다.
           {% elif ticket.status == '지연' %}⚠ 기한 초과 — 담당자 재촉 권장.

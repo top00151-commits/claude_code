@@ -5,393 +5,421 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if po %}발주 수정 {{ po.po_number }}{% else %}새 발주서 작성{% endif %} · KNK HAIST WORKS</title>
 
-{# ============================================================
-   po_form.html — 시안 master_C_form_po_v5H5.html 1:1 STANDALONE
-   2026-05-01 v5H5 standalone (자재 발주 작성·수정 폼)
-   원본: 05_.../C_폼/master_C_form_po_v5H5.html
-   레거시 백업: _legacy_po_form_v4.html
-   ============================================================ #}
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 발주 작성·수정 폼 #}
 
-<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
-a { text-decoration: none; color: inherit; }
-button { font-family: inherit; cursor: pointer; }
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+.pf-page { display: flex; flex-direction: column; min-height: 100%; }
+.pf-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pf-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.pf-head .crumb a { color: var(--pq-ink-3); }
+.pf-head .crumb b { color: var(--pq-ink); }
+.pf-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.pf-meta { font-size: 12px; color: var(--pq-ink-3); }
+.pf-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.pf-actions { margin-left: auto; display: flex; gap: 8px; }
+.pf-actions a, .pf-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); cursor: pointer; font-family: inherit; }
+.pf-actions a:hover, .pf-actions button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-/* 사이드바 */
-/* 토픽바 */
-/* 페이지 헤드 */
-.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
-.crumbs { font-size: 12px; color: var(--mute); }
-.crumbs b { color: var(--ink); }
-.crumbs a { color: var(--amber-deep); }
-.crumbs a:hover { text-decoration: underline; }
-.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--ink); }
-.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.page-actions { display: flex; gap: 10px; }
-.btn-ghost { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--ink); }
-.btn-ghost:hover { background: var(--amber-glow); }
+.stepper { display: flex; background: var(--pq-surface-2); padding: 10px 24px; border-bottom: 1px solid var(--pq-line); gap: 0; }
+.step { flex: 1; display: flex; align-items: center; gap: 10px; padding: 6px 0; position: relative; }
+.step .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--pq-surface); border: 1px solid var(--pq-line-2); display: grid; place-items: center; font-weight: 700; font-size: 11px; color: var(--pq-ink-3); }
+.step.active .step-num { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+.step.done .step-num { background: var(--pq-ok); color: #fff; border-color: var(--pq-ok); }
+.step .step-label .ttl { font-size: 12px; font-weight: 600; color: var(--pq-ink-3); }
+.step .step-label .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 1px; }
+.step.active .step-label .ttl { color: var(--pq-ink); }
+.step:not(:last-child)::after { content: ""; position: absolute; top: 50%; left: calc(100% - 14px); width: 14px; height: 1px; background: var(--pq-line-2); }
+.step.done:not(:last-child)::after { background: var(--pq-ok); }
 
-/* 폼 컨테이너 */
-.form-container { padding: var(--space-3) var(--content-pad) var(--space-7); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-5); }
-.form-main { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+.pf-body { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 16px 24px 24px; background: var(--pq-surface-2); flex: 1; }
+.pf-main { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.pf-side { display: flex; flex-direction: column; gap: 12px; align-self: start; position: sticky; top: 16px; }
 
-/* Stepper */
-.form-stepper { display: flex; background: var(--paper-2); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); gap: 0; }
-.step { flex: 1; display: flex; align-items: center; gap: 10px; padding: 10px 0; position: relative; }
-.step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--mute); }
-.step.done .step-num { background: var(--success); color: white; border: 0; }
-.step.active .step-num { background: var(--grad-amber); color: white; border: 0; box-shadow: 0 0 0 3px var(--amber-glow); }
-.step-label .ttl { font-size: 13px; font-weight: 600; color: var(--ink); }
-.step-label .sub { font-size: 11px; color: var(--mute); margin-top: 2px; }
-.step.active .step-label .ttl { color: var(--amber-deep); }
-.step:not(:last-child)::after { content: ""; position: absolute; top: 50%; left: calc(100% - var(--space-4)); width: var(--space-4); height: 2px; background: var(--line); }
-.step.done:not(:last-child)::after { background: var(--success); }
+.pf-section { padding: 18px 22px; border-bottom: 1px solid var(--pq-line); }
+.pf-section:last-child { border-bottom: 0; }
+.pf-section h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.pf-section h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.pf-section h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
 
-/* 섹션 */
-.form-section { padding: var(--space-6) var(--space-7); border-bottom: 1px solid var(--line); }
-.form-section:last-child { border-bottom: 0; }
-.form-section h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: var(--space-4); display: flex; align-items: center; gap: 10px; }
-.form-section h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
-.form-section h3 .req { color: var(--knk-red); font-size: 12px; }
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 12px; }
+.field-row:last-child { margin-bottom: 0; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; font-family: var(--pq-mono); }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input[readonly] { background: var(--pq-surface-inset); color: var(--pq-ink-3); cursor: default; }
+.field textarea { min-height: 76px; resize: vertical; }
+.field-hint { font-size: 11px; color: var(--pq-ink-4); margin-top: -2px; }
+.field-hint b { color: var(--pq-ink-2); }
+.field-hint.warn { color: var(--pq-err); }
+.field-hint.warn a { color: var(--pq-err); font-weight: 700; }
 
-.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); margin-bottom: var(--space-4); }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field-full { grid-column: span 2; }
-.field label { font-size: 12px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 4px; }
-.field label .req { color: var(--knk-red); font-size: 11px; }
-.field label .info { font-size: 10.5px; color: var(--mute); margin-left: auto; font-weight: 500; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); transition: all .18s; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); background: white; box-shadow: 0 0 0 3px var(--amber-glow); }
-.field textarea { min-height: 88px; resize: vertical; }
-.field-hint { font-size: 11px; color: var(--mute); margin-top: -2px; }
-.field-hint b { color: var(--amber-deep); }
-
-/* 라인 항목 */
-.lines { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; margin-top: var(--space-3); }
-.lines-head, .lines-row { display: grid; grid-template-columns: 50px 2fr 1fr 90px 120px 130px 50px; gap: 10px; align-items: center; }
-.lines-head { background: var(--paper-2); padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--amber-deep); letter-spacing: 0.1em; text-transform: uppercase; }
-.lines-row { padding: 10px 14px; border-bottom: 1px solid var(--line); }
-.lines-row:hover { background: var(--amber-glow); }
+/* 라인 표 */
+.lines { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.lines-head, .lines-row { display: grid; grid-template-columns: 40px 2fr 1fr 90px 120px 130px 36px; gap: 8px; align-items: center; }
+.lines-head { background: var(--pq-surface-2); padding: 8px 12px; border-bottom: 1px solid var(--pq-line-2); font-size: 10.5px; font-weight: 600; color: var(--pq-ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.lines-row { padding: 7px 12px; border-bottom: 1px solid var(--pq-line); }
+.lines-row:hover { background: var(--pq-surface-inset); }
 .lines-row:last-child { border-bottom: 0; }
-.line-num { font-size: 12px; color: var(--mute); font-weight: 700; text-align: center; }
-.line-input { padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper-3); font-family: inherit; color: var(--ink); width: 100%; }
-.line-input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
-.line-input.amount { text-align: right; font-weight: 700; background: var(--paper-2); }
-.line-input.qty, .line-input.price { text-align: right; }
-.line-del { background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 9px; font-size: 11px; color: var(--mute); cursor: pointer; }
-.line-del:hover { background: var(--knk-red); color: white; border-color: var(--knk-red); }
-.lines-add { padding: 12px 14px; display: flex; gap: 10px; background: var(--paper-2); border-top: 1px dashed var(--line); }
-.btn-add-line { background: white; border: 1px dashed var(--amber); border-radius: var(--radius-md); padding: 8px 14px; font-size: 12px; color: var(--amber-deep); cursor: pointer; font-weight: 600; flex: 1; }
-.btn-add-line:hover { background: var(--amber-glow); border-style: solid; }
+.line-num { font-size: 11.5px; color: var(--pq-ink-4); font-weight: 700; text-align: center; font-family: var(--pq-mono); }
+.line-input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--pq-line-2); border-radius: 4px; background: var(--pq-surface); font-family: inherit; color: var(--pq-ink); width: 100%; }
+.line-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.06); }
+.line-input.amount { text-align: right; font-weight: 700; background: var(--pq-surface-inset); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.line-input.qty, .line-input.price { text-align: right; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.line-input.code { font-family: var(--pq-mono); font-weight: 600; }
+.line-del { background: transparent; border: 1px solid var(--pq-line-2); border-radius: 4px; padding: 5px 7px; font-size: 12px; color: var(--pq-ink-4); cursor: pointer; line-height: 1; }
+.line-del:hover { background: var(--pq-err-soft); color: var(--pq-err); border-color: var(--pq-err); }
+.lines-add { padding: 10px 12px; background: var(--pq-surface-2); border-top: 1px dashed var(--pq-line-2); }
+.btn-add-line { background: transparent; border: 1px dashed var(--pq-line-2); border-radius: 6px; padding: 7px 12px; font-size: 11.5px; color: var(--pq-ink-3); cursor: pointer; font-weight: 600; width: 100%; font-family: inherit; }
+.btn-add-line:hover { background: var(--pq-surface); border-style: solid; color: var(--pq-ink); }
 
 /* 합계 */
-.totals { padding: var(--space-4) var(--space-7); background: var(--paper-2); border-top: 1px solid var(--line); }
-.total-row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-4); padding: 6px 0; font-size: 13px; max-width: 400px; margin-left: auto; }
-.total-row b { font-weight: 600; color: var(--ink); }
-.total-row.grand { border-top: 2px solid var(--ink); margin-top: var(--space-3); padding-top: var(--space-3); font-size: 18px; font-weight: 700; }
-.total-row.grand .amt { font-size: 22px; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.totals { padding: 14px 22px; background: var(--pq-surface-2); border-top: 1px solid var(--pq-line); }
+.total-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 4px 0; font-size: 12.5px; max-width: 360px; margin-left: auto; color: var(--pq-ink-2); }
+.total-row b { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; color: var(--pq-ink); font-weight: 600; }
+.total-row.grand { border-top: 1px solid var(--pq-ink); margin-top: 8px; padding-top: 10px; font-size: 16px; font-weight: 700; color: var(--pq-ink); }
+.total-row.grand .amt { font-size: 19px; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 
-/* 우측 사이드 */
-.form-side { display: flex; flex-direction: column; gap: var(--space-3); position: sticky; top: 100px; align-self: start; }
-.side-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); }
-.side-card h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 10px; font-weight: 700; }
-.summary-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+/* 사이드 */
+.side-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; padding: 12px 14px; }
+.side-card h4 { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pq-ink-3); margin: 0 0 8px; font-weight: 700; }
+.summary-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--pq-line); font-size: 12px; }
 .summary-row:last-child { border-bottom: 0; }
-.summary-row .lbl { color: var(--mute); }
-.summary-row .val { color: var(--ink); font-weight: 600; }
-.help-tip { background: var(--amber-glow); border-radius: var(--radius-md); padding: var(--space-3); font-size: 12px; line-height: 1.6; color: var(--ink); }
-.help-tip b { color: var(--knk-red); }
+.summary-row .lbl { color: var(--pq-ink-4); }
+.summary-row .val { color: var(--pq-ink); font-weight: 600; }
+.summary-row .val.mono { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
 
-/* 하단 액션 바 */
-.action-bar { background: var(--paper-3); border-top: 1px solid var(--line); padding: var(--space-4) var(--content-pad); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 16px rgba(212,146,59,0.04); position: sticky; bottom: 0; z-index: var(--z-sticky); }
-.action-bar .info { font-size: 12px; color: var(--mute); }
-.action-bar .info b { color: var(--ink); }
-.action-bar .btns { display: flex; gap: 10px; }
-.btn { font-family: inherit; font-size: 13.5px; font-weight: 700; padding: 11px 20px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
-.btn-primary:hover { transform: translateY(-2px); }
-.btn-secondary { background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
-.btn-secondary:hover { background: var(--amber-glow); }
-.btn-cancel { background: transparent; color: var(--mute); }
-.btn-cancel:hover { color: var(--knk-red); }
+.chip-po { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
+.chip-po::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-po.s-draft { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-po.s-issued { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-po.s-partial { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-po.s-received { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-po.s-cancel { background: var(--pq-err-soft); color: var(--pq-err); }
+
+/* 액션 바 */
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; transition: background-color .12s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
+.btn-secondary:hover { background: var(--pq-surface-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
 
 @media (max-width: 1280px) {
-  .form-container { grid-template-columns: 1fr; }
-  .form-side { position: static; }
+  .pf-body { grid-template-columns: 1fr; }
+  .pf-side { position: static; }
 }
 @media (max-width: 1023px) {
-  .lines-head, .lines-row { grid-template-columns: 40px 1fr 80px 110px 50px; }
+  .lines-head, .lines-row { grid-template-columns: 32px 1fr 80px 110px 36px; }
   .lines-head .col-code, .lines-head .col-price, .lines-row .line-input.code, .lines-row .line-input.price { display: none; }
 }
 </style>
 </head>
 <body>
-{% set role = (user.role or 'member')|lower %}
+{% set is_edit = po is not none %}
+{% set status_now = (po.status if po else '작성중') %}
 
 <div class="app">
   {% set active_tab = 'logi' %}
   {% include "_v5_partials/chrome.html" with context %}
+
   <main class="main">
+    <form method="post" action="{% if is_edit %}/po/{{ po.id }}/edit{% else %}/po/new{% endif %}" id="poForm">
+      <div class="pf-page">
 
-    <div class="page-head">
-      <div>
-        <div class="crumbs"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 흐름</a> · <b>{% if po %}발주 수정{% else %}발주서 작성{% endif %}</b></div>
-        <h1 class="page-title">
-          {% if po %}<em>{{ po.po_number|default('') }}</em> 수정{% else %}새 <em>발주서</em> 작성{% endif %}
-        </h1>
-      </div>
-      <div class="page-actions">
-        <button type="button" class="btn-ghost" onclick="alert('임시저장 불러오기 — 다음 사이클')">📂 임시저장 불러오기</button>
-        <button type="button" class="btn-ghost" onclick="alert('템플릿 사용 — 다음 사이클')">📋 템플릿 사용</button>
-      </div>
-    </div>
-
-    <form method="post" action="{% if po %}/po/{{ po.id }}/edit{% else %}/po/new{% endif %}" id="poForm">
-      <div class="form-container">
-
-        <div class="form-main">
-          <!-- 단계 -->
-          <div class="form-stepper">
-            <div class="step active">
-              <div class="step-num">1</div>
-              <div class="step-label"><div class="ttl">기본 정보</div><div class="sub">거래처·일자</div></div>
-            </div>
-            <div class="step">
-              <div class="step-num">2</div>
-              <div class="step-label"><div class="ttl">품목 추가</div><div class="sub">자재·수량·단가</div></div>
-            </div>
-            <div class="step">
-              <div class="step-num">3</div>
-              <div class="step-label"><div class="ttl">결제·배송</div><div class="sub">조건·납기</div></div>
-            </div>
-            <div class="step">
-              <div class="step-num">4</div>
-              <div class="step-label"><div class="ttl">검토·발행</div><div class="sub">최종 확인</div></div>
-            </div>
+        <div class="pf-head" data-dn="pf:head">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <b>{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</b></div>
+            <div class="pf-title">{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</div>
           </div>
-
-          <!-- 섹션 1: 기본 정보 -->
-          <div class="form-section">
-            <h3>기본 정보 <span class="req">*</span></h3>
-            <div class="field-row">
-              <div class="field">
-                <label>발주 번호 <span class="info">{% if po %}{{ po.po_number }}{% else %}자동 생성 (PO-YYMMDD-NNN){% endif %}</span></label>
-                <input type="text" value="{{ po.po_number|default('자동 생성됩니다') }}" readonly style="background:var(--paper-2);color:var(--mute);" />
-              </div>
-              <div class="field">
-                <label>발주 일자 <span class="req">*</span></label>
-                <input type="date" name="order_date" required value="{{ po.order_date|default(today) }}" />
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label>거래처 (공급사) <span class="req">*</span></label>
-                <select name="supplier_id" required>
-                  <option value="">— 공급사 선택 —</option>
-                  {% for s in suppliers %}
-                  <option value="{{ s.id }}" {% if po and po.supplier_id == s.id %}selected{% endif %}>
-                    {{ s.name }}{% if s.business_no %} · {{ s.business_no }}{% endif %}
-                  </option>
-                  {% endfor %}
-                </select>
-                {% if not suppliers %}
-                <div class="field-hint" style="color:var(--knk-red);">⚠ 등록된 공급사가 없습니다. <a href="/suppliers/new" target="_blank" style="color:var(--knk-red);font-weight:700;">공급사 먼저 등록</a></div>
-                {% else %}
-                <div class="field-hint">선택 시 단가 이력·결제조건이 <b>자동 불러오기</b>됩니다</div>
-                {% endif %}
-              </div>
-              <div class="field">
-                <label>관리코드 (프로젝트 연결)</label>
-                <select name="project_id">
-                  <option value="">(없음 / 일반 구매)</option>
-                  {% for p in projects %}
-                  <option value="{{ p.id }}" {% if po and po.project_id == p.id %}selected{% endif %}>
-                    {{ p.mgmt_code }} · {{ p.project_name }}{% if p.customer_name %} · {{ p.customer_name }}{% endif %}
-                  </option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label>예상 입고일</label>
-                <input type="date" name="expected_date" value="{{ po.expected_date|default('') }}" />
-              </div>
-              <div class="field">
-                <label>PO 유형</label>
-                <select name="po_type">
-                  {% for t in PO_TYPES_KIND %}
-                  <option value="{{ t }}" {% if (po and po.po_type == t) or (not po and t == '일반') %}selected{% endif %}>{{ t }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label>통화</label>
-                <select name="currency" id="hdrCurrency">
-                  {% set cur = (po.currency if po else 'KRW') %}
-                  <option value="KRW" {% if cur == 'KRW' %}selected{% endif %}>KRW (₩)</option>
-                  <option value="USD" {% if cur == 'USD' %}selected{% endif %}>USD ($)</option>
-                  <option value="JPY" {% if cur == 'JPY' %}selected{% endif %}>JPY (¥)</option>
-                  <option value="CNY" {% if cur == 'CNY' %}selected{% endif %}>CNY (¥)</option>
-                  <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>환율 (KRW 기준)</label>
-                <input type="number" name="exchange_rate" step="0.0001" min="0" value="{{ po.exchange_rate|default(1) }}" />
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field field-full">
-                <label>비고</label>
-                <textarea name="note" placeholder="특이사항·요구사항·검수 기준 등을 기재">{{ po.note|default('') }}</textarea>
-              </div>
-            </div>
+          <div class="pf-meta">
+            <span>발주 번호 <span class="pm-num">{{ po.po_number if is_edit else '자동 발급' }}</span></span>
+            {% if is_edit %}
+              <span>·</span>
+              <span class="chip-po {% if status_now == '작성중' %}s-draft{% elif status_now == '발주완료' %}s-issued{% elif status_now == '부분입고' %}s-partial{% elif status_now == '입고완료' %}s-received{% elif status_now == '취소' %}s-cancel{% else %}s-draft{% endif %}">{{ status_now }}</span>
+            {% endif %}
           </div>
-
-          <!-- 섹션 2: 품목 -->
-          <div class="form-section">
-            <h3>발주 품목 <span class="req">*</span></h3>
-            <div class="lines">
-              <div class="lines-head">
-                <div>#</div>
-                <div>품목 · 사양</div>
-                <div class="col-code">코드</div>
-                <div>수량</div>
-                <div class="col-price">단가</div>
-                <div>금액</div>
-                <div></div>
-              </div>
-              <div id="linesBody">
-                {% if items %}
-                {% for it in items %}
-                <div class="lines-row" data-line="{{ loop.index0 }}">
-                  <div class="line-num">{{ '%02d'|format(loop.index) }}</div>
-                  <input type="hidden" name="line_id_{{ loop.index0 }}" value="{{ it.id|default('') }}" />
-                  <input type="hidden" name="line_part_id_{{ loop.index0 }}" value="{{ it.part_id|default('') }}" class="line-part-id" />
-                  <input class="line-input line-name" list="partsList" name="line_name_{{ loop.index0 }}" value="{{ it.part_name_snapshot|default(it.part_name|default('')) }}" placeholder="자재명 (선택 시 코드·단가 자동)" oninput="onPartNameInput(this)" />
-                  <input class="line-input code" name="line_code_{{ loop.index0 }}" value="{{ it.part_no_snapshot|default(it.part_code|default('')) }}" placeholder="코드" />
-                  <input class="line-input qty" name="line_qty_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.qty|default(1) }}" oninput="recalcLine(this)" />
-                  <input class="line-input price" name="line_price_{{ loop.index0 }}" type="number" step="1" value="{{ it.unit_price|default(0) }}" oninput="recalcLine(this)" />
-                  <input class="line-input amount" value="₩{{ '{:,.0f}'.format((it.qty or 0)*(it.unit_price or 0)) }}" readonly />
-                  <button type="button" class="line-del" onclick="delLine(this)">×</button>
-                </div>
-                {% endfor %}
-                {% else %}
-                <div class="lines-row" data-line="0">
-                  <div class="line-num">01</div>
-                  <input type="hidden" name="line_part_id_0" value="" class="line-part-id" />
-                  <input class="line-input line-name" list="partsList" name="line_name_0" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
-                  <input class="line-input code" name="line_code_0" placeholder="코드" />
-                  <input class="line-input qty" name="line_qty_0" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
-                  <input class="line-input price" name="line_price_0" type="number" step="1" value="0" oninput="recalcLine(this)" />
-                  <input class="line-input amount" value="₩0" readonly />
-                  <button type="button" class="line-del" onclick="delLine(this)">×</button>
-                </div>
-                {% endif %}
-              </div>
-
-              {# v5H114: 등록 자재 datalist (part_id 자동매핑용) #}
-              <datalist id="partsList">
-                {% for p in (parts_all or []) %}
-                <option value="{{ p.part_name|default(p.name|default('')) }}" data-part-id="{{ p.id }}" data-part-no="{{ p.part_no|default('') }}" data-price="{{ p.last_price|default(p.unit_price|default(0)) }}"></option>
-                {% endfor %}
-              </datalist>
-              <div class="lines-add">
-                <button type="button" class="btn-add-line" onclick="addLine()">＋ 새 품목 추가</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 섹션 3: 결제·배송 -->
-          <div class="form-section">
-            <h3>결제·배송 조건</h3>
-            <div class="field-row">
-              <div class="field">
-                <label>결제 조건</label>
-                <select name="payment_terms">
-                  <option value="">— 선택 —</option>
-                  {% for t in PAYMENT_TERMS %}
-                  <option value="{{ t }}" {% if po and po.payment_terms == t %}selected{% endif %}>{{ t }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="field">
-                <label>인도 조건</label>
-                <select name="shipping_terms">
-                  <option value="">— 선택 —</option>
-                  {% for t in SHIPPING_TERMS %}
-                  <option value="{{ t }}" {% if po and po.shipping_terms == t %}selected{% endif %}>{{ t }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-            <div class="field-row">
-              <div class="field field-full">
-                <label>상태</label>
-                <select name="status">
-                  {% for s in PO_STATUSES %}
-                  <option value="{{ s }}" {% if (po and po.status == s) or (not po and s == '작성중') %}selected{% endif %}>{{ s }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- 합계 -->
-          <div class="totals">
-            <div class="total-row"><span>소계</span><b id="subTotal">₩0</b></div>
-            <div class="total-row"><span>부가세 (10%)</span><b id="vatTotal">₩0</b></div>
-            <div class="total-row grand"><span>총 발주액</span><span class="amt" id="grandTotal">₩0</span></div>
+          <div class="pf-actions">
+            <a href="/po">↩ 목록</a>
+            {% if is_edit %}<a href="/po/{{ po.id }}">📋 상세</a>{% endif %}
           </div>
         </div>
 
-        <!-- 우측 사이드 -->
-        <aside class="form-side">
-          <div class="side-card">
-            <h4>발주 요약</h4>
-            <div class="summary-row"><span class="lbl">발주 번호</span><span class="val">{{ po.po_number|default('자동 발급') }}</span></div>
-            <div class="summary-row"><span class="lbl">품목</span><span class="val" id="itemCount">{{ items|length if items else 1 }} 종</span></div>
-            <div class="summary-row"><span class="lbl">상태</span><span class="val">{{ po.status|default('작성중') }}</span></div>
-            <div class="summary-row" style="font-weight:700;"><span class="lbl" style="color:var(--knk-red);">총액</span><span class="val" id="sideTotal" style="font-size:15px;color:var(--knk-red);">₩0</span></div>
+        <div class="stepper" data-dn="pf:stepper" data-dn-tone="blue">
+          <div class="step active">
+            <div class="step-num">1</div>
+            <div class="step-label"><div class="ttl">기본 정보</div><div class="sub">거래처·일자</div></div>
           </div>
-
-          <div class="side-card">
-            <h4>💡 빅터 도움말</h4>
-            <div class="help-tip">
-              발주 번호는 저장 시 <b>PO-YYMMDD-NNN</b> 형식으로 자동 발급됩니다.<br><br>
-              관리코드를 선택하면 해당 프로젝트 자재 이력을 자재팀에 자동 알림합니다.
-            </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-label"><div class="ttl">품목 추가</div><div class="sub">자재·수량·단가</div></div>
           </div>
-
-          <div class="side-card">
-            <h4>📜 작성 가이드</h4>
-            <div style="font-size: 12px; color: var(--mute); line-height: 1.7;">
-              ① 공급사 + 발주일자 필수<br>
-              ② 품목 1개 이상 추가<br>
-              ③ 수량·단가 입력 시 금액 자동<br>
-              ④ 저장 후 입고 처리로 진행
-            </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-label"><div class="ttl">결제·배송</div><div class="sub">조건·납기</div></div>
           </div>
-        </aside>
-      </div>
-
-      <!-- 하단 액션 -->
-      <div class="action-bar">
-        <div class="info">{% if po %}🟡 <b>편집 모드</b> — 변경사항 저장 시 이력 기록{% else %}💾 <b>새 발주서</b> — 자동저장 다음 사이클{% endif %}</div>
-        <div class="btns">
-          <a href="/po" class="btn btn-cancel">취소</a>
-          <button type="submit" class="btn btn-primary">📤 {% if po %}저장{% else %}발주 발행 →{% endif %}</button>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-label"><div class="ttl">검토·발행</div><div class="sub">최종 확인</div></div>
+          </div>
         </div>
+
+        <div class="pf-body">
+
+          <div class="pf-main">
+
+            <!-- 섹션 1: 기본 정보 -->
+            <div class="pf-section" data-dn="pf:basic" data-dn-tone="green">
+              <h3>기본 정보 <span class="req">*</span></h3>
+              <div class="field-row">
+                <div class="field">
+                  <label>발주 번호 <span class="info">{{ po.po_number if is_edit else 'PO-YYMMDD-NNN 자동' }}</span></label>
+                  <input type="text" value="{{ po.po_number|default('자동 생성') }}" readonly />
+                </div>
+                <div class="field">
+                  <label>발주 일자 <span class="req">*</span></label>
+                  <input type="date" name="order_date" required value="{{ po.order_date if is_edit else (today|default('')) }}" />
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label>거래처 (공급사) <span class="req">*</span></label>
+                  <select name="supplier_id" required>
+                    <option value="">— 공급사 선택 —</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if is_edit and po.supplier_id == s.id %}selected{% endif %}>
+                      {{ s.name }}{% if s.business_no %} · {{ s.business_no }}{% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  {% if not suppliers %}
+                  <div class="field-hint warn">⚠ 등록된 공급사가 없습니다. <a href="/suppliers">공급사 등록 →</a></div>
+                  {% else %}
+                  <div class="field-hint">선택 시 단가 이력·결제조건이 <b>자동 불러오기</b>됩니다</div>
+                  {% endif %}
+                </div>
+                <div class="field">
+                  <label>관리코드 (프로젝트)</label>
+                  <select name="project_id">
+                    <option value="">(없음 / 일반 구매)</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if is_edit and po.project_id == p.id %}selected{% endif %}>
+                      {{ p.mgmt_code }} · {{ p.project_name }}{% if p.customer_name %} · {{ p.customer_name }}{% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label>예상 입고일</label>
+                  <input type="date" name="expected_date" value="{{ po.expected_date|default('') }}" />
+                </div>
+                <div class="field">
+                  <label>PO 유형</label>
+                  <select name="po_type">
+                    {% for t in PO_TYPES_KIND %}
+                    <option value="{{ t }}" {% if (is_edit and po.po_type == t) or (not is_edit and t == '일반') %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label>통화</label>
+                  <select name="currency" id="hdrCurrency">
+                    {% set cur = (po.currency if is_edit else 'KRW') %}
+                    <option value="KRW" {% if cur == 'KRW' %}selected{% endif %}>KRW (₩)</option>
+                    <option value="USD" {% if cur == 'USD' %}selected{% endif %}>USD ($)</option>
+                    <option value="JPY" {% if cur == 'JPY' %}selected{% endif %}>JPY (¥)</option>
+                    <option value="CNY" {% if cur == 'CNY' %}selected{% endif %}>CNY (¥)</option>
+                    <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>환율 (KRW 기준)</label>
+                  <input type="number" name="exchange_rate" step="0.0001" min="0" value="{{ po.exchange_rate|default(1) }}" />
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field field-full">
+                  <label>비고</label>
+                  <textarea name="note" placeholder="특이사항·요구사항·검수 기준 등을 기재">{{ po.note|default('') }}</textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 품목 -->
+            <div class="pf-section" data-dn="pf:lines" data-dn-tone="purple">
+              <h3>발주 품목 <span class="req">*</span></h3>
+              <div class="lines">
+                <div class="lines-head">
+                  <div>#</div>
+                  <div>품목 · 사양</div>
+                  <div class="col-code">코드</div>
+                  <div>수량</div>
+                  <div class="col-price">단가</div>
+                  <div>금액</div>
+                  <div></div>
+                </div>
+                <div id="linesBody">
+                  {% if items %}
+                  {% for it in items %}
+                  <div class="lines-row" data-line="{{ loop.index0 }}">
+                    <div class="line-num">{{ '%02d'|format(loop.index) }}</div>
+                    <input type="hidden" name="line_id_{{ loop.index0 }}" value="{{ it.id|default('') }}" />
+                    <input type="hidden" name="line_part_id_{{ loop.index0 }}" value="{{ it.part_id|default('') }}" class="line-part-id" />
+                    <input class="line-input line-name" list="partsList" name="line_name_{{ loop.index0 }}" value="{{ it.part_name_snapshot|default(it.part_name|default('')) }}" placeholder="자재명 (선택 시 코드·단가 자동)" oninput="onPartNameInput(this)" />
+                    <input class="line-input code" name="line_code_{{ loop.index0 }}" value="{{ it.part_no_snapshot|default(it.part_code|default('')) }}" placeholder="코드" />
+                    <input class="line-input qty" name="line_qty_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.qty|default(1) }}" oninput="recalcLine(this)" />
+                    <input class="line-input price" name="line_price_{{ loop.index0 }}" type="number" step="1" value="{{ it.unit_price|default(0) }}" oninput="recalcLine(this)" />
+                    <input class="line-input amount" value="₩{{ '{:,.0f}'.format((it.qty or 0)*(it.unit_price or 0)) }}" readonly />
+                    <button type="button" class="line-del" onclick="delLine(this)">×</button>
+                  </div>
+                  {% endfor %}
+                  {% else %}
+                  <div class="lines-row" data-line="0">
+                    <div class="line-num">01</div>
+                    <input type="hidden" name="line_part_id_0" value="" class="line-part-id" />
+                    <input class="line-input line-name" list="partsList" name="line_name_0" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
+                    <input class="line-input code" name="line_code_0" placeholder="코드" />
+                    <input class="line-input qty" name="line_qty_0" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
+                    <input class="line-input price" name="line_price_0" type="number" step="1" value="0" oninput="recalcLine(this)" />
+                    <input class="line-input amount" value="₩0" readonly />
+                    <button type="button" class="line-del" onclick="delLine(this)">×</button>
+                  </div>
+                  {% endif %}
+                </div>
+
+                <datalist id="partsList">
+                  {% for p in (parts_all or []) %}
+                  <option value="{{ p.part_name|default(p.name|default('')) }}" data-part-id="{{ p.id }}" data-part-no="{{ p.part_no|default('') }}" data-price="{{ p.last_price|default(p.unit_price|default(0)) }}"></option>
+                  {% endfor %}
+                </datalist>
+                <div class="lines-add">
+                  <button type="button" class="btn-add-line" onclick="addLine()">＋ 새 품목 추가</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 3: 결제·배송 -->
+            <div class="pf-section" data-dn="pf:terms" data-dn-tone="blue">
+              <h3>결제·배송 조건</h3>
+              <div class="field-row">
+                <div class="field">
+                  <label>결제 조건</label>
+                  <select name="payment_terms">
+                    <option value="">— 선택 —</option>
+                    {% for t in PAYMENT_TERMS %}
+                    <option value="{{ t }}" {% if is_edit and po.payment_terms == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>인도 조건</label>
+                  <select name="shipping_terms">
+                    <option value="">— 선택 —</option>
+                    {% for t in SHIPPING_TERMS %}
+                    <option value="{{ t }}" {% if is_edit and po.shipping_terms == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field field-full">
+                  <label>상태</label>
+                  <select name="status">
+                    {% for s in PO_STATUSES %}
+                    <option value="{{ s }}" {% if (is_edit and po.status == s) or (not is_edit and s == '작성중') %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 합계 -->
+            <div class="totals" data-dn="pf:totals" data-dn-tone="green">
+              <div class="total-row"><span>소계</span><b id="subTotal">₩0</b></div>
+              <div class="total-row"><span>부가세 (10%)</span><b id="vatTotal">₩0</b></div>
+              <div class="total-row grand"><span>총 발주액</span><span class="amt" id="grandTotal">₩0</span></div>
+            </div>
+          </div>
+
+          <!-- 우측 사이드 -->
+          <aside class="pf-side" data-dn="pf:side" data-dn-tone="blue">
+            <div class="side-card">
+              <h4>발주 요약</h4>
+              <div class="summary-row"><span class="lbl">발주 번호</span><span class="val mono">{{ po.po_number if is_edit else '자동 발급' }}</span></div>
+              <div class="summary-row"><span class="lbl">품목</span><span class="val mono" id="itemCount">{{ items|length if items else 1 }} 종</span></div>
+              <div class="summary-row"><span class="lbl">상태</span><span class="val">{{ status_now }}</span></div>
+              <div class="summary-row"><span class="lbl">총액</span><span class="val mono" id="sideTotal">₩0</span></div>
+            </div>
+
+            <div class="side-card">
+              <h4>📜 작성 가이드</h4>
+              <div style="font-size:11.5px; color: var(--pq-ink-3); line-height: 1.7;">
+                ① 공급사 + 발주일자 필수<br>
+                ② 품목 1개 이상 추가<br>
+                ③ 수량·단가 입력 시 금액 자동<br>
+                ④ 저장 후 입고 처리로 진행
+              </div>
+            </div>
+
+            <div class="side-card">
+              <h4>💡 도움말</h4>
+              <div class="help-tip">
+                발주 번호는 저장 시 <b>PO-YYMMDD-NNN</b> 형식으로 자동 발급됩니다.
+                관리코드를 선택하면 해당 프로젝트 자재 이력에 연결됩니다.
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- 하단 액션 -->
+        <div class="action-bar" data-dn="pf:action" data-dn-tone="amber">
+          <div class="info">
+            {% if is_edit %}🟡 <b>편집 모드</b> — 변경사항 저장 시 이력 기록{% else %}💾 <b>새 발주서</b> — 저장 시 PO 번호 자동 발급{% endif %}
+          </div>
+          <div class="btns">
+            <a href="{% if is_edit %}/po/{{ po.id }}{% else %}/po{% endif %}" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary">{% if is_edit %}저장{% else %}발주 발행 →{% endif %}</button>
+          </div>
+        </div>
+
       </div>
     </form>
   </main>
@@ -449,7 +477,6 @@ function addLine() {
   div.querySelector('input[name^="line_name_"]').focus();
 }
 
-// v5H114: datalist 옵션 매칭 시 part_id/code/단가 자동 입력
 function onPartNameInput(el) {
   const row = el.closest('.lines-row');
   const list = document.getElementById('partsList');
@@ -471,7 +498,6 @@ function onPartNameInput(el) {
       priceInput.value = pr;
       recalcLine(priceInput);
     }
-    // v5H116: part_prices 활성 단가 비동기 fetch (datalist 폴백 위에 덮어쓰기)
     const pid = matched.getAttribute('data-part-id');
     if (pid && priceInput) {
       const beforeFetchEmpty = (!priceInput.value || parseFloat(priceInput.value) === 0);
@@ -481,7 +507,6 @@ function onPartNameInput(el) {
           if (!j) return;
           const apiPrice = parseFloat(j.price || 0) || 0;
           if (apiPrice <= 0) return;
-          // 사용자가 fetch 사이에 직접 입력했으면 덮어쓰지 않음
           const cur = parseFloat(priceInput.value || '0') || 0;
           if (beforeFetchEmpty || cur === pr) {
             priceInput.value = apiPrice;
@@ -502,7 +527,6 @@ function delLine(btn) {
   }
   if (confirm('이 품목을 삭제하시겠습니까?')) {
     row.remove();
-    // 줄 번호 재정렬
     document.querySelectorAll('#linesBody .lines-row').forEach((r, i) => {
       r.querySelector('.line-num').textContent = String(i + 1).padStart(2, '0');
     });
@@ -510,8 +534,8 @@ function delLine(btn) {
   }
 }
 
-// 초기 합계 계산
 document.addEventListener('DOMContentLoaded', recalcTotals);
 </script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>

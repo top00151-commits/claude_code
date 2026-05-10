@@ -1,44 +1,229 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>안전재고 설정 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>안전재고 설정 · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 안전재고 설정 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>안전재고 설정</b></div><h1 class="page-title">🛡 안전재고 <em>설정</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">자재별 안전재고·재발주점·발주수량 일괄 관리</div></div>
-    <a class="btn btn-primary" href="/stock/reorder-recommendations">📦 재발주 추천</a>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.ss-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ss-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ss-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.ss-head .crumb a { color: var(--pq-ink-2); }
+.ss-head .crumb b { color: var(--pq-ink); }
+.ss-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.ss-meta { font-size: 12px; color: var(--pq-ink-3); }
+.ss-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.ss-actions { margin-left: auto; display: flex; gap: 8px; }
+.ss-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.ss-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  {% if request.query_params.get('saved') %}<div style="margin: 0 var(--content-pad) var(--space-3);background:rgba(122,155,92,.10);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">✓ 저장 완료</div>{% endif %}
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+.kpi-cell.alert .v { color: var(--pq-danger); }
 
-  <form style="margin: 0 var(--content-pad) var(--space-4);" method="get" action="/stock/safety">
-    <div style="display:flex;gap:8px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px;">
-      <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 검색…" style="flex:1;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);color:var(--ink);font-family:inherit;">
-      <button class="btn btn-primary">🔍</button>
+.filterbar { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-search { height: 28px; padding: 0 10px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink); min-width: 280px; font-family: inherit; }
+.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.toast { position: fixed; top: 84px; right: 24px; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 1000; box-shadow: 0 4px 12px rgba(15,23,42,0.15); animation: fadeOut 3s forwards; }
+.toast.ok { background: var(--pq-ok-soft); color: var(--pq-ok); border: 1px solid var(--pq-ok); }
+.toast.err { background: var(--pq-danger-soft); color: var(--pq-danger); border: 1px solid var(--pq-danger); }
+@keyframes fadeOut { 0%, 70% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 36px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 36px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr.below-rop > td { background: var(--pq-warn-soft) !important; }
+.tbl-erp tbody tr.below-safety > td { background: var(--pq-danger-soft) !important; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.inline-input {
+  height: 26px; width: 80px; padding: 0 6px;
+  border: 1px solid var(--pq-line-2); border-radius: 4px;
+  background: var(--pq-surface); color: var(--pq-ink);
+  font-family: var(--pq-mono); font-size: 12px; text-align: right;
+}
+.inline-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.08); }
+.btn-save {
+  height: 26px; padding: 0 10px; background: var(--pq-ink); color: #fff;
+  border: 0; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.btn-save:hover { background: #1e293b; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .ss-head { padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+
+{% set total_cnt = items|length %}
+{% set below_safety = items|selectattr('on_hand','lt','safety_stock')|list|length %}
+{% set ns = namespace(below_rop=0, below_safety=0, set_count=0) %}
+{% for it in items %}
+  {% set on = it.on_hand|default(0)|float %}
+  {% set ss = it.safety_stock|default(0)|float %}
+  {% set rop = it.reorder_point|default(0)|float %}
+  {% if ss > 0 or rop > 0 %}{% set ns.set_count = ns.set_count + 1 %}{% endif %}
+  {% if rop > 0 and on < rop %}{% set ns.below_rop = ns.below_rop + 1 %}{% endif %}
+  {% if ss > 0 and on < ss %}{% set ns.below_safety = ns.below_safety + 1 %}{% endif %}
+{% endfor %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="ss-page">
+
+      <div class="ss-head" data-dn="ss:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>안전재고 설정</b></div>
+          <div class="ss-title">안전재고 / 재발주점 설정</div>
+        </div>
+        <div class="ss-meta">
+          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
+          <span>·</span>
+          <span>설정됨 <span class="pm-num">{{ '{:,}'.format(ns.set_count) }}</span></span>
+        </div>
+        <div class="ss-actions">
+          <a href="/stock/balances">📦 재고 현황</a>
+          <a href="/stock/reorder-recommendations">🔄 재주문 권고</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="ss:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체 자재</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
+          <div class="sub">활성 자재 (최대 300)</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">임계 설정됨</div>
+          <div class="v">{{ '{:,}'.format(ns.set_count) }}<span class="u">종</span></div>
+          <div class="sub">safety / ROP 둘 중 하나</div>
+        </div>
+        <div class="kpi-cell warn">
+          <div class="l">재발주점 미달</div>
+          <div class="v">{{ '{:,}'.format(ns.below_rop) }}<span class="u">종</span></div>
+          <div class="sub">발주 권고 대상</div>
+        </div>
+        <div class="kpi-cell alert">
+          <div class="l">안전재고 미달</div>
+          <div class="v">{{ '{:,}'.format(ns.below_safety) }}<span class="u">종</span></div>
+          <div class="sub">긴급 재발주</div>
+        </div>
+      </div>
+
+      <form class="filterbar" method="get" action="/stock/safety" data-dn="ss:filter" data-dn-tone="blue">
+        <span class="fb-label">검색</span>
+        <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드" />
+        <button type="submit" class="fb-go">검색</button>
+        {% if q %}<a class="fb-go" href="/stock/safety" style="text-decoration:none; display:inline-flex; align-items:center;">↺ 해제</a>{% endif %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </form>
+
+      {% if request and request.query_params.get('saved') == '1' %}
+      <div class="toast ok">✓ 안전재고 저장됨</div>
+      {% elif request and request.query_params.get('error') == '1' %}
+      <div class="toast err">✗ 저장 실패</div>
+      {% endif %}
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="ss:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:160px;">코드</th>
+              <th>자재명</th>
+              <th class="mute" style="width:140px;">제조사</th>
+              <th class="num" style="width:110px;">현재 재고</th>
+              <th class="center" style="width:60px;">단위</th>
+              <th class="num" style="width:110px;">안전재고</th>
+              <th class="num" style="width:110px;">재발주점 (ROP)</th>
+              <th class="num" style="width:110px;">발주량 (ROQ)</th>
+              <th class="center" style="width:90px;">저장</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for it in items %}
+            {% set on = it.on_hand|default(0)|float %}
+            {% set ss = it.safety_stock|default(0)|float %}
+            {% set rop = it.reorder_point|default(0)|float %}
+            {% set roq = it.reorder_qty|default(0)|float %}
+            {% set row_cls = 'below-safety' if (ss > 0 and on < ss) else ('below-rop' if (rop > 0 and on < rop) else '') %}
+            <tr class="{{ row_cls }}">
+              <td class="code">{{ it.part_no }}</td>
+              <td><b>{{ it.part_name }}</b></td>
+              <td class="mute" style="font-size:11.5px;">{{ it.maker|default('—') }}</td>
+              <td class="num"><b>{{ '{:,.0f}'.format(on) }}</b></td>
+              <td class="center mute">{{ it.unit|default('EA') }}</td>
+              <td colspan="4" style="padding: 0;">
+                <form method="post" action="/stock/safety/{{ it.id }}" style="display:flex; gap:6px; align-items:center; padding: 0 12px; margin: 0;">
+                  <input type="hidden" name="q" value="{{ q|default('') }}">
+                  <input class="inline-input" type="number" min="0" step="any" name="safety_stock" value="{{ '{:.0f}'.format(ss) }}">
+                  <input class="inline-input" type="number" min="0" step="any" name="reorder_point" value="{{ '{:.0f}'.format(rop) }}">
+                  <input class="inline-input" type="number" min="0" step="any" name="reorder_qty" value="{{ '{:.0f}'.format(roq) }}">
+                  <button type="submit" class="btn-save">저장</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="ss:empty">
+        <div class="ico">🎯</div>
+        <div class="ttl">{% if q %}검색 결과 없음{% else %}활성 자재 없음{% endif %}</div>
+      </div>
+      {% endif %}
+
     </div>
-  </form>
-
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th>코드</th><th>자재명</th><th class="num">현재고</th><th class="num">안전재고</th><th class="num">재발주점</th><th class="num">발주 수량</th><th class="center">저장</th></tr></thead>
-      <tbody>
-      {% for it in items %}
-        <tr>
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.code|default('—') }}</td>
-          <td><b>{{ it.name|default('—') }}</b>{% if it.spec %}<div style="font-size:11px;color:var(--mute);">{{ it.spec }}</div>{% endif %}</td>
-          <td class="num" style="font-weight:700;{% if it.stock_qty|default(0) <= it.safety_stock|default(0) %}color:var(--knk-red);{% endif %}">{{ '{:,.0f}'.format(it.stock_qty|default(0)) }}</td>
-          <td class="num"><form method="post" action="/stock/safety/{{ it.id }}" id="form-{{ it.id }}" style="margin:0;display:inline;"><input type="hidden" name="q" value="{{ q }}"><input type="number" name="safety_stock" step="0.01" min="0" value="{{ it.safety_stock|default(0) }}" form="form-{{ it.id }}" style="width:90px;padding:5px 8px;font-size:12px;border:1px solid var(--line);border-radius:4px;text-align:right;"></form></td>
-          <td class="num"><input type="number" name="reorder_point" step="0.01" min="0" value="{{ it.reorder_point|default(0) }}" form="form-{{ it.id }}" style="width:90px;padding:5px 8px;font-size:12px;border:1px solid var(--line);border-radius:4px;text-align:right;"></td>
-          <td class="num"><input type="number" name="reorder_qty" step="0.01" min="0" value="{{ it.reorder_qty|default(0) }}" form="form-{{ it.id }}" style="width:90px;padding:5px 8px;font-size:12px;border:1px solid var(--line);border-radius:4px;text-align:right;"></td>
-          <td class="center"><button class="btn btn-secondary" type="submit" form="form-{{ it.id }}">💾</button></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">🛡</div><div class="ttl">{% if q %}검색 결과 없음{% else %}자재 없음{% endif %}</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

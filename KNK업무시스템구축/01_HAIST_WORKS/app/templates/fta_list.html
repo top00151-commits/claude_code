@@ -1,24 +1,36 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>FTA 원산지 · KNK</title>
 {% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z69: 시안1 토큰 + .mgmt-pill — fta_list v1+v2 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+.mgmt-pill { display:inline-flex; align-items:center; justify-content:center; padding:4px 12px; border-radius:6px; background:var(--qv-ink); color:#fff; font-family:monospace; font-size:13px; font-weight:700; letter-spacing:0.5px; box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; }
+.mgmt-pill.sm { padding:2px 8px; font-size:11.5px; }
+@media (max-width:1100px){ .page-title{font-size:22px;} }
+</style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/export">수출</a> · <b>FTA 원산지</b></div><h1 class="page-title">📜 FTA <em>원산지 증명</em></h1>
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div><div class="crumbs" data-dn="crumb"><a href="/export">수출</a> · <b>FTA 원산지</b></div><h1 class="page-title" data-dn="title">📜 FTA <em>원산지 증명</em></h1>
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">FTA 협정별 원산지 증명서 발행/관리</div></div>
     <a class="btn btn-primary" href="/fta/certificates/new">＋ FTA 증명서</a>
   </div>
 
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-dn="fta-list" data-dn-tone="purple">
     {% if items %}
     <table class="tbl">
-      <thead><tr><th>인증 번호</th><th class="center">FTA 협정</th><th>품목</th><th>HS 코드</th><th class="center">상태</th><th>발행일</th><th>유효기한</th></tr></thead>
+      <thead data-dn="thead-row"><tr><th>인증 번호</th><th class="center">FTA 협정</th><th>품목</th><th>HS 코드</th><th class="center">상태</th><th>발행일</th><th>유효기한</th></tr></thead>
       <tbody>
       {% for f in items %}
         <tr onclick="location.href='/fta/certificates/{{ f.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ f.cert_no|default('#' ~ f.id) }}</td>
+          {# v5H226z69: 인증번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
+          <td><span class="mgmt-pill sm">{{ f.cert_no|default('#' ~ f.id) }}</span></td>
           <td class="center"><span class="pill pill-progress">{{ f.fta_type|default('—') }}</span></td>
           <td><b>{{ f.product_name|default('—') }}</b></td>
           <td style="font-family:monospace;font-size:11px;">{{ f.hs_code|default('—') }}</td>

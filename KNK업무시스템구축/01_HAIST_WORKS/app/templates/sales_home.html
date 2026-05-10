@@ -13,6 +13,38 @@
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z45: 시안1 디자인 토큰 — sales_home v1 차수 (project_detail.html z41 / sales_orders z44 와 동일) */
+body {
+  --qv-surface:   #ffffff;
+  --qv-surface-2: #f7f8fa;
+  --qv-line:      #eef0f4;
+  --qv-ink:       #0f172a;
+  --qv-ink-2:     #334155;
+  --qv-ink-3:     #64748b;
+  --biz-t: #c2410c;
+  --biz-m: #1e40af;
+  --biz-e: #6d28d9;
+  --biz-c: #047857;
+}
+
+/* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
+.mgmt-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--qv-ink); color: #ffffff;
+  font-family: monospace; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.5px; line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08); text-decoration: none;
+}
+.mgmt-pill:hover { background: var(--qv-ink-2); color: #ffffff; }
+.mgmt-pill.empty {
+  background: var(--qv-surface-2); color: var(--qv-ink-3);
+  box-shadow: none; border: 1px dashed var(--qv-line);
+  font-weight: 500;
+}
+.mgmt-pill.sm { padding: 2px 8px;  font-size: 11.5px; }
+.mgmt-pill.lg { padding: 6px 16px; font-size: 18px; }
+
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
@@ -72,6 +104,20 @@
 .recent-table .stage-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--paper-2); color: var(--mute); }
 
 @media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: 1fr; } }
+/* v5H226z45: 1100px 이하 반응형 — 작은 노트북/모니터 깨짐 방지 */
+@media (max-width: 1100px) {
+  .page-head { padding: var(--space-4) var(--content-pad) var(--space-2); }
+  .page-title { font-size: 22px; }
+  .kpi-row { grid-template-columns: 1fr; gap: var(--space-2); margin-top: var(--space-3); }
+  .kpi.hero { grid-column: span 1; }
+  .kpi.hero .kpi-num { font-size: 28px; }
+  .kpi { padding: var(--space-3) var(--space-4); }
+  .kpi-num { font-size: 22px; }
+  .grid-2 { gap: var(--space-3); }
+  .card { padding: var(--space-4); }
+  .bar-row { grid-template-columns: 70px 1fr auto; gap: 8px; }
+  .bar-label { font-size: 11.5px; }
+}
 </style>
 </head>
 <body>
@@ -82,17 +128,17 @@
   {% set active = 'sales_home' %}
   {% set active_tab = 'sales' %}
   {% include "_v5_partials/chrome.html" with context %}
-  <main class="main">
-    <div class="page-head">
+  <main class="main" data-dn="main" data-dn-tone="amber">
+    <div class="page-head" data-dn="page-head">
       <div>
-        <div class="page-meta">{{ today }} · 영업현황</div>
-        <h1 class="page-title">매출영업<em>센터</em></h1>
+        <div class="page-meta" data-dn="crumb">{{ today }} · 영업현황</div>
+        <h1 class="page-title" data-dn="title">매출영업<em>센터</em></h1>
       </div>
       {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
     </div>
 
     <!-- KPI -->
-    <div class="kpi-row">
+    <div class="kpi-row" data-dn="kpi-bar" data-dn-tone="green">
       <div class="kpi hero">
         <div class="kpi-label">{{ kpi.ym|default('') }} 이번 달 수주</div>
         <div class="kpi-num">{{ '{:,.0f}'.format(kpi.month_total or 0) }}<span style="font-size:14px;opacity:0.85;"> 원</span></div>
@@ -111,8 +157,8 @@
     </div>
 
     <!-- 사업부별 / 단계별 -->
-    <div class="grid-2">
-      <div class="card">
+    <div class="grid-2" data-dn="grid-biz-stage" data-dn-tone="purple">
+      <div class="card" data-dn="biz-bar">
         <h3>사업부별 수주 ({{ kpi.year|default('') }})</h3>
         {% if kpi.by_biz %}
         {% set max_biz = kpi.by_biz|map(attribute='total')|max|default(1) %}
@@ -130,7 +176,7 @@
         {% endif %}
       </div>
 
-      <div class="card">
+      <div class="card" data-dn="stage-bar">
         <h3>단계별 프로젝트</h3>
         {% if kpi.by_stage %}
         {% set max_stage = kpi.by_stage|map(attribute='cnt')|max|default(1) %}
@@ -150,8 +196,8 @@
     </div>
 
     <!-- TOP 5 고객사 / 최근 프로젝트 -->
-    <div class="grid-2">
-      <div class="card">
+    <div class="grid-2" data-dn="grid-customer-recent" data-dn-tone="blue">
+      <div class="card" data-dn="top-customers">
         <h3>TOP 5 고객사 ({{ kpi.year|default('') }})</h3>
         <div class="list-card list-scroll-sm">
           {% for c in (kpi.top_customers or []) %}
@@ -169,12 +215,13 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" data-dn="recent-projects">
         <h3>최근 프로젝트</h3>
         <div class="list-card list-scroll-sm">
+          {# v5H226z45: 최근 프로젝트 list-num → .mgmt-pill sm 잉크 알약 (페이지 간 일관성) #}
           {% for p in (kpi.recent or [])[:7] %}
           <a class="list-item" href="/project/{{ p.id }}">
-            <div class="list-num">{{ p.mgmt_code|default('—') }}</div>
+            <span class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</span>
             <div class="list-text">
               <div class="ttl">{{ p.name }}</div>
               <div class="meta">{{ p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>

@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ post.title }} · 게시판</title>
+{# board_detail.html — 게시글 상세 + 댓글
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.post-card { margin: 0 var(--content-pad) var(--space-3); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.post-meta { display: flex; gap: 14px; font-size: 12px; color: var(--mute); margin-top: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.post-meta b { color: var(--ink); }
-.post-body { font-size: 14px; line-height: 1.75; color: var(--ink); padding: var(--space-4) 0; white-space: pre-wrap; }
+.post-card { margin: 0 var(--content-pad) var(--space-3); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.post-meta { display: flex; gap: 14px; font-size: 12px; color: var(--qv-ink-3); margin-top: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--qv-line); }
+.post-meta b { color: var(--qv-ink); }
+.post-body { font-size: 14px; line-height: 1.75; color: var(--qv-ink); padding: var(--space-4) 0; white-space: pre-wrap; }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="post-main">
+  <div class="page-head" data-dn="post-pagehead">
     <div><div class="crumbs"><a href="/board">게시판</a> · <b>#{{ post.id }}</b></div></div>
     <div style="display:flex;gap:8px;">
       {% if can_edit %}<a class="btn btn-secondary" href="/board/post/{{ post.id }}/edit">📂 수정</a>{% endif %}
@@ -18,17 +20,17 @@
     </div>
   </div>
 
-  <div class="post-card">
+  <div class="post-card" data-dn="post-body">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       {% if post.is_pinned %}<span class="pill pill-danger">📌 고정</span>{% endif %}
       <span class="pill pill-muted">{{ post.category|default('일반') }}</span>
     </div>
-    <h1 style="font-size:24px;font-weight:700;color:var(--ink);margin-top:10px;">{{ post.title }}</h1>
+    <h1 style="font-size:24px;font-weight:700;color:var(--qv-ink);margin-top:10px;">{{ post.title }}</h1>
     <div class="post-meta">
       <span>👤 <b>{{ post.author_name|default('—') }}</b></span>
       <span>📅 {{ post.created_at|default('—') }}</span>
       <span>👁 {{ post.view_count|default(0) }}</span>
-      {% if post.updated_at and post.updated_at != post.created_at %}<span style="color:var(--amber-deep);">수정 {{ post.updated_at }}</span>{% endif %}
+      {% if post.updated_at and post.updated_at != post.created_at %}<span style="color:var(--qv-ink-2);">수정 {{ post.updated_at }}</span>{% endif %}
     </div>
     <div class="post-body">{{ post.body|default('(내용 없음)') }}</div>
   </div>
@@ -37,9 +39,9 @@
   <div class="post-card" style="margin-top: var(--space-3);">
     <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">댓글 ({{ comments|length }})</h3>
     {% for c in comments %}
-    <div style="padding:10px 12px;background:var(--paper-2);border-radius:var(--radius-sm);margin-bottom:8px;border-left:3px solid var(--amber);">
+    <div style="padding:10px 12px;background:var(--qv-surface-3);border-radius:var(--radius-sm);margin-bottom:8px;border-left:3px solid var(--qv-line-3);">
       <b style="font-size:13px;">{{ c.author_name }}</b>
-      <span style="color:var(--mute);font-size:11px;margin-left:6px;">{{ c.created_at }}</span>
+      <span style="color:var(--qv-ink-3);font-size:11px;margin-left:6px;">{{ c.created_at }}</span>
       <div style="margin-top:4px;font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ c.body }}</div>
     </div>
     {% endfor %}
@@ -47,7 +49,7 @@
   {% endif %}
 
   <form method="post" action="/board/post/{{ post.id }}/comment" style="margin: 0 var(--content-pad) var(--space-7);">
-    <textarea name="body" required placeholder="댓글 입력" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);color:var(--ink);min-height:70px;resize:vertical;"></textarea>
+    <textarea name="body" required placeholder="댓글 입력" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--qv-line);border-radius:var(--radius-md);background:var(--qv-surface-2);color:var(--qv-ink);min-height:70px;resize:vertical;"></textarea>
     <div style="margin-top:8px;text-align:right;"><button type="submit" class="btn btn-primary">💬 댓글 등록</button></div>
   </form>
 </main></div></body></html>

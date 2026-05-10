@@ -3,292 +3,283 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{{ po.po_number|default('발주서') }} · KNK HAIST WORKS</title>
+<title>발주 상세 · KNK HAIST WORKS</title>
 
-{# ============================================================
-   po_detail.html — 시안 master_E_detail_po_v5H5.html 1:1 STANDALONE
-   2026-05-01 v5H5 standalone (발주 상세)
-   원본: 05_.../E_상세/master_E_detail_po_v5H5.html
-   레거시 백업: _legacy_po_detail_v4.html
-   ============================================================ #}
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 발주 상세 #}
 
-<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
-a { text-decoration: none; color: inherit; }
-button { font-family: inherit; cursor: pointer; }
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.pd-page { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; background: var(--pq-surface-2); }
+.pd-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pd-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.pd-head .crumb a { color: var(--pq-ink-2); }
+.pd-head .crumb b { color: var(--pq-ink); }
+.pd-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pd-title .code { font-family: var(--pq-mono); color: var(--pq-ink); }
+.pd-actions { margin-left: auto; display: flex; gap: 8px; }
+.pd-actions a, .pd-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
+.pd-actions .btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.pd-actions .btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.pd-actions .btn-dark { background: var(--pq-ink); border: 0; color: #fff; padding: 0 14px; font-weight: 600; }
+.pd-actions .btn-dark:hover { background: #1e293b; }
 
-.detail-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
-.crumbs { font-size: 12px; color: var(--mute); margin-bottom: 12px; }
-.crumbs b { color: var(--ink); }
-.crumbs a { color: var(--amber-deep); }
-.detail-head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
-.id-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.detail-id { font-family: monospace; font-size: 14px; color: var(--amber-deep); font-weight: 700; background: var(--paper-2); padding: 4px 10px; border-radius: var(--radius-sm); }
-.status-pill-lg { padding: 5px 14px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; }
-.status-draft { background: var(--paper-2); color: var(--mute); }
-.status-progress { background: var(--amber-glow); color: var(--amber-deep); }
-.status-warn { background: rgba(201,125,63,0.12); color: var(--warn); border: 1px solid var(--warn); }
-.status-done { background: var(--success); color: white; }
-.status-cancel { background: rgba(165,40,44,0.08); color: var(--knk-red); }
-.detail-title { font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-bottom: 8px; }
-.detail-meta { display: flex; gap: 18px; font-size: 13px; color: var(--mute); flex-wrap: wrap; }
-.detail-meta b { color: var(--ink); font-weight: 600; }
-.detail-actions { display: flex; gap: 8px; }
-.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
-.btn-primary:hover { transform: translateY(-1px); }
-.btn-secondary { background: var(--paper-3); color: var(--ink); border: 1px solid var(--line); }
-.btn-secondary:hover { background: var(--amber-glow); }
-.btn-icon { background: var(--paper-3); color: var(--mute); border: 1px solid var(--line); width: 36px; padding: 0; justify-content: center; font-size: 14px; }
-.btn-danger { background: var(--paper-3); color: var(--knk-red); border: 1px solid var(--knk-red); }
-.btn-danger:hover { background: var(--knk-red); color: white; }
+.chip-po { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; font-size: 12px; font-weight: 600; border-radius: 4px; }
+.chip-po::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-po.s-draft { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-po.s-issued { background: var(--pq-purple-soft); color: var(--pq-purple); }
+.chip-po.s-partial { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-po.s-received { background: var(--pq-ink); color: #fff; }
+.chip-po.s-cancelled { background: var(--pq-surface-3); color: var(--pq-ink-4); text-decoration: line-through; }
 
-.content { padding: var(--space-3) var(--content-pad) var(--space-7); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-5); }
-.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); margin-bottom: var(--space-4); box-shadow: var(--shadow-sm); }
-.section-card h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: var(--space-4); display: flex; align-items: center; gap: 10px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.alert-bar { background: var(--pq-warn-soft); color: var(--pq-warn); border: 1px solid #fcd34d; border-radius: 8px; padding: 8px 12px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
 
-.def-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-7); }
-.def-item .lbl { font-size: 11px; color: var(--mute); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
-.def-item .val { font-size: 14px; color: var(--ink); font-weight: 500; }
-.def-item .val.amount { font-weight: 700; color: var(--knk-red); font-size: 16px; }
+.summary-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  padding: 16px 24px;
+}
+.sm-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 10px; padding: 12px 16px; min-height: 80px; display: flex; flex-direction: column; gap: 6px; }
+.sm-card .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.sm-card .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); line-height: 1.1; display: flex; align-items: baseline; gap: 4px; }
+.sm-card .u { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.sm-card .sub { font-size: 11px; color: var(--pq-ink-3); margin-top: auto; font-weight: 500; }
 
-.lines-table { width: 100%; font-size: 13px; border-collapse: collapse; }
-.lines-table th { text-align: left; padding: 10px 12px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
-.lines-table th.num, .lines-table td.num { text-align: right; }
-.lines-table td { padding: 12px; border-bottom: 1px solid var(--line); }
-.lines-table tr:last-child td { border-bottom: 0; }
-.lines-table .total-row { background: var(--paper-2); font-weight: 700; }
-.lines-table .total-row td { border: 0; padding: 14px 12px; }
-.lines-table .total-row .amount-grand { font-size: 18px; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.detail-grid {
+  display: grid; grid-template-columns: 2fr 1fr; gap: 12px;
+  padding: 0 24px 24px;
+}
+.card-tight { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 12px; overflow: hidden; }
+.card-head { padding: 12px 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.card-title { font-size: 14px; font-weight: 600; color: var(--pq-ink); letter-spacing: -0.01em; }
+.card-sub { font-size: 11px; color: var(--pq-ink-3); }
+.card-body { padding: 14px 16px; }
 
-.aside { display: flex; flex-direction: column; gap: var(--space-3); position: sticky; top: 100px; align-self: start; }
-.aside-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); }
-.aside-card h4 { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-deep); margin-bottom: 10px; font-weight: 700; }
-.activity-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
-.activity-item:last-child { border-bottom: 0; }
-.activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); margin-top: 7px; flex-shrink: 0; }
-.activity-text .ttl { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.activity-text .meta { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 12.5px; }
+.def dt { color: var(--pq-ink-3); font-weight: 500; }
+.def dd { color: var(--pq-ink); }
+.def dd .num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-@media (max-width: 1280px) { .content { grid-template-columns: 1fr; } .aside { position: static; } }
-@media (max-width: 1023px) { .def-list { grid-template-columns: 1fr; } }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tfoot td { background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink); padding: 8px 12px; font-weight: 700; font-size: 12.5px; }
+.tbl-erp tfoot td.num { font-family: var(--pq-mono); text-align: right; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
 
-@media print {
-  .sidebar, .top, .detail-actions, .aside { display: none !important; }
-  .content { grid-template-columns: 1fr; }
-  body { background: white; }
+.qty-bar { display: inline-flex; align-items: center; gap: 6px; }
+.qty-bar .bar { width: 60px; height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
+.qty-bar .fill { height: 100%; background: var(--pq-ok); }
+.qty-bar .fill.partial { background: var(--pq-warn); }
+
+.note-box { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 6px; padding: 8px 12px; font-size: 12.5px; color: var(--pq-ink-2); white-space: pre-wrap; }
+
+@media (max-width: 1280px) {
+  .summary-row { grid-template-columns: repeat(2, 1fr); }
+  .detail-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
 
-{% set st = po.status|default('작성중') %}
-{% set sub_total = po.subtotal_amount|default(items|sum(attribute='amount') if items else 0) %}
-{% set vat = po.vat_amount|default(0) %}
-{% set grand = po.total_amount|default(sub_total + vat) %}
+{% set p = po %}
+{% set st = p.status|default('작성중') %}
+{% set st_cls =
+    'chip-po s-draft' if st == '작성중' else
+    'chip-po s-issued' if st == '발주완료' else
+    'chip-po s-partial' if st == '부분입고' else
+    'chip-po s-received' if st == '입고완료' else
+    'chip-po s-cancelled' if st == '취소' else
+    'chip-po s-draft' %}
+
+{% set sum_qty = items|sum(attribute='quantity') if items else 0 %}
+{% set sum_received = items|sum(attribute='received_qty') if items else 0 %}
+{% set fulfill_pct = (sum_received / sum_qty * 100) if sum_qty else 0 %}
+{% set sum_amount = p.total_amount|default(0) %}
 
 <div class="app">
   {% set active_tab = "logi" %}
   {% include "_v5_partials/chrome.html" with context %}
-  <main class="main">
 
-    <div class="detail-head">
-      <div class="crumbs"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 목록</a> · <b>{{ po.po_number }}</b></div>
-      <div class="detail-head-row">
+  <main class="main">
+    <div class="pd-page">
+
+      <div class="pd-head" data-dn="pd:head">
         <div>
-          <div class="id-row">
-            <span class="detail-id">{{ po.po_number }}</span>
-            <span class="status-pill-lg {% if st == '작성중' %}status-draft{% elif st == '입고완료' %}status-done{% elif st == '취소' %}status-cancel{% elif st in ('발행','배송중') %}status-progress{% else %}status-warn{% endif %}">{{ st }}</span>
-          </div>
-          <h1 class="detail-title">{{ po.supplier_name|default('(거래처)') }} 발주서</h1>
-          <div class="detail-meta">
-            <span>📅 발주일 <b>{{ po.order_date|default('—') }}</b></span>
-            {% if po.expected_date %}<span>🚚 예상입고 <b>{{ po.expected_date }}</b></span>{% endif %}
-            <span>👤 담당 <b>{{ po.creator_name|default('—') }}</b></span>
-            <span>💰 금액 <b>{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}{% if not po.currency or po.currency == 'KRW' %}원{% endif %}</b></span>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 목록</a> · <b>{{ p.po_number|default('—') }}</b></div>
+          <div class="pd-title">
+            <span class="code">{{ p.po_number|default('—') }}</span>
+            <span class="{{ st_cls }}">{{ st }}</span>
           </div>
         </div>
-        <div class="detail-actions">
-          <button class="btn btn-icon" title="인쇄" onclick="window.print()">🖨</button>
-          <a class="btn btn-secondary" href="/po/{{ po.id }}/edit">📂 수정</a>
-          {% if st in ('발행','배송중') %}
-          <a class="btn btn-primary" href="/po/{{ po.id }}/receive">📦 입고 처리 →</a>
+        <div class="pd-actions">
+          <a class="btn-ghost" href="/po">↩ 목록</a>
+          <a class="btn-ghost" href="/po/{{ p.id }}/edit">📝 수정</a>
+          {% if st in ('발주완료', '부분입고') %}
+          <a class="btn-dark" href="/po/{{ p.id }}/receive">📥 입고 처리</a>
           {% endif %}
         </div>
       </div>
-    </div>
 
-    <div class="content">
-      <div>
-        <!-- 기본 정보 -->
-        <div class="section-card">
-          <h3>기본 정보</h3>
-          <div class="def-list">
-            <div class="def-item"><div class="lbl">거래처</div><div class="val">{{ po.supplier_name|default('—') }}{% if po.supplier_business_no %} ({{ po.supplier_business_no }}){% endif %}</div></div>
-            <div class="def-item"><div class="lbl">발주 번호</div><div class="val">{{ po.po_number }}</div></div>
-            {% if po.mgmt_code %}<div class="def-item"><div class="lbl">관리코드</div><div class="val">{{ po.mgmt_code }}{% if po.project_name %} · {{ po.project_name }}{% endif %}</div></div>{% endif %}
-            <div class="def-item"><div class="lbl">PO 유형</div><div class="val">{{ po.po_type|default('일반') }}</div></div>
-            <div class="def-item"><div class="lbl">결제 조건</div><div class="val">{{ po.payment_terms|default('—') }}</div></div>
-            <div class="def-item"><div class="lbl">인도 조건</div><div class="val">{{ po.shipping_terms|default('—') }}</div></div>
-            <div class="def-item"><div class="lbl">통화</div><div class="val">{{ po.currency|default('KRW') }}{% if po.currency and po.currency != 'KRW' %} (환율 {{ po.exchange_rate|default(1) }}){% endif %}</div></div>
-            <div class="def-item"><div class="lbl">총 금액</div><div class="val amount">{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}{% if not po.currency or po.currency == 'KRW' %}원{% endif %}{% if po_mismatch %} <span title="라인 합계와 헤더 금액이 달라 자동 동기화되었습니다 (의도된 부가세 차이가 있다면 헤더를 직접 조정하세요)" style="display:inline-block;margin-left:8px;padding:2px 8px;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;font-size:11px;font-weight:700;vertical-align:middle;">⚠ 자동보정</span>{% endif %}</div></div>
-          </div>
-          {% if po.note %}
-          <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line);">
-            <div class="lbl" style="font-size:11px;color:var(--mute);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;">비고</div>
-            <div style="font-size: 13.5px; color: var(--ink); line-height: 1.65; white-space: pre-wrap;">{{ po.note }}</div>
-          </div>
-          {% endif %}
+      {% if po_mismatch %}
+      <div class="alert-bar" data-dn="pd:mismatch" data-dn-tone="amber">
+        ⚠ 헤더 합계와 라인 합계가 달라 자동 동기화 했습니다 (정합성 자가치유).
+      </div>
+      {% endif %}
+
+      <div class="summary-row" data-dn="pd:summary" data-dn-tone="green">
+        <div class="sm-card">
+          <div class="l">발주 금액</div>
+          <div class="v">{% if sum_amount >= 100000000 %}{{ '{:.2f}'.format(sum_amount/100000000) }}<span class="u">억</span>{% else %}{{ '{:,.0f}'.format(sum_amount) }}<span class="u">{{ p.currency|default('원') if p.currency != 'KRW' else '원' }}</span>{% endif %}</div>
+          <div class="sub">{{ p.currency|default('KRW') }} {% if p.exchange_rate and p.exchange_rate != 1 %}× {{ p.exchange_rate }}{% endif %}</div>
         </div>
+        <div class="sm-card">
+          <div class="l">발주 / 입고 수량</div>
+          <div class="v">{{ '{:,.0f}'.format(sum_received|default(0)) }}<span class="u">/ {{ '{:,.0f}'.format(sum_qty|default(0)) }}</span></div>
+          <div class="sub">진행 {{ '{:.1f}'.format(fulfill_pct) }}%</div>
+        </div>
+        <div class="sm-card">
+          <div class="l">발주일</div>
+          <div class="v" style="font-size:18px;">{{ p.order_date|default('—') }}</div>
+          <div class="sub">예상 입고: {{ p.expected_date|default('—') }}</div>
+        </div>
+        <div class="sm-card">
+          <div class="l">라인 수</div>
+          <div class="v">{{ items|length }}<span class="u">건</span></div>
+          <div class="sub">라인별 개별 입고 추적</div>
+        </div>
+      </div>
 
-        <!-- 라인 항목 -->
-        <div class="section-card">
-          <h3>발주 품목 ({{ items|length }}건)</h3>
+      <div class="detail-grid">
+
+        <div class="card-tight" data-dn="pd:lines" data-dn-tone="purple">
+          <div class="card-head">
+            <div>
+              <div class="card-title">발주 라인</div>
+              <div class="card-sub">{{ items|length }}건 · 라인별 입고 추적</div>
+            </div>
+          </div>
           {% if items %}
-          <table class="lines-table">
+          <table class="tbl-erp">
             <thead>
               <tr>
-                <th style="width:50px;">#</th>
-                <th>품목 · 사양</th>
-                <th>코드</th>
-                <th class="num" style="width:90px;">수량</th>
-                <th class="num" style="width:120px;">단가</th>
-                <th class="num" style="width:140px;">금액</th>
-                <th style="width:100px;">프로젝트</th>
+                <th class="center" style="width:36px;">#</th>
+                <th>품목 / 규격</th>
+                <th class="num" style="width:80px;">수량</th>
+                <th class="center" style="width:50px;">단위</th>
+                <th class="num" style="width:90px;">단가</th>
+                <th class="num" style="width:110px;">금액</th>
+                <th class="center" style="width:120px;">입고/잔량</th>
               </tr>
             </thead>
             <tbody>
             {% for it in items %}
-              <tr id="item-{{ it.id }}">
-                <td style="color:var(--mute);font-weight:700;text-align:center;">{{ '%02d'|format(loop.index) }}</td>
-                <td><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.spec %}<span style="display:block;font-size:11px;color:var(--mute);margin-top:2px;">{{ it.spec }}</span>{% endif %}
-                  {# v5H136: 연결된 프로젝트 칩 #}
-                  {% if it.links %}
-                  <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
-                    {% for ln in it.links %}
-                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--paper-2);border:1px solid var(--line);border-radius:12px;font-size:11px;">
-                      <a href="/project/{{ ln.project_id }}" style="color:var(--amber-deep);text-decoration:none;font-family:monospace;font-weight:700;">{{ ln.mgmt_code }}</a>
-                      <span style="color:var(--ink);">{{ ln.project_name|truncate(20) }}</span>
-                      {% if ln.allocated_qty %}<span style="color:var(--mute);">· {{ '{:,.0f}'.format(ln.allocated_qty) }}</span>{% elif ln.allocation_pct %}<span style="color:var(--mute);">· {{ ln.allocation_pct }}%</span>{% endif %}
-                      <form method="post" action="/po/links/{{ ln.link_id }}/delete" style="display:inline;" onsubmit="return confirm('연결 해제?')">
-                        <button type="submit" style="background:none;border:0;color:var(--mute);cursor:pointer;padding:0;font-size:12px;">×</button>
-                      </form>
-                    </span>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
+              {% set qty = it.quantity|default(0)|float %}
+              {% set rcv = it.received_qty|default(0)|float %}
+              {% set rcv_pct = (rcv / qty * 100) if qty else 0 %}
+              {% set rcv_cls = '' if rcv_pct >= 100 else 'partial' %}
+              <tr>
+                <td class="center mute">{{ loop.index }}</td>
+                <td>
+                  <b>{{ it.part_name_snapshot|default(it.part_no_snapshot|default('—')) }}</b>
+                  {% if it.spec_snapshot %}<div class="mute" style="font-size:11px;">{{ it.spec_snapshot }}</div>{% endif %}
+                  {% if it.part_no_snapshot %}<div class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ it.part_no_snapshot }}</div>{% endif %}
                 </td>
-                <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ it.part_code|default('—') }}</td>
-                <td class="num">{{ '{:,.0f}'.format(it.qty|default(0)) }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
+                <td class="num">{{ '{:,.0f}'.format(qty) }}</td>
+                <td class="center mute">{{ it.unit|default('EA') }}</td>
                 <td class="num">{{ '{:,.0f}'.format(it.unit_price|default(0)) }}</td>
-                <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format((it.qty|default(0)) * (it.unit_price|default(0))) }}</td>
-                <td style="text-align:center;">
-                  <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="document.getElementById('link-form-{{ it.id }}').style.display=(document.getElementById('link-form-{{ it.id }}').style.display==='none'?'table-row':'none')">🔗 연결</button>
-                </td>
-              </tr>
-              {# v5H136: 인라인 연결 폼 #}
-              <tr id="link-form-{{ it.id }}" style="display:none;background:var(--paper-2);">
-                <td colspan="7" style="padding:12px 16px;">
-                  <form method="post" action="/po/{{ po.id }}/items/{{ it.id }}/link-project" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <label style="font-size:12px;color:var(--mute);font-weight:600;">프로젝트(관리번호):</label>
-                    <select name="project_id" required style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;min-width:280px;">
-                      <option value="">— 선택 —</option>
-                      {% for pj in link_projects|default([]) %}
-                      <option value="{{ pj.id }}">{{ pj.mgmt_code }} · {{ pj.name }}</option>
-                      {% endfor %}
-                    </select>
-                    <input type="number" step="0.01" name="allocated_qty" placeholder="분배수량(선택)" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;width:130px;">
-                    <input type="number" step="0.1" name="allocation_pct" placeholder="또는 %" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;width:90px;">
-                    <input type="text" name="note" placeholder="비고(선택)" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;flex:1;min-width:160px;">
-                    <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">+ 연결 추가</button>
-                  </form>
-                  <div style="margin-top:6px;font-size:11px;color:var(--mute);">분배수량/% 모두 비우면 라인 전체 수량이 해당 프로젝트에 귀속됩니다. 공통 부품은 연결하지 않아도 됩니다.</div>
+                <td class="num"><b>{{ '{:,.0f}'.format(it.amount|default(qty * (it.unit_price|default(0)))) }}</b></td>
+                <td class="center">
+                  <div class="qty-bar">
+                    <span class="num" style="font-size:11px;">{{ '{:,.0f}'.format(rcv) }}/{{ '{:,.0f}'.format(qty) }}</span>
+                    <div class="bar"><div class="fill {{ rcv_cls }}" style="width:{{ rcv_pct if rcv_pct < 100 else 100 }}%;"></div></div>
+                  </div>
                 </td>
               </tr>
             {% endfor %}
-              <tr class="total-row">
-                <td colspan="6" style="text-align:right;">소계</td>
-                <td class="num">{{ '{:,.0f}'.format(sub_total) }}</td>
-              </tr>
-              {% if vat %}
-              <tr class="total-row">
-                <td colspan="6" style="text-align:right;">부가세</td>
-                <td class="num">{{ '{:,.0f}'.format(vat) }}</td>
-              </tr>
-              {% endif %}
-              <tr class="total-row">
-                <td colspan="6" style="text-align:right;font-size:15px;">총 발주액</td>
-                <td class="num"><span class="amount-grand">{% if po.currency and po.currency != 'KRW' %}{{ po.currency }} {% endif %}{{ '{:,.0f}'.format(grand) }}</span></td>
-              </tr>
             </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2">합계 ({{ items|length }}건)</td>
+                <td class="num">{{ '{:,.0f}'.format(sum_qty) }}</td>
+                <td colspan="2"></td>
+                <td class="num">{{ '{:,.0f}'.format(sum_amount) }}</td>
+                <td class="center" style="font-weight:500; color:var(--pq-ink-3);">진행 {{ '{:.0f}'.format(fulfill_pct) }}%</td>
+              </tr>
+            </tfoot>
           </table>
           {% else %}
-          <div style="padding:40px 20px;text-align:center;color:var(--mute);">발주 품목이 없습니다.</div>
+          <div class="card-body" style="text-align:center; color:var(--pq-ink-3); padding:32px;">
+            발주 라인 없음
+          </div>
           {% endif %}
         </div>
+
+        <div data-dn="pd:meta" data-dn-tone="blue">
+          <div class="card-tight" style="margin-bottom:12px;">
+            <div class="card-head">
+              <div class="card-title">발주 정보</div>
+            </div>
+            <div class="card-body">
+              <dl class="def">
+                <dt>거래처</dt><dd><b>{{ p.supplier_name|default('—') }}</b></dd>
+                <dt>프로젝트</dt><dd>
+                  {% if p.mgmt_code %}<span class="num" style="background:var(--pq-ink); color:#fff; padding:1px 6px; border-radius:3px; font-size:11px; font-family:var(--pq-mono); font-weight:700;">{{ p.mgmt_code }}</span>{% endif %}
+                  {% if p.project_name %} {{ p.project_name }}{% endif %}
+                  {% if not p.mgmt_code and not p.project_name %}<span class="mute">—</span>{% endif %}
+                </dd>
+                <dt>발주 유형</dt><dd>{{ p.po_type|default('일반') }}</dd>
+                <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
+                <dt>예상 입고</dt><dd>{{ p.expected_date|default('—') }}</dd>
+                <dt>운송 조건</dt><dd>{{ p.shipping_terms|default('—') }}</dd>
+                <dt>결제 조건</dt><dd>{{ p.payment_terms|default('—') }}</dd>
+                <dt>통화</dt><dd>{{ p.currency|default('KRW') }} {% if p.exchange_rate and p.exchange_rate != 1 %}<span class="mute">× {{ p.exchange_rate }}</span>{% endif %}</dd>
+                <dt>작성자</dt><dd>{{ p.creator_name|default('—') }}</dd>
+              </dl>
+            </div>
+          </div>
+
+          {% if p.note %}
+          <div class="card-tight">
+            <div class="card-head">
+              <div class="card-title">메모</div>
+            </div>
+            <div class="card-body">
+              <div class="note-box">{{ p.note }}</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
       </div>
 
-      <!-- 우측 사이드 -->
-      <aside class="aside">
-        <div class="aside-card">
-          <h4>📜 활동 이력</h4>
-          <div class="activity-item">
-            <div class="activity-dot"></div>
-            <div class="activity-text">
-              <div class="ttl">발주서 작성</div>
-              <div class="meta">{{ po.created_at|default('—') }} · {{ po.creator_name|default('—') }}</div>
-            </div>
-          </div>
-          {% if po.updated_at and po.updated_at != po.created_at %}
-          <div class="activity-item">
-            <div class="activity-dot" style="background:var(--success);"></div>
-            <div class="activity-text">
-              <div class="ttl">최종 수정</div>
-              <div class="meta">{{ po.updated_at }}</div>
-            </div>
-          </div>
-          {% endif %}
-          <div class="activity-item">
-            <div class="activity-dot" style="background:var(--amber-deep);"></div>
-            <div class="activity-text">
-              <div class="ttl">현재 상태: {{ st }}</div>
-              <div class="meta">{% if st in ('발행','배송중') %}입고 처리 가능{% elif st == '입고완료' %}완료된 발주{% else %}수정 가능{% endif %}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="aside-card">
-          <h4>🔗 관련 작업</h4>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <a class="btn btn-secondary" href="/po/{{ po.id }}/edit">📂 수정</a>
-            {% if st in ('발행','배송중') %}<a class="btn btn-primary" href="/po/{{ po.id }}/receive">📦 입고 처리</a>{% endif %}
-            <button class="btn btn-secondary" onclick="window.print()">🖨 인쇄</button>
-            {% if user.role in ('ceo','admin') %}
-            <form method="post" action="/po/{{ po.id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')">
-              <button type="submit" class="btn btn-danger" style="width:100%;">🗑 삭제</button>
-            </form>
-            {% endif %}
-            <a class="btn btn-secondary" href="/po">↩ 목록으로</a>
-          </div>
-        </div>
-
-        <div class="aside-card">
-          <h4>💡 빅터 도움말</h4>
-          <div style="font-size: 12px; color: var(--ink); line-height: 1.6;">
-            {% if st == '작성중' %}이 발주서는 아직 발행되지 않았습니다. <b>수정</b> 후 상태를 <b>발행</b>으로 변경하세요.
-            {% elif st == '발행' %}공급사에 발주가 통보되었습니다. 배송 시작 시 상태를 <b>배송중</b>으로 변경하세요.
-            {% elif st == '배송중' %}공급사가 출고했습니다. 입고 시 <b>입고 처리</b> 버튼으로 진행하세요.
-            {% elif st == '입고완료' %}모든 절차가 완료된 발주입니다. 수불부에 자동 반영되었습니다.
-            {% else %}{{ st }} 상태입니다.{% endif %}
-          </div>
-        </div>
-      </aside>
     </div>
   </main>
 </div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>

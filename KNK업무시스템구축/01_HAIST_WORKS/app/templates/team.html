@@ -3,27 +3,29 @@
 <head>
 <meta charset="UTF-8" />
 <title>팀 대시보드 · KNK HAIST WORKS</title>
+{# team.html — 팀 대시보드 (팀원·업무·정체)
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.member-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 10px; }
+.member-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 10px; }
 .member-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.member-avatar { width: 38px; height: 38px; background: var(--grad-amber); color: white; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
-.member-info .name { font-size: 14px; font-weight: 700; color: var(--ink); }
-.member-info .role { font-size: 11px; color: var(--mute); margin-top: 2px; }
-.member-stats { display: flex; gap: 18px; font-size: 12px; color: var(--mute); margin-left: auto; }
-.member-stats b { color: var(--ink); font-size: 14px; font-weight: 700; }
-.task-mini { padding: 8px 12px; background: var(--paper-2); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
+.member-avatar { width: 38px; height: 38px; background: var(--qv-ink); color: white; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+.member-info .name { font-size: 14px; font-weight: 700; color: var(--qv-ink); }
+.member-info .role { font-size: 11px; color: var(--qv-ink-3); margin-top: 2px; }
+.member-stats { display: flex; gap: 18px; font-size: 12px; color: var(--qv-ink-3); margin-left: auto; }
+.member-stats b { color: var(--qv-ink); font-size: 14px; font-weight: 700; }
+.task-mini { padding: 8px 12px; background: var(--qv-surface-3); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
 .task-mini .pill { font-size: 10px; padding: 1px 7px; }
-.date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--mute); }
-.date-nav a { color: var(--amber-deep); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-.date-nav a:hover { background: var(--amber-glow); }
+.date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--qv-ink-3); }
+.date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.date-nav a:hover { background: var(--qv-surface-2); }
 </style>
 </head>
 <body>
 <div class="app">
 {% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="team-main">
+  <div class="page-head" data-dn="team-pagehead">
     <div>
       <div class="page-meta">{{ sel_date }} · 팀 현황</div>
       <h1 class="page-title">팀 <em>대시보드</em></h1>
@@ -36,7 +38,7 @@
     </div>
     <div>
       <form method="get" action="/team">
-        <select name="team_id" onchange="this.form.submit()" style="border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+        <select name="team_id" onchange="this.form.submit()" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
           {% for t in teams %}
           <option value="{{ t.id }}" {% if t.id == target_team_id %}selected{% endif %}>{{ t.name }}</option>
           {% endfor %}
@@ -46,7 +48,7 @@
   </div>
 
   <!-- KPI -->
-  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
+  <div class="bento" data-dn="team-kpi" style="grid-template-columns:repeat(4,1fr);">
     <div class="kpi-card">
       <div class="kpi-label">팀원</div>
       <div class="kpi-num">{{ team_summary.members|default(members|length) }}</div>
@@ -70,7 +72,7 @@
   </div>
 
   <!-- 팀원별 업무 -->
-  <div class="section">
+  <div class="section" data-dn="team-members">
     <h2>팀원별 ({{ members|length }})</h2>
     <div class="list-scroll" style="margin: 0 var(--content-pad);">
     {% for m in members %}
@@ -96,12 +98,12 @@
           <div class="task-mini">
             <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
             <span style="flex:1;">{{ t.title }}</span>
-            {% if t.hours %}<span style="color:var(--mute);font-size:11px;">{{ t.hours }}h</span>{% endif %}
+            {% if t.hours %}<span style="color:var(--qv-ink-3);font-size:11px;">{{ t.hours }}h</span>{% endif %}
           </div>
           {% endfor %}
-          {% if mt|length > 5 %}<div style="font-size:11px;color:var(--mute);text-align:center;margin-top:4px;">외 {{ mt|length - 5 }}건</div>{% endif %}
+          {% if mt|length > 5 %}<div style="font-size:11px;color:var(--qv-ink-3);text-align:center;margin-top:4px;">외 {{ mt|length - 5 }}건</div>{% endif %}
         {% else %}
-          <div style="font-size:12px;color:var(--mute);text-align:center;padding:8px;">오늘 등록된 업무 없음</div>
+          <div style="font-size:12px;color:var(--qv-ink-3);text-align:center;padding:8px;">오늘 등록된 업무 없음</div>
         {% endif %}
       </div>
     {% endfor %}

@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>티켓 · KNK HAIST WORKS</title>
+{# tickets_list.html — 티켓 목록
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="tickets-main">
+  <div class="page-head" data-dn="tickets-pagehead">
     <div><div class="page-meta">티켓 (Ticket Tracker)</div><h1 class="page-title">🎫 <em>티켓</em></h1></div>
     <div style="display:flex;gap:10px;">
       <a class="btn btn-secondary" href="/tickets?scope=mine">내 티켓</a>
@@ -13,34 +15,34 @@
     </div>
   </div>
 
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/tickets">
+  <form data-dn="tickets-filterbar" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/tickets">
     <input type="hidden" name="scope" value="{{ scope|default('mine') }}">
-    <input type="search" name="q" value="{{ q }}" placeholder="제목 / 내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
-    <select name="status" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <input type="search" name="q" value="{{ q }}" placeholder="제목 / 내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
+    <select name="status" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
       <option value="">상태 전체</option>
       {% for s in TICKET_STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
-    <select name="urgency" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
+    <select name="urgency" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
       <option value="">긴급도 전체</option>
       {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}" {% if urgency==u_ %}selected{% endif %}>{{ u_ }}</option>{% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">🔍 검색</button>
   </form>
 
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-dn="tickets-table">
     {% if tickets %}
     <table class="tbl">
       <thead><tr><th>#</th><th>제목</th><th class="center">분류</th><th class="center">긴급</th><th class="center">상태</th><th>발행 / 담당</th><th class="center">기한</th></tr></thead>
       <tbody>
       {% for t in tickets %}
         <tr onclick="location.href='/tickets/{{ t.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ t.id }}</td>
-          <td><b>{{ t.title }}</b>{% if t.body %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ t.body|truncate(60) }}</div>{% endif %}</td>
+          <td style="font-family:monospace;color:var(--qv-ink-2);font-weight:700;">#{{ t.id }}</td>
+          <td><b>{{ t.title }}</b>{% if t.body %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">{{ t.body|truncate(60) }}</div>{% endif %}</td>
           <td class="center"><span class="pill pill-muted">{{ t.category|default('—') }}</span></td>
           <td class="center"><span class="pill {% if t.urgency in ('긴급','매우긴급') %}pill-danger{% elif t.urgency == '보통' %}pill-warn{% else %}pill-muted{% endif %}">{{ t.urgency|default('—') }}</span></td>
           <td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status in ('지연','반려') %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td>
           <td style="font-size:12px;">{{ t.requester_name|default('—') }} → <b>{{ t.assignee_name|default('미배정') }}</b></td>
-          <td class="center" style="font-size:12px;color:{% if t.deadline_overdue %}var(--knk-red){% else %}var(--mute){% endif %};">{{ t.deadline|default('—') }}</td>
+          <td class="center" style="font-size:12px;color:{% if t.deadline_overdue %}var(--knk-red){% else %}var(--qv-ink-3){% endif %};">{{ t.deadline|default('—') }}</td>
         </tr>
       {% endfor %}
       </tbody>

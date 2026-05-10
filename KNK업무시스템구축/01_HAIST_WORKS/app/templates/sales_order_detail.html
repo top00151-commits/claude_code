@@ -1,17 +1,35 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>수주 상세 · KNK</title>
 {% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z47: 시안1 토큰 + .mgmt-pill — sales_order_detail v1 차수 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+.mgmt-pill { display:inline-flex; align-items:center; justify-content:center; padding:4px 12px; border-radius:6px; background:var(--qv-ink); color:#fff; font-family:monospace; font-size:13px; font-weight:700; letter-spacing:0.5px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; }
+.mgmt-pill:hover { background:var(--qv-ink-2); color:#fff; }
+.mgmt-pill.empty { background:var(--qv-surface-2); color:var(--qv-ink-3); box-shadow:none; border:1px dashed var(--qv-line); font-weight:500; }
+.mgmt-pill.sm { padding:2px 8px; font-size:11.5px; }
+.mgmt-pill.lg { padding:6px 16px; font-size:18px; }
+@media (max-width: 1100px) {
+  .bento { grid-template-columns: repeat(2, 1fr) !important; }
+  .page-title { font-size: 22px; }
+}
+</style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
     <div>
-      <div class="crumbs"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></div>
+      <div class="crumbs" data-dn="crumb"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></div>
       <div class="page-meta">SALES ORDER DETAIL</div>
       <h1 class="page-title">{{ order.order_no }} <em>{{ order.customer_name|default('-') }}</em></h1>
       <div style="font-size:13px; color:var(--ink); margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
         {% if order.mgmt_code %}
-        <span><b style="color:var(--amber-deep);font-family:monospace;">{{ order.mgmt_code }}</b> <a href="/project/{{ order.project_id }}" style="color:var(--mute);font-size:11.5px;">▸ 프로젝트</a></span>
+        {# v5H226z47: amber 텍스트 → .mgmt-pill 잉크 알약 #}
+        <span><a href="/project/{{ order.project_id }}" class="mgmt-pill">{{ order.mgmt_code }}</a></span>
         {% endif %}
         {% if order.project_name %}<span style="color:var(--mute);">📂 {{ order.project_name }}</span>{% endif %}
         {% if order.biz_div %}<span style="color:var(--mute);">{{ 'T·검사기' if order.biz_div == 'T' else 'M·자동화' if order.biz_div == 'M' else order.biz_div }}</span>{% endif %}
@@ -25,7 +43,7 @@
   </div>
 
   <!-- KPI -->
-  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+  <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
     <div class="kpi-card"><div class="kpi-label">수주 금액</div><div class="kpi-num">{{ '{:,.0f}'.format(order.total_amount or 0) }}<span class="unit"> {{ order.currency or 'KRW' }}</span></div></div>
     <div class="kpi-card"><div class="kpi-label">발행 INV</div><div class="kpi-num">{{ '{:,.0f}'.format(total_invoiced) }}<span class="unit"> 원</span></div></div>
     <div class="kpi-card"><div class="kpi-label">수금 누계</div><div class="kpi-num" style="color:var(--success);">{{ '{:,.0f}'.format(total_received) }}<span class="unit"> 원</span></div></div>
@@ -53,7 +71,7 @@
 
   <!-- 라인 -->
   {% set _cur = order.currency or 'KRW' %}
-  <div class="section">
+  <div class="section" data-dn="order-lines" data-dn-tone="purple">
     <h2>📦 수주 라인 ({{ items|length }})</h2>
     <div class="tbl-wrap tbl-sticky">
       <table class="tbl">

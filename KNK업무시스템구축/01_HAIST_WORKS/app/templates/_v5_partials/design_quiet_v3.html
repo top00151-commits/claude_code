@@ -1,0 +1,267 @@
+{# v5H226z48 (2026-05-09): 차분한 톤 (Quiet) — chrome + 표 zebra · 빨강 ≤5% #}
+{# 적용: styles.html 끝에서 include (head 내부) — 기존 빨강 위주 톤 override #}
+<style>
+/* === Quiet Tone 토큰 추가 (KNK 빨강은 액센트로만 보존) === */
+:root {
+  /* 차가운 중성 — 눈 피로 ↓ */
+  --qv-surface: #ffffff;
+  --qv-surface-2: #f7f8fa;
+  --qv-surface-3: #eef0f4;
+  --qv-surface-inset: #fafbfc;
+  --qv-line: #eef0f4;
+  --qv-line-2: #e2e8f0;
+  --qv-line-3: #cbd5e1;
+  --qv-ink: #0f172a;          /* default: 잉크 검정 */
+  --qv-ink-2: #334155;
+  --qv-ink-3: #64748b;
+  --qv-ink-4: #94a3b8;
+  /* KNK 빨강은 그대로 - 단 사용을 제한 */
+}
+
+/* === Q4 베이스 컬러 변형 (body data-accent 로 전환) === */
+body[data-accent="navy"]      { --qv-ink: #0c2340; }
+body[data-accent="green"]     { --qv-ink: #064e3b; }
+body[data-accent="charcoal"]  { --qv-ink: #1f1f1f; }
+body[data-accent="default"]   { --qv-ink: #0f172a; }
+
+/* === 베이스 컬러 전환 위젯 (좌측 하단 floating) === */
+.knk-accent-switcher {
+  position: fixed; left: 14px; bottom: 14px; z-index: 99999;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 6px; display: flex; gap: 4px; flex-direction: column; align-items: stretch;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.10);
+  font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif;
+  font-size: 11px;
+  min-width: 130px;
+}
+.knk-accent-switcher .as-title {
+  color: #94a3b8; font-weight: 700; font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 4px 8px 2px; display: flex; justify-content: space-between; align-items: center;
+}
+.knk-accent-switcher .as-close {
+  cursor: pointer; color: #94a3b8; font-size: 12px; padding: 0 4px; line-height: 1;
+}
+.knk-accent-switcher .as-close:hover { color: #0f172a; }
+.knk-accent-switcher button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 1px solid transparent; border-radius: 5px;
+  background: transparent; color: #334155; font-weight: 500; font-size: 12px;
+  cursor: pointer; transition: all .12s ease; text-align: left;
+}
+.knk-accent-switcher button:hover { background: #f7f8fa; }
+.knk-accent-switcher button.is-active { background: #f7f8fa; border-color: #cbd5e1; font-weight: 700; }
+.knk-accent-switcher .swatch {
+  width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+}
+.knk-accent-switcher .swatch.s-default  { background: #0f172a; }
+.knk-accent-switcher .swatch.s-navy     { background: #0c2340; }
+.knk-accent-switcher .swatch.s-green    { background: #064e3b; }
+.knk-accent-switcher .swatch.s-charcoal { background: #1f1f1f; }
+
+/* ─────────────────────────────────────────────────────────────
+   1. Chrome — 사이드바 / 상단 / 본문 배경 차분화
+   ───────────────────────────────────────────────────────────── */
+
+body { background: var(--qv-surface-2) !important; }
+
+/* 사이드바: 빨강 우측 보더 → 옅은 회색 */
+.sidebar {
+  background: var(--qv-surface) !important;
+  border-right: 1px solid var(--qv-line) !important;
+  padding: 12px 0 !important;
+}
+/* 활성 메뉴: 빨강 그라데이션 → 잉크 검정 + 흰 글씨 */
+.sb-item {
+  color: var(--qv-ink-2) !important;
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  margin: 1px 8px !important;
+  font-weight: 500 !important;
+}
+.sb-item:hover {
+  background: var(--qv-surface-2) !important;
+  color: var(--qv-ink) !important;
+}
+.sb-item.active {
+  background: var(--qv-ink) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+.sb-item.active::before { display: none !important; }
+.sb-item.active .menu-code,
+.sb-item.active .sb-badge {
+  background: rgba(255,255,255,0.18) !important;
+  color: #fff !important;
+}
+.sb-group {
+  color: var(--qv-ink-4) !important;
+  letter-spacing: 0.06em !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  padding: 12px 16px 4px !important;
+}
+.sb-badge {
+  background: var(--qv-surface-3) !important;
+  color: var(--qv-ink-3) !important;
+  font-weight: 600 !important;
+}
+.menu-code {
+  background: var(--qv-surface-3) !important;
+  color: var(--qv-ink-3) !important;
+}
+
+/* 상단: 빨강 보더 → 회색, 빨강 그림자 → 미세 그림자 */
+.top {
+  background: var(--qv-surface) !important;
+  border-bottom: 1px solid var(--qv-line) !important;
+  box-shadow: 0 1px 0 rgba(15,23,42,0.04) !important;
+}
+.top-tab {
+  color: var(--qv-ink-3) !important;
+  font-weight: 500 !important;
+  background: transparent !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+.top-tab:hover {
+  background: var(--qv-surface-2) !important;
+  color: var(--qv-ink) !important;
+}
+.top-tab.active {
+  background: var(--qv-ink) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+.top-icon {
+  color: var(--qv-ink-3) !important;
+  border-radius: 6px !important;
+}
+.top-icon:hover {
+  background: var(--qv-surface-2) !important;
+  color: var(--qv-ink) !important;
+}
+/* 빅터 AI 버튼은 빨강 유지 (브랜드) */
+#victorToggleBtn,
+.top-icon[id="victorToggleBtn"] {
+  background: rgba(165,40,44,0.10) !important;
+  color: var(--knk-red) !important;
+}
+.top-user {
+  color: var(--qv-ink) !important;
+  background: var(--qv-surface-2) !important;
+}
+.top-user:hover { background: var(--qv-surface-3) !important; }
+.top-user .avatar {
+  background: var(--qv-ink) !important;
+  color: #fff !important;
+}
+
+/* 본문 영역 */
+.main { background: var(--qv-surface-2) !important; }
+
+/* 페이지 헤드 — 흰 배경 + 회색 보더 */
+.page-head {
+  background: var(--qv-surface) !important;
+  border-bottom: 1px solid var(--qv-line) !important;
+}
+.crumbs, .crumb { color: var(--qv-ink-4) !important; }
+.crumbs a { color: var(--qv-ink-2) !important; }
+.crumbs b { color: var(--qv-ink) !important; }
+.page-meta { color: var(--qv-ink-3) !important; }
+.page-title { color: var(--qv-ink) !important; }
+/* 페이지 제목 em 강조 — 빨강 그라데이션 → 잉크 단색 */
+.page-title em {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: var(--qv-ink) !important;
+  color: var(--qv-ink) !important;
+  font-style: normal !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   2. 표 — Zebra stripes + 명확한 행 구분
+   ───────────────────────────────────────────────────────────── */
+
+.tbl, table.tbl {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background: var(--qv-surface) !important;
+  width: 100% !important;
+}
+.tbl thead th, table.tbl thead th {
+  background: var(--qv-surface) !important;
+  color: var(--qv-ink-3) !important;
+  font-weight: 600 !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  text-align: left !important;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--qv-line-2) !important;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.tbl tbody td, table.tbl tbody td {
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--qv-line) !important;
+  color: var(--qv-ink) !important;
+  vertical-align: middle !important;
+}
+/* Zebra: 짝수 행 살짝 회색 */
+.tbl tbody tr:nth-child(even) > td,
+table.tbl tbody tr:nth-child(even) > td {
+  background: var(--qv-surface-inset) !important;
+}
+/* 호버: 더 진한 회색 (행 추적 쉽게) */
+.tbl tbody tr:hover > td,
+table.tbl tbody tr:hover > td {
+  background: var(--qv-surface-2) !important;
+  cursor: pointer;
+}
+.tbl tbody tr:hover:nth-child(even) > td,
+table.tbl tbody tr:hover:nth-child(even) > td {
+  background: var(--qv-surface-3) !important;
+}
+
+/* SO 리스트 (수주 관리 페이지의 우측 표) — 동일 zebra 적용 */
+.so-list-b tbody tr:nth-child(even) > td {
+  background: var(--qv-surface-inset) !important;
+}
+.so-list-b tbody tr:hover > td {
+  background: var(--qv-surface-2) !important;
+}
+.so-list-b tbody tr:hover:nth-child(even) > td {
+  background: var(--qv-surface-3) !important;
+}
+.so-list-b thead th {
+  background: var(--qv-surface) !important;
+  color: var(--qv-ink-3) !important;
+  border-bottom: 1px solid var(--qv-line-2) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* 카드 배경 - 옅은 호박 → 순백 */
+.kpi-card {
+  background: var(--qv-surface) !important;
+  border: 1px solid var(--qv-line) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04) !important;
+}
+.kpi-card:hover {
+  border-color: var(--qv-line-3) !important;
+  transform: none !important;
+  box-shadow: 0 2px 4px rgba(15,23,42,0.06), 0 4px 12px rgba(15,23,42,0.06) !important;
+}
+
+/* 일반 카드 */
+.card {
+  background: var(--qv-surface) !important;
+  border: 1px solid var(--qv-line) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04) !important;
+}
+
+/* 미수금/오버듀 등 위험 상태는 빨강 유지 (강조용) */
+/* danger 클래스 없는 곳은 잉크 톤으로 통일 */
+</style>

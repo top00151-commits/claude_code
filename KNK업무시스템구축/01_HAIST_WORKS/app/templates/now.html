@@ -1,36 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>지금 · KNK</title>
+{# now.html — 실시간 진행 (현재 누가 무엇을 하는지)
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.now-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+.now-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
 .now-icon { font-size: 22px; }
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="now-main">
+  <div class="page-head" data-dn="now-pagehead">
     <div><div class="page-meta">실시간 현황</div><h1 class="page-title">⚡ <em>지금</em> ({{ scope|default('전체') }})</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">현재 누가 무엇을 하고 있는지 한눈에</div></div>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--qv-ink-3);">현재 누가 무엇을 하고 있는지 한눈에</div></div>
     <div style="display:flex;gap:8px;">
-      <a class="btn btn-secondary" href="?scope=mine" style="{% if scope == 'mine' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">내 업무</a>
-      {% if can_team %}<a class="btn btn-secondary" href="?scope=team" style="{% if scope == 'team' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">우리 팀</a>{% endif %}
-      <a class="btn btn-secondary" href="?scope=all" style="{% if scope == 'all' %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">전사</a>
+      <a class="btn btn-secondary" href="?scope=mine" style="{% if scope == 'mine' %}background:var(--qv-surface-2);border-color:var(--qv-line-3);{% endif %}">내 업무</a>
+      {% if can_team %}<a class="btn btn-secondary" href="?scope=team" style="{% if scope == 'team' %}background:var(--qv-surface-2);border-color:var(--qv-line-3);{% endif %}">우리 팀</a>{% endif %}
+      <a class="btn btn-secondary" href="?scope=all" style="{% if scope == 'all' %}background:var(--qv-surface-2);border-color:var(--qv-line-3);{% endif %}">전사</a>
     </div>
   </div>
 
-  <div class="list-scroll" style="margin: 0 var(--content-pad);">
+  <div class="list-scroll" data-dn="now-list" style="margin: 0 var(--content-pad);">
     {% if items %}
       {% for it in items %}
       <div class="now-card">
         <div class="now-icon">{% if it.status == '완료' %}✅{% elif it.status == '진행중' %}🔄{% elif it.status == '지연' %}⚠{% else %}📌{% endif %}</div>
         <div>
-          <b>{{ it.user_name|default('—') }}</b>{% if it.user_rank %} <span style="color:var(--mute);font-size:11px;">{{ it.user_rank }}</span>{% endif %}
-          <span style="color:var(--mute);margin:0 6px;">·</span>
+          <b>{{ it.user_name|default('—') }}</b>{% if it.user_rank %} <span style="color:var(--qv-ink-3);font-size:11px;">{{ it.user_rank }}</span>{% endif %}
+          <span style="color:var(--qv-ink-3);margin:0 6px;">·</span>
           {{ it.title|default('—') }}
-          {% if it.project_name %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">📋 {{ it.project_name }}</div>{% endif %}
+          {% if it.project_name %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">📋 {{ it.project_name }}</div>{% endif %}
         </div>
         <div style="text-align:right;">
           <span class="pill {% if it.status == '완료' %}pill-done{% elif it.status == '진행중' %}pill-progress{% elif it.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ it.status|default('—') }}</span>
-          {% if it.hours %}<div style="font-size:11px;color:var(--mute);margin-top:4px;">{{ it.hours }}h</div>{% endif %}
+          {% if it.hours %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:4px;">{{ it.hours }}h</div>{% endif %}
         </div>
       </div>
       {% endfor %}

@@ -2,65 +2,194 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<title>공급사 · KNK HAIST WORKS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공급사 마스터 · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 공급사 목록 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.sp-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sp-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sp-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
+.sp-head .crumb a { color: var(--pq-ink-2); }
+.sp-head .crumb b { color: var(--pq-ink); }
+.sp-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
+.sp-meta { font-size: 12px; color: var(--pq-ink-3); }
+.sp-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.sp-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.sp-actions .btn-ghost, .sp-actions .btn-dark { height: 32px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
+.sp-actions .btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.sp-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
+.sp-actions .btn-dark { background: var(--pq-ink); border: 0; color: #fff; }
+.sp-actions .btn-dark:hover { background: #1e293b; }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-search-wrap { position: relative; }
+.fb-search-wrap .fb-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--pq-ink-4); pointer-events: none; }
+.fb-search { height: 28px; padding: 0 10px 0 28px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink); min-width: 280px; font-family: inherit; }
+.fb-search:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
+.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
+.fb-go:hover { background: var(--pq-surface-3); }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.sp-zone { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 16px 24px; min-height: 0; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.sp-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 10px; padding: 14px 16px; text-decoration: none; color: inherit; transition: border-color .12s, box-shadow .12s, transform .12s; display: flex; flex-direction: column; gap: 8px; min-height: 140px; }
+.sp-card:hover { border-color: var(--pq-line-3); box-shadow: 0 2px 4px rgba(15,23,42,0.06); transform: translateY(-1px); }
+.sp-card.inactive { opacity: 0.6; }
+.sp-card .top { display: flex; align-items: baseline; gap: 8px; }
+.sp-card .code { font-family: var(--pq-mono); font-size: 11px; color: var(--pq-ink-4); font-weight: 600; }
+.sp-card .name { font-size: 14px; font-weight: 600; color: var(--pq-ink); }
+.sp-card .meta { font-size: 11.5px; color: var(--pq-ink-3); display: flex; flex-direction: column; gap: 3px; }
+.sp-card .meta .row { display: flex; gap: 6px; align-items: center; }
+.sp-card .meta .ic { color: var(--pq-ink-4); width: 14px; }
+.sp-card .footer { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--pq-line); font-size: 11px; color: var(--pq-ink-4); }
+.sp-card .pill-active, .sp-card .pill-inactive, .sp-card .terms, .sp-card .country, .sp-card .currency { padding: 1px 7px; font-size: 10px; font-weight: 600; border-radius: 3px; }
+.sp-card .pill-active { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.sp-card .pill-inactive { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+.sp-card .terms { background: var(--pq-info-soft); color: var(--pq-info); }
+.sp-card .country { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.sp-card .currency { background: var(--pq-surface-3); color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.sp-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.sp-empty .ico { font-size: 40px; opacity: 0.6; }
+.sp-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.sp-empty .cta { margin-top: 16px; }
+.sp-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .sp-head, .filterbar, .sp-zone { padding: 10px 16px; }
+}
+</style>
 </head>
 <body>
+
+{% set total_cnt = suppliers|length %}
+{% set active_cnt = suppliers|selectattr('is_active','equalto',1)|list|length %}
+{% set foreign_cnt = suppliers|selectattr('country')|rejectattr('country','equalto','한국')|rejectattr('country','equalto','KR')|list|length %}
+{% set domestic_cnt = total_cnt - foreign_cnt %}
+
 <div class="app">
-{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div>
-      <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>공급사</b></div>
-      <h1 class="page-title">공급사 <em>관리</em></h1>
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="sp-page">
+
+      <div class="sp-head" data-dn="suppliers:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>공급사 마스터</b></div>
+          <div class="sp-title">공급사 마스터</div>
+        </div>
+        <div class="sp-meta">
+          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>사</span>
+          <span>·</span>
+          <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
+        </div>
+        <div class="sp-actions">
+          <a class="btn-ghost" href="/suppliers/export.xlsx">⤓ Excel</a>
+          <a class="btn-dark" href="/suppliers/new">＋ 공급사 등록</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="suppliers:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체 공급사</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">사</span></div>
+          <div class="sub">필터 미적용</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">활성 공급사</div>
+          <div class="v">{{ '{:,}'.format(active_cnt) }}<span class="u">사</span></div>
+          <div class="sub">사용중 거래처</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">국내</div>
+          <div class="v">{{ '{:,}'.format(domestic_cnt) }}<span class="u">사</span></div>
+          <div class="sub">한국 · 미지정</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">해외</div>
+          <div class="v">{{ '{:,}'.format(foreign_cnt) }}<span class="u">사</span></div>
+          <div class="sub">수입 거래처</div>
+        </div>
+      </div>
+
+      <form class="filterbar" method="get" action="/suppliers" data-dn="suppliers:filter" data-dn-tone="blue">
+        <span class="fb-label">검색</span>
+        <div class="fb-search-wrap">
+          <span class="fb-ic">⌕</span>
+          <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="회사명 · 코드 · 담당자 · 국가" />
+        </div>
+        <button type="submit" class="fb-go">검색</button>
+        {% if q %}<a class="fb-go" href="/suppliers" style="text-decoration: none; display: inline-flex; align-items: center;">↺ 해제</a>{% endif %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </form>
+
+      <div class="sp-zone" data-dn="suppliers:grid" data-dn-tone="purple">
+        {% if suppliers %}
+        <div class="sp-grid">
+          {% for s in suppliers %}
+          <a class="sp-card {% if not s.is_active %}inactive{% endif %}" href="/suppliers/{{ s.id }}/edit">
+            <div class="top">
+              {% if s.code %}<span class="code">{{ s.code }}</span>{% endif %}
+            </div>
+            <div class="name">{{ s.name|default('—') }}</div>
+            <div class="meta">
+              {% if s.contact %}<div class="row"><span class="ic">👤</span><span>{{ s.contact }}</span></div>{% endif %}
+              {% if s.phone %}<div class="row"><span class="ic">☎</span><span>{{ s.phone }}</span></div>{% endif %}
+              {% if s.email %}<div class="row"><span class="ic">@</span><span>{{ s.email }}</span></div>{% endif %}
+            </div>
+            <div class="footer">
+              {% if s.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">중지</span>{% endif %}
+              {% if s.country %}<span class="country">{{ s.country }}</span>{% endif %}
+              {% if s.currency and s.currency != 'KRW' %}<span class="currency">{{ s.currency }}</span>{% endif %}
+              {% if s.payment_terms %}<span class="terms">{{ s.payment_terms }}</span>{% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="sp-empty" data-dn="suppliers:empty">
+          <div class="ico">🏢</div>
+          <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 공급사가 없습니다{% endif %}</div>
+          <div class="cta"><a href="/suppliers/new">＋ 공급사 등록</a></div>
+        </div>
+        {% endif %}
+      </div>
+
     </div>
-    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/suppliers/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/suppliers/new">＋ 공급사 등록</a></div>
-  </div>
-
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);" method="get" action="/suppliers">
-    <input type="search" name="q" value="{{ q }}" placeholder="공급사명 / 사업자번호 / 담당자 검색…" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
-    <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q %}<a class="btn btn-secondary" href="/suppliers">초기화</a>{% endif %}
-  </form>
-
-  <div class="tbl-wrap tbl-sticky">
-    {% if suppliers %}
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th style="width:60px;">ID</th>
-          <th>공급사명</th>
-          <th>사업자번호</th>
-          <th>담당자</th>
-          <th>연락처</th>
-          <th class="center">상태</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for s in suppliers %}
-        <tr onclick="location.href='/suppliers/{{ s.id }}'">
-          <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ s.id }}</td>
-          <td><b>{{ s.name }}</b>{% if s.note %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ s.note|truncate(60) }}</div>{% endif %}</td>
-          <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ s.business_no|default('—') }}</td>
-          <td>{{ s.contact_person|default('—') }}</td>
-          <td style="font-size:12px;color:var(--mute);">{% if s.phone %}📞 {{ s.phone }}{% endif %}{% if s.email %}<br>📧 {{ s.email }}{% endif %}</td>
-          <td class="center">{% if s.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty">
-      <div class="ico">🏢</div>
-      <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 공급사가 없습니다{% endif %}</div>
-      <div style="margin-top:14px;"><a class="btn btn-primary" href="/suppliers/new">＋ 첫 공급사 등록</a></div>
-    </div>
-    {% endif %}
-  </div>
-
-  <div style="height: var(--space-7);"></div>
-</main>
+  </main>
 </div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>

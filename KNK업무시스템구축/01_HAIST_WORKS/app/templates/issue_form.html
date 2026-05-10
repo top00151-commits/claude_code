@@ -1,25 +1,27 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>이슈 등록 · KNK</title>
+{# issue_form.html — 이슈 등록 폼
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
 .field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.full { grid-column: span 2; }
 .field label { font-size: 12px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
 .field textarea { min-height: 100px; resize: vertical; }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="issue-form-main">
+  <div class="page-head" data-dn="issue-form-pagehead">
     <div><div class="crumbs"><a href="/issues">이슈·AS</a> · <b>새 이슈</b></div>
     <h1 class="page-title">새 <em>이슈</em> 등록</h1></div>
   </div>
   <form method="post" action="/issues/new">
-    <div class="form-card">
+    <div class="form-card" data-dn="issue-form-card">
       <div class="field-row">
         <div class="field"><label>유형 *</label><select name="issue_type" required><option value="">— 선택 —</option>{% for t in ISSUE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
         <div class="field"><label>심각도 *</label><select name="severity" required>{% for s in ISSUE_SEVERITIES %}<option value="{{ s }}" {% if s == '보통' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>

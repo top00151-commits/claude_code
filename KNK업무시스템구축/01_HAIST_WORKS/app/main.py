@@ -4356,6 +4356,15 @@ async def guide_page(req: Request):
     return ctx(req, "guide.html", user=u, active="guide")
 
 
+@app.get("/design/samples", response_class=HTMLResponse)
+async def design_samples_page(req: Request):
+    """v5H226z48 (2026-05-09): 색상 톤 샘플 비교 페이지 (Q2 관리번호 / Q3 헤드라인)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "design_samples.html", user=u, active="design_samples")
+
+
 # =====================================================
 # 외부자산 점검 (대표 직접 판단용 spike, 2026-04-27)
 # 출처: 00_HAIST_WORKS_감사팀/_TO_09팀장_2026-04-27_긴급감사_openpyxl외부자산.md

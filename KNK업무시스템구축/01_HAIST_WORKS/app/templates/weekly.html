@@ -5,69 +5,72 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>주간 보고 · KNK HAIST WORKS</title>
 
-{# weekly.html — 시안 master_I_report_weekly_v5H5 STANDALONE (2026-05-01) #}
+{# weekly.html — 시안 master_I_report_weekly_v5H5 STANDALONE (2026-05-01)
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 마이그레이션 + data-dn (v1+v2 차수)
+              - paper/ink/mute/line/amber/grad/shadow/glow → --qv-* + 잉크 단색
+              - victor-insight 그라디언트(잉크→4A2F1F) → 잉크 단색 #}
 
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--qv-surface-2); color: var(--qv-ink); font-feature-settings: 'tnum'; }
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
-.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
-.page-title { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
-.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.week-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--mute); }
-.week-nav a { color: var(--amber-deep); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-.week-nav a:hover { background: var(--amber-glow); }
+.page-meta { font-size: 11px; color: var(--qv-ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--qv-ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--qv-ink); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.week-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--qv-ink-3); }
+.week-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.week-nav a:hover { background: var(--qv-surface-2); }
 .btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
-.btn-secondary:hover { background: var(--amber-glow); }
-.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); color: var(--qv-ink); }
+.btn-secondary:hover { background: var(--qv-surface-2); }
+.btn-primary { background: var(--qv-ink); color: white; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
 
 .kpi-row { margin: var(--space-4) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
-.kpi-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); transition: all .18s; }
-.kpi-card:hover { transform: translateY(-2px); border-color: var(--amber); box-shadow: var(--shadow-md); }
-.kpi-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
-.kpi-card .num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.kpi-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); transition: all .18s; }
+.kpi-card:hover { transform: translateY(-2px); border-color: var(--qv-line-3); box-shadow: var(--shadow-md); }
+.kpi-card .lbl { font-size: 11px; color: var(--qv-ink-3); font-weight: 600; }
+.kpi-card .num { font-size: 28px; font-weight: 700; color: var(--qv-ink); margin-top: 4px; }
 .kpi-card .delta { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
 .kpi-card .delta.up { color: var(--success); }
 .kpi-card .delta.down { color: var(--knk-red); }
-.kpi-card .delta.neutral { color: var(--mute); }
+.kpi-card .delta.neutral { color: var(--qv-ink-3); }
 
-.victor-insight { margin: var(--space-5) var(--content-pad) 0; background: linear-gradient(135deg, var(--ink) 0%, #4A2F1F 100%); color: white; padding: var(--space-6); border-radius: var(--radius-xl); position: relative; overflow: hidden; }
-.victor-insight::before { content: ""; position: absolute; top: -60px; right: -40px; width: 280px; height: 280px; background: var(--glow-amber-radial); opacity: 0.4; }
-.victor-insight .label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-glow); font-weight: 700; position: relative; z-index: 1; }
+.victor-insight { margin: var(--space-5) var(--content-pad) 0; background: var(--qv-ink); color: white; padding: var(--space-6); border-radius: var(--radius-xl); position: relative; overflow: hidden; }
+.victor-insight::before { content: ""; position: absolute; top: -60px; right: -40px; width: 280px; height: 280px; background: transparent; opacity: 0.4; }
+.victor-insight .label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--qv-surface-2); font-weight: 700; position: relative; z-index: 1; }
 .victor-insight h2 { font-size: 24px; font-weight: 700; margin-top: 8px; line-height: 1.3; position: relative; z-index: 1; }
 .victor-insight p { font-size: 14px; line-height: 1.65; margin-top: 12px; color: rgba(255,255,255,0.85); position: relative; z-index: 1; max-width: 820px; }
-.victor-insight p b { color: var(--amber-glow); }
+.victor-insight p b { color: var(--qv-surface-2); }
 
 .section { margin: var(--space-7) var(--content-pad) 0; }
-.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--ink); }
-.section h2::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--qv-ink); }
+.section h2::before { content: ""; width: 4px; height: 18px; background: var(--qv-line-3); border-radius: 2px; }
 
 .dept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
-.dept-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); }
-.dept-card .name { font-size: 13px; font-weight: 700; color: var(--ink); }
-.dept-card .num { font-size: 22px; font-weight: 700; margin-top: 4px; color: var(--ink); }
-.dept-card .bar { height: 8px; background: var(--paper-2); border-radius: 4px; margin: 12px 0 6px; overflow: hidden; }
-.dept-card .bar > div { height: 100%; background: var(--grad-amber); border-radius: 4px; }
-.dept-card .meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--mute); font-weight: 600; }
+.dept-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); }
+.dept-card .name { font-size: 13px; font-weight: 700; color: var(--qv-ink); }
+.dept-card .num { font-size: 22px; font-weight: 700; margin-top: 4px; color: var(--qv-ink); }
+.dept-card .bar { height: 8px; background: var(--qv-surface-3); border-radius: 4px; margin: 12px 0 6px; overflow: hidden; }
+.dept-card .bar > div { height: 100%; background: var(--qv-ink); border-radius: 4px; }
+.dept-card .meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--qv-ink-3); font-weight: 600; }
 
-.tasks-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
-.tasks-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
-.tasks-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.tasks-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); overflow: hidden; }
+.tasks-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--qv-ink-2); font-weight: 700; border-bottom: 1px solid var(--qv-line); background: var(--qv-surface-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.tasks-table td { padding: 12px 14px; border-bottom: 1px solid var(--qv-line); color: var(--qv-ink); }
 .tasks-table tr:last-child td { border-bottom: 0; }
-.tasks-table tr:hover td { background: var(--amber-glow); }
+.tasks-table tr:hover td { background: var(--qv-surface-2); }
 .status-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
 .status-done { background: var(--success); color: white; }
-.status-progress { background: var(--amber-glow); color: var(--amber-deep); }
+.status-progress { background: var(--qv-surface-2); color: var(--qv-ink-2); }
 .status-delay { background: rgba(165,40,44,0.08); color: var(--knk-red); }
-.status-wait { background: var(--paper-2); color: var(--mute); }
+.status-wait { background: var(--qv-surface-3); color: var(--qv-ink-3); }
 
 @media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
 @media print { .sidebar, .top, .page-head .btn, .top-icon, .top-user { display: none !important; } body { background: white; } }
@@ -87,8 +90,8 @@ button { font-family: inherit; cursor: pointer; }
   {% set active = 'weekly' %}
   {% set active_tab = 'home' %}
   {% include "_v5_partials/chrome.html" with context %}
-  <main class="main">
-    <div class="page-head">
+  <main class="main" data-dn="weekly-main">
+    <div class="page-head" data-dn="weekly-pagehead">
       <div>
         <div class="page-meta">{{ wk_mon }} ~ {{ wk_sun }} · WEEKLY REPORT</div>
         <h1 class="page-title">주간 <em>보고</em></h1>
@@ -108,7 +111,7 @@ button { font-family: inherit; cursor: pointer; }
     </div>
 
     <!-- 4 KPI -->
-    <div class="kpi-row">
+    <div class="kpi-row" data-dn="weekly-kpi">
       <div class="kpi-card">
         <div class="lbl">전체 업무</div>
         <div class="num">{{ total }} 건</div>
@@ -116,12 +119,12 @@ button { font-family: inherit; cursor: pointer; }
       </div>
       <div class="kpi-card">
         <div class="lbl">완료율</div>
-        <div class="num">{{ rate }}<span style="font-size:14px;color:var(--mute);">%</span></div>
+        <div class="num">{{ rate }}<span style="font-size:14px;color:var(--qv-ink-3);">%</span></div>
         <div class="delta {% if rate >= 80 %}up{% elif rate >= 50 %}neutral{% else %}down{% endif %}">{% if rate >= 80 %}우수{% elif rate >= 50 %}양호{% else %}미흡{% endif %}</div>
       </div>
       <div class="kpi-card">
         <div class="lbl">누적 공수</div>
-        <div class="num">{{ '%.1f'|format(hours) }}<span style="font-size:14px;color:var(--mute);">h</span></div>
+        <div class="num">{{ '%.1f'|format(hours) }}<span style="font-size:14px;color:var(--qv-ink-3);">h</span></div>
         <div class="delta neutral">평균 {{ '%.1f'|format(hours/5) if hours else '0' }}h/일</div>
       </div>
       <div class="kpi-card">
@@ -132,9 +135,9 @@ button { font-family: inherit; cursor: pointer; }
     </div>
 
     <!-- 빅터 인사이트 -->
-    <div class="victor-insight">
+    <div class="victor-insight" data-dn="weekly-insight">
       <div class="label">VICTOR'S WEEKLY INSIGHT</div>
-      <h2>이번 주의 키워드 — <span style="color: var(--amber-glow);">"{% if rate >= 80 %}가속{% elif delay > 0 %}주의{% elif total == 0 %}준비{% else %}꾸준{% endif %}"</span></h2>
+      <h2>이번 주의 키워드 — <span style="color: var(--qv-surface-2);">"{% if rate >= 80 %}가속{% elif delay > 0 %}주의{% elif total == 0 %}준비{% else %}꾸준{% endif %}"</span></h2>
       <p>
         이번 주 {{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}님은 <b>{{ total }}건 업무</b> 중 <b>{{ done }}건 완료</b>(완료율 {{ rate }}%)·<b>누적 {{ '%.1f'|format(hours) }}h</b>를 기록했습니다.
         {% if delay > 0 %}<b>지연 {{ delay }}건</b> 우선 점검 권장.{% endif %}
@@ -144,7 +147,7 @@ button { font-family: inherit; cursor: pointer; }
 
     <!-- 부서별 (팀장+) -->
     {% if role in ('leader','executive','ceo','admin') and team_data %}
-    <div class="section">
+    <div class="section" data-dn="weekly-depts">
       <h2>부서별 현황</h2>
       <div class="dept-grid">
         {% for td in team_data %}
@@ -152,7 +155,7 @@ button { font-family: inherit; cursor: pointer; }
           <div class="name">{{ td.team.name|default('—') }}</div>
           <div class="num">{{ td.total|default(0) }} 건</div>
           {% set drate = ((td.done|default(0) * 100 / td.total)|round|int) if td.total else 0 %}
-          <div class="bar"><div style="width: {{ drate }}%{% if drate < 50 %}; background: var(--warn){% endif %}"></div></div>
+          <div class="bar"><div style="width: {{ drate }}%{% if drate < 50 %}; background: var(--qv-ink){% endif %}"></div></div>
           <div class="meta"><span>{{ drate }}% 완료</span>{% if td.delay > 0 %}<span style="color: var(--knk-red);">⚠ 지연 {{ td.delay }}</span>{% else %}<span style="color: var(--success);">✓ 정상</span>{% endif %}</div>
         </div>
         {% endfor %}
@@ -162,7 +165,7 @@ button { font-family: inherit; cursor: pointer; }
 
     <!-- 내 업무 리스트 -->
     {% if my_tasks %}
-    <div class="section">
+    <div class="section" data-dn="weekly-mytasks">
       <h2>내 업무 ({{ my_tasks|length }})</h2>
       <table class="tasks-table">
         <thead>
@@ -177,9 +180,9 @@ button { font-family: inherit; cursor: pointer; }
         <tbody>
         {% for t in my_tasks %}
           <tr>
-            <td style="font-size:11px;color:var(--mute);font-family:monospace;">{{ t.work_date }}</td>
-            <td><b>{{ t.title }}</b>{% if t.notes %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ t.notes[:60] }}{% if t.notes|length > 60 %}…{% endif %}</div>{% endif %}</td>
-            <td style="font-size:12px;color:var(--mute);">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %}{% if t.project_name %} · {% endif %}🏢 {{ t.customer_name }}{% endif %}</td>
+            <td style="font-size:11px;color:var(--qv-ink-3);font-family:monospace;">{{ t.work_date }}</td>
+            <td><b>{{ t.title }}</b>{% if t.notes %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">{{ t.notes[:60] }}{% if t.notes|length > 60 %}…{% endif %}</div>{% endif %}</td>
+            <td style="font-size:12px;color:var(--qv-ink-3);">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %}{% if t.project_name %} · {% endif %}🏢 {{ t.customer_name }}{% endif %}</td>
             <td style="text-align:center;">
               {% set st = t.status %}
               <span class="status-pill {% if st == '완료' %}status-done{% elif st == '진행중' %}status-progress{% elif st == '지연' %}status-delay{% else %}status-wait{% endif %}">{{ st }}</span>
@@ -191,11 +194,11 @@ button { font-family: inherit; cursor: pointer; }
       </table>
     </div>
     {% else %}
-    <div class="section">
+    <div class="section" data-dn="weekly-empty">
       <div class="kpi-card" style="text-align:center;padding:40px;">
         <div style="font-size:48px;margin-bottom:8px;">📭</div>
-        <div style="font-size:15px;font-weight:700;color:var(--ink);">이번 주 등록된 업무가 없습니다</div>
-        <div style="font-size:13px;color:var(--mute);margin-top:6px;">일일업무 등록 후 자동 집계됩니다.</div>
+        <div style="font-size:15px;font-weight:700;color:var(--qv-ink);">이번 주 등록된 업무가 없습니다</div>
+        <div style="font-size:13px;color:var(--qv-ink-3);margin-top:6px;">일일업무 등록 후 자동 집계됩니다.</div>
         <a class="btn btn-primary" href="/daily" style="margin-top:14px;">📝 일일업무 작성</a>
       </div>
     </div>

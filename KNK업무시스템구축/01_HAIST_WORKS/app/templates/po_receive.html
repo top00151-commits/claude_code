@@ -1,115 +1,351 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>입고 처리 {{ po.po_number }} · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>입고 처리 {{ po.po_number }} · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 입고 처리 (po_receive) #}
+{# 라우터 호환: form name = po_item_id / receive_qty / item_note / lot_no / expiry_date / occurred_at — getlist 형식 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.lines { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
-.line-head { background: var(--paper-2); padding: 12px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; font-size: 11px; font-weight: 700; color: var(--amber-deep); letter-spacing: 0.06em; text-transform: uppercase; }
-.line-row { padding: 10px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
-.line-row:last-child { border-bottom: 0; }
-.line-input { padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); width: 100%; font-family: inherit; }
-.line-input.over { border-color: var(--knk-red); background: #fff5f5; }
-.qfill { display:flex; gap:4px; margin-top: 8px; }
-.qfill button { padding: 4px 10px; font-size: 11px; border: 1px solid var(--line); background: var(--paper-2); border-radius: var(--radius-sm); cursor: pointer; color: var(--mute); }
-.qfill button:hover { background: var(--amber-glow); color: var(--ink); }
-.line-foot { background: var(--paper-2); padding: 12px 14px; display: grid; grid-template-columns: 50px 2fr 80px 90px 120px 90px; gap: 10px; font-weight: 700; font-size: 13px; border-top: 2px solid var(--line); }
-.line-foot div { text-align:right; }
-.line-foot div:nth-child(2) { text-align:left; color: var(--amber-deep); }
-</style></head>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+.gr-page { display: flex; flex-direction: column; min-height: 100%; }
+.gr-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.gr-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.gr-head .crumb a { color: var(--pq-ink-3); }
+.gr-head .crumb b { color: var(--pq-ink); }
+.gr-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.gr-meta { font-size: 12px; color: var(--pq-ink-3); }
+.gr-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.gr-actions { margin-left: auto; display: flex; gap: 8px; }
+.gr-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.gr-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.prev .v { color: var(--pq-ink-3); }
+.kpi-cell.recv .v { color: var(--pq-ok); }
+.kpi-cell.rest .v { color: var(--pq-warn); }
+
+.gr-body { padding: 16px 24px 24px; background: var(--pq-surface-2); flex: 1; }
+.gr-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.gr-card h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; padding: 14px 18px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.gr-card h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.gr-card .body { padding: 14px 18px; }
+
+.po-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.po-info .lbl { font-size: 10.5px; color: var(--pq-ink-4); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.po-info b { font-size: 13px; color: var(--pq-ink); display: block; margin-top: 3px; }
+.po-info .mono { font-family: var(--pq-mono); }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; margin-left: 3px; }
+.field input, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+
+.qfill { display: flex; gap: 6px; }
+.qfill button { padding: 5px 10px; font-size: 11px; border: 1px solid var(--pq-line-2); background: var(--pq-surface); border-radius: 4px; cursor: pointer; color: var(--pq-ink-3); font-family: inherit; }
+.qfill button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.lines { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; }
+.line-head, .line-row, .line-foot { display: grid; grid-template-columns: 36px 1.6fr 80px 80px 110px 70px 100px 120px 1fr; gap: 7px; align-items: center; padding: 8px 12px; }
+.line-head { background: var(--pq-surface-2); border-bottom: 1px solid var(--pq-line-2); font-size: 10.5px; font-weight: 600; color: var(--pq-ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.line-head .num, .line-head .right { text-align: right; }
+.line-row { border-bottom: 1px solid var(--pq-line); font-size: 12.5px; color: var(--pq-ink); }
+.line-row:hover { background: var(--pq-surface-inset); }
+.line-row .num-cell { text-align: center; color: var(--pq-ink-4); font-weight: 700; font-family: var(--pq-mono); font-size: 11.5px; }
+.line-row .qty-num { text-align: right; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.line-row .qty-num.prev { color: var(--pq-ink-4); }
+.line-row .qty-num.rest { color: var(--pq-warn); font-weight: 600; }
+.line-row .part-cell { line-height: 1.3; }
+.line-row .part-cell b { font-weight: 600; }
+.line-row .part-cell .code { font-size: 11px; color: var(--pq-ink-4); font-family: var(--pq-mono); display: block; margin-top: 1px; }
+.line-input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--pq-line-2); border-radius: 4px; background: var(--pq-surface); font-family: inherit; color: var(--pq-ink); width: 100%; }
+.line-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.06); }
+.line-input.rcv { text-align: right; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+.line-input.rcv.over { border-color: var(--pq-err); background: var(--pq-err-soft); color: var(--pq-err); }
+.line-foot { background: var(--pq-surface-2); border-top: 2px solid var(--pq-line-2); font-weight: 700; font-size: 12.5px; color: var(--pq-ink); }
+.line-foot div { text-align: right; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.line-foot div:nth-child(2) { text-align: left; color: var(--pq-ink-3); font-family: inherit; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.line-foot .recv-sum { color: var(--pq-ok); }
+.line-foot .rate-sum { color: var(--pq-info); }
+
+.rate-bar-wrap { margin-top: 12px; padding: 0 18px 14px; }
+.rate-bar-wrap .lbl { font-size: 11px; color: var(--pq-ink-3); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.rate-bar-wrap .bar { height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
+.rate-bar-wrap .bar > div { height: 100%; background: var(--pq-ok); transition: width .3s ease; }
+
+.field-row { display: grid; grid-template-columns: 200px 1fr; gap: 14px; }
+
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
+.btn-secondary:hover { background: var(--pq-surface-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+
+@media (max-width: 1280px) {
+  .line-head, .line-row, .line-foot { grid-template-columns: 36px 1.6fr 80px 80px 110px 70px 100px 120px; gap: 7px; }
+  .line-head .col-note, .line-row .note-cell { display: none; }
+}
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .po-info { grid-template-columns: repeat(2, 1fr); }
+  .line-head, .line-row, .line-foot { grid-template-columns: 32px 1.4fr 70px 70px 100px 70px; gap: 6px; padding: 6px 10px; }
+  .line-head .col-lot, .line-head .col-exp, .line-head .col-note,
+  .line-row .lot-cell, .line-row .exp-cell, .line-row .note-cell { display: none; }
+}
+</style>
+</head>
 <body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/po">발주 목록</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></div>
-    <h1 class="page-title">📦 <em>입고 처리</em></h1></div>
-    <a class="btn btn-secondary" href="/po/{{ po.id }}">↩ 발주서</a>
-  </div>
+{% set total_order = po.items|sum(attribute='qty')|default(0) %}
+{% set total_prev = po.items|sum(attribute='received_qty')|default(0) %}
+{% set total_rest = total_order - total_prev %}
 
-  <form method="post" action="/po/{{ po.id }}/receive">
-    <div class="form-card">
-      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">발주 정보</h3>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin-bottom:20px;padding:14px;background:var(--paper-2);border-radius:var(--radius-md);">
-        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">발주번호</div><b style="font-family:monospace;color:var(--amber-deep);">{{ po.po_number }}</b></div>
-        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">거래처</div><b>{{ po.supplier_name|default('—') }}</b></div>
-        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">발주일</div><b>{{ po.order_date }}</b></div>
-        <div><div style="font-size:11px;color:var(--mute);text-transform:uppercase;">예상 입고</div><b>{{ po.expected_date|default('—') }}</b></div>
-      </div>
+<div class="app">
+  {% set active_tab = 'logi' %}
+  {% include "_v5_partials/chrome.html" with context %}
 
-      <h3 style="font-size:14px;font-weight:700;margin:18px 0 14px;">입고 일자 *</h3>
-      <input type="date" name="receive_date" value="{{ today }}" required style="padding:10px 14px;font-size:13.5px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);width:200px;">
+  <main class="main">
+    <form method="post" action="/po/{{ po.id }}/receive" id="recvForm">
+      <div class="gr-page">
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 14px;">
-        <h3 style="font-size:14px;font-weight:700;">품목별 입고 수량</h3>
-        <div class="qfill">
-          <button type="button" onclick="qfillAll('rest')">전 행 잔량</button>
-          <button type="button" onclick="qfillAll('zero')">전 행 0</button>
+        <div class="gr-head" data-dn="gr:head">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></div>
+            <div class="gr-title">입고 (GR · Goods Receipt)</div>
+          </div>
+          <div class="gr-meta">
+            <span>발주 <span class="pm-num">{{ po.po_number }}</span></span>
+            <span>·</span>
+            <span>품목 <span class="pm-num">{{ po.items|length }}</span>종</span>
+          </div>
+          <div class="gr-actions">
+            <a href="/po/{{ po.id }}">↩ 발주서</a>
+            <a href="/stock/balances">📦 재고 현황</a>
+          </div>
         </div>
-      </div>
-      <div class="lines">
-        <div class="line-head">
-          <div>#</div><div>품목</div><div>발주량</div><div>기 입고</div><div>이번 입고</div><div>잔량</div>
-        </div>
-        {% for it in po.items %}
-        <div class="line-row">
-          <div style="font-size:12px;color:var(--mute);font-weight:700;text-align:center;">{{ '%02d'|format(loop.index) }}</div>
-          <div><b>{{ it.part_name|default(it.name|default('—')) }}</b>{% if it.part_code %}<div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ it.part_code }}</div>{% endif %}</div>
-          <div style="text-align:right;font-weight:700;">{{ it.qty|default(0) }}</div>
-          <div style="text-align:right;color:var(--mute);">{{ it.received_qty|default(0) }}</div>
-          <div><input class="line-input rcv-input" type="number" name="receive_qty_{{ it.id }}" min="0" step="0.01"
-                      data-rest="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}"
-                      data-order="{{ it.qty|default(0) }}"
-                      data-prev="{{ it.received_qty|default(0) }}"
-                      value="{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}" style="text-align:right;" oninput="recalc()"></div>
-          <div style="text-align:right;color:var(--mute);" data-rest-cell="{{ it.id }}">{{ (it.qty|default(0)) - (it.received_qty|default(0)) }}</div>
-        </div>
-        {% endfor %}
-        <div class="line-foot">
-          <div></div>
-          <div>합계 / 입고율</div>
-          <div id="sum-order">0</div>
-          <div id="sum-prev">0</div>
-          <div id="sum-recv" style="color:var(--success);">0</div>
-          <div id="sum-rate" style="color:var(--amber-deep);">0%</div>
-        </div>
-      </div>
 
-      <div style="margin-top:10px;height:6px;background:var(--paper-2);border-radius:3px;overflow:hidden;">
-        <div id="rate-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--amber-deep),var(--success));transition:width .3s;"></div>
-      </div>
+        <div class="kpi-strip" data-dn="gr:kpi" data-dn-tone="green">
+          <div class="kpi-cell">
+            <div class="l">발주량 합계</div>
+            <div class="v">{{ '{:,.0f}'.format(total_order) }}<span class="u">개</span></div>
+            <div class="sub">{{ po.items|length }}개 라인</div>
+          </div>
+          <div class="kpi-cell prev">
+            <div class="l">기 입고</div>
+            <div class="v">{{ '{:,.0f}'.format(total_prev) }}<span class="u">개</span></div>
+            <div class="sub">이전 입고분</div>
+          </div>
+          <div class="kpi-cell recv">
+            <div class="l">금일 입고</div>
+            <div class="v" id="kpiRecv">0<span class="u">개</span></div>
+            <div class="sub">이번 등록</div>
+          </div>
+          <div class="kpi-cell rest">
+            <div class="l">잔량</div>
+            <div class="v" id="kpiRest">{{ '{:,.0f}'.format(total_rest) }}<span class="u">개</span></div>
+            <div class="sub">잔여 발주분</div>
+          </div>
+        </div>
 
-      <div style="margin-top: 16px;">
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">비고</label>
-        <textarea name="note" placeholder="입고 시 특이사항" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper);color:var(--ink);min-height:60px;resize:vertical;"></textarea>
-      </div>
-    </div>
+        <div class="gr-body">
 
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/po/{{ po.id }}">취소</a>
-      <button type="submit" class="btn btn-primary">📦 입고 등록</button>
-    </div>
-  </form>
+          <!-- 발주 정보 -->
+          <div class="gr-card" data-dn="gr:po-info" data-dn-tone="blue">
+            <h3>발주 정보</h3>
+            <div class="body">
+              <div class="po-info">
+                <div>
+                  <div class="lbl">발주 번호</div>
+                  <b class="mono">{{ po.po_number }}</b>
+                </div>
+                <div>
+                  <div class="lbl">거래처</div>
+                  <b>{{ po.supplier_name|default('—') }}</b>
+                </div>
+                <div>
+                  <div class="lbl">발주일</div>
+                  <b>{{ po.order_date|default('—') }}</b>
+                </div>
+                <div>
+                  <div class="lbl">예상 입고</div>
+                  <b>{{ po.expected_date|default('—') }}</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 입고 일자 -->
+          <div class="gr-card" data-dn="gr:date" data-dn-tone="green">
+            <h3>입고 일자</h3>
+            <div class="body">
+              <div class="field-row">
+                <div class="field">
+                  <label>입고일자<span class="req">*</span></label>
+                  <input type="date" name="occurred_at" required value="{{ today|default('') }}" />
+                </div>
+                <div class="field" style="justify-content:center;">
+                  <div style="font-size:11.5px;color:var(--pq-ink-3);line-height:1.5;">
+                    💡 라인별 LOT 번호·유효기한·비고는 아래 표에서 입력합니다.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 라인별 입고 -->
+          <div class="gr-card" data-dn="gr:lines" data-dn-tone="purple">
+            <h3>품목별 입고 수량
+              <span style="margin-left:auto;display:inline-flex;gap:6px;" class="qfill">
+                <button type="button" onclick="qfillAll('rest')">전 행 잔량</button>
+                <button type="button" onclick="qfillAll('zero')">전 행 0</button>
+              </span>
+            </h3>
+            <div class="lines">
+              <div class="line-head">
+                <div class="num">#</div>
+                <div>품목</div>
+                <div class="right">발주량</div>
+                <div class="right">기 입고</div>
+                <div class="right">이번 입고 *</div>
+                <div class="right">잔량</div>
+                <div class="col-lot">LOT 번호</div>
+                <div class="col-exp">유효기한</div>
+                <div class="col-note">비고</div>
+              </div>
+              {% for it in po.items %}
+              {% set rest = (it.qty|default(0)) - (it.received_qty|default(0)) %}
+              <div class="line-row">
+                <div class="num-cell">{{ '%02d'|format(loop.index) }}</div>
+                <div class="part-cell">
+                  <b>{{ it.part_name|default(it.name|default('—')) }}</b>
+                  {% if it.part_code or it.part_no %}<span class="code">{{ it.part_code|default(it.part_no) }}</span>{% endif %}
+                </div>
+                <div class="qty-num">{{ '{:,.0f}'.format(it.qty|default(0)) }}</div>
+                <div class="qty-num prev">{{ '{:,.0f}'.format(it.received_qty|default(0)) }}</div>
+                <div>
+                  <input type="hidden" name="po_item_id" value="{{ it.id }}" />
+                  <input class="line-input rcv" type="number" name="receive_qty" min="0" step="0.01"
+                         data-rest="{{ rest }}" data-order="{{ it.qty|default(0) }}" data-prev="{{ it.received_qty|default(0) }}"
+                         value="{{ rest }}" oninput="recalc()" />
+                </div>
+                <div class="qty-num rest" data-rest-cell>{{ '{:,.0f}'.format(rest) }}</div>
+                <div class="lot-cell"><input class="line-input" type="text" name="lot_no" placeholder="LOT" /></div>
+                <div class="exp-cell"><input class="line-input" type="date" name="expiry_date" /></div>
+                <div class="note-cell"><input class="line-input" type="text" name="item_note" placeholder="비고" /></div>
+              </div>
+              {% endfor %}
+              <div class="line-foot">
+                <div></div>
+                <div>합계 / 입고율</div>
+                <div id="sum-order">0</div>
+                <div id="sum-prev">0</div>
+                <div id="sum-recv" class="recv-sum">0</div>
+                <div id="sum-rate" class="rate-sum">0%</div>
+                <div class="lot-cell"></div>
+                <div class="exp-cell"></div>
+                <div class="note-cell"></div>
+              </div>
+            </div>
+            <div class="rate-bar-wrap" data-dn="gr:rate" data-dn-tone="green">
+              <div class="lbl"><span>누적 입고율</span><span id="rate-pct">0%</span></div>
+              <div class="bar"><div id="rate-bar" style="width:0%;"></div></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 액션 -->
+        <div class="action-bar" data-dn="gr:action" data-dn-tone="amber">
+          <div class="info">📥 <b>입고 등록</b> — 등록 시 재고 자동 가산 + 발주 상태 갱신</div>
+          <div class="btns">
+            <a href="/po/{{ po.id }}" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary">📦 입고 등록</button>
+          </div>
+        </div>
+
+      </div>
+    </form>
+  </main>
+</div>
+
 <script>
-function qfillAll(mode){
-  document.querySelectorAll('.rcv-input').forEach(function(el){
-    el.value = mode==='zero' ? 0 : (el.dataset.rest||0);
+function qfillAll(mode) {
+  document.querySelectorAll('.line-input.rcv').forEach(function(el) {
+    el.value = mode === 'zero' ? 0 : (parseFloat(el.dataset.rest) || 0);
   });
   recalc();
 }
-function recalc(){
-  var sumO=0, sumP=0, sumR=0;
-  document.querySelectorAll('.rcv-input').forEach(function(el){
-    var o=parseFloat(el.dataset.order)||0, p=parseFloat(el.dataset.prev)||0, r=parseFloat(el.value)||0, rest=parseFloat(el.dataset.rest)||0;
-    sumO+=o; sumP+=p; sumR+=r;
-    if (r > rest) el.classList.add('over'); else el.classList.remove('over');
+
+function recalc() {
+  var sumO = 0, sumP = 0, sumR = 0;
+  document.querySelectorAll('.line-input.rcv').forEach(function(el) {
+    var o = parseFloat(el.dataset.order) || 0;
+    var p = parseFloat(el.dataset.prev) || 0;
+    var r = parseFloat(el.value) || 0;
+    var rest = parseFloat(el.dataset.rest) || 0;
+    sumO += o;
+    sumP += p;
+    sumR += r;
+    if (r > rest) {
+      el.classList.add('over');
+    } else {
+      el.classList.remove('over');
+    }
+    var restCell = el.closest('.line-row').querySelector('[data-rest-cell]');
+    if (restCell) {
+      var newRest = (o - p - r);
+      restCell.textContent = newRest.toLocaleString('ko-KR', {maximumFractionDigits: 0});
+      restCell.style.color = newRest < 0 ? 'var(--pq-err)' : '';
+    }
   });
-  var rate = sumO>0 ? Math.round((sumP+sumR)/sumO*100) : 0;
-  document.getElementById('sum-order').textContent = sumO.toFixed(2);
-  document.getElementById('sum-prev').textContent  = sumP.toFixed(2);
-  document.getElementById('sum-recv').textContent  = sumR.toFixed(2);
-  document.getElementById('sum-rate').textContent  = rate + '%';
-  document.getElementById('rate-bar').style.width  = Math.min(rate,100) + '%';
+  var totalRecvDone = sumP + sumR;
+  var rate = sumO > 0 ? Math.round(totalRecvDone / sumO * 100) : 0;
+  var fmt = function(n) { return n.toLocaleString('ko-KR', {maximumFractionDigits: 0}); };
+  document.getElementById('sum-order').textContent = fmt(sumO);
+  document.getElementById('sum-prev').textContent = fmt(sumP);
+  document.getElementById('sum-recv').textContent = fmt(sumR);
+  document.getElementById('sum-rate').textContent = rate + '%';
+  document.getElementById('rate-pct').textContent = rate + '%';
+  document.getElementById('rate-bar').style.width = Math.min(rate, 100) + '%';
+  document.getElementById('kpiRecv').innerHTML = fmt(sumR) + '<span class="u">개</span>';
+  document.getElementById('kpiRest').innerHTML = fmt(sumO - totalRecvDone) + '<span class="u">개</span>';
 }
-recalc();
+
+document.addEventListener('DOMContentLoaded', recalc);
 </script>
-</main></div></body></html>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

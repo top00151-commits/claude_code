@@ -1,35 +1,200 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>QC 보고서 · KNK</title>
-{% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>QC 보고서</b></div><h1 class="page-title">🔬 QC <em>보고서</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">검사 결과 보고서 발행/관리</div></div>
-    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/qc/inspection-reports/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/qc/reports/new">＋ 검사 보고서</a></div>
-  </div>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QC 검사성적서 · KNK HAIST WORKS</title>
 
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th>보고서 번호</th><th>품목</th><th class="num">로트 수량</th><th class="center">판정</th><th>검사일</th><th>검사자</th><th class="center">상태</th></tr></thead>
-      <tbody>
-      {% for r in items %}
-        <tr onclick="location.href='/qc/reports/{{ r.id }}'">
-          <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ r.report_no|default('#' ~ r.id) }}</td>
-          <td><b>{{ r.product_name|default(r.part_name|default('—')) }}</b></td>
-          <td class="num">{{ '{:,.0f}'.format(r.lot_qty|default(0)) }}</td>
-          <td class="center"><span class="pill {% if r.overall == 'PASS' %}pill-done{% elif r.overall == 'FAIL' %}pill-danger{% elif r.overall == 'REWORK' %}pill-warn{% else %}pill-muted{% endif %}">{{ r.overall|default('—') }}</span></td>
-          <td style="font-family:monospace;font-size:11px;">{{ r.inspected_at|default('—') }}</td>
-          <td style="font-size:12px;">{{ r.inspector_name|default('—') }}</td>
-          <td class="center"><span class="pill {% if r.status == 'APPROVED' %}pill-done{% elif r.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}">{{ r.status|default('—') }}</span></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">🔬</div><div class="ttl">QC 보고서 없음</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 QC 검사성적서 목록 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.qc-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.qc-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qc-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.qc-head .crumb a { color: var(--pq-ink-2); }
+.qc-head .crumb b { color: var(--pq-ink); }
+.qc-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.qc-meta { font-size: 12px; color: var(--pq-ink-3); }
+.qc-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.qc-actions { margin-left: auto; display: flex; gap: 8px; }
+.qc-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.qc-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.qc-actions a.btn-dark { background: var(--pq-ink); color: #fff; padding: 0 14px; font-weight: 600; }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell:hover { background: var(--pq-surface-2); }
+.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.pass .v { color: var(--pq-ok); }
+.kpi-cell.cond .v { color: var(--pq-warn); }
+.kpi-cell.fail .v { color: var(--pq-danger); }
+
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500; text-decoration: none; }
+.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1200px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-q { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; }
+.chip-q::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-q.PASS { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-q.CONDITIONAL_PASS { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-q.FAIL { background: var(--pq-danger-soft); color: var(--pq-danger); }
+.chip-q.PENDING { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.po-empty .cta { margin-top: 16px; }
+.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .qc-head { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+
+{% set total_cnt = items|length %}
+{% set pass_cnt = items|selectattr('overall_result','equalto','PASS')|list|length %}
+{% set cond_cnt = items|selectattr('overall_result','equalto','CONDITIONAL_PASS')|list|length %}
+{% set fail_cnt = items|selectattr('overall_result','equalto','FAIL')|list|length %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="qc-page">
+
+      <div class="qc-head" data-dn="qc:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>검사성적서</b></div>
+          <div class="qc-title">검사성적서 (출하 QC)</div>
+        </div>
+        <div class="qc-meta">
+          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
+          <span>·</span>
+          <span style="color: var(--pq-ok);">합격 {{ pass_cnt }}</span>
+          <span>·</span>
+          <span style="color: var(--pq-danger);">불합격 {{ fail_cnt }}</span>
+        </div>
+        <div class="qc-actions">
+          <a class="btn-ghost" href="/qc/inspection-reports/export.xlsx">⤓ Excel</a>
+          <a class="btn-dark" href="/qc/inspection-reports/new">＋ 신규 발급</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="qc:kpi" data-dn-tone="green">
+        <a class="kpi-cell {% if not filter_overall %}active{% endif %}" href="/qc/inspection-reports">
+          <div class="l">전체</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">건</span></div>
+          <div class="sub">필터 미적용</div>
+        </a>
+        <a class="kpi-cell pass {% if filter_overall=='PASS' %}active{% endif %}" href="/qc/inspection-reports?overall=PASS">
+          <div class="l">합격 PASS</div>
+          <div class="v">{{ pass_cnt }}<span class="u">건</span></div>
+          <div class="sub">{{ '{:.1f}'.format(pass_cnt / total_cnt * 100) if total_cnt else '0' }}%</div>
+        </a>
+        <a class="kpi-cell cond {% if filter_overall=='CONDITIONAL_PASS' %}active{% endif %}" href="/qc/inspection-reports?overall=CONDITIONAL_PASS">
+          <div class="l">조건부 합격</div>
+          <div class="v">{{ cond_cnt }}<span class="u">건</span></div>
+          <div class="sub">제한사항 동봉</div>
+        </a>
+        <a class="kpi-cell fail {% if filter_overall=='FAIL' %}active{% endif %}" href="/qc/inspection-reports?overall=FAIL">
+          <div class="l">불합격 FAIL</div>
+          <div class="v">{{ fail_cnt }}<span class="u">건</span></div>
+          <div class="sub">CAPA 필요</div>
+        </a>
+      </div>
+
+      <div class="filterbar" data-dn="qc:filter" data-dn-tone="blue">
+        <span class="fb-label">결과</span>
+        <a class="fb-chip {% if not filter_overall %}is-active{% endif %}" href="/qc/inspection-reports">전체</a>
+        {% for k, label in QC_OVERALL_OPTIONS %}
+        <a class="fb-chip {% if filter_overall==k %}is-active{% endif %}" href="/qc/inspection-reports?overall={{ k }}">{{ label }}</a>
+        {% endfor %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </div>
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="qc:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:140px;">보고서 번호</th>
+              <th class="center" style="width:120px;">결과</th>
+              <th>제품 / 모델</th>
+              <th>고객사</th>
+              <th class="center" style="width:120px;">검사일</th>
+              <th>검사자</th>
+              <th class="mute" style="width:120px;">상태</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in items %}
+            {% set ov = r.overall_result|default('PENDING') %}
+            <tr onclick="location.href='/qc/inspection-reports/{{ r.id }}'">
+              <td class="code">{{ r.report_no|default('—') }}</td>
+              <td class="center"><span class="chip-q {{ ov }}">{{ ov }}</span></td>
+              <td>
+                <b>{{ r.product_name|default('—') }}</b>
+                {% if r.model_no %}<div class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ r.model_no }}</div>{% endif %}
+              </td>
+              <td>{{ r.cust_disp|default('—') }}</td>
+              <td class="center mute" style="font-size:11px;">{{ (r.inspection_date or '—')[:10] }}</td>
+              <td>{{ r.inspector_disp|default('—') }}</td>
+              <td class="mute" style="font-size:11px;">{{ r.status|default('—') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="qc:empty">
+        <div class="ico">📋</div>
+        <div class="ttl">{% if filter_overall %}{{ filter_overall }} 결과 보고서 없음{% else %}등록된 검사성적서 없음{% endif %}</div>
+        <div class="cta"><a href="/qc/inspection-reports/new">＋ 신규 발급</a></div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

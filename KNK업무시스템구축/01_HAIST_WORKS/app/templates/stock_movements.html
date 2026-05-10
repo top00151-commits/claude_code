@@ -1,81 +1,236 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>수불부 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재고 이동 이력 · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 수불부 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-{% set k = kpi or {} %}
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>수불부</b></div><h1 class="page-title">📊 <em>수불부</em></h1>
-    {% if part_filter %}<div class="page-meta" style="margin-top:6px;">필터: <b>{{ part_filter.name }}</b> ({{ part_filter.code }})</div>{% endif %}</div>
-    <a class="btn btn-secondary" href="/stock/movements/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
-    {% if part_filter %}<a class="btn btn-secondary" href="/stock/movements">↻ 필터 해제</a>{% endif %}
-  </div>
-
-  <!-- KPI -->
-  <div class="bento" style="grid-template-columns:repeat(4,1fr);">
-    <div class="kpi-card"><div class="kpi-label">총 자재 종</div><div class="kpi-num">{{ k.parts_total|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">총 수량</div><div class="kpi-num">{{ '{:,.0f}'.format(k.total_qty|default(0)) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">총 가치</div><div class="kpi-num">{{ '{:,.0f}'.format(k.total_value|default(0)) }}<span class="unit">원</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">재고 경고</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.low_stock|default(0) }}</div></div>
-  </div>
-
-  <form id="mv-filter" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);margin:var(--space-5) var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/stock/movements">
-    <input type="search" name="q" value="{{ q }}" placeholder="자재명 / 코드 검색…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);outline:none;">
-    <select name="kind" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);"><option value="">유형 전체</option>{% for k_, l in MOVEMENT_KIND_LABEL.items() %}<option value="{{ k_ }}" {% if filter_kind == k_ %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-    <input type="date" name="since" id="mv-since" value="{{ filter_since }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-    <input type="date" name="until" id="mv-until" value="{{ filter_until }}" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper);font-family:inherit;color:var(--ink);">
-    <div style="display:flex;gap:4px;">
-      <button type="button" onclick="presetRange(0)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">오늘</button>
-      <button type="button" onclick="presetRange(7)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">7일</button>
-      <button type="button" onclick="presetRange(30)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">30일</button>
-      <button type="button" onclick="presetRange(90)" style="padding:6px 10px;font-size:11px;border:1px solid var(--line);background:var(--paper-2);border-radius:4px;cursor:pointer;color:var(--mute);">90일</button>
-    </div>
-    <button type="submit" class="btn btn-primary">🔍 검색</button>
-    <a class="btn btn-secondary" href="?q={{ q|urlencode }}&kind={{ filter_kind|default('') }}&since={{ filter_since|default('') }}&until={{ filter_until|default('') }}&format=csv" style="font-size:12px;">⬇ CSV</a>
-  </form>
-<script>
-function presetRange(days){
-  var u = new Date(); var s = new Date(); s.setDate(u.getDate()-days);
-  var f = function(d){return d.toISOString().slice(0,10);};
-  document.getElementById('mv-since').value = f(s);
-  document.getElementById('mv-until').value = f(u);
-  document.getElementById('mv-filter').submit();
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
-</script>
+.sm-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sm-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sm-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.sm-head .crumb a { color: var(--pq-ink-2); }
+.sm-head .crumb b { color: var(--pq-ink); }
+.sm-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.sm-meta { font-size: 12px; color: var(--pq-ink-3); }
+.sm-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.sm-actions { margin-left: auto; display: flex; gap: 8px; }
+.sm-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.sm-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th class="center">일시</th><th>자재</th><th class="center">유형</th><th class="num">수량</th><th class="num">단가</th><th class="num">가치</th><th>참조</th></tr></thead>
-      <tbody>
-      {% for m in items %}
-        <tr>
-          <td class="center" style="font-family:monospace;font-size:11px;color:var(--mute);">{{ m.moved_at|default('—') }}</td>
-          <td><b>{{ m.part_name|default('—') }}</b><div style="font-size:11px;color:var(--mute);font-family:monospace;">{{ m.part_no|default('') }}</div></td>
-          <td class="center"><span class="pill {% if m.kind == 'IN' %}pill-done{% elif m.kind == 'OUT' %}pill-progress{% else %}pill-muted{% endif %}">{{ MOVEMENT_KIND_LABEL.get(m.kind, m.kind) }}</span></td>
-          <td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{{ '{:+,.0f}'.format(m.quantity|default(0)) }}</td>
-          <td class="num">{% if m.unit_price %}{{ '{:,.0f}'.format(m.unit_price) }}{% else %}—{% endif %}</td>
-          <td class="num">{% if m.amount %}{{ '{:,.0f}'.format(m.amount) }}{% else %}—{% endif %}</td>
-          <td style="font-size:12px;color:var(--mute);">{% if m.po_number %}PO {{ m.po_number }}{% elif m.project_name %}{{ m.project_name }}{% elif m.reason %}{{ m.reason }}{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-      {% set _in = items|selectattr('kind','equalto','IN')|list %}
-      {% set _out = items|selectattr('kind','equalto','OUT')|list %}
-      {% set _in_qty = _in|sum(attribute='quantity') %}
-      {% set _out_qty = _out|sum(attribute='quantity') %}
-      <tfoot>
-        <tr style="background:var(--paper-2);font-weight:700;">
-          <td colspan="3" style="text-align:right;padding:10px;">소계 ({{ items|length }}건) →</td>
-          <td class="num" style="color:var(--success);">+{{ '{:,.0f}'.format(_in_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _in|length }}건)</span></td>
-          <td class="num" colspan="2" style="color:var(--knk-red);">{{ '{:,.0f}'.format(_out_qty|default(0)) }} <span style="font-size:10px;color:var(--mute);">({{ _out|length }}건)</span></td>
-          <td style="font-size:11px;color:var(--mute);">순증감: <b style="color:{% if (_in_qty|default(0)) + (_out_qty|default(0)) >= 0 %}var(--success){% else %}var(--knk-red){% endif %};">{{ '{:+,.0f}'.format((_in_qty|default(0)) + (_out_qty|default(0))) }}</b></td>
-        </tr>
-      </tfoot>
-    </table>
-    {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">수불 데이터가 없습니다</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.filterbar .fb-label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px; }
+.fb-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500; text-decoration: none; }
+.fb-chip:hover { border-color: var(--pq-line-3); background: var(--pq-surface-3); }
+.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.fb-divider { width: 1px; height: 18px; background: var(--pq-line-2); margin: 0 4px; }
+.fb-search { height: 28px; padding: 0 10px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink); min-width: 220px; font-family: inherit; }
+.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1300px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-mv { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
+.chip-mv::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-mv.k-IN { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-mv.k-OUT { background: var(--pq-danger-soft); color: var(--pq-danger); }
+.chip-mv.k-ADJUST { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-mv.k-TRANSFER { background: var(--pq-purple-soft); color: var(--pq-purple); }
+
+.qty-pos { color: var(--pq-ok); font-weight: 700; }
+.qty-neg { color: var(--pq-danger); font-weight: 700; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+@media (max-width: 1280px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .sm-head { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+
+{% set k = kpi or {} %}
+{% set total_cnt = items|length %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="sm-page">
+
+      <div class="sm-head" data-dn="sm:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>이동 이력 (수불부)</b></div>
+          <div class="sm-title">재고 이동 이력</div>
+        </div>
+        <div class="sm-meta">
+          <span>최근 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
+          {% if part_filter %}
+          <span>·</span>
+          <span>품목 필터: <span class="pm-num">{{ part_filter.part_no }}</span> {{ part_filter.part_name }}</span>
+          {% endif %}
+        </div>
+        <div class="sm-actions">
+          <a href="/stock/movements/export.xlsx">⤓ Excel</a>
+          <a href="/stock/balances">📦 재고 현황</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="sm:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">집계 품목</div>
+          <div class="v">{{ '{:,}'.format(k.parts_total|default(0)) }}<span class="u">종</span></div>
+          <div class="sub">활성 자재</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 재고가치</div>
+          <div class="v">
+            {% set sv = k.stock_value|default(0) %}
+            {% if sv >= 100000000 %}{{ '{:.2f}'.format(sv/100000000) }}<span class="u">억</span>
+            {% elif sv >= 10000 %}{{ '{:,.0f}'.format(sv/10000) }}<span class="u">만</span>
+            {% else %}{{ '{:,.0f}'.format(sv) }}<span class="u">원</span>{% endif %}
+          </div>
+          <div class="sub">FIFO 기반</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">안전재고 미달</div>
+          <div class="v" {% if k.low_stock|default(0) > 0 %}style="color:var(--pq-danger);"{% endif %}>{{ k.low_stock|default(0) }}<span class="u">품목</span></div>
+          <div class="sub">재발주 검토</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">진행 발주</div>
+          <div class="v">{{ k.po_pending|default(0) }}<span class="u">건</span></div>
+          <div class="sub">미입고 잔량</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">30일 입고</div>
+          <div class="v" style="color:var(--pq-ok);">{{ '{:,.0f}'.format(k.in_30d|default(0)) }}</div>
+          <div class="sub">단위 합</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">30일 출고</div>
+          <div class="v" style="color:var(--pq-danger);">{{ '{:,.0f}'.format(k.out_30d|default(0)) }}</div>
+          <div class="sub">단위 합</div>
+        </div>
+      </div>
+
+      <form class="filterbar" method="get" action="/stock/movements" data-dn="sm:filter" data-dn-tone="blue">
+        <span class="fb-label">유형</span>
+        <a class="fb-chip {% if not filter_kind %}is-active{% endif %}" href="/stock/movements{% if q %}?q={{ q }}{% endif %}">전체</a>
+        <a class="fb-chip {% if filter_kind=='IN' %}is-active{% endif %}" href="/stock/movements?kind=IN">입고</a>
+        <a class="fb-chip {% if filter_kind=='OUT' %}is-active{% endif %}" href="/stock/movements?kind=OUT">출고</a>
+        <a class="fb-chip {% if filter_kind=='ADJUST' %}is-active{% endif %}" href="/stock/movements?kind=ADJUST">실사조정</a>
+        <a class="fb-chip {% if filter_kind=='TRANSFER' %}is-active{% endif %}" href="/stock/movements?kind=TRANSFER">이동</a>
+        <span class="fb-divider"></span>
+        <input type="hidden" name="kind" value="{{ filter_kind|default('') }}">
+        <label style="font-size:11px; color: var(--pq-ink-3);">기간</label>
+        <input type="date" name="since" value="{{ filter_since|default('') }}" class="fb-search" style="min-width:130px;">
+        <input type="date" name="until" value="{{ filter_until|default('') }}" class="fb-search" style="min-width:130px;">
+        <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · PO 검색" />
+        <button type="submit" class="fb-go">적용</button>
+        {% if q or filter_kind or filter_since or filter_until %}<a class="fb-chip" href="/stock/movements" style="border-style:dashed;">↺ 해제</a>{% endif %}
+        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+      </form>
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="sm:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:130px;">번호</th>
+              <th class="center" style="width:100px;">시각</th>
+              <th class="center" style="width:90px;">유형</th>
+              <th style="width:160px;">자재 코드</th>
+              <th>자재명</th>
+              <th class="num" style="width:100px;">수량</th>
+              <th class="center" style="width:60px;">단위</th>
+              <th class="num" style="width:100px;">단가</th>
+              <th class="num" style="width:120px;">금액</th>
+              <th>관리코드 / 거래처</th>
+              <th class="mute" style="width:100px;">담당</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for it in items %}
+            {% set kind = it.kind|default('') %}
+            {% set qty = it.quantity|default(0)|float %}
+            <tr>
+              <td class="code">{{ it.movement_no|default('—') }}</td>
+              <td class="center mute" style="font-size:11px;">{{ (it.occurred_at or '—')[:16] }}</td>
+              <td class="center"><span class="chip-mv k-{{ kind }}">{{ MOVEMENT_KIND_LABEL.get(kind, kind) if MOVEMENT_KIND_LABEL else kind }}</span></td>
+              <td class="code">{{ it.part_no|default('—') }}</td>
+              <td><b>{{ it.part_name|default('—') }}</b></td>
+              <td class="num"><span class="{% if qty > 0 %}qty-pos{% elif qty < 0 %}qty-neg{% endif %}">{{ '{:+,.0f}'.format(qty) if qty != 0 else '0' }}</span></td>
+              <td class="center mute">{{ it.part_unit|default('EA') }}</td>
+              <td class="num">{% if it.unit_price %}{{ '{:,.0f}'.format(it.unit_price) }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td class="num">{% if it.amount %}{{ '{:,.0f}'.format(it.amount) }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td>
+                {% if it.mgmt_code %}<span class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ it.mgmt_code }}</span> {% endif %}
+                {% if it.project_name %}<span>{{ it.project_name }}</span>{% endif %}
+                {% if it.customer_name %}<span class="mute"> · {{ it.customer_name }}</span>{% endif %}
+                {% if it.po_number %}<span class="mute" style="font-family:var(--pq-mono); font-size:11px;"> ({{ it.po_number }})</span>{% endif %}
+                {% if not it.mgmt_code and not it.customer_name and not it.po_number %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="mute">{{ it.created_by_name|default('—') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="sm:empty">
+        <div class="ico">📊</div>
+        <div class="ttl">이동 이력 없음</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

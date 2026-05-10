@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{% if change %}변경 수정{% else %}변경 등록{% endif %} · KNK</title>
+{# change_form.html — 변경 등록/수정 폼
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
 .field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.full { grid-column: span 2; }
 .field label { font-size: 12px; font-weight: 600; }
 .field label .req { color: var(--knk-red); }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
 .field textarea { min-height: 100px; resize: vertical; }
 </style></head>
 <body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
+<main class="main" data-dn="change-form-main">
+  <div class="page-head" data-dn="change-form-pagehead">
     <div><div class="crumbs"><a href="/changes">변경 공지</a> · <b>{% if change %}수정{% else %}새 변경{% endif %}</b></div>
     <h1 class="page-title">{% if change %}변경 #{{ change.id }} 수정{% else %}새 <em>변경</em> 등록{% endif %}</h1></div>
   </div>
   <form method="post" action="{% if change %}/changes/{{ change.id }}/edit{% else %}/changes/new{% endif %}">
-    <div class="form-card">
+    <div class="form-card" data-dn="change-form-card">
       <div class="field-row">
         <div class="field"><label>유형 <span class="req">*</span></label><select name="change_type" required><option value="">— 선택 —</option>{% for t in CHANGE_TYPES %}<option value="{{ t }}" {% if change and change.change_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
         <div class="field"><label>긴급도 <span class="req">*</span></label><select name="urgency" required>{% for u_ in CHANGE_URGENCIES %}<option value="{{ u_ }}" {% if (change and change.urgency == u_) or (not change and u_ == '보통') %}selected{% endif %}>{{ u_ }}</option>{% endfor %}</select></div>

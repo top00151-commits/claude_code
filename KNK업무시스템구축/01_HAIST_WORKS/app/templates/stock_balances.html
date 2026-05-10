@@ -1,39 +1,204 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>재고 잔고 · KNK</title>
-{% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 잔고</b></div><h1 class="page-title">📚 재고 <em>잔고</em></h1>
-    <div class="page-meta" style="margin-top:6px;">최종 갱신: {{ last_update }}</div></div>
-    <div style="display:flex;gap:10px;">
-      <a class="btn btn-secondary" href="/stock/balances/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
-      <a class="btn btn-secondary" href="/stock/movements">📜 수불 이력</a>
-      <a class="btn btn-secondary" href="/stock/issue">📤 출고</a>
-      <a class="btn btn-secondary" href="/receipts">📦 입고</a>
-    </div>
-  </div>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재고 현황 · KNK HAIST WORKS</title>
 
-  <div class="tbl-wrap tbl-sticky">
-    {% if balances %}
-    <table class="tbl">
-      <thead><tr><th>자재 코드</th><th>자재명</th><th class="num">재고량</th><th class="center">단위</th><th class="num">단가</th><th class="num">재고가치</th><th class="center">최종 입출</th></tr></thead>
-      <tbody>
-      {% for b in balances %}
-        <tr onclick="location.href='/parts/{{ b.part_id|default(0) }}'">
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ b.part_no|default('—') }}</td>
-          <td><b>{{ b.part_name|default('—') }}</b>{% if b.spec %}<div style="font-size:11px;color:var(--mute);">{{ b.spec }}</div>{% endif %}</td>
-          <td class="num" style="font-weight:700;{% if b.qty|default(0) <= b.safety_stock|default(0) %}color:var(--knk-red);{% endif %}">{{ '{:,.0f}'.format(b.qty|default(0)) }}{% if b.qty|default(0) <= b.safety_stock|default(0) %} ⚠{% endif %}</td>
-          <td class="center" style="font-size:12px;">{{ b.unit|default('—') }}</td>
-          <td class="num">{% if b.unit_price %}{{ '{:,.0f}'.format(b.unit_price) }}{% else %}—{% endif %}</td>
-          <td class="num" style="font-weight:700;color:var(--knk-red);">{% if b.value %}{{ '{:,.0f}'.format(b.value) }}{% else %}—{% endif %}</td>
-          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ (b.last_movement_at or '—')|truncate(10, end='') }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">📚</div><div class="ttl">재고 데이터가 없습니다</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 재고 현황 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.sb-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sb-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sb-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
+.sb-head .crumb a { color: var(--pq-ink-2); }
+.sb-head .crumb b { color: var(--pq-ink); }
+.sb-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.sb-meta { font-size: 12px; color: var(--pq-ink-3); }
+.sb-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.sb-actions { margin-left: auto; display: flex; gap: 8px; }
+.sb-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.sb-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.sb-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell:hover { background: var(--pq-surface-2); }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp tbody tr.zero > td { color: var(--pq-ink-4); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+.tbl-erp tfoot td { background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink); padding: 6px 12px; font-weight: 700; font-size: 12px; position: sticky; bottom: 0; z-index: 2; }
+.tbl-erp tfoot td.num { font-family: var(--pq-mono); text-align: right; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+@media (max-width: 1280px) {
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .sb-head { padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+
+{% set total_cnt = balances|length %}
+{% set zero_cnt = balances|selectattr('qty','equalto',0)|list|length %}
+{% set positive_cnt = total_cnt - zero_cnt %}
+{% set sum_value = balances|sum(attribute='value') if balances else 0 %}
+{% set sum_qty = balances|sum(attribute='qty') if balances else 0 %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="sb-page">
+
+      <div class="sb-head" data-dn="sb:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재고 현황</b></div>
+          <div class="sb-title">재고 현황</div>
+        </div>
+        <div class="sb-meta">
+          <span>품목 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span></span>
+          <span>·</span>
+          <span>최종 갱신 <span class="pm-num">{{ last_update or '—' }}</span></span>
+        </div>
+        <div class="sb-actions">
+          <a class="btn-ghost" href="/stock/balances/export.xlsx">⤓ Excel</a>
+          <a class="btn-ghost" href="/stock/movements">📊 이동 이력</a>
+          <a class="btn-ghost" href="/stock/safety">🎯 안전재고 설정</a>
+          <a class="btn-ghost" href="/stock/reorder-recommendations">🔄 재주문 권고</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="sb:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">집계 품목</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
+          <div class="sub">최근 200건 표시</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">잔고 양수</div>
+          <div class="v">{{ '{:,}'.format(positive_cnt) }}<span class="u">종</span></div>
+          <div class="sub">재고 보유</div>
+        </div>
+        <div class="kpi-cell warn">
+          <div class="l">잔고 0</div>
+          <div class="v">{{ '{:,}'.format(zero_cnt) }}<span class="u">종</span></div>
+          <div class="sub">재발주 검토 대상</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 수량</div>
+          <div class="v">{{ '{:,.0f}'.format(sum_qty) }}<span class="u">단위</span></div>
+          <div class="sub">합산 (단위 혼합)</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 재고가치</div>
+          <div class="v">
+            {% if sum_value >= 100000000 %}
+              {{ '{:.2f}'.format(sum_value / 100000000) }}<span class="u">억</span>
+            {% elif sum_value >= 10000 %}
+              {{ '{:,.0f}'.format(sum_value / 10000) }}<span class="u">만</span>
+            {% else %}
+              {{ '{:,.0f}'.format(sum_value) }}<span class="u">원</span>
+            {% endif %}
+          </div>
+          <div class="sub">qty × std_price</div>
+        </div>
+      </div>
+
+      {% if balances %}
+      <div class="tbl-zone" data-dn="sb:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:160px;">코드</th>
+              <th>자재명</th>
+              <th>규격</th>
+              <th class="num" style="width:100px;">현재 수량</th>
+              <th class="center" style="width:70px;">단위</th>
+              <th class="num" style="width:110px;">표준 단가</th>
+              <th class="num" style="width:130px;">재고 가치</th>
+              <th class="center" style="width:130px;">최종 이동</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for b in balances %}
+            <tr class="{% if b.qty == 0 %}zero{% endif %}" onclick="location.href='/parts/{{ b.part_id }}'">
+              <td class="code">{{ b.part_no|default('—') }}</td>
+              <td><b>{{ b.part_name|default('—') }}</b></td>
+              <td class="mute">{{ b.spec|default('—') }}</td>
+              <td class="num">{{ '{:,.0f}'.format(b.qty|default(0)) }}</td>
+              <td class="center mute">{{ b.unit|default('EA') }}</td>
+              <td class="num">{% if b.unit_price %}{{ '{:,.0f}'.format(b.unit_price) }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td class="num"><b>{{ '{:,.0f}'.format(b.value|default(0)) }}</b></td>
+              <td class="center mute" style="font-size:11px;">{{ (b.last_movement_at or '—')[:10] if b.last_movement_at else '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">합계 ({{ '{:,}'.format(total_cnt) }}종 · 양수 {{ '{:,}'.format(positive_cnt) }} · 0 {{ '{:,}'.format(zero_cnt) }})</td>
+              <td class="num">{{ '{:,.0f}'.format(sum_qty) }}</td>
+              <td colspan="2"></td>
+              <td class="num">{{ '{:,.0f}'.format(sum_value) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="sb:empty">
+        <div class="ico">📦</div>
+        <div class="ttl">재고 잔고 데이터 없음</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

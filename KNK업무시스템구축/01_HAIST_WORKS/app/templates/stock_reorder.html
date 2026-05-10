@@ -1,42 +1,202 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>재발주 추천 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재발주 권고 · KNK HAIST WORKS</title>
+
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 재발주 권고 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재발주 추천</b></div><h1 class="page-title">📦 재발주 <em>추천</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">재발주점 미달 자재 + 권장 발주량 + 우선순위(HIGH/MID/LOW)</div></div>
-    <a class="btn btn-secondary" href="/stock/safety">🛡 안전재고</a>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.sr-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sr-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sr-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.sr-head .crumb a { color: var(--pq-ink-2); }
+.sr-head .crumb b { color: var(--pq-ink); }
+.sr-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.sr-meta { font-size: 12px; color: var(--pq-ink-3); }
+.sr-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.sr-actions { margin-left: auto; display: flex; gap: 8px; }
+.sr-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.sr-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
+.sr-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.sr-actions a.btn-dark { background: var(--pq-ink); color: #fff; padding: 0 14px; font-weight: 600; }
+.sr-actions a.btn-dark:hover { background: #1e293b; }
 
-  <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">🔴 HIGH</div><div class="kpi-num" style="color:var(--knk-red);">{{ high_cnt }}</div><div class="kpi-trend alert">즉시 발주</div></div>
-    <div class="kpi-card"><div class="kpi-label">🟡 MID</div><div class="kpi-num" style="color:var(--warn);">{{ mid_cnt }}</div><div class="kpi-trend neutral">계획 발주</div></div>
-    <div class="kpi-card"><div class="kpi-label">🟢 LOW</div><div class="kpi-num" style="color:var(--success);">{{ low_cnt }}</div><div class="kpi-trend up">여유</div></div>
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.high .v { color: var(--pq-danger); }
+.kpi-cell.mid .v { color: var(--pq-warn); }
+.kpi-cell.low .v { color: var(--pq-info); }
 
-  <div style="margin-top: var(--space-5);"></div>
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th class="center">우선순위</th><th>코드</th><th>자재명</th><th class="num">현재고</th><th class="num">재발주점</th><th class="num">권장 발주</th><th class="center">액션</th></tr></thead>
-      <tbody>
-      {% for it in items %}
-        <tr>
-          <td class="center"><span class="pill {% if it.priority == 'HIGH' %}pill-danger{% elif it.priority == 'MID' %}pill-warn{% else %}pill-progress{% endif %}" style="font-weight:800;">{{ it.priority }}</span></td>
-          <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.code|default('—') }}</td>
-          <td><b>{{ it.name|default('—') }}</b></td>
-          <td class="num" style="font-weight:700;color:var(--knk-red);">{{ '{:,.0f}'.format(it.stock_qty|default(0)) }}</td>
-          <td class="num">{{ '{:,.0f}'.format(it.reorder_point|default(0)) }}</td>
-          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(it.reorder_qty|default(0)) }}</td>
-          <td class="center"><a class="btn btn-primary" href="/po/new?part_id={{ it.id }}" style="padding:5px 10px;font-size:11px;">＋ 발주</a></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">✓</div><div class="ttl">재발주 필요 자재가 없습니다</div><div style="font-size:13px;color:var(--mute);">모든 자재가 안전 범위 내에 있습니다.</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1200px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 36px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-pri { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; }
+.chip-pri::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-pri.HIGH { background: var(--pq-danger-soft); color: var(--pq-danger); }
+.chip-pri.MID { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-pri.LOW { background: var(--pq-info-soft); color: var(--pq-info); }
+
+.shortage { color: var(--pq-danger); font-weight: 700; }
+.btn-po-line {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+  background: var(--pq-ink); color: #fff; font-size: 11px; font-weight: 600;
+  border-radius: 4px; text-decoration: none;
+}
+.btn-po-line:hover { background: #1e293b; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .sr-head { padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+
+{% set total_cnt = items|length %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="sr-page">
+
+      <div class="sr-head" data-dn="sr:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재발주 권고</b></div>
+          <div class="sr-title">재발주 권고</div>
+        </div>
+        <div class="sr-meta">
+          <span>대상 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
+          <span>·</span>
+          <span style="color: var(--pq-danger);">긴급 {{ high_cnt }}</span>
+        </div>
+        <div class="sr-actions">
+          <a class="btn-ghost" href="/stock/safety">🎯 안전재고 설정</a>
+          <a class="btn-ghost" href="/stock/balances">📦 재고 현황</a>
+          <a class="btn-dark" href="/po/new">＋ 신규 발주</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="sr:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체 권고</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
+          <div class="sub">재발주점 미달 자재</div>
+        </div>
+        <div class="kpi-cell high">
+          <div class="l">HIGH 우선</div>
+          <div class="v">{{ high_cnt }}<span class="u">종</span></div>
+          <div class="sub">부족율 ≥ 50%</div>
+        </div>
+        <div class="kpi-cell mid">
+          <div class="l">MID 우선</div>
+          <div class="v">{{ mid_cnt }}<span class="u">종</span></div>
+          <div class="sub">부족율 20~50%</div>
+        </div>
+        <div class="kpi-cell low">
+          <div class="l">LOW 우선</div>
+          <div class="v">{{ low_cnt }}<span class="u">종</span></div>
+          <div class="sub">부족율 < 20%</div>
+        </div>
+      </div>
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="sr:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th class="center" style="width:80px;">우선</th>
+              <th style="width:160px;">코드</th>
+              <th>자재명</th>
+              <th class="mute" style="width:140px;">제조사</th>
+              <th class="num" style="width:90px;">현재 재고</th>
+              <th class="num" style="width:90px;">안전재고</th>
+              <th class="num" style="width:90px;">재발주점</th>
+              <th class="num" style="width:90px;">부족분</th>
+              <th class="num" style="width:90px;">권장 발주</th>
+              <th class="center" style="width:60px;">단위</th>
+              <th class="center" style="width:90px;">액션</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for it in items %}
+            {% set on = it.on_hand|default(0)|float %}
+            {% set safety = it.safety|default(0)|float %}
+            {% set rop = it.rop|default(0)|float %}
+            {% set roq = it.roq|default(0)|float %}
+            {% set shortage = (rop - on) if rop > on else 0 %}
+            <tr onclick="location.href='/parts/{{ it.part_id }}'">
+              <td class="center"><span class="chip-pri {{ it.priority }}">{{ it.priority }}</span></td>
+              <td class="code">{{ it.part_no }}</td>
+              <td><b>{{ it.part_name }}</b></td>
+              <td class="mute" style="font-size:11.5px;">{{ it.maker|default('—') }}</td>
+              <td class="num">{{ '{:,.0f}'.format(on) }}</td>
+              <td class="num">{{ '{:,.0f}'.format(safety) }}</td>
+              <td class="num">{{ '{:,.0f}'.format(rop) }}</td>
+              <td class="num shortage">{{ '{:,.0f}'.format(shortage) }}</td>
+              <td class="num"><b>{{ '{:,.0f}'.format(roq) }}</b></td>
+              <td class="center mute">{{ it.unit|default('EA') }}</td>
+              <td class="center">
+                <a class="btn-po-line" href="/po/new?part_id={{ it.part_id }}&qty={{ '{:.0f}'.format(roq) }}" onclick="event.stopPropagation();">발주 →</a>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="sr:empty">
+        <div class="ico">✓</div>
+        <div class="ttl">재발주 권고 없음</div>
+        <div style="font-size:12.5px; color:var(--pq-ink-3);">모든 자재가 재발주점 이상 보유 상태</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

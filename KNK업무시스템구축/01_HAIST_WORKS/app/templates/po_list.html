@@ -6,172 +6,433 @@
 <title>발주 목록 · KNK HAIST WORKS</title>
 
 {# ============================================================
-   po_list.html — 시안 master_D_list_po_v5H5.html 1:1 STANDALONE
-   2026-05-01 v5H5 standalone (자재 발주 리스트)
-   원본: 05_.../D_리스트/master_D_list_po_v5H5.html
-   레거시 백업: _legacy_po_list_v4.html
+   po_list.html — v5H226z54 (2026-05-10) 시안1 ERP 적용
+   실무팀3 (자재구매센터) 1순위 페이지.
+   - chip-po (PO_STATUSES 5종 매핑)
+   - .filterbar 칩 + 검색
+   - .tbl-dense (32px 행) + sticky thead + zebra + tfoot 합계
+   - ?debug=1 영역 라벨링
+   - 빨강 ≤1개 (warn KPI 카드만)
    ============================================================ #}
 
-<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260510v5H226z54" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); font-feature-settings: 'tnum'; }
-a { text-decoration: none; color: inherit; }
-button { font-family: inherit; cursor: pointer; }
+/* ── 자재구매 ERP 토큰 (시안1 / tokens.css) ──────────────────── */
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-line-3: #cbd5e1;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
 
-.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.crumbs { font-size: 12px; color: var(--mute); }
-.crumbs b { color: var(--ink); }
-.crumbs a { color: var(--amber-deep); }
-.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--ink); }
-.page-title em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.page-actions { display: flex; gap: 10px; }
-.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-amber); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary:hover { transform: translateY(-1px); }
-.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 16px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-secondary:hover { background: var(--amber-glow); }
+/* ── PageHead 스트립 ────────────────────────────────────────── */
+.po-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.po-head {
+  padding: 14px 24px 12px; background: var(--pq-surface);
+  border-bottom: 1px solid var(--pq-line);
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.po-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
+.po-head .crumb a { color: var(--pq-ink-2); }
+.po-head .crumb b { color: var(--pq-ink); }
+.po-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
+.po-meta {
+  font-size: 12px; color: var(--pq-ink-3); display: inline-flex; gap: 8px; align-items: center;
+}
+.po-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.po-meta .pm-warn { color: var(--pq-danger); font-weight: 700; }
+.po-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.po-actions .btn-ghost {
+  height: 32px; padding: 0 12px; background: transparent; border: 1px solid var(--pq-line-2);
+  border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--pq-ink-2);
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer;
+}
+.po-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
+.po-actions .btn-dark {
+  height: 32px; padding: 0 14px; background: var(--pq-ink); border: 0; border-radius: 8px;
+  font-size: 12.5px; font-weight: 600; color: #fff; display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none; cursor: pointer;
+}
+.po-actions .btn-dark:hover { background: #1e293b; }
 
-.summary-row { margin: 0 var(--content-pad) var(--space-4); display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); }
-.summary-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); cursor: pointer; transition: all .18s; text-decoration: none; color: inherit; display: block; }
-.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--amber); }
-.summary-card.active { background: var(--amber-glow); border-color: var(--amber); }
-.summary-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
-.summary-card .num { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; }
-.summary-card.warn .num { color: var(--warn); }
-.summary-card.success .num { color: var(--success); }
+/* ── KPI Strip (8칸: 전체/4 상태/금액/평균/지연) ─────────────── */
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 0;
+  background: var(--pq-surface); border-bottom: 1px solid var(--pq-line);
+}
+.kpi-cell {
+  padding: 10px 14px; border-right: 1px solid var(--pq-line);
+  text-decoration: none; color: inherit; transition: background .12s;
+  position: relative;
+}
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell:hover { background: var(--pq-surface-2); }
+.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v {
+  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
+  font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px;
+  display: flex; align-items: baseline; gap: 3px;
+}
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.warn .v { color: var(--pq-danger); }
+.kpi-cell.ok .v { color: var(--pq-ok); }
 
-.toolbar { margin: 0 var(--content-pad); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.filter-btn { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 13px; font-size: 12.5px; cursor: pointer; font-weight: 500; color: var(--ink); text-decoration: none; }
-.filter-btn.active { background: var(--amber-glow); border-color: var(--amber); font-weight: 600; }
-.toolbar .spacer { flex: 1; min-width: 12px; }
-.toolbar .search { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; font-size: 13px; min-width: 220px; font-family: inherit; color: var(--ink); }
+/* ── FilterBar ─────────────────────────────────────────────── */
+.filterbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 24px; background: var(--pq-surface);
+  border-bottom: 1px solid var(--pq-line);
+}
+.filterbar .fb-label {
+  font-size: 11px; color: var(--pq-ink-3); font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px;
+}
+.fb-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+  background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px;
+  font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500;
+  text-decoration: none;
+}
+.fb-chip:hover { border-color: var(--pq-line-3); background: var(--pq-surface-3); }
+.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.fb-chip .fb-x { opacity: 0.7; font-size: 11px; }
+.fb-divider { width: 1px; height: 18px; background: var(--pq-line-2); margin: 0 4px; }
+.fb-search-wrap { position: relative; margin-left: 8px; }
+.fb-search-wrap .fb-ic {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; color: var(--pq-ink-4); pointer-events: none;
+}
+.fb-search {
+  height: 28px; padding: 0 10px 0 28px;
+  border: 1px solid var(--pq-line-2); border-radius: 6px;
+  font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink);
+  min-width: 220px; font-family: inherit;
+}
+.fb-search:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
+.fb-go {
+  height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2);
+  border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer;
+}
+.fb-go:hover { background: var(--pq-surface-3); }
+.fb-result {
+  margin-left: auto; font-size: 11px; color: var(--pq-ink-3);
+  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
+}
 
-.table-wrap { margin: var(--space-3) var(--content-pad) var(--space-7); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
-table { width: 100%; font-size: 13px; border-collapse: collapse; }
-thead th { text-align: left; padding: var(--space-3) var(--space-4); font-weight: 700; font-size: 11px; color: var(--amber-deep); border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
-thead th.num, td.num { text-align: right; }
-thead th.center, td.center { text-align: center; }
-tbody td { padding: 13px var(--space-4); border-bottom: 1px solid var(--line); color: var(--ink); }
-tbody tr { cursor: pointer; transition: background .12s; }
-tbody tr:hover { background: var(--amber-glow); }
-td.code { font-family: monospace; font-weight: 700; color: var(--amber-deep); }
-td .small { display: block; font-size: 11px; color: var(--mute); margin-top: 2px; }
-td.amount { font-weight: 700; }
+/* ── Dense table (시안1) ────────────────────────────────────── */
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--pq-surface); min-width: 1100px;
+}
+.tbl-erp thead th {
+  position: sticky; top: 0; z-index: 3;
+  height: 32px; padding: 6px 12px;
+  background: var(--pq-surface); color: var(--pq-ink-3);
+  font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  text-align: left; border-bottom: 1px solid var(--pq-line-2);
+}
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td {
+  height: 32px; padding: 4px 12px;
+  border-bottom: 1px solid var(--pq-line); color: var(--pq-ink);
+  vertical-align: middle; font-size: 12.5px;
+}
+.tbl-erp tbody td.num {
+  font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right;
+}
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code {
+  font-family: var(--pq-mono); font-weight: 700;
+}
+.tbl-erp tbody tr { transition: background-color .1s ease; cursor: pointer; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); }
+.tbl-erp tbody tr:hover:nth-child(even) > td { background: var(--pq-surface-3); }
+.tbl-erp .vendor-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tbl-erp .vendor-line b { font-weight: 600; color: var(--pq-ink); }
+.tbl-erp .proj-line { display: flex; align-items: center; gap: 6px; }
+.tbl-erp .mgmt-no {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  background: var(--pq-ink); color: #fff; border-radius: 4px;
+}
+.tbl-erp .mute { color: var(--pq-ink-4); }
 
-.pill { display: inline-block; padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
-.pill-draft { background: var(--paper-2); color: var(--mute); }
-.pill-progress { background: var(--amber-glow); color: var(--amber-deep); }
-.pill-warn { background: rgba(201,125,63,0.12); color: var(--warn); border: 1px solid var(--warn); }
-.pill-done { background: var(--success); color: white; }
-.pill-cancel { background: rgba(165,40,44,0.08); color: var(--knk-red); }
+/* tfoot 합계 */
+.tbl-erp tfoot td {
+  height: 34px; padding: 6px 12px;
+  background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink);
+  color: var(--pq-ink); font-weight: 700; font-size: 12px;
+  position: sticky; bottom: 0; z-index: 2;
+}
+.tbl-erp tfoot td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
 
-.empty { padding: 60px 20px; text-align: center; color: var(--mute); }
-.empty .ico { font-size: 48px; margin-bottom: 12px; }
-.empty .ttl { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
-.empty .sub { font-size: 13px; }
+/* ── chip-po (PO_STATUSES 매핑) ─────────────────────────────── */
+.chip-po {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px;
+  font-size: 11px; font-weight: 600; border-radius: 4px;
+  white-space: nowrap;
+}
+.chip-po::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.chip-po.s-draft     { background: var(--pq-surface-3);  color: var(--pq-ink-3); }
+.chip-po.s-issued    { background: var(--pq-purple-soft); color: var(--pq-purple); }
+.chip-po.s-partial   { background: var(--pq-warn-soft);   color: var(--pq-warn); }
+.chip-po.s-received  { background: var(--pq-ink);         color: #fff; }
+.chip-po.s-cancelled { background: var(--pq-surface-3);   color: var(--pq-ink-4); text-decoration: line-through; }
 
-@media (max-width: 1280px) { .summary-row { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 1023px) { .summary-row { grid-template-columns: repeat(2, 1fr); } }
+/* ── Empty state ────────────────────────────────────────────── */
+.po-empty {
+  padding: 64px 20px; text-align: center; color: var(--pq-ink-3);
+  background: var(--pq-surface);
+}
+.po-empty .ico { font-size: 40px; margin-bottom: 10px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin-bottom: 4px; }
+.po-empty .sub { font-size: 12.5px; color: var(--pq-ink-3); }
+.po-empty .cta { margin-top: 16px; }
+
+/* ── 반응형 ─────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .kpi-strip { grid-template-columns: repeat(4, 1fr); }
+  .kpi-cell:nth-child(4n) { border-right: 0; }
+  .kpi-cell:nth-child(-n+4) { border-bottom: 1px solid var(--pq-line); }
+}
+@media (max-width: 1023px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .kpi-cell { border-right: none; border-bottom: 1px solid var(--pq-line); }
+  .kpi-cell:nth-child(2n) { border-right: 0; }
+  .po-head { padding: 12px 16px; gap: 10px; }
+  .filterbar { padding: 10px 16px; }
+  .tbl-erp { min-width: 720px; }
+}
 </style>
 </head>
 <body>
 
+{# ── Jinja: 카운트 / 합계 계산 ─────────────────────────────── #}
 {% set total_cnt = orders|length %}
 {% set draft_cnt = orders|selectattr('status','equalto','작성중')|list|length %}
-{% set issued_cnt = orders|selectattr('status','equalto','발행')|list|length %}
-{% set shipping_cnt = orders|selectattr('status','equalto','배송중')|list|length %}
-{% set done_cnt = orders|selectattr('status','equalto','입고완료')|list|length %}
+{% set issued_cnt = orders|selectattr('status','equalto','발주완료')|list|length %}
+{% set partial_cnt = orders|selectattr('status','equalto','부분입고')|list|length %}
+{% set received_cnt = orders|selectattr('status','equalto','입고완료')|list|length %}
+{% set cancelled_cnt = orders|selectattr('status','equalto','취소')|list|length %}
+{% set in_progress_cnt = draft_cnt + issued_cnt + partial_cnt %}
+{% set sum_amount = orders|sum(attribute='total_amount') if orders else 0 %}
+{% set avg_amount = (sum_amount / total_cnt) if total_cnt else 0 %}
 
 <div class="app">
   {% set active_tab = "logi" %}
   {% include "_v5_partials/chrome.html" with context %}
+
   <main class="main">
+    <div class="po-page">
 
-    <div class="page-head">
-      <div>
-        <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>발주 목록</b></div>
-        <h1 class="page-title">발주 <em>목록</em></h1>
+      {# ── PageHead ─────────────────────────────────────────── #}
+      <div class="po-head" data-dn="po:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>발주 목록</b></div>
+          <div class="po-title">발주 관리</div>
+        </div>
+        <div class="po-meta">
+          <span>전체 <span class="pm-num">{{ total_cnt }}</span>건</span>
+          <span>·</span>
+          <span>진행 <span class="pm-num">{{ in_progress_cnt }}</span></span>
+          <span>·</span>
+          <span>완료 <span class="pm-num">{{ received_cnt }}</span></span>
+          {% if cancelled_cnt %}
+          <span>·</span>
+          <span class="mute">취소 {{ cancelled_cnt }}</span>
+          {% endif %}
+        </div>
+        <div class="po-actions">
+          <a class="btn-ghost" href="/po/export.xlsx" title="엑셀 다운로드">⤓ Excel</a>
+          <a class="btn-ghost" href="/po">↻ 새로고침</a>
+          <a class="btn-dark" href="/po/new">＋ 신규 발주</a>
+        </div>
       </div>
-      <div class="page-actions">
-        <a class="btn btn-secondary" href="/po/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
-        <a class="btn-secondary" href="/po">↻ 새로고침</a>
-        <a class="btn-primary" href="/po/new">＋ 새 발주서 작성</a>
+
+      {# ── KPI Strip ────────────────────────────────────────── #}
+      <div class="kpi-strip" data-dn="po:kpi" data-dn-tone="green">
+        <a class="kpi-cell {% if not status %}active{% endif %}" href="/po{% if q %}?q={{ q }}{% endif %}">
+          <div class="l">전체</div>
+          <div class="v">{{ total_cnt }}<span class="u">건</span></div>
+          <div class="sub">필터 미적용</div>
+        </a>
+        <a class="kpi-cell {% if status=='작성중' %}active{% endif %}" href="/po?status=작성중{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">작성중</div>
+          <div class="v">{{ draft_cnt }}<span class="u">건</span></div>
+          <div class="sub">초안 / 발주 전</div>
+        </a>
+        <a class="kpi-cell {% if status=='발주완료' %}active{% endif %}" href="/po?status=발주완료{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">발주완료</div>
+          <div class="v">{{ issued_cnt }}<span class="u">건</span></div>
+          <div class="sub">공급사 통보</div>
+        </a>
+        <a class="kpi-cell {% if status=='부분입고' %}active{% endif %}" href="/po?status=부분입고{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">부분입고</div>
+          <div class="v">{{ partial_cnt }}<span class="u">건</span></div>
+          <div class="sub">잔량 추적 중</div>
+        </a>
+        <a class="kpi-cell ok {% if status=='입고완료' %}active{% endif %}" href="/po?status=입고완료{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">입고완료</div>
+          <div class="v">{{ received_cnt }}<span class="u">건</span></div>
+          <div class="sub">검수 종결</div>
+        </a>
+        <a class="kpi-cell {% if status=='취소' %}active{% endif %}" href="/po?status=취소{% if q %}&q={{ q }}{% endif %}">
+          <div class="l">취소</div>
+          <div class="v">{{ cancelled_cnt }}<span class="u">건</span></div>
+          <div class="sub">반려 / 폐기</div>
+        </a>
+        <div class="kpi-cell">
+          <div class="l">{% if status %}필터 합계{% else %}총 발주액{% endif %}</div>
+          <div class="v">
+            {% if sum_amount >= 100000000 %}
+              {{ '{:.2f}'.format(sum_amount / 100000000) }}<span class="u">억</span>
+            {% elif sum_amount >= 10000 %}
+              {{ '{:,.0f}'.format(sum_amount / 10000) }}<span class="u">만</span>
+            {% else %}
+              {{ '{:,.0f}'.format(sum_amount) }}<span class="u">원</span>
+            {% endif %}
+          </div>
+          <div class="sub">현재 보기 기준</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">평균 발주액</div>
+          <div class="v">
+            {% if avg_amount >= 10000 %}
+              {{ '{:,.0f}'.format(avg_amount / 10000) }}<span class="u">만</span>
+            {% else %}
+              {{ '{:,.0f}'.format(avg_amount) }}<span class="u">원</span>
+            {% endif %}
+          </div>
+          <div class="sub">건당</div>
+        </div>
       </div>
-    </div>
 
-    <div class="summary-row">
-      <a class="summary-card {% if not status %}active{% endif %}" href="/po">
-        <div class="lbl">전체</div><div class="num">{{ total_cnt }}</div>
-      </a>
-      <a class="summary-card {% if status=='작성중' %}active{% endif %}" href="/po?status=작성중">
-        <div class="lbl">작성중</div><div class="num">{{ draft_cnt }}</div>
-      </a>
-      <a class="summary-card warn {% if status=='발행' %}active{% endif %}" href="/po?status=발행">
-        <div class="lbl">발행</div><div class="num">{{ issued_cnt }}</div>
-      </a>
-      <a class="summary-card {% if status=='배송중' %}active{% endif %}" href="/po?status=배송중">
-        <div class="lbl">배송중</div><div class="num">{{ shipping_cnt }}</div>
-      </a>
-      <a class="summary-card success {% if status=='입고완료' %}active{% endif %}" href="/po?status=입고완료">
-        <div class="lbl">입고완료</div><div class="num">{{ done_cnt }}</div>
-      </a>
-    </div>
+      {# ── FilterBar ───────────────────────────────────────── #}
+      <form class="filterbar" method="get" action="/po" data-dn="po:filter" data-dn-tone="blue">
+        <span class="fb-label">필터</span>
+        <a class="fb-chip {% if not status %}is-active{% endif %}" href="/po{% if q %}?q={{ q }}{% endif %}">전체</a>
+        <a class="fb-chip {% if status=='작성중' %}is-active{% endif %}" href="/po?status=작성중{% if q %}&q={{ q }}{% endif %}">작성중</a>
+        <a class="fb-chip {% if status=='발주완료' %}is-active{% endif %}" href="/po?status=발주완료{% if q %}&q={{ q }}{% endif %}">발주완료</a>
+        <a class="fb-chip {% if status=='부분입고' %}is-active{% endif %}" href="/po?status=부분입고{% if q %}&q={{ q }}{% endif %}">부분입고</a>
+        <a class="fb-chip {% if status=='입고완료' %}is-active{% endif %}" href="/po?status=입고완료{% if q %}&q={{ q }}{% endif %}">입고완료</a>
+        <a class="fb-chip {% if status=='취소' %}is-active{% endif %}" href="/po?status=취소{% if q %}&q={{ q }}{% endif %}">취소</a>
+        <span class="fb-divider"></span>
+        <input type="hidden" name="status" value="{{ status|default('') }}">
+        <div class="fb-search-wrap">
+          <span class="fb-ic">⌕</span>
+          <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="발주번호 · 거래처 · 프로젝트 검색" />
+        </div>
+        <button type="submit" class="fb-go">검색</button>
+        {% if q or status %}
+          <a class="fb-chip" href="/po" style="border-style: dashed;">↺ 필터 해제</a>
+        {% endif %}
+        <span class="fb-result">{{ total_cnt }}건 표시</span>
+      </form>
 
-    <form class="toolbar" method="get" action="/po">
-      {% if status %}<a class="filter-btn active" href="/po?q={{ q }}">상태 · {{ status }} <span style="color:var(--mute);margin-left:4px;">×</span></a>{% endif %}
-      <input type="hidden" name="status" value="{{ status }}">
-      <div class="spacer"></div>
-      <input class="search" type="search" name="q" value="{{ q }}" placeholder="발주번호 / 거래처 / 자재명…" />
-      <button type="submit" class="btn-secondary">검색</button>
-    </form>
-
-    <div class="table-wrap">
+      {# ── 발주 표 ────────────────────────────────────────── #}
       {% if orders %}
-      <table>
-        <thead>
-          <tr>
-            <th>발주번호</th>
-            <th>거래처 · 프로젝트</th>
-            <th class="center">상태</th>
-            <th class="num">금액</th>
-            <th class="center">발주일</th>
-            <th class="center">예상 입고</th>
-            <th>담당</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for o in orders %}
-          <tr onclick="location.href='/po/{{ o.id }}'">
-            <td class="code">{{ o.po_number|default('—') }}</td>
-            <td>
-              <b>{{ o.supplier_name|default('(거래처 없음)') }}</b>
-              {% if o.mgmt_code or o.project_name %}<span class="small">{% if o.mgmt_code %}{{ o.mgmt_code }} · {% endif %}{{ o.project_name|default('') }}</span>{% endif %}
-            </td>
-            <td class="center">
-              {% set st = o.status|default('작성중') %}
-              <span class="pill {% if st == '작성중' %}pill-draft{% elif st == '입고완료' %}pill-done{% elif st == '취소' %}pill-cancel{% elif st in ('발행','배송중') %}pill-progress{% else %}pill-warn{% endif %}">{{ st }}</span>
-            </td>
-            <td class="num amount">
-              {% if o.currency and o.currency != 'KRW' %}{{ o.currency }} {% endif %}{{ '{:,.0f}'.format(o.total_amount|default(0)) }}{% if not o.currency or o.currency == 'KRW' %}원{% endif %}
-            </td>
-            <td class="center">{{ o.order_date|default('—') }}</td>
-            <td class="center">{{ o.expected_date|default('—') }}</td>
-            <td>{{ o.creator_name|default('—') }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      <div class="tbl-zone" data-dn="po:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th style="width:130px;">발주번호</th>
+              <th class="center" style="width:80px;">발주일</th>
+              <th style="width:180px;">공급사</th>
+              <th>프로젝트 · 관리코드</th>
+              <th class="num" style="width:130px;">금액</th>
+              <th class="center" style="width:90px;">예상 입고</th>
+              <th class="center" style="width:104px;">상태</th>
+              <th style="width:80px;">담당</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for o in orders %}
+            {% set st = o.status|default('작성중') %}
+            {% set st_cls =
+                'chip-po s-draft' if st == '작성중' else
+                'chip-po s-issued' if st == '발주완료' else
+                'chip-po s-partial' if st == '부분입고' else
+                'chip-po s-received' if st == '입고완료' else
+                'chip-po s-cancelled' if st == '취소' else
+                'chip-po s-draft' %}
+            <tr onclick="location.href='/po/{{ o.id }}'">
+              <td class="code">{{ o.po_number|default('—') }}</td>
+              <td class="center mute">{{ o.order_date|default('—') }}</td>
+              <td>
+                <div class="vendor-line">
+                  <b>{{ o.supplier_name|default('(거래처 없음)') }}</b>
+                </div>
+              </td>
+              <td>
+                <div class="proj-line">
+                  {% if o.mgmt_code %}<span class="mgmt-no">{{ o.mgmt_code }}</span>{% endif %}
+                  {% if o.project_name %}<span>{{ o.project_name }}</span>{% else %}<span class="mute">—</span>{% endif %}
+                </div>
+              </td>
+              <td class="num">
+                {% if o.currency and o.currency != 'KRW' %}<span class="mute" style="font-size:11px;">{{ o.currency }}</span> {% endif %}<b>{{ '{:,.0f}'.format(o.total_amount|default(0)) }}</b>{% if not o.currency or o.currency == 'KRW' %}<span class="mute" style="font-size:11px;"> 원</span>{% endif %}
+              </td>
+              <td class="center mute">{{ o.expected_date|default('—') }}</td>
+              <td class="center"><span class="{{ st_cls }}">{{ st }}</span></td>
+              <td>{{ o.creator_name|default('—') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4">합계 ({{ total_cnt }}건{% if status %} · {{ status }}{% endif %})</td>
+              <td class="num">
+                {% if sum_amount >= 100000000 %}
+                  {{ '{:.2f}'.format(sum_amount / 100000000) }} 억
+                {% else %}
+                  {{ '{:,.0f}'.format(sum_amount) }} 원
+                {% endif %}
+              </td>
+              <td colspan="3" style="color: var(--pq-ink-3); font-weight: 500;">
+                평균 {{ '{:,.0f}'.format(avg_amount / 10000) if avg_amount >= 10000 else '{:,.0f}'.format(avg_amount) }}{{ '만원' if avg_amount >= 10000 else '원' }}
+                {% if partial_cnt %} · 부분입고 {{ partial_cnt }}건{% endif %}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
       {% else %}
-      <div class="empty">
+      <div class="po-empty" data-dn="po:empty">
         <div class="ico">📋</div>
         <div class="ttl">{% if q or status %}검색 결과 없음{% else %}등록된 발주서가 없습니다{% endif %}</div>
-        <div class="sub">{% if q or status %}필터를 해제하거나 다른 조건으로 검색해보세요{% else %}우상단 <b>＋ 새 발주서 작성</b> 버튼으로 첫 발주서를 만들어보세요{% endif %}</div>
-        <div style="margin-top:16px;"><a class="btn-primary" href="/po/new">＋ 새 발주서 작성</a></div>
+        <div class="sub">
+          {% if q or status %}필터를 해제하거나 다른 조건으로 검색해보세요.{% else %}우상단 <b>＋ 신규 발주</b> 버튼으로 첫 발주서를 만들어보세요.{% endif %}
+        </div>
+        <div class="cta"><a class="btn-dark" href="/po/new">＋ 신규 발주</a></div>
       </div>
       {% endif %}
+
     </div>
   </main>
 </div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>
