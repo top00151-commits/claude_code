@@ -8,6 +8,15 @@
 <link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z72: 시안1 토큰 + .mgmt-pill — consumables v1+v2 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+.mgmt-pill { display:inline-flex; align-items:center; justify-content:center; padding:4px 12px; border-radius:6px; background:var(--qv-ink); color:#fff; font-family:monospace; font-size:13px; font-weight:700; letter-spacing:0.5px; box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; }
+.mgmt-pill.sm { padding:2px 8px; font-size:11.5px; }
+@media (max-width:1100px){ .page-title{font-size:22px !important;} .summary-row{grid-template-columns:repeat(3,1fr) !important;} }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); }
 a { text-decoration: none; color: inherit; }
@@ -46,11 +55,11 @@ table.list tbody tr:hover { background: var(--amber-glow); }
 <div class="app">
   {% set active_tab = "sales" %}
   {% include "_v5_partials/chrome.html" with context %}
-  <main class="main">
-    <div class="page-head">
+  <main class="main" data-dn="main" data-dn-tone="amber">
+    <div class="page-head" data-dn="page-head">
       <div>
-        <div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>소모품 발주</b></div>
-        <h1 class="page-title">소모품 <em>발주</em></h1>
+        <div class="crumbs" data-dn="crumb"><a href="/logistics">자재구매센터</a> · <b>소모품 발주</b></div>
+        <h1 class="page-title" data-dn="title">소모품 <em>발주</em></h1>
       </div>
       <div>
         <a class="btn-primary" href="/consumables/new">＋ 새 소모품 발주</a>
@@ -64,7 +73,7 @@ table.list tbody tr:hover { background: var(--amber-glow); }
     {% set s_cnt = rows|selectattr('status','equalto','SHIPPED')|list|length %}
     {% set p_cnt = rows|selectattr('status','equalto','PAID')|list|length %}
     {% set x_cnt = rows|selectattr('status','equalto','CANCELLED')|list|length %}
-    <div class="summary-row">
+    <div class="summary-row" data-dn="summary-row" data-dn-tone="green">
       <a class="summary-card {% if not status %}active{% endif %}" href="/consumables">
         <div class="lbl">전체</div><div class="num">{{ total_cnt }}</div>
       </a>
@@ -106,7 +115,8 @@ table.list tbody tr:hover { background: var(--amber-glow); }
           <tbody>
           {% for r in groups[ym] %}
             <tr onclick="location.href='/consumables/{{ r.id }}'">
-              <td style="font-family:monospace;font-weight:700;color:var(--knk-red);">{{ r.mgmt_code or '—' }}</td>
+              {# v5H226z72: 관리코드 빨강 monospace → .mgmt-pill sm 잉크 알약 #}
+              <td><span class="mgmt-pill sm">{{ r.mgmt_code or '—' }}</span></td>
               <td>{{ r.co_no or '—' }}</td>
               <td>{{ r.customer_name or '—' }}</td>
               <td><span class="pill pill-{{ r.status|lower }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
