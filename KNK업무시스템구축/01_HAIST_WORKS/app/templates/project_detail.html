@@ -139,6 +139,24 @@ body.debug-on .page-head::before          { content: "📦 PAGE-HEAD";    backgr
 body.debug-on .detail-grid > :first-child::before { content: "📋 MAIN-CONTENT"; background: rgba(30,58,138,0.85); }
 body.debug-on .so-card::before            { content: "🧾 SO-CARD";      background: rgba(6,95,70,0.85); }
 body.debug-on .so-units-wrapper::before   { content: "📊 PARTS-TABLE";  background: rgba(124,58,237,0.85); }
+
+/* v5H226z42: PARTS 28컬럼 표 — 좌측 첫 3컬럼 sticky (#·사진·품명) — spec 03-project.md 명시 */
+/* 가로 스크롤 시 행 식별 유지. 컬럼 폭: # 30 / 사진 60 / 품명 200 (좌측 누적 0/30/90) */
+table.so-units.parts-excel thead th:nth-child(1),
+table.so-units.parts-excel tbody td:nth-child(1) { position: sticky; left: 0;     z-index: 4; }
+table.so-units.parts-excel thead th:nth-child(2),
+table.so-units.parts-excel tbody td:nth-child(2) { position: sticky; left: 30px;  z-index: 4; }
+table.so-units.parts-excel thead th:nth-child(3),
+table.so-units.parts-excel tbody td:nth-child(3) { position: sticky; left: 90px;  z-index: 4; }
+/* sticky 셀 배경 — zebra/hover/row-collapsed 동작 보존 (sticky 는 inherit 못 받음) */
+table.so-units.parts-excel tbody td:nth-child(-n+3) { background: #ffffff; }
+table.so-units.parts-excel tbody tr:nth-child(even) td:nth-child(-n+3) { background: #fafafa; }
+table.so-units.parts-excel tbody tr:hover td:nth-child(-n+3) { background: #fef9c3; }
+/* sticky thead 좌측 3개는 thead 위에 (행/열 sticky 교차 시 thead 우선) */
+table.so-units.parts-excel thead th:nth-child(-n+3) { z-index: 6; }
+/* 우측 경계 음영 — 좌측 고정·우측 스크롤 영역 구분 */
+table.so-units.parts-excel thead th:nth-child(3),
+table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rgba(0,0,0,0.18); }
 </style></head>
 <body>
 {% set s = stats or {} %}

@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-10 v5H226z40 (project_detail.html ?debug=1 영역 라벨링 + 1100px 반응형 분기)
+REM   LAST UPDATE: 2026-05-10 v5H226z42 (project_detail.html PARTS 28컬럼 표 좌측 첫 3컬럼 sticky)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z40]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z42]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z40  2026-05-10]
+echo    [v5H226z42  2026-05-10]
 echo ============================================================
 echo.
 
