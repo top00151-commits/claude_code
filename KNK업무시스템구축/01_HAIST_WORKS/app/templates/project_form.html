@@ -3,6 +3,13 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
+/* v5H226z55: 시안1 토큰 — project_form v1+v2 차수 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+@media (max-width:1100px){ .pf-row.three{grid-template-columns:repeat(2,1fr) !important;} }
 /* v5H76: 프로젝트 등록 폼 — 단정한 섹션형 레이아웃 (기본정보 → 고객·일정 → 금액·상태 → 비고) */
 .pf-wrap { max-width: 880px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
 .pf-hint { font-size: 12px; color: var(--mute); margin: var(--space-2) 0 var(--space-5); line-height: 1.6; }
@@ -33,7 +40,7 @@
 <body>
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
-<main class="main">
+<main class="main" data-dn="main" data-dn-tone="amber">
   {# v5H220: 진입 유형별 명확한 페이지 제목 — 사용자가 무엇을 등록 중인지 즉시 인식
      v5H221: CONSUMABLE 도 동일 폼 재활용 (제안서 일정·금액 섹션만 숨김) #}
   {% set _ptype_title = (project.project_type if project and project.project_type else (preset.project_type if preset and preset.project_type else 'NEW_EQUIP')) %}
