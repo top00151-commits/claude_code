@@ -144,7 +144,8 @@ body {
 .up-dday.future { background:#d1fae5; color:#065f46; }
 .up-info { flex:1; min-width:0; }
 .up-r1 { font-size:11.5px; display:flex; gap:6px; align-items:center; }
-.up-r1 .no { font-family:monospace; font-weight:700; color:#b91c1c; }
+/* v5H226z51: so 번호 빨강 → 잉크 (mgmt-pill 일관) */
+.up-r1 .no { font-family:monospace; font-weight:700; color:var(--qv-ink-2); }
 /* v5H226z44: 임박납기 .up-r1 .mgmt → .mgmt-pill sm 잉크 알약 통일 (참고용 보존, 사용처는 .mgmt-pill 로 전환) */
 .up-r1 .mgmt { font-family:monospace; font-weight:700; color:#ffffff !important; background:var(--qv-ink) !important;
                padding:2px 8px; border-radius:6px; font-size:11.5px; letter-spacing:0.05em;
@@ -163,9 +164,10 @@ body {
 .list-hd .dl { padding:3px 8px; background:#fff; border:1px solid #d4a574; border-radius:4px;
                font-size:11px; color:#7c4a03; text-decoration:none; font-weight:700; }
 .list-hd .dl:hover { background:#fff7e0; }
-.filter-pill { font-size:10.5px; padding:2px 7px; background:#fff3f3; border:1px solid #f99;
-               border-radius:4px; color:#b91c1c; font-weight:700; }
-.filter-pill a { color:#b91c1c; text-decoration:none; margin-left:5px; }
+/* v5H226z51: filter-pill 빨강 → 호박 (덜 강한 경고) */
+.filter-pill { font-size:10.5px; padding:2px 7px; background:#fef3c7; border:1px solid #d4a574;
+               border-radius:4px; color:#7c4a03; font-weight:700; }
+.filter-pill a { color:#7c4a03; text-decoration:none; margin-left:5px; }
 
 .so-list-b { font-size:12px; width:100%; border-collapse:separate !important; border-spacing:0; }
 .so-list-b th, .so-list-b td { padding:5px 8px; vertical-align:middle; border-bottom:1px solid #f4f1e8; }
@@ -182,7 +184,8 @@ body {
 .so-list-b th.center, .so-list-b td.center { text-align:center; }
 .so-list-b th.num, .so-list-b td.num { text-align:right; }
 .so-list-b tr:hover td { background:#fff8e8; cursor:pointer; }
-.so-list-b .so-no { font-family:monospace; font-weight:700; color:#b91c1c; white-space:nowrap; }
+/* v5H226z51: SO 리스트 .so-no 빨강 → 잉크 (페이지 일관) */
+.so-list-b .so-no { font-family:monospace; font-weight:700; color:var(--qv-ink-2); white-space:nowrap; }
 /* v5H226z44: SO 리스트 .mgmt-tag → 잉크 알약 (시안1 토큰 마이그레이션, project_detail z41 과 일관) */
 .so-list-b .mgmt-tag { font-family:monospace; font-weight:700; color:#ffffff !important;
                        background:var(--qv-ink) !important; padding:3px 10px; border-radius:6px;
