@@ -29,7 +29,9 @@
 | sales_outstanding.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z58 |
 | sales_aging.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z59 |
 | project_new_chooser / quotation_print | 🔘 | — | — | 단순 페이지, 추후 |
-| 소모품 (3) | 🔘 | — | — | 다음 사이클 |
+| consumables.html | 🟢 v1+v2 | 2026-05-11 | 2026-05-11 | z72 (.mgmt-pill 관리코드) |
+| consumable_detail.html | 🟢 v1+v2 | 2026-05-11 | 2026-05-11 | z73 (헤더 .mgmt-pill lg) |
+| consumable_form_upload.html | 🟢 v1+v2 | 2026-05-11 | 2026-05-11 | z74 |
 | export_home.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z63 (.mgmt-pill 수출번호) |
 | export_order_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z64 (헤더 .mgmt-pill lg) |
 | export_order_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z65 |
