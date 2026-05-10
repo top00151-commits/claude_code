@@ -9,15 +9,24 @@
 
 | 페이지 | 상태 | 시작 | 완료 | 비고 |
 |---|---|---|---|---|
-| project_detail.html | 🟢 v1 통과 + v2 완료 | 2026-05-10 | 2026-05-10 | REPLY v2 검수 v1 통과 (z40+z42+z41) + v2 차수 (z43 data-dn) 완료. 메인 동기화 완료. push 결재 대기. 다음: v3 (빈 스켈레톤) 또는 sales_orders.html 우선. |
+| project_detail.html | 🟢 v1+v2+v3 | 2026-05-10 | 2026-05-10 | z41 v1 / z43 v2 / z50 v3(빨강 4건) — push 완료 |
 | **(B) 도구** 01B_매출영업_상태확인.bat | 🟢 완료 | 2026-05-10 | 2026-05-10 | 더블클릭 → PROGRESS / 최근 HANDOFF / git log 매출영업만 / git status / P·L·O·G·Q 옵션 메뉴 |
-| sales_orders.html | 🟢 v1 통과 + v2 이미 됨 | 2026-05-10 | 2026-05-10 | 진단 결과 data-dn 18 영역 이미 부착(v2 자동 통과). v1 차수 (z44 시안1 토큰 + .mgmt-pill 통일) 완료. v3 빨강 다이어트 보류. |
-| sales_home.html | 🔘 | — | — | 시안1 12-col bento 미적용 |
-| sales_order_detail.html | 🔘 | — | — | |
-| customer_detail.html | 🔘 | — | — | |
-| 견적 (4) / 납품수금 (1) / 미수금 (2) | 🔘 | — | — | |
-| 소모품 (3) | 🔘 | — | — | |
-| 수출입·FTA (11) | 🔘 | — | — | |
+| sales_orders.html | 🟢 v1+v2+v3 | 2026-05-10 | 2026-05-10 | z44 v1 / data-dn 18영역 자동 v2 / z51 v3(빨강 3건) — push 완료 |
+| sales_home.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z45 — 12-col bento는 v3 차수 보류 |
+| sales_order_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z47 |
+| customer_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z46 |
+| projects.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z52 |
+| project_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z55 |
+| customers_list.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z53 |
+| customer_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z56 |
+| sales_quotations.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z48 |
+| sales_quote_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z49 |
+| sales_quote_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z54 |
+| 그룹 A 잔여 (dashboard/forecast/production) | 🔘 | — | — | 다음 사이클 |
+| 그룹 F (납품수금/미수금/aging) | 🔘 | — | — | 다음 사이클 — 빅터 권장 1순위 |
+| project_new_chooser / quotation_print | 🔘 | — | — | 단순 페이지, 추후 |
+| 소모품 (3) | 🔘 | — | — | 다음 사이클 |
+| 수출입 (11) / FTA (3) | 🔘 | — | — | 베트남 수출 P11, 다음 사이클 |
 
 ## 변경 파일 누적 목록
 
