@@ -9,7 +9,7 @@
 
 | 페이지 | 상태 | 시작 | 완료 | 비고 |
 |---|---|---|---|---|
-| project_detail.html | 🟡 z42 진행 | 2026-05-10 | — | v1 진단 + z40 (debug+1100px) push 완료 + z42 (PARTS 좌측 sticky 첫 3컬럼) 적용. push 결재 대기. 다음: z41 시안1 토큰. |
+| project_detail.html | 🟡 z41 진행 | 2026-05-10 | — | v1 진단 + z40+z42 push 완료 + z41 (시안1 토큰 + mgmt 잉크 알약) 적용. push 결재 대기. 다음: z43 빨강 다이어트. |
 | sales_orders.html | 🔘 | — | — | 발주서 명시 80% 진행됨 |
 | sales_home.html | 🔘 | — | — | 시안1 12-col bento 미적용 |
 | sales_order_detail.html | 🔘 | — | — | |
@@ -30,6 +30,11 @@ z42 (2026-05-10):
 - 01_HAIST_WORKS/app/templates/project_detail.html  (+18줄: PARTS 좌측 첫 3컬럼 sticky)
 - KNK_시작.bat                                      (LAST UPDATE z40→z42)
 - START.bat                                         (LAST UPDATE z40→z42)
+
+z41 (2026-05-10, D-1 진행 순서로는 z42 다음):
+- 01_HAIST_WORKS/app/templates/project_detail.html  (+33줄: 시안1 토큰 11종 + mgmt-pill 컴포넌트 + line 118 잉크 알약)
+- KNK_시작.bat                                      (LAST UPDATE z42→z41)
+- START.bat                                         (LAST UPDATE z42→z41)
 ```
 
 ## 위험 / 차단 사항
@@ -39,4 +44,5 @@ z42 (2026-05-10):
 ## 빅터 보고 이력
 - 2026-05-10 1차 보고: project_detail.html 진단 리포트 v1 (output/HANDOFF_TO_01_v1_진단.md)
 - 2026-05-10 2차 보고: z40 핫패치 결과 v2 (output/HANDOFF_TO_01_v2_z40.md) — push 완료 (53d60a9)
-- 2026-05-10 3차 보고: z42 핫패치 결과 v3 (output/HANDOFF_TO_01_v3_z42.md) — push 결재 대기
+- 2026-05-10 3차 보고: z42 핫패치 결과 v3 (output/HANDOFF_TO_01_v3_z42.md) — push 완료 (42f5550)
+- 2026-05-10 4차 보고: z41 핫패치 결과 v4 (output/HANDOFF_TO_01_v4_z41.md) — push 결재 대기

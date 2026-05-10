@@ -3,6 +3,38 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
+/* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
+/* 발주서 INSTRUCTIONS.md 라인 105 정의값 그대로. _STANDARDS/디자인_의뢰서_HAIST_WORKS_v1.md 정합. */
+body {
+  --qv-surface:   #ffffff;
+  --qv-surface-2: #f7f8fa;
+  --qv-line:      #eef0f4;
+  --qv-ink:       #0f172a;
+  --qv-ink-2:     #334155;
+  --qv-ink-3:     #64748b;
+  --biz-t: #c2410c;  /* New Equipment (Tech, 호박)  */
+  --biz-m: #1e40af;  /* Maintenance/Service (네이비) */
+  --biz-e: #6d28d9;  /* Export (자주)              */
+  --biz-c: #047857;  /* Consumable (그린)           */
+}
+
+/* v5H226z41: 관리번호 잉크 알약 — 시안1 디자인 시스템 표준 컴포넌트 */
+.mgmt-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--qv-ink); color: #ffffff;
+  font-family: monospace; font-size: 16px; font-weight: 700;
+  letter-spacing: 0.5px; line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.mgmt-pill.empty {
+  background: var(--qv-surface-2); color: var(--qv-ink-3);
+  box-shadow: none; border: 1px dashed var(--qv-line);
+  font-weight: 500;
+}
+.mgmt-pill.sm  { padding: 2px 8px;  font-size: 13px; }
+.mgmt-pill.lg  { padding: 6px 16px; font-size: 18px; }
+
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
 /* v5H226z7: 그리드 아이템이 자식(넓은 PARTS 표) min-width 에 의해 늘어나는 것 방지 */
 .detail-grid > * { min-width: 0; }
@@ -166,7 +198,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
     <div>
       <div class="crumbs"><a href="/projects">프로젝트</a> · <b>{{ p.mgmt_code|default(p.id) }}</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <span style="font-family:monospace;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</span>
+        {# v5H226z41: amber-deep 텍스트 → 잉크 알약 (시안1 표준 컴포넌트) #}
+        <span class="mgmt-pill lg{% if not p.mgmt_code %} empty{% endif %}" title="관리번호">{{ p.mgmt_code|default('—') }}</span>
         <span id="hf_title_name">{{ p.name }}</span>
         {# v5H185: 프로젝트명 인라인 편집 ✏️ — 우측 패널에서 이동 #}
         {% if can_sales %}<button type="button" id="hf_title_edit" data-pid="{{ p.id }}" title="프로젝트명 편집"
