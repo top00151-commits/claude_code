@@ -30,7 +30,15 @@
 | sales_aging.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z59 |
 | project_new_chooser / quotation_print | 🔘 | — | — | 단순 페이지, 추후 |
 | 소모품 (3) | 🔘 | — | — | 다음 사이클 |
-| 수출입 (11) / FTA (3) | 🔘 | — | — | 베트남 수출 P11, 다음 사이클 |
+| export_home.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z63 (.mgmt-pill 수출번호) |
+| export_order_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z64 (헤더 .mgmt-pill lg) |
+| export_order_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z65 |
+| export_ci.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z66 |
+| export_pl.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z67 |
+| export_bl_customs.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z68 |
+| fta_list.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z69 (.mgmt-pill 인증번호) |
+| fta_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z70 |
+| 인쇄 전용 print 4개 (export_ci/pl/bl + fta) | 🔘 | — | — | 보류 (chrome 없음) |
 
 ## 변경 파일 누적 목록
 
