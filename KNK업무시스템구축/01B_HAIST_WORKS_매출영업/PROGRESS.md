@@ -22,8 +22,12 @@
 | sales_quotations.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z48 |
 | sales_quote_detail.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z49 |
 | sales_quote_form.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z54 |
-| 그룹 A 잔여 (dashboard/forecast/production) | 🔘 | — | — | 다음 사이클 |
-| 그룹 F (납품수금/미수금/aging) | 🔘 | — | — | 다음 사이클 — 빅터 권장 1순위 |
+| sales_dashboard.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z60 |
+| sales_forecast.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z61 |
+| sales_production.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z62 |
+| sales_shipments_receipts.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z57 |
+| sales_outstanding.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z58 |
+| sales_aging.html | 🟢 v1+v2 | 2026-05-10 | 2026-05-10 | z59 |
 | project_new_chooser / quotation_print | 🔘 | — | — | 단순 페이지, 추후 |
 | 소모품 (3) | 🔘 | — | — | 다음 사이클 |
 | 수출입 (11) / FTA (3) | 🔘 | — | — | 베트남 수출 P11, 다음 사이클 |
