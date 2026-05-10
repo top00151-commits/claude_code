@@ -10,6 +10,7 @@
 | 페이지 | 상태 | 시작 | 완료 | 비고 |
 |---|---|---|---|---|
 | project_detail.html | 🟡 z41 진행 | 2026-05-10 | — | v1 진단 + z40+z42 push 완료 + z41 (시안1 토큰 + mgmt 잉크 알약) 적용. push 결재 대기. 다음: z43 빨강 다이어트. |
+| **(B) 도구** 01B_매출영업_상태확인.bat | 🟢 완료 | 2026-05-10 | 2026-05-10 | 더블클릭 → PROGRESS / 최근 HANDOFF / git log 매출영업만 / git status / P·L·O·G·Q 옵션 메뉴 |
 | sales_orders.html | 🔘 | — | — | 발주서 명시 80% 진행됨 |
 | sales_home.html | 🔘 | — | — | 시안1 12-col bento 미적용 |
 | sales_order_detail.html | 🔘 | — | — | |
@@ -35,6 +36,9 @@ z41 (2026-05-10, D-1 진행 순서로는 z42 다음):
 - 01_HAIST_WORKS/app/templates/project_detail.html  (+33줄: 시안1 토큰 11종 + mgmt-pill 컴포넌트 + line 118 잉크 알약)
 - KNK_시작.bat                                      (LAST UPDATE z42→z41)
 - START.bat                                         (LAST UPDATE z42→z41)
+
+(B) 01B 자체 빠른 확인 도구 (대표 결재 2026-05-10):
+- 01B_HAIST_WORKS_매출영업/01B_매출영업_상태확인.bat  (신규, 4.9KB, choice 메뉴)
 ```
 
 ## 위험 / 차단 사항
@@ -46,3 +50,4 @@ z41 (2026-05-10, D-1 진행 순서로는 z42 다음):
 - 2026-05-10 2차 보고: z40 핫패치 결과 v2 (output/HANDOFF_TO_01_v2_z40.md) — push 완료 (53d60a9)
 - 2026-05-10 3차 보고: z42 핫패치 결과 v3 (output/HANDOFF_TO_01_v3_z42.md) — push 완료 (42f5550)
 - 2026-05-10 4차 보고: z41 핫패치 결과 v4 (output/HANDOFF_TO_01_v4_z41.md) — push 결재 대기
+- 2026-05-10 5차 보고: (B) 01B 자체 빠른 확인 도구 추가 v5 (output/HANDOFF_TO_01_v5_도구.md) — push 결재 대기
