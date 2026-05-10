@@ -879,8 +879,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">VAT</th>
                   <th class="num" style="width:80px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">단가 USD</span></th>
                   <th class="num" style="width:90px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">금액 USD</span></th>
-                  <th class="num" style="width:80px;background:#fee2e2;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">KRW</span></th>
-                  <th class="num" style="width:70px;background:#fee2e2;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">USD</span></th>
+                  <th class="num" style="width:80px;background:#fef3c7;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">KRW</span></th>
+                  <th class="num" style="width:70px;background:#fef3c7;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">USD</span></th>
                   <th class="num" style="width:90px;background:#fef3c7;" data-pgroup="duty">최종 금액<br><span style="font-size:10px;font-weight:400;">USD</span></th>
                   <th style="width:140px;" data-pgroup="meta">상세 내용</th>
                   <th style="width:120px;" data-pgroup="meta">PALLET<br><span style="font-size:10px;font-weight:400;">가로*세로*높이</span></th>
@@ -982,11 +982,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit inv-amt-usd-inp" data-orig="{{ u.invoice_amount_usd or '' }}" value="{{ u.invoice_amount_usd or '' }}" style="width:80px;font-size:11px;text-align:right;">{% endif %}
                   </td>
                   {# v5H226z6: 관세 KRW/USD #}
-                  <td class="num" style="font-size:11px;background:#fee2e2;">
+                  <td class="num" style="font-size:11px;background:#fef3c7;">
                     <span class="display-val">{% if u.duty_krw %}{{ '{:,.0f}'.format(u.duty_krw) }}{% else %}—{% endif %}</span>
                     {% if _editable %}<input type="text" class="unit-edit duty-krw-inp" data-orig="{{ u.duty_krw or '' }}" value="{{ u.duty_krw or '' }}" style="width:75px;font-size:11px;text-align:right;">{% endif %}
                   </td>
-                  <td class="num" style="font-size:11px;background:#fee2e2;">
+                  <td class="num" style="font-size:11px;background:#fef3c7;">
                     <span class="display-val">{% if u.duty_usd %}{{ '{:,.2f}'.format(u.duty_usd) }}{% else %}—{% endif %}</span>
                     {% if _editable %}<input type="text" class="unit-edit duty-usd-inp" data-orig="{{ u.duty_usd or '' }}" value="{{ u.duty_usd or '' }}" style="width:60px;font-size:11px;text-align:right;">{% endif %}
                   </td>
@@ -1584,7 +1584,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           <tbody>
           {% for cp in child_projects %}
             <tr>
-              <td><a href="/project/{{ cp.id }}" style="color:var(--knk-red);font-family:monospace;text-decoration:none;font-weight:700;">{{ cp.mgmt_code|default('—') }}</a></td>
+              {# v5H226z50: 자식 프로젝트 mgmt_code → .mgmt-pill sm 잉크 알약 #}
+              <td><a href="/project/{{ cp.id }}" class="mgmt-pill sm{% if not cp.mgmt_code %} empty{% endif %}">{{ cp.mgmt_code|default('—') }}</a></td>
               <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
               <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
