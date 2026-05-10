@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | project_detail.html | 🟢 v1 통과 + v2 완료 | 2026-05-10 | 2026-05-10 | REPLY v2 검수 v1 통과 (z40+z42+z41) + v2 차수 (z43 data-dn) 완료. 메인 동기화 완료. push 결재 대기. 다음: v3 (빈 스켈레톤) 또는 sales_orders.html 우선. |
 | **(B) 도구** 01B_매출영업_상태확인.bat | 🟢 완료 | 2026-05-10 | 2026-05-10 | 더블클릭 → PROGRESS / 최근 HANDOFF / git log 매출영업만 / git status / P·L·O·G·Q 옵션 메뉴 |
-| sales_orders.html | 🔘 | — | — | 발주서 명시 80% 진행됨 |
+| sales_orders.html | 🟢 v1 통과 + v2 이미 됨 | 2026-05-10 | 2026-05-10 | 진단 결과 data-dn 18 영역 이미 부착(v2 자동 통과). v1 차수 (z44 시안1 토큰 + .mgmt-pill 통일) 완료. v3 빨강 다이어트 보류. |
 | sales_home.html | 🔘 | — | — | 시안1 12-col bento 미적용 |
 | sales_order_detail.html | 🔘 | — | — | |
 | customer_detail.html | 🔘 | — | — | |
@@ -51,6 +51,14 @@ z43 (2026-05-10, REPLY v2 v2 차수 = data-dn 부착):
 - 워크트리 → 메인 01B/output/HANDOFF_TO_01_v1~v6.md
 - 워크트리 → 메인 01B/PROGRESS.md
 - 워크트리 → 메인 01B/01B_매출영업_상태확인.bat
+
+z44 (2026-05-10, sales_orders.html v1 차수):
+- 01_HAIST_WORKS/app/templates/sales_orders.html
+  · 시안1 토큰 11종 신규 (project_detail z41 과 동일값)
+  · .mgmt-pill 컴포넌트 신규 (페이지 간 일관성)
+  · SO 리스트 .mgmt-tag 색상 amber #b45309 → 잉크 var(--qv-ink)
+  · 임박 납기 .up-r1 .mgmt 색상 amber #b45309 → 잉크 var(--qv-ink)
+- 메인 동기화: sales_orders.html + HANDOFF_v7 + PROGRESS
 ```
 
 ## 위험 / 차단 사항
@@ -63,4 +71,5 @@ z43 (2026-05-10, REPLY v2 v2 차수 = data-dn 부착):
 - 2026-05-10 3차 보고: z42 핫패치 결과 v3 (output/HANDOFF_TO_01_v3_z42.md) — push 완료 (42f5550)
 - 2026-05-10 4차 보고: z41 핫패치 결과 v4 (output/HANDOFF_TO_01_v4_z41.md) — push 결재 대기
 - 2026-05-10 5차 보고: (B) 01B 자체 빠른 확인 도구 추가 v5 (output/HANDOFF_TO_01_v5_도구.md) — push 결재 대기
-- 2026-05-10 6차 보고: v2 차수 z43 data-dn 부착 v6 (output/HANDOFF_TO_01_v6_data-dn.md) — REPLY v2 v1 통과 + v2 완료. 메인 동기화 완료. push 결재 대기.
+- 2026-05-10 6차 보고: v2 차수 z43 data-dn 부착 v6 (output/HANDOFF_TO_01_v6_data-dn.md) — REPLY v2 v1 통과 + v2 완료. 메인 동기화 완료. push 완료 (dd7f765).
+- 2026-05-10 7차 보고: sales_orders.html v1 차수 z44 v7 (output/HANDOFF_TO_01_v7_sales_orders_v1.md) — 토큰 + 잉크 알약 통일. 메인 동기화. push 결재 대기.

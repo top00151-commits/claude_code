@@ -2,6 +2,38 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>수주 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z44: 시안1 디자인 토큰 — sales_orders v1 차수 (project_detail.html z41 과 동일) */
+body {
+  --qv-surface:   #ffffff;
+  --qv-surface-2: #f7f8fa;
+  --qv-line:      #eef0f4;
+  --qv-ink:       #0f172a;
+  --qv-ink-2:     #334155;
+  --qv-ink-3:     #64748b;
+  --biz-t: #c2410c;  /* New Equipment */
+  --biz-m: #1e40af;  /* Maintenance/Service */
+  --biz-e: #6d28d9;  /* Export */
+  --biz-c: #047857;  /* Consumable */
+}
+
+/* v5H226z44: 관리번호 잉크 알약 — project_detail.html z41 과 동일 컴포넌트, 페이지 간 일관성 */
+.mgmt-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--qv-ink); color: #ffffff;
+  font-family: monospace; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.5px; line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08); text-decoration: none;
+}
+.mgmt-pill:hover { background: var(--qv-ink-2); color: #ffffff; }
+.mgmt-pill.empty {
+  background: var(--qv-surface-2); color: var(--qv-ink-3);
+  box-shadow: none; border: 1px dashed var(--qv-line);
+  font-weight: 500;
+}
+.mgmt-pill.sm { padding: 2px 8px;  font-size: 11.5px; }
+.mgmt-pill.lg { padding: 6px 16px; font-size: 18px; }
+
 /* === v5H226z23: B안 레이아웃 (좌우 2단 분할) + 상단 여백 압축 === */
 
 /* 상단 여백 - chrome 헤더와 안전 간격 확보 */
@@ -113,9 +145,10 @@
 .up-info { flex:1; min-width:0; }
 .up-r1 { font-size:11.5px; display:flex; gap:6px; align-items:center; }
 .up-r1 .no { font-family:monospace; font-weight:700; color:#b91c1c; }
-.up-r1 .mgmt { font-family:monospace; font-weight:800; color:#fff !important; background:#b45309 !important;
-               padding:2px 7px; border-radius:4px; font-size:12px; letter-spacing:0.05em;
-               box-shadow:0 1px 2px rgba(0,0,0,0.15); }
+/* v5H226z44: 임박납기 .up-r1 .mgmt → .mgmt-pill sm 잉크 알약 통일 (참고용 보존, 사용처는 .mgmt-pill 로 전환) */
+.up-r1 .mgmt { font-family:monospace; font-weight:700; color:#ffffff !important; background:var(--qv-ink) !important;
+               padding:2px 8px; border-radius:6px; font-size:11.5px; letter-spacing:0.05em;
+               box-shadow:0 1px 2px rgba(0,0,0,0.08); }
 .up-r1 .cust { color:#475569; font-weight:600; }
 .up-r2 { font-size:10.5px; color:#64748b; margin-top:2px; }
 .up-r2 b { color:#1e293b; font-weight:700; }
@@ -150,11 +183,12 @@
 .so-list-b th.num, .so-list-b td.num { text-align:right; }
 .so-list-b tr:hover td { background:#fff8e8; cursor:pointer; }
 .so-list-b .so-no { font-family:monospace; font-weight:700; color:#b91c1c; white-space:nowrap; }
-.so-list-b .mgmt-tag { font-family:monospace; font-weight:800; color:#fff !important;
-                       background:#b45309 !important; padding:3px 8px; border-radius:4px;
-                       font-size:12.5px; white-space:nowrap; letter-spacing:0.04em;
-                       box-shadow:0 1px 2px rgba(0,0,0,0.15); text-decoration:none; display:inline-block; }
-.so-list-b .mgmt-tag:hover { background:#92400e !important; color:#fff !important; }
+/* v5H226z44: SO 리스트 .mgmt-tag → 잉크 알약 (시안1 토큰 마이그레이션, project_detail z41 과 일관) */
+.so-list-b .mgmt-tag { font-family:monospace; font-weight:700; color:#ffffff !important;
+                       background:var(--qv-ink) !important; padding:3px 10px; border-radius:6px;
+                       font-size:12px; white-space:nowrap; letter-spacing:0.04em;
+                       box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; display:inline-block; }
+.so-list-b .mgmt-tag:hover { background:var(--qv-ink-2) !important; color:#ffffff !important; }
 .so-list-b .pname { font-weight:600; color:#1e293b; }
 .so-list-b .pname-sub { font-size:10px; color:#94a3b8; margin-top:1px; }
 .so-list-b .biz-pill { display:inline-block; padding:1px 5px; border-radius:3px; font-size:9.5px; font-weight:700; }
