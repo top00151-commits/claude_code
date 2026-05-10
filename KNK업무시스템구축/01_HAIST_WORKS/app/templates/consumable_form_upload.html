@@ -8,6 +8,13 @@
 <link href="/static/css/v5_tokens.css?v=20260505v5H145" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z74: 시안1 토큰 — consumable_form_upload v1+v2 */
+body {
+  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
+  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+}
+@media (max-width:1100px){ .page-title{font-size:22px !important;} .row{grid-template-columns:repeat(2,1fr) !important;} .next-actions{grid-template-columns:1fr !important;} }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--paper); color: var(--ink); }
 a { text-decoration: none; color: inherit; }
@@ -63,9 +70,9 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--lin
 <div class="app">
   {% set active_tab = "sales" %}
   {% include "_v5_partials/chrome.html" with context %}
-  <main class="main">
-    <div class="page-head">
-      <div class="crumbs"><a href="/consumables">소모품 발주</a> · <b>C 소모품 입력</b></div>
+  <main class="main" data-dn="main" data-dn-tone="amber">
+    <div class="page-head" data-dn="page-head">
+      <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 발주</a> · <b>C 소모품 입력</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span style="font-size:30px;">📦</span>
         <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
