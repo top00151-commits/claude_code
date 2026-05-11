@@ -634,13 +634,13 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card-head .so-no { font-family: monospace; font-weight: 700; font-size: 18px; color: var(--knk-red); letter-spacing: 0.02em; }
         .so-card-head .so-no a { color: inherit; text-decoration: none; }
         .so-card-head .so-no a:hover { text-decoration: underline; }
-        /* v5H226z78: so-meta 자체 행 분리 — actions와 같은 행 짤림 해결 */
-        .so-meta { display: flex; gap: 4px 14px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--ink); order: 10; margin-top: 4px; padding-top: 6px; border-top: 1px dashed var(--line); }
+        /* v5H226z79: so-meta 간격 축소 + 좌우 균등 분포 */
+        .so-meta { display: flex; gap: 2px 10px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--ink); order: 10; margin-top: 0; padding-top: 2px; justify-content: space-between; }
         .so-meta .item { display: inline-flex; align-items: center; gap: 3px; line-height: 1.4; }
         .so-meta .item .k { color: var(--mute); font-weight: 500; font-size: 11.5px; }
         .so-meta .item .v { font-weight: 700; }
         .so-actions { order: 5; }
-        @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 4px 8px; } }
+        @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 2px 8px; justify-content: flex-start; } }
         .so-actions { display: flex; gap: 6px; }
         .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
         .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
@@ -898,7 +898,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
                   {% if not _is_parts %}<th style="width:110px;">납품처</th>{% endif %}
                   <th style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
-                  <th {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
+                  {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
+                  <th style="min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
                 </tr>
               </thead>
@@ -1086,7 +1087,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     <span class="pill {% if _ust == '납품완료' %}pill-done{% elif _ust == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ _ust }}</span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td style="white-space:normal; word-break:break-word; min-width:200px;">
+                    {# v5H226z79: 비고 셀 줄바꿈 허용 — 짤림 해결 #}
                     <span class="display-val note">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
                   </td>
