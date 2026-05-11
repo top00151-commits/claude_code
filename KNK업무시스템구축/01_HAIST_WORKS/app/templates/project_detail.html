@@ -881,7 +881,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {# v5H226z84: 호기 컬럼 너비 80→56px (비고 환원) #}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}56px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:80px;"  data-pgroup="basic">메이커</th>
@@ -906,11 +907,13 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가</th>
                   <th style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
-                  {% if not _is_parts %}<th style="width:88px;">거래방식</th>{% endif %}
+                  {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
+                  {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
                   {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
-                  {% if not _is_parts %}<th style="width:110px;">납품처</th>{% endif %}
+                  {# v5H226z84: 납품처 컬럼 너비 110→96px #}
+                  {% if not _is_parts %}<th style="width:96px;">납품처</th>{% endif %}
                   <th style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   <th style="min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
