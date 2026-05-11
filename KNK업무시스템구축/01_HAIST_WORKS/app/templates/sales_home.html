@@ -26,37 +26,46 @@ body {
   --biz-e: #6d28d9;
   --biz-c: #047857;
 }
-/* v5H226z98: sales_home main scrollbar 숨김 — 우측 스크롤바 시각 제거 (스크롤 동작은 휠/터치로 유지) */
-.main { scrollbar-width: none; -ms-overflow-style: none; }
-.main::-webkit-scrollbar { display: none; width: 0; height: 0; }
-/* v5H226z100: page-head sticky 상단 고정 — 휠 스크롤 시에도 매출영업센터 타이틀 항상 보임 */
-/* v5H226z102: GPU 가속 + transform translateZ — sub-pixel 진동 제거 */
-.main > .page-head {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--paper-3, #fff);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  will-change: transform;
-}
-/* v5H226z101: body scroll 차단 + main height 강제 — sticky 진동 제거 */
+/* v5H226z107: sales_home 통합 정리 — main flex column 명시 + 자식별 flex 처리로 진동 근본 해결 */
+/* page-head sticky 제거 (첫 자식이라 항상 보임) + 마지막 grid-2가 남은 공간 + 그 안 list-card 각자 스크롤 */
 body { overflow: hidden !important; }
-.main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow-y: auto; scroll-behavior: auto; }
-/* v5H226z106: TOP5/최근 프로젝트 — 각 카드 독립 스크롤 (외곽 grid-2 스크롤 제거) */
+.main {
+  display: flex !important;
+  flex-direction: column;
+  height: calc(100vh - var(--topbar-h, 80px)) !important;
+  overflow: hidden !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main::-webkit-scrollbar { display: none; }
+/* 고정 영역 (page-head, KPI, 차트 grid-2) — flex-shrink: 0 */
+.main > .page-head,
+.main > .kpi-row,
+.main > .grid-2[data-dn="grid-biz-stage"] { flex-shrink: 0; }
+/* 마지막 grid-2 (TOP5 + 최근 프로젝트) — 남은 공간 차지 + 자체 overflow 차단 */
 .main > .grid-2[data-dn="grid-customer-recent"] {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
   max-height: none;
-  overflow: visible;
+}
+/* 각 list-card (TOP5, 최근) — 카드 안에서 독립 스크롤 */
+.main > .grid-2[data-dn="grid-customer-recent"] .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 .main > .grid-2[data-dn="grid-customer-recent"] .list-card,
 .main > .grid-2[data-dn="grid-customer-recent"] .list-card.list-scroll-sm {
-  max-height: calc(100vh - 540px) !important;
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
   overflow-y: auto !important;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { display: none; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
