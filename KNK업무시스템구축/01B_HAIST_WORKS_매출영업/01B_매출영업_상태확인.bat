@@ -55,7 +55,7 @@ echo.
 echo ============================================================
 echo    [HTML 미리보기] 그룹별 단축키 (서버 켜져있어야 함)
 echo ------------------------------------------------------------
-echo      S) 시스템 시작 + 매출영업 홈 (Flask + /sales)
+echo      S) 시스템 시작 + 매출영업 홈 (HAIST WORKS :8081)
 echo      1) 프로젝트 (3p)         /projects
 echo      2) 고객사 (3p)           /customers
 echo      3) 견적 (3p)             /sales/quotations
@@ -97,20 +97,20 @@ if errorlevel 10 (
 )
 if errorlevel 9 (
     echo.
-    echo Flask 시스템 시작 중...
+    echo HAIST WORKS 시작 중...
     if exist "%~dp0..\KNK_시작.bat" (start "" "%~dp0..\KNK_시작.bat") else (echo KNK_시작.bat 없음. 메인 폴더에서 실행 필요.)
     timeout /t 5 /nobreak >nul
-    start "" "http://localhost:5000/sales"
+    start "" "http://localhost:8081/sales"
     goto :end
 )
-if errorlevel 8 (start "" "http://localhost:5000/fta/certificates" & goto :end)
-if errorlevel 7 (start "" "http://localhost:5000/export" & goto :end)
-if errorlevel 6 (start "" "http://localhost:5000/sales/dashboard" & goto :end)
-if errorlevel 5 (start "" "http://localhost:5000/sales/shipments" & goto :end)
-if errorlevel 4 (start "" "http://localhost:5000/orders" & goto :end)
-if errorlevel 3 (start "" "http://localhost:5000/sales/quotations" & goto :end)
-if errorlevel 2 (start "" "http://localhost:5000/customers" & goto :end)
-if errorlevel 1 (start "" "http://localhost:5000/projects" & goto :end)
+if errorlevel 8 (start "" "http://localhost:8081/fta/certificates" & goto :end)
+if errorlevel 7 (start "" "http://localhost:8081/export" & goto :end)
+if errorlevel 6 (start "" "http://localhost:8081/sales/dashboard" & goto :end)
+if errorlevel 5 (start "" "http://localhost:8081/sales/shipments" & goto :end)
+if errorlevel 4 (start "" "http://localhost:8081/orders" & goto :end)
+if errorlevel 3 (start "" "http://localhost:8081/sales/quotations" & goto :end)
+if errorlevel 2 (start "" "http://localhost:8081/customers" & goto :end)
+if errorlevel 1 (start "" "http://localhost:8081/projects" & goto :end)
 
 :end
 echo.
