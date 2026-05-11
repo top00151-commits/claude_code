@@ -726,8 +726,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .so-card.editable .save-all-btn:hover { filter: brightness(1.1); }
         .so-card.editable .save-all-btn:disabled { opacity: 0.6; cursor: wait; }
-        /* v5H226z90: 호기 셀 안 인라인 삭제 — 행 hover 시 노출 (편집 모드 무관) */
-        .row-del-mini { display: inline-flex; align-items: center; margin-left: 4px; padding: 0 5px; border: 0; background: transparent; color: var(--knk-red); cursor: pointer; font-size: 14px; font-weight: 700; line-height: 1; vertical-align: middle; opacity: 0; transition: opacity 0.15s; }
+        /* v5H226z91: 호기 셀 안 인라인 삭제 — 행 hover 시 노출 + input 너비 명시 */
+        .so-units .lbl-inp { width: 55px !important; max-width: 55px !important; }
+        .row-del-mini { display: inline-flex; align-items: center; justify-content: center; margin-left: 4px; padding: 0 5px; border: 0; background: transparent; color: var(--knk-red); cursor: pointer; font-size: 16px; font-weight: 700; line-height: 1; vertical-align: middle; opacity: 0; transition: opacity 0.15s; min-width: 18px; }
         .so-units tr:hover .row-del-mini { opacity: 1; }
         .row-del-mini:hover { background: #fee2e2; border-radius: 3px; }
         /* v5H198: 잠금 상태 — 글씨는 진하게(읽기 쉽게) 유지, 배경만 옅게 + 점선 테두리로
@@ -898,8 +899,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
-                  {# v5H226z89: 호기 컬럼 너비 56→80px (인라인 × 삭제 버튼 공간) #}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {# v5H226z91: 호기 컬럼 80→110px (input 60px + × 24px + 여백) #}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}110px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:80px;"  data-pgroup="basic">메이커</th>
