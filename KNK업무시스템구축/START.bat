@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-11 v5H226z76 (단일 Ubuntu 컨테이너 배포 패키지 — supervisord+nginx, 외부 o.knknara.co.kr 대응)
+REM   LAST UPDATE: 2026-05-11 v5H226z77 (실무 테스트 준비: SMC 공압 자재 200 + 발주 100 + 통합 20 가상 데이터)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z76]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z77]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z76  2026-05-11]
+echo    [v5H226z77  2026-05-11]
 echo ============================================================
 echo.
 
