@@ -17,7 +17,7 @@ echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z71  2026-05-08]
+echo    [v5H226z71  2026-05-11]
 echo ============================================================
 echo.
 
