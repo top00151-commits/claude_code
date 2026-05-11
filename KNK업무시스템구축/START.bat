@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-10 v5H226z71 (1차 통합 사이클 #2: 01A 22p + 01B 27p + 01C 16p = 65p 시안1 적용 통합)
+REM   LAST UPDATE: 2026-05-11 v5H226z71 (2차 통합 사이클 + 자동 검증 + BAT 룰 강화)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
