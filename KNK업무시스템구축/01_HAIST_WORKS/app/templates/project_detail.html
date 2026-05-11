@@ -634,10 +634,12 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card-head .so-no { font-family: monospace; font-weight: 700; font-size: 18px; color: var(--knk-red); letter-spacing: 0.02em; }
         .so-card-head .so-no a { color: inherit; text-decoration: none; }
         .so-card-head .so-no a:hover { text-decoration: underline; }
-        .so-meta { display: flex; gap: 14px; flex: 1; flex-wrap: wrap; font-size: 12.5px; color: var(--ink); }
-        .so-meta .item { display: inline-flex; align-items: center; gap: 4px; }
-        .so-meta .item .k { color: var(--mute); font-weight: 500; }
+        /* v5H226z77: so-meta 컴팩트화 — 5개 항목 2줄 이내 강제 */
+        .so-meta { display: flex; gap: 6px 10px; flex: 1; flex-wrap: wrap; font-size: 11.5px; color: var(--ink); align-content: flex-start; max-height: 3.2em; overflow: hidden; }
+        .so-meta .item { display: inline-flex; align-items: center; gap: 3px; line-height: 1.4; }
+        .so-meta .item .k { color: var(--mute); font-weight: 500; font-size: 11px; }
         .so-meta .item .v { font-weight: 700; }
+        @media (min-width:1280px){ .so-meta { font-size: 12px; } .so-meta .item .k { font-size: 11.5px; } }
         .so-actions { display: flex; gap: 6px; }
         .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
         .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
