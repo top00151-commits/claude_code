@@ -1,8 +1,9 @@
 @echo off
 REM ============================================================
-REM   01B 매출영업 상태 확인 + HTML 미리보기 (v4 ? 그룹별 8 단축키)
-REM   더블클릭 -> 5섹션 정보 + 페이지 그룹 단축키 미리보기
-REM   LAST UPDATE: 2026-05-10 v5H226z71
+REM   01B 매출영업 상태 확인 + HTML 미리보기 (v6 ? 자동 서버 감지)
+REM   더블클릭 -> 5섹션 정보 + 페이지 그룹 단축키
+REM   서버(8081) 안 켜져있으면 1~8 누를 때 자동 시작
+REM   LAST UPDATE: 2026-05-11 v5H226z75
 REM ============================================================
 chcp 949 >nul
 title 01B 매출영업 상태 + HTML 미리보기
@@ -22,7 +23,7 @@ if exist "%~dp0..\KNK_시작.bat" powershell -NoProfile -Command "Get-Content -Lit
 if exist "%~dp0..\START.bat" powershell -NoProfile -Command "Get-Content -LiteralPath '%~dp0..\START.bat' -Encoding UTF8 | Select-String '^REM   LAST UPDATE'"
 echo.
 
-echo [2] 진행 현황 (PROGRESS.md - 상위 30줄만)
+echo [2] 진행 현황 (PROGRESS.md - 상위 30줄)
 echo ------------------------------------------------------------
 chcp 65001 >nul
 if exist "%~dp0PROGRESS.md" (powershell -NoProfile -Command "Get-Content -LiteralPath '%~dp0PROGRESS.md' -Encoding UTF8 -TotalCount 30") else (echo PROGRESS.md 없음)
@@ -53,7 +54,7 @@ popd >nul 2>&1
 echo.
 
 echo ============================================================
-echo    [HTML 미리보기] 그룹별 단축키 (서버 켜져있어야 함)
+echo    [HTML 미리보기] 그룹별 단축키 (서버 자동 시작 지원)
 echo ------------------------------------------------------------
 echo      S) 시스템 시작 + 매출영업 홈 (HAIST WORKS :8081)
 echo      1) 프로젝트 (3p)         /projects
@@ -97,20 +98,32 @@ if errorlevel 10 (
 )
 if errorlevel 9 (
     echo.
-    echo HAIST WORKS 시작 중...
+    echo HAIST WORKS 시작 중... (강제, 10초 대기)
     if exist "%~dp0..\KNK_시작.bat" (start "" "%~dp0..\KNK_시작.bat") else (echo KNK_시작.bat 없음. 메인 폴더에서 실행 필요.)
-    timeout /t 5 /nobreak >nul
+    timeout /t 10 /nobreak >nul
     start "" "http://localhost:8081/sales"
     goto :end
 )
-if errorlevel 8 (start "" "http://localhost:8081/fta/certificates" & goto :end)
-if errorlevel 7 (start "" "http://localhost:8081/export" & goto :end)
-if errorlevel 6 (start "" "http://localhost:8081/sales/dashboard" & goto :end)
-if errorlevel 5 (start "" "http://localhost:8081/sales/shipments" & goto :end)
-if errorlevel 4 (start "" "http://localhost:8081/orders" & goto :end)
-if errorlevel 3 (start "" "http://localhost:8081/sales/quotations" & goto :end)
-if errorlevel 2 (start "" "http://localhost:8081/customers" & goto :end)
-if errorlevel 1 (start "" "http://localhost:8081/projects" & goto :end)
+if errorlevel 8 (call :ensure_server & start "" "http://localhost:8081/fta/certificates" & goto :end)
+if errorlevel 7 (call :ensure_server & start "" "http://localhost:8081/export" & goto :end)
+if errorlevel 6 (call :ensure_server & start "" "http://localhost:8081/sales/dashboard" & goto :end)
+if errorlevel 5 (call :ensure_server & start "" "http://localhost:8081/sales/shipments" & goto :end)
+if errorlevel 4 (call :ensure_server & start "" "http://localhost:8081/orders" & goto :end)
+if errorlevel 3 (call :ensure_server & start "" "http://localhost:8081/sales/quotations" & goto :end)
+if errorlevel 2 (call :ensure_server & start "" "http://localhost:8081/customers" & goto :end)
+if errorlevel 1 (call :ensure_server & start "" "http://localhost:8081/projects" & goto :end)
+
+:ensure_server
+netstat -an | findstr ":8081 " | findstr "LISTENING" >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo [!] HAIST WORKS 서버가 8081에 없음 - 자동 시작 ^(10초 대기^)
+    if exist "%~dp0..\KNK_시작.bat" (start "" "%~dp0..\KNK_시작.bat") else (echo KNK_시작.bat 없음. 메인 폴더에서 실행 필요.)
+    timeout /t 10 /nobreak >nul
+) else (
+    echo [OK] 서버 8081 동작 중
+)
+goto :eof
 
 :end
 echo.
