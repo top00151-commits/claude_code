@@ -26,6 +26,9 @@ body {
   --biz-e: #6d28d9;
   --biz-c: #047857;
 }
+/* v5H226z98: sales_home main scrollbar 숨김 — 우측 스크롤바 시각 제거 (스크롤 동작은 휠/터치로 유지) */
+.main { scrollbar-width: none; -ms-overflow-style: none; }
+.main::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
