@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z74 (**빅터 대형 마이그 — 12p v5→qv 일괄 248→0건**)
+> **마지막 갱신:** 2026-05-11 v5H226z75 (**Synology NAS Docker 배포 패키지 — Ubuntu 20.04**)
 
 ---
 
@@ -127,6 +127,27 @@
 ---
 
 ## 📌 빅터 작업 메모
+
+### z75 (2026-05-11) — Synology NAS Docker 배포 패키지
+- 회사 NAS (메신저 가동 중과 동일) 에 HAIST WORKS 추가 배포 준비
+- Ubuntu 20.04 base / Python 3 + uvicorn / 비루트 사용자 / 헬스체크
+- 8개 파일 생성:
+  - `Dockerfile` (Ubuntu 20.04 + Python + Tesseract + Poppler)
+  - `.dockerignore` (이미지 크기 최소화)
+  - `.env.synology.example` (KNK_SECRET_KEY/MODE/PORT 템플릿)
+  - `.gitignore` (.env 등 비밀 보호)
+  - `Synology_배포가이드.md` (14단계 상세 가이드)
+  - `deploy/nginx-synology.conf` (haist.knk.co.kr 리버스 프록시)
+  - `deploy/setup_synology_container.sh` (자동 셋업)
+  - `deploy/sync_to_synology.ps1` (Windows → NAS 동기화)
+  - `deploy/backup.sh` (DB + 업로드 자동 백업)
+- 메신저와 동일 NAS, 포트 분리 (메신저 5050 / HAIST 8081)
+- DSM Reverse Proxy 로 haist.knk.co.kr → :8081 매핑
+
+### 외부 공개 전 보안 필수
+- KNK_SECRET_KEY 32+자 임의값 (개발 기본값 절대 금지)
+- KNK_MODE=prod 설정
+- HTTPS 강제 + HyperBackup 자동 백업
 
 ### z74 (2026-05-11) — 빅터 대형 마이그 (잔여 결함 1차 해결)
 - 12 페이지 v5 토큰 → qv 토큰 일괄 마이그레이션

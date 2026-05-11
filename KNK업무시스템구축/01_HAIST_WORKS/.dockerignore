@@ -1,0 +1,57 @@
+# HAIST WORKS Docker 빌드 제외 — v5H226z75
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.pytest_cache
+.mypy_cache
+.coverage
+
+# 가상환경
+venv
+.venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# 로컬 DB / 업로드 / 백업 (NAS 볼륨 마운트로 주입)
+data/*.db
+data/*.db-journal
+data/backups/*
+uploads/*
+!uploads/.gitkeep
+
+# 로그
+*.log
+server.log
+
+# 임시
+*.tmp
+*.bak
+*.cache
+
+# Windows BAT (NAS에서 불필요)
+*.bat
+KNK_시작.bat
+START.bat
+
+# 문서 (큰 폴더 — Docker 이미지에 불필요)
+HAIST\ WORKS디자인변경/
+참고자료/
+_ARCHIVE/
+_HISTORY*/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
