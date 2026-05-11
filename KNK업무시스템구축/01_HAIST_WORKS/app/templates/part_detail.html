@@ -2,6 +2,9 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ part.name|default(part.part_name|default('자재')) }} · 자재 상세</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z108: 매출영업과 동일한 숫자 폰트 (monospace) — 자재구매 통일 */
+.tbl td.num, td.num { text-align: right; font-weight: 600; font-family: monospace; }
+.tbl th.num { text-align: center; }
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }

@@ -10,6 +10,9 @@
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z108: 매출영업과 동일한 숫자 폰트 (monospace) — 자재구매 통일 */
+.tbl td.num, td.num { text-align: right; font-weight: 600; font-family: monospace; }
+.tbl th.num { text-align: center; }
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
