@@ -5,7 +5,8 @@
 <style>
 /* v5H226z97: page-head sticky 회수 — chrome topbar와 겹침 해결 못 함, 일반 흐름으로 복귀 */
 /* v5H226z99: page-head 우측 끝까지 확장 (1540→1550) + main 스크롤바 시각 숨김 */
-.main > .page-head { padding-right: 0 !important; }
+/* v5H226z103: page-head 높이 110→90px — 상하 padding 축소 (var(--space-6) 32→14 / var(--space-3) 12→6) */
+.main > .page-head { padding: 14px 0 6px var(--content-pad, 24px) !important; }
 .main { scrollbar-width: none; -ms-overflow-style: none; }
 .main::-webkit-scrollbar { display: none; width: 0; height: 0; }
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
