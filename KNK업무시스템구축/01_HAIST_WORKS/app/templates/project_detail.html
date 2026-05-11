@@ -657,7 +657,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-actions .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
         .so-actions .btn-mini.danger:hover { background: #fff1f1; border-color: var(--knk-red); color: var(--knk-red); }
 
-        .so-units { width: 100%; border-collapse: collapse; font-size: 13px; }
+        /* v5H226z85: table-layout fixed — th width 강제 준수 (auto는 콘텐츠 따라 늘어남) */
+        .so-units { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        .so-units td { overflow: hidden; }
+        .so-units td .display-val { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+        .so-units td select.unit-edit, .so-units td input.unit-edit { max-width: 100% !important; box-sizing: border-box; }
         /* v5H226z83: 헤더는 모두 중앙, 데이터는 컬럼별 룰 (호기/단가=우측, 통화/거래/일자/상태=중앙, 납품처/비고=좌측) */
         .so-units th { text-align: center; padding: 8px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
         .so-units th.num { text-align: center; }
@@ -916,7 +920,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% if not _is_parts %}<th style="width:96px;">납품처</th>{% endif %}
                   <th style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
-                  <th style="min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
+                  {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
+                  <th style="width:auto;min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
                   {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
                 </tr>
               </thead>
@@ -1066,7 +1071,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td class="center">
                     <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
-                    <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:78px;">
+                    <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:60px;">
                       <option value="0" {% if not _u_iex_eff %}selected{% endif %}>내수</option>
                       <option value="1" {% if _u_iex_eff %}selected{% endif %}>수출</option>
                     </select>
