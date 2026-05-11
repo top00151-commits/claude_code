@@ -3,12 +3,29 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
-/* v5H226z97: page-head sticky 회수 — chrome topbar와 겹침 해결 못 함, 일반 흐름으로 복귀 */
 /* v5H226z99: page-head 우측 끝까지 확장 (1540→1550) + main 스크롤바 시각 숨김 */
-/* v5H226z103: page-head 높이 110→90px — 상하 padding 축소 (var(--space-6) 32→14 / var(--space-3) 12→6) */
-.main > .page-head { padding: 14px 0 6px var(--content-pad, 24px) !important; }
-.main { scrollbar-width: none; -ms-overflow-style: none; }
+/* v5H226z103: page-head 높이 110→90px — 상하 padding 축소 */
+/* v5H226z104: page-head sticky 상단 고정 + body scroll 차단 + GPU 가속 (sales_home z100~z102 동일 패턴) */
+body { overflow: hidden !important; }
+.main {
+  height: calc(100vh - var(--topbar-h, 80px)) !important;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 .main::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.main > .page-head {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--paper-3, #fff);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  padding: 14px 0 6px var(--content-pad, 24px) !important;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
 /* 발주서 INSTRUCTIONS.md 라인 105 정의값 그대로. _STANDARDS/디자인_의뢰서_HAIST_WORKS_v1.md 정합. */
 body {
