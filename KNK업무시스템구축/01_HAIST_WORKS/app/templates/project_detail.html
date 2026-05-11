@@ -922,7 +922,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
                   <th style="width:auto;min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
-                  {% if _editable %}<th class="center edit-only" style="width:80px;">동작</th>{% endif %}
+                  {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
+                  {% if _editable %}<th class="center edit-only" style="width:80px;">수정</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
