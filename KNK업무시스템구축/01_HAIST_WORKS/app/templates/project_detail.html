@@ -658,11 +658,15 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-actions .btn-mini.danger:hover { background: #fff1f1; border-color: var(--knk-red); color: var(--knk-red); }
 
         .so-units { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .so-units th { text-align: left; padding: 8px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
-        .so-units th.num { text-align: right; }
+        /* v5H226z83: 헤더는 모두 중앙, 데이터는 컬럼별 룰 (호기/단가=우측, 통화/거래/일자/상태=중앙, 납품처/비고=좌측) */
+        .so-units th { text-align: center; padding: 8px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
+        .so-units th.num { text-align: center; }
         .so-units th.center { text-align: center; }
+        .so-units th.left { text-align: left; }
         .so-units td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
         .so-units td.num { text-align: right; font-weight: 600; font-family: monospace; }
+        .so-units td.center { text-align: center; }
+        .so-units td.right { text-align: right; font-weight: 600; }
         .so-units td.center { text-align: center; }
         .so-units tr:last-child td { border-bottom: 0; }
         .so-units .lbl { font-weight: 700; color: var(--ink); }
@@ -902,7 +906,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가</th>
                   <th style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
-                  {% if not _is_parts %}<th style="width:78px;">거래</th>{% endif %}
+                  {% if not _is_parts %}<th style="width:88px;">거래방식</th>{% endif %}
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
                   {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
@@ -936,7 +940,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
                   </td>
                   {% endif %}
-                  <td style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
+                  {# v5H226z83: 호기 td 우측 정렬 #}
+                  <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                   </td>
@@ -1035,7 +1040,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
-                  <td>
+                  {# v5H226z83: 통화 td 중앙 정렬 #}
+                  <td class="center">
                     <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
                     {% if _editable %}
                     <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:74px;">
@@ -1053,7 +1059,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% set _u_iex_eff = (_u_iex_raw if _u_iex_raw is not none else (1 if p.is_export else 0)) %}
                   {% set _ov_iex = (_u_iex_raw is not none and _u_iex_raw != (1 if p.is_export else 0)) %}
                   {% if not _is_parts %}
-                  <td>
+                  {# v5H226z83: 거래방식 td 중앙 정렬 #}
+                  <td class="center">
                     <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
                     <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:78px;">
@@ -1063,11 +1070,12 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% endif %}
                   </td>
                   {% endif %}
-                  <td>
+                  {# v5H226z83: 발주일/납기일 td 중앙 정렬 #}
+                  <td class="center">
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
                   </td>
-                  <td>
+                  <td class="center">
                     <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
                   </td>
@@ -1083,7 +1091,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   </td>
                   {% endif %}
                   {# v5H186: 호기 상태 — 항상 select 노출 (편집 모드와 무관, 인라인 즉시 변경) #}
-                  <td>
+                  {# v5H226z83: 상태 td 중앙 정렬 #}
+                  <td class="center">
                     {% if can_sales %}
                     <select class="unit-status-sel" data-uid="{{ u.id }}" data-orig="{{ _ust }}"
                             style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11.5px;font-weight:700;background:
