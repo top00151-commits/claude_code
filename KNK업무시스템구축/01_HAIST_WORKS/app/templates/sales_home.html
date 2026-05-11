@@ -29,6 +29,14 @@ body {
 /* v5H226z98: sales_home main scrollbar 숨김 — 우측 스크롤바 시각 제거 (스크롤 동작은 휠/터치로 유지) */
 .main { scrollbar-width: none; -ms-overflow-style: none; }
 .main::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* v5H226z100: page-head sticky 상단 고정 — 휠 스크롤 시에도 매출영업센터 타이틀 항상 보임 */
+.main > .page-head {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--paper-3, #fff);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
