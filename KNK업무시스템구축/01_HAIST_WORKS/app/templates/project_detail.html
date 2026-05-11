@@ -396,7 +396,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   <!-- KPI -->
   <style>
     /* v5H226z21: KPI 카드 칸 높이 직접 축소 (한줄 인라인 형태) */
-    .bento.kpi-compact { gap: 6px !important; margin-top: 6px !important; margin-bottom: 6px !important; padding: 0 !important; }
+    /* v5H226z82: grid-auto-rows override 누락 fix — bento 기본 130px 셀이 카드 36px 아래 94px 빈 공간 만듦 */
+    .bento.kpi-compact { gap: 6px !important; margin-top: 6px !important; margin-bottom: 6px !important; padding: 0 !important; grid-auto-rows: auto !important; }
     .bento.kpi-compact .kpi-card {
       padding: 4px 10px !important;
       min-height: 0 !important;
