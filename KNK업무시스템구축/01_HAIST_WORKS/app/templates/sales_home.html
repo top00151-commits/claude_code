@@ -37,6 +37,9 @@ body {
   background: var(--paper-3, #fff);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
+/* v5H226z101: body scroll 차단 + main height 강제 — sticky 진동 제거 */
+body { overflow: hidden !important; }
+.main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow-y: auto; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
