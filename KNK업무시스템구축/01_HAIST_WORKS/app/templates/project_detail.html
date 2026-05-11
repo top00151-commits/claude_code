@@ -1615,7 +1615,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       {% if tasks %}
       <div class="section-card">
         <h3>최근 업무 ({{ total_tasks }})</h3>
-        <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
+        {# v5H226z94: tbl-wrap 좌우 margin 제거 (section-card 안 1024→1095px 확장) #}
+        <div class="tbl-wrap tbl-sticky" style="margin:0;"><table class="tbl" style="border:0;">
           <thead><tr><th>일자</th><th>담당</th><th>제목</th><th class="center">상태</th><th class="num">공수</th></tr></thead>
           <tbody>
           {% for t in tasks[:20] %}
