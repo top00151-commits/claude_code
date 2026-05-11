@@ -718,8 +718,14 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable.unlocked .add-unit { display: inline-block; }
         .so-card .row-save,
         .so-card .so-meta-save { display: none !important; }
-        .so-card.editable .edit-only { display: table-cell; }
-        .so-card .edit-only { display: none; }
+        /* v5H226z88: 행별 "수정" 컬럼 영구 숨김 (카드 상단 "💾 모두 저장"으로 대체) */
+        .so-card .edit-only,
+        .so-card.editable .edit-only { display: none !important; }
+        /* v5H226z88: 카드 상단 "💾 모두 저장" — 편집 모드 시만 노출 */
+        .so-card .save-all-btn { display: none; }
+        .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card.editable .save-all-btn:hover { filter: brightness(1.1); }
+        .so-card.editable .save-all-btn:disabled { opacity: 0.6; cursor: wait; }
         /* v5H198: 잠금 상태 — 글씨는 진하게(읽기 쉽게) 유지, 배경만 옅게 + 점선 테두리로
            '비활성' 시각 신호. opacity 제거. unit-status-sel 은 본래 컬러 배지 유지. */
         .so-card.editable:not(.unlocked) input.unit-edit,
@@ -814,6 +820,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 ({% if _so_is_parts %}정식 PACKING LIST 양식{% else %}KNK 표준 양식{% endif %})" style="text-decoration:none;">📥 엑셀 다운로드</a>
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
+                {# v5H226z88: 카드 상단 "💾 모두 저장" — 행별 row-save 일괄 호출 #}
+                <button type="button" class="save-all-btn" title="현재 카드의 모든 호기 변경사항 일괄 저장">💾 모두 저장</button>
                 {# v5H226: CONSUMABLE / v5H226z: PARTS 는 '+ 항목 추가' + 엑셀 업로드 버튼 #}
                 {% if (p.project_type or '')|upper == 'CONSUMABLE' %}
                 <button type="button" class="btn-mini" onclick="openConsumableImport({{ so.id }})" title="엑셀로 라인 일괄 업로드">📤 엑셀 업로드</button>
@@ -1427,6 +1435,31 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   alert('⚠ ' + e.message);
                 } finally {
                   toggleBtn.disabled = false;
+                }
+              });
+            }
+            // v5H226z88: 카드 상단 "💾 모두 저장" — saveAllRows() 직접 호출 (편집 모드 유지)
+            const saveAllBtn = card.querySelector('.save-all-btn');
+            if (saveAllBtn) {
+              saveAllBtn.addEventListener('click', async () => {
+                saveAllBtn.disabled = true;
+                saveAllBtn.textContent = '저장 중...';
+                try {
+                  const res = await saveAllRows();
+                  if (res.failed && res.failed.length) {
+                    alert('⚠ 일부 저장 실패:\n' + res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
+                  }
+                  if (res.changed > 0) {
+                    window.location.href = window.location.pathname + '?_t=' + Date.now();
+                    return;
+                  }
+                  saveAllBtn.textContent = '변경사항 없음';
+                  setTimeout(() => { saveAllBtn.textContent = '💾 모두 저장'; }, 1200);
+                } catch(e) {
+                  alert('⚠ ' + e.message);
+                  saveAllBtn.textContent = '💾 모두 저장';
+                } finally {
+                  saveAllBtn.disabled = false;
                 }
               });
             }
