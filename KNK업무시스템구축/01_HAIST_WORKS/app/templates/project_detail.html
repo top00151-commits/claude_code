@@ -436,7 +436,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   {% endif %}
 
   {# v5H226z43: data-dn 영역 라벨 — partial debug_overlay AUTO_ZONES 미감지 영역 명시 부착 (REPLY v2 라인 137~140) #}
-  <div class="detail-grid" data-dn="detail-grid" data-dn-tone="amber" style="margin-top: var(--space-5);">
+  {# v5H226z81: KPI ↔ detail-grid 사이 큰 빈 공간 축소 (var(--space-5)→var(--space-2)) #}
+  <div class="detail-grid" data-dn="detail-grid" data-dn-tone="amber" style="margin-top: var(--space-2);">
     <div data-dn="main-content" data-dn-tone="blue">
       <!-- v5H213: 수주 전 내역 — 수정 버튼 + 저장 패턴 (수주내역과 동일 UX) -->
       {% set _has_proposal = p.proposal_date %}
