@@ -1,170 +1,189 @@
 # 📊 HAIST WORKS — 통합 상태 보드 (LIVE)
 
-> **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악 (통합 단위 보드)
-> **갱신:** 빅터(01) 만 수정 — **대표 명시 지시 시점에만**
-> **마지막 갱신:** 2026-05-10 v5H226z71 (**2차 통합 사이클 완료** — 65p 일괄 통합)
+> **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
+> **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
+> **마지막 갱신:** 2026-05-11 v5H226z71 (**2차 통합 사이클 #2 + 자동 검증 완료**)
 
-## 🚦 빅터 통합 호출 방법 (대표님)
+---
+
+## 🚦 빅터 통합 호출 방법
 
 | 명령 | 작동 |
 |---|---|
 | **"빅터, 전체 연결성 검증"** | 3팀 산출물 일괄 통합 |
-| **"빅터, 팀N 통합"** | 단일 팀만 통합 (빠름) |
+| **"빅터, 팀N 통합"** | 단일 팀만 (빠름) |
+| **"빅터, 라이브 검증"** | 65 페이지 자동 검증 사이클 |
 | **"빅터, 표준 위반 검사"** | 코드 검수만 (변경 없음) |
-| **"빅터, BAT/STATUS 갱신"** | 보고 자료만 갱신 |
-| **"빅터, 롤백 태그"** | 현 시점 보존 (rollback-YYYYMMDD-HHMM) |
+| **"빅터, BAT/STATUS 갱신"** | 보고 자료만 |
+| **"빅터, 롤백 태그"** | 현 시점 보존 |
 
 ---
 
-## 🟢 통합 완료 (메인 코드 반영)
+## 🟢 통합 완료 (2026-05-10 ~ 11)
 
-### 2차 통합 사이클 — z71 (2026-05-10)
+### 2차 통합 사이클 — z71 / 65 페이지
 
-| 팀 | 페이지 수 | 핵심 |
+| 팀 | 페이지 | 진행률 | 핵심 |
+|---|---|---|---|
+| **01A 통합플랫폼** | **22 / 22** | **100% 🟢** | Quiet Tone v3 토큰 + data-dn 93개. v5 잔존 0건 (완벽) |
+| **01B 매출영업** | **27 / 30+** | **~90% 🟢** | 그룹 H 8p 완벽 / v1 차수 19p 부분 적용. .mgmt-pill 15곳 |
+| **01C 자재구매** | **16 / 30+** | **~50% 🟡** | partial 의존 모드 (v5 잔존 0건, qv 직접 0건) |
+| **합계** | **65 페이지** | **~50%** | v5H226z59 → z71 |
+
+### 커밋 / 태그 / BAT
+
+| 항목 | 값 |
+|---|---|
+| 통합 commit | `41880b7` (77 files, +6455/-2395) |
+| BAT 정정 | `5e3eff6` (echo 날짜 → 2026-05-11) |
+| 롤백 직전 | `rollback-20260510-pre-integration-z71` |
+| 롤백 직후 | `rollback-20260510-z71-integrated` |
+| **메인 BAT** | KNK_시작.bat / START.bat 모두 z71 통합 ✅ |
+| debug_overlay | z27 → z71 |
+
+---
+
+## 🔍 자동 검증 결과 (2026-05-11)
+
+### ✅ 통과 (5 카테고리)
+
+| # | 항목 | 결과 |
 |---|---|---|
-| **01A 통합플랫폼** | **22 / 22 (100%)** | home·daily·weekly·notifications·calendar·tickets·changes·issues·board·search·profile·now·team·cockpit + Quiet Tone v3 토큰 + data-dn 93개 |
-| **01B 매출영업** | **27 / 30+ (~90%)** | project_detail·sales_orders·sales_home·customer_detail·sales_quote·projects·customers_list·sales_shipments·sales_outstanding·sales_aging·sales_dashboard·sales_forecast·sales_production·export 6개·fta 2개 + .mgmt-pill 15곳 + 1100px 반응형 |
-| **01C 자재구매** | **16 / 30+ (~50%)** | po_list·logistics_home·parts·suppliers·stock 6개·po_detail·po_form·po_receive·wo_list·qc_report_list + 표준 v1 + 자체 BAT |
-| **합계** | **65 페이지** | 시안1 Quiet Tone v3 적용 + data-dn 라벨 + 1100px 반응형 |
+| 1 | 정적 자산 (image·CSS·JS) | **11/11 OK** |
+| 2 | HTML 구조 | **64/65 PASS** (daily.html option 자동닫힘은 무해) |
+| 3 | Jinja 문법 | **135/135 PASS** |
+| 4 | 라우트 응답 | **500 에러 0건** |
+| 5 | 데이터 연결성 | **코드 레벨 안전** |
 
-### 1차 통합 사이클 — z54~z57 (보존)
+### 🔴 결함 (3건)
 
-| 시점 | 팀 | 페이지 | 비고 |
+**#1 — 01B v1 차수 페이지 토큰 미완성** (시각 일관성)
+
+| 페이지 | v5 잔존 | 빨강 | 등급 |
 |---|---|---|---|
-| z54 | 01C | po_list.html | 시안1 ERP 시초 |
-| z57 | 01C | _STANDARD_자재모듈기준_v1.md | 자체 표준 — 결재 통과 |
+| project_detail.html | **62** | 27 | 🔴 즉시 보완 |
+| project_form.html | 42 | 13 | 🔴 |
+| sales_home.html | 17 | 3 | 🟡 |
+| customer_form.html | 12 | **18** | 🟡 (빨강 ≤5% 초과) |
+
+→ 룰 위반 X (v4 단계 분할 정책). 02 차수 보완 필요.
+
+**#2 — project_detail.html 겹침 위험**
+- position fixed 4 / sticky 7 / `<style>` 4 / `<script>` 9 / **z-index 9999**
+- 시각 겹침 가능성 높음. 대표 라이브 확인 권장
+
+**#3 — 반응형 1100px 미적용**
+- 01A 22p: 0/22 ❌ / 01C 16p: 0/16 ❌ (01B만 26/27 적용)
 
 ---
 
-## 🟡 검수 대기 / 보류
+## 🔵 다음 차수 우선순위
 
-| 항목 | 팀 | 산출물 | 다음 처리 |
+| 우선 | 대상 | 작업 | 사유 |
 |---|---|---|---|
-| 마이그레이션 SQL | 01C | `migrations/v5H226z56_자재모듈표준v1.sql` | 대표 결재 → 빅터 적용 |
-| 부록 B specs | 01A | daily/calendar 시간대·좌우분할 | 백엔드 협의 필요 |
-| input focus 빨강 | 01A | 22 페이지 일괄 정리 | v3+ 차수 검토 |
+| **1** | 01B | v2 차수 — project_detail · project_form · sales_home · customer_form 토큰 마이그 완성 (~10p) | 결함 #1 |
+| 2 | 01A | v3 차수 — 1100px 반응형 + 부록 B specs | 결함 #3 |
+| 3 | 01C | 잔여 14p (part_detail / wo_form / qms 4 / rates 5) | 진도 |
+| 4 | 빅터 | 마이그레이션 SQL 적용 검토 (`v5H226z56_자재모듈표준v1.sql`) | 결재 대기 |
+| 5 | 빅터 | admin*.html / login.html / error.html (~10p) | 빅터 책임 |
 
 ---
 
-## 🔵 진행 중 / 다음 차수
+## 🎯 대표 라이브 검증 추천 (5p · 15분)
 
-| 팀 | 다음 | 상태 |
-|---|---|---|
-| 01A 통합플랫폼 | v3 차수 (부록 B specs / 컴포넌트 표준화) | 대표 지시 대기 |
-| 01B 매출영업 | 잔여 3p (수출입·견적 마무리) + 컴포넌트 등록 | 자율 진행 가능 |
-| 01C 자재구매 | part_detail / wo_form / 출고·실사·품질·환율 | 빅터 검수 회신 시 시작 |
+| URL | 목적 |
+|---|---|
+| `/home?debug=1` | 01A 완벽 샘플 |
+| `/sales/orders?debug=1` | 01B 그룹 H 완벽 샘플 |
+| `/projects/[id]?debug=1` | ⚠️ **위험 페이지** (겹침 확인) |
+| `/po?debug=1` | 01C partial 모드 검증 |
+| `/stock/balances?debug=1` | 01C 데이터 페이지 |
 
----
-
-## 🔴 재작업 지시 (빅터 → 팀)
-
-| 시점 | 팀 | 페이지 | 사유 |
-|---|---|---|---|
-| (없음) | | | |
+서버 8081에서 가동 중. Ctrl+Shift+D 토글 / 우측 하단 "🔍 영역 보기" 진입 가능.
 
 ---
 
-## 🚨 충돌 발생
+## 🔴 재작업 지시 / 🚨 충돌
 
-| 시점 | 팀 A | 팀 B | 페이지 | 빅터 결정 |
-|---|---|---|---|---|
-| (없음) | | | | |
+| 시점 | 내용 |
+|---|---|
+| (없음) | 충돌·재작업 0건 |
 
 ---
 
 ## 📌 빅터 작업 메모
 
-### z71 (2026-05-10) — **2차 통합 사이클**
-- **롤백 태그**: `rollback-20260510-pre-integration-z71` 생성 (사이클 직전 보존)
-- **검수 결과**:
-  - 변경 템플릿: 65 페이지 (Modified)
-  - 잔존 v5 컬러 토큰: spot-check 0건 (sales_orders.html 인라인 1건만, v3 호환)
-  - data-dn 라벨: spot-check OK (home 10·sales_orders 20·po_list 5·project_detail 6·logistics_home 12)
-  - 메인 BAT 수정: 빅터(01) 본인만 (z71 갱신)
-  - main.py 변경: 빅터 z48 design_samples 라우트 1건 (룰 위반 X)
-  - DB / 라우트 / 외부 자산 변경: 0건
-- **세 팀 모두 옵션 A 자동 충족** (메인 직접 작업 환경)
-- BAT z59 → z71 / debug_overlay z27 → z71
+### z71 (2026-05-10~11) — 2차 통합 사이클 + 전면 자동 검증
 
-### z59 (2026-05-10 ADDENDUM v4)
-- 4충돌 정정: BAT 권한 / v5H226z 라벨 / 워크트리 동기화 / (e) 단계 분할
-- 01B v1 차수 인정
+**통합 단계 (5/10):**
+- 3팀 65p 검수 → 메인 적용 → BAT z59→z71 → 롤백 태그 2개 → commit 41880b7
+- 모두 옵션 A 자동 충족 (메인 직접 작업)
 
-### z57 (1차 통합 사이클)
-- 01A INQUIRY 답변 / 01B 착수 안내 / 01C po_list 통합 + 표준 v1 결재
+**자동 검증 단계 (5/11):**
+- 정량 grep + Jinja 컴파일 + HTML 파싱 + 라우트 ping + CSS 분석
+- 통과 5/5, 결함 3건 (모두 v2/v3 차수에서 보완 가능, 롤백 불요)
+- BAT echo 날짜 정정 (commit 5e3eff6)
+
+**빅터 한계:**
+- 인증 우회 권한 거부 → 로그인 후 실제 시각 렌더링은 대표 직접 확인
+- 권한별 분기 / empty-state / 반응형 깨짐 = 라이브만 가능
+
+### z59 (2026-05-10 ADDENDUM v4) — 4충돌 정정
+- BAT 권한 / v5H226z 라벨 / 워크트리 동기화 / (e) 단계 분할 명확화
+
+### z57 (1차 사이클) — 01A 답변 / 01B 착수 / 01C po_list
 
 ---
 
-## 🎯 우선순위 페이지 (전체 진행률)
+## 🎯 페이지별 진행률
 
-### 01A 통합플랫폼 (22 페이지) — **22 / 22 = 100% 🟢**
-- [x] home / daily / weekly / now / team / cockpit
-- [x] notifications / calendar / search
-- [x] tickets_list / ticket_detail / ticket_form
-- [x] changes_list / change_detail / change_form
-- [x] issues_list / issue_detail / issue_form
-- [x] board_list / board_detail / board_form / board_teams
-- [x] profile
+### 01A 통합플랫폼 — 22/22 = 100% 🟢
+home·daily·weekly·now·team·cockpit · notifications·calendar·search · tickets×3·changes×3·issues×3·board×4·profile
 
-### 01B 매출영업 (30+ 페이지) — **27 / 30+ ≈ 90% 🟢**
-- [x] project_detail / projects / project_form
-- [x] sales_orders / sales_home / sales_order_detail
-- [x] customer_detail / customer_form / customers_list
-- [x] sales_quotations / sales_quote_detail / sales_quote_form
-- [x] sales_shipments_receipts / sales_outstanding / sales_aging
-- [x] sales_dashboard / sales_forecast / sales_production
-- [x] export_home / export_order_detail / export_order_form
-- [x] export_ci / export_pl / export_bl_customs
-- [x] fta_list / fta_form
-- [ ] 잔여 3p (소모품 등)
+### 01B 매출영업 — 27/30+ ≈ 90% 🟢 (그룹 H 8p 완벽 / v1 19p 부분)
+**완벽 (그룹 H):** export_home·order_detail·order_form·ci·pl·bl_customs·fta_list·fta_form
+**부분 (v1):** project_detail·projects·project_form · sales_orders·sales_home·sales_order_detail · customer_detail·customer_form·customers_list · sales_quotations·quote_detail·quote_form · sales_shipments_receipts·outstanding·aging·dashboard·forecast·production
+**잔여 3p:** 소모품 외
 
-### 01C 자재구매 (30+ 페이지) — **16 / 30+ ≈ 50% 🟡**
-- [x] po_list / po_detail / po_form / po_receive
-- [x] logistics_home
-- [x] parts / suppliers
-- [x] stock_balances / stock_movements / stock_safety / stock_reorder / stock_abc / stock_receipts / stock_turnover
-- [x] wo_list / qc_report_list
-- [ ] part_detail / part_form / part_prices / supplier_form
-- [ ] wo_form / wo_detail / qc_form / qc_detail / qms 4개 / rates 5개
+### 01C 자재구매 — 16/30+ ≈ 50% 🟡
+**완료:** po_list·po_detail·po_form·po_receive · logistics_home · parts·suppliers · stock×7 · wo_list·qc_report_list
+**잔여 14p:** part_detail·part_form·part_prices·supplier_form · wo_form·wo_detail · qc_form·qc_detail · qms×4 · rates×5
 
-### 빅터(01) 책임 — 공통/통합/관리자
-- [x] chrome.html (Quiet Tone v3) / styles.html / design_quiet_v3.html
-- [x] debug_overlay.html (z71)
-- [x] STATUS.md 운영 체계
-- [x] 발주서 v2 + ADDENDUM v3 / v4
-- [x] 1차·2차 통합 사이클 완료
-- [ ] admin*.html (관리자/권한)
-- [ ] login.html / error.html
+### 빅터(01) 책임 — 공통/관리자
+- [x] chrome.html / styles.html / design_quiet_v3.html / debug_overlay.html (z71)
+- [x] STATUS.md 운영 체계 / 발주서 + ADDENDUM v3·v4
+- [x] 1차·2차 통합 사이클 / 자동 검증 시스템
+- [ ] admin*.html (관리자/권한) / login.html / error.html
 
 ---
 
 ## 📈 누적 통계
 
-| 지표 | 현재 |
+| 지표 | 값 |
 |---|---|
 | 총 페이지 | 130+ |
-| **시안1 적용 완료** | **65** |
+| **시안1 적용 완료** | **65** (완벽 30 + 부분 35) |
 | 미적용 | ~65 |
 | **전체 진행률** | **~50%** |
-| 1차 통합 사이클 | ✅ z57 |
-| 2차 통합 사이클 | ✅ **z71** |
+| 1차 통합 사이클 (z57) | ✅ |
+| 2차 통합 사이클 (z71) | ✅ |
+| 자동 검증 사이클 (z71) | ✅ |
+| 발견 결함 | 3건 (모두 비-블로커) |
 
 ---
 
 ## 🔔 대표 결재 / 통보 사항
 
 ### 대기 중
-1. **마이그레이션 SQL 적용 결재** (01C)
-   - 위치: `01C_HAIST_WORKS_자재구매/migrations/v5H226z56_자재모듈표준v1.sql`
-   - 빅터 적용 필요 시 결재 라인
+1. **마이그레이션 SQL 적용 결재** — `01C_HAIST_WORKS_자재구매/migrations/v5H226z56_자재모듈표준v1.sql`
+2. **자재 라우트 확장 결재** — `database.py:po_list()` SELECT 확장 (사업부·품명·L/T)
+3. **다음 차수 발주** — 우선순위 1 (01B v2) ~ 5 (빅터 admin)
 
-2. **자재 라우트 확장 결재** (01C 권고, 미해결)
-   - 사양: `database.py:po_list()` SELECT 확장 (사업부·품명·L/T 추가)
-
-3. **다음 차수 승인 발주**
-   - 01A v3 차수 (부록 B specs / 컴포넌트 표준화)
-   - 01B 잔여 3p + 컴포넌트 등록
-   - 01C part_detail / wo_form / 출고·실사·품질·환율
+### 완료
+- 1차 통합 사이클 (z57)
+- 2차 통합 사이클 (z71)
+- 자동 검증 사이클 (z71)
+- BAT 동기화 (z71)
 
 ---
 
