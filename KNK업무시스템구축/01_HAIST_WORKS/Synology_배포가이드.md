@@ -1,7 +1,11 @@
 # HAIST WORKS — Synology NAS Docker 배포 가이드
 
-> **v5H226z75 (2026-05-11)** — 메신저(10_KNK_Messenger)가 2026-05-11 실배포한 동일 NAS·동일 패턴 재사용.
-> 이미 메신저용 인프라(가비아 DNS·라우터 포트포워딩 80/443·Let's Encrypt)가 갖춰져 있으므로 **server_name 추가**만 하면 됩니다.
+> **v5H226z76 (2026-05-11)** — 메신저(10_KNK_Messenger)가 2026-05-11 실배포한 동일 NAS·동일 패턴 재사용.
+> 실제 환경 = **단일 Ubuntu 20.04 컨테이너 + supervisord** (메신저와 공존). 별도 컨테이너 X.
+>
+> **즉시 사용: → 본 문서 가장 아래 "🚀 방법 B 부록 — 실 배포 절차 (Auto)"** 섹션 참고.
+>
+> 본문은 별도 컨테이너 방식 (참고용, 미사용)
 
 ---
 
@@ -289,3 +293,172 @@ docker exec -it knk-haist sqlite3 /app/data/knk.db
 - `deploy/sync_to_synology.ps1` — Windows → NAS 동기화
 - `deploy/backup.sh` — DB·업로드 백업
 - `10_KNK_Messenger/Synology_배포가이드.md` — 메신저 가이드 (같은 NAS, 같은 패턴)
+
+---
+
+# 🚀 방법 B 부록 — 실 배포 절차 (Auto, 2026-05-11 채택)
+
+> **이 섹션이 실제 사용되는 절차입니다.**
+> 본문(별도 컨테이너 방식)은 참고용으로만 유지.
+
+## 환경
+
+| 항목 | 값 |
+|---|---|
+| 컨테이너 | Synology Container Manager의 단일 Ubuntu 20.04 (host network 모드) |
+| systemctl | ❌ 없음. **supervisord** 사용 |
+| 메신저 | `/opt/knk_messenger/` + supervisord knk-messenger + nginx :8080 가동 중 |
+| HAIST 추가 | `/opt/knk_haist/` + supervisord knk-haist + nginx :8090 |
+| SSH (외부) | `ssh root@o.knknara.co.kr -p 31201` (PW: knk123!) |
+| SSH (LAN) | `ssh root@192.168.12.5 -p 31201` |
+| 외부 HTTP | o.knknara.co.kr:3310 → 컨테이너:80 (Web Station) |
+
+## 1단계 — 코드 업로드 (Windows PC)
+
+PowerShell 에서:
+```powershell
+cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\01_HAIST_WORKS"
+./deploy/upload_to_nas.ps1
+# 비밀번호 입력 요청 2회: knk123!
+```
+
+→ tar 자동 생성 + scp 업로드 + 원격 압축 해제까지 자동.
+
+## 2단계 — 컨테이너 안에서 셋업 (NAS SSH)
+
+```bash
+ssh root@o.knknara.co.kr -p 31201   # PW: knk123!
+
+cd /opt/knk_haist
+bash deploy/setup_ubuntu_container.sh
+```
+
+이 한 줄이 자동 처리:
+- apt 패키지 추가 (python3 venv, build-essential, tesseract-ocr-kor, poppler-utils, supervisor, nginx)
+- Python venv + requirements.txt 설치
+- `.env` 자동 생성 (KNK_SECRET_KEY 임의 hex 64자, KNK_MODE=prod)
+- supervisord 에 `knk-haist` 프로그램 등록 + 시작
+- nginx 에 server block (`:8090`) 추가 + reload
+- 헬스체크 (uvicorn :8081 + nginx :8090)
+
+## 3단계 — 동작 확인 (SSH 안)
+
+```bash
+# 컨테이너 안 상태
+supervisorctl status | grep knk-haist
+# → knk-haist  RUNNING  pid xxxxx
+
+# uvicorn 직접
+curl -I http://127.0.0.1:8081/login   # HTTP 200 또는 303 OK
+
+# nginx 프록시
+curl -I http://127.0.0.1:8090/login   # HTTP 200 또는 303 OK
+
+# 로그
+tail -f /opt/knk_haist/logs/uvicorn.log
+tail -f /opt/knk_haist/logs/uvicorn-error.log
+```
+
+## 4단계 — 외부 접속 라우팅 (대표/IT)
+
+### 옵션 (α) 새 외부 포트 — ⭐ 권장 (가장 빠름)
+
+회사 라우터 관리자 페이지:
+
+| 외부 포트 | 프로토콜 | 내부 IP | 내부 포트 |
+|---|---|---|---|
+| 3320 | TCP | 192.168.12.5 (NAS) | 8090 (HAIST nginx) |
+
+→ 외부 접속: **`http://o.knknara.co.kr:3320/login`**
+
+### 옵션 (β) 하위 도메인 — 정식 (DNS 작업 필요)
+
+1. 가비아 DNS A 레코드 추가: `haist.knknara.co.kr` → NAS 공인 IP
+2. `/opt/knk_haist/deploy/nginx-knk-haist-server.conf` 의 `server_name _;` → `server_name haist.knknara.co.kr;` 로 교체
+3. `supervisorctl restart knk-nginx` (또는 `nginx -s reload`)
+4. DSM Reverse Proxy 안 쓰면 라우터 3310 → 컨테이너:8090 변경 + nginx server_name 분기로 메신저·HAIST 동시 처리
+5. Let's Encrypt 발급 (DSM Certificate)
+6. 외부 접속: **`https://haist.knknara.co.kr/`**
+
+## 5단계 — 보안 사후 점검
+
+```bash
+# .env 권한 확인 (600)
+ls -la /opt/knk_haist/.env
+
+# SECRET_KEY 가 hex 64자 인지
+grep KNK_SECRET_KEY /opt/knk_haist/.env
+
+# prod 모드인지
+grep KNK_MODE /opt/knk_haist/.env
+
+# .env 가 git 추적 제외인지 (호스트 PC에서 확인)
+```
+
+⚠️ **대표 추가 작업 권장:**
+- 사용자 비밀번호 일제 재설정 (외부 공개 직전)
+- HyperBackup 으로 `/opt/knk_haist/data/` 자동 백업 추가
+- 로그인 brute-force 방어 (rate limit 미들웨어 추가 검토)
+
+## 6단계 — 운영 명령 모음
+
+```bash
+# 상태
+supervisorctl status
+
+# 재시작
+supervisorctl restart knk-haist
+
+# 중단
+supervisorctl stop knk-haist
+
+# 코드 업데이트 (Windows PC 에서 push 후 NAS 에서)
+cd /opt/knk_haist
+tar -xzf /tmp/knk_haist_sync.tar.gz   # upload_to_nas.ps1 이 자동 처리
+supervisorctl restart knk-haist
+
+# 로그
+tail -100 /opt/knk_haist/logs/uvicorn.log
+tail -100 /opt/knk_haist/logs/uvicorn-error.log
+
+# DB 직접
+sqlite3 /opt/knk_haist/data/knk.db
+
+# nginx reload (server_name 등 변경 시)
+nginx -t && supervisorctl restart knk-nginx
+```
+
+## 7단계 — supervisord 자동 시작 (재부팅 대비)
+
+메신저 셋업 시 이미 처리된 경우 추가 작업 없음. 미처리면:
+
+**(A) 컨테이너 entrypoint** (DSM Container Manager UI):
+```
+/usr/bin/supervisord -c /etc/supervisor/supervisord.conf -n
+```
+
+**(B) /root/.bash_profile**:
+```bash
+echo 'pgrep supervisord > /dev/null || /usr/bin/supervisord -c /etc/supervisor/supervisord.conf' >> /root/.bash_profile
+```
+
+## 8단계 — 트러블슈팅
+
+| 증상 | 조치 |
+|---|---|
+| `supervisorctl: knk-haist 없음` | `supervisorctl reread && supervisorctl update` |
+| uvicorn 즉시 종료 | `tail /opt/knk_haist/logs/uvicorn-error.log` — 보통 .env 누락 또는 venv 미설치 |
+| `:8081` 응답 X | `supervisorctl status` 로 RUNNING 확인 / 포트 점유: `ss -tlnp \| grep 8081` |
+| `:8090` 응답 X | `nginx -t` 로 conf 검증 / `supervisorctl restart knk-nginx` |
+| 한글 깨짐 | `.env` 의 `TZ=Asia/Seoul` 확인 / supervisord environment LANG 확인 |
+| `.env` SECRET_KEY 비어있음 | `rm .env && bash deploy/setup_ubuntu_container.sh` 재실행 |
+| 8090 충돌 | nginx conf 의 `listen 8090` → 다른 포트로 변경 + 라우터도 같이 변경 |
+
+---
+
+**관련 파일 (deploy/):**
+- `setup_ubuntu_container.sh` — 자동 셋업 (한 줄 실행)
+- `supervisord-knk-haist.conf` — supervisord 프로그램 정의
+- `nginx-knk-haist-server.conf` — nginx server block (:8090)
+- `upload_to_nas.ps1` — Windows → NAS 업로드 자동화
+- `backup.sh` — DB·업로드 백업 (cron 또는 HyperBackup 보조)

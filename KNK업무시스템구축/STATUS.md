@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z75 (**Synology NAS Docker 배포 패키지 — Ubuntu 20.04**)
+> **마지막 갱신:** 2026-05-11 v5H226z76 (**단일 Ubuntu 컨테이너 배포 패키지 — supervisord 모드**)
 
 ---
 
@@ -128,7 +128,34 @@
 
 ## 📌 빅터 작업 메모
 
-### z75 (2026-05-11) — Synology NAS Docker 배포 패키지
+### z76 (2026-05-11) — 단일 Ubuntu 컨테이너 배포 패키지 (실 환경 반영)
+**대표 NAS 환경 확정 후 z75 패키지 보완:**
+- 환경: Synology Container Manager 의 단일 Ubuntu 20.04 (host network 모드, systemctl 없음)
+- 메신저가 이미 supervisord + nginx :8080 으로 가동 중 — 같은 컨테이너에 공존
+- SSH: 외부 `o.knknara.co.kr:31201` / 내부 `192.168.12.5:31201` (root)
+- 외부 HTTP: `o.knknara.co.kr:3310` → 컨테이너:80 (Web Station)
+- 빅터 SSH 자동 접속은 보안상 차단 → 패키지만 제공 + 대표가 SSH 실행
+
+**z76 신규 파일 5개:**
+- `deploy/setup_ubuntu_container.sh` — 컨테이너 내부 자동 셋업 (apt + venv + .env auto-gen + supervisord 등록 + nginx :8090)
+- `deploy/supervisord-knk-haist.conf` — systemctl 대체 (uvicorn 8081 워커 2)
+- `deploy/nginx-knk-haist-server.conf` — :8090 server block (uvicorn 프록시 + /static 캐싱)
+- `deploy/upload_to_nas.ps1` — Windows tar+scp+원격 압축해제 자동
+- `Synology_배포가이드.md` 방법 B 부록 추가 (실 운영 절차)
+
+**z75 산출물 (별도 컨테이너 방식):**
+- Dockerfile / setup_synology_container.sh / nginx-synology.conf / sync_to_synology.ps1 — 참고용 유지 (Synology 가 별도 컨테이너 채택 시 가능)
+
+**외부 접속 옵션:**
+- (α) 새 외부 포트 3320 → 컨테이너:8090  ← ⭐ 권장 (라우터 1줄)
+- (β) haist.knknara.co.kr 하위 도메인 (DNS + nginx server_name 분기 + Let's Encrypt)
+
+**보안 자동 처리:**
+- KNK_SECRET_KEY hex 64자 자동 생성 (setup.sh)
+- .env 권한 600 / .gitignore 차단
+- KNK_MODE=prod 강제
+
+### z75 (2026-05-11) — Synology NAS Docker 배포 패키지 (별도 컨테이너 방식, 참고용)
 - 회사 NAS (메신저 가동 중과 동일) 에 HAIST WORKS 추가 배포 준비
 - Ubuntu 20.04 base / Python 3 + uvicorn / 비루트 사용자 / 헬스체크
 - 8개 파일 생성:
