@@ -895,8 +895,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
-                  {# v5H226z92: 호기 컬럼 110→64px (×버튼 회수, 입력 모드 input + padding 충족) #}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}64px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {# v5H226z93: 호기 컬럼 64→80px (짤림 방지) #}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:80px;"  data-pgroup="basic">메이커</th>
@@ -926,8 +926,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
                   <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
                   {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
-                  {# v5H226z84: 납품처 컬럼 너비 110→96px #}
-                  {% if not _is_parts %}<th style="width:96px;">납품처</th>{% endif %}
+                  {# v5H226z93: 납품처 컬럼 너비 96→140px (시노펙스 동탄 7자 + 여유) #}
+                  {% if not _is_parts %}<th style="width:140px;">납품처</th>{% endif %}
                   <th style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
