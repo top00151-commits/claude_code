@@ -2,6 +2,7 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ cu.name }} · 고객사</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z46: 시안1 토큰 + .mgmt-pill — customer_detail v1 차수 */
 body {
   --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
@@ -15,11 +16,11 @@ body {
 .mgmt-pill.lg { padding:6px 16px; font-size:18px; }
 
 .detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
-.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
 .def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
+.def dt { color: var(--qv-ink-3); font-weight: 600; } .def dd { color: var(--qv-ink); }
 @media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
 /* v5H226z46: 1100px 반응형 */
 @media (max-width: 1100px) {
@@ -68,7 +69,7 @@ body {
           {% endfor %}
           </tbody>
         </table></div>
-        {% else %}<div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">프로젝트 없음</div>{% endif %}
+        {% else %}<div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">프로젝트 없음</div>{% endif %}
       </div>
 
       {# v5H120: 공통 history_card partial 사용 #}
@@ -87,7 +88,7 @@ body {
           <thead><tr><th>일자</th><th>담당</th><th>제목</th><th class="center">상태</th></tr></thead>
           <tbody>
           {% for t in tasks[:15] %}
-            <tr><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td></tr>
+            <tr><td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td></tr>
           {% endfor %}
           </tbody>
         </table></div>
@@ -97,35 +98,35 @@ body {
 
     <aside data-dn="right-rail" data-dn-tone="purple">
       <!-- v5H58: 자동 등급 산정 카드 -->
-      <div class="section-card" style="border-left: 4px solid {% if cu.tier == 'VIP' %}var(--knk-red){% elif cu.tier == '주요' %}var(--amber-deep){% elif cu.tier == '신규' %}var(--amber){% elif cu.tier == '휴면' %}var(--mute){% else %}var(--success){% endif %};">
+      <div class="section-card" style="border-left: 4px solid {% if cu.tier == 'VIP' %}var(--knk-red){% elif cu.tier == '주요' %}var(--qv-ink-2){% elif cu.tier == '신규' %}var(--qv-line-3){% elif cu.tier == '휴면' %}var(--qv-ink-3){% else %}var(--success){% endif %};">
         <h3>⭐ 자동 산정 등급</h3>
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
           <span class="pill {% if cu.tier == 'VIP' %}pill-danger{% elif cu.tier == '주요' %}pill-progress{% elif cu.tier == '신규' %}pill-warn{% elif cu.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:18px; padding:6px 14px; font-weight:700;">
             {{ cu.tier|default('—') }}
           </span>
           <div style="text-align:right;">
-            <div style="font-size:24px; font-weight:700; color:var(--ink);">{{ cu.tier_score|default(0) }}<span style="font-size:13px; color:var(--mute);">/100</span></div>
-            <div style="font-size:10px; color:var(--mute);">{{ cu.tier_computed_at|default('미계산') }}</div>
+            <div style="font-size:24px; font-weight:700; color:var(--qv-ink);">{{ cu.tier_score|default(0) }}<span style="font-size:13px; color:var(--qv-ink-3);">/100</span></div>
+            <div style="font-size:10px; color:var(--qv-ink-3);">{{ cu.tier_computed_at|default('미계산') }}</div>
           </div>
         </div>
         {% if tier_breakdown %}
-        <div style="border-top:1px solid var(--line); padding-top:10px;">
-          <div style="font-size:11px; color:var(--mute); margin-bottom:8px; font-weight:700;">📊 점수 산정 내역</div>
+        <div style="border-top:1px solid var(--qv-line); padding-top:10px;">
+          <div style="font-size:11px; color:var(--qv-ink-3); margin-bottom:8px; font-weight:700;">📊 점수 산정 내역</div>
           {% for b in tier_breakdown %}
           <div style="margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
               <span><b>{{ b.label }}</b></span>
-              <span><b style="color:{% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--amber-deep){% elif b.score > 0 %}var(--mute){% else %}var(--knk-red){% endif %};">{{ b.score }}</b><span style="color:var(--mute);font-size:10px;">/{{ b.max }}</span></span>
+              <span><b style="color:{% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--qv-ink-2){% elif b.score > 0 %}var(--qv-ink-3){% else %}var(--knk-red){% endif %};">{{ b.score }}</b><span style="color:var(--qv-ink-3);font-size:10px;">/{{ b.max }}</span></span>
             </div>
-            <div style="background:var(--paper-2); height:6px; border-radius:3px; overflow:hidden;">
-              <div style="height:100%; width: {{ (b.score * 100 / b.max)|round|int }}%; background: {% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--amber-deep){% elif b.score > 0 %}var(--amber){% else %}var(--paper-2){% endif %};"></div>
+            <div style="background:var(--qv-surface-3); height:6px; border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width: {{ (b.score * 100 / b.max)|round|int }}%; background: {% if b.score == b.max %}var(--success){% elif b.score >= b.max // 2 %}var(--qv-ink-2){% elif b.score > 0 %}var(--qv-line-3){% else %}var(--qv-surface-3){% endif %};"></div>
             </div>
-            <div style="font-size:10.5px; color:var(--mute); margin-top:2px;">{{ b.detail }}</div>
+            <div style="font-size:10.5px; color:var(--qv-ink-3); margin-top:2px;">{{ b.detail }}</div>
           </div>
           {% endfor %}
         </div>
         {% endif %}
-        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);">
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--qv-line);">
           <button type="button" onclick="recomputeTier({{ cu.id }})" class="btn btn-secondary" style="width:100%; justify-content:center; font-size:12px;">↻ 지금 재계산</button>
         </div>
       </div>
@@ -140,7 +141,7 @@ body {
           <dt>대표 이메일</dt><dd style="font-size:12px;">{{ cu.email|default('—') }}</dd>
           <dt>주소</dt><dd style="font-size:12px;">{{ cu.address|default('—') }}</dd>
         </dl>
-        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);">
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--qv-line);">
           <a href="/customers/{{ cu.id }}/edit" class="btn btn-secondary" style="width:100%; justify-content:center;">✏ 수정</a>
         </div>
       </div>
@@ -163,21 +164,21 @@ body {
         <h3>👥 담당자 ({{ contacts|default([])|length }})</h3>
         {% if contacts %}
           {% for c in contacts %}
-          <div style="padding: 10px 0; border-bottom: 1px dashed var(--line);">
+          <div style="padding: 10px 0; border-bottom: 1px dashed var(--qv-line);">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
               <span class="pill {% if c.role == '영업' %}pill-progress{% elif c.role == '구매' %}pill-warn{% elif c.role == '세금계산서' %}pill-done{% else %}pill-muted{% endif %}" style="font-size:10px;">
                 {{ c.role }}{% if c.is_primary %} ★{% endif %}
               </span>
               <span style="font-weight:700; font-size:13.5px;">{{ c.name }}{% if c.position %} {{ c.position }}{% endif %}</span>
             </div>
-            {% if c.department %}<div style="font-size:11.5px; color:var(--mute); margin-top:3px;">📁 {{ c.department }}</div>{% endif %}
+            {% if c.department %}<div style="font-size:11.5px; color:var(--qv-ink-3); margin-top:3px;">📁 {{ c.department }}</div>{% endif %}
             {% if c.phone %}<div style="font-size:12px; margin-top:2px;">☎ {{ c.phone }}</div>{% endif %}
             {% if c.mobile %}<div style="font-size:12px;">📱 {{ c.mobile }}</div>{% endif %}
             {% if c.email %}<div style="font-size:12px; color:var(--knk-red);">✉ {{ c.email }}</div>{% endif %}
           </div>
           {% endfor %}
         {% else %}
-          <div style="padding:20px; text-align:center; color:var(--mute); font-size:13px;">
+          <div style="padding:20px; text-align:center; color:var(--qv-ink-3); font-size:13px;">
             등록된 담당자가 없습니다<br>
             <a href="/customers/{{ cu.id }}/edit" style="color:var(--knk-red); text-decoration:underline; font-size:12px;">+ 담당자 추가</a>
           </div>
@@ -188,7 +189,7 @@ body {
       <div class="section-card">
         <h3>팀별 활동</h3>
         {% for k, v in by_team[:5] %}
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--line);">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--qv-line);">
           <span>{{ k }}</span><b>{{ v.cnt }}건 · {{ '%.1f'|format(v.hours) }}h</b>
         </div>
         {% endfor %}

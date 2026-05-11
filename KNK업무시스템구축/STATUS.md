@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z73 (**빅터 핫픽스 — logistics_home v5→qv 회귀 정정**)
+> **마지막 갱신:** 2026-05-11 v5H226z74 (**빅터 대형 마이그 — 12p v5→qv 일괄 248→0건**)
 
 ---
 
@@ -127,6 +127,18 @@
 ---
 
 ## 📌 빅터 작업 메모
+
+### z74 (2026-05-11) — 빅터 대형 마이그 (잔여 결함 1차 해결)
+- 12 페이지 v5 토큰 → qv 토큰 일괄 마이그레이션
+- 잔존 248건 → 0건 (project_detail 68, project_form 43, sales_home 19, customer_form 12, consumables 11, consumable_detail 8, customer_detail 6, projects 6, consumable_form_upload 6, part_form 10, part_detail 7, part_prices 2)
+- customer_form 시각 강조 빨강 1건 정리 (contacts-tbl 테이블 헤더 → 잉크 톤). 의미적 빨강(필수·삭제·에러 JS) 20건 보존
+- qv 토큰 +503건 추가
+- Jinja 135/135 PASS / 라이브 응답 303 정상
+- 1 commit 묶음 룰 적용 (BAT 3곳×2 + debug_overlay + STATUS + 롤백 태그)
+
+### 잔여 (다음 차수)
+- 01A 22p + 01C 42p **1100px 반응형** — 페이지 레이아웃 변경 위험성 있어 v3 차수 별도 발주 권장
+- 의미적 빨강 검토는 시안1 부록 specs 단계
 
 ### z73 (2026-05-11) — 빅터 핫픽스: logistics_home 회귀 정정
 - 라이브 검증 발견 결함 #1 즉시 처리

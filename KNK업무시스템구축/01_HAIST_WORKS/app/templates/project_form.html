@@ -3,6 +3,7 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
+/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z55: 시안1 토큰 — project_form v1+v2 차수 */
 body {
   --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
@@ -12,29 +13,29 @@ body {
 @media (max-width:1100px){ .pf-row.three{grid-template-columns:repeat(2,1fr) !important;} }
 /* v5H76: 프로젝트 등록 폼 — 단정한 섹션형 레이아웃 (기본정보 → 고객·일정 → 금액·상태 → 비고) */
 .pf-wrap { max-width: 880px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
-.pf-hint { font-size: 12px; color: var(--mute); margin: var(--space-2) 0 var(--space-5); line-height: 1.6; }
-.pf-section { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); }
-.pf-section h3 { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; margin: 0 0 var(--space-4); display: flex; align-items: center; gap: 8px; }
-.pf-section h3::before { content: ""; width: 4px; height: 14px; background: var(--amber); border-radius: 2px; }
+.pf-hint { font-size: 12px; color: var(--qv-ink-3); margin: var(--space-2) 0 var(--space-5); line-height: 1.6; }
+.pf-section { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); }
+.pf-section h3 { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--qv-ink-2); font-weight: 700; margin: 0 0 var(--space-4); display: flex; align-items: center; gap: 8px; }
+.pf-section h3::before { content: ""; width: 4px; height: 14px; background: var(--qv-line-3); border-radius: 2px; }
 .pf-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 14px; }
 .pf-row:last-child { margin-bottom: 0; }
 .pf-row.solo { grid-template-columns: 1fr; }
 .pf-row.three { grid-template-columns: 1fr 1fr 1fr; }
 .pf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pf-field.full { grid-column: 1/-1; }
-.pf-field label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.pf-field label { font-size: 12.5px; font-weight: 600; color: var(--qv-ink); }
 .pf-field label .req { color: var(--knk-red); margin-left: 2px; }
-.pf-field input, .pf-field select, .pf-field textarea { padding: 11px 14px; font-family: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); transition: border-color .15s, box-shadow .15s; }
-.pf-field input:focus, .pf-field select:focus, .pf-field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+.pf-field input, .pf-field select, .pf-field textarea { padding: 11px 14px; font-family: inherit; font-size: 14px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); transition: border-color .15s, box-shadow .15s; }
+.pf-field input:focus, .pf-field select:focus, .pf-field textarea:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 3px var(--qv-surface-2); }
 .pf-field textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
-.pf-field .sub { font-size: 11.5px; color: var(--mute); }
-.pf-field input[readonly] { background: var(--paper-2); color: var(--mute); cursor: not-allowed; }
+.pf-field .sub { font-size: 11.5px; color: var(--qv-ink-3); }
+.pf-field input[readonly] { background: var(--qv-surface-3); color: var(--qv-ink-3); cursor: not-allowed; }
 .pf-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: var(--space-3); }
-.pf-confirm-now { margin-top: 12px; padding: 14px 16px; background: var(--amber-glow); border: 1px dashed var(--amber); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 10px; }
-.pf-confirm-now input[type=checkbox] { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--amber-deep); cursor: pointer; }
-.pf-confirm-now label { font-size: 13px; color: var(--ink); cursor: pointer; line-height: 1.55; }
-.pf-confirm-now label b { color: var(--amber-deep); }
-.pf-confirm-now label .desc { display: block; font-size: 11.5px; color: var(--mute); margin-top: 4px; }
+.pf-confirm-now { margin-top: 12px; padding: 14px 16px; background: var(--qv-surface-2); border: 1px dashed var(--qv-line-3); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 10px; }
+.pf-confirm-now input[type=checkbox] { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--qv-ink-2); cursor: pointer; }
+.pf-confirm-now label { font-size: 13px; color: var(--qv-ink); cursor: pointer; line-height: 1.55; }
+.pf-confirm-now label b { color: var(--qv-ink-2); }
+.pf-confirm-now label .desc { display: block; font-size: 11.5px; color: var(--qv-ink-3); margin-top: 4px; }
 @media (max-width: 720px) { .pf-row, .pf-row.three { grid-template-columns: 1fr; } }
 </style></head>
 <body>
@@ -80,28 +81,28 @@ body {
       </h1>
       {% if not project and preset %}
       <div style="margin-top:6px;">
-        <a href="/projects/new" style="font-size:12px;color:var(--mute);text-decoration:none;">← 다른 유형으로 변경</a>
+        <a href="/projects/new" style="font-size:12px;color:var(--qv-ink-3);text-decoration:none;">← 다른 유형으로 변경</a>
       </div>
       {% endif %}
     </div>
     {# v5H174: 등록자 / 등록일시 — 우측 상단 항상 표시 #}
-    <div style="text-align:right;font-size:12px;color:var(--mute);line-height:1.7;background:var(--paper-3);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:200px;">
+    <div style="text-align:right;font-size:12px;color:var(--qv-ink-3);line-height:1.7;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:8px;padding:10px 14px;min-width:200px;">
       {% if project %}
-        <div><span style="color:var(--mute);">등록자</span>
-          <b style="color:var(--ink);margin-left:6px;">{{ project.created_by_name|default(project.created_by|default('—')) }}</b></div>
-        <div><span style="color:var(--mute);">등록일시</span>
-          <b style="color:var(--ink);margin-left:6px;font-family:monospace;">{{ (project.created_at|default(''))[:19] or '—' }}</b></div>
+        <div><span style="color:var(--qv-ink-3);">등록자</span>
+          <b style="color:var(--qv-ink);margin-left:6px;">{{ project.created_by_name|default(project.created_by|default('—')) }}</b></div>
+        <div><span style="color:var(--qv-ink-3);">등록일시</span>
+          <b style="color:var(--qv-ink);margin-left:6px;font-family:monospace;">{{ (project.created_at|default(''))[:19] or '—' }}</b></div>
         {% if project.updated_at and project.updated_at != project.created_at %}
-        <div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--line);">
-          <span style="color:var(--mute);">최근 수정</span>
-          <b style="color:var(--ink);margin-left:6px;font-family:monospace;font-size:11.5px;">{{ (project.updated_at|default(''))[:19] }}</b>
+        <div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--qv-line);">
+          <span style="color:var(--qv-ink-3);">최근 수정</span>
+          <b style="color:var(--qv-ink);margin-left:6px;font-family:monospace;font-size:11.5px;">{{ (project.updated_at|default(''))[:19] }}</b>
         </div>
         {% endif %}
       {% else %}
-        <div><span style="color:var(--mute);">등록자</span>
-          <b style="color:var(--ink);margin-left:6px;">{{ user.name|default('—') }}</b></div>
-        <div><span style="color:var(--mute);">등록일시</span>
-          <b style="color:var(--ink);margin-left:6px;font-family:monospace;" id="pf_now_ts">—</b></div>
+        <div><span style="color:var(--qv-ink-3);">등록자</span>
+          <b style="color:var(--qv-ink);margin-left:6px;">{{ user.name|default('—') }}</b></div>
+        <div><span style="color:var(--qv-ink-3);">등록일시</span>
+          <b style="color:var(--qv-ink);margin-left:6px;font-family:monospace;" id="pf_now_ts">—</b></div>
         <script>
           (function(){
             var el = document.getElementById('pf_now_ts');
@@ -125,12 +126,12 @@ body {
 
     {% if project %}
     {# v5H192: 수정 모드 — 기본은 잠금. '🔓 수정 잠금 해제' 클릭 → 비밀번호 인증 → 편집 가능 #}
-    <div id="pfLockBanner" style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--amber); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
+    <div id="pfLockBanner" style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--qv-line-3); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
       <span style="font-size:22px;">🔒</span>
-      <div style="flex:1;font-size:13px;line-height:1.65;color:var(--ink);">
-        <b style="color:var(--amber-deep);">기본 등록 정보는 보존 모드</b>
+      <div style="flex:1;font-size:13px;line-height:1.65;color:var(--qv-ink);">
+        <b style="color:var(--qv-ink-2);">기본 등록 정보는 보존 모드</b>
         — 변경하려면 비밀번호로 잠금을 해제하세요.
-        <br><span style="font-size:11.5px;color:var(--mute);">관리코드·사업부·유형·PO유형·등록자/등록일시 는 영구 잠금 (감사 무결성)</span>
+        <br><span style="font-size:11.5px;color:var(--qv-ink-3);">관리코드·사업부·유형·PO유형·등록자/등록일시 는 영구 잠금 (감사 무결성)</span>
       </div>
       <button type="button" id="pfUnlockBtn"
               style="padding:8px 16px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -202,11 +203,11 @@ body {
           <div style="display:flex;gap:18px;padding:8px 4px;">
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form != 'PARTS' %}checked{% endif %}>
-              📦 ASS'Y 형태 <span style="color:var(--mute);font-weight:400;font-size:12px;">(완제품·호기 단위)</span>
+              📦 ASS'Y 형태 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(완제품·호기 단위)</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="radio" name="shipment_form" value="PARTS" {% if _ship_form == 'PARTS' %}checked{% endif %}>
-              🧰 부품 형태 <span style="color:var(--mute);font-weight:400;font-size:12px;">(정식 PACKING LIST · 라인 명세)</span>
+              🧰 부품 형태 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(정식 PACKING LIST · 라인 명세)</span>
             </label>
           </div>
         </div>
@@ -226,7 +227,7 @@ body {
           <label>진행 사업부 {% if _bd_locked %}<span class="sub">(앞에서 선택됨)</span>{% else %}<span class="req">*</span>{% endif %}</label>
           {% if _bd_locked %}
             <input type="text" value="{{ _bd_label.get(_bd_cur, _bd_cur) }}" readonly
-                   style="background:var(--paper-2);color:var(--ink);font-weight:600;">
+                   style="background:var(--qv-surface-3);color:var(--qv-ink);font-weight:600;">
             <input type="hidden" name="biz_div" value="{{ _bd_cur }}">
           {% else %}
             <select name="biz_div" required>
@@ -237,11 +238,11 @@ body {
           {% endif %}
         </div>
         <div class="pf-field">
-          <label>PO 유형 {% if project %}<span class="sub" style="color:var(--mute);">(등록 후 잠금 — 상세 페이지에서 변경)</span>{% endif %}</label>
+          <label>PO 유형 {% if project %}<span class="sub" style="color:var(--qv-ink-3);">(등록 후 잠금 — 상세 페이지에서 변경)</span>{% endif %}</label>
           {% if project %}
             {# v5H177: Tier 1 — 등록 후 영구 잠금 #}
             <input type="text" value="{{ project.po_type|default('—') }}" readonly
-                   style="background:var(--paper-2);color:var(--ink);font-weight:600;cursor:not-allowed;">
+                   style="background:var(--qv-surface-3);color:var(--qv-ink);font-weight:600;cursor:not-allowed;">
             <input type="hidden" name="po_type" value="{{ project.po_type|default('') }}">
           {% else %}
             <select name="po_type">
@@ -275,8 +276,8 @@ body {
                  value="{% if project and project.parent_project_id %}#{{ project.parent_project_id }}{% endif %}">
           <input type="hidden" name="parent_project_id" id="pfParentId"
                  value="{{ project.parent_project_id if project and project.parent_project_id else '' }}">
-          <div id="pfParentResults" style="display:none;position:relative;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:4px;max-height:240px;overflow:auto;z-index:50;"></div>
-          <div style="font-size:11px;color:var(--mute);margin-top:4px;line-height:1.5;">
+          <div id="pfParentResults" style="display:none;position:relative;background:var(--qv-surface-2);border:1px solid var(--qv-line);border-radius:6px;margin-top:4px;max-height:240px;overflow:auto;z-index:50;"></div>
+          <div style="font-size:11px;color:var(--qv-ink-3);margin-top:4px;line-height:1.5;">
             없으면 비워두세요 — 단독 프로젝트로 진행됩니다.
           </div>
         </div>
@@ -309,10 +310,10 @@ body {
             box.innerHTML = '';
             (j.rows || []).forEach(function(row){
               var d = document.createElement('div');
-              d.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px;';
-              d.innerHTML = '<b style="font-family:monospace;color:var(--amber-deep);">' + (row.mgmt_code||'—') + '</b>'
-                          + ' · ' + (row.name||'') + ' <span style="color:var(--mute);font-size:11px;">(' + (row.customer_name||'—') + ')</span>';
-              d.onmouseover = function(){ d.style.background = 'var(--paper-2)'; };
+              d.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--qv-line);font-size:12.5px;';
+              d.innerHTML = '<b style="font-family:monospace;color:var(--qv-ink-2);">' + (row.mgmt_code||'—') + '</b>'
+                          + ' · ' + (row.name||'') + ' <span style="color:var(--qv-ink-3);font-size:11px;">(' + (row.customer_name||'—') + ')</span>';
+              d.onmouseover = function(){ d.style.background = 'var(--qv-surface-3)'; };
               d.onmouseout = function(){ d.style.background = ''; };
               d.onclick = function(){
                 hid.value = row.id;
@@ -379,10 +380,10 @@ body {
           <label>거래 구분 <span class="sub">(수출이면 통화는 USD/VND 권장)</span></label>
           <div style="display:flex;gap:14px;padding:8px 0;">
             <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
-              <input type="radio" name="is_export" value="0" {% if not project or not project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 내수
+              <input type="radio" name="is_export" value="0" {% if not project or not project.is_export %}checked{% endif %} style="accent-color:var(--qv-ink-2);"> 내수
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;">
-              <input type="radio" name="is_export" value="1" {% if project and project.is_export %}checked{% endif %} style="accent-color:var(--amber-deep);"> 수출
+              <input type="radio" name="is_export" value="1" {% if project and project.is_export %}checked{% endif %} style="accent-color:var(--qv-ink-2);"> 수출
             </label>
           </div>
         </div>
@@ -447,7 +448,7 @@ body {
       </div>
       <div class="pf-row solo" style="margin-top:-2px;">
         <div class="pf-field full">
-          <div style="font-size:11px;color:var(--mute);line-height:1.55;">
+          <div style="font-size:11px;color:var(--qv-ink-3);line-height:1.55;">
             ⓘ 수주 확정 전 단계의 일정 입력 — 캘린더/스케줄에 자동 노출됩니다.
             {% if _is_T %}<span style="color:var(--knk-red);">(검사기는 타임라인이 짧아 기본 '해당없음').</span>{% endif %}
           </div>
@@ -465,8 +466,8 @@ body {
           if (naBox.checked) {
             dateInp.value = '';
             dateInp.disabled = true;
-            dateInp.style.background = 'var(--paper-2)';
-            dateInp.style.color = 'var(--mute)';
+            dateInp.style.background = 'var(--qv-surface-3)';
+            dateInp.style.color = 'var(--qv-ink-3)';
             dateInp.style.cursor = 'not-allowed';
           } else {
             dateInp.disabled = false;
@@ -497,7 +498,7 @@ body {
     {% set _is_parts_form = (_ship_form == 'PARTS') %}
     {% if not _is_consumable and not _is_parts_form %}
     <div class="pf-section">
-      <h3>③ 금액 <span class="sub" style="font-size:11px;color:var(--mute);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">단가 × 수량 = 금액 (자동 계산)</span></h3>
+      <h3>③ 금액 <span class="sub" style="font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">단가 × 수량 = 금액 (자동 계산)</span></h3>
       {% set _p_qty = project.unit_qty if (project and project.unit_qty) else 1 %}
       {% set _p_amt = (project.order_amount if project else 0) or 0 %}
       {% set _p_price = project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt) %}
@@ -507,19 +508,19 @@ body {
             {% if has_orders %}<span class="sub" style="color:var(--knk-red);font-size:11px;font-weight:600;" title="이미 수주번호가 발행된 프로젝트. 단가는 호기별로 다를 수 있으므로 [프로젝트 상세] → 호기 편집 으로 수정하세요. 여기서 변경하면 다음 화면 진입 시 호기 합계 기준으로 되돌려집니다.">(이미 수주 발행됨 — 호기별 단가는 [상세 화면]에서 편집)</span>{% endif %}</label>
           <input type="text" id="pf_unit_price" name="unit_price" inputmode="numeric"
                  value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}" placeholder="0"
-                 {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
+                 {% if has_orders %}readonly style="background:var(--qv-surface-3);color:var(--qv-ink-3);cursor:not-allowed;"{% endif %}>
         </div>
         <div class="pf-field">
           <label>수량 <span class="sub">(1~100)</span></label>
           <input type="number" id="pf_unit_qty" name="unit_qty" min="1" max="100"
                  value="{{ _p_qty }}"
-                 {% if has_orders %}readonly style="background:var(--paper-2);color:var(--mute);cursor:not-allowed;"{% endif %}>
+                 {% if has_orders %}readonly style="background:var(--qv-surface-3);color:var(--qv-ink-3);cursor:not-allowed;"{% endif %}>
         </div>
         <div class="pf-field">
           <label>금액 <span class="sub">(자동 계산)</span></label>
           <input type="text" id="pf_amount_display" inputmode="numeric"
                  value="{{ '{:,.0f}'.format(_p_amt) }}" readonly
-                 style="background:var(--paper-2);color:var(--knk-red);font-weight:700;cursor:not-allowed;text-align:right;">
+                 style="background:var(--qv-surface-3);color:var(--knk-red);font-weight:700;cursor:not-allowed;text-align:right;">
           <input type="hidden" id="pf_order_amount" name="order_amount" value="{{ _p_amt }}">
         </div>
       </div>
@@ -548,18 +549,18 @@ body {
           {# v5H173: 저장된 amount_krw 가 있으면 그 값으로 초기화 (없으면 0, 이후 JS 가 fx_rate × order_amount 로 재계산) #}
           {% set _krw_init = project.amount_krw if project and project.amount_krw else 0 %}
           <input type="text" id="pf_amount_krw" readonly
-                 style="background:var(--paper-2);color:var(--knk-red);font-weight:700;text-align:right;cursor:not-allowed;"
+                 style="background:var(--qv-surface-3);color:var(--knk-red);font-weight:700;text-align:right;cursor:not-allowed;"
                  value="{{ '{:,.0f}'.format(_krw_init) if _krw_init else '0' }}">
           <input type="hidden" name="amount_krw" id="pf_amount_krw_h" value="{{ _krw_init or 0 }}">
         </div>
       </div>
       <div class="pf-row solo">
         <div class="pf-field full">
-          <div style="font-size:11.5px;color:var(--mute);line-height:1.55;padding:0;">
+          <div style="font-size:11.5px;color:var(--qv-ink-3);line-height:1.55;padding:0;">
             ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.
             외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
             저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
-            <br><span style="font-size:11px;color:var(--mute);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
+            <br><span style="font-size:11px;color:var(--qv-ink-3);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
             {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
           </div>
         </div>
@@ -641,7 +642,7 @@ body {
             <option value="{{ s }}" {% if project and project.status == s %}selected{% elif not project and s == '초기협의' %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
-          <div id="pfStageHint" style="margin-top:8px; font-size:11.5px; line-height:1.55; padding:8px 10px; border-radius:6px; background:var(--paper-2); color:var(--mute);"></div>
+          <div id="pfStageHint" style="margin-top:8px; font-size:11.5px; line-height:1.55; padding:8px 10px; border-radius:6px; background:var(--qv-surface-3); color:var(--qv-ink-3);"></div>
         </div>
       </div>
       <script>
@@ -657,8 +658,8 @@ body {
             hint.style.color = '#7c4a03';
             hint.innerHTML = '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — <b>1대 단가 · 발주일 · 납기</b> 입력 필수입니다.';
           } else {
-            hint.style.background = 'var(--paper-2)';
-            hint.style.color = 'var(--mute)';
+            hint.style.background = 'var(--qv-surface-3)';
+            hint.style.color = 'var(--qv-ink-3)';
             hint.innerHTML = 'ⓘ 제안 단계 — 단가·발주일·납기는 비워두고 저장 가능합니다. 진행중/납품완료로 전환 시 입력하세요.';
           }
         }
@@ -683,36 +684,36 @@ body {
       </div>
 
       <div id="unitsBox" style="display:none;margin-top:14px;">
-        <h4 style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:6px;">
+        <h4 style="font-size:12.5px;font-weight:700;color:var(--qv-ink);margin-bottom:6px;">
           호기별 발주 라인
         </h4>
-        <p style="font-size:11.5px;color:var(--mute);margin-bottom:8px;line-height:1.55;">
+        <p style="font-size:11.5px;color:var(--qv-ink-3);margin-bottom:8px;line-height:1.55;">
           <b>수주번호 발행 규칙</b>: 호기들의 <b>(납기일 + 납품처)</b> 가 모두 같으면 → 수주번호 1개로 묶이고 호기는 그 수주번호의 라인으로 들어갑니다.<br>
           <b>납기 또는 납품처가 다르면</b> → 그 그룹마다 수주번호가 별도 발행됩니다 (진행/납품 추적 단위).
         </p>
-        <table id="unitsTable" style="width:100%;border-collapse:collapse;font-size:13px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;">
-          <thead style="background:var(--paper-2);">
+        <table id="unitsTable" style="width:100%;border-collapse:collapse;font-size:13px;background:var(--qv-surface-2);border:1px solid var(--qv-line);border-radius:var(--radius-md);overflow:hidden;">
+          <thead style="background:var(--qv-surface-3);">
             <tr>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:110px;">호기</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:80px;">통화</th>
-              <th style="padding:8px 10px;text-align:right;font-size:11.5px;color:var(--amber-deep);width:140px;">단가</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);width:150px;">납기</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);">납품처</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--amber-deep);">비고</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--qv-ink-2);width:110px;">호기</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--qv-ink-2);width:80px;">통화</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11.5px;color:var(--qv-ink-2);width:140px;">단가</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--qv-ink-2);width:150px;">납기</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--qv-ink-2);">납품처</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11.5px;color:var(--qv-ink-2);">비고</th>
               <th style="width:40px;"></th>
             </tr>
           </thead>
           <tbody id="unitsTbody"></tbody>
           <tfoot>
-            <tr style="background:var(--paper-2);font-weight:700;">
+            <tr style="background:var(--qv-surface-3);font-weight:700;">
               <td colspan="2" style="padding:8px 10px;">합계</td>
               <td id="unitsSum" style="padding:8px 10px;text-align:right;color:var(--knk-red);">0</td>
-              <td colspan="4" id="unitsGroupHint" style="padding:8px 10px;color:var(--mute);font-weight:500;font-size:11.5px;"></td>
+              <td colspan="4" id="unitsGroupHint" style="padding:8px 10px;color:var(--qv-ink-3);font-weight:500;font-size:11.5px;"></td>
             </tr>
           </tfoot>
         </table>
         <button type="button" id="addUnitBtn"
-                style="margin-top:8px;padding:7px 14px;font-size:12.5px;font-weight:600;background:var(--paper-3);border:1px dashed var(--amber);border-radius:var(--radius-md);color:var(--amber-deep);cursor:pointer;">
+                style="margin-top:8px;padding:7px 14px;font-size:12.5px;font-weight:600;background:var(--qv-surface);border:1px dashed var(--qv-line-3);border-radius:var(--radius-md);color:var(--qv-ink-2);cursor:pointer;">
           + 호기 추가
         </button>
       </div>
@@ -745,14 +746,14 @@ body {
         function addRow(label){
           counter++;
           const tr = document.createElement('tr');
-          tr.style.borderTop = '1px solid var(--line)';
+          tr.style.borderTop = '1px solid var(--qv-line)';
           tr.innerHTML = `
-            <td style="padding:6px 8px;"><input type="text" name="unit_label[]" value="${label||(counter+'호기')}" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><select name="unit_currency[]" class="unit_ccy_sel" style="width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"><option value="KRW">KRW</option><option value="USD">USD</option><option value="VND">VND</option><option value="JPY">JPY</option><option value="CNY">CNY</option><option value="EUR">EUR</option></select></td>
-            <td style="padding:6px 8px;"><input type="text" name="unit_amount[]" inputmode="numeric" placeholder="0" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><input type="date" class="knk-cal" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><input type="text" name="unit_ship[]" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
-            <td style="padding:6px 8px;"><input type="text" name="unit_note[]" placeholder="(선택)" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--paper);"></td>
+            <td style="padding:6px 8px;"><input type="text" name="unit_label[]" value="${label||(counter+'호기')}" style="width:100%;padding:7px 9px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;background:var(--qv-surface-2);"></td>
+            <td style="padding:6px 8px;"><select name="unit_currency[]" class="unit_ccy_sel" style="width:100%;padding:7px 6px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;background:var(--qv-surface-2);"><option value="KRW">KRW</option><option value="USD">USD</option><option value="VND">VND</option><option value="JPY">JPY</option><option value="CNY">CNY</option><option value="EUR">EUR</option></select></td>
+            <td style="padding:6px 8px;"><input type="text" name="unit_amount[]" inputmode="numeric" placeholder="0" style="width:100%;padding:7px 9px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;text-align:right;background:var(--qv-surface-2);"></td>
+            <td style="padding:6px 8px;"><input type="date" class="knk-cal" name="unit_due[]" style="width:100%;padding:7px 9px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;background:var(--qv-surface-2);"></td>
+            <td style="padding:6px 8px;"><input type="text" name="unit_ship[]" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:7px 9px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;background:var(--qv-surface-2);"></td>
+            <td style="padding:6px 8px;"><input type="text" name="unit_note[]" placeholder="(선택)" style="width:100%;padding:7px 9px;border:1px solid var(--qv-line);border-radius:6px;font-size:13px;background:var(--qv-surface-2);"></td>
             <td style="padding:6px 4px;text-align:center;"><button type="button" class="rmU" style="border:0;background:transparent;color:var(--knk-red);cursor:pointer;font-size:16px;">×</button></td>
           `;
           tbody.appendChild(tr);
@@ -925,9 +926,9 @@ body {
           } else {
             el.readOnly = true;
           }
-          el.style.background = 'var(--paper-2)';
+          el.style.background = 'var(--qv-surface-3)';
           el.style.cursor = 'not-allowed';
-          el.style.color = 'var(--mute)';
+          el.style.color = 'var(--qv-ink-3)';
           return;
         }
         if (locked) {
@@ -936,9 +937,9 @@ body {
           } else {
             el.readOnly = true;
           }
-          el.style.background = 'var(--paper-2)';
+          el.style.background = 'var(--qv-surface-3)';
           el.style.cursor = 'not-allowed';
-          el.style.color = 'var(--mute)';
+          el.style.color = 'var(--qv-ink-3)';
         } else {
           if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'date') {
             el.disabled = false;

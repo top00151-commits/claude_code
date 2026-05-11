@@ -2,6 +2,7 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{% if customer %}고객사 수정{% else %}고객사 등록{% endif %} · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z56: 시안1 토큰 — customer_form v1+v2 차수 */
 body {
   --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
@@ -9,39 +10,40 @@ body {
   --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
 @media (max-width:1100px){ .frow{grid-template-columns:1fr !important;} .fld.full{grid-column:span 1 !important;} }
-.form-card { background:var(--paper-3); border:1px solid var(--line); border-radius:var(--radius-lg);
+.form-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:var(--radius-lg);
              padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
 .form-card + .form-card { margin-top: var(--space-4); }
-.form-card h2 { font-size:15px; font-weight:700; margin-bottom: var(--space-3); color:var(--ink);
+.form-card h2 { font-size:15px; font-weight:700; margin-bottom: var(--space-3); color:var(--qv-ink);
                  display:flex; align-items:center; gap:8px; padding-bottom: 10px;
                  border-bottom: 2px solid var(--knk-red); }
 .frow { display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-4); margin-bottom: var(--space-4); }
 .fld { display:flex; flex-direction:column; gap:6px; }
 .fld.full { grid-column: span 2; }
-.fld label { font-size:12px; color:var(--mute); font-weight:600; letter-spacing:.04em; }
+.fld label { font-size:12px; color:var(--qv-ink-3); font-weight:600; letter-spacing:.04em; }
 .fld input, .fld select, .fld textarea {
-    padding: 9px 12px; border:1px solid var(--line); border-radius: var(--radius-md);
-    font-size:14px; background: var(--paper); color: var(--ink); font-family: inherit;
+    padding: 9px 12px; border:1px solid var(--qv-line); border-radius: var(--radius-md);
+    font-size:14px; background: var(--qv-surface-2); color: var(--qv-ink); font-family: inherit;
 }
 .fld input:focus, .fld select:focus, .fld textarea:focus { outline:2px solid var(--knk-red); border-color: var(--knk-red); }
 .fld textarea { min-height: 80px; resize:vertical; }
 .req { color: var(--knk-red); font-weight:700; }
-.actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+.actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--qv-line); }
 
 /* 담당자 테이블 */
 .contacts-tbl { width:100%; border-collapse: collapse; margin-top: var(--space-2); }
-.contacts-tbl th { background: var(--paper-2); color: var(--knk-red); font-size:11px;
-    text-transform:uppercase; padding: 9px 8px; border-bottom: 2px solid var(--knk-red);
+/* v5H226z74: contacts-tbl 테이블 헤더 시각 강조 빨강 → 잉크 톤 (시안1 ≤5%) */
+.contacts-tbl th { background: var(--qv-surface-3); color: var(--qv-ink-2); font-size:11px;
+    text-transform:uppercase; padding: 9px 8px; border-bottom: 2px solid var(--qv-ink);
     text-align:left; letter-spacing:.06em; font-weight:700; }
-.contacts-tbl td { padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.contacts-tbl td { padding: 6px 6px; border-bottom: 1px solid var(--qv-line); vertical-align: middle; }
 .contacts-tbl input, .contacts-tbl select {
-    width: 100%; padding: 7px 9px; border:1px solid var(--line); border-radius: 6px;
-    font-size:13px; background: var(--paper); font-family: inherit; }
+    width: 100%; padding: 7px 9px; border:1px solid var(--qv-line); border-radius: 6px;
+    font-size:13px; background: var(--qv-surface-2); font-family: inherit; }
 .contacts-tbl input:focus, .contacts-tbl select:focus { outline: 2px solid var(--knk-red); border-color: var(--knk-red); }
-.contacts-tbl .del-btn { background: transparent; border: 1px solid var(--line); color: var(--mute);
+.contacts-tbl .del-btn { background: transparent; border: 1px solid var(--qv-line); color: var(--qv-ink-3);
     border-radius: 6px; padding: 4px 8px; cursor:pointer; font-size: 14px; }
 .contacts-tbl .del-btn:hover { color: var(--knk-red); border-color: var(--knk-red); }
-.role-help { font-size: 11px; color: var(--mute); margin-top: 6px; }
+.role-help { font-size: 11px; color: var(--qv-ink-3); margin-top: 6px; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
@@ -58,35 +60,35 @@ body {
 
     <!-- v5H57: 사업자등록증 자동 파서 (PDF / 이미지) -->
     {% if not customer %}
-    <div class="form-card" style="background: linear-gradient(135deg, #fff8e7 0%, #fff 100%); border-color: var(--amber);">
-      <h2 style="color: var(--amber-deep); border-bottom-color: var(--amber);">📄 사업자등록증 자동 입력 <span style="font-size:11px;font-weight:500;color:var(--mute);">(선택)</span></h2>
-      <div style="font-size: 13px; color: var(--ink); line-height: 1.6; margin-bottom: 14px;">
+    <div class="form-card" style="background: linear-gradient(135deg, #fff8e7 0%, #fff 100%); border-color: var(--qv-line-3);">
+      <h2 style="color: var(--qv-ink-2); border-bottom-color: var(--qv-line-3);">📄 사업자등록증 자동 입력 <span style="font-size:11px;font-weight:500;color:var(--qv-ink-3);">(선택)</span></h2>
+      <div style="font-size: 13px; color: var(--qv-ink); line-height: 1.6; margin-bottom: 14px;">
         💡 사업자등록증을 <b>PDF/JPG/PNG</b> 로 업로드하면 사업자번호·상호·대표자·주소를 자동으로 채워드립니다.<br>
-        <span style="font-size:11.5px;color:var(--mute);">
+        <span style="font-size:11.5px;color:var(--qv-ink-3);">
           · 홈택스/정부24 PDF: 즉시 작동 (외부 통신 0)<br>
           · 스캔본/이미지: Tesseract OCR 설치 시 작동 — 미설치 시 친절한 안내 표시
         </span>
       </div>
       <!-- v5H66: 드롭존 컴팩트 (절반 이하 사이즈) -->
-      <div id="bizDropZone" style="border: 1.5px dashed var(--amber); border-radius: 8px; padding: 10px 14px; background: white; cursor: pointer; transition: all .2s; display:flex; align-items:center; gap:12px;">
+      <div id="bizDropZone" style="border: 1.5px dashed var(--qv-line-3); border-radius: 8px; padding: 10px 14px; background: white; cursor: pointer; transition: all .2s; display:flex; align-items:center; gap:12px;">
         <span style="font-size: 20px;">📥</span>
-        <div style="flex:1; font-size: 12.5px; color:var(--ink);">
-          <b style="color:var(--amber-deep);">파일을 여기로 끌어다 놓으세요</b>
-          <span style="color:var(--mute); margin: 0 6px;">·</span>
+        <div style="flex:1; font-size: 12.5px; color:var(--qv-ink);">
+          <b style="color:var(--qv-ink-2);">파일을 여기로 끌어다 놓으세요</b>
+          <span style="color:var(--qv-ink-3); margin: 0 6px;">·</span>
           <b style="color:var(--knk-red);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('bizDocFile').click()">파일 선택</b>
-          <span style="color:var(--mute); margin: 0 6px;">·</span>
-          <kbd style="background:var(--paper-2);padding:1px 5px;border-radius:3px;font-size:10.5px;border:1px solid var(--line);">Ctrl+V</kbd> 붙여넣기
-          <span style="font-size:10.5px;color:var(--mute);margin-left:8px;">PDF/JPG/PNG (≤20MB)</span>
+          <span style="color:var(--qv-ink-3); margin: 0 6px;">·</span>
+          <kbd style="background:var(--qv-surface-3);padding:1px 5px;border-radius:3px;font-size:10.5px;border:1px solid var(--qv-line);">Ctrl+V</kbd> 붙여넣기
+          <span style="font-size:10.5px;color:var(--qv-ink-3);margin-left:8px;">PDF/JPG/PNG (≤20MB)</span>
         </div>
         <input type="file" id="bizDocFile" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff" style="display: none;">
       </div>
-      <div id="filePreview" style="display:none; margin-top: 8px; padding: 6px 10px; background: var(--paper-2); border-radius: 6px; font-size: 11.5px; color: var(--ink);"></div>
+      <div id="filePreview" style="display:none; margin-top: 8px; padding: 6px 10px; background: var(--qv-surface-3); border-radius: 6px; font-size: 11.5px; color: var(--qv-ink);"></div>
       <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
-        <button type="button" class="btn btn-primary" onclick="parseBizDoc()" id="parseBtn" style="background: var(--amber-deep);" disabled>🔍 자동 인식</button>
+        <button type="button" class="btn btn-primary" onclick="parseBizDoc()" id="parseBtn" style="background: var(--qv-ink-2);" disabled>🔍 자동 인식</button>
         <button type="button" class="btn btn-secondary" onclick="clearBizFile()" id="clearFileBtn" style="display:none;">✕ 파일 제거</button>
-        <span id="parseStatus" style="font-size:12px; color:var(--mute); flex:1;"></span>
+        <span id="parseStatus" style="font-size:12px; color:var(--qv-ink-3); flex:1;"></span>
       </div>
-      <div id="parseResult" style="display:none; margin-top:12px; padding:12px; background:white; border-radius:8px; border:1px solid var(--line); font-size:12.5px;"></div>
+      <div id="parseResult" style="display:none; margin-top:12px; padding:12px; background:white; border-radius:8px; border:1px solid var(--qv-line); font-size:12.5px;"></div>
     </div>
     {% endif %}
 
@@ -99,21 +101,21 @@ body {
           <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
         </div>
         <div class="fld">
-          <label>등급 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 자동 산정 (수정 불가)</span></label>
+          <label>등급 <span style="font-size:10px;color:var(--qv-ink-3);font-weight:500;">— 자동 산정 (수정 불가)</span></label>
           {% if customer %}
-          <div style="padding: 9px 12px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); display:flex; align-items:center; justify-content:space-between;">
+          <div style="padding: 9px 12px; border:1px dashed var(--qv-line); border-radius: var(--radius-md); background: var(--qv-surface-3); display:flex; align-items:center; justify-content:space-between;">
             <span class="pill {% if customer.tier == 'VIP' %}pill-danger{% elif customer.tier == '주요' %}pill-progress{% elif customer.tier == '신규' %}pill-warn{% elif customer.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:13px;font-weight:700;">
               {{ customer.tier|default('—') }}
             </span>
-            <span style="font-size:11.5px; color:var(--mute);">
+            <span style="font-size:11.5px; color:var(--qv-ink-3);">
               점수 {{ customer.tier_score|default(0) }}/100 · {{ customer.tier_computed_at|default('미계산') }}
             </span>
           </div>
-          <div style="font-size:11px; color:var(--mute); margin-top: 4px;">
+          <div style="font-size:11px; color:var(--qv-ink-3); margin-top: 4px;">
             💡 매출·프로젝트·거래활성도 등 5지표를 시스템이 자동 산정 (24시간 주기 + 등록/수정 시 즉시)
           </div>
           {% else %}
-          <div style="padding: 9px 12px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); color: var(--mute); font-size:13px;">
+          <div style="padding: 9px 12px; border:1px dashed var(--qv-line); border-radius: var(--radius-md); background: var(--qv-surface-3); color: var(--qv-ink-3); font-size:13px;">
             등록 후 자동 산정 — 첫 거래 시작 시 <b>신규</b>
           </div>
           {% endif %}
@@ -154,7 +156,7 @@ body {
 
     <!-- 담당자 (다중) -->
     <div class="form-card">
-      <h2>👥 담당자 <span style="font-size:12px;font-weight:500;color:var(--mute);">— 부서별로 여러 명 등록 가능</span></h2>
+      <h2>👥 담당자 <span style="font-size:12px;font-weight:500;color:var(--qv-ink-3);">— 부서별로 여러 명 등록 가능</span></h2>
       <div class="role-help">
         💡 한 거래처에 여러 부서 담당자를 분리 등록. 주담당(★)은 1명만 표시.
         담당자 특징(메모) 마지막 칸에 자유 기록.
@@ -241,12 +243,12 @@ async function installKoreanOcr() {
   const resEl = document.getElementById('installResult');
   btn.disabled = true;
   btn.textContent = '⏳ 다운로드 중... (수십 초 소요)';
-  resEl.innerHTML = '<span style="color:var(--mute);">GitHub 에서 kor.traineddata 다운로드 중...</span>';
+  resEl.innerHTML = '<span style="color:var(--qv-ink-3);">GitHub 에서 kor.traineddata 다운로드 중...</span>';
   try {
     const r = await fetch('/customers/install-korean-ocr', { method: 'POST' });
     const j = await r.json();
     if (j.ok) {
-      resEl.innerHTML = `<span style="color:var(--success);font-weight:700;">✅ ${j.message}</span><br><span style="font-size:11px;color:var(--mute);">이제 다시 "🔍 자동 인식" 버튼을 눌러주세요.</span>`;
+      resEl.innerHTML = `<span style="color:var(--success);font-weight:700;">✅ ${j.message}</span><br><span style="font-size:11px;color:var(--qv-ink-3);">이제 다시 "🔍 자동 인식" 버튼을 눌러주세요.</span>`;
       btn.style.display = 'none';
     } else {
       resEl.innerHTML = `<span style="color:var(--knk-red);">⚠ ${j.message}</span>`;
@@ -289,7 +291,7 @@ async function installKoreanOcr() {
     // 프리뷰
     const sizeKB = (file.size / 1024).toFixed(0);
     previewEl.style.display = 'block';
-    previewEl.innerHTML = `📄 <b>${file.name}</b> <span style="color:var(--mute);">(${sizeKB} KB)</span>`;
+    previewEl.innerHTML = `📄 <b>${file.name}</b> <span style="color:var(--qv-ink-3);">(${sizeKB} KB)</span>`;
     parseBtn.disabled = false;
     clearBtn.style.display = '';
     document.getElementById('parseStatus').textContent = '';
@@ -314,7 +316,7 @@ async function installKoreanOcr() {
     zone.addEventListener(ev, e => {
       e.preventDefault(); e.stopPropagation();
       zone.style.background = 'white';
-      zone.style.borderColor = 'var(--amber)';
+      zone.style.borderColor = 'var(--qv-line-3)';
       zone.style.transform = 'scale(1)';
     });
   });
@@ -372,7 +374,7 @@ async function parseBizDoc() {
   }
   const file = fileEl.files[0];
   statusEl.textContent = `🔄 인식 중... (${file.name})`;
-  statusEl.style.color = 'var(--mute)';
+  statusEl.style.color = 'var(--qv-ink-3)';
   resultEl.style.display = 'none';
   btn.disabled = true;
   try {
@@ -406,9 +408,9 @@ async function parseBizDoc() {
       resultEl.innerHTML = `
         <div style="font-weight:700;margin-bottom:6px;color:var(--success);">자동 입력된 항목</div>
         ${filled.length ? '<ul style="margin-left:18px;">' + filled.map(x=>`<li>${x}</li>`).join('') + '</ul>'
-                        : '<div style="color:var(--mute);">자동 입력된 항목이 없습니다. 텍스트는 추출되었지만 표준 양식을 찾지 못했습니다.</div>'}
-        ${f.biz_kind || f.biz_item ? `<div style="margin-top:8px;font-size:11.5px;color:var(--mute);">참고: 업태=${f.biz_kind||'-'}, 종목=${f.biz_item||'-'}</div>` : ''}
-        <div style="margin-top:8px;font-size:11px;color:var(--mute);">⚠ 자동 입력 결과는 반드시 확인 후 저장하세요. 잘못된 값은 직접 수정 가능합니다.</div>
+                        : '<div style="color:var(--qv-ink-3);">자동 입력된 항목이 없습니다. 텍스트는 추출되었지만 표준 양식을 찾지 못했습니다.</div>'}
+        ${f.biz_kind || f.biz_item ? `<div style="margin-top:8px;font-size:11.5px;color:var(--qv-ink-3);">참고: 업태=${f.biz_kind||'-'}, 종목=${f.biz_item||'-'}</div>` : ''}
+        <div style="margin-top:8px;font-size:11px;color:var(--qv-ink-3);">⚠ 자동 입력 결과는 반드시 확인 후 저장하세요. 잘못된 값은 직접 수정 가능합니다.</div>
       `;
     } else if (j.message === 'KOREAN_DATA_MISSING') {
       // v5H60: 한국어 OCR 데이터 누락 — 자동 다운로드 버튼 표시
@@ -417,7 +419,7 @@ async function parseBizDoc() {
       resultEl.style.display = 'block';
       resultEl.innerHTML = `
         <div style="color:var(--knk-red);font-weight:700;margin-bottom:8px;">⚠ 한국어 인식 데이터(kor.traineddata) 가 설치되어 있지 않습니다</div>
-        <div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.6;">
+        <div style="font-size:12px;color:var(--qv-ink);margin-bottom:10px;line-height:1.6;">
           Tesseract 는 설치되어 있지만 한국어 학습 데이터가 없어 한글을 인식하지 못합니다.<br>
           아래 버튼을 클릭하면 약 28MB 짜리 한국어 데이터를 자동 다운로드합니다 (1회만).
         </div>
@@ -430,7 +432,7 @@ async function parseBizDoc() {
       resultEl.style.display = 'block';
       resultEl.innerHTML = `
         <div style="color:var(--knk-red);font-weight:700;margin-bottom:8px;">⚠ ${j.message || '파싱 실패'}</div>
-        ${j.raw_excerpt ? `<details style="margin-top:8px;"><summary style="cursor:pointer;color:var(--mute);">추출된 원본 텍스트 (참고)</summary><pre style="white-space:pre-wrap;font-size:10.5px;color:var(--mute);background:var(--paper-2);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto;">${j.raw_excerpt}</pre></details>` : ''}
+        ${j.raw_excerpt ? `<details style="margin-top:8px;"><summary style="cursor:pointer;color:var(--qv-ink-3);">추출된 원본 텍스트 (참고)</summary><pre style="white-space:pre-wrap;font-size:10.5px;color:var(--qv-ink-3);background:var(--qv-surface-3);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto;">${j.raw_excerpt}</pre></details>` : ''}
       `;
     }
   } catch (e) {

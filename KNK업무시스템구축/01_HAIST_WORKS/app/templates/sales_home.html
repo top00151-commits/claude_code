@@ -13,6 +13,7 @@
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z45: 시안1 디자인 토큰 — sales_home v1 차수 (project_detail.html z41 / sales_orders z44 와 동일) */
 body {
   --qv-surface:   #ffffff;
@@ -88,60 +89,60 @@ body { overflow: hidden !important; }
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
-.page-title { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
-.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--knk-red); }
+.page-meta { font-size: 11px; color: var(--qv-ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--qv-ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--qv-ink); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--knk-red); }
 .page-actions { display: flex; gap: 8px; }
 .btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
-.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
-.btn-secondary:hover { background: var(--amber-glow); }
+.btn-primary { background: var(--qv-ink); color: white; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+.btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); color: var(--qv-ink); }
+.btn-secondary:hover { background: var(--qv-surface-2); }
 
 .kpi-row { margin: var(--space-4) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
-.kpi { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); position: relative; overflow: hidden; transition: all .18s; }
-.kpi:hover { transform: translateY(-2px); border-color: var(--amber); box-shadow: var(--shadow-md); }
-.kpi-label { font-size: 11px; color: var(--mute); font-weight: 600; }
-.kpi-num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.kpi { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); position: relative; overflow: hidden; transition: all .18s; }
+.kpi:hover { transform: translateY(-2px); border-color: var(--qv-line-3); box-shadow: var(--shadow-md); }
+.kpi-label { font-size: 11px; color: var(--qv-ink-3); font-weight: 600; }
+.kpi-num { font-size: 28px; font-weight: 700; color: var(--qv-ink); margin-top: 4px; }
 .kpi-trend { font-size: 11.5px; margin-top: 6px; font-weight: 600; }
 .kpi-trend.up { color: var(--success); }
 .kpi-trend.warn { color: var(--knk-red); }
-.kpi-trend.neutral { color: var(--mute); }
-.kpi.hero { background: var(--grad-amber); color: white; border: 0; grid-column: span 2; }
+.kpi-trend.neutral { color: var(--qv-ink-3); }
+.kpi.hero { background: var(--qv-ink); color: white; border: 0; grid-column: span 2; }
 .kpi.hero .kpi-label, .kpi.hero .kpi-trend { color: rgba(255,255,255,0.85); }
 .kpi.hero .kpi-num { color: white; font-size: 36px; }
 
 .grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
-.card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); }
-.card h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; }
-.card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
+.card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); }
+.card h3 { font-size: 14px; font-weight: 700; color: var(--qv-ink); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; }
+.card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
 
 .bar-chart { display: flex; flex-direction: column; gap: 12px; }
 .bar-row { display: grid; grid-template-columns: 80px 1fr auto; gap: 12px; align-items: center; }
-.bar-label { font-size: 12px; color: var(--ink); font-weight: 600; }
-.bar-track { height: 22px; background: var(--paper); border-radius: var(--radius-sm); overflow: hidden; position: relative; }
-.bar-fill { height: 100%; background: var(--grad-amber); border-radius: var(--radius-sm); }
-.bar-value { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.bar-label { font-size: 12px; color: var(--qv-ink); font-weight: 600; }
+.bar-track { height: 22px; background: var(--qv-surface-2); border-radius: var(--radius-sm); overflow: hidden; position: relative; }
+.bar-fill { height: 100%; background: var(--qv-ink); border-radius: var(--radius-sm); }
+.bar-value { font-size: 12px; font-weight: 700; color: var(--qv-ink); white-space: nowrap; }
 
 .list-card { display: flex; flex-direction: column; gap: 6px; }
 .list-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; align-items: center; transition: background .12s; text-decoration: none; color: inherit; }
-.list-item:hover { background: var(--amber-glow); }
-.list-num { font-size: 12px; color: var(--amber-deep); font-weight: 700; font-family: monospace; }
-.list-text .ttl { font-size: 13px; font-weight: 600; color: var(--ink); }
-.list-text .meta { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.list-item:hover { background: var(--qv-surface-2); }
+.list-num { font-size: 12px; color: var(--qv-ink-2); font-weight: 700; font-family: monospace; }
+.list-text .ttl { font-size: 13px; font-weight: 600; color: var(--qv-ink); }
+.list-text .meta { font-size: 11px; color: var(--qv-ink-3); margin-top: 2px; }
 .list-amount { font-size: 13px; font-weight: 700; color: var(--knk-red); }
 
 .section { margin: var(--space-5) var(--content-pad) 0; }
-.section-h { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--ink); }
-.section-h::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+.section-h { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--qv-ink); }
+.section-h::before { content: ""; width: 4px; height: 18px; background: var(--qv-line-3); border-radius: 2px; }
 
-.recent-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
-.recent-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--amber-deep); font-weight: 700; border-bottom: 1px solid var(--line); background: var(--paper-2); letter-spacing: 0.06em; text-transform: uppercase; }
+.recent-table { width: 100%; font-size: 13px; border-collapse: collapse; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.recent-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--qv-ink-2); font-weight: 700; border-bottom: 1px solid var(--qv-line); background: var(--qv-surface-3); letter-spacing: 0.06em; text-transform: uppercase; }
 .recent-table th.num, .recent-table td.num { text-align: right; }
-.recent-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.recent-table td { padding: 12px 14px; border-bottom: 1px solid var(--qv-line); color: var(--qv-ink); }
 .recent-table tr:last-child td { border-bottom: 0; }
-.recent-table tr:hover td { background: var(--amber-glow); cursor: pointer; }
-.recent-table .code { font-family: monospace; font-weight: 700; color: var(--amber-deep); }
-.recent-table .stage-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--paper-2); color: var(--mute); }
+.recent-table tr:hover td { background: var(--qv-surface-2); cursor: pointer; }
+.recent-table .code { font-family: monospace; font-weight: 700; color: var(--qv-ink-2); }
+.recent-table .stage-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--qv-surface-3); color: var(--qv-ink-3); }
 
 @media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: 1fr; } }
 /* v5H226z45: 1100px 이하 반응형 — 작은 노트북/모니터 깨짐 방지 */
@@ -186,7 +187,7 @@ body { overflow: hidden !important; }
       </div>
       <div class="kpi">
         <div class="kpi-label">{{ kpi.year|default('') }} YTD 누적</div>
-        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.ytd_total or 0) }}<span style="font-size:14px;color:var(--mute);"> 원</span></div>
+        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.ytd_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
         <div class="kpi-trend neutral">{{ kpi.ytd_cnt or 0 }} 건</div>
       </div>
       <div class="kpi">
@@ -212,7 +213,7 @@ body { overflow: hidden !important; }
           {% endfor %}
         </div>
         {% else %}
-        <div style="padding:30px 0;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+        <div style="padding:30px 0;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
         {% endif %}
       </div>
 
@@ -224,13 +225,13 @@ body { overflow: hidden !important; }
           {% for s in kpi.by_stage[:6] %}
           <div class="bar-row">
             <div class="bar-label">{{ s.stage }}</div>
-            <div class="bar-track"><div class="bar-fill" style="width: {{ ((s.cnt / max_stage)*100)|round }}%; background: var(--grad-knk-red);"></div></div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ ((s.cnt / max_stage)*100)|round }}%; background: var(--qv-ink);"></div></div>
             <div class="bar-value">{{ s.cnt }} 건</div>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        <div style="padding:30px 0;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+        <div style="padding:30px 0;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
         {% endif %}
       </div>
     </div>
@@ -250,7 +251,7 @@ body { overflow: hidden !important; }
             <div class="list-amount">{{ '{:,.0f}'.format(c.total) }}</div>
           </a>
           {% else %}
-          <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+          <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
           {% endfor %}
         </div>
       </div>
@@ -269,7 +270,7 @@ body { overflow: hidden !important; }
             <div class="list-amount">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</div>
           </a>
           {% else %}
-          <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">데이터 없음</div>
+          <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
           {% endfor %}
         </div>
       </div>

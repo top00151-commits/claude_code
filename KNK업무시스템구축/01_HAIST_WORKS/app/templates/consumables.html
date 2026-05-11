@@ -8,6 +8,7 @@
 <link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z72: 시안1 토큰 + .mgmt-pill — consumables v1+v2 */
 body {
   --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
@@ -18,36 +19,36 @@ body {
 .mgmt-pill.sm { padding:2px 8px; font-size:11.5px; }
 @media (max-width:1100px){ .page-title{font-size:22px !important;} .summary-row{grid-template-columns:repeat(3,1fr) !important;} }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--paper); color: var(--ink); }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--qv-surface-2); color: var(--qv-ink); }
 a { text-decoration: none; color: inherit; }
 .page-head { padding: 24px 32px 8px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.crumbs { font-size: 12px; color: var(--mute); }
-.crumbs b { color: var(--ink); }
-.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--ink); }
-.btn-primary { background: var(--grad-amber); color: white; border: 0; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-amber); display: inline-flex; align-items: center; gap: 6px; }
-.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--ink); }
+.crumbs { font-size: 12px; color: var(--qv-ink-3); }
+.crumbs b { color: var(--qv-ink); }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; color: var(--qv-ink); }
+.btn-primary { background: var(--qv-ink); color: white; border: 0; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,0.04); display: inline-flex; align-items: center; gap: 6px; }
+.btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; color: var(--qv-ink); }
 .summary-row { margin: 0 32px 16px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; }
-.summary-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; cursor: pointer; }
-.summary-card.active { background: var(--amber-glow); border-color: var(--amber); }
-.summary-card .lbl { font-size: 11px; color: var(--mute); font-weight: 600; }
+.summary-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 10px; padding: 12px 16px; cursor: pointer; }
+.summary-card.active { background: var(--qv-surface-2); border-color: var(--qv-line-3); }
+.summary-card .lbl { font-size: 11px; color: var(--qv-ink-3); font-weight: 600; }
 .summary-card .num { font-size: 22px; font-weight: 700; margin-top: 2px; }
 .toolbar { padding: 0 32px 12px; display: flex; gap: 8px; align-items: center; }
-.toolbar .search { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.toolbar .search { flex: 1; padding: 8px 12px; border: 1px solid var(--qv-line); border-radius: 8px; font-size: 13px; }
 .month-block { margin: 0 32px 24px; }
-.month-title { font-size: 14px; font-weight: 700; color: var(--mute); margin: 12px 0 6px; }
-table.list { width: 100%; border-collapse: collapse; background: var(--paper-3); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-table.list th, table.list td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--line); }
-table.list th { background: var(--paper-2, #f8f8f8); text-align: left; font-weight: 600; color: var(--mute); }
+.month-title { font-size: 14px; font-weight: 700; color: var(--qv-ink-3); margin: 12px 0 6px; }
+table.list { width: 100%; border-collapse: collapse; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 10px; overflow: hidden; }
+table.list th, table.list td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--qv-line); }
+table.list th { background: var(--qv-surface-3, #f8f8f8); text-align: left; font-weight: 600; color: var(--qv-ink-3); }
 table.list tbody tr { cursor: pointer; }
-table.list tbody tr:hover { background: var(--amber-glow); }
-.pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--paper-2); border: 1px solid var(--line); }
+table.list tbody tr:hover { background: var(--qv-surface-2); }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--qv-surface-3); border: 1px solid var(--qv-line); }
 .pill-draft { background: #f3f4f6; color: #4b5563; }
 .pill-quoted { background: #fef3c7; color: #92400e; }
 .pill-confirmed { background: #dbeafe; color: #1e40af; }
 .pill-shipped { background: #d1fae5; color: #065f46; }
 .pill-paid { background: #d1fae5; color: #065f46; }
 .pill-cancelled { background: #fee2e2; color: #991b1b; }
-.empty-state { padding: 60px 20px; text-align: center; color: var(--mute); background: var(--paper-3); border: 1px dashed var(--line); border-radius: 12px; margin: 0 32px; }
+.empty-state { padding: 60px 20px; text-align: center; color: var(--qv-ink-3); background: var(--qv-surface); border: 1px dashed var(--qv-line); border-radius: 12px; margin: 0 32px; }
 .amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 </style>
 </head>
@@ -124,7 +125,7 @@ table.list tbody tr:hover { background: var(--amber-glow); }
                 {% if r.currency and r.currency != 'KRW' %}{{ r.currency }} {% endif %}{{ '{:,.0f}'.format(r.total_amount or 0) }}{% if not r.currency or r.currency=='KRW' %}원{% endif %}
               </td>
               <td>{{ r.order_date or '—' }}</td>
-              <td style="color:var(--mute);font-size:12px;">{{ (r.note or '')[:40] }}</td>
+              <td style="color:var(--qv-ink-3);font-size:12px;">{{ (r.note or '')[:40] }}</td>
             </tr>
           {% endfor %}
           </tbody>
