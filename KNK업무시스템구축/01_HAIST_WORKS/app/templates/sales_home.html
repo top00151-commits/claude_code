@@ -30,16 +30,20 @@ body {
 .main { scrollbar-width: none; -ms-overflow-style: none; }
 .main::-webkit-scrollbar { display: none; width: 0; height: 0; }
 /* v5H226z100: page-head sticky 상단 고정 — 휠 스크롤 시에도 매출영업센터 타이틀 항상 보임 */
+/* v5H226z102: GPU 가속 + transform translateZ — sub-pixel 진동 제거 */
 .main > .page-head {
   position: sticky;
   top: 0;
   z-index: 100;
   background: var(--paper-3, #fff);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
 }
 /* v5H226z101: body scroll 차단 + main height 강제 — sticky 진동 제거 */
 body { overflow: hidden !important; }
-.main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow-y: auto; }
+.main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow-y: auto; scroll-behavior: auto; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
