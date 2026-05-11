@@ -44,16 +44,19 @@ body {
 /* v5H226z101: body scroll 차단 + main height 강제 — sticky 진동 제거 */
 body { overflow: hidden !important; }
 .main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow-y: auto; scroll-behavior: auto; }
-/* v5H226z105: KPI/차트 영역은 고정 + 마지막 grid-2(TOP5/최근)만 자체 스크롤 */
+/* v5H226z106: TOP5/최근 프로젝트 — 각 카드 독립 스크롤 (외곽 grid-2 스크롤 제거) */
 .main > .grid-2[data-dn="grid-customer-recent"] {
-  max-height: calc(100vh - 460px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
+}
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card,
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card.list-scroll-sm {
+  max-height: calc(100vh - 540px) !important;
+  overflow-y: auto !important;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.main > .grid-2[data-dn="grid-customer-recent"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
-/* 그 안 카드들도 자체 스크롤 제거 (외곽 grid-2가 스크롤) */
-.main > .grid-2[data-dn="grid-customer-recent"] .list-card.list-scroll-sm { max-height: none !important; overflow: visible !important; }
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {
