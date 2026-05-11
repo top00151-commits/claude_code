@@ -1,47 +1,238 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>FTA 원산지 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FTA 원산지증명서 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — FTA 원산지증명서 목록 (수출 모듈)
+   라우터: GET /export/fta?status=&fta_type=
+   전달: items / FTA_TYPES / filter_status / filter_fta_type
+   items[] 키 (fta_certificates):
+     id / cert_no / fta_type / customer_id / customer_name / customer_address /
+     customer_country / export_order_id / export_invoice_no / export_date /
+     origin_country / total_value / currency / issuer_id / issuer_name /
+     issued_at / status (DRAFT/ISSUED/SENT/CANCELLED) / remarks / created_by / created_at
+   ⚠ 잠재 버그 복구:
+     - 미존재 키 3개: f.product_name / f.hs_code / f.expires_at → 라우터 미반환 (라인 테이블에 있음)
+     - 라우터 path 2건: /fta/certificates/{id} → /export/fta/{id},
+                       /fta/certificates/new → /export/fta/new
+     - active='export' 로 변경 (이전 'sales')
+     - 필터 UI (status / fta_type) 신규 추가 (라우터는 받지만 UI 없었음) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z69: 시안1 토큰 + .mgmt-pill — fta_list v1+v2 */
-body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #f5f3ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
-.mgmt-pill { display:inline-flex; align-items:center; justify-content:center; padding:4px 12px; border-radius:6px; background:var(--qv-ink); color:#fff; font-family:monospace; font-size:13px; font-weight:700; letter-spacing:0.5px; box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; }
-.mgmt-pill.sm { padding:2px 8px; font-size:11.5px; }
-@media (max-width:1100px){ .page-title{font-size:22px;} }
-</style>
-</head><body>
-<div class="app">{% set active_tab = 'sales' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main" data-dn="main" data-dn-tone="amber">
-  <div class="page-head" data-dn="page-head">
-    <div><div class="crumbs" data-dn="crumb"><a href="/export">수출</a> · <b>FTA 원산지</b></div><h1 class="page-title" data-dn="title">📜 FTA <em>원산지 증명</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">FTA 협정별 원산지 증명서 발행/관리</div></div>
-    <a class="btn btn-primary" href="/fta/certificates/new">＋ FTA 증명서</a>
-  </div>
+.ft-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ft-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ft-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.ft-head .crumb a { color: var(--pq-ink-3); }
+.ft-head .crumb b { color: var(--pq-ink); }
+.ft-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.ft-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.ft-actions { margin-left: auto; display: flex; gap: 8px; }
+.ft-actions a { height: 32px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.ft-actions a.sec { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.ft-actions a.sec:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.ft-actions a.cta { background: var(--pq-ink); color: #fff; }
+.ft-actions a.cta:hover { background: #1e293b; }
 
-  <div class="tbl-wrap tbl-sticky" data-dn="fta-list" data-dn-tone="purple">
-    {% if items %}
-    <table class="tbl">
-      <thead data-dn="thead-row"><tr><th>인증 번호</th><th class="center">FTA 협정</th><th>품목</th><th>HS 코드</th><th class="center">상태</th><th>발행일</th><th>유효기한</th></tr></thead>
-      <tbody>
-      {% for f in items %}
-        <tr onclick="location.href='/fta/certificates/{{ f.id }}'">
-          {# v5H226z69: 인증번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
-          <td><span class="mgmt-pill sm">{{ f.cert_no|default('#' ~ f.id) }}</span></td>
-          <td class="center"><span class="pill pill-progress">{{ f.fta_type|default('—') }}</span></td>
-          <td><b>{{ f.product_name|default('—') }}</b></td>
-          <td style="font-family:monospace;font-size:11px;">{{ f.hs_code|default('—') }}</td>
-          <td class="center"><span class="pill {% if f.status == 'APPROVED' %}pill-done{% elif f.status == 'EXPIRED' %}pill-danger{% else %}pill-progress{% endif %}">{{ f.status|default('—') }}</span></td>
-          <td style="font-family:monospace;font-size:11px;">{{ f.issued_at|default('—') }}</td>
-          <td style="font-family:monospace;font-size:11px;color:{% if f.expired %}var(--knk-red){% else %}var(--mute){% endif %};">{{ f.expires_at|default('—') }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">📜</div><div class="ttl">FTA 증명서 없음</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.draft .v  { color: var(--pq-ink-4); }
+.kpi-cell.issued .v { color: var(--pq-info); }
+.kpi-cell.sent .v   { color: var(--pq-ok); }
+.kpi-cell.cancel .v { color: var(--pq-err); }
+
+.filter-bar { display: flex; gap: 12px; align-items: center; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); flex-wrap: wrap; }
+.filter-bar .group { display: flex; gap: 4px; align-items: center; }
+.filter-bar .group .lbl { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; margin-right: 4px; }
+.filter-bar a { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); font-family: var(--pq-mono); }
+.filter-bar a:hover { background: var(--pq-surface-3); }
+.filter-bar a.on { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 36px; padding: 5px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-st { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-st.s-draft   { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+.chip-st.s-issued  { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-st.s-sent    { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-st.s-cancel  { background: var(--pq-err-soft); color: var(--pq-err); }
+
+.chip-fta { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; background: var(--pq-purple-soft); color: var(--pq-purple); font-family: var(--pq-mono); }
+.chip-cur { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; font-size: 10.5px; font-weight: 700; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-2); font-family: var(--pq-mono); }
+.chip-orig { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; font-size: 10.5px; font-weight: 700; border-radius: 3px; background: var(--pq-info-soft); color: var(--pq-info); font-family: var(--pq-mono); }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.po-empty .cta { margin-top: 16px; }
+.po-empty .cta a { padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+{% set total_n   = items|length if items else 0 %}
+{% set draft_n   = (items|selectattr('status','equalto','DRAFT')|list|length) if items else 0 %}
+{% set issued_n  = (items|selectattr('status','equalto','ISSUED')|list|length) if items else 0 %}
+{% set sent_n    = (items|selectattr('status','equalto','SENT')|list|length) if items else 0 %}
+{% set cancel_n  = (items|selectattr('status','equalto','CANCELLED')|list|length) if items else 0 %}
+
+<div class="app">
+  {% set active_tab = "sales" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="ft-page">
+
+      <div class="ft-head" data-dn="ft:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/export">수출</a> · <b>FTA 원산지증명</b></div>
+          <div class="ft-title">📜 FTA 원산지증명서</div>
+          <div class="ft-meta">KAFTA · KEUFTA · KCFTA · KVFTA · RCEP — 협정별 원산지 증명서 발행·관리</div>
+        </div>
+        <div class="ft-actions">
+          <a href="/export" class="sec">↩ 수출 홈</a>
+          <a href="/export/fta/new" class="cta">＋ FTA 증명서 발급</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="ft:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체</div>
+          <div class="v">{{ '{:,}'.format(total_n) }}<span class="u">건</span></div>
+          <div class="sub">최근 300건</div>
+        </div>
+        <div class="kpi-cell draft">
+          <div class="l">DRAFT (초안)</div>
+          <div class="v">{{ draft_n }}<span class="u">건</span></div>
+          <div class="sub">발급 대기</div>
+        </div>
+        <div class="kpi-cell issued">
+          <div class="l">ISSUED (발급)</div>
+          <div class="v">{{ issued_n }}<span class="u">건</span></div>
+          <div class="sub">발급 확정</div>
+        </div>
+        <div class="kpi-cell sent">
+          <div class="l">SENT (전송)</div>
+          <div class="v">{{ sent_n }}<span class="u">건</span></div>
+          <div class="sub">고객사 전달</div>
+        </div>
+        <div class="kpi-cell cancel">
+          <div class="l">CANCELLED</div>
+          <div class="v">{{ cancel_n }}<span class="u">건</span></div>
+          <div class="sub">취소</div>
+        </div>
+      </div>
+
+      <div class="filter-bar" data-dn="ft:filter">
+        <div class="group">
+          <span class="lbl">상태:</span>
+          <a href="/export/fta" class="{% if not filter_status %}on{% endif %}">전체</a>
+          <a href="/export/fta?status=DRAFT{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'DRAFT' %}on{% endif %}">DRAFT</a>
+          <a href="/export/fta?status=ISSUED{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'ISSUED' %}on{% endif %}">ISSUED</a>
+          <a href="/export/fta?status=SENT{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'SENT' %}on{% endif %}">SENT</a>
+          <a href="/export/fta?status=CANCELLED{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'CANCELLED' %}on{% endif %}">CANCELLED</a>
+        </div>
+        <div class="group">
+          <span class="lbl">협정:</span>
+          <a href="/export/fta{% if filter_status %}?status={{ filter_status }}{% endif %}" class="{% if not filter_fta_type %}on{% endif %}">전체</a>
+          {% for code, label in FTA_TYPES %}
+            <a href="/export/fta?fta_type={{ code }}{% if filter_status %}&status={{ filter_status }}{% endif %}" class="{% if filter_fta_type == code %}on{% endif %}">{{ code }}</a>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if items %}
+      <div class="tbl-zone" data-dn="ft:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th class="center" style="width:64px;">#</th>
+              <th style="width:160px;">증명서 번호</th>
+              <th class="center" style="width:90px;">협정</th>
+              <th>고객사</th>
+              <th class="center" style="width:70px;">원산지</th>
+              <th class="center" style="width:110px;">수출일</th>
+              <th class="num" style="width:140px;">총액</th>
+              <th class="center" style="width:110px;">상태</th>
+              <th class="center" style="width:130px;">발급일</th>
+              <th class="center" style="width:130px;">발급자</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for f in items %}
+            {% set st = f.status|default('DRAFT') %}
+            {% set st_cls = ({'DRAFT':'s-draft','ISSUED':'s-issued','SENT':'s-sent','CANCELLED':'s-cancel'}).get(st, 's-draft') %}
+            <tr onclick="location.href='/export/fta/{{ f.id }}'">
+              <td class="center mute">{{ loop.index }}</td>
+              <td class="code">{{ f.cert_no|default('FTA-' ~ f.id) }}</td>
+              <td class="center"><span class="chip-fta">{{ f.fta_type|default('—') }}</span></td>
+              <td>
+                <b>{{ f.customer_name|default('—') }}</b>
+                {% if f.customer_country %}<span style="margin-left:6px;"><span class="chip-cur">{{ f.customer_country }}</span></span>{% endif %}
+              </td>
+              <td class="center"><span class="chip-orig">{{ f.origin_country|default('KR') }}</span></td>
+              <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (f.export_date|default('—'))[:10] }}</td>
+              <td class="num">
+                {{ '{:,.2f}'.format(f.total_value|default(0)|float) }}
+                <span class="chip-cur" style="margin-left:4px;">{{ f.currency|default('USD') }}</span>
+              </td>
+              <td class="center"><span class="chip-st {{ st_cls }}">{{ st }}</span></td>
+              <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (f.issued_at|default('—'))[:10] }}</td>
+              <td class="center mute" style="font-size:11px;">{{ f.issuer_name|default('—') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="ft:empty">
+        <div class="ico">📜</div>
+        <div class="ttl">FTA 증명서가 없습니다</div>
+        <div style="font-size:12.5px;">{% if filter_status or filter_fta_type %}현재 필터에 맞는 결과가 없습니다.{% else %}수출 거래에 대한 첫 원산지증명서를 발급하세요.{% endif %}</div>
+        <div class="cta"><a href="/export/fta/new">＋ FTA 증명서 발급</a></div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

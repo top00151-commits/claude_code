@@ -3,6 +3,7 @@
 {# issues_list.html — 이슈·AS 목록
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
+<style>.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }</style>
 </head><body>
 {% set k = kpi or {} %}
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -20,7 +21,7 @@
     <div class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-num" style="color:var(--success);">{{ k.closed|default(0) }}</div></div>
   </div>
 
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:var(--space-5) var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/issues">
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:var(--space-5) 0 var(--space-4);flex-wrap:wrap;" method="get" action="/issues">
     <input type="hidden" name="scope" value="{{ scope|default('all') }}">
     <input type="search" name="q" value="{{ q }}" placeholder="제목/내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
     <select name="status" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);"><option value="">상태 전체</option>{% for s in ISSUE_STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>

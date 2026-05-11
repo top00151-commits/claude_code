@@ -26,6 +26,46 @@ body {
   --biz-e: #6d28d9;
   --biz-c: #047857;
 }
+/* v5H226z107: sales_home 통합 정리 — main flex column 명시 + 자식별 flex 처리로 진동 근본 해결 */
+/* page-head sticky 제거 (첫 자식이라 항상 보임) + 마지막 grid-2가 남은 공간 + 그 안 list-card 각자 스크롤 */
+body { overflow: hidden !important; }
+.main {
+  display: flex !important;
+  flex-direction: column;
+  height: calc(100vh - var(--topbar-h, 80px)) !important;
+  overflow: hidden !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main::-webkit-scrollbar { display: none; }
+/* 고정 영역 (page-head, KPI, 차트 grid-2) — flex-shrink: 0 */
+.main > .page-head,
+.main > .kpi-row,
+.main > .grid-2[data-dn="grid-biz-stage"] { flex-shrink: 0; }
+/* 마지막 grid-2 (TOP5 + 최근 프로젝트) — 남은 공간 차지 + 자체 overflow 차단 */
+.main > .grid-2[data-dn="grid-customer-recent"] {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  max-height: none;
+}
+/* 각 list-card (TOP5, 최근) — 카드 안에서 독립 스크롤 */
+.main > .grid-2[data-dn="grid-customer-recent"] .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card,
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card.list-scroll-sm {
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { display: none; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 .mgmt-pill {

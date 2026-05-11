@@ -1,68 +1,261 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>환율 관리 · KNK HAIST WORKS</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>환율 관리 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 사내 환율 관리 (사용자 메인)
+   라우터:
+     GET  /rates  (사내 사용자용 1차 진입점)
+     POST /rates/new  (Form: rate_date*, from_currency*, to_currency(KRW), rate*, source(수동), note)
+   전달: items / latest / currency / CURRENCIES
+   items[]: rate_date / from_currency / to_currency / rate / source / created_by_name / created_at
+   ⚠ 잠재 버그 복구:
+     - Form name `currency` → `from_currency` (라우터 required Form 미스매치)
+     - 미존재 키 `r.currency` → `r.from_currency`
+     - 미정의 `today` → Jinja 'now' filter fallback #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.alert-ok { background: rgba(122,155,92,.10); border: 1px solid var(--success); color: var(--success); padding: 10px 14px; border-radius: 8px; margin: 0 var(--content-pad) var(--space-3); font-weight: 700; font-size: 13px; }
-.alert-err { background: rgba(165,40,44,.08); border: 1px solid var(--knk-red); color: var(--knk-red); padding: 10px 14px; border-radius: 8px; margin: 0 var(--content-pad) var(--space-3); font-weight: 700; font-size: 13px; }
-.add-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.rt-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.rt-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rt-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.rt-head .crumb a { color: var(--pq-ink-3); }
+.rt-head .crumb b { color: var(--pq-ink); }
+.rt-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.rt-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.rt-actions { margin-left: auto; display: flex; gap: 8px; }
+.rt-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.rt-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.banner { padding: 9px 24px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--pq-line); }
+.banner.ok { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.banner.err { background: var(--pq-err-soft); color: var(--pq-err); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 700; font-family: var(--pq-mono); letter-spacing: 0.04em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; font-family: var(--pq-mono); }
+.kpi-cell.empty .v { color: var(--pq-ink-4); font-size: 14px; }
+
+.rt-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.add-form { padding: 14px 16px; }
+.add-form .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
 .add-form .field { display: flex; flex-direction: column; gap: 4px; }
-.add-form label { font-size: 11px; color: var(--mute); font-weight: 600; }
-.add-form input, .add-form select { padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>환율 관리</b></div><h1 class="page-title">💱 <em>환율</em> 관리</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">KRW 기준 · 날짜별 수동 입력 · 한국은행 API 자동 연동 예정</div></div>
-    <a class="btn btn-secondary" href="/rates/dashboard">📊 대시보드</a>
-  </div>
+.add-form .field.col-2 { grid-column: span 2; }
+.add-form label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.add-form label .req { color: var(--pq-err); }
+.add-form input, .add-form select { padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); color: var(--pq-ink); font-family: inherit; font-variant-numeric: tabular-nums; }
+.add-form input:focus, .add-form select:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+.add-form .submit-row { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+.add-form button { height: 34px; padding: 0 16px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.add-form button:hover { background: #1e293b; }
+.add-form .note { font-size: 11px; color: var(--pq-ink-4); }
 
-  {% if request.query_params.get('success') %}<div class="alert-ok">✓ 환율 등록 완료</div>{% endif %}
-  {% if request.query_params.get('error') %}<div class="alert-err">⚠ 오류: {{ request.query_params.get('error') }}</div>{% endif %}
+.filter-bar { display: flex; gap: 6px; align-items: center; padding: 10px 14px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); flex-wrap: wrap; }
+.filter-bar .lbl { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.filter-bar a { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); font-family: var(--pq-mono); }
+.filter-bar a:hover { background: var(--pq-surface-3); }
+.filter-bar a.on { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
 
-  <!-- 최신 환율 KPI -->
-  <div class="bento" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:100px;">
-    {% for code in ['USD','VND','JPY','CNY','EUR'] %}
-    {% set l = latest.get(code) %}
-    <div class="kpi-card">
-      <div class="kpi-label">{{ code }} → KRW</div>
-      {% if l %}<div class="kpi-num" style="font-size:22px;">{{ "{:,.2f}".format(l.rate) }}</div><div class="kpi-trend neutral">{{ l.rate_date }}</div>
-      {% else %}<div class="kpi-num" style="color:var(--mute);font-size:18px;">—</div><div class="kpi-trend neutral">미등록</div>{% endif %}
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 34px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-cur { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-src { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; font-size: 10.5px; font-weight: 600; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-2); }
+
+.po-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 36px; opacity: 0.5; }
+.po-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="rt-page">
+
+      <div class="rt-head" data-dn="rt:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>환율 관리</b></div>
+          <div class="rt-title">💱 환율 관리</div>
+          <div class="rt-meta">KRW 기준 · 사내 사용자용 환율 등록·조회 1차 진입점 · 한국은행 API 자동 연동 예정</div>
+        </div>
+        <div class="rt-actions">
+          <a href="/rates/dashboard">📈 대시보드</a>
+          <a href="/rates/alerts">🔔 알림</a>
+          <a href="/fx/rates">⚙ FX 관리자</a>
+        </div>
+      </div>
+
+      {% if request.query_params.get('success') %}<div class="banner ok">✓ 환율 등록 완료</div>{% endif %}
+      {% if request.query_params.get('error') %}<div class="banner err">⚠ 오류: {{ request.query_params.get('error') }}</div>{% endif %}
+
+      <div class="kpi-strip" data-dn="rt:latest" data-dn-tone="green">
+        {% for code in CURRENCIES %}
+          {% set l = latest.get(code) if latest else None %}
+          <div class="kpi-cell {% if not l %}empty{% endif %}">
+            <div class="l">{{ code }} → KRW</div>
+            {% if l %}
+              <div class="v">{{ '{:,.2f}'.format(l.rate|default(0)|float) }}<span class="u">원</span></div>
+              <div class="sub">{{ l.rate_date|default('—') }}</div>
+            {% else %}
+              <div class="v">미등록</div>
+              <div class="sub">—</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="rt-body" data-dn="rt:body">
+
+        <div class="qsec" data-dn="rt:add">
+          <div class="qsec-h">
+            <span class="ttl">＋ 환율 등록</span>
+            <span class="badge">같은 일자·통화쌍 UPSERT</span>
+            <span class="right">필수 항목 *</span>
+          </div>
+          <form class="add-form" method="post" action="/rates/new">
+            <div class="grid">
+              <div class="field col-2">
+                <label>환율 일자 <span class="req">*</span></label>
+                <input type="date" name="rate_date" required>
+              </div>
+              <div class="field">
+                <label>From <span class="req">*</span></label>
+                <select name="from_currency" required>
+                  {% for c in CURRENCIES %}<option value="{{ c }}" {% if currency == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>To</label>
+                <select name="to_currency">
+                  <option value="KRW" selected>KRW</option>
+                  {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
+                </select>
+              </div>
+              <div class="field col-2">
+                <label>환율 <span class="req">*</span></label>
+                <input type="number" name="rate" step="0.0001" min="0" required placeholder="1300.00">
+              </div>
+
+              <div class="field col-2">
+                <label>출처</label>
+                <select name="source">
+                  <option value="수동">수동</option>
+                  <option value="한국은행">한국은행</option>
+                  <option value="매매기준율">매매기준율</option>
+                  <option value="시중은행">시중은행</option>
+                  <option value="API">API</option>
+                </select>
+              </div>
+              <div class="field col-2">
+                <label>비고</label>
+                <input type="text" name="note" placeholder="비고 (선택)">
+              </div>
+            </div>
+            <div class="submit-row">
+              <button type="submit">＋ 환율 등록</button>
+              <span class="note">💡 등록 후 자재 단가 환산·원가 시뮬·환율 알림 자동 반영</span>
+            </div>
+          </form>
+        </div>
+
+        <div class="qsec" data-dn="rt:list" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">📜 환율 이력</span>
+            <span class="badge">{{ items|length if items else 0 }}건 (최근 200)</span>
+            <span class="right">통화로 필터링</span>
+          </div>
+          <div class="filter-bar">
+            <span class="lbl">통화 필터:</span>
+            <a href="/rates" class="{% if not currency %}on{% endif %}">전체</a>
+            {% for c in CURRENCIES %}
+              <a href="/rates?currency={{ c }}" class="{% if currency == c %}on{% endif %}">{{ c }}</a>
+            {% endfor %}
+          </div>
+          {% if items %}
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:48px;">#</th>
+                <th style="width:120px;">일자</th>
+                <th class="center" style="width:80px;">From</th>
+                <th class="center" style="width:80px;">To</th>
+                <th class="num" style="width:140px;">환율</th>
+                <th style="width:120px;">출처</th>
+                <th class="center" style="width:140px;">등록자</th>
+                <th class="center" style="width:130px;">등록일시</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in items %}
+              <tr>
+                <td class="center mute">{{ loop.index }}</td>
+                <td class="code">{{ r.rate_date|default('—') }}</td>
+                <td class="center"><span class="chip-cur">{{ r.from_currency|default('—') }}</span></td>
+                <td class="center mute">{{ r.to_currency|default('KRW') }}</td>
+                <td class="num">{{ '{:,.4f}'.format(r.rate|default(0)|float) }}</td>
+                <td><span class="chip-src">{{ r.source|default('—') }}</span></td>
+                <td class="center mute" style="font-size:11px;">{{ r.created_by_name|default('—') }}</td>
+                <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (r.created_at|default('—'))[:10] }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="po-empty">
+            <div class="ico">💱</div>
+            <div class="ttl">환율 데이터가 없습니다</div>
+            <div style="font-size:12px;">위 폼에서 첫 환율을 등록하세요.</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
     </div>
-    {% endfor %}
-  </div>
-
-  <!-- 신규 등록 -->
-  <form class="add-form" method="post" action="/rates/new">
-    <div class="field"><label>일자</label><input type="date" name="rate_date" value="{{ today }}" required></div>
-    <div class="field"><label>통화</label><select name="currency" required>{% for c in CURRENCIES %}<option value="{{ c }}" {% if currency == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
-    <div class="field"><label>환율 (KRW)</label><input type="number" name="rate" step="0.0001" min="0" required placeholder="1300.00"></div>
-    <div class="field"><label>출처 (선택)</label><input type="text" name="source" placeholder="한국은행, 매매기준율..."></div>
-    <button type="submit" class="btn btn-primary">＋ 등록</button>
-  </form>
-
-  <!-- 통화 필터 -->
-  <form style="margin: 0 var(--content-pad) var(--space-3);display:flex;gap:8px;align-items:center;">
-    <span style="font-size:12px;color:var(--mute);font-weight:600;">필터:</span>
-    <a class="btn btn-secondary" href="/rates" style="padding:5px 10px;font-size:12px;{% if not currency %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">전체</a>
-    {% for c in CURRENCIES %}
-    <a class="btn btn-secondary" href="/rates?currency={{ c }}" style="padding:5px 10px;font-size:12px;{% if currency == c %}background:var(--amber-glow);border-color:var(--amber);{% endif %}">{{ c }}</a>
-    {% endfor %}
-  </form>
-
-  <!-- 이력 테이블 -->
-  <div class="tbl-wrap tbl-sticky">
-    {% if items %}
-    <table class="tbl">
-      <thead><tr><th>일자</th><th class="center">통화</th><th class="num">환율 (KRW)</th><th>출처</th><th class="center">등록</th></tr></thead>
-      <tbody>
-      {% for r in items %}
-        <tr><td style="font-family:monospace;">{{ r.rate_date }}</td><td class="center"><span class="pill pill-progress">{{ r.currency }}</span></td><td class="num" style="font-weight:700;color:var(--knk-red);">{{ "{:,.2f}".format(r.rate) }}</td><td style="font-size:12px;color:var(--mute);">{{ r.source|default('—') }}</td><td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ r.created_at|default('—')|truncate(10, end='') }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">💱</div><div class="ttl">환율 데이터가 없습니다</div><div style="font-size:13px;color:var(--mute);">위 폼에서 첫 환율을 등록해주세요.</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

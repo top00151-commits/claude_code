@@ -1,46 +1,247 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>환율 알림 설정 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>환율 알림 설정 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 환율 알림 (Rate Alerts)
+   라우터:
+     GET  /rates/alerts
+     POST /rates/alerts  (Form: target_currency*, threshold*, direction(above|below))
+   전달: alerts / latest / CURRENCIES
+   alerts[]: id / target_currency / threshold / direction / is_active / triggered_at / created_by / created_at
+   ⚠ 잠재 버그 복구:
+     - Form name: currency→target_currency, condition→direction
+     - 미구현 라우터 /rates/alerts/{id}/toggle 폼 제거
+     - alerts 키: a.currency→a.target_currency, a.condition→a.direction, a.recipients 제거 (미존재) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.alert-item { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto 1fr auto auto; gap: 14px; align-items: center; }
-.alert-item.inactive { opacity: 0.5; }
-.add-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 18px; display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.ra-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ra-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ra-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.ra-head .crumb a { color: var(--pq-ink-3); }
+.ra-head .crumb b { color: var(--pq-ink); }
+.ra-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.ra-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.ra-actions { margin-left: auto; display: flex; gap: 8px; }
+.ra-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.ra-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.ok .v   { color: var(--pq-ok); }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+.kpi-cell.info .v { color: var(--pq-info); }
+
+.ra-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.add-form { padding: 14px 16px; }
+.add-form .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .add-form .field { display: flex; flex-direction: column; gap: 4px; }
-.add-form label { font-size: 11px; color: var(--mute); font-weight: 600; }
-.add-form input, .add-form select { padding: 8px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/rates">환율</a> · <b>알림 설정</b></div><h1 class="page-title">⚠ 환율 <em>알림 설정</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">통화별 임계값 도달 시 자동 알림</div></div>
-  </div>
+.add-form label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.add-form label .req { color: var(--pq-err); }
+.add-form input, .add-form select { padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); color: var(--pq-ink); font-family: inherit; font-variant-numeric: tabular-nums; }
+.add-form input:focus, .add-form select:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+.add-form .submit-row { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+.add-form button { height: 34px; padding: 0 16px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.add-form button:hover { background: #1e293b; }
+.add-form .note { font-size: 11px; color: var(--pq-ink-4); }
 
-  <form class="add-form" method="post" action="/rates/alerts">
-    <div class="field"><label>통화</label><select name="currency" required>{% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-    <div class="field"><label>조건</label><select name="condition"><option value="above">이상 (≥)</option><option value="below">이하 (≤)</option></select></div>
-    <div class="field"><label>임계값 (KRW)</label><input type="number" name="threshold" step="0.01" min="0" required placeholder="1400.00"></div>
-    <div class="field"><label>받는 이</label><input type="text" name="recipients" placeholder="이메일 또는 이름"></div>
-    <button type="submit" class="btn btn-primary">＋ 알림 추가</button>
-  </form>
+.alert-grid { padding: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 10px; }
+.alert-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; padding: 12px 14px; transition: all 0.12s; }
+.alert-card.triggered { border-color: var(--pq-err); background: var(--pq-err-soft); }
+.alert-card.inactive { opacity: 0.55; background: var(--pq-surface-inset); }
+.alert-card .row1 { display: flex; align-items: center; gap: 8px; }
+.alert-card .cur { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; background: var(--pq-info-soft); color: var(--pq-info); font-weight: 800; font-size: 12px; border-radius: 4px; font-family: var(--pq-mono); }
+.alert-card .dir { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); }
+.alert-card .dir.above { background: var(--pq-err-soft); color: var(--pq-err); }
+.alert-card .dir.below { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.alert-card .thr { font-family: var(--pq-mono); font-size: 16px; font-weight: 800; color: var(--pq-ink); }
+.alert-card .st { margin-left: auto; }
+.alert-card .pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.alert-card .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.alert-card .pill.on  { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.alert-card .pill.off { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+.alert-card .pill.tr  { background: var(--pq-err-soft); color: var(--pq-err); }
+.alert-card .row2 { margin-top: 6px; font-size: 11.5px; color: var(--pq-ink-3); display: flex; gap: 10px; flex-wrap: wrap; }
+.alert-card .row2 b { color: var(--pq-ink); font-family: var(--pq-mono); }
 
-  <div style="margin: 0 var(--content-pad);">
-    {% if alerts %}
-      {% for a in alerts %}
-      <div class="alert-item {% if not a.is_active %}inactive{% endif %}">
-        <span class="pill pill-progress">{{ a.currency }}</span>
+.po-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 36px; opacity: 0.5; }
+.po-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+{% set alert_n   = alerts|length if alerts else 0 %}
+{% set active_n  = (alerts|selectattr('is_active','equalto',1)|list|length) if alerts else 0 %}
+{% set trig_n    = (alerts|selectattr('triggered_at')|list|length) if alerts else 0 %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="ra-page">
+
+      <div class="ra-head" data-dn="ra:head" data-dn-tone="purple">
         <div>
-          <b>{{ a.condition|default('—') }} {{ "{:,.2f}".format(a.threshold|default(0)) }} 원</b>
-          {% set cur = latest.get(a.currency) %}
-          {% if cur %}<span style="font-size:11px;color:var(--mute);margin-left:8px;">현재 {{ "{:,.2f}".format(cur.rate) }}</span>{% endif %}
-          {% if a.recipients %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">→ {{ a.recipients }}</div>{% endif %}
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/rates">환율</a> · <b>알림 설정</b></div>
+          <div class="ra-title">🔔 환율 알림 설정</div>
+          <div class="ra-meta">통화별 임계값 도달 시 자동 알림 (KRW 환산 기준)</div>
         </div>
-        <span class="pill {% if a.is_active %}pill-done{% else %}pill-muted{% endif %}">{{ '활성' if a.is_active else '비활성' }}</span>
-        <form method="post" action="/rates/alerts/{{ a.id }}/toggle" style="margin:0;"><button class="btn btn-secondary" type="submit">{{ '⏸' if a.is_active else '▶' }}</button></form>
+        <div class="ra-actions">
+          <a href="/rates">📊 환율</a>
+          <a href="/rates/dashboard">📈 대시보드</a>
+          <a href="/rates/history">📜 이력</a>
+        </div>
       </div>
-      {% endfor %}
-    {% else %}<div class="card empty"><div class="ico">⚠</div><div class="ttl">알림 설정이 없습니다</div><div style="font-size:13px;color:var(--mute);">위 폼에서 첫 알림을 등록해주세요.</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+
+      <div class="kpi-strip" data-dn="ra:kpi" data-dn-tone="green">
+        <div class="kpi-cell info">
+          <div class="l">전체 알림</div>
+          <div class="v">{{ alert_n }}<span class="u">개</span></div>
+          <div class="sub">등록된 알림 룰</div>
+        </div>
+        <div class="kpi-cell ok">
+          <div class="l">활성</div>
+          <div class="v">{{ active_n }}<span class="u">개</span></div>
+          <div class="sub">감시 중</div>
+        </div>
+        <div class="kpi-cell warn">
+          <div class="l">발동 이력</div>
+          <div class="v">{{ trig_n }}<span class="u">건</span></div>
+          <div class="sub">임계값 도달 누적</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">감시 통화</div>
+          <div class="v">{{ CURRENCIES|length if CURRENCIES else 0 }}<span class="u">종</span></div>
+          <div class="sub">지원 통화 풀</div>
+        </div>
+      </div>
+
+      <div class="ra-body" data-dn="ra:body">
+
+        <div class="qsec" data-dn="ra:add">
+          <div class="qsec-h">
+            <span class="ttl">＋ 신규 알림 등록</span>
+            <span class="badge">통화 × 임계값 × 방향</span>
+            <span class="right">필수 항목 *</span>
+          </div>
+          <form class="add-form" method="post" action="/rates/alerts">
+            <div class="grid">
+              <div class="field">
+                <label>통화 <span class="req">*</span></label>
+                <select name="target_currency" required>
+                  {% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>방향 <span class="req">*</span></label>
+                <select name="direction">
+                  <option value="above">▲ 이상 (above ≥)</option>
+                  <option value="below">▼ 이하 (below ≤)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>임계값 (KRW) <span class="req">*</span></label>
+                <input type="number" name="threshold" step="0.01" min="0" required placeholder="1400.00">
+              </div>
+              <div class="field" style="justify-content:flex-end;">
+                <button type="submit">＋ 알림 추가</button>
+              </div>
+            </div>
+            <div class="submit-row">
+              <span class="note">💡 환율 등록 시 자동 체크 · 임계값 도달 시 알림시스템(notify_user)으로 발송</span>
+            </div>
+          </form>
+        </div>
+
+        <div class="qsec" data-dn="ra:list" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">🔔 등록된 알림 ({{ alert_n }})</span>
+            <span class="badge">활성 {{ active_n }} / 발동 {{ trig_n }}</span>
+            <span class="right">발동된 알림은 빨강 배경</span>
+          </div>
+          {% if alerts %}
+          <div class="alert-grid">
+            {% for a in alerts %}
+              {% set cur = latest.get(a.target_currency) if latest else None %}
+              {% set is_act = (a.is_active|default(0))|int == 1 %}
+              {% set is_tr = a.triggered_at|default('') %}
+              <div class="alert-card {% if not is_act %}inactive{% elif is_tr %}triggered{% endif %}">
+                <div class="row1">
+                  <span class="cur">{{ a.target_currency|default('—') }}</span>
+                  <span class="dir {% if a.direction == 'below' %}below{% else %}above{% endif %}">
+                    {% if a.direction == 'below' %}▼ BELOW{% else %}▲ ABOVE{% endif %}
+                  </span>
+                  <span class="thr">{{ '{:,.2f}'.format(a.threshold|default(0)|float) }} 원</span>
+                  <span class="st">
+                    {% if is_tr %}
+                      <span class="pill tr">발동</span>
+                    {% elif is_act %}
+                      <span class="pill on">활성</span>
+                    {% else %}
+                      <span class="pill off">비활성</span>
+                    {% endif %}
+                  </span>
+                </div>
+                <div class="row2">
+                  {% if cur %}
+                    <span>현재 환율: <b>{{ '{:,.2f}'.format(cur.rate|default(0)|float) }} 원</b></span>
+                  {% endif %}
+                  {% if is_tr %}
+                    <span>발동 시각: <b>{{ (a.triggered_at|default('—'))[:16] }}</b></span>
+                  {% endif %}
+                  <span>등록일: <b>{{ (a.created_at|default('—'))[:10] }}</b></span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="po-empty">
+            <div class="ico">🔔</div>
+            <div class="ttl">알림 설정이 없습니다</div>
+            <div style="font-size:12px;">위 폼에서 첫 알림을 등록하세요.</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

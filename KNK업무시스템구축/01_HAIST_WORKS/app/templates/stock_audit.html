@@ -1,77 +1,339 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>실사 #{{ audit.id|default('-') }} · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>실사 #{{ audit.id|default('—') }} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 재고 실사 상세
+   라우터: GET /stock/audits/{audit_id}
+   전달: audit / parts / can_approve / can_close / pending_lines (int) / pending_adjs (int) / effect / mode='detail'
+   라인 추가: POST /stock/audits/{audit_id}/items (part_id / counted_qty / variance_reason)
+   마감:     POST /stock/audits/{audit_id}/close #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.audit-form { margin: 0 var(--content-pad) var(--space-3); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
-.audit-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 14px; }
-.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.fld input, .fld select, .fld textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/stock/audits">실사</a> · <b>#{{ audit.id|default('새 실사') }}</b></div>
-    <h1 class="page-title">📋 실사 <em>#{{ audit.id|default('NEW') }}</em>
-      {% if audit and audit.status %}<span class="pill {% if audit.status == 'CLOSED' %}pill-done{% elif audit.status == 'PENDING' %}pill-warn{% else %}pill-progress{% endif %}" style="font-size:13px;margin-left:14px;">{{ audit.status }}</span>{% endif %}</h1></div>
-    <a class="btn btn-secondary" href="/stock/audits">← 목록</a>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
 
-  {% if audit %}
-  <div class="audit-form">
-    <div class="audit-row">
-      <div class="fld"><label>실사 ID</label><input type="text" value="#{{ audit.id }}" readonly style="background:var(--paper-2);"></div>
-      <div class="fld"><label>실사일</label><input type="date" value="{{ audit.audit_date }}" readonly style="background:var(--paper-2);"></div>
-      <div class="fld"><label>주관</label><input type="text" value="{{ audit.auditor_name|default('—') }}" readonly style="background:var(--paper-2);"></div>
-    </div>
-    {% if audit.note %}
-    <div class="fld"><label>메모</label><textarea readonly style="background:var(--paper-2);min-height:60px;">{{ audit.note }}</textarea></div>
-    {% endif %}
-  </div>
+.au-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.au-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.au-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.au-head .crumb a { color: var(--pq-ink-3); }
+.au-head .crumb b { color: var(--pq-ink); }
+.au-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.au-title .code { font-family: var(--pq-mono); color: var(--pq-ink); font-size: 16px; opacity: 0.75; }
+.au-actions { margin-left: auto; display: flex; gap: 8px; }
+.au-actions a, .au-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); font-family: inherit; }
+.au-actions a:hover, .au-actions button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.au-actions .btn-ok { background: var(--pq-ok); border-color: var(--pq-ok); color: #fff; font-weight: 600; }
+.au-actions .btn-ok:hover { background: #0a5e3b; }
+.au-actions .btn-ok[disabled] { opacity: 0.45; cursor: not-allowed; }
 
-  {% if pending_lines %}
-  <div class="section">
-    <h2>실사 라인 ({{ pending_lines|length }})</h2>
-    <div class="tbl-wrap tbl-sticky">
-      <table class="tbl">
-        <thead><tr><th>코드</th><th>자재명</th><th class="num">시스템</th><th class="num">실측</th><th class="num">차이</th><th>비고</th></tr></thead>
-        <tbody>
-        {% for l in pending_lines %}
-          <tr>
-            <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ l.code|default('—') }}</td>
-            <td><b>{{ l.name|default('—') }}</b></td>
-            <td class="num">{{ '{:,.0f}'.format(l.system_qty|default(0)) }}</td>
-            <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(l.actual_qty|default(0)) }}</td>
-            <td class="num" {% if l.diff|default(0) != 0 %}style="color:var(--knk-red);font-weight:700;"{% endif %}>{{ '%+d'|format(l.diff|default(0)) }}</td>
-            <td style="font-size:12px;color:var(--mute);">{{ l.note|default('—') }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
+.chip-au { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-au::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-au.s-open { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-au.s-closed { background: var(--pq-ok-soft); color: var(--pq-ok); }
 
-  {% if can_approve and can_close %}
-  <div style="margin: var(--space-4) var(--content-pad);display:flex;justify-content:flex-end;gap:10px;">
-    <form method="post" action="/stock/audit/{{ audit.id }}/close" style="margin:0;">
-      <button class="btn btn-primary" type="submit" onclick="return confirm('실사를 마감하시겠습니까? 차이가 자동으로 재고에 반영됩니다.')">📤 마감 + 보정</button>
-    </form>
-  </div>
-  {% endif %}
-  {% else %}
-  <form method="post" action="/stock/audit/new" class="audit-form">
-    <div class="audit-row">
-      <div class="fld"><label>실사일 *</label><input type="date" name="audit_date" required></div>
-      <div class="fld"><label>대상 (선택사항)</label><select name="scope"><option value="">전체</option><option value="biz_M">사업부 M</option><option value="biz_T">사업부 T</option></select></div>
-      <div class="fld"><label>주관</label><input type="text" name="auditor" placeholder="자동: 본인"></div>
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell.pending .v { color: var(--pq-warn); }
+.kpi-cell.diff .v { color: var(--pq-err); }
+.kpi-cell.ok .v { color: var(--pq-ok); }
+
+.au-body { display: grid; grid-template-columns: 1fr 320px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.au-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.au-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.au-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.au-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.au-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.au-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.au-card .head .sub { font-size: 11px; color: var(--pq-ink-4); margin-left: auto; }
+.au-card .body { padding: 14px 16px; }
+.au-card .body.tight { padding: 0; }
+
+.field-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field input, .field select { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.field input:focus, .field select:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field-row .submit-cell { display: flex; align-items: flex-end; }
+.btn-add { width: 100%; padding: 9px 14px; background: var(--pq-ink); color: #fff; font-size: 12.5px; font-weight: 600; border: 0; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.btn-add:hover { background: var(--pq-ink-2); }
+
+/* def list */
+.def { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; font-size: 12px; }
+.def dt { color: var(--pq-ink-4); font-weight: 500; }
+.def dd { color: var(--pq-ink); margin: 0; }
+.def dd .mono { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* 표 */
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 30px; padding: 5px 10px; background: var(--pq-surface-2); color: var(--pq-ink-3); font-weight: 600; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp tbody td { height: 32px; padding: 5px 10px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 600; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody td.diff-pos { color: var(--pq-ok); font-weight: 700; }
+.tbl-erp tbody td.diff-neg { color: var(--pq-err); font-weight: 700; }
+
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+.warn-tip { background: var(--pq-warn-soft); border-left: 3px solid var(--pq-warn); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.warn-tip b { color: var(--pq-warn); }
+
+.alert-bar { background: var(--pq-warn-soft); color: var(--pq-warn); border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 14px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+.alert-bar.ok { background: var(--pq-ok-soft); color: var(--pq-ok); border-color: #bbf7d0; }
+
+@media (max-width: 1280px) {
+  .au-body { grid-template-columns: 1fr; }
+  .au-side { position: static; }
+}
+@media (max-width: 1023px) { .field-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+{% set st = audit.status|default('OPEN') %}
+{% set st_cls = 's-closed' if st == 'CLOSED' else 's-open' %}
+{% set items = audit.items|default([]) %}
+{% set total_cnt = items|length %}
+{% set diff_cnt = items|selectattr('variance','ne',0)|list|length if items else 0 %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="au-page">
+
+      <div class="au-head" data-dn="au:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock/audits">실사</a> · <b>{{ audit.audit_no|default('A-' ~ audit.id) }}</b></div>
+          <div class="au-title">
+            📋 <span class="code">{{ audit.audit_no|default('A-' ~ audit.id) }}</span>
+            <span class="chip-au {{ st_cls }}">{{ st }}</span>
+          </div>
+        </div>
+        <div class="au-actions">
+          <a href="/stock/audits">↩ 목록</a>
+          {% if can_approve and st != 'CLOSED' %}
+          <form method="post" action="/stock/audits/{{ audit.id }}/close" style="margin:0;">
+            <button type="submit" class="btn-ok" {% if not can_close %}disabled{% endif %}
+                    onclick="return confirm('실사를 마감하시겠습니까?\\n\\n차이 항목이 자동으로 stock_adjustments로 전송됩니다.');">
+              📤 마감 + 보정 전송
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if request.query_params.get('success') %}
+      <div class="alert-bar ok">✅ {% set s = request.query_params.get('success') %}{% if s == 'line' %}라인 추가 완료{% elif s == 'closed' %}실사 마감 + 보정 전송 완료{% else %}{{ s }}{% endif %}</div>
+      {% endif %}
+      {% if request.query_params.get('error') %}
+      <div class="alert-bar">⚠️ {{ request.query_params.get('error') }}</div>
+      {% endif %}
+
+      <div class="kpi-strip" data-dn="au:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">실사 라인</div>
+          <div class="v">{{ total_cnt }}<span class="u">건</span></div>
+        </div>
+        <div class="kpi-cell diff">
+          <div class="l">차이 발견</div>
+          <div class="v">{{ diff_cnt }}<span class="u">건</span></div>
+        </div>
+        <div class="kpi-cell pending">
+          <div class="l">미처리 라인</div>
+          <div class="v">{{ pending_lines|default(0) }}<span class="u">건</span></div>
+        </div>
+        <div class="kpi-cell {% if pending_adjs|default(0) == 0 %}ok{% else %}pending{% endif %}">
+          <div class="l">조정 대기</div>
+          <div class="v">{{ pending_adjs|default(0) }}<span class="u">건</span></div>
+        </div>
+      </div>
+
+      <div class="au-body">
+
+        <div class="au-main">
+
+          <!-- 실사 라인 추가 (OPEN일 때만) -->
+          {% if st != 'CLOSED' %}
+          <div class="au-card" data-dn="au:add" data-dn-tone="purple">
+            <div class="head"><h3>＋ 실사 라인 추가</h3><span class="sub">자재 + 실측 수량 + 차이 사유</span></div>
+            <div class="body">
+              <form method="post" action="/stock/audits/{{ audit.id }}/items">
+                <div class="field-row">
+                  <div class="field" style="grid-column: 1 / 3;">
+                    <label>자재 <span class="req">*</span></label>
+                    <select name="part_id" required>
+                      <option value="">— 자재 선택 —</option>
+                      {% for p in parts %}
+                      <option value="{{ p.id }}">{{ p.part_name }}{% if p.part_no %} · {{ p.part_no }}{% endif %} (시스템 {{ '{:,.0f}'.format(p.stock_qty|default(0)) }} {{ p.unit|default('EA') }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>실측 수량 <span class="req">*</span></label>
+                    <input type="number" name="counted_qty" required step="0.01" min="0" class="mono" placeholder="0" />
+                  </div>
+                </div>
+                <div class="field-row" style="margin-top:10px;">
+                  <div class="field" style="grid-column: 1 / 3;">
+                    <label>차이 사유 (선택)</label>
+                    <input type="text" name="variance_reason" placeholder="예: 파손 발견 / 위치 오기재 / 실사 오차" />
+                  </div>
+                  <div class="submit-cell">
+                    <button type="submit" class="btn-add">＋ 라인 추가</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- 실사 라인 표 -->
+          <div class="au-card" data-dn="au:items" data-dn-tone="purple">
+            <div class="head"><h3>실사 결과 ({{ total_cnt }}건)</h3><span class="sub">시스템 vs 실측 비교 + 차이</span></div>
+            <div class="body tight">
+              {% if items %}
+              <table class="tbl-erp">
+                <thead>
+                  <tr>
+                    <th class="center" style="width:36px;">#</th>
+                    <th>코드 / 자재명</th>
+                    <th class="num" style="width:100px;">시스템</th>
+                    <th class="num" style="width:100px;">실측</th>
+                    <th class="num" style="width:90px;">차이</th>
+                    <th class="center" style="width:80px;">상태</th>
+                    <th>사유</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for it in items %}
+                  {% set sys_q = it.system_qty|default(0)|float %}
+                  {% set cnt_q = it.counted_qty|default(0)|float %}
+                  {% set var = it.variance|default(cnt_q - sys_q)|float %}
+                  <tr>
+                    <td class="center mute">{{ loop.index }}</td>
+                    <td>
+                      <b>{{ it.part_name|default('—') }}</b>
+                      {% if it.part_no %}<div class="code" style="font-size:11px;color:var(--pq-ink-4);">{{ it.part_no }}</div>{% endif %}
+                    </td>
+                    <td class="num">{{ '{:,.0f}'.format(sys_q) }}</td>
+                    <td class="num"><b>{{ '{:,.0f}'.format(cnt_q) }}</b></td>
+                    <td class="num {% if var > 0 %}diff-pos{% elif var < 0 %}diff-neg{% endif %}">
+                      {{ '%+,.0f'|format(var) if var != 0 else '0' }}
+                    </td>
+                    <td class="center"><span class="chip-au {{ 's-closed' if it.status == 'ADJUSTED' else 's-open' }}">{{ it.status|default('PENDING') }}</span></td>
+                    <td style="font-size:11.5px; color: var(--pq-ink-3);">{{ it.variance_reason|default('—')|truncate(40) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div style="padding:28px 16px; text-align:center; color:var(--pq-ink-4); font-size:12.5px;">
+                실사 라인 없음 — 위 폼에서 자재 + 실측 수량을 입력하여 라인을 추가하세요.
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 사이드 -->
+        <aside class="au-side" data-dn="au:side" data-dn-tone="blue">
+          <div class="au-card">
+            <div class="head"><h3>실사 정보</h3></div>
+            <div class="body">
+              <dl class="def">
+                <dt>번호</dt><dd class="mono">{{ audit.audit_no|default('A-' ~ audit.id) }}</dd>
+                <dt>상태</dt><dd><span class="chip-au {{ st_cls }}">{{ st }}</span></dd>
+                <dt>발의일</dt><dd>{{ (audit.created_at or '—')[:10] }}</dd>
+                <dt>주관</dt><dd>{{ audit.led_by_name|default('—') }}</dd>
+                {% if audit.note %}<dt>비고</dt><dd style="font-size:11.5px;">{{ audit.note|truncate(80) }}</dd>{% endif %}
+                {% if audit.closed_at %}<dt>마감일</dt><dd>{{ (audit.closed_at or '')[:10] }}</dd>{% endif %}
+              </dl>
+            </div>
+          </div>
+
+          {% if effect %}
+          <div class="au-card">
+            <div class="head"><h3>📊 효과 요약</h3></div>
+            <div class="body">
+              <dl class="def">
+                <dt>증가 라인</dt><dd class="mono" style="color:var(--pq-ok);">+{{ effect.plus_lines|default(0) }}</dd>
+                <dt>감소 라인</dt><dd class="mono" style="color:var(--pq-err);">-{{ effect.minus_lines|default(0) }}</dd>
+                <dt>증가량 합계</dt><dd class="mono" style="color:var(--pq-ok);">+{{ '{:,.0f}'.format(effect.plus_qty|default(0)) }}</dd>
+                <dt>감소량 합계</dt><dd class="mono" style="color:var(--pq-err);">{{ '{:,.0f}'.format(effect.minus_qty|default(0)) }}</dd>
+              </dl>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="au-card">
+            <div class="head"><h3>💡 가이드</h3></div>
+            <div class="body">
+              <div class="help-tip">
+                <b>실사 절차</b><br>
+                ① 실사 발의 (목록)<br>
+                ② 자재별 실측 수량 입력 (라인 추가)<br>
+                ③ 시스템 vs 실측 차이 자동 계산<br>
+                ④ 마감 → 차이 항목 stock_adjustments 자동 전송<br>
+                ⑤ 조정 승인 → 재고 반영
+              </div>
+            </div>
+          </div>
+
+          <div class="au-card">
+            <div class="head"><h3 style="color:var(--pq-warn);">⚠️ 마감 조건</h3></div>
+            <div class="body">
+              <div class="warn-tip">
+                <b>마감 가능 조건</b><br>
+                · 라인 1개 이상 (현재 {{ total_cnt }})<br>
+                · 미처리 라인 0건 (현재 {{ pending_lines|default(0) }})<br>
+                · 조정 대기 0건 (현재 {{ pending_adjs|default(0) }})<br><br>
+                {% if can_close %}
+                <span style="color:var(--pq-ok); font-weight:700;">✓ 마감 가능</span>
+                {% else %}
+                <span style="color:var(--pq-warn); font-weight:700;">⚠ 마감 조건 미충족</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+
     </div>
-    <div class="fld"><label>메모</label><textarea name="note" placeholder="실사 사유·범위" style="min-height:60px;"></textarea></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
-      <a class="btn btn-secondary" href="/stock/audits">취소</a>
-      <button class="btn btn-primary" type="submit">📤 실사 시작</button>
-    </div>
-  </form>
-  {% endif %}
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

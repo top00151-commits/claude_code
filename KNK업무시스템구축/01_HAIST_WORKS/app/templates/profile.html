@@ -8,15 +8,15 @@
               - profile-hero 그라디언트 → 잉크 단색 + glow 제거 #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.profile-hero { margin: 0 var(--content-pad); background: var(--qv-ink); color: white; border-radius: var(--radius-xl); padding: var(--space-6); display: flex; gap: 24px; align-items: center; position: relative; overflow: hidden; }
+.profile-hero { margin: 0; background: var(--qv-ink); color: white; border-radius: var(--radius-xl); padding: var(--space-6); display: flex; gap: 24px; align-items: center; position: relative; overflow: hidden; }
 .profile-hero::before { content: ""; position: absolute; top: -60px; right: -40px; width: 280px; height: 280px; background: transparent; opacity: 0.4; }
 .avatar-lg { width: 80px; height: 80px; background: white; color: var(--qv-ink); border-radius: 50%; display: grid; place-items: center; font-size: 36px; font-weight: 700; flex-shrink: 0; box-shadow: 0 8px 22px rgba(0,0,0,0.18); position: relative; z-index: 1; }
 .profile-hero h1 { font-size: 26px; font-weight: 700; color: white; }
 .profile-hero p { color: rgba(255,255,255,0.85); margin-top: 4px; font-size: 13.5px; }
-.alert-msg { margin: 0 var(--content-pad) var(--space-3); padding: 12px 16px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; }
+.alert-msg { margin: 0 0 var(--space-3); padding: 12px 16px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; }
 .alert-msg.ok { background: rgba(122,155,92,0.12); color: var(--success); border: 1px solid var(--success); }
 .alert-msg.err { background: rgba(165,40,44,0.08); color: var(--knk-red); border: 1px solid var(--knk-red); }
-.grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.grid-2 { margin: var(--space-5) 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 12px; font-weight: 600; color: var(--qv-ink); }
@@ -24,6 +24,7 @@
 .field input:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 3px var(--qv-surface-2); }
 .tag { display: inline-block; padding: 3px 10px; background: var(--qv-surface-3); color: var(--qv-ink-2); font-size: 11px; font-weight: 700; border-radius: var(--radius-full); margin: 2px; }
 @media (max-width: 1023px) { .grid-2 { grid-template-columns: 1fr; } }
+.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
 </style>
 </head>
 <body>

@@ -5,488 +5,168 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>자재구매센터 · KNK HAIST WORKS</title>
 
-{# ============================================================
-   logistics_home.html — v5H226z56 (2026-05-10) 시안1 적용
-   실무팀3 (자재구매센터) 2순위 페이지.
-   - Quiet Ops 톤 (amber-grad → 잉크/회색)
-   - KPI 6장 (parts_count + stock_kpi 가용 키 활용)
-   - 발주 흐름 (DB PO_STATUSES 5종)
-   - 사업부별 자재 분포 (parts_stats.by_div)
-   - 빠른 액션 4종
-   - 입고 임박 / 안전재고 상세 = 라우트 확장 결재 대기 placeholder
-   - ?debug=1 영역 라벨 6개
-   - 빨강 ≤1개 (안전재고 임계 KPI만)
-   ============================================================ #}
+{# logistics_home.html — v5H5 STANDALONE (자재 hub) — 2026-05-02 #}
 
-<link href="/static/css/v5_tokens.css?v=20260510v5H226z56" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-/* ── 자재구매 ERP 토큰 (시안1) ───────────────────────────── */
-:root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-line-3: #cbd5e1;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
-  --pq-purple: #6d28d9;
-  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* 사업부 색 (참고 디자인 토큰 토큰명만 차용) */
-  --biz-t: #c2410c;
-  --biz-m: #1e40af;
-  --biz-e: #6d28d9;
-  --biz-c: #047857;
-}
+/* v5H226z108: 매출영업과 동일한 숫자 폰트 (monospace) — 자재구매 통일 */
+.tbl td.num, td.num { text-align: right; font-weight: 600; font-family: monospace; }
+.tbl th.num { text-align: center; }
+/* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
-/* ── PageHead ─────────────────────────────────────────── */
-.po-head {
-  padding: 14px 24px 12px; background: var(--pq-surface);
-  border-bottom: 1px solid var(--pq-line);
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-}
-.po-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
-.po-head .crumb b { color: var(--pq-ink); }
-.po-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
-.po-meta {
-  font-size: 12px; color: var(--pq-ink-3);
-  display: inline-flex; gap: 8px; align-items: center;
-}
-.po-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.po-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.po-actions .btn-ghost {
-  height: 32px; padding: 0 12px; background: transparent;
-  border: 1px solid var(--pq-line-2); border-radius: 8px;
-  font-size: 12.5px; font-weight: 500; color: var(--pq-ink-2);
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer;
-}
-.po-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
-.po-actions .btn-dark {
-  height: 32px; padding: 0 14px; background: var(--pq-ink); border: 0; border-radius: 8px;
-  font-size: 12.5px; font-weight: 600; color: #fff;
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer;
-}
-.po-actions .btn-dark:hover { background: #1e293b; }
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-meta { font-size: 11px; color: var(--mute); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--knk-red); }
+.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
+.btn-secondary:hover { background: var(--amber-glow); }
 
-/* ── 본문 그리드 ──────────────────────────────────────── */
-.lh-body {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 12px; padding: 16px 24px 32px;
-}
+.bento { margin: 0 var(--content-pad); display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 130px; gap: var(--space-3); }
+.card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; justify-content: space-between; transition: all .18s; text-decoration: none; color: inherit; }
+.card.clickable { cursor: pointer; }
+.card.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--amber); }
+.card-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+.card-value { font-size: 30px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.card-value .unit { font-size: 14px; color: var(--mute); font-weight: 500; }
+.card-trend { font-size: 11.5px; font-weight: 600; }
+.card-trend.up { color: var(--success); }
+.card-trend.alert { color: var(--knk-red); }
+.card-trend.neutral { color: var(--mute); }
+.card.hero { grid-column: span 2; grid-row: span 2; background: var(--grad-amber); color: white; border: 0; position: relative; overflow: hidden; }
+.card.hero::before { content: ""; position: absolute; top: -40%; right: -20%; width: 320px; height: 320px; background: var(--glow-amber-radial); opacity: 0.4; }
+.card.hero .card-label { color: var(--amber-glow); position: relative; z-index: 1; }
+.card.hero .card-value { color: white; font-size: 52px; position: relative; z-index: 1; }
+.card.hero .card-trend { color: var(--amber-glow); font-size: 13px; position: relative; z-index: 1; }
 
-/* ── KPI 6장 ──────────────────────────────────────────── */
-.kpi-card {
-  grid-column: span 2;
-  background: var(--pq-surface);
-  border: 1px solid var(--pq-line);
-  border-radius: 12px;
-  padding: 14px 16px;
-  min-height: 96px;
-  display: flex; flex-direction: column; gap: 4px;
-  position: relative; overflow: hidden;
-  text-decoration: none; color: inherit;
-  transition: border-color .12s, box-shadow .12s;
-}
-.kpi-card:hover { border-color: var(--pq-line-3); box-shadow: 0 2px 4px rgba(15,23,42,0.06); }
-.kpi-card .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 500; }
-.kpi-card .v {
-  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
-  font-size: 28px; font-weight: 700; line-height: 1.1;
-  display: flex; align-items: baseline; gap: 3px; color: var(--pq-ink);
-}
-.kpi-card .u { font-size: 13px; color: var(--pq-ink-3); font-weight: 500; font-family: inherit; }
-.kpi-card .sub { font-size: 10.5px; color: var(--pq-ink-3); margin-top: auto; font-weight: 500; }
-.kpi-card.ok .v { color: var(--pq-ok); }
-.kpi-card.info .v { color: var(--pq-info); }
-.kpi-card.warn { background: var(--pq-warn-soft); border-color: #fcd34d; }
-.kpi-card.warn .v { color: var(--pq-warn); }
-.kpi-card.alert { background: var(--pq-danger-soft); border-color: #fecaca; }
-.kpi-card.alert .v { color: var(--pq-danger); }
-.kpi-card.placeholder {
-  background: var(--pq-surface-inset);
-  border-style: dashed; border-color: var(--pq-line-2);
-}
-.kpi-card.placeholder .v { color: var(--pq-ink-4); font-size: 18px; }
-.kpi-card.placeholder .sub { color: var(--pq-ink-4); font-style: italic; }
+.actions { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.action-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); transition: all .18s; display: flex; align-items: center; gap: var(--space-3); text-decoration: none; color: inherit; }
+.action-card:hover { background: var(--amber-glow); border-color: var(--amber); transform: translateY(-2px); }
+.action-icon { width: 42px; height: 42px; background: var(--amber-glow); border-radius: var(--radius-md); display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
+.action-text { flex: 1; min-width: 0; }
+.action-text h4 { font-size: 13px; font-weight: 700; color: var(--ink); }
+.action-text p { font-size: 11px; color: var(--mute); margin-top: 2px; }
+.action-arrow { color: var(--amber-deep); font-weight: 700; }
 
-/* ── Card (공통) ──────────────────────────────────────── */
-.card-tight {
-  background: var(--pq-surface);
-  border: 1px solid var(--pq-line);
-  border-radius: 12px;
-  padding: 0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-}
-.card-head {
-  padding: 12px 16px;
-  display: flex; align-items: center; gap: 8px;
-  border-bottom: 1px solid var(--pq-line);
-}
-.card-title { font-size: 14px; font-weight: 600; color: var(--pq-ink); letter-spacing: -0.01em; }
-.card-sub { font-size: 11px; color: var(--pq-ink-3); }
-.card-body { padding: 14px 16px; }
+.section { margin: var(--space-7) var(--content-pad) 0; }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.section h2::before { content: ""; width: 4px; height: 18px; background: var(--amber); border-radius: 2px; }
+.div-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
+.div-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); }
+.div-card .name { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.div-card .num { font-size: 22px; font-weight: 700; color: var(--ink); }
+.div-card .sub { font-size: 11px; color: var(--mute); margin-top: 4px; }
 
-/* ── 발주 흐름 막대 (5단계) ──────────────────────────── */
-.flow {
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  gap: 8px; padding: 16px; align-items: end; height: 180px;
-}
-.flow-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
-.flow-bar .bar-zone { flex: 1; display: flex; align-items: end; width: 100%; padding: 0 14px; }
-.flow-bar .bar {
-  width: 100%; border-radius: 4px 4px 0 0;
-  position: relative; transition: opacity .12s;
-  min-height: 6px;
-}
-.flow-bar .bar:hover { opacity: 0.85; }
-.flow-bar .bar .num {
-  position: absolute; top: -20px; left: 0; right: 0;
-  text-align: center; font-size: 11px; font-weight: 700;
-  font-family: var(--pq-mono);
-}
-.flow-bar .lbl { font-size: 11px; font-weight: 600; color: var(--pq-ink-2); }
-.flow-bar .amt { font-size: 10px; color: var(--pq-ink-4); font-family: var(--pq-mono); }
-
-/* ── 사업부 그리드 ────────────────────────────────────── */
-.div-grid { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-.div-row { display: flex; flex-direction: column; gap: 4px; }
-.div-row .top {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12.5px;
-}
-.div-row .top b { font-weight: 600; color: var(--pq-ink); }
-.div-row .top .meta {
-  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
-  font-size: 11px; color: var(--pq-ink-3);
-}
-.div-row .bar-bg {
-  height: 12px; background: var(--pq-surface-3);
-  border-radius: 3px; overflow: hidden; position: relative;
-}
-.div-row .bar-fill {
-  position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px;
-}
-.div-row.biz-T .bar-fill { background: var(--biz-t); }
-.div-row.biz-M .bar-fill { background: var(--biz-m); }
-.div-row.biz-E .bar-fill { background: var(--biz-e); }
-.div-row.biz-C .bar-fill { background: var(--biz-c); }
-.div-row.biz-X .bar-fill { background: var(--pq-ink-3); }
-
-/* ── Quick Actions 4종 ──────────────────────────────── */
-.qa-grid {
-  grid-column: span 12;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-  margin-top: 4px;
-}
-.qa-card {
-  background: var(--pq-surface);
-  border: 1px solid var(--pq-line);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex; align-items: center; gap: 12px;
-  text-decoration: none; color: inherit;
-  transition: border-color .12s, transform .12s, box-shadow .12s;
-}
-.qa-card:hover {
-  border-color: var(--pq-ink); transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(15,23,42,0.06);
-}
-.qa-icon {
-  width: 40px; height: 40px;
-  background: var(--pq-surface-2); color: var(--pq-ink);
-  border-radius: 8px; display: grid; place-items: center;
-  font-size: 18px; flex-shrink: 0;
-}
-.qa-text { flex: 1; min-width: 0; }
-.qa-text h4 { font-size: 13px; font-weight: 600; color: var(--pq-ink); margin: 0; }
-.qa-text p { font-size: 11px; color: var(--pq-ink-3); margin: 2px 0 0; }
-.qa-arrow { color: var(--pq-ink-4); font-weight: 700; font-size: 14px; }
-
-/* ── Placeholder card (라우트 확장 결재 대기) ─────────── */
-.tbd-card {
-  background: var(--pq-surface-inset);
-  border: 1px dashed var(--pq-line-2);
-  border-radius: 12px;
-  padding: 24px 20px;
-  text-align: center;
-  color: var(--pq-ink-3);
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  min-height: 180px; justify-content: center;
-}
-.tbd-card .ico { font-size: 28px; opacity: 0.5; }
-.tbd-card .ttl { font-size: 13px; font-weight: 600; color: var(--pq-ink-2); }
-.tbd-card .sub { font-size: 11.5px; color: var(--pq-ink-3); line-height: 1.5; max-width: 320px; }
-.tbd-card .note {
-  margin-top: 4px; font-size: 10.5px;
-  color: var(--pq-ink-4); font-family: var(--pq-mono);
-}
-
-/* ── 반응형 ─────────────────────────────────────────── */
-@media (max-width: 1280px) {
-  .lh-body { grid-template-columns: repeat(6, 1fr); }
-  .kpi-card { grid-column: span 2; }
-  .span-7 { grid-column: span 6 !important; }
-  .span-5 { grid-column: span 6 !important; }
-  .qa-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 1023px) {
-  .lh-body { grid-template-columns: 1fr; padding: 12px 16px 24px; }
-  .kpi-card, .span-7, .span-5 { grid-column: span 1 !important; }
-  .qa-grid { grid-template-columns: 1fr; }
-  .flow { grid-template-columns: repeat(5, minmax(60px,1fr)); height: 160px; overflow-x: auto; }
-}
-.span-7 { grid-column: span 7; }
-.span-5 { grid-column: span 5; }
+@media (max-width: 1280px) { .bento { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1023px) { .bento { grid-template-columns: repeat(2, 1fr); } .actions { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-
-{# ── Jinja 변수 ───────────────────────────────────────── #}
+{% set role = (user.role or 'member')|lower %}
 {% set ps = parts_stats or {} %}
 {% set sk = stock_kpi or {} %}
-{% set role = (user.role or 'member')|lower if user else 'member' %}
-
-{% set parts_total  = ps.total|default(0) %}
-{% set parts_active = ps.active|default(0) %}
-{% set stock_value  = sk.stock_value|default(0) %}
-{% set low_stock    = sk.low_stock|default(0) %}
-{% set po_pending   = sk.po_pending|default(0) %}
-{% set in_30d       = sk.in_30d|default(0) %}
-{% set out_30d      = sk.out_30d|default(0) %}
-
-{# 사업부 라벨 매핑 (KNK 어휘) #}
-{% set biz_label_map = {
-  'T': '🔬 검사기 (T)',
-  'M': '🤖 자동화 (M)',
-  'E': '⚡ 전기 (E)',
-  'C': '🧪 화학 (C)'
-} %}
 
 <div class="app">
   {% set active = 'logi_home' %}
   {% set active_tab = 'logi' %}
   {% include "_v5_partials/chrome.html" with context %}
-
   <main class="main">
-
-    {# ── PageHead ─────────────────────────────────────── #}
-    <div class="po-head" data-dn="lh:head">
+    <div class="page-head">
       <div>
-        <div class="crumb"><b>자재구매센터</b> 홈</div>
-        <div class="po-title">자재구매 홈</div>
+        <div class="page-meta">{{ today }} · 자재구매현황</div>
+        <h1 class="page-title">자재구매<em>센터</em></h1>
       </div>
-      <div class="po-meta">
-        <span>총 자재 <span class="pm-num">{{ parts_total }}</span>종</span>
-        <span>·</span>
-        <span>활성 <span class="pm-num">{{ parts_active }}</span></span>
-        <span>·</span>
-        <span>진행 발주 <span class="pm-num">{{ po_pending }}</span>건</span>
-        {% if low_stock %}
-        <span>·</span>
-        <span style="color: var(--pq-danger); font-weight: 700;">⚠ 안전재고 미달 {{ low_stock }}</span>
-        {% endif %}
+      {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
+    </div>
+
+    <!-- KPI 벤토 -->
+    <div class="bento">
+      <div class="card hero">
+        <div class="card-label">총 자재 종</div>
+        <div>
+          <div class="card-value">{{ ps.total|default(0) }}</div>
+          <div class="card-trend up">활성 {{ ps.active|default(0) }} · 비활성 {{ (ps.total|default(0)) - (ps.active|default(0)) }}</div>
+        </div>
       </div>
-      <div class="po-actions">
-        <a class="btn-ghost" href="/logistics" title="새로고침">↻ 새로고침</a>
-        <a class="btn-ghost" href="/po">📋 발주 목록</a>
-        <a class="btn-dark" href="/po/new">＋ 신규 발주</a>
+
+      <a class="card clickable" href="/parts">
+        <div class="card-label">자재 마스터</div>
+        <div class="card-value">{{ ps.active|default(0) }}</div>
+        <div class="card-trend neutral">활성 자재 종</div>
+      </a>
+
+      <a class="card clickable" href="/stock">
+        <div class="card-label">총 재고가치</div>
+        <div class="card-value">{% if sk.total_value %}{{ '{:,.0f}'.format(sk.total_value) }}<span class="unit">원</span>{% else %}—{% endif %}</div>
+        <div class="card-trend neutral">{{ sk.total_qty|default(0) }} 단위</div>
+      </a>
+
+      <a class="card clickable" href="/po?status=발행">
+        <div class="card-label">진행 발주</div>
+        <div class="card-value">{{ sk.po_open|default(0) }}</div>
+        <div class="card-trend {% if sk.po_open|default(0) > 0 %}up{% else %}neutral{% endif %}">{% if sk.po_open|default(0) > 0 %}처리 중{% else %}대기 없음{% endif %}</div>
+      </a>
+
+      <a class="card clickable" href="/parts?low_stock=1">
+        <div class="card-label">재고 경고</div>
+        <div class="card-value" {% if sk.low_stock|default(0) > 0 %}style="color:var(--knk-red);"{% endif %}>{{ sk.low_stock|default(0) }}</div>
+        <div class="card-trend {% if sk.low_stock|default(0) > 0 %}alert{% else %}up{% endif %}">{% if sk.low_stock|default(0) > 0 %}임계 미만{% else %}안전{% endif %}</div>
+      </a>
+
+      <a class="card clickable" href="/receipts">
+        <div class="card-label">최근 입고 (7일)</div>
+        <div class="card-value">{{ sk.recent_receipts|default(0) }}</div>
+        <div class="card-trend neutral">건</div>
+      </a>
+    </div>
+
+    <!-- 빠른 액션 -->
+    <div class="section">
+      <h2>자재 작업</h2>
+      <div class="actions">
+        <a class="action-card" href="/po/new">
+          <div class="action-icon">📝</div>
+          <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/receipts">
+          <div class="action-icon">📦</div>
+          <div class="action-text"><h4>입고 처리</h4><p>배송 도착 자재 등록</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/issues">
+          <div class="action-icon">📤</div>
+          <div class="action-text"><h4>출고 등록</h4><p>현장 자재 인계</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/parts/new">
+          <div class="action-icon">📊</div>
+          <div class="action-text"><h4>자재 등록</h4><p>마스터 신규</p></div>
+          <div class="action-arrow">→</div>
+        </a>
       </div>
     </div>
 
-    {# ── 본문 그리드 ─────────────────────────────────── #}
-    <div class="lh-body">
-
-      {# KPI 6장 (가용 데이터) #}
-      <a class="kpi-card" href="/parts" data-dn="lh:kpi-1" data-dn-tone="green">
-        <div class="l">총 자재 종수</div>
-        <div class="v">{{ '{:,}'.format(parts_total) }}<span class="u">종</span></div>
-        <div class="sub">활성 {{ '{:,}'.format(parts_active) }} · 비활성 {{ '{:,}'.format(parts_total - parts_active) }}</div>
-      </a>
-
-      <a class="kpi-card info" href="/po?status=발주완료" data-dn="lh:kpi-2" data-dn-tone="blue">
-        <div class="l">진행 발주</div>
-        <div class="v">{{ po_pending }}<span class="u">건</span></div>
-        <div class="sub">작성중 + 발주완료 + 부분입고</div>
-      </a>
-
-      <a class="kpi-card ok" href="/stock/movements?kind=IN" data-dn="lh:kpi-3" data-dn-tone="green">
-        <div class="l">30일 입고</div>
-        <div class="v">{{ '{:,.0f}'.format(in_30d) }}<span class="u">단위</span></div>
-        <div class="sub">최근 30일 누적</div>
-      </a>
-
-      <a class="kpi-card" href="/stock/movements?kind=OUT" data-dn="lh:kpi-4" data-dn-tone="green">
-        <div class="l">30일 출고</div>
-        <div class="v">{{ '{:,.0f}'.format(out_30d) }}<span class="u">단위</span></div>
-        <div class="sub">최근 30일 누적</div>
-      </a>
-
-      <a class="kpi-card {% if low_stock > 0 %}alert{% else %}ok{% endif %}" href="/parts?low_stock=1" data-dn="lh:kpi-5">
-        <div class="l">안전재고 미달</div>
-        <div class="v">{{ low_stock }}<span class="u">품목</span></div>
-        <div class="sub">{% if low_stock > 0 %}임계 미만 — 재발주 검토{% else %}임계 충족{% endif %}</div>
-      </a>
-
-      <a class="kpi-card" href="/stock/balances" data-dn="lh:kpi-6" data-dn-tone="amber">
-        <div class="l">총 재고가치</div>
-        <div class="v">
-          {% if stock_value >= 100000000 %}
-            {{ '{:.2f}'.format(stock_value / 100000000) }}<span class="u">억</span>
-          {% elif stock_value >= 10000 %}
-            {{ '{:,.0f}'.format(stock_value / 10000) }}<span class="u">만</span>
-          {% elif stock_value > 0 %}
-            {{ '{:,.0f}'.format(stock_value) }}<span class="u">원</span>
-          {% else %}
-            —
-          {% endif %}
+    <!-- 사업부별 자재 -->
+    {% if ps.by_div %}
+    <div class="section">
+      <h2>사업부별 자재 분포</h2>
+      <div class="div-grid">
+        {% for div, cnt in ps.by_div.items() %}
+        <div class="div-card">
+          <div class="name">{{ '🤖 자동화' if div == 'M' else '🔬 검사기' if div == 'T' else div }}</div>
+          <div class="num">{{ cnt }}<span style="font-size:13px;color:var(--mute);font-weight:500;"> 종</span></div>
+          <div class="sub">활성 자재</div>
         </div>
-        <div class="sub">FIFO 실단가 기반</div>
-      </a>
-
-      {# 발주 흐름 (PO_STATUSES 5단계) #}
-      <div class="card-tight span-7" data-dn="lh:flow" data-dn-tone="purple">
-        <div class="card-head">
-          <div>
-            <div class="card-title">발주 흐름</div>
-            <div class="card-sub">상태별 건수 — 진행 단계 시각화</div>
-          </div>
-          <div style="margin-left:auto;">
-            <a class="btn-ghost" href="/po" style="height:28px; padding:0 10px; font-size:11.5px;">전체 보기 →</a>
-          </div>
-        </div>
-        <div class="flow">
-          {# 가용 5단계 (KPI 카드와 일치) — 색상은 상태별 의미 매핑 #}
-          {% set draft_n = po_pending if not (sk.po_status_breakdown is defined) else 0 %}
-          {# stock_kpi가 상세 분포 미제공 → po_pending 합계만 표시. 라우트 확장 후 분리 가능 #}
-          {% set flow_data = [
-            {'s':'작성중',   'n':'?', 'a':'—', 'c':'#94a3b8',           'desc':'초안 / 발주 전'},
-            {'s':'발주완료', 'n':'?', 'a':'—', 'c':'#6d28d9',           'desc':'공급사 통보'},
-            {'s':'부분입고', 'n':'?', 'a':'—', 'c':'#b45309',           'desc':'잔량 추적'},
-            {'s':'입고완료', 'n':'?', 'a':'—', 'c':'#0d7c4f',           'desc':'검수 종결'},
-            {'s':'취소',     'n':'?', 'a':'—', 'c':'#cbd5e1',           'desc':'반려/폐기'}
-          ] %}
-          {# 미가용 분포 → placeholder. po_pending 합계만 알 수 있음 #}
-          {% for f in flow_data %}
-          <div class="flow-bar">
-            <div class="bar-zone">
-              <div class="bar" style="background: {{ f.c }}; height: 30%;">
-                <span class="num" style="color: {{ f.c }};">{{ f.n }}</span>
-              </div>
-            </div>
-            <div class="lbl">{{ f.s }}</div>
-            <div class="amt">{{ f.desc }}</div>
-          </div>
-          {% endfor %}
-        </div>
-        <div style="padding: 10px 16px; border-top: 1px solid var(--pq-line); font-size: 11px; color: var(--pq-ink-3); display: flex; justify-content: space-between;">
-          <span>현재 진행 발주 합계 <span class="pm-num" style="font-family: var(--pq-mono); font-weight: 600; color: var(--pq-ink);">{{ po_pending }}</span>건</span>
-          <span style="font-style: italic; color: var(--pq-ink-4);">상태별 분포 — 라우트 확장 결재 대기</span>
-        </div>
+        {% endfor %}
       </div>
-
-      {# 사업부별 자재 분포 (parts_stats.by_div 활용) #}
-      <div class="card-tight span-5" data-dn="lh:biz" data-dn-tone="blue">
-        <div class="card-head">
-          <div>
-            <div class="card-title">사업부별 자재 분포</div>
-            <div class="card-sub">활성 자재 종수 비중</div>
-          </div>
-        </div>
-        <div class="div-grid">
-          {% if ps.by_div %}
-            {% set by_div = ps.by_div %}
-            {% set max_cnt = (by_div.values()|max) if by_div.values()|list|length else 1 %}
-            {% for div, cnt in by_div.items() %}
-              {% set div_key = div if div in ['T','M','E','C'] else 'X' %}
-              {% set label = biz_label_map[div] if div in biz_label_map else (div if div != '(미지정)' else '· 미지정') %}
-              {% set pct = (cnt / max_cnt * 100) if max_cnt else 0 %}
-              <div class="div-row biz-{{ div_key }}">
-                <div class="top">
-                  <b>{{ label }}</b>
-                  <span class="meta">{{ '{:,}'.format(cnt) }}종 · {{ '{:.1f}'.format(cnt / parts_active * 100) if parts_active else '0' }}%</span>
-                </div>
-                <div class="bar-bg">
-                  <div class="bar-fill" style="width: {{ pct }}%;"></div>
-                </div>
-              </div>
-            {% endfor %}
-          {% else %}
-            <div style="text-align: center; padding: 32px 0; color: var(--pq-ink-4); font-size: 12px;">
-              사업부 분류 데이터 없음
-            </div>
-          {% endif %}
-        </div>
-      </div>
-
-      {# 입고 임박 (D-3 이내) — 라우트 확장 결재 대기 placeholder #}
-      <div class="span-7" data-dn="lh:near-receipt" data-dn-tone="amber">
-        <div class="tbd-card">
-          <div class="ico">📦</div>
-          <div class="ttl">입고 임박 (D-3 이내)</div>
-          <div class="sub">발주 expected_date 기준 임박 라인 자동 추출 — 라우트 확장 결재 후 활성화</div>
-          <div class="note">/logistics 라우트에 imminent_receipts 추가 필요 · 빅터(01) 라인</div>
-        </div>
-      </div>
-
-      {# 안전재고 미달 상세 — 라우트 확장 결재 대기 #}
-      <div class="span-5" data-dn="lh:low-stock-detail" data-dn-tone="amber">
-        <div class="tbd-card">
-          <div class="ico">⚠</div>
-          <div class="ttl">안전재고 미달 상세</div>
-          <div class="sub">현재 카운트 <b style="color: var(--pq-danger);">{{ low_stock }}</b>건만 노출 가능. 품목별 리스트는 라우트 확장 결재 후 활성화</div>
-          <div class="note">/parts?low_stock=1 페이지에 임시 위임 (KPI 카드 클릭)</div>
-        </div>
-      </div>
-
-      {# Quick Actions 4종 #}
-      <div class="qa-grid" data-dn="lh:quick-actions" data-dn-tone="green">
-        <a class="qa-card" href="/po/new">
-          <div class="qa-icon">📝</div>
-          <div class="qa-text">
-            <h4>신규 발주</h4>
-            <p>거래처 + 품목 + 단가</p>
-          </div>
-          <div class="qa-arrow">→</div>
-        </a>
-        <a class="qa-card" href="/stock/receipts">
-          <div class="qa-icon">📥</div>
-          <div class="qa-text">
-            <h4>입고 처리</h4>
-            <p>배송 도착 자재 등록</p>
-          </div>
-          <div class="qa-arrow">→</div>
-        </a>
-        <a class="qa-card" href="/stock/issue">
-          <div class="qa-icon">📤</div>
-          <div class="qa-text">
-            <h4>출고 등록</h4>
-            <p>현장 자재 인계 + 프로젝트 매핑</p>
-          </div>
-          <div class="qa-arrow">→</div>
-        </a>
-        <a class="qa-card" href="/parts/new">
-          <div class="qa-icon">🔧</div>
-          <div class="qa-text">
-            <h4>자재 등록</h4>
-            <p>품목 마스터 신규</p>
-          </div>
-          <div class="qa-arrow">→</div>
-        </a>
-      </div>
-
     </div>
+    {% endif %}
+
+    <div style="height: var(--space-7);"></div>
   </main>
 </div>
-{% include "_v5_partials/debug_overlay.html" ignore missing %}
 </body>
 </html>

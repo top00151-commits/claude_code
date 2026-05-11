@@ -1,66 +1,451 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>출고 등록 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>출고 등록 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 자재 출고 등록
+   라우터 호환 form name (필수=*):
+     part_id* / quantity* / project_id / customer_id / unit_price / reason / location / occurred_at / note
+   라우터: POST /stock/issue
+   전달: parts (활성 자재 list) / projects / customers / default_part_id #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
-.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.fld label .req { color: var(--knk-red); }
-.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.fld textarea { min-height: 80px; resize: vertical; }
-.fld.full { grid-column: span 2; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>출고 등록</b></div><h1 class="page-title">📤 출고 <em>등록</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">자재 → 현장 출고 + 프로젝트/고객사 연결</div></div>
-    <a class="btn btn-secondary" href="/stock/issues">📜 출고 이력</a>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
 
-  <form method="post" action="/stock/issue" class="form-card">
-    <div class="frow">
-      <div class="fld"><label>자재 <span class="req">*</span></label>
-        <select name="part_id" required>
-          <option value="">— 선택 —</option>
-          {% for p in parts %}<option value="{{ p.id }}" {% if p.id == default_part_id %}selected{% endif %}>{{ p.code }} · {{ p.name }} (재고 {{ p.stock_qty|default(0) }})</option>{% endfor %}
-        </select>
+.si-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.si-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.si-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.si-head .crumb a { color: var(--pq-ink-3); }
+.si-head .crumb b { color: var(--pq-ink); }
+.si-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.si-meta { font-size: 12px; color: var(--pq-ink-3); }
+.si-actions { margin-left: auto; display: flex; gap: 8px; }
+.si-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.si-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+/* 에러 alert */
+.alert-bar { background: var(--pq-err-soft); color: var(--pq-err); border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+
+.si-body { display: grid; grid-template-columns: 1fr 320px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.si-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.si-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.si-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.si-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.si-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.si-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.si-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.si-card .head .sub { font-size: 11px; color: var(--pq-ink-4); }
+.si-card .body { padding: 14px 16px; }
+
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
+.field label .info.warn { color: var(--pq-err); font-weight: 700; }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field input.big { font-size: 16px; font-weight: 700; padding: 12px 14px; font-family: var(--pq-mono); }
+.field input.big.over { border-color: var(--pq-err); background: var(--pq-err-soft); color: var(--pq-err); }
+.field textarea { min-height: 70px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); margin-top: -2px; line-height: 1.4; }
+.field-hint.warn { color: var(--pq-err); font-weight: 600; }
+
+/* 자재 정보 카드 (선택 자재 자동 표시) */
+.part-info { background: var(--pq-info-soft); border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; display: none; }
+.part-info.visible { display: block; }
+.part-info .head { font-size: 11px; color: var(--pq-info); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.part-info .name { font-size: 14px; font-weight: 700; color: var(--pq-ink); }
+.part-info .code { font-family: var(--pq-mono); font-size: 11px; color: var(--pq-ink-3); margin-top: 2px; }
+.part-info .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #bfdbfe; }
+.part-info .stat .l { font-size: 10px; color: var(--pq-ink-3); font-weight: 600; }
+.part-info .stat .v { font-family: var(--pq-mono); font-size: 16px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; }
+.part-info .stat .v.warn { color: var(--pq-warn); }
+.part-info .stat .v.critical { color: var(--pq-err); }
+.part-info .stat .u { font-size: 10px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; margin-left: 2px; }
+
+/* 결과 미리보기 */
+.preview-card { background: var(--pq-surface-inset); border: 1px solid var(--pq-line-2); border-radius: 6px; padding: 10px 14px; margin-top: 10px; font-size: 12px; }
+.preview-card .pv-row { display: flex; justify-content: space-between; padding: 3px 0; }
+.preview-card .pv-row .lbl { color: var(--pq-ink-4); }
+.preview-card .pv-row .val { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.preview-card .pv-row .val.ok { color: var(--pq-ok); }
+.preview-card .pv-row .val.warn { color: var(--pq-warn); }
+.preview-card .pv-row .val.critical { color: var(--pq-err); }
+
+/* 사이드 카드 */
+.side-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; padding: 12px 14px; }
+.side-card h4 { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pq-ink-3); margin: 0 0 8px; font-weight: 700; }
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+
+/* 액션 바 */
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+
+@media (max-width: 1280px) {
+  .si-body { grid-template-columns: 1fr; }
+  .si-side { position: static; }
+}
+@media (max-width: 1023px) {
+  .field-row, .field-row.cols-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <form method="post" action="/stock/issue" id="issueForm">
+      <div class="si-page">
+
+        <!-- 헤더 -->
+        <div class="si-head" data-dn="si:head">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>출고 등록</b></div>
+            <div class="si-title">📤 자재 출고 등록</div>
+            <div class="si-meta" style="margin-top:4px;">자재 → 현장/프로젝트 출고 + 재고 자동 차감 (FIFO)</div>
+          </div>
+          <div class="si-actions">
+            <a href="/stock/issues">📜 출고 이력</a>
+            <a href="/stock/balances">📦 재고 현황</a>
+          </div>
+        </div>
+
+        <!-- 에러 alert (URL ?error=) -->
+        {% if request.query_params.get('error') %}
+        <div class="alert-bar" data-dn="si:error" data-dn-tone="amber">
+          ⚠️ <b>오류:</b>
+          {% set err = request.query_params.get('error') %}
+          {% if err == 'invalid' %}자재 또는 수량 입력값 오류
+          {% elif err == 'qty' %}수량은 0보다 커야 합니다
+          {% else %}{{ err }}{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="si-body">
+
+          <div class="si-main">
+
+            <!-- 섹션 1: 자재 선택 -->
+            <div class="si-card" data-dn="si:part" data-dn-tone="green">
+              <div class="head"><h3>자재 선택 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>출고 자재 <span class="req">*</span></label>
+                    <select name="part_id" id="partSelect" required onchange="onPartChange()">
+                      <option value="">— 자재 선택 —</option>
+                      {% for p in parts %}
+                      <option value="{{ p.id }}"
+                              data-stock="{{ p.stock_qty|default(0) }}"
+                              data-safety="{{ p.safety_stock|default(0) }}"
+                              data-unit="{{ p.unit|default('EA') }}"
+                              data-price="{{ p.std_price|default(0) }}"
+                              data-name="{{ p.part_name }}"
+                              data-code="{{ p.part_no|default('') }}"
+                              {% if default_part_id and default_part_id|string == p.id|string %}selected{% endif %}>
+                        {{ p.part_name }}{% if p.part_no %} · {{ p.part_no }}{% endif %} (재고 {{ '{:,.0f}'.format(p.stock_qty|default(0)) }} {{ p.unit|default('EA') }})
+                      </option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">활성 자재만 표시. 검색은 select에서 키워드 입력 가능.</div>
+                  </div>
+                </div>
+
+                <!-- 자재 정보 카드 (선택 시 표시) -->
+                <div class="part-info" id="partInfo">
+                  <div class="head">선택된 자재 정보</div>
+                  <div class="name" id="piName">—</div>
+                  <div class="code" id="piCode">—</div>
+                  <div class="stats">
+                    <div class="stat"><div class="l">현재 재고</div><div class="v" id="piStock">0<span class="u" id="piUnit">EA</span></div></div>
+                    <div class="stat"><div class="l">안전 재고</div><div class="v" id="piSafety">0<span class="u">EA</span></div></div>
+                    <div class="stat"><div class="l">표준 단가</div><div class="v" id="piPrice">0<span class="u">원</span></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 출고 정보 -->
+            <div class="si-card" data-dn="si:detail" data-dn-tone="purple">
+              <div class="head"><h3>출고 정보 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>출고 수량 <span class="req">*</span></label>
+                    <input type="number" name="quantity" id="qtyInput" required step="0.01" min="0.01"
+                           class="big mono" placeholder="0" oninput="onQtyChange()" />
+                  </div>
+                  <div class="field">
+                    <label>출고 일자</label>
+                    <input type="date" name="occurred_at" value="{{ today|default('') }}" />
+                    <div class="field-hint">공란 시 오늘 날짜 자동 적용.</div>
+                  </div>
+                </div>
+
+                <!-- 출고 후 예상 재고 미리보기 -->
+                <div class="preview-card" id="previewCard" style="display:none;">
+                  <div class="pv-row"><span class="lbl">현재 재고</span><span class="val" id="pvCurrent">0</span></div>
+                  <div class="pv-row"><span class="lbl">출고 수량</span><span class="val" id="pvIssue" style="color:var(--pq-warn);">- 0</span></div>
+                  <div class="pv-row" style="border-top:1px solid var(--pq-line); margin-top:4px; padding-top:6px;"><span class="lbl"><b>출고 후 예상 재고</b></span><span class="val" id="pvAfter">0</span></div>
+                </div>
+
+                <div class="field-row" style="margin-top:12px;">
+                  <div class="field">
+                    <label>출고 사유</label>
+                    <select name="reason">
+                      <option value="현장 출고" selected>현장 출고</option>
+                      <option value="생산 투입">생산 투입</option>
+                      <option value="외주 지급">외주 지급</option>
+                      <option value="수리/교체">수리/교체</option>
+                      <option value="시료/샘플">시료/샘플</option>
+                      <option value="기타">기타</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>단가 <span class="info">선택 / 자동 채움</span></label>
+                    <input type="number" name="unit_price" id="priceInput" step="1" min="0" value="0" class="mono" />
+                    <div class="field-hint">공란 시 표준 단가 자동 적용.</div>
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>위치 / LOT</label>
+                    <input type="text" name="location" placeholder="예: A동-3층 / LOT-2026-042" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 3: 귀속 (선택) -->
+            <div class="si-card" data-dn="si:assign" data-dn-tone="blue">
+              <div class="head"><h3>귀속 (선택)</h3><span class="sub">프로젝트 또는 고객사 연결 시 추적 가능</span></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>프로젝트 (관리코드)</label>
+                    <select name="project_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for pr in projects %}
+                      <option value="{{ pr.id }}">{{ pr.mgmt_code|default('—') }} · {{ pr.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">관리코드 연결 시 프로젝트별 재고 사용 이력에 자동 누적.</div>
+                  </div>
+                  <div class="field">
+                    <label>고객사</label>
+                    <select name="customer_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for c in customers %}
+                      <option value="{{ c.id }}">{{ c.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>비고</label>
+                    <textarea name="note" placeholder="특이사항·요청자·인수자·확인사항 등"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 사이드 -->
+          <aside class="si-side" data-dn="si:side" data-dn-tone="blue">
+
+            <div class="side-card">
+              <h4>출고 요약</h4>
+              <div style="font-size:12px; color: var(--pq-ink-2); line-height: 1.6;">
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">자재</span>
+                  <span style="font-weight:600;" id="sumName">미선택</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">출고 수량</span>
+                  <span style="font-weight:600;font-family:var(--pq-mono);" id="sumQty">0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">출고 금액</span>
+                  <span style="font-weight:600;font-family:var(--pq-mono);" id="sumAmount">₩0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                  <span style="color:var(--pq-ink-4);">상태</span>
+                  <span style="font-weight:600;" id="sumStatus">대기</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-card">
+              <h4>💡 출고 가이드</h4>
+              <div class="help-tip">
+                <b>FIFO 자동 차감</b> — 먼저 입고된 레이어부터 차감.<br><br>
+                ① 자재 선택 → 현재 재고 자동 표시<br>
+                ② 수량 입력 → 출고 후 재고 즉시 미리보기<br>
+                ③ 안전재고 미만 시 빨간 경고<br>
+                ④ 프로젝트 연결 시 관리코드별 추적
+              </div>
+            </div>
+
+          </aside>
+
+        </div>
+
+        <!-- 하단 액션 -->
+        <div class="action-bar" data-dn="si:action" data-dn-tone="amber">
+          <div class="info">📤 <b>출고 등록</b> — 등록 즉시 재고 차감 + FIFO 레이어 갱신 + stock_movements 기록</div>
+          <div class="btns">
+            <a href="/stock/balances" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary" id="submitBtn">출고 등록 →</button>
+          </div>
+        </div>
+
       </div>
-      <div class="fld"><label>출고 수량 <span class="req">*</span></label><input type="number" name="qty" step="0.01" min="0.01" required></div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>관리코드 / 프로젝트</label>
-        <select name="project_id">
-          <option value="">— 없음 —</option>
-          {% for p in projects %}<option value="{{ p.id }}">{{ p.mgmt_code|default('') }} {{ p.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fld"><label>고객사</label>
-        <select name="customer_id">
-          <option value="">— 없음 —</option>
-          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-        </select>
-      </div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>출고 유형</label>
-        <select name="purpose">
-          <option value="PRODUCTION">생산 투입</option>
-          <option value="SALE">판매·납품</option>
-          <option value="SAMPLE">샘플</option>
-          <option value="OTHER">기타</option>
-        </select>
-      </div>
-      <div class="fld"><label>출고일</label><input type="date" name="issued_at" value="{{ today|default('') }}"></div>
-    </div>
-    <div class="frow">
-      <div class="fld full"><label>비고</label><textarea name="note" placeholder="출고 사유·인수자·후속 조치"></textarea></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/stock/issues">취소</a>
-      <button class="btn btn-primary" type="submit">📤 출고 등록</button>
-    </div>
-  </form>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+    </form>
+  </main>
+</div>
+
+<script>
+const fmt = n => n.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+
+function onPartChange() {
+  const sel = document.getElementById('partSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const info = document.getElementById('partInfo');
+  if (!opt || !opt.value) {
+    info.classList.remove('visible');
+    document.getElementById('sumName').textContent = '미선택';
+    onQtyChange();
+    return;
+  }
+  const stock = parseFloat(opt.dataset.stock) || 0;
+  const safety = parseFloat(opt.dataset.safety) || 0;
+  const price = parseFloat(opt.dataset.price) || 0;
+  const unit = opt.dataset.unit || 'EA';
+  const name = opt.dataset.name || '';
+  const code = opt.dataset.code || '';
+
+  info.classList.add('visible');
+  document.getElementById('piName').textContent = name;
+  document.getElementById('piCode').textContent = code || '(코드 없음)';
+  document.getElementById('piStock').innerHTML = fmt(stock) + '<span class="u">' + unit + '</span>';
+  document.getElementById('piSafety').innerHTML = fmt(safety) + '<span class="u">' + unit + '</span>';
+  document.getElementById('piPrice').innerHTML = fmt(price) + '<span class="u">원</span>';
+
+  // 안전재고 색상
+  const stockEl = document.getElementById('piStock');
+  stockEl.classList.remove('warn', 'critical');
+  if (safety > 0) {
+    if (stock < safety * 0.5) stockEl.classList.add('critical');
+    else if (stock < safety) stockEl.classList.add('warn');
+  }
+
+  // 단가 자동 채움 (사용자가 명시 입력 안 했으면)
+  const priceInput = document.getElementById('priceInput');
+  if (!priceInput.value || parseFloat(priceInput.value) === 0) {
+    priceInput.value = price;
+  }
+
+  // 요약
+  document.getElementById('sumName').textContent = name.length > 20 ? name.substring(0, 18) + '…' : name;
+
+  onQtyChange();
+}
+
+function onQtyChange() {
+  const sel = document.getElementById('partSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const qty = parseFloat(document.getElementById('qtyInput').value) || 0;
+  const price = parseFloat(document.getElementById('priceInput').value) || 0;
+  const submitBtn = document.getElementById('submitBtn');
+
+  // 사이드 요약 갱신
+  document.getElementById('sumQty').textContent = fmt(qty);
+  document.getElementById('sumAmount').textContent = '₩' + fmt(qty * price);
+
+  if (!opt || !opt.value || qty <= 0) {
+    document.getElementById('previewCard').style.display = 'none';
+    document.getElementById('sumStatus').textContent = '대기';
+    document.getElementById('qtyInput').classList.remove('over');
+    return;
+  }
+
+  const stock = parseFloat(opt.dataset.stock) || 0;
+  const safety = parseFloat(opt.dataset.safety) || 0;
+  const after = stock - qty;
+
+  // 미리보기 카드
+  const card = document.getElementById('previewCard');
+  card.style.display = 'block';
+  document.getElementById('pvCurrent').textContent = fmt(stock);
+  document.getElementById('pvIssue').textContent = '- ' + fmt(qty);
+  const afterEl = document.getElementById('pvAfter');
+  afterEl.textContent = fmt(after);
+  afterEl.classList.remove('ok', 'warn', 'critical');
+
+  // 초과 입력 시 빨간 강조
+  const qtyEl = document.getElementById('qtyInput');
+  if (after < 0) {
+    qtyEl.classList.add('over');
+    afterEl.classList.add('critical');
+    afterEl.textContent = fmt(after) + ' (재고 부족)';
+    document.getElementById('sumStatus').innerHTML = '<span style="color:var(--pq-err);">⚠ 재고 초과</span>';
+  } else if (safety > 0 && after < safety) {
+    qtyEl.classList.remove('over');
+    afterEl.classList.add('warn');
+    afterEl.textContent = fmt(after) + ' (안전재고 미만)';
+    document.getElementById('sumStatus').innerHTML = '<span style="color:var(--pq-warn);">⚠ 안전재고 미만 예상</span>';
+  } else {
+    qtyEl.classList.remove('over');
+    afterEl.classList.add('ok');
+    document.getElementById('sumStatus').innerHTML = '<span style="color:var(--pq-ok);">정상</span>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  onPartChange();
+});
+</script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

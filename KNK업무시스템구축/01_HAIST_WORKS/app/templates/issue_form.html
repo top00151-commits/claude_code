@@ -1,49 +1,270 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>이슈 등록 · KNK</title>
-{# issue_form.html — 이슈 등록 폼
-   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>새 이슈 등록 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 이슈 등록 폼
+   라우터:
+     GET  /issues/new   → teams / projects / customers / default_project_id / ISSUE_SEVERITIES / TYPES
+     POST /issues/new   → Form: title*, severity(중), issue_type(AS), biz_div,
+                                project_id, customer_id, customer_name,
+                                occurred_at, detected_by, description, owner_team_id
+   ⚠ 잠재 버그 복구:
+     - Form name `detail` → `description` (라우터 미반영 → 저장 누락 가능)
+     - Form name `sla_hours` 제거 (라우터 미수신)
+     - severity 기본값 '보통' → '중' (화이트리스트 정합)
+     - 누락 필드 5개 추가: biz_div / customer_name / occurred_at / detected_by #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field.full { grid-column: span 2; }
-.field label { font-size: 12px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
-.field textarea { min-height: 100px; resize: vertical; }
-</style></head>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.if-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.if-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.if-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.if-head .crumb a { color: var(--pq-ink-3); }
+.if-head .crumb b { color: var(--pq-ink); }
+.if-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.if-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.if-actions { margin-left: auto; display: flex; gap: 8px; }
+.if-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.if-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.if-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+.if-grid { display: grid; grid-template-columns: 1fr 320px; gap: 14px; }
+@media (max-width: 1180px) { .if-grid { grid-template-columns: 1fr; } }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+
+.f-body { padding: 14px 16px; }
+.f-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.col-2 { grid-column: span 2; }
+.field.col-3 { grid-column: span 3; }
+.field.col-4 { grid-column: span 4; }
+.field label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.field label .req { color: var(--pq-err); }
+.field input, .field select, .field textarea {
+  padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px;
+  background: var(--pq-surface); color: var(--pq-ink); font-family: inherit;
+}
+.field textarea { min-height: 110px; resize: vertical; line-height: 1.5; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+
+.chip-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-pick label { cursor: pointer; padding: 6px 11px; border: 1px solid var(--pq-line-2); border-radius: 18px; font-size: 12px; font-weight: 600; background: var(--pq-surface); color: var(--pq-ink-2); transition: all 0.12s; }
+.chip-pick input[type="radio"] { display: none; }
+.chip-pick input[type="radio"]:checked + span { /* visual handled via label > input pattern below */ }
+.chip-pick label:hover { background: var(--pq-surface-2); }
+.chip-pick label.on { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+.chip-pick label.sev-crit.on { background: var(--pq-err); border-color: var(--pq-err); }
+.chip-pick label.sev-high.on { background: var(--pq-warn); border-color: var(--pq-warn); }
+.chip-pick label.sev-mid.on  { background: var(--pq-info); border-color: var(--pq-info); }
+.chip-pick label.sev-low.on  { background: var(--pq-ink-3); border-color: var(--pq-ink-3); }
+
+.submit-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.submit-bar .note { margin-right: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+.submit-bar a { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); color: var(--pq-ink-2); border: 1px solid var(--pq-line-2); }
+.submit-bar button { height: 34px; padding: 0 20px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.submit-bar button:hover { background: #1e293b; }
+
+.side-card { padding: 12px 14px; font-size: 12px; color: var(--pq-ink-3); line-height: 1.6; }
+.side-card b { color: var(--pq-ink); }
+.side-card ul { margin: 6px 0 0 16px; padding: 0; }
+.side-card li { margin-bottom: 4px; }
+.side-card .sev-row { display: grid; grid-template-columns: 50px 1fr; gap: 6px 8px; margin-top: 6px; }
+.side-card .sev-row span { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--pq-mono); }
+.side-card .sev-row .crit { background: var(--pq-err-soft); color: var(--pq-err); }
+.side-card .sev-row .high { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.side-card .sev-row .mid  { background: var(--pq-info-soft); color: var(--pq-info); }
+.side-card .sev-row .low  { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+</style>
+</head>
 <body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main" data-dn="issue-form-main">
-  <div class="page-head" data-dn="issue-form-pagehead">
-    <div><div class="crumbs"><a href="/issues">이슈·AS</a> · <b>새 이슈</b></div>
-    <h1 class="page-title">새 <em>이슈</em> 등록</h1></div>
-  </div>
-  <form method="post" action="/issues/new">
-    <div class="form-card" data-dn="issue-form-card">
-      <div class="field-row">
-        <div class="field"><label>유형 *</label><select name="issue_type" required><option value="">— 선택 —</option>{% for t in ISSUE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
-        <div class="field"><label>심각도 *</label><select name="severity" required>{% for s in ISSUE_SEVERITIES %}<option value="{{ s }}" {% if s == '보통' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+
+<div class="app">
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <form method="post" action="/issues/new" id="issueForm">
+      <div class="if-page">
+
+        <div class="if-head" data-dn="if:head" data-dn-tone="purple">
+          <div>
+            <div class="crumb"><a href="/issues">이슈·AS</a> · <a href="/qms">QMS</a> · <b>새 이슈</b></div>
+            <div class="if-title">📝 새 이슈 등록</div>
+            <div class="if-meta">고객사 이슈 / AS 요청 / 품질 결함 / 설계·SW 버그 발의 — 치명·심각 이슈는 하이웍스 메신저 자동 푸시</div>
+          </div>
+          <div class="if-actions">
+            <a href="/issues">↩ 목록</a>
+            <a href="/qms">🎯 QMS</a>
+          </div>
+        </div>
+
+        <div class="if-body" data-dn="if:body">
+          <div class="if-grid">
+
+            <div>
+              <div class="qsec" data-dn="if:main">
+                <div class="qsec-h">
+                  <span class="ttl">📋 기본 정보</span>
+                  <span class="badge">필수 항목 *</span>
+                </div>
+                <div class="f-body">
+                  <div class="f-grid">
+                    <div class="field col-4">
+                      <label>제목 <span class="req">*</span></label>
+                      <input type="text" name="title" required placeholder="예: SEL-W3 검사기 정렬 오차 발생 - 고객사 보고">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>유형</label>
+                      <select name="issue_type">
+                        {% for t in ISSUE_TYPES %}<option value="{{ t }}" {% if t == 'AS' %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="field col-2">
+                      <label>심각도</label>
+                      <select name="severity">
+                        {% for s in ISSUE_SEVERITIES %}<option value="{{ s }}" {% if s == '중' %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                      </select>
+                    </div>
+
+                    <div class="field col-4">
+                      <label>상세 내용</label>
+                      <textarea name="description" placeholder="발생 상황 / 영향 / 추정 원인 / 증상 — 자세히 작성할수록 처리가 빠릅니다"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="qsec" data-dn="if:ctx">
+                <div class="qsec-h">
+                  <span class="ttl">🏢 발생 맥락</span>
+                  <span class="badge">사업부·프로젝트·고객사·발견자</span>
+                </div>
+                <div class="f-body">
+                  <div class="f-grid">
+                    <div class="field">
+                      <label>사업부</label>
+                      <select name="biz_div">
+                        <option value="">— 미지정 —</option>
+                        <option value="T">T (T사업부)</option>
+                        <option value="M">M (M사업부)</option>
+                      </select>
+                    </div>
+                    <div class="field col-3">
+                      <label>관련 프로젝트</label>
+                      <select name="project_id">
+                        <option value="">— 없음 —</option>
+                        {% for p in projects %}<option value="{{ p.id }}" {% if p.id|string == default_project_id|string %}selected{% endif %}>[{{ p.mgmt_code|default('') }}] {{ p.name }}{% if p.biz_div %} · {{ p.biz_div }}{% endif %}</option>{% endfor %}
+                      </select>
+                    </div>
+
+                    <div class="field col-2">
+                      <label>고객사 (선택)</label>
+                      <select name="customer_id">
+                        <option value="">— 없음 —</option>
+                        {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="field col-2">
+                      <label>고객사명 (직접 입력)</label>
+                      <input type="text" name="customer_name" placeholder="고객사 미등록 시 직접 입력">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>발생일시</label>
+                      <input type="datetime-local" name="occurred_at">
+                    </div>
+                    <div class="field col-2">
+                      <label>발견자</label>
+                      <input type="text" name="detected_by" placeholder="고객사 담당자 또는 사내 발견자">
+                    </div>
+
+                    <div class="field col-4">
+                      <label>담당팀 배정 (선택 — 미지정 시 자동 라우팅)</label>
+                      <select name="owner_team_id">
+                        <option value="">— 자동 라우팅 —</option>
+                        {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside>
+              <div class="qsec" data-dn="if:guide">
+                <div class="qsec-h">
+                  <span class="ttl">💡 가이드</span>
+                </div>
+                <div class="side-card">
+                  <b>심각도 기준</b>
+                  <div class="sev-row">
+                    <span class="crit">치명</span><span>생산·납기 중단, 안전 사고</span>
+                    <span class="high">심각</span><span>고객 영향 큼, 신속 조치 필요</span>
+                    <span class="mid">중</span><span>일반 이슈, 정상 처리 흐름</span>
+                    <span class="low">경</span><span>경미, 모니터링</span>
+                  </div>
+                  <ul style="margin-top:10px;">
+                    <li><b>치명/심각</b> 등록 시 메신저 자동 발송</li>
+                    <li>상세 내용은 추후 수정 가능</li>
+                    <li>담당팀 미지정 시 유형별 자동 라우팅</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="qsec" data-dn="if:type">
+                <div class="qsec-h">
+                  <span class="ttl">📑 유형 분류</span>
+                </div>
+                <div class="side-card">
+                  <ul>
+                    <li><b>AS</b> — 출하 후 고객사 요청</li>
+                    <li><b>품질</b> — 제조·자재 품질 결함</li>
+                    <li><b>설계결함</b> — 도면·구조 문제</li>
+                    <li><b>SW버그</b> — 소프트웨어 결함</li>
+                    <li><b>기타</b> — 위 분류 외</li>
+                  </ul>
+                </div>
+              </div>
+            </aside>
+
+          </div>
+        </div>
+
+        <div class="submit-bar">
+          <span class="note">💡 등록 후 상세 페이지에서 원인·조치·재발방지를 단계별로 입력합니다</span>
+          <a href="/issues">취소</a>
+          <button type="submit">📤 이슈 등록</button>
+        </div>
+
       </div>
-      <div class="field-row">
-        <div class="field full"><label>제목 *</label><input type="text" name="title" required placeholder="이슈 제목"></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>상세 내용</label><textarea name="detail" placeholder="발생 상황 / 영향 / 원인 추정"></textarea></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>담당 팀</label><select name="owner_team_id"><option value="">— 자동 —</option>{% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>관련 프로젝트</label><select name="project_id"><option value="">— 없음 —</option>{% for p in projects %}<option value="{{ p.id }}" {% if p.id == default_project_id %}selected{% endif %}>{{ p.mgmt_code|default('') }} {{ p.name }}</option>{% endfor %}</select></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>관련 고객사</label><select name="customer_id"><option value="">— 없음 —</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>SLA (시간)</label><input type="number" name="sla_hours" placeholder="처리 시한 (h)" min="1"></div>
-      </div>
-    </div>
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/issues">취소</a>
-      <button type="submit" class="btn btn-primary">📤 등록</button>
-    </div>
-  </form>
-</main></div></body></html>
+    </form>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

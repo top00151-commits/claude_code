@@ -19,6 +19,7 @@
 .date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--qv-ink-3); }
 .date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .date-nav a:hover { background: var(--qv-surface-2); }
+.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
 </style>
 </head>
 <body>
@@ -74,7 +75,7 @@
   <!-- 팀원별 업무 -->
   <div class="section" data-dn="team-members">
     <h2>팀원별 ({{ members|length }})</h2>
-    <div class="list-scroll" style="margin: 0 var(--content-pad);">
+    <div class="list-scroll" style="margin: 0;">
     {% for m in members %}
       {% set mt = day_tasks|selectattr('user_id','equalto',m.id)|list %}
       {% set ms = stats_by_user.get(m.id, {}) %}

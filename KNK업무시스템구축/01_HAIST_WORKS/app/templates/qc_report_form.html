@@ -1,63 +1,604 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>QC 보고서 작성 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if report %}검사 성적서 {{ report.report_no }}{% else %}검사 성적서 신규 발급{% endif %} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 품질팀 검사 성적서 (QC Inspection Report)
+   모드:
+     1. 신규 (report=None) → form 작성 / POST /qc/inspection-reports
+     2. 상세 (report 객체) → 읽기 전용 + status chip + 라인 + 액션 (issue / print)
+   라우터 호환 form name:
+     헤더: customer_id / customer_name / order_id / order_no / part_id /
+           machine_model / machine_serial / inspection_date / overall /
+           qa_manager_id / qa_manager_name / remarks
+     라인 (getlist): line_item_name / line_spec / line_measured / line_judgment / line_remarks #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
-.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.fld label .req { color: var(--knk-red); }
-.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.fld textarea { min-height: 80px; resize: vertical; }
-.fld.full { grid-column: span 2; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/qc/reports">QC 보고서</a> · <b>{% if report %}수정{% else %}작성{% endif %}</b></div>
-    <h1 class="page-title">🔬 QC 보고서 <em>{% if report %}수정{% else %}작성{% endif %}</em></h1></div>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
 
-  <form method="post" action="{% if report %}/qc/reports/{{ report.id }}/edit{% else %}/qc/reports/new{% endif %}" class="form-card">
-    <div class="frow">
-      <div class="fld"><label>보고서 번호</label><input type="text" name="report_no" value="{{ report.report_no|default('') }}" placeholder="자동 생성"></div>
-      <div class="fld"><label>검사일 <span class="req">*</span></label><input type="date" name="inspected_at" value="{{ report.inspected_at|default(today|default('')) }}" required></div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>품목 <span class="req">*</span></label>
-        <select name="part_id" required>
-          <option value="">— 선택 —</option>
-          {% for p in parts|default([]) %}<option value="{{ p.id }}">{{ p.name }}{% if p.spec %} · {{ p.spec }}{% endif %}</option>{% endfor %}
-        </select>
+.qc-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.qc-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qc-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.qc-head .crumb a { color: var(--pq-ink-3); }
+.qc-head .crumb b { color: var(--pq-ink); }
+.qc-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qc-title .code { font-family: var(--pq-mono); color: var(--pq-ink); font-size: 18px; opacity: 0.8; }
+.qc-meta { font-size: 12px; color: var(--pq-ink-3); }
+.qc-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.qc-actions { margin-left: auto; display: flex; gap: 8px; }
+.qc-actions a, .qc-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); font-family: inherit; }
+.qc-actions a:hover, .qc-actions button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.qc-actions .btn-dark { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.qc-actions .btn-dark:hover { background: #1e293b; }
+
+/* 판정 chip-q */
+.chip-q { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-q::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-q.q-pass { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-q.q-cond { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-q.q-fail { background: var(--pq-err-soft); color: var(--pq-err); }
+.chip-q.q-na   { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+
+/* status chip (DRAFT/ISSUED) */
+.chip-st { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-st.s-draft  { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-st.s-issued { background: var(--pq-info-soft); color: var(--pq-info); }
+
+/* KPI strip */
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 16px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 4px; line-height: 1.1; }
+.kpi-cell .u { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.pass .v { color: var(--pq-ok); }
+.kpi-cell.cond .v { color: var(--pq-warn); }
+.kpi-cell.fail .v { color: var(--pq-err); }
+
+.qc-body { display: grid; grid-template-columns: 1fr 280px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.qc-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.qc-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.qc-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.qc-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.qc-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.qc-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.qc-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.qc-card .head .sub { font-size: 11px; color: var(--pq-ink-4); }
+.qc-card .body { padding: 14px 16px; }
+.qc-card .body.tight { padding: 0; }
+
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field textarea { min-height: 72px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); margin-top: -2px; }
+
+/* 라인 표 */
+.lines { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.lines-head, .lines-row { display: grid; grid-template-columns: 36px 1.4fr 1fr 1fr 90px 1fr 36px; gap: 8px; align-items: center; }
+.lines-head { background: var(--pq-surface-2); padding: 8px 12px; border-bottom: 1px solid var(--pq-line-2); font-size: 10.5px; font-weight: 600; color: var(--pq-ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.lines-row { padding: 7px 12px; border-bottom: 1px solid var(--pq-line); }
+.lines-row:hover { background: var(--pq-surface-inset); }
+.lines-row:last-child { border-bottom: 0; }
+.line-num { font-size: 11.5px; color: var(--pq-ink-4); font-weight: 700; text-align: center; font-family: var(--pq-mono); }
+.line-input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--pq-line-2); border-radius: 4px; background: var(--pq-surface); font-family: inherit; color: var(--pq-ink); width: 100%; }
+.line-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.06); }
+.line-input.judgment.judg-pass { background: var(--pq-ok-soft); border-color: var(--pq-ok); color: var(--pq-ok); font-weight: 700; }
+.line-input.judgment.judg-fail { background: var(--pq-err-soft); border-color: var(--pq-err); color: var(--pq-err); font-weight: 700; }
+.line-input.judgment.judg-na   { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+.line-del { background: transparent; border: 1px solid var(--pq-line-2); border-radius: 4px; padding: 5px 7px; font-size: 12px; color: var(--pq-ink-4); cursor: pointer; line-height: 1; }
+.line-del:hover { background: var(--pq-err-soft); color: var(--pq-err); border-color: var(--pq-err); }
+.lines-add { padding: 10px 12px; background: var(--pq-surface-2); border-top: 1px dashed var(--pq-line-2); display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-add-line { background: transparent; border: 1px dashed var(--pq-line-2); border-radius: 6px; padding: 7px 12px; font-size: 11.5px; color: var(--pq-ink-3); cursor: pointer; font-weight: 600; font-family: inherit; }
+.btn-add-line:hover { background: var(--pq-surface); border-style: solid; color: var(--pq-ink); }
+.btn-add-line.preset { background: var(--pq-info-soft); border-color: var(--pq-info); color: var(--pq-info); border-style: solid; }
+
+/* 읽기 전용 ERP 표 (상세 모드) */
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 30px; padding: 5px 10px; background: var(--pq-surface-2); color: var(--pq-ink-3); font-weight: 600; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 5px 10px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12px; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.def { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; font-size: 12px; }
+.def dt { color: var(--pq-ink-4); font-weight: 500; }
+.def dd { color: var(--pq-ink); margin: 0; }
+.def dd .mono { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
+.btn-secondary:hover { background: var(--pq-surface-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+
+@media (max-width: 1280px) {
+  .qc-body { grid-template-columns: 1fr; }
+  .qc-side { position: static; }
+}
+@media (max-width: 1023px) {
+  .field-row, .field-row.cols-3 { grid-template-columns: 1fr; }
+  .lines-head, .lines-row { grid-template-columns: 32px 1.4fr 1fr 90px 36px; gap: 6px; }
+  .lines-head .col-spec, .lines-head .col-rmk, .lines-row .col-spec, .lines-row .col-rmk { display: none; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+{% set is_view = report is not none %}
+{% set ov = (report.overall if is_view else 'PASS') %}
+{% set ov_cls = 'q-pass' if ov == 'PASS' else ('q-cond' if ov == 'CONDITIONAL_PASS' else ('q-fail' if ov == 'FAIL' else 'q-pass')) %}
+{% set ov_label = '합격' if ov == 'PASS' else ('조건부 합격' if ov == 'CONDITIONAL_PASS' else ('불합격' if ov == 'FAIL' else ov)) %}
+{% set st = (report.status if is_view else 'DRAFT') %}
+
+<div class="app">
+  {% set active_tab = "qc_reports" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="qc-page">
+
+      <!-- 헤더 -->
+      <div class="qc-head" data-dn="qc:head">
+        <div>
+          <div class="crumb"><a href="/qc/inspection-reports">검사 성적서</a> · <b>{% if is_view %}{{ report.report_no|default('—') }}{% else %}신규 발급{% endif %}</b></div>
+          <div class="qc-title">
+            {% if is_view %}
+            <span class="code">{{ report.report_no|default('—') }}</span>
+            <span class="chip-q {{ ov_cls }}">{{ ov_label }} ({{ ov }})</span>
+            <span class="chip-st {% if st == 'ISSUED' %}s-issued{% else %}s-draft{% endif %}">{{ st }}</span>
+            <span>{{ report.part_disp|default(report.machine_model|default(''))|truncate(30) }}</span>
+            {% else %}
+            <span>🔬 검사 성적서 신규 발급</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if is_view %}
+        <div class="qc-meta">
+          <span>검사일 <span class="pm-num">{{ report.inspection_date|default('—') }}</span></span>
+          {% if report.issued_at %}<span>·</span><span>발급 <span class="pm-num">{{ (report.issued_at or '')[:10] }}</span></span>{% endif %}
+        </div>
+        {% endif %}
+        <div class="qc-actions">
+          <a href="/qc/inspection-reports">↩ 목록</a>
+          {% if is_view %}
+          <a href="/qc/inspection-reports/{{ report.id }}/print" target="_blank">🖨 인쇄 / Export</a>
+          {% if st == 'DRAFT' %}
+          <button type="button" class="btn-dark" onclick="issueReport()">📤 발급 확정</button>
+          {% endif %}
+          {% endif %}
+        </div>
       </div>
-      <div class="fld"><label>로트 수량 <span class="req">*</span></label><input type="number" name="lot_qty" min="1" required value="{{ report.lot_qty|default(1) }}"></div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>샘플 수</label><input type="number" name="sample_size" min="1" value="{{ report.sample_size|default('') }}"></div>
-      <div class="fld"><label>판정 <span class="req">*</span></label>
-        <select name="overall" required>
-          <option value="">— 선택 —</option>
-          <option value="PASS" {% if report and report.overall == 'PASS' %}selected{% endif %}>✓ PASS</option>
-          <option value="FAIL" {% if report and report.overall == 'FAIL' %}selected{% endif %}>✗ FAIL</option>
-          <option value="REWORK" {% if report and report.overall == 'REWORK' %}selected{% endif %}>↻ REWORK</option>
-          <option value="CONDITIONAL" {% if report and report.overall == 'CONDITIONAL' %}selected{% endif %}>⚠ 조건부</option>
-        </select>
+
+      {% if is_view %}
+      <!-- 상세 모드 -->
+      {% set pass_cnt = (report.items|selectattr('judgment','equalto','PASS')|list|default([]))|length %}
+      {% set fail_cnt = (report.items|selectattr('judgment','equalto','FAIL')|list|default([]))|length %}
+      {% set na_cnt   = (report.items|selectattr('judgment','equalto','NA')|list|default([]))|length %}
+      {% set total_cnt = (report.items|default([]))|length %}
+
+      <div class="kpi-strip" data-dn="qc:kpi" data-dn-tone="green">
+        <div class="kpi-cell {% if ov == 'PASS' %}pass{% elif ov == 'CONDITIONAL_PASS' %}cond{% elif ov == 'FAIL' %}fail{% endif %}">
+          <div class="l">종합 판정</div>
+          <div class="v">{{ ov_label }}<span class="u">{{ ov }}</span></div>
+          <div class="sub">{{ total_cnt }}개 항목</div>
+        </div>
+        <div class="kpi-cell pass">
+          <div class="l">합격 (PASS)</div>
+          <div class="v">{{ pass_cnt }}<span class="u">/ {{ total_cnt }}</span></div>
+          <div class="sub">{{ '{:.0f}'.format(pass_cnt / total_cnt * 100) if total_cnt else 0 }}%</div>
+        </div>
+        <div class="kpi-cell fail">
+          <div class="l">불합격 (FAIL)</div>
+          <div class="v">{{ fail_cnt }}<span class="u">/ {{ total_cnt }}</span></div>
+          <div class="sub">{{ '{:.0f}'.format(fail_cnt / total_cnt * 100) if total_cnt else 0 }}%</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">해당 없음 (NA)</div>
+          <div class="v">{{ na_cnt }}<span class="u">/ {{ total_cnt }}</span></div>
+          <div class="sub">검사 대상 외</div>
+        </div>
       </div>
+
+      <div class="qc-body">
+        <div class="qc-main">
+
+          <!-- 정보 카드 -->
+          <div class="qc-card" data-dn="qc:info" data-dn-tone="blue">
+            <div class="head"><h3>📋 검사 정보</h3></div>
+            <div class="body">
+              <div class="field-row cols-3">
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">보고서 번호</div>
+                  <b style="font-family:var(--pq-mono);font-size:13px;">{{ report.report_no|default('—') }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">고객사</div>
+                  <b>{{ report.customer_disp|default(report.customer_name|default('—')) }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">수주</div>
+                  <b>{{ report.order_no_disp|default(report.order_no|default('—')) }}</b></div>
+              </div>
+              <div class="field-row cols-3" style="margin-top:12px;">
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">검사 부품</div>
+                  <b>{{ report.part_disp|default('—') }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">모델 / 시리얼</div>
+                  <b>{{ report.machine_model|default('—') }}{% if report.machine_serial %} · <span style="font-family:var(--pq-mono);">{{ report.machine_serial }}</span>{% endif %}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">검사일</div>
+                  <b>{{ report.inspection_date|default('—') }}</b></div>
+              </div>
+              <div class="field-row" style="margin-top:12px;">
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">검사자</div>
+                  <b>{{ report.inspector_disp|default(report.inspector_name|default('—')) }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">QA 매니저</div>
+                  <b>{{ report.qa_manager_disp|default(report.qa_manager_name|default('—')) }}</b></div>
+              </div>
+              {% if report.remarks %}
+              <div style="margin-top:12px;">
+                <div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">비고</div>
+                <div style="background:var(--pq-surface-inset);border-radius:6px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;">{{ report.remarks }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- 검사 항목 -->
+          <div class="qc-card" data-dn="qc:items" data-dn-tone="purple">
+            <div class="head">
+              <h3>🔬 검사 항목 ({{ total_cnt }})</h3>
+              <span class="sub">PASS {{ pass_cnt }} / FAIL {{ fail_cnt }} / NA {{ na_cnt }}</span>
+            </div>
+            <div class="body tight">
+              {% if report.items %}
+              <table class="tbl-erp">
+                <thead>
+                  <tr>
+                    <th class="center" style="width:36px;">#</th>
+                    <th style="width:140px;">검사 항목</th>
+                    <th>기준값 (Spec)</th>
+                    <th>측정값 (Measured)</th>
+                    <th class="center" style="width:80px;">판정</th>
+                    <th>비고</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for it in report.items %}
+                  {% set jdg = it.judgment|default('PASS') %}
+                  {% set jdg_cls = 'q-pass' if jdg == 'PASS' else ('q-fail' if jdg == 'FAIL' else 'q-na') %}
+                  <tr>
+                    <td class="center mute">{{ loop.index }}</td>
+                    <td><b>{{ it.item_name|default('—') }}</b></td>
+                    <td class="mute" style="font-family:var(--pq-mono);">{{ it.spec_value|default('—') }}</td>
+                    <td style="font-family:var(--pq-mono);"><b>{{ it.measured_value|default('—') }}</b></td>
+                    <td class="center"><span class="chip-q {{ jdg_cls }}">{{ jdg }}</span></td>
+                    <td class="mute" style="font-size:11.5px;">{{ it.remarks|default('—')|truncate(40) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div style="padding:28px 16px;text-align:center;color:var(--pq-ink-4);font-size:12.5px;">검사 항목 없음</div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+
+        <aside class="qc-side" data-dn="qc:side" data-dn-tone="blue">
+          <div class="qc-card">
+            <div class="head"><h3>요약</h3></div>
+            <div class="body">
+              <dl class="def">
+                <dt>판정</dt><dd><span class="chip-q {{ ov_cls }}">{{ ov_label }}</span></dd>
+                <dt>상태</dt><dd><span class="chip-st {% if st == 'ISSUED' %}s-issued{% else %}s-draft{% endif %}">{{ st }}</span></dd>
+                <dt>보고서</dt><dd class="mono">{{ report.report_no|default('—') }}</dd>
+                <dt>검사일</dt><dd class="mono">{{ report.inspection_date|default('—') }}</dd>
+                <dt>합격률</dt><dd class="mono">{{ '{:.0f}'.format(pass_cnt / total_cnt * 100) if total_cnt else 0 }}%</dd>
+                <dt>항목 수</dt><dd class="mono">{{ total_cnt }}</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="qc-card">
+            <div class="head"><h3>💡 가이드</h3></div>
+            <div class="body">
+              <div class="help-tip">
+                <b>판정 기준</b><br>
+                · <b style="color:var(--pq-ok);">PASS</b>: 모든 항목 적합<br>
+                · <b style="color:var(--pq-warn);">CONDITIONAL_PASS</b>: 일부 FAIL but 사용 가능<br>
+                · <b style="color:var(--pq-err);">FAIL</b>: 출하 불가<br><br>
+                <b>발급 후</b>는 수정 불가. 정정 시 신규 발급 권장.
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 발급 폼 (hidden) -->
+      <form id="issueForm" method="post" action="/qc/inspection-reports/{{ report.id }}/issue" style="display:none;"></form>
+
+      {% else %}
+      <!-- 신규 모드 -->
+      <form method="post" action="/qc/inspection-reports" id="qcForm">
+        <div class="qc-body">
+
+          <div class="qc-main">
+
+            <!-- 섹션 1: 기본 정보 -->
+            <div class="qc-card" data-dn="qc:basic" data-dn-tone="green">
+              <div class="head"><h3>기본 정보 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>고객사 (등록)</label>
+                    <select name="customer_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for c in customers|default([]) %}
+                      <option value="{{ c.id }}">{{ c.name }}{% if c.country %} ({{ c.country }}){% endif %}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>고객사명 (수동 입력) <span class="info">미등록 고객 시</span></label>
+                    <input type="text" name="customer_name" placeholder="등록되지 않은 고객사 직접 입력" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>수주 (등록)</label>
+                    <select name="order_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for o in orders|default([]) %}
+                      <option value="{{ o.id }}">{{ o.order_no }} · {{ o.cust_name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>수주번호 (수동)</label>
+                    <input type="text" name="order_no" placeholder="외부 수주 직접 입력" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>검사 부품 (선택)</label>
+                    <select name="part_id">
+                      <option value="">— 자유 사양 —</option>
+                      {% for p in parts_options|default([]) %}
+                      <option value="{{ p.id }}">{{ p.name }}{% if p.spec %} · {{ p.spec }}{% endif %}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>검사일 <span class="req">*</span></label>
+                    <input type="date" name="inspection_date" required value="{{ today|default('') }}" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>모델</label>
+                    <input type="text" name="machine_model" placeholder="예: HKS-200A" />
+                  </div>
+                  <div class="field">
+                    <label>시리얼 번호</label>
+                    <input type="text" name="machine_serial" class="mono" placeholder="예: SN-2026-0042" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 판정 + 담당 -->
+            <div class="qc-card" data-dn="qc:judge" data-dn-tone="blue">
+              <div class="head"><h3>판정 · 담당</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>종합 판정 <span class="req">*</span></label>
+                    <select name="overall" required>
+                      {% for code, label in QC_OVERALL_OPTIONS %}
+                      <option value="{{ code }}" {% if code == 'PASS' %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">라인에 FAIL 있고 PASS 선택 시 자동으로 CONDITIONAL_PASS 보정.</div>
+                  </div>
+                  <div class="field">
+                    <label>QA 매니저 (등록)</label>
+                    <select name="qa_manager_id">
+                      <option value="">— 선택 안함 —</option>
+                    </select>
+                    <div class="field-hint">QA 매니저명을 직접 입력해도 됩니다.</div>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>QA 매니저명 (수동)</label>
+                    <input type="text" name="qa_manager_name" placeholder="QA 매니저명 직접 입력" />
+                  </div>
+                  <div class="field">
+                    <label>비고</label>
+                    <input type="text" name="remarks" placeholder="특이사항 · 시정조치 요청 등" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 3: 검사 항목 -->
+            <div class="qc-card" data-dn="qc:items" data-dn-tone="purple">
+              <div class="head">
+                <h3>🔬 검사 항목</h3>
+                <span class="sub">표준 6항목 또는 자유 추가</span>
+              </div>
+              <div class="body tight">
+                <div class="lines">
+                  <div class="lines-head">
+                    <div>#</div>
+                    <div>검사 항목</div>
+                    <div class="col-spec">기준값 (Spec)</div>
+                    <div>측정값 (Measured)</div>
+                    <div>판정</div>
+                    <div class="col-rmk">비고</div>
+                    <div></div>
+                  </div>
+                  <div id="linesBody"></div>
+                  <div class="lines-add">
+                    <button type="button" class="btn-add-line preset" onclick="loadStdItems()">📋 표준 검사 6항목 일괄 추가</button>
+                    <button type="button" class="btn-add-line" onclick="addLine()">＋ 항목 추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 사이드 -->
+          <aside class="qc-side" data-dn="qc:side" data-dn-tone="blue">
+            <div class="qc-card">
+              <div class="head"><h3>발급 가이드</h3></div>
+              <div class="body">
+                <div class="help-tip">
+                  <b>보고서 번호</b>는 저장 시 <b>QCR-YYYY-####</b> 자동 발급.<br><br>
+                  ① 필수 — 검사일 + 종합 판정<br>
+                  ② 권장 — 고객사 + 수주 + 모델 + 시리얼<br>
+                  ③ 권장 — 표준 6항목 일괄 추가 후 측정값 입력<br>
+                  ④ 라인 FAIL 있으면 종합 자동 보정 (CONDITIONAL_PASS)
+                </div>
+              </div>
+            </div>
+
+            <div class="qc-card">
+              <div class="head"><h3>📐 표준 검사 항목 ({{ QC_STANDARD_ITEMS|length }})</h3></div>
+              <div class="body">
+                <dl class="def" style="grid-template-columns: 80px 1fr;">
+                  {% for nm, spec in QC_STANDARD_ITEMS %}
+                  <dt style="font-weight:600;color:var(--pq-ink-2);">{{ nm }}</dt><dd style="font-family:var(--pq-mono);font-size:11.5px;">{{ spec }}</dd>
+                  {% endfor %}
+                </dl>
+              </div>
+            </div>
+          </aside>
+
+        </div>
+
+        <div class="action-bar" data-dn="qc:action" data-dn-tone="amber">
+          <div class="info">💾 <b>새 검사 성적서</b> — 저장 시 QCR-YYYY-#### 자동 발급 + DRAFT</div>
+          <div class="btns">
+            <a href="/qc/inspection-reports" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary">저장 (DRAFT)</button>
+          </div>
+        </div>
+      </form>
+      {% endif %}
+
     </div>
-    <div class="frow">
-      <div class="fld"><label>합격 수량</label><input type="number" name="pass_qty" min="0" value="{{ report.pass_qty|default('') }}"></div>
-      <div class="fld"><label>불량 수량</label><input type="number" name="fail_qty" min="0" value="{{ report.fail_qty|default('') }}"></div>
-    </div>
-    <div class="frow">
-      <div class="fld full"><label>검사 항목 / 결과</label><textarea name="checklist" placeholder="치수·외관·기능 등 검사 항목별 결과">{{ report.checklist|default('') }}</textarea></div>
-    </div>
-    <div class="frow">
-      <div class="fld full"><label>비고 / 불량 사유</label><textarea name="note" placeholder="특이사항·후속 조치">{{ report.note|default('') }}</textarea></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/qc/reports">취소</a>
-      <button class="btn btn-primary" type="submit">📤 {% if report %}저장{% else %}작성{% endif %}</button>
-    </div>
-  </form>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+
+<script>
+{% if is_view %}
+function issueReport() {
+  if (!confirm('이 검사 성적서를 정식 발급하시겠습니까?\n\nDRAFT → ISSUED 로 상태 변경되며,\n발급 후 수정 불가합니다.')) return;
+  document.getElementById('issueForm').submit();
+}
+{% else %}
+const QC_STD_ITEMS = [
+  {% for nm, spec in QC_STANDARD_ITEMS %}{ name: '{{ nm }}', spec: '{{ spec }}' }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+let lineIdx = 0;
+
+function addLine(name, spec, measured, judg, rmk) {
+  const body = document.getElementById('linesBody');
+  const idx = lineIdx++;
+  const div = document.createElement('div');
+  div.className = 'lines-row';
+  div.dataset.line = idx;
+  const jdg = judg || 'PASS';
+  div.innerHTML = `
+    <div class="line-num">${String(idx + 1).padStart(2, '0')}</div>
+    <input class="line-input" name="line_item_name" value="${name || ''}" placeholder="검사 항목명" />
+    <input class="line-input col-spec" name="line_spec" value="${spec || ''}" placeholder="기준값" />
+    <input class="line-input" name="line_measured" value="${measured || ''}" placeholder="측정값" />
+    <select class="line-input judgment" name="line_judgment" onchange="updateJudgmentStyle(this)">
+      <option value="PASS" ${jdg === 'PASS' ? 'selected' : ''}>PASS</option>
+      <option value="FAIL" ${jdg === 'FAIL' ? 'selected' : ''}>FAIL</option>
+      <option value="NA" ${jdg === 'NA' ? 'selected' : ''}>NA</option>
+    </select>
+    <input class="line-input col-rmk" name="line_remarks" value="${rmk || ''}" placeholder="비고" />
+    <button type="button" class="line-del" onclick="delLine(this)">×</button>
+  `;
+  body.appendChild(div);
+  renumber();
+  // 초기 판정 스타일 적용
+  const sel = div.querySelector('.line-input.judgment');
+  updateJudgmentStyle(sel);
+}
+
+function updateJudgmentStyle(sel) {
+  sel.classList.remove('judg-pass', 'judg-fail', 'judg-na');
+  if (sel.value === 'PASS') sel.classList.add('judg-pass');
+  else if (sel.value === 'FAIL') sel.classList.add('judg-fail');
+  else if (sel.value === 'NA') sel.classList.add('judg-na');
+}
+
+function delLine(btn) {
+  btn.closest('.lines-row').remove();
+  renumber();
+}
+
+function renumber() {
+  document.querySelectorAll('#linesBody .lines-row').forEach((r, i) => {
+    r.querySelector('.line-num').textContent = String(i + 1).padStart(2, '0');
+  });
+}
+
+function loadStdItems() {
+  document.getElementById('linesBody').innerHTML = '';
+  lineIdx = 0;
+  QC_STD_ITEMS.forEach(s => addLine(s.name, s.spec, '', 'PASS', ''));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  addLine('', '', '', 'PASS', '');
+});
+{% endif %}
+</script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

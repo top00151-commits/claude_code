@@ -1,31 +1,213 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>출고 이력 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>출고 이력 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 출고 이력 (Goods Issue · GI)
+   stock_receipts 대칭 — 입고 이력과 짝
+   라우터: GET /stock/issues
+   전달: issues (id/part_id/qty/purpose/status/requested_at/issued_at)
+   상태: PENDING / ISSUED / CANCELLED #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>출고 이력</b></div><h1 class="page-title">📤 출고 <em>이력 (GI)</em></h1></div>
-    <a class="btn btn-primary" href="/issues/new">＋ 출고 등록</a>
-  </div>
-  <div class="tbl-wrap tbl-sticky">
-    {% if issues %}
-    <table class="tbl">
-      <thead><tr><th>#</th><th>자재</th><th class="num">수량</th><th>용도</th><th class="center">상태</th><th class="center">요청</th><th class="center">출고</th></tr></thead>
-      <tbody>
-      {% for i in issues %}
-        <tr><td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ i.id }}</td>
-          <td><a href="/parts/{{ i.part_id }}" style="font-weight:700;">자재 #{{ i.part_id }}</a></td>
-          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(i.qty|default(0)) }}</td>
-          <td style="font-size:12px;">{{ i.purpose|default('—') }}</td>
-          <td class="center"><span class="pill {% if i.status == '완료' %}pill-done{% elif i.status == '진행' %}pill-progress{% else %}pill-muted{% endif %}">{{ i.status|default('—') }}</span></td>
-          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ i.requested_at|default('—') }}</td>
-          <td class="center" style="font-size:11px;color:var(--mute);font-family:monospace;">{{ i.issued_at|default('—') }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">📤</div><div class="ttl">출고 이력이 없습니다</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.gi-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.gi-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.gi-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.gi-head .crumb a { color: var(--pq-ink-3); }
+.gi-head .crumb b { color: var(--pq-ink); }
+.gi-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.gi-meta { font-size: 12px; color: var(--pq-ink-3); }
+.gi-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.gi-actions { margin-left: auto; display: flex; gap: 8px; }
+.gi-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.gi-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.gi-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.gi-actions a.btn-dark { background: var(--pq-ink); border: 1px solid var(--pq-ink); color: #fff; font-weight: 600; }
+.gi-actions a.btn-dark:hover { background: #1e293b; }
+
+/* Success / Error 배너 */
+.banner { padding: 10px 14px; margin: 12px 24px 0; border-radius: 8px; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+.banner.ok  { background: var(--pq-ok-soft); color: var(--pq-ok); border: 1px solid #bbf7d0; }
+.banner.err { background: var(--pq-err-soft); color: var(--pq-err); border: 1px solid #fecaca; }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
+.kpi-cell.pending .v { color: var(--pq-warn); }
+.kpi-cell.issued  .v { color: var(--pq-ok); }
+.kpi-cell.cancel  .v { color: var(--pq-ink-4); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 900px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-iss { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-iss::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-iss.PENDING   { background: var(--pq-warn-soft);    color: var(--pq-warn); }
+.chip-iss.ISSUED    { background: var(--pq-ok-soft);      color: var(--pq-ok); }
+.chip-iss.CANCELLED { background: var(--pq-surface-3);    color: var(--pq-ink-4); text-decoration: line-through; }
+.chip-iss.UNKNOWN   { background: var(--pq-surface-3);    color: var(--pq-ink-4); }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.po-empty .sub { font-size: 12.5px; }
+.po-empty .cta { margin-top: 16px; }
+.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .gi-head { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+
+{% set total_cnt = issues|length %}
+{% set pending_cnt = issues|selectattr('status','equalto','PENDING')|list|length %}
+{% set issued_cnt  = issues|selectattr('status','equalto','ISSUED')|list|length %}
+{% set cancel_cnt  = issues|selectattr('status','equalto','CANCELLED')|list|length %}
+{% set total_qty   = issues|sum(attribute='qty')|default(0) %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="gi-page">
+
+      <!-- 헤더 -->
+      <div class="gi-head" data-dn="gi:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>출고 이력</b></div>
+          <div class="gi-title">출고 (GI · Goods Issue)</div>
+        </div>
+        <div class="gi-meta">
+          <span>최근 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
+          <span>·</span>
+          <span>총 출고량 <span class="pm-num">{{ '{:,.0f}'.format(total_qty) }}</span></span>
+        </div>
+        <div class="gi-actions">
+          <a class="btn-ghost" href="/stock/balances">📦 재고 현황</a>
+          <a class="btn-ghost" href="/stock/receipts">📥 입고 이력</a>
+          <a class="btn-dark" href="/stock/issue">＋ 출고 등록</a>
+        </div>
+      </div>
+
+      <!-- ?success= / ?error= 배너 -->
+      {% if request.query_params.get('success') %}
+      <div class="banner ok" data-dn="gi:banner-ok">✅ 출고 등록 완료 — {{ request.query_params.get('success') }}</div>
+      {% endif %}
+      {% if request.query_params.get('error') %}
+      <div class="banner err" data-dn="gi:banner-err">
+        ⚠️
+        {% set err = request.query_params.get('error') %}
+        {% if err == 'invalid' %}자재 또는 수량 입력값 오류
+        {% elif err == 'notfound' %}해당 출고 건을 찾을 수 없습니다
+        {% elif err.startswith('already-') %}이미 처리됨 ({{ err.replace('already-', '') }})
+        {% else %}{{ err }}{% endif %}
+      </div>
+      {% endif %}
+
+      <!-- KPI 4 -->
+      <div class="kpi-strip" data-dn="gi:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체 출고</div>
+          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">건</span></div>
+          <div class="sub">최근 100건 표시</div>
+        </div>
+        <div class="kpi-cell pending">
+          <div class="l">대기 (PENDING)</div>
+          <div class="v">{{ pending_cnt }}<span class="u">건</span></div>
+          <div class="sub">승인·실행 대기</div>
+        </div>
+        <div class="kpi-cell issued">
+          <div class="l">출고 완료 (ISSUED)</div>
+          <div class="v">{{ issued_cnt }}<span class="u">건</span></div>
+          <div class="sub">재고 차감 완료</div>
+        </div>
+        <div class="kpi-cell cancel">
+          <div class="l">취소 (CANCELLED)</div>
+          <div class="v">{{ cancel_cnt }}<span class="u">건</span></div>
+          <div class="sub">처리 불가/취소</div>
+        </div>
+      </div>
+
+      {% if issues %}
+      <div class="tbl-zone" data-dn="gi:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th class="center" style="width:70px;">#</th>
+              <th class="center" style="width:110px;">상태</th>
+              <th>자재</th>
+              <th class="num" style="width:110px;">수량</th>
+              <th>용도</th>
+              <th class="center" style="width:140px;">요청 시각</th>
+              <th class="center" style="width:140px;">출고 시각</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for i in issues %}
+            {% set st = i.status|default('UNKNOWN') %}
+            {% if st not in ('PENDING', 'ISSUED', 'CANCELLED') %}{% set st = 'UNKNOWN' %}{% endif %}
+            <tr {% if i.part_id %}onclick="location.href='/parts/{{ i.part_id }}'"{% endif %}>
+              <td class="center code mute">GI-{{ i.id }}</td>
+              <td class="center"><span class="chip-iss {{ st }}">{{ st }}</span></td>
+              <td>
+                {% if i.part_id %}<a href="/parts/{{ i.part_id }}" style="font-weight:600;color:var(--pq-ink);text-decoration:none;" onclick="event.stopPropagation();">자재 #{{ i.part_id }}</a>{% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="num"><b>{{ '{:,.0f}'.format(i.qty|default(0)) }}</b></td>
+              <td class="mute" style="font-size:11.5px;">{{ i.purpose|default('—') }}</td>
+              <td class="center mute" style="font-size:11px;">{{ (i.requested_at or '—')[:16] }}</td>
+              <td class="center mute" style="font-size:11px;">{{ (i.issued_at or '—')[:16] }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="gi:empty">
+        <div class="ico">📤</div>
+        <div class="ttl">출고 이력 없음</div>
+        <div class="sub">＋ 출고 등록으로 첫 출고를 기록하세요.</div>
+        <div class="cta"><a href="/stock/issue">＋ 출고 등록</a></div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

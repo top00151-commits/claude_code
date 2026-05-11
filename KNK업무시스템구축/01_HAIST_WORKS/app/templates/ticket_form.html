@@ -4,7 +4,7 @@
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-sm); }
+.form-card { margin: 0 0 var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-sm); }
 .field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.full { grid-column: span 2; }
@@ -68,7 +68,7 @@
       </div>
     </div>
 
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+    <div style="margin: 0 0 var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
       <a class="btn btn-secondary" href="/tickets">취소</a>
       <button type="submit" class="btn btn-primary">📤 {% if ticket %}저장{% else %}티켓 발행{% endif %}</button>
     </div>

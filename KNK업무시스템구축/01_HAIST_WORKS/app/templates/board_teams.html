@@ -11,7 +11,7 @@
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--qv-ink-3);">접근 가능한 팀 게시판 목록</div></div>
   </div>
 
-  <div class="actions" data-dn="board-teams-grid" style="margin: 0 var(--content-pad);grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
+  <div class="actions" data-dn="board-teams-grid" style="margin: 0;grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
     {% for t in teams %}
     <a class="action-card" href="/board/team/{{ t.id }}" style="background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;">
       <div style="width:42px;height:42px;background:var(--qv-surface-2);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📋</div>

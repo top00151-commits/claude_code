@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>입고 처리 {{ po.po_number }} · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 입고 처리 (po_receive) #}
+{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 표시) — 실무팀3 입고 처리 #}
 {# 라우터 호환: form name = po_item_id / receive_qty / item_note / lot_no / expiry_date / occurred_at — getlist 형식 #}
 
-<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 :root {
@@ -182,7 +182,7 @@
 
         <div class="gr-body">
 
-          <!-- 발주 정보 -->
+          <!-- 발주 정보 (v5H226z58: VAT 모드 표시 — 입고 시 발주 헤더 VAT 따라감) -->
           <div class="gr-card" data-dn="gr:po-info" data-dn-tone="blue">
             <h3>발주 정보</h3>
             <div class="body">
@@ -203,6 +203,28 @@
                   <div class="lbl">예상 입고</div>
                   <b>{{ po.expected_date|default('—') }}</b>
                 </div>
+                {% set vm = po.vat_mode|default('vat_excluded') %}
+                {% set vm_label = 'VAT 미포함' if vm == 'vat_excluded' else ('VAT 포함' if vm == 'vat_included' else ('VAT 없음' if vm == 'vat_none' else vm)) %}
+                {% set tc = po.tax_classification|default('taxable') %}
+                {% set tc_label = '과세' if tc == 'taxable' else ('영세' if tc == 'zero_rated' else ('면세' if tc == 'exempt' else ('기타' if tc == 'other' else tc))) %}
+                <div>
+                  <div class="lbl">VAT 모드</div>
+                  <b>{{ vm_label }}</b>
+                </div>
+                <div>
+                  <div class="lbl">과세구분</div>
+                  <b>{{ tc_label }}</b>
+                </div>
+                {% if po.supply_total %}
+                <div>
+                  <div class="lbl">공급가액</div>
+                  <b class="mono">{{ '{:,.0f}'.format(po.supply_total) }}</b>
+                </div>
+                <div>
+                  <div class="lbl">부가세</div>
+                  <b class="mono">{{ '{:,.0f}'.format(po.vat_total|default(0)) }}</b>
+                </div>
+                {% endif %}
               </div>
             </div>
           </div>

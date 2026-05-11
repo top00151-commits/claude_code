@@ -1,52 +1,375 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{% if supplier %}공급사 수정{% else %}공급사 등록{% endif %} · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if supplier %}공급사 수정 {{ supplier.name }}{% else %}새 공급사 등록{% endif %} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 공급사 등록·수정 폼
+   라우터 호환 form name (필수=*):
+     name* / code / contact / email / phone / country / currency / payment_terms / note / is_active
+   라우터: POST /suppliers/new  |  POST /suppliers/{sid}/edit
+   전달: supplier (객체 or None) / leadtime (edit 모드만) / PAYMENT_TERMS #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field.full { grid-column: span 2; }
-.field label { font-size: 12px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.field input:focus, .field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
-.field textarea { min-height: 70px; resize: vertical; }
-</style></head>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+
+.sp-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.sp-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sp-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.sp-head .crumb a { color: var(--pq-ink-3); }
+.sp-head .crumb b { color: var(--pq-ink); }
+.sp-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sp-title .code { font-family: var(--pq-mono); color: var(--pq-ink); font-size: 16px; opacity: 0.75; }
+.sp-meta { font-size: 12px; color: var(--pq-ink-3); }
+.sp-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.sp-actions { margin-left: auto; display: flex; gap: 8px; }
+.sp-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.sp-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.pill-active { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-ok-soft); color: var(--pq-ok); }
+.pill-inactive { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-4); }
+
+.sp-body { display: grid; grid-template-columns: 1fr 280px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.sp-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sp-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.sp-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.sp-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.sp-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.sp-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.sp-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.sp-card .head .sub { font-size: 11px; color: var(--pq-ink-4); }
+.sp-card .body { padding: 14px 16px; }
+
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field textarea { min-height: 76px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); margin-top: -2px; line-height: 1.4; }
+
+/* chip-pick (radio 대체) */
+.chip-pick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.chip-pick label { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500; }
+.chip-pick label:hover { background: var(--pq-surface-2); }
+.chip-pick input[type="radio"] { display: none; }
+.chip-pick label:has(input:checked) { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+
+/* 사이드 카드 */
+.side-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; padding: 12px 14px; }
+.side-card h4 { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pq-ink-3); margin: 0 0 8px; font-weight: 700; }
+.summary-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--pq-line); font-size: 12px; }
+.summary-row:last-child { border-bottom: 0; }
+.summary-row .lbl { color: var(--pq-ink-4); }
+.summary-row .val { color: var(--pq-ink); font-weight: 600; }
+.summary-row .val.mono { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+
+/* 리드타임 KPI (편집 모드) */
+.lt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lt-cell { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 4px; padding: 8px 10px; }
+.lt-cell .l { font-size: 10px; color: var(--pq-ink-4); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+.lt-cell .v { font-family: var(--pq-mono); font-size: 16px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; }
+.lt-cell .v .u { font-size: 10px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; margin-left: 3px; }
+
+/* 액션 바 */
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
+.btn-secondary:hover { background: var(--pq-surface-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+.btn-danger { background: var(--pq-err); color: #fff; }
+.btn-danger:hover { background: #991b1b; }
+
+@media (max-width: 1280px) {
+  .sp-body { grid-template-columns: 1fr; }
+  .sp-side { position: static; }
+}
+@media (max-width: 1023px) {
+  .field-row, .field-row.cols-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
 <body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/suppliers">공급사</a> · <b>{% if supplier %}수정{% else %}등록{% endif %}</b></div>
-    <h1 class="page-title">{% if supplier %}공급사 <em>수정</em>{% else %}공급사 <em>등록</em>{% endif %}</h1></div>
-  </div>
-  <form method="post" action="{% if supplier %}/suppliers/{{ supplier.id }}/edit{% else %}/suppliers/new{% endif %}">
-    <div class="form-card">
-      <div class="field-row">
-        <div class="field full"><label>공급사명 *</label><input type="text" name="name" required value="{{ supplier.name|default('') }}"></div>
+{% set is_edit = supplier is not none %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <form method="post" action="{% if is_edit %}/suppliers/{{ supplier.id }}/edit{% else %}/suppliers/new{% endif %}" id="supplierForm">
+      <div class="sp-page">
+
+        <!-- 헤더 -->
+        <div class="sp-head" data-dn="sp:head">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">공급사</a> · <b>{% if is_edit %}{{ supplier.name }} 수정{% else %}새 공급사 등록{% endif %}</b></div>
+            <div class="sp-title">
+              {% if is_edit %}
+              <span>{{ supplier.name }}</span>
+              {% if supplier.code %}<span class="code">{{ supplier.code }}</span>{% endif %}
+              {% if supplier.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">비활성</span>{% endif %}
+              {% else %}
+              <span>🏢 새 공급사 등록</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if is_edit %}
+          <div class="sp-meta">
+            <span>등록 <span class="pm-num">{{ (supplier.created_at or '—')[:10] }}</span></span>
+            {% if supplier.updated_at and supplier.updated_at != supplier.created_at %}
+              <span>·</span><span>최종수정 <span class="pm-num">{{ (supplier.updated_at or '—')[:10] }}</span></span>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="sp-actions">
+            <a href="/suppliers">↩ 목록</a>
+            {% if is_edit %}<a href="/po/new?supplier_id={{ supplier.id }}">+ 발주</a>{% endif %}
+          </div>
+        </div>
+
+        <div class="sp-body">
+
+          <div class="sp-main">
+
+            <!-- 섹션 1: 기본 정보 -->
+            <div class="sp-card" data-dn="sp:basic" data-dn-tone="green">
+              <div class="head"><h3>기본 정보 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>공급사명 <span class="req">*</span></label>
+                    <input type="text" name="name" required value="{{ supplier.name|default('') }}"
+                           placeholder="예: 광원전기 / 우리산전 / OOO상사" />
+                    <div class="field-hint">정식 상호 또는 사업자등록증 명칭. 중복 검증 없음 — 동명 공급사 등록 가능.</div>
+                  </div>
+                  <div class="field">
+                    <label>공급사 코드 <span class="info">선택 / 중복 불가</span></label>
+                    <input type="text" name="code" value="{{ supplier.code|default('') }}" class="mono"
+                           placeholder="예: SP-001 / KWON-EL" />
+                    <div class="field-hint">자체 분류 코드. 비워두면 ID로 식별.</div>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>국가</label>
+                    <input type="text" name="country" value="{{ supplier.country|default('대한민국') }}"
+                           placeholder="예: 대한민국 / 중국 / 일본 / 베트남" />
+                  </div>
+                  <div class="field">
+                    <label>활성여부</label>
+                    <div class="chip-pick">
+                      <label><input type="radio" name="is_active" value="1" {% if not is_edit or supplier.is_active|default(1) %}checked{% endif %}><span>활성</span></label>
+                      <label><input type="radio" name="is_active" value="0" {% if is_edit and not supplier.is_active %}checked{% endif %}><span>비활성</span></label>
+                    </div>
+                    <div class="field-hint">비활성 시 발주서 작성 화면의 거래처 선택지에서 제외.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 연락처 -->
+            <div class="sp-card" data-dn="sp:contact" data-dn-tone="blue">
+              <div class="head"><h3>연락처</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>담당자 / 연락처</label>
+                    <input type="text" name="contact" value="{{ supplier.contact|default('') }}"
+                           placeholder="예: 영업팀 김OO 과장" />
+                  </div>
+                  <div class="field">
+                    <label>전화번호</label>
+                    <input type="text" name="phone" value="{{ supplier.phone|default('') }}" class="mono"
+                           placeholder="예: 02-1234-5678 / 010-1234-5678" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>이메일</label>
+                    <input type="email" name="email" value="{{ supplier.email|default('') }}" class="mono"
+                           placeholder="예: sales@vendor.com" />
+                    <div class="field-hint">발주서 이메일 전송 시 자동 수신처로 사용 가능.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 3: 결제·거래 조건 -->
+            <div class="sp-card" data-dn="sp:terms" data-dn-tone="green">
+              <div class="head"><h3>결제·거래 조건</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>통화</label>
+                    <select name="currency" class="mono">
+                      {% set cur = supplier.currency if is_edit else 'KRW' %}
+                      <option value="KRW" {% if cur == 'KRW' %}selected{% endif %}>KRW (₩)</option>
+                      <option value="USD" {% if cur == 'USD' %}selected{% endif %}>USD ($)</option>
+                      <option value="JPY" {% if cur == 'JPY' %}selected{% endif %}>JPY (¥)</option>
+                      <option value="CNY" {% if cur == 'CNY' %}selected{% endif %}>CNY (¥)</option>
+                      <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
+                      <option value="VND" {% if cur == 'VND' %}selected{% endif %}>VND (₫)</option>
+                    </select>
+                    <div class="field-hint">해당 공급사 기본 결제 통화. 발주 시 자동 적용.</div>
+                  </div>
+                  <div class="field">
+                    <label>결제 조건</label>
+                    <select name="payment_terms">
+                      <option value="">— 선택 안함 —</option>
+                      {% for t in PAYMENT_TERMS|default([]) %}
+                      <option value="{{ t }}" {% if is_edit and supplier.payment_terms == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">선금 / 현금 / 30일 / 60일 / 기타 — 발주서 결제조건 기본값으로 사용.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 4: 비고 -->
+            <div class="sp-card" data-dn="sp:note" data-dn-tone="blue">
+              <div class="head"><h3>비고</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>비고</label>
+                    <textarea name="note" placeholder="특이사항·계약 조건·납기 기준·QC 합의사항 등">{{ supplier.note|default('') }}</textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 우측 사이드 -->
+          <aside class="sp-side" data-dn="sp:side" data-dn-tone="blue">
+
+            <div class="side-card">
+              <h4>요약</h4>
+              <div class="summary-row"><span class="lbl">공급사명</span><span class="val">{{ supplier.name if is_edit else '신규' }}</span></div>
+              {% if is_edit and supplier.code %}
+              <div class="summary-row"><span class="lbl">코드</span><span class="val mono">{{ supplier.code }}</span></div>
+              {% endif %}
+              <div class="summary-row"><span class="lbl">국가</span><span class="val">{{ supplier.country if is_edit and supplier.country else '—' }}</span></div>
+              <div class="summary-row"><span class="lbl">통화</span><span class="val mono">{{ supplier.currency if is_edit and supplier.currency else 'KRW' }}</span></div>
+              <div class="summary-row"><span class="lbl">결제</span><span class="val">{{ supplier.payment_terms if is_edit and supplier.payment_terms else '—' }}</span></div>
+              {% if is_edit %}
+              <div class="summary-row"><span class="lbl">상태</span><span class="val">{% if supplier.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">비활성</span>{% endif %}</span></div>
+              {% endif %}
+            </div>
+
+            {% if is_edit and leadtime %}
+            <div class="side-card">
+              <h4>📊 리드타임 통계</h4>
+              <div class="lt-grid">
+                <div class="lt-cell">
+                  <div class="l">평균 (일)</div>
+                  <div class="v">{{ '{:.1f}'.format(leadtime.avg_days|default(0)) }}<span class="u">일</span></div>
+                </div>
+                <div class="lt-cell">
+                  <div class="l">최단</div>
+                  <div class="v">{{ leadtime.min_days|default(0) }}<span class="u">일</span></div>
+                </div>
+                <div class="lt-cell">
+                  <div class="l">최장</div>
+                  <div class="v">{{ leadtime.max_days|default(0) }}<span class="u">일</span></div>
+                </div>
+                <div class="lt-cell">
+                  <div class="l">표본</div>
+                  <div class="v">{{ leadtime.sample_count|default(0) }}<span class="u">건</span></div>
+                </div>
+              </div>
+              <div class="field-hint" style="margin-top:8px;">발주~입고 평균 소요일. 입고 이력 기반.</div>
+            </div>
+            {% endif %}
+
+            <div class="side-card">
+              <h4>💡 입력 가이드</h4>
+              <div class="help-tip">
+                <b>공급사명</b>만 필수. 나머지는 선택.<br><br>
+                · <b>코드</b>는 자체 분류용 (SP-001 등)<br>
+                · <b>통화·결제조건</b>은 발주서 기본값으로 자동 적용<br>
+                · <b>이메일</b>은 발주서 PDF 전송에 사용
+              </div>
+            </div>
+
+            {% if is_edit %}
+            <div class="side-card">
+              <h4 style="color:var(--pq-err);">⚠️ 위험 작업</h4>
+              <button type="button" class="btn btn-danger" style="width:100%;font-size:11.5px;padding:7px;"
+                      onclick="confirmDelete()">🗑 공급사 삭제</button>
+              <div class="field-hint" style="margin-top:6px;">발주·단가 이력 cascade 처리됩니다.</div>
+            </div>
+            {% endif %}
+
+          </aside>
+
+        </div>
+
+        <!-- 하단 액션 -->
+        <div class="action-bar" data-dn="sp:action" data-dn-tone="amber">
+          <div class="info">
+            {% if is_edit %}🟡 <b>편집 모드</b> — 저장 시 이력 기록{% else %}💾 <b>새 공급사 등록</b>{% endif %}
+          </div>
+          <div class="btns">
+            <a href="/suppliers" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary">{% if is_edit %}저장{% else %}등록 →{% endif %}</button>
+          </div>
+        </div>
+
       </div>
-      <div class="field-row">
-        <div class="field"><label>사업자번호</label><input type="text" name="business_no" value="{{ supplier.business_no|default('') }}" placeholder="000-00-00000"></div>
-        <div class="field"><label>대표</label><input type="text" name="ceo_name" value="{{ supplier.ceo_name|default('') }}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>담당자</label><input type="text" name="contact_person" value="{{ supplier.contact_person|default('') }}"></div>
-        <div class="field"><label>전화</label><input type="text" name="phone" value="{{ supplier.phone|default('') }}" placeholder="010-0000-0000"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>이메일</label><input type="email" name="email" value="{{ supplier.email|default('') }}"></div>
-        <div class="field"><label>결제 조건</label><input type="text" name="payment_terms" value="{{ supplier.payment_terms|default('') }}" placeholder="예: 60일 어음"></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>주소</label><input type="text" name="address" value="{{ supplier.address|default('') }}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>비고</label><textarea name="note" placeholder="공급사 특이사항">{{ supplier.note|default('') }}</textarea></div>
-      </div>
-      <div style="margin-top:10px;font-size:12px;color:var(--mute);"><label><input type="checkbox" name="is_active" value="1" {% if not supplier or supplier.is_active %}checked{% endif %}> 활성</label></div>
-    </div>
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/suppliers">취소</a>
-      <button type="submit" class="btn btn-primary">📤 {% if supplier %}저장{% else %}등록{% endif %}</button>
-    </div>
-  </form>
-</main></div></body></html>
+    </form>
+
+    {% if is_edit %}
+    <form id="supplierDeleteForm" method="post" action="/suppliers/{{ supplier.id }}/delete" style="display:none;"></form>
+    {% endif %}
+  </main>
+</div>
+
+<script>
+{% if is_edit %}
+function confirmDelete() {
+  if (!confirm('이 공급사를 삭제하시겠습니까?\n\n발주 / 단가 이력은 연결 해제되거나 cascade 처리됩니다.\n복구 불가.')) return;
+  document.getElementById('supplierDeleteForm').submit();
+}
+{% endif %}
+</script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

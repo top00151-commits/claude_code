@@ -1,46 +1,265 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>QC 처리 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if mode == 'disposition' %}부적합 처리{% else %}검수 (QC){% endif %} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 입고 QC + 부적합 처리
+   라우터:
+     GET /stock/qc/{po_item_id}                → mode=기본 (검수)
+     GET /stock/qc/disposition/{qc_id}         → mode='disposition' (부적합 처리)
+     POST /stock/qc/{po_item_id}               → 검수 등록 (pass_qty/fail_qty/status/fail_reason)
+     POST /stock/qc/disposition                → 부적합 결정 (qc_inspection_id/action/note) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.qc-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
-.qc-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
-.qc-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.qc-field input, .qc-field select, .qc-field textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.qc-field textarea { min-height: 80px; resize: vertical; }
-.qc-field.full { grid-column: span 2; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>QC 처리</b></div><h1 class="page-title">🔬 QC <em>처리</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{% if mode == 'disposition' %}QC #{{ qc_id }} 처분 결정 (양품/불량/재작업){% else %}입고 후 검사 등록 (PO 항목 #{{ po_item_id }}){% endif %}</div></div>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+.qc-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.qc-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qc-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.qc-head .crumb a { color: var(--pq-ink-3); }
+.qc-head .crumb b { color: var(--pq-ink); }
+.qc-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); }
+.qc-meta { font-size: 12px; color: var(--pq-ink-3); }
+.qc-actions { margin-left: auto; display: flex; gap: 8px; }
+.qc-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.qc-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <form class="qc-form" method="post" action="{% if mode == 'disposition' %}/stock/qc/disposition{% else %}/stock/qc/{{ po_item_id }}{% endif %}">
-    {% if mode == 'disposition' %}<input type="hidden" name="qc_id" value="{{ qc_id }}">{% endif %}
-    <div class="qc-row">
-      <div class="qc-field"><label>판정 *</label>
-        <select name="result" required>
-          <option value="">— 선택 —</option>
-          <option value="PASS">✓ 양품 (PASS)</option>
-          <option value="FAIL">✗ 불량 (FAIL)</option>
-          <option value="REWORK">↻ 재작업 (REWORK)</option>
-        </select>
+.alert-bar { background: var(--pq-err-soft); color: var(--pq-err); border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin: 12px 24px 0; font-size: 12.5px; }
+
+.qc-body { padding: 14px 24px 24px; flex: 1; max-width: 900px; margin: 0 auto; width: 100%; }
+.qc-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.qc-card .head { padding: 12px 16px 10px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 8px; }
+.qc-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.qc-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.qc-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.qc-card .head .sub { font-size: 11px; color: var(--pq-ink-4); margin-left: auto; }
+.qc-card .body { padding: 14px 16px; }
+
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field input, .field select, .field textarea { padding: 10px 12px; font-family: inherit; font-size: 13px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.big { font-size: 18px; font-weight: 700; padding: 12px 14px; font-family: var(--pq-mono); text-align: right; }
+.field input.big.pass { color: var(--pq-ok); }
+.field input.big.fail { color: var(--pq-err); }
+.field textarea { min-height: 70px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); }
+
+/* 판정 4종 토글 */
+.status-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.status-pick label { padding: 10px 8px; text-align: center; font-size: 12px; font-weight: 700; border: 2px solid var(--pq-line-2); border-radius: 6px; cursor: pointer; background: var(--pq-surface); font-family: var(--pq-mono); }
+.status-pick label:hover { border-color: var(--pq-ink-3); }
+.status-pick input[type="radio"] { display: none; }
+.status-pick label.opt-pass:has(input:checked)    { background: var(--pq-ok-soft); border-color: var(--pq-ok); color: var(--pq-ok); }
+.status-pick label.opt-partial:has(input:checked) { background: var(--pq-warn-soft); border-color: var(--pq-warn); color: var(--pq-warn); }
+.status-pick label.opt-hold:has(input:checked)    { background: var(--pq-info-soft); border-color: var(--pq-info); color: var(--pq-info); }
+.status-pick label.opt-fail:has(input:checked)    { background: var(--pq-err-soft); border-color: var(--pq-err); color: var(--pq-err); }
+
+/* 처분 3종 */
+.disp-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.disp-pick label { padding: 16px 12px; border: 2px solid var(--pq-line-2); border-radius: 8px; cursor: pointer; background: var(--pq-surface); text-align: center; }
+.disp-pick label .ico { font-size: 26px; }
+.disp-pick label .name { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin-top: 4px; font-family: var(--pq-mono); }
+.disp-pick label .desc { font-size: 10.5px; color: var(--pq-ink-3); margin-top: 4px; line-height: 1.5; }
+.disp-pick input[type="radio"] { display: none; }
+.disp-pick label.opt-return:has(input:checked)  { background: var(--pq-info-soft); border-color: var(--pq-info); }
+.disp-pick label.opt-special:has(input:checked) { background: var(--pq-warn-soft); border-color: var(--pq-warn); }
+.disp-pick label.opt-scrap:has(input:checked)   { background: var(--pq-err-soft); border-color: var(--pq-err); }
+
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+
+@media (max-width: 1023px) { .field-row { grid-template-columns: 1fr; } .status-pick { grid-template-columns: repeat(2, 1fr); } .disp-pick { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="qc-page">
+
+      {% if mode == 'disposition' %}
+      <!-- 부적합 처리 모드 -->
+      <div class="qc-head" data-dn="qc:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock/receipts">입고</a> · <b>부적합 처리</b></div>
+          <div class="qc-title">⚠️ 부적합 처리</div>
+          <div class="qc-meta" style="margin-top:4px;">QC #{{ qc_id }} — 부적합 자재 처분 결정 (RETURN/SPECIAL/SCRAP)</div>
+        </div>
+        <div class="qc-actions"><a href="/stock/receipts">↩ 입고 이력</a></div>
       </div>
-      <div class="qc-field"><label>검사일</label><input type="date" name="inspected_at" value="{{ today|default('') }}"></div>
+
+      {% if request.query_params.get('error') %}
+      <div class="alert-bar">⚠️ {{ request.query_params.get('error') }}</div>
+      {% endif %}
+
+      <div class="qc-body">
+        <form method="post" action="/stock/qc/disposition">
+          <input type="hidden" name="qc_inspection_id" value="{{ qc_id }}" />
+
+          <div class="qc-card" data-dn="qc:disp" data-dn-tone="purple">
+            <div class="head"><h3>처분 결정 <span class="req">*</span></h3><span class="sub">3종 중 하나 선택</span></div>
+            <div class="body">
+              <div class="disp-pick">
+                <label class="opt-return">
+                  <input type="radio" name="action" value="RETURN" required>
+                  <div class="ico">↩️</div>
+                  <div class="name">RETURN</div>
+                  <div class="desc">반품 (공급사 회수)<br>QC FAIL 확정</div>
+                </label>
+                <label class="opt-special">
+                  <input type="radio" name="action" value="SPECIAL_ACCEPT">
+                  <div class="ico">⚠️</div>
+                  <div class="name">SPECIAL ACCEPT</div>
+                  <div class="desc">특채 (조건부 사용)<br>QC 상태 유지</div>
+                </label>
+                <label class="opt-scrap">
+                  <input type="radio" name="action" value="SCRAP">
+                  <div class="ico">🗑️</div>
+                  <div class="name">SCRAP</div>
+                  <div class="desc">폐기 (손실 처리)<br>QC FAIL 확정</div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="qc-card" data-dn="qc:disp-note">
+            <div class="head"><h3>비고 / 사유</h3><span class="sub">감사 추적용</span></div>
+            <div class="body">
+              <div class="field"><textarea name="note" placeholder="처분 사유 · 관련 문서 번호 · 결재자"></textarea></div>
+            </div>
+          </div>
+
+          <div class="action-bar" data-dn="qc:disp-action">
+            <div class="info">⚠️ 처분 결정은 <b>회계 감사 대상</b>입니다.</div>
+            <div class="btns">
+              <a href="/stock/receipts" class="btn btn-cancel">취소</a>
+              <button type="submit" class="btn btn-primary">처분 확정 →</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {% else %}
+      <!-- 검수 모드 (기본) -->
+      <div class="qc-head" data-dn="qc:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock/receipts">입고</a> · <b>검수</b></div>
+          <div class="qc-title">🔬 입고 검수 (QC Inspection)</div>
+          <div class="qc-meta" style="margin-top:4px;">PO Item #{{ po_item_id }} — 합격/불합격 + 4종 판정</div>
+        </div>
+        <div class="qc-actions"><a href="/stock/receipts">↩ 입고 이력</a></div>
+      </div>
+
+      {% if request.query_params.get('error') %}
+      <div class="alert-bar">
+        ⚠️
+        {% set err = request.query_params.get('error') %}
+        {% if err == 'invalid' %}입력값 오류
+        {% elif err == 'qty_negative' %}수량은 0 이상이어야 합니다
+        {% elif err == 'fail_reason_required' %}FAIL/PARTIAL 시 사유 필수
+        {% else %}{{ err }}{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="qc-body">
+        <form method="post" action="/stock/qc/{{ po_item_id }}">
+
+          <div class="qc-card" data-dn="qc:qty" data-dn-tone="green">
+            <div class="head"><h3>검수 수량 <span class="req">*</span></h3></div>
+            <div class="body">
+              <div class="field-row">
+                <div class="field">
+                  <label>합격 수량 (PASS) <span class="req">*</span></label>
+                  <input type="number" name="pass_qty" required step="0.01" min="0" class="big pass" value="0" />
+                </div>
+                <div class="field">
+                  <label>불합격 수량 (FAIL)</label>
+                  <input type="number" name="fail_qty" step="0.01" min="0" class="big fail" value="0" />
+                </div>
+              </div>
+              <div class="field-hint" style="margin-top:8px;">📌 음수 입력 차단. 합격 + 불합격 = 검수 총량.</div>
+            </div>
+          </div>
+
+          <div class="qc-card" data-dn="qc:status" data-dn-tone="blue">
+            <div class="head"><h3>판정 <span class="req">*</span></h3><span class="sub">PASS / PARTIAL / HOLD / FAIL</span></div>
+            <div class="body">
+              <div class="status-pick">
+                <label class="opt-pass">
+                  <input type="radio" name="status" value="PASS" checked>
+                  PASS<br><span style="font-size:9.5px;color:var(--pq-ink-4);font-family:inherit;font-weight:500;">전량 합격</span>
+                </label>
+                <label class="opt-partial">
+                  <input type="radio" name="status" value="PARTIAL">
+                  PARTIAL<br><span style="font-size:9.5px;color:var(--pq-ink-4);font-family:inherit;font-weight:500;">부분 합격</span>
+                </label>
+                <label class="opt-hold">
+                  <input type="radio" name="status" value="HOLD">
+                  HOLD<br><span style="font-size:9.5px;color:var(--pq-ink-4);font-family:inherit;font-weight:500;">보류·재검</span>
+                </label>
+                <label class="opt-fail">
+                  <input type="radio" name="status" value="FAIL">
+                  FAIL<br><span style="font-size:9.5px;color:var(--pq-ink-4);font-family:inherit;font-weight:500;">전량 불합격</span>
+                </label>
+              </div>
+              <div class="field-hint" style="margin-top:10px;">⚠️ FAIL/PARTIAL → 부적합 처리 모달로 자동 이동.</div>
+            </div>
+          </div>
+
+          <div class="qc-card" data-dn="qc:reason">
+            <div class="head"><h3>불합격 사유 <span style="font-size:10px;color:var(--pq-warn);">(FAIL/PARTIAL 시 필수)</span></h3></div>
+            <div class="body">
+              <div class="field"><textarea name="fail_reason" placeholder="결함 유형 · 측정값 · 검사 기준 위반 등"></textarea></div>
+            </div>
+          </div>
+
+          <div class="action-bar" data-dn="qc:action">
+            <div class="info">🔬 검수 결과 등록 — receipts 상태 동기화 + FAIL/PARTIAL 자동 부적합 모달</div>
+            <div class="btns">
+              <a href="/stock/receipts" class="btn btn-cancel">취소</a>
+              <button type="submit" class="btn btn-primary">검수 등록 →</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {% endif %}
+
     </div>
-    <div class="qc-row">
-      <div class="qc-field"><label>합격 수량</label><input type="number" name="pass_qty" step="0.01" min="0" placeholder="0"></div>
-      <div class="qc-field"><label>불량 수량</label><input type="number" name="fail_qty" step="0.01" min="0" placeholder="0"></div>
-    </div>
-    <div class="qc-row">
-      <div class="qc-field full"><label>비고 / 불량 사유</label><textarea name="note" placeholder="검사 결과·특이사항·후속 조치"></textarea></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="javascript:history.back()">취소</a>
-      <button class="btn btn-primary" type="submit">📤 등록</button>
-    </div>
-  </form>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

@@ -3902,11 +3902,15 @@ def parts_create(data: dict) -> int:
                     f"부품 코드 '{pno}' 는 이미 등록되어 있습니다 "
                     f"(기존: [{dup['id']}] {dup['part_name']}). 다른 코드를 사용하거나 기존 부품을 수정해주세요."
                 )
-    cols = ["part_no", "part_name", "spec", "maker", "origin", "unit",
-            "currency", "std_price", "biz_div", "category", "note",
-            "is_active", "safety_stock", "location", "created_at", "updated_at"]
+    # v5H226z58 (2026-05-11): 자재모듈 표준 v2 — 13 컬럼 확장 (item_account/procurement_kind/
+    #   category_main/category_series/reorder_point/reorder_qty/conversion_factor/sub_spec1~3/
+    #   tax_invoice_name/trade_invoice_name/default_warehouse/hs_code)
+    # ※ 컬럼 부재 시 OperationalError → 백필 가드: PRAGMA로 실제 존재 컬럼만 사용
+    base_cols = ["part_no", "part_name", "spec", "maker", "origin", "unit",
+                 "currency", "std_price", "biz_div", "category", "note",
+                 "is_active", "safety_stock", "location", "created_at", "updated_at"]
     now = _logi_now()
-    values = [
+    base_values = [
         (data.get("part_no") or "").strip(),
         (data.get("part_name") or "").strip(),
         (data.get("spec") or "").strip(),
@@ -3923,8 +3927,34 @@ def parts_create(data: dict) -> int:
         (data.get("location") or "").strip() or None,
         now, now,
     ]
-    placeholders = ",".join(["?"] * len(cols))
+    # z58 확장 컬럼 (존재 시에만 추가)
+    ext_pairs = [
+        ("item_account",       (data.get("item_account") or "").strip() or None),
+        ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
+        ("category_main",      (data.get("category_main") or "").strip() or None),
+        ("category_series",    (data.get("category_series") or "").strip() or None),
+        ("reorder_point",      float(data.get("reorder_point") or 0)),
+        ("reorder_qty",        float(data.get("reorder_qty") or 0)),
+        ("conversion_factor",  float(data.get("conversion_factor") or 1)),
+        ("sub_spec1",          (data.get("sub_spec1") or "").strip() or None),
+        ("sub_spec2",          (data.get("sub_spec2") or "").strip() or None),
+        ("sub_spec3",          (data.get("sub_spec3") or "").strip() or None),
+        ("tax_invoice_name",   (data.get("tax_invoice_name") or "").strip() or None),
+        ("trade_invoice_name", (data.get("trade_invoice_name") or "").strip() or None),
+        ("default_warehouse",  (data.get("default_warehouse") or "").strip() or None),
+        ("hs_code",            (data.get("hs_code") or "").strip() or None),
+    ]
     with db_session() as c:
+        # PRAGMA 로 실제 존재 컬럼만 추가 (z58 SQL 미적용 환경 호환)
+        existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+        ext_cols, ext_vals = [], []
+        for col, val in ext_pairs:
+            if col in existing:
+                ext_cols.append(col)
+                ext_vals.append(val)
+        cols = base_cols + ext_cols
+        values = base_values + ext_vals
+        placeholders = ",".join(["?"] * len(cols))
         cur = c.execute(
             f"INSERT INTO parts ({','.join(cols)}) VALUES ({placeholders})",
             values,
@@ -3947,11 +3977,11 @@ def parts_update(pid: int, data: dict) -> None:
                     f"부품 코드 '{pno}' 는 이미 다른 부품에서 사용 중입니다 "
                     f"(기존: [{dup['id']}] {dup['part_name']})."
                 )
-    fields = ["part_no", "part_name", "spec", "maker", "origin", "unit",
-              "currency", "std_price", "biz_div", "category", "note", "is_active",
-              "safety_stock", "location"]
-    sets = ", ".join([f"{f} = ?" for f in fields]) + ", updated_at = ?"
-    values = [
+    # v5H226z58 (2026-05-11): 자재모듈 표준 v2 — 13 컬럼 확장 (parts_create 와 동일 set)
+    base_fields = ["part_no", "part_name", "spec", "maker", "origin", "unit",
+                   "currency", "std_price", "biz_div", "category", "note", "is_active",
+                   "safety_stock", "location"]
+    base_values = [
         (data.get("part_no") or "").strip(),
         (data.get("part_name") or "").strip(),
         (data.get("spec") or "").strip(),
@@ -3966,9 +3996,34 @@ def parts_update(pid: int, data: dict) -> None:
         1 if data.get("is_active", 1) else 0,
         float(data.get("safety_stock") or 0),
         (data.get("location") or "").strip() or None,
-        _logi_now(),
+    ]
+    # z58 확장 컬럼 (존재 시에만 SET)
+    ext_pairs = [
+        ("item_account",       (data.get("item_account") or "").strip() or None),
+        ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
+        ("category_main",      (data.get("category_main") or "").strip() or None),
+        ("category_series",    (data.get("category_series") or "").strip() or None),
+        ("reorder_point",      float(data.get("reorder_point") or 0)),
+        ("reorder_qty",        float(data.get("reorder_qty") or 0)),
+        ("conversion_factor",  float(data.get("conversion_factor") or 1)),
+        ("sub_spec1",          (data.get("sub_spec1") or "").strip() or None),
+        ("sub_spec2",          (data.get("sub_spec2") or "").strip() or None),
+        ("sub_spec3",          (data.get("sub_spec3") or "").strip() or None),
+        ("tax_invoice_name",   (data.get("tax_invoice_name") or "").strip() or None),
+        ("trade_invoice_name", (data.get("trade_invoice_name") or "").strip() or None),
+        ("default_warehouse",  (data.get("default_warehouse") or "").strip() or None),
+        ("hs_code",            (data.get("hs_code") or "").strip() or None),
     ]
     with db_session() as c:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+        ext_fields, ext_values = [], []
+        for col, val in ext_pairs:
+            if col in existing:
+                ext_fields.append(col)
+                ext_values.append(val)
+        fields = base_fields + ext_fields
+        values = base_values + ext_values + [_logi_now()]
+        sets = ", ".join([f"{f} = ?" for f in fields]) + ", updated_at = ?"
         c.execute(f"UPDATE parts SET {sets} WHERE id = ?", values + [pid])
 
 
@@ -4814,6 +4869,64 @@ def generate_po_number(today=None) -> str:
 
 
 # ── 발주 (purchase_orders + po_items) CRUD ─────────────
+
+# v5H226z58 (2026-05-11) 자재모듈 표준 v2 — VAT 계산 헬퍼
+# 매뉴얼 §3.2 표준 공식:
+#   vat_excluded (VAT 미포함): supply = qty×price,        vat = supply × 0.1
+#   vat_included (VAT 포함):   supply = (qty×price)/1.1,  vat = base - supply
+#   vat_none     (VAT 없음):   supply = qty×price,        vat = 0
+def _po_vat_calc(qty: float, price: float, vat_mode: str = "vat_excluded") -> tuple[float, float]:
+    base = float(qty or 0) * float(price or 0)
+    if vat_mode == "vat_included":
+        supply = round(base / 1.1, 2)
+        vat = round(base - supply, 2)
+    elif vat_mode == "vat_none":
+        supply = round(base, 2)
+        vat = 0.0
+    else:  # vat_excluded (default)
+        supply = round(base, 2)
+        vat = round(base * 0.1, 2)
+    return supply, vat
+
+
+def _po_backfill_vat(c, po_id: int, vat_mode: str, tax_class: str) -> None:
+    """z58 컬럼이 존재하면 헤더·라인에 VAT 백필. 미적용 환경은 skip."""
+    try:
+        po_cols = {r[1] for r in c.execute("PRAGMA table_info(purchase_orders)").fetchall()}
+        line_cols = {r[1] for r in c.execute("PRAGMA table_info(po_items)").fetchall()}
+        # 헤더: vat_mode / tax_classification 갱신
+        hdr_sets, hdr_vals = [], []
+        if "vat_mode" in po_cols:
+            hdr_sets.append("vat_mode=?"); hdr_vals.append(vat_mode or "vat_excluded")
+        if "tax_classification" in po_cols:
+            hdr_sets.append("tax_classification=?"); hdr_vals.append(tax_class or "taxable")
+        if hdr_sets:
+            c.execute(f"UPDATE purchase_orders SET {','.join(hdr_sets)} WHERE id=?",
+                      hdr_vals + [po_id])
+        # 라인별 supply_amount / vat_amount 계산
+        if "supply_amount" in line_cols and "vat_amount" in line_cols:
+            lines = c.execute(
+                "SELECT id, quantity, unit_price FROM po_items WHERE po_id=?", (po_id,)
+            ).fetchall()
+            sup_total, vat_total = 0.0, 0.0
+            for ln in lines:
+                sup, vat = _po_vat_calc(ln["quantity"], ln["unit_price"], vat_mode)
+                sup_total += sup; vat_total += vat
+                c.execute(
+                    "UPDATE po_items SET supply_amount=?, vat_amount=? WHERE id=?",
+                    (sup, vat, ln["id"]),
+                )
+            # 헤더 합계
+            if "supply_total" in po_cols and "vat_total" in po_cols:
+                c.execute(
+                    "UPDATE purchase_orders SET supply_total=?, vat_total=? WHERE id=?",
+                    (round(sup_total, 2), round(vat_total, 2), po_id),
+                )
+    except Exception:
+        # z58 미적용 환경 또는 컬럼 부재 시 silently skip (정상 작동)
+        pass
+
+
 def po_list(q: str = "", status: str = "", supplier_id: int = 0,
             project_id: int = 0):
     sql = """
@@ -4955,6 +5068,13 @@ def po_create(data: dict, items: list[dict], created_by: int = 0) -> tuple[int, 
         c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?",
                   (round(total, 2), po_id))
 
+        # v5H226z58: VAT 백필 (z58 컬럼 존재 시)
+        _po_backfill_vat(
+            c, po_id,
+            (data.get("vat_mode") or "vat_excluded").strip() or "vat_excluded",
+            (data.get("tax_classification") or "taxable").strip() or "taxable",
+        )
+
     return po_id, po_number
 
 
@@ -5065,6 +5185,13 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
             c.execute("DELETE FROM po_items WHERE id=?", (lid,))
         c.execute("UPDATE purchase_orders SET total_amount=? WHERE id=?",
                   (round(total, 2), po_id))
+
+        # v5H226z58: VAT 백필 (z58 컬럼 존재 시)
+        _po_backfill_vat(
+            c, po_id,
+            (data.get("vat_mode") or "vat_excluded").strip() or "vat_excluded",
+            (data.get("tax_classification") or "taxable").strip() or "taxable",
+        )
 
 
 def po_delete(po_id: int) -> None:

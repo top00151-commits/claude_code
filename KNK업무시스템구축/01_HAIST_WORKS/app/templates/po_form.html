@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if po %}발주 수정 {{ po.po_number }}{% else %}새 발주서 작성{% endif %} · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 발주 작성·수정 폼 #}
+{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 도입) — 실무팀3 발주 작성·수정 폼 #}
 
-<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 :root {
@@ -275,6 +275,29 @@
                 </div>
               </div>
 
+              <!-- v5H226z58: VAT 모드 + 과세구분 -->
+              <div class="field-row">
+                <div class="field">
+                  <label>VAT 모드 <span class="info">수량×단가 → 공급가액·부가세 자동 계산</span></label>
+                  <select name="vat_mode" id="hdrVatMode" onchange="recalcTotals()">
+                    {% set vm = (po.vat_mode if is_edit else 'vat_excluded') %}
+                    <option value="vat_excluded" {% if vm == 'vat_excluded' %}selected{% endif %}>VAT 미포함 (공급가액 + 10%)</option>
+                    <option value="vat_included" {% if vm == 'vat_included' %}selected{% endif %}>VAT 포함 (총액 ÷ 1.1)</option>
+                    <option value="vat_none"     {% if vm == 'vat_none' %}selected{% endif %}>VAT 없음 (영세·면세)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>과세구분</label>
+                  <select name="tax_classification">
+                    {% set tc = (po.tax_classification if is_edit else 'taxable') %}
+                    <option value="taxable"    {% if tc == 'taxable' %}selected{% endif %}>과세 (일반)</option>
+                    <option value="zero_rated" {% if tc == 'zero_rated' %}selected{% endif %}>영세 (Local L/C·구매확인서)</option>
+                    <option value="exempt"     {% if tc == 'exempt' %}selected{% endif %}>면세</option>
+                    <option value="other"      {% if tc == 'other' %}selected{% endif %}>기타</option>
+                  </select>
+                </div>
+              </div>
+
               <div class="field-row">
                 <div class="field field-full">
                   <label>비고</label>
@@ -371,10 +394,10 @@
               </div>
             </div>
 
-            <!-- 합계 -->
+            <!-- 합계 (v5H226z58: VAT 모드 기반 자동 계산) -->
             <div class="totals" data-dn="pf:totals" data-dn-tone="green">
-              <div class="total-row"><span>소계</span><b id="subTotal">₩0</b></div>
-              <div class="total-row"><span>부가세 (10%)</span><b id="vatTotal">₩0</b></div>
+              <div class="total-row"><span id="subLabel">공급가액 (VAT 미포함)</span><b id="subTotal">₩0</b></div>
+              <div class="total-row"><span id="vatLabel">부가세 (10%)</span><b id="vatTotal">₩0</b></div>
               <div class="total-row grand"><span>총 발주액</span><span class="amt" id="grandTotal">₩0</span></div>
             </div>
           </div>
@@ -438,14 +461,35 @@ function recalcLine(el) {
 }
 
 function recalcTotals() {
-  let sub = 0;
+  let base = 0;  // qty×price 합계
   document.querySelectorAll('#linesBody .lines-row').forEach(r => {
     const qty = parseFloat(r.querySelector('.line-input.qty').value) || 0;
     const price = parseFloat(r.querySelector('.line-input.price').value) || 0;
-    sub += qty * price;
+    base += qty * price;
   });
-  const vat = Math.round(sub * 0.1);
-  const grand = sub + vat;
+  // v5H226z58: VAT 모드 기반 계산 (매뉴얼 §3.2 공식)
+  const vatMode = (document.getElementById('hdrVatMode') || {}).value || 'vat_excluded';
+  let sub = 0, vat = 0, grand = 0;
+  if (vatMode === 'vat_included') {
+    sub = Math.round(base / 1.1);
+    vat = Math.round(base - sub);
+    grand = Math.round(base);
+    document.getElementById('subLabel').textContent = '공급가액 (VAT 포함분 환산)';
+    document.getElementById('vatLabel').textContent = '부가세 (포함분 분리)';
+  } else if (vatMode === 'vat_none') {
+    sub = Math.round(base);
+    vat = 0;
+    grand = sub;
+    document.getElementById('subLabel').textContent = '공급가액 (VAT 없음)';
+    document.getElementById('vatLabel').textContent = '부가세 (영세/면세)';
+  } else {
+    // vat_excluded (기본)
+    sub = Math.round(base);
+    vat = Math.round(base * 0.1);
+    grand = sub + vat;
+    document.getElementById('subLabel').textContent = '공급가액 (VAT 미포함)';
+    document.getElementById('vatLabel').textContent = '부가세 (10%)';
+  }
   const fmt = n => '₩' + n.toLocaleString('ko-KR', {maximumFractionDigits: 0});
   document.getElementById('subTotal').textContent = fmt(sub);
   document.getElementById('vatTotal').textContent = fmt(vat);

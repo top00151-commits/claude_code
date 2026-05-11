@@ -1,64 +1,602 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{% if wo %}작업지시 수정{% else %}작업지시 발행{% endif %} · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if wo %}작업지시 {{ wo.wo_no }}{% else %}작업지시 발행{% endif %} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 가공팀 작업지시서
+   모드:
+     1. 신규 (wo=None) → form 작성 / POST /production/work-orders
+     2. 상세 (wo 객체) → 읽기 전용 + status chip + 라인 + 액션 (release / print)
+   라우터 호환 form name:
+     헤더: order_id / project_id / part_id / qty / assigned_to / assigned_name /
+           planned_start / planned_end / specifications / remarks
+     라인 (getlist): line_step / line_duration / line_progress / line_worker / line_remarks #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.frow { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
-.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.fld label .req { color: var(--knk-red); }
-.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.fld textarea { min-height: 80px; resize: vertical; }
-.fld.full { grid-column: span 2; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/production/work-orders">작업지시</a> · <b>{% if wo %}수정{% else %}발행{% endif %}</b></div>
-    <h1 class="page-title">🔨 작업지시 <em>{% if wo %}수정{% else %}발행{% endif %}</em></h1></div>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
 
-  <form method="post" action="{% if wo %}/production/work-orders/{{ wo.id }}/edit{% else %}/production/work-orders/new{% endif %}" class="form-card">
-    <div class="frow">
-      <div class="fld"><label>WO 번호</label><input type="text" name="wo_no" value="{{ wo.wo_no|default('') }}" placeholder="자동 생성"></div>
-      <div class="fld"><label>관리코드 / 프로젝트 <span class="req">*</span></label>
-        <select name="project_id" required>
-          <option value="">— 선택 —</option>
-          {% for p in projects|default([]) %}<option value="{{ p.id }}" {% if wo and wo.project_id == p.id %}selected{% endif %}>{{ p.mgmt_code|default('') }} {{ p.name }}</option>{% endfor %}
-        </select>
+.wo-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.wo-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wo-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.wo-head .crumb a { color: var(--pq-ink-3); }
+.wo-head .crumb b { color: var(--pq-ink); }
+.wo-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wo-title .code { font-family: var(--pq-mono); color: var(--pq-ink); font-size: 18px; opacity: 0.8; }
+.wo-meta { font-size: 12px; color: var(--pq-ink-3); }
+.wo-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.wo-actions { margin-left: auto; display: flex; gap: 8px; }
+.wo-actions a, .wo-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); font-family: inherit; }
+.wo-actions a:hover, .wo-actions button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.wo-actions .btn-dark { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
+.wo-actions .btn-dark:hover { background: #1e293b; }
+
+/* WO status chip */
+.chip-wo { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-wo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-wo.s-draft    { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-wo.s-released { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-wo.s-progress { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-wo.s-done     { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-wo.s-cancel   { background: var(--pq-err-soft); color: var(--pq-err); text-decoration: line-through; }
+
+/* KPI strip (상세 모드) */
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 10px 16px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 4px; line-height: 1.1; }
+.kpi-cell .u { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+
+/* 본문 body */
+.wo-body { display: grid; grid-template-columns: 1fr 280px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.wo-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.wo-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.wo-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.wo-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.wo-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.wo-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.wo-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.wo-card .head .sub { font-size: 11px; color: var(--pq-ink-4); }
+.wo-card .body { padding: 14px 16px; }
+.wo-card .body.tight { padding: 0; }
+
+/* 필드 */
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.field-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field textarea { min-height: 72px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); margin-top: -2px; }
+
+/* 라인 표 */
+.lines { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.lines-head, .lines-row { display: grid; grid-template-columns: 40px 1.6fr 110px 110px 1fr 1fr 36px; gap: 8px; align-items: center; }
+.lines-head { background: var(--pq-surface-2); padding: 8px 12px; border-bottom: 1px solid var(--pq-line-2); font-size: 10.5px; font-weight: 600; color: var(--pq-ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.lines-row { padding: 7px 12px; border-bottom: 1px solid var(--pq-line); }
+.lines-row:hover { background: var(--pq-surface-inset); }
+.lines-row:last-child { border-bottom: 0; }
+.line-num { font-size: 11.5px; color: var(--pq-ink-4); font-weight: 700; text-align: center; font-family: var(--pq-mono); }
+.line-input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--pq-line-2); border-radius: 4px; background: var(--pq-surface); font-family: inherit; color: var(--pq-ink); width: 100%; }
+.line-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.06); }
+.line-input.num { text-align: right; font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
+.line-del { background: transparent; border: 1px solid var(--pq-line-2); border-radius: 4px; padding: 5px 7px; font-size: 12px; color: var(--pq-ink-4); cursor: pointer; line-height: 1; }
+.line-del:hover { background: var(--pq-err-soft); color: var(--pq-err); border-color: var(--pq-err); }
+.lines-add { padding: 10px 12px; background: var(--pq-surface-2); border-top: 1px dashed var(--pq-line-2); display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-add-line { background: transparent; border: 1px dashed var(--pq-line-2); border-radius: 6px; padding: 7px 12px; font-size: 11.5px; color: var(--pq-ink-3); cursor: pointer; font-weight: 600; font-family: inherit; }
+.btn-add-line:hover { background: var(--pq-surface); border-style: solid; color: var(--pq-ink); }
+.btn-add-line.preset { background: var(--pq-info-soft); border-color: var(--pq-info); color: var(--pq-info); border-style: solid; }
+
+/* 진행률 바 */
+.progress-bar { display: inline-flex; align-items: center; gap: 6px; }
+.progress-bar .bar { width: 80px; height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
+.progress-bar .fill { height: 100%; background: var(--pq-info); transition: width .2s; }
+.progress-bar .fill.done { background: var(--pq-ok); }
+
+/* 읽기 전용 ERP 표 (상세 모드 라인) */
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 30px; padding: 5px 10px; background: var(--pq-surface-2); color: var(--pq-ink-3); font-weight: 600; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 5px 10px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+/* def list (사이드 카드) */
+.def { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; font-size: 12px; }
+.def dt { color: var(--pq-ink-4); font-weight: 500; }
+.def dd { color: var(--pq-ink); margin: 0; }
+.def dd .mono { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+
+/* 액션 바 (신규 폼) */
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
+.btn-secondary:hover { background: var(--pq-surface-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+.btn-success { background: var(--pq-ok); color: #fff; }
+.btn-success:hover { background: #0a5e3b; }
+
+@media (max-width: 1280px) {
+  .wo-body { grid-template-columns: 1fr; }
+  .wo-side { position: static; }
+}
+@media (max-width: 1023px) {
+  .field-row, .field-row.cols-3, .field-row.cols-4 { grid-template-columns: 1fr; }
+  .lines-head, .lines-row { grid-template-columns: 32px 1.4fr 80px 80px 1fr 36px; gap: 6px; }
+  .lines-head .col-worker, .lines-row .col-worker { display: none; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+{% set is_view = wo is not none %}
+{% set st = (wo.status if is_view else 'DRAFT') %}
+{% set st_cls =
+    's-draft' if st == 'DRAFT' else
+    's-released' if st == 'RELEASED' else
+    's-progress' if st == 'IN_PROGRESS' else
+    's-done' if st == 'COMPLETED' else
+    's-cancel' if st == 'CANCELLED' else 's-draft' %}
+
+<div class="app">
+  {% set active_tab = "work_orders" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="wo-page">
+
+      <!-- 헤더 -->
+      <div class="wo-head" data-dn="wo:head">
+        <div>
+          <div class="crumb"><a href="/production/work-orders">작업지시</a> · <b>{% if is_view %}{{ wo.wo_no|default('—') }}{% else %}새 작업지시 발행{% endif %}</b></div>
+          <div class="wo-title">
+            {% if is_view %}
+            <span class="code">{{ wo.wo_no|default('—') }}</span>
+            <span class="chip-wo {{ st_cls }}">{{ st }}</span>
+            <span>{{ wo.part_disp|default(wo.specifications|default('작업지시'))|truncate(40) }}</span>
+            {% else %}
+            <span>🔨 새 작업지시 발행</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if is_view %}
+        <div class="wo-meta">
+          <span>발행 <span class="pm-num">{{ (wo.created_at or '')[:10] }}</span></span>
+          {% if wo.planned_end %}<span>·</span><span>완료 예정 <span class="pm-num">{{ wo.planned_end }}</span></span>{% endif %}
+        </div>
+        {% endif %}
+        <div class="wo-actions">
+          <a href="/production/work-orders">↩ 목록</a>
+          {% if is_view %}
+          <a href="/production/work-orders/{{ wo.id }}/print" target="_blank">🖨 인쇄</a>
+          {% if st == 'DRAFT' %}
+          <button type="button" class="btn-dark" onclick="releaseWO()">📤 발행</button>
+          {% endif %}
+          {% endif %}
+        </div>
       </div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>제품명 <span class="req">*</span></label><input type="text" name="product_name" required value="{{ wo.product_name|default('') }}"></div>
-      <div class="fld"><label>수량 <span class="req">*</span></label><input type="number" name="qty" min="1" required value="{{ wo.qty|default(1) }}"></div>
-    </div>
-    <div class="frow">
-      <div class="fld"><label>담당</label>
-        <select name="assignee_id">
-          <option value="">— 미배정 —</option>
-          {% for u in users|default([]) %}<option value="{{ u.id }}" {% if wo and wo.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-        </select>
+
+      {% if is_view %}
+      <!-- 상세 모드: KPI 4 + 정보 + 라인 표 -->
+      <div class="kpi-strip" data-dn="wo:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">생산 수량</div>
+          <div class="v">{{ '{:,.0f}'.format(wo.qty|default(0)) }}<span class="u">{{ wo.part_unit|default('EA') }}</span></div>
+          <div class="sub">{{ wo.part_disp|default('—')|truncate(20) }}</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">평균 진행률</div>
+          <div class="v">{{ wo.avg_progress|default(0) }}<span class="u">%</span></div>
+          <div class="sub">{{ wo.items|length }}개 공정</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">계획 기간</div>
+          <div class="v" style="font-size:16px;">{{ wo.planned_start|default('—') }}<span class="u">~ {{ wo.planned_end|default('—') }}</span></div>
+          <div class="sub">{% if wo.actual_end %}실제 완료 {{ wo.actual_end }}{% else %}진행 예정{% endif %}</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 공수</div>
+          <div class="v">{{ wo.items|sum(attribute='duration_min') if wo.items else 0 }}<span class="u">분</span></div>
+          <div class="sub">{{ (wo.items|sum(attribute='duration_min') if wo.items else 0) // 60 }}시간 환산</div>
+        </div>
       </div>
-      <div class="fld"><label>상태</label>
-        <select name="status">
-          <option value="PLANNED" {% if not wo or wo.status == 'PLANNED' %}selected{% endif %}>계획</option>
-          <option value="IN_PROGRESS" {% if wo and wo.status == 'IN_PROGRESS' %}selected{% endif %}>진행</option>
-          <option value="DONE" {% if wo and wo.status == 'DONE' %}selected{% endif %}>완료</option>
-          <option value="CANCELLED" {% if wo and wo.status == 'CANCELLED' %}selected{% endif %}>취소</option>
-        </select>
+
+      <div class="wo-body">
+
+        <div class="wo-main">
+
+          <!-- 정보 카드 -->
+          <div class="wo-card" data-dn="wo:info" data-dn-tone="blue">
+            <div class="head"><h3>📋 작업지시 정보</h3></div>
+            <div class="body">
+              <div class="field-row cols-3">
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">WO 번호</div>
+                  <b style="font-family:var(--pq-mono);font-size:13px;">{{ wo.wo_no|default('—') }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">수주</div>
+                  <b>{{ wo.order_no_disp|default('—') }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">프로젝트</div>
+                  <b>{{ wo.project_disp|default('—') }}</b></div>
+              </div>
+              <div class="field-row cols-3" style="margin-top:12px;">
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">가공 부품</div>
+                  <b>{{ wo.part_disp|default('—') }}</b>
+                  {% if wo.part_no and wo.part_no != '-' %}<div style="font-family:var(--pq-mono);font-size:11px;color:var(--pq-ink-4);">{{ wo.part_no }}</div>{% endif %}</div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">담당자</div>
+                  <b>{{ wo.assigned_disp|default('—') }}</b></div>
+                <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">작성자</div>
+                  <b>{{ wo.created_by_disp|default('—') }}</b></div>
+              </div>
+              {% if wo.specifications %}
+              <div style="margin-top:12px;">
+                <div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">가공 사양</div>
+                <div style="background:var(--pq-surface-inset);border-radius:6px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;">{{ wo.specifications }}</div>
+              </div>
+              {% endif %}
+              {% if wo.remarks %}
+              <div style="margin-top:12px;">
+                <div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">비고</div>
+                <div style="background:var(--pq-surface-inset);border-radius:6px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;">{{ wo.remarks }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- 라인 (공정) -->
+          <div class="wo-card" data-dn="wo:steps" data-dn-tone="purple">
+            <div class="head">
+              <h3>🔧 공정 단계 ({{ wo.items|length }})</h3>
+              <span class="sub">진행률 합계 평균 {{ wo.avg_progress|default(0) }}%</span>
+            </div>
+            <div class="body tight">
+              {% if wo.items %}
+              <table class="tbl-erp">
+                <thead>
+                  <tr>
+                    <th class="center" style="width:36px;">#</th>
+                    <th>공정명</th>
+                    <th class="num" style="width:90px;">공수(분)</th>
+                    <th class="center" style="width:140px;">진행률</th>
+                    <th style="width:120px;">작업자</th>
+                    <th>비고</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for it in wo.items %}
+                  {% set pg = it.progress|default(0)|int %}
+                  {% set pg_cls = 'done' if pg >= 100 else '' %}
+                  <tr>
+                    <td class="center mute">{{ it.line_no|default(loop.index) }}</td>
+                    <td><b>{{ it.step_name|default('—') }}</b></td>
+                    <td class="num">{{ it.duration_min|default(0) }}</td>
+                    <td class="center">
+                      <div class="progress-bar">
+                        <div class="bar"><div class="fill {{ pg_cls }}" style="width:{{ pg }}%;"></div></div>
+                        <span class="num" style="font-size:11px;">{{ pg }}%</span>
+                      </div>
+                    </td>
+                    <td>{{ it.worker_disp|default(it.worker_name|default('—')) }}</td>
+                    <td class="mute" style="font-size:11.5px;">{{ it.remarks|default('—')|truncate(40) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div style="padding:28px 16px;text-align:center;color:var(--pq-ink-4);font-size:12.5px;">
+                공정 라인 없음
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 사이드 -->
+        <aside class="wo-side" data-dn="wo:side" data-dn-tone="blue">
+          <div class="wo-card">
+            <div class="head"><h3>요약</h3></div>
+            <div class="body">
+              <dl class="def">
+                <dt>상태</dt><dd><span class="chip-wo {{ st_cls }}">{{ st }}</span></dd>
+                <dt>WO 번호</dt><dd class="mono">{{ wo.wo_no|default('—') }}</dd>
+                <dt>수량</dt><dd class="mono">{{ '{:,.0f}'.format(wo.qty|default(0)) }} {{ wo.part_unit|default('EA') }}</dd>
+                <dt>평균 진행</dt><dd class="mono">{{ wo.avg_progress|default(0) }}%</dd>
+                <dt>공정 수</dt><dd class="mono">{{ wo.items|length }}</dd>
+                <dt>총 공수</dt><dd class="mono">{{ wo.items|sum(attribute='duration_min') if wo.items else 0 }}분</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="wo-card">
+            <div class="head"><h3>💡 가이드</h3></div>
+            <div class="body">
+              <div class="help-tip">
+                <b>DRAFT</b>: 작성 중<br>
+                <b>RELEASED</b>: 발행 완료 (자재 출고 가능)<br>
+                <b>IN_PROGRESS</b>: 작업 진행 중<br>
+                <b>COMPLETED</b>: 완료 (생산 입고)<br>
+                <b>CANCELLED</b>: 취소
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
+
+      <!-- 발행 form (hidden) -->
+      <form id="releaseForm" method="post" action="/production/work-orders/{{ wo.id }}/release" style="display:none;"></form>
+
+      {% else %}
+      <!-- 신규 모드: 폼 -->
+      <form method="post" action="/production/work-orders" id="woForm">
+        <div class="wo-body">
+
+          <div class="wo-main">
+
+            <!-- 섹션 1: 기본정보 -->
+            <div class="wo-card" data-dn="wo:basic" data-dn-tone="green">
+              <div class="head"><h3>기본정보 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>수주 (선택)</label>
+                    <select name="order_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for o in orders|default([]) %}
+                      <option value="{{ o.id }}">{{ o.order_no }} · {{ o.cust_name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>프로젝트 (선택)</label>
+                    <select name="project_id">
+                      <option value="">— 선택 안함 —</option>
+                      {% for p in projects|default([]) %}
+                      <option value="{{ p.id }}">{{ p.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>가공 부품 (선택)</label>
+                    <select name="part_id">
+                      <option value="">— 자유 사양 —</option>
+                      {% for p in parts_options|default([]) %}
+                      <option value="{{ p.id }}">{{ p.name }} {% if p.spec %}· {{ p.spec }}{% endif %}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">등록 부품 없으면 사양 자유 입력 (아래 가공 사양)</div>
+                  </div>
+                  <div class="field">
+                    <label>가공 수량 <span class="req">*</span></label>
+                    <input type="number" name="qty" min="0.01" step="0.01" required value="1" class="mono" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 일정·담당자 -->
+            <div class="wo-card" data-dn="wo:schedule" data-dn-tone="blue">
+              <div class="head"><h3>일정 · 담당자</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>담당자 (선택)</label>
+                    <select name="assigned_to">
+                      <option value="">— 선택 안함 —</option>
+                      {% for u in users_options|default([]) %}
+                      <option value="{{ u.id }}">{{ u.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>담당자명 (스냅샷)</label>
+                    <input type="text" name="assigned_name" placeholder="외부 담당자 시 직접 입력" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>계획 시작일</label>
+                    <input type="date" name="planned_start" value="{{ today|default('') }}" />
+                  </div>
+                  <div class="field">
+                    <label>계획 종료일</label>
+                    <input type="date" name="planned_end" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 3: 가공 사양 -->
+            <div class="wo-card" data-dn="wo:spec" data-dn-tone="blue">
+              <div class="head"><h3>가공 사양 · 비고</h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>가공 사양 (specifications)</label>
+                    <textarea name="specifications" placeholder="치수·정밀도·재질·표면처리·검수 기준 등"></textarea>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>비고 (remarks)</label>
+                    <textarea name="remarks" rows="2" placeholder="특이사항·납기·우선순위"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 4: 공정 단계 -->
+            <div class="wo-card" data-dn="wo:steps" data-dn-tone="purple">
+              <div class="head">
+                <h3>🔧 공정 단계</h3>
+                <span class="sub">표준 공정 또는 자유 입력</span>
+              </div>
+              <div class="body tight">
+                <div class="lines">
+                  <div class="lines-head">
+                    <div>#</div>
+                    <div>공정명</div>
+                    <div>공수 (분)</div>
+                    <div>진행률 (%)</div>
+                    <div class="col-worker">작업자</div>
+                    <div>비고</div>
+                    <div></div>
+                  </div>
+                  <div id="linesBody">
+                    <!-- JS로 동적 라인 추가. 초기에는 표준 공정 자동 채움 -->
+                  </div>
+                  <div class="lines-add">
+                    <button type="button" class="btn-add-line preset" onclick="loadStdSteps()">📋 표준 공정 일괄 추가 ({% for s in WO_STD_STEPS %}{{ s[0] }}{% if not loop.last %} / {% endif %}{% endfor %})</button>
+                    <button type="button" class="btn-add-line" onclick="addLine()">＋ 공정 추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 우측 사이드 -->
+          <aside class="wo-side" data-dn="wo:side" data-dn-tone="blue">
+            <div class="wo-card">
+              <div class="head"><h3>발행 가이드</h3></div>
+              <div class="body">
+                <div class="help-tip">
+                  <b>WO 번호</b>는 저장 시 <b>WO-YYYY-####</b> 자동 발급됩니다.<br><br>
+                  ① 필수 — 수량 + 사양 (또는 등록 부품)<br>
+                  ② 권장 — 담당자 + 계획 시작/종료일<br>
+                  ③ 권장 — 공정 단계 (표준 공정 일괄 추가 권장)
+                </div>
+              </div>
+            </div>
+
+            <div class="wo-card">
+              <div class="head"><h3>표준 공정 ({{ WO_STD_STEPS|length }})</h3></div>
+              <div class="body">
+                <dl class="def">
+                  {% for s in WO_STD_STEPS %}
+                  <dt>{{ s[0] }}</dt><dd class="mono">{{ s[1] }}분</dd>
+                  {% endfor %}
+                </dl>
+              </div>
+            </div>
+          </aside>
+
+        </div>
+
+        <!-- 액션 바 -->
+        <div class="action-bar" data-dn="wo:action" data-dn-tone="amber">
+          <div class="info">💾 <b>새 작업지시 발행</b> — 저장 시 WO 번호 자동 발급 + DRAFT 상태</div>
+          <div class="btns">
+            <a href="/production/work-orders" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary">발행 →</button>
+          </div>
+        </div>
+      </form>
+      {% endif %}
+
     </div>
-    <div class="frow">
-      <div class="fld"><label>시작 예정</label><input type="date" name="start_date" value="{{ wo.start_date|default('') }}"></div>
-      <div class="fld"><label>완료 예정</label><input type="date" name="end_date" value="{{ wo.end_date|default('') }}"></div>
-    </div>
-    <div class="frow">
-      <div class="fld full"><label>작업 지시 / 비고</label><textarea name="instructions" placeholder="작업 절차·주의사항·검수 기준">{{ wo.instructions|default('') }}</textarea></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/production/work-orders">취소</a>
-      <button class="btn btn-primary" type="submit">📤 {% if wo %}저장{% else %}발행{% endif %}</button>
-    </div>
-  </form>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+
+<script>
+{% if is_view %}
+function releaseWO() {
+  if (!confirm('이 작업지시를 정식 발행하시겠습니까?\n\nDRAFT → RELEASED 로 상태 변경되며,\n자재 출고 처리가 가능해집니다.')) return;
+  document.getElementById('releaseForm').submit();
+}
+{% else %}
+const WO_STD_STEPS = [
+  {% for s in WO_STD_STEPS %}{ name: '{{ s[0] }}', dur: {{ s[1] }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+let lineIdx = 0;
+
+function addLine(name, dur, prog, worker, rmk) {
+  const body = document.getElementById('linesBody');
+  const idx = lineIdx++;
+  const div = document.createElement('div');
+  div.className = 'lines-row';
+  div.dataset.line = idx;
+  div.innerHTML = `
+    <div class="line-num">${String(idx + 1).padStart(2, '0')}</div>
+    <input class="line-input" name="line_step" value="${name || ''}" placeholder="예: 절삭 / 연마 / 검수" />
+    <input class="line-input num" name="line_duration" type="number" min="0" step="1" value="${dur || 0}" />
+    <input class="line-input num" name="line_progress" type="number" min="0" max="100" step="1" value="${prog || 0}" />
+    <input class="line-input col-worker" name="line_worker" value="${worker || ''}" placeholder="작업자명" />
+    <input class="line-input" name="line_remarks" value="${rmk || ''}" placeholder="비고" />
+    <button type="button" class="line-del" onclick="delLine(this)">×</button>
+  `;
+  body.appendChild(div);
+  renumber();
+}
+
+function delLine(btn) {
+  btn.closest('.lines-row').remove();
+  renumber();
+}
+
+function renumber() {
+  document.querySelectorAll('#linesBody .lines-row').forEach((r, i) => {
+    r.querySelector('.line-num').textContent = String(i + 1).padStart(2, '0');
+  });
+}
+
+function loadStdSteps() {
+  // 기존 라인 모두 지우고 표준 공정으로 채움
+  document.getElementById('linesBody').innerHTML = '';
+  lineIdx = 0;
+  WO_STD_STEPS.forEach(s => addLine(s.name, s.dur, 0, '', ''));
+}
+
+// 초기: 라인 1개 빈 행
+document.addEventListener('DOMContentLoaded', () => {
+  addLine('', 0, 0, '', '');
+});
+{% endif %}
+</script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

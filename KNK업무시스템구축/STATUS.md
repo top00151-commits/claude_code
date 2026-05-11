@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z71 (**2차 통합 사이클 #2 + 자동 검증 완료**)
+> **마지막 갱신:** 2026-05-11 v5H226z72 (**3차 통합 사이클 — 01C 잔여 26p 완료**)
 
 ---
 
@@ -21,25 +21,40 @@
 
 ## 🟢 통합 완료 (2026-05-10 ~ 11)
 
-### 2차 통합 사이클 — z71 / 65 페이지
+### 3차 통합 사이클 — z72 / **91 페이지** (방금)
 
 | 팀 | 페이지 | 진행률 | 핵심 |
 |---|---|---|---|
-| **01A 통합플랫폼** | **22 / 22** | **100% 🟢** | Quiet Tone v3 토큰 + data-dn 93개. v5 잔존 0건 (완벽) |
-| **01B 매출영업** | **27 / 30+** | **~90% 🟢** | 그룹 H 8p 완벽 / v1 차수 19p 부분 적용. .mgmt-pill 15곳 |
-| **01C 자재구매** | **16 / 30+** | **~50% 🟡** | partial 의존 모드 (v5 잔존 0건, qv 직접 0건) |
-| **합계** | **65 페이지** | **~50%** | v5H226z59 → z71 |
+| **01A 통합플랫폼** | **22 / 22** | **100% 🟢** | (z71 그대로 + 일부 추가 갱신) |
+| **01B 매출영업** | **27 / 30+** | **~90% 🟢** | (z71 그대로 + sales_home·project_detail 추가) |
+| **01C 자재구매** | **42 / ~50** | **~85% 🟢** | **+26p 신규** (part·wo·qc·qms·rates·stock 전 확장) |
+| **합계** | **91 페이지** | **~70%** | v5H226z71 → z72 |
+
+추가 변경:
+- `app/main.py` parts_new/edit 폼 **신규 13 필드** (자재모듈 표준 v2)
+- `app/database.py` 자재 컬럼 확장 (+138/-11 lines)
+- 라우트 추가 0건 (form field 확장만)
+
+### 2차 통합 사이클 — z71 / 65 페이지 (보존)
+
+| 팀 | 페이지 |
+|---|---|
+| 01A | 22 / 22 (100%) |
+| 01B | 27 / 30+ (~90%, 그룹 H 8p 완벽 / v1 19p 부분) |
+| 01C | 16 / 30+ (~50%) |
+| 합계 | 65p / commit 41880b7 |
 
 ### 커밋 / 태그 / BAT
 
 | 항목 | 값 |
 |---|---|
-| 통합 commit | `41880b7` (77 files, +6455/-2395) |
-| BAT 정정 | `5e3eff6` (echo 날짜 → 2026-05-11) |
-| 롤백 직전 | `rollback-20260510-pre-integration-z71` |
-| 롤백 직후 | `rollback-20260510-z71-integrated` |
-| **메인 BAT** | KNK_시작.bat / START.bat 모두 z71 통합 ✅ |
-| debug_overlay | z27 → z71 |
+| z72 통합 commit | (방금) |
+| z71 통합 commit | `41880b7` (77 files) |
+| 롤백 직전 z72 | `rollback-20260511-pre-integration-z72` |
+| 롤백 직전 z71 | `rollback-20260510-pre-integration-z71` |
+| 롤백 직후 z71 | `rollback-20260510-z71-integrated` |
+| **메인 BAT** | KNK_시작.bat / START.bat 모두 z72 통합 ✅ (3곳 동기화) |
+| debug_overlay | z72 |
 
 ---
 
@@ -113,6 +128,21 @@
 
 ## 📌 빅터 작업 메모
 
+### z72 (2026-05-11) — 3차 통합 사이클 + BAT 룰 강화
+
+**통합:**
+- 01C 자재구매 +26p (잔여 14p 명목 → 실제 26p)
+- 자재모듈 표준 v2 — main.py parts_new/edit 13 신규 필드 + database.py 컬럼 확장
+- 01A·01B 일부 페이지 추가 갱신
+
+**룰 강화 (대표 명시):**
+- "통합" 지시 시 BAT 필수 갱신 — 메모리 §5 신설
+- BAT LAST UPDATE 날짜 = 오늘 날짜 — 메모리 §2-1 신설
+- 3곳(LAST UPDATE / title / echo) 동일 날짜·동일 버전 동기화
+
+**1 commit 묶음 (룰 적용):**
+- 변경 템플릿/코드 + BAT(3곳×2) + debug_overlay + STATUS + 롤백 태그 2개
+
 ### z71 (2026-05-10~11) — 2차 통합 사이클 + 전면 자동 검증
 
 **통합 단계 (5/10):**
@@ -145,9 +175,12 @@ home·daily·weekly·now·team·cockpit · notifications·calendar·search · ti
 **부분 (v1):** project_detail·projects·project_form · sales_orders·sales_home·sales_order_detail · customer_detail·customer_form·customers_list · sales_quotations·quote_detail·quote_form · sales_shipments_receipts·outstanding·aging·dashboard·forecast·production
 **잔여 3p:** 소모품 외
 
-### 01C 자재구매 — 16/30+ ≈ 50% 🟡
-**완료:** po_list·po_detail·po_form·po_receive · logistics_home · parts·suppliers · stock×7 · wo_list·qc_report_list
-**잔여 14p:** part_detail·part_form·part_prices·supplier_form · wo_form·wo_detail · qc_form·qc_detail · qms×4 · rates×5
+### 01C 자재구매 — 42/~50 ≈ 85% 🟢 (z72에서 +26p)
+**완료 (z71):** po_list·po_detail·po_form·po_receive · logistics_home · parts·suppliers · stock×7 · wo_list·qc_report_list
+**z72 추가 (26p):** part_detail·part_form·part_prices·supplier_form · wo_form·wo_print · qc_report_form·qc_report_print · qms×4 (capa·dashboard·pareto·recurrence) · rates×5 (rates·alerts·cost_sim·dashboard·history) · stock×7 (adjust·adjustment·audit·audits·fifo·issue·issues·qc) · fx_rates
+**잔여:** consumables 세부 화면 등 ~8p
+
+⚠️ z72 신규 14p 토큰 검수: part_detail (old 7), part_form (old 10), part_prices (old 2) — v5 잔존. partial 의존이지만 인라인 잔존 있음. 02 차수 권장.
 
 ### 빅터(01) 책임 — 공통/관리자
 - [x] chrome.html / styles.html / design_quiet_v3.html / debug_overlay.html (z71)

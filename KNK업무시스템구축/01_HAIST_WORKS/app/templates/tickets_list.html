@@ -3,6 +3,7 @@
 {# tickets_list.html — 티켓 목록
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
+<style>.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }</style>
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="tickets-main">
@@ -15,7 +16,7 @@
     </div>
   </div>
 
-  <form data-dn="tickets-filterbar" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/tickets">
+  <form data-dn="tickets-filterbar" style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 0 var(--space-4);flex-wrap:wrap;" method="get" action="/tickets">
     <input type="hidden" name="scope" value="{{ scope|default('mine') }}">
     <input type="search" name="q" value="{{ q }}" placeholder="제목 / 내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
     <select name="status" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">

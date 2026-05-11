@@ -1,178 +1,290 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>WORK ORDER — {{ wo.wo_no }}</title>
+<meta charset="UTF-8" />
+<title>작업지시서 · {{ wo.wo_no }} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 모노 인쇄 친화 — 가공팀 작업지시서 (Work Order)
+   외부 라이브러리 0건, 외부 자산 0건. A4 + @media print + 도장란.
+   라우터: GET /production/work-orders/{wo_id}/print
+   전달: wo (full dict + items) / company (회사 정보 dict) #}
+
 <style>
-  /* 인쇄 친화 (A4). 외부 라이브러리 0건 · 작업자 지참용 종이. */
-  @page { size: A4; margin: 14mm 12mm; }
-  *  { box-sizing: border-box; }
-  body { font-family: "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
-         color:#111; font-size:10.5pt; margin:0; padding:18px; background:#fafafa; }
-  .sheet { background:#fff; max-width:820px; margin:0 auto; padding:22px 26px;
-           border:1px solid #ddd; }
-  h1 { text-align:center; font-size:18pt; letter-spacing:1.5px; margin:0 0 2px;
-       border-bottom:2px solid #111; padding-bottom:6px; color:#1B5E20; }
-  h2 { text-align:center; font-size:11.5pt; color:#444; margin:4px 0 12px; font-weight:400; }
-  .meta { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:10pt; }
-  .meta td { border:1px solid #888; padding:5px 7px; vertical-align:top; }
-  .meta .lbl { background:#f3f3f3; width:22%; font-weight:600; }
-  .lines { width:100%; border-collapse:collapse; margin-top:8px; font-size:9.5pt; }
-  .lines th, .lines td { border:1px solid #888; padding:4px 6px; }
-  .lines th { background:#f3f3f3; font-weight:600; text-align:center; }
-  .lines td.center { text-align:center; }
-  .check-cell { width:40px; text-align:center; }
-  .check-box { display:inline-block; width:14px; height:14px; border:1.5px solid #333;
-               vertical-align:middle; }
-  .progress-bar { background:#eee; height:14px; position:relative; border:1px solid #999; }
-  .progress-fill { background:#2E7D32; height:100%; }
-  .progress-text { position:absolute; top:0; left:0; right:0; text-align:center;
-                   font-size:8.5pt; color:#111; line-height:14px; font-weight:700; }
-  .sig { display:flex; justify-content:space-between; margin-top:24px; font-size:10pt; gap:12px; }
-  .sig div { width:46%; border-top:1px solid #999; padding-top:6px; text-align:center; min-height:60px; }
-  .actions { text-align:center; margin:0 0 14px; }
-  .btn { display:inline-block; padding:6px 14px; background:#2E7D32; color:#fff;
-         border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
-  .btn-back { background:#666; margin-left:8px; }
-  .declaration { margin-top:14px; padding:10px 12px; background:#fafaf3; border:1px dashed #aaa;
-                 font-size:9.5pt; line-height:1.5; }
-  @media print {
-    body { background:#fff; padding:0; }
-    .sheet { border:none; padding:0; max-width:none; }
-    .actions, .no-print { display:none !important; }
-  }
+@page { size: A4; margin: 14mm 12mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Pretendard", "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif;
+  color: #0f172a; font-size: 10.5pt; margin: 0; padding: 14px;
+  background: #f7f8fa; line-height: 1.4;
+}
+.sheet {
+  background: #ffffff; max-width: 820px; margin: 0 auto;
+  padding: 24px 28px; border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  position: relative;
+}
+
+/* 헤더 */
+.head { display: flex; align-items: flex-start; gap: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+.head .logo { font-size: 9pt; color: #64748b; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; }
+.head .company { font-size: 13pt; font-weight: 700; color: #0f172a; margin-top: 2px; }
+.head .addr { font-size: 8.5pt; color: #64748b; margin-top: 2px; line-height: 1.3; }
+.head .title { margin-left: auto; text-align: right; }
+.head .title h1 { font-size: 18pt; font-weight: 700; margin: 0; letter-spacing: 0.04em; color: #0f172a; }
+.head .title .sub { font-size: 9pt; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+
+/* 메타 표 */
+.meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9.5pt; }
+.meta td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: middle; }
+.meta td.lbl { background: #f7f8fa; width: 13%; font-weight: 600; color: #64748b; font-size: 9pt; letter-spacing: 0.02em; text-transform: uppercase; }
+.meta td.val { width: 20%; font-weight: 600; color: #0f172a; }
+.meta td.val.mono { font-family: ui-monospace, Consolas, monospace; }
+.meta td.val.big { font-size: 11pt; }
+
+/* status chip */
+.chip { display: inline-block; padding: 1px 7px; font-size: 9pt; font-weight: 700; border-radius: 3px; font-family: ui-monospace, Consolas, monospace; }
+.chip.s-draft    { background: #eef0f4; color: #64748b; }
+.chip.s-released { background: #eff6ff; color: #1e5fbf; }
+.chip.s-progress { background: #fef3c7; color: #b45309; }
+.chip.s-done     { background: #ecfdf5; color: #0d7c4f; }
+.chip.s-cancel   { background: #fef2f2; color: #b91c1c; text-decoration: line-through; }
+
+/* 사양 박스 */
+.spec-box {
+  border: 1px solid #cbd5e1; border-radius: 3px; padding: 10px 12px;
+  font-size: 9.5pt; line-height: 1.6; white-space: pre-wrap; background: #fafbfc;
+  margin-bottom: 12px; min-height: 60px;
+}
+.spec-box.empty { color: #94a3b8; font-style: italic; }
+.section-lbl { font-size: 9pt; font-weight: 600; color: #64748b; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+
+/* 공정 표 */
+.lines { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 9pt; }
+.lines th, .lines td { border: 1px solid #cbd5e1; padding: 5px 7px; }
+.lines th { background: #f7f8fa; font-weight: 600; color: #64748b; text-align: center; font-size: 8.5pt; letter-spacing: 0.02em; text-transform: uppercase; }
+.lines td.num { font-family: ui-monospace, Consolas, monospace; text-align: right; }
+.lines td.center { text-align: center; }
+.lines td.mute { color: #94a3b8; }
+.lines tfoot td { background: #f7f8fa; font-weight: 700; }
+
+/* 진행률 바 */
+.pgbar { position: relative; height: 14px; background: #eef0f4; border-radius: 2px; overflow: hidden; }
+.pgbar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #1e5fbf; }
+.pgbar .fill.done { background: #0d7c4f; }
+.pgbar .lbl { position: absolute; inset: 0; text-align: center; font-size: 8.5pt; line-height: 14px; font-weight: 600; color: #0f172a; }
+
+/* 비고 박스 */
+.remarks-box {
+  border: 1px solid #cbd5e1; border-radius: 3px; padding: 10px 12px;
+  font-size: 9.5pt; line-height: 1.6; white-space: pre-wrap; background: #fafbfc;
+  min-height: 40px; margin-bottom: 14px;
+}
+.remarks-box.empty { color: #94a3b8; font-style: italic; min-height: 24px; }
+
+/* 도장란 (4종) */
+.stamp-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+.stamp-cell { border: 1px solid #cbd5e1; min-height: 84px; display: flex; flex-direction: column; }
+.stamp-cell .lbl { background: #f7f8fa; padding: 4px 8px; font-size: 8.5pt; font-weight: 600; color: #64748b; text-align: center; border-bottom: 1px solid #cbd5e1; letter-spacing: 0.04em; }
+.stamp-cell .body { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; }
+.stamp-cell .name-line { border-bottom: 1px solid #94a3b8; min-height: 16px; padding-bottom: 2px; font-size: 9pt; color: #0f172a; }
+.stamp-cell .date-line { font-size: 8pt; color: #94a3b8; text-align: right; }
+.stamp-cell .filled { font-weight: 600; color: #0f172a; }
+
+/* 푸터 */
+.foot {
+  margin-top: 12px; padding-top: 8px; border-top: 1px solid #e2e8f0;
+  font-size: 8pt; color: #94a3b8; display: flex; justify-content: space-between;
+}
+.foot .id { font-family: ui-monospace, Consolas, monospace; }
+
+/* 인쇄 액션 */
+.print-bar { max-width: 820px; margin: 0 auto 12px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+.print-bar a, .print-bar button {
+  padding: 6px 14px; font-size: 10pt; font-weight: 500;
+  border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; color: #64748b;
+  text-decoration: none; cursor: pointer; font-family: inherit;
+}
+.print-bar button.btn-print { background: #0f172a; border-color: #0f172a; color: #fff; font-weight: 600; }
+.print-bar a:hover, .print-bar button:hover { background: #f7f8fa; }
+.print-bar button.btn-print:hover { background: #1e293b; color: #fff; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .sheet { border: 0; padding: 0; max-width: none; }
+  .print-bar { display: none; }
+  .foot { color: #cbd5e1; }
+}
 </style>
 </head>
 <body>
-<div class="actions no-print">
-  <button class="btn" onclick="window.print()">인쇄 / Print</button>
-  <a class="btn btn-back" href="/production/work-orders/{{ wo.id }}">돌아가기 / Back</a>
-</div>
-<div class="sheet">
-  <h1>WORK ORDER</h1>
-  <h2>가공 작업지시서 · {{ wo.status }}</h2>
+{% set st = wo.status|default('DRAFT') %}
+{% set st_cls =
+    's-draft' if st == 'DRAFT' else
+    's-released' if st == 'RELEASED' else
+    's-progress' if st == 'IN_PROGRESS' else
+    's-done' if st == 'COMPLETED' else
+    's-cancel' if st == 'CANCELLED' else 's-draft' %}
+{% set total_dur = wo.items|sum(attribute='duration_min') if wo.items else 0 %}
 
+<!-- 화면 액션 (인쇄 시 숨김) -->
+<div class="print-bar">
+  <a href="/production/work-orders/{{ wo.id }}">↩ 상세로 돌아가기</a>
+  <button type="button" class="btn-print" onclick="window.print()">🖨 인쇄 (Ctrl+P)</button>
+</div>
+
+<div class="sheet">
+
+  <!-- 헤더 -->
+  <div class="head">
+    <div>
+      <div class="logo">KNK · HAIST WORKS</div>
+      <div class="company">{{ company.company_name_ko|default('주식회사 케이엔케이 (KNK)') }}</div>
+      <div class="addr">
+        {{ company.company_address|default('') }}{% if company.company_tel %} · TEL {{ company.company_tel }}{% endif %}{% if company.company_fax %} · FAX {{ company.company_fax }}{% endif %}<br>
+        {% if company.company_biz_no %}사업자번호 {{ company.company_biz_no }}{% endif %}
+        {% if company.company_ceo_ko %} · 대표 {{ company.company_ceo_ko }}{% endif %}
+        {% if company.company_email %} · {{ company.company_email }}{% endif %}
+      </div>
+    </div>
+    <div class="title">
+      <h1>작 업 지 시 서</h1>
+      <div class="sub">WORK ORDER</div>
+    </div>
+  </div>
+
+  <!-- 메타 표 -->
   <table class="meta">
     <tr>
-      <td class="lbl">WO No / 지시서번호</td>
-      <td><strong>{{ wo.wo_no }}</strong></td>
-      <td class="lbl">Status / 상태</td>
-      <td>{{ wo.status }}</td>
+      <td class="lbl">WO 번호</td>
+      <td class="val mono big">{{ wo.wo_no|default('—') }}</td>
+      <td class="lbl">상태</td>
+      <td class="val"><span class="chip {{ st_cls }}">{{ st }}</span></td>
+      <td class="lbl">발행일</td>
+      <td class="val">{{ (wo.created_at or '—')[:10] }}</td>
     </tr>
     <tr>
-      <td class="lbl">Issued / 발행일</td>
-      <td>{{ wo.created_at }}</td>
-      <td class="lbl">Avg Progress / 평균 진행률</td>
-      <td><strong>{{ wo.avg_progress }}%</strong></td>
+      <td class="lbl">수주</td>
+      <td class="val">{{ wo.order_no_disp|default('—') }}</td>
+      <td class="lbl">프로젝트</td>
+      <td class="val">{{ wo.project_disp|default('—') }}</td>
+      <td class="lbl">발행자</td>
+      <td class="val">{{ wo.created_by_disp|default('—') }}</td>
     </tr>
     <tr>
-      <td class="lbl">Manufacturer / 제조사</td>
-      <td colspan="3">
-        <strong>{{ company.company_name_ko or '㈜케이엔케이' }}</strong>
-        ({{ company.company_name_en or 'KNK Co., Ltd.' }}) · HAIST Innovation<br>
-        {{ company.company_address or '' }}
-        {% if company.company_tel %} · TEL: {{ company.company_tel }}{% endif %}
-      </td>
+      <td class="lbl">가공 부품</td>
+      <td class="val" colspan="3"><b>{{ wo.part_disp|default('—') }}</b>{% if wo.part_no and wo.part_no != '-' %} <span style="font-family:ui-monospace,Consolas,monospace;color:#64748b;">{{ wo.part_no }}</span>{% endif %}{% if wo.part_spec and wo.part_spec != '-' %} <span style="color:#64748b;">· {{ wo.part_spec }}</span>{% endif %}</td>
+      <td class="lbl">담당자</td>
+      <td class="val"><b>{{ wo.assigned_disp|default('—') }}</b></td>
     </tr>
     <tr>
-      <td class="lbl">Order No / 수주번호</td>
-      <td>{{ wo.order_no_disp }}</td>
-      <td class="lbl">Project / 프로젝트</td>
-      <td>{{ wo.project_disp }}</td>
+      <td class="lbl">생산 수량</td>
+      <td class="val mono big">{{ '{:,.0f}'.format(wo.qty|default(0)) }} {{ wo.part_unit|default('EA') }}</td>
+      <td class="lbl">계획 시작</td>
+      <td class="val">{{ wo.planned_start|default('—') }}</td>
+      <td class="lbl">계획 종료</td>
+      <td class="val">{{ wo.planned_end|default('—') }}</td>
     </tr>
-    <tr>
-      <td class="lbl">Part / 부품</td>
-      <td><strong>{{ wo.part_disp }}</strong> ({{ wo.part_spec }})</td>
-      <td class="lbl">Qty / 수량</td>
-      <td><strong>{{ '%g' % (wo.qty or 0) }}</strong> {{ wo.part_unit }}</td>
-    </tr>
-    <tr>
-      <td class="lbl">Created By / 작성자</td>
-      <td>{{ wo.created_by_disp }}</td>
-      <td class="lbl">Assigned / 작업자</td>
-      <td><strong>{{ wo.assigned_disp }}</strong></td>
-    </tr>
-    <tr>
-      <td class="lbl">Planned Start / 시작 예정</td>
-      <td>{{ wo.planned_start or '-' }}</td>
-      <td class="lbl">Planned End / 완료 예정</td>
-      <td>{{ wo.planned_end or '-' }}</td>
-    </tr>
-    {% if wo.specifications %}
-    <tr>
-      <td class="lbl">Specifications / 가공 사양</td>
-      <td colspan="3" style="white-space:pre-wrap;">{{ wo.specifications }}</td>
-    </tr>
-    {% endif %}
   </table>
 
+  <!-- 가공 사양 -->
+  <div class="section-lbl">가공 사양 (Specifications)</div>
+  <div class="spec-box {% if not wo.specifications %}empty{% endif %}">{% if wo.specifications %}{{ wo.specifications }}{% else %}(사양 미입력){% endif %}</div>
+
+  <!-- 공정 표 -->
+  <div class="section-lbl">공정 단계 (Process Steps · 총 {{ wo.items|length }}개 · 공수 {{ total_dur }}분 ≈ {{ '{:.1f}'.format(total_dur / 60) }}시간)</div>
+  {% if wo.items %}
   <table class="lines">
     <thead>
       <tr>
-        <th style="width:30px;">#</th>
-        <th class="check-cell">✓</th>
-        <th>Step / 단계</th>
-        <th style="width:70px;">Min / 시간</th>
-        <th style="width:140px;">Progress / 진행률</th>
-        <th>Worker / 작업자</th>
-        <th>Remarks / 비고</th>
+        <th style="width:36px;">#</th>
+        <th>공정명</th>
+        <th style="width:70px;">공수 (분)</th>
+        <th style="width:120px;">진행률</th>
+        <th style="width:110px;">작업자</th>
+        <th>비고</th>
       </tr>
     </thead>
     <tbody>
       {% for it in wo.items %}
+      {% set pg = it.progress|default(0)|int %}
+      {% set pg_cls = 'done' if pg >= 100 else '' %}
       <tr>
-        <td class="center">{{ it.line_no }}</td>
-        <td class="check-cell"><span class="check-box"></span></td>
-        <td><strong>{{ it.step_name }}</strong></td>
-        <td class="center">{{ it.duration_min or 0 }}</td>
+        <td class="center mute">{{ it.line_no|default(loop.index) }}</td>
+        <td><b>{{ it.step_name|default('—') }}</b></td>
+        <td class="num">{{ it.duration_min|default(0) }}</td>
         <td>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:{{ it.progress or 0 }}%;"></div>
-            <span class="progress-text">{{ it.progress or 0 }}%</span>
+          <div class="pgbar">
+            <div class="fill {{ pg_cls }}" style="width:{{ pg }}%;"></div>
+            <div class="lbl">{{ pg }}%</div>
           </div>
         </td>
-        <td>{{ it.worker_disp }}</td>
-        <td>{{ it.remarks or '' }}</td>
+        <td>{{ it.worker_disp|default(it.worker_name|default('—')) }}</td>
+        <td class="mute" style="font-size:8.5pt;">{{ it.remarks|default('') }}</td>
       </tr>
       {% endfor %}
-      {% if not wo.items %}
-      <tr><td colspan="7" class="center" style="color:#888;">— No work steps / 가공 단계 없음 —</td></tr>
-      {% endif %}
     </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2" class="center">합계 ({{ wo.items|length }}개 공정)</td>
+        <td class="num">{{ total_dur }}</td>
+        <td class="center">평균 {{ wo.avg_progress|default(0) }}%</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
   </table>
-
-  {% if wo.remarks %}
-  <div class="declaration">
-    <strong>Remarks / 비고:</strong> {{ wo.remarks }}
-  </div>
+  {% else %}
+  <div class="spec-box empty">(공정 단계 미등록)</div>
   {% endif %}
 
-  <div class="declaration">
-    <strong>Instruction / 지시:</strong>
-    상기 작업지시서에 따라 가공을 수행하고, 각 단계 완료 시 좌측 ✓ 칸에 표시하세요.
-    이상 발생 시 즉시 작성자에게 보고하고 작업을 중단합니다.<br>
-    Perform the machining as instructed above. Mark the leftmost ✓ box upon completion of each step.
-    If any abnormality occurs, stop the work immediately and report to the issuer.
+  <!-- 비고 -->
+  <div class="section-lbl" style="margin-top:12px;">비고 (Remarks)</div>
+  <div class="remarks-box {% if not wo.remarks %}empty{% endif %}">{% if wo.remarks %}{{ wo.remarks }}{% else %}(비고 없음){% endif %}</div>
+
+  <!-- 도장란 -->
+  <div class="stamp-row">
+    <div class="stamp-cell">
+      <div class="lbl">작성</div>
+      <div class="body">
+        <div class="name-line filled">{{ wo.created_by_disp|default('') }}</div>
+        <div class="date-line">{{ (wo.created_at or '')[:10] }}</div>
+      </div>
+    </div>
+    <div class="stamp-cell">
+      <div class="lbl">검토</div>
+      <div class="body">
+        <div class="name-line"></div>
+        <div class="date-line">. . .</div>
+      </div>
+    </div>
+    <div class="stamp-cell">
+      <div class="lbl">승인</div>
+      <div class="body">
+        <div class="name-line"></div>
+        <div class="date-line">. . .</div>
+      </div>
+    </div>
+    <div class="stamp-cell">
+      <div class="lbl">수령</div>
+      <div class="body">
+        <div class="name-line filled">{{ wo.assigned_disp|default('') }}</div>
+        <div class="date-line">. . .</div>
+      </div>
+    </div>
   </div>
 
-  <div class="sig">
-    <div>
-      Issued By / 작성자<br><br>
-      <strong>{{ wo.created_by_disp }}</strong><br>
-      <span style="font-size:9pt;color:#666;">Date: {{ wo.created_at }}</span>
-    </div>
-    <div>
-      Worker Confirm / 작업자 확인<br><br>
-      <strong>{{ wo.assigned_disp }}</strong><br>
-      <span style="font-size:9pt;color:#666;">Sign / 서명 ____________</span>
-    </div>
+  <!-- 푸터 -->
+  <div class="foot">
+    <span>본 문서는 KNK HAIST WORKS 시스템에서 자동 생성되었습니다.</span>
+    <span class="id">{{ wo.wo_no|default('—') }} · v5H226z58</span>
   </div>
 
-  <div style="margin-top:18px;text-align:center;font-size:9pt;color:#666;">
-    {{ company.company_name_ko or '㈜케이엔케이' }} ·
-    {{ company.company_name_en or 'KNK Co., Ltd.' }} ·
-    HAIST Innovation · 가공팀
-  </div>
 </div>
+
+<script>
+// 자동 인쇄 옵션 (?auto=1 쿼리)
+if (location.search.includes('auto=1')) {
+  setTimeout(() => window.print(), 200);
+}
+</script>
 </body>
 </html>

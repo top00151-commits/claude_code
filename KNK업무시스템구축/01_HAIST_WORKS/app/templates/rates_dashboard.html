@@ -1,58 +1,208 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>환율 대시보드 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>환율 대시보드 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 환율 대시보드
+   라우터: GET /rates/dashboard
+   전달: items / latest / alerts / trend / CURRENCIES
+   alerts[]: currency / delta_pct / message / title 등
+   trend[]: from_currency / rate_date / rate (최근 30일, KRW 기준) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.alert-card { background: linear-gradient(135deg, rgba(165,40,44,.06) 0%, transparent 100%); border: 1px solid var(--knk-red); border-left: 4px solid var(--knk-red); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 8px; }
-.alert-card .ttl { font-size: 13px; font-weight: 700; color: var(--knk-red); }
-.alert-card .body { font-size: 12px; color: var(--ink); margin-top: 4px; line-height: 1.5; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <a href="/rates">환율</a> · <b>대시보드</b></div><h1 class="page-title">💱 환율 <em>대시보드</em></h1></div>
-    <a class="btn btn-secondary" href="/rates">← 환율 관리</a>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.rd-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.rd-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rd-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.rd-head .crumb a { color: var(--pq-ink-3); }
+.rd-head .crumb b { color: var(--pq-ink); }
+.rd-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.rd-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.rd-actions { margin-left: auto; display: flex; gap: 8px; }
+.rd-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.rd-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <div class="bento" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">
-    {% for code in CURRENCIES %}
-    {% set l = latest.get(code) %}
-    <div class="kpi-card">
-      <div class="kpi-label">{{ code }}</div>
-      {% if l %}<div class="kpi-num" style="font-size:22px;">{{ "{:,.2f}".format(l.rate) }}<span class="unit">원</span></div><div class="kpi-trend neutral">{{ l.rate_date }}</div>
-      {% else %}<div class="kpi-num" style="color:var(--mute);font-size:16px;">미등록</div>{% endif %}
-    </div>
-    {% endfor %}
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 700; font-family: var(--pq-mono); letter-spacing: 0.04em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; font-family: var(--pq-mono); }
+.kpi-cell.empty .v { color: var(--pq-ink-4); font-size: 14px; }
 
-  {% if alerts %}
-  <div class="section">
-    <h2>⚠ 환율 변동 알림 ({{ alerts|length }})</h2>
-    <div style="margin: 0 var(--content-pad);">
-      {% for a in alerts %}
-      <div class="alert-card">
-        <div class="ttl">{{ a.currency|default('') }} {% if a.delta_pct %}<span style="font-weight:600;">{{ '%+.2f'|format(a.delta_pct) }}%</span>{% endif %}</div>
-        <div class="body">{{ a.message|default(a.title|default('')) }}</div>
+.rd-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .badge.warn { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.qsec-h .badge.err { background: var(--pq-err-soft); color: var(--pq-err); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.alert-list { padding: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+.alert-card { background: var(--pq-err-soft); border-left: 3px solid var(--pq-err); border-radius: 6px; padding: 10px 12px; }
+.alert-card .ttl { font-size: 12px; font-weight: 700; color: var(--pq-err); display: flex; align-items: center; gap: 6px; }
+.alert-card .delta { font-family: var(--pq-mono); font-size: 13px; font-weight: 800; }
+.alert-card .body { font-size: 11.5px; color: var(--pq-ink-2); margin-top: 4px; line-height: 1.5; }
+.alert-card.up    { background: var(--pq-warn-soft); border-left-color: var(--pq-warn); }
+.alert-card.up .ttl { color: var(--pq-warn); }
+
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 32px; padding: 5px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-cur { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); background: var(--pq-info-soft); color: var(--pq-info); }
+
+.spark { display: inline-flex; align-items: flex-end; gap: 1px; height: 16px; }
+.spark .b { width: 3px; background: var(--pq-info); border-radius: 1px; opacity: 0.7; }
+
+.po-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 36px; opacity: 0.5; }
+.po-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="rd-page">
+
+      <div class="rd-head" data-dn="rd:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/rates">환율</a> · <b>대시보드</b></div>
+          <div class="rd-title">💱 환율 대시보드</div>
+          <div class="rd-meta">최신 환율 + 알림 + 최근 30일 추이 통합 상황판</div>
+        </div>
+        <div class="rd-actions">
+          <a href="/rates">📊 환율 관리</a>
+          <a href="/rates/history">📜 이력</a>
+          <a href="/rates/alerts">🔔 알림</a>
+          <a href="/rates/cost-sim">🧮 원가 시뮬</a>
+        </div>
       </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 
-  {% if trend %}
-  <div class="section">
-    <h2>📈 30일 추이</h2>
-    <div class="tbl-wrap tbl-sticky">
-      <table class="tbl">
-        <thead><tr><th>일자</th><th class="center">통화</th><th class="num">환율</th></tr></thead>
-        <tbody>
-        {% for t in trend[:50] %}
-          <tr><td style="font-family:monospace;font-size:12px;">{{ t.rate_date }}</td><td class="center"><span class="pill pill-progress">{{ t.from_currency }}</span></td><td class="num" style="font-weight:700;">{{ "{:,.2f}".format(t.rate) }}</td></tr>
+      <div class="kpi-strip" data-dn="rd:latest" data-dn-tone="green">
+        {% for code in CURRENCIES %}
+          {% set l = latest.get(code) if latest else None %}
+          <div class="kpi-cell {% if not l %}empty{% endif %}">
+            <div class="l">{{ code }} → KRW</div>
+            {% if l %}
+              <div class="v">{{ '{:,.2f}'.format(l.rate|default(0)|float) }}<span class="u">원</span></div>
+              <div class="sub">{{ l.rate_date|default('—') }}</div>
+            {% else %}
+              <div class="v">미등록</div>
+              <div class="sub">—</div>
+            {% endif %}
+          </div>
         {% endfor %}
-        </tbody>
-      </table>
+      </div>
+
+      <div class="rd-body" data-dn="rd:body">
+
+        {% if alerts %}
+        <div class="qsec" data-dn="rd:alerts">
+          <div class="qsec-h">
+            <span class="ttl">⚠ 환율 변동 알림</span>
+            <span class="badge err">{{ alerts|length }}건</span>
+            <span class="right">활성 알림만 표시</span>
+          </div>
+          <div class="alert-list">
+            {% for a in alerts %}
+              {% set d = a.delta_pct|default(0)|float %}
+              <div class="alert-card {% if d > 0 %}up{% endif %}">
+                <div class="ttl">
+                  <span>{{ a.currency|default('—') }}</span>
+                  {% if a.delta_pct is defined %}<span class="delta">{{ '%+.2f'|format(d) }}%</span>{% endif %}
+                </div>
+                <div class="body">{{ a.message|default(a.title|default('—')) }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if trend %}
+        <div class="qsec" data-dn="rd:trend" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">📈 최근 30일 추이</span>
+            <span class="badge">{{ trend|length }}건</span>
+            <span class="right">통화별 일자별 정렬 (최신 50)</span>
+          </div>
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:48px;">#</th>
+                <th style="width:140px;">일자</th>
+                <th class="center" style="width:100px;">통화</th>
+                <th class="num" style="width:160px;">환율 (KRW)</th>
+                <th>스파크 (상대값)</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% set rates = trend|map(attribute='rate')|map('float')|list %}
+            {% set mx = rates|max if rates else 1 %}
+            {% set mn = rates|min if rates else 0 %}
+            {% set rng = (mx - mn) or 1 %}
+            {% for t in trend[:50] %}
+              {% set rt = t.rate|default(0)|float %}
+              {% set h = ((rt - mn) / rng * 14) + 2 %}
+              <tr>
+                <td class="center mute">{{ loop.index }}</td>
+                <td class="code">{{ t.rate_date|default('—') }}</td>
+                <td class="center"><span class="chip-cur">{{ t.from_currency|default('—') }}</span></td>
+                <td class="num">{{ '{:,.2f}'.format(rt) }}</td>
+                <td><span class="spark"><span class="b" style="height:{{ h }}px;"></span></span></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="qsec" data-dn="rd:empty-trend">
+          <div class="po-empty">
+            <div class="ico">📈</div>
+            <div class="ttl">추이 데이터가 없습니다</div>
+            <div style="font-size:12px;">최근 30일 환율 등록 이력이 없습니다.</div>
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
     </div>
-  </div>
-  {% endif %}
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

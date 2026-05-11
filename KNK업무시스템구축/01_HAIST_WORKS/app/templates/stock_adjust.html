@@ -1,58 +1,440 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>재고 조정 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재고 조정 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 재고 조정 (Stock Adjustment)
+   라우터 호환 form name (필수=*):
+     part_id* / quantity* (양수 = 입고조정, 음수 = 출고조정) / reason* / note
+   라우터: POST /stock/adjust
+   전달: parts (id/part_no/part_name/unit/stock_qty) / default_part_id #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.adj-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); }
-.adj-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 14px; }
-.fld label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.fld label .req { color: var(--knk-red); }
-.fld input, .fld select, .fld textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.fld textarea { min-height: 80px; resize: vertical; }
-.fld.full { grid-column: span 2; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>재고 조정</b></div><h1 class="page-title">⚖ 재고 <em>조정</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">파손·분실·이동 등으로 인한 수량 +/-  보정 (사유 + 증빙)</div></div>
-    <a class="btn btn-secondary" href="/stock/adjustments">📜 조정 이력</a>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
 
-  <form class="adj-form" method="post" action="/stock/adjust">
-    <div class="adj-row">
-      <div class="fld"><label>자재 <span class="req">*</span></label>
-        <select name="part_id" required>
-          <option value="">— 선택 —</option>
-          {% for p in parts %}<option value="{{ p.id }}" {% if p.id == default_part_id %}selected{% endif %}>{{ p.code }} · {{ p.name }} (재고 {{ p.stock_qty|default(0) }})</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fld"><label>조정 유형 <span class="req">*</span></label>
-        <select name="adj_type" required>
-          <option value="">— 선택 —</option>
-          <option value="DAMAGED">파손</option>
-          <option value="LOST">분실</option>
-          <option value="FOUND">발견 (입고 누락)</option>
-          <option value="MOVE">위치 이동</option>
-          <option value="CORRECTION">시스템 보정</option>
-        </select>
-      </div>
-    </div>
-    <div class="adj-row">
-      <div class="fld"><label>수량 변동 <span class="req">*</span> <span style="font-size:11px;color:var(--mute);font-weight:500;">(+ 증가 / - 감소)</span></label><input type="number" name="qty_delta" step="0.01" required placeholder="-5 또는 +10"></div>
-      <div class="fld"><label>조정일</label><input type="date" name="adj_date" value="{{ today|default('') }}"></div>
-    </div>
-    <div class="adj-row">
-      <div class="fld full"><label>사유 <span class="req">*</span></label><textarea name="reason" required placeholder="조정 사유 (필수) · 증빙 첨부는 다음 단계"></textarea></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/stock/balances">취소</a>
-      <button class="btn btn-primary" type="submit">📤 조정 등록</button>
-    </div>
-  </form>
+.adj-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
+.adj-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.adj-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.adj-head .crumb a { color: var(--pq-ink-3); }
+.adj-head .crumb b { color: var(--pq-ink); }
+.adj-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.adj-meta { font-size: 12px; color: var(--pq-ink-3); }
+.adj-actions { margin-left: auto; display: flex; gap: 8px; }
+.adj-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.adj-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <div style="margin: 0 var(--content-pad);font-size:12px;color:var(--mute);background:var(--amber-glow);border-radius:var(--radius-md);padding:12px 14px;line-height:1.6;">
-    💡 <b>승인 정책</b>: 5개 미만 / 1만원 미만 변동은 즉시 반영. 그 외는 팀장·관리자 승인 후 반영.
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.alert-bar { background: var(--pq-err-soft); color: var(--pq-err); border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+
+.adj-body { display: grid; grid-template-columns: 1fr 320px; gap: 14px; padding: 14px 24px 24px; flex: 1; }
+.adj-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.adj-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; align-self: start; }
+
+.adj-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; overflow: hidden; }
+.adj-card .head { padding: 12px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pq-line); }
+.adj-card .head h3 { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 0; display: flex; align-items: center; gap: 8px; }
+.adj-card .head h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
+.adj-card .head h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
+.adj-card .head .sub { font-size: 11px; color: var(--pq-ink-4); }
+.adj-card .body { padding: 14px 16px; }
+
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 11px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-full { grid-column: 1 / -1; }
+.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
+.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
+.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
+.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input.mono { font-family: var(--pq-mono); }
+.field input.big { font-size: 18px; font-weight: 700; padding: 12px 14px; font-family: var(--pq-mono); text-align: right; }
+.field input.big.pos { color: var(--pq-ok); }
+.field input.big.neg { color: var(--pq-err); }
+.field input.big.over { border-color: var(--pq-err); background: var(--pq-err-soft); }
+.field textarea { min-height: 70px; resize: vertical; }
+.field-hint { font-size: 10.5px; color: var(--pq-ink-4); margin-top: -2px; line-height: 1.4; }
+
+/* 부호 토글 (입고조정/출고조정) */
+.sign-toggle { display: inline-flex; gap: 0; border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; }
+.sign-toggle button { padding: 8px 16px; font-size: 12.5px; font-weight: 600; background: var(--pq-surface); color: var(--pq-ink-3); cursor: pointer; font-family: inherit; border: 0; border-right: 1px solid var(--pq-line-2); transition: background .12s; }
+.sign-toggle button:last-child { border-right: 0; }
+.sign-toggle button:hover { background: var(--pq-surface-2); }
+.sign-toggle button.active.plus { background: var(--pq-ok); color: #fff; }
+.sign-toggle button.active.minus { background: var(--pq-err); color: #fff; }
+
+/* 자재 정보 카드 */
+.part-info { background: var(--pq-info-soft); border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; display: none; }
+.part-info.visible { display: block; }
+.part-info .head { font-size: 11px; color: var(--pq-info); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.part-info .name { font-size: 14px; font-weight: 700; color: var(--pq-ink); }
+.part-info .code { font-family: var(--pq-mono); font-size: 11px; color: var(--pq-ink-3); margin-top: 2px; }
+.part-info .stat-line { margin-top: 10px; padding-top: 10px; border-top: 1px solid #bfdbfe; display: flex; justify-content: space-between; }
+.part-info .stat-line .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.part-info .stat-line .v { font-family: var(--pq-mono); font-size: 18px; font-weight: 700; color: var(--pq-ink); }
+.part-info .stat-line .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; margin-left: 3px; }
+
+/* 미리보기 */
+.preview-card { background: var(--pq-surface-inset); border: 1px solid var(--pq-line-2); border-radius: 6px; padding: 12px 14px; margin-top: 10px; font-size: 12.5px; }
+.preview-card .pv-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.preview-card .pv-row .lbl { color: var(--pq-ink-4); }
+.preview-card .pv-row .val { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.preview-card .pv-row .val.pos { color: var(--pq-ok); }
+.preview-card .pv-row .val.neg { color: var(--pq-err); }
+.preview-card .pv-row.grand { border-top: 1px solid var(--pq-line); margin-top: 6px; padding-top: 8px; font-size: 14px; }
+.preview-card .pv-row.grand .val.critical { color: var(--pq-err); }
+.preview-card .pv-row.grand .val.warn { color: var(--pq-warn); }
+
+/* 사이드 */
+.side-card { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 8px; padding: 12px 14px; }
+.side-card h4 { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pq-ink-3); margin: 0 0 8px; font-weight: 700; }
+.help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.help-tip b { color: var(--pq-info); }
+.warn-tip { background: var(--pq-warn-soft); border-left: 3px solid var(--pq-warn); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
+.warn-tip b { color: var(--pq-warn); }
+
+/* 액션 바 */
+.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
+.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
+.action-bar .info b { color: var(--pq-ink); }
+.action-bar .btns { display: flex; gap: 8px; }
+.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--pq-ink); color: #fff; }
+.btn-primary:hover { background: var(--pq-ink-2); }
+.btn-cancel { background: transparent; color: var(--pq-ink-4); }
+.btn-cancel:hover { color: var(--pq-err); }
+
+@media (max-width: 1280px) {
+  .adj-body { grid-template-columns: 1fr; }
+  .adj-side { position: static; }
+}
+@media (max-width: 1023px) {
+  .field-row, .field-row.cols-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <form method="post" action="/stock/adjust" id="adjustForm">
+      <div class="adj-page">
+
+        <!-- 헤더 -->
+        <div class="adj-head" data-dn="adj:head">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재고 조정</b></div>
+            <div class="adj-title">⚙️ 재고 조정</div>
+            <div class="adj-meta" style="margin-top:4px;">실사 차이·손망실·시제품 등 입출고 외 재고 변동 보정 — 부호 ± 가능</div>
+          </div>
+          <div class="adj-actions">
+            <a href="/stock/movements?kind=ADJUST">📋 조정 이력</a>
+            <a href="/stock/balances">📦 재고 현황</a>
+          </div>
+        </div>
+
+        <!-- 에러 alert -->
+        {% if request.query_params.get('error') %}
+        <div class="alert-bar" data-dn="adj:error">
+          ⚠️ <b>오류:</b>
+          {% set err = request.query_params.get('error') %}
+          {% if err == 'invalid' %}자재 또는 수량 입력값 오류
+          {% else %}{{ err }}{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="adj-body">
+
+          <div class="adj-main">
+
+            <!-- 섹션 1: 자재 선택 -->
+            <div class="adj-card" data-dn="adj:part" data-dn-tone="green">
+              <div class="head"><h3>자재 선택 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>조정 대상 자재 <span class="req">*</span></label>
+                    <select name="part_id" id="partSelect" required onchange="onPartChange()">
+                      <option value="">— 자재 선택 —</option>
+                      {% for p in parts %}
+                      <option value="{{ p.id }}"
+                              data-stock="{{ p.stock_qty|default(0) }}"
+                              data-unit="{{ p.unit|default('EA') }}"
+                              data-name="{{ p.part_name }}"
+                              data-code="{{ p.part_no|default('') }}"
+                              {% if default_part_id and default_part_id|string == p.id|string %}selected{% endif %}>
+                        {{ p.part_name }}{% if p.part_no %} · {{ p.part_no }}{% endif %} (재고 {{ '{:,.0f}'.format(p.stock_qty|default(0)) }} {{ p.unit|default('EA') }})
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+
+                <div class="part-info" id="partInfo">
+                  <div class="head">선택된 자재 — 현재 재고</div>
+                  <div class="name" id="piName">—</div>
+                  <div class="code" id="piCode">—</div>
+                  <div class="stat-line">
+                    <div class="l">현재 재고</div>
+                    <div class="v" id="piStock">0<span class="u" id="piUnit">EA</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 섹션 2: 조정 정보 -->
+            <div class="adj-card" data-dn="adj:detail" data-dn-tone="purple">
+              <div class="head"><h3>조정 정보 <span class="req">*</span></h3></div>
+              <div class="body">
+                <div class="field-row">
+                  <div class="field">
+                    <label>조정 부호 <span class="req">*</span></label>
+                    <div class="sign-toggle">
+                      <button type="button" id="signPlus" class="plus active" onclick="setSign(1)">＋ 입고조정 (증가)</button>
+                      <button type="button" id="signMinus" class="minus" onclick="setSign(-1)">－ 출고조정 (감소)</button>
+                    </div>
+                    <div class="field-hint">입고조정: 실사 더 발견 / 보정 추가. 출고조정: 손망실 / 폐기 / 시제품 등.</div>
+                  </div>
+                  <div class="field">
+                    <label>조정 수량 (절대값) <span class="req">*</span></label>
+                    <input type="number" id="qtyInput" step="0.01" min="0.01" required class="big mono pos"
+                           placeholder="0" oninput="onQtyChange()" />
+                    <!-- 실제 라우터 제출용 hidden (부호 적용) -->
+                    <input type="hidden" name="quantity" id="qtyHidden" value="" />
+                  </div>
+                </div>
+
+                <!-- 미리보기 -->
+                <div class="preview-card" id="previewCard" style="display:none;">
+                  <div class="pv-row"><span class="lbl">현재 재고</span><span class="val" id="pvCurrent">0</span></div>
+                  <div class="pv-row"><span class="lbl" id="pvLbl">조정량</span><span class="val" id="pvDelta">0</span></div>
+                  <div class="pv-row grand"><span class="lbl"><b>조정 후 재고</b></span><span class="val" id="pvAfter">0</span></div>
+                </div>
+
+                <div class="field-row" style="margin-top:12px;">
+                  <div class="field field-full">
+                    <label>사유 <span class="req">*</span></label>
+                    <select name="reason" required>
+                      <option value="">— 선택 —</option>
+                      <optgroup label="입고 조정 (+)">
+                        <option value="실사 차이 (+)">실사 차이 (실제 더 발견)</option>
+                        <option value="이전 누락 보정 (+)">이전 누락 보정</option>
+                        <option value="환입 (+)">환입 (반품 회수)</option>
+                      </optgroup>
+                      <optgroup label="출고 조정 (-)">
+                        <option value="실사 차이 (-)">실사 차이 (실제 부족)</option>
+                        <option value="손망실 (-)">손망실 (파손·분실)</option>
+                        <option value="폐기 (-)">폐기 (불량·기간만료)</option>
+                        <option value="시제품 (-)">시제품 (샘플 소모)</option>
+                        <option value="외주 무상 지급 (-)">외주 무상 지급</option>
+                      </optgroup>
+                      <optgroup label="기타">
+                        <option value="기타">기타 (비고 필수 입력)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>비고</label>
+                    <textarea name="note" placeholder="조정 근거·관련 문서·확인자 등 (사유 '기타' 선택 시 필수)"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 사이드 -->
+          <aside class="adj-side" data-dn="adj:side" data-dn-tone="blue">
+
+            <div class="side-card">
+              <h4>조정 요약</h4>
+              <div style="font-size:12px; color: var(--pq-ink-2); line-height: 1.7;">
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">자재</span>
+                  <span style="font-weight:600;" id="sumName">미선택</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">조정 부호</span>
+                  <span style="font-weight:600;font-family:var(--pq-mono);" id="sumSign">＋ 증가</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--pq-line);">
+                  <span style="color:var(--pq-ink-4);">조정량</span>
+                  <span style="font-weight:600;font-family:var(--pq-mono);" id="sumQty">0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                  <span style="color:var(--pq-ink-4);">상태</span>
+                  <span style="font-weight:600;" id="sumStatus">대기</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-card">
+              <h4>💡 조정 가이드</h4>
+              <div class="help-tip">
+                <b>입고조정 (＋)</b><br>
+                · 실사 시 더 발견된 경우<br>
+                · 환입 / 누락 보정<br><br>
+                <b>출고조정 (－)</b><br>
+                · 손망실 / 파손 / 분실<br>
+                · 폐기 / 시제품 소모<br>
+                · 외주 무상 지급
+              </div>
+            </div>
+
+            <div class="side-card">
+              <h4 style="color:var(--pq-warn);">⚠️ 주의</h4>
+              <div class="warn-tip">
+                재고 조정은 <b>회계 감사 대상</b>입니다.<br>
+                · 사유와 비고를 명확히 기록<br>
+                · 출고조정 후 재고 음수 불가<br>
+                · 큰 금액 조정은 결재 라인 별도 보고 권장
+              </div>
+            </div>
+
+          </aside>
+
+        </div>
+
+        <!-- 하단 액션 -->
+        <div class="action-bar" data-dn="adj:action" data-dn-tone="amber">
+          <div class="info">⚙️ <b>재고 조정 등록</b> — stock_movements (kind=ADJUST) 기록 + 재고 즉시 반영</div>
+          <div class="btns">
+            <a href="/stock/balances" class="btn btn-cancel">취소</a>
+            <button type="submit" class="btn btn-primary" id="submitBtn">조정 등록 →</button>
+          </div>
+        </div>
+
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+const fmt = n => n.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+const fmtSigned = n => (n > 0 ? '+' : '') + fmt(n);
+let sign = 1;  // 1 = plus, -1 = minus
+
+function setSign(s) {
+  sign = s;
+  document.getElementById('signPlus').classList.toggle('active', s === 1);
+  document.getElementById('signMinus').classList.toggle('active', s === -1);
+  const qtyEl = document.getElementById('qtyInput');
+  qtyEl.classList.toggle('pos', s === 1);
+  qtyEl.classList.toggle('neg', s === -1);
+  document.getElementById('sumSign').textContent = s === 1 ? '＋ 증가' : '－ 감소';
+  onQtyChange();
+}
+
+function onPartChange() {
+  const sel = document.getElementById('partSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const info = document.getElementById('partInfo');
+  if (!opt || !opt.value) {
+    info.classList.remove('visible');
+    document.getElementById('sumName').textContent = '미선택';
+    onQtyChange();
+    return;
+  }
+  const stock = parseFloat(opt.dataset.stock) || 0;
+  const unit = opt.dataset.unit || 'EA';
+  const name = opt.dataset.name || '';
+  const code = opt.dataset.code || '';
+
+  info.classList.add('visible');
+  document.getElementById('piName').textContent = name;
+  document.getElementById('piCode').textContent = code || '(코드 없음)';
+  document.getElementById('piStock').innerHTML = fmt(stock) + '<span class="u">' + unit + '</span>';
+
+  document.getElementById('sumName').textContent = name.length > 18 ? name.substring(0, 16) + '…' : name;
+  onQtyChange();
+}
+
+function onQtyChange() {
+  const sel = document.getElementById('partSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const absQty = parseFloat(document.getElementById('qtyInput').value) || 0;
+  const signedQty = absQty * sign;
+  const hidden = document.getElementById('qtyHidden');
+  hidden.value = signedQty === 0 ? '' : String(signedQty);
+
+  document.getElementById('sumQty').textContent = fmtSigned(signedQty);
+
+  if (!opt || !opt.value || absQty <= 0) {
+    document.getElementById('previewCard').style.display = 'none';
+    document.getElementById('sumStatus').textContent = '대기';
+    document.getElementById('qtyInput').classList.remove('over');
+    return;
+  }
+
+  const stock = parseFloat(opt.dataset.stock) || 0;
+  const after = stock + signedQty;
+
+  const card = document.getElementById('previewCard');
+  card.style.display = 'block';
+  document.getElementById('pvCurrent').textContent = fmt(stock);
+
+  const deltaEl = document.getElementById('pvDelta');
+  const lblEl = document.getElementById('pvLbl');
+  if (sign === 1) {
+    lblEl.textContent = '조정량 (입고)';
+    deltaEl.textContent = '+ ' + fmt(absQty);
+    deltaEl.classList.remove('neg');
+    deltaEl.classList.add('pos');
+  } else {
+    lblEl.textContent = '조정량 (출고)';
+    deltaEl.textContent = '- ' + fmt(absQty);
+    deltaEl.classList.remove('pos');
+    deltaEl.classList.add('neg');
+  }
+
+  const afterEl = document.getElementById('pvAfter');
+  afterEl.textContent = fmt(after);
+  afterEl.classList.remove('critical', 'warn');
+
+  const qtyEl = document.getElementById('qtyInput');
+  if (after < 0) {
+    qtyEl.classList.add('over');
+    afterEl.classList.add('critical');
+    afterEl.textContent = fmt(after) + ' (재고 음수 — 조정 불가)';
+    document.getElementById('sumStatus').innerHTML = '<span style="color:var(--pq-err);">⚠ 음수 불가</span>';
+  } else {
+    qtyEl.classList.remove('over');
+    document.getElementById('sumStatus').innerHTML = '<span style="color:var(--pq-ok);">정상</span>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setSign(1);
+  onPartChange();
+});
+</script>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>발주 상세 · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 발주 상세 #}
+{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 분리 표시) — 실무팀3 발주 상세 #}
 
-<link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 :root {
@@ -258,6 +258,16 @@
                 <dt>운송 조건</dt><dd>{{ p.shipping_terms|default('—') }}</dd>
                 <dt>결제 조건</dt><dd>{{ p.payment_terms|default('—') }}</dd>
                 <dt>통화</dt><dd>{{ p.currency|default('KRW') }} {% if p.exchange_rate and p.exchange_rate != 1 %}<span class="mute">× {{ p.exchange_rate }}</span>{% endif %}</dd>
+                {# v5H226z58: VAT 모드 + 과세구분 + 공급가액/부가세 (z58 미적용 시 fallback) #}
+                {% set vm = p.vat_mode|default('vat_excluded') %}
+                {% set vm_label = 'VAT 미포함' if vm == 'vat_excluded' else ('VAT 포함' if vm == 'vat_included' else ('VAT 없음' if vm == 'vat_none' else vm)) %}
+                {% set tc = p.tax_classification|default('taxable') %}
+                {% set tc_label = '과세' if tc == 'taxable' else ('영세' if tc == 'zero_rated' else ('면세' if tc == 'exempt' else ('기타' if tc == 'other' else tc))) %}
+                <dt>VAT 모드</dt><dd><b>{{ vm_label }}</b> · {{ tc_label }}</dd>
+                {% if p.supply_total is defined and p.supply_total %}
+                <dt>공급가액</dt><dd class="num" style="font-weight:600;">{{ '{:,.0f}'.format(p.supply_total) }}</dd>
+                <dt>부가세</dt><dd class="num" style="font-weight:600;">{{ '{:,.0f}'.format(p.vat_total|default(0)) }}</dd>
+                {% endif %}
                 <dt>작성자</dt><dd>{{ p.creator_name|default('—') }}</dd>
               </dl>
             </div>

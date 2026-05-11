@@ -1,47 +1,275 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>CAPA · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QMS CAPA · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — CAPA 라이프사이클 관리
+   라우터: GET /qms/capa
+   전달:
+     ca / pa / ca_buckets / pa_buckets — {DRAFT/APPROVED/IN_PROGRESS/COMPLETED/VERIFIED/OPEN/CLOSED}
+     items[] — id / action / due_date / created_at / completed_at / verified_at /
+               lifecycle_status / issue_id / issue_no / issue_title
+     kpi — avg_closure_days / verify_rate / completed / verified /
+           by_dept[{dept,cnt}] / sample_size
+   ⚠ 잠재 버그 복구: 기존 it.kind/title/detail/status/owner_name/deadline → 라우터 정확한 키로 정정 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #f5f3ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.ca-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ca-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ca-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.ca-head .crumb a { color: var(--pq-ink-3); }
+.ca-head .crumb b { color: var(--pq-ink); }
+.ca-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.ca-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.ca-actions { margin-left: auto; display: flex; gap: 8px; }
+.ca-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.ca-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+.kpi-cell.info .v { color: var(--pq-info); }
+.kpi-cell.ok .v { color: var(--pq-ok); }
+
+.ca-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.lc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.lc-stages { padding: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.lc-stage { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 6px; padding: 10px; text-align: center; }
+.lc-stage .nm { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.lc-stage .n { font-family: var(--pq-mono); font-size: 24px; font-weight: 700; color: var(--pq-ink); margin-top: 4px; }
+.lc-stage.s-draft   { border-top: 3px solid var(--pq-ink-4); }
+.lc-stage.s-approv  { border-top: 3px solid var(--pq-info); }
+.lc-stage.s-prog    { border-top: 3px solid var(--pq-warn); }
+.lc-stage.s-compl   { border-top: 3px solid var(--pq-purple); }
+.lc-stage.s-verif   { border-top: 3px solid var(--pq-ok); }
+.lc-stage.s-draft .nm   { color: var(--pq-ink-4); }
+.lc-stage.s-approv .nm  { color: var(--pq-info); }
+.lc-stage.s-prog .nm    { color: var(--pq-warn); }
+.lc-stage.s-compl .nm   { color: var(--pq-purple); }
+.lc-stage.s-verif .nm   { color: var(--pq-ok); }
+
+.dept-list { padding: 4px 0; }
+.dept-row { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--pq-line); font-size: 12px; color: var(--pq-ink); }
+.dept-row:last-child { border-bottom: 0; }
+.dept-row .nm { width: 130px; font-weight: 600; }
+.dept-row .bar { flex: 1; height: 8px; background: var(--pq-surface-3); border-radius: 4px; overflow: hidden; }
+.dept-row .bar .fill { height: 100%; background: var(--pq-info); }
+.dept-row .cnt { width: 50px; text-align: right; font-family: var(--pq-mono); font-weight: 700; }
+
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp tbody td { height: 36px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; vertical-align: middle; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-lc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-lc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-lc.s-draft   { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+.chip-lc.s-approv  { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-lc.s-prog    { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-lc.s-compl   { background: var(--pq-purple-soft); color: var(--pq-purple); }
+.chip-lc.s-verif   { background: var(--pq-ok-soft); color: var(--pq-ok); }
+
+.po-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 36px; opacity: 0.5; }
+.po-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
 {% set k = kpi or {} %}
-{% set ca = ca_buckets or {} %}
-{% set pa = pa_buckets or {} %}
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/qms">QMS</a> · <b>CAPA</b></div><h1 class="page-title">⚙ <em>CAPA</em> (Corrective &amp; Preventive Actions)</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">시정조치(CA) · 예방조치(PA) 진행 추적</div></div>
-  </div>
+{% set caB = ca_buckets or {} %}
+{% set paB = pa_buckets or {} %}
 
-  <div class="bento" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">CA 진행</div><div class="kpi-num">{{ ca.OPEN|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">CA 완료</div><div class="kpi-num" style="color:var(--success);">{{ ca.CLOSED|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">PA 진행</div><div class="kpi-num">{{ pa.OPEN|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">PA 완료</div><div class="kpi-num" style="color:var(--success);">{{ pa.CLOSED|default(0) }}</div></div>
-  </div>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
 
-  <div class="section">
-    <h2>CAPA 항목 ({{ items|length if items else 0 }})</h2>
-    <div class="tbl-wrap tbl-sticky">
-      {% if items %}
-      <table class="tbl">
-        <thead><tr><th>#</th><th class="center">유형</th><th>내용</th><th class="center">상태</th><th>담당</th><th>기한</th><th>관련 이슈</th></tr></thead>
-        <tbody>
-        {% for it in items %}
-          <tr>
-            <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ it.id }}</td>
-            <td class="center"><span class="pill {% if it.kind == 'CA' %}pill-warn{% else %}pill-progress{% endif %}">{{ it.kind|default('—') }}</span></td>
-            <td><b>{{ it.action|default(it.title|default('—')) }}</b>{% if it.detail %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">{{ it.detail|truncate(70) }}</div>{% endif %}</td>
-            <td class="center"><span class="pill {% if it.status in ('CLOSED','완료') %}pill-done{% elif it.status == 'OPEN' %}pill-progress{% else %}pill-muted{% endif %}">{{ it.status|default('—') }}</span></td>
-            <td style="font-size:12px;">{{ it.owner_name|default('—') }}</td>
-            <td style="font-family:monospace;font-size:11px;color:{% if it.deadline_overdue %}var(--knk-red){% else %}var(--mute){% endif %};">{{ it.deadline|default('—') }}</td>
-            <td>{% if it.issue_id %}<a href="/issues/{{ it.issue_id }}" style="font-family:monospace;font-size:12px;color:var(--amber-deep);">#{{ it.issue_id }}</a>{% else %}—{% endif %}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% else %}<div class="empty"><div class="ico">⚙</div><div class="ttl">CAPA 항목이 없습니다</div></div>{% endif %}
+  <main class="main">
+    <div class="ca-page">
+
+      <div class="ca-head" data-dn="capa:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/qms">QMS</a> · <b>CAPA</b></div>
+          <div class="ca-title">⚙ CAPA (Corrective &amp; Preventive Actions)</div>
+          <div class="ca-meta">시정조치(CA)·예방조치(PA) 라이프사이클 5단계 추적 · 평균 종결시간 · 부서별 분포</div>
+        </div>
+        <div class="ca-actions">
+          <a href="/qms">🎯 대시보드</a>
+          <a href="/qms/pareto">📊 Pareto</a>
+          <a href="/qms/recurrence">🔁 재발</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="capa:kpi" data-dn-tone="green">
+        <div class="kpi-cell warn">
+          <div class="l">평균 종결 시간</div>
+          <div class="v">{{ '{:.1f}'.format(k.avg_closure_days|default(0)) }}<span class="u">일</span></div>
+          <div class="sub">DRAFT → COMPLETED ({{ k.sample_size|default(0) }}건 평균)</div>
+        </div>
+        <div class="kpi-cell ok">
+          <div class="l">검증율</div>
+          <div class="v">{{ '{:.1f}'.format(k.verify_rate|default(0)) }}<span class="u">%</span></div>
+          <div class="sub">VERIFIED / COMPLETED</div>
+        </div>
+        <div class="kpi-cell info">
+          <div class="l">완료 누적</div>
+          <div class="v">{{ k.completed|default(0) }}<span class="u">건</span></div>
+          <div class="sub">COMPLETED + VERIFIED</div>
+        </div>
+        <div class="kpi-cell ok">
+          <div class="l">검증 완료</div>
+          <div class="v">{{ k.verified|default(0) }}<span class="u">건</span></div>
+          <div class="sub">VERIFIED only</div>
+        </div>
+      </div>
+
+      <div class="ca-body" data-dn="capa:body">
+
+        <div class="lc-grid" data-dn="capa:lc">
+
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">📋 CA — 시정조치 라이프사이클</span>
+              <span class="badge">진행 {{ caB.OPEN|default(0) }} / 종결 {{ caB.CLOSED|default(0) }}</span>
+            </div>
+            <div class="lc-stages">
+              <div class="lc-stage s-draft"><div class="nm">DRAFT</div><div class="n">{{ caB.DRAFT|default(0) }}</div></div>
+              <div class="lc-stage s-approv"><div class="nm">APPROVED</div><div class="n">{{ caB.APPROVED|default(0) }}</div></div>
+              <div class="lc-stage s-prog"><div class="nm">IN PROG.</div><div class="n">{{ caB.IN_PROGRESS|default(0) }}</div></div>
+              <div class="lc-stage s-compl"><div class="nm">COMPLETED</div><div class="n">{{ caB.COMPLETED|default(0) }}</div></div>
+              <div class="lc-stage s-verif"><div class="nm">VERIFIED</div><div class="n">{{ caB.VERIFIED|default(0) }}</div></div>
+            </div>
+          </div>
+
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">🛡️ PA — 예방조치 라이프사이클</span>
+              <span class="badge">진행 {{ paB.OPEN|default(0) }} / 종결 {{ paB.CLOSED|default(0) }}</span>
+            </div>
+            <div class="lc-stages">
+              <div class="lc-stage s-draft"><div class="nm">DRAFT</div><div class="n">{{ paB.DRAFT|default(0) }}</div></div>
+              <div class="lc-stage s-approv"><div class="nm">APPROVED</div><div class="n">{{ paB.APPROVED|default(0) }}</div></div>
+              <div class="lc-stage s-prog"><div class="nm">IN PROG.</div><div class="n">{{ paB.IN_PROGRESS|default(0) }}</div></div>
+              <div class="lc-stage s-compl"><div class="nm">COMPLETED</div><div class="n">{{ paB.COMPLETED|default(0) }}</div></div>
+              <div class="lc-stage s-verif"><div class="nm">VERIFIED</div><div class="n">{{ paB.VERIFIED|default(0) }}</div></div>
+            </div>
+          </div>
+        </div>
+
+        {% if k.by_dept %}
+        <div class="qsec" data-dn="capa:dept" style="margin-bottom:14px;">
+          <div class="qsec-h">
+            <span class="ttl">🏢 부서별 CA 분포 (상위 10)</span>
+            <span class="badge">{{ k.by_dept|length }} 부서</span>
+          </div>
+          <div class="dept-list">
+            {% set max_d = (k.by_dept|max(attribute='cnt')).cnt if k.by_dept else 1 %}
+            {% for d in k.by_dept %}
+              <div class="dept-row">
+                <div class="nm">{{ d.dept|default('—') }}</div>
+                <div class="bar"><div class="fill" style="width:{{ (d.cnt * 100 / max_d) if max_d else 0 }}%;"></div></div>
+                <div class="cnt">{{ d.cnt|default(0) }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="qsec" data-dn="capa:items" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">⚙ CAPA 항목 (최근 30)</span>
+            <span class="badge">{{ items|length if items else 0 }}건</span>
+            <span class="right">행 클릭 → 연결 이슈 상세</span>
+          </div>
+          {% if items %}
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:64px;">#</th>
+                <th>조치 내용</th>
+                <th class="center" style="width:110px;">상태</th>
+                <th class="center" style="width:120px;">기한</th>
+                <th class="center" style="width:120px;">완료일</th>
+                <th class="center" style="width:120px;">검증일</th>
+                <th style="width:200px;">연결 이슈</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for it in items %}
+              {% set st = it.lifecycle_status|default('DRAFT') %}
+              {% set st_cls = ({'DRAFT':'s-draft','APPROVED':'s-approv','IN_PROGRESS':'s-prog','COMPLETED':'s-compl','VERIFIED':'s-verif'}).get(st, 's-draft') %}
+              <tr {% if it.issue_id %}onclick="location.href='/issues/{{ it.issue_id }}'"{% endif %}>
+                <td class="center code">#{{ it.id }}</td>
+                <td><b>{{ (it.action|default('—'))|truncate(80) }}</b></td>
+                <td class="center"><span class="chip-lc {{ st_cls }}">{{ st }}</span></td>
+                <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (it.due_date|default('—'))[:10] }}</td>
+                <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (it.completed_at|default('—'))[:10] if it.completed_at else '—' }}</td>
+                <td class="center mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (it.verified_at|default('—'))[:10] if it.verified_at else '—' }}</td>
+                <td>
+                  {% if it.issue_id %}
+                    <span class="code">#{{ it.issue_no|default(it.issue_id) }}</span>
+                    <span style="font-size:11.5px;color:var(--pq-ink-2);margin-left:6px;">{{ (it.issue_title|default('—'))|truncate(35) }}</span>
+                  {% else %}
+                    <span class="mute">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="po-empty">
+            <div class="ico">⚙</div>
+            <div class="ttl">CAPA 항목이 없습니다</div>
+            <div style="font-size:12px;">이슈 상세에서 시정·예방 조치를 등록하세요.</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
     </div>
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

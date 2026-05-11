@@ -4,7 +4,7 @@
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.search-box { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); }
+.search-box { margin: 0 0 var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); }
 .search-input { width: 100%; padding: 14px 18px; font-size: 16px; border: 2px solid var(--qv-line); border-radius: var(--radius-md); background: var(--qv-surface-2); color: var(--qv-ink); font-family: inherit; }
 .search-input:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 4px var(--qv-surface-2); }
 .cat-tabs { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
@@ -36,7 +36,7 @@
   </div>
 
   {% if q %}
-  <div style="margin: 0 var(--content-pad);">
+  <div style="margin: 0;">
     {# v5H46: res/res_global 둘 다 dict(카테고리→list) — 평탄화 후 순회 #}
     {% set _flat = [] %}
     {% if res %}

@@ -9762,6 +9762,14 @@ async def parts_new_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
+    # v5H226z58 자재모듈 표준 v2 — 신규 13 필드
+    item_account: str = Form(""), procurement_kind: str = Form(""),
+    category_main: str = Form(""), category_series: str = Form(""),
+    reorder_point: str = Form("0"), reorder_qty: str = Form("0"),
+    conversion_factor: str = Form("1"),
+    sub_spec1: str = Form(""), sub_spec2: str = Form(""), sub_spec3: str = Form(""),
+    tax_invoice_name: str = Form(""), trade_invoice_name: str = Form(""),
+    default_warehouse: str = Form(""), hs_code: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -9777,6 +9785,14 @@ async def parts_new_submit(
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
+            # z58 신규
+            "item_account": item_account, "procurement_kind": procurement_kind,
+            "category_main": category_main, "category_series": category_series,
+            "reorder_point": reorder_point, "reorder_qty": reorder_qty,
+            "conversion_factor": conversion_factor,
+            "sub_spec1": sub_spec1, "sub_spec2": sub_spec2, "sub_spec3": sub_spec3,
+            "tax_invoice_name": tax_invoice_name, "trade_invoice_name": trade_invoice_name,
+            "default_warehouse": default_warehouse, "hs_code": hs_code,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -9812,6 +9828,14 @@ async def parts_edit_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
+    # v5H226z58 자재모듈 표준 v2 — 신규 13 필드
+    item_account: str = Form(""), procurement_kind: str = Form(""),
+    category_main: str = Form(""), category_series: str = Form(""),
+    reorder_point: str = Form("0"), reorder_qty: str = Form("0"),
+    conversion_factor: str = Form("1"),
+    sub_spec1: str = Form(""), sub_spec2: str = Form(""), sub_spec3: str = Form(""),
+    tax_invoice_name: str = Form(""), trade_invoice_name: str = Form(""),
+    default_warehouse: str = Form(""), hs_code: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -9827,6 +9851,14 @@ async def parts_edit_submit(
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
+            # z58 신규
+            "item_account": item_account, "procurement_kind": procurement_kind,
+            "category_main": category_main, "category_series": category_series,
+            "reorder_point": reorder_point, "reorder_qty": reorder_qty,
+            "conversion_factor": conversion_factor,
+            "sub_spec1": sub_spec1, "sub_spec2": sub_spec2, "sub_spec3": sub_spec3,
+            "tax_invoice_name": tax_invoice_name, "trade_invoice_name": trade_invoice_name,
+            "default_warehouse": default_warehouse, "hs_code": hs_code,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -11635,6 +11667,9 @@ async def po_new_submit(request: Request):
         "payment_terms": form.get("payment_terms", ""),
         "po_type": form.get("po_type", "일반"),
         "note": form.get("note", ""),
+        # v5H226z58 자재모듈 표준 v2 — VAT 모드 + 과세구분
+        "vat_mode": form.get("vat_mode", "vat_excluded"),
+        "tax_classification": form.get("tax_classification", "taxable"),
     }
     # 라인 파싱: item_part_id[], item_qty[], item_price[], item_delivery[], item_note[]
     items = _parse_po_lines_from_form(form)
@@ -11753,6 +11788,9 @@ async def po_edit_submit(request: Request, po_id: int):
         "payment_terms": form.get("payment_terms", ""),
         "po_type": form.get("po_type", "일반"),
         "note": form.get("note", ""),
+        # v5H226z58: VAT 모드 + 과세구분
+        "vat_mode": form.get("vat_mode", "vat_excluded"),
+        "tax_classification": form.get("tax_classification", "taxable"),
     }
     # v5H112: 라인 id 파싱 (UPSERT 위해) — 신규 라인은 빈 값
     items = _parse_po_lines_from_form(form, with_id=True)

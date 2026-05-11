@@ -1,55 +1,344 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{{ part.name }} 비용 시뮬 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ part.name|default('자재') }} · 원가 시뮬 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 원가 시뮬레이션 (Cost Simulation)
+   라우터:
+     GET  /rates/cost-sim/{part_id}
+     POST /rates/cost-sim  (Form: part_id*, base_currency(USD), target_currency(KRW),
+                                  exchange_rate*, unit_price_base*, margin_pct(0), note)
+   계산: target = base × rate × (1 + margin/100)
+   전달: part / sims / latest / active_price / CURRENCIES
+   sims[]: id / part_id / simulated_at / base_currency / target_currency / exchange_rate /
+           unit_price_base / unit_price_target / margin_pct / note / created_at / created_by
+   ⚠ 잠재 버그 대량 복구:
+     - action /rates/sim/{id} → /rates/cost-sim (path 정정 + part_id hidden Form 추가)
+     - Form name: currency→base_currency, foreign_price→unit_price_base,
+                  assumed_rate→exchange_rate, qty 제거, +target_currency/margin_pct/note 추가
+     - sims 키: s.currency→s.base_currency, s.foreign_price→s.unit_price_base,
+                s.assumed_rate→s.exchange_rate, s.total_krw→s.unit_price_target, s.qty 제거 #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.sim-form { margin: 0 var(--content-pad) var(--space-4); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 18px; }
-.sim-form .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.sim-form label { font-size: 11px; color: var(--mute); font-weight: 600; display: block; margin-bottom: 4px; }
-.sim-form input, .sim-form select { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
-.sim-result { margin-top: 14px; padding: 14px 16px; background: var(--amber-glow); border-radius: var(--radius-md); font-size: 14px; }
-.sim-result b { color: var(--knk-red); font-size: 18px; }
-</style></head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/parts/{{ part.id }}">{{ part.code }}</a> · <b>비용 시뮬</b></div><h1 class="page-title">💰 비용 <em>시뮬</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">자재 <b>{{ part.name }}</b> · 환율 변동 시 원가 영향 분석</div></div>
-  </div>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.cs-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.cs-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cs-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.cs-head .crumb a { color: var(--pq-ink-3); }
+.cs-head .crumb b { color: var(--pq-ink); }
+.cs-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.cs-title em { font-style: normal; color: var(--pq-info); font-weight: 800; }
+.cs-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.cs-meta code { font-family: var(--pq-mono); background: var(--pq-surface-3); padding: 1px 6px; border-radius: 3px; color: var(--pq-ink-2); }
+.cs-actions { margin-left: auto; display: flex; gap: 8px; }
+.cs-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.cs-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <!-- 활성 단가 -->
-  <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">활성 단가</div><div class="kpi-num">{{ "{:,.0f}".format(active_price.unit_price|default(0)) }}<span class="unit">원</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">통화</div><div class="kpi-num">{{ active_price.currency|default('KRW') }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">기준 환율</div><div class="kpi-num" style="font-size:22px;">{{ "{:,.2f}".format(active_price.rate|default(1)) }}</div></div>
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.info .v { color: var(--pq-info); }
+.kpi-cell.ok .v   { color: var(--pq-ok); }
+.kpi-cell.empty .v { color: var(--pq-ink-4); font-size: 14px; }
 
-  <!-- 시뮬 폼 -->
-  <form class="sim-form" method="post" action="/rates/sim/{{ part.id }}">
-    <div class="row">
-      <div><label>통화</label><select name="currency" required>{% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-      <div><label>외화 단가</label><input type="number" name="foreign_price" step="0.01" min="0" required></div>
-      <div><label>가정 환율</label><input type="number" name="assumed_rate" step="0.01" min="0" required placeholder="현재 시세"></div>
-      <div><label>수량</label><input type="number" name="qty" step="1" min="1" value="1"></div>
+.cs-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.cs-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.sim-form { padding: 14px 16px; }
+.sim-form .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sim-form .field { display: flex; flex-direction: column; gap: 4px; }
+.sim-form .field.col-2 { grid-column: span 2; }
+.sim-form .field.col-4 { grid-column: span 4; }
+.sim-form label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.sim-form label .req { color: var(--pq-err); }
+.sim-form input, .sim-form select { padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); color: var(--pq-ink); font-family: inherit; font-variant-numeric: tabular-nums; }
+.sim-form input:focus, .sim-form select:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+.sim-form .preview { margin-top: 12px; padding: 14px 16px; background: var(--pq-info-soft); border: 1px solid var(--pq-info); border-radius: 8px; font-size: 13px; color: var(--pq-ink-2); }
+.sim-form .preview .formula { font-family: var(--pq-mono); font-size: 12px; color: var(--pq-info); }
+.sim-form .preview .result { font-family: var(--pq-mono); font-size: 22px; font-weight: 800; color: var(--pq-info); margin-top: 4px; }
+.sim-form .submit-row { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+.sim-form button { height: 34px; padding: 0 16px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.sim-form button:hover { background: #1e293b; }
+.sim-form .note { font-size: 11px; color: var(--pq-ink-4); }
+
+.side-card { padding: 12px 14px; }
+.side-card .formula-doc { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 6px; padding: 10px 12px; font-family: var(--pq-mono); font-size: 12px; color: var(--pq-ink-2); line-height: 1.7; }
+.side-card .formula-doc b { color: var(--pq-ink); }
+.side-card .guide { margin-top: 12px; font-size: 11.5px; color: var(--pq-ink-3); line-height: 1.6; }
+.side-card .guide ul { margin: 6px 0 0 18px; padding: 0; }
+.side-card .guide li { margin-bottom: 3px; }
+
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 34px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); color: var(--pq-info); }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+.tbl-erp .target { color: var(--pq-info); font-weight: 800; }
+
+.chip-cur { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-cur.base { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-cur.tgt  { background: var(--pq-ok-soft); color: var(--pq-ok); }
+
+.po-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 36px; opacity: 0.5; }
+.po-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="cs-page">
+
+      <div class="cs-head" data-dn="cs:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재</a> · <a href="/parts/{{ part.id }}">{{ part.code|default(part.id) }}</a> · <b>원가 시뮬</b></div>
+          <div class="cs-title">🧮 <em>{{ part.name|default('자재') }}</em> · 원가 시뮬레이션</div>
+          <div class="cs-meta">자재 <code>{{ part.code|default('—') }}</code> · 환율 + 마진 변동 시 목표통화 원가 영향 분석</div>
+        </div>
+        <div class="cs-actions">
+          <a href="/parts/{{ part.id }}">📋 자재 상세</a>
+          <a href="/parts/{{ part.id }}/prices">💰 단가 관리</a>
+          <a href="/rates/dashboard">📈 환율 대시</a>
+        </div>
+      </div>
+
+      <div class="kpi-strip" data-dn="cs:kpi" data-dn-tone="green">
+        <div class="kpi-cell {% if active_price.unit_price %}info{% else %}empty{% endif %}">
+          <div class="l">활성 단가</div>
+          {% if active_price.unit_price %}
+            <div class="v">{{ '{:,.2f}'.format(active_price.unit_price|default(0)|float) }}<span class="u">{{ active_price.currency|default('KRW') }}</span></div>
+            <div class="sub">{{ active_price.supplier_name|default('—') }}</div>
+          {% else %}
+            <div class="v">미설정</div>
+            <div class="sub">단가 등록 필요</div>
+          {% endif %}
+        </div>
+        <div class="kpi-cell {% if latest and latest.get('USD') %}ok{% else %}empty{% endif %}">
+          <div class="l">USD → KRW</div>
+          {% if latest and latest.get('USD') %}
+            <div class="v">{{ '{:,.2f}'.format(latest.get('USD').rate|default(0)|float) }}<span class="u">원</span></div>
+            <div class="sub">{{ latest.get('USD').rate_date|default('—') }}</div>
+          {% else %}
+            <div class="v">—</div>
+            <div class="sub">환율 미등록</div>
+          {% endif %}
+        </div>
+        <div class="kpi-cell {% if latest and latest.get('JPY') %}ok{% else %}empty{% endif %}">
+          <div class="l">JPY → KRW</div>
+          {% if latest and latest.get('JPY') %}
+            <div class="v">{{ '{:,.2f}'.format(latest.get('JPY').rate|default(0)|float) }}<span class="u">원</span></div>
+            <div class="sub">{{ latest.get('JPY').rate_date|default('—') }}</div>
+          {% else %}
+            <div class="v">—</div>
+            <div class="sub">환율 미등록</div>
+          {% endif %}
+        </div>
+        <div class="kpi-cell info">
+          <div class="l">시뮬 이력</div>
+          <div class="v">{{ sims|length if sims else 0 }}<span class="u">건</span></div>
+          <div class="sub">최근 20건 보존</div>
+        </div>
+      </div>
+
+      <div class="cs-body" data-dn="cs:body">
+
+        <div class="cs-grid">
+
+          <div class="qsec" data-dn="cs:form">
+            <div class="qsec-h">
+              <span class="ttl">▶ 시뮬 입력</span>
+              <span class="badge">target = base × rate × (1 + margin/100)</span>
+              <span class="right">필수 항목 *</span>
+            </div>
+            <form class="sim-form" method="post" action="/rates/cost-sim" id="simForm">
+              <input type="hidden" name="part_id" value="{{ part.id }}">
+              <div class="grid">
+                <div class="field">
+                  <label>기준 통화 <span class="req">*</span></label>
+                  <select name="base_currency" id="baseCur">
+                    {% for c in CURRENCIES %}<option value="{{ c }}" {% if c == 'USD' %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>목표 통화</label>
+                  <select name="target_currency" id="tgtCur">
+                    <option value="KRW" selected>KRW</option>
+                    {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>외화 단가 <span class="req">*</span></label>
+                  <input type="number" name="unit_price_base" id="basePrice" step="0.01" min="0.01" required placeholder="0.00">
+                </div>
+                <div class="field">
+                  <label>환율 <span class="req">*</span></label>
+                  <input type="number" name="exchange_rate" id="rate" step="0.0001" min="0.0001" required placeholder="1.0000">
+                </div>
+
+                <div class="field col-2">
+                  <label>마진 (%)</label>
+                  <input type="number" name="margin_pct" id="margin" step="0.1" value="0" placeholder="0">
+                </div>
+                <div class="field col-2">
+                  <label>비고</label>
+                  <input type="text" name="note" placeholder="시뮬 메모 (선택)">
+                </div>
+
+                <div class="field col-4">
+                  <div class="preview">
+                    <div class="formula">target = base × rate × (1 + margin/100)</div>
+                    <div class="result" id="preview">— <span style="font-size:12px;font-weight:500;color:var(--pq-ink-3);">기준 단가·환율을 입력하면 자동 계산</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="submit-row">
+                <button type="submit">▶ 시뮬 저장</button>
+                <span class="note">💡 저장 시 이력에 기록 · 환율/마진 변화 추적</span>
+              </div>
+            </form>
+          </div>
+
+          <div class="qsec" data-dn="cs:side">
+            <div class="qsec-h">
+              <span class="ttl">📖 공식 가이드</span>
+              <span class="badge">베스트 프랙티스</span>
+            </div>
+            <div class="side-card">
+              <div class="formula-doc">
+                <b>target = base × rate × (1 + margin / 100)</b><br>
+                · base = 외화 단가 (예: USD 100)<br>
+                · rate = 환율 (예: 1,350.00)<br>
+                · margin = 마진율 (예: 15)<br>
+                · target = 100 × 1,350 × 1.15<br>
+                &nbsp;&nbsp;&nbsp;&nbsp; <b>= 155,250 KRW</b>
+              </div>
+              <div class="guide">
+                <b>💡 활용 사례</b>
+                <ul>
+                  <li>해외 부품 견적 → 원화 환산</li>
+                  <li>환율 변동 시 원가 영향 사전 분석</li>
+                  <li>마진 조정 후 판매가 산정</li>
+                  <li>FTA 적용 전·후 비교</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="qsec" data-dn="cs:list" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">📜 시뮬 이력</span>
+            <span class="badge">{{ sims|length if sims else 0 }}건 (최근 20)</span>
+            <span class="right">최신순 정렬</span>
+          </div>
+          {% if sims %}
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:48px;">#</th>
+                <th style="width:150px;">시뮬 일시</th>
+                <th class="center" style="width:80px;">From</th>
+                <th class="center" style="width:80px;">To</th>
+                <th class="num" style="width:130px;">기준 단가</th>
+                <th class="num" style="width:120px;">환율</th>
+                <th class="num" style="width:90px;">마진</th>
+                <th class="num" style="width:160px;">목표 단가</th>
+                <th>비고</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for s in sims %}
+              <tr>
+                <td class="center mute">{{ loop.index }}</td>
+                <td class="code">{{ (s.simulated_at|default(s.created_at|default('—')))[:16] }}</td>
+                <td class="center"><span class="chip-cur base">{{ s.base_currency|default('—') }}</span></td>
+                <td class="center"><span class="chip-cur tgt">{{ s.target_currency|default('KRW') }}</span></td>
+                <td class="num">{{ '{:,.2f}'.format(s.unit_price_base|default(0)|float) }}</td>
+                <td class="num">{{ '{:,.4f}'.format(s.exchange_rate|default(0)|float) }}</td>
+                <td class="num">{{ '{:+.1f}'.format(s.margin_pct|default(0)|float) }}%</td>
+                <td class="num target">{{ '{:,.2f}'.format(s.unit_price_target|default(0)|float) }}</td>
+                <td class="mute" style="font-size:11.5px;">{{ (s.note|default('—'))|truncate(40) }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="po-empty">
+            <div class="ico">🧮</div>
+            <div class="ttl">시뮬 이력이 없습니다</div>
+            <div style="font-size:12px;">위 폼에서 첫 시뮬을 실행하세요.</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
     </div>
-    <button type="submit" class="btn btn-primary" style="margin-top:14px;">▶ 시뮬</button>
-  </form>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 
-  <!-- 시뮬 이력 -->
-  {% if sims %}
-  <div class="section">
-    <h2>시뮬 이력 ({{ sims|length }})</h2>
-    <div class="tbl-wrap tbl-sticky">
-      <table class="tbl">
-        <thead><tr><th>일시</th><th class="center">통화</th><th class="num">외화단가</th><th class="num">환율</th><th class="num">수량</th><th class="num">총 원가 (KRW)</th></tr></thead>
-        <tbody>
-        {% for s in sims %}
-          <tr><td style="font-family:monospace;font-size:11px;">{{ s.created_at|default('—')|truncate(16, end='') }}</td><td class="center"><span class="pill pill-progress">{{ s.currency }}</span></td><td class="num">{{ "{:,.2f}".format(s.foreign_price|default(0)) }}</td><td class="num">{{ "{:,.2f}".format(s.assumed_rate|default(0)) }}</td><td class="num">{{ s.qty|default(1) }}</td><td class="num" style="font-weight:700;color:var(--knk-red);">{{ "{:,.0f}".format(s.total_krw|default(0)) }}</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+<script>
+// 라이브 미리보기 — target = base × rate × (1 + margin/100)
+(function() {
+  var basePrice = document.getElementById('basePrice');
+  var rate = document.getElementById('rate');
+  var margin = document.getElementById('margin');
+  var tgtCur = document.getElementById('tgtCur');
+  var preview = document.getElementById('preview');
+  function recalc() {
+    var b = parseFloat(basePrice.value);
+    var r = parseFloat(rate.value);
+    var m = parseFloat(margin.value || '0');
+    if (isFinite(b) && isFinite(r) && b > 0 && r > 0) {
+      var t = b * r * (1 + m / 100);
+      preview.innerHTML = t.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                          ' <span style="font-size:12px;font-weight:500;color:var(--pq-ink-3);">' + tgtCur.value + '</span>';
+    } else {
+      preview.innerHTML = '— <span style="font-size:12px;font-weight:500;color:var(--pq-ink-3);">기준 단가·환율을 입력하면 자동 계산</span>';
+    }
+  }
+  [basePrice, rate, margin, tgtCur].forEach(function(el) { el.addEventListener('input', recalc); el.addEventListener('change', recalc); });
+})();
+</script>
+</body>
+</html>

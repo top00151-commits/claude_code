@@ -1,40 +1,198 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>QMS Pareto · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QMS Pareto 분석 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — QMS Pareto (80/20 분석)
+   라우터: GET /qms/pareto
+   전달: rows (cause / cnt / pct / cum_pct)
+         summary (total_issues / distinct_causes / p80_cutoff_idx / p80_pct_of_causes)
+         max_cnt #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-{% set s = summary or {} %}
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/qms">QMS</a> · <b>Pareto 분석</b></div><h1 class="page-title">📊 QMS <em>Pareto</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">유형/원인별 빈도 + 누적 비중 (80/20 법칙 적용)</div></div>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.pa-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pa-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pa-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.pa-head .crumb a { color: var(--pq-ink-3); }
+.pa-head .crumb b { color: var(--pq-ink); }
+.pa-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.pa-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.pa-actions { margin-left: auto; display: flex; gap: 8px; }
+.pa-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.pa-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">총 이슈</div><div class="kpi-num">{{ s.total|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">유형 수</div><div class="kpi-num">{{ rows|length }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">상위 80%</div><div class="kpi-num">{{ s.top_80_count|default(0) }}<span class="unit"> 유형</span></div></div>
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+.kpi-cell.info .v { color: var(--pq-info); }
 
-  <div style="margin-top:var(--space-5);"></div>
-  <div class="tbl-wrap tbl-sticky">
-    {% if rows %}
-    <table class="tbl">
-      <thead><tr><th class="center">#</th><th>유형 / 원인</th><th class="num">빈도</th><th>막대</th><th class="num">누적 비중</th></tr></thead>
-      <tbody>
-      {% for r in rows %}
-        <tr>
-          <td class="center" style="font-family:monospace;color:var(--amber-deep);font-weight:700;">{{ '%02d'|format(loop.index) }}</td>
-          <td><b>{{ r.label|default(r.issue_type|default(r.cause|default('—'))) }}</b></td>
-          <td class="num" style="font-weight:700;">{{ r.cnt|default(0) }}</td>
-          <td><div style="height:8px;background:var(--paper-2);border-radius:4px;overflow:hidden;"><div style="width:{{ ((r.cnt|default(0))*100/(max_cnt|default(1)))|round }}%;height:100%;background:var(--grad-amber);"></div></div></td>
-          <td class="num"><b>{{ '%.1f'|format(r.cum_pct|default(0)) }}%</b>{% if (r.cum_pct|default(0)) <= 80 %}<span class="pill pill-danger" style="margin-left:6px;">🔥 80%</span>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">데이터 없음</div></div>{% endif %}
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.note-strip { background: var(--pq-info-soft); border-bottom: 1px solid var(--pq-line); padding: 9px 24px; display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--pq-info); }
+.note-strip b { color: var(--pq-ink); }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 720px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 38px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; vertical-align: middle; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.idx { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr.p80 > td { background: var(--pq-warn-soft); }
+.tbl-erp tbody tr.p80:nth-child(even) > td { background: #fff7e0; }
+.tbl-erp tbody tr.p80 > td.idx { color: var(--pq-warn); }
+.tbl-erp tfoot td { background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink); padding: 8px 12px; font-weight: 700; font-size: 12.5px; }
+.tbl-erp tfoot td.num { font-family: var(--pq-mono); text-align: right; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.bar-wrap { display: flex; align-items: center; gap: 8px; }
+.bar-track { flex: 1; height: 8px; background: var(--pq-surface-3); border-radius: 4px; overflow: hidden; min-width: 100px; }
+.bar-fill { height: 100%; background: var(--pq-info); }
+.bar-fill.p80 { background: var(--pq-warn); }
+.cum-cell { display: inline-flex; align-items: center; gap: 6px; }
+.cum-cell .pill80 { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; background: var(--pq-warn); color: #fff; font-size: 10px; font-weight: 700; border-radius: 9px; font-family: var(--pq-mono); }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="pa-page">
+
+      <div class="pa-head" data-dn="pa:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/qms">QMS</a> · <b>Pareto 분석</b></div>
+          <div class="pa-title">📊 QMS Pareto 분석</div>
+          <div class="pa-meta">근본 원인별 빈도 · 누적 비중 (80/20 법칙) · 상위 원인 식별</div>
+        </div>
+        <div class="pa-actions">
+          <a href="/qms">🎯 대시보드</a>
+          <a href="/qms/recurrence">🔁 재발</a>
+          <a href="/qms/capa">⚙ CAPA</a>
+        </div>
+      </div>
+
+      {% set s = summary or {} %}
+      <div class="kpi-strip" data-dn="pa:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">총 이슈</div>
+          <div class="v">{{ '{:,}'.format(s.total_issues|default(0)) }}<span class="u">건</span></div>
+          <div class="sub">원인 분석 모집단</div>
+        </div>
+        <div class="kpi-cell info">
+          <div class="l">원인 종류</div>
+          <div class="v">{{ s.distinct_causes|default(0) }}<span class="u">종</span></div>
+          <div class="sub">루트코즈 distinct</div>
+        </div>
+        <div class="kpi-cell warn">
+          <div class="l">상위 80% 원인</div>
+          <div class="v">{{ s.p80_cutoff_idx|default(0) }}<span class="u">개</span></div>
+          <div class="sub">누적 80% 도달 지점</div>
+        </div>
+        <div class="kpi-cell warn">
+          <div class="l">원인 집중도</div>
+          <div class="v">{{ '{:.1f}'.format(s.p80_pct_of_causes|default(0)) }}<span class="u">%</span></div>
+          <div class="sub">원인의 N%가 80% 이슈 유발</div>
+        </div>
+      </div>
+
+      {% if rows %}
+      <div class="note-strip" data-dn="pa:note">
+        <span>💡</span>
+        <span><b>Pareto 법칙</b> — 상위 {{ s.p80_cutoff_idx|default(0) }}개 원인이 전체 이슈의 <b>80%</b>를 차지합니다. 이 원인부터 우선 처리 권장.</span>
+      </div>
+
+      <div class="tbl-zone" data-dn="pa:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th class="center" style="width:48px;">#</th>
+              <th>근본 원인 (Root Cause)</th>
+              <th class="num" style="width:72px;">빈도</th>
+              <th class="num" style="width:72px;">비중</th>
+              <th style="width:220px;">막대</th>
+              <th class="num" style="width:130px;">누적 비중</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% set p80_n = s.p80_cutoff_idx|default(0) %}
+          {% for r in rows %}
+            {% set is_p80 = loop.index <= p80_n %}
+            {% set bar_pct = (r.cnt * 100 / max_cnt) if max_cnt else 0 %}
+            <tr class="{% if is_p80 %}p80{% endif %}">
+              <td class="center idx">{{ '%02d'|format(loop.index) }}</td>
+              <td><b>{{ r.cause|default('—') }}</b></td>
+              <td class="num">{{ '{:,}'.format(r.cnt|default(0)) }}</td>
+              <td class="num">{{ '{:.1f}'.format(r.pct|default(0)) }}%</td>
+              <td>
+                <div class="bar-wrap">
+                  <div class="bar-track"><div class="bar-fill {% if is_p80 %}p80{% endif %}" style="width:{{ bar_pct }}%;"></div></div>
+                </div>
+              </td>
+              <td class="num">
+                <span class="cum-cell">
+                  {{ '{:.1f}'.format(r.cum_pct|default(0)) }}%
+                  {% if is_p80 %}<span class="pill80">80%</span>{% endif %}
+                </span>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">합계 ({{ rows|length }}개 원인)</td>
+              <td class="num">{{ '{:,}'.format(s.total_issues|default(0)) }}</td>
+              <td class="num">100.0%</td>
+              <td></td>
+              <td class="num">100.0%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty" data-dn="pa:empty">
+        <div class="ico">📊</div>
+        <div class="ttl">분석할 원인 데이터가 없습니다</div>
+        <div style="font-size:12.5px;">이슈 등록 시 <b>root_cause</b> 항목을 입력해야 Pareto 분석이 가능합니다.</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

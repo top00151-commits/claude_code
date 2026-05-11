@@ -1,52 +1,249 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>QMS 대시보드 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QMS 대시보드 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — QMS 품질경영 대시보드
+   라우터: GET /qms  (alias /qms/dashboard → 303 redirect)
+   전달: kpi (total / open / critical / breached / recurrence_groups / ca_open)
+         items (issues with id / title / severity / issue_type / sla{breached,remaining_h} / occurred_at / owner_team_name) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-{% set k = kpi or {} %}
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="page-meta">QMS · 품질경영시스템</div><h1 class="page-title">🎯 QMS <em>대시보드</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">이슈 SLA 추적 · CAPA 진행 · 재발 분석 · Pareto</div></div>
-    <div style="display:flex;gap:8px;">
-      <a class="btn btn-secondary" href="/qms/pareto">📊 Pareto</a>
-      <a class="btn btn-secondary" href="/qms/recurrence">🔁 재발 분석</a>
-      <a class="btn btn-secondary" href="/qms/capa">⚙ CAPA</a>
-    </div>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #f5f3ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.qms-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.qms-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qms-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.qms-head .crumb a { color: var(--pq-ink-3); }
+.qms-head .crumb b { color: var(--pq-ink); }
+.qms-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.qms-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.qms-actions { margin-left: auto; display: flex; gap: 8px; }
+.qms-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.qms-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  <div class="bento" style="grid-template-columns:repeat(6,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">총 이슈</div><div class="kpi-num">{{ k.total|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">미해결</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.open|default(0) }}</div><div class="kpi-trend alert">처리 필요</div></div>
-    <div class="kpi-card"><div class="kpi-label">심각/치명</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.critical|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">SLA 초과</div><div class="kpi-num" style="color:var(--knk-red);">{{ k.breached|default(0) }}</div><div class="kpi-trend alert">초과</div></div>
-    <div class="kpi-card"><div class="kpi-label">재발 그룹</div><div class="kpi-num">{{ k.recurrence_groups|default(0) }}</div><div class="kpi-trend neutral">연결됨</div></div>
-    <div class="kpi-card"><div class="kpi-label">CAPA 진행</div><div class="kpi-num">{{ k.ca_open|default(0) }}</div></div>
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); position: relative; }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.alert .v { color: var(--pq-err); }
+.kpi-cell.warn .v { color: var(--pq-warn); }
+.kpi-cell.info .v { color: var(--pq-info); }
+.kpi-cell.ok .v { color: var(--pq-ok); }
+.kpi-cell.alert::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--pq-err); }
 
-  <div class="section">
-    <h2>미해결 이슈 ({{ items|length if items else 0 }})</h2>
-    <div class="tbl-wrap tbl-sticky">
-      {% if items %}
-      <table class="tbl">
-        <thead><tr><th>#</th><th>제목</th><th class="center">심각</th><th class="center">유형</th><th class="center">SLA</th><th>발생</th><th class="center">담당팀</th></tr></thead>
-        <tbody>
-        {% for i in items %}
-          <tr onclick="location.href='/issues/{{ i.id }}'">
-            <td style="font-family:monospace;color:var(--amber-deep);font-weight:700;">#{{ i.id }}</td>
-            <td><b>{{ i.title }}</b></td>
-            <td class="center"><span class="pill {% if i.severity in ('치명','심각','CRITICAL','HIGH') %}pill-danger{% else %}pill-warn{% endif %}">{{ i.severity|default('—') }}</span></td>
-            <td class="center"><span class="pill pill-muted">{{ i.issue_type|default('—') }}</span></td>
-            <td class="center">{% if i.sla and i.sla.breached %}<span class="pill pill-danger">⚠ 초과</span>{% elif i.sla %}<span class="pill pill-progress">{{ i.sla.remaining_h|default('—') }}h 남음</span>{% else %}—{% endif %}</td>
-            <td style="font-family:monospace;font-size:11px;">{{ i.occurred_at|default('—') }}</td>
-            <td class="center" style="font-size:12px;">{{ i.owner_team_name|default('—') }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% else %}<div class="empty"><div class="ico">✓</div><div class="ttl">미해결 이슈가 없습니다</div></div>{% endif %}
+.qms-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 16px 20px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 36px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-sev { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-sev::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-sev.s-crit  { background: var(--pq-err-soft); color: var(--pq-err); }
+.chip-sev.s-high  { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-sev.s-mid   { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-sev.s-low   { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+
+.chip-typ { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--pq-surface-3); color: var(--pq-ink-2); }
+
+.chip-sla { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-sla.s-br  { background: var(--pq-err-soft); color: var(--pq-err); }
+.chip-sla.s-ok  { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-sla.s-wn  { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-sla.s-na  { background: transparent; color: var(--pq-ink-4); }
+
+.qms-empty { padding: 48px 20px; text-align: center; color: var(--pq-ink-3); }
+.qms-empty .ico { font-size: 36px; opacity: 0.5; }
+.qms-empty .ttl { font-size: 14px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+.nav-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 0; margin-bottom: 14px; }
+.nav-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; padding: 14px; text-decoration: none; transition: all 0.12s; cursor: pointer; }
+.nav-card:hover { border-color: var(--pq-ink-4); background: var(--pq-surface-2); }
+.nav-card .ico { font-size: 22px; }
+.nav-card .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin-top: 6px; }
+.nav-card .desc { font-size: 11.5px; color: var(--pq-ink-3); margin-top: 3px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="qms-page">
+
+      <div class="qms-head" data-dn="qms:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/issues">이슈</a> · <b>QMS 대시보드</b></div>
+          <div class="qms-title">🎯 QMS 품질경영 대시보드</div>
+          <div class="qms-meta">이슈 SLA · 심각도 · 재발 분석 · CAPA 진행 통합 상황판</div>
+        </div>
+        <div class="qms-actions">
+          <a href="/qms/pareto">📊 Pareto</a>
+          <a href="/qms/recurrence">🔁 재발 분석</a>
+          <a href="/qms/capa">⚙ CAPA</a>
+          <a href="/issues">📋 이슈 목록</a>
+        </div>
+      </div>
+
+      {% set k = kpi or {} %}
+      <div class="kpi-strip" data-dn="qms:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">전체 이슈</div>
+          <div class="v">{{ '{:,}'.format(k.total|default(0)) }}<span class="u">건</span></div>
+          <div class="sub">누적 등록</div>
+        </div>
+        <div class="kpi-cell {% if (k.open|default(0)) > 0 %}warn{% endif %}">
+          <div class="l">미해결</div>
+          <div class="v">{{ '{:,}'.format(k.open|default(0)) }}<span class="u">건</span></div>
+          <div class="sub">상태 ≠ 해결·종결</div>
+        </div>
+        <div class="kpi-cell {% if (k.critical|default(0)) > 0 %}alert{% endif %}">
+          <div class="l">심각/치명</div>
+          <div class="v">{{ k.critical|default(0) }}<span class="u">건</span></div>
+          <div class="sub">CRITICAL / HIGH</div>
+        </div>
+        <div class="kpi-cell {% if (k.breached|default(0)) > 0 %}alert{% endif %}">
+          <div class="l">SLA 초과</div>
+          <div class="v">{{ k.breached|default(0) }}<span class="u">건</span></div>
+          <div class="sub">대응시한 초과</div>
+        </div>
+        <div class="kpi-cell {% if (k.recurrence_groups|default(0)) > 0 %}info{% endif %}">
+          <div class="l">재발 그룹</div>
+          <div class="v">{{ k.recurrence_groups|default(0) }}<span class="u">그룹</span></div>
+          <div class="sub">동일 원인 묶음</div>
+        </div>
+        <div class="kpi-cell {% if (k.ca_open|default(0)) > 0 %}info{% endif %}">
+          <div class="l">CAPA 진행</div>
+          <div class="v">{{ k.ca_open|default(0) }}<span class="u">건</span></div>
+          <div class="sub">시정·예방 조치 중</div>
+        </div>
+      </div>
+
+      <div class="qms-body" data-dn="qms:body">
+
+        <div class="nav-strip" data-dn="qms:nav">
+          <a class="nav-card" href="/qms/pareto">
+            <div class="ico">📊</div>
+            <div class="ttl">Pareto 분석</div>
+            <div class="desc">유형·원인별 80/20 누적 비중</div>
+          </a>
+          <a class="nav-card" href="/qms/recurrence">
+            <div class="ico">🔁</div>
+            <div class="ttl">재발 분석</div>
+            <div class="desc">동일 원인 반복 이슈 그룹</div>
+          </a>
+          <a class="nav-card" href="/qms/capa">
+            <div class="ico">⚙</div>
+            <div class="ttl">CAPA</div>
+            <div class="desc">시정·예방 조치 추적</div>
+          </a>
+          <a class="nav-card" href="/issues?status=open">
+            <div class="ico">📋</div>
+            <div class="ttl">미해결 이슈</div>
+            <div class="desc">전체 미해결 + 필터 검색</div>
+          </a>
+        </div>
+
+        <div class="qsec" data-dn="qms:issues" data-dn-tone="purple">
+          <div class="qsec-h">
+            <span class="ttl">📋 미해결 이슈</span>
+            <span class="badge">{{ items|length if items else 0 }}건</span>
+            <span class="right">행 클릭 → 상세 (/issues/{id})</span>
+          </div>
+          {% if items %}
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:64px;">#</th>
+                <th>제목</th>
+                <th class="center" style="width:90px;">심각도</th>
+                <th class="center" style="width:100px;">유형</th>
+                <th class="center" style="width:110px;">SLA</th>
+                <th style="width:130px;">발생일</th>
+                <th class="center" style="width:140px;">담당팀</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for i in items %}
+              {% set sev = i.severity|default('') %}
+              {% set sev_cls = 's-crit' if sev in ('치명','CRITICAL') else ('s-high' if sev in ('심각','HIGH') else ('s-mid' if sev in ('보통','MID','MEDIUM') else 's-low')) %}
+              <tr onclick="location.href='/issues/{{ i.id }}'">
+                <td class="center code">#{{ i.id }}</td>
+                <td><b>{{ i.title|default('—') }}</b></td>
+                <td class="center">{% if sev %}<span class="chip-sev {{ sev_cls }}">{{ sev }}</span>{% else %}<span class="mute">—</span>{% endif %}</td>
+                <td class="center">{% if i.issue_type %}<span class="chip-typ">{{ i.issue_type }}</span>{% else %}<span class="mute">—</span>{% endif %}</td>
+                <td class="center">
+                  {% if i.sla and i.sla.breached %}
+                    <span class="chip-sla s-br">⚠ 초과</span>
+                  {% elif i.sla and i.sla.remaining_h is defined %}
+                    {% if i.sla.remaining_h <= 4 %}
+                      <span class="chip-sla s-wn">{{ i.sla.remaining_h }}h</span>
+                    {% else %}
+                      <span class="chip-sla s-ok">{{ i.sla.remaining_h }}h</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="chip-sla s-na">—</span>
+                  {% endif %}
+                </td>
+                <td class="mute" style="font-family:var(--pq-mono);font-size:11px;">{{ (i.occurred_at|default('—'))[:16] }}</td>
+                <td class="center mute" style="font-size:11.5px;">{{ i.owner_team_name|default('—') }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="qms-empty">
+            <div class="ico">✓</div>
+            <div class="ttl">미해결 이슈가 없습니다</div>
+            <div style="font-size:12px;">모든 품질 이슈가 해결·종결 상태입니다.</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
     </div>
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

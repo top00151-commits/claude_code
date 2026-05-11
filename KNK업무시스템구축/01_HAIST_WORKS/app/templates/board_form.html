@@ -4,7 +4,7 @@
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.form-card { margin: 0 0 var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field label { font-size: 12px; font-weight: 600; }
 .field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
@@ -33,7 +33,7 @@
       </div>
       <div style="font-size:12px;color:var(--qv-ink-3);margin-top:6px;"><label><input type="checkbox" name="is_pinned" value="1" {% if post and post.is_pinned %}checked{% endif %}> 📌 상단 고정</label></div>
     </div>
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+    <div style="margin: 0 0 var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
       <a class="btn btn-secondary" href="/board">취소</a>
       <button type="submit" class="btn btn-primary">📤 {% if post %}저장{% else %}게시{% endif %}</button>
     </div>

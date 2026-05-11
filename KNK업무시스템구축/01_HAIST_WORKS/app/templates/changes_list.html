@@ -3,6 +3,7 @@
 {# changes_list.html — 변경 공지 목록
    2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
 {% include "_v5_partials/styles.html" %}
+<style>.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }</style>
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="changes-main">
@@ -10,7 +11,7 @@
     <div><div class="page-meta">변경 공지 · Change Notice</div><h1 class="page-title">📌 변경 <em>공지</em></h1></div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/changes/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/changes/new">＋ 변경 등록</a></div>
   </div>
-  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/changes">
+  <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 0 var(--space-4);flex-wrap:wrap;" method="get" action="/changes">
     <input type="hidden" name="scope" value="{{ scope|default('all') }}">
     <input type="search" name="q" value="{{ q }}" placeholder="제목/내용 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
     <select name="change_type" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);"><option value="">유형 전체</option>{% for c in CHANGE_TYPES %}<option value="{{ c }}" {% if change_type==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>

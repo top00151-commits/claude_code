@@ -108,6 +108,15 @@
 .pill-active { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-ok-soft); color: var(--pq-ok); }
 .pill-inactive { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-4); }
 
+/* v5H226z58: 품목계정 chip (KNK 5종 — RAW/SUB/SEMI/FIN/CONS) */
+.chip-acc { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; font-size: 10.5px; font-weight: 700; border-radius: 3px; font-family: var(--pq-mono); }
+.chip-acc.a-raw  { background: #fff7ed; color: #c2410c; }
+.chip-acc.a-sub  { background: #fef3c7; color: #92400e; }
+.chip-acc.a-semi { background: #ede9fe; color: #6d28d9; }
+.chip-acc.a-fin  { background: #ecfdf5; color: #047857; }
+.chip-acc.a-cons { background: #f1f5f9; color: #475569; }
+.chip-acc.a-x    { background: var(--pq-surface-3); color: var(--pq-ink-4); font-weight: 500; }
+
 /* Stock bar (재고 시각화) */
 .stk-mini { position: relative; width: 80px; height: 12px; background: var(--pq-surface-3); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
 .stk-mini .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pq-ok); }
@@ -243,6 +252,7 @@
               <th>자재명</th>
               <th>규격 / 제조사</th>
               <th class="center" style="width:80px;">사업부</th>
+              <th class="center" style="width:80px;">품목계정</th>
               <th class="center" style="width:80px;">분류</th>
               <th class="num" style="width:100px;">표준가</th>
               <th class="center" style="width:60px;">단위</th>
@@ -270,6 +280,11 @@
               </td>
               <td class="center">
                 {% if biz_div_v %}<span class="chip-biz {{ biz_cls }}">{{ biz_div_v }}</span>{% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td class="center">
+                {% set acc = p.item_account|default('') %}
+                {% set acc_cls = 'a-raw' if acc=='RAW' else ('a-sub' if acc=='SUB' else ('a-semi' if acc=='SEMI' else ('a-fin' if acc=='FIN' else ('a-cons' if acc=='CONS' else 'a-x')))) %}
+                {% if acc %}<span class="chip-acc {{ acc_cls }}">{{ acc }}</span>{% else %}<span class="chip-acc a-x">—</span>{% endif %}
               </td>
               <td class="center mute" style="font-size:11.5px;">{{ p.category|default('—') }}</td>
               <td class="num">

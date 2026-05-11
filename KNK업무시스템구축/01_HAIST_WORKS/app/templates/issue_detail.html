@@ -1,68 +1,378 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{{ issue.title }} · 이슈</title>
-{# issue_detail.html — 이슈 상세 + 처리 이력
-   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>#{{ issue.id }} · {{ issue.title|default('이슈') }} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 이슈 상세 + 처리 이력 + 업데이트 폼
+   라우터:
+     GET  /issues/{iid}        → issue / logs / teams / can_edit / ISSUE_STATUSES / SEVERITIES / TYPES
+     POST /issues/{iid}/update → Form: status / root_cause / action_taken / prevention /
+                                       owner_team_id / cost_estimate / related_change_id /
+                                       comment / note
+   issue 키: id/issue_no/title/severity/issue_type/status/customer_id/customer_name/project_id/
+            mgmt_code/biz_div/occurred_at/detected_by/description/root_cause/action_taken/prevention/
+            owner_team_id/owner_user_id/resolved_at/cost_estimate/related_change_id/created_by/
+            created_at/updated_at + sla_hours/detected_at/responded_at/recurrence_id/sla_breached +
+            owner_team_name/owner_user_name/customer_full_name/created_by_name/
+            related_change_no/related_change_title
+   logs 키: id/issue_id/user_id/action/content/old_status/new_status/created_at/user_name
+   ⚠ 잠재 버그 복구:
+     - issue.detail → issue.description
+     - issue.owner_name → issue.owner_user_name
+     - issue.project_name 제거 (미조인)
+     - l.actor_name → l.user_name
+     - l.body → l.content
+     - 업데이트 폼 UI 신규 추가 (라우터는 있는데 폼 없었음) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
-.section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
-.section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--knk-red); border-radius: 2px; }
-.def { display: grid; grid-template-columns: 90px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--qv-ink-3); font-weight: 600; } .def dd { color: var(--qv-ink); }
-@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
-</style></head>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #f5f3ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.is-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.is-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.is-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.is-head .crumb a { color: var(--pq-ink-3); }
+.is-head .crumb b { color: var(--pq-ink); }
+.is-head .title-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.is-no { font-family: var(--pq-mono); font-size: 18px; font-weight: 800; color: var(--pq-info); }
+.is-title { font-size: 20px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.is-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.is-actions { margin-left: auto; display: flex; gap: 8px; }
+.is-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.is-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.chip-sev { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 800; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-sev::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-sev.s-crit { background: var(--pq-err-soft); color: var(--pq-err); }
+.chip-sev.s-high { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-sev.s-mid  { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-sev.s-low  { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+
+.chip-st { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-st.s-open    { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-st.s-prog    { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-st.s-done    { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-st.s-other   { background: var(--pq-surface-3); color: var(--pq-ink-3); }
+
+.chip-typ { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--pq-surface-3); color: var(--pq-ink-2); }
+
+.is-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+.is-grid { display: grid; grid-template-columns: 1fr 340px; gap: 14px; }
+@media (max-width: 1180px) { .is-grid { grid-template-columns: 1fr; } }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.qsec-b { padding: 14px 16px; }
+.qsec-b .text-block { font-size: 13px; color: var(--pq-ink); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+.qsec-b .text-block.muted { color: var(--pq-ink-4); font-style: italic; }
+
+.def-grid { display: grid; grid-template-columns: 110px 1fr; gap: 9px 14px; font-size: 12.5px; }
+.def-grid dt { color: var(--pq-ink-3); font-weight: 600; }
+.def-grid dd { color: var(--pq-ink); margin: 0; }
+.def-grid dd code { font-family: var(--pq-mono); background: var(--pq-surface-3); padding: 1px 6px; border-radius: 3px; }
+
+.log-list { padding: 0; }
+.log-item { padding: 10px 14px; border-bottom: 1px solid var(--pq-line); display: grid; grid-template-columns: 130px 110px 1fr; gap: 12px; align-items: start; font-size: 12px; }
+.log-item:last-child { border-bottom: 0; }
+.log-item .when { font-family: var(--pq-mono); color: var(--pq-ink-4); font-size: 11px; }
+.log-item .who { font-weight: 700; color: var(--pq-ink); }
+.log-item .what { color: var(--pq-ink-2); line-height: 1.6; }
+.log-item .what .act { display: inline-block; padding: 1px 6px; background: var(--pq-info-soft); color: var(--pq-info); border-radius: 3px; font-size: 10.5px; font-weight: 700; margin-right: 6px; font-family: var(--pq-mono); }
+.log-item .what .transition { font-family: var(--pq-mono); color: var(--pq-warn); font-size: 11px; margin-left: 4px; }
+
+.upd-form { padding: 14px 16px; }
+.upd-form .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.upd-form .field { display: flex; flex-direction: column; gap: 4px; }
+.upd-form .field.col-2 { grid-column: span 2; }
+.upd-form .field.col-4 { grid-column: span 4; }
+.upd-form label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.upd-form input, .upd-form select, .upd-form textarea {
+  padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px;
+  background: var(--pq-surface); color: var(--pq-ink); font-family: inherit;
+}
+.upd-form textarea { min-height: 70px; resize: vertical; }
+.upd-form input:focus, .upd-form select:focus, .upd-form textarea:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+.upd-form .submit-row { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+.upd-form button { height: 34px; padding: 0 18px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.upd-form button:hover { background: #1e293b; }
+.upd-form .note { font-size: 11px; color: var(--pq-ink-4); }
+
+.po-empty { padding: 32px 20px; text-align: center; color: var(--pq-ink-3); }
+.po-empty .ico { font-size: 32px; opacity: 0.5; }
+.po-empty .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 6px 0 3px; }
+</style>
+</head>
 <body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main" data-dn="issue-main">
-  <div class="page-head" data-dn="issue-pagehead">
-    <div>
-      <div class="crumbs"><a href="/issues">이슈·AS</a> · <b>#{{ issue.id }}</b></div>
-      <h1 class="page-title" style="display:flex;align-items:center;gap:14px;">
-        <span style="font-family:monospace;color:var(--knk-red);">#{{ issue.id }}</span>
-        <span>{{ issue.title }}</span>
-        <span class="pill {% if issue.severity in ('심각','매우심각') %}pill-danger{% elif issue.severity == '보통' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ issue.severity|default('—') }}</span>
-        <span class="pill {% if issue.status == '완료' %}pill-done{% elif issue.status == '진행중' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:13px;">{{ issue.status }}</span>
-      </h1>
-    </div>
-    <a class="btn btn-secondary" href="/issues">↩ 목록</a>
-  </div>
 
-  <div class="detail-grid" data-dn="issue-grid">
-    <div>
-      <div class="section-card">
-        <h3>이슈 내용</h3>
-        <div style="font-size:14px;color:var(--qv-ink);line-height:1.7;white-space:pre-wrap;">{{ issue.detail|default('(내용 없음)') }}</div>
-      </div>
-      {% if logs %}
-      <div class="section-card">
-        <h3>처리 이력 ({{ logs|length }})</h3>
-        {% for l in logs %}
-        <div style="padding:10px 12px;background:var(--qv-surface-3);border-radius:var(--radius-sm);margin-bottom:8px;font-size:12.5px;border-left:3px solid var(--qv-line-3);">
-          <b>{{ l.actor_name|default('시스템') }}</b>
-          <span style="color:var(--qv-ink-3);font-size:11px;margin-left:6px;">{{ l.created_at }}</span>
-          <div style="margin-top:4px;">{{ l.body|default(l.action|default('')) }}</div>
+{% set sev = issue.severity|default('') %}
+{% set sev_cls = ({'치명':'s-crit','CRITICAL':'s-crit','심각':'s-high','HIGH':'s-high','중':'s-mid','MID':'s-mid','MEDIUM':'s-mid','경':'s-low','LOW':'s-low'}).get(sev, 's-low') %}
+{% set st = issue.status|default('접수') %}
+{% set st_cls = ({'접수':'s-open','원인분석':'s-prog','조치중':'s-prog','해결':'s-done','재발방지등록':'s-done','종결':'s-done'}).get(st, 's-other') %}
+
+<div class="app">
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="is-page">
+
+      <div class="is-head" data-dn="is:head" data-dn-tone="purple">
+        <div>
+          <div class="crumb"><a href="/issues">이슈·AS</a> · <a href="/qms">QMS</a> · <b>#{{ issue.id }}</b></div>
+          <div class="title-line">
+            <span class="is-no">{{ issue.issue_no|default('#' ~ issue.id) }}</span>
+            <span class="is-title">{{ issue.title|default('—') }}</span>
+            {% if sev %}<span class="chip-sev {{ sev_cls }}">{{ sev }}</span>{% endif %}
+            <span class="chip-st {{ st_cls }}">{{ st }}</span>
+            {% if issue.issue_type %}<span class="chip-typ">{{ issue.issue_type }}</span>{% endif %}
+            {% if issue.sla_breached %}<span class="chip-sev s-crit">⚠ SLA 초과</span>{% endif %}
+          </div>
+          <div class="is-meta">
+            발의: {{ issue.created_by_name|default('—') }}{% if issue.created_at %} · {{ (issue.created_at)[:16] }}{% endif %}
+            {% if issue.owner_team_name %} · 담당팀 <b style="color:var(--pq-ink);">{{ issue.owner_team_name }}</b>{% endif %}
+            {% if issue.owner_user_name %} · 담당자 <b style="color:var(--pq-ink);">{{ issue.owner_user_name }}</b>{% endif %}
+          </div>
         </div>
-        {% endfor %}
+        <div class="is-actions">
+          <a href="/issues">↩ 목록</a>
+          <a href="/qms">🎯 QMS</a>
+        </div>
       </div>
-      {% endif %}
-    </div>
 
-    <aside>
-      <div class="section-card">
-        <h3>정보</h3>
-        <dl class="def">
-          <dt>유형</dt><dd>{{ issue.issue_type|default('—') }}</dd>
-          <dt>담당</dt><dd>{{ issue.owner_name|default('미배정') }}</dd>
-          <dt>담당팀</dt><dd>{{ issue.owner_team_name|default('—') }}</dd>
-          <dt>관련 PJ</dt><dd>{{ issue.project_name|default('—') }}</dd>
-          <dt>고객사</dt><dd>{{ issue.customer_name|default('—') }}</dd>
-          {% if issue.sla_hours %}<dt>SLA</dt><dd>{{ issue.sla_hours }}h{% if issue.sla_breached %} <span style="color:var(--knk-red);">⚠ 초과</span>{% endif %}</dd>{% endif %}
-          <dt>발생</dt><dd style="font-family:monospace;font-size:12px;">{{ issue.detected_at|default(issue.created_at) }}</dd>
-          {% if issue.responded_at %}<dt>응답</dt><dd style="font-family:monospace;font-size:12px;">{{ issue.responded_at }}</dd>{% endif %}
-        </dl>
+      <div class="is-body" data-dn="is:body">
+        <div class="is-grid">
+
+          <div>
+
+            <div class="qsec" data-dn="is:desc">
+              <div class="qsec-h">
+                <span class="ttl">📝 이슈 내용</span>
+              </div>
+              <div class="qsec-b">
+                {% if issue.description %}
+                  <div class="text-block">{{ issue.description }}</div>
+                {% else %}
+                  <div class="text-block muted">(내용 없음)</div>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if issue.root_cause or issue.action_taken or issue.prevention %}
+            <div class="qsec" data-dn="is:analysis">
+              <div class="qsec-h">
+                <span class="ttl">🔍 원인 · 조치 · 재발방지</span>
+                <span class="badge">QMS 3대 항목</span>
+              </div>
+              <div class="qsec-b">
+                {% if issue.root_cause %}
+                  <div style="margin-bottom:12px;"><b style="font-size:12px;color:var(--pq-info);">▸ 근본 원인 (Root Cause)</b>
+                    <div class="text-block" style="margin-top:4px;">{{ issue.root_cause }}</div>
+                  </div>
+                {% endif %}
+                {% if issue.action_taken %}
+                  <div style="margin-bottom:12px;"><b style="font-size:12px;color:var(--pq-warn);">▸ 조치 내역 (Action Taken)</b>
+                    <div class="text-block" style="margin-top:4px;">{{ issue.action_taken }}</div>
+                  </div>
+                {% endif %}
+                {% if issue.prevention %}
+                  <div><b style="font-size:12px;color:var(--pq-ok);">▸ 재발방지 대책 (Prevention)</b>
+                    <div class="text-block" style="margin-top:4px;">{{ issue.prevention }}</div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+
+            {% if can_edit %}
+            <div class="qsec" data-dn="is:update" data-dn-tone="purple">
+              <div class="qsec-h">
+                <span class="ttl">✏ 이슈 업데이트</span>
+                <span class="badge">상태 · 원인 · 조치 · 재발방지</span>
+              </div>
+              <form class="upd-form" method="post" action="/issues/{{ issue.id }}/update">
+                <div class="grid">
+                  <div class="field">
+                    <label>상태 변경</label>
+                    <select name="status">
+                      <option value="">— 유지 —</option>
+                      {% for s in ISSUE_STATUSES %}<option value="{{ s }}" {% if issue.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>담당팀</label>
+                    <select name="owner_team_id">
+                      <option value="">— 유지 —</option>
+                      {% for t in teams %}<option value="{{ t.id }}" {% if issue.owner_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>비용 추정 (원)</label>
+                    <input type="number" name="cost_estimate" step="1" min="0" value="{{ issue.cost_estimate|default(0)|int }}">
+                  </div>
+                  <div class="field">
+                    <label>관련 변경 ID</label>
+                    <input type="number" name="related_change_id" value="{{ issue.related_change_id|default('') }}" placeholder="changes.id">
+                  </div>
+
+                  <div class="field col-2">
+                    <label>근본 원인 (Root Cause)</label>
+                    <textarea name="root_cause" placeholder="원인 분석 결과">{{ issue.root_cause|default('') }}</textarea>
+                  </div>
+                  <div class="field col-2">
+                    <label>조치 내역 (Action Taken)</label>
+                    <textarea name="action_taken" placeholder="실행한 조치">{{ issue.action_taken|default('') }}</textarea>
+                  </div>
+
+                  <div class="field col-4">
+                    <label>재발방지 대책 (Prevention)</label>
+                    <textarea name="prevention" placeholder="재발 방지 조치">{{ issue.prevention|default('') }}</textarea>
+                  </div>
+
+                  <div class="field col-2">
+                    <label>코멘트 (로그에 기록)</label>
+                    <input type="text" name="comment" placeholder="처리 이력에 남길 메시지">
+                  </div>
+                  <div class="field col-2">
+                    <label>비고 (내부)</label>
+                    <input type="text" name="note" placeholder="비고 (선택)">
+                  </div>
+                </div>
+                <div class="submit-row">
+                  <button type="submit">💾 저장</button>
+                  <span class="note">💡 상태 변경 시 자동으로 처리 이력에 기록됩니다</span>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+
+            <div class="qsec" data-dn="is:logs">
+              <div class="qsec-h">
+                <span class="ttl">📜 처리 이력</span>
+                <span class="badge">{{ logs|length if logs else 0 }}건</span>
+                <span class="right">시간순 정렬</span>
+              </div>
+              {% if logs %}
+              <div class="log-list">
+                {% for l in logs %}
+                  <div class="log-item">
+                    <div class="when">{{ (l.created_at|default('—'))[:16] }}</div>
+                    <div class="who">{{ l.user_name|default('시스템') }}</div>
+                    <div class="what">
+                      {% if l.action %}<span class="act">{{ l.action }}</span>{% endif %}
+                      {% if l.content %}{{ l.content }}{% endif %}
+                      {% if l.old_status and l.new_status and l.old_status != l.new_status %}
+                        <span class="transition">{{ l.old_status }} → {{ l.new_status }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="po-empty">
+                <div class="ico">📜</div>
+                <div class="ttl">처리 이력이 없습니다</div>
+              </div>
+              {% endif %}
+            </div>
+
+          </div>
+
+          <aside>
+            <div class="qsec" data-dn="is:info">
+              <div class="qsec-h">
+                <span class="ttl">📋 정보</span>
+              </div>
+              <div class="qsec-b">
+                <dl class="def-grid">
+                  <dt>이슈번호</dt><dd><code>{{ issue.issue_no|default('—') }}</code></dd>
+                  <dt>유형</dt><dd>{{ issue.issue_type|default('—') }}</dd>
+                  <dt>심각도</dt><dd>{{ issue.severity|default('—') }}</dd>
+                  <dt>사업부</dt><dd>{{ issue.biz_div|default('—') }}</dd>
+                  {% if issue.mgmt_code %}<dt>관리코드</dt><dd><code>{{ issue.mgmt_code }}</code></dd>{% endif %}
+                  <dt>고객사</dt><dd>{{ issue.customer_full_name|default(issue.customer_name|default('—')) }}</dd>
+                  <dt>발생일</dt><dd>{{ issue.occurred_at|default('—') }}</dd>
+                  <dt>발견자</dt><dd>{{ issue.detected_by|default('—') }}</dd>
+                  {% if issue.detected_at %}<dt>감지시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.detected_at[:16] }}</dd>{% endif %}
+                  {% if issue.responded_at %}<dt>응답시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.responded_at[:16] }}</dd>{% endif %}
+                  {% if issue.resolved_at %}<dt>해결시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.resolved_at[:16] }}</dd>{% endif %}
+                  {% if issue.cost_estimate %}<dt>비용추정</dt><dd>{{ '{:,.0f}'.format(issue.cost_estimate|float) }} 원</dd>{% endif %}
+                </dl>
+              </div>
+            </div>
+
+            {% if issue.sla_hours %}
+            <div class="qsec" data-dn="is:sla">
+              <div class="qsec-h">
+                <span class="ttl">⏱ SLA</span>
+                {% if issue.sla_breached %}<span class="badge" style="background:var(--pq-err-soft);color:var(--pq-err);">⚠ 초과</span>
+                {% else %}<span class="badge" style="background:var(--pq-ok-soft);color:var(--pq-ok);">정상</span>{% endif %}
+              </div>
+              <div class="qsec-b">
+                <dl class="def-grid">
+                  <dt>SLA 시간</dt><dd><b style="font-family:var(--pq-mono);">{{ issue.sla_hours }} 시간</b></dd>
+                  <dt>위반 여부</dt><dd>{% if issue.sla_breached %}<span style="color:var(--pq-err);font-weight:700;">초과</span>{% else %}<span style="color:var(--pq-ok);font-weight:700;">정상</span>{% endif %}</dd>
+                </dl>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if issue.related_change_no %}
+            <div class="qsec" data-dn="is:change">
+              <div class="qsec-h">
+                <span class="ttl">🔗 관련 변경</span>
+              </div>
+              <div class="qsec-b">
+                <div style="font-size:12.5px;">
+                  <b><code>{{ issue.related_change_no }}</code></b>
+                  <div style="margin-top:6px;color:var(--pq-ink-3);">{{ issue.related_change_title|default('—') }}</div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if issue.recurrence_id %}
+            <div class="qsec" data-dn="is:recur">
+              <div class="qsec-h">
+                <span class="ttl">🔁 재발 그룹</span>
+                <span class="badge">RID</span>
+              </div>
+              <div class="qsec-b">
+                <code style="font-family:var(--pq-mono);font-size:12px;">{{ issue.recurrence_id }}</code>
+                <div style="margin-top:6px;"><a href="/qms/recurrence" style="font-size:11px;color:var(--pq-info);">→ 재발 분석 보기</a></div>
+              </div>
+            </div>
+            {% endif %}
+          </aside>
+
+        </div>
       </div>
-    </aside>
-  </div>
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

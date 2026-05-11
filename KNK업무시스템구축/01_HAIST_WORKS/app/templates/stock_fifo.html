@@ -1,35 +1,175 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>FIFO 레이어 · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FIFO 레이어 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — FIFO 재고 레이어 조회
+   라우터: GET /stock/balances/fifo/{part_id}
+   전달: summary (layer_count / total_qty / total_value / layers / part_name / part_no 등) #}
+
+<link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
-</head><body>
-<div class="app">{% set active_tab = 'logi' %}
-{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/logistics">자재구매센터</a> · <b>FIFO 레이어</b></div><h1 class="page-title">📚 FIFO <em>레이어</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">선입선출 방식 재고 평가 — 입고 시점별 레이어 추적</div></div>
-  </div>
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.fifo-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.fifo-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.fifo-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.fifo-head .crumb a { color: var(--pq-ink-3); }
+.fifo-head .crumb b { color: var(--pq-ink); }
+.fifo-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); }
+.fifo-meta { font-size: 12px; color: var(--pq-ink-3); }
+.fifo-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+.fifo-actions { margin-left: auto; display: flex; gap: 8px; }
+.fifo-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.fifo-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 
-  {% if summary %}
-  <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">활성 레이어</div><div class="kpi-num">{{ summary.layer_count|default(0) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">총 수량</div><div class="kpi-num">{{ '{:,.0f}'.format(summary.total_qty|default(0)) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">총 가치</div><div class="kpi-num">{{ '{:,.0f}'.format(summary.total_value|default(0)) }}<span class="unit">원</span></div></div>
-  </div>
+.kpi-strip { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 16px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 11px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 2px; display: flex; align-items: baseline; gap: 4px; }
+.kpi-cell .u { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
 
-  {% if summary.layers %}
-  <div style="margin-top:var(--space-5);"></div>
-  <div class="tbl-wrap tbl-sticky">
-    <table class="tbl">
-      <thead><tr><th>입고일</th><th>자재</th><th class="num">수량</th><th class="num">단가</th><th class="num">가치</th><th>참조</th></tr></thead>
-      <tbody>
-      {% for l in summary.layers[:100] %}
-        <tr><td style="font-family:monospace;font-size:12px;">{{ l.received_at|default('—')|truncate(10, end='') }}</td><td><b>{{ l.part_name|default('—') }}</b></td><td class="num">{{ '{:,.0f}'.format(l.qty|default(0)) }}</td><td class="num">{{ '{:,.0f}'.format(l.unit_price|default(0)) }}</td><td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(l.value|default(0)) }}</td><td style="font-size:11px;color:var(--mute);">{{ l.po_number|default('—') }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-  {% else %}<div class="empty" style="margin: 0 var(--content-pad);"><div class="ico">📚</div><div class="ttl">FIFO 데이터가 없습니다</div></div>{% endif %}
-  <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 900px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp tbody td { height: 32px; padding: 5px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+.tbl-erp tfoot td { background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink); padding: 8px 12px; font-weight: 700; font-size: 12.5px; }
+.tbl-erp tfoot td.num { font-family: var(--pq-mono); text-align: right; }
+
+.layer-bar { display: inline-flex; align-items: center; gap: 6px; }
+.layer-bar .bar { width: 80px; height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
+.layer-bar .fill { height: 100%; background: var(--pq-info); }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="fifo-page">
+
+      <div class="fifo-head" data-dn="fifo:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>FIFO 레이어</b></div>
+          <div class="fifo-title">📚 FIFO 재고 레이어</div>
+          <div class="fifo-meta" style="margin-top:4px;">선입선출 — 입고 시점별 잔량 추적</div>
+        </div>
+        <div class="fifo-actions">
+          <a href="/stock/balances">📦 재고 현황</a>
+          {% if summary and summary.part_id %}<a href="/parts/{{ summary.part_id }}">📋 자재 상세</a>{% endif %}
+        </div>
+      </div>
+
+      {% if summary %}
+      <div class="kpi-strip" data-dn="fifo:kpi" data-dn-tone="green">
+        <div class="kpi-cell">
+          <div class="l">활성 레이어</div>
+          <div class="v">{{ summary.layer_count|default(0) }}<span class="u">건</span></div>
+          <div class="sub">잔량 있는 입고 레이어</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 잔량</div>
+          <div class="v">{{ '{:,.0f}'.format(summary.total_qty|default(0)) }}<span class="u">EA</span></div>
+          <div class="sub">선입선출 미사용분</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="l">총 가치</div>
+          <div class="v">{{ '{:,.0f}'.format(summary.total_value|default(0)) }}<span class="u">원</span></div>
+          <div class="sub">잔량 × 입고 단가</div>
+        </div>
+      </div>
+
+      {% if summary.layers %}
+      <div class="tbl-zone" data-dn="fifo:table" data-dn-tone="purple">
+        <table class="tbl-erp">
+          <thead>
+            <tr>
+              <th class="center" style="width:36px;">#</th>
+              <th style="width:120px;">입고일</th>
+              <th>자재</th>
+              <th class="num" style="width:110px;">잔량 / 입고량</th>
+              <th class="num" style="width:100px;">단가</th>
+              <th class="num" style="width:120px;">가치</th>
+              <th style="width:140px;">참조 (PO/LOT)</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for l in summary.layers[:200] %}
+            {% set rem = l.remaining_qty|default(l.qty|default(0))|float %}
+            {% set in_q = l.in_qty|default(l.qty|default(0))|float %}
+            {% set price = l.unit_price|default(0)|float %}
+            {% set rem_pct = (rem / in_q * 100) if in_q else 0 %}
+            <tr>
+              <td class="center mute">{{ loop.index }}</td>
+              <td class="mute" style="font-size:11.5px;">{{ (l.received_at or l.occurred_at or '—')[:10] }}</td>
+              <td><b>{{ l.part_name|default('—') }}</b>{% if l.part_no %} <span class="mute" style="font-size:11px;font-family:var(--pq-mono);">{{ l.part_no }}</span>{% endif %}</td>
+              <td class="num">
+                <div class="layer-bar">
+                  <span><b>{{ '{:,.0f}'.format(rem) }}</b> / {{ '{:,.0f}'.format(in_q) }}</span>
+                  <div class="bar"><div class="fill" style="width:{{ rem_pct }}%;"></div></div>
+                </div>
+              </td>
+              <td class="num">{{ '{:,.0f}'.format(price) }}</td>
+              <td class="num"><b>{{ '{:,.0f}'.format(rem * price) }}</b></td>
+              <td class="mute" style="font-size:11px;">
+                {% if l.po_number %}{{ l.po_number }}{% endif %}
+                {% if l.lot_no %} · LOT {{ l.lot_no }}{% endif %}
+                {% if not l.po_number and not l.lot_no %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">합계 ({{ summary.layers|length }}개 레이어)</td>
+              <td class="num">{{ '{:,.0f}'.format(summary.total_qty|default(0)) }}</td>
+              <td></td>
+              <td class="num">{{ '{:,.0f}'.format(summary.total_value|default(0)) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="po-empty"><div class="ico">📚</div><div class="ttl">FIFO 레이어 없음</div><div style="font-size:12px;">입고 이력이 없거나 모든 레이어가 소진됨</div></div>
+      {% endif %}
+
+      {% else %}
+      <div class="po-empty" data-dn="fifo:empty"><div class="ico">📚</div><div class="ttl">FIFO 데이터 없음</div></div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+</body>
+</html>

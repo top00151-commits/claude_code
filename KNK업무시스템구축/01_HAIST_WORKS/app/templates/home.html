@@ -91,7 +91,7 @@ button { font-family: inherit; cursor: pointer; }
 .btn-submit:hover { background: var(--knk-red-deep, #8B1F23); transform: translateY(-1px); }
 
 /* === 벤토 === */
-.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 130px; gap: var(--space-3); }
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 130px; gap: var(--space-3); margin: 0; }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; justify-content: space-between; transition: all var(--t-base); text-decoration: none; color: inherit; }
 .card.clickable { cursor: pointer; }
 .card.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--qv-line-3); }
@@ -123,7 +123,7 @@ button { font-family: inherit; cursor: pointer; }
 .action-arrow { color: var(--qv-ink-2); font-weight: 700; flex-shrink: 0; }
 
 /* 섹션 */
-.section { margin-top: var(--space-7); }
+.section { margin: var(--space-7) 0 0; }
 .section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--qv-ink); }
 .section h2::before { content: ""; width: 4px; height: 18px; background: var(--qv-line-3); border-radius: 2px; }
 .section h2 small { font-size: 11px; color: var(--qv-ink-3); font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 6px; }
