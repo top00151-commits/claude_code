@@ -634,13 +634,21 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card-head .so-no { font-family: monospace; font-weight: 700; font-size: 18px; color: var(--knk-red); letter-spacing: 0.02em; }
         .so-card-head .so-no a { color: inherit; text-decoration: none; }
         .so-card-head .so-no a:hover { text-decoration: underline; }
-        /* v5H226z79: so-meta 간격 축소 + 좌우 균등 분포 */
-        .so-meta { display: flex; gap: 2px 10px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--ink); order: 10; margin-top: 0; padding-top: 2px; justify-content: space-between; }
+        /* v5H226z80: so-card 자연스러운 배치 + 액션 우선순위 정렬 */
+        /* 2행 so-meta: 운영 정보(발주/납기/납품처) 좌측 그룹 + 메타(통화/최초수주) 우측 그룹 */
+        .so-meta { display: flex; gap: 2px 16px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--ink); order: 10; margin-top: 0; padding-top: 2px; justify-content: flex-start; }
         .so-meta .item { display: inline-flex; align-items: center; gap: 3px; line-height: 1.4; }
+        .so-meta .item:nth-child(4) { margin-left: auto; }  /* 💱 통화 부터 우측 그룹 */
         .so-meta .item .k { color: var(--mute); font-weight: 500; font-size: 11.5px; }
         .so-meta .item .v { font-weight: 700; }
-        .so-actions { order: 5; }
-        @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 2px 8px; justify-content: flex-start; } }
+        /* 1행 so-actions: 우측 정렬 + 사용 빈도 순(수정→추가→크게보기) + 삭제 분리 */
+        .so-actions { order: 5; margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .so-actions > * { order: 5; }
+        .so-actions .toggle-edit { order: 1; }
+        .so-actions .add-unit { order: 2; }
+        .so-actions .so-fs-btn { order: 3; }
+        .so-actions .danger { order: 99; margin-left: 14px; }
+        @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 2px 10px; } .so-meta .item:nth-child(4) { margin-left: 0; } }
         .so-actions { display: flex; gap: 6px; }
         .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
         .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
