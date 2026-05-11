@@ -726,11 +726,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .so-card.editable .save-all-btn:hover { filter: brightness(1.1); }
         .so-card.editable .save-all-btn:disabled { opacity: 0.6; cursor: wait; }
-        /* v5H226z91: 호기 셀 안 인라인 삭제 — 행 hover 시 노출 + input 너비 명시 */
-        .so-units .lbl-inp { width: 55px !important; max-width: 55px !important; }
-        .row-del-mini { display: inline-flex; align-items: center; justify-content: center; margin-left: 4px; padding: 0 5px; border: 0; background: transparent; color: var(--knk-red); cursor: pointer; font-size: 16px; font-weight: 700; line-height: 1; vertical-align: middle; opacity: 0; transition: opacity 0.15s; min-width: 18px; }
-        .so-units tr:hover .row-del-mini { opacity: 1; }
-        .row-del-mini:hover { background: #fee2e2; border-radius: 3px; }
+        /* v5H226z92: 호기별 인라인 삭제 회수 — 상태 컬럼의 "취소"로 대체 */
         /* v5H198: 잠금 상태 — 글씨는 진하게(읽기 쉽게) 유지, 배경만 옅게 + 점선 테두리로
            '비활성' 시각 신호. opacity 제거. unit-status-sel 은 본래 컬러 배지 유지. */
         .so-card.editable:not(.unlocked) input.unit-edit,
@@ -899,8 +895,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
-                  {# v5H226z91: 호기 컬럼 80→110px (input 60px + × 24px + 여백) #}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}110px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {# v5H226z92: 호기 컬럼 110→64px (×버튼 회수, 입력 모드 input + padding 충족) #}
+                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}64px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:80px;"  data-pgroup="basic">메이커</th>
@@ -967,8 +963,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
-                    {# v5H226z90: 호기별 인라인 삭제 — 행 hover 시 노출 (editable 권한 있으면 항상 DOM에) #}
-                    {% if _editable %}<button type="button" class="row-del row-del-mini" title="이 호기만 삭제">×</button>{% endif %}
+                    {# v5H226z92: 호기별 × 삭제 회수 (z89~z91 원복) — 상태 컬럼 "취소"로 대체 #}
                   </td>
                   {% if _is_parts %}
                   <td style="font-size:11.5px;">
