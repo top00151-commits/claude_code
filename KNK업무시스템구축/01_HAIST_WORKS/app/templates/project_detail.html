@@ -3,18 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
-/* v5H226z95: page-head sticky 상단 고정 — main scroll 시에도 항상 보임 */
-/* v5H226z96: 뒤 콘텐츠 비침 차단 — background 강화 + z-index 100 + box-shadow */
-.main > .page-head {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--paper-3, #fff);
-  border-bottom: 2px solid var(--line);
-  padding: 12px var(--content-pad, 24px) 12px var(--content-pad, 24px);
-  margin: 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
+/* v5H226z97: page-head sticky 회수 — chrome topbar와 겹침 해결 못 함, 일반 흐름으로 복귀 */
+/* 추후 sticky 필요 시 chrome partial 자체 검토 후 안전한 방식으로 재도입 */
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
 /* 발주서 INSTRUCTIONS.md 라인 105 정의값 그대로. _STANDARDS/디자인_의뢰서_HAIST_WORKS_v1.md 정합. */
 body {
