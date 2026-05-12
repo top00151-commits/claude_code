@@ -62,6 +62,13 @@ body { overflow: hidden !important; }
 .contacts-tbl td { padding: 3px 6px !important; }
 .contacts-tbl input, .contacts-tbl select { padding: 5px 8px !important; font-size:12px !important; }
 .contacts-tbl .del-btn { padding: 2px 6px !important; font-size: 13px !important; }
+/* v5H226z113: 사업자등록증 + 회사정보 가로 2-col (신규 등록 시만) */
+.top-row.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.top-row.two-col .form-card { margin-left: 0 !important; margin-right: 0 !important; margin-bottom: 0 !important; }
+/* 회사 정보가 우측 column일 때 frow는 1-col로 강제 (좁아서) */
+.top-row.two-col .form-card .frow { grid-template-columns: 1fr !important; }
+.top-row.two-col .form-card .fld.full { grid-column: span 1 !important; }
+@media (max-width:1100px){ .top-row.two-col { grid-template-columns: 1fr; } }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
@@ -75,6 +82,9 @@ body { overflow: hidden !important; }
   </div>
 
   <form method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
+
+    {# v5H226z113: 사업자등록증 + 회사 정보 = 2-col 가로 배치 (신규 등록 시) — wrapper 감싸기 #}
+    <div class="top-row{% if not customer %} two-col{% endif %}" style="margin: 0 var(--content-pad) 8px;">
 
     <!-- v5H57: 사업자등록증 자동 파서 (PDF / 이미지) -->
     {# v5H226z110: 영역 높이 70% 축소 — padding/margin/line-height 비례 축소 + dragdrop partial 자동 dropzone 차단 #}
@@ -170,6 +180,8 @@ body { overflow: hidden !important; }
         </div>
       </div>
     </div>
+
+    </div> {# v5H226z113: top-row wrapper 닫기 #}
 
     <!-- 담당자 (다중) -->
     <div class="form-card">
