@@ -842,6 +842,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <button type="button" class="so-fs-btn" data-soid="{{ so.id }}" title="SO 카드를 화면 거의 전체로 펼쳐 보기">🔍 크게 보기</button>
                 {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
                 <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 ({% if _so_is_parts %}정식 PACKING LIST 양식{% else %}KNK 표준 양식{% endif %})" style="text-decoration:none;">📥 엑셀 다운로드</a>
+                {# v5H226z109: 부품 수출 마진 분석 — PARTS_EXPORT SO만 노출 (Phase 0 UI mockup, 가상 데이터) #}
+                {% if _so_is_parts %}
+                <button type="button" class="btn-mini margin-btn" onclick="openMarginAnalysis({{ so.id }}, '{{ so.order_no|default('') }}')" title="자재 매입가 ↔ 수출가 마진 분석 (Phase 0 UI mockup)" style="background:#1e40af;color:#fff;border:0;">📊 마진 분석</button>
+                {% endif %}
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
                 {# v5H226z88: 카드 상단 "💾 모두 저장" — 행별 row-save 일괄 호출 #}
@@ -2600,4 +2604,141 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 {% endif %}
 
 <!-- v5H226z43: z40 body.debug-on JS 제거 — partial debug_overlay.html (chrome.html line 389 include) 의 body.knk-debug + AUTO_ZONES 자동 감지 시스템으로 통합 -->
+
+<!-- v5H226z109: 마진 분석 모달 (Phase 0 UI mockup, 가상 데이터) — 빅터(01) 통합 시 API 연결 -->
+<style>
+.margin-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; }
+.margin-modal-bg.show { display:flex; }
+.margin-modal { background:#fff; width:min(900px, 96vw); max-height:90vh; overflow:auto; border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.35); }
+.margin-modal-head { display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line); background:linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color:#fff; border-radius:12px 12px 0 0; }
+.margin-modal-head h3 { margin:0; font-size:16px; font-weight:700; }
+.margin-modal-head .close-x { background:rgba(255,255,255,.2); border:0; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:14px; font-weight:700; }
+.margin-modal-head .close-x:hover { background:rgba(255,255,255,.3); }
+.margin-modal-body { padding:18px 22px; }
+.margin-info-bar { background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12.5px; color:var(--qv-ink-2); display:flex; justify-content:space-between; align-items:center; }
+.margin-info-bar b { color:var(--qv-ink); }
+.margin-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
+.margin-tbl th { background:#f1f5f9; padding:8px 10px; font-size:11px; color:var(--qv-ink-2); font-weight:700; text-align:center; border-bottom:2px solid #1e40af; letter-spacing:0.04em; text-transform:uppercase; }
+.margin-tbl td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:right; font-family:monospace; font-weight:600; }
+.margin-tbl td.left { text-align:left; font-family:'Pretendard',sans-serif; font-weight:500; }
+.margin-tbl td.center { text-align:center; }
+.margin-tbl td.code { text-align:center; font-family:monospace; color:#1e40af; font-size:11.5px; font-weight:700; }
+.margin-tbl tr.total td { background:#fef3c7; border-top:2px solid #d97706; font-weight:700; }
+.margin-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+.margin-pill.ok { background:#dcfce7; color:#15803d; }
+.margin-pill.warn { background:#fef3c7; color:#92400e; }
+.margin-pill.danger { background:#fee2e2; color:#991b1b; }
+.margin-pill.empty { background:#f3f4f6; color:#6b7280; }
+.margin-summary { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:14px; }
+.margin-kpi { background:#f8fafc; padding:10px 14px; border-radius:8px; text-align:center; }
+.margin-kpi .lbl { font-size:11px; color:var(--qv-ink-3); font-weight:600; }
+.margin-kpi .val { font-size:18px; font-weight:700; color:var(--qv-ink); margin-top:4px; font-family:monospace; }
+.margin-kpi.profit .val { color:#15803d; }
+.margin-mock-notice { margin-top:14px; padding:10px 14px; background:#fff7ed; border:1px solid #fb923c; border-radius:8px; font-size:11.5px; color:#9a3412; }
+.margin-mock-notice b { color:#7c2d12; }
+.margin-actions { display:flex; gap:8px; justify-content:flex-end; padding:12px 22px; border-top:1px solid var(--line); background:#f8fafc; border-radius:0 0 12px 12px; }
+.margin-actions .btn { padding:8px 16px; font-size:12.5px; border-radius:6px; cursor:pointer; border:1px solid var(--line); background:#fff; font-weight:600; }
+.margin-actions .btn.primary { background:#1e40af; color:#fff; border-color:#1e40af; }
+</style>
+
+<div class="margin-modal-bg" id="marginModalBg" onclick="if(event.target===this)closeMarginAnalysis()">
+  <div class="margin-modal">
+    <div class="margin-modal-head">
+      <h3>📊 마진 분석 — <span id="marginSoNo">—</span></h3>
+      <button type="button" class="close-x" onclick="closeMarginAnalysis()">✕</button>
+    </div>
+    <div class="margin-modal-body">
+      <div class="margin-info-bar">
+        <div>환율: <b>1 USD = <span id="marginFxRate">1,375</span> KRW</b> <span style="color:var(--qv-ink-3);font-size:11px;margin-left:6px;">(오늘 기준 · 계약 시점)</span></div>
+        <div style="color:var(--qv-ink-3);font-size:11px;">수출처: <b style="color:var(--biz-e);">VN-A 법인 (베트남)</b></div>
+      </div>
+
+      <table class="margin-tbl">
+        <thead><tr>
+          <th style="width:36px;">#</th>
+          <th style="width:90px;">자재코드</th>
+          <th class="left" style="text-align:left;">품명</th>
+          <th style="width:100px;">매입가 (KRW)</th>
+          <th style="width:100px;">수출가 (KRW)</th>
+          <th style="width:100px;">마진금액</th>
+          <th style="width:80px;">마진율</th>
+        </tr></thead>
+        <tbody id="marginTblBody">
+          <!-- JS로 채움 -->
+        </tbody>
+        <tfoot id="marginTblFoot"></tfoot>
+      </table>
+
+      <div class="margin-summary">
+        <div class="margin-kpi"><div class="lbl">총 매입</div><div class="val" id="marginSumCost">—</div></div>
+        <div class="margin-kpi"><div class="lbl">총 수출</div><div class="val" id="marginSumSell">—</div></div>
+        <div class="margin-kpi profit"><div class="lbl">총 이익 (마진율)</div><div class="val" id="marginSumProfit">—</div></div>
+      </div>
+
+      <div class="margin-mock-notice">
+        ⚠ <b>Phase 0 UI Mockup</b> — 본 데이터는 가상입니다. 실제 자재구매 (part_prices) ↔ 영업 수주 라인 연결은 빅터(01) 통합 사이클에서 구현 예정.
+        발주서: <code>_ORDERS/실무팀1_부품수출_마진시스템.md</code>
+      </div>
+    </div>
+    <div class="margin-actions">
+      <button type="button" class="btn" onclick="alert('Phase 1 구현 후 활성화')">📥 마진 보고서 엑셀</button>
+      <button type="button" class="btn primary" onclick="alert('Phase 1 구현 후 활성화: 자재구매 part_prices와 자동 연결')">✓ 자재 자동 연결</button>
+      <button type="button" class="btn" onclick="closeMarginAnalysis()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// v5H226z109: 마진 분석 mockup — 가상 데이터로 UI 미리보기
+function openMarginAnalysis(soId, soNo) {
+  // Phase 0: 가상 데이터. 실제 데이터는 Phase 1에서 /so/{soid}/margin-report API 호출.
+  const mockRows = [
+    { code: 'P-A001', name: '베어링 외륜 SKF 6204',     cost: 100000,  sell: 115000,  pct: 15.0, status: 'ok' },
+    { code: 'P-A002', name: '축 어셈블리 (12mm)',       cost:  80000,  sell:  88000,  pct: 10.0, status: 'ok' },
+    { code: 'P-A003', name: '센서 모듈 (광학)',         cost:   null,  sell:  50000,  pct: null, status: 'empty' },
+    { code: 'P-A004', name: 'O-Ring 세트 (M-Type)',     cost:   5000,  sell:   7500,  pct: 50.0, status: 'warn' },
+    { code: 'P-A005', name: '커넥터 (24V)',             cost:  12000,  sell:  13200,  pct: 10.0, status: 'ok' }
+  ];
+
+  document.getElementById('marginSoNo').textContent = soNo || ('SO #' + soId);
+  const tb = document.getElementById('marginTblBody');
+  tb.innerHTML = '';
+
+  let sumCost = 0, sumSell = 0;
+  mockRows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    let pillCls = 'empty', pillTxt = '미연결';
+    if (r.status === 'ok')   { pillCls = 'ok';   pillTxt = r.pct.toFixed(1) + '%'; }
+    if (r.status === 'warn') { pillCls = 'warn'; pillTxt = r.pct.toFixed(1) + '%'; }
+    if (r.status === 'danger'){ pillCls = 'danger'; pillTxt = r.pct.toFixed(1) + '%'; }
+    const profit = (r.cost && r.sell) ? (r.sell - r.cost) : null;
+    tr.innerHTML = `
+      <td class="center">${i+1}</td>
+      <td class="code">${r.code}</td>
+      <td class="left">${r.name}</td>
+      <td>${r.cost !== null ? r.cost.toLocaleString() : '<span style="color:#6b7280;">—</span>'}</td>
+      <td>${r.sell.toLocaleString()}</td>
+      <td style="color:${profit && profit > 0 ? '#15803d' : '#6b7280'};">${profit !== null ? '+' + profit.toLocaleString() : '—'}</td>
+      <td class="center"><span class="margin-pill ${pillCls}">${pillTxt}</span></td>
+    `;
+    tb.appendChild(tr);
+    if (r.cost) sumCost += r.cost;
+    sumSell += r.sell;
+  });
+
+  const sumProfit = sumSell - sumCost;
+  const sumPct = sumCost > 0 ? (sumProfit / sumCost * 100) : 0;
+
+  document.getElementById('marginSumCost').textContent = sumCost.toLocaleString();
+  document.getElementById('marginSumSell').textContent = sumSell.toLocaleString();
+  document.getElementById('marginSumProfit').textContent = '+' + sumProfit.toLocaleString() + ' (' + sumPct.toFixed(1) + '%)';
+
+  document.getElementById('marginModalBg').classList.add('show');
+}
+
+function closeMarginAnalysis() {
+  document.getElementById('marginModalBg').classList.remove('show');
+}
+</script>
+
 </main></div></body></html>
