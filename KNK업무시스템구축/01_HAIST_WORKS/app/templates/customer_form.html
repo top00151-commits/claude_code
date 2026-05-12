@@ -69,9 +69,11 @@ body { overflow: hidden !important; }
   gap: 6px 10px !important;
 }
 .form-card:not(.biz-ocr-inline) .fld { grid-column: span 1; }
+.form-card:not(.biz-ocr-inline) .fld.span-2 { grid-column: span 2 !important; }
 .form-card:not(.biz-ocr-inline) .fld.full { grid-column: 1 / -1 !important; }
 @media (max-width:1100px){
   .form-card:not(.biz-ocr-inline) .frow { grid-template-columns: repeat(2, 1fr) !important; }
+  .form-card:not(.biz-ocr-inline) .fld.span-2 { grid-column: span 2 !important; }
 }
 </style>
 </head><body>
@@ -115,29 +117,10 @@ body { overflow: hidden !important; }
     <div class="form-card">
       <h2>📋 회사 정보</h2>
       <div class="frow">
-        <div class="fld">
+        {# v5H226z116: 고객사명 span 2 (행 1: 고객사명·사업자번호·대표자명) #}
+        <div class="fld span-2">
           <label>고객사명 <span class="req">*</span></label>
           <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
-        </div>
-        <div class="fld">
-          <label>등급 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 자동 산정 (수정 불가)</span></label>
-          {% if customer %}
-          <div style="padding: 9px 12px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); display:flex; align-items:center; justify-content:space-between;">
-            <span class="pill {% if customer.tier == 'VIP' %}pill-danger{% elif customer.tier == '주요' %}pill-progress{% elif customer.tier == '신규' %}pill-warn{% elif customer.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:13px;font-weight:700;">
-              {{ customer.tier|default('—') }}
-            </span>
-            <span style="font-size:11.5px; color:var(--mute);">
-              점수 {{ customer.tier_score|default(0) }}/100 · {{ customer.tier_computed_at|default('미계산') }}
-            </span>
-          </div>
-          <div style="font-size:11px; color:var(--mute); margin-top: 4px;">
-            💡 매출·프로젝트·거래활성도 등 5지표를 시스템이 자동 산정 (24시간 주기 + 등록/수정 시 즉시)
-          </div>
-          {% else %}
-          <div style="padding: 9px 12px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); color: var(--mute); font-size:13px;">
-            등록 후 자동 산정 — 첫 거래 시작 시 <b>신규</b>
-          </div>
-          {% endif %}
         </div>
         <div class="fld">
           <label>사업자번호</label>
@@ -147,6 +130,7 @@ body { overflow: hidden !important; }
           <label>대표자명</label>
           <input type="text" name="ceo_name" value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
         </div>
+        {# 행 2: 대표 전화 · 대표 이메일 · 활성 상태 · 등급 #}
         <div class="fld">
           <label>대표 전화</label>
           <input type="text" name="phone" value="{{ customer.phone|default('') }}" placeholder="031-1234-5678">
@@ -155,13 +139,29 @@ body { overflow: hidden !important; }
           <label>대표 이메일</label>
           <input type="email" name="email" value="{{ customer.email|default('') }}" placeholder="contact@example.com">
         </div>
-        {# v5H226z114: 활성 상태를 짧은 필드 그룹으로 이동 (주소 앞) — 한 행에 짧은 필드 7개 #}
         <div class="fld">
           <label>활성 상태</label>
           <select name="is_active">
             <option value="1" {% if not customer or customer.is_active != 0 %}selected{% endif %}>활성</option>
             <option value="0" {% if customer and customer.is_active == 0 %}selected{% endif %}>비활성</option>
           </select>
+        </div>
+        <div class="fld">
+          <label>등급 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 자동</span></label>
+          {% if customer %}
+          <div style="padding: 5px 10px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); display:flex; align-items:center; justify-content:space-between; gap: 6px;">
+            <span class="pill {% if customer.tier == 'VIP' %}pill-danger{% elif customer.tier == '주요' %}pill-progress{% elif customer.tier == '신규' %}pill-warn{% elif customer.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:12px;font-weight:700;">
+              {{ customer.tier|default('—') }}
+            </span>
+            <span style="font-size:10.5px; color:var(--mute); white-space: nowrap;">
+              {{ customer.tier_score|default(0) }}/100
+            </span>
+          </div>
+          {% else %}
+          <div style="padding: 5px 10px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); color: var(--mute); font-size:12px;">
+            등록 후 자동
+          </div>
+          {% endif %}
         </div>
         <div class="fld full">
           <label>주소</label>
