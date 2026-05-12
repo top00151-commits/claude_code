@@ -687,6 +687,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-units td .display-val { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
         .so-units td select.unit-edit, .so-units td input.unit-edit { max-width: 100% !important; box-sizing: border-box; }
         /* v5H226z83: 헤더는 모두 중앙, 데이터는 컬럼별 룰 (호기/단가=우측, 통화/거래/일자/상태=중앙, 납품처/비고=좌측) */
+        /* v5H226z117: PARTS 표 가로 스크롤바 중복 제거 — wrapper 스크롤바 시각 숨김 (sticky proxy 만 노출) */
+        .so-units-wrapper { scrollbar-width: none; -ms-overflow-style: none; }
+        .so-units-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
         .so-units th { text-align: center; padding: 6px 8px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
         .so-units th.num { text-align: center; }
         .so-units th.center { text-align: center; }
