@@ -42,6 +42,26 @@ body {
     border-radius: 6px; padding: 4px 8px; cursor:pointer; font-size: 14px; }
 .contacts-tbl .del-btn:hover { color: var(--knk-red); border-color: var(--knk-red); }
 .role-help { font-size: 11px; color: var(--mute); margin-top: 6px; }
+/* v5H226z112: customer_form 한 화면에 보이게 — main scroll 차단 + 영역 컴팩트 + 1280px+ 3-col grid */
+body { overflow: hidden !important; }
+.main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow: hidden !important; display: flex; flex-direction: column; }
+.main > .page-head { flex-shrink: 0; padding: 10px var(--content-pad) 6px !important; }
+.main > form { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 8px; }
+.main > form::-webkit-scrollbar { display: none; }
+@media (min-width:1280px){ .frow{grid-template-columns:repeat(3,1fr) !important;} .fld.full{grid-column:span 3 !important;} }
+.form-card { padding:10px 14px !important; }
+.form-card + .form-card { margin-top: 8px !important; }
+.form-card h2 { font-size:14px !important; margin-bottom: 8px !important; padding-bottom: 6px !important; }
+.frow { gap:8px 12px !important; margin-bottom: 6px !important; }
+.fld { gap:3px !important; }
+.fld input, .fld select, .fld textarea { padding: 6px 10px !important; font-size:13px !important; }
+.fld textarea { min-height: 44px !important; }
+.actions { margin-top: 0 !important; padding-top: 0 !important; border-top:0 !important; }
+.contacts-tbl { margin-top: 4px !important; }
+.contacts-tbl th { font-size:10.5px !important; padding: 5px 8px !important; }
+.contacts-tbl td { padding: 3px 6px !important; }
+.contacts-tbl input, .contacts-tbl select { padding: 5px 8px !important; font-size:12px !important; }
+.contacts-tbl .del-btn { padding: 2px 6px !important; font-size: 13px !important; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
@@ -205,7 +225,7 @@ body {
       </div>
     </div>
   </form>
-  <div style="height: var(--space-7);"></div>
+  {# v5H226z112: 하단 spacer 제거 — main flex column이 viewport 안 맞춤 #}
 </main></div>
 <script>
 let contactCount = {{ contacts|length if contacts else 0 }};
