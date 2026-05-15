@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z92 (**플로팅 아이콘 드래그 이동 + localStorage**)
+> **마지막 갱신:** 2026-05-11 v5H226z93 (**드래그 클릭 오발사 정정**)
 
 ---
 
@@ -127,6 +127,23 @@
 ---
 
 ## 📌 빅터 작업 메모
+
+### z93 (2026-05-11) — 드래그 후 클릭 오발사 정정
+**대표 보고:** "드래그 후 이동이 정확하지 않고 디버그모드가 켜져"
+
+**원인:**
+- z92 의 click blocker (mouseup 시점에서 등록) 가 일부 환경에서 click 이벤트보다 늦게 등록됨
+- `<a href="?debug=1">` 의 navigation 이 그대로 발사
+
+**z93 보강 (4단계 차단):**
+1. **mousedown** preventDefault 제거 — 단순 클릭 자연 통과 보장
+2. **dragstart** 차단 — 브라우저 기본 link drag&drop 끄기
+3. **시간 기반 click 차단**: `lastDragEndAt` + 350ms / `lastDraggedEl` 시점에서 capture phase 등록 (mouseup 등록 X)
+4. **stopImmediatePropagation** 추가 — 다른 click 핸들러까지 차단
+5. **auxclick** 도 같은 시간창에서 차단 (가운데 클릭/우클릭 navigation 우회 방지)
+6. `touchAction: none` / `draggable=false` 속성 추가
+
+검증: Jinja PASS / 라우트 303 정상
 
 ### z92 (2026-05-11) — 플로팅 아이콘 드래그 이동
 - 대표 요청: 이전페이지 / 영역보기 아이콘 위치 사용자 이동 가능

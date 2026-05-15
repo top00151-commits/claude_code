@@ -1,4 +1,4 @@
-{# v5H226z92: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
+{# v5H226z93: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
 {# 사용법: 페이지에 include 후, 영역에 data-dn="이름" 속성 부착 #}
 {# 예) <div class="kpi-slim" data-dn="kpi-bar"> #}
 <style>
@@ -124,14 +124,18 @@ body.knk-debug .knk-debug-toggle { display: none; }
     });
 
     // ============================================================
-    // v5H226z78 — 플로팅 아이콘 드래그 이동 + localStorage 저장
+    // v5H226z93 — 플로팅 아이콘 드래그 이동 + localStorage 저장 (강화)
     //   대상: #knkBackBtn (이전 페이지) / .knk-debug-toggle (영역 보기)
     //   사용: 드래그 = 위치 이동 / 더블클릭 = 위치 초기화 / 단순 클릭 = 기존 동작
+    //   z93 수정: <a href> navigation 강제 차단 (시간 기반 + 4단계 차단)
     // ============================================================
     var DRAG_SELECTORS = ['#knkBackBtn', '.knk-debug-toggle', '.knk-debug-panel'];
     var POS_KEY_PREFIX = 'knk-icon-pos-';
-    var DRAG_THRESHOLD = 4; // px — 이 이하 움직임은 클릭으로 간주
-    var ds = null; // drag state
+    var DRAG_THRESHOLD = 4;       // px — 이 이하 움직임은 클릭으로 간주
+    var CLICK_BLOCK_MS = 350;     // ms — 드래그 종료 후 이 시간 안의 click 모두 차단
+    var ds = null;                // drag state
+    var lastDragEndAt = 0;        // 마지막 드래그 종료 시각
+    var lastDraggedEl = null;     // 마지막 드래그 대상 (해당 element 의 click 만 차단)
 
     function iconKey(el) {
         return POS_KEY_PREFIX + (el.id || (el.className || '').split(' ')[0]);
@@ -164,6 +168,8 @@ body.knk-debug .knk-debug-toggle { display: none; }
                 } catch(e) {}
                 // 드래그 가능 표시 + 안내
                 el.style.cursor = 'grab';
+                el.style.touchAction = 'none';        // 터치 환경에서 스크롤 충돌 방지
+                el.setAttribute('draggable', 'false'); // 브라우저 기본 drag&drop 끄기
                 var hint = ' (드래그=이동 · 더블클릭=초기화)';
                 if (el.title && el.title.indexOf(hint) === -1) el.title += hint;
             });
@@ -178,6 +184,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
         return null;
     }
 
+    // (1) mousedown — drag 상태 시작만, 클릭 자연 통과 보장 (preventDefault X)
     document.addEventListener('mousedown', function(e){
         if (e.button !== 0) return;
         var el = matchTarget(e.target);
@@ -187,7 +194,15 @@ body.knk-debug .knk-debug-toggle { display: none; }
             el: el, startX: e.clientX, startY: e.clientY,
             origX: rect.left, origY: rect.top, moved: false
         };
-    });
+        // preventDefault 호출 X — click 이벤트 정상 발사를 위해
+    }, true);
+
+    // 브라우저 기본 link drag&drop 차단 (텍스트/이미지 드래그 방지)
+    document.addEventListener('dragstart', function(e){
+        if (matchTarget(e.target)) {
+            e.preventDefault();
+        }
+    }, true);
 
     document.addEventListener('mousemove', function(e){
         if (!ds) return;
@@ -204,29 +219,56 @@ body.knk-debug .knk-debug-toggle { display: none; }
             applyPos(ds.el, pos[0] + 'px', pos[1] + 'px');
             e.preventDefault();
         }
-    });
+    }, true);
 
     document.addEventListener('mouseup', function(e){
         if (!ds) return;
-        if (ds.moved) {
-            ds.el.style.cursor = 'grab';
-            ds.el.style.transition = '';
+        var movedDrag = ds.moved;
+        var el = ds.el;
+        if (movedDrag) {
+            el.style.cursor = 'grab';
+            el.style.transition = '';
             document.body.style.userSelect = '';
             try {
-                localStorage.setItem(iconKey(ds.el), JSON.stringify({
-                    left: ds.el.style.left, top: ds.el.style.top
+                localStorage.setItem(iconKey(el), JSON.stringify({
+                    left: el.style.left, top: el.style.top
                 }));
             } catch(err) {}
-            // 클릭 한 번 막기 (드래그 → 클릭 오발사 방지)
-            var blocker = function(ev){
-                ev.preventDefault();
-                ev.stopPropagation();
-                document.removeEventListener('click', blocker, true);
-            };
-            document.addEventListener('click', blocker, true);
+            // 드래그 종료 시각 + 대상 기억 — click 핸들러가 시간 기반으로 차단
+            lastDragEndAt = Date.now();
+            lastDraggedEl = el;
+            e.preventDefault();
+            e.stopPropagation();
+        } else {
+            // 단순 클릭 (이동 거의 없음) 인 경우 — <a> default 가 mousedown 에서 prevent 됐으므로
+            // 수동으로 click 이벤트 디스패치
+            // 단, .knk-debug-toggle / #knkBackBtn 의 click handler 가 동작하도록.
+            // mousedown 의 preventDefault 가 click 까지는 막지 않지만, <a> 의 navigation 은
+            // click 이벤트의 default action — 이 부분을 살리기 위해 명시적 click 디스패치 X.
+            // (브라우저가 mousedown → mouseup → click 시퀀스에서 click 을 자연 발사하므로 그대로 둠)
         }
         ds = null;
-    });
+    }, true);
+
+    // (2) capture phase 에서 click 차단 — drag 종료 직후의 click 만 차단
+    document.addEventListener('click', function(e){
+        if (lastDraggedEl && (Date.now() - lastDragEndAt) < CLICK_BLOCK_MS) {
+            if (e.target.closest && (e.target === lastDraggedEl || e.target.closest('#'+lastDraggedEl.id) === lastDraggedEl || matchTarget(e.target) === lastDraggedEl)) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return false;
+            }
+        }
+    }, true);
+
+    // (3) 같은 시간창 안에서 <a> 의 navigation 도 명시 차단 (auxclick / contextmenu 우회용)
+    document.addEventListener('auxclick', function(e){
+        if (lastDraggedEl && (Date.now() - lastDragEndAt) < CLICK_BLOCK_MS) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
 
     // 더블클릭 = 위치 초기화
     document.addEventListener('dblclick', function(e){
@@ -239,7 +281,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
         el.style.bottom = '';
         e.preventDefault();
         e.stopPropagation();
-    });
+    }, true);
 
     // 창 크기 변경 시 화면 밖으로 나간 아이콘 보정
     window.addEventListener('resize', function(){
@@ -267,7 +309,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
 
 <div class="knk-debug-panel">
   <h4>🔍 디버그 모드 ON</h4>
-  <div><span class="key">버전</span> v5H226z92</div>
+  <div><span class="key">버전</span> v5H226z93</div>
   <div class="dim">─────────────────</div>
   <div>각 영역에 <span class="key">이름·크기</span> 표시 중</div>
   <div>"kpi-bar 높이 줄여" 처럼<br>영역 이름 그대로 말씀하시면 됩니다.</div>
