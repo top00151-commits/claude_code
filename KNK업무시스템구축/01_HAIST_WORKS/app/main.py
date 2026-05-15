@@ -4405,9 +4405,21 @@ async def catalog_page(req: Request,
         where = ["is_active=1"]
         args = []
         if q:
-            # v5H226z95: 검색 범위 확대 — category, maker 도 포함 (한글 키워드 매칭)
-            where.append("(part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR category LIKE ? OR maker LIKE ?)")
-            args += [f'%{q}%']*5
+            # v5H226z96: 한영 동의어 사전으로 검색 확장 — "솔밸브" → solenoid/sy 등
+            try:
+                from .synonyms_parts import expand_query
+                keywords = expand_query(q)
+            except Exception:
+                keywords = [q]
+            # 너무 많으면 성능 영향 → 상위 25개로 제한
+            keywords = keywords[:25]
+            cols = ['part_no', 'part_name', 'spec', 'category', 'maker']
+            or_parts = []
+            for kw in keywords:
+                for col in cols:
+                    or_parts.append(f"{col} LIKE ?")
+                    args.append(f'%{kw}%')
+            where.append("(" + " OR ".join(or_parts) + ")")
         if category:
             where.append("COALESCE(category,'(미분류)')=?")
             args.append(category)

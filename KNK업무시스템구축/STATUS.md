@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z95 (**카탈로그 3종 결함 핫픽스**)
+> **마지막 갱신:** 2026-05-11 v5H226z96 (**한영 동의어 검색 — 솔밸브→solenoid**)
 
 ---
 
@@ -127,6 +127,37 @@
 ---
 
 ## 📌 빅터 작업 메모
+
+### z96 (2026-05-11) — 카탈로그 한영 동의어 검색
+**대표 요청**: "한글과 영어 발음이 비슷한 것도 검색되게 못해?"
+
+**구현:**
+- `app/synonyms_parts.py` 신설 — 산업 부품 한영 동의어 사전 ~120 그룹
+- `catalog_page()` 검색 로직: `expand_query(q)` 로 입력어를 동의어 그룹 전체로 확장
+- 5 컬럼(part_no/name/spec/category/maker) × N 동의어 OR 매칭
+
+**동의어 사전 커버:**
+- 공압: 솔밸브↔solenoid valve / sy / sv / vfr, 실린더↔cylinder / cm2 / cdm2 / cj2, 피팅↔fitting / kq2
+- 전기: 커넥터↔connector / d-sub, 센서↔sensor, 릴레이↔relay, 엔코더↔encoder
+- 기계: 베어링↔bearing, 모터↔motor, 기어↔gear, 볼스크류↔ball screw / bs
+- 측정·계측: 게이지↔gauge, 카메라↔camera, 스캐너↔scanner
+- KNK 자주 쓰는: 트레이↔tray, 셔틀↔shuttle, 컨베이어↔conveyor / cv, 프로파일↔profile
+
+**실 데이터 검증 (현 219 자재 기준):**
+- "솔밸브" → 38건 매칭 (SOLENOID VALVE 그룹)
+- "커넥터" → 3건 (D-SUB 등)
+- "센서" → 41건
+
+**기능:**
+- 한글 → 영어 (`솔밸브` → solenoid·sy 등)
+- 영어 → 한글 (`solenoid` → 솔밸브·솔레노이드 등)
+- 부분 매칭 (`솔` 만 입력해도 솔밸브 그룹 매칭)
+- 공백 무시 (`솔 밸브` = `솔밸브`)
+- 대소문자 무시
+
+**성능:** 상위 25 키워드로 제한 (과도한 OR 절 방지)
+
+**1 commit 묶음:** synonyms_parts.py + main.py 검색 로직 + BAT z95→z96 (3곳×2) + debug_overlay + STATUS + 롤백 태그
 
 ### z95 (2026-05-11) — 카탈로그 3종 결함 핫픽스
 
