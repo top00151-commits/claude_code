@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-11 v5H226z77 (실무 테스트 준비: SMC 공압 자재 200 + 발주 100 + 통합 20 가상 데이터)
+REM   LAST UPDATE: 2026-05-11 v5H226z92 (플로팅 아이콘 드래그 이동: 이전페이지·영역보기·디버그패널 + localStorage 저장)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z77]
+title KNK HAIST WORKS [v5H226z92]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z77  2026-05-11]
+echo    [v5H226z92  2026-05-11]
 echo ============================================================
 echo.
 
