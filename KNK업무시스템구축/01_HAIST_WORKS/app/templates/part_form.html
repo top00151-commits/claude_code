@@ -1,264 +1,1329 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{% if part %}자재 수정{% else %}자재 등록{% endif %} · KNK</title>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if part %}자재 수정{% else %}자재 등록{% endif %} · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-12) — 시안1 + 룰 v4 — 자재 등록·수정 (A안 중복 방지 통합)
+   라우터:
+     GET  /parts/new  · GET /parts/{pid}/edit
+     POST /parts/new  (Form: part_no*, part_name*, spec, maker, origin, unit(EA),
+                            currency(KRW), std_price, biz_div, category, note, is_active,
+                            safety_stock, location, item_account, procurement_kind,
+                            category_main, category_series, reorder_point, reorder_qty,
+                            conversion_factor, sub_spec1~3, tax_invoice_name,
+                            trade_invoice_name, default_warehouse, hs_code,
+                            force(="0"|"1"))
+     POST /parts/{pid}/edit (동일)
+     GET  /parts/check?name=&spec=&maker=&exclude_id=  → JSON {hits[], threshold_hard:85}
+     POST /parts/{pid}/attach  (multipart, 기존)
+   ⚠ 잠재 버그 복구:
+     - Form name `code/name/unit_price` → 라우터 정확한 `part_no/part_name/std_price` (422 방지)
+     - 누락 13 필드 추가 (z58 표준 v2)
+     - 신규: 유사 자재 실시간 패널 + force hidden + confirm dialog #}
+
+<link href="/static/css/v5_tokens.css?v=20260512v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
-/* v5H226z108: 매출영업과 동일한 숫자 폰트 (monospace) — 자재구매 통일 */
-.tbl td.num, td.num { text-align: right; font-weight: 600; font-family: monospace; }
-.tbl th.num { text-align: center; }
-.form-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field.full { grid-column: span 2; }
-.field label { font-size: 12px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 3px var(--qv-surface-2); }
-/* v5H129: 첨부 업로드 UI */
-.attach-card { margin: 0 var(--content-pad) var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
-.attach-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.attach-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
-.attach-help { font-size: 12px; color: var(--qv-ink-3); margin-bottom: 12px; line-height: 1.6; }
-.attach-help b { color: var(--knk-red); }
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.pf-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pf-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pf-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.pf-head .crumb a { color: var(--pq-ink-3); }
+.pf-head .crumb b { color: var(--pq-ink); }
+.pf-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.pf-title em { font-style: normal; color: var(--pq-info); font-weight: 800; }
+.pf-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.pf-actions { margin-left: auto; display: flex; gap: 8px; }
+.pf-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.pf-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.banner { padding: 9px 24px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--pq-line); }
+.banner.ok  { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.banner.err { background: var(--pq-err-soft); color: var(--pq-err); white-space: pre-wrap; line-height: 1.5; }
+
+.pf-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+.pf-grid { display: grid; grid-template-columns: 1fr 320px; gap: 14px; }
+@media (max-width: 1180px) { .pf-grid { grid-template-columns: 1fr; } }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+
+.f-body { padding: 14px 16px; }
+.f-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.col-2 { grid-column: span 2; }
+.field.col-3 { grid-column: span 3; }
+.field.col-4 { grid-column: span 4; }
+.field label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.field label .req { color: var(--pq-err); }
+.field input, .field select, .field textarea {
+  padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px;
+  background: var(--pq-surface); color: var(--pq-ink); font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.field textarea { min-height: 60px; resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+
+/* 유사 자재 실시간 패널 */
+.sim-panel { padding: 12px 14px; }
+.sim-panel .empty { font-size: 12px; color: var(--pq-ink-4); padding: 8px 0; line-height: 1.5; }
+.sim-panel .loading { font-size: 11.5px; color: var(--pq-info); }
+.sim-list { display: flex; flex-direction: column; gap: 6px; }
+.sim-item { padding: 8px 10px; border: 1px solid var(--pq-line); border-radius: 6px; background: var(--pq-surface); transition: all 0.12s; text-decoration: none; color: inherit; display: block; }
+.sim-item:hover { background: var(--pq-surface-2); border-color: var(--pq-info); }
+.sim-item.hard { border-color: var(--pq-err); background: var(--pq-err-soft); }
+.sim-item.soft { border-color: var(--pq-warn); background: var(--pq-warn-soft); }
+.sim-item .row1 { display: flex; align-items: baseline; gap: 6px; }
+.sim-item .pno { font-family: var(--pq-mono); font-weight: 800; color: var(--pq-info); font-size: 11.5px; }
+.sim-item.hard .pno { color: var(--pq-err); }
+.sim-item.soft .pno { color: var(--pq-warn); }
+.sim-item .pname { font-size: 12.5px; font-weight: 700; color: var(--pq-ink); margin-left: 4px; flex: 1; }
+.sim-item .score { font-family: var(--pq-mono); font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 3px; background: rgba(0,0,0,0.05); }
+.sim-item.hard .score { background: var(--pq-err); color: #fff; }
+.sim-item.soft .score { background: var(--pq-warn); color: #fff; }
+.sim-item .meta { font-size: 10.5px; color: var(--pq-ink-3); margin-top: 3px; }
+.sim-warn-banner { margin: 8px 14px; padding: 8px 10px; background: var(--pq-err-soft); border: 1px solid var(--pq-err); border-radius: 6px; color: var(--pq-err); font-size: 11.5px; font-weight: 600; }
+
+/* 사이드 가이드 */
+.side-guide { padding: 12px 14px; font-size: 11.5px; color: var(--pq-ink-3); line-height: 1.6; }
+.side-guide b { color: var(--pq-ink); }
+.side-guide ul { margin: 6px 0 0 14px; padding: 0; }
+.side-guide li { margin-bottom: 3px; }
+
+/* 첨부 카드 (기존 보존) */
+.attach-zone { padding: 14px 16px; }
+.attach-help { font-size: 11.5px; color: var(--pq-ink-3); line-height: 1.6; margin-bottom: 10px; }
+.attach-help b { color: var(--pq-ink); }
 .upload-row { display: grid; grid-template-columns: 1fr 160px 120px; gap: 10px; align-items: end; margin-bottom: 10px; }
-.upload-row input[type=file] { padding: 8px; font-size: 12.5px; background: var(--qv-surface-2); border: 1px dashed var(--qv-line); border-radius: var(--radius-md); }
-#compressInfo { font-size: 12px; color: var(--qv-ink-3); padding: 8px 12px; background: var(--qv-surface-2); border-left: 3px solid var(--qv-line-3); border-radius: 4px; margin: 6px 0 12px; min-height: 18px; }
-#compressInfo.success { color: var(--success); border-left-color: var(--success); font-weight: 600; }
-#compressInfo.error { color: var(--knk-red); border-left-color: var(--knk-red); }
-.attach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; }
-.attach-item { background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.attach-thumb { width: 100%; height: 110px; background: #f3f0e8; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.upload-row input[type=file] { padding: 7px 10px; font-size: 12.5px; background: var(--pq-surface-2); border: 1px dashed var(--pq-line-2); border-radius: 6px; }
+.upload-row select { padding: 7px 10px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); }
+.upload-row button { height: 34px; padding: 0 14px; border-radius: 6px; background: var(--pq-ink); color: #fff; border: 0; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+#compressInfo { font-size: 12px; color: var(--pq-ink-3); padding: 7px 10px; background: var(--pq-surface-inset); border-left: 3px solid var(--pq-line-2); border-radius: 4px; margin: 4px 0 12px; min-height: 18px; }
+#compressInfo.success { color: var(--pq-ok); border-left-color: var(--pq-ok); font-weight: 600; background: var(--pq-ok-soft); }
+#compressInfo.error { color: var(--pq-err); border-left-color: var(--pq-err); background: var(--pq-err-soft); }
+.attach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 10px; }
+.attach-item { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.attach-thumb { width: 100%; height: 100px; background: var(--pq-surface-3); border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .attach-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.attach-thumb .icon { font-size: 36px; color: var(--qv-ink-3); }
-.attach-name { font-size: 12px; font-weight: 600; color: var(--qv-ink); word-break: break-all; line-height: 1.3; }
-.attach-meta { font-size: 11px; color: var(--qv-ink-3); }
-.attach-actions { display: flex; gap: 6px; }
-.attach-actions a, .attach-actions button { flex: 1; font-size: 11px; padding: 5px 8px; border-radius: 4px; border: 1px solid var(--qv-line); background: var(--qv-surface-3); color: var(--qv-ink); text-align: center; text-decoration: none; cursor: pointer; }
-.attach-actions button.del { background: #fff0f0; color: var(--knk-red); border-color: #f5c6c6; }
-.banner { margin: 0 var(--content-pad) var(--space-3); padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; }
-.banner.success { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
-.banner.error { background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
-</style></head>
+.attach-thumb .icon { font-size: 32px; color: var(--pq-ink-4); }
+.attach-name { font-size: 11.5px; font-weight: 600; color: var(--pq-ink); word-break: break-all; line-height: 1.3; }
+.attach-meta { font-size: 10.5px; color: var(--pq-ink-4); font-family: var(--pq-mono); }
+.attach-actions { display: flex; gap: 4px; }
+.attach-actions a, .attach-actions button { flex: 1; font-size: 10.5px; padding: 4px 6px; border-radius: 3px; border: 1px solid var(--pq-line-2); background: var(--pq-surface); color: var(--pq-ink-2); text-align: center; text-decoration: none; cursor: pointer; }
+.attach-actions button.del { background: var(--pq-err-soft); color: var(--pq-err); border-color: var(--pq-err); }
+
+/* QR 코드 카드 (수정 모드만) */
+.qr-card { padding: 14px; text-align: center; }
+.qr-card .qr-img { width: 160px; height: 160px; margin: 0 auto; background: #fff; padding: 8px; border: 1px solid var(--pq-line-2); border-radius: 6px; }
+.qr-card .qr-img img { width: 100%; height: 100%; }
+.qr-card .payload { margin-top: 8px; font-family: var(--pq-mono); font-size: 10.5px; color: var(--pq-ink-3); word-break: break-all; }
+.qr-card .actions { margin-top: 10px; display: flex; gap: 6px; justify-content: center; }
+.qr-card .actions a { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; text-decoration: none; background: var(--pq-surface-2); color: var(--pq-ink-2); border: 1px solid var(--pq-line-2); }
+.qr-card .actions a:hover { background: var(--pq-surface-3); }
+
+.submit-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.submit-bar .note { margin-right: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+.submit-bar a { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); color: var(--pq-ink-2); border: 1px solid var(--pq-line-2); }
+.submit-bar button { height: 34px; padding: 0 20px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
+.submit-bar button:hover { background: #1e293b; }
+.submit-bar button.force { background: var(--pq-err); }
+.submit-bar button.force:hover { background: #991b1b; }
+</style>
+</head>
 <body>
-<div class="app">{% include "_v5_partials/chrome.html" with context %}
-<main class="main">
-  <div class="page-head">
-    <div><div class="crumbs"><a href="/parts">자재 마스터</a> · <b>{% if part %}수정{% else %}등록{% endif %}</b></div>
-    <h1 class="page-title">{% if part %}자재 <em>수정</em>{% else %}자재 <em>등록</em>{% endif %}</h1></div>
-  </div>
 
-  {% if request.query_params.get('success') %}
-  <div class="banner success">✓ {{ request.query_params.get('success') }}</div>
-  {% endif %}
-  {% if request.query_params.get('error') %}
-  <div class="banner error">⚠ {{ request.query_params.get('error') }}</div>
-  {% endif %}
+{% set is_edit = part is defined and part %}
 
-  <form method="post" action="{% if part %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}">
-    <div class="form-card">
-      <div class="field-row">
-        <div class="field"><label>자재 코드 *</label><input type="text" name="code" required value="{{ part.code|default('') }}"></div>
-        <div class="field"><label>사업부</label><select name="biz_div"><option value="">— 선택 —</option><option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>M (자동화)</option><option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>T (검사기)</option></select></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>자재명 *</label><input type="text" name="name" required value="{{ part.name|default('') }}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field full"><label>사양</label><input type="text" name="spec" value="{{ part.spec|default('') }}" placeholder="규격 / 재질 / 인증"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>분류</label><input type="text" name="category" value="{{ part.category|default('') }}" placeholder="예: 모터·구동부"></div>
-        <div class="field"><label>단위</label><input type="text" name="unit" value="{{ part.unit|default('EA') }}" placeholder="EA, m, kg..."></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>표준 단가 (원)</label><input type="number" name="unit_price" step="1" value="{{ part.unit_price|default(0) }}"></div>
-        <div class="field"><label>안전 재고</label><input type="number" name="safety_stock" step="0.01" value="{{ part.safety_stock|default(0) }}"></div>
-      </div>
-      <div style="margin-top:10px;font-size:12px;color:var(--qv-ink-3);"><label><input type="checkbox" name="is_active" value="1" {% if not part or part.is_active %}checked{% endif %}> 활성</label></div>
-    </div>
-    <div style="margin: 0 var(--content-pad) var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
-      <a class="btn btn-secondary" href="/parts">취소</a>
-      <button type="submit" class="btn btn-primary">📤 {% if part %}저장{% else %}등록{% endif %}</button>
-    </div>
-  </form>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
 
-  {% if part %}
-  <!-- v5H129: 자재 첨부 (사진/도면) — 자동 용량 최소화 -->
-  <div class="attach-card">
-    <h3>📷 사진 / 📐 도면 첨부</h3>
-    <div class="attach-help">
-      • 이미지(JPG/PNG/WebP)는 업로드 직전 <b>자동으로 압축</b>됩니다 (긴 변 1600px·JPEG 80% 품질, 보통 90%+ 용량 절감).<br/>
-      • 도면(PDF/DWG/DXF)은 원본 그대로 저장됩니다 (최대 10MB 권장, 20MB 초과 차단).<br/>
-      • 파일 1개씩 업로드해주세요. 등록 후 아래 목록에서 다운로드·삭제 가능합니다.
-    </div>
-    <form id="attachForm" method="post" action="/parts/{{ part.id }}/attach" enctype="multipart/form-data">
-      <div class="upload-row">
-        <input type="file" id="attachFile" name="file" accept="image/*,application/pdf,.dwg,.dxf" required>
-        <select name="kind" style="padding:10px;border:1px solid var(--qv-line);border-radius:var(--radius-md);background:var(--qv-surface-2);">
-          <option value="photo">사진</option>
-          <option value="drawing">도면</option>
-          <option value="spec">사양서</option>
-        </select>
-        <button type="submit" class="btn btn-primary" id="attachBtn">⬆ 업로드</button>
+  <main class="main">
+    <form method="post" action="{% if is_edit %}/parts/{{ part.id }}/edit{% else %}/parts/new{% endif %}" id="partForm">
+      <input type="hidden" name="force" id="forceFlag" value="0">
+
+      <div class="pf-page">
+
+        <div class="pf-head" data-dn="pf:head" data-dn-tone="purple">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재</a> · <b>{% if is_edit %}수정{% else %}등록{% endif %}</b></div>
+            <div class="pf-title">{% if is_edit %}✏ <em>{{ part.part_name|default(part.name|default('자재')) }}</em> 수정{% else %}＋ 신규 자재 등록{% endif %}</div>
+            <div class="pf-meta">
+              {% if is_edit %}
+                자재 코드 <code style="font-family:var(--pq-mono);background:var(--pq-surface-3);padding:1px 6px;border-radius:3px;">{{ part.part_no|default(part.code|default('—')) }}</code> · 마스터 데이터 수정
+              {% else %}
+                중복·유사 자재 실시간 검사 (A안 3층 방어) · 등록 후 사진/도면 첨부 가능
+              {% endif %}
+            </div>
+          </div>
+          <div class="pf-actions">
+            <a href="/parts">↩ 목록</a>
+            {% if is_edit %}<a href="/parts/{{ part.id }}">📋 상세</a>{% endif %}
+            {% if not is_edit %}
+            <a href="/parts/import" style="background:var(--pq-info);color:#fff;border-color:var(--pq-info);font-weight:700;" title="엑셀 파일로 자재 여러 건을 한 번에 등록합니다">📥 엑셀 일괄 등록</a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if request.query_params.get('success') %}<div class="banner ok">✓ {{ request.query_params.get('success') }}</div>{% endif %}
+        {% if request.query_params.get('error') %}<div class="banner err">⚠ {{ request.query_params.get('error') }}</div>{% endif %}
+
+        <div class="pf-body" data-dn="pf:body">
+          <div class="pf-grid">
+
+            <div>
+              <div class="qsec" data-dn="pf:basic">
+                <div class="qsec-h">
+                  <span class="ttl">📋 기본 정보</span>
+                  <span class="badge">필수 *</span>
+                </div>
+                <div class="f-body">
+                  <div class="f-grid">
+                    <div class="field col-2">
+                      <label>자재 코드 (part_no) <span class="req">*</span>{% if is_edit %} <span style="color:var(--pq-warn);font-weight:700;">⚠ 변경 주의</span>{% endif %}</label>
+                      <input type="text" name="part_no" id="partNo" required value="{{ part.part_no|default(part.code|default('')) }}" placeholder="예: P-M-MTR-0001"{% if is_edit %} data-original="{{ part.part_no|default(part.code|default('')) }}"{% endif %}>
+                      {% if is_edit %}
+                      <div style="margin-top:5px;font-size:10.5px;color:var(--pq-warn);line-height:1.5;">
+                        v5H226z81 — 코드 변경 시 발행된 QR/라벨이 무효화됩니다. 저장 시 <b>2단계 확인</b>을 거칩니다.
+                      </div>
+                      {% endif %}
+                    </div>
+                    <div class="field col-2">
+                      <label>사업부 <span class="req">*</span></label>
+                      <select name="biz_div" id="bizDivSel" required>
+                        <option value="" disabled {% if not part or not part.biz_div %}selected{% endif %}>— 선택 (필수) —</option>
+                        <option value="M" {% if part and part.biz_div == 'M' %}selected{% endif %}>M (자동화 전용)</option>
+                        <option value="T" {% if part and part.biz_div == 'T' %}selected{% endif %}>T (검사기 전용)</option>
+                        <option value="공통" {% if part and part.biz_div == '공통' %}selected{% endif %}>공통 (양 사업부 — 신중히)</option>
+                      </select>
+                      <div id="bizDivWarn" style="display:none;margin-top:6px;padding:7px 10px;background:var(--pq-warn-soft);border-left:3px solid var(--pq-warn);border-radius:4px;font-size:11.5px;color:var(--pq-warn);line-height:1.5;">
+                        ⚠ <b>공통은 실무 기준 10% 미만</b>입니다. 정말 양 사업부 모두 사용한다면 <b>비고에 사용처 명시</b>를 권장합니다 (예: "볼트/너트 — 검사기·자동화 모두").
+                      </div>
+                    </div>
+
+                    <div class="field col-4">
+                      <label>자재명 (part_name) <span class="req">*</span></label>
+                      <input type="text" name="part_name" id="partName" required value="{{ part.part_name|default(part.name|default('')) }}" placeholder="예: AC서보모터 200W">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>규격 (spec)</label>
+                      <input type="text" name="spec" id="partSpec" value="{{ part.spec|default('') }}" placeholder="예: 200W·24V·3000rpm">
+                    </div>
+                    <div class="field col-2">
+                      <label>제조사 (maker)</label>
+                      <input type="text" name="maker" id="partMaker" value="{{ part.maker|default('') }}" placeholder="예: Mitsubishi">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>원산지 (origin)</label>
+                      <input type="text" name="origin" value="{{ part.origin|default('') }}" placeholder="예: 일본 / 한국">
+                    </div>
+                    <div class="field">
+                      <label>단위 (unit)</label>
+                      <input type="text" name="unit" value="{{ part.unit|default('EA') }}" placeholder="EA">
+                    </div>
+                    <div class="field">
+                      <label>통화</label>
+                      <select name="currency">
+                        <option value="KRW" {% if not part or part.currency == 'KRW' %}selected{% endif %}>KRW</option>
+                        <option value="USD" {% if part and part.currency == 'USD' %}selected{% endif %}>USD</option>
+                        <option value="JPY" {% if part and part.currency == 'JPY' %}selected{% endif %}>JPY</option>
+                        <option value="CNY" {% if part and part.currency == 'CNY' %}selected{% endif %}>CNY</option>
+                        <option value="EUR" {% if part and part.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                      </select>
+                    </div>
+
+                    {# v5H226z102 (2026-05-16) — 용도: 기본 정보 박스 마지막 (대표 지시) #}
+                    <div class="field col-12">
+                      <label>용도 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 어디에 쓰이는 자재인지 간략히 기록 (카탈로그 검색에 활용)</span></label>
+                      <textarea name="purpose" rows="3"
+                        placeholder="예: PCB 조립 시 나사 고정용. 5kg 이하 제품에 사용. 자동화 라인 #2·#3 전용. 단종 시 ○○○으로 대체 가능."
+                        style="width:100%;min-height:64px;font-size:12.5px;line-height:1.6;">{{ part.purpose|default('') }}</textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="qsec" data-dn="pf:classify">
+                <div class="qsec-h">
+                  <span class="ttl">🏷 분류 · 재고 관리</span>
+                </div>
+                <div class="f-body">
+                  <div class="f-grid">
+                    <div class="field col-2">
+                      <label>분류 (category)</label>
+                      <input type="text" name="category" value="{{ part.category|default('') }}" placeholder="예: 모터·구동부">
+                    </div>
+                    <div class="field col-2">
+                      <label>품목 계정 (item_account)</label>
+                      <select name="item_account">
+                        <option value="">— 선택 —</option>
+                        <option value="RAW" {% if part and part.item_account == 'RAW' %}selected{% endif %}>RAW (원자재)</option>
+                        <option value="SUB" {% if part and part.item_account == 'SUB' %}selected{% endif %}>SUB (부자재)</option>
+                        <option value="SEMI" {% if part and part.item_account == 'SEMI' %}selected{% endif %}>SEMI (반제품)</option>
+                        <option value="FIN" {% if part and part.item_account == 'FIN' %}selected{% endif %}>FIN (완제품)</option>
+                        <option value="CONS" {% if part and part.item_account == 'CONS' %}selected{% endif %}>CONS (소모품)</option>
+                      </select>
+                    </div>
+
+                    <div class="field col-2">
+                      <label>조달 구분</label>
+                      <select name="procurement_kind">
+                        <option value="">— 선택 —</option>
+                        <option value="구매" {% if part and part.procurement_kind == '구매' %}selected{% endif %}>구매</option>
+                        <option value="외주" {% if part and part.procurement_kind == '외주' %}selected{% endif %}>외주</option>
+                        <option value="자체생산" {% if part and part.procurement_kind == '자체생산' %}selected{% endif %}>자체생산</option>
+                      </select>
+                    </div>
+                    <div class="field col-2">
+                      <label>기본 창고</label>
+                      <input type="text" name="default_warehouse" value="{{ part.default_warehouse|default('') }}" placeholder="WH-01">
+                    </div>
+
+                    <div class="field col-4">
+                      {# v5H226z84 — 매입단가: 구매사 3곳 × 각 1~5차 + 입력 날짜. 대표단가(std_price) = 가장 최근 날짜의 단가 #}
+                      <label>매입단가 (구매사 3곳 × 1~5차)</label>
+                      <div style="font-size:10.5px;color:var(--pq-info);margin:2px 0 8px;line-height:1.5;">
+                        💡 구매사별로 1~5차 단가를 <b>입력 날짜와 함께</b> 기록합니다.
+                        구매사·수량·시기에 따라 단가가 달라질 수 있습니다.
+                        <b>가장 최근 날짜의 단가</b>가 대표 매입단가로 적용됩니다 (평균 아님).
+                      </div>
+                      {# v5H226z85 — 구매사 1·2·3 을 가로 3열로 배치 (한 화면에 표시) #}
+                      <div id="purchaseVendors" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+                        {% for v in range(1, 4) %}
+                        <div class="pp-vendor" data-vendor="{{ v }}" style="border:1px solid var(--pq-line-2);border-radius:6px;padding:9px 9px;background:var(--pq-surface-inset);">
+                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+                            <span style="font-size:10.5px;font-weight:800;color:var(--pq-ink);background:var(--pq-surface-3);border-radius:4px;padding:4px 7px;white-space:nowrap;">구매사 {{ v }}</span>
+                            <input type="text" class="pp-supplier" placeholder="구매사명" autocomplete="off" style="flex:1;min-width:0;">
+                          </div>
+                          <div style="display:flex;flex-direction:column;gap:4px;">
+                            {% for i in range(1, 6) %}
+                            <div class="pp-row" data-seq="{{ i }}" style="display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr);gap:4px;align-items:center;">
+                              <span style="font-size:10px;font-weight:700;color:var(--pq-ink-3);text-align:center;">{{ i }}차</span>
+                              <input type="date" class="pp-date" title="{{ i }}차 단가 입력 날짜" style="min-width:0;padding:6px 4px;font-size:11.5px;">
+                              <input type="text" inputmode="numeric" class="pp-price knk-money" placeholder="단가" style="min-width:0;">
+                            </div>
+                            {% endfor %}
+                          </div>
+                        </div>
+                        {% endfor %}
+                      </div>
+                      <input type="hidden" name="purchase_prices" id="purchasePricesJson" value="">
+                      <input type="hidden" name="std_price" id="stdPriceHidden" value="{{ part.std_price|default(part.unit_price|default(0)) if part else 0 }}">
+                      <div style="margin-top:6px;font-size:11px;color:var(--pq-ink-3);">
+                        대표 매입단가(가장 최근 날짜): <b id="ppCurrentLabel" style="color:var(--pq-info);">—</b>
+                      </div>
+                      <script id="ppInitData" type="application/json">{{ (part.purchase_prices if part else None)|default('[]', true) }}</script>
+                    </div>
+                    <div class="field">
+                      <label>안전 재고</label>
+                      <input type="number" name="safety_stock" step="0.01" min="0" value="{{ part.safety_stock|default(0) }}">
+                    </div>
+                    <div class="field">
+                      <label>재주문점 (ROP)</label>
+                      <input type="number" name="reorder_point" step="0.01" min="0" value="{{ part.reorder_point|default(0) }}">
+                    </div>
+                    <div class="field">
+                      <label>재주문량 (ROQ)</label>
+                      <input type="number" name="reorder_qty" step="0.01" min="0" value="{{ part.reorder_qty|default(0) }}">
+                    </div>
+
+                    <div class="field">
+                      <label>환산 계수</label>
+                      <input type="number" name="conversion_factor" step="0.0001" min="0" value="{{ part.conversion_factor|default(1) }}">
+                    </div>
+                    <div class="field col-3">
+                      <label>위치 (location)</label>
+                      <input type="text" name="location" value="{{ part.location|default('') }}" placeholder="WH-01-A-12">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="qsec" data-dn="pf:extra">
+                <div class="qsec-h">
+                  <span class="ttl">📐 추가 규격 · 문서 출력명</span>
+                </div>
+                <div class="f-body">
+                  <div class="f-grid">
+                    <div class="field col-2">
+                      <label>추가 규격 1</label>
+                      <input type="text" name="sub_spec1" value="{{ part.sub_spec1|default('') }}">
+                    </div>
+                    <div class="field col-2">
+                      <label>추가 규격 2</label>
+                      <input type="text" name="sub_spec2" value="{{ part.sub_spec2|default('') }}">
+                    </div>
+                    <div class="field col-4">
+                      <label>추가 규격 3</label>
+                      <input type="text" name="sub_spec3" value="{{ part.sub_spec3|default('') }}">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>세금계산서 출력명</label>
+                      <input type="text" name="tax_invoice_name" value="{{ part.tax_invoice_name|default('') }}">
+                    </div>
+                    <div class="field col-2">
+                      <label>거래명세서 출력명</label>
+                      <input type="text" name="trade_invoice_name" value="{{ part.trade_invoice_name|default('') }}">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>HS 코드</label>
+                      <input type="text" name="hs_code" value="{{ part.hs_code|default('') }}" placeholder="예: 8501.31">
+                    </div>
+                    <div class="field col-2">
+                      <label>대분류</label>
+                      <input type="text" name="category_main" value="{{ part.category_main|default('') }}">
+                    </div>
+
+                    <div class="field col-2">
+                      <label>시리즈/계열</label>
+                      <input type="text" name="category_series" value="{{ part.category_series|default('') }}">
+                    </div>
+                    <div class="field col-2">
+                      <label style="font-size:11px;">활성</label>
+                      <select name="is_active">
+                        <option value="1" {% if not part or part.is_active %}selected{% endif %}>✓ 활성</option>
+                        <option value="0" {% if part and not part.is_active %}selected{% endif %}>비활성</option>
+                      </select>
+                    </div>
+
+                    <div class="field col-4">
+                      <label>비고</label>
+                      <textarea name="note" placeholder="비고 (선택)">{{ part.note|default('') }}</textarea>
+                    </div>
+                  </div>
+                  {# v5H226z102: 용도 필드는 기본 정보 박스 마지막으로 이동됨 #}
+                </div>
+              </div>
+
+              {# v5H226z83 — 아래 "구매사별 매입 단가" 섹션은 매입단가 1~5차로 역할 대체되어 숨김.
+                 코드는 보존 — 복구하려면 아래 {% if false %} 를 {% if is_edit %} 로 변경. #}
+              {% if false %}
+              {# v5H226z82 — 구매사(공급사)별 매입 단가: 제조사≠구매사, 다중 구매사·수량구간·시기별 단가 #}
+              <div class="qsec" data-dn="pf:prices">
+                <div class="qsec-h">
+                  <span class="ttl">💰 구매사별 매입 단가</span>
+                  <span class="badge">v5H226z82</span>
+                </div>
+                <div style="padding:12px 16px;">
+                  <div style="font-size:11.5px;color:var(--pq-ink-2);line-height:1.6;margin-bottom:10px;padding:8px 10px;background:var(--pq-info-soft);border-left:3px solid var(--pq-info);border-radius:4px;">
+                    <b>제조사</b>(만든 곳 — 위 기본정보)와 <b>구매사</b>(사는 곳)는 다릅니다.
+                    한 자재를 <b>여러 구매사</b>에서 매입할 수 있고, 구매사·수량·시기에 따라 단가가 달라집니다.
+                    구매사별로 단가를 등록해 두면 발주 시 유효 단가를 비교할 수 있습니다.
+                  </div>
+
+                  {% set mp = managed_prices|default([]) %}
+                  {% if mp %}
+                  <div style="overflow-x:auto;margin-bottom:12px;">
+                    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+                      <thead>
+                        <tr style="background:var(--pq-surface-2);color:var(--pq-ink-3);">
+                          <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--pq-line-2);">구매사</th>
+                          <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--pq-line-2);">유형</th>
+                          <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--pq-line-2);">단가</th>
+                          <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--pq-line-2);">수량 구간</th>
+                          <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--pq-line-2);">적용 기간</th>
+                          <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--pq-line-2);">비고</th>
+                          <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--pq-line-2);">상태</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for pr in mp %}
+                        {% set pt = pr.price_type|default('견적') %}
+                        <tr style="border-bottom:1px solid var(--pq-line);">
+                          <td style="padding:6px 8px;font-weight:600;color:var(--pq-ink);">{{ pr.supplier_name|default('(미지정)') }}</td>
+                          <td style="padding:6px 8px;text-align:center;">
+                            {% if pt == '확정' %}<span style="background:var(--pq-ok-soft);color:var(--pq-ok);padding:1px 6px;border-radius:3px;font-weight:700;font-size:10.5px;">확정</span>
+                            {% elif pt == '가' %}<span style="background:var(--pq-warn-soft);color:var(--pq-warn);padding:1px 6px;border-radius:3px;font-weight:700;font-size:10.5px;">가</span>
+                            {% else %}<span style="background:var(--pq-surface-3);color:var(--pq-ink-3);padding:1px 6px;border-radius:3px;font-weight:700;font-size:10.5px;">견적</span>{% endif %}
+                          </td>
+                          <td style="padding:6px 8px;text-align:right;font-weight:700;font-family:var(--pq-mono);color:var(--pq-ink);">
+                            {{ '{:,.0f}'.format(pr.unit_price|default(0)) }} <span style="color:var(--pq-ink-4);font-weight:500;">{{ pr.currency|default('KRW') }}</span>
+                          </td>
+                          <td style="padding:6px 8px;text-align:center;color:var(--pq-ink-3);font-family:var(--pq-mono);font-size:10.5px;">
+                            {% set mn = pr.min_qty|default(0)|float %}{% set mx = pr.max_qty %}
+                            {% if mn > 0 or mx %}{{ '{:,.0f}'.format(mn) }} ~ {% if mx %}{{ '{:,.0f}'.format(mx|float) }}{% else %}∞{% endif %}{% else %}—{% endif %}
+                          </td>
+                          <td style="padding:6px 8px;text-align:center;color:var(--pq-ink-3);font-family:var(--pq-mono);font-size:10.5px;">
+                            {{ pr.effective_from|default('—') }}{% if pr.effective_to %} ~ {{ pr.effective_to }}{% else %} ~{% endif %}
+                          </td>
+                          <td style="padding:6px 8px;color:var(--pq-ink-3);">{{ pr.note|default('') }}</td>
+                          <td style="padding:6px 8px;text-align:center;">
+                            {% if pt != '확정' %}
+                            <button type="button" class="approvePriceBtn" data-priceid="{{ pr.id }}"
+                              style="font-size:10px;padding:3px 8px;border:1px solid var(--pq-ok);background:var(--pq-ok-soft);color:var(--pq-ok);border-radius:3px;font-weight:700;cursor:pointer;">
+                              승인
+                            </button>
+                            {% else %}
+                            <span style="color:var(--pq-ink-4);font-size:10px;">{{ pr.approved_by_name|default('확정') }}</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  {% else %}
+                  <div style="padding:14px;text-align:center;color:var(--pq-ink-4);font-size:12px;background:var(--pq-surface-inset);border:1px dashed var(--pq-line-2);border-radius:6px;margin-bottom:12px;">
+                    등록된 구매사 단가가 없습니다. 아래에서 추가하세요.
+                  </div>
+                  {% endif %}
+
+                  {# 단가 추가 폼 — fetch POST (중첩 form 회피) #}
+                  <div style="border:1px solid var(--pq-line-2);border-radius:6px;padding:12px;background:var(--pq-surface-inset);">
+                    <div style="font-size:12px;font-weight:700;color:var(--pq-ink);margin-bottom:8px;">＋ 구매사 단가 추가</div>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+                      <div class="field">
+                        <label>구매사</label>
+                        <select id="pa_supplier">
+                          <option value="">— 선택 —</option>
+                          {% for s in suppliers|default([]) %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>단가 유형</label>
+                        <select id="pa_price_type">
+                          {% for pt in PRICE_TYPES|default(['확정','가','견적']) %}<option value="{{ pt }}"{% if pt == '견적' %} selected{% endif %}>{{ pt }}</option>{% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>단가 <span class="req">*</span></label>
+                        <input type="number" id="pa_unit_price" step="0.01" min="0" placeholder="0">
+                      </div>
+                      <div class="field">
+                        <label>통화</label>
+                        <select id="pa_currency">
+                          {% for cu in CURRENCIES|default(['KRW','USD','JPY','CNY','EUR']) %}<option value="{{ cu }}">{{ cu }}</option>{% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>적용 시작일 <span class="req">*</span></label>
+                        <input type="date" id="pa_effective_from">
+                      </div>
+                      <div class="field">
+                        <label>적용 종료일 (선택)</label>
+                        <input type="date" id="pa_effective_to">
+                      </div>
+                      <div class="field">
+                        <label>협상일 (선택)</label>
+                        <input type="date" id="pa_negotiated_at">
+                      </div>
+                      <div class="field">
+                        <label>최소 수량</label>
+                        <input type="number" id="pa_min_qty" step="0.01" min="0" value="0">
+                      </div>
+                      <div class="field">
+                        <label>최대 수량 (선택)</label>
+                        <input type="number" id="pa_max_qty" step="0.01" min="0" placeholder="무제한">
+                      </div>
+                      <div class="field col-3">
+                        <label>비고</label>
+                        <input type="text" id="pa_note" placeholder="예: 100개 이상 단가 / 연간계약가">
+                      </div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px;">
+                      <span id="pa_msg" style="font-size:11px;color:var(--pq-ink-3);margin-right:auto;"></span>
+                      <button type="button" id="priceAddBtn"
+                        style="height:32px;padding:0 16px;border-radius:6px;background:var(--pq-info);color:#fff;border:0;font-weight:700;font-size:12px;cursor:pointer;">
+                        ＋ 단가 등록
+                      </button>
+                    </div>
+                  </div>
+
+                  {# 단가 변동 이력 #}
+                  {% set pch = price_changes|default([]) %}
+                  {% if pch %}
+                  <div style="margin-top:14px;">
+                    <div style="font-size:12px;font-weight:700;color:var(--pq-ink);margin-bottom:6px;">📈 단가 변동 이력</div>
+                    <div style="overflow-x:auto;">
+                      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                        <thead>
+                          <tr style="background:var(--pq-surface-2);color:var(--pq-ink-3);">
+                            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid var(--pq-line-2);">적용일</th>
+                            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid var(--pq-line-2);">구매사</th>
+                            <th style="padding:5px 8px;text-align:right;border-bottom:1px solid var(--pq-line-2);">이전</th>
+                            <th style="padding:5px 8px;text-align:right;border-bottom:1px solid var(--pq-line-2);">변경</th>
+                            <th style="padding:5px 8px;text-align:right;border-bottom:1px solid var(--pq-line-2);">변동률</th>
+                            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid var(--pq-line-2);">비고</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for ch in pch %}
+                          <tr style="border-bottom:1px solid var(--pq-line);">
+                            <td style="padding:5px 8px;font-family:var(--pq-mono);color:var(--pq-ink-3);">{{ ch.effective_date|default('—') }}</td>
+                            <td style="padding:5px 8px;color:var(--pq-ink-2);">{{ ch.supplier_name|default('(미지정)') }}</td>
+                            <td style="padding:5px 8px;text-align:right;font-family:var(--pq-mono);color:var(--pq-ink-4);">{% if ch.old_price %}{{ '{:,.0f}'.format(ch.old_price) }}{% else %}—{% endif %}</td>
+                            <td style="padding:5px 8px;text-align:right;font-family:var(--pq-mono);font-weight:700;color:var(--pq-ink);">{{ '{:,.0f}'.format(ch.new_price|default(0)) }}</td>
+                            <td style="padding:5px 8px;text-align:right;font-family:var(--pq-mono);font-weight:700;">
+                              {% if ch.change_pct is not none %}
+                                {% set cp = ch.change_pct|float %}
+                                <span style="color:{% if cp > 0 %}var(--pq-err){% elif cp < 0 %}var(--pq-ok){% else %}var(--pq-ink-4){% endif %};">
+                                  {% if cp > 0 %}▲{% elif cp < 0 %}▼{% endif %}{{ '%.1f'|format(cp|abs) }}%
+                                </span>
+                              {% else %}<span style="color:var(--pq-ink-4);">신규</span>{% endif %}
+                            </td>
+                            <td style="padding:5px 8px;color:var(--pq-ink-3);">{{ ch.note|default('') }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}{# v5H226z99: 위 {% if false %} 블록 종료 — 첨부 카드는 별도 분리 #}
+
+              {# v5H226z99 (2026-05-16) — 사진·도면·데이터시트·기타 첨부 (편집 모드 노출) #}
+              {% if is_edit %}
+              <div class="qsec" data-dn="pf:attach">
+                <div class="qsec-h">
+                  <span class="ttl">📷 사진 · 📐 도면 · 📄 데이터시트 첨부</span>
+                  <span class="badge">v5H226z99</span>
+                </div>
+                <div class="attach-zone">
+                  <div class="attach-help">
+                    • <b>사진</b> (JPG/PNG/WebP) — 업로드 직전 자동 압축 (긴 변 1600px·JPEG 80%)<br>
+                    • <b>도면</b> (PDF/DWG/DXF) — 원본 저장<br>
+                    • <b>데이터시트·기타</b> (PDF 등) — 원본 저장 (최대 20MB)
+                  </div>
+                  <div id="attachForm">
+                    <div class="upload-row">
+                      <input type="file" id="attachFile" name="file" accept="image/*,application/pdf,.dwg,.dxf">
+                      <select id="attachKind" name="kind">
+                        <option value="photo">📷 사진</option>
+                        <option value="drawing">📐 도면</option>
+                        <option value="datasheet">📄 데이터시트</option>
+                        <option value="other">📎 기타</option>
+                      </select>
+                      <button type="button" id="attachBtn">⬆ 업로드</button>
+                    </div>
+                    <div id="compressInfo">파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.</div>
+                  </div>
+
+                  {% if attachments %}
+                  <div class="attach-list">
+                    {% for a in attachments %}
+                      <div class="attach-item">
+                        <div class="attach-thumb">
+                          {% if a.mime_type and a.mime_type.startswith('image/') %}
+                          <img src="/parts/{{ part.id }}/attachments/{{ a.id }}" alt="{{ a.file_name }}">
+                          {% elif a.kind == 'datasheet' %}
+                          <span class="icon">📄</span>
+                          {% elif a.kind == 'drawing' %}
+                          <span class="icon">📐</span>
+                          {% elif a.mime_type == 'application/pdf' %}
+                          <span class="icon">📄</span>
+                          {% else %}
+                          <span class="icon">📎</span>
+                          {% endif %}
+                        </div>
+                        <div class="attach-name">{{ a.file_name|default('파일') }}</div>
+                        <div class="attach-meta">
+                          {% set sz = a.file_size|default(0) %}
+                          {% if sz >= 1048576 %}{{ '%.1f'|format(sz/1048576) }} MB{% elif sz >= 1024 %}{{ '%.0f'|format(sz/1024) }} KB{% else %}{{ sz }} B{% endif %}
+                          · {% set _k = a.kind|default('photo') %}{% if _k == 'photo' %}사진{% elif _k == 'drawing' %}도면{% elif _k == 'datasheet' %}데이터시트{% elif _k == 'spec' %}사양서{% elif _k == 'other' %}기타{% else %}{{ _k }}{% endif %}
+                        </div>
+                        <div class="attach-actions">
+                          <a href="/parts/{{ part.id }}/attachments/{{ a.id }}" target="_blank">⬇</a>
+                          <form method="post" action="/parts/{{ part.id }}/attachments/{{ a.id }}/delete" style="margin:0;flex:1;" onsubmit="return confirm('삭제하시겠습니까?');">
+                            <button type="submit" class="del">삭제</button>
+                          </form>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  {% else %}
+                  <div style="padding:18px;text-align:center;color:var(--pq-ink-4);font-size:12px;background:var(--pq-surface-inset);border:1px dashed var(--pq-line-2);border-radius:6px;margin-top:6px;">
+                    등록된 첨부가 없습니다.
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
+
+              {% if is_edit %}
+              {# v5H226z81 — 위험 구역: 자재 완전 삭제 (2단계 확인 + 이력 경고) #}
+              <div class="qsec" data-dn="pf:danger" style="border:1.5px solid var(--pq-err);">
+                <div class="qsec-h" style="background:var(--pq-err-soft);border-bottom:1px solid var(--pq-err);">
+                  <span class="ttl" style="color:var(--pq-err);">🗑 위험 구역 — 자재 완전 삭제</span>
+                </div>
+                <div style="padding:14px 16px;">
+                  {% set di = del_impact|default({}) %}
+                  {% set has_refs = (di.get('stock_qty', 0)|float > 0) or (di.get('po_refs', 0) > 0) or (di.get('quote_refs', 0) > 0) or (di.get('movement_refs', 0) > 0) %}
+                  {% if has_refs %}
+                  <div style="padding:9px 11px;background:var(--pq-err-soft);border:1px solid var(--pq-err);border-radius:6px;font-size:11.5px;color:var(--pq-err);line-height:1.7;margin-bottom:10px;">
+                    ⚠ <b>이 자재는 연결된 이력이 있습니다.</b><br>
+                    {% if di.get('stock_qty', 0)|float > 0 %}· 현재 재고: <b>{{ '{:,.0f}'.format(di.get('stock_qty', 0)|float) }}</b><br>{% endif %}
+                    {% if di.get('po_refs', 0) > 0 %}· 발주 항목: <b>{{ di.get('po_refs', 0) }}건</b> — 삭제 시 해당 항목의 자재 연결 해제<br>{% endif %}
+                    {% if di.get('quote_refs', 0) > 0 %}· 견적 항목: <b>{{ di.get('quote_refs', 0) }}건</b> — 자재 연결 해제<br>{% endif %}
+                    {% if di.get('movement_refs', 0) > 0 %}· 재고 이동 이력: <b>{{ di.get('movement_refs', 0) }}건</b> — 함께 삭제됨<br>{% endif %}
+                    삭제 대신 위 <b>'활성' 항목을 '비활성'</b>으로 변경하는 것을 권장합니다 (이력 보존).
+                  </div>
+                  {% else %}
+                  <div style="font-size:11.5px;color:var(--pq-ink-3);line-height:1.6;margin-bottom:10px;">
+                    연결된 발주·견적·재고 이력이 없습니다. 삭제해도 비교적 안전합니다.
+                    {% if di.get('attach_refs', 0) > 0 %}<br>· 첨부 파일 {{ di.get('attach_refs', 0) }}건은 함께 삭제됩니다.{% endif %}
+                  </div>
+                  {% endif %}
+                  <button type="button" id="deletePartBtn"
+                    data-pid="{{ part.id }}"
+                    data-pno="{{ part.part_no|default(part.code|default('')) }}"
+                    style="width:100%;height:36px;border:1px solid var(--pq-err);background:var(--pq-err-soft);color:var(--pq-err);font-weight:700;font-size:12.5px;border-radius:6px;cursor:pointer;">
+                    🗑 이 자재를 완전 삭제
+                  </button>
+                  <div style="margin-top:7px;font-size:10.5px;color:var(--pq-ink-4);line-height:1.5;">
+                    2단계 확인(경고 동의 → 자재 코드 직접 입력)을 거쳐야 삭제됩니다.
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+
+            <aside>
+              {% if not is_edit %}
+              {# v5H226z58 (2026-05-12) — 신규 등록 페이지에서 일괄 등록 안내 #}
+              <div class="qsec" data-dn="pf:bulk-cta" style="border: 1.5px solid var(--pq-info); background: var(--pq-info-soft);">
+                <div class="qsec-h" style="background: var(--pq-info-soft); border-bottom: 1px solid var(--pq-info);">
+                  <span class="ttl" style="color: var(--pq-info);">📥 여러 건 등록하시나요?</span>
+                  <span class="badge">신규</span>
+                </div>
+                <div style="padding: 14px;">
+                  <div style="font-size: 12.5px; color: var(--pq-ink-2); line-height: 1.6; margin-bottom: 10px;">
+                    엑셀(.xlsx) 파일로 <b>한 번에 수십~수백 건</b> 자재를 등록할 수 있습니다.
+                    중복·유사 자재 자동 검사 + 미리보기 후 확정.
+                  </div>
+                  <a href="/parts/import" style="display:block;padding:10px 14px;text-align:center;background:var(--pq-info);color:#fff;font-weight:700;font-size:13px;text-decoration:none;border-radius:6px;">
+                    📥 엑셀 일괄 등록 페이지 열기 →
+                  </a>
+                  <div style="margin-top:8px;font-size:11px;color:var(--pq-ink-3);line-height:1.5;">
+                    💡 처음이면 <a href="/parts/import/template.xlsx" style="color:var(--pq-info);text-decoration:underline;">빈 템플릿</a>을 먼저 다운로드 받으세요 (20컬럼 + 예시 + 가이드 시트).
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <div class="qsec" data-dn="pf:sim" id="simCard" {% if is_edit %}style="display:none;"{% endif %}>
+                <div class="qsec-h">
+                  <span class="ttl">🔍 유사 자재 검사</span>
+                  <span class="badge" id="simBadge">대기</span>
+                </div>
+                <div class="sim-panel">
+                  <div id="simEmpty" class="empty">
+                    💡 <b>자재명을 입력하면</b> 유사한 기존 자재를 실시간으로 보여드립니다.<br><br>
+                    <b>점수 기준</b><br>
+                    ≥ 85점: 등록 차단 (재확인 필요)<br>
+                    ≥ 60점: 정보 제공 (참고)
+                  </div>
+                  <div id="simLoading" class="loading" style="display:none;">⏳ 검색 중...</div>
+                  <div id="simList" class="sim-list"></div>
+                </div>
+              </div>
+
+              {% if is_edit and part %}
+              <div class="qsec" data-dn="pf:qr">
+                <div class="qsec-h">
+                  <span class="ttl">📱 자재 QR 코드</span>
+                  <span class="badge">신규</span>
+                </div>
+                <div class="qr-card">
+                  <div class="qr-img"><img src="/parts/{{ part.id }}/qr.svg" alt="QR" loading="lazy"></div>
+                  <div class="payload">KNK-PART:{{ part.part_no|default(part.code) }}|{{ part.id }}</div>
+                  <div class="actions">
+                    <a href="/parts/{{ part.id }}/qr.svg" target="_blank">SVG 보기</a>
+                    <a href="/parts/{{ part.id }}/qr.svg?scale=10" target="_blank">크게</a>
+                  </div>
+                  <div style="margin-top:8px;font-size:10.5px;color:var(--pq-ink-3);line-height:1.5;">
+                    창고·자재 라벨 인쇄용. 스캔 시 자재 상세 페이지로 이동.
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <div class="qsec" data-dn="pf:guide">
+                <div class="qsec-h">
+                  <span class="ttl">💡 가이드</span>
+                </div>
+                <div class="side-guide">
+                  <b>자재 코드 규칙</b>
+                  <ul>
+                    <li><code>P-{사업부}-{분류}-{NNNN}</code></li>
+                    <li>예: <code>P-M-MTR-0001</code></li>
+                    <li>UNIQUE — 중복 차단</li>
+                  </ul>
+                  <b style="display:block;margin-top:10px;">중복 방지 (A안)</b>
+                  <ul>
+                    <li>입력 중 실시간 검색</li>
+                    <li>≥85점 발견 시 등록 차단</li>
+                    <li>정말 신규면 '강제 등록' 가능</li>
+                  </ul>
+                  {% if not is_edit %}
+                  <b style="display:block;margin-top:10px;color:var(--pq-info);">📸 등록 후 자동 흐름</b>
+                  <ul>
+                    <li>① <b>수정 페이지로 자동 이동</b></li>
+                    <li>② <b>사진·도면 첨부 카드</b> 노출 (자동 압축)</li>
+                    <li>③ <b>QR 라벨 인쇄</b> 즉시 가능</li>
+                  </ul>
+                  <div style="margin-top:6px;padding:6px 8px;background:var(--pq-info-soft);border-left:3px solid var(--pq-info);border-radius:3px;font-size:10.5px;color:var(--pq-info);">
+                    💡 등록 → 사진 업로드까지 한 흐름으로 처리됩니다.
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </aside>
+
+          </div>
+        </div>
+
+        <div class="submit-bar">
+          <span class="note" id="submitNote">💡 자재명을 충분히 구체적으로 입력하면 중복 방지 정확도가 높아집니다</span>
+          <a href="/parts">취소</a>
+          <button type="submit" id="submitBtn">📤 {% if is_edit %}저장{% else %}등록{% endif %}</button>
+        </div>
+
       </div>
-      <div id="compressInfo">파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.</div>
     </form>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
 
-    {% if attachments %}
-    <div class="attach-list">
-      {% for a in attachments %}
-      <div class="attach-item">
-        <div class="attach-thumb">
-          {% if a.mime_type and a.mime_type.startswith('image/') %}
-          <img src="/parts/{{ part.id }}/attachments/{{ a.id }}" alt="{{ a.file_name }}">
-          {% elif a.mime_type == 'application/pdf' %}
-          <span class="icon">📄</span>
-          {% elif a.kind == 'drawing' %}
-          <span class="icon">📐</span>
-          {% else %}
-          <span class="icon">📎</span>
-          {% endif %}
-        </div>
-        <div class="attach-name">{{ a.file_name|default('파일') }}</div>
-        <div class="attach-meta">
-          {% set sz = a.file_size|default(0) %}
-          {% if sz >= 1048576 %}{{ '%.1f'|format(sz/1048576) }} MB
-          {% elif sz >= 1024 %}{{ '%.0f'|format(sz/1024) }} KB
-          {% else %}{{ sz }} B{% endif %}
-          · {{ a.kind|default('photo') }}
-          {% if a.uploaded_at %}<br/>{{ a.uploaded_at }}{% endif %}
-        </div>
-        <div class="attach-actions">
-          <a href="/parts/{{ part.id }}/attachments/{{ a.id }}" target="_blank">다운로드</a>
-          <form method="post" action="/parts/{{ part.id }}/attachments/{{ a.id }}/delete" style="margin:0;flex:1;" onsubmit="return confirm('이 첨부를 삭제하시겠습니까?');">
-            <button type="submit" class="del">삭제</button>
-          </form>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div style="margin-top:14px;padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;background:var(--qv-surface-2);border:1px dashed var(--qv-line);border-radius:var(--radius-md);">
-      등록된 첨부가 없습니다. 위에서 사진이나 도면을 추가해보세요.
-    </div>
-    {% endif %}
-  </div>
+<script>
+// =====================================================
+// v5H226z58 (2026-05-12) — 사업부 "공통" 선택 시 경고 노출
+// 실무 기준 공통 자재는 10% 미만 — 오분류 방지
+// =====================================================
+(function(){
+  var sel = document.getElementById('bizDivSel');
+  var warn = document.getElementById('bizDivWarn');
+  if (!sel || !warn) return;
+  function check() { warn.style.display = (sel.value === '공통') ? 'block' : 'none'; }
+  sel.addEventListener('change', check);
+  check();
+})();
 
-  <script>
-  // v5H129: 클라이언트 측 이미지 압축 (Canvas API)
-  // 이미지 → 긴 변 1600px 리사이즈 + JPEG 80% 재인코딩 (보통 90%+ 절감)
-  (function(){
-    const fileInput = document.getElementById('attachFile');
-    const form = document.getElementById('attachForm');
-    const info = document.getElementById('compressInfo');
-    const btn = document.getElementById('attachBtn');
-    const MAX_DIM = 1600;
-    const QUALITY = 0.8;
+// =====================================================
+// v5H226z58 — A안 3층 방어: 유사 자재 실시간 검사
+// debounce 400ms / GET /parts/check / score ≥85 → 등록 버튼 force 모드
+// =====================================================
+(function(){
+  var IS_EDIT = {{ 'true' if is_edit else 'false' }};
+  if (IS_EDIT) return;  // 수정 모드에서는 유사 검사 비활성 (자기 자신 제외 후 검사 부담)
 
-    function fmtSize(b){
-      if (b >= 1048576) return (b/1048576).toFixed(2) + ' MB';
-      if (b >= 1024) return (b/1024).toFixed(0) + ' KB';
-      return b + ' B';
+  var nameEl  = document.getElementById('partName');
+  var specEl  = document.getElementById('partSpec');
+  var makerEl = document.getElementById('partMaker');
+  var simCard = document.getElementById('simCard');
+  var simEmpty = document.getElementById('simEmpty');
+  var simLoading = document.getElementById('simLoading');
+  var simList = document.getElementById('simList');
+  var simBadge = document.getElementById('simBadge');
+  var submitBtn = document.getElementById('submitBtn');
+  var submitNote = document.getElementById('submitNote');
+  var forceFlag = document.getElementById('forceFlag');
+  var partForm = document.getElementById('partForm');
+
+  var hardHit = false;  // ≥85점 자재 존재 여부
+
+  function debounce(fn, ms) {
+    var t; return function() { var args = arguments; clearTimeout(t); t = setTimeout(function(){ fn.apply(null, args); }, ms); };
+  }
+
+  function renderHits(data) {
+    simLoading.style.display = 'none';
+    var hits = (data && data.hits) || [];
+    hardHit = false;
+    if (!hits.length) {
+      simList.innerHTML = '';
+      simEmpty.style.display = 'block';
+      simBadge.textContent = '0건';
+      simBadge.style.background = 'var(--pq-ok-soft)';
+      simBadge.style.color = 'var(--pq-ok)';
+      submitBtn.textContent = '📤 등록';
+      submitBtn.className = '';
+      submitNote.textContent = '✓ 유사 자재 없음 — 안전하게 등록 가능';
+      forceFlag.value = '0';
+      return;
     }
+    simEmpty.style.display = 'none';
+    var html = '';
+    hits.forEach(function(h){
+      var cls = h.score >= 85 ? 'hard' : (h.score >= 70 ? 'soft' : '');
+      if (h.score >= 85) hardHit = true;
+      html += '<a class="sim-item ' + cls + '" href="/parts/' + h.id + '" target="_blank">';
+      html += '<div class="row1"><span class="pno">' + (h.part_no || ('#' + h.id)) + '</span>';
+      html += '<span class="pname">' + (h.part_name || '—') + '</span>';
+      html += '<span class="score">' + h.score + '점</span></div>';
+      var meta = [];
+      if (h.spec) meta.push(h.spec);
+      if (h.maker) meta.push(h.maker);
+      if (h.category) meta.push(h.category);
+      if (meta.length) html += '<div class="meta">' + meta.join(' · ') + '</div>';
+      html += '</a>';
+    });
+    if (hardHit) {
+      html = '<div class="sim-warn-banner">⚠ 매우 유사한 자재가 있습니다 (≥85점). 기존 자재 수정 권장.</div>' + html;
+    }
+    simList.innerHTML = html;
+    simBadge.textContent = hits.length + '건';
+    if (hardHit) {
+      simBadge.style.background = 'var(--pq-err-soft)';
+      simBadge.style.color = 'var(--pq-err)';
+      submitBtn.textContent = '⚠ 그래도 등록 (강제)';
+      submitBtn.className = 'force';
+      submitNote.textContent = '⚠ ≥85점 유사 자재 있음 — 정말 신규일 때만 강제 등록';
+    } else {
+      simBadge.style.background = 'var(--pq-warn-soft)';
+      simBadge.style.color = 'var(--pq-warn)';
+      submitBtn.textContent = '📤 등록';
+      submitBtn.className = '';
+      submitNote.textContent = '⚠ 유사 자재 있음 (참고) — 위 목록 확인 후 진행';
+    }
+    forceFlag.value = '0';  // 자동으로 force 켜지 않음
+  }
 
-    async function compressImage(file){
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = function(){
-          let { width, height } = img;
-          const ratio = Math.min(1, MAX_DIM / Math.max(width, height));
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(function(blob){
-            URL.revokeObjectURL(url);
-            if (!blob) { reject(new Error('압축 실패')); return; }
-            // 원본 이름 유지 + .jpg 확장자
-            const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
-            const compressed = new File([blob], baseName + '.jpg', { type: 'image/jpeg' });
-            resolve(compressed);
-          }, 'image/jpeg', QUALITY);
-        };
-        img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('이미지 읽기 실패')); };
-        img.src = url;
+  var fetchSim = debounce(function() {
+    var name = (nameEl.value || '').trim();
+    if (name.length < 2) {
+      simEmpty.style.display = 'block';
+      simList.innerHTML = '';
+      simBadge.textContent = '대기';
+      simBadge.style.background = 'var(--pq-info-soft)';
+      simBadge.style.color = 'var(--pq-info)';
+      hardHit = false;
+      submitBtn.className = '';
+      submitBtn.textContent = '📤 등록';
+      submitNote.textContent = '💡 자재명 2자 이상 입력 시 검색 시작';
+      forceFlag.value = '0';
+      return;
+    }
+    simEmpty.style.display = 'none';
+    simLoading.style.display = 'block';
+    var url = '/parts/check?name=' + encodeURIComponent(name)
+            + '&spec=' + encodeURIComponent(specEl.value || '')
+            + '&maker=' + encodeURIComponent(makerEl.value || '');
+    fetch(url, { credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(renderHits)
+      .catch(function(e){
+        simLoading.style.display = 'none';
+        simList.innerHTML = '<div class="empty" style="color:var(--pq-err);">⚠ 검색 오류: ' + e.message + '</div>';
       });
+  }, 400);
+
+  ['input','change'].forEach(function(ev){
+    nameEl.addEventListener(ev, fetchSim);
+    specEl.addEventListener(ev, fetchSim);
+    makerEl.addEventListener(ev, fetchSim);
+  });
+
+  // 등록 버튼 클릭 — hardHit 이면 confirm 후 force=1
+  partForm.addEventListener('submit', function(e){
+    if (hardHit && forceFlag.value !== '1') {
+      e.preventDefault();
+      var ok = confirm(
+        '⚠ 매우 유사한 자재가 있습니다 (≥85점).\n\n' +
+        '정말 신규 자재가 맞다면 OK 를 누르세요 (force=1 로 강제 등록).\n' +
+        '기존 자재를 수정하려면 취소 → 우측 목록 클릭으로 이동.'
+      );
+      if (ok) {
+        forceFlag.value = '1';
+        partForm.submit();
+      }
     }
+  });
+})();
 
-    let processedFile = null;
+// =====================================================
+// v5H129 — 첨부 자동 압축 (수정 모드만, 기존 로직 보존)
+// =====================================================
+{% if is_edit %}
+(function(){
+  var fileInput = document.getElementById('attachFile');
+  var btn = document.getElementById('attachBtn');
+  var info = document.getElementById('compressInfo');
+  var kindEl = document.getElementById('attachKind');
+  if (!fileInput || !btn) return;
 
-    fileInput.addEventListener('change', async function(){
-      processedFile = null;
-      info.className = '';
-      const f = fileInput.files[0];
-      if (!f) { info.textContent = '파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.'; return; }
-      if (f.type.startsWith('image/')) {
-        info.textContent = '이미지 압축 중... (' + fmtSize(f.size) + ')';
-        try {
-          const compressed = await compressImage(f);
-          processedFile = compressed;
-          const saved = f.size > 0 ? Math.round((1 - compressed.size / f.size) * 100) : 0;
-          info.className = 'success';
-          info.textContent = '✓ 압축 완료: ' + fmtSize(f.size) + ' → ' + fmtSize(compressed.size) +
-                             ' (' + saved + '% 절감) — 업로드 버튼을 눌러주세요.';
-        } catch (e) {
-          info.className = 'error';
-          info.textContent = '⚠ 압축 실패: ' + e.message + ' — 원본으로 업로드됩니다.';
-          processedFile = f;
-        }
-      } else {
-        // 비이미지 (PDF, DWG 등) — 압축 없이 size cap 안내
-        const MAX_NON_IMG = 20 * 1024 * 1024;
-        if (f.size > MAX_NON_IMG) {
-          info.className = 'error';
-          info.textContent = '⚠ 파일이 너무 큽니다 (' + fmtSize(f.size) + '). 20MB 이하만 업로드 가능합니다.';
-          processedFile = null;
+  var MAX_DIM = 1600, QUALITY = 0.8;
+  function fmtSize(b){ if (b>=1048576) return (b/1048576).toFixed(2)+' MB'; if (b>=1024) return (b/1024).toFixed(0)+' KB'; return b+' B'; }
+
+  function compressImage(file){
+    return new Promise(function(resolve, reject){
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        var r = Math.min(1, MAX_DIM / Math.max(w, h));
+        w = Math.round(w*r); h = Math.round(h*r);
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(function(b){
+          URL.revokeObjectURL(url);
+          if (!b) { reject(new Error('압축 실패')); return; }
+          var base = file.name.replace(/\.[^.]+$/, '') || 'image';
+          resolve(new File([b], base + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', QUALITY);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('이미지 읽기 실패')); };
+      img.src = url;
+    });
+  }
+
+  var processedFile = null;
+
+  fileInput.addEventListener('change', async function(){
+    processedFile = null;
+    info.className = '';
+    var f = fileInput.files[0];
+    if (!f) { info.textContent = '파일을 선택하면 자동 압축 결과가 여기에 표시됩니다.'; return; }
+    if (f.type.startsWith('image/')) {
+      info.textContent = '이미지 압축 중... (' + fmtSize(f.size) + ')';
+      try {
+        var comp = await compressImage(f);
+        processedFile = comp;
+        var saved = f.size > 0 ? Math.round((1 - comp.size/f.size)*100) : 0;
+        info.className = 'success';
+        info.textContent = '✓ 압축 완료: ' + fmtSize(f.size) + ' → ' + fmtSize(comp.size) + ' (' + saved + '% 절감)';
+      } catch(e) { info.className = 'error'; info.textContent = '⚠ 압축 실패: ' + e.message; processedFile = f; }
+    } else {
+      var MAX = 20*1024*1024;
+      if (f.size > MAX) { info.className = 'error'; info.textContent = '⚠ 20MB 초과'; return; }
+      info.textContent = '파일 준비 완료 (' + fmtSize(f.size) + ')';
+      processedFile = f;
+    }
+  });
+
+  btn.addEventListener('click', async function(e){
+    e.preventDefault();
+    if (!processedFile) { var f = fileInput.files[0]; if (!f) { info.className='error'; info.textContent='파일을 선택해주세요.'; return; } processedFile = f; }
+    btn.disabled = true; btn.textContent = '업로드 중...';
+    var fd = new FormData();
+    fd.append('file', processedFile, processedFile.name);
+    fd.append('kind', kindEl ? kindEl.value : 'photo');
+    try {
+      var res = await fetch('/parts/{{ part.id if is_edit else 0 }}/attach', { method: 'POST', body: fd, redirect: 'follow' });
+      if (res.redirected) { window.location.href = res.url; }
+      else if (res.ok) { window.location.href = '/parts/{{ part.id if is_edit else 0 }}/edit?success=업로드+완료'; }
+      else { info.className = 'error'; info.textContent = '⚠ 업로드 실패 (HTTP ' + res.status + ')'; btn.disabled = false; btn.textContent = '⬆ 업로드'; }
+    } catch(err) { info.className = 'error'; info.textContent = '⚠ 네트워크 오류: ' + err.message; btn.disabled = false; btn.textContent = '⬆ 업로드'; }
+  });
+})();
+{% endif %}
+
+// =====================================================
+// v5H226z81 — [A] 자재코드 변경 2단계 확인  [B] 완전 삭제 2단계 확인
+// =====================================================
+{% if is_edit %}
+(function(){
+  // ── [A] 자재 코드(part_no) 변경 감지 → 2단계 확인 ──
+  var partForm = document.getElementById('partForm');
+  var pnoEl = document.getElementById('partNo');
+  if (partForm && pnoEl) {
+    partForm.addEventListener('submit', function(e){
+      var orig = (pnoEl.getAttribute('data-original') || '').trim();
+      var now  = (pnoEl.value || '').trim();
+      if (orig && now && orig !== now) {
+        // 1단계 — 경고 동의
+        var ok1 = confirm(
+          '⚠ 자재 코드를 변경합니다.\n\n' +
+          '   ' + orig + '   →   ' + now + '\n\n' +
+          '발행된 QR 코드·라벨이 무효화되며 재인쇄가 필요합니다.\n' +
+          '계속하시겠습니까?'
+        );
+        if (!ok1) { e.preventDefault(); return; }
+        // 2단계 — 새 코드 재입력 일치 확인
+        var typed = prompt('확인을 위해 변경할 새 자재 코드를 다시 입력하세요:\n(' + now + ')');
+        if (typed === null || typed.trim() !== now) {
+          e.preventDefault();
+          alert('입력한 코드가 일치하지 않습니다. 저장이 취소되었습니다.');
           return;
         }
-        const warn = f.size > 10 * 1024 * 1024 ? ' ⚠ 10MB 초과 — 가능하면 줄여주세요.' : '';
-        info.textContent = '파일 준비 완료 (' + fmtSize(f.size) + ')' + warn + ' — 업로드 버튼을 눌러주세요.';
-        processedFile = f;
       }
     });
+  }
 
-    form.addEventListener('submit', async function(e){
-      e.preventDefault();
-      if (!processedFile) {
-        // 파일 선택 직후 미처리 (빠른 클릭) — 원본으로
-        const f = fileInput.files[0];
-        if (!f) { info.className = 'error'; info.textContent = '파일을 선택해주세요.'; return; }
-        processedFile = f;
+  // ── [B] 완전 삭제 → 2단계 확인 후 fetch POST (중첩 form 회피) ──
+  var delBtn = document.getElementById('deletePartBtn');
+  if (delBtn) {
+    delBtn.addEventListener('click', function(){
+      var pno = (delBtn.getAttribute('data-pno') || '').trim();
+      var pid = delBtn.getAttribute('data-pid') || '';
+      // 1단계 — 경고 동의
+      var ok1 = confirm(
+        '⚠ 자재를 완전 삭제합니다.\n\n' +
+        '   코드: ' + pno + '\n\n' +
+        '이 작업은 되돌릴 수 없습니다.\n' +
+        '· 연결된 발주/견적 항목 → 자재 연결 해제\n' +
+        '· 재고 이동·단가 이력·안전재고·첨부 → 함께 삭제\n\n' +
+        '계속하시겠습니까?'
+      );
+      if (!ok1) return;
+      // 2단계 — 자재 코드 직접 입력 일치 확인
+      var typed = prompt('삭제를 확정하려면 자재 코드를 정확히 입력하세요:\n(' + pno + ')');
+      if (typed === null) return;
+      if (typed.trim() !== pno) {
+        alert('입력한 코드가 일치하지 않습니다. 삭제가 취소되었습니다.');
+        return;
       }
-      btn.disabled = true;
-      btn.textContent = '업로드 중...';
-      const fd = new FormData();
-      fd.append('file', processedFile, processedFile.name);
-      const kindEl = form.querySelector('select[name=kind]');
-      fd.append('kind', kindEl ? kindEl.value : 'photo');
-      try {
-        const res = await fetch(form.action, { method: 'POST', body: fd, redirect: 'follow' });
-        // 서버가 303 리다이렉트 → fetch 가 따라가서 res.url 이 최종 URL
-        if (res.redirected) {
-          window.location.href = res.url;
-        } else if (res.ok) {
-          window.location.href = '/parts/{{ part.id }}/edit?success=업로드+완료';
-        } else {
-          info.className = 'error';
-          info.textContent = '⚠ 업로드 실패 (HTTP ' + res.status + ')';
-          btn.disabled = false;
-          btn.textContent = '⬆ 업로드';
-        }
-      } catch (err) {
-        info.className = 'error';
-        info.textContent = '⚠ 네트워크 오류: ' + err.message;
-        btn.disabled = false;
-        btn.textContent = '⬆ 업로드';
-      }
+      delBtn.disabled = true;
+      delBtn.textContent = '삭제 중...';
+      fetch('/parts/' + pid + '/delete', {
+        method: 'POST', credentials: 'same-origin', redirect: 'follow'
+      })
+      .then(function(res){
+        if (res.redirected) { window.location.href = res.url; return; }
+        if (res.ok) { window.location.href = '/parts'; return; }
+        return res.json().then(function(j){
+          alert('삭제 실패: ' + (j.error || ('HTTP ' + res.status)));
+          delBtn.disabled = false;
+          delBtn.textContent = '🗑 이 자재를 완전 삭제';
+        });
+      })
+      .catch(function(err){
+        alert('네트워크 오류: ' + err.message);
+        delBtn.disabled = false;
+        delBtn.textContent = '🗑 이 자재를 완전 삭제';
+      });
     });
+  }
+})();
+{% endif %}
+
+// =====================================================
+// v5H226z82 — 구매사별 단가: 추가(fetch POST) + 승인(fetch POST)
+// v5H226z83 — 매입단가 1~5차로 역할 대체, 비활성화 (복구: false→is_edit)
+// =====================================================
+{% if false %}
+(function(){
+  var PID = '{{ part.id }}';
+  function val(id){ var e = document.getElementById(id); return e ? (e.value || '').trim() : ''; }
+
+  // ── 단가 추가 ──
+  var addBtn = document.getElementById('priceAddBtn');
+  var msg = document.getElementById('pa_msg');
+  if (addBtn) {
+    addBtn.addEventListener('click', function(){
+      var unit_price = val('pa_unit_price');
+      var effective_from = val('pa_effective_from');
+      if (!unit_price || parseFloat(unit_price) < 0) {
+        msg.textContent = '⚠ 단가를 입력하세요.'; msg.style.color = 'var(--pq-err)'; return;
+      }
+      if (!effective_from) {
+        msg.textContent = '⚠ 적용 시작일을 입력하세요.'; msg.style.color = 'var(--pq-err)'; return;
+      }
+      var body = new URLSearchParams();
+      body.append('supplier_id', val('pa_supplier'));
+      body.append('price_type', val('pa_price_type') || '견적');
+      body.append('unit_price', unit_price);
+      body.append('currency', val('pa_currency') || 'KRW');
+      body.append('effective_from', effective_from);
+      body.append('effective_to', val('pa_effective_to'));
+      body.append('negotiated_at', val('pa_negotiated_at'));
+      body.append('min_qty', val('pa_min_qty') || '0');
+      body.append('max_qty', val('pa_max_qty'));
+      body.append('note', val('pa_note'));
+      addBtn.disabled = true; addBtn.textContent = '등록 중...';
+      msg.textContent = '';
+      fetch('/parts/' + PID + '/prices/new', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(), redirect: 'follow'
+      })
+      .then(function(res){
+        if (res.redirected) { window.location.href = res.url; return; }
+        if (res.ok) { window.location.reload(); return; }
+        msg.textContent = '⚠ 등록 실패 (HTTP ' + res.status + ')'; msg.style.color = 'var(--pq-err)';
+        addBtn.disabled = false; addBtn.textContent = '＋ 단가 등록';
+      })
+      .catch(function(err){
+        msg.textContent = '⚠ 네트워크 오류: ' + err.message; msg.style.color = 'var(--pq-err)';
+        addBtn.disabled = false; addBtn.textContent = '＋ 단가 등록';
+      });
+    });
+  }
+
+  // ── 단가 승인 (견적/가 → 확정) ──
+  Array.prototype.forEach.call(document.querySelectorAll('.approvePriceBtn'), function(btn){
+    btn.addEventListener('click', function(){
+      var priceId = btn.getAttribute('data-priceid');
+      if (!confirm('이 단가를 「확정」으로 승인하시겠습니까?\n확정 단가는 활성기간 겹침 검증이 적용됩니다.')) return;
+      btn.disabled = true; btn.textContent = '...';
+      fetch('/parts/prices/' + priceId + '/approve', {
+        method: 'POST', credentials: 'same-origin', redirect: 'follow'
+      })
+      .then(function(res){
+        if (res.redirected) { window.location.href = res.url; return; }
+        if (res.ok) { window.location.reload(); return; }
+        return res.json().then(function(j){
+          alert('승인 실패: ' + (j.error || ('HTTP ' + res.status)));
+          btn.disabled = false; btn.textContent = '승인';
+        }).catch(function(){
+          alert('승인 실패 (HTTP ' + res.status + ')');
+          btn.disabled = false; btn.textContent = '승인';
+        });
+      })
+      .catch(function(err){
+        alert('네트워크 오류: ' + err.message);
+        btn.disabled = false; btn.textContent = '승인';
+      });
+    });
+  });
+})();
+{% endif %}
+
+// =====================================================
+// v5H226z84 — 매입단가: 구매사 3곳 × 1~5차 + 날짜. 대표단가 = 가장 최근 날짜의 단가
+// =====================================================
+(function(){
+  var wrap      = document.getElementById('purchaseVendors');
+  var jsonInput = document.getElementById('purchasePricesJson');
+  var stdHidden = document.getElementById('stdPriceHidden');
+  var curLabel  = document.getElementById('ppCurrentLabel');
+  if (!wrap || !jsonInput || !stdHidden) return;
+
+  var vendorEls = Array.prototype.slice.call(wrap.querySelectorAll('.pp-vendor'));
+
+  function fmt(n){ try { return Number(n).toLocaleString(); } catch(e){ return n; } }
+
+  function serialize(){
+    var out = [];
+    var best = null;      // 가장 최근 날짜의 단가
+    var fallback = null;  // 날짜 없을 때 — 마지막 price>0
+    vendorEls.forEach(function(vEl){
+      var sup = (vEl.querySelector('.pp-supplier').value || '').trim();
+      var entries = [];
+      Array.prototype.forEach.call(vEl.querySelectorAll('.pp-row'), function(row){
+        var seq = parseInt(row.getAttribute('data-seq'), 10) || 0;
+        var date = (row.querySelector('.pp-date').value || '').trim();
+        // v5H226z86 — knk-money 포맷(천단위 콤마) 환원 후 숫자 변환
+        var price = parseFloat((row.querySelector('.pp-price').value || '').replace(/,/g, '').trim());
+        if (isNaN(price) || price < 0) price = 0;
+        if (price <= 0 && !date) return;  // 완전 빈 행 스킵
+        entries.push({ seq: seq, date: date, price: price });
+        if (price > 0) {
+          fallback = { price: price, supplier: sup };
+          if (date) {
+            if (!best || date > best.date || (date === best.date && seq >= best.seq)) {
+              best = { date: date, price: price, supplier: sup, seq: seq };
+            }
+          }
+        }
+      });
+      if (sup || entries.length) out.push({ supplier: sup, entries: entries });
+    });
+    jsonInput.value = JSON.stringify(out);
+
+    var rep = best || fallback;
+    if (rep && rep.price > 0) {
+      stdHidden.value = rep.price;
+      if (best) {
+        curLabel.textContent = fmt(best.price) + ' 원  (' + best.date
+          + (best.supplier ? ' · ' + best.supplier : '') + ')';
+      } else {
+        curLabel.textContent = fmt(rep.price) + ' 원  ('
+          + (rep.supplier ? rep.supplier + ' · ' : '') + '날짜 미입력)';
+      }
+    } else {
+      var keep = parseFloat(stdHidden.value);
+      curLabel.textContent = (!isNaN(keep) && keep > 0) ? (fmt(keep) + ' 원 (기존값 유지)') : '—';
+    }
+  }
+
+  // 초기화 — ppInitData → 구매사/차수 채우기 / 없으면 기존 std_price 를 구매사1·1차로 이행(날짜=오늘)
+  (function init(){
+    var initEl = document.getElementById('ppInitData');
+    var data = [];
+    try { data = JSON.parse(((initEl && initEl.textContent) || '[]').trim() || '[]'); }
+    catch(e) { data = []; }
+    if (!Array.isArray(data)) data = [];
+    if (data.length) {
+      data.slice(0, 3).forEach(function(vend, vIdx){
+        var vEl = vendorEls[vIdx];
+        if (!vEl || !vend) return;
+        vEl.querySelector('.pp-supplier').value = vend.supplier || '';
+        var rows = vEl.querySelectorAll('.pp-row');
+        (Array.isArray(vend.entries) ? vend.entries : []).forEach(function(ent){
+          var seq = parseInt(ent.seq, 10) || 0;
+          if (seq < 1 || seq > 5 || !rows[seq-1]) return;
+          if (ent.date) rows[seq-1].querySelector('.pp-date').value = ent.date;
+          if (ent.price != null && ent.price !== '') rows[seq-1].querySelector('.pp-price').value = ent.price;
+        });
+      });
+    } else {
+      // 기존 자재 마이그레이션: std_price → 구매사1·1차 (날짜=오늘)
+      var existing = parseFloat(stdHidden.value);
+      if (!isNaN(existing) && existing > 0 && vendorEls[0]) {
+        var fr = vendorEls[0].querySelector('.pp-row');
+        fr.querySelector('.pp-price').value = existing;
+        fr.querySelector('.pp-date').value = new Date().toISOString().slice(0, 10);
+      }
+    }
+    serialize();
   })();
-  </script>
-  {% endif %}
-</main></div></body></html>
+
+  // 입력 변경 시 재직렬화
+  vendorEls.forEach(function(vEl){
+    vEl.querySelector('.pp-supplier').addEventListener('input', serialize);
+    Array.prototype.forEach.call(vEl.querySelectorAll('.pp-date, .pp-price'), function(inp){
+      inp.addEventListener('input', serialize);
+      inp.addEventListener('change', serialize);
+    });
+  });
+
+  // 폼 제출 직전 최종 직렬화 (capture 단계 — 다른 submit 핸들러보다 먼저)
+  var pf = document.getElementById('partForm');
+  if (pf) pf.addEventListener('submit', function(){ serialize(); }, true);
+})();
+
+// =====================================================
+// v5H226z87 — Enter 키: 폼 제출(자동 저장→목록 이동) 대신 다음 입력칸으로 이동
+// textarea(줄바꿈 유지)·select·버튼은 기본 동작 유지. 저장은 [저장] 버튼으로만.
+// =====================================================
+(function(){
+  var form = document.getElementById('partForm');
+  if (!form) return;
+  form.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    var t = e.target;
+    if (!t || t.tagName !== 'INPUT') return;                  // textarea/select 는 기본 동작
+    if (t.type === 'submit' || t.type === 'button') return;   // 버튼은 정상 클릭
+    e.preventDefault();                                        // 폼 제출 차단
+    var focusables = Array.prototype.slice.call(
+      form.querySelectorAll('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
+    ).filter(function(el){ return el.offsetParent !== null; }); // 보이는 칸만
+    var idx = focusables.indexOf(t);
+    if (idx > -1 && idx < focusables.length - 1) {
+      var nxt = focusables[idx + 1];
+      nxt.focus();
+      try { if (nxt.select) nxt.select(); } catch(_){}
+    } else {
+      t.blur();  // 마지막 칸이면 blur (제출 안 함)
+    }
+  });
+})();
+</script>
+</body>
+</html>

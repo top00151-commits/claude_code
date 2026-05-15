@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z101 (장바구니 Jinja 충돌 정정: cart.items → cart['items'] dict 메서드 우선 문제 해결)
+REM   LAST UPDATE: 2026-05-16 v5H226z102 (자재 등록 폼 용도 필드 위치 이동: 추가 규격 박스 → 기본 정보 박스 마지막 — 대표 지시)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z101]
+title KNK HAIST WORKS [v5H226z102]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z101  2026-05-16]
+echo    [v5H226z102  2026-05-16]
 echo ============================================================
 echo.
 
