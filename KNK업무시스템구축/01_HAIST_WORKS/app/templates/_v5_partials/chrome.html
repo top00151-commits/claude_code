@@ -143,9 +143,13 @@
     {{ a('/sales/shipments-receipts','🚚 납품·수금', 'M-01-04') }}
     {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
     {{ a('/export',                '🌐 수출입',      'M-01-10') }}
+    <div class="sb-group">자재 요청</div>
+    {{ a('/catalog',              '🔍 자재 카탈로그', 'M-02-14') }}
+    {{ a('/materials/requests',   '📋 자재 요청서', 'M-02-15') }}
   {% elif _at == 'logi' %}
     <div class="sb-group">자재·구매</div>
     {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
+    {{ a('/catalog',           '🔍 자재 카탈로그', 'M-02-14') }}
     {{ a('/parts',             '🔩 부품 마스터', 'M-02-02') }}
     {{ a('/suppliers',         '🏭 공급사',      'M-02-03') }}
     {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
@@ -153,6 +157,9 @@
     {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
     {{ a('/stock/issue',       '📤 출고 등록',   'M-02-08') }}
     {{ a('/rates',             '💱 환율',        'M-02-13') }}
+    <div class="sb-group">자재 요청 (전 부서 공통)</div>
+    {{ a('/materials/requests',   '📋 자재 요청서', 'M-02-15') }}
+    {{ a('/materials/new-review', '🆕 신규 검토',   'M-02-16') }}
   {% else %}
     <div class="sb-group">통합 플랫폼</div>
     {{ a('/home',          '🏠 업무현황',     'M-00-01') }}
@@ -164,6 +171,9 @@
     {% if _role in ('ceo','admin','executive','leader') %}
     {{ a('/dashboard',     '🏢 대표 대시',    'M-05-01') }}
     {% endif %}
+    <div class="sb-group">자재 요청 (전 부서 공통)</div>
+    {{ a('/catalog',              '🔍 자재 카탈로그', 'M-02-14') }}
+    {{ a('/materials/requests',   '📋 자재 요청서',   'M-02-15') }}
   {% endif %}
 
   {# ─────────── 구분선 ─────────── #}
