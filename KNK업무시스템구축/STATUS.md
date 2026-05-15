@@ -2,7 +2,7 @@
 
 > **목적:** 대표님이 1초 만에 전 팀 진행 상황 파악
 > **갱신:** 빅터(01) 만 수정 — 대표 명시 지시 시점에만
-> **마지막 갱신:** 2026-05-11 v5H226z94 (**자재 카탈로그 + 통합 요청서 + 신규 검토 대시보드**)
+> **마지막 갱신:** 2026-05-11 v5H226z95 (**카탈로그 3종 결함 핫픽스**)
 
 ---
 
@@ -127,6 +127,28 @@
 ---
 
 ## 📌 빅터 작업 메모
+
+### z95 (2026-05-11) — 카탈로그 3종 결함 핫픽스
+
+**대표 보고:**
+1. 화면이 아래로 쏠림 (사이드바·main 분리 안 됨)
+2. 장바구니 클릭 시 OperationalError: no such column: is_active
+3. 검색 "솔밸브" 한글 매칭 안 됨
+
+**원인:**
+1. `<body>` 다음 `<div class="app">` 그리드 래퍼 누락 → chrome의 sidebar·main grid 적용 안 됨
+2. `projects` 테이블에 `is_active` 컬럼 없음 (PRAGMA 확인 결과 status / mgmt_code 등만 존재)
+3. 검색 WHERE 절이 part_no / part_name / spec 만 검색 → category·maker 미포함
+
+**z95 핫픽스:**
+1. 5 페이지 모두 `<div class="app">` 래퍼 + `{% set active_tab = "logi" %}` 추가
+   - catalog.html / catalog_cart.html / materials_requests.html / materials_request_detail.html / materials_new_review.html
+2. `/catalog/cart` projects SELECT: `is_active` 제거 → `mgmt_code || name` 표시로 정정
+3. 검색 WHERE: category·maker 추가 (한글 카테고리명·메이커명 매칭)
+
+**검증:** Jinja 5/5 PASS / main.py 컴파일 OK / 라우트 4개 모두 303
+
+**참고:** z77 SMC 더미 데이터는 다른 세션이 정리하고 다른 자재(전장 부품·AIR SYSTEM 등 219건)로 교체된 상태. "솔밸브" 검색은 정확 일치 안 되며 "SOLENOID VALVE" 영문 또는 "SY3120" 부품번호로 검색해야 결과 나옴.
 
 ### z94 (2026-05-11) — 자재 카탈로그 + 통합 요청서 + 신규 검토 대시보드 ⭐
 **대표 통찰**: "BOM 등록 시 등록 자재 확인 + 신규는 따로 표기 → 전 부서 공통"

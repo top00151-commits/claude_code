@@ -47,6 +47,8 @@ td.num { text-align:right; font-family:monospace; }
 </style>
 </head>
 <body>
+<div class="app">
+{% set active_tab = "logi" %}
 {% include "_v5_partials/chrome.html" %}
 <main class="main" data-dn="cart-main" data-dn-tone="amber">
   <div class="page-head">
@@ -75,7 +77,7 @@ td.num { text-align:right; font-family:monospace; }
           <select name="project_id">
             <option value="">(선택 안 함)</option>
             {% for p in projects %}
-              <option value="{{ p[0] }}" {% if cart.project_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+              <option value="{{ p[0] }}" {% if cart.project_id==p[0] %}selected{% endif %}>{{ p[1]|trim }}</option>
             {% endfor %}
           </select>
         </div>
@@ -176,5 +178,6 @@ td.num { text-align:right; font-family:monospace; }
 
   </form>
 </main>
+</div>
 </body>
 </html>

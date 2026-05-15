@@ -53,6 +53,8 @@ table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
 </style>
 </head>
 <body>
+<div class="app">
+{% set active_tab = "logi" %}
 {% include "_v5_partials/chrome.html" %}
 <main class="main" data-dn="materials-main" data-dn-tone="purple">
   <div class="page-head">
@@ -127,5 +129,6 @@ table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
     {% endif %}
   </div>
 </main>
+</div>
 </body>
 </html>

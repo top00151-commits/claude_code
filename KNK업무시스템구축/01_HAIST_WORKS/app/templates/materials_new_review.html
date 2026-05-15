@@ -58,6 +58,8 @@ details button { grid-column: 1 / -1; padding:8px; }
 </style>
 </head>
 <body>
+<div class="app">
+{% set active_tab = "logi" %}
 {% include "_v5_partials/chrome.html" %}
 <main class="main" data-dn="newreview-main" data-dn-tone="amber">
   <div class="page-head">
@@ -176,5 +178,6 @@ details button { grid-column: 1 / -1; padding:8px; }
     {% endif %}
   </div>
 </main>
+</div>
 </body>
 </html>

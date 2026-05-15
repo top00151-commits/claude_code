@@ -4405,8 +4405,9 @@ async def catalog_page(req: Request,
         where = ["is_active=1"]
         args = []
         if q:
-            where.append("(part_no LIKE ? OR part_name LIKE ? OR spec LIKE ?)")
-            args += [f'%{q}%']*3
+            # v5H226z95: 검색 범위 확대 — category, maker 도 포함 (한글 키워드 매칭)
+            where.append("(part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR category LIKE ? OR maker LIKE ?)")
+            args += [f'%{q}%']*5
         if category:
             where.append("COALESCE(category,'(미분류)')=?")
             args.append(category)
@@ -4465,9 +4466,10 @@ async def catalog_cart_page(req: Request):
         return RedirectResponse("/login", 303)
     cart = _cart_get(req)
     with db_session() as c:
-        projects = c.execute("""SELECT id, name FROM projects
-                                WHERE COALESCE(is_active,1)=1
-                                ORDER BY id DESC LIMIT 100""").fetchall()
+        # v5H226z95: projects.is_active 컬럼 없음 — status / mgmt_code 기반으로 정정
+        projects = c.execute("""SELECT id, COALESCE(mgmt_code,'') || ' ' || COALESCE(name,'') AS label
+                                FROM projects
+                                ORDER BY id DESC LIMIT 200""").fetchall()
     return ctx(req, "catalog_cart.html", user=u, active="catalog",
                cart=cart, projects=projects)
 

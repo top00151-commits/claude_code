@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-11 v5H226z94 (자재 카탈로그 + 통합 요청서 + 신규 검토 대시보드 — 전 부서 공통 5종 요청 유형)
+REM   LAST UPDATE: 2026-05-11 v5H226z95 (카탈로그 3종 결함 핫픽스: app 그리드 래퍼 5p + projects.is_active 제거 + 검색 범위 확대)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z94]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z95]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z94  2026-05-11]
+echo    [v5H226z95  2026-05-11]
 echo ============================================================
 echo.
 

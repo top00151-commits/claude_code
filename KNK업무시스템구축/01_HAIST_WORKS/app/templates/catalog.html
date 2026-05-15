@@ -69,6 +69,8 @@
 </style>
 </head>
 <body>
+<div class="app">
+{% set active_tab = "logi" %}
 {% include "_v5_partials/chrome.html" %}
 <main class="main" data-dn="catalog-main" data-dn-tone="amber">
   <div class="page-head" data-dn="catalog-pagehead">
@@ -193,6 +195,7 @@
   </div>
 </main>
 
+</div>
 <script>
 function toggleFav(partId, btn) {
   fetch('/api/catalog/favorites/' + partId, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}})
