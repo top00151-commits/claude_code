@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-11 v5H226z96 (카탈로그 한영 동의어 검색: 솔밸브→solenoid·sy / 커넥터→connector·d-sub 등 ~120 그룹)
+REM   LAST UPDATE: 2026-05-11 v5H226z97 (카탈로그 카드 → 부품 상세 링크 — 부품번호·이름·스펙 클릭 시 /parts/{id} 이동)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z96]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z97]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z96  2026-05-11]
+echo    [v5H226z97  2026-05-11]
 echo ============================================================
 echo.
 

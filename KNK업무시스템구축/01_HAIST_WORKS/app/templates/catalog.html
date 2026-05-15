@@ -40,10 +40,13 @@
 .results-meta { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; color:var(--qv-ink-3); font-size:12px; }
 
 .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-3); }
-.card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding: var(--space-3); display:flex; flex-direction:column; gap:6px; transition: all .15s; }
-.card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+.card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding: var(--space-3); display:flex; flex-direction:column; gap:6px; transition: all .15s; cursor:pointer; }
+.card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); border-color: var(--qv-line-3); }
 .card-head { display:flex; justify-content:space-between; gap:8px; }
-.part-no { font-family:monospace; font-size:13px; font-weight:700; color:var(--qv-ink); }
+.part-no { font-family:monospace; font-size:13px; font-weight:700; color:var(--qv-ink); text-decoration:none; }
+.part-no:hover { color:var(--qv-ink-2); text-decoration:underline; }
+.part-link { color:var(--qv-ink); text-decoration:none; flex:1; display:flex; flex-direction:column; gap:6px; }
+.part-link:hover .part-name { color:var(--qv-ink-2); text-decoration:underline; }
 .fav { background:none; border:0; cursor:pointer; font-size:18px; color:#cbd5e1; padding:0; }
 .fav.on { color:var(--knk-red); }
 .part-name { font-size:14px; color:var(--qv-ink); font-weight:600; line-height:1.3; }
@@ -138,32 +141,34 @@
         {% for p in parts %}
         <div class="card" data-part-id="{{ p[0] }}">
           <div class="card-head">
-            <div class="part-no">{{ p[1] }}</div>
-            <button class="fav {% if p[0] in favs %}on{% endif %}" onclick="toggleFav({{ p[0] }}, this)" title="즐겨찾기">
+            <a class="part-no" href="/parts/{{ p[0] }}" title="부품 상세 보기">{{ p[1] }}</a>
+            <button class="fav {% if p[0] in favs %}on{% endif %}" onclick="event.stopPropagation(); toggleFav({{ p[0] }}, this)" title="즐겨찾기">
               {% if p[0] in favs %}★{% else %}☆{% endif %}
             </button>
           </div>
-          <div class="part-name">{{ p[2] }}</div>
-          <div class="part-spec">{{ p[3] or '' }}</div>
-          <div class="part-meta">
-            <span class="cat-tag">{{ p[5] or '미분류' }}</span>
-            <span><b>{{ p[4] or '-' }}</b></span>
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-            <div class="part-price">₩{{ '{:,}'.format(p[6]|int) }}</div>
-            <div style="font-size:11px;">
-              재고
-              {% if (p[8] or 0) > (p[9] or 0) %}
-                <span class="stock-ok">{{ (p[8] or 0)|int }}{{ p[10] or 'EA' }}</span>
-              {% else %}
-                <span class="stock-low">{{ (p[8] or 0)|int }}{{ p[10] or 'EA' }}</span>
-              {% endif %}
+          <a class="part-link" href="/parts/{{ p[0] }}">
+            <div class="part-name">{{ p[2] }}</div>
+            <div class="part-spec">{{ p[3] or '' }}</div>
+            <div class="part-meta">
+              <span class="cat-tag">{{ p[5] or '미분류' }}</span>
+              <span><b>{{ p[4] or '-' }}</b></span>
             </div>
-          </div>
-          <div class="card-actions">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <div class="part-price">₩{{ '{:,}'.format(p[6]|int) }}</div>
+              <div style="font-size:11px;">
+                재고
+                {% if (p[8] or 0) > (p[9] or 0) %}
+                  <span class="stock-ok">{{ (p[8] or 0)|int }}{{ p[10] or 'EA' }}</span>
+                {% else %}
+                  <span class="stock-low">{{ (p[8] or 0)|int }}{{ p[10] or 'EA' }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </a>
+          <div class="card-actions" onclick="event.stopPropagation()">
             <form method="post" action="/catalog/cart/add">
               <input type="hidden" name="part_id" value="{{ p[0] }}" />
-              <input type="number" name="qty" value="1" min="0.001" step="any" required />
+              <input type="number" name="qty" value="1" min="0.001" step="any" required onclick="event.stopPropagation()" />
               <button type="submit">🛒 담기</button>
             </form>
           </div>
