@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>요청서 상세 · KNK HAIST WORKS</title>
+{# v5H226z94: 자재 요청서 상세 (라인 + 신규 검토 표기) #}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:26px; font-weight:700; color:var(--qv-ink); display:flex; gap:10px; align-items:center; }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.mgmt-pill { display:inline-block; padding:4px 12px; border-radius:12px; font-family:monospace; font-size:14px; background:var(--qv-surface-3); color:var(--qv-ink); font-weight:700; }
+
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap: var(--space-3); }
+
+.summary-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+.s-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; }
+.s-card .label { font-size:11px; color:var(--qv-ink-3); text-transform:uppercase; }
+.s-card .value { font-size:15px; font-weight:700; color:var(--qv-ink); margin-top:4px; }
+
+.status-tag { display:inline-block; padding:3px 12px; border-radius:14px; font-size:12px; font-weight:700; }
+.status-제출 { background:#fef3c7; color:#92400e; }
+.status-검토중 { background:#dbeafe; color:#1e40af; }
+.status-완료 { background:#dcfce7; color:#166534; }
+.status-거절 { background:#fee2e2; color:#991b1b; }
+
+.type-tag { display:inline-block; padding:3px 12px; border-radius:14px; font-size:12px; font-weight:700; }
+.t-bom { background:#e0e7ff; color:#3730a3; }
+.t-quote { background:#fce7f3; color:#9d174d; }
+.t-as { background:#fef3c7; color:#92400e; }
+.t-production { background:#dcfce7; color:#166534; }
+.t-general { background:#f1f5f9; color:#475569; }
+
+.tbl-wrap { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
+table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
+.tbl th { background:var(--qv-surface-3); color:var(--qv-ink-2); padding:10px 12px; text-align:left; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; }
+.tbl td { padding:11px 12px; border-bottom:1px solid var(--qv-line); }
+.tbl td.num { text-align:right; font-family:monospace; }
+.tbl tr.new-row { background:#fef3c7; }
+.tbl tr.new-row:hover td { background:#fde68a; }
+
+.new-tag { display:inline-block; padding:2px 9px; border-radius:10px; background:var(--knk-red); color:#fff; font-size:10.5px; font-weight:700; }
+.reg-tag { display:inline-block; padding:2px 9px; border-radius:10px; background:#dcfce7; color:#166534; font-size:10.5px; font-weight:700; }
+.rev-rejected { color:#991b1b; font-weight:700; }
+.rev-registered { color:#166534; font-weight:700; }
+.rev-pending { color:#92400e; font-weight:700; }
+.rev-quote_requested { color:#3730a3; font-weight:700; }
+</style>
+</head>
+<body>
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn="mreq-detail-main" data-dn-tone="purple">
+  <div class="page-head">
+    <div class="page-meta">REQUEST DETAIL</div>
+    <h1 class="page-title">
+      <span class="mgmt-pill">{{ mr[1] }}</span>
+      <span class="type-tag t-{{ mr[2] }}">
+        {% if mr[2]=='bom' %}📐 BOM
+        {% elif mr[2]=='quote' %}💼 견적
+        {% elif mr[2]=='as' %}🔧 AS
+        {% elif mr[2]=='production' %}🏭 생산
+        {% else %}📦 일반{% endif %}
+      </span>
+      {{ mr[3] }}
+    </h1>
+  </div>
+
+  <div class="wrap">
+    <div class="summary-grid" data-dn="mreq-summary">
+      <div class="s-card"><div class="label">상태</div><div class="value"><span class="status-tag status-{{ mr[7] }}">{{ mr[7] }}</span></div></div>
+      <div class="s-card"><div class="label">전체 라인</div><div class="value">{{ mr[8] }} 건</div></div>
+      <div class="s-card"><div class="label">🆕 신규 검토</div><div class="value" style="color:var(--knk-red);">{{ mr[9] or 0 }} 건</div></div>
+      <div class="s-card"><div class="label">프로젝트</div><div class="value">{{ mr[-1] or '-' }}</div></div>
+      <div class="s-card"><div class="label">요청자</div><div class="value">{{ mr[-2] or '-' }}</div></div>
+      <div class="s-card"><div class="label">요청일</div><div class="value">{{ mr[11][:10] if mr[11] else '' }}</div></div>
+    </div>
+
+    {% if mr[10] %}
+    <div class="s-card"><div class="label">메모</div><div style="margin-top:6px; color:var(--qv-ink-2);">{{ mr[10] }}</div></div>
+    {% endif %}
+
+    <div class="tbl-wrap" data-dn="mreq-items">
+      <table class="tbl">
+        <thead><tr>
+          <th>#</th><th>구분</th><th>부품번호</th><th>부품명</th><th>스펙</th>
+          <th class="num">수량</th><th>검토 상태</th><th>사유/메모</th>
+        </tr></thead>
+        <tbody>
+        {% for it in items %}
+        <tr class="{% if it[3] %}new-row{% endif %}">
+          <td>{{ it[2] }}</td>
+          <td>
+            {% if it[3] %}
+              <span class="new-tag">🆕 신규</span>
+            {% else %}
+              <span class="reg-tag">✓ 등록</span>
+            {% endif %}
+          </td>
+          <td style="font-family:monospace; font-weight:700;">
+            {{ it[4] or (it[19] or '') }}
+          </td>
+          <td>{{ it[5] or it[20] or '' }}</td>
+          <td style="color:var(--qv-ink-3);">{{ it[6] or it[21] or '' }}</td>
+          <td class="num">{{ it[8] }} {{ it[9] or 'EA' }}</td>
+          <td>
+            {% if it[3] %}
+              <span class="rev-{{ it[11] }}">
+                {% if it[11]=='pending' %}⏳ 대기
+                {% elif it[11]=='registered' %}✓ 등록 완료
+                {% elif it[11]=='rejected' %}✕ 거절
+                {% elif it[11]=='quote_requested' %}💬 견적 요청
+                {% else %}{{ it[11] }}{% endif %}
+              </span>
+            {% else %}
+              <span style="color:var(--qv-ink-3); font-size:12px;">매핑됨</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--qv-ink-3); font-size:12px;">
+            {{ it[10] or it[13] or '' }}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <a href="/materials/requests" style="padding:10px 18px; background:var(--qv-surface-3); color:var(--qv-ink); border-radius:6px; text-decoration:none; font-weight:700; font-size:13px;">← 목록</a>
+      {% if mr[9] and mr[9] > 0 %}
+        <a href="/materials/new-review?status=pending" style="padding:10px 18px; background:var(--qv-ink); color:#fff; border-radius:6px; text-decoration:none; font-weight:700; font-size:13px;">🆕 신규 검토 대시보드 →</a>
+      {% endif %}
+    </div>
+  </div>
+</main>
+</body>
+</html>

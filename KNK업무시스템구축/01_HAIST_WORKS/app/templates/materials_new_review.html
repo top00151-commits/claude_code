@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>신규 검토 자재 대시보드 · KNK HAIST WORKS</title>
+{# v5H226z94: 구매팀 신규 검토 자재 통합 대시보드 #}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:28px; font-weight:700; color:var(--qv-ink); }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.intro { font-size:13px; color:var(--qv-ink-3); margin-top:4px; }
+
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap: var(--space-3); }
+
+.kpi { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.kpi .card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; }
+.kpi .label { font-size:11px; color:var(--qv-ink-3); text-transform:uppercase; letter-spacing:.1em; }
+.kpi .value { font-size:24px; font-weight:700; color:var(--qv-ink); margin-top:4px; }
+.kpi .v-red { color:var(--knk-red); }
+.kpi .v-green { color:#047857; }
+.kpi .v-blue { color:#1e40af; }
+
+.filter-bar { display:flex; gap:6px; flex-wrap:wrap; padding:12px; background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; align-items:center; }
+.filter-bar a { padding:7px 14px; background:var(--qv-surface-3); color:var(--qv-ink-2); border-radius:18px; text-decoration:none; font-size:12.5px; font-weight:600; }
+.filter-bar a.on { background:var(--qv-ink); color:#fff; }
+
+.tbl-wrap { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
+table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
+.tbl th { background:var(--qv-surface-3); color:var(--qv-ink-2); padding:10px 12px; text-align:left; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.tbl td { padding:10px 12px; border-bottom:1px solid var(--qv-line); vertical-align: top; }
+.tbl td.num { text-align:right; font-family:monospace; }
+.tbl tr:hover td { background:var(--qv-surface-2); }
+
+.type-tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10.5px; font-weight:700; }
+.t-bom { background:#e0e7ff; color:#3730a3; }
+.t-quote { background:#fce7f3; color:#9d174d; }
+.t-as { background:#fef3c7; color:#92400e; }
+.t-production { background:#dcfce7; color:#166534; }
+.t-general { background:#f1f5f9; color:#475569; }
+
+.btn-mini { display:inline-block; padding:5px 10px; border-radius:5px; font-size:11.5px; font-weight:700; text-decoration:none; cursor:pointer; border:0; margin-right:4px; }
+.btn-reg { background:#dcfce7; color:#166534; }
+.btn-quote { background:#dbeafe; color:#1e40af; }
+.btn-reject { background:#fee2e2; color:#991b1b; }
+.btn-mini:hover { opacity:.85; }
+
+details { background:var(--qv-surface-2); border-radius:6px; padding:6px; margin-top:6px; }
+details summary { cursor:pointer; font-size:11.5px; color:var(--qv-ink-2); font-weight:600; }
+details form { margin-top:8px; display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; }
+details input, details textarea, details select { padding:6px 9px; border:1px solid var(--qv-line); border-radius:5px; font-size:12px; width:100%; }
+details .full { grid-column: 1 / -1; }
+details button { grid-column: 1 / -1; padding:8px; }
+
+.empty { padding:60px; text-align:center; color:var(--qv-ink-3); }
+</style>
+</head>
+<body>
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn="newreview-main" data-dn-tone="amber">
+  <div class="page-head">
+    <div class="page-meta">NEW REVIEW · 구매팀 통합 대시보드</div>
+    <h1 class="page-title">🆕 신규 검토 자재 <em>대시보드</em></h1>
+    <div class="intro">전 부서에서 올라온 신규 자재를 한곳에서 검토 → 등록 / 견적 요청 / 거절</div>
+  </div>
+
+  <div class="wrap">
+    {% set sm = dict(stats) %}
+    <div class="kpi" data-dn="newreview-kpi">
+      <div class="card"><div class="label">전체</div><div class="value">{{ (sm.get('pending',0) or 0) + (sm.get('registered',0) or 0) + (sm.get('rejected',0) or 0) + (sm.get('quote_requested',0) or 0) }}</div></div>
+      <div class="card"><div class="label">⏳ 검토 대기</div><div class="value v-red">{{ sm.get('pending', 0) }}</div></div>
+      <div class="card"><div class="label">💬 견적 요청</div><div class="value v-blue">{{ sm.get('quote_requested', 0) }}</div></div>
+      <div class="card"><div class="label">✓ 등록 완료</div><div class="value v-green">{{ sm.get('registered', 0) }}</div></div>
+      <div class="card"><div class="label">✕ 거절</div><div class="value">{{ sm.get('rejected', 0) }}</div></div>
+    </div>
+
+    {% if by_type %}
+    <div style="display:flex; gap:6px; flex-wrap:wrap; padding:8px 0;">
+      {% for t, n in by_type %}
+        <span class="type-tag t-{{ t }}">
+          {% if t=='bom' %}📐 BOM{% elif t=='quote' %}💼 견적{% elif t=='as' %}🔧 AS{% elif t=='production' %}🏭 생산{% else %}📦 일반{% endif %}
+          {{ n }}건
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="filter-bar" data-dn="newreview-filter">
+      <span style="font-size:12px; color:var(--qv-ink-3); margin-right:6px;">상태:</span>
+      <a href="?status=pending" class="{% if f_status=='pending' %}on{% endif %}">⏳ 대기</a>
+      <a href="?status=quote_requested" class="{% if f_status=='quote_requested' %}on{% endif %}">💬 견적</a>
+      <a href="?status=registered" class="{% if f_status=='registered' %}on{% endif %}">✓ 등록</a>
+      <a href="?status=rejected" class="{% if f_status=='rejected' %}on{% endif %}">✕ 거절</a>
+      <a href="?status=" class="{% if not f_status %}on{% endif %}">전체</a>
+    </div>
+
+    {% if items %}
+    <div class="tbl-wrap">
+      <table class="tbl" data-dn="newreview-table">
+        <thead><tr>
+          <th>요청</th><th>부서</th><th>요청자</th><th>예상 P/N</th><th>부품명</th>
+          <th>스펙</th><th class="num">수량</th><th>사유</th><th style="width:280px;">액션</th>
+        </tr></thead>
+        <tbody>
+        {% for it in items %}
+        <tr>
+          <td>
+            <a href="/materials/requests/{{ it[1] }}" style="font-family:monospace; font-size:11.5px; color:var(--qv-ink); text-decoration:none; font-weight:700;">
+              {{ it[11] }}
+            </a>
+            <div style="margin-top:3px;">
+              <span class="type-tag t-{{ it[12] }}">
+                {% if it[12]=='bom' %}📐{% elif it[12]=='quote' %}💼{% elif it[12]=='as' %}🔧{% elif it[12]=='production' %}🏭{% else %}📦{% endif %}
+              </span>
+            </div>
+          </td>
+          <td style="font-size:12px;">{{ it[15] or '-' }}</td>
+          <td style="font-size:12px;">{{ it[14] or '-' }}</td>
+          <td style="font-family:monospace;">{{ it[2] or '-' }}</td>
+          <td><b>{{ it[3] }}</b></td>
+          <td style="color:var(--qv-ink-3); font-size:12px;">{{ it[4] or '' }}</td>
+          <td class="num">{{ it[6] }} {{ it[7] or 'EA' }}</td>
+          <td style="font-size:12px; color:var(--qv-ink-3);">{{ it[8] or '' }}</td>
+          <td>
+            {% if it[9]=='pending' %}
+            <details>
+              <summary class="btn-mini btn-reg">✓ 등록</summary>
+              <form method="post" action="/materials/new-review/{{ it[0] }}/register">
+                <div class="full"><input type="text" name="part_no" value="{{ it[2] or '' }}" placeholder="부품번호 *" required /></div>
+                <div class="full"><input type="text" name="part_name" value="{{ it[3] }}" placeholder="부품명 *" required /></div>
+                <input type="text" name="spec" value="{{ it[4] or '' }}" placeholder="스펙" />
+                <input type="text" name="maker" value="{{ it[5] or '' }}" placeholder="메이커" />
+                <input type="number" name="std_price" placeholder="기준단가" step="any" />
+                <input type="text" name="category" placeholder="카테고리" />
+                <div class="full"><textarea name="review_note" rows="2" placeholder="등록 메모"></textarea></div>
+                <button class="btn-mini btn-reg" type="submit">등록 확정</button>
+              </form>
+            </details>
+            <details>
+              <summary class="btn-mini btn-quote">💬 견적</summary>
+              <form method="post" action="/materials/new-review/{{ it[0] }}/quote">
+                <input type="text" name="quote_supplier_id" placeholder="공급사 ID" />
+                <input type="number" name="quoted_lead_days" placeholder="L/T(일)" />
+                <input type="number" name="quoted_price" step="any" placeholder="견적 단가" />
+                <div class="full"><textarea name="review_note" rows="2" placeholder="견적 메모"></textarea></div>
+                <button class="btn-mini btn-quote" type="submit">견적 기록</button>
+              </form>
+            </details>
+            <details>
+              <summary class="btn-mini btn-reject">✕ 거절</summary>
+              <form method="post" action="/materials/new-review/{{ it[0] }}/reject">
+                <div class="full"><textarea name="review_note" rows="2" placeholder="거절 사유 *" required></textarea></div>
+                <button class="btn-mini btn-reject" type="submit">거절 확정</button>
+              </form>
+            </details>
+            {% elif it[9]=='registered' %}
+              <span class="btn-mini btn-reg">✓ 등록 완료</span>
+            {% elif it[9]=='rejected' %}
+              <span class="btn-mini btn-reject">✕ 거절됨</span>
+            {% elif it[9]=='quote_requested' %}
+              <span class="btn-mini btn-quote">💬 견적 진행</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">
+        <h3 style="color:var(--qv-ink);">{{ f_status }} 상태의 신규 검토 자재 없음</h3>
+        <p>다른 부서에서 카탈로그에 없는 자재를 요청하면 여기에 자동 표시됩니다.</p>
+      </div>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

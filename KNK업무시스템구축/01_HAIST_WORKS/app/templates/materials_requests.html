@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>자재 요청서 · KNK HAIST WORKS</title>
+{# v5H226z94: 자재 요청서 목록 (전 부서 공통) #}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; }
+.page-title { font-size:28px; font-weight:700; color:var(--qv-ink); }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap: var(--space-3); }
+
+.kpi { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+.kpi .card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; }
+.kpi .label { font-size:11px; color:var(--qv-ink-3); text-transform:uppercase; letter-spacing:.1em; }
+.kpi .value { font-size:24px; font-weight:700; color:var(--qv-ink); margin-top:4px; }
+
+.filter-bar { display:flex; gap:6px; flex-wrap:wrap; padding:12px; background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; align-items:center; }
+.filter-bar a { padding:7px 14px; background:var(--qv-surface-3); color:var(--qv-ink-2); border-radius:18px; text-decoration:none; font-size:12.5px; font-weight:600; }
+.filter-bar a.on { background:var(--qv-ink); color:#fff; }
+.filter-bar .sep { width:1px; height:18px; background:var(--qv-line); margin:0 6px; }
+
+.tbl-wrap { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
+table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
+.tbl th { background:var(--qv-surface-3); color:var(--qv-ink-2); padding:10px 12px; text-align:left; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; }
+.tbl td { padding:11px 12px; border-bottom:1px solid var(--qv-line); }
+.tbl tr:hover td { background:var(--qv-surface-2); }
+.tbl a { color:var(--qv-ink); text-decoration:none; font-weight:600; }
+.tbl a:hover { color:var(--qv-ink-2); text-decoration:underline; }
+
+.mgmt-pill { display:inline-block; padding:3px 9px; border-radius:10px; font-family:monospace; font-size:11.5px; background:var(--qv-surface-3); color:var(--qv-ink); font-weight:700; }
+
+.type-tag { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
+.t-bom { background:#e0e7ff; color:#3730a3; }
+.t-quote { background:#fce7f3; color:#9d174d; }
+.t-as { background:#fef3c7; color:#92400e; }
+.t-production { background:#dcfce7; color:#166534; }
+.t-general { background:#f1f5f9; color:#475569; }
+
+.status-tag { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; background:var(--qv-surface-3); color:var(--qv-ink-2); }
+.status-제출 { background:#fef3c7; color:#92400e; }
+.status-검토중 { background:#dbeafe; color:#1e40af; }
+.status-완료 { background:#dcfce7; color:#166534; }
+.status-거절 { background:#fee2e2; color:#991b1b; }
+
+.new-badge { display:inline-block; background:var(--knk-red); color:#fff; padding:1px 7px; border-radius:8px; font-size:10.5px; font-weight:700; margin-left:4px; }
+
+.empty { padding:60px; text-align:center; color:var(--qv-ink-3); }
+</style>
+</head>
+<body>
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn="materials-main" data-dn-tone="purple">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">MATERIAL REQUESTS · 자재 요청서</div>
+      <h1 class="page-title">자재 요청서 <em>목록</em></h1>
+    </div>
+    <a href="/catalog" style="padding:10px 18px; background:var(--qv-ink); color:#fff; border-radius:6px; text-decoration:none; font-weight:700; font-size:13px;">+ 카탈로그에서 요청 작성</a>
+  </div>
+
+  <div class="wrap">
+    <div class="kpi" data-dn="materials-kpi">
+      {% set type_map = dict(stats_type) %}
+      <div class="card"><div class="label">전체</div><div class="value">{{ requests|length }}</div></div>
+      <div class="card"><div class="label">BOM</div><div class="value">{{ type_map.get('bom', 0) }}</div></div>
+      <div class="card"><div class="label">견적용</div><div class="value">{{ type_map.get('quote', 0) }}</div></div>
+      <div class="card"><div class="label">AS 부품</div><div class="value">{{ type_map.get('as', 0) }}</div></div>
+      <div class="card"><div class="label">생산 자재</div><div class="value">{{ type_map.get('production', 0) }}</div></div>
+      <div class="card"><div class="label">일반</div><div class="value">{{ type_map.get('general', 0) }}</div></div>
+    </div>
+
+    <div class="filter-bar" data-dn="materials-filterbar">
+      <a href="/materials/requests" class="{% if not f_type %}on{% endif %}">전체</a>
+      <a href="?request_type=bom" class="{% if f_type=='bom' %}on{% endif %}">📐 BOM</a>
+      <a href="?request_type=quote" class="{% if f_type=='quote' %}on{% endif %}">💼 견적</a>
+      <a href="?request_type=as" class="{% if f_type=='as' %}on{% endif %}">🔧 AS</a>
+      <a href="?request_type=production" class="{% if f_type=='production' %}on{% endif %}">🏭 생산</a>
+      <a href="?request_type=general" class="{% if f_type=='general' %}on{% endif %}">📦 일반</a>
+      <span class="sep"></span>
+      <a href="?mine=1" class="{% if mine %}on{% endif %}">📌 내 요청만</a>
+    </div>
+
+    {% if requests %}
+    <div class="tbl-wrap">
+      <table class="tbl" data-dn="materials-table">
+        <thead><tr>
+          <th>요청번호</th><th>유형</th><th>제목</th><th>프로젝트</th>
+          <th>요청자</th><th>라인</th><th>상태</th><th>일자</th>
+        </tr></thead>
+        <tbody>
+        {% for r in requests %}
+        <tr>
+          <td><a href="/materials/requests/{{ r[0] }}"><span class="mgmt-pill">{{ r[1] }}</span></a></td>
+          <td><span class="type-tag t-{{ r[2] }}">
+            {% if r[2]=='bom' %}📐 BOM
+            {% elif r[2]=='quote' %}💼 견적
+            {% elif r[2]=='as' %}🔧 AS
+            {% elif r[2]=='production' %}🏭 생산
+            {% else %}📦 일반{% endif %}
+          </span></td>
+          <td><a href="/materials/requests/{{ r[0] }}">{{ r[3] }}</a></td>
+          <td style="color:var(--qv-ink-3); font-size:12px;">{{ r[9] or '-' }}</td>
+          <td>{{ r[8] or '-' }}</td>
+          <td>
+            {{ r[5] }}건
+            {% if r[6] and r[6] > 0 %}
+              <span class="new-badge">🆕 {{ r[6] }}</span>
+            {% endif %}
+          </td>
+          <td><span class="status-tag status-{{ r[4] }}">{{ r[4] }}</span></td>
+          <td style="color:var(--qv-ink-3); font-size:12px;">{{ r[7][:10] if r[7] else '' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">
+        <h3 style="color:var(--qv-ink); margin-bottom:8px;">요청서 없음</h3>
+        <p><a href="/catalog" style="color:var(--qv-ink-2); font-weight:700;">자재 카탈로그</a> 에서 자재를 골라 요청서를 작성하세요.</p>
+      </div>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

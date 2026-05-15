@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>장바구니 · KNK HAIST WORKS</title>
+{# v5H226z94: 자재 카탈로그 장바구니 + 요청서 제출 #}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:28px; font-weight:700; color:var(--qv-ink); }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap: var(--space-3); }
+
+.box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding: var(--space-4); }
+.box h3 { font-size:14px; color:var(--qv-ink); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.box h3 .count { background:var(--qv-surface-3); padding:2px 10px; border-radius:10px; font-size:11.5px; color:var(--qv-ink-2); }
+
+table { width:100%; border-collapse: collapse; font-size:13px; }
+th { background:var(--qv-surface-3); color:var(--qv-ink-2); padding:9px 8px; font-weight:700; text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; }
+td { padding:9px 8px; border-bottom:1px solid var(--qv-line); }
+td.num { text-align:right; font-family:monospace; }
+.del-btn { background:var(--qv-surface-3); color:var(--qv-ink-2); border:0; padding:4px 9px; border-radius:6px; cursor:pointer; font-size:12px; }
+.del-btn:hover { background:var(--knk-red); color:#fff; }
+
+.new-tag { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--knk-red); color:#fff; font-size:10.5px; font-weight:700; }
+
+.form-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
+.form-grid label { display:block; font-size:12px; color:var(--qv-ink-2); margin-bottom:4px; font-weight:600; }
+.form-grid input, .form-grid select, .form-grid textarea { width:100%; padding:9px 11px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; }
+.form-grid .full { grid-column: 1 / -1; }
+.types { display:flex; gap:6px; flex-wrap:wrap; }
+.types label { display:flex; align-items:center; gap:6px; padding:8px 14px; background:var(--qv-surface-3); border-radius:20px; cursor:pointer; font-size:13px; }
+.types input[type=radio]:checked + span { font-weight:700; color:var(--qv-ink); }
+
+.actions { display:flex; justify-content:space-between; padding-top: var(--space-3); border-top:1px solid var(--qv-line); }
+.btn-primary { background:var(--qv-ink); color:#fff; border:0; padding:11px 22px; border-radius:6px; font-weight:700; cursor:pointer; font-size:14px; }
+.btn-secondary { background:var(--qv-surface-3); color:var(--qv-ink); border:0; padding:11px 22px; border-radius:6px; font-weight:700; cursor:pointer; font-size:14px; text-decoration:none; display:inline-block; }
+.btn-danger { background:var(--qv-surface-3); color:var(--knk-red); border:0; padding:9px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
+
+.empty { padding:40px; text-align:center; color:var(--qv-ink-3); }
+
+.new-form { background:var(--qv-surface-2); border:1px dashed var(--qv-line-3); padding: var(--space-3); border-radius:10px; margin-top:12px; }
+.new-form summary { cursor:pointer; font-weight:700; color:var(--qv-ink-2); padding:6px 0; }
+</style>
+</head>
+<body>
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn="cart-main" data-dn-tone="amber">
+  <div class="page-head">
+    <div class="page-meta">CART · 자재 요청 장바구니</div>
+    <h1 class="page-title">자재 요청 <em>장바구니</em></h1>
+  </div>
+
+  <form method="post" action="/materials/requests" class="wrap">
+
+    <div class="box">
+      <h3>① 요청 정보</h3>
+      <div class="types" data-dn="request-type-select">
+        <label><input type="radio" name="request_type" value="bom" {% if cart.request_type=='bom' %}checked{% endif %} /><span>📐 BOM (설계)</span></label>
+        <label><input type="radio" name="request_type" value="quote" {% if cart.request_type=='quote' %}checked{% endif %} /><span>💼 견적용 (영업)</span></label>
+        <label><input type="radio" name="request_type" value="as" {% if cart.request_type=='as' %}checked{% endif %} /><span>🔧 AS 부품</span></label>
+        <label><input type="radio" name="request_type" value="production" {% if cart.request_type=='production' %}checked{% endif %} /><span>🏭 생산 자재</span></label>
+        <label><input type="radio" name="request_type" value="general" {% if cart.request_type=='general' %}checked{% endif %} /><span>📦 일반</span></label>
+      </div>
+      <div class="form-grid" style="margin-top:12px;">
+        <div>
+          <label>요청 제목 *</label>
+          <input type="text" name="title" required value="{{ cart.title or '' }}" placeholder="예: 장비A 메인 어셈블리 BOM v1" />
+        </div>
+        <div>
+          <label>관련 프로젝트</label>
+          <select name="project_id">
+            <option value="">(선택 안 함)</option>
+            {% for p in projects %}
+              <option value="{{ p[0] }}" {% if cart.project_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="full">
+          <label>메모</label>
+          <textarea name="note" rows="2" placeholder="추가 안내 사항">{{ cart.note or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="box" data-dn="cart-registered">
+      <h3>② 등록 자재 <span class="count">{{ cart.items|length }}건</span></h3>
+      {% if cart.items %}
+      <table>
+        <thead><tr><th>#</th><th>부품번호</th><th>부품명</th><th>스펙</th><th class="num">수량</th><th></th></tr></thead>
+        <tbody>
+        {% for it in cart.items %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td style="font-family:monospace; font-weight:700;">{{ it.part_no }}</td>
+          <td>{{ it.part_name }}</td>
+          <td style="color:var(--qv-ink-3);">{{ it.spec }}</td>
+          <td class="num">{{ it.qty }}</td>
+          <td>
+            <form method="post" action="/catalog/cart/remove" style="display:inline;">
+              <input type="hidden" name="kind" value="item" />
+              <input type="hidden" name="idx" value="{{ loop.index0 }}" />
+              <button class="del-btn" type="submit">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div class="empty">등록 자재 없음 — <a href="/catalog" style="color:var(--qv-ink-2);">카탈로그</a> 에서 추가하세요</div>
+      {% endif %}
+    </div>
+
+    <div class="box" data-dn="cart-new">
+      <h3>③ 🆕 신규 검토 자재 <span class="count">{{ cart.new_items|length }}건</span> <span style="font-size:11.5px; color:var(--qv-ink-3); font-weight:400;">— 등록 자재에 없는 항목 (구매팀 검토 대상)</span></h3>
+      {% if cart.new_items %}
+      <table>
+        <thead><tr><th>#</th><th>예상 부품번호</th><th>부품명</th><th>스펙</th><th>메이커</th><th class="num">수량</th><th>요청 사유</th><th></th></tr></thead>
+        <tbody>
+        {% for it in cart.new_items %}
+        <tr>
+          <td><span class="new-tag">신규</span></td>
+          <td style="font-family:monospace;">{{ it.requested_part_no or '-' }}</td>
+          <td>{{ it.requested_part_name }}</td>
+          <td style="color:var(--qv-ink-3);">{{ it.requested_spec or '' }}</td>
+          <td>{{ it.requested_maker or '-' }}</td>
+          <td class="num">{{ it.qty }} {{ it.unit }}</td>
+          <td style="color:var(--qv-ink-3); font-size:12px;">{{ it.request_reason or '' }}</td>
+          <td>
+            <form method="post" action="/catalog/cart/remove" style="display:inline;">
+              <input type="hidden" name="kind" value="new" />
+              <input type="hidden" name="idx" value="{{ loop.index0 }}" />
+              <button class="del-btn" type="submit">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      <details class="new-form">
+        <summary>+ 신규 검토 자재 추가 (등록 자재에 없는 항목)</summary>
+        <form method="post" action="/catalog/cart/add-new" style="margin-top:12px;">
+          <div class="form-grid">
+            <div><label>예상 부품번호</label><input type="text" name="requested_part_no" placeholder="예: ABC-123" /></div>
+            <div><label>부품명 *</label><input type="text" name="requested_part_name" required placeholder="예: 특수 사양 솔밸브" /></div>
+            <div><label>스펙</label><input type="text" name="requested_spec" placeholder="예: 보어 25 / 스트로크 50" /></div>
+            <div><label>메이커</label><input type="text" name="requested_maker" /></div>
+            <div><label>수량</label><input type="number" name="qty" value="1" min="0.001" step="any" /></div>
+            <div><label>단위</label><input type="text" name="unit" value="EA" /></div>
+            <div class="full"><label>요청 사유 *</label><input type="text" name="request_reason" required placeholder="예: 기존 자재로 사양 불충족 — 고압 환경 필요" /></div>
+          </div>
+          <div style="margin-top:10px; text-align:right;">
+            <button class="btn-primary" type="submit">🆕 신규 자재 추가</button>
+          </div>
+        </form>
+      </details>
+    </div>
+
+    <div class="actions">
+      <form method="post" action="/catalog/cart/clear">
+        <button type="submit" class="btn-danger" onclick="return confirm('장바구니 전체 비우기?')">🗑 전체 비우기</button>
+      </form>
+      <div style="display:flex; gap:8px;">
+        <a href="/catalog" class="btn-secondary">← 카탈로그</a>
+        <button type="submit" class="btn-primary" {% if not cart.items and not cart.new_items %}disabled{% endif %}>
+          요청서 제출 →
+        </button>
+      </div>
+    </div>
+
+  </form>
+</main>
+</body>
+</html>
