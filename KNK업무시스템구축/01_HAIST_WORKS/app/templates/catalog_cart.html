@@ -89,12 +89,12 @@ td.num { text-align:right; font-family:monospace; }
     </div>
 
     <div class="box" data-dn="cart-registered">
-      <h3>② 등록 자재 <span class="count">{{ cart.items|length }}건</span></h3>
-      {% if cart.items %}
+      <h3>② 등록 자재 <span class="count">{{ cart['items']|length }}건</span></h3>
+      {% if cart['items'] %}
       <table>
         <thead><tr><th>#</th><th>부품번호</th><th>부품명</th><th>스펙</th><th class="num">수량</th><th></th></tr></thead>
         <tbody>
-        {% for it in cart.items %}
+        {% for it in cart['items'] %}
         <tr>
           <td>{{ loop.index }}</td>
           <td style="font-family:monospace; font-weight:700;">{{ it.part_no }}</td>
@@ -118,12 +118,12 @@ td.num { text-align:right; font-family:monospace; }
     </div>
 
     <div class="box" data-dn="cart-new">
-      <h3>③ 🆕 신규 검토 자재 <span class="count">{{ cart.new_items|length }}건</span> <span style="font-size:11.5px; color:var(--qv-ink-3); font-weight:400;">— 등록 자재에 없는 항목 (구매팀 검토 대상)</span></h3>
-      {% if cart.new_items %}
+      <h3>③ 🆕 신규 검토 자재 <span class="count">{{ cart['new_items']|length }}건</span> <span style="font-size:11.5px; color:var(--qv-ink-3); font-weight:400;">— 등록 자재에 없는 항목 (구매팀 검토 대상)</span></h3>
+      {% if cart['new_items'] %}
       <table>
         <thead><tr><th>#</th><th>예상 부품번호</th><th>부품명</th><th>스펙</th><th>메이커</th><th class="num">수량</th><th>요청 사유</th><th></th></tr></thead>
         <tbody>
-        {% for it in cart.new_items %}
+        {% for it in cart['new_items'] %}
         <tr>
           <td><span class="new-tag">신규</span></td>
           <td style="font-family:monospace;">{{ it.requested_part_no or '-' }}</td>
@@ -170,7 +170,7 @@ td.num { text-align:right; font-family:monospace; }
       </form>
       <div style="display:flex; gap:8px;">
         <a href="/catalog" class="btn-secondary">← 카탈로그</a>
-        <button type="submit" class="btn-primary" {% if not cart.items and not cart.new_items %}disabled{% endif %}>
+        <button type="submit" class="btn-primary" {% if not cart['items'] and not cart['new_items'] %}disabled{% endif %}>
           요청서 제출 →
         </button>
       </div>
