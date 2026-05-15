@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ proj.name }} · 워크플로우 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:22px; font-weight:700; }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap:14px; }
+.meta-bar { display:flex; gap:8px; flex-wrap:wrap; }
+.chip { padding:3px 9px; border-radius:11px; font-size:11px; background:var(--qv-surface-3); color:var(--qv-ink-2); font-weight:700; }
+.chip.k-kr { background:#dbeafe; color:#1e40af; }
+.chip.k-vn { background:#dcfce7; color:#166534; }
+.progress-bar { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; }
+.progress-fill { height:8px; background:var(--qv-surface-3); border-radius:4px; overflow:hidden; margin-top:6px; }
+.progress-fill > span { display:block; height:100%; background:linear-gradient(90deg, #6366f1, #8b5cf6); transition:.3s; }
+
+.grid-2 { display:grid; grid-template-columns: 1fr 320px; gap:14px; }
+@media (max-width:1100px) { .grid-2 { grid-template-columns:1fr; } }
+
+.box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
+.box h3 { padding:12px 14px; margin:0; font-size:13px; background:var(--qv-surface-3); border-bottom:1px solid var(--qv-line); }
+
+.node-list { list-style:none; padding:0; margin:0; max-height:600px; overflow-y:auto; }
+.node-row { display:grid; grid-template-columns: 30px 1fr 80px 90px 100px; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--qv-line); }
+.node-row:hover { background:var(--qv-surface-2); }
+.node-seq { font-size:11px; color:var(--qv-ink-3); font-family:monospace; }
+.node-title { font-size:13px; font-weight:600; }
+.node-cat { font-size:10px; color:var(--qv-ink-3); text-transform:uppercase; letter-spacing:.05em; margin-left:4px; }
+.node-ic { color:#9d174d; font-size:11px; margin-left:4px; }
+.status-sel { padding:4px 6px; font-size:11px; border-radius:5px; border:1px solid var(--qv-line); background:#fff; }
+.s-pending { color:#92400e; } .s-in_progress { color:#1e40af; } .s-done { color:#166534; }
+.s-blocked { color:#991b1b; } .s-skipped { color:#6b7280; }
+
+.matrix { width:100%; border-collapse:collapse; font-size:12px; }
+.matrix th, .matrix td { padding:6px 8px; border:1px solid var(--qv-line); text-align:center; }
+.matrix th { background:var(--qv-surface-3); font-weight:700; font-size:11px; }
+.matrix td.cat { text-align:left; font-weight:700; background:var(--qv-surface-2); }
+.cell-bar { display:inline-block; min-width:24px; padding:1px 5px; border-radius:8px; font-size:10px; font-weight:700; }
+.cell-empty { color:var(--qv-ink-3); }
+.cell-pending { background:#fef3c7; color:#92400e; }
+.cell-progress { background:#dbeafe; color:#1e40af; }
+.cell-done { background:#dcfce7; color:#166534; }
+
+.ic-card { background:#fdf2f8; border:1px solid #fce7f3; border-radius:8px; padding:10px; margin-bottom:8px; }
+.ic-code { font-family:monospace; font-size:11px; color:#9d174d; font-weight:700; }
+.ic-flow { font-size:12px; margin-top:4px; color:var(--qv-ink); }
+.ic-status { font-size:10px; padding:2px 7px; border-radius:8px; font-weight:700; }
+.ic-pending { background:#fef3c7; color:#92400e; }
+.ic-matched { background:#dcfce7; color:#166534; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "logi" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · PROJECT · z104</div>
+    <h1 class="page-title">🧩 {{ proj.mgmt_code or '' }} {{ proj.name }}</h1>
+    <div class="meta-bar" style="margin-top:6px;">
+      <span class="chip">고객 {{ proj.customer_country or '-' }}</span>
+      <span class="chip k-{{ (proj.po_entity or 'kr')|lower }}">PO {{ proj.po_entity or '-' }}</span>
+      <span class="chip k-{{ (proj.ship_entity or 'kr')|lower }}">출하 {{ proj.ship_entity or '-' }}</span>
+      {% if wf %}<span class="chip">기계 {{ wf.mech_design_split }}</span>
+      <span class="chip">전기 {{ wf.elec_design_split }}</span>
+      <span class="chip">SW {{ wf.sw_design_split }}</span>
+      <span class="chip">가공 {{ wf.processing_loc }}</span>
+      <span class="chip">설치 {{ wf.setup_loc }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="wrap">
+    {% if not wf %}
+      <div class="box" style="padding:30px; text-align:center;">
+        <p style="color:var(--qv-ink-3);">아직 워크플로우가 설정되지 않았습니다.</p>
+        <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:10px 20px; background:#6366f1; color:#fff; border-radius:8px; text-decoration:none; font-weight:700;">마법사로 시작 →</a>
+      </div>
+    {% else %}
+    <div class="progress-bar">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <strong style="font-size:14px;">전체 진행률</strong>
+        <span style="font-size:13px; color:var(--qv-ink-3);">{{ progress.done }} / {{ progress.total }} 노드 완료 ({{ progress.pct }}%)</span>
+      </div>
+      <div class="progress-fill"><span style="width:{{ progress.pct }}%"></span></div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="box">
+          <h3>📊 매트릭스 (카테고리 × 법인)</h3>
+          <table class="matrix">
+            <thead><tr><th style="text-align:left;">카테고리</th><th>🇰🇷 KR</th><th>🇻🇳 VN</th><th>외주</th></tr></thead>
+            <tbody>
+              {% for cat, ents in matrix.items() %}
+              {% set tot = ents.KR.total + ents.VN.total + ents.OUT.total %}
+              {% if tot > 0 %}
+              <tr>
+                <td class="cat">
+                  {% if cat=='sales' %}💼 영업
+                  {% elif cat=='design' %}📐 설계
+                  {% elif cat=='purchase' %}🛒 자재구매
+                  {% elif cat=='ic' %}🔄 IC거래
+                  {% elif cat=='production' %}🏭 생산
+                  {% elif cat=='qa' %}✓ 품질
+                  {% elif cat=='logi' %}📦 물류
+                  {% elif cat=='finance' %}💰 회계
+                  {% elif cat=='as' %}🔧 AS
+                  {% else %}{{ cat }}{% endif %}
+                </td>
+                {% for ent in ['KR','VN','OUT'] %}
+                  {% set e = ents[ent] %}
+                  <td>
+                    {% if e.total == 0 %}<span class="cell-empty">—</span>
+                    {% elif e.done == e.total %}<span class="cell-bar cell-done">✓ {{ e.done }}/{{ e.total }}</span>
+                    {% elif e.in_progress > 0 %}<span class="cell-bar cell-progress">⏳ {{ e.in_progress }} / {{ e.total }}</span>
+                    {% else %}<span class="cell-bar cell-pending">{{ e.total }}</span>{% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="box" style="margin-top:14px;">
+          <h3>📋 체크리스트 ({{ nodes|length }} 노드)</h3>
+          <ul class="node-list">
+            {% for n in nodes %}
+            <li class="node-row" data-node="{{ n.id }}">
+              <span class="node-seq">{{ '%02d'|format(n.seq) }}</span>
+              <div>
+                <span class="node-title">{{ n.title_ko }}</span>
+                <span class="node-cat">[{{ n.category }}]</span>
+                {% if n.is_ic %}<span class="node-ic">⚡ IC</span>{% endif %}
+              </div>
+              <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span>
+              <span style="font-size:10.5px; color:var(--qv-ink-3);">{{ n.default_dept }}</span>
+              <select class="status-sel s-{{ n.status }}" data-node-id="{{ n.id }}" onchange="updateStatus(this)">
+                <option value="pending" {% if n.status=='pending' %}selected{% endif %}>대기</option>
+                <option value="in_progress" {% if n.status=='in_progress' %}selected{% endif %}>진행중</option>
+                <option value="done" {% if n.status=='done' %}selected{% endif %}>완료</option>
+                <option value="blocked" {% if n.status=='blocked' %}selected{% endif %}>막힘</option>
+                <option value="skipped" {% if n.status=='skipped' %}selected{% endif %}>생략</option>
+              </select>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <div class="box">
+          <h3>⚡ IC 페어 ({{ ic_pairs|length }})</h3>
+          <div style="padding:10px;">
+            {% if not ic_pairs %}
+              <div style="color:var(--qv-ink-3); font-size:12px; text-align:center; padding:20px;">IC 거래 노드가 없습니다.</div>
+            {% endif %}
+            {% for p in ic_pairs %}
+            <div class="ic-card">
+              <div class="ic-code">{{ p.pair_code }}</div>
+              <div class="ic-flow">
+                <span class="chip k-{{ p.sell_entity|lower }}">{{ p.sell_entity }}</span> 매출
+                →
+                <span class="chip k-{{ p.buy_entity|lower }}">{{ p.buy_entity }}</span> 매입
+              </div>
+              <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+                <span class="ic-status ic-{{ p.status }}">
+                  {% if p.status=='pending' %}⏳ 대기
+                  {% elif p.status=='matched' %}✓ 매칭
+                  {% else %}{{ p.status }}{% endif %}
+                </span>
+                {% if p.amount %}<span style="font-size:11px; font-family:monospace;">{{ '{:,.0f}'.format(p.amount) }} {{ p.currency }}</span>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+            <div style="margin-top:10px; text-align:center;">
+              <a href="/workflow/ic_pairs" style="font-size:11px; color:var(--qv-ink-2);">전체 IC 페어 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="box" style="margin-top:14px;">
+          <h3>🔧 액션</h3>
+          <div style="padding:14px; display:flex; flex-direction:column; gap:8px;">
+            <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">🔄 마법사 재실행</a>
+            <a href="/workflow" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">← 워크플로우 허브</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+<script>
+function updateStatus(sel) {
+  var nid = sel.dataset.nodeId;
+  var st = sel.value;
+  var fd = new FormData();
+  fd.append('status', st);
+  fd.append('note', '');
+  fetch('/workflow/node/' + nid + '/status', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(j=>{
+      if (j.ok) {
+        // 클래스 교체
+        sel.className = 'status-sel s-' + st;
+        // 진행률 새로고침을 위해 살짝 후 리로드 (대표 요청 시 부드러운 UX)
+        setTimeout(()=>location.reload(), 400);
+      } else {
+        alert('상태 변경 실패: ' + (j.error||'unknown'));
+      }
+    });
+}
+</script>
+</div>
+</body>
+</html>

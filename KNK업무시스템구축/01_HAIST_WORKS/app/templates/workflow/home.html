@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>워크플로우 레고 빌더 · KNK HAIST WORKS</title>
+{# v5H226z104 (2026-05-16): 워크플로우 레고 빌더 — 허브 #}
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:28px; font-weight:700; color:var(--qv-ink); }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.intro { font-size:13px; color:var(--qv-ink-3); margin-top:4px; }
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap: var(--space-3); }
+.kpi { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
+.kpi .card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; }
+.kpi .label { font-size:11px; color:var(--qv-ink-3); text-transform:uppercase; letter-spacing:.1em; }
+.kpi .value { font-size:24px; font-weight:700; color:var(--qv-ink); margin-top:4px; }
+.section-h { font-size:14px; font-weight:700; color:var(--qv-ink); margin-top:18px; margin-bottom:6px; }
+.tpl-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
+.tpl-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:16px; text-decoration:none; color:inherit; transition:.15s; display:flex; flex-direction:column; gap:8px; }
+.tpl-card:hover { border-color:var(--qv-ink-2); transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.06); }
+.tpl-title { font-size:15px; font-weight:700; color:var(--qv-ink); }
+.tpl-desc { font-size:12px; color:var(--qv-ink-3); line-height:1.5; }
+.tpl-meta { display:flex; gap:4px; flex-wrap:wrap; }
+.chip { padding:2px 7px; border-radius:10px; font-size:10px; background:var(--qv-surface-3); color:var(--qv-ink-2); font-weight:700; }
+.chip.k-kr { background:#dbeafe; color:#1e40af; }
+.chip.k-vn { background:#dcfce7; color:#166534; }
+.chip.k-other { background:#fef3c7; color:#92400e; }
+.proj-tbl { width:100%; border-collapse:collapse; font-size:13px; background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
+.proj-tbl th { background:var(--qv-surface-3); padding:10px 12px; text-align:left; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--qv-ink-2); }
+.proj-tbl td { padding:10px 12px; border-bottom:1px solid var(--qv-line); }
+.proj-tbl tr:hover td { background:var(--qv-surface-2); }
+.btn { display:inline-block; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; text-decoration:none; }
+.btn-prim { background:var(--qv-ink); color:#fff; }
+.btn-sec { background:var(--qv-surface-3); color:var(--qv-ink-2); }
+.cta-wizard { background:linear-gradient(135deg, #6366f1, #8b5cf6); color:#fff; padding:18px 22px; border-radius:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; text-decoration:none; }
+.cta-wizard .t { font-size:18px; font-weight:700; }
+.cta-wizard .s { font-size:12px; opacity:.9; margin-top:2px; }
+.cta-wizard .btn-go { background:#fff; color:#5b21b6; padding:10px 18px; border-radius:8px; font-weight:700; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "logi" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn="workflow-home" data-dn-tone="violet">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · LEGO BUILDER · z104</div>
+    <h1 class="page-title">🧩 워크플로우 레고 빌더</h1>
+    <div class="intro">고객국·법인·설계분담을 마법사로 입력하면 업무 순서를 레고처럼 자동 조립합니다. (KR↔VN IC 거래 양방향 자동 페어링 포함)</div>
+  </div>
+
+  <div class="wrap">
+    <a href="/workflow/wizard" class="cta-wizard">
+      <div>
+        <div class="t">🎯 마법사로 새 워크플로우 만들기</div>
+        <div class="s">8문항 답하시면 → 노드 조립 + IC 페어 자동 매칭 + 매트릭스 뷰</div>
+      </div>
+      <span class="btn-go">시작 →</span>
+    </a>
+
+    <div class="kpi">
+      <div class="card"><div class="label">등록된 업무 노드</div><div class="value">{{ node_count }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
+      <div class="card"><div class="label">빠른시작 시나리오</div><div class="value">{{ templates|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
+      <div class="card"><div class="label">IC 페어 대기</div><div class="value" style="color:#92400e;">{{ ic_pending }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">건</span></div></div>
+      <div class="card"><div class="label">진행중 프로젝트</div><div class="value">{{ projects|selectattr('has_wf')|list|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">건</span></div></div>
+    </div>
+
+    <div class="section-h">🚀 빠른시작 시나리오 (마법사 시작점으로 활용)</div>
+    <div class="tpl-grid">
+      {% for t in templates %}
+      <a href="/workflow/wizard?template={{ t.code }}" class="tpl-card">
+        <div class="tpl-title">{{ t.title_ko }}</div>
+        <div class="tpl-desc">{{ t.description }}</div>
+        <div class="tpl-meta">
+          {% if t.customer_country_hint %}<span class="chip">고객 {{ t.customer_country_hint }}</span>{% endif %}
+          {% if t.po_entity_hint %}<span class="chip k-{{ t.po_entity_hint|lower }}">PO {{ t.po_entity_hint }}</span>{% endif %}
+          {% if t.ship_entity_hint %}<span class="chip k-{{ t.ship_entity_hint|lower }}">출하 {{ t.ship_entity_hint }}</span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <div class="section-h">📋 프로젝트별 워크플로우 ({{ projects|length }})</div>
+    <table class="proj-tbl">
+      <thead><tr>
+        <th>관리번호</th><th>프로젝트</th><th>고객국</th><th>PO 법인</th><th>출하 법인</th><th>워크플로우</th><th>액션</th>
+      </tr></thead>
+      <tbody>
+      {% for p in projects %}
+      <tr>
+        <td><code>{{ p.mgmt_code or '-' }}</code></td>
+        <td>{{ p.name or '(이름없음)' }}</td>
+        <td>{{ p.customer_country or '-' }}</td>
+        <td>{% if p.po_entity %}<span class="chip k-{{ p.po_entity|lower }}">{{ p.po_entity }}</span>{% else %}-{% endif %}</td>
+        <td>{% if p.ship_entity %}<span class="chip k-{{ p.ship_entity|lower }}">{{ p.ship_entity }}</span>{% else %}-{% endif %}</td>
+        <td>{% if p.has_wf %}✓ 설정됨{% else %}—{% endif %}</td>
+        <td>
+          {% if p.has_wf %}
+            <a href="/workflow/project/{{ p.id }}" class="btn btn-prim">열기 →</a>
+          {% else %}
+            <a href="/workflow/wizard?project_id={{ p.id }}" class="btn btn-sec">마법사 →</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center; padding:40px; color:var(--qv-ink-3);">등록된 프로젝트가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+</div>
+</body>
+</html>

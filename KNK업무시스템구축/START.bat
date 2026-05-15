@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z103 (카탈로그 담기 → AJAX 토스트 알림 + 카운트 즉시 갱신 + 카드 펄스)
+REM   LAST UPDATE: 2026-05-16 v5H226z104 (워크플로우 레고 빌더 — 마법사 8문항 + 45노드 + KR↔VN IC 양방향 페어 자동매칭)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -18,7 +18,7 @@ echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z103  2026-05-16]
+echo    [v5H226z104  2026-05-16]
 echo ============================================================
 echo.
 

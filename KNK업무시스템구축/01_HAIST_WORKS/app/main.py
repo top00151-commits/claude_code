@@ -339,6 +339,15 @@ async def _v5_global_exception_handler(request: Request, exc: Exception):
 def startup():
     init_db()
     seed_all()
+    # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
+    try:
+        from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate
+        from .database import DB_PATH as _DB_PATH
+        _r = _wfb_migrate(_DB_PATH)
+        if _r.get('added_cols') or _r.get('countries'):
+            print(f"[WFB-MIG] {_r}")
+    except Exception as _e:
+        print(f"[WFB-MIG ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -19639,3 +19648,14 @@ async def api_parts_search(request: Request, q: str = ""):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
     return JSONResponse({"ok": True, "rows": rows})
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v5H226z104 (2026-05-16) — 워크플로우 레고 빌더 라우트 등록
+# 대표 결재: (c) 1+2차 통합 모드
+# ═══════════════════════════════════════════════════════════════════════════════
+try:
+    from . import workflow_builder as _wfb
+    _wfb.register_workflow_routes(app, tpl, ctx, get_user, db_session)
+    print("[WFB] workflow lego builder routes registered (z104)")
+except Exception as _e:
+    print(f"[WFB ERR] {_e}")

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>워크플로우 마법사 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:24px; font-weight:700; }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.wrap { margin: 0 var(--content-pad); max-width:760px; }
+.box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:20px; margin-bottom:12px; }
+.q { margin-bottom:16px; }
+.q-label { display:block; font-size:13px; font-weight:700; color:var(--qv-ink); margin-bottom:6px; }
+.q-help  { font-size:11.5px; color:var(--qv-ink-3); margin-top:3px; }
+.q select, .q input { width:100%; padding:8px 10px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; background:#fff; }
+.split { display:flex; gap:8px; }
+.split label { flex:1; cursor:pointer; padding:10px; border:2px solid var(--qv-line); border-radius:8px; text-align:center; font-size:13px; font-weight:700; background:#fff; }
+.split input[type=radio] { display:none; }
+.split input[type=radio]:checked + span { color:var(--qv-ink); }
+.split label:has(input:checked) { border-color:#6366f1; background:#eef2ff; }
+.actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn { padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; border:0; cursor:pointer; text-decoration:none; }
+.btn-go { background:#6366f1; color:#fff; }
+.btn-cancel { background:var(--qv-surface-3); color:var(--qv-ink-2); }
+h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--qv-line); }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "logi" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · WIZARD (8문항) · z104</div>
+    <h1 class="page-title">🎯 워크플로우 마법사</h1>
+    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:4px;">아래 8문항을 답하시면 업무 순서가 자동 조립됩니다. KR↔VN IC 거래는 양방향 페어로 자동 매칭됩니다.</div>
+  </div>
+
+  <div class="wrap">
+    <form method="post" action="/workflow/wizard">
+      {% if tpl_row %}<input type="hidden" name="template_code" value="{{ tpl_row.code }}" />{% endif %}
+
+      <div class="box">
+        <h3 class="sec">📋 프로젝트 선택</h3>
+        <div class="q">
+          <label class="q-label">대상 프로젝트 *</label>
+          <select name="project_id" required>
+            <option value="">— 선택 —</option>
+            {% for p in projects %}
+              <option value="{{ p.id }}" {% if p.id==project_id %}selected{% endif %}>{{ p.label }}</option>
+            {% endfor %}
+          </select>
+          <div class="q-help">기존 프로젝트가 없으면 먼저 [프로젝트 등록] 메뉴에서 등록하세요.</div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3 class="sec">🌏 거래 구조 (Q1~Q2)</h3>
+        <div class="q">
+          <label class="q-label">Q1. 고객사 소재국 *</label>
+          <select name="customer_country" required>
+            {% for c in countries %}
+              <option value="{{ c.code }}" {% if tpl_row and tpl_row.customer_country_hint==c.code %}selected{% endif %}>{{ c.name_ko }} ({{ c.code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="q">
+          <label class="q-label">Q2. PO 수주 법인 *</label>
+          <div class="split">
+            <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 본사 (KR)</span></label>
+            <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 베트남 법인 (VN)</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3 class="sec">📐 설계 분담 (Q3~Q5)</h3>
+        <div class="q">
+          <label class="q-label">Q3. 기계 설계 담당</label>
+          <div class="split">
+            <label><input type="radio" name="mech_design_split" value="KR" checked /><span>KR</span></label>
+            <label><input type="radio" name="mech_design_split" value="VN" /><span>VN</span></label>
+            <label><input type="radio" name="mech_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <label class="q-label">Q4. 전기 설계 담당</label>
+          <div class="split">
+            <label><input type="radio" name="elec_design_split" value="KR" checked /><span>KR</span></label>
+            <label><input type="radio" name="elec_design_split" value="VN" /><span>VN</span></label>
+            <label><input type="radio" name="elec_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <label class="q-label">Q5. SW 설계 담당</label>
+          <div class="split">
+            <label><input type="radio" name="sw_design_split" value="KR" checked /><span>KR</span></label>
+            <label><input type="radio" name="sw_design_split" value="VN" /><span>VN</span></label>
+            <label><input type="radio" name="sw_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3 class="sec">🏭 가공·출하·설치 (Q6~Q8)</h3>
+        <div class="q">
+          <label class="q-label">Q6. 가공·조립 위치</label>
+          <div class="split">
+            <label><input type="radio" name="processing_loc" value="KR" checked /><span>KR</span></label>
+            <label><input type="radio" name="processing_loc" value="VN" /><span>VN</span></label>
+            <label><input type="radio" name="processing_loc" value="OUT" /><span>외주</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <label class="q-label">Q7. 출하 법인 (Shipper)</label>
+          <div class="split">
+            <label><input type="radio" name="ship_entity" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 KR</span></label>
+            <label><input type="radio" name="ship_entity" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 VN</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <label class="q-label">Q8. 현장 설치·시운전 위치</label>
+          <select name="setup_loc">
+            <option value="NONE">— 설치/시운전 없음 (단순 출하)</option>
+            {% for c in countries %}
+              <option value="{{ c.code }}">{{ c.name_ko }} ({{ c.code }})</option>
+            {% endfor %}
+          </select>
+          <div class="q-help">설치 위치를 선택하면 logi.setup + qa.sat (SAT) 노드가 자동 추가됩니다.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a href="/workflow" class="btn btn-cancel">취소</a>
+        <button type="submit" class="btn btn-go">✓ 워크플로우 조립</button>
+      </div>
+    </form>
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+</div>
+</body>
+</html>
