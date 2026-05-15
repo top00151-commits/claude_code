@@ -4372,15 +4372,36 @@ async def design_samples_page(req: Request):
 from typing import Optional as _Opt
 import json as _json
 
+_CART_DEFAULT = {
+    'request_type': 'bom', 'title': '', 'project_id': None, 'note': '',
+    'items': [],      # [{part_id, part_no, part_name, spec, qty, note}]
+    'new_items': [],  # [{requested_part_no, requested_part_name, requested_spec, qty, reason}]
+}
+
 def _cart_get(req: Request):
-    """세션 기반 장바구니 — request_type 와 라인 목록."""
-    if 'mat_cart' not in req.session:
-        req.session['mat_cart'] = {
-            'request_type': 'bom', 'title': '', 'project_id': None, 'note': '',
-            'items': [],      # [{part_id, part_no, part_name, spec, qty, note}]
-            'new_items': [],  # [{requested_part_no, requested_part_name, requested_spec, qty, reason}]
-        }
-    return req.session['mat_cart']
+    """세션 기반 장바구니 — request_type 와 라인 목록.
+    v5H226z100: 누락 키 자동 보충 (이전 세션 호환).
+    """
+    cart = req.session.get('mat_cart')
+    if not isinstance(cart, dict):
+        cart = dict(_CART_DEFAULT)
+        cart['items'] = []
+        cart['new_items'] = []
+        req.session['mat_cart'] = cart
+        return cart
+    # 누락 키 자동 보충 + 타입 안전
+    changed = False
+    for k, v in _CART_DEFAULT.items():
+        if k not in cart:
+            cart[k] = [] if isinstance(v, list) else v
+            changed = True
+    if not isinstance(cart.get('items'), list):
+        cart['items'] = []; changed = True
+    if not isinstance(cart.get('new_items'), list):
+        cart['new_items'] = []; changed = True
+    if changed:
+        req.session['mat_cart'] = cart
+    return cart
 
 def _cart_save(req: Request, cart):
     req.session['mat_cart'] = cart
@@ -4504,13 +4525,13 @@ async def cart_add(req: Request,
         if it['part_id'] == part_id:
             it['qty'] = float(it.get('qty', 0)) + float(qty)
             _cart_save(req, cart)
-            return RedirectResponse(req.headers.get('referer', '/catalog'), 303)
+            return RedirectResponse(req.headers.get('referer') or '/catalog', 303)
     cart['items'].append({
         'part_id': int(p[0]), 'part_no': p[1], 'part_name': p[2], 'spec': p[3] or '',
         'qty': float(qty), 'note': note,
     })
     _cart_save(req, cart)
-    return RedirectResponse(req.headers.get('referer', '/catalog'), 303)
+    return RedirectResponse(req.headers.get('referer') or '/catalog', 303)
 
 
 @app.post("/catalog/cart/add-new")
@@ -13675,7 +13696,7 @@ _PARTS_UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                   "uploads", "parts")
 _PARTS_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".pdf", ".dwg", ".dxf", ".gif"}
 _PARTS_MAX_BYTES = 20 * 1024 * 1024  # 20MB (원본 — 클라이언트에서 더 줄여 보내라고 안내)
-_PARTS_KIND_WHITELIST = {"photo", "drawing", "spec"}
+_PARTS_KIND_WHITELIST = {"photo", "drawing", "datasheet", "other", "spec"}  # v5H226z99: 4종(사진/도면/데이터시트/기타) + 기존 spec 하위호환
 
 
 def _parts_safe_filename(name: str) -> str:

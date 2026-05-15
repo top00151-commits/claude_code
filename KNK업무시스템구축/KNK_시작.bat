@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z99 (메뉴 위치 정정: 카탈로그·요청서 → 공통 그룹 / 신규 검토 → 자재구매 그룹 — 권한 분리)
+REM   LAST UPDATE: 2026-05-16 v5H226z100 (장바구니 오류 정정: 세션 cart 누락키 자동 보충 + referer None 안전 + 타입 검증)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z99]
+title KNK HAIST WORKS [v5H226z100]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z99  2026-05-16]
+echo    [v5H226z100  2026-05-16]
 echo ============================================================
 echo.
 
