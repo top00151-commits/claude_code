@@ -4434,7 +4434,8 @@ async def catalog_page(req: Request,
                 keywords = [q]
             # 너무 많으면 성능 영향 → 상위 25개로 제한
             keywords = keywords[:25]
-            cols = ['part_no', 'part_name', 'spec', 'category', 'maker']
+            # v5H226z99 (2026-05-16): 'purpose'(용도) 검색 추가 — 카탈로그 식별 보조
+            cols = ['part_no', 'part_name', 'spec', 'category', 'maker', 'purpose']
             or_parts = []
             for kw in keywords:
                 for col in cols:
@@ -4456,7 +4457,8 @@ async def catalog_page(req: Request,
         per = min(100, max(10, int(per or 30)))
         offset = (page - 1) * per
         parts = c.execute(f"""SELECT id, part_no, part_name, spec, maker, category,
-                                     std_price, currency, stock_qty, safety_stock, unit
+                                     std_price, currency, stock_qty, safety_stock, unit,
+                                     purpose
                               FROM parts WHERE {w_sql}
                               ORDER BY part_name LIMIT ? OFFSET ?""",
                           args + [per, offset]).fetchall()
@@ -4517,20 +4519,32 @@ async def cart_add(req: Request,
     with db_session() as c:
         p = c.execute("SELECT id, part_no, part_name, spec FROM parts WHERE id=?",
                       (part_id,)).fetchone()
+    is_ajax = req.headers.get('x-requested-with', '').lower() == 'xmlhttprequest'
     if not p:
+        if is_ajax:
+            return JSONResponse({"ok": False, "error": "부품을 찾을 수 없습니다"}, status_code=404)
         return RedirectResponse("/catalog", 303)
     cart = _cart_get(req)
-    # 중복 시 수량 합산
+    merged = False
     for it in cart['items']:
         if it['part_id'] == part_id:
             it['qty'] = float(it.get('qty', 0)) + float(qty)
-            _cart_save(req, cart)
-            return RedirectResponse(req.headers.get('referer') or '/catalog', 303)
-    cart['items'].append({
-        'part_id': int(p[0]), 'part_no': p[1], 'part_name': p[2], 'spec': p[3] or '',
-        'qty': float(qty), 'note': note,
-    })
+            merged = True
+            break
+    if not merged:
+        cart['items'].append({
+            'part_id': int(p[0]), 'part_no': p[1], 'part_name': p[2], 'spec': p[3] or '',
+            'qty': float(qty), 'note': note,
+        })
     _cart_save(req, cart)
+    if is_ajax:
+        # v5H226z103: AJAX 응답 — 토스트 + 카운트 갱신
+        cart_count = len(cart['items']) + len(cart['new_items'])
+        return JSONResponse({
+            "ok": True, "merged": merged,
+            "part_no": p[1], "part_name": p[2], "qty": float(qty),
+            "cart_count": cart_count,
+        })
     return RedirectResponse(req.headers.get('referer') or '/catalog', 303)
 
 
@@ -10453,6 +10467,8 @@ async def parts_new_submit(
     default_warehouse: str = Form(""), hs_code: str = Form(""),
     # v5H226z83 (2026-05-14) — 매입단가 1~5차 (JSON 문자열)
     purchase_prices: str = Form(""),
+    # v5H226z99 (2026-05-16) — 용도(카탈로그 검색 보조 자유 텍스트)
+    purpose: str = Form(""),
     # v5H226z58 (2026-05-12) — 자재 중복 방지 3층 방어 (A안): force 플래그
     force: str = Form("0"),
 ):
@@ -10480,6 +10496,8 @@ async def parts_new_submit(
             "default_warehouse": default_warehouse, "hs_code": hs_code,
             # v5H226z83 매입단가 1~5차
             "purchase_prices": purchase_prices,
+            # v5H226z99 용도
+            "purpose": purpose,
         }, force=(force == "1"))
     except ValueError as ve:
         from urllib.parse import quote
@@ -10821,6 +10839,8 @@ async def parts_edit_submit(
     default_warehouse: str = Form(""), hs_code: str = Form(""),
     # v5H226z83 (2026-05-14) — 매입단가 1~5차 (JSON 문자열)
     purchase_prices: str = Form(""),
+    # v5H226z99 (2026-05-16) — 용도(카탈로그 검색 보조 자유 텍스트)
+    purpose: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -10846,6 +10866,8 @@ async def parts_edit_submit(
             "default_warehouse": default_warehouse, "hs_code": hs_code,
             # v5H226z83 매입단가 1~5차
             "purchase_prices": purchase_prices,
+            # v5H226z99 용도
+            "purpose": purpose,
         })
     except ValueError as ve:
         from urllib.parse import quote

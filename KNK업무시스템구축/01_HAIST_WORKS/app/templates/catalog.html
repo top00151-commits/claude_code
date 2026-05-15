@@ -69,9 +69,29 @@
 .cat-tag { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--qv-surface-3); font-size:10.5px; color:var(--qv-ink-2); font-weight:600; }
 .stock-low { color:var(--knk-red); font-weight:700; }
 .stock-ok { color:#047857; font-weight:700; }
+
+/* v5H226z103: 담기 토스트 알림 */
+#knkToast { position:fixed; left:50%; bottom:30px; transform: translateX(-50%) translateY(20px); z-index:99999;
+            background:var(--qv-ink); color:#fff; padding:11px 22px; border-radius:24px; font-size:13px; font-weight:600;
+            box-shadow:0 6px 24px rgba(0,0,0,0.20); opacity:0; pointer-events:none;
+            transition: opacity .22s ease, transform .22s ease; display:flex; align-items:center; gap:10px; max-width: 480px; }
+#knkToast.show { opacity:1; transform: translateX(-50%) translateY(0); }
+#knkToast .toast-ico { font-size:16px; }
+#knkToast .toast-link { color:#fbbf24; text-decoration:underline; margin-left:6px; font-weight:700; }
+#knkToast.toast-merged { background:#047857; }
+#knkToast.toast-err { background:#991b1b; }
+
+/* 담은 직후 카드 깜빡 */
+@keyframes knkPulse { 0%{background:var(--qv-surface-3);} 100%{background:var(--qv-surface);} }
+.card.just-added { animation: knkPulse .6s ease; }
+
+/* 장바구니 카운트 배지 펄스 */
+@keyframes knkCntPulse { 0%{transform:scale(1);} 50%{transform:scale(1.35);} 100%{transform:scale(1);} }
+.cart-btn.bumped .cnt { animation: knkCntPulse .35s ease; }
 </style>
 </head>
 <body>
+<div id="knkToast" role="status" aria-live="polite"></div>
 <div class="app">
 {% set active_tab = "logi" %}
 {% include "_v5_partials/chrome.html" %}
@@ -121,7 +141,7 @@
 
     <section class="main-pane" data-dn="catalog-results">
       <form class="searchbar" method="get" action="/catalog" data-dn="catalog-searchbar">
-        <input type="text" name="q" placeholder="부품번호 / 부품명 / 스펙 키워드..." value="{{ q }}" autofocus />
+        <input type="text" name="q" placeholder="부품번호 / 부품명 / 스펙 / 용도 키워드..." value="{{ q }}" autofocus />
         {% if category %}<input type="hidden" name="category" value="{{ category }}" />{% endif %}
         {% if maker %}<input type="hidden" name="maker" value="{{ maker }}" />{% endif %}
         {% if fav %}<input type="hidden" name="fav" value="1" />{% endif %}
@@ -149,6 +169,13 @@
           <a class="part-link" href="/parts/{{ p[0] }}">
             <div class="part-name">{{ p[2] }}</div>
             <div class="part-spec">{{ p[3] or '' }}</div>
+            {# v5H226z99 (2026-05-16) — 용도 보조 (있을 때만, 자르고 풀 텍스트는 title) #}
+            {% if p[11] %}
+              {% set _purp = (p[11] or '')|trim %}
+              {% if _purp %}
+              <div title="{{ _purp }}" style="font-size:10.5px;color:var(--qv-ink-3,#666);line-height:1.4;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📝 {{ _purp[:60] }}{% if _purp|length > 60 %}…{% endif %}</div>
+              {% endif %}
+            {% endif %}
             <div class="part-meta">
               <span class="cat-tag">{{ p[5] or '미분류' }}</span>
               <span><b>{{ p[4] or '-' }}</b></span>
@@ -211,6 +238,81 @@ function toggleFav(partId, btn) {
       btn.classList.toggle('on', j.fav);
     });
 }
+
+// v5H226z103: 담기 → AJAX + 토스트
+(function(){
+  var toast = document.getElementById('knkToast');
+  var toastTimer = null;
+  function showToast(msg, type) {
+    if (!toast) return;
+    toast.className = ''; // reset
+    if (type === 'merged') toast.classList.add('toast-merged');
+    else if (type === 'err') toast.classList.add('toast-err');
+    toast.innerHTML = msg;
+    requestAnimationFrame(function(){ toast.classList.add('show'); });
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){
+      toast.classList.remove('show');
+    }, 2400);
+  }
+
+  function bumpCartCount(newCount) {
+    var btn = document.querySelector('.cart-btn');
+    if (!btn) return;
+    var cnt = btn.querySelector('.cnt');
+    if (cnt) cnt.textContent = newCount;
+    btn.classList.add('bumped');
+    setTimeout(function(){ btn.classList.remove('bumped'); }, 400);
+  }
+
+  // 모든 .card-actions form 에 submit 가로채기
+  document.querySelectorAll('.card-actions form[action="/catalog/cart/add"]').forEach(function(form){
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      var fd = new FormData(form);
+      var card = form.closest('.card');
+      // 버튼 잠시 비활성
+      var btn = form.querySelector('button');
+      if (btn) { btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = '담는 중...'; }
+      fetch('/catalog/cart/add', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: fd,
+      })
+      .then(function(r){ return r.json().then(function(j){ return {status:r.status, j:j}; }); })
+      .then(function(res){
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || '🛒 담기'; }
+        if (!res.j || !res.j.ok) {
+          showToast('⚠ ' + (res.j && res.j.error || '담기 실패'), 'err');
+          return;
+        }
+        var j = res.j;
+        var nameTag = '<b style="font-family:monospace;">' + (j.part_no || '') + '</b>';
+        var msg;
+        if (j.merged) {
+          msg = '<span class="toast-ico">➕</span> ' + nameTag + ' 수량 합산 (장바구니 ' + j.cart_count + '개) <a class="toast-link" href="/catalog/cart">→ 장바구니</a>';
+          showToast(msg, 'merged');
+        } else {
+          msg = '<span class="toast-ico">✓</span> ' + nameTag + ' 장바구니 담음 (' + j.cart_count + '개) <a class="toast-link" href="/catalog/cart">→ 장바구니</a>';
+          showToast(msg, 'ok');
+        }
+        bumpCartCount(j.cart_count);
+        if (card) {
+          card.classList.add('just-added');
+          setTimeout(function(){ card.classList.remove('just-added'); }, 700);
+        }
+        // 수량 1로 리셋
+        var qtyInput = form.querySelector('input[name="qty"]');
+        if (qtyInput) qtyInput.value = 1;
+      })
+      .catch(function(err){
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || '🛒 담기'; }
+        showToast('⚠ 네트워크 오류', 'err');
+      });
+    });
+  });
+})();
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z102 (자재 등록 폼 용도 필드 위치 이동: 추가 규격 박스 → 기본 정보 박스 마지막 — 대표 지시)
+REM   LAST UPDATE: 2026-05-16 v5H226z103 (카탈로그 담기 → AJAX 토스트 알림 + 카운트 즉시 갱신 + 카드 펄스)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z102]
+title KNK HAIST WORKS [v5H226z103]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z102  2026-05-16]
+echo    [v5H226z103  2026-05-16]
 echo ============================================================
 echo.
 
