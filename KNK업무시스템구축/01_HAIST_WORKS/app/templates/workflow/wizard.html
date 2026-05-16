@@ -3,201 +3,151 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>워크플로우 마법사 v2 · KNK HAIST WORKS</title>
+<title>워크플로우 마법사 · KNK HAIST WORKS</title>
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
-.page-head { padding: var(--space-3) var(--content-pad) 8px; }
-.page-title { font-size:20px; font-weight:800; }
+.page-head { padding: var(--space-4) var(--content-pad) var(--space-2); }
+.page-title { font-size:20px; font-weight:700; color:var(--qv-ink); }
 .page-meta { font-size:10.5px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
-.intro { font-size:12px; color:var(--qv-ink-3); margin-top:2px; }
-.wrap { margin: 0 var(--content-pad) var(--space-3); }
+.intro { font-size:12px; color:var(--qv-ink-3); margin-top:4px; }
+.wrap { margin: 0 var(--content-pad) var(--space-3); max-width:1200px; }
 
-/* ─── 섹션 카드 ─── */
 .section {
-  background:#fff;
-  border-radius:10px;
-  margin-bottom:12px;
-  box-shadow:0 1px 3px rgba(0,0,0,.04);
-  overflow:hidden;
+  background:var(--qv-surface);
   border:1px solid var(--qv-line);
+  border-radius:8px;
+  margin-bottom:10px;
 }
 .section-head {
-  padding:9px 14px;
-  font-size:13px;
-  font-weight:800;
-  color:#fff;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  letter-spacing:.02em;
-}
-.section-head .badge {
-  background:rgba(255,255,255,.22);
-  padding:1px 8px;
-  border-radius:10px;
-  font-size:10.5px;
+  padding:8px 14px;
+  border-bottom:1px solid var(--qv-line);
+  font-size:12px;
   font-weight:700;
+  color:var(--qv-ink-2);
+  background:var(--qv-surface-2);
+  display:flex;
+  align-items:baseline;
+  gap:8px;
 }
-.section-head .hint {
-  margin-left:auto;
-  font-size:11px;
-  font-weight:500;
-  opacity:.92;
+.section-head .qr {
+  font-size:10.5px;
+  color:var(--qv-ink-3);
+  font-weight:600;
+  letter-spacing:.05em;
 }
-
-/* 섹션별 색상 — 의미 단위 시각 분리 */
-.s-proj .section-head     { background:linear-gradient(90deg,#475569,#334155); }
-.s-trade .section-head    { background:linear-gradient(90deg,#3b82f6,#1d4ed8); }
-.s-design .section-head   { background:linear-gradient(90deg,#8b5cf6,#6d28d9); }
-.s-mfg .section-head      { background:linear-gradient(90deg,#10b981,#047857); }
-.s-out .section-head      { background:linear-gradient(90deg,#f59e0b,#d97706); }
-
 .section-body { padding:12px 14px; }
 
-/* ─── 질문 컬럼 그리드 ─── */
-.qrow {
-  display:grid;
-  gap:14px;
-}
+.qrow { display:grid; gap:14px; }
 .qrow-3 { grid-template-columns: 1fr 1fr 1fr; }
 .qrow-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 .qrow-2 { grid-template-columns: 1fr 1fr; }
-.qrow-projlines { grid-template-columns: 1.5fr 1fr 1fr; }
-@media (max-width:1200px) {
+.qrow-projlines { grid-template-columns: 1.6fr 1fr 1fr; }
+@media (max-width:1100px) {
   .qrow-3, .qrow-4, .qrow-projlines { grid-template-columns: 1fr 1fr; }
 }
 
-.q-block { display:flex; flex-direction:column; gap:6px; }
-.q-no {
-  display:inline-block;
-  background:#f1f5f9;
-  color:#475569;
-  font-size:10px;
-  font-weight:800;
-  padding:1px 7px;
-  border-radius:8px;
-  margin-right:4px;
-  letter-spacing:.03em;
-}
+.q-block { display:flex; flex-direction:column; gap:5px; }
 .q-label {
-  font-size:13px;
-  font-weight:700;
+  font-size:12px;
+  font-weight:600;
   color:var(--qv-ink);
-  display:flex;
-  align-items:center;
-  gap:6px;
 }
-.q-icon { font-size:15px; }
+.q-label .qn {
+  color:var(--qv-ink-3);
+  font-weight:500;
+  margin-right:3px;
+}
 
-/* ─── 입력 (select) ─── */
 select, input[type=text] {
   width:100%;
-  padding:8px 10px;
-  border:1.5px solid var(--qv-line);
-  border-radius:6px;
-  font-size:13px;
+  padding:6px 9px;
+  border:1px solid var(--qv-line);
+  border-radius:5px;
+  font-size:12.5px;
   background:#fff;
   font-family:inherit;
-  transition:.12s;
+  color:var(--qv-ink);
 }
-select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+select:focus, input:focus {
+  outline:none;
+  border-color:var(--qv-ink-2);
+}
 
-/* ─── 라디오 그룹 ─── */
-.opts { display:flex; gap:6px; }
+/* 라디오 그룹 — 차분한 액티브 */
+.opts { display:flex; gap:4px; }
 .opts label {
   flex:1;
   cursor:pointer;
-  padding:8px 6px;
-  border:2px solid var(--qv-line);
-  border-radius:7px;
+  padding:6px 4px;
+  border:1px solid var(--qv-line);
+  border-radius:5px;
   text-align:center;
-  font-size:12.5px;
-  font-weight:700;
+  font-size:11.5px;
+  font-weight:600;
   background:#fff;
   color:var(--qv-ink-2);
-  transition:.15s;
-  position:relative;
-  user-select:none;
+  transition:.1s;
 }
 .opts input[type=radio] { display:none; }
-.opts label:hover:not(:has(input:checked)) {
-  background:#f8fafc;
-  border-color:#cbd5e1;
-}
+.opts label:hover:not(:has(input:checked)) { background:var(--qv-surface-2); }
 .opts label:has(input:checked) {
-  border-color:#6366f1;
-  background:#6366f1;
-  color:#fff;
-  box-shadow:0 2px 8px rgba(99,102,241,.3);
-}
-.opts label .o-emoji { display:block; font-size:14px; margin-bottom:1px; }
-.opts label .o-text  { display:block; font-size:11.5px; }
-
-/* 협업 옵션은 노란색 강조 (선택 시) */
-.opts label[data-coop]:has(input:checked) {
-  border-color:#f59e0b;
-  background:linear-gradient(135deg,#f59e0b,#d97706);
+  border-color:var(--qv-ink-2);
+  background:var(--qv-surface-3);
+  color:var(--qv-ink);
 }
 
-/* ─── 액션 바 ─── */
+/* 액션 바 */
 .actions {
-  margin-top: 8px;
-  padding:10px 14px;
-  background:#fff;
-  border:1px solid var(--qv-line);
-  border-radius:10px;
+  margin-top:8px;
+  padding:8px 14px;
   display:flex;
   gap:8px;
   align-items:center;
 }
 .actions .hint {
   flex:1;
-  font-size:11.5px;
+  font-size:11px;
   color:var(--qv-ink-3);
-  line-height:1.4;
 }
 .btn {
-  padding:9px 18px;
-  border-radius:7px;
-  font-size:13px;
-  font-weight:700;
+  padding:7px 16px;
+  border-radius:5px;
+  font-size:12.5px;
+  font-weight:600;
   border:0;
   cursor:pointer;
   text-decoration:none;
-  transition:.12s;
 }
-.btn-go {
-  background:linear-gradient(135deg,#6366f1,#4f46e5);
-  color:#fff;
-  box-shadow:0 2px 8px rgba(99,102,241,.3);
-}
-.btn-go:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(99,102,241,.4); }
-.btn-cancel { background:var(--qv-surface-3); color:var(--qv-ink-2); }
+.btn-go { background:var(--qv-ink); color:#fff; }
+.btn-cancel { background:transparent; color:var(--qv-ink-3); }
 
-/* ─── 경고 박스 ─── */
+/* 경고 박스 */
 .warn {
-  background:#fffbeb;
-  border:1.5px solid #fbbf24;
-  border-radius:10px;
-  padding:12px 14px;
-  margin-bottom:12px;
+  background:var(--qv-surface);
+  border:1px solid var(--qv-line);
+  border-left:3px solid #d97706;
+  border-radius:6px;
+  padding:10px 14px;
+  margin-bottom:10px;
 }
-.warn-h { font-size:13px; font-weight:800; color:#92400e; margin-bottom:8px; }
-.warn-modes { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.warn-h { font-size:12px; font-weight:700; color:var(--qv-ink); margin-bottom:6px; }
+.warn-modes { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .warn-modes label {
   background:#fff;
-  border:2px solid var(--qv-line);
-  border-radius:7px;
-  padding:9px 11px;
+  border:1px solid var(--qv-line);
+  border-radius:5px;
+  padding:7px 10px;
   cursor:pointer;
-  font-size:12px;
+  font-size:11.5px;
 }
-.warn-modes label:has(input:checked) { border-color:#fbbf24; background:#fffef0; }
-.warn-modes .mh { font-weight:800; font-size:12.5px; }
-.warn-modes .ms { font-size:11px; color:#475569; margin-top:3px; line-height:1.5; }
-.warn-modes .ms.danger { color:#dc2626; }
-.warn-modes input[type=text] { margin-top:6px; font-size:11.5px; }
+.warn-modes label:has(input:checked) {
+  border-color:var(--qv-ink-2);
+  background:var(--qv-surface-2);
+}
+.warn-modes .mh { font-weight:700; font-size:12px; }
+.warn-modes .ms { font-size:10.5px; color:var(--qv-ink-3); margin-top:2px; }
+.warn-modes input[type=text] { margin-top:4px; font-size:11px; padding:4px 6px; }
 </style>
 </head>
 <body>
@@ -206,9 +156,9 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · WIZARD v2 · z106</div>
-    <h1 class="page-title">🎯 워크플로우 마법사</h1>
-    <div class="intro">8개 항목 답하시면 업무 순서가 자동 조립됩니다. 본사↔베트남법인 IC 거래는 양방향 자동 페어링.</div>
+    <div class="page-meta">WORKFLOW · WIZARD · z106</div>
+    <h1 class="page-title">워크플로우 마법사</h1>
+    <div class="intro">8개 항목을 답하시면 업무 순서가 자동 조립됩니다.</div>
   </div>
 
   <div class="wrap">
@@ -216,17 +166,12 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
       {% if tpl_row %}<input type="hidden" name="template_code" value="{{ tpl_row.code }}" />{% endif %}
       {% if not existing_wf %}<input type="hidden" name="mode" value="rebuild" />{% endif %}
 
-      {# ═════════ 1. 프로젝트 + 거래 구조 ═════════ #}
-      <div class="section s-trade">
-        <div class="section-head">
-          🌏 프로젝트 · 거래 구조
-          <span class="badge">Q1 ~ Q2</span>
-          <span class="hint">고객사 · PO 수주 법인 지정</span>
-        </div>
+      <div class="section">
+        <div class="section-head">프로젝트 · 거래 구조<span class="qr">Q1 — Q2</span></div>
         <div class="section-body">
           <div class="qrow qrow-projlines">
             <div class="q-block">
-              <div class="q-label"><span class="q-icon">📋</span>대상 프로젝트</div>
+              <div class="q-label">대상 프로젝트</div>
               <select name="project_id" required>
                 <option value="">— 선택 —</option>
                 {% for p in projects %}
@@ -235,18 +180,18 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
               </select>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="q-no">Q1</span><span class="q-icon">🌏</span>고객사 소재국</div>
+              <div class="q-label"><span class="qn">Q1.</span>고객사 소재국</div>
               <select name="customer_country" required>
                 {% for c in countries %}
-                  <option value="{{ c.code }}" {% if tpl_row and tpl_row.customer_country_hint==c.code %}selected{% endif %}>{{ c.name_ko }} ({{ c.code }})</option>
+                  <option value="{{ c.code }}" {% if tpl_row and tpl_row.customer_country_hint==c.code %}selected{% endif %}>{{ c.name_ko }}</option>
                 {% endfor %}
               </select>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="q-no">Q2</span><span class="q-icon">🏢</span>PO 수주 법인</div>
+              <div class="q-label"><span class="qn">Q2.</span>PO 수주 법인</div>
               <div class="opts">
-                <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} /><span class="o-emoji">🇰🇷</span><span class="o-text">본사</span></label>
-                <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} /><span class="o-emoji">🇻🇳</span><span class="o-text">베트남법인</span></label>
+                <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} />본사</label>
+                <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} />베트남법인</label>
               </div>
             </div>
           </div>
@@ -255,44 +200,39 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
 
       {% if existing_wf %}
       <div class="warn">
-        <div class="warn-h">⚠ 이 프로젝트엔 이미 워크플로우가 있습니다 — 노드 {{ existing_wf.n_nodes }}개 · 완료 {{ existing_wf.n_done }}개 · {{ existing_wf.created_at }}</div>
+        <div class="warn-h">이 프로젝트엔 이미 워크플로우가 있습니다 · 노드 {{ existing_wf.n_nodes }}개 · 완료 {{ existing_wf.n_done }}개</div>
         <div class="warn-modes">
           <label>
             <input type="radio" name="mode" value="preserve" checked />
-            <span class="mh">① 메타만 변경 (보존 모드)</span>
-            <div class="ms">기존 노드·담당자·체크포인트·진행상태 유지 (권장)</div>
+            <span class="mh">① 메타만 변경 (보존)</span>
+            <div class="ms">기존 노드·담당자·진행상태 유지</div>
           </label>
           <label>
             <input type="radio" name="mode" value="rebuild" />
-            <span class="mh">② 처음부터 재조립 (위험)</span>
-            <div class="ms danger">기존 워크플로우 완전 삭제 후 새로 조립</div>
-            <input type="text" name="rebuild_reason" placeholder="재조립 사유 (감사용)" />
+            <span class="mh">② 처음부터 재조립</span>
+            <div class="ms">기존 완전 삭제 · 사유 입력 필수</div>
+            <input type="text" name="rebuild_reason" placeholder="재조립 사유" />
           </label>
         </div>
       </div>
       {% endif %}
 
-      {# ═════════ 2. 설계 분담 ═════════ #}
-      <div class="section s-design">
-        <div class="section-head">
-          📐 설계 분담
-          <span class="badge">Q3 ~ Q5</span>
-          <span class="hint">기구 · 전장 · 소프트웨어 — 본사 / 베트남법인 / 협업</span>
-        </div>
+      <div class="section">
+        <div class="section-head">설계 분담<span class="qr">Q3 — Q5</span></div>
         <div class="section-body">
           <div class="qrow qrow-3">
             {% set design_qs = [
-              ('Q3','mech_design_split','🔧','기구설계'),
-              ('Q4','elec_design_split','⚡','전장설계'),
-              ('Q5','sw_design_split','💻','소프트웨어설계'),
+              ('Q3','mech_design_split','기구설계'),
+              ('Q4','elec_design_split','전장설계'),
+              ('Q5','sw_design_split','소프트웨어설계'),
             ] %}
-            {% for qno, fname, icon, qlabel in design_qs %}
+            {% for qno, fname, qlabel in design_qs %}
             <div class="q-block">
-              <div class="q-label"><span class="q-no">{{ qno }}</span><span class="q-icon">{{ icon }}</span>{{ qlabel }}</div>
+              <div class="q-label"><span class="qn">{{ qno }}.</span>{{ qlabel }}</div>
               <div class="opts">
-                <label><input type="radio" name="{{ fname }}" value="KR" checked /><span class="o-emoji">🇰🇷</span><span class="o-text">본사</span></label>
-                <label><input type="radio" name="{{ fname }}" value="VN" /><span class="o-emoji">🇻🇳</span><span class="o-text">베트남법인</span></label>
-                <label data-coop><input type="radio" name="{{ fname }}" value="BOTH" /><span class="o-emoji">🤝</span><span class="o-text">협업</span></label>
+                <label><input type="radio" name="{{ fname }}" value="KR" checked />본사</label>
+                <label><input type="radio" name="{{ fname }}" value="VN" />베트남법인</label>
+                <label><input type="radio" name="{{ fname }}" value="BOTH" />협업</label>
               </div>
             </div>
             {% endfor %}
@@ -300,28 +240,23 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
         </div>
       </div>
 
-      {# ═════════ 3. 제조구분 ═════════ #}
-      <div class="section s-mfg">
-        <div class="section-head">
-          🏭 제조구분
-          <span class="badge">Q6</span>
-          <span class="hint">가공 · 조립 · 전장 · 검증 — 각각 본사 / 베트남법인 / 협업</span>
-        </div>
+      <div class="section">
+        <div class="section-head">제조구분<span class="qr">Q6 · 가공 · 조립 · 전장 · 검증</span></div>
         <div class="section-body">
           <div class="qrow qrow-4">
             {% set mfg_items = [
-              ('mfg_machining',    '🔩','가공'),
-              ('mfg_assembly',     '🛠','조립'),
-              ('mfg_electrical',   '⚡','전장'),
-              ('mfg_verification', '✓','검증'),
+              ('mfg_machining',    '가공'),
+              ('mfg_assembly',     '조립'),
+              ('mfg_electrical',   '전장'),
+              ('mfg_verification', '검증'),
             ] %}
-            {% for fname, icon, lab in mfg_items %}
+            {% for fname, lab in mfg_items %}
             <div class="q-block">
-              <div class="q-label"><span class="q-icon">{{ icon }}</span>{{ lab }}</div>
+              <div class="q-label">{{ lab }}</div>
               <div class="opts">
-                <label><input type="radio" name="{{ fname }}" value="KR" checked /><span class="o-emoji">🇰🇷</span><span class="o-text">본사</span></label>
-                <label><input type="radio" name="{{ fname }}" value="VN" /><span class="o-emoji">🇻🇳</span><span class="o-text">베트남</span></label>
-                <label data-coop><input type="radio" name="{{ fname }}" value="BOTH" /><span class="o-emoji">🤝</span><span class="o-text">협업</span></label>
+                <label><input type="radio" name="{{ fname }}" value="KR" checked />본사</label>
+                <label><input type="radio" name="{{ fname }}" value="VN" />베트남</label>
+                <label><input type="radio" name="{{ fname }}" value="BOTH" />협업</label>
               </div>
             </div>
             {% endfor %}
@@ -329,30 +264,25 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
         </div>
       </div>
 
-      {# ═════════ 4. 출하 · 셋업 ═════════ #}
-      <div class="section s-out">
-        <div class="section-head">
-          📦 출하 · 셋업
-          <span class="badge">Q7 ~ Q8</span>
-          <span class="hint">출하 법인 · 현장 설치/시운전 위치</span>
-        </div>
+      <div class="section">
+        <div class="section-head">출하 · 셋업<span class="qr">Q7 — Q8</span></div>
         <div class="section-body">
           <div class="qrow qrow-2">
             <div class="q-block">
-              <div class="q-label"><span class="q-no">Q7</span><span class="q-icon">📦</span>출하구분</div>
+              <div class="q-label"><span class="qn">Q7.</span>출하구분</div>
               <div class="opts">
-                <label><input type="radio" name="ship_split" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} /><span class="o-emoji">🇰🇷</span><span class="o-text">본사</span></label>
-                <label><input type="radio" name="ship_split" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} /><span class="o-emoji">🇻🇳</span><span class="o-text">베트남법인</span></label>
-                <label data-coop><input type="radio" name="ship_split" value="BOTH" /><span class="o-emoji">🤝</span><span class="o-text">협업</span></label>
+                <label><input type="radio" name="ship_split" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} />본사</label>
+                <label><input type="radio" name="ship_split" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} />베트남법인</label>
+                <label><input type="radio" name="ship_split" value="BOTH" />협업</label>
               </div>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="q-no">Q8</span><span class="q-icon">🔧</span>셋업구분 (현장 설치·시운전)</div>
+              <div class="q-label"><span class="qn">Q8.</span>셋업구분 (현장 설치·시운전)</div>
               <div class="opts">
-                <label><input type="radio" name="setup_split" value="NONE" checked /><span class="o-emoji">—</span><span class="o-text">없음</span></label>
-                <label><input type="radio" name="setup_split" value="KR" /><span class="o-emoji">🇰🇷</span><span class="o-text">본사</span></label>
-                <label><input type="radio" name="setup_split" value="VN" /><span class="o-emoji">🇻🇳</span><span class="o-text">베트남법인</span></label>
-                <label data-coop><input type="radio" name="setup_split" value="BOTH" /><span class="o-emoji">🤝</span><span class="o-text">협업</span></label>
+                <label><input type="radio" name="setup_split" value="NONE" checked />없음</label>
+                <label><input type="radio" name="setup_split" value="KR" />본사</label>
+                <label><input type="radio" name="setup_split" value="VN" />베트남법인</label>
+                <label><input type="radio" name="setup_split" value="BOTH" />협업</label>
               </div>
             </div>
           </div>
@@ -360,9 +290,9 @@ select:focus, input:focus { border-color:#6366f1; outline:none; box-shadow:0 0 0
       </div>
 
       <div class="actions">
-        <span class="hint">💡 셋업 선택 시 logi.setup + qa.sat 자동 추가 · 협업 옵션은 양 법인 노드가 모두 생성됩니다.</span>
+        <span class="hint">셋업 선택 시 설치·SAT 노드 자동 추가. 협업은 양 법인 노드가 모두 생성됩니다.</span>
         <a href="/workflow" class="btn btn-cancel">취소</a>
-        <button type="submit" class="btn btn-go">✓ 워크플로우 조립</button>
+        <button type="submit" class="btn btn-go">워크플로우 조립</button>
       </div>
     </form>
   </div>
@@ -377,10 +307,10 @@ function confirmSubmit(e) {
       var rr = document.querySelector('input[name="rebuild_reason"]');
       var reason = rr ? rr.value.trim() : '';
       if (!reason) {
-        alert('⚠ 재조립 모드는 사유 입력이 필수입니다.');
+        alert('재조립 모드는 사유 입력이 필수입니다.');
         e.preventDefault(); return false;
       }
-      if (!confirm('⚠ 정말 처음부터 재조립하시겠습니까?\n\n기존 워크플로우(담당자·체크포인트·진행상태)가 모두 삭제됩니다.\n사유: ' + reason)) {
+      if (!confirm('처음부터 재조립하시겠습니까?\n기존 워크플로우가 모두 삭제됩니다.\n사유: ' + reason)) {
         e.preventDefault(); return false;
       }
     }
