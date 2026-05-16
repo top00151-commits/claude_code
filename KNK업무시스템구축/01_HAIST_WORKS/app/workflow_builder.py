@@ -423,9 +423,36 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         if n['system_link_template']:
             sys_link = n['system_link_template'].replace('{project_id}', str(n['project_id']))
 
+        # z108e: 진행 가능성 — 직전 단계 완료 여부
+        with db_session() as c2:
+            blockers = c2.execute("""
+                SELECT COUNT(*) FROM project_workflow_nodes
+                WHERE workflow_id=? AND seq<? AND status NOT IN ('done','skipped')
+            """, (n['workflow_id'], n['seq'])).fetchone()[0]
+        is_blocked = (blockers > 0 and n['status'] == 'pending')
+
         return ctx(request, "workflow/node_detail.html", user=user,
                    n=n, checkpoints=cps, prev_n=prev_n, next_n=next_n,
-                   users=users, assignee=assignee, sys_link=sys_link)
+                   users=users, assignee=assignee, sys_link=sys_link,
+                   blockers=blockers, is_blocked=is_blocked)
+
+    # z108e: 내가 잡기 (자신을 담당자로 빠르게 배정)
+    @app.post("/workflow/node/{pwfn_id}/claim")
+    def workflow_node_claim(request: Request, pwfn_id: int):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        with db_session() as c:
+            # 이미 다른 사람 배정되어 있으면 거부
+            cur = c.execute("SELECT assigned_user_id FROM project_workflow_nodes WHERE id=?",
+                             (pwfn_id,)).fetchone()
+            if not cur:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            if cur[0] and cur[0] != user.get('id'):
+                return JSONResponse({"ok": False, "error": "already_assigned"}, 409)
+            c.execute("UPDATE project_workflow_nodes SET assigned_user_id=? WHERE id=?",
+                      (user.get('id'), pwfn_id))
+        return JSONResponse({"ok": True})
 
     # 담당자 지정
     @app.post("/workflow/node/{pwfn_id}/assign")

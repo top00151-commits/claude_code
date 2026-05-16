@@ -252,6 +252,7 @@ T2_NODE_SEQ = [
     'ic.vn_buy_from_kr',
     # VN 조립·전장·I/O·SW 1차 검증
     'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
+    'logi.packing',  # z108e: 엑셀 #24 "기본사항 확인 후 포장" 누락 수정
     # VN → 본사 출하 (IC 거래)
     'logi.vn_to_kr', 'ic.vn_sale_to_kr', 'ic.kr_buy_from_vn', 'ic.kr_import_from_vn',
     # 본사 입고 후 검증
@@ -279,6 +280,7 @@ T3_NODE_SEQ = [
     'purchase.receive', 'purchase.machined_recv',
     'logi.kr_to_vn', 'ic.kr_sale_to_vn', 'ic.vn_buy_from_kr',
     'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
+    'logi.packing',  # z108e: 엑셀 #24 포장 누락 수정 (T3)
     'logi.vn_to_kr', 'ic.vn_sale_to_kr', 'ic.kr_buy_from_vn', 'ic.kr_import_from_vn',
     'qa.kr_recv_inspect',
     'mfg.sw_apply_kr',

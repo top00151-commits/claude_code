@@ -328,38 +328,71 @@ button { font-family: inherit; cursor: pointer; }
     </div>
     {% endif %}
 
-    {# z108: 오늘 처리할 업무카드 (워크플로우 진입점 단일화) #}
-    {% if home_wf_cards %}
+    {# z108e: 오늘 처리할 업무카드 — 본인 배정 + 부서 미배정 (잡기) #}
+    {% if home_wf_cards or home_wf_unassigned %}
     <div class="section" data-dn="home-wfcards">
-      <h2>🎯 오늘 처리할 업무카드 <small>({{ home_wf_cards|length }})</small></h2>
-      <div style="font-size:11.5px;color:var(--mute);margin-bottom:10px;">완료한 카드는 [✓ 끝] 한 번 클릭으로 처리됩니다. 일일업무도 자동 등록.</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
+      <h2>🎯 오늘 처리할 업무카드 <small>({{ home_wf_cards|length }}{% if home_wf_unassigned %} + 부서 {{ home_wf_unassigned|length }}{% endif %})</small></h2>
+      <div style="font-size:11.5px;color:var(--mute);margin-bottom:10px;">
+        본인 배정 카드는 <strong>[✓ 끝]</strong> 한 번이면 일일업무 자동 등록 + 다음 담당자 알림.
+        직전 단계 미완료 → 🔒 잠금 표시 (먼저 끝낼 단계 있음).
+      </div>
+
+      {# 본인 배정 #}
+      {% if home_wf_cards %}
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
         {% for w in home_wf_cards %}
-        <div class="wfc" id="wfc-{{ w.id }}" style="background:#fff;border:1px solid var(--line);border-radius:8px;border-left:4px solid {% if w.status=='blocked' %}#dc2626{% elif w.status=='in_progress' %}#3b82f6{% else %}#f59e0b{% endif %};padding:12px 14px;">
+        {% set is_locked = w.blockers > 0 and w.status == 'pending' %}
+        <div class="wfc" id="wfc-{{ w.id }}" style="background:{% if is_locked %}#f5f5f5{% else %}#fff{% endif %};border:1px solid var(--line);border-radius:8px;border-left:4px solid {% if is_locked %}#9ca3af{% elif w.status=='blocked' %}#dc2626{% elif w.status=='in_progress' %}#3b82f6{% else %}#f59e0b{% endif %};padding:12px 14px;{% if is_locked %}opacity:.65;{% endif %}">
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:700;color:var(--ink);">{{ w.title_ko }}</div>
+              <div style="font-size:14px;font-weight:700;color:var(--ink);">
+                {% if is_locked %}🔒 {% endif %}{{ w.title_ko }}
+              </div>
               <div style="font-size:11.5px;color:var(--mute);margin-top:2px;">
                 <strong>{{ w.mgmt_code or '' }}</strong> · {{ w.project_name }} ·
                 <span style="color:var(--ink-2);">{{ w.default_dept }}</span>
                 {% if w.cp_total > 0 %} · 체크포인트 {{ w.cp_done }}/{{ w.cp_total }}{% endif %}
+                {% if is_locked %} · <span style="color:#9ca3af;">⏸ 이전 단계 {{ w.blockers }}개 대기</span>{% endif %}
               </div>
             </div>
+            {% if not is_locked %}
             <button class="btn btn-primary" style="padding:7px 14px;font-size:12.5px;" onclick="wfcDone({{ w.id }})" title="이 업무 완료 — 일일업무 자동 등록 + 다음 담당자 알림">✓ 끝</button>
-            <button class="btn btn-secondary" style="padding:7px 12px;font-size:12px;" onclick="wfcExpand({{ w.id }})">자세히</button>
-          </div>
-          <div id="wfc-d-{{ w.id }}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink-2);">
-            {% if w.sop_guide %}<div style="white-space:pre-wrap;line-height:1.6;background:#fafafa;padding:8px 10px;border-radius:5px;">{{ w.sop_guide }}</div>{% endif %}
-            <div style="margin-top:8px;display:flex;gap:6px;">
-              {% if w.system_link_template %}
-                <a href="{{ w.system_link_template|replace('{project_id}', w.project_id|string) }}" class="btn btn-secondary" style="font-size:11.5px;padding:5px 10px;">🔗 작업 화면 →</a>
-              {% endif %}
-              <a href="/workflow/node/{{ w.id }}" class="btn btn-secondary" style="font-size:11.5px;padding:5px 10px;">5W 가이드 →</a>
-            </div>
+            {% endif %}
+            <a class="btn btn-secondary" style="padding:7px 12px;font-size:12px;" href="/workflow/node/{{ w.id }}">자세히 →</a>
           </div>
         </div>
         {% endfor %}
       </div>
+      {% endif %}
+
+      {# z108e: 부서 미배정 (잡기) #}
+      {% if home_wf_unassigned %}
+      <div style="margin-top:8px;">
+        <div style="font-size:12.5px;font-weight:700;color:var(--ink-2);margin-bottom:6px;">
+          🙋 {{ user.dept or user.team_name or '부서' }} 미배정 — 잡을 수 있는 카드
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          {% for w in home_wf_unassigned %}
+          {% set is_locked = w.blockers > 0 and w.status == 'pending' %}
+          <div id="wfu-{{ w.id }}" style="background:#fafbfc;border:1px dashed var(--line);border-radius:6px;padding:10px 12px;display:flex;align-items:center;gap:10px;{% if is_locked %}opacity:.55;{% endif %}">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;color:var(--ink);">
+                {% if is_locked %}🔒 {% endif %}{{ w.title_ko }}
+              </div>
+              <div style="font-size:11px;color:var(--mute);">
+                {{ w.mgmt_code or '' }} · {{ w.project_name }}
+                {% if is_locked %} · 이전 단계 {{ w.blockers }}개 대기{% endif %}
+              </div>
+            </div>
+            {% if not is_locked %}
+            <button class="btn btn-primary" style="padding:5px 10px;font-size:11.5px;" onclick="wfClaim({{ w.id }})">＋ 내가 잡기</button>
+            {% endif %}
+            <a class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" href="/workflow/node/{{ w.id }}">보기</a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -497,6 +530,25 @@ function showToast(msg) {
   c.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+// z108e: 부서 미배정 카드 → 내가 잡기 (한 클릭)
+async function wfClaim(id) {
+  if (!confirm('이 업무를 내가 담당으로 가져가시겠습니까?')) return;
+  try {
+    const r = await fetch('/workflow/node/' + id + '/claim', {method:'POST'});
+    const j = await r.json();
+    if (j.ok) {
+      const el = document.getElementById('wfu-' + id);
+      if (el) {
+        el.style.transition = 'all .3s';
+        el.style.opacity = '0';
+        setTimeout(() => location.reload(), 350);
+      }
+    } else {
+      alert(j.error === 'already_assigned' ? '이미 다른 담당자가 잡았습니다.' : '실패: ' + j.error);
+    }
+  } catch (e) { alert('통신 오류: ' + e); }
 }
 
 // z108: 워크플로우 업무카드 — 자세히 펼침 + 원샷 완료

@@ -1347,9 +1347,12 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
 
     # z108: 홈 진입점 워크플로우 업무카드 (오늘 처리할 업무)
+    # z108e: 본인 배정 + 본인 부서 미배정 + 진행 가능 여부(직전 단계 완료) 표시
     home_wf_cards = []
+    home_wf_unassigned = []
     try:
         with db_session() as c:
+            # 본인 배정
             home_wf_cards = [dict(r) for r in c.execute("""
                 SELECT n.id, n.node_code, n.seq, n.status,
                        m.title_ko, m.default_dept, m.sop_guide, m.system_link_template,
@@ -1357,7 +1360,10 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
                        (SELECT COUNT(*) FROM project_workflow_node_checkpoints
                         WHERE pwfn_id=n.id) AS cp_total,
                        (SELECT COUNT(*) FROM project_workflow_node_checkpoints
-                        WHERE pwfn_id=n.id AND is_done=1) AS cp_done
+                        WHERE pwfn_id=n.id AND is_done=1) AS cp_done,
+                       (SELECT COUNT(*) FROM project_workflow_nodes pn
+                        WHERE pn.workflow_id=n.workflow_id AND pn.seq<n.seq
+                          AND pn.status NOT IN ('done','skipped')) AS blockers
                 FROM project_workflow_nodes n
                 JOIN workflow_nodes_master m ON m.node_code=n.node_code
                 JOIN project_workflow pw ON pw.id=n.workflow_id
@@ -1367,6 +1373,24 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
                          p.id DESC, n.seq
                 LIMIT 8
             """, (u["id"],)).fetchall()]
+            # z108e: 본인 부서 미배정 (잡기 가능)
+            _dept = u.get('dept') or u.get('team_name') or ''
+            if _dept:
+                home_wf_unassigned = [dict(r) for r in c.execute("""
+                    SELECT n.id, n.node_code, n.seq, n.status,
+                           m.title_ko, m.default_dept,
+                           p.id AS project_id, p.name AS project_name, p.mgmt_code,
+                           (SELECT COUNT(*) FROM project_workflow_nodes pn
+                            WHERE pn.workflow_id=n.workflow_id AND pn.seq<n.seq
+                              AND pn.status NOT IN ('done','skipped')) AS blockers
+                    FROM project_workflow_nodes n
+                    JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                    JOIN project_workflow pw ON pw.id=n.workflow_id
+                    JOIN projects p ON p.id=pw.project_id
+                    WHERE m.default_dept=? AND n.assigned_user_id IS NULL
+                      AND n.status IN ('pending','in_progress')
+                    ORDER BY p.id DESC, n.seq LIMIT 6
+                """, (_dept,)).fetchall()]
     except Exception as _e:
         print(f"[HOME-WF ERR] {_e}")
 
@@ -1383,6 +1407,7 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         tab=tab,           # 05 디자인팀 3탭
         no_perm=no_perm,   # D01-NEW-BANNER: 권한 없음 안내 배너
         home_wf_cards=home_wf_cards,  # z108
+        home_wf_unassigned=home_wf_unassigned,  # z108e
         # 힐링 #12 §8-bis 권한 분기 컨텍스트
         monthly_revenue=monthly_revenue,
         yoy_delta=yoy_delta,
