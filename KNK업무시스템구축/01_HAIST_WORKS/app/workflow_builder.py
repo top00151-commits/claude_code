@@ -443,6 +443,65 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                       (new_v, user.get('id') if new_v else None, now, cp_id))
         return JSONResponse({"ok": True, "is_done": new_v, "done_at": now})
 
+    # ────────────────────────────────────────────────────────────
+    # z108: 원샷 완료 — [✓ 끝] 한 번에 처리 (대표 지시 "쉬워야 해")
+    #   동작: 모든 체크포인트 done + tasks 자동 생성 + 노드 done + 다음 담당자 알림
+    # ────────────────────────────────────────────────────────────
+    @app.post("/workflow/node/{pwfn_id}/complete")
+    def workflow_node_complete(request: Request, pwfn_id: int,
+                                 hours: float = Form(1.0),
+                                 note: str = Form("")):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        with db_session() as c:
+            row = c.execute("""SELECT n.workflow_id, n.node_code, n.status, n.assigned_user_id,
+                                      m.title_ko, m.default_dept,
+                                      pw.project_id
+                               FROM project_workflow_nodes n
+                               JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                               JOIN project_workflow pw ON pw.id=n.workflow_id
+                               WHERE n.id=?""", (pwfn_id,)).fetchone()
+            if not row:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 1) 체크포인트 일괄 done
+            c.execute("""UPDATE project_workflow_node_checkpoints
+                         SET is_done=1, done_by=?, done_at=?
+                         WHERE pwfn_id=? AND is_done=0""",
+                      (user.get('id'), now_ts, pwfn_id))
+            # 2) tasks 자동 생성 (오늘자, 시간 입력값)
+            today = date.today().isoformat()
+            existing_task = c.execute(
+                "SELECT id FROM tasks WHERE user_id=? AND work_date=? AND workflow_node_id=?",
+                (user.get('id'), today, pwfn_id)
+            ).fetchone()
+            if not existing_task:
+                c.execute("""INSERT INTO tasks
+                             (user_id, work_date, title, category, project_id,
+                              status, hours, notes, workflow_node_id)
+                             VALUES (?,?,?,?,?,'완료',?,?,?)""",
+                          (user.get('id'), today, row['title_ko'],
+                           row['default_dept'] or '기타', row['project_id'],
+                           hours, note, pwfn_id))
+            else:
+                c.execute("""UPDATE tasks
+                             SET status='완료', hours=COALESCE(hours,0)+?, notes=COALESCE(notes,'')||?
+                             WHERE id=?""",
+                          (hours, ('\n' + note) if note else '', existing_task[0]))
+            # 3) 노드 done 처리
+            c.execute("""UPDATE project_workflow_nodes
+                         SET status='done', done_at=?, note=COALESCE(note,'')||?
+                         WHERE id=?""",
+                      (now_ts, ('\n' + note) if note else '', pwfn_id))
+            # 4) 자동 핸드오프
+            handoff = _auto_handoff(c, pwfn_id, user.get('id'))
+        return JSONResponse({
+            "ok": True,
+            "handoff_to": handoff,
+            "msg": "완료 처리 + 일일업무 자동 등록 + 다음 담당자 알림"
+        })
+
     # 노드 메모(note) 저장
     @app.post("/workflow/node/{pwfn_id}/note")
     def workflow_node_note(request: Request, pwfn_id: int, note: str = Form("")):

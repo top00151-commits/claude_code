@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z107 (업무카드 통합 — 워크플로우 노드 ↔ 일일업무 연결, /daily 상단 워크플로우 카드, /workflow/team 부서 칸반(팀장 전용), 용어 통일 "업무카드")
+REM   LAST UPDATE: 2026-05-16 v5H226z108 (워크플로우 단순화 — /home 단일 진입점 + [✓끝] 원샷 자동화(체크포인트+task+노드+알림) + 사이드바 다이어트(일반직원 워크플로우 메뉴 숨김))
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z107]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z108]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z107  2026-05-16]
+echo    [v5H226z108  2026-05-16]
 echo ============================================================
 echo.
 

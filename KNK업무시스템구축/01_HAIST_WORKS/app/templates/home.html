@@ -328,6 +328,41 @@ button { font-family: inherit; cursor: pointer; }
     </div>
     {% endif %}
 
+    {# z108: 오늘 처리할 업무카드 (워크플로우 진입점 단일화) #}
+    {% if home_wf_cards %}
+    <div class="section" data-dn="home-wfcards">
+      <h2>🎯 오늘 처리할 업무카드 <small>({{ home_wf_cards|length }})</small></h2>
+      <div style="font-size:11.5px;color:var(--mute);margin-bottom:10px;">완료한 카드는 [✓ 끝] 한 번 클릭으로 처리됩니다. 일일업무도 자동 등록.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {% for w in home_wf_cards %}
+        <div class="wfc" id="wfc-{{ w.id }}" style="background:#fff;border:1px solid var(--line);border-radius:8px;border-left:4px solid {% if w.status=='blocked' %}#dc2626{% elif w.status=='in_progress' %}#3b82f6{% else %}#f59e0b{% endif %};padding:12px 14px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:14px;font-weight:700;color:var(--ink);">{{ w.title_ko }}</div>
+              <div style="font-size:11.5px;color:var(--mute);margin-top:2px;">
+                <strong>{{ w.mgmt_code or '' }}</strong> · {{ w.project_name }} ·
+                <span style="color:var(--ink-2);">{{ w.default_dept }}</span>
+                {% if w.cp_total > 0 %} · 체크포인트 {{ w.cp_done }}/{{ w.cp_total }}{% endif %}
+              </div>
+            </div>
+            <button class="btn btn-primary" style="padding:7px 14px;font-size:12.5px;" onclick="wfcDone({{ w.id }})" title="이 업무 완료 — 일일업무 자동 등록 + 다음 담당자 알림">✓ 끝</button>
+            <button class="btn btn-secondary" style="padding:7px 12px;font-size:12px;" onclick="wfcExpand({{ w.id }})">자세히</button>
+          </div>
+          <div id="wfc-d-{{ w.id }}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink-2);">
+            {% if w.sop_guide %}<div style="white-space:pre-wrap;line-height:1.6;background:#fafafa;padding:8px 10px;border-radius:5px;">{{ w.sop_guide }}</div>{% endif %}
+            <div style="margin-top:8px;display:flex;gap:6px;">
+              {% if w.system_link_template %}
+                <a href="{{ w.system_link_template|replace('{project_id}', w.project_id|string) }}" class="btn btn-secondary" style="font-size:11.5px;padding:5px 10px;">🔗 작업 화면 →</a>
+              {% endif %}
+              <a href="/workflow/node/{{ w.id }}" class="btn btn-secondary" style="font-size:11.5px;padding:5px 10px;">5W 가이드 →</a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- 빠른 액션 -->
     <div class="section" data-dn="home-quickactions">
       <h2>빠른 액션</h2>
@@ -462,6 +497,44 @@ function showToast(msg) {
   c.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+// z108: 워크플로우 업무카드 — 자세히 펼침 + 원샷 완료
+function wfcExpand(id) {
+  const el = document.getElementById('wfc-d-' + id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+}
+async function wfcDone(id) {
+  const hours = prompt('이 업무에 들인 시간 (h) — 예: 0.5, 1, 2\n취소하면 1시간으로 기록됩니다.', '1');
+  if (hours === null) return;
+  const h = parseFloat(hours) || 1;
+  const fd = new FormData();
+  fd.append('hours', h);
+  fd.append('note', '');
+  try {
+    const r = await fetch('/workflow/node/' + id + '/complete', {method:'POST', body:fd});
+    const j = await r.json();
+    if (j.ok) {
+      // 카드 페이드아웃 후 제거
+      const card = document.getElementById('wfc-' + id);
+      if (card) {
+        card.style.transition = 'all .3s';
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(20px)';
+        setTimeout(() => card.remove(), 300);
+      }
+      if (j.handoff_to && j.handoff_to.message) {
+        showToast && showToast('✓ 완료 — ' + j.handoff_to.message);
+      } else {
+        showToast && showToast('✓ 완료 + 일일업무 등록됨');
+      }
+    } else {
+      alert('완료 실패: ' + (j.error || 'unknown'));
+    }
+  } catch (e) {
+    alert('통신 오류: ' + e);
+  }
 }
 
 // 키보드 단축키 — Esc: 빅터 dock 닫기 / Ctrl+K: 빅터 dock 열기 (chrome partial 함수 호출)

@@ -176,15 +176,16 @@
   <div class="sb-group">공통</div>
   {{ a('/catalog',            '🔍 자재 카탈로그', 'M-00-14') }}
   {{ a('/materials/requests', '📋 자재 요청서',   'M-00-15') }}
-  {{ a('/workflow/my',        '📥 내 업무카드',   'M-00-16') }}
-  {{ a('/workflow',           '🧩 워크플로우 허브','M-00-17') }}
+  {# z108 (대표 지시 "쉬워야 해"): 일반 직원은 워크플로우 메뉴 숨김. 홈 위젯이 진입점.
+     팀장 → 우리 팀 1개 / PM·CEO·admin → 워크플로우 관리 1개 (모든 기능 접근) #}
   {% set _pos = (user.position or '') %}
   {% set _is_leader = _role in ('ceo','admin','leader','manager') or '팀장' in _pos or '부장' in _pos or '이사' in _pos or '대표' in _pos or '관리자' in _pos %}
+  {% set _is_pm = _role in ('ceo','admin') or user.dept in ('영업','영업팀','경영','경영기획','기획','관리','관리팀','PM') or _is_leader %}
   {% if _is_leader %}
-  {{ a('/workflow/team',      '🗂 팀 업무카드',  'M-00-18') }}
+  {{ a('/workflow/team',      '🗂 우리 팀 업무카드','M-00-17') }}
   {% endif %}
-  {% if _role in ('ceo','admin') or user.dept in ('영업','경영','경영기획','기획','관리') %}
-  {{ a('/workflow/ic_pairs',  '⚡ IC 페어 모니터','M-00-19') }}
+  {% if _is_pm %}
+  {{ a('/workflow',           '🧩 워크플로우 관리','M-00-18') }}
   {% endif %}
   {{ a('/notifications', '📢 알림함',    'M-00-09') }}
   {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}

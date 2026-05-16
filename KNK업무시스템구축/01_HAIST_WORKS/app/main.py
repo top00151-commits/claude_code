@@ -1337,6 +1337,30 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
     except Exception:
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
 
+    # z108: 홈 진입점 워크플로우 업무카드 (오늘 처리할 업무)
+    home_wf_cards = []
+    try:
+        with db_session() as c:
+            home_wf_cards = [dict(r) for r in c.execute("""
+                SELECT n.id, n.node_code, n.seq, n.status,
+                       m.title_ko, m.default_dept, m.sop_guide, m.system_link_template,
+                       p.id AS project_id, p.name AS project_name, p.mgmt_code,
+                       (SELECT COUNT(*) FROM project_workflow_node_checkpoints
+                        WHERE pwfn_id=n.id) AS cp_total,
+                       (SELECT COUNT(*) FROM project_workflow_node_checkpoints
+                        WHERE pwfn_id=n.id AND is_done=1) AS cp_done
+                FROM project_workflow_nodes n
+                JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                JOIN project_workflow pw ON pw.id=n.workflow_id
+                JOIN projects p ON p.id=pw.project_id
+                WHERE n.assigned_user_id=? AND n.status IN ('pending','in_progress','blocked')
+                ORDER BY (CASE n.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END),
+                         p.id DESC, n.seq
+                LIMIT 8
+            """, (u["id"],)).fetchall()]
+    except Exception as _e:
+        print(f"[HOME-WF ERR] {_e}")
+
     return ctx(
         req, "home.html",
         user=u, sel_date=sel_date, prev_date=prev_d, next_date=next_d,
@@ -1349,6 +1373,7 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         hw_counts=hw_counts,
         tab=tab,           # 05 디자인팀 3탭
         no_perm=no_perm,   # D01-NEW-BANNER: 권한 없음 안내 배너
+        home_wf_cards=home_wf_cards,  # z108
         # 힐링 #12 §8-bis 권한 분기 컨텍스트
         monthly_revenue=monthly_revenue,
         yoy_delta=yoy_delta,
