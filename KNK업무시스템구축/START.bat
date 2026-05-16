@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z106c (마법사 Quiet Tone 정리 — 컬러 헤더·이모지·그라데이션 제거, 단일 회색 톤 + 절제된 액티브)
+REM   LAST UPDATE: 2026-05-16 v5H226z106d (워크플로우 워크스페이스 수정 — logi→home, /work* 자동감지 버그 핫픽스(workflow가 logi로 잘못 매칭))
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z106c]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z106d]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z106c  2026-05-16]
+echo    [v5H226z106d  2026-05-16]
 echo ============================================================
 echo.
 
