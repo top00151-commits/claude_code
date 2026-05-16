@@ -58,7 +58,30 @@ button { font-family: inherit; cursor: pointer; }
 .menu-code { display: inline-block; padding: 1px 6px; background: var(--paper-2); color: var(--knk-red); font-size: 9px; font-weight: 700; border-radius: 4px; margin-left: 6px; font-family: monospace; }
 
 /* v5H55: 중복 .main 정의 — 위 .main 의 overflow-y:auto/min-height:0 와 합쳐짐 */
-.main { background: var(--paper); display: flex; flex-direction: column; }
+/* v5H226z108b (대표 지시 2026-05-17): 배경·카드 구분이 흐려서 눈에 안 들어옴.
+   .main 을 paper-2 (한 단계 진한 톤)로 변경 — 카드(흰색)와 시각 위계 분리 */
+.main { background: var(--paper-2); display: flex; flex-direction: column; }
+
+/* z108b: 카드 계열 요소에 미세 그림자·강한 보더 적용 — 배경 위에 떠 보이게.
+   템플릿이 자체 .card / .box / .section 정의 있으면 그쪽 우선 (CSS 명시도). */
+.main .card,
+.main .kpi-card,
+.main .action-card,
+.main .feed-item,
+.main .task-card,
+.main .tpl-card,
+.main .proj-tbl,
+.main .tbl-wrap,
+.main .box {
+  box-shadow: 0 1px 3px rgba(45, 37, 32, 0.06), 0 1px 2px rgba(45, 37, 32, 0.04);
+  border-color: var(--line-strong, #d4ddc) !important;
+}
+
+/* z108b: section h2::before 빨간바를 더 굵게 (이미 있는 패턴 강화) */
+.main .section > h2::before {
+  width: 5px;
+  height: 22px;
+}
 .top {
   grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: var(--space-5);
   padding: 0 var(--content-pad) 0 0;
