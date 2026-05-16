@@ -117,6 +117,41 @@
     <button class="btn btn-primary" onclick="addTask()">등록</button>
   </div>
 
+  <!-- z107: 워크플로우 업무카드 (배정된 노드) -->
+  {% if wf_cards %}
+  <div class="section" data-dn="daily-wfcards">
+    <h2>🧩 워크플로우 업무카드 ({{ wf_cards|length }})</h2>
+    <div style="font-size:11.5px;color:var(--qv-ink-3);margin-bottom:8px;">프로젝트 워크플로우에서 나에게 배정된 단계입니다. 카드 클릭 → 5W 가이드 / "오늘 업무" 버튼 클릭 → 일일업무에 자동 등록.</div>
+    {% for w in wf_cards %}
+    <div class="task-card" style="border-left:4px solid #6366f1;">
+      <div class="task-row">
+        <div class="task-icon">{% if w.status=='in_progress' %}🔄{% elif w.status=='blocked' %}⛔{% else %}📌{% endif %}</div>
+        <div class="task-body">
+          <div class="task-ttl">
+            <a href="/workflow/node/{{ w.id }}" style="color:var(--qv-ink);text-decoration:none;">{{ w.mgmt_code or '' }} · #{{ '%02d'|format(w.seq) }} {{ w.title_ko }} →</a>
+          </div>
+          <div class="task-meta">
+            <span class="pill {% if w.status=='in_progress' %}pill-progress{% elif w.status=='blocked' %}pill-danger{% else %}pill-muted{% endif %}">
+              {% if w.status=='pending' %}대기{% elif w.status=='in_progress' %}진행중{% elif w.status=='blocked' %}막힘{% else %}{{ w.status }}{% endif %}
+            </span>
+            <span>📋 <b>{{ w.project_name }}</b></span>
+            <span>📁 {{ w.default_dept }}</span>
+            <span>🏢 {{ w.assigned_entity or '-' }}</span>
+            {% if w.has_today_log %}<span class="pill pill-done">✓ 오늘 기록됨</span>{% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          {% if not w.has_today_log %}
+          <button class="btn btn-primary" onclick="quickLogWf({{ w.id }}, '{{ w.title_ko|e }}', {{ w.project_id }})" title="오늘 이 업무에 대한 일일업무 카드를 자동 생성합니다.">＋ 오늘 업무</button>
+          {% endif %}
+          <a class="btn btn-secondary" href="/workflow/node/{{ w.id }}">5W 가이드</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <!-- 어제 미완료 -->
   {% if pending_yday %}
   <div class="section" data-dn="daily-pending-yday">
@@ -253,6 +288,30 @@ async function addTask() {
   });
   if (r.ok) location.reload();
 }
+// z107: 워크플로우 노드 → 오늘의 일일업무 카드 자동 생성
+async function quickLogWf(wfNodeId, title, projId) {
+  const hours = prompt('오늘 이 업무에 들인 시간 (h) — 예: 0.5, 1, 2', '1');
+  if (hours === null) return;
+  const h = parseFloat(hours) || 0;
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title: title,
+      work_date: SEL_DATE,
+      status: '진행중',
+      hours: h,
+      category: '기타',
+      project_id: projId,
+      workflow_node_id: wfNodeId,
+    })
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    alert('생성 실패');
+  }
+}
+
 // v5H34: 어제 미완료 → 오늘로 이월 (실제 엔드포인트는 /api/carry-forward)
 async function carry(tid) {
   if (!confirm('이 업무를 오늘(' + SEL_DATE + ')로 이월하시겠습니까?\n새 카드가 생성되고 진행/수정 가능합니다.')) return;

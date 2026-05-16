@@ -366,6 +366,15 @@ def startup():
             print(f"[WFB-MIG-Z106] {_r3}")
     except Exception as _e:
         print(f"[WFB-MIG-Z106 ERR] {_e}")
+    # v5H226z107 (2026-05-16): 업무카드 통합 — tasks.workflow_node_id
+    try:
+        from .migrations.m_z107_workcard_unification import migrate as _wfb_migrate4
+        from .database import DB_PATH as _DB_PATH
+        _r4 = _wfb_migrate4(_DB_PATH)
+        if _r4.get('added_cols'):
+            print(f"[WFB-MIG-Z107] {_r4}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z107 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -1420,6 +1429,25 @@ async def daily_page(req: Request, sel_date: str = ""):
         ).fetchone()
         week_stats = dict(week_stats)
 
+        # z107: 내 워크플로우 업무카드 (배정된 노드 중 pending/in_progress/blocked)
+        wf_cards = []
+        try:
+            wf_cards = [dict(r) for r in c.execute("""
+                SELECT n.id, n.node_code, n.seq, n.status, n.assigned_entity,
+                       m.title_ko, m.category, m.default_dept,
+                       p.id AS project_id, p.name AS project_name, p.mgmt_code,
+                       (SELECT COUNT(*) FROM tasks WHERE workflow_node_id=n.id AND user_id=? AND work_date=?) AS has_today_log
+                FROM project_workflow_nodes n
+                JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                JOIN project_workflow pw ON pw.id=n.workflow_id
+                JOIN projects p ON p.id=pw.project_id
+                WHERE n.assigned_user_id=? AND n.status IN ('pending','in_progress','blocked')
+                ORDER BY (CASE n.status WHEN 'in_progress' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END), p.id DESC, n.seq
+                LIMIT 10
+            """, (u["id"], sel_date, u["id"])).fetchall()]
+        except Exception as _e:
+            print(f"[DAILY-WFCARDS ERR] {_e}")
+
     return ctx(
         req, "daily.html",
         user=u, tasks=tasks, sel_date=sel_date,
@@ -1427,6 +1455,7 @@ async def daily_page(req: Request, sel_date: str = ""):
         pending_yday=pending_yday,
         projects=projects, customers=customers,
         week_stats=week_stats, week_range=f"{wk_mon} ~ {wk_sun}",
+        wf_cards=wf_cards,  # z107: 워크플로우 업무카드
     )
 
 
@@ -1475,12 +1504,19 @@ async def api_create_task(req: Request):
     _plabel = (d.get("project_label") or "").strip() or None
     _cid = d.get("customer_id") or None
     _clabel = (d.get("customer_label") or "").strip() or None
+    # z107: 워크플로우 노드 연결 (선택)
+    _wf_node_id = d.get("workflow_node_id") or None
+    try:
+        _wf_node_id = int(_wf_node_id) if _wf_node_id else None
+    except (ValueError, TypeError):
+        _wf_node_id = None
     with db_session() as c:
         cur = c.execute(
             """INSERT INTO tasks(user_id, work_date, title, category, project_id, project_label,
                                   customer_id, customer_label,
-                                  status, hours, notes, next_plan, due_date)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  status, hours, notes, next_plan, due_date,
+                                  workflow_node_id)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 u["id"],
                 d.get("work_date") or date.today().isoformat(),
@@ -1495,8 +1531,18 @@ async def api_create_task(req: Request):
                 d.get("notes") or "",
                 (d.get("next_plan") or "").strip(),
                 d.get("due_date") or None,
+                _wf_node_id,
             ),
         )
+        # z107: 워크플로우 노드가 'pending' 이었으면 'in_progress'로 자동 전환
+        if _wf_node_id:
+            try:
+                c.execute(
+                    "UPDATE project_workflow_nodes SET status='in_progress' WHERE id=? AND status='pending'",
+                    (_wf_node_id,)
+                )
+            except Exception:
+                pass
         new_id = cur.lastrowid
         log_activity(c, u["id"], "task_create",
                      title=f"{u['name']} 신규 카드: {(d.get('title') or '')[:60]}",

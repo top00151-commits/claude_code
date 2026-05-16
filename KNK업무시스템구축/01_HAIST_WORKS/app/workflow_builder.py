@@ -454,6 +454,56 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         return JSONResponse({"ok": True})
 
     # ────────────────────────────────────────────────────────────
+    # z107: 팀 업무카드 칸반 (팀장 전용)
+    # ────────────────────────────────────────────────────────────
+    @app.get("/workflow/team")
+    def workflow_team_kanban(request: Request, dept: str = ""):
+        user = get_user(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        # 권한 게이트: 팀장/임원/CEO/admin
+        role = (user.get('role') or '').lower()
+        pos = (user.get('position') or '')
+        is_leader = (role in ('admin','ceo','leader','manager') or
+                     any(k in pos for k in ('팀장','부장','이사','대표','관리자')))
+        if not is_leader:
+            return _deny_wizard_html("팀 업무카드는 팀장급만 열람 가능합니다.")
+
+        with db_session() as c:
+            # 부서 목록 (실제 사용 중인 default_dept)
+            depts = [r[0] for r in c.execute(
+                "SELECT DISTINCT default_dept FROM workflow_nodes_master WHERE default_dept IS NOT NULL ORDER BY default_dept"
+            ).fetchall()]
+            # 기본 부서 = URL 파라미터 or 사용자 본인 부서
+            sel_dept = dept or user.get('dept') or user.get('team_name') or (depts[0] if depts else '')
+            # 4 컬럼 노드 조회
+            cols = {'pending': [], 'in_progress': [], 'blocked': [], 'done': []}
+            if sel_dept:
+                rows = c.execute("""
+                    SELECT n.id, n.node_code, n.seq, n.status, n.assigned_entity, n.assigned_user_id,
+                           m.title_ko, m.category, m.default_dept,
+                           p.id AS project_id, p.name AS project_name, p.mgmt_code,
+                           u.name AS assignee_name
+                    FROM project_workflow_nodes n
+                    JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                    JOIN project_workflow pw ON pw.id=n.workflow_id
+                    JOIN projects p ON p.id=pw.project_id
+                    LEFT JOIN users u ON u.id=n.assigned_user_id
+                    WHERE m.default_dept=?
+                    ORDER BY p.id DESC, n.seq
+                """, (sel_dept,)).fetchall()
+                for r in rows:
+                    s = r['status']
+                    if s in cols:
+                        cols[s].append(dict(r))
+                    elif s == 'skipped':
+                        # 생략은 별도 컬럼 만들지 않고 done과 함께
+                        cols['done'].append(dict(r))
+
+        return ctx(request, "workflow/team.html", user=user,
+                   depts=depts, sel_dept=sel_dept, cols=cols)
+
+    # ────────────────────────────────────────────────────────────
     # z105: 내 할 일 (My todos)
     # ────────────────────────────────────────────────────────────
     @app.get("/workflow/my")

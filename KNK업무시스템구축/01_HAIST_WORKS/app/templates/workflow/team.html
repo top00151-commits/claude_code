@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>팀 업무카드 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-3) var(--content-pad) 6px; }
+.page-title { font-size:20px; font-weight:700; }
+.page-meta { font-size:10.5px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.wrap { margin: 0 var(--content-pad) var(--space-3); }
+
+.dept-bar {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  padding:8px 10px;
+  background:var(--qv-surface);
+  border:1px solid var(--qv-line);
+  border-radius:6px;
+  margin-bottom:10px;
+  align-items:center;
+}
+.dept-bar .lab { font-size:11px; color:var(--qv-ink-3); margin-right:4px; }
+.dept-bar a {
+  padding:5px 12px;
+  background:var(--qv-surface-3);
+  color:var(--qv-ink-2);
+  border-radius:14px;
+  text-decoration:none;
+  font-size:12px;
+  font-weight:600;
+}
+.dept-bar a.on { background:var(--qv-ink); color:#fff; }
+
+.kanban {
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:10px;
+  min-height: 60vh;
+}
+@media (max-width:1100px) { .kanban { grid-template-columns: repeat(2, 1fr); } }
+
+.col {
+  background:var(--qv-surface-2);
+  border:1px solid var(--qv-line);
+  border-radius:8px;
+  display:flex;
+  flex-direction:column;
+  min-height: 200px;
+}
+.col-h {
+  padding:10px 12px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--qv-ink);
+  border-bottom:1px solid var(--qv-line);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.col-h .cnt {
+  background:var(--qv-surface-3);
+  padding:1px 8px;
+  border-radius:10px;
+  font-size:11px;
+  font-weight:700;
+}
+.col-pending  .col-h { border-top:3px solid #f59e0b; }
+.col-progress .col-h { border-top:3px solid #3b82f6; }
+.col-blocked  .col-h { border-top:3px solid #dc2626; }
+.col-done     .col-h { border-top:3px solid #10b981; }
+
+.col-body {
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  flex:1;
+}
+
+.card {
+  background:#fff;
+  border:1px solid var(--qv-line);
+  border-radius:6px;
+  padding:8px 10px;
+  font-size:11.5px;
+  text-decoration:none;
+  color:inherit;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  transition:.1s;
+}
+.card:hover { border-color:var(--qv-ink-3); box-shadow:0 2px 6px rgba(0,0,0,.06); }
+.card .t { font-weight:700; color:var(--qv-ink); font-size:12px; }
+.card .p { color:var(--qv-ink-3); font-size:10.5px; }
+.card .m { display:flex; gap:4px; flex-wrap:wrap; font-size:10px; }
+.card .chip { background:var(--qv-surface-3); padding:1px 6px; border-radius:8px; color:var(--qv-ink-2); font-weight:600; }
+.card .chip.k-kr { background:#dbeafe; color:#1e40af; }
+.card .chip.k-vn { background:#dcfce7; color:#166534; }
+.card .assignee { color:var(--qv-ink); font-weight:700; font-size:10.5px; }
+.card .unassigned { color:#dc2626; font-style:italic; font-size:10px; }
+
+.empty { padding:18px 10px; text-align:center; color:var(--qv-ink-3); font-size:11px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "home" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · 팀 업무카드 · z107</div>
+    <h1 class="page-title">🗂 팀 업무카드 — {{ sel_dept }}</h1>
+    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:2px;">부서별 워크플로우 진행 현황을 한 화면에 정리. 카드 클릭 → 5W 가이드 상세.</div>
+  </div>
+
+  <div class="wrap">
+    <div class="dept-bar">
+      <span class="lab">부서:</span>
+      {% for d in depts %}
+        <a href="?dept={{ d }}" class="{% if d==sel_dept %}on{% endif %}">{{ d }}</a>
+      {% endfor %}
+    </div>
+
+    <div class="kanban">
+      {% set col_defs = [
+        ('col-pending',  'pending',     '○ 대기'),
+        ('col-progress', 'in_progress', '🔄 진행중'),
+        ('col-blocked',  'blocked',     '⛔ 막힘'),
+        ('col-done',     'done',        '✓ 완료'),
+      ] %}
+      {% for cls, key, lab in col_defs %}
+      <div class="col {{ cls }}">
+        <div class="col-h">
+          <span>{{ lab }}</span>
+          <span class="cnt">{{ cols[key]|length }}</span>
+        </div>
+        <div class="col-body">
+          {% for n in cols[key] %}
+          <a class="card" href="/workflow/node/{{ n.id }}">
+            <div class="t">#{{ '%02d'|format(n.seq) }} {{ n.title_ko }}</div>
+            <div class="p">{{ n.mgmt_code or '' }} {{ n.project_name }}</div>
+            <div class="m">
+              <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span>
+              <span class="chip">{{ n.category }}</span>
+              {% if n.assignee_name %}
+                <span class="assignee">👤 {{ n.assignee_name }}</span>
+              {% else %}
+                <span class="unassigned">미배정</span>
+              {% endif %}
+            </div>
+          </a>
+          {% else %}
+          <div class="empty">— 없음 —</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+</div>
+</body>
+</html>
