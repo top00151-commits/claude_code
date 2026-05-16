@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z106aa (마법사 단일화면 레이아웃 — 12컬럼 그리드 + 컴팩트 박스 + 무스크롤)
+REM   LAST UPDATE: 2026-05-16 v5H226z106b (마법사 시각 위계 강화 — 섹션별 컬러 헤더(거래·설계·제조·출하셋업) + 강한 액티브 상태 + 협업 노란색)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z106a]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z106b]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z106a  2026-05-16]
+echo    [v5H226z106b  2026-05-16]
 echo ============================================================
 echo.
 
