@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-17 v5H226z108b (전역 시각 위계 보강 — .main 배경 paper-2 / 카드 그림자 / h2 빨간바 굵게 — 대표 "배경·박스 구분 흐림")
+REM   LAST UPDATE: 2026-05-17 v5H226z108c (KNK 4가지 업무 진행 형태 시각 순서도 — 참고자료 엑셀 1:1 매핑 (124 단계 총합), /workflow/scenarios)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -12,13 +12,13 @@ cd /d "%~dp001_HAIST_WORKS"
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS - HAIST Innovation [v5H226z108b]
+title KNK HAIST WORKS - HAIST Innovation [v5H226z108c]
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108b  2026-05-16]
+echo    [v5H226z108c  2026-05-16]
 echo ============================================================
 echo.
 

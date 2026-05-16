@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KNK 4가지 업무 진행 형태 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-4) var(--content-pad) var(--space-2); }
+.page-title { font-size:22px; font-weight:700; color:var(--ink); }
+.page-meta { font-size:11px; color:var(--mute); letter-spacing:.14em; text-transform:uppercase; }
+.intro { font-size:12.5px; color:var(--mute); margin-top:4px; }
+.wrap { margin: 0 var(--content-pad) var(--space-4); }
+
+/* 탭 */
+.tabs {
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+  border-bottom:2px solid var(--line);
+  overflow-x:auto;
+}
+.tab {
+  padding:9px 16px;
+  background:transparent;
+  border:0;
+  border-bottom:3px solid transparent;
+  margin-bottom:-2px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--mute);
+  cursor:pointer;
+  white-space:nowrap;
+  text-decoration:none;
+}
+.tab:hover { color:var(--ink); }
+.tab.active {
+  color:var(--knk-red);
+  border-bottom-color:var(--knk-red);
+}
+
+/* 시나리오 헤더 */
+.scenario-head {
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:14px 18px;
+  margin-bottom:14px;
+  box-shadow:0 1px 3px rgba(45,37,32,.06);
+}
+.scenario-title { font-size:18px; font-weight:800; color:var(--ink); }
+.scenario-flow {
+  font-size:12.5px;
+  color:var(--knk-red);
+  margin-top:6px;
+  font-family:monospace;
+  font-weight:700;
+}
+.scenario-desc { font-size:12px; color:var(--mute); margin-top:6px; }
+
+/* 단계 리스트 */
+.steps { display:flex; flex-direction:column; gap:6px; }
+.step {
+  display:grid;
+  grid-template-columns: 50px 110px 1fr;
+  gap:12px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 14px;
+  box-shadow:0 1px 2px rgba(45,37,32,.04);
+  position:relative;
+}
+.step::before {
+  content:"";
+  position:absolute;
+  left:25px;
+  top:-7px;
+  width:1px;
+  height:7px;
+  background:var(--line);
+}
+.step:first-child::before { display:none; }
+
+.step-no {
+  font-size:14px;
+  font-weight:800;
+  color:var(--knk-red);
+  font-family:monospace;
+  display:flex;
+  align-items:center;
+}
+.step-loc {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  align-items:flex-start;
+}
+.loc-pill {
+  padding:2px 8px;
+  border-radius:10px;
+  font-size:10.5px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.loc-KR { background:#dbeafe; color:#1e40af; }
+.loc-VN { background:#dcfce7; color:#166534; }
+.loc-KR_VN { background:linear-gradient(90deg, #dbeafe 50%, #dcfce7 50%); color:#3730a3; }
+.loc-CUSTOMER_KR { background:#ede9fe; color:#6d28d9; }
+.loc-CUSTOMER_OVERSEAS { background:#fae8ff; color:#86198f; }
+
+.step-body { min-width:0; }
+.step-title { font-size:13.5px; font-weight:700; color:var(--ink); line-height:1.4; }
+.step-depts { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+.dept {
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  padding:1px 8px;
+  border-radius:10px;
+  font-size:10.5px;
+  font-weight:700;
+  color:#fff;
+}
+.step-note {
+  font-size:11px;
+  color:var(--mute);
+  margin-top:6px;
+  line-height:1.5;
+  padding-left:8px;
+  border-left:2px solid var(--line);
+}
+
+/* 인쇄용 */
+@media print {
+  .tabs, .top, .sidebar { display:none !important; }
+  body, .main { background:#fff !important; }
+  .scenario-head, .step { break-inside:avoid; }
+}
+
+/* 범례 */
+.legend {
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 14px;
+  margin-bottom:14px;
+  font-size:11px;
+  color:var(--mute);
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.legend strong { color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "home" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · 4가지 업무 진행 형태 · z108c</div>
+    <h1 class="page-title">KNK 4가지 업무 진행 형태</h1>
+    <div class="intro">참고자료 「형태별업무진행순서.xlsx」 1:1 매핑. 인쇄용 디자인 적용 (사이드바·탭 자동 숨김).</div>
+  </div>
+
+  <div class="wrap">
+    {# 탭 #}
+    <div class="tabs">
+      {% for s in scenarios %}
+      <a href="?tab=T{{ loop.index }}" class="tab {% if sel_tab=='T'+(loop.index|string) %}active{% endif %}">{{ s.title }}</a>
+      {% endfor %}
+      <a href="?tab=ALL" class="tab {% if sel_tab=='ALL' %}active{% endif %}">▤ 전체 비교</a>
+    </div>
+
+    {# 범례 #}
+    <div class="legend">
+      <strong>위치:</strong>
+      <span class="loc-pill loc-KR">본사</span>
+      <span class="loc-pill loc-VN">VN 법인</span>
+      <span class="loc-pill loc-KR_VN">본사·VN 협업</span>
+      <span class="loc-pill loc-CUSTOMER_KR">고객사 국내</span>
+      <span class="loc-pill loc-CUSTOMER_OVERSEAS">고객사 해외</span>
+      <span style="margin-left:10px;"><strong>📄</strong> 우클릭 → 인쇄 (Ctrl+P)</span>
+    </div>
+
+    {# 시나리오 본문 #}
+    {% for s in scenarios %}
+      {% set show = (sel_tab=='ALL' or sel_tab=='T'+(loop.index|string)) %}
+      {% if show %}
+      <div class="scenario-head" id="s-{{ loop.index }}">
+        <div class="scenario-title">{{ s.title }}</div>
+        <div class="scenario-flow">{{ s.flow }}</div>
+        <div class="scenario-desc">{{ s.desc }}</div>
+      </div>
+      <div class="steps">
+        {% for st in s.steps %}
+        <div class="step">
+          <div class="step-no">{{ '%02d'|format(loop.index) }}</div>
+          <div class="step-loc">
+            <span class="loc-pill loc-{{ st.loc }}">
+              {% if st.loc=='KR' %}🇰🇷 본사
+              {% elif st.loc=='VN' %}🇻🇳 VN
+              {% elif st.loc=='KR_VN' %}🤝 본사·VN
+              {% elif st.loc=='CUSTOMER_KR' %}🏢 고객 국내
+              {% elif st.loc=='CUSTOMER_OVERSEAS' %}🌏 고객 해외
+              {% else %}{{ st.loc }}{% endif %}
+            </span>
+          </div>
+          <div class="step-body">
+            <div class="step-title">{{ st.title }}</div>
+            <div class="step-depts">
+              {% for d in st.depts %}
+                {% set m = depts.get(d, {'color':'#475569','icon':'•','short':d}) %}
+                <span class="dept" style="background:{{ m.color }}">{{ m.icon }} {{ m.short }}</span>
+              {% endfor %}
+            </div>
+            {% if st.note %}<div class="step-note">{{ st.note }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if sel_tab=='ALL' and not loop.last %}<div style="height:30px;"></div>{% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+</div>
+</body>
+</html>

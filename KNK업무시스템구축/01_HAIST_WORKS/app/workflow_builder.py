@@ -513,6 +513,18 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         return JSONResponse({"ok": True})
 
     # ────────────────────────────────────────────────────────────
+    # z108c: 4가지 형태 시각 순서도 (참고자료 엑셀 1:1 매칭)
+    # ────────────────────────────────────────────────────────────
+    @app.get("/workflow/scenarios")
+    def workflow_scenarios_view(request: Request, tab: str = "T1"):
+        user = get_user(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        from . import workflow_scenarios as _ws
+        return ctx(request, "workflow/scenarios.html", user=user,
+                   scenarios=_ws.SCENARIOS, depts=_ws.DEPTS, sel_tab=tab)
+
+    # ────────────────────────────────────────────────────────────
     # z107: 팀 업무카드 칸반 (팀장 전용)
     # ────────────────────────────────────────────────────────────
     @app.get("/workflow/team")

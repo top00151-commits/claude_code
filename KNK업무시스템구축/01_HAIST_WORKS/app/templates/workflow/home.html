@@ -71,6 +71,12 @@
     </a>
     {% endif %}
 
+    {# z108c: 4가지 형태 시각 순서도 안내 #}
+    <a href="/workflow/scenarios" style="display:block; background:#fff; border:1px solid var(--qv-line); border-left:4px solid var(--knk-red); border-radius:10px; padding:14px 18px; text-decoration:none; color:inherit; margin-top:8px;">
+      <div style="font-size:14px; font-weight:700; color:var(--qv-ink);">📋 KNK 4가지 업무 진행 형태 (참고자료 1:1 매핑)</div>
+      <div style="font-size:11.5px; color:var(--qv-ink-3); margin-top:3px;">국내·국내+VN·해외+VN·VN PO — 단계별 순서도 + 부서 매핑 한 화면. 인쇄 가능.</div>
+    </a>
+
     <div class="kpi">
       <div class="card"><div class="label">등록된 업무 노드</div><div class="value">{{ node_count }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
       <div class="card"><div class="label">빠른시작 시나리오</div><div class="value">{{ templates|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
