@@ -204,3 +204,169 @@ TYPE4 = {
 
 
 SCENARIOS = [TYPE1, TYPE2, TYPE3, TYPE4]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# z108d: 시나리오별 node_code 시퀀스 (엑셀 124 단계 → DB 노드 매핑)
+# ──────────────────────────────────────────────────────────────────────────
+# 조건부 노드:
+#   'cond': 'mass_revision'    — is_mass_revision=True 일 때만 포함 (T3/T4의 컨셉회의·제안서)
+#   'cond': 'mass_revision_or_t12'  — T1/T2 항상, T3/T4 변경사항 있을 때만
+#
+# 협업 노드 (KR+VN):
+#   '$kr_vn'  → 시나리오에 따라 _kr 또는 _vn 자동 치환 (단일 법인일 때) 또는 양쪽 모두 (협업일 때)
+#
+# 가공품 발주부서:
+#   'purchase.machined_po' 노드 default_dept 가 machined_po_dept 마법사 응답으로 동적 설정
+
+# ── 유형 ① 국내 단순 (27 단계) ──
+T1_NODE_SEQ = [
+    'sales.lead', 'sales.meeting', 'sales.concept_meeting', 'sales.proposal',
+    'sales.quote', 'sales.po_receive', 'sales.kickoff',
+    'design.spec', 'design.bom',
+    'design.mech_kr', 'design.elec_kr', 'design.sw_kr', 'design.review',
+    'purchase.long_lead', 'purchase.new_review', 'purchase.part_list',
+    'purchase.po_issue', 'purchase.machined_po',
+    'purchase.receive', 'purchase.machined_recv',
+    'mfg.assembly_kr', 'mfg.electrical_kr', 'mfg.io_check_kr', 'mfg.sw_apply_kr',
+    'qa.fat',
+    'logi.ship_prep', 'logi.ship_kr', 'logi.setup', 'qa.sat',
+    'docs.manual', 'sales.closeout',
+]
+
+# ── 유형 ② 국내 + VN 협업 (34 단계) ──
+T2_NODE_SEQ = [
+    'sales.lead', 'sales.meeting', 'sales.concept_meeting', 'sales.proposal',
+    'sales.quote', 'sales.po_receive', 'sales.kickoff',
+    'design.spec', 'design.bom',
+    # 설계는 협업 (KR+VN 양쪽)
+    'design.mech_kr', 'design.mech_vn',
+    'design.elec_kr', 'design.elec_vn',
+    'design.sw_kr', 'design.sw_vn',
+    'design.review',
+    'purchase.long_lead', 'purchase.new_review', 'purchase.part_list',
+    'purchase.po_issue', 'purchase.machined_po',
+    'purchase.receive', 'purchase.machined_recv',
+    # 본사 → VN 자재 발송 (IC 거래)
+    'logi.kr_to_vn', 'ic.kr_sale_to_vn',
+    'ic.vn_buy_from_kr',
+    # VN 조립·전장·I/O·SW 1차 검증
+    'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
+    # VN → 본사 출하 (IC 거래)
+    'logi.vn_to_kr', 'ic.vn_sale_to_kr', 'ic.kr_buy_from_vn', 'ic.kr_import_from_vn',
+    # 본사 입고 후 검증
+    'qa.kr_recv_inspect',
+    'mfg.sw_apply_kr',  # SW 2차 검증 (본사)
+    'qa.fat',
+    'logi.ship_prep', 'logi.ship_kr',
+    'logi.setup', 'qa.sat',
+    'docs.manual', 'sales.closeout',
+]
+
+# ── 유형 ③ 해외 직수출 (34 단계) ──
+T3_NODE_SEQ = [
+    'sales.lead', 'sales.meeting',
+    {'code': 'sales.concept_meeting', 'cond': 'mass_revision'},
+    {'code': 'sales.proposal',        'cond': 'mass_revision'},
+    'sales.quote', 'sales.po_receive', 'sales.kickoff',
+    'design.spec', 'design.bom',
+    'design.mech_kr', 'design.mech_vn',
+    'design.elec_kr', 'design.elec_vn',
+    'design.sw_kr', 'design.sw_vn',
+    'design.review',
+    'purchase.long_lead', 'purchase.new_review', 'purchase.part_list',
+    'purchase.po_issue', 'purchase.machined_po',
+    'purchase.receive', 'purchase.machined_recv',
+    'logi.kr_to_vn', 'ic.kr_sale_to_vn', 'ic.vn_buy_from_kr',
+    'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
+    'logi.vn_to_kr', 'ic.vn_sale_to_kr', 'ic.kr_buy_from_vn', 'ic.kr_import_from_vn',
+    'qa.kr_recv_inspect',
+    'mfg.sw_apply_kr',
+    'qa.fat',
+    'logi.ship_prep',
+    'logi.export_doc', 'logi.ship_kr', 'logi.customs', 'logi.delivery',
+    'logi.setup', 'qa.sat',
+    'docs.manual', 'sales.closeout',
+]
+
+# ── 유형 ④ VN PO IC (29 단계) ──
+T4_NODE_SEQ = [
+    'sales.lead', 'sales.meeting',
+    {'code': 'sales.concept_meeting', 'cond': 'mass_revision'},
+    {'code': 'sales.proposal',        'cond': 'mass_revision'},
+    'sales.quote',
+    # VN 법인이 고객사로부터 PO 수령 → 본사로 IC PO
+    'ic.vn_po_to_kr',
+    'sales.po_receive', 'sales.so_to_vn',  # 본사 PO 등록 + VN에 견적·매출
+    'sales.kickoff',
+    'design.spec', 'design.bom',
+    'design.mech_kr', 'design.mech_vn',
+    'design.elec_kr', 'design.elec_vn',
+    'design.sw_kr', 'design.sw_vn',
+    'design.review',
+    'purchase.long_lead', 'purchase.new_review', 'purchase.part_list',
+    'purchase.po_issue', 'purchase.machined_po',
+    'purchase.receive', 'purchase.machined_recv',
+    'logi.kr_to_vn', 'ic.kr_sale_to_vn', 'ic.vn_buy_from_kr',
+    # VN 자체 조립·전장·I/O·SW
+    'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
+    # VN 자체 출하검증 (본사 개입 없음)
+    'qa.fat_vn',
+    # VN → 해외 직접 출하
+    'logi.vn_export', 'logi.customs', 'logi.delivery',
+    'logi.setup', 'qa.sat',
+    'docs.manual', 'sales.closeout',
+]
+
+
+TEMPLATE_SEQUENCES = {
+    'T1': T1_NODE_SEQ,
+    'T2': T2_NODE_SEQ,
+    'T3': T3_NODE_SEQ,
+    'T4': T4_NODE_SEQ,
+}
+
+
+def get_node_sequence(scenario_code: str, is_mass_revision: bool = False) -> list:
+    """시나리오 코드 + 조건부 플래그 → 실제 node_code 리스트.
+
+    scenario_code: 'T1' | 'T2' | 'T3' | 'T4'
+    is_mass_revision: 양산 변경사항 여부 (T3/T4에서 컨셉회의·제안서 조건부)
+    """
+    seq = TEMPLATE_SEQUENCES.get(scenario_code, [])
+    out = []
+    for item in seq:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            cond = item.get('cond')
+            if cond == 'mass_revision' and not is_mass_revision:
+                continue  # skip
+            out.append(item['code'])
+    return out
+
+
+def detect_scenario(customer_country: str, po_entity: str, ship_split: str,
+                     processing_locs: list) -> str:
+    """마법사 응답 → 자동 시나리오 감지 (T1/T2/T3/T4).
+
+    processing_locs: [mfg_machining, mfg_assembly, mfg_electrical, mfg_verification] 의 값들.
+    """
+    cust_kr = (customer_country == 'KR')
+    cust_overseas = not cust_kr
+    po_vn = (po_entity == 'VN')
+    # VN 이 제조 어느 단계라도 포함하면 VN 사용
+    uses_vn = any(p in ('VN', 'BOTH') for p in processing_locs)
+    uses_kr = any(p in ('KR', 'BOTH') for p in processing_locs)
+    ship_vn = (ship_split in ('VN', 'BOTH'))
+    ship_kr = (ship_split in ('KR', 'BOTH'))
+
+    if cust_kr and not uses_vn:
+        return 'T1'  # 국내 단순
+    if cust_kr and uses_vn:
+        return 'T2'  # 국내 + VN 협업
+    if cust_overseas and po_vn:
+        return 'T4'  # 해외 — VN 직수주
+    if cust_overseas and not po_vn:
+        return 'T3'  # 해외 직수출 (본사 PO)
+    return 'T1'  # 기본값

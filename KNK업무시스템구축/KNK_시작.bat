@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-17 v5H226z108c (KNK 4가지 업무 진행 형태 시각 순서도 — 참고자료 엑셀 1:1 매핑 (124 단계 총합), /workflow/scenarios)
+REM   LAST UPDATE: 2026-05-17 v5H226z108d (엑셀 100% 통합 — 22 신규 노드 + 시나리오 자동감지 + 4 템플릿 시퀀스 + 마법사 Q9 양산변경 Q10 가공품발주부서)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z108c]
+title KNK HAIST WORKS [v5H226z108d]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108c  2026-05-16]
+echo    [v5H226z108d  2026-05-16]
 echo ============================================================
 echo.
 

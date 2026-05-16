@@ -167,6 +167,9 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         # z106: 출하/셋업 (KR|VN|BOTH|NONE)
         ship_split: str = Form("KR"),
         setup_split: str = Form("NONE"),
+        # z108d: 양산 변경사항 + 가공품 발주부서
+        is_mass_revision: str = Form("0"),
+        machined_po_dept: str = Form("purchase"),
         # 구버전 호환 (기존 폼이 보낼 경우)
         processing_loc: str = Form(""),
         ship_entity: str = Form(""),
@@ -249,28 +252,43 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                     pass
                 c.execute("DELETE FROM project_workflow WHERE project_id=?", (project_id,))
 
+            _is_mr_val = 1 if is_mass_revision in ('1', 'true', 'True', 'on') else 0
+            _mpd = machined_po_dept if machined_po_dept in ('design', 'purchase') else 'purchase'
             _cur = c.execute("""INSERT INTO project_workflow
                          (project_id,template_id,customer_country,po_entity,
                           mech_design_split,elec_design_split,sw_design_split,
                           processing_loc,ship_entity,setup_loc,
                           mfg_machining,mfg_assembly,mfg_electrical,mfg_verification,
                           ship_split,setup_split,
+                          is_mass_revision,machined_po_dept,
                           status,created_by)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?)""",
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?)""",
                       (project_id, tid, customer_country, po_entity,
                        mech_design_split, elec_design_split, sw_design_split,
                        processing_loc or mfg_assembly, _proj_ship, setup_split,
                        mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
-                       ship_split, setup_split, user.get('id')))
+                       ship_split, setup_split,
+                       _is_mr_val, _mpd, user.get('id')))
             wf_id = _cur.lastrowid
 
-            # z106: 새 시그니처로 노드 조립
-            node_codes = _assemble_nodes_v2(
-                customer_country, po_entity,
-                mech_design_split, elec_design_split, sw_design_split,
-                mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
-                ship_split, setup_split
-            )
+            # z108d: 시나리오 감지 + 엑셀 1:1 시퀀스 사용
+            try:
+                from . import workflow_scenarios as _ws
+                _scenario_code = _ws.detect_scenario(
+                    customer_country, po_entity, ship_split,
+                    [mfg_machining, mfg_assembly, mfg_electrical, mfg_verification]
+                )
+                _is_mr = is_mass_revision in ('1', 'true', 'True', 'on')
+                node_codes = _ws.get_node_sequence(_scenario_code, is_mass_revision=_is_mr)
+            except Exception as _e:
+                print(f"[WIZARD-V3 FALLBACK] {_e}")
+                # 폴백: 구버전 알고리즘
+                node_codes = _assemble_nodes_v2(
+                    customer_country, po_entity,
+                    mech_design_split, elec_design_split, sw_design_split,
+                    mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
+                    ship_split, setup_split
+                )
 
             for seq, code in enumerate(node_codes, start=1):
                 assigned = _decide_entity_v2(code, po_entity, ship_split)
