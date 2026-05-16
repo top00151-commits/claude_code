@@ -3,25 +3,29 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>워크플로우 마법사 · KNK HAIST WORKS</title>
+<title>워크플로우 마법사 v2 · KNK HAIST WORKS</title>
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
 .page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
 .page-title { font-size:24px; font-weight:700; }
 .page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
-.wrap { margin: 0 var(--content-pad); max-width:760px; }
+.wrap { margin: 0 var(--content-pad); max-width:820px; }
 .box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:20px; margin-bottom:12px; }
 .q { margin-bottom:16px; }
 .q-label { display:block; font-size:13px; font-weight:700; color:var(--qv-ink); margin-bottom:6px; }
 .q-help  { font-size:11.5px; color:var(--qv-ink-3); margin-top:3px; }
 .q select, .q input { width:100%; padding:8px 10px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; background:#fff; }
 .split { display:flex; gap:8px; }
-.split label { flex:1; cursor:pointer; padding:10px; border:2px solid var(--qv-line); border-radius:8px; text-align:center; font-size:13px; font-weight:700; background:#fff; }
+.split label { flex:1; cursor:pointer; padding:10px; border:2px solid var(--qv-line); border-radius:8px; text-align:center; font-size:13px; font-weight:700; background:#fff; transition:.15s; }
 .split input[type=radio] { display:none; }
-.split input[type=radio]:checked + span { color:var(--qv-ink); }
-.split label:has(input:checked) { border-color:#6366f1; background:#eef2ff; }
-.actions { display:flex; gap:8px; justify-content:flex-end; }
+.split label:has(input:checked) { border-color:#6366f1; background:#eef2ff; color:#3730a3; }
+.split label:hover:not(:has(input:checked)) { background:#f8fafc; }
+
+.mfg-grid { display:grid; grid-template-columns: 110px 1fr; gap:10px 12px; align-items:center; }
+.mfg-grid .lab { font-size:13px; font-weight:700; color:var(--qv-ink); }
+
+.actions { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
 .btn { padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; border:0; cursor:pointer; text-decoration:none; }
 .btn-go { background:#6366f1; color:#fff; }
 .btn-cancel { background:var(--qv-surface-3); color:var(--qv-ink-2); }
@@ -34,15 +38,16 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · WIZARD (8문항) · z104</div>
+    <div class="page-meta">WORKFLOW · WIZARD v2 · z106</div>
     <h1 class="page-title">🎯 워크플로우 마법사</h1>
-    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:4px;">아래 8문항을 답하시면 업무 순서가 자동 조립됩니다. KR↔VN IC 거래는 양방향 페어로 자동 매칭됩니다.</div>
+    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:4px;">아래 항목을 답하시면 업무 순서가 자동 조립됩니다. 본사↔베트남법인 IC 거래는 양방향 페어로 자동 매칭됩니다.</div>
   </div>
 
   <div class="wrap">
     <form method="post" action="/workflow/wizard" id="wizForm" onsubmit="return confirmSubmit(event)">
       {% if tpl_row %}<input type="hidden" name="template_code" value="{{ tpl_row.code }}" />{% endif %}
 
+      <!-- 프로젝트 선택 -->
       <div class="box">
         <h3 class="sec">📋 프로젝트 선택</h3>
         <div class="q">
@@ -53,11 +58,11 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
               <option value="{{ p.id }}" {% if p.id==project_id %}selected{% endif %}>{{ p.label }}</option>
             {% endfor %}
           </select>
-          <div class="q-help">기존 프로젝트가 없으면 먼저 [프로젝트 등록] 메뉴에서 등록하세요.</div>
         </div>
       </div>
 
       {% if existing_wf %}
+      <!-- 재실행 경고 -->
       <div class="box" style="background:#fef3c7; border-color:#fbbf24;">
         <h3 class="sec" style="color:#92400e;">⚠ 이 프로젝트엔 이미 워크플로우가 있습니다</h3>
         <div style="font-size:13px; color:#92400e; line-height:1.7;">
@@ -67,17 +72,17 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
               <input type="radio" name="mode" value="preserve" checked />
               <strong>① 메타데이터만 변경 (보존 모드)</strong> ← 권장
               <div style="font-size:11.5px; color:#475569; margin-left:22px; margin-top:2px;">
-                고객국·법인·설계분담 등 마법사 응답만 업데이트. <strong>기존 노드·담당자·체크포인트·상태 모두 그대로 유지.</strong>
+                마법사 응답만 갱신. <strong>기존 노드·담당자·체크포인트·상태 모두 그대로 유지.</strong>
               </div>
             </label>
             <label style="display:block; padding:6px; cursor:pointer; border-top:1px dashed #fbbf24;">
               <input type="radio" name="mode" value="rebuild" />
               <strong>② 처음부터 재조립 (위험)</strong>
               <div style="font-size:11.5px; color:#dc2626; margin-left:22px; margin-top:2px;">
-                ⚠ 기존 워크플로우 <strong>완전 삭제</strong> 후 새로 조립. 담당자·체크포인트·진행상태 모두 초기화. 감사 로그 기록.
+                ⚠ 기존 워크플로우 <strong>완전 삭제</strong> 후 새로 조립. 담당자·체크포인트·진행상태 모두 초기화.
               </div>
               <div style="margin-left:22px; margin-top:6px;">
-                <input type="text" name="rebuild_reason" placeholder="재조립 사유 (감사용 — 예: 사양 변경, 잘못 만들었음)" style="width:100%; padding:6px; font-size:12px; border:1px solid #fbbf24; border-radius:5px;" />
+                <input type="text" name="rebuild_reason" placeholder="재조립 사유 (감사용)" style="width:100%; padding:6px; font-size:12px; border:1px solid #fbbf24; border-radius:5px;" />
               </div>
             </label>
           </div>
@@ -87,6 +92,7 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
       <input type="hidden" name="mode" value="rebuild" />
       {% endif %}
 
+      <!-- Q1~Q2 거래 구조 -->
       <div class="box">
         <h3 class="sec">🌏 거래 구조 (Q1~Q2)</h3>
         <div class="q">
@@ -100,66 +106,73 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
         <div class="q">
           <label class="q-label">Q2. PO 수주 법인 *</label>
           <div class="split">
-            <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 본사 (KR)</span></label>
-            <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 베트남 법인 (VN)</span></label>
+            <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 본사</span></label>
+            <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 베트남법인</span></label>
           </div>
         </div>
       </div>
 
+      <!-- Q3~Q5 설계 분담 -->
       <div class="box">
         <h3 class="sec">📐 설계 분담 (Q3~Q5)</h3>
+        {% set design_qs = [
+          ('Q3','mech_design_split','🔧 기구설계'),
+          ('Q4','elec_design_split','⚡ 전장설계'),
+          ('Q5','sw_design_split','💻 소프트웨어설계'),
+        ] %}
+        {% for qno, fname, qlabel in design_qs %}
         <div class="q">
-          <label class="q-label">Q3. 기계 설계 담당</label>
+          <label class="q-label">{{ qno }}. {{ qlabel }}</label>
           <div class="split">
-            <label><input type="radio" name="mech_design_split" value="KR" checked /><span>KR</span></label>
-            <label><input type="radio" name="mech_design_split" value="VN" /><span>VN</span></label>
-            <label><input type="radio" name="mech_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
+            <label><input type="radio" name="{{ fname }}" value="KR" checked /><span>🇰🇷 본사</span></label>
+            <label><input type="radio" name="{{ fname }}" value="VN" /><span>🇻🇳 베트남법인</span></label>
+            <label><input type="radio" name="{{ fname }}" value="BOTH" /><span>🤝 협업 (본사+베트남법인)</span></label>
           </div>
         </div>
-        <div class="q">
-          <label class="q-label">Q4. 전기 설계 담당</label>
-          <div class="split">
-            <label><input type="radio" name="elec_design_split" value="KR" checked /><span>KR</span></label>
-            <label><input type="radio" name="elec_design_split" value="VN" /><span>VN</span></label>
-            <label><input type="radio" name="elec_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
-          </div>
-        </div>
-        <div class="q">
-          <label class="q-label">Q5. SW 설계 담당</label>
-          <div class="split">
-            <label><input type="radio" name="sw_design_split" value="KR" checked /><span>KR</span></label>
-            <label><input type="radio" name="sw_design_split" value="VN" /><span>VN</span></label>
-            <label><input type="radio" name="sw_design_split" value="KR+VN" /><span>KR+VN 분담</span></label>
-          </div>
-        </div>
+        {% endfor %}
       </div>
 
+      <!-- Q6 제조구분 4섹션 -->
       <div class="box">
-        <h3 class="sec">🏭 가공·출하·설치 (Q6~Q8)</h3>
+        <h3 class="sec">🏭 제조구분 (Q6) — 가공·조립·전장·검증</h3>
+        {% set mfg_items = [
+          ('mfg_machining',    '🔩 가공'),
+          ('mfg_assembly',     '🛠 조립'),
+          ('mfg_electrical',   '⚡ 전장'),
+          ('mfg_verification', '✓ 검증'),
+        ] %}
+        {% for fname, lab in mfg_items %}
         <div class="q">
-          <label class="q-label">Q6. 가공·조립 위치</label>
+          <label class="q-label">{{ lab }}</label>
           <div class="split">
-            <label><input type="radio" name="processing_loc" value="KR" checked /><span>KR</span></label>
-            <label><input type="radio" name="processing_loc" value="VN" /><span>VN</span></label>
-            <label><input type="radio" name="processing_loc" value="OUT" /><span>외주</span></label>
+            <label><input type="radio" name="{{ fname }}" value="KR" checked /><span>🇰🇷 본사</span></label>
+            <label><input type="radio" name="{{ fname }}" value="VN" /><span>🇻🇳 베트남법인</span></label>
+            <label><input type="radio" name="{{ fname }}" value="BOTH" /><span>🤝 협업</span></label>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Q7 출하구분 / Q8 셋업구분 -->
+      <div class="box">
+        <h3 class="sec">📦 출하·셋업구분 (Q7~Q8)</h3>
+        <div class="q">
+          <label class="q-label">Q7. 출하구분</label>
+          <div class="split">
+            <label><input type="radio" name="ship_split" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 본사</span></label>
+            <label><input type="radio" name="ship_split" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 베트남법인</span></label>
+            <label><input type="radio" name="ship_split" value="BOTH" /><span>🤝 협업</span></label>
           </div>
         </div>
         <div class="q">
-          <label class="q-label">Q7. 출하 법인 (Shipper)</label>
+          <label class="q-label">Q8. 셋업구분 (현장 설치·시운전)</label>
           <div class="split">
-            <label><input type="radio" name="ship_entity" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} /><span>🇰🇷 KR</span></label>
-            <label><input type="radio" name="ship_entity" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} /><span>🇻🇳 VN</span></label>
+            <label><input type="radio" name="setup_split" value="NONE" checked /><span>—  없음</span></label>
+            <label><input type="radio" name="setup_split" value="KR" /><span>🇰🇷 본사</span></label>
+            <label><input type="radio" name="setup_split" value="VN" /><span>🇻🇳 베트남법인</span></label>
+            <label><input type="radio" name="setup_split" value="BOTH" /><span>🤝 협업</span></label>
           </div>
-        </div>
-        <div class="q">
-          <label class="q-label">Q8. 현장 설치·시운전 위치</label>
-          <select name="setup_loc">
-            <option value="NONE">— 설치/시운전 없음 (단순 출하)</option>
-            {% for c in countries %}
-              <option value="{{ c.code }}">{{ c.name_ko }} ({{ c.code }})</option>
-            {% endfor %}
-          </select>
-          <div class="q-help">설치 위치를 선택하면 logi.setup + qa.sat (SAT) 노드가 자동 추가됩니다.</div>
+          <div class="q-help">셋업이 있으면 logi.setup + qa.sat 노드가 자동 추가됩니다.</div>
         </div>
       </div>
 
@@ -177,9 +190,9 @@ function confirmSubmit(e) {
   if (mode && mode.value === 'rebuild') {
     var hasExisting = {{ 'true' if existing_wf else 'false' }};
     if (hasExisting) {
-      var reason = document.querySelector('input[name="rebuild_reason"]').value.trim();
+      var reason = (document.querySelector('input[name="rebuild_reason"]') || {value:''}).value.trim();
       if (!reason) {
-        alert('⚠ 재조립 모드는 사유 입력이 필수입니다.\n(감사용 — 예: 사양 변경, 잘못 만들었음)');
+        alert('⚠ 재조립 모드는 사유 입력이 필수입니다.');
         e.preventDefault(); return false;
       }
       if (!confirm('⚠ 정말 처음부터 재조립하시겠습니까?\n\n기존 워크플로우(담당자·체크포인트·진행상태)가 모두 삭제됩니다.\n사유: ' + reason)) {

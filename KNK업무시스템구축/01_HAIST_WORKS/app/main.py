@@ -357,6 +357,15 @@ def startup():
             print(f"[WFB-MIG-Z105] {_r2}")
     except Exception as _e:
         print(f"[WFB-MIG-Z105 ERR] {_e}")
+    # v5H226z106 (2026-05-16): 마법사 v2 — 제조구분 4섹션 + 출하/셋업 3옵션
+    try:
+        from .migrations.m_z106_wizard_v2 import migrate as _wfb_migrate3
+        from .database import DB_PATH as _DB_PATH
+        _r3 = _wfb_migrate3(_DB_PATH)
+        if _r3.get('added_cols') or _r3.get('new_nodes'):
+            print(f"[WFB-MIG-Z106] {_r3}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z106 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:

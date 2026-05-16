@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z105bb (마법사 권한 게이트 + 보존모드 — admin/CEO·영업·PM·팀장만 등록 가능, 재실행 시 보존/재조립 선택 + 사유 입력)
+REM   LAST UPDATE: 2026-05-16 v5H226z106 (마법사 v2 — 기구·전장·소프트웨어 라벨 + 제조구분 4섹션(가공·조립·전장·검증) + 출하/셋업 협업 옵션 + 8신규 mfg 노드)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z105b]
+title KNK HAIST WORKS [v5H226z106]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z105b  2026-05-16]
+echo    [v5H226z106  2026-05-16]
 echo ============================================================
 echo.
 

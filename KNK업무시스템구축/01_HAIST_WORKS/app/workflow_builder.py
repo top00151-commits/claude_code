@@ -159,12 +159,31 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         mech_design_split: str = Form(...),
         elec_design_split: str = Form(...),
         sw_design_split: str = Form(...),
-        processing_loc: str = Form(...),
-        ship_entity: str = Form(...),
-        setup_loc: str = Form("NONE"),
-        mode: str = Form("preserve"),       # z105b: 'preserve'(메타만) | 'rebuild'(재조립)
-        rebuild_reason: str = Form(""),     # 재조립 시 사유 (감사용)
+        # z106: 제조구분 4섹션
+        mfg_machining: str = Form("KR"),
+        mfg_assembly: str = Form("KR"),
+        mfg_electrical: str = Form("KR"),
+        mfg_verification: str = Form("KR"),
+        # z106: 출하/셋업 (KR|VN|BOTH|NONE)
+        ship_split: str = Form("KR"),
+        setup_split: str = Form("NONE"),
+        # 구버전 호환 (기존 폼이 보낼 경우)
+        processing_loc: str = Form(""),
+        ship_entity: str = Form(""),
+        setup_loc: str = Form(""),
+        mode: str = Form("preserve"),
+        rebuild_reason: str = Form(""),
     ):
+        # z106: 구버전 폼 호환 — 새 필드 미입력 시 구필드 값 사용
+        if not ship_split or ship_split == 'KR':
+            if ship_entity in ('KR', 'VN'):
+                ship_split = ship_entity
+        if setup_split == 'NONE' and setup_loc and setup_loc not in ('NONE',''):
+            setup_split = 'KR' if setup_loc == 'KR' else 'VN' if setup_loc == 'VN' else 'NONE'
+        # processing_loc → mfg_assembly (구버전 호환 최소 매핑)
+        if processing_loc and processing_loc in ('KR','VN','OUT'):
+            _legacy = 'KR' if processing_loc == 'KR' else ('VN' if processing_loc == 'VN' else 'KR')
+            mfg_assembly = mfg_assembly or _legacy
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
@@ -180,10 +199,11 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                 if row:
                     tid = row[0]
 
-            # 프로젝트 메타 업데이트
+            # 프로젝트 메타 업데이트 (ship_entity는 ship_split 의 KR/VN 만, BOTH 는 'KR' 로 기록)
+            _proj_ship = ship_split if ship_split in ('KR','VN') else 'KR'
             c.execute("""UPDATE projects SET customer_country=?, po_entity=?, ship_entity=?
                          WHERE id=?""",
-                      (customer_country, po_entity, ship_entity, project_id))
+                      (customer_country, po_entity, _proj_ship, project_id))
 
             existing = c.execute(
                 "SELECT id FROM project_workflow WHERE project_id=? ORDER BY id DESC LIMIT 1",
@@ -191,16 +211,20 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             ).fetchone()
 
             if existing and mode == 'preserve':
-                # z105b: 보존 모드 — 메타데이터만 갱신, 노드/체크포인트/담당자 그대로 유지
+                # z105b: 보존 모드 — 메타데이터만 갱신
                 c.execute("""UPDATE project_workflow
                              SET template_id=?, customer_country=?, po_entity=?,
                                  mech_design_split=?, elec_design_split=?, sw_design_split=?,
                                  processing_loc=?, ship_entity=?, setup_loc=?,
+                                 mfg_machining=?, mfg_assembly=?, mfg_electrical=?, mfg_verification=?,
+                                 ship_split=?, setup_split=?,
                                  updated_at=datetime('now','localtime')
                              WHERE id=?""",
                           (tid, customer_country, po_entity,
                            mech_design_split, elec_design_split, sw_design_split,
-                           processing_loc, ship_entity, setup_loc, existing[0]))
+                           processing_loc or mfg_assembly, _proj_ship, setup_split,
+                           mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
+                           ship_split, setup_split, existing[0]))
                 # 감사 로그
                 try:
                     c.execute("""INSERT INTO workflow_handoffs
@@ -228,23 +252,28 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             _cur = c.execute("""INSERT INTO project_workflow
                          (project_id,template_id,customer_country,po_entity,
                           mech_design_split,elec_design_split,sw_design_split,
-                          processing_loc,ship_entity,setup_loc,status,created_by)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,'active',?)""",
+                          processing_loc,ship_entity,setup_loc,
+                          mfg_machining,mfg_assembly,mfg_electrical,mfg_verification,
+                          ship_split,setup_split,
+                          status,created_by)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?)""",
                       (project_id, tid, customer_country, po_entity,
                        mech_design_split, elec_design_split, sw_design_split,
-                       processing_loc, ship_entity, setup_loc, user.get('id')))
+                       processing_loc or mfg_assembly, _proj_ship, setup_split,
+                       mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
+                       ship_split, setup_split, user.get('id')))
             wf_id = _cur.lastrowid
 
-            # 노드 조립
-            node_codes = _assemble_nodes(
+            # z106: 새 시그니처로 노드 조립
+            node_codes = _assemble_nodes_v2(
                 customer_country, po_entity,
                 mech_design_split, elec_design_split, sw_design_split,
-                processing_loc, ship_entity, setup_loc
+                mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
+                ship_split, setup_split
             )
 
             for seq, code in enumerate(node_codes, start=1):
-                assigned = _decide_entity(code, mech_design_split, elec_design_split,
-                                          sw_design_split, processing_loc, ship_entity, po_entity)
+                assigned = _decide_entity_v2(code, po_entity, ship_split)
                 _cur2 = c.execute("""INSERT INTO project_workflow_nodes
                              (workflow_id,node_code,seq,assigned_entity,status)
                              VALUES (?,?,?,?,'pending')""",
@@ -763,3 +792,115 @@ def _notify_user(c, target_uid, pwfn_id, message, by_uid):
                          VALUES (?,?,?)""", (target_uid, message, f"/workflow/node/{pwfn_id}"))
         except Exception:
             pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# z106: 마법사 v2 — 새 조립 알고리즘 (제조구분 4섹션 + 출하/셋업 3옵션)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _split_to_nodes(base, split):
+    """split: 'KR' | 'VN' | 'BOTH' → 노드 코드 리스트."""
+    if split == 'KR':
+        return [f'{base}_kr']
+    if split == 'VN':
+        return [f'{base}_vn']
+    if split == 'BOTH':
+        return [f'{base}_kr', f'{base}_vn']
+    return [f'{base}_kr']
+
+
+def _assemble_nodes_v2(customer_country, po_entity,
+                       mech, elec, sw,
+                       mfg_machining, mfg_assembly, mfg_electrical, mfg_verification,
+                       ship_split, setup_split):
+    """z106: 새 마법사 응답으로 노드 리스트 조립."""
+    out = []
+    # 공통 영업
+    out += ['sales.lead', 'sales.meeting', 'sales.requirement',
+            'sales.quote', 'sales.po_receive', 'sales.contract']
+    out += ['design.spec', 'design.bom']
+
+    # 설계 분담 (기구·전장·SW)
+    for kind, split in (('mech', mech), ('elec', elec), ('sw', sw)):
+        out += _split_to_nodes(f'design.{kind}', split)
+    out.append('design.review')
+
+    # 자재
+    out += ['purchase.new_review', 'purchase.po_issue', 'purchase.receive']
+
+    # IC 자재 판매 (PO=KR, 가공/조립 일부라도 VN 이면 자재가 VN으로 이동)
+    mfg_uses_vn = any(s in ('VN', 'BOTH') for s in
+                       (mfg_machining, mfg_assembly, mfg_electrical, mfg_verification))
+    mfg_uses_kr = any(s in ('KR', 'BOTH') for s in
+                       (mfg_machining, mfg_assembly, mfg_electrical, mfg_verification))
+    if po_entity == 'KR' and mfg_uses_vn:
+        out += ['ic.kr_sale_to_vn', 'ic.vn_buy_from_kr']
+    if po_entity == 'VN' and mfg_uses_kr:
+        out += ['ic.vn_sale_to_kr', 'ic.kr_buy_from_vn']
+
+    # 제조 4섹션 — 가공·조립·전장·검증
+    out += _split_to_nodes('mfg.machining',    mfg_machining)
+    out += _split_to_nodes('mfg.assembly',     mfg_assembly)
+    out += _split_to_nodes('mfg.electrical',   mfg_electrical)
+    out += _split_to_nodes('mfg.verification', mfg_verification)
+
+    # 일반 품질
+    out += ['qa.in_inspect', 'qa.in_process', 'qa.final', 'qa.fat']
+
+    # IC 가공품 매출 (가공이 VN 인데 PO=KR — 가공품을 KR이 사들임)
+    if po_entity == 'KR' and mfg_uses_vn:
+        out += ['ic.vn_sale_to_kr', 'ic.kr_buy_from_vn']
+    if po_entity == 'VN' and mfg_uses_kr:
+        out += ['ic.kr_sale_to_vn', 'ic.vn_buy_from_kr']
+
+    # 물류 — 출하
+    out.append('logi.packing')
+    is_export = (customer_country not in ('KR',))
+    if is_export:
+        out.append('logi.export_doc')
+    if ship_split in ('KR', 'BOTH'):
+        out.append('logi.ship_kr')
+    if ship_split in ('VN', 'BOTH'):
+        out.append('logi.ship_vn')
+    if is_export:
+        out.append('logi.customs')
+    out.append('logi.delivery')
+
+    # 셋업
+    if setup_split and setup_split != 'NONE':
+        out.append('logi.setup')
+        out.append('qa.sat')
+
+    # 회계
+    out += ['finance.invoice', 'finance.receipt']
+
+    # IC 송금
+    if po_entity == 'KR' and mfg_uses_vn:
+        out.append('ic.tt_kr_to_vn')
+    if po_entity == 'VN' and mfg_uses_kr:
+        out.append('ic.tt_vn_to_kr')
+
+    # AS
+    out += ['as.handover', 'as.warranty']
+
+    # 중복 제거 (순서 유지)
+    seen = set()
+    final = []
+    for n in out:
+        if n not in seen:
+            seen.add(n)
+            final.append(n)
+    return final
+
+
+def _decide_entity_v2(node_code, po_entity, ship_split):
+    """z106: 노드에 법인 할당. _kr 접미는 KR, _vn 접미는 VN, ic 노드는 코드 기반."""
+    if node_code.endswith('_kr') or '.kr_' in node_code or node_code.startswith('ic.kr_'):
+        return 'KR'
+    if node_code.endswith('_vn') or '.vn_' in node_code or node_code.startswith('ic.vn_'):
+        return 'VN'
+    if node_code.startswith('logi.ship_'):
+        return 'VN' if 'vn' in node_code else 'KR'
+    if node_code.startswith('sales.') or node_code.startswith('finance.') or node_code.startswith('as.'):
+        return po_entity
+    return po_entity
