@@ -40,14 +40,14 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
   </div>
 
   <div class="wrap">
-    <form method="post" action="/workflow/wizard">
+    <form method="post" action="/workflow/wizard" id="wizForm" onsubmit="return confirmSubmit(event)">
       {% if tpl_row %}<input type="hidden" name="template_code" value="{{ tpl_row.code }}" />{% endif %}
 
       <div class="box">
         <h3 class="sec">📋 프로젝트 선택</h3>
         <div class="q">
           <label class="q-label">대상 프로젝트 *</label>
-          <select name="project_id" required>
+          <select name="project_id" id="projSel" required>
             <option value="">— 선택 —</option>
             {% for p in projects %}
               <option value="{{ p.id }}" {% if p.id==project_id %}selected{% endif %}>{{ p.label }}</option>
@@ -56,6 +56,36 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
           <div class="q-help">기존 프로젝트가 없으면 먼저 [프로젝트 등록] 메뉴에서 등록하세요.</div>
         </div>
       </div>
+
+      {% if existing_wf %}
+      <div class="box" style="background:#fef3c7; border-color:#fbbf24;">
+        <h3 class="sec" style="color:#92400e;">⚠ 이 프로젝트엔 이미 워크플로우가 있습니다</h3>
+        <div style="font-size:13px; color:#92400e; line-height:1.7;">
+          <div>· 노드 <strong>{{ existing_wf.n_nodes }}개</strong> · 완료 <strong>{{ existing_wf.n_done }}개</strong> · 생성일 {{ existing_wf.created_at }}</div>
+          <div style="margin-top:10px; padding:10px; background:#fff; border-radius:6px;">
+            <label style="display:block; padding:6px; cursor:pointer;">
+              <input type="radio" name="mode" value="preserve" checked />
+              <strong>① 메타데이터만 변경 (보존 모드)</strong> ← 권장
+              <div style="font-size:11.5px; color:#475569; margin-left:22px; margin-top:2px;">
+                고객국·법인·설계분담 등 마법사 응답만 업데이트. <strong>기존 노드·담당자·체크포인트·상태 모두 그대로 유지.</strong>
+              </div>
+            </label>
+            <label style="display:block; padding:6px; cursor:pointer; border-top:1px dashed #fbbf24;">
+              <input type="radio" name="mode" value="rebuild" />
+              <strong>② 처음부터 재조립 (위험)</strong>
+              <div style="font-size:11.5px; color:#dc2626; margin-left:22px; margin-top:2px;">
+                ⚠ 기존 워크플로우 <strong>완전 삭제</strong> 후 새로 조립. 담당자·체크포인트·진행상태 모두 초기화. 감사 로그 기록.
+              </div>
+              <div style="margin-left:22px; margin-top:6px;">
+                <input type="text" name="rebuild_reason" placeholder="재조립 사유 (감사용 — 예: 사양 변경, 잘못 만들었음)" style="width:100%; padding:6px; font-size:12px; border:1px solid #fbbf24; border-radius:5px;" />
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <input type="hidden" name="mode" value="rebuild" />
+      {% endif %}
 
       <div class="box">
         <h3 class="sec">🌏 거래 구조 (Q1~Q2)</h3>
@@ -141,6 +171,25 @@ h3.sec { font-size:14px; color:var(--qv-ink); margin:0 0 12px; padding-bottom:8p
   </div>
 </main>
 {% include "_v5_partials/debug_overlay.html" %}
+<script>
+function confirmSubmit(e) {
+  var mode = document.querySelector('input[name="mode"]:checked');
+  if (mode && mode.value === 'rebuild') {
+    var hasExisting = {{ 'true' if existing_wf else 'false' }};
+    if (hasExisting) {
+      var reason = document.querySelector('input[name="rebuild_reason"]').value.trim();
+      if (!reason) {
+        alert('⚠ 재조립 모드는 사유 입력이 필수입니다.\n(감사용 — 예: 사양 변경, 잘못 만들었음)');
+        e.preventDefault(); return false;
+      }
+      if (!confirm('⚠ 정말 처음부터 재조립하시겠습니까?\n\n기존 워크플로우(담당자·체크포인트·진행상태)가 모두 삭제됩니다.\n사유: ' + reason)) {
+        e.preventDefault(); return false;
+      }
+    }
+  }
+  return true;
+}
+</script>
 </div>
 </body>
 </html>

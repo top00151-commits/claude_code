@@ -175,8 +175,8 @@
   {{ a('/catalog',            '🔍 자재 카탈로그', 'M-00-14') }}
   {{ a('/materials/requests', '📋 자재 요청서',   'M-00-15') }}
   {{ a('/workflow/my',        '📥 내 할 일',      'M-00-16') }}
-  {{ a('/workflow',           '🧩 워크플로우 빌더','M-00-17') }}
-  {% if _role in ('ceo','admin') or user.dept in ('영업','경영','기획') %}
+  {{ a('/workflow',           '🧩 워크플로우 허브','M-00-17') }}
+  {% if _role in ('ceo','admin') or user.dept in ('영업','경영','경영기획','기획','관리') %}
   {{ a('/workflow/ic_pairs',  '⚡ IC 페어 모니터','M-00-18') }}
   {% endif %}
   {{ a('/notifications', '📢 알림함',    'M-00-09') }}

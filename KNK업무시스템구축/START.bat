@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z105 (가이드형 워크플로우 — 5W 노드상세 + 내할일 + 체크포인트 + SOP가이드 + 자동핸드오프 + 권한게이트)
+REM   LAST UPDATE: 2026-05-16 v5H226z105bb (마법사 권한 게이트 + 보존모드 — admin/CEO·영업·PM·팀장만 등록 가능, 재실행 시 보존/재조립 선택 + 사유 입력)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c consumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -18,7 +18,7 @@ echo.
 echo ============================================================
 echo    HAIST WORKS  ^|  KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z105  2026-05-16]
+echo    [v5H226z105b  2026-05-16]
 echo ============================================================
 echo.
 

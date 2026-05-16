@@ -24,9 +24,50 @@ v5H226z104 (2026-05-16) — 워크플로우 레고 빌더 라우트 모듈
 """
 
 from fastapi import Request, Form
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from datetime import date, datetime
 import json
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# z105b: 마법사 권한 정책 (대표 결재 2026-05-16 (a)+(d))
+#   허용: admin / ceo + 영업·PM·경영·기획·관리 부서
+# ──────────────────────────────────────────────────────────────────────────
+_WIZARD_DEPTS = {'영업', '영업팀', 'PM', '경영', '경영기획', '기획', '관리', '관리팀'}
+
+
+def _can_run_wizard(user) -> bool:
+    if not user:
+        return False
+    role = (user.get('role') or '').lower()
+    if role in ('admin', 'ceo'):
+        return True
+    dept = user.get('dept') or user.get('team_name') or ''
+    if dept in _WIZARD_DEPTS:
+        return True
+    # 추가: position에 '팀장','부장','이사','대표' 들어가면 허용
+    pos = (user.get('position') or '').strip()
+    if any(k in pos for k in ('팀장', '부장', '이사', '대표', '관리자')):
+        return True
+    return False
+
+
+def _deny_wizard_html(reason: str = "") -> HTMLResponse:
+    body = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>권한 없음</title>
+<style>body{{font-family:system-ui;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+.card{{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:40px;max-width:480px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.05)}}
+h1{{font-size:20px;color:#dc2626;margin:0 0 12px}}
+p{{color:#475569;font-size:13.5px;line-height:1.6}}
+a{{display:inline-block;margin-top:16px;padding:8px 16px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-size:13px}}</style>
+</head><body><div class="card">
+<h1>⛔ 워크플로우 마법사 권한 없음</h1>
+<p>마법사 등록·재실행은 <strong>관리자·CEO·영업·PM·경영기획·팀장급</strong>만 가능합니다.
+{('<br><br>' + reason) if reason else ''}<br><br>
+일반 직원은 <strong>📥 내 할 일</strong>에서 본인 담당 노드를 처리하시면 됩니다.</p>
+<a href="/workflow/my">📥 내 할 일 →</a>
+<a href="/workflow" style="background:#94a3b8">← 워크플로우 허브</a>
+</div></body></html>"""
+    return HTMLResponse(body, status_code=403)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -66,7 +107,8 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             ).fetchone()[0]
         return ctx(request, "workflow/home.html", user=user,
                    templates=templates, projects=projects,
-                   node_count=node_count, ic_pending=ic_pending)
+                   node_count=node_count, ic_pending=ic_pending,
+                   can_run_wizard=_can_run_wizard(user))
 
     # ────────────────────────────────────────────────────────────
     # /workflow/wizard — 8문항 마법사 (GET=폼, POST=조립)
@@ -76,6 +118,9 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        # z105b: 권한 게이트
+        if not _can_run_wizard(user):
+            return _deny_wizard_html()
         with db_session() as c:
             countries = c.execute("""
                 SELECT code, name_ko, name_en, region
@@ -90,9 +135,19 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                 tpl_row = c.execute(
                     "SELECT * FROM workflow_templates WHERE code=?", (template,)
                 ).fetchone()
+            # z105b: 대상 프로젝트에 이미 워크플로우가 있는지 확인 (재실행 경고용)
+            existing_wf = None
+            if project_id:
+                existing_wf = c.execute("""
+                    SELECT pw.id, pw.created_at,
+                           (SELECT COUNT(*) FROM project_workflow_nodes WHERE workflow_id=pw.id) AS n_nodes,
+                           (SELECT COUNT(*) FROM project_workflow_nodes WHERE workflow_id=pw.id AND status='done') AS n_done
+                    FROM project_workflow pw WHERE pw.project_id=? ORDER BY pw.id DESC LIMIT 1
+                """, (project_id,)).fetchone()
         return ctx(request, "workflow/wizard.html", user=user,
                    countries=countries, projects=projects,
-                   project_id=project_id, tpl_row=tpl_row)
+                   project_id=project_id, tpl_row=tpl_row,
+                   existing_wf=existing_wf)
 
     @app.post("/workflow/wizard")
     def workflow_wizard_submit(
@@ -107,10 +162,15 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         processing_loc: str = Form(...),
         ship_entity: str = Form(...),
         setup_loc: str = Form("NONE"),
+        mode: str = Form("preserve"),       # z105b: 'preserve'(메타만) | 'rebuild'(재조립)
+        rebuild_reason: str = Form(""),     # 재조립 시 사유 (감사용)
     ):
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        # z105b: 권한 게이트
+        if not _can_run_wizard(user):
+            return _deny_wizard_html()
 
         with db_session() as c:
             # 템플릿 id 조회
@@ -125,8 +185,45 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                          WHERE id=?""",
                       (customer_country, po_entity, ship_entity, project_id))
 
-            # 기존 워크플로우가 있으면 삭제하고 재생성
-            c.execute("DELETE FROM project_workflow WHERE project_id=?", (project_id,))
+            existing = c.execute(
+                "SELECT id FROM project_workflow WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                (project_id,)
+            ).fetchone()
+
+            if existing and mode == 'preserve':
+                # z105b: 보존 모드 — 메타데이터만 갱신, 노드/체크포인트/담당자 그대로 유지
+                c.execute("""UPDATE project_workflow
+                             SET template_id=?, customer_country=?, po_entity=?,
+                                 mech_design_split=?, elec_design_split=?, sw_design_split=?,
+                                 processing_loc=?, ship_entity=?, setup_loc=?,
+                                 updated_at=datetime('now','localtime')
+                             WHERE id=?""",
+                          (tid, customer_country, po_entity,
+                           mech_design_split, elec_design_split, sw_design_split,
+                           processing_loc, ship_entity, setup_loc, existing[0]))
+                # 감사 로그
+                try:
+                    c.execute("""INSERT INTO workflow_handoffs
+                                 (workflow_id, from_node_id, to_node_id, triggered_by, message)
+                                 VALUES (?, NULL, 0, ?, ?)""",
+                              (existing[0], user.get('id'),
+                               f"[메타 업데이트] {user.get('name','?')} 마법사 재실행 (보존 모드)"))
+                except Exception:
+                    pass
+                return RedirectResponse(f"/workflow/project/{project_id}", 303)
+
+            # 재조립 모드 (또는 신규 등록)
+            if existing:
+                # 감사 로그 (삭제 직전)
+                try:
+                    c.execute("""INSERT INTO workflow_handoffs
+                                 (workflow_id, from_node_id, to_node_id, triggered_by, message)
+                                 VALUES (?, NULL, 0, ?, ?)""",
+                              (existing[0], user.get('id'),
+                               f"[재조립] {user.get('name','?')} — 사유: {rebuild_reason or '(미입력)'} — 기존 워크플로우 삭제"))
+                except Exception:
+                    pass
+                c.execute("DELETE FROM project_workflow WHERE project_id=?", (project_id,))
 
             _cur = c.execute("""INSERT INTO project_workflow
                          (project_id,template_id,customer_country,po_entity,
@@ -146,7 +243,6 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             )
 
             for seq, code in enumerate(node_codes, start=1):
-                # assigned_entity 결정
                 assigned = _decide_entity(code, mech_design_split, elec_design_split,
                                           sw_design_split, processing_loc, ship_entity, po_entity)
                 _cur2 = c.execute("""INSERT INTO project_workflow_nodes
@@ -154,10 +250,8 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                              VALUES (?,?,?,?,'pending')""",
                           (wf_id, code, seq, assigned))
                 pwfn_id = _cur2.lastrowid
-                # z105: 체크포인트 자동 생성 (노드 마스터의 deliverables_json 기반)
                 _seed_checkpoints(c, pwfn_id, code)
 
-            # IC 페어 자동 생성
             _auto_create_ic_pairs(c, wf_id, project_id)
 
         return RedirectResponse(f"/workflow/project/{project_id}", 303)
