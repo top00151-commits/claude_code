@@ -149,10 +149,13 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                 # assigned_entity 결정
                 assigned = _decide_entity(code, mech_design_split, elec_design_split,
                                           sw_design_split, processing_loc, ship_entity, po_entity)
-                c.execute("""INSERT INTO project_workflow_nodes
+                _cur2 = c.execute("""INSERT INTO project_workflow_nodes
                              (workflow_id,node_code,seq,assigned_entity,status)
                              VALUES (?,?,?,?,'pending')""",
                           (wf_id, code, seq, assigned))
+                pwfn_id = _cur2.lastrowid
+                # z105: 체크포인트 자동 생성 (노드 마스터의 deliverables_json 기반)
+                _seed_checkpoints(c, pwfn_id, code)
 
             # IC 페어 자동 생성
             _auto_create_ic_pairs(c, wf_id, project_id)
@@ -214,12 +217,158 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             return JSONResponse({"ok": False, "error": "auth"}, 401)
         if status not in ('pending', 'in_progress', 'done', 'skipped', 'blocked'):
             return JSONResponse({"ok": False, "error": "invalid_status"}, 400)
+        handoff_to = None
         with db_session() as c:
             done_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if status == 'done' else None
             c.execute("""UPDATE project_workflow_nodes
                          SET status=?, done_at=?, note=?
                          WHERE id=?""", (status, done_at, note, node_id))
-        return JSONResponse({"ok": True, "status": status, "done_at": done_at})
+            # z105: 자동 핸드오프 — done 시 다음 노드 in_progress 후보로 표시 + 알림
+            if status == 'done':
+                handoff_to = _auto_handoff(c, node_id, user.get('id'))
+        return JSONResponse({"ok": True, "status": status, "done_at": done_at,
+                              "handoff_to": handoff_to})
+
+    # ────────────────────────────────────────────────────────────
+    # z105: 노드 상세 페이지 (5W 가이드)
+    # ────────────────────────────────────────────────────────────
+    @app.get("/workflow/node/{pwfn_id}")
+    def workflow_node_detail(request: Request, pwfn_id: int):
+        user = get_user(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        with db_session() as c:
+            n = c.execute("""
+                SELECT n.*, m.title_ko, m.category, m.default_dept, m.est_hours,
+                       m.is_ic, m.ic_direction, m.sop_guide, m.deliverables_json,
+                       m.system_link_template,
+                       pw.project_id AS project_id, pw.id AS workflow_id,
+                       p.name AS project_name, p.mgmt_code
+                FROM project_workflow_nodes n
+                JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                JOIN project_workflow pw ON pw.id=n.workflow_id
+                JOIN projects p ON p.id=pw.project_id
+                WHERE n.id=?
+            """, (pwfn_id,)).fetchone()
+            if not n:
+                return RedirectResponse("/workflow", 303)
+
+            # 체크포인트 조회 (없으면 시드)
+            cps = c.execute("""SELECT * FROM project_workflow_node_checkpoints
+                                WHERE pwfn_id=? ORDER BY seq""", (pwfn_id,)).fetchall()
+            if not cps and n['deliverables_json']:
+                _seed_checkpoints(c, pwfn_id, n['node_code'])
+                cps = c.execute("""SELECT * FROM project_workflow_node_checkpoints
+                                    WHERE pwfn_id=? ORDER BY seq""", (pwfn_id,)).fetchall()
+
+            # 이전/다음 노드
+            prev_n = c.execute("""SELECT id, node_code, seq FROM project_workflow_nodes
+                                   WHERE workflow_id=? AND seq<? ORDER BY seq DESC LIMIT 1""",
+                                (n['workflow_id'], n['seq'])).fetchone()
+            next_n = c.execute("""SELECT id, node_code, seq FROM project_workflow_nodes
+                                   WHERE workflow_id=? AND seq>? ORDER BY seq ASC LIMIT 1""",
+                                (n['workflow_id'], n['seq'])).fetchone()
+            # 사용자 목록 (담당자 지정용)
+            users = c.execute("""SELECT id, name, email FROM users
+                                  WHERE is_active=1 ORDER BY name LIMIT 300""").fetchall()
+            # 담당자 정보
+            assignee = None
+            if n['assigned_user_id']:
+                assignee = c.execute("SELECT id, name FROM users WHERE id=?",
+                                      (n['assigned_user_id'],)).fetchone()
+
+        # 시스템 링크 템플릿 치환
+        sys_link = None
+        if n['system_link_template']:
+            sys_link = n['system_link_template'].replace('{project_id}', str(n['project_id']))
+
+        return ctx(request, "workflow/node_detail.html", user=user,
+                   n=n, checkpoints=cps, prev_n=prev_n, next_n=next_n,
+                   users=users, assignee=assignee, sys_link=sys_link)
+
+    # 담당자 지정
+    @app.post("/workflow/node/{pwfn_id}/assign")
+    def workflow_node_assign(request: Request, pwfn_id: int,
+                              user_id: str = Form("")):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        uid = int(user_id) if user_id and user_id.isdigit() else None
+        with db_session() as c:
+            c.execute("UPDATE project_workflow_nodes SET assigned_user_id=? WHERE id=?",
+                      (uid, pwfn_id))
+            # 알림
+            if uid:
+                _notify_user(c, uid, pwfn_id, "워크플로우 노드 담당으로 지정됨", user.get('id'))
+        return JSONResponse({"ok": True, "assigned_user_id": uid})
+
+    # 체크포인트 토글
+    @app.post("/workflow/checkpoint/{cp_id}/toggle")
+    def workflow_cp_toggle(request: Request, cp_id: int):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        with db_session() as c:
+            row = c.execute("SELECT is_done FROM project_workflow_node_checkpoints WHERE id=?",
+                             (cp_id,)).fetchone()
+            if not row:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            new_v = 0 if row[0] else 1
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if new_v else None
+            c.execute("""UPDATE project_workflow_node_checkpoints
+                         SET is_done=?, done_by=?, done_at=? WHERE id=?""",
+                      (new_v, user.get('id') if new_v else None, now, cp_id))
+        return JSONResponse({"ok": True, "is_done": new_v, "done_at": now})
+
+    # 노드 메모(note) 저장
+    @app.post("/workflow/node/{pwfn_id}/note")
+    def workflow_node_note(request: Request, pwfn_id: int, note: str = Form("")):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        with db_session() as c:
+            c.execute("UPDATE project_workflow_nodes SET note=? WHERE id=?", (note, pwfn_id))
+        return JSONResponse({"ok": True})
+
+    # ────────────────────────────────────────────────────────────
+    # z105: 내 할 일 (My todos)
+    # ────────────────────────────────────────────────────────────
+    @app.get("/workflow/my")
+    def workflow_my_todos(request: Request):
+        user = get_user(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        with db_session() as c:
+            # 1) 내가 직접 배정된 노드
+            mine = c.execute("""
+                SELECT n.id, n.node_code, n.seq, n.status, n.assigned_entity,
+                       m.title_ko, m.category, m.default_dept,
+                       p.id AS project_id, p.name AS project_name, p.mgmt_code
+                FROM project_workflow_nodes n
+                JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                JOIN project_workflow pw ON pw.id=n.workflow_id
+                JOIN projects p ON p.id=pw.project_id
+                WHERE n.assigned_user_id=? AND n.status IN ('pending','in_progress','blocked')
+                ORDER BY n.status DESC, p.id DESC, n.seq
+            """, (user.get('id'),)).fetchall()
+            # 2) 내 부서 default_dept 인데 미배정 (팀원 누구든 잡을 수 있음)
+            dept = (user.get('dept') or user.get('team_name') or '') or ''
+            dept_unassigned = []
+            if dept:
+                dept_unassigned = c.execute("""
+                    SELECT n.id, n.node_code, n.seq, n.status, n.assigned_entity,
+                           m.title_ko, m.category, m.default_dept,
+                           p.id AS project_id, p.name AS project_name, p.mgmt_code
+                    FROM project_workflow_nodes n
+                    JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                    JOIN project_workflow pw ON pw.id=n.workflow_id
+                    JOIN projects p ON p.id=pw.project_id
+                    WHERE m.default_dept=? AND n.assigned_user_id IS NULL
+                      AND n.status IN ('pending','in_progress')
+                    ORDER BY p.id DESC, n.seq LIMIT 50
+                """, (dept,)).fetchall()
+        return ctx(request, "workflow/my.html", user=user,
+                   mine=mine, dept_unassigned=dept_unassigned, dept=dept)
 
     # ────────────────────────────────────────────────────────────
     # IC 페어 모니터 (회계팀)
@@ -440,3 +589,83 @@ def _calc_progress(nodes):
         return {'total': 0, 'done': 0, 'pct': 0}
     done = sum(1 for n in nodes if n['status'] == 'done')
     return {'total': total, 'done': done, 'pct': round(done * 100 / total)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# z105: 가이드형 워크플로우 헬퍼
+# ──────────────────────────────────────────────────────────────────────────
+
+def _seed_checkpoints(c, pwfn_id, node_code):
+    """노드 마스터의 deliverables_json → 체크포인트 인스턴스 생성."""
+    row = c.execute("SELECT deliverables_json FROM workflow_nodes_master WHERE node_code=?",
+                     (node_code,)).fetchone()
+    if not row or not row[0]:
+        return 0
+    try:
+        items = json.loads(row[0])
+    except Exception:
+        return 0
+    if not isinstance(items, list):
+        return 0
+    for i, label in enumerate(items, start=1):
+        c.execute("""INSERT INTO project_workflow_node_checkpoints
+                     (pwfn_id, label, seq, is_done) VALUES (?,?,?,0)""",
+                  (pwfn_id, str(label), i))
+    return len(items)
+
+
+def _auto_handoff(c, from_node_id, by_user_id):
+    """노드 done → 다음 노드 자동 'in_progress' 전환 + 알림 로그.
+
+    반환: {to_node_id, to_user_id, message} 또는 None
+    """
+    row = c.execute("""SELECT n.workflow_id, n.seq, m.title_ko
+                       FROM project_workflow_nodes n
+                       JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                       WHERE n.id=?""", (from_node_id,)).fetchone()
+    if not row:
+        return None
+    wf_id, seq, prev_title = row[0], row[1], row[2]
+    nxt = c.execute("""SELECT n.id, n.assigned_user_id, n.status, m.title_ko, m.default_dept
+                       FROM project_workflow_nodes n
+                       JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                       WHERE n.workflow_id=? AND n.seq>? AND n.status NOT IN ('done','skipped')
+                       ORDER BY n.seq ASC LIMIT 1""", (wf_id, seq)).fetchone()
+    if not nxt:
+        return None
+    to_id = nxt[0]
+    to_uid = nxt[1]
+    next_title = nxt[3]
+    next_dept = nxt[4]
+    if nxt[2] == 'pending':
+        c.execute("UPDATE project_workflow_nodes SET status='in_progress' WHERE id=?", (to_id,))
+
+    msg = f"이전 단계 '{prev_title}' 완료 → 다음 '{next_title}' ({next_dept}) 시작"
+    notified = []
+    if to_uid:
+        _notify_user(c, to_uid, to_id, msg, by_user_id)
+        notified.append(to_uid)
+    c.execute("""INSERT INTO workflow_handoffs
+                 (workflow_id, from_node_id, to_node_id, triggered_by, notified_users, message)
+                 VALUES (?,?,?,?,?,?)""",
+              (wf_id, from_node_id, to_id, by_user_id,
+               ','.join(str(x) for x in notified), msg))
+    return {'to_node_id': to_id, 'to_user_id': to_uid, 'message': msg}
+
+
+def _notify_user(c, target_uid, pwfn_id, message, by_uid):
+    """알림 테이블에 insert. notifications 스키마는 기존 시스템 따름.
+    실패해도 트랜잭션 영향 없도록 try."""
+    try:
+        # notifications(user_id, type, title, body, link, created_at)
+        link = f"/workflow/node/{pwfn_id}"
+        c.execute("""INSERT INTO notifications (user_id, type, title, body, link)
+                     VALUES (?, 'workflow', ?, ?, ?)""",
+                  (target_uid, '[워크플로우]', message, link))
+    except Exception:
+        # 스키마 다를 경우 패스
+        try:
+            c.execute("""INSERT INTO notifications (user_id, message, link)
+                         VALUES (?,?,?)""", (target_uid, message, f"/workflow/node/{pwfn_id}"))
+        except Exception:
+            pass

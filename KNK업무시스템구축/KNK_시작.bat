@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z104aa (워크플로우 마법사 lastrowid 핫픽스 — Cursor 반환값에서 가져오기)
+REM   LAST UPDATE: 2026-05-16 v5H226z105 (가이드형 워크플로우 — 5W 노드상세 + 내할일 + 체크포인트 + SOP가이드 + 자동핸드오프 + 권한게이트)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z104a]
+title KNK HAIST WORKS [v5H226z105]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z104a  2026-05-16]
+echo    [v5H226z105  2026-05-16]
 echo ============================================================
 echo.
 

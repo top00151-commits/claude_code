@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ n.title_ko }} · 워크플로우 노드 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.page-title { font-size:22px; font-weight:700; }
+.crumb { font-size:11.5px; color:var(--qv-ink-3); margin-top:4px; }
+.crumb a { color:var(--qv-ink-2); text-decoration:none; }
+.wrap { margin: 0 var(--content-pad); display:grid; grid-template-columns: 1fr 320px; gap:14px; }
+@media (max-width:1100px) { .wrap { grid-template-columns:1fr; } }
+.box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:16px; margin-bottom:12px; }
+.box h3 { font-size:13px; margin:0 0 10px; padding-bottom:8px; border-bottom:1px solid var(--qv-line); }
+
+.fivew { display:grid; grid-template-columns: 90px 1fr; gap:8px 14px; font-size:13px; }
+.fivew .k { color:var(--qv-ink-3); font-weight:700; }
+.fivew .v { color:var(--qv-ink); }
+.chip { padding:3px 9px; border-radius:11px; font-size:11px; background:var(--qv-surface-3); color:var(--qv-ink-2); font-weight:700; }
+.chip.k-kr { background:#dbeafe; color:#1e40af; }
+.chip.k-vn { background:#dcfce7; color:#166534; }
+
+.sop { white-space:pre-wrap; font-size:13px; line-height:1.7; color:var(--qv-ink); background:#fafbff; border-left:3px solid #6366f1; padding:12px 14px; border-radius:6px; }
+
+.cp-list { list-style:none; padding:0; margin:0; }
+.cp-item { display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid var(--qv-line); cursor:pointer; transition:.15s; }
+.cp-item:hover { background:var(--qv-surface-2); }
+.cp-check { width:22px; height:22px; border:2px solid var(--qv-line); border-radius:5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.cp-item.done .cp-check { background:#10b981; border-color:#10b981; color:#fff; }
+.cp-item.done .cp-label { text-decoration:line-through; color:var(--qv-ink-3); }
+.cp-label { font-size:13px; flex:1; }
+.cp-meta { font-size:10.5px; color:var(--qv-ink-3); }
+
+.status-bar { display:flex; gap:6px; flex-wrap:wrap; }
+.status-bar button { padding:8px 14px; border:1px solid var(--qv-line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
+.status-bar button.active { background:var(--qv-ink); color:#fff; border-color:var(--qv-ink); }
+.status-bar button.s-done.active { background:#10b981; border-color:#10b981; }
+.status-bar button.s-blocked.active { background:#dc2626; border-color:#dc2626; }
+
+.btn { display:inline-block; padding:8px 14px; border-radius:6px; font-size:12.5px; font-weight:700; text-decoration:none; }
+.btn-prim { background:#6366f1; color:#fff; }
+.btn-ext  { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; }
+.btn-nav  { background:var(--qv-surface-3); color:var(--qv-ink-2); }
+
+.nav-row { display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
+
+.assignee-pick { display:flex; gap:6px; align-items:center; }
+.assignee-pick select { flex:1; padding:6px 8px; border:1px solid var(--qv-line); border-radius:5px; font-size:12px; }
+.assignee-pick button { padding:6px 12px; background:#6366f1; color:#fff; border:0; border-radius:5px; font-size:12px; font-weight:600; cursor:pointer; }
+
+textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; font-family:inherit; resize:vertical; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "logi" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · NODE DETAIL · 5W 가이드 · z105</div>
+    <div class="crumb">
+      <a href="/workflow">워크플로우</a> →
+      <a href="/workflow/project/{{ n.project_id }}">{{ n.mgmt_code or '' }} {{ n.project_name }}</a> →
+      <strong>{{ '%02d'|format(n.seq) }}. {{ n.title_ko }}</strong>
+    </div>
+    <h1 class="page-title">{{ '%02d'|format(n.seq) }}. {{ n.title_ko }}</h1>
+  </div>
+
+  <div class="wrap">
+    <div>
+      <div class="box">
+        <h3>📌 5W — 이 단계 핵심</h3>
+        <div class="fivew">
+          <span class="k">🗓 어느단계</span> <span class="v"><strong>{{ '%02d'|format(n.seq) }}</strong> / {{ n.category }} 카테고리</span>
+          <span class="k">🏢 어느부서</span> <span class="v">{{ n.default_dept }} <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span></span>
+          <span class="k">👤 누가</span>
+          <span class="v">
+            {% if assignee %}<strong>{{ assignee.name }}</strong>{% else %}<em style="color:var(--qv-ink-3);">— 미지정 (아래에서 지정하세요)</em>{% endif %}
+          </span>
+          <span class="k">📋 무엇을</span> <span class="v">아래 체크포인트 {{ checkpoints|length }}개 항목 모두 완료</span>
+          <span class="k">⏱ 예상시간</span> <span class="v">{{ n.est_hours }}h</span>
+          <span class="k">📊 했는지</span>
+          <span class="v">
+            {% if n.status=='done' %}<span style="color:#10b981; font-weight:700;">✓ 완료 ({{ n.done_at or '' }})</span>
+            {% elif n.status=='in_progress' %}<span style="color:#1e40af; font-weight:700;">⏳ 진행중</span>
+            {% elif n.status=='blocked' %}<span style="color:#dc2626; font-weight:700;">⛔ 막힘</span>
+            {% elif n.status=='skipped' %}<span style="color:#6b7280;">⊘ 생략</span>
+            {% else %}<span style="color:#92400e;">○ 대기</span>{% endif %}
+          </span>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>📖 어떻게 — SOP 가이드</h3>
+        {% if n.sop_guide %}
+          <div class="sop">{{ n.sop_guide }}</div>
+        {% else %}
+          <p style="color:var(--qv-ink-3); font-size:12.5px;">이 노드의 표준 절차가 아직 등록되지 않았습니다.</p>
+        {% endif %}
+        {% if sys_link %}
+          <div style="margin-top:12px;">
+            <a href="{{ sys_link }}" class="btn btn-ext">🔗 관련 시스템 바로가기 → {{ sys_link }}</a>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="box">
+        <h3>✓ 무엇을 — 산출물 체크포인트 ({{ checkpoints|selectattr('is_done')|list|length }}/{{ checkpoints|length }})</h3>
+        <ul class="cp-list">
+          {% for cp in checkpoints %}
+          <li class="cp-item {% if cp.is_done %}done{% endif %}" data-cp="{{ cp.id }}" onclick="toggleCp({{ cp.id }}, this)">
+            <span class="cp-check">{% if cp.is_done %}✓{% endif %}</span>
+            <span class="cp-label">{{ cp.label }}</span>
+            <span class="cp-meta">{% if cp.is_done and cp.done_at %}{{ cp.done_at }}{% endif %}</span>
+          </li>
+          {% else %}
+          <li style="padding:14px; color:var(--qv-ink-3); font-size:12px;">체크포인트가 없습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="box">
+        <h3>💬 메모 / 진행 사항</h3>
+        <textarea class="note" id="noteBox" placeholder="진행 상황·이슈·결정사항 메모">{{ n.note or '' }}</textarea>
+        <div style="margin-top:8px; text-align:right;">
+          <button onclick="saveNote()" class="btn btn-prim" style="border:0; cursor:pointer;">💾 메모 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="box">
+        <h3>📊 했는지 — 상태 변경</h3>
+        <div class="status-bar">
+          {% for st, lab in [('pending','○ 대기'),('in_progress','⏳ 진행중'),('done','✓ 완료'),('blocked','⛔ 막힘'),('skipped','⊘ 생략')] %}
+            <button class="s-{{ st }} {% if n.status==st %}active{% endif %}" onclick="setStatus('{{ st }}')">{{ lab }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>👤 담당자 지정</h3>
+        <form class="assignee-pick" onsubmit="assignUser(event)">
+          <select id="userSel">
+            <option value="">— 미지정 —</option>
+            {% for u in users %}
+              <option value="{{ u.id }}" {% if assignee and assignee.id==u.id %}selected{% endif %}>{{ u.name }}{% if u.email %} ({{ u.email }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">지정</button>
+        </form>
+        <p style="font-size:11px; color:var(--qv-ink-3); margin-top:8px;">지정 시 본인에게 알림이 자동 발송됩니다.</p>
+      </div>
+
+      <div class="box">
+        <h3>🔄 이전 · 다음 단계</h3>
+        {% if prev_n %}
+          <a href="/workflow/node/{{ prev_n.id }}" class="btn btn-nav" style="display:block; margin-bottom:6px; text-align:left;">← {{ '%02d'|format(prev_n.seq) }}. 이전 단계</a>
+        {% else %}
+          <div style="padding:8px; color:var(--qv-ink-3); font-size:12px;">— 첫 단계입니다.</div>
+        {% endif %}
+        {% if next_n %}
+          <a href="/workflow/node/{{ next_n.id }}" class="btn btn-prim" style="display:block; text-align:left;">→ {{ '%02d'|format(next_n.seq) }}. 다음 단계</a>
+        {% else %}
+          <div style="padding:8px; color:var(--qv-ink-3); font-size:12px;">— 마지막 단계입니다.</div>
+        {% endif %}
+        <div class="nav-row">
+          <a href="/workflow/project/{{ n.project_id }}" class="btn btn-nav">📋 전체 보기</a>
+          <a href="/workflow/my" class="btn btn-nav">📥 내 할 일</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+<script>
+const NID = {{ n.id }};
+
+function toggleCp(cpId, el) {
+  fetch('/workflow/checkpoint/' + cpId + '/toggle', {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(j=>{
+      if (j.ok) {
+        if (j.is_done) { el.classList.add('done'); el.querySelector('.cp-check').textContent='✓'; }
+        else { el.classList.remove('done'); el.querySelector('.cp-check').textContent=''; }
+      }
+    });
+}
+function setStatus(st) {
+  const fd = new FormData(); fd.append('status', st); fd.append('note','');
+  fetch('/workflow/node/' + NID + '/status', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(j=>{
+      if (j.ok) {
+        if (j.handoff_to) {
+          alert('✓ 완료 → 다음 단계 자동 핸드오프:\n' + j.handoff_to.message);
+        }
+        location.reload();
+      } else alert('상태 변경 실패');
+    });
+}
+function assignUser(e) {
+  e.preventDefault();
+  const uid = document.getElementById('userSel').value;
+  const fd = new FormData(); fd.append('user_id', uid);
+  fetch('/workflow/node/' + NID + '/assign', {method:'POST', body:fd})
+    .then(r=>r.json()).then(j=>{ if(j.ok) location.reload(); });
+}
+function saveNote() {
+  const note = document.getElementById('noteBox').value;
+  const fd = new FormData(); fd.append('note', note);
+  fetch('/workflow/node/' + NID + '/note', {method:'POST', body:fd})
+    .then(r=>r.json()).then(j=>{ if(j.ok) { const b=document.querySelector('.btn-prim'); b.textContent='✓ 저장됨'; setTimeout(()=>b.textContent='💾 메모 저장', 1500); } });
+}
+</script>
+</div>
+</body>
+</html>

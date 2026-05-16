@@ -135,7 +135,7 @@
             <li class="node-row" data-node="{{ n.id }}">
               <span class="node-seq">{{ '%02d'|format(n.seq) }}</span>
               <div>
-                <span class="node-title">{{ n.title_ko }}</span>
+                <a href="/workflow/node/{{ n.id }}" class="node-title" style="color:var(--qv-ink); text-decoration:none;">{{ n.title_ko }} →</a>
                 <span class="node-cat">[{{ n.category }}]</span>
                 {% if n.is_ic %}<span class="node-ic">⚡ IC</span>{% endif %}
               </div>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>내 할 일 · 워크플로우 · KNK HAIST WORKS</title>
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); }
+.page-title { font-size:24px; font-weight:700; }
+.page-meta { font-size:11px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
+.intro { font-size:13px; color:var(--qv-ink-3); margin-top:4px; }
+.wrap { margin: 0 var(--content-pad); display:flex; flex-direction:column; gap:14px; }
+.section-h { font-size:14px; font-weight:700; color:var(--qv-ink); margin-top:8px; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+.count-badge { background:#6366f1; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; }
+
+.todo-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:12px; }
+.todo-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px; text-decoration:none; color:inherit; transition:.15s; display:flex; flex-direction:column; gap:6px; }
+.todo-card:hover { border-color:#6366f1; transform:translateY(-2px); box-shadow:0 4px 12px rgba(99,102,241,.1); }
+.todo-card.in_progress { border-left:4px solid #1e40af; }
+.todo-card.blocked { border-left:4px solid #dc2626; background:#fef2f2; }
+.todo-card.pending { border-left:4px solid #f59e0b; }
+
+.t-seq { font-family:monospace; font-size:11px; color:var(--qv-ink-3); }
+.t-title { font-size:15px; font-weight:700; color:var(--qv-ink); }
+.t-proj { font-size:12px; color:var(--qv-ink-2); }
+.t-meta { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
+.chip { padding:2px 7px; border-radius:10px; font-size:10px; font-weight:700; background:var(--qv-surface-3); color:var(--qv-ink-2); }
+.chip.k-kr { background:#dbeafe; color:#1e40af; }
+.chip.k-vn { background:#dcfce7; color:#166534; }
+.chip.s-pending { background:#fef3c7; color:#92400e; }
+.chip.s-in_progress { background:#dbeafe; color:#1e40af; }
+.chip.s-blocked { background:#fee2e2; color:#991b1b; }
+
+.empty { padding:30px; text-align:center; color:var(--qv-ink-3); font-size:13px; background:var(--qv-surface); border:1px dashed var(--qv-line); border-radius:10px; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "logi" %}
+{% include "_v5_partials/chrome.html" %}
+<main class="main" data-dn-tone="violet">
+  <div class="page-head">
+    <div class="page-meta">WORKFLOW · MY TODOS · z105</div>
+    <h1 class="page-title">📥 내 할 일</h1>
+    <div class="intro">지금 내가 처리해야 할 워크플로우 노드를 한 화면에 모았습니다. 카드를 클릭하면 5W 가이드(어느단계·어느부서·누가·무엇을·어떻게·했는지)가 펼쳐집니다.</div>
+  </div>
+
+  <div class="wrap">
+    <div class="section-h">🎯 내가 담당 <span class="count-badge">{{ mine|length }}</span></div>
+    {% if mine %}
+      <div class="todo-grid">
+        {% for n in mine %}
+        <a href="/workflow/node/{{ n.id }}" class="todo-card {{ n.status }}">
+          <span class="t-seq">{{ n.mgmt_code or '' }} · #{{ '%02d'|format(n.seq) }}</span>
+          <span class="t-title">{{ n.title_ko }}</span>
+          <span class="t-proj">{{ n.project_name }}</span>
+          <div class="t-meta">
+            <span class="chip s-{{ n.status }}">
+              {% if n.status=='pending' %}○ 대기
+              {% elif n.status=='in_progress' %}⏳ 진행중
+              {% elif n.status=='blocked' %}⛔ 막힘
+              {% else %}{{ n.status }}{% endif %}
+            </span>
+            <span class="chip">{{ n.default_dept }}</span>
+            <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">🎉 배정된 노드가 없습니다.<br>아래 부서 미배정 노드 중에서 골라 잡으세요.</div>
+    {% endif %}
+
+    <div class="section-h" style="margin-top:18px;">🏢 {{ dept or '부서' }} 미배정 <span class="count-badge">{{ dept_unassigned|length }}</span></div>
+    <div style="font-size:11.5px; color:var(--qv-ink-3); margin-bottom:6px;">같은 부서 동료가 누구든 잡을 수 있는 노드입니다.</div>
+    {% if dept_unassigned %}
+      <div class="todo-grid">
+        {% for n in dept_unassigned %}
+        <a href="/workflow/node/{{ n.id }}" class="todo-card {{ n.status }}">
+          <span class="t-seq">{{ n.mgmt_code or '' }} · #{{ '%02d'|format(n.seq) }}</span>
+          <span class="t-title">{{ n.title_ko }}</span>
+          <span class="t-proj">{{ n.project_name }}</span>
+          <div class="t-meta">
+            <span class="chip s-{{ n.status }}">
+              {% if n.status=='pending' %}○ 대기{% elif n.status=='in_progress' %}⏳ 진행중{% else %}{{ n.status }}{% endif %}
+            </span>
+            <span class="chip">{{ n.default_dept }}</span>
+            <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">미배정 노드가 없습니다.</div>
+    {% endif %}
+  </div>
+</main>
+{% include "_v5_partials/debug_overlay.html" %}
+</div>
+</body>
+</html>

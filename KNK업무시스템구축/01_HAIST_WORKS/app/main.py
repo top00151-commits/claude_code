@@ -348,6 +348,15 @@ def startup():
             print(f"[WFB-MIG] {_r}")
     except Exception as _e:
         print(f"[WFB-MIG ERR] {_e}")
+    # v5H226z105 (2026-05-16): 가이드형 워크플로우 보강 (idempotent)
+    try:
+        from .migrations.m_z105_guided_workflow import migrate as _wfb_migrate2
+        from .database import DB_PATH as _DB_PATH
+        _r2 = _wfb_migrate2(_DB_PATH)
+        if _r2.get('added_cols') or _r2.get('meta_updated'):
+            print(f"[WFB-MIG-Z105] {_r2}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z105 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -697,6 +706,9 @@ VICTOR_CONTEXT_CHIPS = {
     "/rates":       ["오늘 환율", "최근 갱신", "통화별 추세"],
     "/board/company": ["긴급 공지", "내 관련 글", "새 글쓰기"],
     "/board/team": ["팀 공지", "내 팀 글", "승인 대기"],
+    # v5H226z105 — 워크플로우 가이드
+    "/workflow":    ["내 할 일", "새 워크플로우", "IC 페어"],
+    "/workflow/my": ["진행중 노드", "다음 단계", "막힌 노드"],
 }
 
 def _victor_chips_for_path(path: str):
