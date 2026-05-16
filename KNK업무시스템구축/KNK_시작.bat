@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-16 v5H226z106f (전역 하단 여백 20px — 대표 지시값으로 조정)
+REM   LAST UPDATE: 2026-05-16 v5H226z106g (하단 여백 안 먹은 핫픽스 — .main::after pseudo 블록 20px 로 변경(중복 .main flex 정의 충돌 해결))
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z106f]
+title KNK HAIST WORKS [v5H226z106g]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z106f  2026-05-16]
+echo    [v5H226z106g  2026-05-16]
 echo ============================================================
 echo.
 

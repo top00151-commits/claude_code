@@ -38,13 +38,17 @@ button { font-family: inherit; cursor: pointer; }
   min-width: 0;
   min-height: 0;        /* grid item flex 보정 */
   overflow-y: auto;     /* 메인 콘텐츠 영역만 스크롤 */
-  /* v5H226z106e (대표 지시 2026-05-16):
-     하단 여백 전역 확보 — 스크롤 끝까지 내려도 콘텐츠 끝임을 시각적으로 인지
-     모든 페이지 공통 적용 (.main 의 padding-bottom). */
-  padding-bottom: 20px;
 }
-/* main 내부 마지막 요소가 padding-bottom 으로 늘어나도 부모 클립되지 않도록 */
-.main > *:last-child { margin-bottom: 0; }
+/* v5H226z106f (대표 지시 2026-05-16):
+   하단 여백 전역 확보 — 스크롤 끝까지 내려도 콘텐츠 끝임을 시각적으로 인지.
+   .main 이 flex 컨테이너로 중복 정의되어 있어서 padding-bottom 이 스크롤 끝에 안 잡힘.
+   ::after pseudo 로 실제 20px 블록을 마지막 자식으로 삽입 — 스크롤 영역이 이를 포함. */
+.main::after {
+  content: "";
+  display: block;
+  min-height: 20px;
+  flex-shrink: 0;
+}
 .sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--knk-red); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
 .sb-item:hover { background: rgba(165,40,44,0.06); color: var(--knk-red); }
