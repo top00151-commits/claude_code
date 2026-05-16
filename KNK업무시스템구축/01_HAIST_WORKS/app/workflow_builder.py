@@ -128,7 +128,7 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
             # 기존 워크플로우가 있으면 삭제하고 재생성
             c.execute("DELETE FROM project_workflow WHERE project_id=?", (project_id,))
 
-            c.execute("""INSERT INTO project_workflow
+            _cur = c.execute("""INSERT INTO project_workflow
                          (project_id,template_id,customer_country,po_entity,
                           mech_design_split,elec_design_split,sw_design_split,
                           processing_loc,ship_entity,setup_loc,status,created_by)
@@ -136,7 +136,7 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                       (project_id, tid, customer_country, po_entity,
                        mech_design_split, elec_design_split, sw_design_split,
                        processing_loc, ship_entity, setup_loc, user.get('id')))
-            wf_id = c.lastrowid
+            wf_id = _cur.lastrowid
 
             # 노드 조립
             node_codes = _assemble_nodes(
