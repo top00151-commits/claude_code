@@ -59,32 +59,33 @@
 {% set active_tab = "home" %}
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
+  {# z108h: KNK 부서명·용어 일관 적용 — 페이지 전체 친화 정비 #}
+  {% set ENT_LABEL = {'KR':'🇰🇷 본사', 'VN':'🇻🇳 베트남법인', 'BOTH':'🤝 본사+법인 협업', 'OUT':'외주', 'NONE':'없음'} %}
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · PROJECT · z104</div>
+    <div class="page-meta">프로젝트 일 순서 (워크플로우 프로젝트)</div>
     <h1 class="page-title">🧩 {{ proj.mgmt_code or '' }} {{ proj.name }}</h1>
     <div class="meta-bar" style="margin-top:6px;">
-      <span class="chip">고객 {{ proj.customer_country or '-' }}</span>
-      <span class="chip k-{{ (proj.po_entity or 'kr')|lower }}">PO {{ proj.po_entity or '-' }}</span>
-      <span class="chip k-{{ (proj.ship_entity or 'kr')|lower }}">출하 {{ proj.ship_entity or '-' }}</span>
-      {% if wf %}<span class="chip">기계 {{ wf.mech_design_split }}</span>
-      <span class="chip">전기 {{ wf.elec_design_split }}</span>
-      <span class="chip">SW {{ wf.sw_design_split }}</span>
-      <span class="chip">가공 {{ wf.processing_loc }}</span>
-      <span class="chip">설치 {{ wf.setup_loc }}</span>{% endif %}
+      <span class="chip">고객사 국가: {{ proj.customer_country or '-' }}</span>
+      <span class="chip k-{{ (proj.po_entity or 'kr')|lower }}">주문 받음: {{ ENT_LABEL.get(proj.po_entity, proj.po_entity or '-') }}</span>
+      <span class="chip k-{{ (proj.ship_entity or 'kr')|lower }}">출하: {{ ENT_LABEL.get(proj.ship_entity, proj.ship_entity or '-') }}</span>
+      {% if wf %}<span class="chip">기구설계: {{ ENT_LABEL.get(wf.mech_design_split, wf.mech_design_split) }}</span>
+      <span class="chip">전장설계: {{ ENT_LABEL.get(wf.elec_design_split, wf.elec_design_split) }}</span>
+      <span class="chip">SW설계: {{ ENT_LABEL.get(wf.sw_design_split, wf.sw_design_split) }}</span>
+      <span class="chip">설치: {{ ENT_LABEL.get(wf.setup_loc, wf.setup_loc or '없음') }}</span>{% endif %}
     </div>
   </div>
 
   <div class="wrap">
     {% if not wf %}
       <div class="box" style="padding:30px; text-align:center;">
-        <p style="color:var(--qv-ink-3);">아직 워크플로우가 설정되지 않았습니다.</p>
-        <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:10px 20px; background:#6366f1; color:#fff; border-radius:8px; text-decoration:none; font-weight:700;">마법사로 시작 →</a>
+        <p style="color:var(--qv-ink-3);">아직 일 순서가 만들어지지 않았습니다.</p>
+        <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:10px 20px; background:#6366f1; color:#fff; border-radius:8px; text-decoration:none; font-weight:700;">일 순서 만들기 →</a>
       </div>
     {% else %}
     <div class="progress-bar">
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
-        <strong style="font-size:14px;">전체 진행률</strong>
-        <span style="font-size:13px; color:var(--qv-ink-3);">{{ progress.done }} / {{ progress.total }} 노드 완료 ({{ progress.pct }}%)</span>
+        <strong style="font-size:14px;">전체 진행 상황</strong>
+        <span style="font-size:13px; color:var(--qv-ink-3);">{{ progress.done }} / {{ progress.total }}건 완료 ({{ progress.pct }}%)</span>
       </div>
       <div class="progress-fill"><span style="width:{{ progress.pct }}%"></span></div>
     </div>
@@ -92,24 +93,24 @@
     <div class="grid-2">
       <div>
         <div class="box">
-          <h3>📊 매트릭스 (카테고리 × 법인)</h3>
+          <h3>📊 일 분야별 현황 (매트릭스)</h3>
           <table class="matrix">
-            <thead><tr><th style="text-align:left;">카테고리</th><th>🇰🇷 KR</th><th>🇻🇳 VN</th><th>외주</th></tr></thead>
+            <thead><tr><th style="text-align:left;">일 분야</th><th>🇰🇷 본사</th><th>🇻🇳 베트남법인</th><th>외주</th></tr></thead>
             <tbody>
               {% for cat, ents in matrix.items() %}
               {% set tot = ents.KR.total + ents.VN.total + ents.OUT.total %}
               {% if tot > 0 %}
               <tr>
                 <td class="cat">
-                  {% if cat=='sales' %}💼 영업
-                  {% elif cat=='design' %}📐 설계
-                  {% elif cat=='purchase' %}🛒 자재구매
-                  {% elif cat=='ic' %}🔄 IC거래
-                  {% elif cat=='production' %}🏭 생산
-                  {% elif cat=='qa' %}✓ 품질
-                  {% elif cat=='logi' %}📦 물류
+                  {% if cat=='sales' %}💼 기술영업
+                  {% elif cat=='design' %}📐 설계 (기구·전장·SW)
+                  {% elif cat=='purchase' %}🛒 자재·구매
+                  {% elif cat=='ic' %}🔄 본사↔법인 거래
+                  {% elif cat=='production' %}🏭 제조 (조립·가공·전장)
+                  {% elif cat=='qa' %}✓ 품질·검증
+                  {% elif cat=='logi' %}📦 출하·물류
                   {% elif cat=='finance' %}💰 회계
-                  {% elif cat=='as' %}🔧 AS
+                  {% elif cat=='as' %}🔧 사후 (인계·매뉴얼·마감)
                   {% else %}{{ cat }}{% endif %}
                 </td>
                 {% for ent in ['KR','VN','OUT'] %}
@@ -129,24 +130,26 @@
         </div>
 
         <div class="box" style="margin-top:14px;">
-          <h3>📋 체크리스트 ({{ nodes|length }} 노드)</h3>
+          <h3>📋 할 일 목록 (체크리스트 · {{ nodes|length }}개)</h3>
+          {% set CAT_KR = {'sales':'기술영업','design':'설계','purchase':'자재·구매','ic':'본사↔법인 거래','production':'제조','qa':'품질·검증','logi':'출하·물류','finance':'회계','as':'사후'} %}
+          {% set ENT_KR = {'KR':'🇰🇷 본사','VN':'🇻🇳 베트남법인','OUT':'외주','BOTH':'🤝 협업'} %}
           <ul class="node-list">
             {% for n in nodes %}
             <li class="node-row" data-node="{{ n.id }}">
               <span class="node-seq">{{ '%02d'|format(n.seq) }}</span>
               <div>
                 <a href="/workflow/node/{{ n.id }}" class="node-title" style="color:var(--qv-ink); text-decoration:none;">{{ n.title_ko }} →</a>
-                <span class="node-cat">[{{ n.category }}]</span>
-                {% if n.is_ic %}<span class="node-ic">⚡ IC</span>{% endif %}
+                <span class="node-cat">[{{ CAT_KR.get(n.category, n.category) }}]</span>
+                {% if n.is_ic %}<span class="node-ic">⚡ 본사↔법인 거래</span>{% endif %}
               </div>
-              <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span>
+              <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ ENT_KR.get(n.assigned_entity, n.assigned_entity or '-') }}</span>
               <span style="font-size:10.5px; color:var(--qv-ink-3);">{{ n.default_dept }}</span>
               <select class="status-sel s-{{ n.status }}" data-node-id="{{ n.id }}" onchange="updateStatus(this)">
                 <option value="pending" {% if n.status=='pending' %}selected{% endif %}>대기</option>
                 <option value="in_progress" {% if n.status=='in_progress' %}selected{% endif %}>진행중</option>
                 <option value="done" {% if n.status=='done' %}selected{% endif %}>완료</option>
-                <option value="blocked" {% if n.status=='blocked' %}selected{% endif %}>막힘</option>
-                <option value="skipped" {% if n.status=='skipped' %}selected{% endif %}>생략</option>
+                <option value="blocked" {% if n.status=='blocked' %}selected{% endif %}>막혔어요</option>
+                <option value="skipped" {% if n.status=='skipped' %}selected{% endif %}>건너뜀</option>
               </select>
             </li>
             {% endfor %}
@@ -156,23 +159,24 @@
 
       <div>
         <div class="box">
-          <h3>⚡ IC 페어 ({{ ic_pairs|length }})</h3>
+          <h3>⚡ 본사↔법인 거래 짝 ({{ ic_pairs|length }})</h3>
           <div style="padding:10px;">
             {% if not ic_pairs %}
-              <div style="color:var(--qv-ink-3); font-size:12px; text-align:center; padding:20px;">IC 거래 노드가 없습니다.</div>
+              <div style="color:var(--qv-ink-3); font-size:12px; text-align:center; padding:20px;">본사↔법인 거래가 없습니다.</div>
             {% endif %}
             {% for p in ic_pairs %}
             <div class="ic-card">
               <div class="ic-code">{{ p.pair_code }}</div>
               <div class="ic-flow">
-                <span class="chip k-{{ p.sell_entity|lower }}">{{ p.sell_entity }}</span> 매출
+                <span class="chip k-{{ p.sell_entity|lower }}">{{ ENT_LABEL.get(p.sell_entity, p.sell_entity) }}</span> 매출
                 →
-                <span class="chip k-{{ p.buy_entity|lower }}">{{ p.buy_entity }}</span> 매입
+                <span class="chip k-{{ p.buy_entity|lower }}">{{ ENT_LABEL.get(p.buy_entity, p.buy_entity) }}</span> 매입
               </div>
               <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
                 <span class="ic-status ic-{{ p.status }}">
-                  {% if p.status=='pending' %}⏳ 대기
-                  {% elif p.status=='matched' %}✓ 매칭
+                  {% if p.status=='pending' %}⏳ 짝 대기
+                  {% elif p.status=='matched' %}✓ 짝 맞춤
+                  {% elif p.status=='closed' %}🔒 마감
                   {% else %}{{ p.status }}{% endif %}
                 </span>
                 {% if p.amount %}<span style="font-size:11px; font-family:monospace;">{{ '{:,.0f}'.format(p.amount) }} {{ p.currency }}</span>{% endif %}
@@ -180,16 +184,16 @@
             </div>
             {% endfor %}
             <div style="margin-top:10px; text-align:center;">
-              <a href="/workflow/ic_pairs" style="font-size:11px; color:var(--qv-ink-2);">전체 IC 페어 보기 →</a>
+              <a href="/workflow/ic_pairs" style="font-size:11px; color:var(--qv-ink-2);">전체 거래 짝 보기 →</a>
             </div>
           </div>
         </div>
 
         <div class="box" style="margin-top:14px;">
-          <h3>🔧 액션</h3>
+          <h3>🔧 빠른 이동</h3>
           <div style="padding:14px; display:flex; flex-direction:column; gap:8px;">
-            <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">🔄 마법사 재실행</a>
-            <a href="/workflow" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">← 워크플로우 허브</a>
+            <a href="/workflow/wizard?project_id={{ proj.id }}" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">🔄 일 순서 다시 만들기</a>
+            <a href="/workflow" style="padding:8px 12px; background:var(--qv-surface-3); border-radius:6px; text-decoration:none; color:var(--qv-ink); font-size:12px; text-align:center;">← 일 순서 만들기 (홈)</a>
           </div>
         </div>
       </div>

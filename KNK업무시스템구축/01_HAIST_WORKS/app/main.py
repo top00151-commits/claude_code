@@ -384,6 +384,15 @@ def startup():
             print(f"[WFB-MIG-Z108D] {_r5}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108D ERR] {_e}")
+    # v5H226z108h (2026-05-17): KNK 실제 부서명 적용 (대표 지시)
+    try:
+        from .migrations.m_z108h_knk_dept_rename import migrate as _wfb_migrate6
+        from .database import DB_PATH as _DB_PATH
+        _r6 = _wfb_migrate6(_DB_PATH)
+        if _r6.get('updated'):
+            print(f"[WFB-MIG-Z108H] {_r6}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z108H ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
