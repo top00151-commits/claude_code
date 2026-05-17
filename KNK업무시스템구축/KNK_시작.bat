@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-17 v5H226z108k (기존 워크플로우 내용 수정 — T4 워크플로우의 customs/delivery 노드 코드 _vn 버전으로 교체 + 체크포인트 재시드)
+REM   LAST UPDATE: 2026-05-17 v5H226z108l (프로젝트 페이지 레이아웃 재구성 — 매트릭스 상단 풀와이드 + KPI 4분할 + 체크리스트 8컬럼(담당자·체크포인트·잡기·끝 액션))
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z108k]
+title KNK HAIST WORKS [v5H226z108l]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108k  2026-05-16]
+echo    [v5H226z108l  2026-05-16]
 echo ============================================================
 echo.
 

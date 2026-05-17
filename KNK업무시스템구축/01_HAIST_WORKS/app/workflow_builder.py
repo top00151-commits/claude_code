@@ -322,14 +322,22 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                               ORDER BY id DESC LIMIT 1""", (project_id,)).fetchone()
             nodes = []
             if wf:
-                nodes = c.execute("""
+                # z108l: 담당자 이름·체크포인트 진행률·진행 가능 여부 동시 조회
+                nodes = [dict(r) for r in c.execute("""
                     SELECT n.id, n.node_code, n.seq, n.assigned_entity, n.assigned_user_id,
                            n.status, n.due_date, n.done_at, n.note,
-                           m.title_ko, m.category, m.default_dept, m.est_hours, m.is_ic, m.ic_direction
+                           m.title_ko, m.category, m.default_dept, m.est_hours, m.is_ic, m.ic_direction,
+                           u.name AS assignee_name,
+                           (SELECT COUNT(*) FROM project_workflow_node_checkpoints WHERE pwfn_id=n.id) AS cp_total,
+                           (SELECT COUNT(*) FROM project_workflow_node_checkpoints WHERE pwfn_id=n.id AND is_done=1) AS cp_done,
+                           (SELECT COUNT(*) FROM project_workflow_nodes pn
+                            WHERE pn.workflow_id=n.workflow_id AND pn.seq<n.seq
+                              AND pn.status NOT IN ('done','skipped')) AS blockers
                     FROM project_workflow_nodes n
                     JOIN workflow_nodes_master m ON m.node_code=n.node_code
+                    LEFT JOIN users u ON u.id=n.assigned_user_id
                     WHERE n.workflow_id=? ORDER BY n.seq
-                """, (wf['id'],)).fetchall()
+                """, (wf['id'],)).fetchall()]
                 ic_pairs = c.execute("""
                     SELECT * FROM ic_invoice_pairs WHERE workflow_id=? ORDER BY id
                 """, (wf['id'],)).fetchall()

@@ -19,32 +19,85 @@
 .progress-fill { height:8px; background:var(--qv-surface-3); border-radius:4px; overflow:hidden; margin-top:6px; }
 .progress-fill > span { display:block; height:100%; background:linear-gradient(90deg, #6366f1, #8b5cf6); transition:.3s; }
 
-.grid-2 { display:grid; grid-template-columns: 1fr 320px; gap:14px; }
+/* z108l: 레이아웃 재구성 — 상단 매트릭스(가로 풀와이드) + 하단 2단(체크리스트 wide + IC/액션) */
+.grid-2 { display:grid; grid-template-columns: 1fr 300px; gap:14px; }
 @media (max-width:1100px) { .grid-2 { grid-template-columns:1fr; } }
 
 .box { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; }
 .box h3 { padding:12px 14px; margin:0; font-size:13px; background:var(--qv-surface-3); border-bottom:1px solid var(--qv-line); }
 
-.node-list { list-style:none; padding:0; margin:0; max-height:600px; overflow-y:auto; }
-.node-row { display:grid; grid-template-columns: 30px 1fr 80px 90px 100px; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--qv-line); }
+/* 체크리스트 — 풍부한 컬럼 (순번·일제목·부서·법인·담당자·체크포인트·상태·액션) */
+.node-list { list-style:none; padding:0; margin:0; max-height:700px; overflow-y:auto; }
+.node-row {
+  display:grid;
+  grid-template-columns: 40px minmax(260px, 1fr) 110px 90px 130px 90px 100px 70px;
+  gap:10px;
+  align-items:center;
+  padding:10px 14px;
+  border-bottom:1px solid var(--qv-line);
+}
 .node-row:hover { background:var(--qv-surface-2); }
-.node-seq { font-size:11px; color:var(--qv-ink-3); font-family:monospace; }
-.node-title { font-size:13px; font-weight:600; }
-.node-cat { font-size:10px; color:var(--qv-ink-3); text-transform:uppercase; letter-spacing:.05em; margin-left:4px; }
-.node-ic { color:#9d174d; font-size:11px; margin-left:4px; }
-.status-sel { padding:4px 6px; font-size:11px; border-radius:5px; border:1px solid var(--qv-line); background:#fff; }
+.node-row.is-blocked { opacity:.55; background:#fafafa; }
+.node-row.is-done { opacity:.7; background:#f0fdf4; }
+
+.node-seq { font-size:12px; color:var(--qv-ink-3); font-family:monospace; font-weight:700; text-align:center; }
+.node-title { font-size:13px; font-weight:600; line-height:1.4; }
+.node-title a { color:var(--qv-ink); text-decoration:none; }
+.node-title a:hover { color:#6366f1; }
+.node-cat { font-size:10px; color:var(--qv-ink-3); margin-top:2px; }
+.node-ic { color:#9d174d; font-size:10.5px; margin-left:6px; font-weight:700; }
+.node-dept { font-size:11px; color:var(--qv-ink-2); font-weight:600; }
+.node-assignee { font-size:11px; color:var(--qv-ink); }
+.node-assignee.empty { color:#dc2626; font-style:italic; font-size:10.5px; }
+.node-cp { font-size:10px; color:var(--qv-ink-3); }
+.node-cp .bar { display:inline-block; width:60px; height:5px; background:var(--qv-surface-3); border-radius:3px; overflow:hidden; vertical-align:middle; margin-left:4px; }
+.node-cp .bar > span { display:block; height:100%; background:#10b981; }
+
+.status-sel { padding:5px 7px; font-size:11px; border-radius:5px; border:1px solid var(--qv-line); background:#fff; width:100%; }
 .s-pending { color:#92400e; } .s-in_progress { color:#1e40af; } .s-done { color:#166534; }
 .s-blocked { color:#991b1b; } .s-skipped { color:#6b7280; }
 
+.btn-mini { display:inline-block; padding:4px 8px; font-size:11px; font-weight:700; border-radius:5px; border:0; cursor:pointer; text-align:center; text-decoration:none; }
+.btn-done { background:#10b981; color:#fff; }
+.btn-done:hover { background:#059669; }
+.btn-claim { background:#6366f1; color:#fff; }
+.btn-claim:hover { background:#4f46e5; }
+.btn-lock { background:#e5e7eb; color:#9ca3af; cursor:not-allowed; }
+
+/* 체크리스트 헤더 (컬럼명) */
+.node-head {
+  display:grid;
+  grid-template-columns: 40px minmax(260px, 1fr) 110px 90px 130px 90px 100px 70px;
+  gap:10px;
+  align-items:center;
+  padding:8px 14px;
+  background:var(--qv-surface-3);
+  border-bottom:1px solid var(--qv-line);
+  font-size:10.5px;
+  font-weight:700;
+  color:var(--qv-ink-3);
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+
+/* 매트릭스 — 가로 풀와이드 컴팩트 */
+.matrix-wrap { padding:10px 14px; }
 .matrix { width:100%; border-collapse:collapse; font-size:12px; }
-.matrix th, .matrix td { padding:6px 8px; border:1px solid var(--qv-line); text-align:center; }
+.matrix th, .matrix td { padding:6px 10px; border:1px solid var(--qv-line); text-align:center; }
 .matrix th { background:var(--qv-surface-3); font-weight:700; font-size:11px; }
-.matrix td.cat { text-align:left; font-weight:700; background:var(--qv-surface-2); }
-.cell-bar { display:inline-block; min-width:24px; padding:1px 5px; border-radius:8px; font-size:10px; font-weight:700; }
+.matrix td.cat { text-align:left; font-weight:700; background:var(--qv-surface-2); white-space:nowrap; }
+.cell-bar { display:inline-block; min-width:28px; padding:2px 7px; border-radius:8px; font-size:10.5px; font-weight:700; }
 .cell-empty { color:var(--qv-ink-3); }
 .cell-pending { background:#fef3c7; color:#92400e; }
 .cell-progress { background:#dbeafe; color:#1e40af; }
 .cell-done { background:#dcfce7; color:#166534; }
+
+/* KPI 상단 — 가로 4분할 */
+.kpi-row { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+.kpi-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:12px 14px; }
+.kpi-lab { font-size:10.5px; color:var(--qv-ink-3); letter-spacing:.05em; text-transform:uppercase; font-weight:700; }
+.kpi-val { font-size:22px; font-weight:800; color:var(--qv-ink); margin-top:4px; }
+.kpi-sub { font-size:10.5px; color:var(--qv-ink-3); margin-top:2px; }
 
 .ic-card { background:#fdf2f8; border:1px solid #fce7f3; border-radius:8px; padding:10px; margin-bottom:8px; }
 .ic-code { font-family:monospace; font-size:11px; color:#9d174d; font-weight:700; }
@@ -90,60 +143,123 @@
       <div class="progress-fill"><span style="width:{{ progress.pct }}%"></span></div>
     </div>
 
+    {# z108l: 매트릭스 가로 풀와이드 + KPI 상단 #}
+    {% set CAT_KR = {'sales':'기술영업','design':'설계','purchase':'자재·구매','ic':'본사↔법인 거래','production':'제조','qa':'품질·검증','logi':'출하·물류','finance':'회계','as':'사후'} %}
+    {% set ENT_KR = {'KR':'🇰🇷 본사','VN':'🇻🇳 베트남법인','OUT':'외주','BOTH':'🤝 협업'} %}
+
+    {# KPI 상단 4분할 #}
+    {% set kr_count = nodes|selectattr('assigned_entity','equalto','KR')|list|length %}
+    {% set vn_count = nodes|selectattr('assigned_entity','equalto','VN')|list|length %}
+    {% set assigned_count = nodes|selectattr('assigned_user_id')|list|length %}
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-lab">전체 진행</div>
+        <div class="kpi-val">{{ progress.pct }}<span style="font-size:14px;">%</span></div>
+        <div class="kpi-sub">{{ progress.done }} / {{ progress.total }}건 완료</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lab">본사 일</div>
+        <div class="kpi-val" style="color:#1e40af;">{{ kr_count }}</div>
+        <div class="kpi-sub">개 노드</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lab">베트남법인 일</div>
+        <div class="kpi-val" style="color:#166534;">{{ vn_count }}</div>
+        <div class="kpi-sub">개 노드</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lab">담당자 배정</div>
+        <div class="kpi-val">{{ assigned_count }}<span style="font-size:14px;">/{{ progress.total }}</span></div>
+        <div class="kpi-sub">{{ ((assigned_count*100/progress.total)|round|int) if progress.total else 0 }}%</div>
+      </div>
+    </div>
+
+    {# 매트릭스 가로 풀와이드 #}
+    <div class="box">
+      <h3>📊 일 분야별 현황 (매트릭스)</h3>
+      <div class="matrix-wrap">
+      <table class="matrix">
+        <thead><tr><th style="text-align:left;">일 분야</th><th>🇰🇷 본사</th><th>🇻🇳 베트남법인</th><th>외주</th><th>합계</th></tr></thead>
+        <tbody>
+          {% for cat, ents in matrix.items() %}
+          {% set tot = ents.KR.total + ents.VN.total + ents.OUT.total %}
+          {% if tot > 0 %}
+          <tr>
+            <td class="cat">
+              {% if cat=='sales' %}💼 기술영업
+              {% elif cat=='design' %}📐 설계 (기구·전장·SW)
+              {% elif cat=='purchase' %}🛒 자재·구매
+              {% elif cat=='ic' %}🔄 본사↔법인 거래
+              {% elif cat=='production' %}🏭 제조 (조립·가공·전장)
+              {% elif cat=='qa' %}✓ 품질·검증
+              {% elif cat=='logi' %}📦 출하·물류
+              {% elif cat=='finance' %}💰 회계
+              {% elif cat=='as' %}🔧 사후 (인계·매뉴얼·마감)
+              {% else %}{{ cat }}{% endif %}
+            </td>
+            {% for ent in ['KR','VN','OUT'] %}
+              {% set e = ents[ent] %}
+              <td>
+                {% if e.total == 0 %}<span class="cell-empty">—</span>
+                {% elif e.done == e.total %}<span class="cell-bar cell-done">✓ {{ e.done }}/{{ e.total }}</span>
+                {% elif e.in_progress > 0 %}<span class="cell-bar cell-progress">⏳ {{ e.in_progress }} / {{ e.total }}</span>
+                {% else %}<span class="cell-bar cell-pending">{{ e.total }}</span>{% endif %}
+              </td>
+            {% endfor %}
+            <td style="font-weight:700;">{{ tot }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {# 하단 2단: 체크리스트(wide) + IC페어·액션(narrow) #}
     <div class="grid-2">
       <div>
         <div class="box">
-          <h3>📊 일 분야별 현황 (매트릭스)</h3>
-          <table class="matrix">
-            <thead><tr><th style="text-align:left;">일 분야</th><th>🇰🇷 본사</th><th>🇻🇳 베트남법인</th><th>외주</th></tr></thead>
-            <tbody>
-              {% for cat, ents in matrix.items() %}
-              {% set tot = ents.KR.total + ents.VN.total + ents.OUT.total %}
-              {% if tot > 0 %}
-              <tr>
-                <td class="cat">
-                  {% if cat=='sales' %}💼 기술영업
-                  {% elif cat=='design' %}📐 설계 (기구·전장·SW)
-                  {% elif cat=='purchase' %}🛒 자재·구매
-                  {% elif cat=='ic' %}🔄 본사↔법인 거래
-                  {% elif cat=='production' %}🏭 제조 (조립·가공·전장)
-                  {% elif cat=='qa' %}✓ 품질·검증
-                  {% elif cat=='logi' %}📦 출하·물류
-                  {% elif cat=='finance' %}💰 회계
-                  {% elif cat=='as' %}🔧 사후 (인계·매뉴얼·마감)
-                  {% else %}{{ cat }}{% endif %}
-                </td>
-                {% for ent in ['KR','VN','OUT'] %}
-                  {% set e = ents[ent] %}
-                  <td>
-                    {% if e.total == 0 %}<span class="cell-empty">—</span>
-                    {% elif e.done == e.total %}<span class="cell-bar cell-done">✓ {{ e.done }}/{{ e.total }}</span>
-                    {% elif e.in_progress > 0 %}<span class="cell-bar cell-progress">⏳ {{ e.in_progress }} / {{ e.total }}</span>
-                    {% else %}<span class="cell-bar cell-pending">{{ e.total }}</span>{% endif %}
-                  </td>
-                {% endfor %}
-              </tr>
-              {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="box" style="margin-top:14px;">
           <h3>📋 할 일 목록 (체크리스트 · {{ nodes|length }}개)</h3>
-          {% set CAT_KR = {'sales':'기술영업','design':'설계','purchase':'자재·구매','ic':'본사↔법인 거래','production':'제조','qa':'품질·검증','logi':'출하·물류','finance':'회계','as':'사후'} %}
-          {% set ENT_KR = {'KR':'🇰🇷 본사','VN':'🇻🇳 베트남법인','OUT':'외주','BOTH':'🤝 협업'} %}
+          <div class="node-head">
+            <div>#</div>
+            <div>일 내용</div>
+            <div>분야</div>
+            <div>법인</div>
+            <div>담당자</div>
+            <div>확인 항목</div>
+            <div>상태</div>
+            <div>액션</div>
+          </div>
           <ul class="node-list">
             {% for n in nodes %}
-            <li class="node-row" data-node="{{ n.id }}">
+            {% set is_blocked = n.blockers > 0 and n.status == 'pending' %}
+            {% set is_done = n.status == 'done' %}
+            {% set cp_pct = ((n.cp_done*100/n.cp_total)|round|int) if n.cp_total else 0 %}
+            <li class="node-row {% if is_blocked %}is-blocked{% elif is_done %}is-done{% endif %}" data-node="{{ n.id }}">
               <span class="node-seq">{{ '%02d'|format(n.seq) }}</span>
               <div>
-                <a href="/workflow/node/{{ n.id }}" class="node-title" style="color:var(--qv-ink); text-decoration:none;">{{ n.title_ko }} →</a>
-                <span class="node-cat">[{{ CAT_KR.get(n.category, n.category) }}]</span>
-                {% if n.is_ic %}<span class="node-ic">⚡ 본사↔법인 거래</span>{% endif %}
+                <div class="node-title">
+                  {% if is_blocked %}🔒 {% endif %}<a href="/workflow/node/{{ n.id }}">{{ n.title_ko }}</a>
+                  {% if n.is_ic %}<span class="node-ic">⚡ 본사↔법인</span>{% endif %}
+                </div>
+                {% if is_blocked %}<div class="node-cat" style="color:#9ca3af;">⏸ 이전 단계 {{ n.blockers }}개 대기</div>{% endif %}
               </div>
+              <span class="node-cat" style="font-size:11px;">{{ CAT_KR.get(n.category, n.category) }}</span>
               <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ ENT_KR.get(n.assigned_entity, n.assigned_entity or '-') }}</span>
-              <span style="font-size:10.5px; color:var(--qv-ink-3);">{{ n.default_dept }}</span>
+              <div>
+                <div class="node-dept">{{ n.default_dept }}</div>
+                {% if n.assignee_name %}
+                  <div class="node-assignee">👤 {{ n.assignee_name }}</div>
+                {% else %}
+                  <div class="node-assignee empty">— 미배정</div>
+                {% endif %}
+              </div>
+              <div class="node-cp">
+                {% if n.cp_total %}
+                  {{ n.cp_done }}/{{ n.cp_total }}
+                  <span class="bar"><span style="width:{{ cp_pct }}%"></span></span>
+                {% else %}—{% endif %}
+              </div>
               <select class="status-sel s-{{ n.status }}" data-node-id="{{ n.id }}" onchange="updateStatus(this)">
                 <option value="pending" {% if n.status=='pending' %}selected{% endif %}>대기</option>
                 <option value="in_progress" {% if n.status=='in_progress' %}selected{% endif %}>진행중</option>
@@ -151,6 +267,17 @@
                 <option value="blocked" {% if n.status=='blocked' %}selected{% endif %}>막혔어요</option>
                 <option value="skipped" {% if n.status=='skipped' %}selected{% endif %}>건너뜀</option>
               </select>
+              <div>
+                {% if is_done %}
+                  <span style="font-size:10.5px; color:#166534;">✓ 완료</span>
+                {% elif is_blocked %}
+                  <span class="btn-mini btn-lock" title="이전 단계 먼저 완료 필요">🔒 잠금</span>
+                {% elif not n.assigned_user_id %}
+                  <button class="btn-mini btn-claim" onclick="claimNode({{ n.id }})">＋ 잡기</button>
+                {% else %}
+                  <button class="btn-mini btn-done" onclick="oneShotDone({{ n.id }})">✓ 끝</button>
+                {% endif %}
+              </div>
             </li>
             {% endfor %}
           </ul>
@@ -212,14 +339,42 @@ function updateStatus(sel) {
   fetch('/workflow/node/' + nid + '/status', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
     .then(r=>r.json()).then(j=>{
       if (j.ok) {
-        // 클래스 교체
         sel.className = 'status-sel s-' + st;
-        // 진행률 새로고침을 위해 살짝 후 리로드 (대표 요청 시 부드러운 UX)
         setTimeout(()=>location.reload(), 400);
       } else {
         alert('상태 변경 실패: ' + (j.error||'unknown'));
       }
     });
+}
+
+// z108l: 내가 잡기 (체크리스트 행에서 한 클릭)
+async function claimNode(id) {
+  if (!confirm('이 일을 내가 담당하시겠습니까?')) return;
+  try {
+    const r = await fetch('/workflow/node/' + id + '/claim', {method:'POST'});
+    const j = await r.json();
+    if (j.ok) location.reload();
+    else alert(j.error === 'already_assigned' ? '이미 다른 담당자가 잡았습니다.' : '실패: ' + j.error);
+  } catch (e) { alert('통신 오류: ' + e); }
+}
+
+// z108l: 원샷 완료 (체크리스트 행에서 [✓ 끝] — 일일업무 자동 등록 + 다음 담당자 알림)
+async function oneShotDone(id) {
+  const hours = prompt('이 일에 들인 시간 (h) — 예: 0.5, 1, 2\n취소하면 1시간으로 기록.', '1');
+  if (hours === null) return;
+  const fd = new FormData();
+  fd.append('hours', parseFloat(hours) || 1);
+  fd.append('note', '');
+  try {
+    const r = await fetch('/workflow/node/' + id + '/complete', {method:'POST', body:fd});
+    const j = await r.json();
+    if (j.ok) {
+      if (j.handoff_to && j.handoff_to.message) alert('✓ 완료\n' + j.handoff_to.message);
+      location.reload();
+    } else {
+      alert('완료 실패: ' + (j.error||'unknown'));
+    }
+  } catch (e) { alert('통신 오류: ' + e); }
 }
 </script>
 </div>
