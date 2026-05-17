@@ -1,11 +1,11 @@
-{# v5H226z108f: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
+{# v5H226z108g: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
 {# 사용법: 페이지에 include 후, 영역에 data-dn="이름" 속성 부착 #}
 {# 예) <div class="kpi-slim" data-dn="kpi-bar"> #}
 <style>
 /* === 디버그 오버레이 (debug=1 일 때만 활성화) === */
 body.knk-debug [data-dn] { outline: 2px dashed rgba(220, 38, 38, 0.5) !important; outline-offset: -2px; position: relative; }
-body.knk-debug [data-dn]::before {
-    content: attr(data-dn) " · " attr(data-dn-size);
+/* z108g: 라벨을 실제 DOM 요소로 — 텍스트 선택·복사 가능 */
+.knk-dn-label {
     position: absolute; top: 0; left: 0; z-index: 9999;
     background: #b91c1c; color: #fff;
     padding: 3px 8px;
@@ -13,22 +13,50 @@ body.knk-debug [data-dn]::before {
     font-family: 'Segoe UI', 'Malgun Gothic', system-ui, sans-serif;
     letter-spacing: 0;
     border-radius: 0 0 5px 0;
-    pointer-events: none; white-space: nowrap;
+    white-space: nowrap;
     line-height: 1.4;
     box-shadow: 0 2px 6px rgba(0,0,0,0.35);
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    cursor: copy;
+    user-select: text;          /* 텍스트 선택 가능 */
+    -webkit-user-select: text;
+    transition: transform .15s, background .15s;
+}
+.knk-dn-label:hover { transform: scale(1.05); box-shadow: 0 4px 10px rgba(0,0,0,0.45); }
+.knk-dn-label.copied { background: #16a34a !important; }
+.knk-dn-label::after {
+    content: " 📋";
+    opacity: 0.6;
+    font-size: 9.5px;
 }
 /* 색깔 톤별 (depth) */
 body.knk-debug [data-dn-tone="blue"] { outline-color: rgba(37, 99, 235, 0.6) !important; }
-body.knk-debug [data-dn-tone="blue"]::before { background: #1d4ed8; }
+.knk-dn-label[data-tone="blue"] { background: #1d4ed8; }
 body.knk-debug [data-dn-tone="green"] { outline-color: rgba(5, 150, 105, 0.6) !important; }
-body.knk-debug [data-dn-tone="green"]::before { background: #047857; }
+.knk-dn-label[data-tone="green"] { background: #047857; }
 body.knk-debug [data-dn-tone="purple"] { outline-color: rgba(139, 92, 246, 0.6) !important; }
-body.knk-debug [data-dn-tone="purple"]::before { background: #7c3aed; }
+.knk-dn-label[data-tone="purple"] { background: #7c3aed; }
 body.knk-debug [data-dn-tone="amber"] { outline-color: rgba(217, 119, 6, 0.6) !important; }
-body.knk-debug [data-dn-tone="amber"]::before { background: #b45309; }
+.knk-dn-label[data-tone="amber"] { background: #b45309; }
+
+/* 복사 토스트 */
+.knk-copy-toast {
+    position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+    background: #16a34a; color: #fff;
+    padding: 8px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    z-index: 999999;
+    animation: knk-toast-fade 2.2s ease-out forwards;
+}
+@keyframes knk-toast-fade {
+    0% { opacity: 0; transform: translate(-50%, 8px); }
+    15% { opacity: 1; transform: translate(-50%, 0); }
+    85% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -8px); }
+}
 
 /* 우측 하단 컨트롤 패널 */
 .knk-debug-panel { position: fixed; right: 14px; bottom: 14px; z-index: 99999;
@@ -104,11 +132,70 @@ body.knk-debug .knk-debug-toggle { display: none; }
             el.setAttribute('data-dn-size', Math.round(r.width) + '×' + Math.round(r.height));
         });
     }
+
+    // z108g: 실제 DOM 라벨 삽입 (텍스트 선택·복사 가능, 클릭 시 자동 복사)
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+        }
+        // 폴백
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch(e){}
+        document.body.removeChild(ta);
+        return Promise.resolve();
+    }
+    function showCopyToast(msg) {
+        var t = document.createElement('div');
+        t.className = 'knk-copy-toast';
+        t.textContent = '✓ 복사됨: ' + msg;
+        document.body.appendChild(t);
+        setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 2300);
+    }
+    function injectLabels() {
+        document.querySelectorAll('[data-dn]').forEach(function(el){
+            // 이미 라벨 있으면 텍스트만 갱신
+            var lab = el.querySelector(':scope > .knk-dn-label');
+            var name = el.getAttribute('data-dn') || '';
+            var size = el.getAttribute('data-dn-size') || '';
+            var tone = el.getAttribute('data-dn-tone') || '';
+            var text = name + (size ? ' · ' + size : '');
+            if (lab) {
+                lab.firstChild.nodeValue = text;
+                if (tone) lab.setAttribute('data-tone', tone);
+                return;
+            }
+            // position:relative 보장 (라벨 위치 기준)
+            var pos = window.getComputedStyle(el).position;
+            if (pos === 'static') el.style.position = 'relative';
+            lab = document.createElement('span');
+            lab.className = 'knk-dn-label';
+            if (tone) lab.setAttribute('data-tone', tone);
+            // 첫 텍스트 노드 (📋 ::after 가 뒤에 붙음)
+            lab.appendChild(document.createTextNode(text));
+            lab.title = '클릭하면 "' + name + '" 복사 (또는 텍스트 드래그 선택)';
+            lab.addEventListener('click', function(e){
+                e.stopPropagation();
+                e.preventDefault();
+                copyToClipboard(name).then(function(){
+                    lab.classList.add('copied');
+                    showCopyToast(name);
+                    setTimeout(function(){ lab.classList.remove('copied'); }, 800);
+                });
+            });
+            el.insertBefore(lab, el.firstChild);
+        });
+    }
     if (on) {
         autoLabel();
         measureAll();
-        window.addEventListener('resize', measureAll);
-        new MutationObserver(function(){ autoLabel(); measureAll(); })
+        injectLabels();
+        window.addEventListener('resize', function(){ measureAll(); injectLabels(); });
+        new MutationObserver(function(){ autoLabel(); measureAll(); injectLabels(); })
             .observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
     }
 
@@ -309,7 +396,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
 
 <div class="knk-debug-panel">
   <h4>🔍 디버그 모드 ON</h4>
-  <div><span class="key">버전</span> v5H226z108f</div>
+  <div><span class="key">버전</span> v5H226z108g</div>
   <div class="dim">─────────────────</div>
   <div>각 영역에 <span class="key">이름·크기</span> 표시 중</div>
   <div>"kpi-bar 높이 줄여" 처럼<br>영역 이름 그대로 말씀하시면 됩니다.</div>
