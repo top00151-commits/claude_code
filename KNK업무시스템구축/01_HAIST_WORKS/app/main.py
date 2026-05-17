@@ -411,6 +411,15 @@ def startup():
             print(f"[WFB-MIG-Z108J] {_r8}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108J ERR] {_e}")
+    # v5H226z108k (2026-05-17): 기존 워크플로우 노드 코드 교체 (T4 customs/delivery)
+    try:
+        from .migrations.m_z108k_existing_wf_fix import migrate as _wfb_migrate9
+        from .database import DB_PATH as _DB_PATH
+        _r9 = _wfb_migrate9(_DB_PATH)
+        if _r9.get('nodes_updated'):
+            print(f"[WFB-MIG-Z108K] {_r9}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z108K ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
