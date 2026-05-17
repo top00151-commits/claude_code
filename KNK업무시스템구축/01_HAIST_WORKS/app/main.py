@@ -393,6 +393,15 @@ def startup():
             print(f"[WFB-MIG-Z108H] {_r6}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108H ERR] {_e}")
+    # v5H226z108i (2026-05-17): 노드 제목 KNK 친화 정비 (체크리스트 내용)
+    try:
+        from .migrations.m_z108i_knk_node_titles import migrate as _wfb_migrate7
+        from .database import DB_PATH as _DB_PATH
+        _r7 = _wfb_migrate7(_DB_PATH)
+        if _r7.get('updated'):
+            print(f"[WFB-MIG-Z108I] {_r7}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z108I ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
