@@ -402,6 +402,15 @@ def startup():
             print(f"[WFB-MIG-Z108I] {_r7}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108I ERR] {_e}")
+    # v5H226z108j (2026-05-17): 시나리오별 부서 정합성 수정
+    try:
+        from .migrations.m_z108j_scenario_dept_fix import migrate as _wfb_migrate8
+        from .database import DB_PATH as _DB_PATH
+        _r8 = _wfb_migrate8(_DB_PATH)
+        if _r8.get('existing_updated') or _r8.get('new_nodes'):
+            print(f"[WFB-MIG-Z108J] {_r8}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z108J ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:

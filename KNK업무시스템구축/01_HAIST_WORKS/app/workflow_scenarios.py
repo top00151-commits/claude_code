@@ -314,8 +314,8 @@ T4_NODE_SEQ = [
     'mfg.assembly_vn', 'mfg.electrical_vn', 'mfg.io_check_vn', 'mfg.sw_apply_vn',
     # VN 자체 출하검증 (본사 개입 없음)
     'qa.fat_vn',
-    # VN → 해외 직접 출하
-    'logi.vn_export', 'logi.customs', 'logi.delivery',
+    # VN → 해외 직접 출하 (z108j: VN관리팀 주관 노드 사용)
+    'logi.vn_export', 'logi.customs_vn', 'logi.delivery_vn',
     'logi.setup', 'qa.sat',
     'docs.manual', 'sales.closeout',
 ]
