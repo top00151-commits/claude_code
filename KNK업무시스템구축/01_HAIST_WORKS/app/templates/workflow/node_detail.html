@@ -61,9 +61,9 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · NODE DETAIL · 5W 가이드 · z105</div>
+    <div class="page-meta">이 일 자세히 (노드 상세 · 5W 가이드)</div>
     <div class="crumb">
-      <a href="/workflow">워크플로우</a> →
+      <a href="/workflow">일 순서 만들기</a> →
       <a href="/workflow/project/{{ n.project_id }}">{{ n.mgmt_code or '' }} {{ n.project_name }}</a> →
       <strong>{{ '%02d'|format(n.seq) }}. {{ n.title_ko }}</strong>
     </div>
@@ -86,17 +86,17 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
   <div class="wrap">
     <div>
       <div class="box">
-        <h3>📌 5W — 이 단계 핵심</h3>
+        <h3>📌 이 일 한눈에 보기 (5W)</h3>
         <div class="fivew">
-          <span class="k">🗓 어느단계</span> <span class="v"><strong>{{ '%02d'|format(n.seq) }}</strong> / {{ n.category }} 카테고리</span>
-          <span class="k">🏢 어느부서</span> <span class="v">{{ n.default_dept }} <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span></span>
+          <span class="k">🗓 몇 번째</span> <span class="v"><strong>{{ '%02d'|format(n.seq) }}</strong> 번째 일 / 분류: {{ n.category }}</span>
+          <span class="k">🏢 어느 팀</span> <span class="v">{{ n.default_dept }} <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ n.assigned_entity or '-' }}</span></span>
           <span class="k">👤 누가</span>
           <span class="v">
-            {% if assignee %}<strong>{{ assignee.name }}</strong>{% else %}<em style="color:var(--qv-ink-3);">— 미지정 (아래에서 지정하세요)</em>{% endif %}
+            {% if assignee %}<strong>{{ assignee.name }}</strong>{% else %}<em style="color:var(--qv-ink-3);">— 아직 정해지지 않음 (아래에서 지정)</em>{% endif %}
           </span>
-          <span class="k">📋 무엇을</span> <span class="v">아래 체크포인트 {{ checkpoints|length }}개 항목 모두 완료</span>
-          <span class="k">⏱ 예상시간</span> <span class="v">{{ n.est_hours }}h</span>
-          <span class="k">📊 했는지</span>
+          <span class="k">📋 할 일</span> <span class="v">아래 확인할 것 {{ checkpoints|length }}개 모두 끝내기</span>
+          <span class="k">⏱ 예상 시간</span> <span class="v">{{ n.est_hours }}시간</span>
+          <span class="k">📊 진행 상태</span>
           <span class="v">
             {% if n.status=='done' %}<span style="color:#10b981; font-weight:700;">✓ 완료 ({{ n.done_at or '' }})</span>
             {% elif n.status=='in_progress' %}<span style="color:#1e40af; font-weight:700;">⏳ 진행중</span>
@@ -108,7 +108,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       </div>
 
       <div class="box">
-        <h3>📖 어떻게 — SOP 가이드</h3>
+        <h3>📖 어떻게 함 — 일 방법 (SOP)</h3>
         {% if n.sop_guide %}
           <div class="sop">{{ n.sop_guide }}</div>
         {% else %}
@@ -122,7 +122,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       </div>
 
       <div class="box">
-        <h3>✓ 무엇을 — 산출물 체크포인트 ({{ checkpoints|selectattr('is_done')|list|length }}/{{ checkpoints|length }})</h3>
+        <h3>✓ 확인할 것들 (체크포인트) — {{ checkpoints|selectattr('is_done')|list|length }}/{{ checkpoints|length }} 완료</h3>
         <ul class="cp-list">
           {% for cp in checkpoints %}
           <li class="cp-item {% if cp.is_done %}done{% endif %}" data-cp="{{ cp.id }}" onclick="toggleCp({{ cp.id }}, this)">
@@ -147,7 +147,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
 
     <div>
       <div class="box">
-        <h3>📊 했는지 — 상태 변경</h3>
+        <h3>📊 얼마나 됐나 (진행 상태)</h3>
         <div class="status-bar">
           {% for st, lab in [('pending','○ 대기'),('in_progress','⏳ 진행중'),('done','✓ 완료'),('blocked','⛔ 막힘'),('skipped','⊘ 생략')] %}
             <button class="s-{{ st }} {% if n.status==st %}active{% endif %}" onclick="setStatus('{{ st }}')">{{ lab }}</button>
@@ -156,7 +156,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       </div>
 
       <div class="box">
-        <h3>👤 담당자 지정</h3>
+        <h3>👤 누가 함 (담당자 지정)</h3>
         <form class="assignee-pick" onsubmit="assignUser(event)">
           <select id="userSel">
             <option value="">— 미지정 —</option>
@@ -170,7 +170,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       </div>
 
       <div class="box">
-        <h3>🔄 이전 · 다음 단계</h3>
+        <h3>🔄 이전 · 다음 일</h3>
         {% if prev_n %}
           <a href="/workflow/node/{{ prev_n.id }}" class="btn btn-nav" style="display:block; margin-bottom:6px; text-align:left;">← {{ '%02d'|format(prev_n.seq) }}. 이전 단계</a>
         {% else %}

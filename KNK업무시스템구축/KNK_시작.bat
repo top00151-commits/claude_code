@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-17 v5H226z108e (사용자 입장 UX 보강 — 포장노드 T2/T3 추가, /home 부서 미배정 잡기, 진행 가능성 시각화, 노드 상세 큰 액션 버튼)
+REM   LAST UPDATE: 2026-05-17 v5H226z108f (사람 친화 용어 — 워크플로우→일순서, 노드→일, 마법사→만들기 등 "쉬운이름(용어)" 표기 / 메모리 룰 등록)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z108e]
+title KNK HAIST WORKS [v5H226z108f]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108e  2026-05-16]
+echo    [v5H226z108f  2026-05-16]
 echo ============================================================
 echo.
 

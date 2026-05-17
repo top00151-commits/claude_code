@@ -156,9 +156,9 @@ select:focus, input:focus {
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · WIZARD · z106</div>
-    <h1 class="page-title">워크플로우 마법사</h1>
-    <div class="intro">8개 항목을 답하시면 업무 순서가 자동 조립됩니다.</div>
+    <div class="page-meta">일 순서 만들기 (워크플로우 마법사)</div>
+    <h1 class="page-title">🎯 일 순서 만들기</h1>
+    <div class="intro">아래 항목을 답하시면 업무 순서가 자동으로 만들어집니다.</div>
   </div>
 
   <div class="wrap">
@@ -167,11 +167,11 @@ select:focus, input:focus {
       {% if not existing_wf %}<input type="hidden" name="mode" value="rebuild" />{% endif %}
 
       <div class="section">
-        <div class="section-head">프로젝트 · 거래 구조<span class="qr">Q1 — Q2</span></div>
+        <div class="section-head">프로젝트와 주문<span class="qr">Q1 — Q2 (거래 구조)</span></div>
         <div class="section-body">
           <div class="qrow qrow-projlines">
             <div class="q-block">
-              <div class="q-label">대상 프로젝트</div>
+              <div class="q-label">어느 프로젝트인가요?</div>
               <select name="project_id" required>
                 <option value="">— 선택 —</option>
                 {% for p in projects %}
@@ -180,7 +180,7 @@ select:focus, input:focus {
               </select>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q1.</span>고객사 소재국</div>
+              <div class="q-label"><span class="qn">Q1.</span>고객사가 어느 나라인가요? (소재국)</div>
               <select name="customer_country" required>
                 {% for c in countries %}
                   <option value="{{ c.code }}" {% if tpl_row and tpl_row.customer_country_hint==c.code %}selected{% endif %}>{{ c.name_ko }}</option>
@@ -188,7 +188,7 @@ select:focus, input:focus {
               </select>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q2.</span>PO 수주 법인</div>
+              <div class="q-label"><span class="qn">Q2.</span>누가 주문을 받나요? (PO 수주 법인)</div>
               <div class="opts">
                 <label><input type="radio" name="po_entity" value="KR" {% if not tpl_row or tpl_row.po_entity_hint!='VN' %}checked{% endif %} />본사</label>
                 <label><input type="radio" name="po_entity" value="VN" {% if tpl_row and tpl_row.po_entity_hint=='VN' %}checked{% endif %} />베트남법인</label>
@@ -218,13 +218,13 @@ select:focus, input:focus {
       {% endif %}
 
       <div class="section">
-        <div class="section-head">설계 분담<span class="qr">Q3 — Q5</span></div>
+        <div class="section-head">설계는 누가 하나요?<span class="qr">Q3 — Q5 (설계 분담)</span></div>
         <div class="section-body">
           <div class="qrow qrow-3">
             {% set design_qs = [
-              ('Q3','mech_design_split','기구설계'),
-              ('Q4','elec_design_split','전장설계'),
-              ('Q5','sw_design_split','소프트웨어설계'),
+              ('Q3','mech_design_split','기구설계 (기계 도면)'),
+              ('Q4','elec_design_split','전장설계 (전기 회로)'),
+              ('Q5','sw_design_split','소프트웨어설계 (프로그램)'),
             ] %}
             {% for qno, fname, qlabel in design_qs %}
             <div class="q-block">
@@ -241,7 +241,7 @@ select:focus, input:focus {
       </div>
 
       <div class="section">
-        <div class="section-head">제조구분<span class="qr">Q6 · 가공 · 조립 · 전장 · 검증</span></div>
+        <div class="section-head">만드는 곳은 어디인가요?<span class="qr">Q6 (제조구분 · 가공·조립·전장·검증)</span></div>
         <div class="section-body">
           <div class="qrow qrow-4">
             {% set mfg_items = [
@@ -265,21 +265,21 @@ select:focus, input:focus {
       </div>
 
       <div class="section">
-        <div class="section-head">프로젝트 특성<span class="qr">Q9 — Q10 · z108d</span></div>
+        <div class="section-head">프로젝트 특성<span class="qr">Q9 — Q10</span></div>
         <div class="section-body">
           <div class="qrow qrow-2">
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q9.</span>양산 변경사항</div>
+              <div class="q-label"><span class="qn">Q9.</span>만들던 제품에 바뀐 부분 있나요? (양산 변경사항)</div>
               <div class="opts">
-                <label><input type="radio" name="is_mass_revision" value="0" checked />없음 (신규 또는 동일 양산)</label>
-                <label><input type="radio" name="is_mass_revision" value="1" />있음 (컨셉회의·제안서 재진행)</label>
+                <label><input type="radio" name="is_mass_revision" value="0" checked />없어요 (그대로 또는 신규)</label>
+                <label><input type="radio" name="is_mass_revision" value="1" />있어요 (컨셉회의·제안서 다시)</label>
               </div>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q10.</span>가공품 발주부서</div>
+              <div class="q-label"><span class="qn">Q10.</span>가공품은 어느 팀이 발주하나요? (가공품 발주부서)</div>
               <div class="opts">
-                <label><input type="radio" name="machined_po_dept" value="purchase" checked />구매팀</label>
-                <label><input type="radio" name="machined_po_dept" value="design" />설계팀</label>
+                <label><input type="radio" name="machined_po_dept" value="purchase" checked />구매팀이 발주</label>
+                <label><input type="radio" name="machined_po_dept" value="design" />설계팀이 발주</label>
               </div>
             </div>
           </div>
@@ -287,11 +287,11 @@ select:focus, input:focus {
       </div>
 
       <div class="section">
-        <div class="section-head">출하 · 셋업<span class="qr">Q7 — Q8</span></div>
+        <div class="section-head">어디서 출하·설치하나요?<span class="qr">Q7 — Q8 (출하·셋업)</span></div>
         <div class="section-body">
           <div class="qrow qrow-2">
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q7.</span>출하구분</div>
+              <div class="q-label"><span class="qn">Q7.</span>어디서 출하하나요? (출하구분)</div>
               <div class="opts">
                 <label><input type="radio" name="ship_split" value="KR" {% if not tpl_row or tpl_row.ship_entity_hint!='VN' %}checked{% endif %} />본사</label>
                 <label><input type="radio" name="ship_split" value="VN" {% if tpl_row and tpl_row.ship_entity_hint=='VN' %}checked{% endif %} />베트남법인</label>
@@ -299,7 +299,7 @@ select:focus, input:focus {
               </div>
             </div>
             <div class="q-block">
-              <div class="q-label"><span class="qn">Q8.</span>셋업구분 (현장 설치·시운전)</div>
+              <div class="q-label"><span class="qn">Q8.</span>현장 설치는 누가 하나요? (셋업구분)</div>
               <div class="opts">
                 <label><input type="radio" name="setup_split" value="NONE" checked />없음</label>
                 <label><input type="radio" name="setup_split" value="KR" />본사</label>

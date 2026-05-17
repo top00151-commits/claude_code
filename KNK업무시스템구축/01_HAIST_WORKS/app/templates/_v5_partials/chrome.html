@@ -181,11 +181,12 @@
   {% set _pos = (user.position or '') %}
   {% set _is_leader = _role in ('ceo','admin','leader','manager') or '팀장' in _pos or '부장' in _pos or '이사' in _pos or '대표' in _pos or '관리자' in _pos %}
   {% set _is_pm = _role in ('ceo','admin') or user.dept in ('영업','영업팀','경영','경영기획','기획','관리','관리팀','PM') or _is_leader %}
+  {# z108f (2026-05-17): "쉬운이름(용어)" 표기 — 사람 친화 #}
   {% if _is_leader %}
-  {{ a('/workflow/team',      '🗂 우리 팀 업무카드','M-00-17') }}
+  {{ a('/workflow/team',      '🗂 우리 팀 현황',   'M-00-17') }}
   {% endif %}
   {% if _is_pm %}
-  {{ a('/workflow',           '🧩 워크플로우 관리','M-00-18') }}
+  {{ a('/workflow',           '🧩 일 순서 만들기', 'M-00-18') }}
   {% endif %}
   {{ a('/notifications', '📢 알림함',    'M-00-09') }}
   {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}
