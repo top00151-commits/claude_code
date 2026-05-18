@@ -836,20 +836,47 @@ def _auto_create_ic_pairs(c, wf_id, project_id):
         by_code.setdefault(r['node_code'], []).append(r['id'])
 
     today = date.today().strftime('%y%m%d')
+    # z108n6: 글로벌 시퀀스로 중복 방지 — 오늘자 기존 최대 seq + wf_id 포함
+    row = c.execute("SELECT pair_code FROM ic_invoice_pairs WHERE pair_code LIKE ? ORDER BY id DESC LIMIT 1",
+                    (f"IC-{today}-%",)).fetchone()
     seq = 1
+    if row:
+        try:
+            seq = int(str(row['pair_code']).rsplit('-', 1)[-1]) + 1
+        except Exception:
+            seq = 1
     for sell_code, (sell_ent, buy_ent, buy_code) in pair_map.items():
         sells = by_code.get(sell_code, [])
         buys = by_code.get(buy_code, [])
         # 같은 인덱스끼리 페어링
         for i in range(min(len(sells), len(buys))):
-            pair_code = f"IC-{today}-{seq:03d}"
-            seq += 1
-            c.execute("""INSERT INTO ic_invoice_pairs
-                         (pair_code,workflow_id,project_id,
-                          sell_entity,buy_entity,sell_node_id,buy_node_id,
-                          status,currency) VALUES (?,?,?,?,?,?,?,'pending','USD')""",
-                      (pair_code, wf_id, project_id, sell_ent, buy_ent,
-                       sells[i], buys[i]))
+            # 충돌 시 seq 자동 증가 재시도 (최대 50회)
+            inserted = False
+            for _ in range(50):
+                pair_code = f"IC-{today}-{seq:03d}"
+                seq += 1
+                try:
+                    c.execute("""INSERT INTO ic_invoice_pairs
+                                 (pair_code,workflow_id,project_id,
+                                  sell_entity,buy_entity,sell_node_id,buy_node_id,
+                                  status,currency) VALUES (?,?,?,?,?,?,?,'pending','USD')""",
+                              (pair_code, wf_id, project_id, sell_ent, buy_ent,
+                               sells[i], buys[i]))
+                    inserted = True
+                    break
+                except Exception as _e:
+                    if 'UNIQUE' in str(_e):
+                        continue
+                    raise
+            if not inserted:
+                # 최후 안전판: wf_id 접미
+                pair_code = f"IC-{today}-W{wf_id}-{i+1:03d}"
+                c.execute("""INSERT OR IGNORE INTO ic_invoice_pairs
+                             (pair_code,workflow_id,project_id,
+                              sell_entity,buy_entity,sell_node_id,buy_node_id,
+                              status,currency) VALUES (?,?,?,?,?,?,?,'pending','USD')""",
+                          (pair_code, wf_id, project_id, sell_ent, buy_ent,
+                           sells[i], buys[i]))
 
 
 # ──────────────────────────────────────────────────────────────────────────

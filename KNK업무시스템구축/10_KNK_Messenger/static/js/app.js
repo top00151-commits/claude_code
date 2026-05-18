@@ -259,6 +259,7 @@
     clearRoomAlias: (rid) => fetch(`${BASE}/api/rooms/${rid}/alias`, { method: "DELETE" }).then(r => r.json()),
     renameRoom: (rid, name, locked) => fetch(`${BASE}/api/rooms/${rid}/name`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, name_locked: locked }) }).then(r => r.json()),
     setRoomRetention: (rid, days) => fetch(`${BASE}/api/rooms/${rid}/retention`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ retention_days: days }) }).then(r => r.json()),
+    setRoomInvitePolicy: (rid, policy) => fetch(`${BASE}/api/rooms/${rid}/invite_policy`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invite_policy: policy }) }).then(r => r.json()),
     getSelfRoom: () => fetch(`${BASE}/api/me/self_room`).then(r => r.json()),
     setMemberRole: (rid, uid, role) => fetch(`${BASE}/api/rooms/${rid}/members/${uid}/role`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) }).then(r => r.json()),
     transferHost: (rid, toUid) => fetch(`${BASE}/api/rooms/${rid}/transfer-host`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to_user_id: toUid }) }).then(r => r.json()),
@@ -1819,8 +1820,15 @@
       `;
     }).join('');
 
-    // 초대 버튼 — self 방은 1인방이라 초대 자체 불가
-    document.getElementById('rsInviteArea').style.display = (canInvite && room.type !== 'self') ? 'block' : 'none';
+    // 초대 버튼 — 1:1·self 방은 추가 불가. 그 외에는 invite_policy 에 따라:
+    //   invite_policy === 'host_only' → host/sub_host 만
+    //   invite_policy === 'all' (기본) → 모든 멤버 가능
+    const policy = room.invite_policy || 'all';
+    const canInviteByPolicy = (policy === 'host_only')
+      ? (isHost || isSub)
+      : true;  // 'all' — 모든 멤버 가능
+    const showInviteBtn = canInviteByPolicy && room.type !== 'self' && room.type !== 'direct';
+    document.getElementById('rsInviteArea').style.display = showInviteBtn ? 'block' : 'none';
 
     // 메시지 자동 삭제 (retention_days) — direct·self 제외 모든 방
     // 방장만 변경, 멤버는 현재값만 표시
@@ -1859,6 +1867,50 @@
       } else {
         const o = opts.find(x => x.v === cur) || opts[0];
         retArea.innerHTML = `<div class="rs-readonly">현재 정책: <b>${o.label}</b> <span class="rs-hint">(방장만 변경 가능)</span></div>`;
+      }
+    }
+
+    // 초대 권한 정책 — 1:1 / self 제외 모든 방
+    const ipSec = document.getElementById('rsInvitePolicySection');
+    const ipArea = document.getElementById('rsInvitePolicyArea');
+    if (ipSec && ipArea) {
+      if (room.type === 'direct' || room.type === 'self') {
+        ipSec.style.display = 'none';
+      } else {
+        ipSec.style.display = '';
+        const curPolicy = room.invite_policy || 'all';
+        const labelOf = (p) => p === 'host_only' ? '👑 방장·부방장만' : '👥 모든 멤버 가능 (기본)';
+        if (isHost) {
+          ipArea.innerHTML = `
+            <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:8px;">
+              <label class="rs-checkbox" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border:2px solid ${curPolicy === 'all' ? 'var(--accent)' : '#E5E7EB'};border-radius:6px;background:${curPolicy === 'all' ? '#FEF2F2' : '#fff'};">
+                <input type="radio" name="rsIp" value="all" ${curPolicy === 'all' ? 'checked' : ''} style="margin-top:3px;">
+                <span>
+                  <div style="font-weight:600;font-size:13px;">👥 모든 멤버 초대 가능 <span style="font-size:11px;color:var(--text-soft);">(기본)</span></div>
+                  <div style="font-size:11.5px;color:var(--text-soft);">방의 누구나 새 멤버를 초대할 수 있음</div>
+                </span>
+              </label>
+              <label class="rs-checkbox" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border:2px solid ${curPolicy === 'host_only' ? 'var(--accent)' : '#E5E7EB'};border-radius:6px;background:${curPolicy === 'host_only' ? '#FEF2F2' : '#fff'};">
+                <input type="radio" name="rsIp" value="host_only" ${curPolicy === 'host_only' ? 'checked' : ''} style="margin-top:3px;">
+                <span>
+                  <div style="font-weight:600;font-size:13px;">👑 방장·부방장만 초대 가능</div>
+                  <div style="font-size:11.5px;color:var(--text-soft);">일반 멤버는 초대 불가 — 폐쇄형 방</div>
+                </span>
+              </label>
+              <button type="button" id="rsIpSaveBtn" class="primary-btn">초대 권한 저장</button>
+            </div>
+            <div class="rs-hint">⚠ 추방 권한은 항상 방장·부방장만 가능 (이 설정과 무관).</div>
+          `;
+          document.getElementById('rsIpSaveBtn').onclick = async () => {
+            const picked = document.querySelector('input[name="rsIp"]:checked')?.value || 'all';
+            const res = await api.setRoomInvitePolicy(room.id, picked);
+            if (res && res.error) { alert(res.error); return; }
+            await refreshRooms();
+            await openRoomSettings(room.id);
+          };
+        } else {
+          ipArea.innerHTML = `<div class="rs-readonly">현재 정책: <b>${labelOf(curPolicy)}</b> <span class="rs-hint">(방장만 변경 가능)</span></div>`;
+        }
       }
     }
 

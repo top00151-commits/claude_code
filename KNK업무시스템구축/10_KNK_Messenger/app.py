@@ -740,9 +740,10 @@ def init_db():
         )
         room_id = cur.lastrowid
         for uid in (1, 2, 3):
+            mrole = 'host' if uid == 1 else 'member'
             cur.execute(
-                "INSERT INTO room_members (room_id, user_id, joined_at) VALUES (?,?,?)",
-                (room_id, uid, now),
+                "INSERT INTO room_members (room_id, user_id, joined_at, role) VALUES (?,?,?,?)",
+                (room_id, uid, now, mrole),
             )
         cur.execute(
             "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
@@ -770,9 +771,10 @@ def init_db():
                 VALUES (?,?,?,?,?,?,?,?)
             """, (rid, code, name, customer, status, 1, now, now))
             for uid in (1, 2, 3):
+                mrole = 'host' if uid == 1 else 'member'
                 cur.execute(
-                    "INSERT INTO room_members (room_id, user_id, joined_at) VALUES (?,?,?)",
-                    (rid, uid, now),
+                    "INSERT INTO room_members (room_id, user_id, joined_at, role) VALUES (?,?,?,?)",
+                    (rid, uid, now, mrole),
                 )
         conn.commit()
 
@@ -925,7 +927,7 @@ def api_rooms():
     db = get_db()
     rows = db.execute("""
         SELECT r.id, r.name, r.type, r.created_at, r.name_locked, r.created_by,
-               r.retention_days,
+               r.retention_days, r.invite_policy,
                rm.role AS my_role,
                (SELECT alias FROM room_aliases WHERE room_id=r.id AND user_id=?) AS my_alias,
                it.code AS item_code, it.customer AS item_customer,
@@ -3950,6 +3952,42 @@ def _start_calendar_worker():
             _t.sleep(60)
     import threading as _th
     _th.Thread(target=_loop, daemon=True).start()
+
+
+@app.route("/api/rooms/<int:room_id>/invite_policy", methods=["PUT"])
+@login_required
+def api_room_invite_policy(room_id):
+    """방의 초대 권한 정책 변경 — 방장만.
+    body: {invite_policy: 'all' | 'host_only'}
+    'all' = 모든 멤버 초대 가능 (기본). 'host_only' = 방장·부방장만 초대 가능."""
+    me = current_user()
+    db = get_db()
+    role = _my_room_role(db, room_id, me["id"])
+    if role != 'host':
+        return jsonify({"error": "방장만 변경 가능"}), 403
+    data = request.get_json(silent=True) or {}
+    policy = data.get("invite_policy")
+    if policy not in ("all", "host_only"):
+        return jsonify({"error": "invite_policy 는 'all' 또는 'host_only'"}), 400
+    db.execute("UPDATE rooms SET invite_policy=? WHERE id=?", (policy, room_id))
+    db.commit()
+    now = datetime.now(timezone.utc).isoformat()
+    label = "모든 멤버 가능" if policy == "all" else "방장·부방장만 가능"
+    sys_text = f"초대 권한: {label}"
+    cur = db.execute(
+        "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
+        (room_id, me["id"], sys_text, "system", now),
+    )
+    db.commit()
+    _emit_room_event(room_id, "room_invite_policy_changed", {
+        "room_id": room_id, "invite_policy": policy,
+    })
+    _emit_room_event(room_id, "new_message", {
+        "id": cur.lastrowid, "room_id": room_id, "user_id": me["id"],
+        "display_name": me["display_name"], "avatar_color": me["avatar_color"],
+        "content": sys_text, "kind": "system", "created_at": now,
+    })
+    return jsonify({"ok": True, "invite_policy": policy})
 
 
 def _ensure_self_room(uid):

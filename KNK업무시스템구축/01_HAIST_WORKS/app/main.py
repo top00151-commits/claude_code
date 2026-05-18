@@ -8241,7 +8241,7 @@ async def parts_export_xlsx(req: Request):
     g.row_dimensions[1].height = 32
 
     g.merge_cells("A2:C2")
-    g["A2"] = f"생성일: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건"
+    g["A2"] = f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건"
     g["A2"].font = subtitle_fnt
 
     g["A4"] = "📌 개요"
@@ -8297,7 +8297,7 @@ async def parts_export_xlsx(req: Request):
 
     # 2행: 부제 (생성일·건수)
     ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = f"생성일: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요"
+    ws["A2"] = f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요"
     ws["A2"].font = Font(size=10.5, color="64748B")
     ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[2].height = 20
@@ -8342,13 +8342,13 @@ async def parts_export_xlsx(req: Request):
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    _fname_kr = f"KNK_자재마스터_{_dt.datetime.now().strftime('%Y%m%d')}.xlsx"
+    _fname_kr = f"KNK_자재마스터_{_dt.now().strftime('%Y%m%d')}.xlsx"
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": (
-                f'attachment; filename="KNK_parts_master_{_dt.datetime.now().strftime("%Y%m%d")}.xlsx"; '
+                f'attachment; filename="KNK_parts_master_{_dt.now().strftime("%Y%m%d")}.xlsx"; '
                 f"filename*=UTF-8''{_q(_fname_kr)}"
             ),
         },
