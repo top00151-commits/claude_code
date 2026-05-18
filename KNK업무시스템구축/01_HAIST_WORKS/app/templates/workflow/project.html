@@ -41,8 +41,16 @@
 }
 .node-row > * { min-width:0; }
 .node-row:hover { background:var(--qv-surface-2); }
-.node-row.is-blocked { opacity:.55; background:#fafafa; }
-.node-row.is-done { opacity:.7; background:#f0fdf4; }
+/* z108n7: is-blocked 행도 글씨 또렷하게 — opacity 제거, 배경 톤만 차별 */
+.node-row.is-blocked { background:#fafafa; }
+.node-row.is-blocked .node-title a { color:#6b7280; }
+.node-row.is-blocked .node-dept { color:#9ca3af; }
+.node-row.is-done { background:#f0fdf4; }
+.node-row.is-done .node-title a { color:#166534; }
+/* 컨트롤은 항상 또렷·조작 가능 */
+.node-row .status-sel,
+.node-row .btn-mini,
+.node-row .chip { opacity:1 !important; }
 
 .node-seq { font-size:12px; color:var(--qv-ink-3); font-family:monospace; font-weight:700; text-align:center; }
 .node-title { font-size:13px; font-weight:600; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -239,7 +247,7 @@
             <div>액션</div>
           </div>
           <ul class="node-list">
-            {% for n in nodes %}
+            {% for n in nodes %}{% if n.title_ko %}
             {% set is_blocked = n.blockers > 0 and n.status == 'pending' %}
             {% set is_done = n.status == 'done' %}
             {% set cp_pct = ((n.cp_done*100/n.cp_total)|round|int) if n.cp_total else 0 %}
@@ -283,7 +291,7 @@
                 {% endif %}
               </div>
             </li>
-            {% endfor %}
+            {% endif %}{% endfor %}
           </ul>
         </div>
       </div>
