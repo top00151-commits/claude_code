@@ -116,6 +116,13 @@
     aiSummaryCopyBtn: $("aiSummaryCopyBtn"),
     aiRewriteBtn: $("aiRewriteBtn"),
     aiRewriteMenu: $("aiRewriteMenu"),
+    // 프로젝트 이력
+    projectHistoryBtn: $("projectHistoryBtn"),
+    projectHistoryDialog: $("projectHistoryDialog"),
+    phRoomName: $("phRoomName"),
+    phList: $("phList"),
+    phGenerateBtn: $("phGenerateBtn"),
+    phCopyAllBtn: $("phCopyAllBtn"),
     // 상태·캘린더
     meInfoArea: $("meInfoArea"),
     myStatusDot: $("myStatusDot"),
@@ -1530,6 +1537,8 @@
     if (els.starredBtn) els.starredBtn.hidden = false;
     if (els.aiSummaryBtn) els.aiSummaryBtn.hidden = false;
     if (els.aiRewriteBtn) els.aiRewriteBtn.disabled = false;
+    // 📚 프로젝트 이력 — 아이템 방에서만
+    if (els.projectHistoryBtn) els.projectHistoryBtn.hidden = (room.type !== "item");
     const rsBtn = document.getElementById('roomSettingsBtn');
     if (rsBtn) rsBtn.hidden = (room.type === 'direct');  // 1:1 방은 설정 X
     if (els.headMoreBtn) els.headMoreBtn.hidden = false;  // 모바일 ⋮ 더보기
@@ -3253,6 +3262,7 @@
     if (els.starredBtn) els.starredBtn.hidden = true;
     if (els.aiSummaryBtn) els.aiSummaryBtn.hidden = true;
     if (els.aiRewriteBtn) els.aiRewriteBtn.disabled = true;
+    if (els.projectHistoryBtn) els.projectHistoryBtn.hidden = true;
     const _rsBtn = document.getElementById('roomSettingsBtn');
     if (_rsBtn) _rsBtn.hidden = true;
     if (els.headMoreBtn) els.headMoreBtn.hidden = true;
@@ -3587,7 +3597,7 @@
         openRoomSettings();
         return;
       }
-      const map = { requests: "requestsBtn", starred: "starredBtn", gallery: "galleryBtn", export: "exportBtn", edit: "itemEditBtn", leave: "leaveRoomBtn", ai_summary: "aiSummaryBtn" };
+      const map = { requests: "requestsBtn", starred: "starredBtn", gallery: "galleryBtn", export: "exportBtn", edit: "itemEditBtn", leave: "leaveRoomBtn", ai_summary: "aiSummaryBtn", project_history: "projectHistoryBtn" };
       const targetBtn = els[map[b.dataset.act]];
       if (targetBtn && !targetBtn.hidden) targetBtn.click();
     });
@@ -3834,6 +3844,143 @@
       }
     }
   });
+
+  // ============================================================
+  // 📚 프로젝트 이력 (HAIST WORKS 연동 대비)
+  //   - 하루 1회 자동 + 수동 즉시 갱신
+  //   - 아이템 방에서만 노출
+  // ============================================================
+  let _phActiveRoom = null;
+
+  async function openProjectHistory(roomId, roomName) {
+    _phActiveRoom = roomId;
+    if (els.phRoomName) els.phRoomName.textContent = `📍 ${roomName || ""}`;
+    if (els.phList) els.phList.innerHTML = `<div style="text-align:center;color:var(--text-soft);padding:24px;">불러오는 중…</div>`;
+    try { els.projectHistoryDialog.showModal(); } catch (_) {}
+    await refreshProjectHistory();
+  }
+
+  async function refreshProjectHistory() {
+    if (!_phActiveRoom || !els.phList) return;
+    try {
+      const list = await fetch(`${BASE}/api/rooms/${_phActiveRoom}/history`).then(r => r.json());
+      if (!Array.isArray(list) || !list.length) {
+        els.phList.innerHTML = `
+          <div style="text-align:center;color:var(--text-soft);padding:36px 16px;font-size:13.5px;">
+            아직 생성된 이력이 없습니다.<br>
+            대화가 어느 정도 쌓이면 매일 자동으로 요약·정리되며,<br>
+            <b>"✨ 지금 갱신"</b> 버튼으로 즉시 만들 수도 있습니다.
+          </div>`;
+        return;
+      }
+      els.phList.innerHTML = list.map(h => {
+        const periodStart = h.period_start ? h.period_start.slice(5, 16).replace("T", " ") : "";
+        const periodEnd = h.period_end ? h.period_end.slice(5, 16).replace("T", " ") : "";
+        const author = h.created_mode === "auto" ? "🤖 자동" : `✋ ${h.created_by_name || "수동"}`;
+        const cost = (h.cost_usd && h.cost_usd > 0) ? `<span style="color:#6B7280;">· $${h.cost_usd.toFixed(4)}</span>` : "";
+        const synced = h.synced_to_hw ? `<span style="color:#10b981;font-weight:600;" title="HAIST WORKS 전송됨 ${h.synced_at||''}">📤 HW 전송됨</span>` : "";
+        const atts = (h.attachments || []).map(a => `
+          <a href="${escapeHtml(a.url)}" target="_blank" class="ph-att">
+            <span class="ph-att-icon">${a.mime && a.mime.startsWith('image/') ? '🖼' : '📎'}</span>
+            <span class="ph-att-info">
+              <span class="ph-att-name">${escapeHtml(a.name || '')}</span>
+              <span class="ph-att-meta">${escapeHtml(a.sender || '')}${a.sent_at ? ' · ' + a.sent_at.slice(5, 16).replace('T',' ') : ''}${a.size ? ' · ' + (Math.round(a.size/1024)+ 'KB') : ''}</span>
+            </span>
+          </a>`).join("");
+        return `
+          <div class="ph-card" data-hid="${h.id}">
+            <div class="ph-card-head">
+              <div class="ph-card-period">📅 ${periodStart} ~ ${periodEnd}</div>
+              <div class="ph-card-meta">${author} · 메시지 ${h.message_count}개${h.attachment_count > 0 ? ' · 첨부 ' + h.attachment_count : ''} ${cost} ${synced}</div>
+            </div>
+            <div class="ph-card-body">${escapeHtml(h.summary_text || '').replace(/\n/g, '<br>')}</div>
+            ${atts ? `<div class="ph-card-atts"><div class="ph-card-atts-title">첨부 ${h.attachment_count}개</div>${atts}</div>` : ''}
+            <div class="ph-card-actions">
+              <button type="button" class="secondary-btn ph-copy-btn" data-hid="${h.id}">📋 이 항목만 복사</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+      els.phList.querySelectorAll(".ph-copy-btn").forEach(b => {
+        b.addEventListener("click", () => {
+          const hid = parseInt(b.dataset.hid, 10);
+          const h = list.find(x => x.id === hid);
+          if (!h) return;
+          const text = _phHistoryToText(h);
+          navigator.clipboard.writeText(text).then(() => {
+            b.textContent = "✓ 복사됨";
+            setTimeout(() => b.textContent = "📋 이 항목만 복사", 1500);
+          });
+        });
+      });
+      // 전체 복사 버튼
+      if (els.phCopyAllBtn) {
+        els.phCopyAllBtn.onclick = () => {
+          const text = list.map(_phHistoryToText).join("\n\n" + "═".repeat(60) + "\n\n");
+          navigator.clipboard.writeText(text).then(() => {
+            els.phCopyAllBtn.textContent = "✓ 전체 복사됨";
+            setTimeout(() => els.phCopyAllBtn.textContent = "📋 전체 복사", 1800);
+          });
+        };
+      }
+    } catch (e) {
+      els.phList.innerHTML = `<div style="text-align:center;color:#DC2626;padding:24px;">❌ 이력 로드 실패: ${escapeHtml(String(e))}</div>`;
+    }
+  }
+
+  function _phHistoryToText(h) {
+    const lines = [];
+    const ps = h.period_start ? h.period_start.slice(0, 16).replace("T", " ") : "";
+    const pe = h.period_end ? h.period_end.slice(0, 16).replace("T", " ") : "";
+    lines.push(`[프로젝트 이력] ${ps} ~ ${pe}`);
+    lines.push(`(메시지 ${h.message_count}개, 첨부 ${h.attachment_count || 0}개)`);
+    lines.push("");
+    lines.push(h.summary_text || "");
+    if (h.attachments && h.attachments.length) {
+      lines.push("");
+      lines.push("[첨부]");
+      h.attachments.forEach(a => {
+        lines.push(`- ${a.name || ""} (${a.sender || ""}) ${a.url || ""}`);
+      });
+    }
+    return lines.join("\n");
+  }
+
+  // 지금 갱신 버튼
+  if (els.phGenerateBtn) {
+    els.phGenerateBtn.addEventListener("click", async () => {
+      if (!_phActiveRoom) return;
+      els.phGenerateBtn.disabled = true;
+      const prevText = els.phGenerateBtn.textContent;
+      els.phGenerateBtn.textContent = "🧠 Claude 가 요약하는 중…";
+      try {
+        const res = await fetch(`${BASE}/api/rooms/${_phActiveRoom}/history/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }).then(r => r.json());
+        if (res.no_new || res.too_few) {
+          alert(`ℹ ${res.error}`);
+        } else if (res.error) {
+          alert(`❌ ${res.error}`);
+        } else {
+          await refreshProjectHistory();
+        }
+      } catch (e) {
+        alert("❌ 네트워크 오류");
+      } finally {
+        els.phGenerateBtn.disabled = false;
+        els.phGenerateBtn.textContent = prevText;
+      }
+    });
+  }
+
+  // 헤더 📚 버튼
+  if (els.projectHistoryBtn) {
+    els.projectHistoryBtn.addEventListener("click", () => {
+      if (activeRoom) openProjectHistory(activeRoom.id, activeRoom.name);
+    });
+  }
 
   // ============================================================
   // 🟢 사용자 상태 (Slack/Teams 식) + 📅 캘린더 자동 동기화

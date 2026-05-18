@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-18 v5H226z108n8 (프로젝트 체크리스트 — 행 한줄 정렬 / 부서·담당자 인라인 / 행 높이 축소)
-REM   - v5H226z108n8 마법사 우측 사이드 — 실시간 시나리오 미리보기 + 선택 요약 + 4가지 형태 안내
+REM   LAST UPDATE: 2026-05-18 v5H226z108n9 (프로젝트 체크리스트 — 행 한줄 정렬 / 부서·담당자 인라인 / 행 높이 축소)
+REM   - v5H226z108n9 마법사 우측 사이드 — 실시간 시나리오 미리보기 + 선택 요약 + 4가지 형태 안내
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -11,14 +11,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z108n8]
+title KNK HAIST WORKS [v5H226z108n9]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108n8  2026-05-18]
+echo    [v5H226z108n9  2026-05-18]
 echo ============================================================
 echo.
 

@@ -570,6 +570,33 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_cal_user_start ON user_calendar_events(user_id, start_at);
     CREATE INDEX IF NOT EXISTS idx_cal_applied ON user_calendar_events(applied, start_at, end_at);
 
+    -- 프로젝트(아이템 방) 이력 스냅샷 — HAIST WORKS 연동 대비.
+    -- 하루 1회 자동 + 수동 즉시 갱신. 각 스냅샷은 마지막 스냅샷 이후 새 메시지를 요약.
+    CREATE TABLE IF NOT EXISTS project_history (
+        id INTEGER PRIMARY KEY,
+        room_id INTEGER NOT NULL,
+        period_start TEXT,                  -- 이 스냅샷이 다룬 메시지 첫 시각
+        period_end TEXT NOT NULL,           -- 마지막 시각
+        first_message_id INTEGER,           -- 다룬 범위 (다음 자동 생성의 기준)
+        last_message_id INTEGER NOT NULL,
+        summary_text TEXT NOT NULL,         -- AI 요약 본문 (한국어)
+        message_count INTEGER NOT NULL DEFAULT 0,
+        attachment_count INTEGER NOT NULL DEFAULT 0,
+        attachments_json TEXT,              -- [{name,size,mime,url,sender,sent_at}, ...]
+        model TEXT,
+        input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0,
+        cost_usd REAL DEFAULT 0,
+        created_by INTEGER,                 -- NULL=자동, user_id=수동
+        created_at TEXT NOT NULL,
+        synced_to_hw INTEGER NOT NULL DEFAULT 0,  -- HAIST WORKS 전송 여부 (이후 사용)
+        synced_at TEXT,
+        FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ph_room_created ON project_history(room_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_ph_synced ON project_history(synced_to_hw, room_id);
+
     -- AI 요약 캐시 (Slack AI / Teams Copilot 식)
     -- scope_type 으로 무엇을 요약했는지 구분: 'channel_recent'(방의 최근 N개) | 'thread'(스레드)
     -- scope_key 는 그 식별자: 'room:{id}:last:{N}' 또는 'thread:{parent_msg_id}'
@@ -1762,6 +1789,267 @@ Rules:
         return None, f"Claude API 오류: {e}"
 
 
+def _claude_summarize_for_history(messages_payload, item_meta=None):
+    """프로젝트(아이템 방) 이력용 요약 — HAIST WORKS 프로젝트 이력 포맷.
+    messages_payload 는 _claude_summarize_messages 와 같은 dict 리스트.
+    item_meta 는 {code, name, customer, status} (있으면 컨텍스트로 전달).
+    반환 형식: 기존 함수와 동일 ({summary_text, in_tokens, out_tokens, cost_usd, model}, None)."""
+    try:
+        import anthropic
+    except ImportError:
+        return None, "anthropic SDK 미설치"
+    if not ANTHROPIC_API_KEY:
+        return None, "ANTHROPIC_API_KEY 환경변수 미설정"
+    if not messages_payload:
+        return None, "요약할 메시지가 없습니다"
+
+    # transcript 빌드
+    lines = []
+    for m in messages_payload:
+        if m.get("kind") == "system":
+            continue
+        ts = m.get("created_at", "")
+        try:
+            from datetime import datetime as _dt
+            dt = _dt.fromisoformat(ts.replace("Z", "+00:00")) if ts else None
+            ts_short = dt.strftime("%m-%d %H:%M") if dt else ""
+        except Exception:
+            ts_short = ts[:16]
+        name = m.get("display_name", "?")
+        content = (m.get("content") or "").strip()
+        kind = m.get("kind", "text")
+        file_name = m.get("file_name")
+        if kind == "image" and file_name:
+            content = f"[사진: {file_name}] " + content
+        elif kind == "file" and file_name:
+            content = f"[파일: {file_name}] " + content
+        if not content:
+            content = f"[{kind}]"
+        lines.append(f"[{ts_short}] {name}: {content}")
+    transcript = "\n".join(lines)
+    if not transcript:
+        return None, "요약할 본문이 비어있음"
+
+    item_ctx = ""
+    if item_meta:
+        bits = []
+        if item_meta.get("code"): bits.append(f"품번 {item_meta['code']}")
+        if item_meta.get("name"): bits.append(f"아이템명 {item_meta['name']}")
+        if item_meta.get("customer"): bits.append(f"고객사 {item_meta['customer']}")
+        if item_meta.get("status"): bits.append(f"상태 {item_meta['status']}")
+        if bits:
+            item_ctx = "\n[프로젝트 컨텍스트] " + " · ".join(bits) + "\n"
+
+    system_prompt = f"""You are a Korean business communication assistant for KNK Corporation (industrial machinery / inspection equipment).
+
+Your job: Summarize the following Korean project conversation as PROJECT HISTORY for HAIST WORKS (ERP system).
+This summary will be saved as the official project log.
+
+Output structure (Korean, in this exact order):
+
+**기간 요약** (1~2 문장 — 이번 기간에 무엇이 진행되었는지 핵심)
+
+**주요 결정사항**
+- (담당자) 결정 내용 (날짜)
+- ...
+
+**진척 상황**
+- 이번 기간 완료된 작업
+- 진행 중인 작업
+
+**미결 사항 / 후속조치**
+- (담당자) 해야 할 것 (기한)
+- ...
+
+**관련 인물**
+- 이름 나열 (쉼표 구분)
+
+**언급된 외부 거래처·품번**
+- 거래처명, 품번 등 (있으면)
+
+Rules:
+- 최대 600 한글 글자.
+- 기술 용어·품번(예: 003M2501, WP-LOA)·고객사명은 원문 그대로.
+- 추측 금지. 본문에 없으면 "없음".
+- 정중한 평어체 (보고서 톤). "~함", "~확인 필요", "~예정".
+- 시간은 가능하면 명시 (예: 5월 17일 14:00).
+{item_ctx}"""
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    try:
+        msg = client.messages.create(
+            model=AI_SUMMARY_MODEL,
+            max_tokens=2048,
+            system=[
+                {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}},
+            ],
+            messages=[
+                {"role": "user", "content": f"다음 프로젝트 대화를 이력 보고서로 요약해 주세요:\n\n{transcript}"},
+            ],
+        )
+        summary = "".join(b.text for b in msg.content if hasattr(b, "text")).strip()
+        in_t = msg.usage.input_tokens
+        out_t = msg.usage.output_tokens
+        cost = (in_t / 1_000_000.0) * 1.0 + (out_t / 1_000_000.0) * 5.0
+        return {
+            "summary_text": summary,
+            "in_tokens": in_t,
+            "out_tokens": out_t,
+            "cost_usd": cost,
+            "model": AI_SUMMARY_MODEL,
+        }, None
+    except Exception as e:
+        return None, f"Claude API 오류: {e}"
+
+
+def _generate_project_history(room_id, created_by_uid=None):
+    """방의 마지막 history 이후 새 메시지를 AI 요약 + 첨부 정리해서 1개 스냅샷 생성.
+    created_by_uid 가 None 이면 자동(워커), 값이 있으면 수동(사용자).
+    반환: (history_dict, None) 또는 (None, err_str). 새 메시지 0개면 (None, 'no_new')."""
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    try:
+        # 마지막 스냅샷 last_message_id
+        last_snap = db.execute(
+            "SELECT last_message_id FROM project_history WHERE room_id=? ORDER BY id DESC LIMIT 1",
+            (room_id,),
+        ).fetchone()
+        last_mid_cursor = last_snap["last_message_id"] if last_snap else 0
+
+        # 그 이후 새 메시지 (시스템 제외, 스레드 답글 제외 — 메인 타임라인만)
+        rows = db.execute("""
+            SELECT m.id, m.content, m.kind, m.created_at,
+                   m.file_path, m.file_name, m.file_size, m.file_mime,
+                   u.display_name
+              FROM messages m JOIN users u ON u.id = m.user_id
+             WHERE m.room_id = ? AND m.id > ?
+               AND m.kind != 'system'
+               AND m.parent_message_id IS NULL
+             ORDER BY m.id ASC
+        """, (room_id, last_mid_cursor)).fetchall()
+
+        if not rows:
+            return None, "no_new"
+        if len(rows) < 2 and created_by_uid is None:
+            # 자동 워커: 메시지 1개만으론 의미있는 요약 어려움. 다음 사이클에 시도.
+            return None, "too_few"
+
+        # 아이템 메타
+        item_meta = None
+        item_row = db.execute("""
+            SELECT it.code, it.name, it.customer, it.status
+              FROM items it WHERE it.room_id=?
+        """, (room_id,)).fetchone()
+        if item_row:
+            item_meta = dict(item_row)
+
+        # AI 요약
+        result, err = _claude_summarize_for_history([dict(r) for r in rows], item_meta=item_meta)
+        if err:
+            return None, err
+
+        # 첨부 정리
+        attachments = []
+        for r in rows:
+            if r["file_path"]:
+                attachments.append({
+                    "message_id": r["id"],
+                    "name": r["file_name"] or r["file_path"],
+                    "size": r["file_size"],
+                    "mime": r["file_mime"],
+                    "url": f"{BASE_PATH}/uploads/{r['file_path']}",
+                    "sender": r["display_name"],
+                    "sent_at": r["created_at"],
+                })
+
+        now = datetime.now(timezone.utc).isoformat()
+        first_mid = rows[0]["id"]
+        last_mid = rows[-1]["id"]
+        period_start = rows[0]["created_at"]
+        period_end = rows[-1]["created_at"]
+
+        cur = db.execute("""
+            INSERT INTO project_history
+                (room_id, period_start, period_end, first_message_id, last_message_id,
+                 summary_text, message_count, attachment_count, attachments_json,
+                 model, input_tokens, output_tokens, cost_usd,
+                 created_by, created_at)
+            VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?)
+        """, (
+            room_id, period_start, period_end, first_mid, last_mid,
+            result["summary_text"], len(rows), len(attachments),
+            json.dumps(attachments, ensure_ascii=False),
+            result["model"], result["in_tokens"], result["out_tokens"], result["cost_usd"],
+            created_by_uid, now,
+        ))
+        hid = cur.lastrowid
+        db.commit()
+        return {
+            "id": hid,
+            "room_id": room_id,
+            "period_start": period_start,
+            "period_end": period_end,
+            "first_message_id": first_mid,
+            "last_message_id": last_mid,
+            "summary_text": result["summary_text"],
+            "message_count": len(rows),
+            "attachment_count": len(attachments),
+            "attachments": attachments,
+            "model": result["model"],
+            "cost_usd": result["cost_usd"],
+            "created_by": created_by_uid,
+            "created_at": now,
+        }, None
+    finally:
+        db.close()
+
+
+def _auto_generate_project_histories():
+    """모든 아이템 방에 대해 자동 이력 생성 (하루 1회 호출)."""
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    try:
+        rooms = db.execute("""
+            SELECT id, name FROM rooms WHERE type='item'
+        """).fetchall()
+    finally:
+        db.close()
+    generated = 0
+    for r in rooms:
+        try:
+            hist, err = _generate_project_history(r["id"], created_by_uid=None)
+            if hist:
+                generated += 1
+                print(f"[project_history] auto-generated for room {r['id']} ({r['name']})")
+            elif err and err not in ("no_new", "too_few"):
+                print(f"[project_history] room {r['id']} failed: {err}")
+        except Exception as e:
+            print(f"[project_history] room {r['id']} exception: {e}")
+    print(f"[project_history] auto run complete — generated {generated} snapshots")
+    return generated
+
+
+# 자동 이력 워커 — 하루 1회 (24시간 = 86400 초)
+_phist_thread_started = False
+def _start_project_history_worker():
+    global _phist_thread_started
+    if _phist_thread_started:
+        return
+    _phist_thread_started = True
+    def _loop():
+        import time as _t
+        # 서버 시작 직후 30분 대기 (안정화 후 첫 실행)
+        _t.sleep(30 * 60)
+        while True:
+            try:
+                _auto_generate_project_histories()
+            except Exception as e:
+                print(f"[project_history worker] error: {e}")
+            _t.sleep(24 * 60 * 60)   # 24시간
+    import threading as _th
+    _th.Thread(target=_loop, daemon=True).start()
+
+
 REWRITE_TONES = {
     "formal":       "정중한 공식 비즈니스 한국어 (존댓말, ~합니다체)",
     "short":        "동일한 의미를 유지하면서 가능한 한 짧게 (1~2 문장)",
@@ -2145,6 +2433,94 @@ def api_ai_rewrite():
         "output_tokens": result["out_tokens"],
         "cost_usd": result["cost_usd"],
     })
+
+
+@app.route("/api/rooms/<int:room_id>/history", methods=["GET"])
+@login_required
+def api_room_history_list(room_id):
+    """프로젝트 이력 목록 — 시간 역순. 방 멤버 누구나 조회."""
+    me = current_user()
+    db = get_db()
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone():
+        abort(403)
+    rows = db.execute("""
+        SELECT id, period_start, period_end, first_message_id, last_message_id,
+               summary_text, message_count, attachment_count, attachments_json,
+               model, cost_usd, created_by, created_at, synced_to_hw, synced_at
+          FROM project_history
+         WHERE room_id = ?
+         ORDER BY id DESC
+         LIMIT 200
+    """, (room_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["attachments"] = json.loads(d.pop("attachments_json") or "[]")
+        except Exception:
+            d["attachments"] = []
+        # created_by display_name 채우기
+        if d.get("created_by"):
+            u = db.execute("SELECT display_name FROM users WHERE id=?", (d["created_by"],)).fetchone()
+            d["created_by_name"] = u["display_name"] if u else None
+            d["created_mode"] = "manual"
+        else:
+            d["created_by_name"] = None
+            d["created_mode"] = "auto"
+        out.append(d)
+    return jsonify(out)
+
+
+@app.route("/api/rooms/<int:room_id>/history/generate", methods=["POST"])
+@login_required
+def api_room_history_generate(room_id):
+    """수동 즉시 이력 생성. 방 멤버 누구나 가능 (이력 자체는 비용 발생 — 추후 권한 제한 검토)."""
+    me = current_user()
+    db = get_db()
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone():
+        abort(403)
+    # 아이템 방만 — 일반 방은 이력 비활성
+    rtype = db.execute("SELECT type FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not rtype or rtype["type"] != "item":
+        return jsonify({"error": "이력은 아이템 방에서만 생성 가능합니다"}), 400
+    hist, err = _generate_project_history(room_id, created_by_uid=me["id"])
+    if err == "no_new":
+        return jsonify({"error": "마지막 이력 이후 새 메시지가 없습니다", "no_new": True}), 200
+    if err == "too_few":
+        return jsonify({"error": "새 메시지가 적어 의미 있는 요약이 어렵습니다 (수동은 1개부터 가능)", "too_few": True}), 200
+    if err:
+        return jsonify({"error": err}), 500
+    return jsonify({"ok": True, "history": hist})
+
+
+@app.route("/api/rooms/<int:room_id>/history/<int:history_id>", methods=["GET"])
+@login_required
+def api_room_history_get(room_id, history_id):
+    """단일 이력 상세."""
+    me = current_user()
+    db = get_db()
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone():
+        abort(403)
+    r = db.execute("""
+        SELECT * FROM project_history WHERE id=? AND room_id=?
+    """, (history_id, room_id)).fetchone()
+    if not r:
+        return jsonify({"error": "not found"}), 404
+    d = dict(r)
+    try:
+        d["attachments"] = json.loads(d.pop("attachments_json") or "[]")
+    except Exception:
+        d["attachments"] = []
+    return jsonify(d)
 
 
 @app.route("/api/messages/<int:message_id>/translate", methods=["POST"])
@@ -4582,6 +4958,7 @@ if __name__ == "__main__":
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     init_db()
     _start_calendar_worker()  # 캘린더 자동 상태 전환 백그라운드 워커
+    _start_project_history_worker()  # 프로젝트 이력 하루 1회 자동 생성
     print()
     print(" ============================================")
     print("  KNK Messenger - server start")

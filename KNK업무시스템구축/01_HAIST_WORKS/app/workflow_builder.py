@@ -497,6 +497,66 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         return JSONResponse({"ok": True, "is_done": new_v, "done_at": now})
 
     # ────────────────────────────────────────────────────────────
+    # z108n9: 체크포인트 추가 / 수정 / 삭제 (실무자가 자유롭게 항목 조정)
+    # ────────────────────────────────────────────────────────────
+    @app.post("/workflow/node/{pwfn_id}/checkpoint/add")
+    def workflow_cp_add(request: Request, pwfn_id: int, label: str = Form(...)):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        label = (label or "").strip()
+        if not label:
+            return JSONResponse({"ok": False, "error": "empty_label"}, 400)
+        if len(label) > 200:
+            label = label[:200]
+        with db_session() as c:
+            n = c.execute("SELECT id FROM project_workflow_nodes WHERE id=?", (pwfn_id,)).fetchone()
+            if not n:
+                return JSONResponse({"ok": False, "error": "node_not_found"}, 404)
+            max_seq_row = c.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM project_workflow_node_checkpoints WHERE pwfn_id=?",
+                (pwfn_id,)
+            ).fetchone()
+            new_seq = (max_seq_row[0] or 0) + 1
+            cur = c.execute("""INSERT INTO project_workflow_node_checkpoints
+                                 (pwfn_id, label, is_done, seq) VALUES (?,?,0,?)""",
+                              (pwfn_id, label, new_seq))
+            cp_id = cur.lastrowid
+        return JSONResponse({"ok": True, "id": cp_id, "label": label, "seq": new_seq})
+
+    @app.post("/workflow/checkpoint/{cp_id}/edit")
+    def workflow_cp_edit(request: Request, cp_id: int, label: str = Form(...)):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        label = (label or "").strip()
+        if not label:
+            return JSONResponse({"ok": False, "error": "empty_label"}, 400)
+        if len(label) > 200:
+            label = label[:200]
+        with db_session() as c:
+            row = c.execute("SELECT id FROM project_workflow_node_checkpoints WHERE id=?",
+                             (cp_id,)).fetchone()
+            if not row:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            c.execute("UPDATE project_workflow_node_checkpoints SET label=? WHERE id=?",
+                      (label, cp_id))
+        return JSONResponse({"ok": True, "id": cp_id, "label": label})
+
+    @app.post("/workflow/checkpoint/{cp_id}/delete")
+    def workflow_cp_delete(request: Request, cp_id: int):
+        user = get_user(request)
+        if not user:
+            return JSONResponse({"ok": False, "error": "auth"}, 401)
+        with db_session() as c:
+            row = c.execute("SELECT id FROM project_workflow_node_checkpoints WHERE id=?",
+                             (cp_id,)).fetchone()
+            if not row:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            c.execute("DELETE FROM project_workflow_node_checkpoints WHERE id=?", (cp_id,))
+        return JSONResponse({"ok": True, "id": cp_id})
+
+    # ────────────────────────────────────────────────────────────
     # z108: 원샷 완료 — [✓ 끝] 한 번에 처리 (대표 지시 "쉬워야 해")
     #   동작: 모든 체크포인트 done + tasks 자동 생성 + 노드 done + 다음 담당자 알림
     # ────────────────────────────────────────────────────────────

@@ -27,13 +27,24 @@
 .sop { white-space:pre-wrap; font-size:13px; line-height:1.7; color:var(--qv-ink); background:#fafbff; border-left:3px solid #6366f1; padding:12px 14px; border-radius:6px; }
 
 .cp-list { list-style:none; padding:0; margin:0; }
-.cp-item { display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid var(--qv-line); cursor:pointer; transition:.15s; }
+.cp-item { display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid var(--qv-line); transition:.15s; }
 .cp-item:hover { background:var(--qv-surface-2); }
-.cp-check { width:22px; height:22px; border:2px solid var(--qv-line); border-radius:5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.cp-check { width:22px; height:22px; border:2px solid var(--qv-line); border-radius:5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; }
 .cp-item.done .cp-check { background:#10b981; border-color:#10b981; color:#fff; }
 .cp-item.done .cp-label { text-decoration:line-through; color:var(--qv-ink-3); }
-.cp-label { font-size:13px; flex:1; }
+.cp-label { font-size:13px; flex:1; cursor:text; padding:2px 4px; border-radius:4px; }
+.cp-label:hover { background:#fff7ed; }
+.cp-label.editing { background:#fef3c7; outline:1px solid #f59e0b; }
 .cp-meta { font-size:10.5px; color:var(--qv-ink-3); }
+.cp-actions { display:flex; gap:4px; flex-shrink:0; }
+.cp-btn { border:0; background:transparent; cursor:pointer; padding:3px 6px; border-radius:4px; font-size:13px; color:#9ca3af; }
+.cp-btn:hover { background:#fee2e2; color:#dc2626; }
+.cp-btn.edit:hover { background:#dbeafe; color:#1e40af; }
+.cp-add { display:flex; gap:8px; padding:10px; border-top:2px dashed var(--qv-line); background:#fafafa; }
+.cp-add input { flex:1; padding:7px 10px; font-size:13px; border:1px solid var(--qv-line); border-radius:5px; }
+.cp-add input:focus { outline:none; border-color:#6366f1; }
+.cp-add button { padding:7px 14px; font-size:12px; font-weight:700; background:#6366f1; color:#fff; border:0; border-radius:5px; cursor:pointer; }
+.cp-add button:hover { background:#4f46e5; }
 
 .status-bar { display:flex; gap:6px; flex-wrap:wrap; }
 .status-bar button { padding:8px 14px; border:1px solid var(--qv-line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
@@ -122,18 +133,28 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       </div>
 
       <div class="box">
-        <h3>✓ 확인할 것들 (체크포인트) — {{ checkpoints|selectattr('is_done')|list|length }}/{{ checkpoints|length }} 완료</h3>
-        <ul class="cp-list">
+        <h3>✓ 확인할 것들 (체크포인트) — <span id="cpDone">{{ checkpoints|selectattr('is_done')|list|length }}</span>/<span id="cpTotal">{{ checkpoints|length }}</span> 완료</h3>
+        <ul class="cp-list" id="cpList">
           {% for cp in checkpoints %}
-          <li class="cp-item {% if cp.is_done %}done{% endif %}" data-cp="{{ cp.id }}" onclick="toggleCp({{ cp.id }}, this)">
-            <span class="cp-check">{% if cp.is_done %}✓{% endif %}</span>
-            <span class="cp-label">{{ cp.label }}</span>
+          <li class="cp-item {% if cp.is_done %}done{% endif %}" data-cp="{{ cp.id }}">
+            <span class="cp-check" onclick="toggleCp({{ cp.id }}, this.parentElement)">{% if cp.is_done %}✓{% endif %}</span>
+            <span class="cp-label" onclick="startEdit(this, {{ cp.id }})" title="클릭하면 수정">{{ cp.label }}</span>
             <span class="cp-meta">{% if cp.is_done and cp.done_at %}{{ cp.done_at }}{% endif %}</span>
+            <span class="cp-actions">
+              <button class="cp-btn edit" title="수정" onclick="startEdit(this.parentElement.previousElementSibling.previousElementSibling, {{ cp.id }})">✎</button>
+              <button class="cp-btn" title="삭제" onclick="deleteCp({{ cp.id }}, this)">✕</button>
+            </span>
           </li>
-          {% else %}
-          <li style="padding:14px; color:var(--qv-ink-3); font-size:12px;">체크포인트가 없습니다.</li>
           {% endfor %}
+          {% if not checkpoints %}
+          <li id="cpEmpty" style="padding:14px; color:var(--qv-ink-3); font-size:12px;">아직 확인 항목이 없습니다. 아래에서 추가하세요.</li>
+          {% endif %}
         </ul>
+        <div class="cp-add">
+          <input id="cpNewLabel" type="text" placeholder="새 확인 항목 (예: 견적서 PDF 작성)" maxlength="200"
+                 onkeydown="if(event.key==='Enter'){addCp();event.preventDefault();}">
+          <button onclick="addCp()">＋ 추가</button>
+        </div>
       </div>
 
       <div class="box">
@@ -199,8 +220,125 @@ function toggleCp(cpId, el) {
       if (j.ok) {
         if (j.is_done) { el.classList.add('done'); el.querySelector('.cp-check').textContent='✓'; }
         else { el.classList.remove('done'); el.querySelector('.cp-check').textContent=''; }
+        recalcCpCount();
       }
     });
+}
+
+// z108n9: 체크포인트 추가
+async function addCp() {
+  const input = document.getElementById('cpNewLabel');
+  const label = (input.value || '').trim();
+  if (!label) { input.focus(); return; }
+  const fd = new FormData();
+  fd.append('label', label);
+  try {
+    const r = await fetch('/workflow/node/' + NID + '/checkpoint/add', {method:'POST', body:fd});
+    const j = await r.json();
+    if (!j.ok) { alert('추가 실패: ' + j.error); return; }
+    // 빈 안내 행 제거
+    const empty = document.getElementById('cpEmpty');
+    if (empty) empty.remove();
+    // 새 항목 추가
+    const li = document.createElement('li');
+    li.className = 'cp-item';
+    li.setAttribute('data-cp', j.id);
+    li.innerHTML =
+      '<span class="cp-check" onclick="toggleCp('+j.id+', this.parentElement)"></span>' +
+      '<span class="cp-label" onclick="startEdit(this, '+j.id+')" title="클릭하면 수정"></span>' +
+      '<span class="cp-meta"></span>' +
+      '<span class="cp-actions">' +
+        '<button class="cp-btn edit" title="수정" onclick="startEdit(this.parentElement.previousElementSibling.previousElementSibling, '+j.id+')">✎</button>' +
+        '<button class="cp-btn" title="삭제" onclick="deleteCp('+j.id+', this)">✕</button>' +
+      '</span>';
+    li.querySelector('.cp-label').textContent = j.label;
+    document.getElementById('cpList').appendChild(li);
+    input.value = '';
+    input.focus();
+    recalcCpCount();
+  } catch (e) { alert('통신 오류: ' + e); }
+}
+
+// z108n9: 체크포인트 삭제
+async function deleteCp(cpId, btn) {
+  if (!confirm('이 확인 항목을 삭제할까요?')) return;
+  try {
+    const r = await fetch('/workflow/checkpoint/' + cpId + '/delete', {method:'POST'});
+    const j = await r.json();
+    if (!j.ok) { alert('삭제 실패: ' + j.error); return; }
+    const li = btn.closest('.cp-item');
+    if (li) li.remove();
+    recalcCpCount();
+    // 0개 됐으면 안내 행 다시 표시
+    const list = document.getElementById('cpList');
+    if (list && !list.querySelector('.cp-item')) {
+      const e = document.createElement('li');
+      e.id = 'cpEmpty';
+      e.style.cssText = 'padding:14px; color:var(--qv-ink-3); font-size:12px;';
+      e.textContent = '아직 확인 항목이 없습니다. 아래에서 추가하세요.';
+      list.appendChild(e);
+    }
+  } catch (e) { alert('통신 오류: ' + e); }
+}
+
+// z108n9: 체크포인트 인라인 수정
+function startEdit(labelEl, cpId) {
+  if (labelEl.classList.contains('editing')) return;
+  const orig = labelEl.textContent;
+  labelEl.classList.add('editing');
+  labelEl.setAttribute('contenteditable', 'true');
+  labelEl.focus();
+  // 텍스트 선택
+  const range = document.createRange();
+  range.selectNodeContents(labelEl);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  const finish = async (commit) => {
+    labelEl.removeEventListener('blur', onBlur);
+    labelEl.removeEventListener('keydown', onKey);
+    labelEl.classList.remove('editing');
+    labelEl.removeAttribute('contenteditable');
+    const newLabel = (labelEl.textContent || '').trim();
+    if (!commit || !newLabel || newLabel === orig) {
+      labelEl.textContent = orig;
+      return;
+    }
+    const fd = new FormData();
+    fd.append('label', newLabel);
+    try {
+      const r = await fetch('/workflow/checkpoint/' + cpId + '/edit', {method:'POST', body:fd});
+      const j = await r.json();
+      if (!j.ok) {
+        alert('수정 실패: ' + j.error);
+        labelEl.textContent = orig;
+      } else {
+        labelEl.textContent = j.label;
+      }
+    } catch (e) {
+      alert('통신 오류: ' + e);
+      labelEl.textContent = orig;
+    }
+  };
+  const onBlur = () => finish(true);
+  const onKey = (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); labelEl.blur(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  };
+  labelEl.addEventListener('blur', onBlur);
+  labelEl.addEventListener('keydown', onKey);
+}
+
+function recalcCpCount() {
+  const list = document.getElementById('cpList');
+  if (!list) return;
+  const items = list.querySelectorAll('.cp-item');
+  const done = list.querySelectorAll('.cp-item.done');
+  const tEl = document.getElementById('cpTotal');
+  const dEl = document.getElementById('cpDone');
+  if (tEl) tEl.textContent = items.length;
+  if (dEl) dEl.textContent = done.length;
 }
 function setStatus(st) {
   const fd = new FormData(); fd.append('status', st); fd.append('note','');

@@ -756,6 +756,73 @@ body.chat-body .msg .msg-action-bar {
 .room-pinned-icon {
   font-size: 11px; margin-right: 3px;
 }
+
+/* ─── 📚 프로젝트 이력 다이얼로그 ─── */
+.ph-card {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ph-card-head {
+  border-bottom: 1px solid #F3F4F6;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.ph-card-period {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #1F2937;
+}
+.ph-card-meta {
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 2px;
+}
+.ph-card-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #1F2937;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+.ph-card-atts {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #E5E7EB;
+}
+.ph-card-atts-title {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ph-att {
+  display: flex; align-items: center; gap: 8px;
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #F9FAFB;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #1F2937;
+}
+.ph-att:hover { background: #F3F4F6; }
+.ph-att-icon { font-size: 16px; }
+.ph-att-info { flex: 1; min-width: 0; }
+.ph-att-name {
+  display: block; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ph-att-meta {
+  display: block; font-size: 10.5px; color: #6B7280;
+}
+.ph-card-actions {
+  display: flex; justify-content: flex-end; gap: 6px;
+  margin-top: 10px;
+}
 .composer input,
 .composer textarea {
   flex: 1;

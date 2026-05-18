@@ -76,6 +76,7 @@
         <div class="head-actions" id="headActions">
           <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
           <button class="head-btn" id="aiSummaryBtn" type="button" hidden title="🧠 AI 요약 (최근 80개 메시지)">🧠</button>
+          <button class="head-btn" id="projectHistoryBtn" type="button" hidden title="📚 프로젝트 이력 (아이템 방) — 하루 1회 자동 + 수동 즉시 갱신">📚</button>
           <button class="head-btn" id="starredBtn" type="button" hidden title="중요 결정 모음 (별표)">★</button>
           <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
           <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
@@ -91,6 +92,7 @@
       <div class="head-more-menu" id="headMoreMenu" hidden>
         <button type="button" data-act="requests">📌 요청 목록 <span class="hmm-badge" id="hmmRequestsBadge" hidden></span></button>
         <button type="button" data-act="ai_summary">🧠 AI 요약 (최근 메시지)</button>
+        <button type="button" data-act="project_history">📚 프로젝트 이력</button>
         <button type="button" data-act="starred">★ 중요 결정</button>
         <button type="button" data-act="gallery">🖼️ 사진·파일 갤러리</button>
         <button type="button" data-act="export">📥 Excel 다운로드</button>
@@ -248,6 +250,26 @@
     </div>
 
     <!-- 멤버 초대 다이얼로그 -->
+    <!-- 📚 프로젝트 이력 다이얼로그 (HAIST WORKS 연동 대비) -->
+    <div class="modal" id="projectHistoryDialog" data-modal>
+      <div class="modal-content big-dialog">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <header class="big-dialog-head">
+          <h3>📚 프로젝트 이력</h3>
+          <div id="phRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
+        </header>
+        <p class="dialog-hint">매일 자동 + 수동 즉시 갱신. 마지막 이력 이후 새 메시지를 AI 가 요약하고 첨부파일 목록을 첨부합니다. 향후 HAIST WORKS 프로젝트 이력으로 자동 전송됩니다.</p>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button type="button" id="phGenerateBtn" class="primary-btn">✨ 지금 갱신 (마지막 이후 새 메시지 요약)</button>
+          <button type="button" id="phCopyAllBtn" class="secondary-btn">📋 전체 복사</button>
+        </div>
+        <div id="phList" style="overflow-y:auto;max-height:65vh;padding-right:4px;"></div>
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 🧠 AI 요약 다이얼로그 (Slack AI / Teams Copilot 식) -->
     <div class="modal" id="aiSummaryDialog" data-modal>
       <div class="modal-content">
