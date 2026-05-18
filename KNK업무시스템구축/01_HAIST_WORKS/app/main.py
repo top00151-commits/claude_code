@@ -8148,25 +8148,60 @@ async def suppliers_export_xlsx(req: Request):
 
 @app.get("/parts/export.xlsx")
 async def parts_export_xlsx(req: Request):
+    """v5H226z109 (2026-05-17) — 풀세트 자재 마스터 엑셀 (용도 포함 25컬럼)."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     with db_session() as c:
+        # PRAGMA — 확장 컬럼 존재 여부 가드 (DB 마이그레이션 미적용 환경 호환)
+        existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+        def _col(name, alias=None):
+            return f"p.{name}" if name in existing else f"NULL AS {alias or name}"
+        sel = ", ".join([
+            "p.id", "p.part_no", "p.part_name", "p.biz_div",
+            "p.spec", "p.maker", "p.origin", "p.unit", "p.currency", "p.std_price",
+            "p.category", _col("category_main"), _col("category_series"),
+            _col("item_account"), _col("procurement_kind"),
+            "COALESCE(p.safety_stock,0) AS safety_stock",
+            _col("reorder_point"), _col("reorder_qty"), _col("conversion_factor"),
+            _col("sub_spec1"), _col("sub_spec2"), _col("sub_spec3"),
+            _col("tax_invoice_name"), _col("trade_invoice_name"),
+            "p.location", _col("default_warehouse"), _col("hs_code"),
+            _col("purpose"),
+            "COALESCE(p.is_active,1) AS is_active", "p.note",
+            "COALESCE(sb.on_hand, 0) AS on_hand",
+        ])
         rows = [dict(r) for r in c.execute(
-            "SELECT p.id, p.part_no, p.part_name, p.spec, p.maker, p.origin, "
-            "p.unit, p.currency, p.std_price, p.biz_div, p.category, "
-            "COALESCE(p.is_active,1) AS is_active, p.note, "
-            "COALESCE(sb.on_hand, 0) AS on_hand "
+            f"SELECT {sel} "
             "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
-            "ORDER BY p.part_no").fetchall()]
-    headers = ["ID","품번","품명","규격","제조사","원산지","단위","통화",
-               "매입단가","사업부","분류","활성","비고","현재재고"]
-    data = [[r["id"], r["part_no"], r["part_name"], r["spec"], r["maker"],
-             r["origin"], r["unit"], r["currency"], r["std_price"],
-             r["biz_div"], r["category"],
-             "활성" if r["is_active"] else "비활성",
-             r["note"], r["on_hand"]] for r in rows]
+            "ORDER BY p.part_no"
+        ).fetchall()]
+    headers = [
+        "ID", "자재코드", "자재명", "사업부",
+        "규격", "제조사", "원산지", "단위", "통화", "매입단가",
+        "분류", "대분류", "분류시리즈",
+        "품목계정", "조달구분",
+        "안전재고", "재주문점", "재주문량", "환산계수",
+        "보조규격1", "보조규격2", "보조규격3",
+        "세금계산서명", "거래명세서명",
+        "위치", "기본창고", "HS코드",
+        "용도",
+        "활성", "비고", "현재재고",
+    ]
+    data = [[
+        r["id"], r["part_no"], r["part_name"], r["biz_div"],
+        r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], r["std_price"],
+        r["category"], r.get("category_main"), r.get("category_series"),
+        r.get("item_account"), r.get("procurement_kind"),
+        r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"), r.get("conversion_factor"),
+        r.get("sub_spec1"), r.get("sub_spec2"), r.get("sub_spec3"),
+        r.get("tax_invoice_name"), r.get("trade_invoice_name"),
+        r["location"], r.get("default_warehouse"), r.get("hs_code"),
+        r.get("purpose"),
+        "활성" if r["is_active"] else "비활성",
+        r["note"], r["on_hand"],
+    ] for r in rows]
     return _make_xlsx_response(
-        [{"name": "부품", "headers": headers, "rows": data}], "부품")
+        [{"name": "자재 마스터", "headers": headers, "rows": data}], "자재마스터")
 
 
 @app.get("/sales/orders/export.xlsx")

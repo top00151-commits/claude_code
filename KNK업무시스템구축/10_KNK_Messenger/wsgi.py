@@ -9,10 +9,11 @@ gunicorn -k eventlet -w 1 wsgi:application
 import os
 
 # wsgi 로드 시 init_db가 한 번 실행되도록 보장
-from app import app, socketio, init_db, UPLOAD_DIR
+from app import app, socketio, init_db, UPLOAD_DIR, _start_calendar_worker
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 init_db()
+_start_calendar_worker()  # 60초마다 캘린더→상태 자동 전환
 
 # gunicorn이 찾는 두 이름 모두 노출
 application = app

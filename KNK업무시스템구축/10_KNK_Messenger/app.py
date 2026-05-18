@@ -3718,6 +3718,224 @@ def api_room_retention(room_id):
     return jsonify({"ok": True, "retention_days": rd})
 
 
+# ---------- 사용자 상태 (Slack/Teams 식) + 캘린더 동기화 ----------
+VALID_STATUSES = ("online", "away", "busy", "meeting", "external", "dnd", "offline")
+STATUS_LABEL_KO = {
+    "online":   "🟢 온라인",
+    "away":     "🌙 자리비움",
+    "busy":     "🔴 바쁨",
+    "meeting":  "🤝 회의 중",
+    "external": "🚗 외근",
+    "dnd":      "🚫 방해금지",
+    "offline":  "⚫ 오프라인",
+}
+
+
+def _get_user_status(uid):
+    """사용자의 현재 상태 dict 반환. 없으면 online 디폴트."""
+    db = get_db()
+    row = db.execute("SELECT * FROM user_statuses WHERE user_id=?", (uid,)).fetchone()
+    if not row:
+        return {
+            "user_id": uid, "status": "online", "custom_text": None,
+            "emoji": None, "until_at": None, "auto_set": 0,
+            "label": STATUS_LABEL_KO["online"],
+        }
+    d = dict(row)
+    # until_at 지났으면 online 으로 간주 (영구 적용은 별도 cron 에서)
+    if d.get("until_at"):
+        try:
+            from datetime import datetime as _dt
+            ua = _dt.fromisoformat(d["until_at"].replace("Z", "+00:00"))
+            if ua < datetime.now(timezone.utc):
+                d["status"] = "online"
+                d["until_at"] = None
+        except Exception:
+            pass
+    d["label"] = STATUS_LABEL_KO.get(d["status"], d["status"])
+    return d
+
+
+@app.route("/api/me/status", methods=["GET", "PUT"])
+@login_required
+def api_me_status():
+    """내 상태 조회 / 변경.
+    GET: 현재 상태 + 모든 가능한 상태 enum.
+    PUT body: {status, custom_text?, emoji?, until_at?}"""
+    me = current_user()
+    if request.method == "GET":
+        return jsonify({
+            "current": _get_user_status(me["id"]),
+            "options": [{"value": k, "label": v} for k, v in STATUS_LABEL_KO.items()],
+        })
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    status = data.get("status") or "online"
+    if status not in VALID_STATUSES:
+        return jsonify({"error": f"status 는 {VALID_STATUSES} 중 하나"}), 400
+    custom_text = (data.get("custom_text") or "").strip()[:80] or None
+    emoji = (data.get("emoji") or "").strip()[:8] or None
+    until_at = data.get("until_at") or None
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("""
+        INSERT INTO user_statuses (user_id, status, custom_text, emoji, until_at, auto_set, updated_at)
+        VALUES (?,?,?,?,?,0,?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            status=excluded.status, custom_text=excluded.custom_text,
+            emoji=excluded.emoji, until_at=excluded.until_at,
+            auto_set=0, updated_at=excluded.updated_at
+    """, (me["id"], status, custom_text, emoji, until_at, now))
+    db.commit()
+    cur = _get_user_status(me["id"])
+    socketio.emit("user_status_changed", {
+        "user_id": me["id"], "status": cur["status"],
+        "custom_text": cur.get("custom_text"), "emoji": cur.get("emoji"),
+        "label": cur["label"],
+    })
+    return jsonify({"ok": True, "current": cur})
+
+
+@app.route("/api/users/statuses", methods=["GET"])
+@login_required
+def api_users_statuses():
+    """전체 사용자 현재 상태 일괄 조회 — 사이드바·메시지 아바타 색점용."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT u.id AS user_id, u.display_name,
+               COALESCE(us.status, 'online') AS status,
+               us.custom_text, us.emoji, us.until_at
+          FROM users u
+          LEFT JOIN user_statuses us ON us.user_id = u.id
+         WHERE u.active = 1
+    """).fetchall()
+    out = []
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for r in rows:
+        d = dict(r)
+        # 만료된 until_at 은 online 으로 강등 (DB 미반영, 표시상만)
+        if d.get("until_at") and d["until_at"] < now_iso:
+            d["status"] = "online"
+            d["until_at"] = None
+        d["label"] = STATUS_LABEL_KO.get(d["status"], d["status"])
+        out.append(d)
+    return jsonify(out)
+
+
+@app.route("/api/me/calendar", methods=["GET", "POST"])
+@login_required
+def api_me_calendar():
+    """내 캘린더 일정 — GET: 목록 / POST: 추가.
+    POST body: {title, start_at, end_at, kind?}"""
+    me = current_user()
+    db = get_db()
+    if request.method == "GET":
+        # 향후 7일치만 (UI 부하 차단)
+        rows = db.execute("""
+            SELECT id, title, start_at, end_at, kind, applied
+              FROM user_calendar_events
+             WHERE user_id=? AND date(end_at) >= date('now', '-1 day')
+             ORDER BY start_at ASC
+             LIMIT 100
+        """, (me["id"],)).fetchall()
+        return jsonify([dict(r) for r in rows])
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    start_at = (data.get("start_at") or "").strip()
+    end_at = (data.get("end_at") or "").strip()
+    kind = data.get("kind") or "meeting"
+    if kind not in ("meeting", "external", "busy"):
+        kind = "meeting"
+    if not title or not start_at or not end_at:
+        return jsonify({"error": "title/start_at/end_at 필수"}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    cur = db.execute("""
+        INSERT INTO user_calendar_events (user_id, title, start_at, end_at, kind, applied, created_at)
+        VALUES (?,?,?,?,?,0,?)
+    """, (me["id"], title, start_at, end_at, kind, now))
+    db.commit()
+    return jsonify({"ok": True, "id": cur.lastrowid})
+
+
+@app.route("/api/me/calendar/<int:event_id>", methods=["DELETE"])
+@login_required
+def api_me_calendar_delete(event_id):
+    me = current_user()
+    db = get_db()
+    db.execute("DELETE FROM user_calendar_events WHERE id=? AND user_id=?", (event_id, me["id"]))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+def _apply_calendar_status_transitions():
+    """캘린더 일정 시작·종료에 따라 사용자 상태 자동 전환.
+    /api/me/status PUT 으로 수동 변경되면 auto_set=0 으로 갱신돼 자동전환 차단.
+    cron 또는 요청 hook 에서 주기 호출."""
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        # 시작됐고 아직 적용 안 된 일정 → 회의 중 자동 설정
+        starting = db.execute("""
+            SELECT id, user_id, title, end_at, kind
+              FROM user_calendar_events
+             WHERE applied = 0 AND start_at <= ? AND end_at > ?
+        """, (now_iso, now_iso)).fetchall()
+        for ev in starting:
+            # 현재 사용자 상태 — 수동 설정이면 건드리지 않음
+            us = db.execute("SELECT status, auto_set FROM user_statuses WHERE user_id=?", (ev["user_id"],)).fetchone()
+            if us and us["auto_set"] == 0 and us["status"] in ("dnd", "external"):
+                # 수동으로 더 강한 상태 설정돼 있으면 그것을 존중
+                pass
+            else:
+                new_status = "meeting" if ev["kind"] == "meeting" else (
+                    "external" if ev["kind"] == "external" else "busy"
+                )
+                db.execute("""
+                    INSERT INTO user_statuses (user_id, status, custom_text, until_at, auto_set, updated_at)
+                    VALUES (?,?,?,?,1,?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        status=excluded.status, custom_text=excluded.custom_text,
+                        until_at=excluded.until_at, auto_set=1, updated_at=excluded.updated_at
+                """, (ev["user_id"], new_status, ev["title"], ev["end_at"], now_iso))
+            db.execute("UPDATE user_calendar_events SET applied=1 WHERE id=?", (ev["id"],))
+        # 종료된 일정 (applied=1) → online 복귀 (auto_set=1 인 경우만)
+        ending = db.execute("""
+            SELECT id, user_id FROM user_calendar_events
+             WHERE applied = 1 AND end_at <= ?
+        """, (now_iso,)).fetchall()
+        for ev in ending:
+            us = db.execute("SELECT status, auto_set FROM user_statuses WHERE user_id=?", (ev["user_id"],)).fetchone()
+            if us and us["auto_set"] == 1:
+                db.execute("""
+                    UPDATE user_statuses
+                       SET status='online', custom_text=NULL, until_at=NULL, auto_set=0, updated_at=?
+                     WHERE user_id=?
+                """, (now_iso, ev["user_id"]))
+            db.execute("UPDATE user_calendar_events SET applied=2 WHERE id=?", (ev["id"],))
+        db.commit()
+    finally:
+        db.close()
+
+
+# 캘린더 자동 전환을 60초마다 백그라운드에서 실행
+_cal_thread_started = False
+def _start_calendar_worker():
+    global _cal_thread_started
+    if _cal_thread_started:
+        return
+    _cal_thread_started = True
+    def _loop():
+        import time as _t
+        while True:
+            try:
+                _apply_calendar_status_transitions()
+            except Exception as e:
+                print(f"[calendar worker] error: {e}")
+            _t.sleep(60)
+    import threading as _th
+    _th.Thread(target=_loop, daemon=True).start()
+
+
 def _ensure_self_room(uid):
     """사용자의 '나에게 보내기' 1인방 보장. 없으면 생성.
     Telegram Saved Messages / KakaoTalk 나와의 채팅 모델.
@@ -4146,6 +4364,7 @@ if __name__ == "__main__":
         pass
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     init_db()
+    _start_calendar_worker()  # 캘린더 자동 상태 전환 백그라운드 워커
     print()
     print(" ============================================")
     print("  KNK Messenger - server start")

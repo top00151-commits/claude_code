@@ -116,6 +116,21 @@
     aiSummaryCopyBtn: $("aiSummaryCopyBtn"),
     aiRewriteBtn: $("aiRewriteBtn"),
     aiRewriteMenu: $("aiRewriteMenu"),
+    // 상태·캘린더
+    meInfoArea: $("meInfoArea"),
+    myStatusDot: $("myStatusDot"),
+    myStatusText: $("myStatusText"),
+    statusDialog: $("statusDialog"),
+    statusOptionsArea: $("statusOptionsArea"),
+    statusCustomText: $("statusCustomText"),
+    statusUntilAt: $("statusUntilAt"),
+    statusSaveBtn: $("statusSaveBtn"),
+    calTitle: $("calTitle"),
+    calStart: $("calStart"),
+    calEnd: $("calEnd"),
+    calKind: $("calKind"),
+    calAddBtn: $("calAddBtn"),
+    calEventList: $("calEventList"),
   };
 
   const STATUS_LABEL = { active: "진행중", hold: "보류", done: "완료", cancelled: "취소" };
@@ -407,6 +422,41 @@
     let cls = mine ? "msg mine" : "msg";
     if (m.starred_by_me) cls += " starred";
 
+    // 인용 답장 카드 — 원본 메시지 미니
+    let quoteCard = "";
+    if (m.quoted_message_id && m.quoted) {
+      if (m.quoted.deleted) {
+        quoteCard = `<div class="quote-card quote-card-deleted">↪ 원본 메시지가 삭제됨</div>`;
+      } else {
+        const q = m.quoted;
+        let qBody = "";
+        if (q.kind === "image") qBody = "[사진]" + (q.file_name ? " " + q.file_name : "");
+        else if (q.kind === "file") qBody = "[파일] " + (q.file_name || "");
+        else qBody = (q.content || "").slice(0, 100);
+        quoteCard = `
+          <div class="quote-card" data-quote-mid="${q.id}" title="클릭하면 원본으로 이동">
+            <div class="quote-card-bar" style="background:${q.avatar_color || '#3b82f6'}"></div>
+            <div class="quote-card-body">
+              <div class="quote-card-author">${escapeHtml(q.display_name || '')}</div>
+              <div class="quote-card-text">${escapeHtml(qBody)}</div>
+            </div>
+          </div>`;
+      }
+    }
+
+    // 전달(Forward) 카드 — 출처 메타데이터
+    let forwardCard = "";
+    if (m.forwarded_from_message_id) {
+      const fAuthor = m.forwarded_from_name || "(알 수 없음)";
+      const fRoom = m.forwarded_from_room_name || "";
+      const fAt = m.forwarded_from_created_at ? fmtTime(m.forwarded_from_created_at) : "";
+      forwardCard = `
+        <div class="forward-card">
+          <div class="forward-card-head">↗ <b>${escapeHtml(fAuthor)}</b> 의 메시지 전달${fRoom ? ` · <span class="forward-room">${escapeHtml(fRoom)}</span>` : ""}</div>
+          ${fAt ? `<div class="forward-card-time">원본 시각 ${fAt}</div>` : ""}
+        </div>`;
+    }
+
     // 파일 버전 배지
     const verBadge = (m.version_no && m.version_no > 0)
       ? `<span class="ver-badge ${m.is_latest_version ? 'latest' : ''}" title="${m.is_latest_version ? '최신 버전' : '이전 버전'} - 클릭해서 모든 버전 보기" data-act="versions">v${m.version_no}</span>`
@@ -494,6 +544,8 @@
         <div class="avatar" style="background:${m.avatar_color || "#3b82f6"}">${escapeHtml(initial(m.display_name))}</div>
         <div class="body">
           ${mine ? "" : `<div class="author">${escapeHtml(m.display_name)}</div>`}
+          ${forwardCard}
+          ${quoteCard}
           ${bubble}
           ${trHtml}
           ${rxHtml ? `<div class="reactions">${rxHtml}</div>` : ""}
@@ -720,6 +772,8 @@
       items.push({ icon: "📋", label: "텍스트 복사",  act: "copy" });
     }
     items.push({ icon: "💬", label: "스레드에서 답글", act: "thread_reply" });
+    items.push({ icon: "↪", label: "인용 답장", act: "quote_reply" });
+    items.push({ icon: "↗", label: "다른 방으로 전달", act: "forward" });
     items.push({ icon: isStarred ? "★" : "☆", label: isStarred ? "별표 해제" : "★ 중요 결정 별표", act: "star" });
     items.push({ icon: "📌", label: "📌 요청으로 등록", act: "request" });
 
@@ -786,6 +840,10 @@
           openNewRequest({ messageId: mid, sourceContent: content });
         } else if (act === "thread_reply") {
           openThreadPanel(mid);
+        } else if (act === "quote_reply") {
+          startQuoteReply(mid, li);
+        } else if (act === "forward") {
+          openForwardDialog(mid);
         }
       });
     });
@@ -909,6 +967,174 @@
     body.scrollTop = body.scrollHeight;
   }
 
+  // ============================================================
+  // 인용 답장 (Quote Reply) — 본 채널에 답글 + 원본 미니 카드 표시
+  // ============================================================
+  let _pendingQuoteMid = null;
+
+  function startQuoteReply(mid, li) {
+    _pendingQuoteMid = mid;
+    // composer 위에 인용 미리보기 영역 표시
+    let prevBar = document.getElementById("quotePreviewBar");
+    if (!prevBar) {
+      prevBar = document.createElement("div");
+      prevBar.id = "quotePreviewBar";
+      prevBar.className = "quote-preview-bar";
+      const composerArea = document.getElementById("composerArea");
+      const composer = document.getElementById("composer");
+      if (composerArea && composer) composerArea.insertBefore(prevBar, composer);
+    }
+    // 원본 메시지 정보 — DOM 에서 추출 (네트워크 호출 없이)
+    const author = li.querySelector(".author")?.textContent?.trim()
+                || (li.classList.contains("mine") ? "(나)" : "");
+    let body = "";
+    if (li.classList.contains("image")) body = "[사진]";
+    else if (li.classList.contains("file")) {
+      const fn = li.querySelector(".file-name")?.textContent?.trim();
+      body = fn ? `[파일] ${fn}` : "[파일]";
+    } else {
+      body = li.querySelector(".bubble")?.textContent?.trim()?.slice(0, 100) || "";
+    }
+    prevBar.innerHTML = `
+      <div class="quote-preview-left">
+        <div class="quote-preview-label">↪ 인용 답장</div>
+        <div class="quote-preview-author">${escapeHtml(author)}</div>
+        <div class="quote-preview-body">${escapeHtml(body)}</div>
+      </div>
+      <button type="button" id="quoteCancelBtn" class="quote-cancel-btn" title="인용 취소">✕</button>
+    `;
+    document.getElementById("quoteCancelBtn").addEventListener("click", cancelQuoteReply);
+    // 작성창 포커스
+    setTimeout(() => els.msgInput?.focus(), 50);
+  }
+
+  function cancelQuoteReply() {
+    _pendingQuoteMid = null;
+    const bar = document.getElementById("quotePreviewBar");
+    if (bar) bar.remove();
+  }
+
+  // ============================================================
+  // 전달(Forward) — 출처 보존 + 방 선택 다이얼로그
+  // ============================================================
+  let _forwardSourceMid = null;
+  let _forwardSelected = new Set();
+
+  async function openForwardDialog(mid) {
+    _forwardSourceMid = mid;
+    _forwardSelected = new Set();
+    let dlg = document.getElementById("forwardDialog");
+    if (!dlg) {
+      dlg = document.createElement("div");
+      dlg.id = "forwardDialog";
+      dlg.className = "modal";
+      dlg.setAttribute("data-modal", "");
+      dlg.innerHTML = `
+        <div class="modal-content">
+          <button type="button" class="close-x modal-close-x" data-close>✕</button>
+          <h3>↗ 다른 방으로 전달</h3>
+          <p class="dialog-hint">원본의 작성자·시각·방 정보가 그대로 보존됩니다 (Telegram 식).</p>
+          <input type="text" id="forwardSearchInput" placeholder="🔍 방 이름 검색" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:10px;font-size:13px;">
+          <div id="forwardRoomList" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px;"></div>
+          <div style="margin-top:10px;">
+            <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">코멘트 (선택 — 전달과 함께 보낼 메모)</label>
+            <textarea id="forwardComment" rows="2" maxlength="300" placeholder="예: 확인 부탁드립니다" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;"></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" data-close>취소</button>
+            <button type="button" id="forwardConfirmBtn" class="primary-btn">↗ <span id="forwardCount">0</span>개 방에 전달</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      // 폴리필 모달 등록
+      if (typeof dlg.showModal !== "function") {
+        dlg.showModal = function() { dlg.classList.add("open"); document.body.style.overflow = "hidden"; };
+        dlg.close = function() { dlg.classList.remove("open"); document.body.style.overflow = ""; };
+      }
+      // 닫기 버튼
+      dlg.querySelectorAll("[data-close]").forEach(b => {
+        b.addEventListener("click", () => dlg.close());
+      });
+      document.getElementById("forwardSearchInput").addEventListener("input", _renderForwardRooms);
+      document.getElementById("forwardConfirmBtn").addEventListener("click", _confirmForward);
+    }
+    _renderForwardRooms();
+    try { dlg.showModal(); } catch (_) {}
+  }
+
+  function _renderForwardRooms() {
+    const list = document.getElementById("forwardRoomList");
+    const q = (document.getElementById("forwardSearchInput")?.value || "").trim().toLowerCase();
+    // rooms 전역 사용
+    const candidates = (rooms || []).filter(r => {
+      if (r.type === "self") return false;  // 자기 1인방은 본인 메모용이라 전달 부적합 (옵션)
+      if (!q) return true;
+      return (r.name || "").toLowerCase().includes(q);
+    });
+    if (!candidates.length) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-soft);font-size:13px;">방이 없습니다.</div>`;
+      return;
+    }
+    list.innerHTML = candidates.map(r => {
+      const checked = _forwardSelected.has(r.id) ? "checked" : "";
+      const typeLabel = r.type === "item" ? "아이템" : r.type === "direct" ? "1:1" : r.type === "channel" ? "채널" : "그룹";
+      return `
+        <label class="forward-room-row" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;cursor:pointer;">
+          <input type="checkbox" data-rid="${r.id}" ${checked}>
+          <div class="avatar" style="width:28px;height:28px;font-size:13px;background:${r.avatar_color || '#3b82f6'}">${escapeHtml(initial(r.name || "?"))}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:13px;color:#1F2937;">${escapeHtml(r.name || "(이름없음)")}</div>
+            <div style="font-size:11px;color:var(--text-soft);">${typeLabel}${r.item_customer ? " · " + escapeHtml(r.item_customer) : ""}</div>
+          </div>
+        </label>
+      `;
+    }).join("");
+    list.querySelectorAll("input[type=checkbox]").forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const rid = parseInt(cb.dataset.rid, 10);
+        if (cb.checked) _forwardSelected.add(rid);
+        else _forwardSelected.delete(rid);
+        document.getElementById("forwardCount").textContent = _forwardSelected.size;
+      });
+    });
+    document.getElementById("forwardCount").textContent = _forwardSelected.size;
+  }
+
+  async function _confirmForward() {
+    if (!_forwardSourceMid || _forwardSelected.size === 0) {
+      alert("전달할 방을 1개 이상 선택하세요.");
+      return;
+    }
+    const comment = (document.getElementById("forwardComment")?.value || "").trim();
+    const btn = document.getElementById("forwardConfirmBtn");
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "전달 중…";
+    try {
+      const res = await fetch(`${BASE}/api/messages/${_forwardSourceMid}/forward`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to_room_ids: Array.from(_forwardSelected),
+          add_comment: comment,
+        }),
+      }).then(r => r.json());
+      if (res.error) {
+        alert(`❌ ${res.error}`);
+        return;
+      }
+      const dlg = document.getElementById("forwardDialog");
+      if (dlg) dlg.close();
+      alert(`✅ ${res.count}개 방으로 전달 완료`);
+    } catch (e) {
+      alert("❌ 네트워크 오류");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+
   function wireMessageActions() {
     els.messages.querySelectorAll(".msg-action-btn[data-act='request']").forEach(b => {
       if (b._wired) return;
@@ -1028,6 +1254,25 @@
         const li = b.closest(".msg");
         const mid = parseInt(li.dataset.msgId, 10);
         if (mid) openThreadPanel(mid);
+      });
+    });
+
+    // 인용 카드 클릭 → 원본 메시지로 스크롤 + 강조
+    els.messages.querySelectorAll(".quote-card[data-quote-mid]").forEach(card => {
+      if (card._wired) return;
+      card._wired = true;
+      card.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const qid = parseInt(card.dataset.quoteMid, 10);
+        const target = els.messages.querySelector(`.msg[data-msg-id="${qid}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add("highlight-flash");
+          setTimeout(() => target.classList.remove("highlight-flash"), 1500);
+        } else {
+          // 원본이 화면 밖 (스크롤 위쪽) 인 경우 — 별도 처리 없이 안내
+          alert("원본 메시지가 현재 보이는 범위에 없습니다. 위로 스크롤해 주세요.");
+        }
       });
     });
     // 모바일에서 메시지 버블 탭하면 액션바 토글
@@ -1276,10 +1521,13 @@
     const mode = getRoomTranslateMode(activeRoom.id);
 
     if (!mode) {
-      // 평소 동작 — 빠른 socket 송신
-      socket.emit("send", { room_id: activeRoom.id, content: text });
+      // 평소 동작 — 빠른 socket 송신 (인용 답장이면 quoted_message_id 포함)
+      const payload = { room_id: activeRoom.id, content: text };
+      if (_pendingQuoteMid) payload.quoted_message_id = _pendingQuoteMid;
+      socket.emit("send", payload);
       els.msgInput.value = "";
       autoGrowMsgInput();              // 높이 초기화
+      cancelQuoteReply();               // 인용 미리보기 영역 제거
       els.msgInput.focus();
       return;
     }

@@ -7015,6 +7015,15 @@ _PARTS_IMPORT_HEADER_MAP = {
     "remarks": "note", "remarksnote": "note",
     "defaultwarehouse": "default_warehouse", "기본창고": "default_warehouse",
     "isactive": "is_active", "활성": "is_active", "사용여부": "is_active",
+    # v5H226z109 (2026-05-17) — 누락 컬럼 일괄 추가
+    "purpose": "purpose", "용도": "purpose", "사용처": "purpose", "application": "purpose",
+    "subspec1": "sub_spec1", "보조규격1": "sub_spec1", "보조사양1": "sub_spec1",
+    "subspec2": "sub_spec2", "보조규격2": "sub_spec2", "보조사양2": "sub_spec2",
+    "subspec3": "sub_spec3", "보조규격3": "sub_spec3", "보조사양3": "sub_spec3",
+    "taxinvoicename": "tax_invoice_name", "세금계산서명": "tax_invoice_name", "세금계산서품명": "tax_invoice_name",
+    "tradeinvoicename": "trade_invoice_name", "거래명세서명": "trade_invoice_name", "거래명세서품명": "trade_invoice_name",
+    "categorymain": "category_main", "분류대": "category_main", "대분류": "category_main",
+    "categoryseries": "category_series", "분류시리즈": "category_series", "시리즈": "category_series",
 }
 
 # v5H226z58 (2026-05-12) — BOM 양식 추가 (다국어/복합 헤더 부분 매칭용 우선순위 키워드)

@@ -1,4 +1,4 @@
-{# v5H226z108n: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
+{# v5H226z108n3: 디버그 오버레이 - URL ?debug=1 시 영역명+크기 표시 #}
 {# 사용법: 페이지에 include 후, 영역에 data-dn="이름" 속성 부착 #}
 {# 예) <div class="kpi-slim" data-dn="kpi-bar"> #}
 <style>
@@ -99,19 +99,44 @@ body.knk-debug .knk-debug-toggle { display: none; }
     // === 자동 영역 감지: data-dn 없어도 공통 패턴 자동 라벨링 ===
     // [선택자, 영역명, 색깔톤]
     var AUTO_ZONES = [
-        ['main.main',          'main',        'amber'],
-        ['.page-head',         'page-head',   ''],
-        ['h1.page-title',      'title',       ''],
-        ['.crumbs',            'crumb',       ''],
-        ['.bento',             'bento',       'green'],
-        ['.kpi-card',          'kpi-card',    'green'],
-        ['.tbl-wrap',          'table-wrap',  'purple'],
-        ['table.tbl',          'table',       'purple'],
-        ['table.tbl thead',    'thead-row',   'purple'],
-        ['.empty',             'empty-state', ''],
-        ['.so-card',           'so-card',     'blue'],
-        ['.so-units-wrapper',  'so-units',    'blue'],
-        ['.parts-h-proxy',     'h-scrollbar', 'amber'],
+        ['main.main',          'main',          'amber'],
+        ['.page-head',         'page-head',     ''],
+        ['h1.page-title',      'title',         ''],
+        ['.crumbs',            'crumb',         ''],
+        ['.bento',             'bento',         'green'],
+        ['.kpi-card',          'kpi-card',      'green'],
+        ['.kpi-row',           'kpi-row',       'green'],
+        ['.tbl-wrap',          'table-wrap',    'purple'],
+        ['table.tbl',          'table',         'purple'],
+        ['table.tbl thead',    'thead-row',     'purple'],
+        ['.empty',             'empty-state',   ''],
+        ['.so-card',           'so-card',       'blue'],
+        ['.so-units-wrapper',  'so-units',      'blue'],
+        ['.parts-h-proxy',     'h-scrollbar',   'amber'],
+        // z108n3 — 공통 박스/카드/행/매트릭스/체크리스트/페어 패턴 자동 라벨
+        ['.wrap',              'wrap',          'amber'],
+        ['.meta-bar',          'meta-bar',      ''],
+        ['.progress-bar',      'progress-bar',  'green'],
+        ['.grid-2',            'grid-2col',     'amber'],
+        ['.box',               'box',           'purple'],
+        ['.box > h3',          'box-head',      'purple'],
+        ['.matrix-wrap',       'matrix-wrap',   'purple'],
+        ['table.matrix',       'matrix',        'purple'],
+        ['table.matrix thead', 'matrix-head',   'purple'],
+        ['.node-head',         'list-head',     'purple'],
+        ['.node-list',         'list-body',     'purple'],
+        ['.node-row',          'list-row',      ''],
+        ['.ic-card',           'ic-card',       'blue'],
+        ['.action-card',       'action-card',   'green'],
+        ['.feed-item',         'feed-item',     ''],
+        ['.task-card',         'task-card',     ''],
+        ['.tpl-card',          'tpl-card',      ''],
+        ['.section',           'section',       'amber'],
+        ['.section > h2',      'section-head',  'amber'],
+        ['.card',              'card',          ''],
+        ['.wiz-side',          'wizard-side',   'green'],
+        ['.wiz-form',          'wizard-form',   ''],
+        ['.form-group',        'form-group',    ''],
     ];
     function autoLabel(){
         AUTO_ZONES.forEach(function(z){
@@ -396,7 +421,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
 
 <div class="knk-debug-panel">
   <h4>🔍 디버그 모드 ON</h4>
-  <div><span class="key">버전</span> v5H226z108n</div>
+  <div><span class="key">버전</span> v5H226z108n3</div>
   <div class="dim">─────────────────</div>
   <div>각 영역에 <span class="key">이름·크기</span> 표시 중</div>
   <div>"kpi-bar 높이 줄여" 처럼<br>영역 이름 그대로 말씀하시면 됩니다.</div>

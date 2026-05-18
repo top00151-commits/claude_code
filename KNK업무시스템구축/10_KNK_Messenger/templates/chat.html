@@ -32,9 +32,12 @@
 
     <aside class="sidebar" id="sidebar">
       <header class="sidebar-head">
-        <div class="me">
-          <div class="avatar" style="background: {{ me['avatar_color'] }}">{{ me['display_name'][0] }}</div>
-          <div class="me-name">{{ me['display_name'] }}</div>
+        <div class="me" id="meInfoArea" style="cursor:pointer;" title="클릭해서 내 상태 변경">
+          <div class="avatar" style="background: {{ me['avatar_color'] }}; position:relative;">{{ me['display_name'][0] }}<span class="status-dot status-online" id="myStatusDot"></span></div>
+          <div class="me-name" style="display:flex;flex-direction:column;line-height:1.15;">
+            <span>{{ me['display_name'] }}</span>
+            <span class="me-status-text" id="myStatusText" style="font-size:10.5px;color:var(--text-soft);">🟢 온라인</span>
+          </div>
         </div>
         <div class="head-actions">
           <a href="{{ base_path }}/dashboard" title="📊 아이템 대시보드">📊</a>
@@ -281,6 +284,55 @@
       <button type="button" class="mcm-item" data-tone="casual">
         <span class="mcm-icon">💬</span><span>동료 간 가볍게</span>
       </button>
+    </div>
+
+    <!-- 🟢 내 상태 변경 다이얼로그 (Slack/Teams 식) -->
+    <div class="modal" id="statusDialog" data-modal>
+      <div class="modal-content" style="max-width:480px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>🟢 내 상태</h3>
+        <p class="dialog-hint">다른 사람들에게 보일 상태를 선택하세요. 방해금지(🚫)는 본인 알림도 차단합니다.</p>
+        <div id="statusOptionsArea" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">사용자 정의 문구 (선택)</label>
+          <input type="text" id="statusCustomText" maxlength="80" placeholder="예: HAIST WORKS 운영 중" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">자동 해제 시각 (선택)</label>
+          <input type="datetime-local" id="statusUntilAt" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <section class="rs-section" style="margin-top:18px;">
+          <h4>📅 일정 추가 (자동 회의중 전환)</h4>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;">
+            <div style="flex:1;min-width:140px;">
+              <label style="font-size:11px;color:var(--text-soft);">제목</label>
+              <input type="text" id="calTitle" maxlength="80" placeholder="회의 / 외근" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-soft);">시작</label>
+              <input type="datetime-local" id="calStart" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-soft);">종료</label>
+              <input type="datetime-local" id="calEnd" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-soft);">종류</label>
+              <select id="calKind" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                <option value="meeting">🤝 회의</option>
+                <option value="external">🚗 외근</option>
+                <option value="busy">🔴 바쁨</option>
+              </select>
+            </div>
+            <button type="button" id="calAddBtn" class="primary-btn" style="height:32px;">＋ 추가</button>
+          </div>
+          <div id="calEventList" style="margin-top:10px;max-height:160px;overflow-y:auto;"></div>
+        </section>
+        <div class="dialog-actions">
+          <button type="button" data-close>취소</button>
+          <button type="button" id="statusSaveBtn" class="primary-btn">저장</button>
+        </div>
+      </div>
     </div>
 
     <!-- 검색 필터 도움말 다이얼로그 (Slack/Discord 식 고급 필터) -->
