@@ -80,11 +80,11 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
     </div>
     <h1 class="page-title">{{ '%02d'|format(n.seq) }}. {{ n.title_ko }}</h1>
     {% if is_blocked %}
-    <div style="margin-top:8px;padding:10px 14px;background:#fef3c7;border-left:3px solid #d97706;border-radius:6px;font-size:12.5px;color:#92400e;">
-      🔒 <strong>아직 시작할 수 없습니다.</strong> 이전 단계 <strong>{{ blockers }}개</strong>가 먼저 완료되어야 합니다.
+    <div style="margin-top:8px;padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:6px;font-size:12.5px;color:#1e40af;">
+      ⓘ 참고: 이전 단계 <strong>{{ blockers }}개</strong>가 아직 진행 중·대기입니다. 선행 진행은 자유롭게 가능합니다.
     </div>
     {% endif %}
-    {% if sys_link and not is_blocked %}
+    {% if sys_link %}
     <div style="margin-top:10px;">
       <a href="{{ sys_link }}" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13.5px;box-shadow:0 2px 8px rgba(99,102,241,.3);">
         🚀 작업 화면으로 이동 ({{ sys_link }})

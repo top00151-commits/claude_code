@@ -699,6 +699,9 @@ def init_db():
            )
     """)
 
+    # self 방 이름을 '📝 메모' 로 통일 (옛 '📝 나에게 보내기' 자동 갱신)
+    cur.execute("UPDATE rooms SET name='📝 메모' WHERE type='self' AND name != '📝 메모'")
+
     # 방 멤버 역할 (host=방장, sub_host=부방장, member=일반)
     existing_rm_cols = {row["name"] for row in cur.execute("PRAGMA table_info(room_members)").fetchall()}
     if "role" not in existing_rm_cols:
@@ -4529,7 +4532,7 @@ def _ensure_self_room(uid):
     now = datetime.now(timezone.utc).isoformat()
     cur = db.execute(
         "INSERT INTO rooms (name, type, created_by, created_at, name_locked) VALUES (?,?,?,?,?)",
-        ("📝 나에게 보내기", "self", uid, now, 1),  # name_locked=1 → 별명 비활성
+        ("📝 메모", "self", uid, now, 1),  # name_locked=1 → 별명 비활성
     )
     rid = cur.lastrowid
     db.execute(

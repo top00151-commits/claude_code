@@ -338,7 +338,7 @@
     }
     els.roomList.innerHTML = list.map(r => {
       const isSelf = r.type === "self";
-      const name = isSelf ? "📝 나에게 보내기" : (r.name || "(이름없음)");
+      const name = isSelf ? "📝 메모" : (r.name || "(이름없음)");
       const color = isSelf ? "#f59e0b" : (r.avatar_color || (r.type === "item" ? "#7c3aed" : "#3b82f6"));
       const last = r.last_message ? escapeHtml(String(r.last_message).slice(0, 40)) : "<em style='color:#9ca3af'>대화 없음</em>";
       const time = r.last_at ? fmtTime(r.last_at) : "";
@@ -350,9 +350,8 @@
         if (r.item_customer) chips += `<span class="customer-chip">${escapeHtml(r.item_customer)}</span>`;
         if (r.item_code) chips += `<span class="code-chip">${escapeHtml(r.item_code)}</span>`;
         if (r.item_status) chips += `<span class="status-pill status-${r.item_status}">${STATUS_LABEL[r.item_status] || r.item_status}</span>`;
-      } else if (isSelf) {
-        chips += `<span class="customer-chip" style="background:#fef3c7;color:#92400e">메모</span>`;
       }
+      // self 방은 이름 자체가 "📝 메모" 라 별도 칩 불필요
       // 자동삭제 설정된 방은 ⏱ 아이콘 (WhatsApp 식)
       const retentionIcon = (r.retention_days && r.retention_days > 0)
         ? `<span class="room-retention-icon" title="자동삭제 ${r.retention_days===1?'24시간':r.retention_days+'일'} 후">⏱</span>`
