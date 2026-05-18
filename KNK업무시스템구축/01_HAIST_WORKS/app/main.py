@@ -420,6 +420,15 @@ def startup():
             print(f"[WFB-MIG-Z108K] {_r9}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108K ERR] {_e}")
+    # v5H226z108n11 (2026-05-18): 깨진 시스템 링크 URL 교정 (/quotations 등 → 실제 경로)
+    try:
+        from .migrations.m_z108n11_fix_sys_links import migrate as _wfb_migrate10
+        from .database import DB_PATH as _DB_PATH
+        _r10 = _wfb_migrate10(_DB_PATH)
+        if _r10.get('updated') or _r10.get('cleared'):
+            print(f"[WFB-MIG-Z108N11] {_r10}")
+    except Exception as _e:
+        print(f"[WFB-MIG-Z108N11 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:

@@ -3980,15 +3980,21 @@ def api_room_members(room_id):
     db = get_db()
     if not _my_room_role(db, room_id, me["id"]):
         abort(403)
-    room = db.execute("SELECT id, name, type, created_by, name_locked FROM rooms WHERE id=?",
-                      (room_id,)).fetchone()
+    room = db.execute(
+        "SELECT id, name, type, created_by, name_locked, retention_days, invite_policy FROM rooms WHERE id=?",
+        (room_id,),
+    ).fetchone()
     if not room:
         abort(404)
     alias = db.execute("SELECT alias FROM room_aliases WHERE room_id=? AND user_id=?",
                        (room_id, me["id"])).fetchone()
     return jsonify({
-        "room": {"id": room["id"], "name": room["name"], "type": room["type"],
-                 "created_by": room["created_by"], "name_locked": bool(room["name_locked"])},
+        "room": {
+            "id": room["id"], "name": room["name"], "type": room["type"],
+            "created_by": room["created_by"], "name_locked": bool(room["name_locked"]),
+            "retention_days": room["retention_days"],
+            "invite_policy": room["invite_policy"] or "all",
+        },
         "members": _room_members_full(db, room_id),
         "my_alias": alias["alias"] if alias else None,
         "my_role": _my_room_role(db, room_id, me["id"]),

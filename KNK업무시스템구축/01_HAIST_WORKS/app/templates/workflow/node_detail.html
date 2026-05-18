@@ -86,10 +86,10 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
     {% endif %}
     {% if sys_link %}
     <div style="margin-top:10px;">
-      <a href="{{ sys_link }}" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13.5px;box-shadow:0 2px 8px rgba(99,102,241,.3);">
-        🚀 작업 화면으로 이동 ({{ sys_link }})
+      <a href="{{ sys_link }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13.5px;box-shadow:0 2px 8px rgba(99,102,241,.3);">
+        🚀 작업 화면으로 이동 (새 탭) — {{ sys_link }}
       </a>
-      <span style="margin-left:8px;font-size:11px;color:var(--qv-ink-3);">작업 후 돌아와서 [✓ 끝] 클릭하세요.</span>
+      <span style="margin-left:8px;font-size:11px;color:var(--qv-ink-3);">새 탭에서 작업 후, 이 탭으로 돌아와 [✓ 끝] 클릭하세요.</span>
     </div>
     {% endif %}
   </div>
@@ -127,7 +127,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
         {% endif %}
         {% if sys_link %}
           <div style="margin-top:12px;">
-            <a href="{{ sys_link }}" class="btn btn-ext">🔗 관련 시스템 바로가기 → {{ sys_link }}</a>
+            <a href="{{ sys_link }}" target="_blank" rel="noopener" class="btn btn-ext">🔗 관련 시스템 바로가기 (새 탭) → {{ sys_link }}</a>
           </div>
         {% endif %}
       </div>

@@ -502,50 +502,61 @@
   }
 
   async function handleRoomContextAction(roomId, act) {
-    const r = rooms.find(x => x.id === roomId);
-    if (!r) return;
-    if (act === "mute_toggle") {
-      notifySettings.toggleRoomMute(roomId);
-      renderRoomList();
-      return;
-    }
-    if (act === "popout") {
-      if (SOLO_MODE) return;
-      const url = BASE + `/chat?solo=1&room=${roomId}`;
-      const features = "width=306,height=544,resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no";
-      const w = window.open(url, `knk_room_${roomId}`, features);
-      if (w) try { w.focus(); } catch(_) {}
-      return;
-    }
-    if (act === "settings") {
-      // 현재 방으로 전환 후 설정 다이얼로그 열기
-      openRoom(r);
-      setTimeout(() => {
-        if (typeof openRoomSettings === "function") openRoomSettings(roomId);
-      }, 100);
-      return;
-    }
-    if (act === "leave") {
-      if (!confirm(`[${r.name}] 방을 나가시겠습니까?`)) return;
-      const res = await fetch(`${BASE}/api/rooms/${roomId}/membership`, { method: "DELETE" }).then(x => x.json());
-      if (res.error) { alert(res.error); return; }
-      if (activeRoom && activeRoom.id === roomId) {
-        activeRoom = null;
-        closeActiveRoom?.();
+    // 전체 try/catch 로 감싸서 에러가 발생해도 후속 이벤트가 멈추지 않게.
+    try {
+      const r = rooms.find(x => x.id === roomId);
+      if (!r) return;
+      if (act === "mute_toggle") {
+        notifySettings.toggleRoomMute(roomId);
+        renderRoomList();
+        return;
       }
-      await refreshRooms();
-      return;
-    }
-    // 순서 조정
-    if (["pin", "unpin", "top", "bottom", "up", "down", "reset"].includes(act)) {
-      const res = await fetch(`${BASE}/api/rooms/${roomId}/order`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: act }),
-      }).then(x => x.json()).catch(() => ({ error: "네트워크 오류" }));
-      if (res.error) { alert(res.error); return; }
-      await refreshRooms();
-      return;
+      if (act === "popout") {
+        if (SOLO_MODE) return;
+        const url = BASE + `/chat?solo=1&room=${roomId}`;
+        const features = "width=306,height=544,resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no";
+        const w = window.open(url, `knk_room_${roomId}`, features);
+        if (w) try { w.focus(); } catch(_) {}
+        return;
+      }
+      if (act === "settings") {
+        // 현재 방으로 굳이 전환할 필요 없음 — 다이얼로그는 roomId 만으로 동작.
+        // 이전에 openRoom + setTimeout 으로 했더니 종종 안 열리는 문제 발생.
+        await openRoomSettings(roomId);
+        return;
+      }
+      if (act === "leave") {
+        if (!confirm(`[${r.name}] 방을 나가시겠습니까?`)) return;
+        const res = await fetch(`${BASE}/api/rooms/${roomId}/membership`, { method: "DELETE" }).then(x => x.json());
+        if (res.error) { alert(res.error); return; }
+        if (activeRoom && activeRoom.id === roomId) {
+          activeRoom = null;
+          // 활성 방 UI 초기화 — 헤더·메시지 비우기 (closeActiveRoom 같은 별도 함수 없음)
+          try {
+            els.chatTitle.textContent = "대화를 선택하세요";
+            els.messages.innerHTML = "";
+            els.msgInput.disabled = true;
+            els.sendBtn.disabled = true;
+            els.attachBtn.disabled = true;
+          } catch (_) {}
+        }
+        await refreshRooms();
+        return;
+      }
+      // 순서 조정
+      if (["pin", "unpin", "top", "bottom", "up", "down", "reset"].includes(act)) {
+        const res = await fetch(`${BASE}/api/rooms/${roomId}/order`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: act }),
+        }).then(x => x.json()).catch(() => ({ error: "네트워크 오류" }));
+        if (res.error) { alert(res.error); return; }
+        await refreshRooms();
+        return;
+      }
+    } catch (err) {
+      console.error("[room context action]", act, err);
+      alert(`동작 실패: ${err && err.message ? err.message : err}`);
     }
   }
 
