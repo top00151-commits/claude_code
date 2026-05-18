@@ -540,6 +540,36 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_translations_msg ON message_translations(message_id);
     CREATE INDEX IF NOT EXISTS idx_translations_created ON message_translations(created_at);
 
+    -- 사용자 상태 (Slack/Teams 식: 자리비움·회의중·외근·방해금지·온라인·오프라인)
+    -- user_id PRIMARY KEY = 사용자 1명당 1개 행 (UPSERT 패턴).
+    CREATE TABLE IF NOT EXISTS user_statuses (
+        user_id INTEGER PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'online',  -- online | away | busy | meeting | external | dnd | offline
+        custom_text TEXT,                        -- 사용자 정의 ("HAIST WORKS 운영 중")
+        emoji TEXT,                              -- 상태 이모지 (선택)
+        until_at TEXT,                           -- 이 시각까지 유지 (NULL=수동 변경까지 영구)
+        auto_set INTEGER NOT NULL DEFAULT 0,     -- 1=캘린더 자동 설정, 0=수동
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_statuses_until ON user_statuses(until_at);
+
+    -- 사용자 캘린더 일정 (간단 — 외부 iCal/Google Calendar 연동은 후속)
+    -- 시작 시각에 자동 "회의 중" 전환, 종료 시각에 "온라인" 복귀.
+    CREATE TABLE IF NOT EXISTS user_calendar_events (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        start_at TEXT NOT NULL,    -- ISO datetime
+        end_at TEXT NOT NULL,
+        kind TEXT DEFAULT 'meeting',  -- meeting | external | busy
+        applied INTEGER NOT NULL DEFAULT 0,  -- 0=대기, 1=시작 적용됨, 2=종료 적용됨
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cal_user_start ON user_calendar_events(user_id, start_at);
+    CREATE INDEX IF NOT EXISTS idx_cal_applied ON user_calendar_events(applied, start_at, end_at);
+
     -- AI 요약 캐시 (Slack AI / Teams Copilot 식)
     -- scope_type 으로 무엇을 요약했는지 구분: 'channel_recent'(방의 최근 N개) | 'thread'(스레드)
     -- scope_key 는 그 식별자: 'room:{id}:last:{N}' 또는 'thread:{parent_msg_id}'
@@ -1050,6 +1080,9 @@ def api_room_messages(room_id):
         SELECT m.id, m.content, m.kind, m.created_at,
                m.file_path, m.file_name, m.file_size, m.file_mime,
                m.parent_message_id AS thread_parent_id,
+               m.quoted_message_id,
+               m.forwarded_from_message_id, m.forwarded_from_user_id,
+               m.forwarded_from_name, m.forwarded_from_room_name, m.forwarded_from_created_at,
                u.id AS user_id, u.display_name, u.avatar_color
           FROM messages m
           JOIN users u ON u.id = m.user_id
@@ -1136,6 +1169,19 @@ def api_room_messages(room_id):
         """, ids).fetchall()
         thread_map = {t["pid"]: dict(t) for t in thread_rows}
 
+        # 인용 답장 — quoted_message_id 가 가리키는 원본 메시지 batch 로드 (미니 카드용)
+        quoted_ids = [r["quoted_message_id"] for r in out if r.get("quoted_message_id")]
+        quoted_map = {}
+        if quoted_ids:
+            qph = ",".join("?" for _ in quoted_ids)
+            qrows = db.execute(f"""
+                SELECT m.id, m.content, m.kind, m.created_at, m.file_name,
+                       u.display_name, u.avatar_color
+                  FROM messages m JOIN users u ON u.id = m.user_id
+                 WHERE m.id IN ({qph})
+            """, quoted_ids).fetchall()
+            quoted_map = {q["id"]: dict(q) for q in qrows}
+
         for m in out:
             m["reactions"] = rxmap.get(m["id"], [])
             m["acks"] = ackmap.get(m["id"], [])
@@ -1149,6 +1195,14 @@ def api_room_messages(room_id):
                 m["thread_participants"] = t["participants"]
             else:
                 m["thread_reply_count"] = 0
+            # 인용 답장 — 원본 메시지 미니 카드용 메타
+            if m.get("quoted_message_id"):
+                qm = quoted_map.get(m["quoted_message_id"])
+                if qm:
+                    m["quoted"] = qm
+                else:
+                    # 원본 삭제된 경우 — 마커만
+                    m["quoted"] = {"deleted": True}
             av = avmap.get(m["id"])
             if av:
                 m["version_no"] = av["version_no"]
@@ -1158,6 +1212,121 @@ def api_room_messages(room_id):
                 m["parent_message_id"] = av["parent_message_id"]
                 m["is_latest_version"] = (av["version_no"] == latest_map.get(av["parent_message_id"], av["version_no"]))
     return jsonify(out)
+
+
+@app.route("/api/messages/<int:message_id>/forward", methods=["POST"])
+@login_required
+def api_message_forward(message_id):
+    """전달(Forward) — Telegram 식 출처 보존.
+    body: {to_room_ids: [int, ...], add_comment?: str (선택)}
+    원본 메시지 1건을 N개 대상 방에 복사. 각 새 메시지에는 forwarded_from_* 메타가 박힘.
+    원본이 첨부파일이면 같은 파일 정보도 복사 (실제 파일은 공유)."""
+    me = current_user()
+    db = get_db()
+    src = db.execute("""
+        SELECT m.id, m.room_id, m.user_id, m.content, m.kind, m.created_at,
+               m.file_path, m.file_name, m.file_size, m.file_mime,
+               u.display_name AS author_name,
+               r.name AS room_name
+          FROM messages m
+          JOIN users u ON u.id = m.user_id
+          JOIN rooms r ON r.id = m.room_id
+         WHERE m.id = ?
+    """, (message_id,)).fetchone()
+    if not src:
+        return jsonify({"error": "원본 메시지 없음"}), 404
+    # 출처 방 멤버 권한 (원본 볼 권한 있어야 전달 가능)
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (src["room_id"], me["id"]),
+    ).fetchone():
+        return jsonify({"error": "원본 방 멤버 아님"}), 403
+    data = request.get_json(silent=True) or {}
+    to_rooms = data.get("to_room_ids") or []
+    add_comment = (data.get("add_comment") or "").strip()
+    if not isinstance(to_rooms, list) or not to_rooms:
+        return jsonify({"error": "to_room_ids 필요"}), 400
+    try:
+        to_rooms = [int(x) for x in to_rooms]
+    except (ValueError, TypeError):
+        return jsonify({"error": "to_room_ids 형식 오류"}), 400
+    if len(to_rooms) > 20:
+        return jsonify({"error": "한 번에 최대 20개 방"}), 400
+
+    # 사전 검증: 모든 대상 방의 멤버여야 함
+    bad = []
+    for rid in to_rooms:
+        if not db.execute(
+            "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+            (rid, me["id"]),
+        ).fetchone():
+            bad.append(rid)
+    if bad:
+        return jsonify({"error": f"방 멤버 아님: {bad}"}), 403
+
+    me_row = db.execute("SELECT display_name, avatar_color FROM users WHERE id=?", (me["id"],)).fetchone()
+    now = datetime.now(timezone.utc).isoformat()
+    new_ids = []
+    for rid in to_rooms:
+        # 코멘트 + (있으면) 원본 텍스트. 첨부파일은 파일 정보 복사.
+        # 텍스트 메시지의 경우 본문은 원본 텍스트를 그대로 옮김 (Telegram 식).
+        new_content = src["content"] if (src["kind"] in ("text", "image", "file") and src["content"]) else ""
+        if add_comment:
+            # 사용자 코멘트가 있으면 본문 앞에 코멘트, 새 줄 후 원본 (둘 다 표시)
+            new_content = add_comment + ("\n\n" + new_content if new_content else "")
+        cur = db.execute("""
+            INSERT INTO messages
+                (room_id, user_id, content, kind, created_at,
+                 file_path, file_name, file_size, file_mime,
+                 forwarded_from_message_id, forwarded_from_user_id,
+                 forwarded_from_name, forwarded_from_room_name, forwarded_from_created_at)
+            VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?,?)
+        """, (
+            rid, me["id"], new_content, src["kind"] or "text", now,
+            src["file_path"], src["file_name"], src["file_size"], src["file_mime"],
+            src["id"], src["user_id"],
+            src["author_name"], src["room_name"], src["created_at"],
+        ))
+        mid = cur.lastrowid
+        new_ids.append({"room_id": rid, "message_id": mid})
+        # 실시간 broadcast
+        payload = {
+            "id": mid,
+            "room_id": rid,
+            "user_id": me["id"],
+            "display_name": me_row["display_name"],
+            "avatar_color": me_row["avatar_color"],
+            "content": new_content,
+            "kind": src["kind"] or "text",
+            "created_at": now,
+            "file_path": src["file_path"],
+            "file_name": src["file_name"],
+            "file_size": src["file_size"],
+            "file_mime": src["file_mime"],
+            "forwarded_from_message_id": src["id"],
+            "forwarded_from_user_id": src["user_id"],
+            "forwarded_from_name": src["author_name"],
+            "forwarded_from_room_name": src["room_name"],
+            "forwarded_from_created_at": src["created_at"],
+        }
+        socketio.emit("new_message", payload, to=f"room_{rid}")
+    db.commit()
+
+    # 푸시 발송 — 각 방의 송신자 외 멤버
+    if PYWEBPUSH_OK:
+        body_preview = (add_comment or src["content"] or src["file_name"] or "")[:120]
+        for rid in to_rooms:
+            row = db.execute("SELECT name FROM rooms WHERE id=?", (rid,)).fetchone()
+            room_name = row["name"] if row else "채팅"
+            title = f"↗ {me_row['display_name']} 전달 ({room_name})"
+            import threading as _t
+            _t.Thread(
+                target=push_message_to_room_members,
+                args=(rid, me["id"], title, body_preview),
+                kwargs={"url": f"{BASE_PATH}/chat?room={rid}", "tag": f"room_{rid}"},
+                daemon=True,
+            ).start()
+    return jsonify({"ok": True, "forwarded_to": new_ids, "count": len(new_ids)})
 
 
 @app.route("/api/messages/<int:message_id>/thread", methods=["GET"])
@@ -3878,6 +4047,12 @@ def on_send(data):
         return
     if len(content) > 4000:
         content = content[:4000]
+    # 인용 답장 — quoted_message_id (선택). 본 채널에 답글 + 원본 미니 카드.
+    quoted_id = data.get("quoted_message_id")
+    try:
+        quoted_id = int(quoted_id) if quoted_id else None
+    except (ValueError, TypeError):
+        quoted_id = None
 
     with app.app_context():
         db = get_db()
@@ -3886,18 +4061,36 @@ def on_send(data):
             (room_id, uid),
         ).fetchone():
             return
+        # quoted_id 가 있으면 같은 방의 메시지인지 검증 (다른 방 메시지를 인용은 안 됨 — 전달 기능 사용)
+        if quoted_id:
+            qrow = db.execute(
+                "SELECT room_id FROM messages WHERE id=?", (quoted_id,)
+            ).fetchone()
+            if not qrow or qrow["room_id"] != room_id:
+                quoted_id = None
         now = datetime.now(timezone.utc).isoformat()
         cur = db.execute(
-            "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
-            (room_id, uid, content, "text", now),
+            "INSERT INTO messages (room_id, user_id, content, kind, created_at, quoted_message_id) VALUES (?,?,?,?,?,?)",
+            (room_id, uid, content, "text", now, quoted_id),
         )
         mid = cur.lastrowid
         db.commit()
         u = db.execute(
             "SELECT display_name, avatar_color FROM users WHERE id=?", (uid,)
         ).fetchone()
+        # quoted 메타데이터 — 클라이언트가 즉시 카드로 렌더할 수 있도록 함께 보냄
+        quoted_meta = None
+        if quoted_id:
+            q = db.execute("""
+                SELECT m.id, m.content, m.kind, m.created_at, m.file_name,
+                       u.display_name, u.avatar_color
+                  FROM messages m JOIN users u ON u.id = m.user_id
+                 WHERE m.id = ?
+            """, (quoted_id,)).fetchone()
+            if q:
+                quoted_meta = dict(q)
 
-    socketio.emit("new_message", {
+    payload = {
         "id": mid,
         "room_id": room_id,
         "user_id": uid,
@@ -3906,7 +4099,11 @@ def on_send(data):
         "content": content,
         "kind": "text",
         "created_at": now,
-    }, to=f"room_{room_id}")
+    }
+    if quoted_id:
+        payload["quoted_message_id"] = quoted_id
+        payload["quoted"] = quoted_meta
+    socketio.emit("new_message", payload, to=f"room_{room_id}")
 
     # Web Push — 백그라운드 알림 (송신자 제외 모든 방 멤버)
     if PYWEBPUSH_OK:
