@@ -609,6 +609,132 @@ body.chat-body .msg .msg-action-bar {
 .self-row {
   background: linear-gradient(to right, #FEF3C7 0%, transparent 40%);
 }
+
+/* ─── 인용 답장(Quote Reply) — 본 채널 답글 + 원본 미니 카드 ─── */
+.quote-card {
+  display: flex; align-items: stretch;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  max-width: 380px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.12s;
+}
+.msg.mine .quote-card {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(165, 40, 44, 0.3);
+}
+.quote-card:hover { background: rgba(255,255,255,0.95); }
+.quote-card-bar {
+  width: 3px;
+  background: #3b82f6;
+  flex-shrink: 0;
+}
+.quote-card-body {
+  padding: 6px 10px;
+  flex: 1;
+  min-width: 0;
+}
+.quote-card-author {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1F2937;
+}
+.quote-card-text {
+  font-size: 12px;
+  color: #6B7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quote-card-deleted {
+  font-size: 12px;
+  color: #9CA3AF;
+  font-style: italic;
+  padding: 4px 8px;
+  background: #F3F4F6;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+/* 인용 미리보기 바 (composer 위) */
+.quote-preview-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.quote-preview-left { flex: 1; min-width: 0; }
+.quote-preview-label {
+  font-size: 11px; font-weight: 700; color: #1D4ED8;
+}
+.quote-preview-author {
+  font-size: 12px; font-weight: 600; color: #1F2937;
+}
+.quote-preview-body {
+  font-size: 11.5px; color: #6B7280;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.quote-cancel-btn {
+  background: transparent; border: 0; cursor: pointer;
+  font-size: 14px; color: #6B7280;
+  padding: 4px 8px; border-radius: 6px;
+}
+.quote-cancel-btn:hover { background: #DBEAFE; }
+
+/* ─── 전달(Forward) 카드 — Telegram 식 출처 메타 ─── */
+.forward-card {
+  background: #FEF3C7;
+  border-left: 3px solid #F59E0B;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+.forward-card-head { color: #92400E; }
+.forward-card-time {
+  font-size: 10.5px; color: #B45309; opacity: 0.85;
+}
+.forward-room {
+  font-weight: 600; color: #78350F;
+}
+
+/* 인용 클릭 시 원본 강조 */
+.msg.highlight-flash > .body {
+  animation: highlightFlash 1.5s ease-out;
+}
+@keyframes highlightFlash {
+  0%   { background: #FEF3C7; }
+  100% { background: transparent; }
+}
+
+/* ─── 사용자 상태 점 (Slack/Teams 식) ─── */
+.status-dot {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #10B981;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
+}
+.status-online   { background: #10B981; }
+.status-away     { background: #9CA3AF; }
+.status-busy     { background: #EF4444; }
+.status-meeting  { background: #F59E0B; }
+.status-external { background: #8B5CF6; }
+.status-dnd      { background: #DC2626; }
+.status-offline  { background: #6B7280; }
+
+/* 상태 옵션 카드 hover */
+.status-option-card:hover {
+  border-color: #A5282C !important;
+  background: #FEF2F2 !important;
+}
 .composer input,
 .composer textarea {
   flex: 1;

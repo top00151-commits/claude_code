@@ -2452,6 +2452,8 @@
       }
       refreshRooms();
       // ===== 알림 분기 (notify.trigger 내부에서 설정·음소거 추가 분기) =====
+      // 🚫 DND 모드 → 모든 알림 차단 (배지·미읽기 카운트는 그대로 보임)
+      if (window.KNK_DND_ACTIVE) return;
       // 기본: 창이 안 보이거나 다른 방에 있으면 알림.
       // 추가: 사용자가 "현재 방에서도 소리" 설정 켜면 → 같은 방 활성 상태에서도 소리만 재생.
       if (m.user_id !== meId && m.kind !== 'system') {
@@ -3624,6 +3626,192 @@
       }
     }
   });
+
+  // ============================================================
+  // 🟢 사용자 상태 (Slack/Teams 식) + 📅 캘린더 자동 동기화
+  // ============================================================
+  const STATUS_INFO = {
+    online:   { color: "#10B981", label: "🟢 온라인",     desc: "기본" },
+    away:     { color: "#9CA3AF", label: "🌙 자리비움",   desc: "잠시 자리에 없음" },
+    busy:     { color: "#EF4444", label: "🔴 바쁨",       desc: "응답 어려움" },
+    meeting:  { color: "#F59E0B", label: "🤝 회의 중",    desc: "회의·통화" },
+    external: { color: "#8B5CF6", label: "🚗 외근",       desc: "사무실 외" },
+    dnd:      { color: "#DC2626", label: "🚫 방해금지",   desc: "본인 알림도 차단 (DND)" },
+    offline:  { color: "#6B7280", label: "⚫ 오프라인",   desc: "보이지 않음" },
+  };
+  let _userStatusMap = {};   // uid -> status info
+  window._userStatusMap = _userStatusMap;
+  let _myCurrentStatus = "online";
+
+  async function refreshAllUserStatuses() {
+    try {
+      const list = await fetch(`${BASE}/api/users/statuses`).then(r => r.json());
+      list.forEach(u => { _userStatusMap[u.user_id] = u; });
+      window._userStatusMap = _userStatusMap;
+      // 내 상태 표시 갱신
+      const me = _userStatusMap[meId];
+      if (me) {
+        _myCurrentStatus = me.status;
+        _renderMyStatusBadge(me);
+        _applyDndIfNeeded(me.status);
+      }
+      // 메시지 발신자 아바타 점 갱신
+      els.messages?.querySelectorAll(".msg .avatar").forEach(av => {
+        const li = av.closest(".msg");
+        if (!li) return;
+        const uid = parseInt(li.dataset.uid, 10);  // 옵션 — 없으면 skip
+        // (uid 미지정이라 발신자 색점은 후속 작업으로)
+      });
+    } catch (e) { /* noop */ }
+  }
+
+  function _renderMyStatusBadge(s) {
+    if (els.myStatusDot) {
+      els.myStatusDot.className = "status-dot status-" + s.status;
+      els.myStatusDot.style.background = STATUS_INFO[s.status]?.color || "#6B7280";
+    }
+    if (els.myStatusText) {
+      const customSuffix = s.custom_text ? ` · ${s.custom_text}` : "";
+      els.myStatusText.textContent = (STATUS_INFO[s.status]?.label || s.label || s.status) + customSuffix;
+    }
+  }
+
+  function _applyDndIfNeeded(status) {
+    // DND 시 알림 시스템 강제 차단 — notifySettings 와 별개로 작동
+    window.KNK_DND_ACTIVE = (status === "dnd");
+  }
+
+  function openStatusDialog() {
+    if (!els.statusDialog || !els.statusOptionsArea) return;
+    // 상태 옵션 카드 렌더
+    els.statusOptionsArea.innerHTML = Object.entries(STATUS_INFO).map(([k, v]) => `
+      <button type="button" class="status-option-card" data-status="${k}" style="text-align:left;padding:10px;border:2px solid ${k === _myCurrentStatus ? v.color : '#E5E7EB'};background:${k === _myCurrentStatus ? '#F9FAFB' : '#fff'};border-radius:8px;cursor:pointer;">
+        <div style="font-weight:700;font-size:14px;color:#1F2937;">${v.label}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${v.desc}</div>
+      </button>
+    `).join("");
+    // 카드 클릭 → 현재 선택 변경
+    let pickedStatus = _myCurrentStatus;
+    els.statusOptionsArea.querySelectorAll(".status-option-card").forEach(b => {
+      b.addEventListener("click", () => {
+        pickedStatus = b.dataset.status;
+        els.statusOptionsArea.querySelectorAll(".status-option-card").forEach(c => {
+          const k = c.dataset.status;
+          c.style.borderColor = (k === pickedStatus) ? STATUS_INFO[k].color : "#E5E7EB";
+          c.style.background = (k === pickedStatus) ? "#F9FAFB" : "#fff";
+        });
+      });
+    });
+    // 현재 사용자정의 문구·until 채우기
+    const cur = _userStatusMap[meId] || {};
+    if (els.statusCustomText) els.statusCustomText.value = cur.custom_text || "";
+    if (els.statusUntilAt) els.statusUntilAt.value = cur.until_at ? cur.until_at.slice(0, 16) : "";
+    // 저장 버튼
+    if (els.statusSaveBtn) {
+      els.statusSaveBtn.onclick = async () => {
+        const body = {
+          status: pickedStatus,
+          custom_text: els.statusCustomText?.value?.trim() || null,
+          until_at: els.statusUntilAt?.value ? (els.statusUntilAt.value + ":00.000Z") : null,
+        };
+        const res = await fetch(`${BASE}/api/me/status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then(r => r.json()).catch(() => ({ error: "네트워크 오류" }));
+        if (res.error) { alert(res.error); return; }
+        _myCurrentStatus = res.current.status;
+        _userStatusMap[meId] = res.current;
+        _renderMyStatusBadge(res.current);
+        _applyDndIfNeeded(res.current.status);
+        els.statusDialog.close();
+      };
+    }
+    // 캘린더 일정 로드·렌더
+    _refreshCalendarEvents();
+    // 캘린더 추가 버튼
+    if (els.calAddBtn) {
+      els.calAddBtn.onclick = async () => {
+        const title = els.calTitle?.value?.trim();
+        const start = els.calStart?.value;
+        const end = els.calEnd?.value;
+        const kind = els.calKind?.value || "meeting";
+        if (!title || !start || !end) { alert("제목·시작·종료를 모두 입력하세요."); return; }
+        const startISO = start + ":00.000Z";
+        const endISO = end + ":00.000Z";
+        const res = await fetch(`${BASE}/api/me/calendar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, start_at: startISO, end_at: endISO, kind }),
+        }).then(r => r.json());
+        if (res.error) { alert(res.error); return; }
+        els.calTitle.value = ""; els.calStart.value = ""; els.calEnd.value = "";
+        _refreshCalendarEvents();
+      };
+    }
+    try { els.statusDialog.showModal(); } catch (_) {}
+  }
+
+  async function _refreshCalendarEvents() {
+    if (!els.calEventList) return;
+    try {
+      const list = await fetch(`${BASE}/api/me/calendar`).then(r => r.json());
+      if (!list.length) {
+        els.calEventList.innerHTML = `<div style="font-size:12px;color:var(--text-soft);padding:8px;text-align:center;">예약된 일정 없음</div>`;
+        return;
+      }
+      els.calEventList.innerHTML = list.map(e => {
+        const startShort = e.start_at?.slice(5, 16).replace("T", " ");
+        const endShort = e.end_at?.slice(5, 16).replace("T", " ");
+        const stateIcon = e.applied === 2 ? "✅" : e.applied === 1 ? "🔄" : "⏰";
+        const kindIcon = e.kind === "external" ? "🚗" : e.kind === "busy" ? "🔴" : "🤝";
+        return `
+          <div class="cal-event-row" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid #F3F4F6;font-size:12px;">
+            <span>${stateIcon}</span><span>${kindIcon}</span>
+            <span style="flex:1;font-weight:600;">${escapeHtml(e.title)}</span>
+            <span style="color:var(--text-soft);">${startShort} ~ ${endShort}</span>
+            <button type="button" class="rs-act-btn rs-danger" data-cal-del="${e.id}" style="padding:2px 6px;">🗑</button>
+          </div>
+        `;
+      }).join("");
+      els.calEventList.querySelectorAll("[data-cal-del]").forEach(b => {
+        b.addEventListener("click", async () => {
+          if (!confirm("일정을 삭제할까요?")) return;
+          await fetch(`${BASE}/api/me/calendar/${b.dataset.calDel}`, { method: "DELETE" });
+          _refreshCalendarEvents();
+        });
+      });
+    } catch (e) { /* noop */ }
+  }
+
+  // 사용자 정보 영역 클릭 → 상태 다이얼로그
+  if (els.meInfoArea) {
+    els.meInfoArea.addEventListener("click", openStatusDialog);
+  }
+
+  // socket: 상태 변경 broadcast 수신
+  function _wireStatusSocket() {
+    if (!window.socket) return setTimeout(_wireStatusSocket, 200);
+    socket.on("user_status_changed", (e) => {
+      _userStatusMap[e.user_id] = {
+        user_id: e.user_id,
+        status: e.status,
+        custom_text: e.custom_text,
+        emoji: e.emoji,
+        label: e.label,
+      };
+      window._userStatusMap = _userStatusMap;
+      if (e.user_id === meId) {
+        _myCurrentStatus = e.status;
+        _renderMyStatusBadge(_userStatusMap[meId]);
+        _applyDndIfNeeded(e.status);
+      }
+    });
+  }
+  setTimeout(_wireStatusSocket, 500);
+  // 최초 로드 + 5분 주기 갱신 (다른 사람 상태가 바뀌었을 수 있음)
+  setTimeout(refreshAllUserStatuses, 1500);
+  setInterval(refreshAllUserStatuses, 5 * 60 * 1000);
 
   // 스레드 패널에 🧠 요약 버튼 동적 추가
   // (openThreadPanel 에서 호출됨 — 별도 함수)

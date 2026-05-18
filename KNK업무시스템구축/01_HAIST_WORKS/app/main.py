@@ -9066,80 +9066,136 @@ async def parts_import_template(req: Request):
     wb = Workbook()
     ws = wb.active
     ws.title = "자재 일괄 등록"
-    # 헤더 (한글) — 필수 *
+    # v5H226z109 (2026-05-17) — 다운로드 양식과 동일 헤더 (용도 포함 풀세트)
+    # 필수 컬럼은 * 표시. 헤더 자동 매핑이 적용되므로 순서가 달라도 OK.
     headers = [
-        ("자재코드 *", 16),    ("자재명 *", 28),    ("사업부 *", 10),
-        ("규격", 24),          ("제조사", 14),      ("원산지", 10),
-        ("단위", 8),           ("통화", 8),         ("매입단가", 12),
-        ("분류", 14),          ("품목계정", 12),    ("조달구분", 12),
-        ("안전재고", 10),      ("재주문점", 10),    ("재주문량", 10),
-        ("위치", 12),          ("HS코드", 12),      ("기본창고", 12),
-        ("환산계수", 10),      ("비고", 24),
+        ("자재코드 *", 18), ("자재명 *", 28), ("사업부 *", 10),
+        ("규격", 24), ("제조사", 14), ("원산지", 10),
+        ("단위", 8), ("통화", 8), ("매입단가", 12),
+        ("분류", 14), ("대분류", 14), ("분류시리즈", 14),
+        ("품목계정", 12), ("조달구분", 12),
+        ("안전재고", 10), ("재주문점", 10), ("재주문량", 10), ("환산계수", 10),
+        ("보조규격1", 16), ("보조규격2", 16), ("보조규격3", 16),
+        ("세금계산서명", 22), ("거래명세서명", 22),
+        ("위치", 12), ("기본창고", 12), ("HS코드", 12),
+        ("용도", 38),
+        ("활성", 8), ("비고", 24),
     ]
     head_font = Font(bold=True, color="FFFFFF", size=11)
     head_fill = PatternFill("solid", fgColor="0F172A")
+    # 필수 컬럼은 빨간 테두리 같은 시각 강조
+    req_fill = PatternFill("solid", fgColor="B91C1C")
     for i, (h, w) in enumerate(headers, 1):
         cell = ws.cell(row=1, column=i, value=h)
         cell.font = head_font
-        cell.fill = head_fill
+        cell.fill = req_fill if "*" in h else head_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.column_dimensions[cell.column_letter].width = w
-    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[1].height = 30
+    # 헤더 행 고정 (스크롤 시 항상 보이게)
+    ws.freeze_panes = "D2"
 
-    # 예시 행 2개
+    # 예시 행 3개 — 풀세트 (용도 포함, 다양한 사업부/카테고리)
     examples = [
+        # 자동화 — 모터
         ["P-M-MTR-0001", "AC 서보모터 200W", "M",
          "200W·24V·3000rpm", "Mitsubishi", "일본",
          "EA", "KRW", 350000,
-         "모터·구동부", "RAW", "구매",
-         5, 10, 20,
-         "WH-01-A-12", "8501.31", "WH-01",
-         1, "검사기·자동화 공용 사용 시 공통으로 등록"],
+         "모터·구동부", "전장 부품", "MTR-A",
+         "RAW", "구매",
+         5, 10, 20, 1,
+         "축경 8mm", "엔코더 2500ppr", "감속비 1:5",
+         "AC 서보모터 200W", "AC SERVO MOTOR 200W",
+         "WH-01-A-12", "WH-01", "8501.31",
+         "자동화 라인 #2·#3 축 회전 구동용. 정밀 위치 제어 필요한 픽업·이송 메커니즘에 사용. 단종 시 동급 200W AC서보모터로 대체.",
+         1, "검사기·자동화 공용 시 공통 등록"],
+        # 검사기 — 광학 렌즈
         ["P-T-LNS-0001", "광학 렌즈 어레이 50mm", "T",
-         "50mm·BK7", "Hoya", "일본",
+         "50mm·BK7·AR 코팅", "Hoya", "일본",
          "EA", "USD", 1200,
-         "광학부", "RAW", "구매",
-         2, 3, 5,
-         "WH-02-B-03", "9001.90", "WH-02",
+         "광학부", "센서·광학", "LNS-50",
+         "RAW", "구매",
+         2, 3, 5, 1,
+         "초점거리 50mm", "F/2.8", "AR 405-650nm",
+         "광학 렌즈 어레이 50mm BK7", "OPTICAL LENS ARRAY 50MM",
+         "WH-02-B-03", "WH-02", "9001.90",
+         "검사기 비전 시스템 광학부. 표면 결함 검사용 카메라 모듈에 장착. 취급 시 표면 청결 유지(렌즈 페이퍼만 사용).",
          1, ""],
+        # 공통 소모품 — 볼트
+        ["F-COM-BLT-M5-20", "육각볼트 M5×20", "공통",
+         "M5×20mm·SUS304", "ETC", "한국",
+         "EA", "KRW", 120,
+         "체결구", "표준 부품", "BLT-M5",
+         "RAW", "구매",
+         200, 300, 500, 1,
+         "두께 1.5mm", "토크 4.5N·m", "",
+         "육각볼트 M5×20 SUS304", "HEX BOLT M5X20 SUS304",
+         "WH-03-C-08", "WH-03", "7318.15",
+         "부품 체결·고정용 표준 볼트 (KS B 1002). 풀림 방지 필요 시 록타이트 처리. 전 사업부 공통 표준 부품.",
+         1, "박스 단위 발주 (1000개입)"],
     ]
+    from openpyxl.styles import Alignment as _Al
+    wrap = _Al(wrap_text=True, vertical="top")
     for r_idx, row in enumerate(examples, 2):
         for c_idx, val in enumerate(row, 1):
-            ws.cell(row=r_idx, column=c_idx, value=val)
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.alignment = wrap
+        ws.row_dimensions[r_idx].height = 60
+
     # 안내 시트
     ws2 = wb.create_sheet("작성 가이드")
     guide = [
-        ["v5H226z58 자재 일괄 등록 가이드"],
+        ["KNK 자재 일괄 등록 — 작성 가이드 (v5H226z109)"],
         [""],
-        ["[필수 컬럼]"],
-        ["  자재코드 (part_no) — UNIQUE, 중복 시 차단"],
-        ["  자재명 (part_name) — 유사 자재 자동 검사 (≥85점 시 등록 차단)"],
-        ["  사업부 (biz_div) — M / T / 공통 (필수)"],
+        ["[필수 컬럼 — 미입력 시 행 단위 차단]"],
+        ["  · 자재코드 (part_no) — UNIQUE. 중복 시 차단. 제조사 원본 PRODUCT CODE 우선 권장"],
+        ["  · 자재명 (part_name) — 유사 자재 자동 검사 (≥85점 시 등록 차단, force 옵션 우회 가능)"],
+        ["  · 사업부 (biz_div) — M(자동화) / T(검사기) / 공통 — 셋 중 하나 정확히 입력"],
         [""],
-        ["[추천 컬럼]"],
-        ["  규격, 제조사, 매입단가, 분류, 안전재고, 재주문점, 재주문량"],
+        ["[강력 추천 — 검색·식별 품질에 직결]"],
+        ["  · 규격(spec) · 제조사(maker) · 매입단가(std_price)"],
+        ["  · 분류(category) · 안전재고(safety_stock) · 재주문점·재주문량"],
+        ["  · 용도(purpose) — 자재 카탈로그·검색 적중률에 가장 큰 영향. 1~3문장 권장"],
         [""],
-        ["[헤더명 자동 매핑]"],
-        ["  자재코드 = part_no = code = 품번 = 부품코드 = 자재번호"],
-        ["  자재명 = part_name = name = 품명 = 부품명"],
-        ["  사업부 = biz_div = 사업부서"],
+        ["[용도 작성 팁]"],
+        ["  · 어떤 라인·공정에서 쓰는지 (예: \"자동화 라인 #2·#3 픽업 메커니즘\")"],
+        ["  · 어떤 기능을 하는지 (예: \"축 회전 구동\", \"신호 감지\")"],
+        ["  · 운영·관리 안내 (예: \"단종 시 ○○○으로 대체\", \"6개월 주기 점검\")"],
+        ["  · 사용처/대체품 정보가 있으면 검색이 훨씬 쉬워집니다."],
+        [""],
+        ["[헤더명 자동 매핑 — 영문/별칭 OK]"],
+        ["  자재코드 = part_no = code = 품번 = 부품코드 = 자재번호 = PRODUCT CODE"],
+        ["  자재명   = part_name = name = 품명 = 부품명 = PRODUCT NAME"],
+        ["  사업부   = biz_div = 사업부서"],
         ["  매입단가 = 표준단가 = std_price = 단가 = price = 기준단가"],
+        ["  용도     = purpose = 사용처 = application"],
+        ["  보조규격 = sub_spec1/2/3 = 보조사양1/2/3"],
+        ["  세금계산서명 = tax_invoice_name = 세금계산서품명"],
+        ["  거래명세서명 = trade_invoice_name = 거래명세서품명"],
+        ["  대분류   = category_main · 분류시리즈 = category_series = 시리즈"],
+        ["  ※ 헤더 순서가 다르거나 불필요한 컬럼이 섞여 있어도 자동 인식"],
         [""],
-        ["[처리 흐름]"],
-        ["  1) 업로드 → 검증 미리보기 (DB INSERT 없음)"],
-        ["  2) 결과 확인 (ok / similar / dup / error)"],
-        ["  3) [등록 확정] 버튼 → 실제 INSERT"],
-        ["  4) similar (유사 자재 있음) 행은 강제 등록 옵션 선택 가능"],
+        ["[처리 흐름 — 안전 3단계]"],
+        ["  1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)"],
+        ["  2) 결과 확인 (ok / similar / dup / error 분류)"],
+        ["  3) [등록 확정] 버튼 → 실제 INSERT (트랜잭션)"],
+        ["  4) similar(유사 자재 있음) 행은 강제 등록 옵션 선택 후 재제출"],
         [""],
         ["[제한]"],
         ["  · 파일 크기 10MB 이하"],
         ["  · 미리보기 최대 200건"],
         ["  · 한 번에 최대 ~1,000행 권장 (메모리·트랜잭션 성능)"],
+        [""],
+        ["[비고]"],
+        ["  · 기존 자재 데이터를 그대로 받아오시려면 자재 마스터 페이지 [엑셀 내보내기]를"],
+        ["    이용하세요. 같은 헤더 구조라 그대로 수정·재업로드 가능합니다."],
+        ["  · 매입단가 1~5차(구매사별)는 별도 시트 영역으로 현재 일괄등록 미지원."],
+        ["    필요 시 등록 후 자재 편집 페이지에서 보완 입력해 주세요."],
     ]
     for r_idx, row in enumerate(guide, 1):
         ws2.cell(row=r_idx, column=1, value=row[0])
-    ws2.column_dimensions["A"].width = 80
-    ws2["A1"].font = Font(bold=True, size=14)
+    ws2.column_dimensions["A"].width = 88
+    ws2["A1"].font = Font(bold=True, size=14, color="0F172A")
 
     # 메모리 → 응답
     import io
