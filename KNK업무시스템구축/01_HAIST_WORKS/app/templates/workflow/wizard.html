@@ -11,7 +11,37 @@
 .page-title { font-size:20px; font-weight:700; color:var(--qv-ink); }
 .page-meta { font-size:10.5px; color:var(--qv-ink-3); letter-spacing:.14em; text-transform:uppercase; }
 .intro { font-size:12px; color:var(--qv-ink-3); margin-top:4px; }
-.wrap { margin: 0 var(--content-pad) var(--space-3); max-width:1200px; }
+/* z108m: 2단 레이아웃 — 좌측 폼(1fr) + 우측 실시간 미리보기(340px) */
+.wrap { margin: 0 var(--content-pad) var(--space-3); display:grid; grid-template-columns: 1fr 340px; gap:14px; }
+@media (max-width:1200px) { .wrap { grid-template-columns: 1fr; } }
+.wiz-side { position:sticky; top:14px; align-self:start; }
+.wiz-side .panel { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+.wiz-side .panel h4 { margin:0 0 8px; font-size:12px; font-weight:700; color:var(--qv-ink-2); padding-bottom:6px; border-bottom:1px solid var(--qv-line); }
+.wiz-side .ans-row { display:flex; justify-content:space-between; padding:4px 0; font-size:12px; border-bottom:1px dashed var(--qv-line); }
+.wiz-side .ans-row:last-child { border-bottom:0; }
+.wiz-side .ans-row .k { color:var(--qv-ink-3); }
+.wiz-side .ans-row .v { color:var(--qv-ink); font-weight:600; }
+.wiz-side .scenario-box {
+  background:linear-gradient(135deg, #eef2ff, #ede9fe);
+  border:1px solid #c7d2fe;
+  border-radius:10px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+.wiz-side .scenario-code { font-size:11px; color:#6366f1; font-weight:700; letter-spacing:.05em; }
+.wiz-side .scenario-title { font-size:15px; font-weight:800; color:var(--qv-ink); margin-top:4px; }
+.wiz-side .scenario-desc { font-size:11.5px; color:var(--qv-ink-2); margin-top:6px; line-height:1.5; }
+.wiz-side .node-est {
+  background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px;
+  padding:10px 14px; text-align:center; margin-bottom:10px;
+}
+.wiz-side .node-est .n { font-size:22px; font-weight:800; color:#047857; }
+.wiz-side .node-est .l { font-size:11px; color:#065f46; }
+.wiz-side .help-card {
+  background:var(--qv-surface-2); border:1px dashed var(--qv-line); border-radius:8px;
+  padding:10px 14px; font-size:11px; color:var(--qv-ink-3); line-height:1.5;
+}
+.wiz-side .help-card strong { color:var(--qv-ink-2); }
 
 .section {
   background:var(--qv-surface);
@@ -162,7 +192,7 @@ select:focus, input:focus {
   </div>
 
   <div class="wrap">
-    <form method="post" action="/workflow/wizard" id="wizForm" onsubmit="return confirmSubmit(event)">
+    <form method="post" action="/workflow/wizard" id="wizForm" onsubmit="return confirmSubmit(event)" style="min-width:0;">
       {% if tpl_row %}<input type="hidden" name="template_code" value="{{ tpl_row.code }}" />{% endif %}
       {% if not existing_wf %}<input type="hidden" name="mode" value="rebuild" />{% endif %}
 
@@ -312,15 +342,128 @@ select:focus, input:focus {
       </div>
 
       <div class="actions">
-        <span class="hint">셋업 선택 시 설치·SAT 노드 자동 추가. 협업은 양 법인 노드가 모두 생성됩니다.</span>
+        <span class="hint">셋업 선택 시 설치·SAT 자동 추가. 협업은 양 법인 모두 일이 생성됩니다.</span>
         <a href="/workflow" class="btn btn-cancel">취소</a>
-        <button type="submit" class="btn btn-go">워크플로우 조립</button>
+        <button type="submit" class="btn btn-go">✓ 일 순서 만들기</button>
       </div>
     </form>
+
+    {# z108m: 실시간 미리보기 사이드 (우측 여백 활용) #}
+    <aside class="wiz-side">
+      <div class="scenario-box">
+        <div class="scenario-code">감지된 일 형태</div>
+        <div class="scenario-title" id="sc-title">유형 ① 국내 단순</div>
+        <div class="scenario-desc" id="sc-desc">본사가 수주·설계·제작·출하 모두 담당. 가장 단순한 형태.</div>
+      </div>
+
+      <div class="node-est">
+        <div class="n" id="sc-nodes">31</div>
+        <div class="l">개 일 자동 생성 예정</div>
+      </div>
+
+      <div class="panel">
+        <h4>📋 현재 선택</h4>
+        <div class="ans-row"><span class="k">고객사 국가</span><span class="v" id="sum-cc">대한민국</span></div>
+        <div class="ans-row"><span class="k">주문 받음</span><span class="v" id="sum-po">본사</span></div>
+        <div class="ans-row"><span class="k">기구설계</span><span class="v" id="sum-mech">본사</span></div>
+        <div class="ans-row"><span class="k">전장설계</span><span class="v" id="sum-elec">본사</span></div>
+        <div class="ans-row"><span class="k">소프트웨어</span><span class="v" id="sum-sw">본사</span></div>
+        <div class="ans-row"><span class="k">가공</span><span class="v" id="sum-mfg-machining">본사</span></div>
+        <div class="ans-row"><span class="k">조립</span><span class="v" id="sum-mfg-assembly">본사</span></div>
+        <div class="ans-row"><span class="k">전장 작업</span><span class="v" id="sum-mfg-electrical">본사</span></div>
+        <div class="ans-row"><span class="k">검증</span><span class="v" id="sum-mfg-verification">본사</span></div>
+        <div class="ans-row"><span class="k">출하</span><span class="v" id="sum-ship">본사</span></div>
+        <div class="ans-row"><span class="k">현장 설치</span><span class="v" id="sum-setup">없음</span></div>
+        <div class="ans-row"><span class="k">양산 변경</span><span class="v" id="sum-mr">없어요</span></div>
+        <div class="ans-row"><span class="k">가공품 발주</span><span class="v" id="sum-mpd">구매팀</span></div>
+      </div>
+
+      <div class="help-card">
+        💡 <strong>4가지 일 형태?</strong><br>
+        ① 국내 단순 — 본사 전부<br>
+        ② 국내 + VN 협업<br>
+        ③ 해외 직수출<br>
+        ④ VN 직수주<br>
+        <a href="/workflow/scenarios" style="color:#6366f1; font-weight:700; display:inline-block; margin-top:4px;">자세히 보기 →</a>
+      </div>
+    </aside>
   </div>
 </main>
 {% include "_v5_partials/debug_overlay.html" %}
 <script>
+// z108m: 실시간 시나리오 미리보기 (선택 변경 시 즉시 반영)
+const SCENARIO_INFO = {
+  'T1': {title:'유형 ① 국내 단순', desc:'본사가 수주·설계·제작·출하 모두 담당. 가장 단순한 형태.', nodes:31},
+  'T2': {title:'유형 ② 국내 + VN 협업', desc:'VN 법인 제작 후 본사로 반입하여 본사에서 최종 검증 + 국내 출하.', nodes:44},
+  'T3': {title:'유형 ③ 해외 직수출', desc:'해외 고객사로부터 본사가 직접 수주 · VN 제작 · 본사에서 해외로 수출.', nodes:47},
+  'T4': {title:'유형 ④ VN 법인 직수주', desc:'해외 고객사가 VN 법인에 직발주. VN→본사 IC PO + 본사 매출 처리.', nodes:40},
+};
+const LOC_LABEL = {'KR':'본사', 'VN':'베트남법인', 'BOTH':'협업 (본사+VN)', 'OUT':'외주', 'NONE':'없음'};
+const COUNTRY_KO = {}; // 채울 필요 없음 — select 옵션 텍스트 그대로 사용
+
+function detectScenario(cc, po, mfgs) {
+  const usesVn = mfgs.some(m => m === 'VN' || m === 'BOTH');
+  if (cc === 'KR' && !usesVn) return 'T1';
+  if (cc === 'KR' && usesVn) return 'T2';
+  if (cc !== 'KR' && po === 'VN') return 'T4';
+  if (cc !== 'KR' && po !== 'VN') return 'T3';
+  return 'T1';
+}
+
+function getRadio(name) {
+  const r = document.querySelector(`input[name="${name}"]:checked`);
+  return r ? r.value : '';
+}
+
+function updatePreview() {
+  const ccSel = document.querySelector('select[name="customer_country"]');
+  const cc = ccSel ? ccSel.value : 'KR';
+  const ccText = ccSel ? (ccSel.options[ccSel.selectedIndex]||{}).text || '대한민국' : '대한민국';
+  const po = getRadio('po_entity');
+  const mech = getRadio('mech_design_split');
+  const elec = getRadio('elec_design_split');
+  const sw = getRadio('sw_design_split');
+  const machining = getRadio('mfg_machining');
+  const assembly = getRadio('mfg_assembly');
+  const electrical = getRadio('mfg_electrical');
+  const verification = getRadio('mfg_verification');
+  const ship = getRadio('ship_split');
+  const setup = getRadio('setup_split');
+  const isMr = getRadio('is_mass_revision');
+  const mpd = getRadio('machined_po_dept');
+
+  // 요약 갱신
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('sum-cc', ccText);
+  set('sum-po', LOC_LABEL[po] || po);
+  set('sum-mech', LOC_LABEL[mech] || mech);
+  set('sum-elec', LOC_LABEL[elec] || elec);
+  set('sum-sw', LOC_LABEL[sw] || sw);
+  set('sum-mfg-machining', LOC_LABEL[machining] || machining);
+  set('sum-mfg-assembly', LOC_LABEL[assembly] || assembly);
+  set('sum-mfg-electrical', LOC_LABEL[electrical] || electrical);
+  set('sum-mfg-verification', LOC_LABEL[verification] || verification);
+  set('sum-ship', LOC_LABEL[ship] || ship);
+  set('sum-setup', LOC_LABEL[setup] || setup);
+  set('sum-mr', isMr === '1' ? '있어요 (재진행)' : '없어요');
+  set('sum-mpd', mpd === 'design' ? '설계팀 발주' : '구매팀 발주');
+
+  // 시나리오 감지
+  const tc = detectScenario(cc, po, [machining, assembly, electrical, verification]);
+  const info = SCENARIO_INFO[tc];
+  set('sc-title', info.title);
+  set('sc-desc', info.desc);
+  // 양산 변경 X 시 T3/T4 에서 약 2개 노드 감소 (컨셉회의·제안서)
+  let n = info.nodes;
+  if ((tc === 'T3' || tc === 'T4') && isMr !== '1') n -= 2;
+  set('sc-nodes', n);
+}
+
+document.addEventListener('change', e => {
+  if (e.target.matches('input[type=radio], select')) updatePreview();
+});
+document.addEventListener('DOMContentLoaded', updatePreview);
+
 function confirmSubmit(e) {
   var mode = document.querySelector('input[name="mode"]:checked');
   if (mode && mode.value === 'rebuild') {

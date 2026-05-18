@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-05-17 v5H226z108l (프로젝트 페이지 레이아웃 재구성 — 매트릭스 상단 풀와이드 + KPI 4분할 + 체크리스트 8컬럼(담당자·체크포인트·잡기·끝 액션))
+REM   LAST UPDATE: 2026-05-17 v5H226z108m (마법사 우측 사이드 — 실시간 시나리오 미리보기 + 선택 요약 + 4가지 형태 안내 / 우측 여백 활용)
 REM   - BAT line-length 8192 limit fix (REM truncated, full log -> CHANGELOG.md)
 REM   - v5H226c soconsumable Excel upload: image extract + header auto-mapping
 REM   - v5H226b INSERT column-name bug fix (qty/unit_price/amount)
@@ -10,14 +10,14 @@ REM ============================================================
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
-title KNK HAIST WORKS [v5H226z108l]
+title KNK HAIST WORKS [v5H226z108m]
 cd /d "%~dp001_HAIST_WORKS"
 
 echo.
 echo ============================================================
 echo    HAIST WORKS  ^| KNK Integrated Work Platform
 echo    Human ^& AI create the Best
-echo    [v5H226z108l  2026-05-16]
+echo    [v5H226z108m  2026-05-16]
 echo ============================================================
 echo.
 
