@@ -352,14 +352,16 @@
         : "";
 
       const mutedIcon = notifySettings.isRoomMuted(r.id) ? `<span class="room-muted-icon" title="이 방 알림 음소거 중">🔕</span>` : "";
-      const rowClass = [active, r.type === "item" ? "item-row" : "", isSelf ? "self-row" : ""].filter(Boolean).join(" ");
+      // 핀 고정 표시
+      const pinnedIcon = r.pinned ? `<span class="room-pinned-icon" title="여기 고정됨">📌</span>` : "";
+      const rowClass = [active, r.type === "item" ? "item-row" : "", isSelf ? "self-row" : "", r.pinned ? "pinned-row" : ""].filter(Boolean).join(" ");
       return `
         <li data-room-id="${r.id}" class="${rowClass}">
           <div class="avatar" style="background:${color}">${escapeHtml(initial(name))}</div>
           <div class="room-info">
             <div class="room-name-line">
               ${chips}
-              <div class="room-name">${escapeHtml(name)}${retentionIcon}${mutedIcon}</div>
+              <div class="room-name">${pinnedIcon}${escapeHtml(name)}${retentionIcon}${mutedIcon}</div>
             </div>
             <div class="room-last">${last}</div>
           </div>
@@ -392,8 +394,162 @@
         // 더블클릭으로 텍스트 선택되는 것 방지
         try { window.getSelection().removeAllRanges(); } catch(_) {}
       });
+      // 우클릭 → 방 컨텍스트 메뉴 (순서·고정·나가기·설정)
+      li.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const rid = parseInt(li.dataset.roomId, 10);
+        showRoomContextMenu(rid, e.clientX, e.clientY);
+      });
+      // 모바일 롱프레스 — 0.5초
+      let _rlPressTimer = null, _rlTouchXY = { x: 0, y: 0 };
+      li.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        _rlTouchXY = { x: t.clientX, y: t.clientY };
+        _rlPressTimer = setTimeout(() => {
+          _rlPressTimer = null;
+          const rid = parseInt(li.dataset.roomId, 10);
+          showRoomContextMenu(rid, _rlTouchXY.x, _rlTouchXY.y);
+        }, 500);
+      }, { passive: true });
+      li.addEventListener("touchmove", (e) => {
+        const t = e.touches[0];
+        const dx = Math.abs(t.clientX - _rlTouchXY.x);
+        const dy = Math.abs(t.clientY - _rlTouchXY.y);
+        if (dx > 10 || dy > 10) {
+          // 이동 → 롱프레스 취소 (스크롤 의도)
+          if (_rlPressTimer) { clearTimeout(_rlPressTimer); _rlPressTimer = null; }
+        }
+      }, { passive: true });
+      li.addEventListener("touchend", () => {
+        if (_rlPressTimer) { clearTimeout(_rlPressTimer); _rlPressTimer = null; }
+      }, { passive: true });
+      li.addEventListener("touchcancel", () => {
+        if (_rlPressTimer) { clearTimeout(_rlPressTimer); _rlPressTimer = null; }
+      }, { passive: true });
     });
   }
+
+  // ============================================================
+  // 방 목록 우클릭/롱프레스 컨텍스트 메뉴
+  // ============================================================
+  function closeRoomContextMenu() {
+    document.querySelectorAll(".room-context-menu").forEach(m => m.remove());
+  }
+
+  function showRoomContextMenu(roomId, clientX, clientY) {
+    closeRoomContextMenu();
+    const r = rooms.find(x => x.id === roomId);
+    if (!r) return;
+    const isSelf = r.type === "self";
+    const isDirect = r.type === "direct";
+    const isMuted = notifySettings.isRoomMuted(roomId);
+    const isPinned = !!r.pinned;
+    const items = [];
+    // self 방은 순서/나가기 모두 의미 없음 → 음소거만
+    if (isSelf) {
+      items.push({ icon: isMuted ? "🔔" : "🔕", label: isMuted ? "알림 받기" : "음소거", act: "mute_toggle" });
+    } else {
+      items.push({ section: true, label: "순서" });
+      items.push({ icon: isPinned ? "📍" : "📌", label: isPinned ? "고정 해제" : "여기 고정", act: isPinned ? "unpin" : "pin" });
+      items.push({ icon: "⏏", label: "맨 위로", act: "top" });
+      items.push({ icon: "↑", label: "한 칸 위로", act: "up" });
+      items.push({ icon: "↓", label: "한 칸 아래로", act: "down" });
+      items.push({ icon: "⬇", label: "맨 아래로", act: "bottom" });
+      items.push({ icon: "🔓", label: "정렬 해제 (자동)", act: "reset" });
+      items.push({ divider: true });
+      items.push({ icon: isMuted ? "🔔" : "🔕", label: isMuted ? "알림 받기" : "음소거", act: "mute_toggle" });
+      items.push({ icon: "🪟", label: "새 창으로 열기", act: "popout" });
+      items.push({ divider: true });
+      items.push({ icon: "⚙", label: "방 설정", act: "settings" });
+      // 1:1·전체공지 외 → 나가기
+      if (!isDirect) {
+        items.push({ icon: "🚪", label: "방 나가기", act: "leave", danger: true });
+      }
+    }
+    const menu = document.createElement("div");
+    menu.className = "msg-context-menu room-context-menu";   // 같은 스타일 재사용
+    menu.innerHTML = items.map(it => {
+      if (it.divider) return `<div class="mcm-divider"></div>`;
+      if (it.section) return `<div class="mcm-section-label">${escapeHtml(it.label)}</div>`;
+      const cls = it.danger ? "mcm-item mcm-danger" : "mcm-item";
+      return `<button type="button" class="${cls}" data-act="${it.act}">
+        <span class="mcm-icon">${escapeHtml(it.icon)}</span>
+        <span>${escapeHtml(it.label)}</span>
+      </button>`;
+    }).join("");
+    document.body.appendChild(menu);
+    // 위치 — viewport 벗어나지 않게
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    let x = clientX, y = clientY;
+    if (x + w > window.innerWidth - 8) x = window.innerWidth - w - 8;
+    if (y + h > window.innerHeight - 8) y = window.innerHeight - h - 8;
+    if (x < 8) x = 8; if (y < 8) y = 8;
+    menu.style.left = x + "px"; menu.style.top = y + "px";
+    menu.querySelectorAll(".mcm-item").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        closeRoomContextMenu();
+        await handleRoomContextAction(roomId, act);
+      });
+    });
+  }
+
+  async function handleRoomContextAction(roomId, act) {
+    const r = rooms.find(x => x.id === roomId);
+    if (!r) return;
+    if (act === "mute_toggle") {
+      notifySettings.toggleRoomMute(roomId);
+      renderRoomList();
+      return;
+    }
+    if (act === "popout") {
+      if (SOLO_MODE) return;
+      const url = BASE + `/chat?solo=1&room=${roomId}`;
+      const features = "width=306,height=544,resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no";
+      const w = window.open(url, `knk_room_${roomId}`, features);
+      if (w) try { w.focus(); } catch(_) {}
+      return;
+    }
+    if (act === "settings") {
+      // 현재 방으로 전환 후 설정 다이얼로그 열기
+      openRoom(r);
+      setTimeout(() => {
+        if (typeof openRoomSettings === "function") openRoomSettings(roomId);
+      }, 100);
+      return;
+    }
+    if (act === "leave") {
+      if (!confirm(`[${r.name}] 방을 나가시겠습니까?`)) return;
+      const res = await fetch(`${BASE}/api/rooms/${roomId}/membership`, { method: "DELETE" }).then(x => x.json());
+      if (res.error) { alert(res.error); return; }
+      if (activeRoom && activeRoom.id === roomId) {
+        activeRoom = null;
+        closeActiveRoom?.();
+      }
+      await refreshRooms();
+      return;
+    }
+    // 순서 조정
+    if (["pin", "unpin", "top", "bottom", "up", "down", "reset"].includes(act)) {
+      const res = await fetch(`${BASE}/api/rooms/${roomId}/order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: act }),
+      }).then(x => x.json()).catch(() => ({ error: "네트워크 오류" }));
+      if (res.error) { alert(res.error); return; }
+      await refreshRooms();
+      return;
+    }
+  }
+
+  // 바깥 클릭·ESC 닫기
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".room-context-menu")) closeRoomContextMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeRoomContextMenu();
+  });
 
   // ---------- render messages ----------
   function renderMessages(msgs) {

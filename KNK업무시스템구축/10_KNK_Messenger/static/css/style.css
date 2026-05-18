@@ -735,6 +735,27 @@ body.chat-body .msg .msg-action-bar {
   border-color: #A5282C !important;
   background: #FEF2F2 !important;
 }
+
+/* ─── 방 목록 컨텍스트 메뉴 (우클릭/롱프레스) ─── */
+.room-context-menu {
+  min-width: 180px;
+}
+.msg-context-menu .mcm-danger {
+  color: #DC2626;
+}
+.msg-context-menu .mcm-danger:hover {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+/* 핀 고정된 방 — 사이드바 좌측 4px 노란 띠 */
+.pinned-row {
+  background: linear-gradient(to right, #fff7ed 0%, transparent 60%);
+  border-left: 3px solid #f59e0b;
+}
+.room-pinned-icon {
+  font-size: 11px; margin-right: 3px;
+}
 .composer input,
 .composer textarea {
   flex: 1;
@@ -2306,7 +2327,8 @@ body.chat-body.debug-layout .composer       { outline: 2px dashed #A5282C !impor
   pointer-events: auto;
 }
 
-/* 디버그 토글 버튼 — 우상단 고정. 클릭 시 ON/OFF 토글, localStorage 에 상태 저장. */
+/* 디버그 토글 버튼 — 우상단 고정. 클릭 시 ON/OFF 토글, localStorage 에 상태 저장.
+   드래그로 어디든 이동 가능 (위치는 localStorage 에 영속). 더블클릭으로 우상단 복귀. */
 #debugLayoutBtn {
   position: fixed; top: 8px; right: 8px;
   z-index: 99998;
@@ -2316,11 +2338,20 @@ body.chat-body.debug-layout .composer       { outline: 2px dashed #A5282C !impor
   border-radius: 999px;
   color: #6b7280;
   font: 700 12px/1 ui-monospace, monospace;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
   box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  touch-action: none;     /* 모바일 드래그 시 스크롤 차단 */
+  transition: box-shadow 0.12s, transform 0.12s;
 }
 #debugLayoutBtn:hover { border-color: #A5282C; color: #A5282C; }
+#debugLayoutBtn:active { cursor: grabbing; }
+#debugLayoutBtn.dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 18px rgba(165,40,44,0.35);
+  transform: scale(1.05);
+  opacity: 0.92;
+}
 body.chat-body.debug-layout #debugLayoutBtn {
   background: #A5282C; color: #fff; border-color: #6B1015;
 }

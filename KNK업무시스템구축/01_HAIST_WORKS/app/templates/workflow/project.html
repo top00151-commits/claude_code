@@ -41,16 +41,14 @@
 }
 .node-row > * { min-width:0; }
 .node-row:hover { background:var(--qv-surface-2); }
-/* z108n7: is-blocked 행도 글씨 또렷하게 — opacity 제거, 배경 톤만 차별 */
-.node-row.is-blocked { background:#fafafa; }
-.node-row.is-blocked .node-title a { color:#6b7280; }
-.node-row.is-blocked .node-dept { color:#9ca3af; }
+/* z108n8: 잠금 제거 — 모든 행 자유 진행. 완료 행만 살짝 톤 차별 */
 .node-row.is-done { background:#f0fdf4; }
 .node-row.is-done .node-title a { color:#166534; }
-/* 컨트롤은 항상 또렷·조작 가능 */
 .node-row .status-sel,
 .node-row .btn-mini,
 .node-row .chip { opacity:1 !important; }
+/* 권장 순서 힌트 ⓘ */
+.node-hint { font-size:10.5px; color:#9ca3af; margin-left:6px; cursor:help; }
 
 .node-seq { font-size:12px; color:var(--qv-ink-3); font-family:monospace; font-weight:700; text-align:center; }
 .node-title { font-size:13px; font-weight:600; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -248,13 +246,13 @@
           </div>
           <ul class="node-list">
             {% for n in nodes %}{% if n.title_ko %}
-            {% set is_blocked = n.blockers > 0 and n.status == 'pending' %}
             {% set is_done = n.status == 'done' %}
+            {% set has_pending_prev = n.blockers > 0 %}
             {% set cp_pct = ((n.cp_done*100/n.cp_total)|round|int) if n.cp_total else 0 %}
-            <li class="node-row {% if is_blocked %}is-blocked{% elif is_done %}is-done{% endif %}" data-node="{{ n.id }}" {% if is_blocked %}title="이전 단계 {{ n.blockers }}개 대기"{% endif %}>
+            <li class="node-row {% if is_done %}is-done{% endif %}" data-node="{{ n.id }}">
               <span class="node-seq">{{ '%02d'|format(n.seq) }}</span>
               <div class="node-title" title="{{ n.title_ko }}">
-                {% if is_blocked %}🔒 {% endif %}<a href="/workflow/node/{{ n.id }}">{{ n.title_ko }}</a>{% if n.is_ic %}<span class="node-ic">⚡</span>{% endif %}
+                <a href="/workflow/node/{{ n.id }}">{{ n.title_ko }}</a>{% if n.is_ic %}<span class="node-ic">⚡</span>{% endif %}{% if has_pending_prev and not is_done %}<span class="node-hint" title="앞 단계 {{ n.blockers }}개 아직 진행 중·대기 (참고용, 선행 진행 가능)">ⓘ</span>{% endif %}
               </div>
               <span class="node-cat" style="font-size:11px;">{{ CAT_KR.get(n.category, n.category) }}</span>
               <span class="chip k-{{ (n.assigned_entity or 'kr')|lower }}">{{ ENT_KR.get(n.assigned_entity, n.assigned_entity or '-') }}</span>
@@ -282,8 +280,6 @@
               <div>
                 {% if is_done %}
                   <span style="font-size:10.5px; color:#166534;">✓ 완료</span>
-                {% elif is_blocked %}
-                  <span class="btn-mini btn-lock" title="이전 단계 먼저 완료 필요">🔒 잠금</span>
                 {% elif not n.assigned_user_id %}
                   <button class="btn-mini btn-claim" onclick="claimNode({{ n.id }})">＋ 잡기</button>
                 {% else %}

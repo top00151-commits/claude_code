@@ -684,6 +684,14 @@ def init_db():
              )
         """)
 
+    # 사용자별 방 정렬 — order_value(REAL, 사이 삽입 용이) + pinned(0/1)
+    # NULL=자동 정렬, INTEGER/REAL=수동. pinned=1 인 방은 항상 상단 그룹.
+    if "order_value" not in existing_rm_cols:
+        cur.execute("ALTER TABLE room_members ADD COLUMN order_value REAL")
+    if "pinned" not in existing_rm_cols:
+        cur.execute("ALTER TABLE room_members ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_rm_user_order ON room_members(user_id, pinned, order_value)")
+
     # 방 별명 (멤버 각자 자기 화면에서만 보이는 이름)
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS room_aliases (
@@ -929,6 +937,7 @@ def api_rooms():
         SELECT r.id, r.name, r.type, r.created_at, r.name_locked, r.created_by,
                r.retention_days, r.invite_policy,
                rm.role AS my_role,
+               rm.pinned, rm.order_value,
                (SELECT alias FROM room_aliases WHERE room_id=r.id AND user_id=?) AS my_alias,
                it.code AS item_code, it.customer AS item_customer,
                it.status AS item_status, it.due_date AS item_due,
@@ -944,6 +953,9 @@ def api_rooms():
          WHERE rm.user_id = ?
          ORDER BY
             CASE r.type WHEN 'self' THEN 0 ELSE 1 END,
+            CASE WHEN rm.pinned = 1 THEN 0 ELSE 1 END,
+            CASE WHEN rm.order_value IS NOT NULL THEN 0 ELSE 1 END,
+            rm.order_value ASC,
             (last_at IS NULL), last_at DESC, r.id DESC
     """, (me["id"], me["id"], me["id"])).fetchall()
 
@@ -3988,6 +4000,141 @@ def api_room_invite_policy(room_id):
         "content": sys_text, "kind": "system", "created_at": now,
     })
     return jsonify({"ok": True, "invite_policy": policy})
+
+
+@app.route("/api/rooms/<int:room_id>/order", methods=["PUT"])
+@login_required
+def api_room_order(room_id):
+    """사용자별 방 순서 조정.
+    body: {action: 'pin' | 'unpin' | 'top' | 'bottom' | 'up' | 'down' | 'reset'}
+    pin/unpin: rm.pinned 토글. top/bottom/up/down: order_value 조정. reset: 둘 다 NULL.
+    각 사용자별 독립적으로 동작 (server 저장)."""
+    me = current_user()
+    db = get_db()
+    rm = db.execute(
+        "SELECT pinned, order_value FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone()
+    if not rm:
+        return jsonify({"error": "방 멤버 아님"}), 403
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")
+    if action not in ("pin", "unpin", "top", "bottom", "up", "down", "reset"):
+        return jsonify({"error": "action 은 pin/unpin/top/bottom/up/down/reset"}), 400
+
+    # 본인이 속한 모든 방의 정렬 정보 (self 제외, pinned/non-pinned 그룹별)
+    # pin 그룹 안에서 order_value 정렬, 일반 그룹 안에서 order_value 정렬
+    is_pinned = bool(rm["pinned"])
+    my_ov = rm["order_value"]
+
+    def _peers_in_group(pinned_flag):
+        """같은 그룹(pin/일반) 의 다른 방들 — order_value 가 설정된 것만."""
+        return db.execute("""
+            SELECT room_id, order_value FROM room_members
+             WHERE user_id=? AND pinned=?
+               AND room_id != ?
+               AND order_value IS NOT NULL
+             ORDER BY order_value ASC
+        """, (me["id"], pinned_flag, room_id)).fetchall()
+
+    def _all_in_group_sorted(pinned_flag):
+        """그룹 안 모든 방 + 자동정렬 기준(last_at) 까지 합쳐 위→아래 순으로."""
+        # api_rooms 와 동일한 정렬 로직: order_value 있는 것 먼저, 없는 것은 last_at desc
+        return db.execute("""
+            SELECT rm.room_id, rm.order_value,
+                   (SELECT created_at FROM messages
+                     WHERE room_id = rm.room_id ORDER BY id DESC LIMIT 1) AS last_at
+              FROM room_members rm
+              JOIN rooms r ON r.id = rm.room_id
+             WHERE rm.user_id=? AND rm.pinned=? AND r.type != 'self'
+             ORDER BY
+                CASE WHEN rm.order_value IS NOT NULL THEN 0 ELSE 1 END,
+                rm.order_value ASC,
+                (last_at IS NULL), last_at DESC, rm.room_id DESC
+        """, (me["id"], pinned_flag)).fetchall()
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    if action == "reset":
+        db.execute(
+            "UPDATE room_members SET pinned=0, order_value=NULL WHERE room_id=? AND user_id=?",
+            (room_id, me["id"]),
+        )
+    elif action == "pin":
+        # 핀 그룹 최상단으로 (가장 작은 order_value 보다 더 작게)
+        peers = _peers_in_group(1)
+        new_ov = (peers[0]["order_value"] - 1.0) if peers else 0.0
+        db.execute(
+            "UPDATE room_members SET pinned=1, order_value=? WHERE room_id=? AND user_id=?",
+            (new_ov, room_id, me["id"]),
+        )
+    elif action == "unpin":
+        db.execute(
+            "UPDATE room_members SET pinned=0 WHERE room_id=? AND user_id=?",
+            (room_id, me["id"]),
+        )
+    elif action == "top":
+        peers = _peers_in_group(1 if is_pinned else 0)
+        new_ov = (peers[0]["order_value"] - 1.0) if peers else 0.0
+        db.execute(
+            "UPDATE room_members SET order_value=? WHERE room_id=? AND user_id=?",
+            (new_ov, room_id, me["id"]),
+        )
+    elif action == "bottom":
+        # 같은 그룹의 모든 방(자동정렬 포함) 중 가장 큰 order_value 보다 1 크게
+        # order_value NULL 인 방들도 고려: 그것들은 last_at 기준 자동정렬이라
+        # bottom 으로 보내려면 가장 큰 order_value + 1 보다 더 큰 값으로 설정
+        peers = _peers_in_group(1 if is_pinned else 0)
+        max_ov = peers[-1]["order_value"] if peers else 0.0
+        # 자동정렬 방까지 아래로 보내려면 매우 큰 값 — 그러나 자동정렬은 항상 order_value 있는 것 다음에 표시되므로
+        # max_ov + 1 이면 그룹의 명시 정렬된 방들 중 맨 아래. 자동정렬 방들은 더 아래에 표시됨.
+        # → 사용자 의도(맨 아래)는 자동정렬 위치 너머. 따라서 9999 같이 매우 큰 값 사용.
+        new_ov = 9999.0 + (max_ov or 0)
+        db.execute(
+            "UPDATE room_members SET order_value=? WHERE room_id=? AND user_id=?",
+            (new_ov, room_id, me["id"]),
+        )
+    elif action in ("up", "down"):
+        ordered = _all_in_group_sorted(1 if is_pinned else 0)
+        # 현재 인덱스
+        idx = next((i for i, x in enumerate(ordered) if x["room_id"] == room_id), -1)
+        if idx < 0:
+            return jsonify({"error": "정렬 위치 찾기 실패"}), 500
+        if action == "up" and idx == 0:
+            return jsonify({"ok": True, "no_change": True, "reason": "이미 최상단"})
+        if action == "down" and idx == len(ordered) - 1:
+            return jsonify({"ok": True, "no_change": True, "reason": "이미 최하단"})
+        # 인접한 두 방 사이로 삽입 (REAL 사이값 = 평균)
+        if action == "up":
+            above = ordered[idx - 1]
+            above_ov = above["order_value"]
+            if idx >= 2:
+                above_above = ordered[idx - 2]
+                aa_ov = above_above["order_value"]
+                if aa_ov is not None and above_ov is not None:
+                    new_ov = (aa_ov + above_ov) / 2
+                else:
+                    new_ov = (above_ov if above_ov is not None else 0.0) - 1.0
+            else:
+                new_ov = (above_ov if above_ov is not None else 0.0) - 1.0
+        else:  # down
+            below = ordered[idx + 1]
+            below_ov = below["order_value"]
+            if idx + 2 < len(ordered):
+                below_below = ordered[idx + 2]
+                bb_ov = below_below["order_value"]
+                if bb_ov is not None and below_ov is not None:
+                    new_ov = (below_ov + bb_ov) / 2
+                else:
+                    new_ov = (below_ov if below_ov is not None else 0.0) + 1.0
+            else:
+                new_ov = (below_ov if below_ov is not None else 0.0) + 1.0
+        db.execute(
+            "UPDATE room_members SET order_value=? WHERE room_id=? AND user_id=?",
+            (new_ov, room_id, me["id"]),
+        )
+    db.commit()
+    return jsonify({"ok": True, "action": action})
 
 
 def _ensure_self_room(uid):

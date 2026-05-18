@@ -617,10 +617,101 @@
        ▼▼▼  TEMP: 레이아웃 영역 가시화 토글 (디버그용)  ▼▼▼
        검증 끝나면 이 블록 + style.css 의 TEMP 블록 함께 제거.
        ═══════════════════════════════════════════════════════════════════ -->
-  <button id="debugLayoutBtn" type="button" title="레이아웃 영역 표시 ON/OFF (라벨 텍스트 선택·복사 가능)">🔍 레이아웃</button>
+  <button id="debugLayoutBtn" type="button" title="레이아웃 영역 표시 ON/OFF — 드래그로 이동, 더블클릭으로 위치 초기화">🔍 레이아웃</button>
   <script>
     (function() {
       const KEY = 'knk_debug_layout';
+      const POS_KEY = 'knk_debug_layout_pos';   // {top, left} 저장
+
+      // ─── 드래그 이동 + 위치 영속화 ───
+      function applyPos(top, left) {
+        const btn = document.getElementById('debugLayoutBtn');
+        if (!btn) return;
+        // 화면 밖으로 안 나가게 클램프
+        const w = btn.offsetWidth || 100;
+        const h = btn.offsetHeight || 30;
+        const maxL = window.innerWidth - w - 4;
+        const maxT = window.innerHeight - h - 4;
+        top = Math.max(4, Math.min(top, maxT));
+        left = Math.max(4, Math.min(left, maxL));
+        btn.style.top = top + 'px';
+        btn.style.left = left + 'px';
+        btn.style.right = 'auto';
+        btn.style.bottom = 'auto';
+      }
+      function loadPos() {
+        try {
+          const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+          if (v && typeof v.top === 'number' && typeof v.left === 'number') {
+            applyPos(v.top, v.left);
+          }
+        } catch (e) {}
+      }
+      function savePos(top, left) {
+        try { localStorage.setItem(POS_KEY, JSON.stringify({ top, left })); } catch (e) {}
+      }
+      function resetPos() {
+        const btn = document.getElementById('debugLayoutBtn');
+        if (!btn) return;
+        btn.style.top = ''; btn.style.left = '';
+        btn.style.right = ''; btn.style.bottom = '';
+        try { localStorage.removeItem(POS_KEY); } catch (e) {}
+      }
+      function wireDrag() {
+        const btn = document.getElementById('debugLayoutBtn');
+        if (!btn) return;
+        let dragging = false, moved = false, sx = 0, sy = 0, origT = 0, origL = 0;
+        const DRAG_THRESHOLD = 4;   // 4px 이상 움직여야 드래그로 인정 (클릭 보존)
+
+        function onPointerDown(e) {
+          // 모바일 long-press 메뉴 방지 위해 즉시 preventDefault
+          if (e.button !== undefined && e.button !== 0) return;   // 마우스 좌클릭만
+          const rect = btn.getBoundingClientRect();
+          sx = e.clientX; sy = e.clientY;
+          origT = rect.top; origL = rect.left;
+          dragging = true; moved = false;
+          btn.setPointerCapture && btn.setPointerCapture(e.pointerId);
+          e.preventDefault();
+        }
+        function onPointerMove(e) {
+          if (!dragging) return;
+          const dx = e.clientX - sx;
+          const dy = e.clientY - sy;
+          if (!moved && (Math.abs(dx) + Math.abs(dy) >= DRAG_THRESHOLD)) {
+            moved = true;
+            btn.classList.add('dragging');
+          }
+          if (moved) applyPos(origT + dy, origL + dx);
+        }
+        function onPointerUp(e) {
+          if (!dragging) return;
+          dragging = false;
+          btn.classList.remove('dragging');
+          if (moved) {
+            const rect = btn.getBoundingClientRect();
+            savePos(rect.top, rect.left);
+            // 드래그였으므로 이번 click 은 취소
+            btn._suppressClick = true;
+            setTimeout(() => { btn._suppressClick = false; }, 50);
+          }
+        }
+        btn.addEventListener('pointerdown', onPointerDown);
+        btn.addEventListener('pointermove', onPointerMove);
+        btn.addEventListener('pointerup', onPointerUp);
+        btn.addEventListener('pointercancel', onPointerUp);
+        // 더블클릭으로 위치 초기화
+        btn.addEventListener('dblclick', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          resetPos();
+        });
+        // 창 크기 변경 시 화면 밖으로 안 나가게 재클램프
+        window.addEventListener('resize', () => {
+          try {
+            const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+            if (v) applyPos(v.top, v.left);
+          } catch (e) {}
+        });
+      }
       // 영역별 셀렉터 + 라벨 텍스트 + 색상
       const AREAS = [
         { sel: '.sidebar',          label: 'SIDEBAR',           color: '#2563eb' },
@@ -662,7 +753,14 @@
       function init() {
         const btn = document.getElementById('debugLayoutBtn');
         if (!btn) return;
-        btn.addEventListener('click', () => apply(!document.body.classList.contains('debug-layout')));
+        btn.addEventListener('click', (e) => {
+          // 드래그 후의 click 은 무시 (위치만 옮긴 거지 토글 의도 아님)
+          if (btn._suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
+          apply(!document.body.classList.contains('debug-layout'));
+        });
+        // 드래그 이동 + 위치 복원
+        wireDrag();
+        loadPos();
         // localStorage 에서 이전 상태 복원
         let on = false;
         try { on = localStorage.getItem(KEY) === '1'; } catch(e) {}
