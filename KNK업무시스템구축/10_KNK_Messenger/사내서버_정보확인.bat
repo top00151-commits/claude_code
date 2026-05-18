@@ -1,4 +1,6 @@
 @echo off
+REM === 사내 서버 정보 확인 (공인IP·LAN IP·OS·포트·방화벽) ===
+REM LAST UPDATE: 2026-05-11
 chcp 65001 > nul
 cd /d "%~dp0"
 echo.

@@ -214,7 +214,7 @@ function renderPreview() {
       <td><input data-idx="${idx}" data-k="part_name" value="${esc(ln.part_name)}" /></td>
       <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
       <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
-      <td><input data-idx="${idx}" data-k="unit_price" type="number" step="0.01" value="${ln.unit_price||0}" /></td>
+      <td><input data-idx="${idx}" data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="${ln.unit_price||0}" /></td>
       <td>${partBadge}<input type="hidden" data-idx="${idx}" data-k="part_id" value="${ln.part_match?ln.part_match.id:''}" /></td>
       <td>${projBadge}<input type="hidden" data-idx="${idx}" data-k="linked_project_id" value="${ln.project_match?ln.project_match.id:''}" /></td>
     `;
@@ -226,11 +226,14 @@ function renderPreview() {
       const i = parseInt(inp.dataset.idx);
       const k = inp.dataset.k;
       let v = inp.value;
-      if (k === 'qty' || k === 'unit_price') v = parseFloat(v) || 0;
+      // v5H226z86 — knk-money 콤마 포맷 환원 후 숫자 변환
+      if (k === 'qty' || k === 'unit_price') v = parseFloat((v||'').replace(/,/g,'')) || 0;
       if (k === 'part_id' || k === 'linked_project_id') v = v ? parseInt(v) : null;
       _lines[i][k] = v;
     });
   });
+  // v5H226z86 — 동적 추가된 금액 입력칸에 천단위 콤마 포맷터 부착
+  if (window.knkScanMoney) knkScanMoney();
 }
 
 function esc(s) {

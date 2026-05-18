@@ -2,17 +2,27 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <title>KNK 메신저</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="{{ base_path }}/manifest.json">
+  <meta name="theme-color" content="#A5282C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="KNK 메신저">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
+  <!-- 단독창(solo) 모드 — ?solo=1 쿼리가 있으면 사이드바 즉시 숨김 (깜빡임 방지). -->
+  <script>
+    (function() {
+      try {
+        if (new URLSearchParams(location.search).get("solo") === "1") {
+          document.documentElement.classList.add("solo-window-pre");
+        }
+      } catch(e) {}
+    })();
+  </script>
 </head>
 <body class="chat-body">
   <div id="app" class="chat-app"
@@ -27,14 +37,17 @@
           <div class="me-name">{{ me['display_name'] }}</div>
         </div>
         <div class="head-actions">
-          <a href="/dashboard" title="📊 아이템 대시보드">📊</a>
+          <a href="{{ base_path }}/dashboard" title="📊 아이템 대시보드">📊</a>
           <button id="digestBtn" title="🌅 오늘 할 일 다이제스트">🌅</button>
+          <button id="notifySettingsBtn" title="🔔 알림 설정 (소리·진동·화면)">🔔</button>
+          <button id="hardReloadBtn" title="🔄 강제 새로고침 (캐시 비우기) — 화면이 이상할 때 클릭">🔄</button>
           <button id="newRoomBtn" title="새 아이템/대화">＋</button>
-          <a href="/logout" class="logout" title="로그아웃">↩</a>
+          <a href="{{ base_path }}/logout" class="logout" title="로그아웃">↩</a>
         </div>
       </header>
-      <div class="search-box">
-        <input id="globalSearch" type="search" placeholder="🔍 메시지·파일·아이템 전체 검색">
+      <div class="search-box" style="position:relative;">
+        <input id="globalSearch" type="search" placeholder="🔍 검색 (from:이름 in:방 has:file before:날짜)">
+        <button type="button" id="searchHelpBtn" title="검색 필터 도움말" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:14px;color:var(--text-soft);padding:4px 6px;">ⓘ</button>
       </div>
       <nav class="filter-bar" id="filterBar">
         <button class="chip active" data-filter="all" type="button">전체</button>
@@ -56,19 +69,52 @@
           <div class="title" id="chatTitle">대화를 선택하세요</div>
           <div class="item-meta" id="itemMeta" hidden></div>
         </div>
-        <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
-        <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
-        <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
-        <button class="head-btn" id="itemEditBtn" type="button" hidden title="아이템 정보 수정">⚙</button>
-        <button class="head-btn" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
+        <!-- 데스크탑: 헤더에 직접 노출. 모바일: 더보기(⋮) 메뉴 안으로 이동 -->
+        <div class="head-actions" id="headActions">
+          <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
+          <button class="head-btn" id="aiSummaryBtn" type="button" hidden title="🧠 AI 요약 (최근 80개 메시지)">🧠</button>
+          <button class="head-btn" id="starredBtn" type="button" hidden title="중요 결정 모음 (별표)">★</button>
+          <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
+          <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
+          <button class="head-btn" id="itemEditBtn" type="button" hidden title="아이템 정보 수정">⚙</button>
+          <button class="head-btn" id="roomSettingsBtn" type="button" hidden title="방 설정 (멤버·이름·권한)">👥</button>
+          <button class="head-btn" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
+        </div>
+        <!-- 모바일에서만 보이는 더보기 버튼 -->
+        <button class="head-btn head-more" id="headMoreBtn" type="button" hidden aria-label="더보기">⋮</button>
       </header>
+
+      <!-- 모바일 더보기 메뉴 (popup) -->
+      <div class="head-more-menu" id="headMoreMenu" hidden>
+        <button type="button" data-act="requests">📌 요청 목록 <span class="hmm-badge" id="hmmRequestsBadge" hidden></span></button>
+        <button type="button" data-act="ai_summary">🧠 AI 요약 (최근 메시지)</button>
+        <button type="button" data-act="starred">★ 중요 결정</button>
+        <button type="button" data-act="gallery">🖼️ 사진·파일 갤러리</button>
+        <button type="button" data-act="export">📥 Excel 다운로드</button>
+        <button type="button" data-act="edit">⚙ 아이템 정보 수정</button>
+        <button type="button" data-act="settings">👥 방 설정 (멤버·이름)</button>
+        <button type="button" data-act="leave">🚪 이 방 나가기</button>
+      </div>
       <ol class="messages" id="messages"></ol>
-      <form class="composer" id="composer" autocomplete="off">
-        <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
-        <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
-        <input id="msgInput" placeholder="메시지 입력..." disabled>
-        <button id="sendBtn" type="submit" disabled>전송</button>
-      </form>
+      <!-- 컴포저 영역 wrapper — 모바일에서 position:fixed 로 viewport 하단 고정 (키보드 추적) -->
+      <div class="composer-area" id="composerArea">
+        <!-- 전송 시점 자동 번역 토글 (방별 기억) -->
+        <div class="composer-langbar" id="composerLangbar" hidden>
+          <span class="cl-label">함께 보낼 번역:</span>
+          <button type="button" class="cl-chip" data-lang="" data-active="1" title="번역 없이 전송">OFF</button>
+          <button type="button" class="cl-chip" data-lang="vi" title="한국어/입력 → 베트남어 함께 전송">🇻🇳 베트남어</button>
+          <button type="button" class="cl-chip" data-lang="en" title="한국어/입력 → 영어 함께 전송">🇺🇸 영어</button>
+          <button type="button" class="cl-chip" data-lang="ko" title="베트남어/입력 → 한국어 함께 전송">🇰🇷 한국어</button>
+          <span class="cl-hint" id="composerLangHint"></span>
+        </div>
+        <form class="composer" id="composer" autocomplete="off">
+          <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
+          <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
+          <textarea id="msgInput" placeholder="메시지 입력..." disabled rows="1"></textarea>
+          <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="✨ 작성 도움 (정중하게·짧게·전문가 톤)" style="font-size:16px;">✨</button>
+          <button id="sendBtn" type="submit" disabled>전송</button>
+        </form>
+      </div>
     </section>
 
     <!-- ===== 모달 (div 기반, 100% 제어) ===== -->
@@ -108,6 +154,10 @@
             <p class="dialog-hint">사람을 선택하세요. 1명 → 1:1 / 2명 이상 → 그룹채팅.</p>
             <div id="userPicker" class="user-picker"></div>
             <label class="group-name-label">그룹 이름 (선택) <input id="roomName" placeholder="예: 영업팀, 프로젝트A 등"></label>
+            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#374151">
+              <input id="roomNameLock" type="checkbox">
+              <span>이름 고정 (방장만 이름 변경 가능. 미체크 시 각자 별명 가능)</span>
+            </label>
           </div>
 
           <div class="dialog-actions">
@@ -149,6 +199,130 @@
       </div>
     </div>
 
+    <!-- 방 설정 다이얼로그 — 이름·별명·멤버 권한 관리 -->
+    <div class="modal" id="roomSettingsDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>⚙ 방 설정</h3>
+
+        <section class="rs-section">
+          <h4 id="rsRoomTypeLabel">방 이름</h4>
+          <div id="rsNameArea">
+            <!-- JS 가 권한에 따라 다른 입력 형태 렌더 -->
+          </div>
+        </section>
+
+        <section class="rs-section">
+          <h4>멤버 (<span id="rsMemberCount">0</span>명)</h4>
+          <div id="rsMemberList" class="rs-member-list">
+            <!-- JS 가 멤버 + 역할 + 액션 버튼 렌더 -->
+          </div>
+          <div id="rsInviteArea" style="margin-top:12px;display:none;">
+            <button type="button" id="rsInviteBtn" class="secondary-btn">👥 멤버 초대</button>
+          </div>
+        </section>
+
+        <!-- 메시지 자동 삭제 정책 (WhatsApp 식 — 방장만 변경 가능) -->
+        <section class="rs-section" id="rsRetentionSection" style="display:none;">
+          <h4>⏱ 메시지 자동 삭제</h4>
+          <div id="rsRetentionArea">
+            <!-- JS 가 권한·현재값에 따라 렌더 -->
+          </div>
+        </section>
+
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 멤버 초대 다이얼로그 -->
+    <!-- 🧠 AI 요약 다이얼로그 (Slack AI / Teams Copilot 식) -->
+    <div class="modal" id="aiSummaryDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>🧠 AI 요약</h3>
+        <div id="aiSummaryRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
+        <div id="aiSummaryRangeBar" style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="40">최근 40개</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="80">최근 80개</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="200">최근 200개</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="today">오늘</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="yesterday">어제</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="week">최근 7일</button>
+        </div>
+        <div id="aiSummaryBody" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:14px;min-height:120px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;color:#1F2937;">
+          버튼을 눌러 요약을 생성하세요.
+        </div>
+        <div id="aiSummaryMeta" style="font-size:11px;color:var(--text-soft);margin-top:8px;"></div>
+        <div class="dialog-actions">
+          <button type="button" id="aiSummaryRegenBtn" class="secondary-btn">🔄 다시 생성</button>
+          <button type="button" id="aiSummaryCopyBtn" class="secondary-btn">📋 복사</button>
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✨ 작성 도움 톤 선택 팝업 (인라인) -->
+    <div id="aiRewriteMenu" class="msg-context-menu" style="display:none;position:fixed;z-index:9999;min-width:180px;">
+      <div class="mcm-section-label">작성 도움 — 톤 선택</div>
+      <button type="button" class="mcm-item" data-tone="formal">
+        <span class="mcm-icon">📑</span><span>정중하게 (존댓말)</span>
+      </button>
+      <button type="button" class="mcm-item" data-tone="short">
+        <span class="mcm-icon">✂️</span><span>짧게 (1~2 문장)</span>
+      </button>
+      <button type="button" class="mcm-item" data-tone="professional">
+        <span class="mcm-icon">💼</span><span>전문가 톤 (보고서)</span>
+      </button>
+      <button type="button" class="mcm-item" data-tone="polite">
+        <span class="mcm-icon">🤝</span><span>외부 거래처 정중</span>
+      </button>
+      <button type="button" class="mcm-item" data-tone="casual">
+        <span class="mcm-icon">💬</span><span>동료 간 가볍게</span>
+      </button>
+    </div>
+
+    <!-- 검색 필터 도움말 다이얼로그 (Slack/Discord 식 고급 필터) -->
+    <div class="modal" id="searchHelpDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>🔍 검색 필터</h3>
+        <p class="dialog-hint">검색어와 함께 다음 필터를 조합할 수 있습니다 (공백으로 구분).</p>
+        <div style="font-size:13px;line-height:1.8;">
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">from:김정락</code> — 발신자 이름</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">in:영업</code> — 방 이름 (in:#영업 도 가능)</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:file</code> — 첨부파일 있는 메시지만</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:image</code> — 이미지 메시지만</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:link</code> — http(s) 링크 포함 메시지만</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">before:2026-05-01</code> — 이 날짜 이전</div>
+          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">after:2026-04-01</code> — 이 날짜 이후</div>
+        </div>
+        <h4 style="margin-top:18px;font-size:13px;">예시</h4>
+        <div style="font-size:12.5px;color:var(--text-soft);line-height:1.7;">
+          <div><code>발주 from:김정락 has:file</code> → 대표가 보낸 첨부 있는 "발주" 메시지</div>
+          <div><code>견적 before:2026-05-01 after:2026-04-01</code> → 4월 한 달간 "견적" 메시지</div>
+          <div><code>in:삼성전자 has:image</code> → 삼성전자 방의 이미지 메시지</div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="inviteDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>👥 멤버 초대</h3>
+        <p class="dialog-hint">초대할 사람을 선택하세요. 이미 멤버는 자동 제외됩니다.</p>
+        <div id="invitePicker" class="user-picker"></div>
+        <div class="dialog-actions">
+          <button type="button" data-close>취소</button>
+          <button type="button" id="confirmInvite">초대</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="galleryDialog" data-modal>
       <div class="modal-content big-dialog">
         <header class="big-dialog-head">
@@ -176,6 +350,76 @@
         <div class="gallery-content" id="digestContent"></div>
         <div class="requests-actions">
           <button type="button" class="secondary-btn" data-close>✕ 닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔔 알림 설정 다이얼로그 -->
+    <div class="modal" id="notifySettingsDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>🔔 알림 설정</h3>
+        <p class="dialog-hint">새 메시지 도착 시 어떤 알림을 받을지 선택하세요. 휴대폰·PC 동일 적용.</p>
+
+        <section class="ns-section">
+          <h4>🔊 소리</h4>
+          <label class="ns-row">
+            <input type="checkbox" id="nsSound">
+            <span class="ns-label">새 메시지 소리 알림</span>
+          </label>
+          <div class="ns-row ns-indent">
+            <span class="ns-sub">음량</span>
+            <input type="range" id="nsVolume" min="0" max="100" value="50">
+            <span class="ns-pct" id="nsVolumePct">50%</span>
+          </div>
+          <div class="ns-row ns-indent">
+            <span class="ns-sub">사운드 종류</span>
+            <select id="nsSoundType">
+              <option value="ding">딩 (기본 — 빠른 종소리)</option>
+              <option value="chime">차임 (두 음 — 부드러움)</option>
+              <option value="soft">소프트 (약한 울림)</option>
+            </select>
+            <button type="button" id="nsSoundPreview" class="ns-preview-btn">▶ 미리듣기</button>
+          </div>
+          <label class="ns-row">
+            <input type="checkbox" id="nsCurrentRoomSound">
+            <span class="ns-label">현재 보고 있는 방에서도 소리 알림</span>
+          </label>
+        </section>
+
+        <section class="ns-section">
+          <h4>🖥 화면 알림</h4>
+          <label class="ns-row">
+            <input type="checkbox" id="nsSystem">
+            <span class="ns-label">시스템 알림 (OS 알림 토스트 — 모바일 잠금화면 포함)</span>
+          </label>
+          <label class="ns-row">
+            <input type="checkbox" id="nsTitleBlink">
+            <span class="ns-label">탭/제목 깜빡임 (탭에 "🔔 새 메시지")</span>
+          </label>
+          <label class="ns-row">
+            <input type="checkbox" id="nsInlineToast">
+            <span class="ns-label">화면 안 토스트 (우상단 미리보기 5초)</span>
+          </label>
+          <label class="ns-row">
+            <input type="checkbox" id="nsSidebarBlink">
+            <span class="ns-label">사이드바 방 항목 깜빡임</span>
+          </label>
+        </section>
+
+        <section class="ns-section">
+          <h4>📱 휴대폰 푸시 알림 진단</h4>
+          <p class="dialog-hint" style="font-size:12px;">앱이 닫혀있어도 OS 알림이 도착하려면 푸시 구독이 필요합니다. 휴대폰에서 알림 안 오면 여기서 진단·재구독.</p>
+          <div id="nsPushStatus" style="padding:8px 10px;background:#F9FAFB;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:12px;line-height:1.5;">진단 중...</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" id="nsPushTestBtn" class="ns-preview-btn">📨 테스트 알림 보내기</button>
+            <button type="button" id="nsPushResubBtn" class="ns-preview-btn" style="border-color:#6b7280;color:#374151;">🔄 푸시 재구독</button>
+          </div>
+          <div id="nsPushResult" style="margin-top:8px;font-size:12px;color:var(--text-soft);"></div>
+        </section>
+
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
         </div>
       </div>
     </div>
@@ -237,6 +481,32 @@
       </div>
     </div>
 
+    <!-- 파일 버전 체인 다이얼로그 -->
+    <div class="modal" id="versionsDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>📂 파일 버전 이력</h3>
+        <p class="dialog-hint">동일한 파일명으로 업로드된 모든 버전. 최신이 위쪽.</p>
+        <div id="versionsList" style="max-height:60vh;overflow-y:auto;"></div>
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 별표 (중요 결정) 다이얼로그 -->
+    <div class="modal" id="starredDialog" data-modal>
+      <div class="modal-content">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>★ 중요 결정 모음</h3>
+        <p class="dialog-hint">이 방에서 본인이 별표한 메시지. 합의·이정표·인수인계 정리용.</p>
+        <div id="starredList" style="max-height:60vh;overflow-y:auto;"></div>
+        <div class="dialog-actions">
+          <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="newRequestDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
@@ -269,14 +539,87 @@
     </div>
   </div>
 
+  <script>
+    window.__BASE__ = "{{ base_path }}";
+    window.KNK_RETENTION_MONTHS = {{ retention_months }};
+  </script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+        navigator.serviceWorker.register("{{ base_path }}/sw.js?base={{ base_path }}", { scope: "{{ base_path }}/" }).catch(() => {});
       });
     }
   </script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       ▼▼▼  TEMP: 레이아웃 영역 가시화 토글 (디버그용)  ▼▼▼
+       검증 끝나면 이 블록 + style.css 의 TEMP 블록 함께 제거.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <button id="debugLayoutBtn" type="button" title="레이아웃 영역 표시 ON/OFF (라벨 텍스트 선택·복사 가능)">🔍 레이아웃</button>
+  <script>
+    (function() {
+      const KEY = 'knk_debug_layout';
+      // 영역별 셀렉터 + 라벨 텍스트 + 색상
+      const AREAS = [
+        { sel: '.sidebar',          label: 'SIDEBAR',           color: '#2563eb' },
+        { sel: '.sidebar-head',     label: 'sidebar-head',      color: '#06b6d4' },
+        { sel: '.search-box',       label: 'search-box',        color: '#14b8a6' },
+        { sel: '.filter-bar',       label: 'filter-bar',        color: '#84cc16' },
+        { sel: '.room-list',        label: 'room-list',         color: '#10b981' },
+        { sel: '.chat-pane',        label: 'CHAT-PANE',         color: '#f97316' },
+        { sel: '.chat-head',        label: 'chat-head',         color: '#eab308', fg: '#000' },
+        { sel: '.messages',         label: 'messages',          color: '#ec4899' },
+        { sel: '.composer-langbar', label: 'composer-langbar',  color: '#A5282C' },
+        { sel: '.composer',         label: 'composer (입력창)', color: '#A5282C' },
+      ];
+      function injectLabels() {
+        AREAS.forEach(a => {
+          document.querySelectorAll(a.sel).forEach(el => {
+            // 이미 자식으로 라벨 있으면 건너뜀 (중복 방지)
+            const existing = el.querySelector(':scope > .debug-label');
+            if (existing) return;
+            const lbl = document.createElement('span');
+            lbl.className = 'debug-label';
+            lbl.textContent = a.label;
+            lbl.style.background = a.color;
+            if (a.fg) lbl.style.color = a.fg;
+            el.appendChild(lbl);
+          });
+        });
+      }
+      function removeLabels() {
+        document.querySelectorAll('.debug-label').forEach(el => el.remove());
+      }
+      function apply(on) {
+        document.body.classList.toggle('debug-layout', on);
+        if (on) injectLabels(); else removeLabels();
+        try { localStorage.setItem(KEY, on ? '1' : '0'); } catch(e) {}
+        const btn = document.getElementById('debugLayoutBtn');
+        if (btn) btn.textContent = on ? '🔍 레이아웃 ON' : '🔍 레이아웃';
+      }
+      function init() {
+        const btn = document.getElementById('debugLayoutBtn');
+        if (!btn) return;
+        btn.addEventListener('click', () => apply(!document.body.classList.contains('debug-layout')));
+        // localStorage 에서 이전 상태 복원
+        let on = false;
+        try { on = localStorage.getItem(KEY) === '1'; } catch(e) {}
+        apply(on);
+        // app.js 가 .room-list / .messages 의 innerHTML 을 교체하면 라벨이 사라짐
+        // → 500ms 주기로 누락된 라벨 재삽입 (디버그 ON 일 때만)
+        setInterval(() => {
+          if (document.body.classList.contains('debug-layout')) injectLabels();
+        }, 500);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+  <!-- ▲▲▲  TEMP 끝 ▲▲▲ -->
 </body>
 </html>

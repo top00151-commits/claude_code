@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>일일업무 · KNK HAIST WORKS</title>
+{# ============================================================
+   daily.html — 일일업무 페이지
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 마이그레이션 + data-dn 라벨 (v1+v2 차수)
+              - paper/ink/mute/line/amber 계열 → --qv-* 토큰
+              - 영역별 data-dn 부착 (?debug=1 라벨링)
+              - 빨강 보존: 지연 보더 + focus 강조 + pill-danger (위험/강조 의미)
+              - 부록 B specs의 시간대별 카드/사진 첨부/자동저장은 v3+ 차수 보류
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.task-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: 12px; transition: all .18s; }
+.task-card:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); }
+.task-card.delay { border-left: 4px solid var(--knk-red); }
+.task-card.done { opacity: 0.7; }
+.task-row { display: flex; gap: 12px; align-items: flex-start; }
+.task-icon { font-size: 22px; flex-shrink: 0; }
+.task-body { flex: 1; min-width: 0; }
+.task-ttl { font-size: 14px; font-weight: 700; color: var(--qv-ink); }
+.task-meta { display: flex; gap: 12px; font-size: 11.5px; color: var(--qv-ink-3); margin-top: 4px; flex-wrap: wrap; }
+.task-meta b { color: var(--qv-ink); }
+.task-notes { font-size: 12.5px; color: var(--qv-ink); line-height: 1.6; margin-top: 8px; padding: 8px 10px; background: var(--qv-surface-3); border-radius: var(--radius-sm); white-space: pre-wrap; }
+.qa-bar { display: flex; gap: 8px; align-items: center; padding: 14px 18px; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); margin: 0 0 var(--space-4); }
+/* 업무 제목 — 메인 입력 (큰 글씨, 테두리 없음) */
+.qa-bar input#newTitle { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 14px; outline: none; color: var(--qv-ink); font-family: inherit; padding: 6px 10px; }
+.qa-bar input#newTitle:focus { background: var(--qv-surface-2); border-radius: 6px; box-shadow: 0 0 0 3px var(--qv-line-3); }
+/* 보조 입력 — 프로젝트/고객사/공수 (작고 테두리 있음, 명확히 구분) */
+.qa-bar select, .qa-bar input[type="number"], .qa-bar input[list] { border: 1px solid var(--qv-line); border-radius: 6px; padding: 6px 10px; font-size: 12px; background: var(--qv-surface-2); color: var(--qv-ink); font-family: inherit; outline: none; }
+.qa-bar select:focus, .qa-bar input[type="number"]:focus, .qa-bar input[list]:focus { border-color: var(--qv-line-3); box-shadow: 0 0 0 2px var(--qv-surface-2); }
+/* 구분선 (visual divider between title and meta inputs) */
+.qa-bar .qa-sep { width: 1px; align-self: stretch; background: var(--qv-line); margin: 0 4px; }
+.date-nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--qv-ink-3); }
+.date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.date-nav a:hover { background: var(--qv-surface-2); }
+.bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
+</style>
+</head>
+<body>
+{% set total = tasks|length %}
+{% set done = tasks|selectattr('status','equalto','완료')|list|length %}
+{% set prog = tasks|selectattr('status','equalto','진행중')|list|length %}
+{% set delay = tasks|selectattr('status','equalto','지연')|list|length %}
+{% set hours_sum = tasks|sum(attribute='hours') %}
+
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main" data-dn="daily-main">
+  <div class="page-head" data-dn="daily-pagehead">
+    <div>
+      <div class="page-meta">{{ sel_date }} · 일일업무</div>
+      <h1 class="page-title">오늘의 <em>업무</em></h1>
+      <div class="date-nav">
+        <a href="/daily/{{ prev_date }}">‹</a>
+        <span>{{ sel_date }}</span>
+        <a href="/daily/{{ next_date }}">›</a>
+        <a href="/daily">오늘</a>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/history">📜 전체 기록</a>
+      <button class="btn btn-primary" onclick="focusNewTask()">＋ 새 업무</button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="bento" data-dn="daily-kpi-bento" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card">
+      <div class="kpi-label">전체</div>
+      <div class="kpi-num">{{ total }}</div>
+      <div class="kpi-trend neutral">건</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">완료</div>
+      <div class="kpi-num" style="color:var(--success);">{{ done }}</div>
+      <div class="kpi-trend up">{{ ((done*100/total)|round|int) if total else 0 }}%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">진행 중</div>
+      <div class="kpi-num">{{ prog }}</div>
+      <div class="kpi-trend neutral">대기 포함</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">누적 공수</div>
+      <div class="kpi-num">{{ '%.1f'|format(hours_sum or 0) }}<span class="unit">h</span></div>
+      <div class="kpi-trend {% if delay > 0 %}alert{% else %}up{% endif %}">{% if delay > 0 %}⚠ 지연 {{ delay }}{% else %}정상{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- 빠른 입력 -->
+  <div style="margin-top: var(--space-5);"></div>
+  <div class="qa-bar" data-dn="daily-quickadd">
+    <div style="width:36px;height:36px;background:var(--qv-surface-2);border-radius:8px;display:grid;place-items:center;font-size:20px;color:var(--qv-ink-2);font-weight:700;flex-shrink:0;">＋</div>
+    <input type="text" id="newTitle" placeholder="지금 무슨 업무를 하고 계신가요? 입력 후 Enter" onkeydown="if(event.key==='Enter')addTask()">
+    <div class="qa-sep"></div>
+    <input type="text" id="newProject" list="projectOptions" placeholder="📋 프로젝트" autocomplete="off" style="min-width:160px;">
+    <datalist id="projectOptions">
+      {% for p in projects %}<option data-pid="{{ p.id }}" value="{{ p.name }}">{% endfor %}
+      <option value="사내 프로젝트">
+      <option value="개인 업무">
+      <option value="업무 개선">
+      <option value="교육·세미나">
+      <option value="회의">
+      <option value="일반 업무">
+    </datalist>
+    <input type="text" id="newCustomer" list="customerOptions" placeholder="🏢 고객사" autocomplete="off" style="min-width:140px;">
+    <datalist id="customerOptions">
+      <option value="사내업무">
+      {% for c in customers %}<option data-cid="{{ c.id }}" value="{{ c.name }}">{% endfor %}
+    </datalist>
+    <input type="number" id="newHours" placeholder="⏱ h" title="오늘 이 업무에 들인 시간 (시간 단위, 예: 0.5/1/2/4)" step="0.5" min="0" max="24" style="width:70px;">
+    <button class="btn btn-primary" onclick="addTask()">등록</button>
+  </div>
+
+  <!-- 어제 미완료 -->
+  {% if pending_yday %}
+  <div class="section" data-dn="daily-pending-yday">
+    <h2>↪ 어제 미완료 ({{ pending_yday|length }})</h2>
+    {% for t in pending_yday %}
+    <div class="task-card" style="border-left: 4px solid var(--qv-ink);">
+      <div class="task-row">
+        <div class="task-icon">↪</div>
+        <div class="task-body">
+          <div class="task-ttl">{{ t.title }}</div>
+          <div class="task-meta">
+            <span class="pill pill-warn">{{ t.status }}</span>
+            {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
+            {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="carry({{ t.id }})">↪ 오늘로 이월</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 오늘 업무 -->
+  <div class="section" data-dn="daily-tasks">
+    <h2>📋 오늘 업무 ({{ total }})</h2>
+    {% if tasks %}
+      <div class="list-scroll-tall">
+      {% for t in tasks %}
+      <div class="task-card {% if t.status == '완료' %}done{% elif t.status == '지연' %}delay{% endif %}">
+        <div class="task-row">
+          <div class="task-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
+          <div class="task-body">
+            <div class="task-ttl">{{ t.title }}</div>
+            <div class="task-meta">
+              <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
+              {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
+              {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
+              {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
+              {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
+              {% if t.comment_count %}<span>💬 {{ t.comment_count }}</span>{% endif %}
+              {% if t.has_ceo_req %}<span class="pill pill-danger">🔴 대표 요청</span>{% endif %}
+            </div>
+            {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-secondary" onclick="changeStatus({{ t.id }})">↻</button>
+            <a class="btn btn-secondary" href="/task/{{ t.id }}">상세</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="card empty">
+        <div class="ico">📭</div>
+        <div class="ttl">오늘 등록된 업무가 없습니다</div>
+        <div style="font-size:13px;color:var(--qv-ink-3);">위 입력란에 업무를 입력하고 Enter를 눌러보세요.</div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- 이번 주 통계 -->
+  {% if week_stats %}
+  <div class="section" data-dn="daily-weekstats">
+    <h2>📊 이번 주 ({{ week_range }})</h2>
+    <div class="bento" style="margin: 0;">
+      <div class="kpi-card">
+        <div class="kpi-label">전체</div>
+        <div class="kpi-num">{{ week_stats.total|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">완료</div>
+        <div class="kpi-num" style="color:var(--success);">{{ week_stats.done|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">진행 중</div>
+        <div class="kpi-num">{{ week_stats.progress|default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">누적 공수</div>
+        <div class="kpi-num">{{ '%.1f'|format(week_stats.hours|default(0)) }}<span class="unit">h</span></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+
+<script>
+const SEL_DATE = '{{ sel_date }}';
+// "+ 새 업무" 버튼: 빠른입력 바로 스크롤·하이라이트·포커스
+function focusNewTask(){
+  var bar = document.querySelector('.qa-bar');
+  var inp = document.getElementById('newTitle');
+  if (bar) {
+    bar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    bar.style.transition = 'box-shadow .3s, transform .3s';
+    bar.style.boxShadow = '0 0 0 3px var(--qv-line-3), 0 8px 24px rgba(26,26,26,0.18)';
+    bar.style.transform = 'scale(1.01)';
+    setTimeout(function(){
+      bar.style.boxShadow = ''; bar.style.transform = '';
+    }, 800);
+  }
+  setTimeout(function(){ if (inp) inp.focus(); }, 250);
+}
+
+async function addTask() {
+  const title = document.getElementById('newTitle').value.trim();
+  if (!title) return;
+  // v5H28: 프로젝트/고객사 — DB FK 또는 자유 입력 자동 분기
+  function pickFromDatalist(inputId, listId, dataAttr) {
+    const v = document.getElementById(inputId).value.trim();
+    if (!v) return { id: null, label: null };
+    const opts = document.querySelectorAll('#' + listId + ' option');
+    for (const o of opts) {
+      if (o.value === v && o.dataset[dataAttr]) return { id: parseInt(o.dataset[dataAttr], 10), label: null };
+    }
+    return { id: null, label: v };
+  }
+  const proj = pickFromDatalist('newProject', 'projectOptions', 'pid');
+  const cust = pickFromDatalist('newCustomer', 'customerOptions', 'cid');
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, work_date: SEL_DATE, status: '진행중',
+      hours: parseFloat(document.getElementById('newHours').value) || 0,
+      category: '기타',
+      project_id: proj.id, project_label: proj.label,
+      customer_id: cust.id, customer_label: cust.label,
+    })
+  });
+  if (r.ok) location.reload();
+}
+// v5H34: 어제 미완료 → 오늘로 이월 (실제 엔드포인트는 /api/carry-forward)
+async function carry(tid) {
+  if (!confirm('이 업무를 오늘(' + SEL_DATE + ')로 이월하시겠습니까?\n새 카드가 생성되고 진행/수정 가능합니다.')) return;
+  try {
+    const r = await fetch('/api/carry-forward', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: SEL_DATE, ids: [tid] })
+    });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.ok) {
+      location.reload();
+    } else {
+      alert('이월 실패: ' + (j.error || ('HTTP ' + r.status)));
+    }
+  } catch(e) {
+    alert('통신 오류: ' + (e.message || e));
+  }
+}
+async function changeStatus(tid) {
+  const newStatus = prompt('새 상태 (진행중/완료/지연/대기/보류):');
+  if (!newStatus) return;
+  const r = await fetch('/api/task/' + tid, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: newStatus })
+  });
+  if (r.ok) location.reload();
+}
+</script>
+</body>
+</html>

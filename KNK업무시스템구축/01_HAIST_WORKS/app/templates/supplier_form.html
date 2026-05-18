@@ -179,10 +179,30 @@
                     <div class="field-hint">정식 상호 또는 사업자등록증 명칭. 중복 검증 없음 — 동명 공급사 등록 가능.</div>
                   </div>
                   <div class="field">
-                    <label>공급사 코드 <span class="info">선택 / 중복 불가</span></label>
-                    <input type="text" name="code" value="{{ supplier.code|default('') }}" class="mono"
-                           placeholder="예: SP-001 / KWON-EL" />
-                    <div class="field-hint">자체 분류 코드. 비워두면 ID로 식별.</div>
+                    {# v5H226z90 — 공급사 코드 → 관리부서 (사내 부서 선택) #}
+                    <label>관리부서</label>
+                    <select name="manage_dept">
+                      <option value="">— 선택 안함 —</option>
+                      {% for d in DEPT_OPTIONS|default([]) %}
+                      <option value="{{ d }}" {% if supplier and supplier.manage_dept == d %}selected{% endif %}>{{ d }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-hint">이 공급사를 등록·관리하는 사내 부서.</div>
+                  </div>
+                </div>
+                {# v5H226z89 — 사업자등록번호·대표자 #}
+                <div class="field-row">
+                  <div class="field">
+                    <label>사업자등록번호</label>
+                    <input type="text" name="biz_no" value="{{ supplier.biz_no|default('') }}" class="mono"
+                           placeholder="예: 134-29-36670" />
+                    <div class="field-hint">사업자등록증상 등록번호 (000-00-00000).</div>
+                  </div>
+                  <div class="field">
+                    <label>대표자</label>
+                    <input type="text" name="ceo_name" value="{{ supplier.ceo_name|default('') }}"
+                           placeholder="예: 홍길동" />
+                    <div class="field-hint">대표이사 / 사업주 성명.</div>
                   </div>
                 </div>
                 <div class="field-row">
@@ -203,30 +223,47 @@
               </div>
             </div>
 
-            <!-- 섹션 2: 연락처 -->
+            <!-- 섹션 2: 연락처 (v5H226z90 — 담당자 2명 풀세트) -->
             <div class="sp-card" data-dn="sp:contact" data-dn-tone="blue">
               <div class="head"><h3>연락처</h3></div>
               <div class="body">
-                <div class="field-row">
+                <div style="font-size:11.5px;font-weight:700;color:var(--pq-ink-2);margin-bottom:8px;">👤 담당자 1</div>
+                <div class="field-row cols-3">
                   <div class="field">
-                    <label>담당자 / 연락처</label>
+                    <label>이름 / 직책</label>
                     <input type="text" name="contact" value="{{ supplier.contact|default('') }}"
                            placeholder="예: 영업팀 김OO 과장" />
                   </div>
                   <div class="field">
                     <label>전화번호</label>
                     <input type="text" name="phone" value="{{ supplier.phone|default('') }}" class="mono"
-                           placeholder="예: 02-1234-5678 / 010-1234-5678" />
+                           placeholder="예: 02-1234-5678" />
                   </div>
-                </div>
-                <div class="field-row">
-                  <div class="field field-full">
+                  <div class="field">
                     <label>이메일</label>
                     <input type="email" name="email" value="{{ supplier.email|default('') }}" class="mono"
                            placeholder="예: sales@vendor.com" />
-                    <div class="field-hint">발주서 이메일 전송 시 자동 수신처로 사용 가능.</div>
                   </div>
                 </div>
+                <div style="font-size:11.5px;font-weight:700;color:var(--pq-ink-2);margin:16px 0 8px;">👤 담당자 2 <span style="font-weight:500;color:var(--pq-ink-4);">(선택)</span></div>
+                <div class="field-row cols-3">
+                  <div class="field">
+                    <label>이름 / 직책</label>
+                    <input type="text" name="contact2" value="{{ supplier.contact2|default('') }}"
+                           placeholder="예: 자재팀 이OO 대리" />
+                  </div>
+                  <div class="field">
+                    <label>전화번호</label>
+                    <input type="text" name="phone2" value="{{ supplier.phone2|default('') }}" class="mono"
+                           placeholder="예: 010-9876-5432" />
+                  </div>
+                  <div class="field">
+                    <label>이메일</label>
+                    <input type="email" name="email2" value="{{ supplier.email2|default('') }}" class="mono"
+                           placeholder="예: cs@vendor.com" />
+                  </div>
+                </div>
+                <div class="field-hint" style="margin-top:8px;">이메일은 발주서 이메일 전송 시 수신처로 사용 가능.</div>
               </div>
             </div>
 
@@ -300,19 +337,19 @@
               <div class="lt-grid">
                 <div class="lt-cell">
                   <div class="l">평균 (일)</div>
-                  <div class="v">{{ '{:.1f}'.format(leadtime.avg_days|default(0)) }}<span class="u">일</span></div>
+                  <div class="v">{{ '{:.1f}'.format(leadtime.avg_days or 0) }}<span class="u">일</span></div>
                 </div>
                 <div class="lt-cell">
                   <div class="l">최단</div>
-                  <div class="v">{{ leadtime.min_days|default(0) }}<span class="u">일</span></div>
+                  <div class="v">{{ leadtime.min_days or 0 }}<span class="u">일</span></div>
                 </div>
                 <div class="lt-cell">
                   <div class="l">최장</div>
-                  <div class="v">{{ leadtime.max_days|default(0) }}<span class="u">일</span></div>
+                  <div class="v">{{ leadtime.max_days or 0 }}<span class="u">일</span></div>
                 </div>
                 <div class="lt-cell">
                   <div class="l">표본</div>
-                  <div class="v">{{ leadtime.sample_count|default(0) }}<span class="u">건</span></div>
+                  <div class="v">{{ leadtime.count or 0 }}<span class="u">건</span></div>
                 </div>
               </div>
               <div class="field-hint" style="margin-top:8px;">발주~입고 평균 소요일. 입고 이력 기반.</div>

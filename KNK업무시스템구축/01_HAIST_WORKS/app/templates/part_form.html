@@ -254,12 +254,13 @@
                       </select>
                     </div>
 
-                    {# v5H226z102 (2026-05-16) — 용도: 기본 정보 박스 마지막 (대표 지시) #}
-                    <div class="field col-12">
+                    {# v5H226z102 (2026-05-16) — 용도: 기본 정보 박스 마지막 (대표 지시)
+                       v5H226z103 (2026-05-16) — col-12(미정의)→col-4(풀폭) + None 버그 수정 + 높이 ↑ #}
+                    <div class="field col-4">
                       <label>용도 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 어디에 쓰이는 자재인지 간략히 기록 (카탈로그 검색에 활용)</span></label>
-                      <textarea name="purpose" rows="3"
+                      <textarea name="purpose" rows="4"
                         placeholder="예: PCB 조립 시 나사 고정용. 5kg 이하 제품에 사용. 자동화 라인 #2·#3 전용. 단종 시 ○○○으로 대체 가능."
-                        style="width:100%;min-height:64px;font-size:12.5px;line-height:1.6;">{{ part.purpose|default('') }}</textarea>
+                        style="width:100%;min-height:96px;font-size:12.5px;line-height:1.65;">{{ part.purpose or '' }}</textarea>
                     </div>
                   </div>
                 </div>

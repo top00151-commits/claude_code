@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>발주 QR — {{ po.po_number|default('PO') }}</title>
+
+{# v5H226z58 (2026-05-12) — 발주 QR 라벨 (단독 큰 QR + 발주 요약)
+   라우터: GET /po/{po_id}/qr/print
+   전달: po (purchase_orders + supplier_name)
+   외부 자산 0건 · A4 · ?auto=1 자동 인쇄 #}
+
+<style>
+@page { size: A4; margin: 14mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif;
+  color: #0f172a; background: #e2e8f0; padding: 20px;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.actions { max-width: 210mm; margin: 0 auto 14px; text-align: right; }
+.actions button, .actions a {
+  display: inline-block; padding: 7px 16px; font-size: 12px; font-weight: 700;
+  text-decoration: none; border-radius: 6px; cursor: pointer; font-family: inherit;
+  border: 1px solid;
+}
+.actions .print-btn { background: #0f172a; color: #fff; border-color: #0f172a; }
+.actions .back-btn  { background: #fff; color: #334155; border-color: #cbd5e1; margin-left: 6px; }
+
+.sheet {
+  background: #fff; max-width: 210mm; margin: 0 auto;
+  padding: 18mm; border: 1px solid #cbd5e1; box-shadow: 0 2px 10px rgba(15,23,42,0.06);
+  min-height: 240mm;
+}
+
+.title-block { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
+.title { font-size: 22pt; font-weight: 800; letter-spacing: 2px; color: #0f172a; }
+.subtitle { font-size: 11pt; color: #475569; margin-top: 4px; font-weight: 500; }
+
+.qr-block { text-align: center; margin: 20px 0; }
+.qr-block .qr-area {
+  width: 80mm; height: 80mm; margin: 0 auto;
+  background: #fff; padding: 4mm; border: 2px solid #0f172a; border-radius: 6px;
+}
+.qr-block .qr-area img { width: 100%; height: 100%; display: block; }
+.qr-block .payload {
+  margin-top: 10px; font-family: ui-monospace, Consolas, monospace;
+  font-size: 10pt; color: #475569; font-weight: 600;
+}
+
+.meta-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 11pt; }
+.meta-table td { border: 1px solid #cbd5e1; padding: 8px 12px; vertical-align: top; }
+.meta-table td.lbl { background: #f1f5f9; width: 28%; font-weight: 700; font-size: 10pt; color: #475569; letter-spacing: 0.3px; }
+.meta-table td.val { color: #0f172a; }
+.meta-table td.val b { font-weight: 700; font-size: 12pt; }
+
+.note-block {
+  margin-top: 18px; padding: 12px 14px;
+  background: #fafbfc; border: 1px solid #cbd5e1; border-left: 3px solid #0f172a;
+  font-size: 10pt; line-height: 1.6; color: #334155;
+}
+.note-block b { color: #0f172a; }
+
+.footer-line {
+  margin-top: 20px; padding-top: 10px;
+  border-top: 1px solid #cbd5e1; font-size: 9pt; color: #94a3b8;
+  text-align: center; font-family: ui-monospace, Consolas, monospace;
+}
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .sheet { border: 0; padding: 8mm; box-shadow: none; max-width: none; }
+  .actions, .no-print { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="actions no-print">
+  <button class="print-btn" onclick="window.print()">🖨 인쇄</button>
+  <a class="back-btn" href="/po/{{ po.id }}">↩ 발주 상세</a>
+</div>
+
+<div class="sheet">
+  <div class="title-block">
+    <div class="title">PURCHASE ORDER QR</div>
+    <div class="subtitle">발주서 QR 라벨 — 입고 처리 시 스캔용</div>
+  </div>
+
+  <div class="qr-block">
+    <div class="qr-area"><img src="/po/{{ po.id }}/qr.svg?scale=14" alt="PO QR"></div>
+    <div class="payload">KNK-PO:{{ po.po_number|default('PO-' ~ po.id) }}|{{ po.id }}</div>
+  </div>
+
+  <table class="meta-table">
+    <tr>
+      <td class="lbl">발주 번호 / PO No.</td>
+      <td class="val"><b>{{ po.po_number|default('PO-' ~ po.id) }}</b></td>
+    </tr>
+    <tr>
+      <td class="lbl">거래처 / Supplier</td>
+      <td class="val">{{ po.supplier_name|default('—') }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">발주일 / Order Date</td>
+      <td class="val">{{ (po.order_date|default(po.created_at|default('—')))[:10] }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">입고 예정 / Expected</td>
+      <td class="val">{{ (po.expected_date|default(po.due_date|default('—')))[:10] }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">상태 / Status</td>
+      <td class="val"><b>{{ po.status|default('—') }}</b></td>
+    </tr>
+    <tr>
+      <td class="lbl">총 금액 / Total</td>
+      <td class="val">{{ '{:,.0f}'.format(po.total_amount|default(0)|float) }} {{ po.currency|default('KRW') }}</td>
+    </tr>
+  </table>
+
+  <div class="note-block">
+    <b>📥 입고 처리 안내</b><br>
+    1. 발주물 도착 시 본 QR을 입고 페이지 상단 QR 스캐너에 스캔합니다.<br>
+    2. 자재별 QR 라벨도 함께 스캔하면 라인 수량이 자동으로 +1 증분됩니다.<br>
+    3. 잔량 확인 후 [📦 입고 등록] 버튼을 눌러 완료합니다.
+  </div>
+
+  <div class="footer-line">
+    {{ po.po_number|default('PO-' ~ po.id) }} · KNK HAIST WORKS · v5H226z58
+  </div>
+</div>
+
+<script>
+(function() {
+  var p = new URLSearchParams(window.location.search);
+  if (p.get('auto') === '1') {
+    window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 300); });
+  }
+})();
+</script>
+</body>
+</html>

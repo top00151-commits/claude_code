@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>자재 사업부 재분류 · KNK HAIST WORKS</title>
+
+{# v5H226z58 (2026-05-12) — 시안1 + 룰 v4 — 자재 사업부 일괄 재분류 도구
+   라우터:
+     GET  /parts/reclassify?focus=공통&days=365
+     POST /parts/reclassify/apply (Form: apply_N=on, new_N=M|T|공통)
+   전달: rows / summary
+   rows[]: part_id / part_no / part_name / biz_div / category / m_qty / t_qty /
+           unknown_qty / total_qty / m_pct / t_pct / unknown_pct /
+           evidence_count / recommended (M/T/공통/review) / confidence (HIGH/MID/LOW)
+   summary: total / rec_m / rec_t / rec_common / rec_review / focus / days / actionable_pct #}
+
+<link href="/static/css/v5_tokens.css?v=20260512v5H226z58" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-purple: #6d28d9;   --pq-purple-soft: #f5f3ff;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.rc-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.rc-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rc-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.rc-head .crumb a { color: var(--pq-ink-3); }
+.rc-head .crumb b { color: var(--pq-ink); }
+.rc-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.rc-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.rc-actions { margin-left: auto; display: flex; gap: 8px; }
+.rc-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.rc-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+
+.banner { padding: 9px 24px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--pq-line); }
+.banner.ok { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.banner.err { background: var(--pq-err-soft); color: var(--pq-err); }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell .sub { font-size: 10.5px; color: var(--pq-ink-4); margin-top: 3px; }
+.kpi-cell.m  .v { color: var(--pq-info); }
+.kpi-cell.t  .v { color: var(--pq-purple); }
+.kpi-cell.com .v { color: var(--pq-ink-3); }
+.kpi-cell.review .v { color: var(--pq-warn); }
+.kpi-cell.action .v { color: var(--pq-ok); }
+
+.filter-bar { display: flex; gap: 10px; align-items: center; padding: 10px 24px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); flex-wrap: wrap; }
+.filter-bar .lbl { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
+.filter-bar a { height: 26px; padding: 0 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); font-family: var(--pq-mono); }
+.filter-bar a:hover { background: var(--pq-surface-3); }
+.filter-bar a.on { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+
+.action-bar { padding: 10px 24px; background: var(--pq-warn-soft); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--pq-warn); }
+.action-bar .left { display: flex; gap: 8px; align-items: center; }
+.action-bar button { height: 30px; padding: 0 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid; }
+.action-bar button.sel-all { background: var(--pq-surface); color: var(--pq-ink-2); border-color: var(--pq-line-2); }
+.action-bar button.sel-rec { background: var(--pq-info); color: #fff; border-color: var(--pq-info); }
+.action-bar button.submit  { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); margin-left: auto; }
+.action-bar button.submit:hover { background: #1e293b; }
+
+.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp thead th.num { text-align: right; }
+.tbl-erp thead th.center { text-align: center; }
+.tbl-erp tbody td { height: 38px; padding: 6px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; vertical-align: middle; }
+.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr.review > td { opacity: 0.7; }
+.tbl-erp tbody tr.selected > td { background: var(--pq-info-soft) !important; }
+
+.chip-bd { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 4px; font-family: var(--pq-mono); }
+.chip-bd.cur-m  { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-bd.cur-t  { background: var(--pq-purple-soft); color: var(--pq-purple); }
+.chip-bd.cur-c  { background: var(--pq-surface-3); color: var(--pq-ink-2); }
+.chip-bd.cur-empty { background: var(--pq-err-soft); color: var(--pq-err); }
+
+.chip-rec { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 800; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-rec.r-m  { background: var(--pq-info); color: #fff; }
+.chip-rec.r-t  { background: var(--pq-purple); color: #fff; }
+.chip-rec.r-c  { background: var(--pq-ink-3); color: #fff; }
+.chip-rec.r-review { background: var(--pq-warn-soft); color: var(--pq-warn); border: 1px dashed var(--pq-warn); }
+.chip-rec .arrow { font-size: 9px; opacity: 0.75; }
+
+.chip-conf { display: inline-block; padding: 1px 6px; font-size: 9.5px; font-weight: 700; border-radius: 3px; font-family: var(--pq-mono); margin-left: 4px; }
+.chip-conf.HIGH { background: var(--pq-ok-soft); color: var(--pq-ok); }
+.chip-conf.MID  { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-conf.LOW  { background: var(--pq-surface-3); color: var(--pq-ink-4); }
+
+.bar-cell { display: flex; align-items: center; gap: 4px; }
+.bar-cell .bar { flex: 1; height: 12px; background: var(--pq-surface-3); border-radius: 6px; overflow: hidden; display: flex; min-width: 110px; }
+.bar-cell .bar .seg-m { background: var(--pq-info); height: 100%; }
+.bar-cell .bar .seg-t { background: var(--pq-purple); height: 100%; }
+.bar-cell .pct { font-family: var(--pq-mono); font-size: 10.5px; color: var(--pq-ink-3); min-width: 80px; text-align: right; }
+
+.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
+.po-empty .ico { font-size: 40px; opacity: 0.6; }
+.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+
+.row-check { width: 18px; height: 18px; cursor: pointer; }
+.row-check:disabled { opacity: 0.3; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <form method="post" action="/parts/reclassify/apply" id="rcForm">
+      <div class="rc-page">
+
+        <div class="rc-head" data-dn="rc:head" data-dn-tone="purple">
+          <div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재</a> · <b>사업부 재분류</b></div>
+            <div class="rc-title">🔀 자재 사업부 일괄 재분류</div>
+            <div class="rc-meta">
+              현재 분류 <b>{{ summary.focus }}</b> · 최근 <b>{{ summary.days }}일</b> 출고 이력 기준 자동 추천 ·
+              <b>{{ summary.actionable_pct }}%</b> 자재가 명확한 추천 가능 (M 또는 T)
+            </div>
+          </div>
+          <div class="rc-actions">
+            <a href="/parts">↩ 자재 목록</a>
+            <a href="/parts/reclassify?focus=공통&days=365">공통/1년</a>
+            <a href="/parts/reclassify?focus=공통&days=90">공통/90일</a>
+            <a href="/parts/reclassify?focus=&days=365">전체/1년</a>
+          </div>
+        </div>
+
+        {% if request.query_params.get('success') %}<div class="banner ok">✓ {{ request.query_params.get('success') }}</div>{% endif %}
+        {% if request.query_params.get('error') %}<div class="banner err">⚠ {{ request.query_params.get('error') }}</div>{% endif %}
+
+        <div class="kpi-strip" data-dn="rc:kpi" data-dn-tone="green">
+          <div class="kpi-cell">
+            <div class="l">분석 대상</div>
+            <div class="v">{{ summary.total }}<span class="u">종</span></div>
+            <div class="sub">현재 "{{ summary.focus or '전체' }}" 자재</div>
+          </div>
+          <div class="kpi-cell m">
+            <div class="l">→ M 추천</div>
+            <div class="v">{{ summary.rec_m }}<span class="u">종</span></div>
+            <div class="sub">자동화 전용으로 재분류</div>
+          </div>
+          <div class="kpi-cell t">
+            <div class="l">→ T 추천</div>
+            <div class="v">{{ summary.rec_t }}<span class="u">종</span></div>
+            <div class="sub">검사기 전용으로 재분류</div>
+          </div>
+          <div class="kpi-cell com">
+            <div class="l">→ 공통 유지</div>
+            <div class="v">{{ summary.rec_common }}<span class="u">종</span></div>
+            <div class="sub">양 사업부 30%+ 사용</div>
+          </div>
+          <div class="kpi-cell review">
+            <div class="l">⚠ 검토 필요</div>
+            <div class="v">{{ summary.rec_review }}<span class="u">종</span></div>
+            <div class="sub">데이터 부족 · 수동 검토</div>
+          </div>
+        </div>
+
+        <div class="action-bar" data-dn="rc:action">
+          <div class="left">
+            <button type="button" class="sel-all" onclick="selAll(true)">전체 선택</button>
+            <button type="button" class="sel-all" onclick="selAll(false)">전체 해제</button>
+            <button type="button" class="sel-rec" onclick="selRecommended()">📌 추천만 선택 (M+T HIGH·MID)</button>
+          </div>
+          <button type="submit" class="submit" onclick="return confirm('선택된 자재의 사업부를 추천값으로 일괄 변경합니다. 계속하시겠습니까?');">✓ 일괄 재분류 적용</button>
+        </div>
+
+        {% if rows %}
+        <div class="tbl-zone" data-dn="rc:table" data-dn-tone="purple">
+          <table class="tbl-erp">
+            <thead>
+              <tr>
+                <th class="center" style="width:36px;"><input type="checkbox" class="row-check" onclick="selAll(this.checked)"></th>
+                <th class="center" style="width:60px;">#</th>
+                <th style="width:130px;">자재 코드</th>
+                <th>자재명</th>
+                <th class="center" style="width:80px;">현재</th>
+                <th class="center" style="width:130px;">추천</th>
+                <th style="width:220px;">M / T 사용 분포</th>
+                <th class="num" style="width:80px;">출고 이력</th>
+                <th class="num" style="width:90px;">총 출고량</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in rows %}
+              {% set rec = r.recommended %}
+              {% set rec_cls = ({'M':'r-m','T':'r-t','공통':'r-c','review':'r-review'}).get(rec, 'r-review') %}
+              {% set cur = r.biz_div or '' %}
+              {% set cur_cls = ({'M':'cur-m','T':'cur-t','공통':'cur-c'}).get(cur, 'cur-empty') %}
+              {% set rec_label = rec if rec != 'review' else '수동검토' %}
+              {% set is_changeable = rec in ('M','T','공통') and rec != cur %}
+              <tr class="{% if rec == 'review' %}review{% endif %}" data-rec="{{ rec }}" data-conf="{{ r.confidence }}">
+                <td class="center">
+                  <input type="checkbox" class="row-check" name="apply_{{ r.part_id }}" value="on"
+                         {% if not is_changeable %}disabled{% endif %}
+                         onclick="this.closest('tr').classList.toggle('selected', this.checked);">
+                  {% if is_changeable %}<input type="hidden" name="new_{{ r.part_id }}" value="{{ rec }}">{% endif %}
+                </td>
+                <td class="center" style="color:var(--pq-ink-4);">{{ loop.index }}</td>
+                <td class="code">{{ r.part_no or '—' }}</td>
+                <td>
+                  <a href="/parts/{{ r.part_id }}" target="_blank" style="color:var(--pq-ink);text-decoration:none;font-weight:600;">{{ r.part_name or '—' }}</a>
+                  {% if r.category %}<div style="font-size:10.5px;color:var(--pq-ink-4);margin-top:1px;">{{ r.category }}</div>{% endif %}
+                </td>
+                <td class="center">
+                  <span class="chip-bd {{ cur_cls }}">{{ cur or '미분류' }}</span>
+                </td>
+                <td class="center">
+                  {% if is_changeable %}
+                    <span class="chip-rec {{ rec_cls }}">
+                      <span class="arrow">→</span> {{ rec_label }}
+                    </span>
+                  {% elif rec == cur %}
+                    <span style="font-size:10.5px;color:var(--pq-ink-4);">현재 유지</span>
+                  {% else %}
+                    <span class="chip-rec {{ rec_cls }}">{{ rec_label }}</span>
+                  {% endif %}
+                  <span class="chip-conf {{ r.confidence }}">{{ r.confidence }}</span>
+                </td>
+                <td>
+                  <div class="bar-cell">
+                    <div class="bar" title="M {{ r.m_pct }}% / T {{ r.t_pct }}%">
+                      {% if r.m_pct > 0 %}<div class="seg-m" style="width:{{ r.m_pct }}%;"></div>{% endif %}
+                      {% if r.t_pct > 0 %}<div class="seg-t" style="width:{{ r.t_pct }}%;"></div>{% endif %}
+                    </div>
+                    <span class="pct">M {{ r.m_pct }}% / T {{ r.t_pct }}%</span>
+                  </div>
+                </td>
+                <td class="num">{{ r.evidence_count }}</td>
+                <td class="num">{{ '{:,.0f}'.format(r.total_qty) }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="po-empty" data-dn="rc:empty">
+          <div class="ico">🔀</div>
+          <div class="ttl">분석 대상 자재가 없습니다</div>
+          <div style="font-size:12.5px;">현재 "{{ summary.focus or '전체' }}" 분류로 등록된 활성 자재가 없습니다.</div>
+        </div>
+        {% endif %}
+
+      </div>
+    </form>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+
+<script>
+function selAll(checked) {
+  document.querySelectorAll('input.row-check[name^="apply_"]').forEach(function(cb){
+    if (cb.disabled) return;
+    cb.checked = checked;
+    cb.closest('tr').classList.toggle('selected', checked);
+  });
+}
+
+function selRecommended() {
+  // 추천이 M 또는 T 이면서 confidence HIGH/MID 만 선택
+  document.querySelectorAll('tbody tr').forEach(function(tr){
+    var rec = tr.dataset.rec;
+    var conf = tr.dataset.conf;
+    var cb = tr.querySelector('input.row-check');
+    if (!cb || cb.disabled) return;
+    var sel = (rec === 'M' || rec === 'T') && (conf === 'HIGH' || conf === 'MID');
+    cb.checked = sel;
+    tr.classList.toggle('selected', sel);
+  });
+}
+</script>
+</body>
+</html>

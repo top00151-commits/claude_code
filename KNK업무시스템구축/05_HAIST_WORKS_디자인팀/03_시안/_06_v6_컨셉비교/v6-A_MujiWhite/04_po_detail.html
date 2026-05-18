@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><title>v6-A Muji · /po/{id}</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+:root { --bg:#FFFFFF; --paper-2:#FAFAFA; --paper-3:#F4F4F4; --ink:#111111; --mute:#757575; --line:#ECECEC; --line-strong:#D4D4D4; --knk:#A5282C; --success:#4F7A5A; --topbar-h:64px; --sidebar-w:240px; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;line-height:1.55;color:var(--ink);background:var(--bg);font-feature-settings:'tnum'}
+.app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
+.topbar{grid-column:1/-1;background:var(--bg);border-bottom:1px solid var(--line);height:var(--topbar-h);display:flex;align-items:center}
+.tb-brand{padding:0 24px;display:flex;align-items:center;gap:12px;border-right:1px solid var(--line);width:var(--sidebar-w);height:100%}
+.tb-brand img{height:24px}
+.sidebar{background:var(--bg);border-right:1px solid var(--line);padding:12px 0}
+.sb-group{padding:12px 20px 4px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.18em;text-transform:uppercase}
+.sb-item{padding:7px 14px;margin:1px 8px;font-size:13px;border-radius:4px;cursor:pointer}
+.sb-item:hover{background:var(--paper-2)}
+.sb-item.active{background:var(--paper-3);font-weight:600}
+.main{padding:32px;max-width:1200px}
+.crumbs{font-size:12px;color:var(--mute);margin-bottom:8px}
+.crumbs a{color:var(--ink);font-weight:600}
+.head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;gap:24px}
+.id-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.id{font-family:'Courier New',monospace;font-size:18px;font-weight:700}
+.status{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;background:var(--ink);color:white}
+.title{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.meta-row{display:flex;gap:24px;font-size:13px;color:var(--mute)}
+.meta-row b{color:var(--ink)}
+.actions{display:flex;gap:8px}
+.btn{padding:9px 16px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid transparent;font-family:inherit}
+.btn-primary{background:var(--ink);color:white}
+.btn-primary:hover{background:var(--knk)}
+.btn-secondary{background:var(--bg);color:var(--ink);border-color:var(--line-strong)}
+.btn-icon{width:36px;padding:0;display:grid;place-items:center;background:var(--bg);border-color:var(--line-strong)}
+
+.workflow{display:flex;padding:20px 32px;border:1px solid var(--line);border-radius:8px;margin-bottom:32px;position:relative}
+.wf-step{flex:1;text-align:center;position:relative}
+.wf-step:not(:last-child)::after{content:"";position:absolute;top:18px;left:calc(50% + 18px);right:calc(-50% + 18px);height:1px;background:var(--line-strong)}
+.wf-step.done:not(:last-child)::after{background:var(--success)}
+.wf-icon{width:36px;height:36px;border-radius:50%;border:1px solid var(--line-strong);background:var(--bg);display:grid;place-items:center;font-size:14px;color:var(--mute);margin:0 auto 10px;position:relative;z-index:1}
+.wf-step.done .wf-icon{background:var(--success);color:white;border-color:var(--success)}
+.wf-step.active .wf-icon{background:var(--ink);color:white;border-color:var(--ink)}
+.wf-label .ttl{font-size:13px;font-weight:600}
+.wf-step.active .ttl{color:var(--ink)}
+.wf-label .date{font-size:11px;color:var(--mute);margin-top:4px}
+
+.content{display:grid;grid-template-columns:1fr 320px;gap:24px}
+
+.section{border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.section-head{padding:14px 18px;cursor:pointer;font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.section-head:hover{background:var(--paper-2)}
+.section[data-open="true"] .section-head{border-bottom:1px solid var(--line)}
+.section[data-open="true"] .arrow{transform:rotate(90deg)}
+.arrow{transition:transform .18s;color:var(--mute)}
+.section-body{padding:20px;display:none}
+.section[data-open="true"] .section-body{display:block}
+
+.def-list{display:grid;grid-template-columns:1fr 1fr;gap:16px 32px}
+.def-item .lbl{font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.def-item .val{font-size:14px;font-weight:500}
+.def-item .val.amount{font-weight:700;color:var(--knk);font-size:18px}
+
+.lines-table{width:100%;border-collapse:collapse;font-size:13px}
+.lines-table th{text-align:left;padding:8px 12px;font-size:11px;color:var(--mute);background:var(--paper-2);border-bottom:1px solid var(--line);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.lines-table td{padding:10px 12px;border-bottom:1px solid var(--line)}
+.lines-table th.num,.lines-table td.num{text-align:right}
+
+.aside{display:flex;flex-direction:column;gap:12px;position:sticky;top:96px;align-self:start}
+.aside-card{border:1px solid var(--line);border-radius:8px;padding:16px}
+.aside-card h4{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;font-weight:700}
+.aside-card.victor{background:var(--ink);color:white;border:0}
+.aside-card.victor h4{color:rgba(255,255,255,.7)}
+.aside-card.victor .body{font-size:13px;line-height:1.6;color:rgba(255,255,255,.9)}
+.aside-card.victor .body b{color:white}
+.activity{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.activity:last-child{border-bottom:0}
+.activity .dot{width:6px;height:6px;border-radius:50%;background:var(--mute);margin-top:8px;flex-shrink:0}
+.activity .dot.success{background:var(--success)}
+.activity-text .ttl{font-size:13px;font-weight:600}
+.activity-text .meta{font-size:11px;color:var(--mute);margin-top:2px}
+.label-tag{font-size:10px;background:var(--paper-3);color:var(--ink);padding:2px 8px;border-radius:9999px;font-weight:700;margin-left:8px}
+</style></head><body>
+<div class="app">
+<header class="topbar"><div class="tb-brand"><img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK"/><div style="font-size:14px;font-weight:700">HAIST WORKS<span class="label-tag">v6-A Muji</span></div></div></header>
+<aside class="sidebar">
+<div class="sb-group">발주 흐름</div>
+<a class="sb-item">발주서 작성</a>
+<a class="sb-item active">발주 목록</a>
+</aside>
+<main class="main">
+<div class="crumbs">자재구매센터 · <a>발주 목록</a> · <b>PO-2604-018</b></div>
+<div class="head">
+<div>
+<div class="id-row"><span class="id">PO-2604-018</span><span class="status">배송 중</span></div>
+<h1 class="title">대원전기 발주서</h1>
+<div class="meta-row"><span>📅 발주일 <b>2026-04-29</b></span><span>🚚 납기 <b>05-08 (D-9)</b></span><span>👤 <b>이 차장</b></span><span>💰 <b>₩4,820,000</b></span></div>
+</div>
+<div class="actions"><button class="btn btn-icon">↗</button><button class="btn btn-icon">📋</button><button class="btn btn-icon">🖨</button><button class="btn btn-secondary">📂 수정</button><button class="btn btn-primary">📦 입고 →</button></div>
+</div>
+
+<div class="workflow">
+<div class="wf-step done"><div class="wf-icon">✓</div><div class="wf-label"><div class="ttl">발주</div><div class="date">04-29 14:18</div></div></div>
+<div class="wf-step done"><div class="wf-icon">✓</div><div class="wf-label"><div class="ttl">확정</div><div class="date">04-29 16:42</div></div></div>
+<div class="wf-step done"><div class="wf-icon">✓</div><div class="wf-label"><div class="ttl">출고</div><div class="date">05-02 09:15</div></div></div>
+<div class="wf-step active"><div class="wf-icon">🚚</div><div class="wf-label"><div class="ttl">배송 중</div><div class="date">진행률 78%</div></div></div>
+<div class="wf-step"><div class="wf-icon">📦</div><div class="wf-label"><div class="ttl">입고</div><div class="date">05-08 예정</div></div></div>
+</div>
+
+<div class="content">
+<div>
+<section class="section" data-open="true">
+<div class="section-head" onclick="this.parentElement.dataset.open=this.parentElement.dataset.open==='true'?'false':'true'"><span>기본 정보</span><span class="arrow">▶</span></div>
+<div class="section-body">
+<div class="def-list">
+<div class="def-item"><div class="lbl">거래처</div><div class="val">대원전기 (모터·구동부)</div></div>
+<div class="def-item"><div class="lbl">발주 번호</div><div class="val">PO-2604-018</div></div>
+<div class="def-item"><div class="lbl">결제</div><div class="val">60일 어음</div></div>
+<div class="def-item"><div class="lbl">인도</div><div class="val">DDP 자재창고</div></div>
+<div class="def-item"><div class="lbl">총 금액</div><div class="val amount">₩4,820,000</div></div>
+</div>
+</div>
+</section>
+
+<section class="section" data-open="true">
+<div class="section-head" onclick="this.parentElement.dataset.open=this.parentElement.dataset.open==='true'?'false':'true'"><span>발주 품목 (3 종)</span><span class="arrow">▶</span></div>
+<div class="section-body">
+<table class="lines-table"><thead><tr><th>#</th><th>품목 · 사양</th><th>코드</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>
+<tr><td>01</td><td>컨베이어 모터 1.5kW</td><td><b>MTR-CV-15</b></td><td class="num">10 EA</td><td class="num">₩482,000</td><td class="num"><b>₩4,820,000</b></td></tr>
+<tr><td>02</td><td>베어링 6204 ZZ</td><td><b>BRG-6204</b></td><td class="num">200 EA</td><td class="num">₩4,200</td><td class="num"><b>₩840,000</b></td></tr>
+<tr><td>03</td><td>알루미늄 압출재 6m</td><td><b>AL-EXT-4040</b></td><td class="num">20 m</td><td class="num">₩28,500</td><td class="num"><b>₩570,000</b></td></tr>
+</tbody></table>
+</div>
+</section>
+
+<section class="section" data-open="false">
+<div class="section-head" onclick="this.parentElement.dataset.open=this.parentElement.dataset.open==='true'?'false':'true'"><span>첨부 파일 (2)</span><span class="arrow">▶</span></div>
+<div class="section-body"><div style="font-size:13px;color:var(--mute)">컨베이어_모터_사양서_v3.pdf · 베어링_도면_BRG6204.dwg</div></div>
+</section>
+
+<section class="section" data-open="false">
+<div class="section-head" onclick="this.parentElement.dataset.open=this.parentElement.dataset.open==='true'?'false':'true'"><span>메모 · 코멘트 (2)</span><span class="arrow">▶</span></div>
+<div class="section-body"><div style="font-size:13px;color:var(--mute)">댓글 영역</div></div>
+</section>
+</div>
+
+<aside class="aside">
+<div class="aside-card victor">
+<h4>💡 빅터 분석</h4>
+<div class="body">대성기업 5월 추가 발주 패턴 (작년 +20%) → <b>입고 즉시 컨베이어 모터 5대 추가 확보 권장</b></div>
+</div>
+<div class="aside-card">
+<h4>활동 이력</h4>
+<div class="activity"><div class="dot success"></div><div class="activity-text"><div class="ttl">출고 완료</div><div class="meta">대원전기 · 05-02 09:15</div></div></div>
+<div class="activity"><div class="dot success"></div><div class="activity-text"><div class="ttl">발주 확정</div><div class="meta">04-29 16:42</div></div></div>
+<div class="activity"><div class="dot"></div><div class="activity-text"><div class="ttl">발주 발행</div><div class="meta">이 차장 · 04-29 14:18</div></div></div>
+</div>
+</aside>
+</div>
+</main>
+</div>
+</body></html>

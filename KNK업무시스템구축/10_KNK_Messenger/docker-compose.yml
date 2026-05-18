@@ -1,0 +1,63 @@
+# ============================================================
+# KNK Messenger - Synology Container Manager Project
+# ============================================================
+# Synology DSM 사용법:
+#   1. Container Manager 열기 → 프로젝트 → 생성
+#   2. 프로젝트 이름: knk-messenger
+#   3. 경로: /volume1/docker/knk-messenger
+#   4. 소스: docker-compose.yml (이 파일)
+#   5. 빌드 + 시작
+#
+# 콘솔(SSH) 사용법:
+#   cd /volume1/docker/knk-messenger
+#   docker compose up -d --build
+# ============================================================
+
+services:
+  knk-messenger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: knk-messenger:latest
+    container_name: knk-messenger
+    restart: unless-stopped
+
+    # 외부 노출 포트 (DSM Reverse Proxy 가 5050 으로 프록시)
+    ports:
+      - "5050:5050"
+
+    # 환경변수 (.env 파일에서 로드)
+    env_file:
+      - .env
+
+    # 영속 볼륨 - 컨테이너 재빌드해도 데이터 유지
+    volumes:
+      # SQLite DB + 업로드 파일 + secret.key + VAPID key
+      - ./data:/app/data
+      # 백업 (HyperBackup 가 이 폴더를 외부로 동기화)
+      - ./backups:/app/backups
+
+    # 헬스체크 (Dockerfile 의 HEALTHCHECK 와 별개로 compose 레벨도 가능)
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5050/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # 로그 회전 (디스크 보호)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # 한국 시간대
+    environment:
+      - TZ=Asia/Seoul
+
+    # Synology NAS 가 메모리·CPU 제약 (선택 - NAS 사양 따라 조절)
+    # deploy 키는 swarm 모드 외엔 무시되므로 mem_limit 사용
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: 1.0

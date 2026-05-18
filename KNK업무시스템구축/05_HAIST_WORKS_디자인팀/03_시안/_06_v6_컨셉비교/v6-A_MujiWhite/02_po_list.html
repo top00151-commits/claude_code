@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><title>v6-A Muji · /po (발주 목록)</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+:root { --bg:#FFFFFF; --paper-2:#FAFAFA; --paper-3:#F4F4F4; --ink:#111111; --mute:#757575; --line:#ECECEC; --line-strong:#D4D4D4; --knk:#A5282C; --success:#4F7A5A; --warn:#C97D3F; --topbar-h:64px; --sidebar-w:240px; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;line-height:1.55;color:var(--ink);background:var(--bg);font-feature-settings:'tnum'}
+.app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
+.topbar{grid-column:1/-1;display:grid;grid-template-columns:var(--sidebar-w) 1fr auto;align-items:center;background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:500;height:var(--topbar-h)}
+.tb-brand{padding:0 24px;display:flex;align-items:center;gap:12px;border-right:1px solid var(--line);height:100%}
+.tb-brand img{height:24px}
+.tb-tabs{display:flex;padding:0 24px}
+.tb-tab{padding:8px 16px;font-size:13px;color:var(--mute);text-decoration:none}
+.tb-tab.active{color:var(--ink);font-weight:700;border-bottom:2px solid var(--ink)}
+.tb-right{display:flex;padding:0 16px;align-items:center;gap:8px}
+.tb-user{display:flex;align-items:center;gap:8px;font-size:13px}
+.tb-avatar{width:28px;height:28px;background:var(--ink);border-radius:50%;display:grid;place-items:center;color:white;font-weight:700;font-size:12px}
+.sidebar{background:var(--bg);border-right:1px solid var(--line);padding:12px 0}
+.sb-group{padding:12px 20px 4px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.18em;text-transform:uppercase}
+.sb-item{display:flex;justify-content:space-between;padding:7px 14px;margin:1px 8px;color:var(--ink);font-size:13px;border-radius:4px;cursor:pointer}
+.sb-item:hover{background:var(--paper-2)}
+.sb-item.active{background:var(--paper-3);font-weight:600}
+.sb-badge{background:var(--knk);color:white;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700}
+.main{padding:32px;max-width:1280px}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px}
+.title{font-size:32px;font-weight:700;letter-spacing:-.025em}
+.crumbs{font-size:12px;color:var(--mute);margin-bottom:4px}
+.actions{display:flex;gap:8px}
+.btn{padding:9px 16px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid transparent;font-family:inherit}
+.btn-primary{background:var(--ink);color:white}
+.btn-primary:hover{background:var(--knk)}
+.btn-secondary{background:var(--bg);color:var(--ink);border-color:var(--line-strong)}
+.btn-secondary:hover{border-color:var(--ink)}
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.search{flex:1;max-width:400px;padding:9px 14px;border:1px solid var(--line-strong);border-radius:8px;font-family:inherit;font-size:14px}
+.search:focus{outline:none;border-color:var(--ink)}
+.filter-btn{padding:7px 12px;font-size:12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--bg);cursor:pointer;color:var(--ink-soft)}
+.filter-btn:hover{border-color:var(--ink)}
+.filter-btn.active{background:var(--ink);color:white;border-color:var(--ink)}
+.spacer{flex:1}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px}
+.s-card{padding:12px 16px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.s-card:hover{border-color:var(--ink)}
+.s-card.active{border-color:var(--ink);background:var(--ink);color:white}
+.s-num{font-size:24px;font-weight:700}
+.s-lbl{font-size:11px;color:var(--mute);font-weight:600;margin-top:2px}
+.s-card.active .s-lbl{color:rgba(255,255,255,.7)}
+.s-card.alert .s-num{color:var(--knk)}
+.s-card.warn .s-num{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+thead th{text-align:left;padding:12px 16px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--ink)}
+thead th.num{text-align:right}
+tbody td{padding:14px 16px;border-bottom:1px solid var(--line)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--paper-2)}
+.code{font-family:'Courier New',monospace;font-weight:700;font-size:13px}
+.small{font-size:12px;color:var(--mute);margin-top:2px;display:block}
+.pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid var(--line-strong)}
+.pill-ok{background:var(--success);color:white;border-color:var(--success)}
+.pill-warn{background:var(--warn);color:white;border-color:var(--warn)}
+.pill-progress{background:var(--ink);color:white;border-color:var(--ink)}
+.bar{width:80px;height:4px;background:var(--paper-3);border-radius:2px;display:inline-block;vertical-align:middle;margin-right:8px}
+.bar>div{height:100%;background:var(--ink);border-radius:2px}
+.pagination{padding:20px 0;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mute)}
+.page-btns{display:flex;gap:4px}
+.page-btn{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:4px;cursor:pointer;font-size:13px;background:var(--bg)}
+.page-btn.active{background:var(--ink);color:white;border-color:var(--ink)}
+.label-tag{font-size:10px;background:var(--paper-3);color:var(--ink);padding:2px 8px;border-radius:9999px;font-weight:700;margin-left:8px}
+</style></head><body>
+<div class="app">
+<header class="topbar">
+<div class="tb-brand"><img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK"/><div style="font-size:14px;font-weight:700">HAIST WORKS<span class="label-tag">v6-A Muji</span></div></div>
+<div class="tb-tabs"><a class="tb-tab">통합</a><a class="tb-tab">매출영업</a><a class="tb-tab active">자재구매</a></div>
+<div class="tb-right"><div class="tb-user"><div class="tb-avatar">이</div>이 차장</div></div>
+</header>
+<aside class="sidebar">
+<div class="sb-group">발주 흐름</div>
+<a class="sb-item">발주서 작성</a>
+<a class="sb-item active">발주 목록<span class="sb-badge">8</span></a>
+<a class="sb-item">입고 처리</a>
+<div class="sb-group">재고</div>
+<a class="sb-item">수불부</a>
+<a class="sb-item">출고 등록</a>
+</aside>
+<main class="main">
+<div class="head"><div><div class="crumbs">자재구매센터 · <b>발주 목록</b></div><h1 class="title">발주 목록</h1></div>
+<div class="actions"><button class="btn btn-secondary">📥 Excel</button><button class="btn btn-primary">＋ 새 발주</button></div></div>
+
+<div class="summary">
+<div class="s-card active"><div class="s-num">142</div><div class="s-lbl">전체</div></div>
+<div class="s-card warn"><div class="s-num">3</div><div class="s-lbl">단가 협의</div></div>
+<div class="s-card warn"><div class="s-num">5</div><div class="s-lbl">확정 대기</div></div>
+<div class="s-card"><div class="s-num">8</div><div class="s-lbl">배송 중</div></div>
+<div class="s-card"><div class="s-num">126</div><div class="s-lbl">입고 완료</div></div>
+</div>
+
+<div class="toolbar">
+<input class="search" placeholder="발주번호 / 거래처 / 자재명 검색…" />
+<button class="filter-btn active">기간 · 1개월</button>
+<button class="filter-btn">+ 필터</button>
+<div class="spacer"></div>
+<span style="font-size:12px;color:var(--mute)">25 / 142</span>
+</div>
+
+<table>
+<thead><tr><th>발주번호</th><th>거래처 · 품목</th><th>상태</th><th class="num">금액</th><th>진행률</th><th>납기</th><th>담당</th></tr></thead>
+<tbody>
+<tr><td><span class="code">PO-2604-018</span></td><td><b>대원전기</b><span class="small">컨베이어 모터 1.5kW × 10</span></td><td><span class="pill pill-progress">배송중</span></td><td class="num"><b>₩4,820,000</b></td><td><span class="bar"><div style="width:78%"></div></span>78%</td><td>05-08<span class="small">D-9</span></td><td>이 차장</td></tr>
+<tr><td><span class="code">PO-2604-019</span></td><td><b>한국NSK</b><span class="small">베어링 6204 ZZ × 500</span></td><td><span class="pill pill-warn">확정 대기</span></td><td class="num"><b>₩2,100,000</b></td><td><span class="bar"><div style="width:35%"></div></span>35%</td><td>05-12<span class="small">D-13</span></td><td>이 차장</td></tr>
+<tr><td><span class="code">PO-2604-020</span></td><td><b>경남알루미늄</b><span class="small">알루미늄 압출재 × 30 m</span></td><td><span class="pill pill-warn">단가 협의</span></td><td class="num"><b>₩855,000</b></td><td><span class="bar"><div style="width:18%"></div></span>18%</td><td>05-15<span class="small">D-16</span></td><td>박 대리</td></tr>
+<tr><td><span class="code">PO-2604-017</span></td><td><b>미스미</b><span class="small">리니어 가이드 25mm × 20</span></td><td><span class="pill pill-ok">입고 완료</span></td><td class="num"><b>₩3,700,000</b></td><td><span class="bar"><div style="width:100%;background:var(--success)"></div></span>100%</td><td>04-25<span class="small" style="color:var(--success)">완료</span></td><td>이 차장</td></tr>
+<tr><td><span class="code">PO-2604-016</span></td><td><b>LS산전</b><span class="small">인버터 7.5kW × 5</span></td><td><span class="pill pill-ok">입고 완료</span></td><td class="num"><b>₩3,100,000</b></td><td><span class="bar"><div style="width:100%;background:var(--success)"></div></span>100%</td><td>04-22<span class="small" style="color:var(--success)">완료</span></td><td>박 대리</td></tr>
+</tbody>
+</table>
+
+<div class="pagination"><span>총 <b>142건</b> · 1-25 표시</span><div class="page-btns"><button class="page-btn">«</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><button class="page-btn">…</button><button class="page-btn">6</button><button class="page-btn">»</button></div></div>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if ticket %}티켓 수정{% else %}티켓 발행{% endif %} · KNK</title>
+{# ticket_form.html — 티켓 작성/수정 폼
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 0 var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); box-shadow: var(--shadow-sm); }
+.field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: span 2; }
+.field label { font-size: 12px; font-weight: 600; color: var(--qv-ink); }
+.field label .req { color: var(--knk-red); }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
+.field textarea { min-height: 100px; resize: vertical; }
+</style>
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="ticket-form-main">
+  <div class="page-head" data-dn="ticket-form-pagehead">
+    <div><div class="crumbs"><a href="/tickets">티켓</a> · <b>{% if ticket %}수정{% else %}새 티켓{% endif %}</b></div>
+    <h1 class="page-title">{% if ticket %}티켓 #{{ ticket.id }} 수정{% else %}새 <em>티켓</em> 발행{% endif %}</h1></div>
+  </div>
+
+  <form method="post" action="{% if ticket %}/tickets/{{ ticket.id }}/edit{% else %}/tickets/new{% endif %}">
+    <div class="form-card" data-dn="ticket-form-card">
+      <div class="field-row">
+        <div class="field"><label>분류 <span class="req">*</span></label>
+          <select name="category" required>
+            <option value="">— 선택 —</option>
+            {% for c in TICKET_CATEGORIES %}<option value="{{ c }}" {% if ticket and ticket.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>긴급도 <span class="req">*</span></label>
+          <select name="urgency" required>
+            {% for u_ in TICKET_URGENCIES %}<option value="{{ u_ }}" {% if (ticket and ticket.urgency == u_) or (not ticket and u_ == '보통') %}selected{% endif %}>{{ u_ }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>제목 <span class="req">*</span></label>
+          <input type="text" name="title" required value="{{ ticket.title|default('') }}" placeholder="요청 사항을 한 줄로">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field full"><label>상세 설명</label>
+          <textarea name="description" placeholder="상세 내용 / 배경 / 요청 결과">{{ ticket.description|default('') }}</textarea>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>담당 팀 (선택)</label>
+          <select name="assignee_team_id">
+            <option value="">— 자동 배정 —</option>
+            {% for t in teams %}<option value="{{ t.id }}" {% if ticket and ticket.assignee_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>관련 프로젝트 (선택)</label>
+          <select name="project_id">
+            <option value="">— 없음 —</option>
+            {% for p in projects %}<option value="{{ p.id }}" {% if ticket and ticket.project_id == p.id %}selected{% endif %}>{{ p.name }}{% if p.mgmt_code %} ({{ p.mgmt_code }}){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>희망 기한</label>
+          <input type="date" name="deadline" value="{{ ticket.deadline|default('') }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin: 0 0 var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/tickets">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if ticket %}저장{% else %}티켓 발행{% endif %}</button>
+    </div>
+  </form>
+</main></div></body></html>

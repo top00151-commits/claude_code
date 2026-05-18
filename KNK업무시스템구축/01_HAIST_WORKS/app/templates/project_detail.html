@@ -3,7 +3,6 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
 <style>
-/* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z99: page-head 우측 끝까지 확장 (1540→1550) + main 스크롤바 시각 숨김 */
 /* v5H226z103: page-head 높이 110→90px — 상하 padding 축소 */
 /* v5H226z104: page-head sticky 상단 고정 + body scroll 차단 + GPU 가속 (sales_home z100~z102 동일 패턴) */
@@ -20,7 +19,7 @@ body { overflow: hidden !important; }
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--qv-surface, #fff);
+  background: var(--paper-3, #fff);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   padding: 14px 0 6px var(--content-pad, 24px) !important;
   transform: translateZ(0);
@@ -156,11 +155,11 @@ body.so-fs-on { overflow: hidden; }
   cursor: pointer; transition: all .12s;
 }
 .so-fs-btn:hover { background: #b07a18; color: #fff; }
-.section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
+.section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
 .def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--qv-ink-3); font-weight: 600; } .def dd { color: var(--qv-ink); }
+.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
 @media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
 
 /* v5H226z40: 1100px 이하 반응형 — 작은 모니터/노트북 깨짐 방지 */
@@ -210,8 +209,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         <span id="hf_title_name">{{ p.name }}</span>
         {# v5H185: 프로젝트명 인라인 편집 ✏️ — 우측 패널에서 이동 #}
         {% if can_sales %}<button type="button" id="hf_title_edit" data-pid="{{ p.id }}" title="프로젝트명 편집"
-                style="border:0;background:transparent;color:var(--qv-ink-3);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px;"
-                onmouseover="this.style.background='var(--qv-surface-3)'"
+                style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px;"
+                onmouseover="this.style.background='var(--paper-2)'"
                 onmouseout="this.style.background='transparent'">✏️</button>{% endif %}
         {% if p.stage %}<span class="pill pill-progress" style="font-size:13px;">{{ p.stage }}</span>{% endif %}
         {# v5H138: 프로젝트 유형 pill — 영문 enum + 한글 의미 2줄 (so-pill 패턴 통일) #}
@@ -225,11 +224,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       {# v5H142: NEW_EQUIP 부모일 때만 3종 발주 버튼 노출 (장비/소모품/정비).
          CONSUMABLE/SERVICE/OTHER 부모는 그 유형의 추가 발주 1개만 노출 (기존 동작 유지). #}
       {% if (p.project_type or 'NEW_EQUIP')|upper == 'NEW_EQUIP' %}
-      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--qv-ink-2);">＋ 추가 검사기 발주</button>
+      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 검사기 발주</button>
       <button class="btn btn-primary" onclick="openFollowupOrder('CONSUMABLE')" style="background:#065f46;">＋ 소모품 발주</button>
       <button class="btn btn-primary" onclick="openFollowupOrder('SERVICE')" style="background:#1e3a8a;">＋ 수리·정비</button>
       {% else %}
-      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--qv-ink-2);">＋ 추가 발주 (수주번호만)</button>
+      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
       {% endif %}
       {% endif %}
       <a class="btn btn-secondary" href="/projects/{{ p.id }}/edit">📂 수정</a>
@@ -245,23 +244,23 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   <div id="followupOrderModal" data-dn="followup-order-modal" data-dn-tone="purple" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
       <h3 id="fup_modal_title" style="font-size:18px; font-weight:700; margin-bottom:8px;">＋ 추가 발주 (관리번호 {{ p.mgmt_code }})</h3>
-      <div id="fup_modal_hint" style="font-size:12.5px; color:var(--qv-ink-3); margin-bottom:16px; line-height:1.6;">
+      <div id="fup_modal_hint" style="font-size:12.5px; color:var(--mute); margin-bottom:16px; line-height:1.6;">
         동일 프로젝트에 추가 발주가 들어왔을 때 사용합니다.<br>
         <b>관리번호 {{ p.mgmt_code }}</b> 유지 + 신규 수주번호(SO)만 발행하여 날짜별 추적이 가능합니다.
       </div>
       {# v5H142: hidden so_type — openFollowupOrder(type) 가 세팅 #}
       <input type="hidden" id="fup_so_type" value="EQUIPMENT">
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
-        <div><label style="font-size:11px; color:var(--qv-ink-3);">발주일 *</label>
-          <input type="date" class="knk-cal" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
-        <div><label style="font-size:11px; color:var(--qv-ink-3);">납기일</label>
-          <input type="date" class="knk-cal" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">발주일 *</label>
+          <input type="date" class="knk-cal" id="fup_order_date" required style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">납기일</label>
+          <input type="date" class="knk-cal" id="fup_due_date" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         {# v5H178: 납품처 #}
-        <div><label style="font-size:11px; color:var(--qv-ink-3);">납품처</label>
-          <input type="text" id="fup_ship_to" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
+        <div><label style="font-size:11px; color:var(--mute);">납품처</label>
+          <input type="text" id="fup_ship_to" placeholder="(예: 본사 / 평택공장)" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         {# v5H178: 통화 — 프로젝트 헤더 통화 default #}
-        <div><label style="font-size:11px; color:var(--qv-ink-3);">통화 *</label>
-          <select id="fup_currency" onchange="onFupCurrencyChange()" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;background:var(--qv-surface-2);">
+        <div><label style="font-size:11px; color:var(--mute);">통화 *</label>
+          <select id="fup_currency" onchange="onFupCurrencyChange()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);">
             <option value="KRW" {% if (p.currency or 'KRW') == 'KRW' %}selected{% endif %}>KRW (원)</option>
             <option value="USD" {% if p.currency == 'USD' %}selected{% endif %}>USD (달러)</option>
             <option value="VND" {% if p.currency == 'VND' %}selected{% endif %}>VND (동)</option>
@@ -269,27 +268,27 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             <option value="CNY" {% if p.currency == 'CNY' %}selected{% endif %}>CNY (위안)</option>
             <option value="EUR" {% if p.currency == 'EUR' %}selected{% endif %}>EUR (유로)</option>
           </select></div>
-        <div><label id="fup_unit_label" style="font-size:11px; color:var(--qv-ink-3);">1대 단가 *</label>
-          <input type="text" id="fup_total_amount" class="knk-money" placeholder="4,900,000" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
-        <div><label id="fup_qty_label" style="font-size:11px; color:var(--qv-ink-3);">수량 (대) *</label>
-          <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
-        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--qv-ink-3);">고객사 PO 번호</label>
-          <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--qv-line);border-radius:6px;"></div>
+        <div><label id="fup_unit_label" style="font-size:11px; color:var(--mute);">1대 단가 *</label>
+          <input type="text" id="fup_total_amount" class="knk-money" placeholder="4,900,000" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div><label id="fup_qty_label" style="font-size:11px; color:var(--mute);">수량 (대) *</label>
+          <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
+          <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
       </div>
       <!-- v5H131: 단가 × 수량 = 총액 라이브 표시 + 안내 -->
-      <div style="background:var(--qv-surface-3); border:1px solid var(--qv-line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
+      <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="color:var(--qv-ink-3);">수주 총액 (단가 × 수량)</span>
+          <span style="color:var(--mute);">수주 총액 (단가 × 수량)</span>
           <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> <span id="followup-cur">KRW</span></b>
         </div>
-        <div style="font-size:11px; color:var(--qv-ink-3); margin-top:6px; line-height:1.5;">
+        <div style="font-size:11px; color:var(--mute); margin-top:6px; line-height:1.5;">
           수량을 N대로 입력하면 <b>N개 호기 라인이 자동 생성</b>됩니다 (각 라인 = 동일 단가).<br>
           예: 단가 4,900,000 × 4대 = 19,600,000 KRW (3호기·4호기·5호기·6호기 자동 라벨링)
         </div>
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="document.getElementById('followupOrderModal').style.display='none'">취소</button>
-        <button class="btn btn-primary" onclick="submitFollowupOrder()" style="background:var(--qv-ink-2);">추가 발주 발행</button>
+        <button class="btn btn-primary" onclick="submitFollowupOrder()" style="background:var(--amber-deep);">추가 발주 발행</button>
       </div>
     </div>
   </div>
@@ -431,9 +430,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       align-items: center !important;
       gap: 8px !important;
     }
-    .bento.kpi-compact .kpi-label { font-size: 11px !important; margin: 0 !important; color: var(--qv-ink-3); white-space: nowrap; }
+    .bento.kpi-compact .kpi-label { font-size: 11px !important; margin: 0 !important; color: var(--mute); white-space: nowrap; }
     .bento.kpi-compact .kpi-num { font-size: 15px !important; margin: 0 !important; line-height: 1 !important; font-weight: 700; margin-left: auto !important; }
-    .bento.kpi-compact .kpi-num .unit { font-size: 9px !important; margin-left: 2px; color: var(--qv-ink-3); font-weight: 500; }
+    .bento.kpi-compact .kpi-num .unit { font-size: 9px !important; margin-left: 2px; color: var(--mute); font-weight: 500; }
     .bento.kpi-compact .kpi-trend { font-size: 10px !important; margin: 0 0 0 4px !important; }
   </style>
   <div class="bento kpi-compact" style="grid-template-columns:repeat(4,1fr);">
@@ -445,7 +444,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
     {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
     {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
-    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--qv-ink-3);">({{ _kpi_ccy }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--mute);">({{ _kpi_ccy }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
   </div>
 
   {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
@@ -471,37 +470,37 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       {% set _is_won = p.status in ('진행중', '납품완료') %}
       <div class="presales-card" id="presalesCard">
         <style>
-          .presales-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
-          .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--qv-surface-3); border-bottom: 1px solid var(--qv-line); user-select: none; }
+          .presales-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+          .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); user-select: none; }
           .presales-head .head-toggle { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
-          .presales-head .head-toggle:hover { color: var(--qv-ink-2); }
-          .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--qv-ink); display: flex; align-items: center; gap: 8px; }
-          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--qv-surface-2); color: var(--qv-ink-2); }
-          .presales-head .toggle { font-size: 14px; color: var(--qv-ink-3); transition: transform .2s; }
+          .presales-head .head-toggle:hover { color: var(--amber-deep); }
+          .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--amber-glow); color: var(--amber-deep); }
+          .presales-head .toggle { font-size: 14px; color: var(--mute); transition: transform .2s; }
           .presales-card.collapsed .toggle { transform: rotate(-90deg); }
           .presales-card.collapsed .presales-body { display: none; }
           .presales-card.collapsed .presales-head { border-bottom: none; }
           .presales-head .head-actions { display: flex; gap: 6px; }
-          .presales-head .btn-mini { font-size: 12.5px; padding: 5px 11px; border-radius: 5px; cursor: pointer; border: 1px solid var(--qv-line); background: var(--qv-surface-2); color: var(--qv-ink); font-weight: 600; transition: all .15s; }
-          .presales-head .btn-mini:hover { background: var(--qv-surface-2); border-color: var(--qv-line-3); }
-          .presales-head .btn-mini.primary { background: var(--qv-ink-2); color: white; border-color: var(--qv-ink-2); }
-          .presales-head .btn-mini.primary:hover { background: var(--qv-line-3); }
+          .presales-head .btn-mini { font-size: 12.5px; padding: 5px 11px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
+          .presales-head .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
+          .presales-head .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
+          .presales-head .btn-mini.primary:hover { background: var(--amber); }
           .presales-body { padding: 12px 18px; }
-          .ps-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--qv-line); flex-wrap: nowrap; }
+          .ps-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: nowrap; }
           .ps-row:last-child { border-bottom: none; }
-          .ps-row .lbl { font-size: 13px; font-weight: 700; color: var(--qv-ink); white-space: nowrap; min-width: 80px; }
-          .ps-row .date { font-size: 12.5px; color: var(--qv-ink-3); font-family: monospace; white-space: nowrap; min-width: 100px; }
+          .ps-row .lbl { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; min-width: 80px; }
+          .ps-row .date { font-size: 12.5px; color: var(--mute); font-family: monospace; white-space: nowrap; min-width: 100px; }
           .ps-row .chk { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-width: 100px; }
           .ps-row .chk input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--success); cursor: pointer; flex-shrink: 0; }
-          .ps-row .chk-label { font-size: 12px; font-weight: 600; color: var(--qv-ink-3); white-space: nowrap; }
+          .ps-row .chk-label { font-size: 12px; font-weight: 600; color: var(--mute); white-space: nowrap; }
           .ps-row.submitted .chk-label { color: var(--success); }
           .ps-row .memo-wrap { flex: 1; min-width: 0; }
-          .ps-row .memo-wrap input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--qv-line); border-radius: 5px; background: var(--qv-surface-2); color: var(--qv-ink); transition: border-color .15s; }
-          .ps-row .memo-wrap input:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 2px var(--qv-surface-2); }
+          .ps-row .memo-wrap input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); color: var(--ink); transition: border-color .15s; }
+          .ps-row .memo-wrap input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
           /* 잠금 상태 — 체크박스·메모 input 비활성화 (가독성 유지: 텍스트는 진하게 + 점선 테두리) */
           .presales-card:not(.unlocked) .ps-row input[type="checkbox"] { pointer-events: none; }
           .presales-card:not(.unlocked) .ps-row .memo-wrap input { background: transparent; border-style: dashed; pointer-events: none; }
-          .presales-card.unlocked .ps-row .memo-wrap input { background: var(--qv-surface-2); border-style: solid; }
+          .presales-card.unlocked .ps-row .memo-wrap input { background: var(--paper); border-style: solid; }
         </style>
         <div class="presales-head">
           <div class="head-toggle" onclick="togglePresales()">
@@ -655,17 +654,17 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 
       <!-- v5H93: 수주 내역 — 카드형 레이아웃 (한 SO = 한 카드, 호기 라인 항상 노출) -->
       <style>
-        .so-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); overflow: hidden; box-shadow: var(--shadow-sm); }
-        .so-card-head { display: flex; align-items: center; gap: 14px; padding: 8px 12px; background: var(--qv-surface-3); border-bottom: 1px solid var(--qv-line); flex-wrap: wrap; }
+        .so-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); overflow: hidden; box-shadow: var(--shadow-sm); }
+        .so-card-head { display: flex; align-items: center; gap: 14px; padding: 8px 12px; background: var(--paper-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
         .so-card-head .so-no { font-family: monospace; font-weight: 700; font-size: 18px; color: var(--knk-red); letter-spacing: 0.02em; }
         .so-card-head .so-no a { color: inherit; text-decoration: none; }
         .so-card-head .so-no a:hover { text-decoration: underline; }
         /* v5H226z80: so-card 자연스러운 배치 + 액션 우선순위 정렬 */
         /* 2행 so-meta: 운영 정보(발주/납기/납품처) 좌측 그룹 + 메타(통화/최초수주) 우측 그룹 */
-        .so-meta { display: flex; gap: 2px 16px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--qv-ink); order: 10; margin-top: 0; padding-top: 2px; justify-content: flex-start; }
+        .so-meta { display: flex; gap: 2px 16px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--ink); order: 10; margin-top: 0; padding-top: 2px; justify-content: flex-start; }
         .so-meta .item { display: inline-flex; align-items: center; gap: 3px; line-height: 1.4; }
         .so-meta .item:nth-child(4) { margin-left: auto; }  /* 💱 통화 부터 우측 그룹 */
-        .so-meta .item .k { color: var(--qv-ink-3); font-weight: 500; font-size: 11.5px; }
+        .so-meta .item .k { color: var(--mute); font-weight: 500; font-size: 11.5px; }
         .so-meta .item .v { font-weight: 700; }
         /* 1행 so-actions: 우측 정렬 + 사용 빈도 순(수정→추가→크게보기) + 삭제 분리 */
         .so-actions { order: 5; margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -676,9 +675,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-actions .danger { order: 99; margin-left: 14px; }
         @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 2px 10px; } .so-meta .item:nth-child(4) { margin-left: 0; } }
         .so-actions { display: flex; gap: 6px; }
-        .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--qv-line); background: var(--qv-surface-2); color: var(--qv-ink); font-weight: 600; transition: all .15s; }
-        .so-actions .btn-mini:hover { background: var(--qv-surface-2); border-color: var(--qv-line-3); }
-        .so-actions .btn-mini.primary { background: var(--qv-ink-2); color: white; border-color: var(--qv-ink-2); }
+        .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
+        .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
+        .so-actions .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
         .so-actions .btn-mini.danger:hover { background: #fff1f1; border-color: var(--knk-red); color: var(--knk-red); }
 
         /* v5H226z85: table-layout fixed — th width 강제 준수 (auto는 콘텐츠 따라 늘어남) */
@@ -688,43 +687,46 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-units td .display-val { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
         .so-units td select.unit-edit, .so-units td input.unit-edit { max-width: 100% !important; box-sizing: border-box; }
         /* v5H226z83: 헤더는 모두 중앙, 데이터는 컬럼별 룰 (호기/단가=우측, 통화/거래/일자/상태=중앙, 납품처/비고=좌측) */
-        .so-units th { text-align: center; padding: 6px 8px; font-size: 11px; color: var(--qv-ink-2); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--qv-surface-2); border-bottom: 1px solid var(--qv-line); }
+        /* v5H226z117: PARTS 표 가로 스크롤바 중복 제거 — wrapper 스크롤바 시각 숨김 (sticky proxy 만 노출) */
+        .so-units-wrapper { scrollbar-width: none; -ms-overflow-style: none; }
+        .so-units-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
+        .so-units th { text-align: center; padding: 6px 8px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
         .so-units th.num { text-align: center; }
         .so-units th.center { text-align: center; }
         .so-units th.left { text-align: left; }
-        .so-units td { padding: 6px 8px; border-bottom: 1px solid var(--qv-line); vertical-align: middle; }
+        .so-units td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
         .so-units td.num { text-align: right; font-weight: 600; font-family: monospace; }
         .so-units td.center { text-align: center; }
         .so-units td.right { text-align: right; font-weight: 600; }
         .so-units td.center { text-align: center; }
         .so-units tr:last-child td { border-bottom: 0; }
-        .so-units .lbl { font-weight: 700; color: var(--qv-ink); }
+        .so-units .lbl { font-weight: 700; color: var(--ink); }
         .so-units .price { color: var(--knk-red); }
-        .so-units .note { color: var(--qv-ink-3); font-size: 12px; }
-        .so-units input.unit-edit { padding: 4px 8px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 13px; background: var(--qv-surface-2); }
-        .so-units input.unit-edit:focus { outline: none; border-color: var(--qv-line-3); box-shadow: 0 0 0 2px var(--qv-surface-2); }
+        .so-units .note { color: var(--mute); font-size: 12px; }
+        .so-units input.unit-edit { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: var(--paper); }
+        .so-units input.unit-edit:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
         .so-units input.unit-edit.amt { width: 130px; text-align: right; font-family: monospace; font-weight: 700; color: var(--knk-red); }
         .so-units input.unit-edit.lbl-inp { width: 90px; }
         .so-units input.unit-edit.note-inp { width: 100%; min-width: 140px; }
-        .so-units .row-save { display: none; padding: 4px 8px; background: var(--qv-ink-2); color: white; border: 0; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .so-units .row-save { display: none; padding: 4px 8px; background: var(--amber-deep); color: white; border: 0; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; }
 
-        .so-card-foot { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--qv-surface-2); border-top: 1px solid var(--qv-line); font-size: 13px; }
-        .so-card-foot .summary { color: var(--qv-ink); }
+        .so-card-foot { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--paper); border-top: 1px solid var(--line); font-size: 13px; }
+        .so-card-foot .summary { color: var(--ink); }
         .so-card-foot .summary b { color: var(--knk-red); font-size: 15px; font-family: monospace; margin: 0 4px; }
-        .so-card-foot .ago { color: var(--qv-ink-3); font-size: 11.5px; }
+        .so-card-foot .ago { color: var(--mute); font-size: 11.5px; }
         .so-card-foot .warn { color: var(--knk-red); font-weight: 700; font-size: 12px; }
 
-        .add-unit-card { padding: 12px 16px; background: var(--qv-surface-2); border-top: 1px dashed var(--qv-line-3); display: none; }
+        .add-unit-card { padding: 12px 16px; background: var(--amber-glow); border-top: 1px dashed var(--amber); display: none; }
         .add-unit-card.open { display: block; }
         .add-unit-card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        .add-unit-card input, .add-unit-card select { padding: 7px 10px; border: 1px solid var(--qv-line); border-radius: 5px; font-size: 13px; background: var(--qv-surface-2); }
+        .add-unit-card input, .add-unit-card select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; font-size: 13px; background: var(--paper); }
         .add-unit-card input.amt { width: 130px; text-align: right; }
         .add-unit-card input.note { flex: 1; min-width: 140px; }
-        .add-unit-card .save-btn { background: var(--qv-ink-2); color: white; border: 0; border-radius: 5px; padding: 7px 16px; font-weight: 700; cursor: pointer; }
-        .add-unit-card .cancel-btn { background: transparent; border: 1px solid var(--qv-line); color: var(--qv-ink-3); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
+        .add-unit-card .save-btn { background: var(--amber-deep); color: white; border: 0; border-radius: 5px; padding: 7px 16px; font-weight: 700; cursor: pointer; }
+        .add-unit-card .cancel-btn { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
 
-        .so-grand-total { padding: 14px 18px; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); margin-top: var(--space-3); display: flex; justify-content: space-between; align-items: center; }
-        .so-grand-total .label { font-size: 13px; color: var(--qv-ink-3); font-weight: 600; }
+        .so-grand-total { padding: 14px 18px; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-top: var(--space-3); display: flex; justify-content: space-between; align-items: center; }
+        .so-grand-total .label { font-size: 13px; color: var(--mute); font-weight: 600; }
         .so-grand-total .value { font-size: 22px; font-weight: 700; color: var(--knk-red); font-family: monospace; }
 
         /* v5H197: 잠금/해제 패턴 — input 은 항상 보이지만 기본은 disabled.
@@ -756,11 +758,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable:not(.unlocked) input.unit-edit,
         .so-card.editable:not(.unlocked) select.unit-edit {
           background: #fbfaf6 !important;
-          color: var(--qv-ink) !important;
+          color: var(--ink) !important;
           font-weight: 600 !important;
           cursor: not-allowed !important;
           pointer-events: none;
-          border: 1px dashed var(--qv-line) !important;
+          border: 1px dashed var(--line) !important;
           opacity: 1 !important;
         }
         /* 잠금 상태에서도 단가는 빨강 강조 유지 (수주액 가독성) */
@@ -778,12 +780,12 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         /* unlock 시 정상 입력 스타일 */
         .so-card.editable.unlocked input.unit-edit,
         .so-card.editable.unlocked select.unit-edit {
-          background: var(--qv-surface-2);
-          color: var(--qv-ink);
+          background: var(--paper);
+          color: var(--ink);
           font-weight: 500;
           cursor: text;
           pointer-events: auto;
-          border: 1px solid var(--qv-line);
+          border: 1px solid var(--line);
         }
         /* 잠금 상태에서 일괄적용 / 호기 추가 / 라인삭제 / 호기 상태 일괄 모두 숨김 */
         .so-card.editable:not(.unlocked) .bulk-status-tools,
@@ -791,9 +793,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable:not(.unlocked) .row-del,
         .so-card.editable:not(.unlocked) .add-unit { display: none !important; }
         /* '✏️ 수정' / '💾 변경사항 저장' 토글 버튼 */
-        .so-card .toggle-edit { background: var(--qv-surface-2); border: 1px solid var(--qv-line); color: #475569; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
-        .so-card .toggle-edit:hover { background: var(--qv-surface-3); }
-        .so-card.editable.unlocked .toggle-edit { background: var(--qv-ink-2); border-color: var(--qv-ink-2); color: #fff; }
+        .so-card .toggle-edit { background: var(--paper); border: 1px solid var(--line); color: #475569; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card .toggle-edit:hover { background: var(--paper-2); }
+        .so-card.editable.unlocked .toggle-edit { background: var(--amber-deep); border-color: var(--amber-deep); color: #fff; }
         .so-card.editable.unlocked .toggle-edit:hover { filter: brightness(1.05); }
       </style>
 
@@ -802,7 +804,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
            대체. 거래구분·비고가 필요하면 추후 별도 위치에 재배치 가능. #}
         <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span>📋 수주 내역 ({{ project_orders|default([])|length }}건)</span>
-          {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--qv-ink-3);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
+          {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
         </h3>
         {% if project_orders %}
         <div class="list-scroll">
@@ -824,15 +826,15 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
                   <span class="v display-val">{{ so.order_date|default('-') }}</span>
-                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--qv-line);border-radius:4px;font-size:12px;background:var(--qv-surface-2);">{% endif %}
+                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="order_date" data-orig="{{ so.order_date or '' }}" value="{{ so.order_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">→ 납기</span>
                   <span class="v display-val">{{ so.due_date|default('-') }}</span>
-                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--qv-line);border-radius:4px;font-size:12px;background:var(--qv-surface-2);">{% endif %}
+                  {% if _editable %}<input type="date" class="so-meta-edit knk-cal" data-field="due_date" data-orig="{{ so.due_date or '' }}" value="{{ so.due_date or '' }}" style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);">{% endif %}
                 </span>
                 <span class="item"><span class="k">📍 납품처</span>
                   <span class="v display-val">{{ so.ship_to|default('미지정') }}</span>
-                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--qv-line);border-radius:4px;font-size:12px;background:var(--qv-surface-2);width:130px;">{% endif %}
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:130px;">{% endif %}
                 </span>
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
@@ -843,6 +845,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <button type="button" class="so-fs-btn" data-soid="{{ so.id }}" title="SO 카드를 화면 거의 전체로 펼쳐 보기">🔍 크게 보기</button>
                 {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
                 <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 ({% if _so_is_parts %}정식 PACKING LIST 양식{% else %}KNK 표준 양식{% endif %})" style="text-decoration:none;">📥 엑셀 다운로드</a>
+                {# v5H226z109: 부품 수출 마진 분석 — PARTS_EXPORT SO만 노출 (Phase 0 UI mockup, 가상 데이터) #}
+                {% if _so_is_parts %}
+                <button type="button" class="btn-mini margin-btn" onclick="openMarginAnalysis({{ so.id }}, '{{ so.order_no|default('') }}')" title="자재 매입가 ↔ 수출가 마진 분석 (Phase 0 UI mockup)" style="background:#1e40af;color:#fff;border:0;">📊 마진 분석</button>
+                {% endif %}
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
                 {# v5H226z88: 카드 상단 "💾 모두 저장" — 행별 row-save 일괄 호출 #}
@@ -862,7 +868,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 {% if can_sales_del %}
                 <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})'>🗑 삭제</button>
                 {% else %}
-                <span style="color:var(--qv-line);font-size:14px;" title="삭제 권한 없음">🔒</span>
+                <span style="color:var(--line);font-size:14px;" title="삭제 권한 없음">🔒</span>
                 {% endif %}
               </div>
             </div>
@@ -875,19 +881,19 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
             {# v5H186: 호기 일괄 상태 적용 툴바 — v5H197: 잠금 시 숨김 #}
             {% if _editable %}
-            <div class="bulk-status-tools" data-dn="bulk-status-tools" data-dn-tone="amber" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--qv-line-3);font-size:12px;flex-wrap:wrap;">
-              <span style="font-weight:700;color:var(--qv-ink-2);">호기 상태 일괄 적용:</span>
-              <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--qv-line);border-radius:5px;font-size:12px;background:#fff;">
+            <div class="bulk-status-tools" data-dn="bulk-status-tools" data-dn-tone="amber" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--amber);font-size:12px;flex-wrap:wrap;">
+              <span style="font-weight:700;color:var(--amber-deep);">호기 상태 일괄 적용:</span>
+              <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:#fff;">
                 <option value="진행중">진행중</option>
                 <option value="납품완료">납품완료</option>
                 <option value="취소">취소</option>
                 <option value="보류">보류</option>
               </select>
               <button type="button" class="bulk-status-apply" data-pid="{{ p.id }}" data-oid="{{ so.id }}"
-                      style="padding:4px 12px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 수주번호 전체 적용</button>
+                      style="padding:4px 12px;background:var(--amber-deep);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 수주번호 전체 적용</button>
               <button type="button" class="bulk-status-apply-all" data-pid="{{ p.id }}"
                       style="padding:4px 12px;background:#1e3a8a;color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">프로젝트 전체 호기 적용</button>
-              <span style="color:var(--qv-ink-3);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
+              <span style="color:var(--mute);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
             </div>
             {% endif %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
@@ -929,7 +935,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th style="width:60px;"  data-pgroup="basic">BOX</th>
                   <th class="num" style="width:60px;" data-pgroup="basic">수량</th>
                   <th style="width:50px;"  data-pgroup="basic">단위</th>
-                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="customs">금액<br><span style="font-size:10px;font-weight:400;color:var(--qv-ink-3);">(VAT 별도)</span></th>
+                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="customs">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
                   <th style="width:80px;background:#e0f2fe;" data-pgroup="customs">HS CODE</th>
                   <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">DUTY</th>
                   <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">VAT</th>
@@ -978,9 +984,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td style="text-align:center;padding:4px;">
                     {% if u.image_thumb_path %}
                     <a href="{{ u.image_path or u.image_thumb_path }}" target="_blank" title="원본 보기">
-                      <img src="{{ u.image_thumb_path }}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--qv-line);">
+                      <img src="{{ u.image_thumb_path }}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">
                     </a>
-                    {% else %}<span style="color:var(--qv-ink-3);font-size:11px;">—</span>{% endif %}
+                    {% else %}<span style="color:var(--mute);font-size:11px;">—</span>{% endif %}
                   </td>
                   {% endif %}
                   {# v5H226z83: 호기 td 우측 정렬 #}
@@ -1014,7 +1020,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     <span class="display-val">{{ '{:,.0f}'.format(u.qty or 0) }}</span>
                     {% if _editable %}<input type="text" class="unit-edit qty-inp" data-orig="{{ u.qty or 0 }}" value="{{ u.qty or 0 }}" style="width:50px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
-                  <td style="font-size:11.5px;text-align:center;color:var(--qv-ink-3);">
+                  <td style="font-size:11.5px;text-align:center;color:var(--mute);">
                     <span class="display-val">{{ u.unit or 'EA' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit unit-inp" data-orig="{{ u.unit or 'EA' }}" value="{{ u.unit or 'EA' }}" style="width:42px;font-size:11.5px;text-align:center;">{% endif %}
                   </td>
@@ -1076,11 +1082,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td style="font-size:11.5px;">
                     {% if u.linked_mgmt_code %}
                     <a href="/project/{{ u.linked_project_id }}" style="color:#1e3a8a;font-weight:600;text-decoration:none;" title="{{ u.linked_project_name or '' }}">🔗 {{ u.linked_mgmt_code }}</a>
-                    {% else %}<span style="color:var(--qv-ink-3);">—</span>{% endif %}
+                    {% else %}<span style="color:var(--mute);">—</span>{% endif %}
                   </td>
                   {% endif %}
                   <td class="num">
-                    <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--qv-ink-3);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
+                    <span class="display-val price">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ '%.0f'|format(u.amount or u.unit_price or 0) }}" value="{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
@@ -1139,7 +1145,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td class="center">
                     {% if can_sales %}
                     <select class="unit-status-sel" data-uid="{{ u.id }}" data-orig="{{ _ust }}"
-                            style="padding:3px 6px;border:1px solid var(--qv-line);border-radius:4px;font-size:11.5px;font-weight:700;background:
+                            style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11.5px;font-weight:700;background:
                               {%- if _ust == '납품완료' %}#dcfce7;color:#15803d{% elif _ust == '취소' %}#fee2e2;color:#991b1b{% elif _ust == '보류' %}#f3f4f6;color:#6b7280{% else %}#fef3c7;color:#7c4a03{% endif %};cursor:pointer;">
                       <option value="진행중" {% if _ust == '진행중' %}selected{% endif %}>진행중</option>
                       <option value="납품완료" {% if _ust == '납품완료' %}selected{% endif %}>납품완료</option>
@@ -1173,7 +1179,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
               </div>
               {% endif %}
             </div>{# /outer width:100%;overflow:hidden — 부모 늘어남 방지 #}
-            <div style="font-size:11px;color:var(--qv-ink-3);padding:6px 14px;border-top:1px dashed var(--qv-line);background:var(--qv-surface-3);">
+            <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
               ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
               · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
               {% if _is_parts %}<br><span style="color:#7c4a03;">📦 부품 모드 — 가로 스크롤로 통관 정보(HS/DUTY/VAT/인보이스/관세/최종 USD/상세/PALLET/중량) 확인.</span>{% endif %}
@@ -1181,7 +1187,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {% else %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {% set _is_parts_empty = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
-            <div style="padding: 18px; text-align: center; color: var(--qv-ink-3); font-size: 13px;">
+            <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
               {% if _is_parts_empty %}
               부품이 없습니다 — '＋ 부품 추가' 또는 '📤 엑셀 업로드' (정식 PACKING LIST) 로 입력하세요.
               {% elif _is_co %}
@@ -1198,19 +1204,19 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {% set _is_parts_add = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
             <div class="add-unit-card">
               <div class="row">
-                <span style="font-weight:700;color:var(--qv-ink-2);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
+                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
                 {% if _is_parts_add %}
                 <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
-                <span style="color:var(--qv-ink-3);font-size:12px;">EA ×</span>
+                <span style="color:var(--mute);font-size:12px;">EA ×</span>
                 {% elif _is_co %}
                 <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="수량">
-                <span style="color:var(--qv-ink-3);font-size:12px;">EA ×</span>
+                <span style="color:var(--mute);font-size:12px;">EA ×</span>
                 {% else %}
                 <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
-                <span style="color:var(--qv-ink-3);font-size:12px;">대 ×</span>
+                <span style="color:var(--mute);font-size:12px;">대 ×</span>
                 {% endif %}
                 <select name="cur">
                   <option value="KRW" {% if _cur == 'KRW' %}selected{% endif %}>KRW</option>
@@ -1232,7 +1238,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             <div class="so-card-foot">
               <div class="summary">
                 <span>수량 <b>{{ _qq }}대</b></span>
-                <span style="margin-left:14px;">합계 <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b> <span style="color:var(--qv-ink-3);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
+                <span style="margin-left:14px;">합계 <b>{{ '{:,.0f}'.format(so.total_amount or 0) }}</b> <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
                 <span class="warn" style="margin-left:14px;">
                   ⚠
@@ -1260,8 +1266,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             <div class="label">총 수주번호 {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
           </div>
           <div class="value">
-            {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">{{ _gt_ccy }}</span>
-            <span style="font-size:11px;color:var(--qv-ink-3);font-weight:500;">(수주번호 합계)</span>
+            {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">{{ _gt_ccy }}</span>
+            <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
             {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
               ≈ {{ '{:,.0f}'.format(_gtotal.t * p.fx_rate) }} KRW
@@ -1617,7 +1623,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         </script>
         {% include "_v5_partials/password_confirm.html" %}
         {% else %}
-        <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">
+        <div style="padding:20px;text-align:center;color:var(--mute);font-size:13px;">
           {% if not p.mgmt_code %}
           🟡 아직 수주 확정 전입니다 (제안 단계)<br>
           <span style="font-size:11px;">상단 <b>"✓ 수주 확정"</b> 버튼으로 관리번호와 수주번호를 발급하세요.</span>
@@ -1644,7 +1650,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           <thead><tr><th>일자</th><th>담당</th><th>제목</th><th class="center">상태</th><th class="num">공수</th></tr></thead>
           <tbody>
           {% for t in tasks[:20] %}
-            <tr><td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td><td class="num">{{ t.hours|default(0) }}h</td></tr>
+            <tr><td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.work_date }}</td><td>{{ t.user_name|default('—') }}</td><td>{{ t.title }}</td><td class="center"><span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span></td><td class="num">{{ t.hours|default(0) }}h</td></tr>
           {% endfor %}
           </tbody>
         </table></div>
@@ -1653,15 +1659,15 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 
       {# v5H137 (2026-05-05): 부모 프로젝트(장비) 안내 배너 — 소모품·수리 유형일 때 #}
       {% if (p.project_type in ('CONSUMABLE','SERVICE')) and parent_project %}
-      <div class="section-card" style="background:#fff7e6;border-color:var(--qv-line-3);">
-        <div style="font-size:13px;line-height:1.6;color:var(--qv-ink);">
+      <div class="section-card" style="background:#fff7e6;border-color:var(--amber);">
+        <div style="font-size:13px;line-height:1.6;color:var(--ink);">
           {% if p.project_type == 'CONSUMABLE' %}📦 이 프로젝트는{% else %}🔨 이 프로젝트는{% endif %}
           <a href="/project/{{ parent_project.id }}"
-             style="font-family:monospace;color:var(--qv-ink-2);font-weight:700;text-decoration:none;">
+             style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
             [{{ parent_project.mgmt_code|default('—') }} {{ parent_project.name }}]
           </a>
           {% if p.project_type == 'CONSUMABLE' %}의 <b>소모품/부품</b> 발주 건입니다{% else %}의 <b>수리·유지보수</b> 건입니다{% endif %}.
-          <span style="color:var(--qv-ink-3);font-size:11.5px;">(고객사: {{ parent_project.customer_name|default('—') }})</span>
+          <span style="color:var(--mute);font-size:11.5px;">(고객사: {{ parent_project.customer_name|default('—') }})</span>
         </div>
       </div>
       {% endif %}
@@ -1681,11 +1687,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
               {# v5H226z50: 자식 프로젝트 mgmt_code → .mgmt-pill sm 잉크 알약 #}
               <td><a href="/project/{{ cp.id }}" class="mgmt-pill sm{% if not cp.mgmt_code %} empty{% endif %}">{{ cp.mgmt_code|default('—') }}</a></td>
               <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
-              <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--qv-ink-3);">{{ cp.customer_name }}</span>{% endif %}</td>
+              <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
-              <td style="font-family:monospace;font-size:11px;color:var(--qv-ink-2);">{{ cp.latest_so_no|default('—') }}</td>
-              <td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ cp.last_so_date|default('—') }}</td>
-              <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(cp.total_so_amount|default(0)) }} <span style="font-size:10.5px;color:var(--qv-ink-3);">{{ cp.currency|default('KRW') }}</span></td>
+              <td style="font-family:monospace;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
+              <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(cp.total_so_amount|default(0)) }} <span style="font-size:10.5px;color:var(--mute);">{{ cp.currency|default('KRW') }}</span></td>
             </tr>
           {% endfor %}
             <tr style="background:#fef3c7;font-weight:700;">
@@ -1694,7 +1700,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             </tr>
           </tbody>
         </table></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--qv-ink-3);">자식 프로젝트는 등록 시 <b>parent_project_id</b> 로 이 장비에 귀속됩니다. 합계는 각 자식 프로젝트의 SO(수주) 총액 단순 합산입니다(통화 환산 미포함).</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">자식 프로젝트는 등록 시 <b>parent_project_id</b> 로 이 장비에 귀속됩니다. 합계는 각 자식 프로젝트의 SO(수주) 총액 단순 합산입니다(통화 환산 미포함).</div>
       </section>
       {% endif %}
 
@@ -1711,29 +1717,29 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           <tbody>
           {% for r in consumables.rows %}
             <tr>
-              <td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ r.order_date|default('—') }}</td>
-              <td style="font-family:monospace;color:var(--qv-ink-2);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
-              <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--qv-ink-3);">{{ r.spec_snapshot }}</span>{% endif %}</td>
-              <td class="num">{{ '{:,.2f}'.format(r.effective_qty|default(0)) }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--qv-ink-3);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--qv-ink-3);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
+              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ r.order_date|default('—') }}</td>
+              <td style="font-family:monospace;color:var(--amber-deep);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
+              <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ r.spec_snapshot }}</span>{% endif %}</td>
+              <td class="num">{{ '{:,.2f}'.format(r.effective_qty|default(0)) }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
               <td class="num">{{ '{:,.0f}'.format(r.unit_price|default(0)) }}{% if r.currency and r.currency != 'KRW' %} {{ r.currency }}{% endif %}</td>
               <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(r.effective_amount|default(0)) }}</td>
-              <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--qv-ink-2);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
+              <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--amber-deep);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
               <td>{{ r.supplier_name|default('—') }}</td>
-              <td style="color:var(--qv-ink-3);font-size:11px;">{{ r.link_note|default('') }}</td>
+              <td style="color:var(--mute);font-size:11px;">{{ r.link_note|default('') }}</td>
             </tr>
           {% endfor %}
-            <tr style="background:var(--qv-surface-3);font-weight:700;">
+            <tr style="background:var(--paper-2);font-weight:700;">
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
               <td class="num">{{ '{:,.2f}'.format(consumables.total_qty) }}</td>
               <td></td>
-              <td class="num" style="color:var(--qv-ink-2);">{{ '{:,.0f}'.format(consumables.total_amount) }}</td>
+              <td class="num" style="color:var(--amber-deep);">{{ '{:,.0f}'.format(consumables.total_amount) }}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
         </table></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--qv-ink-3);">PO 상세에서 라인별 [🔗 연결] 버튼으로 이 장비에 귀속할 수 있습니다. 분배 수량/% 미지정 시 라인 전체가 귀속됩니다.</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">PO 상세에서 라인별 [🔗 연결] 버튼으로 이 장비에 귀속할 수 있습니다. 분배 수량/% 미지정 시 라인 전체가 귀속됩니다.</div>
         {% else %}
-        <div style="padding:24px;text-align:center;color:var(--qv-ink-3);font-size:12.5px;">
+        <div style="padding:24px;text-align:center;color:var(--mute);font-size:12.5px;">
           이 장비(관리번호 {{ p.mgmt_code|default('—') }})에 귀속된 소모품·부품 발주가 없습니다.<br>
           <span style="font-size:11px;">PO 상세 페이지의 라인 [🔗 연결] 버튼으로 추가하세요.</span>
         </div>
@@ -1743,9 +1749,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       {# v5H142 (2026-05-05): 소모품 발주 도메인(consumable_orders) 라인 #}
       {% if consumable_orders and consumable_orders.rows %}
       <div class="section-card">
-        <h3>📦 소모품 발주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--qv-ink-2);font-size:13px;">전체보기</a>)</h3>
+        <h3>📦 소모품 발주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--amber-deep);font-size:13px;">전체보기</a>)</h3>
         <div style="overflow-x:auto;"><table style="width:100%;font-size:12.5px;border-collapse:collapse;">
-          <thead><tr style="border-bottom:2px solid var(--qv-line);">
+          <thead><tr style="border-bottom:2px solid var(--line);">
             <th style="text-align:left;padding:6px;">발주번호</th>
             <th style="text-align:left;padding:6px;">사진</th>
             <th style="text-align:left;padding:6px;">품명</th>
@@ -1756,10 +1762,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           </tr></thead>
           <tbody>
           {% for r in consumable_orders.rows %}
-            <tr style="border-bottom:1px solid var(--qv-line);">
-              <td style="padding:6px;"><a href="/consumables/{{ r.co_id }}" style="color:var(--qv-ink-2);font-weight:600;">{{ r.co_no }}</a></td>
+            <tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:6px;"><a href="/consumables/{{ r.co_id }}" style="color:var(--amber-deep);font-weight:600;">{{ r.co_no }}</a></td>
               <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
-              <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--qv-ink-3);">{{ r.model_use }}</div>{% endif %}</td>
+              <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.unit_price or 0) }}</td>
               <td class="num" style="text-align:right;padding:6px;font-weight:600;">{{ '{:,.0f}'.format(r.amount or 0) }}</td>
@@ -1769,7 +1775,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           </tbody>
           <tfoot><tr style="background:#fafafa;font-weight:700;">
             <td colspan="5" style="text-align:right;padding:6px;">합계</td>
-            <td class="num" style="text-align:right;padding:6px;color:var(--qv-ink-2);">{{ '{:,.0f}'.format(consumable_orders.total_amount) }}</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{{ '{:,.0f}'.format(consumable_orders.total_amount) }}</td>
             <td></td>
           </tr></tfoot>
         </table></div>
@@ -1780,10 +1786,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       <div class="section-card">
         <h3>최근 댓글 ({{ all_comments|length }})</h3>
         {% for c in all_comments[:10] %}
-        <div style="padding:8px 12px;background:var(--qv-surface-3);border-radius:var(--radius-sm);margin-bottom:6px;font-size:12.5px;">
+        <div style="padding:8px 12px;background:var(--paper-2);border-radius:var(--radius-sm);margin-bottom:6px;font-size:12.5px;">
           <b>{{ c.author_name }}</b>
-          <span style="color:var(--qv-ink-3);font-size:11px;">{{ c.created_at }}</span>
-          <span style="color:var(--qv-ink-3);font-size:11px;"> · {{ c.task_title }}</span>
+          <span style="color:var(--mute);font-size:11px;">{{ c.created_at }}</span>
+          <span style="color:var(--mute);font-size:11px;"> · {{ c.task_title }}</span>
           <div style="margin-top:4px;">{{ c.body|truncate(100) }}</div>
         </div>
         {% endfor %}
@@ -1796,7 +1802,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       <div class="section-card">
         <h3>프로젝트 정보</h3>
         <dl class="def">
-          <dt>관리코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--qv-ink-2);">{{ p.mgmt_code|default('—') }}</dd>
+          <dt>관리코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>수주번호</dt><dd>
             {% if project_orders %}
               {% for so in project_orders %}<span style="font-family:monospace;color:var(--knk-red);font-weight:700;">{{ so.order_no }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
@@ -1811,10 +1817,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           {% if parent_project %}
           <dt>연관 관리번호</dt><dd>
             <a href="/project/{{ parent_project.id }}"
-               style="font-family:monospace;color:var(--qv-ink-2);font-weight:700;text-decoration:none;">
+               style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
               {{ parent_project.mgmt_code|default('#'~parent_project.id) }}
             </a>
-            <span style="font-size:11px;color:var(--qv-ink-3);"> · {{ parent_project.name }}</span>
+            <span style="font-size:11px;color:var(--mute);"> · {{ parent_project.name }}</span>
           </dd>
           {% endif %}
           <dt>거래 구분</dt><dd>
@@ -1851,18 +1857,18 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
           <dt>통화 / 환율</dt><dd>
             <b id="hf_currency_disp">{{ p.currency or 'KRW' }}</b>
-            {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--qv-ink-3);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--qv-ink-3);font-size:11px;"> KRW</span>{% endif %}
+            {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--mute);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--mute);font-size:11px;"> KRW</span>{% endif %}
           </dd>
           <dt>비고</dt><dd>
-            <span id="hf_note_disp" style="font-size:12.5px;color:var(--qv-ink);">{{ p.note|default('—') }}</span>
+            <span id="hf_note_disp" style="font-size:12.5px;color:var(--ink);">{{ p.note|default('—') }}</span>
           </dd>
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">
-            {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
-            {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--qv-ink-3);" title="SO 합계 기준">⚠</span>{% endif %}
+            {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
+            {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
             {# v5H173: 외화 + fx_rate 있으면 원화 환산 표시 (저장된 amount_krw 우선, 없으면 fx_rate × _displayed_amt 즉석 환산) #}
             {% if p.currency and p.currency != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
               {% set _krw_eq = p.amount_krw if p.amount_krw else (_displayed_amt * p.fx_rate) %}
-              <div style="font-size:11px;color:var(--qv-ink-3);font-weight:600;margin-top:3px;">
+              <div style="font-size:11px;color:var(--mute);font-weight:600;margin-top:3px;">
                 ≈ <span style="color:#1e3a8a;">{{ '{:,.0f}'.format(_krw_eq) }} KRW</span>
                 <span style="color:#94a3b8;font-weight:500;">(환율 1 {{ p.currency }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
               </div>
@@ -1871,8 +1877,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {% set _pq = p.unit_qty if p.unit_qty else 1 %}
             {% set _pp = p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt) %}
             {% if _displayed_amt and _pq and _pp %}
-            <div style="font-size:11px;color:var(--qv-ink-3);font-weight:500;margin-top:4px;line-height:1.5;">
-              단가 <b style="color:var(--qv-ink);">{{ '{:,.0f}'.format(_pp) }}</b> × <b style="color:var(--qv-ink);">{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ '{:,.0f}'.format(_displayed_amt) }}</b> {{ p.currency or 'KRW' }}
+            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:4px;line-height:1.5;">
+              단가 <b style="color:var(--ink);">{{ '{:,.0f}'.format(_pp) }}</b> × <b style="color:var(--ink);">{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ '{:,.0f}'.format(_displayed_amt) }}</b> {{ p.currency or 'KRW' }}
             </div>
             {% endif %}
             {# v5H111: 호기별 분해 — 라벨 숫자 순으로 정렬 (서버 all_units_sorted)
@@ -1881,18 +1887,18 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {% set _is_parts_panel = (p.shipment_form or '')|upper == 'PARTS' %}
             {% set _is_co_panel = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {% if all_units_sorted and not (_is_parts_panel or _is_co_panel) %}
-            <div style="font-size:11px;color:var(--qv-ink-3);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--qv-line);padding-top:6px;">
+            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">
               {% for u in all_units_sorted %}
               <div>
-                <span style="color:var(--qv-ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
+                <span style="color:var(--ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
                 <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
               </div>
               {% endfor %}
             </div>
             {% elif all_units_sorted and (_is_parts_panel or _is_co_panel) %}
             {# v5H226z9: 라인 다수형 — 요약만 표시, 상세는 SO 카드 #}
-            <div style="font-size:11px;color:var(--qv-ink-3);font-weight:500;margin-top:6px;line-height:1.5;border-top:1px dashed var(--qv-line);padding-top:6px;">
-              📦 총 <b style="color:var(--qv-ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
+            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.5;border-top:1px dashed var(--line);padding-top:6px;">
+              📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
             </div>
             {% endif %}
           </dd>
@@ -1903,7 +1909,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       <div class="section-card">
         <h3>팀원 기여</h3>
         {% for k, v in by_user[:8] %}
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--qv-line);">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--line);">
           <span>{{ k }}</span><b>{{ v.cnt }}건 · {{ '%.1f'|format(v.hours) }}h</b>
         </div>
         {% endfor %}
@@ -2025,7 +2031,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
     }
     if (n === 0) {
       ack.textContent = '· 변경 없음';
-      ack.style.color = 'var(--qv-ink-3)';
+      ack.style.color = 'var(--mute)';
     } else {
       ack.innerHTML = '· ✓ ' + n + '건 적용됨 — <span style="color:var(--knk-red);">[💾 저장] 눌러야 확정</span>';
       ack.style.color = '#15803d';
@@ -2139,31 +2145,31 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 {% if (p.project_type or '')|upper == 'CONSUMABLE' %}
 <div id="coImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;width:min(720px, 92vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
-    <div style="padding:14px 18px;border-bottom:1px solid var(--qv-line);display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:15px;font-weight:800;color:var(--qv-ink);">📤 소모품 엑셀 일괄 업로드</div>
-      <button type="button" onclick="closeConsumableImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--qv-ink-3);">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 소모품 엑셀 일괄 업로드</div>
+      <button type="button" onclick="closeConsumableImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
     </div>
     <div style="padding:18px;">
-      <div style="font-size:12.5px;color:var(--qv-ink-3);line-height:1.7;margin-bottom:12px;">
+      <div style="font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px;">
         ⓘ 엑셀 헤더 자동 감지 — 품명(SUPPLIER NAME), 수량(QTY), 단가(UNIT PRICE), 모델(MODEL USE) 등.<br>
         업로드 후 미리보기에서 확정하면 현재 수주번호에 라인이 일괄 추가됩니다.
       </div>
-      <div style="border:2px dashed var(--qv-line);border-radius:8px;padding:16px;text-align:center;background:var(--qv-surface-3);">
+      <div style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--paper-2);">
         <input type="file" id="coImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
       </div>
       <div id="coImportPreview" style="margin-top:14px;display:none;">
         <div id="coImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)<span id="coImportImgCount" style="font-weight:500;color:var(--qv-ink-3);font-size:11.5px;margin-left:8px;"></span></div>
-        <div style="max-height:320px;overflow:auto;border:1px solid var(--qv-line);border-radius:6px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)<span id="coImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead style="position:sticky;top:0;background:var(--qv-surface-3);">
+            <thead style="position:sticky;top:0;background:var(--paper-2);">
               <tr>
-                <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--qv-line);width:60px;">사진</th>
-                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--qv-line);">품명</th>
-                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--qv-line);">수량</th>
-                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--qv-line);">단위</th>
-                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--qv-line);">발주일</th>
-                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--qv-line);">모델/매칭</th>
+                <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--line);width:60px;">사진</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">품명</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);">수량</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">단위</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">발주일</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);">모델/매칭</th>
               </tr>
             </thead>
             <tbody id="coImportRows"></tbody>
@@ -2172,10 +2178,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       </div>
       <div id="coImportMsg" style="margin-top:10px;font-size:12.5px;"></div>
     </div>
-    <div style="padding:12px 18px;border-top:1px solid var(--qv-line);display:flex;justify-content:flex-end;gap:8px;">
-      <button type="button" onclick="closeConsumableImport()" style="padding:8px 16px;border:1px solid var(--qv-line);background:var(--qv-surface-2);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" onclick="closeConsumableImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
       <button type="button" id="coImportConfirmBtn" onclick="confirmConsumableImport()" disabled
-              style="padding:8px 16px;border:0;background:var(--qv-ink-2);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
     </div>
   </div>
 </div>
@@ -2201,7 +2207,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
     if (!file) return;
     const fd = new FormData();
     fd.append('file', file);
-    document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--qv-ink-3);">파싱 중…</span>';
+    document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--mute);">파싱 중…</span>';
     try {
       const r = await fetch('/projects/{{ p.id }}/import-consumable-lines/parse', { method: 'POST', body: fd });
       const j = await r.json();
@@ -2232,15 +2238,15 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       const _imgPref = j.image_url_prefix || '';
       const tbody = document.getElementById('coImportRows');
       tbody.innerHTML = _coImportRows.map(r => {
-        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--qv-line);">` : '<span style="color:var(--qv-ink-3);">—</span>';
+        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">` : '<span style="color:var(--mute);">—</span>';
         return `
         <tr>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);text-align:center;">${thumb}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);">${r.part_name || '—'}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);text-align:right;">${r.qty || 0}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);font-size:11px;color:var(--qv-ink-3);">${r.unit || 'EA'}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);font-size:11px;color:var(--qv-ink-3);">${r.order_date || '—'}</td>
-          <td style="padding:5px 8px;border-bottom:1px dashed var(--qv-line);font-size:11px;color:var(--qv-ink-3);">${r.model_use || '—'}${r.linked_mgmt_code ? ' · 🔗 ' + r.linked_mgmt_code : ''}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:center;">${thumb}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);">${r.part_name || '—'}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);text-align:right;">${r.qty || 0}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.unit || 'EA'}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.order_date || '—'}</td>
+          <td style="padding:5px 8px;border-bottom:1px dashed var(--line);font-size:11px;color:var(--mute);">${r.model_use || '—'}${r.linked_mgmt_code ? ' · 🔗 ' + r.linked_mgmt_code : ''}</td>
         </tr>`;
       }).join('');
       document.getElementById('coImportPreview').style.display = 'block';
@@ -2465,24 +2471,24 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 <!-- v5H226z: 부품 형태 출고 (정식 PACKING LIST) 엑셀 업로드 모달 -->
 <div id="partsImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;width:min(900px, 94vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
-    <div style="padding:14px 18px;border-bottom:1px solid var(--qv-line);display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:15px;font-weight:800;color:var(--qv-ink);">📤 정식 PACKING LIST 엑셀 업로드 (부품 수출)</div>
-      <button type="button" onclick="closePartsImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--qv-ink-3);">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 정식 PACKING LIST 엑셀 업로드 (부품 수출)</div>
+      <button type="button" onclick="closePartsImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
     </div>
     <div style="padding:18px;">
-      <div style="font-size:12.5px;color:var(--qv-ink-3);line-height:1.7;margin-bottom:12px;">
+      <div style="font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px;">
         ⓘ <b>정식 PACKING LIST 표준 양식</b> — 헤더 자동 인식: 순번/관리코드/품명/규격/메이커/원산지/출고수량/단가/금액/입고일정 등.<br>
         <span style="color:#7c4a03;">📥 [엑셀 다운로드]</span> 로 받은 양식을 채워서 업로드하면 라인이 일괄 추가됩니다.
       </div>
-      <div style="border:2px dashed var(--qv-line);border-radius:8px;padding:16px;text-align:center;background:var(--qv-surface-3);">
+      <div style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--paper-2);">
         <input type="file" id="partsImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
       </div>
       <div id="partsImportPreview" style="margin-top:14px;display:none;">
         <div id="partsImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="partsImportCount">0</span> 건)<span id="partsImportImgCount" style="font-weight:500;color:var(--qv-ink-3);font-size:11.5px;margin-left:8px;"></span></div>
-        <div style="max-height:340px;overflow:auto;border:1px solid var(--qv-line);border-radius:6px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="partsImportCount">0</span> 건)<span id="partsImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
+        <div style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:11px;">
-            <thead style="position:sticky;top:0;background:var(--qv-surface-3);">
+            <thead style="position:sticky;top:0;background:var(--paper-2);">
               <tr>
                 <th style="padding:5px 4px;text-align:center;width:46px;">사진</th>
                 <th style="padding:5px 4px;text-align:left;">품명</th>
@@ -2504,10 +2510,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       </div>
       <div id="partsImportMsg" style="margin-top:10px;font-size:12.5px;"></div>
     </div>
-    <div style="padding:12px 18px;border-top:1px solid var(--qv-line);display:flex;justify-content:flex-end;gap:8px;">
-      <button type="button" onclick="closePartsImport()" style="padding:8px 16px;border:1px solid var(--qv-line);background:var(--qv-surface-2);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" onclick="closePartsImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
       <button type="button" id="partsImportConfirmBtn" onclick="confirmPartsImport()" disabled
-              style="padding:8px 16px;border:0;background:var(--qv-ink-2);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
     </div>
   </div>
 </div>
@@ -2530,7 +2536,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   document.getElementById('partsImportFile').addEventListener('change', async function(e){
     const file = e.target.files[0]; if (!file) return;
     const fd = new FormData(); fd.append('file', file);
-    document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--qv-ink-3);">파싱 중…</span>';
+    document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--mute);">파싱 중…</span>';
     try {
       const r = await fetch('/projects/{{ p.id }}/import-parts-lines/parse', { method: 'POST', body: fd });
       const j = await r.json();
@@ -2550,20 +2556,20 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       const _imgPref = j.image_url_prefix || '';
       const tbody = document.getElementById('partsImportRows');
       tbody.innerHTML = _ptsRows.map(r => {
-        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:38px;height:38px;object-fit:cover;border-radius:4px;border:1px solid var(--qv-line);">` : '<span style="color:var(--qv-ink-3);">—</span>';
+        const thumb = r.image_thumb_file ? `<img src="${_imgPref}${r.image_thumb_file}" style="width:38px;height:38px;object-fit:cover;border-radius:4px;border:1px solid var(--line);">` : '<span style="color:var(--mute);">—</span>';
         return `<tr>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:center;">${thumb}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);font-weight:600;">${r.part_name||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);">${r.spec||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);">${r.maker||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);">${r.supplier||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);">${r.origin||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:center;">${r.box_no||'—'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:right;">${(r.qty||0).toLocaleString()}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:center;color:var(--qv-ink-3);">${r.unit||'EA'}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:right;">${(r.unit_price||0).toLocaleString()}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);text-align:right;font-weight:600;">${(r.amount||(r.qty*r.unit_price)||0).toLocaleString()}</td>
-          <td style="padding:3px 4px;border-bottom:1px dashed var(--qv-line);font-size:10.5px;color:var(--qv-ink-3);">${r.arrival_status||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:center;">${thumb}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);font-weight:600;">${r.part_name||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);">${r.spec||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);">${r.maker||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);">${r.supplier||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);">${r.origin||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:center;">${r.box_no||'—'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:right;">${(r.qty||0).toLocaleString()}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:center;color:var(--mute);">${r.unit||'EA'}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:right;">${(r.unit_price||0).toLocaleString()}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);text-align:right;font-weight:600;">${(r.amount||(r.qty*r.unit_price)||0).toLocaleString()}</td>
+          <td style="padding:3px 4px;border-bottom:1px dashed var(--line);font-size:10.5px;color:var(--mute);">${r.arrival_status||'—'}</td>
         </tr>`;
       }).join('');
       document.getElementById('partsImportPreview').style.display = 'block';
@@ -2601,4 +2607,141 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 {% endif %}
 
 <!-- v5H226z43: z40 body.debug-on JS 제거 — partial debug_overlay.html (chrome.html line 389 include) 의 body.knk-debug + AUTO_ZONES 자동 감지 시스템으로 통합 -->
+
+<!-- v5H226z109: 마진 분석 모달 (Phase 0 UI mockup, 가상 데이터) — 빅터(01) 통합 시 API 연결 -->
+<style>
+.margin-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; }
+.margin-modal-bg.show { display:flex; }
+.margin-modal { background:#fff; width:min(900px, 96vw); max-height:90vh; overflow:auto; border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.35); }
+.margin-modal-head { display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line); background:linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color:#fff; border-radius:12px 12px 0 0; }
+.margin-modal-head h3 { margin:0; font-size:16px; font-weight:700; }
+.margin-modal-head .close-x { background:rgba(255,255,255,.2); border:0; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:14px; font-weight:700; }
+.margin-modal-head .close-x:hover { background:rgba(255,255,255,.3); }
+.margin-modal-body { padding:18px 22px; }
+.margin-info-bar { background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12.5px; color:var(--qv-ink-2); display:flex; justify-content:space-between; align-items:center; }
+.margin-info-bar b { color:var(--qv-ink); }
+.margin-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
+.margin-tbl th { background:#f1f5f9; padding:8px 10px; font-size:11px; color:var(--qv-ink-2); font-weight:700; text-align:center; border-bottom:2px solid #1e40af; letter-spacing:0.04em; text-transform:uppercase; }
+.margin-tbl td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:right; font-family:monospace; font-weight:600; }
+.margin-tbl td.left { text-align:left; font-family:'Pretendard',sans-serif; font-weight:500; }
+.margin-tbl td.center { text-align:center; }
+.margin-tbl td.code { text-align:center; font-family:monospace; color:#1e40af; font-size:11.5px; font-weight:700; }
+.margin-tbl tr.total td { background:#fef3c7; border-top:2px solid #d97706; font-weight:700; }
+.margin-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+.margin-pill.ok { background:#dcfce7; color:#15803d; }
+.margin-pill.warn { background:#fef3c7; color:#92400e; }
+.margin-pill.danger { background:#fee2e2; color:#991b1b; }
+.margin-pill.empty { background:#f3f4f6; color:#6b7280; }
+.margin-summary { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:14px; }
+.margin-kpi { background:#f8fafc; padding:10px 14px; border-radius:8px; text-align:center; }
+.margin-kpi .lbl { font-size:11px; color:var(--qv-ink-3); font-weight:600; }
+.margin-kpi .val { font-size:18px; font-weight:700; color:var(--qv-ink); margin-top:4px; font-family:monospace; }
+.margin-kpi.profit .val { color:#15803d; }
+.margin-mock-notice { margin-top:14px; padding:10px 14px; background:#fff7ed; border:1px solid #fb923c; border-radius:8px; font-size:11.5px; color:#9a3412; }
+.margin-mock-notice b { color:#7c2d12; }
+.margin-actions { display:flex; gap:8px; justify-content:flex-end; padding:12px 22px; border-top:1px solid var(--line); background:#f8fafc; border-radius:0 0 12px 12px; }
+.margin-actions .btn { padding:8px 16px; font-size:12.5px; border-radius:6px; cursor:pointer; border:1px solid var(--line); background:#fff; font-weight:600; }
+.margin-actions .btn.primary { background:#1e40af; color:#fff; border-color:#1e40af; }
+</style>
+
+<div class="margin-modal-bg" id="marginModalBg" onclick="if(event.target===this)closeMarginAnalysis()">
+  <div class="margin-modal">
+    <div class="margin-modal-head">
+      <h3>📊 마진 분석 — <span id="marginSoNo">—</span></h3>
+      <button type="button" class="close-x" onclick="closeMarginAnalysis()">✕</button>
+    </div>
+    <div class="margin-modal-body">
+      <div class="margin-info-bar">
+        <div>환율: <b>1 USD = <span id="marginFxRate">1,375</span> KRW</b> <span style="color:var(--qv-ink-3);font-size:11px;margin-left:6px;">(오늘 기준 · 계약 시점)</span></div>
+        <div style="color:var(--qv-ink-3);font-size:11px;">수출처: <b style="color:var(--biz-e);">VN-A 법인 (베트남)</b></div>
+      </div>
+
+      <table class="margin-tbl">
+        <thead><tr>
+          <th style="width:36px;">#</th>
+          <th style="width:90px;">자재코드</th>
+          <th class="left" style="text-align:left;">품명</th>
+          <th style="width:100px;">매입가 (KRW)</th>
+          <th style="width:100px;">수출가 (KRW)</th>
+          <th style="width:100px;">마진금액</th>
+          <th style="width:80px;">마진율</th>
+        </tr></thead>
+        <tbody id="marginTblBody">
+          <!-- JS로 채움 -->
+        </tbody>
+        <tfoot id="marginTblFoot"></tfoot>
+      </table>
+
+      <div class="margin-summary">
+        <div class="margin-kpi"><div class="lbl">총 매입</div><div class="val" id="marginSumCost">—</div></div>
+        <div class="margin-kpi"><div class="lbl">총 수출</div><div class="val" id="marginSumSell">—</div></div>
+        <div class="margin-kpi profit"><div class="lbl">총 이익 (마진율)</div><div class="val" id="marginSumProfit">—</div></div>
+      </div>
+
+      <div class="margin-mock-notice">
+        ⚠ <b>Phase 0 UI Mockup</b> — 본 데이터는 가상입니다. 실제 자재구매 (part_prices) ↔ 영업 수주 라인 연결은 빅터(01) 통합 사이클에서 구현 예정.
+        발주서: <code>_ORDERS/실무팀1_부품수출_마진시스템.md</code>
+      </div>
+    </div>
+    <div class="margin-actions">
+      <button type="button" class="btn" onclick="alert('Phase 1 구현 후 활성화')">📥 마진 보고서 엑셀</button>
+      <button type="button" class="btn primary" onclick="alert('Phase 1 구현 후 활성화: 자재구매 part_prices와 자동 연결')">✓ 자재 자동 연결</button>
+      <button type="button" class="btn" onclick="closeMarginAnalysis()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// v5H226z109: 마진 분석 mockup — 가상 데이터로 UI 미리보기
+function openMarginAnalysis(soId, soNo) {
+  // Phase 0: 가상 데이터. 실제 데이터는 Phase 1에서 /so/{soid}/margin-report API 호출.
+  const mockRows = [
+    { code: 'P-A001', name: '베어링 외륜 SKF 6204',     cost: 100000,  sell: 115000,  pct: 15.0, status: 'ok' },
+    { code: 'P-A002', name: '축 어셈블리 (12mm)',       cost:  80000,  sell:  88000,  pct: 10.0, status: 'ok' },
+    { code: 'P-A003', name: '센서 모듈 (광학)',         cost:   null,  sell:  50000,  pct: null, status: 'empty' },
+    { code: 'P-A004', name: 'O-Ring 세트 (M-Type)',     cost:   5000,  sell:   7500,  pct: 50.0, status: 'warn' },
+    { code: 'P-A005', name: '커넥터 (24V)',             cost:  12000,  sell:  13200,  pct: 10.0, status: 'ok' }
+  ];
+
+  document.getElementById('marginSoNo').textContent = soNo || ('SO #' + soId);
+  const tb = document.getElementById('marginTblBody');
+  tb.innerHTML = '';
+
+  let sumCost = 0, sumSell = 0;
+  mockRows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    let pillCls = 'empty', pillTxt = '미연결';
+    if (r.status === 'ok')   { pillCls = 'ok';   pillTxt = r.pct.toFixed(1) + '%'; }
+    if (r.status === 'warn') { pillCls = 'warn'; pillTxt = r.pct.toFixed(1) + '%'; }
+    if (r.status === 'danger'){ pillCls = 'danger'; pillTxt = r.pct.toFixed(1) + '%'; }
+    const profit = (r.cost && r.sell) ? (r.sell - r.cost) : null;
+    tr.innerHTML = `
+      <td class="center">${i+1}</td>
+      <td class="code">${r.code}</td>
+      <td class="left">${r.name}</td>
+      <td>${r.cost !== null ? r.cost.toLocaleString() : '<span style="color:#6b7280;">—</span>'}</td>
+      <td>${r.sell.toLocaleString()}</td>
+      <td style="color:${profit && profit > 0 ? '#15803d' : '#6b7280'};">${profit !== null ? '+' + profit.toLocaleString() : '—'}</td>
+      <td class="center"><span class="margin-pill ${pillCls}">${pillTxt}</span></td>
+    `;
+    tb.appendChild(tr);
+    if (r.cost) sumCost += r.cost;
+    sumSell += r.sell;
+  });
+
+  const sumProfit = sumSell - sumCost;
+  const sumPct = sumCost > 0 ? (sumProfit / sumCost * 100) : 0;
+
+  document.getElementById('marginSumCost').textContent = sumCost.toLocaleString();
+  document.getElementById('marginSumSell').textContent = sumSell.toLocaleString();
+  document.getElementById('marginSumProfit').textContent = '+' + sumProfit.toLocaleString() + ' (' + sumPct.toFixed(1) + '%)';
+
+  document.getElementById('marginModalBg').classList.add('show');
+}
+
+function closeMarginAnalysis() {
+  document.getElementById('marginModalBg').classList.remove('show');
+}
+</script>
+
 </main></div></body></html>

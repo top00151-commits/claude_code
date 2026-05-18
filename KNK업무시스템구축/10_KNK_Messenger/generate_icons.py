@@ -1,10 +1,14 @@
-"""아이콘 PNG 생성 — PIL로 KNK 로고 스타일 직접 그리기.
+"""KNK 메신저 PWA 아이콘 생성 — 간단 "KNK" 글자 버전 (KNK 레드 적용).
 
-매번 SVG → PNG 변환할 필요 없게 정적 PNG 두 장(192/512) 생성.
+구성:
+  - KNK 레드 그라데이션 배경 (#A5282C → #6B1015) + 둥근 모서리
+  - 흰색 "KNK" 글자 (시스템 굵은 폰트)
+  - 우하단 흰 말풍선 닷 + KNK 레드 테두리·점
+
 실행: py generate_icons.py
 """
 import os
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icons")
 os.makedirs(OUT, exist_ok=True)
@@ -28,28 +32,27 @@ def find_font(size):
 
 def make_icon(px):
     img = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
 
-    # 둥근 사각형 + 그라데이션
+    # KNK 레드 그라데이션 (#A5282C → #6B1015)
     radius = int(px * 0.19)
-    bg = Image.new("RGBA", (px, px), (37, 99, 235, 255))
     grad = Image.new("RGBA", (px, px), (0, 0, 0, 0))
     gd = ImageDraw.Draw(grad)
     for y in range(px):
         t = y / px
-        r = int(37 + (30 - 37) * t)
-        g = int(99 + (58 - 99) * t)
-        b = int(235 + (138 - 235) * t)
+        r = int(165 + (107 - 165) * t)
+        g = int(40 + (16 - 40) * t)
+        b = int(44 + (21 - 44) * t)
         gd.line([(0, y), (px, y)], fill=(r, g, b, 255))
-    bg = grad
 
-    # 라운드 마스크
+    # 둥근 모서리 마스크
     mask = Image.new("L", (px, px), 0)
     md = ImageDraw.Draw(mask)
     md.rounded_rectangle((0, 0, px, px), radius=radius, fill=255)
-    img.paste(bg, (0, 0), mask)
+    img.paste(grad, (0, 0), mask)
 
-    # KNK 텍스트
+    draw = ImageDraw.Draw(img)
+
+    # KNK 텍스트 (흰색)
     font_size = int(px * 0.32)
     font = find_font(font_size)
     text = "KNK"
@@ -58,34 +61,33 @@ def make_icon(px):
     th = bbox[3] - bbox[1]
     tx = (px - tw) // 2 - bbox[0]
     ty = (px - th) // 2 - bbox[1] - int(px * 0.04)
-    draw = ImageDraw.Draw(img)
     draw.text((tx, ty), text, font=font, fill=(255, 255, 255, 255))
 
-    # 우하단 노란 말풍선 닷
+    # 우하단 흰 말풍선 닷 (KNK 레드 테두리)
     dot_r = int(px * 0.10)
     dot_cx = int(px * 0.74)
     dot_cy = int(px * 0.74)
     draw.ellipse(
         (dot_cx - dot_r, dot_cy - dot_r, dot_cx + dot_r, dot_cy + dot_r),
-        fill=(254, 229, 0, 255),
-        outline=(30, 58, 138, 255),
+        fill=(255, 255, 255, 255),
+        outline=(165, 40, 44, 255),
         width=max(2, int(px * 0.012)),
     )
-    # 말풍선 안 ··· 점
+    # 말풍선 안 ··· 점 (KNK 레드)
     pd_r = max(1, int(px * 0.012))
     for i in range(3):
         cx = dot_cx + (i - 1) * int(px * 0.04)
         draw.ellipse(
             (cx - pd_r, dot_cy - pd_r, cx + pd_r, dot_cy + pd_r),
-            fill=(30, 58, 138, 255),
+            fill=(165, 40, 44, 255),
         )
 
     return img
 
 
-for size in (192, 512):
-    p = os.path.join(OUT, f"icon-{size}.png")
-    make_icon(size).save(p)
-    print("wrote", p)
-
-print("아이콘 생성 완료.")
+if __name__ == "__main__":
+    for size in (192, 512):
+        out = os.path.join(OUT, f"icon-{size}.png")
+        make_icon(size).save(out)
+        print(f"wrote {out}")
+    print("KNK 아이콘 생성 완료 (간단 KNK 텍스트 + KNK 레드).")

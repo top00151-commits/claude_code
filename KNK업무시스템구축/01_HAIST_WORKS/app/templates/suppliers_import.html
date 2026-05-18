@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공급사 일괄 등록 · KNK HAIST WORKS</title>
+
+{# v5H226z88 (2026-05-14) — 공급사 일괄 등록 (Excel) — 자재 일괄등록과 동일 3단계 패턴
+   라우터:
+     GET  /suppliers/import                → mode='upload'
+     POST /suppliers/import                → mode='preview' (dry_run 결과)
+     POST /suppliers/import/apply          → mode='result'  (실제 INSERT 결과)
+     GET  /suppliers/import/template.xlsx  → 템플릿 다운로드
+   전달: mode='upload'|'preview'|'result' / result{...} / file_b64 / filename #}
+
+<link href="/static/css/v5_tokens.css?v=20260514v5H226z88" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-surface: #ffffff;
+  --pq-surface-2: #f7f8fa;
+  --pq-surface-3: #eef0f4;
+  --pq-surface-inset: #fafbfc;
+  --pq-line: #eef0f4;
+  --pq-line-2: #e2e8f0;
+  --pq-ink: #0f172a;
+  --pq-ink-2: #334155;
+  --pq-ink-3: #64748b;
+  --pq-ink-4: #94a3b8;
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.pi-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pi-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pi-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
+.pi-head .crumb a { color: var(--pq-ink-3); }
+.pi-head .crumb b { color: var(--pq-ink); }
+.pi-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
+.pi-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
+.pi-actions { margin-left: auto; display: flex; gap: 8px; }
+.pi-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
+.pi-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.pi-actions a.cta { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+.pi-actions a.cta:hover { background: #1e293b; }
+
+.pi-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
+
+.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
+.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
+.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
+.qsec-h .right { margin-left: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+
+.step-bar { display: flex; padding: 14px 20px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); gap: 0; }
+.step { flex: 1; display: flex; align-items: center; gap: 8px; padding: 6px 12px; position: relative; }
+.step .n { width: 24px; height: 24px; border-radius: 50%; background: var(--pq-surface-3); color: var(--pq-ink-3); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; font-family: var(--pq-mono); }
+.step .t { font-size: 12px; font-weight: 600; color: var(--pq-ink-3); }
+.step.on .n { background: var(--pq-ink); color: #fff; }
+.step.on .t { color: var(--pq-ink); }
+.step.done .n { background: var(--pq-ok); color: #fff; }
+.step.done .t { color: var(--pq-ok); }
+.step + .step::before { content: ""; flex: 0 0 24px; height: 2px; background: var(--pq-line-2); margin-right: 8px; }
+
+.upload-zone { padding: 28px 20px; text-align: center; }
+.upload-zone .drop {
+  margin: 0 auto; max-width: 560px;
+  padding: 36px 24px; background: var(--pq-surface-inset);
+  border: 2px dashed var(--pq-line-2); border-radius: 12px;
+  transition: all 0.18s;
+}
+.upload-zone .drop.over { border-color: var(--pq-info); background: var(--pq-info-soft); }
+.upload-zone .drop .ico { font-size: 44px; opacity: 0.7; }
+.upload-zone .drop .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+.upload-zone .drop .sub { font-size: 12px; color: var(--pq-ink-3); margin-bottom: 14px; }
+.upload-zone input[type=file] { font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); margin-bottom: 10px; }
+.upload-zone .btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.upload-zone button, .upload-zone a.btn-dl { height: 36px; padding: 0 18px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+.upload-zone button.submit { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+.upload-zone a.btn-dl { background: var(--pq-info); color: #fff; border-color: var(--pq-info); }
+.upload-zone a.btn-dl:hover { background: #1c4ed8; }
+
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 14px 16px; }
+.guide-card { background: var(--pq-surface-inset); border: 1px solid var(--pq-line); border-radius: 6px; padding: 12px 14px; }
+.guide-card h4 { font-size: 12px; font-weight: 700; color: var(--pq-ink); margin-bottom: 6px; }
+.guide-card ul { margin: 0 0 0 18px; padding: 0; font-size: 11.5px; color: var(--pq-ink-3); line-height: 1.7; }
+.guide-card code { font-family: var(--pq-mono); background: var(--pq-surface); padding: 1px 5px; border-radius: 3px; color: var(--pq-info); font-size: 10.5px; }
+
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); padding: 0; background: var(--pq-surface); border-radius: 8px; border: 1px solid var(--pq-line); margin-bottom: 14px; overflow: hidden; }
+.kpi-cell { padding: 12px 14px; border-right: 1px solid var(--pq-line); }
+.kpi-cell:last-child { border-right: 0; }
+.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
+.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--pq-ink); margin-top: 3px; display: flex; align-items: baseline; gap: 3px; }
+.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
+.kpi-cell.ok .v  { color: var(--pq-ok); }
+.kpi-cell.err .v { color: var(--pq-err); }
+.kpi-cell.dup .v { color: var(--pq-warn); }
+
+.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 900px; }
+.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
+.tbl-erp tbody td { height: 36px; padding: 5px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12px; vertical-align: top; }
+.tbl-erp tbody td.center { text-align: center; }
+.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-info); }
+.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
+.tbl-erp tbody tr.error > td   { background: var(--pq-err-soft); }
+.tbl-erp tbody tr.error:nth-child(even) > td { background: #fde8e8; }
+.tbl-erp tbody tr.dup > td     { background: var(--pq-warn-soft); }
+.tbl-erp tbody tr.inserted > td { background: var(--pq-ok-soft); }
+.tbl-erp .mute { color: var(--pq-ink-4); }
+
+.chip-st { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; font-size: 11px; font-weight: 700; border-radius: 11px; font-family: var(--pq-mono); }
+.chip-st.s-ok       { background: var(--pq-info-soft); color: var(--pq-info); }
+.chip-st.s-error    { background: var(--pq-err-soft); color: var(--pq-err); }
+.chip-st.s-dup      { background: var(--pq-warn-soft); color: var(--pq-warn); }
+.chip-st.s-inserted { background: var(--pq-ok-soft); color: var(--pq-ok); }
+
+.err-list { font-size: 10.5px; color: var(--pq-err); line-height: 1.4; }
+
+.submit-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 20px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.submit-bar .note { margin-right: auto; font-size: 11.5px; color: var(--pq-ink-3); }
+.submit-bar a, .submit-bar button { height: 36px; padding: 0 18px; border-radius: 6px; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; font-family: inherit; border: 1px solid; }
+.submit-bar a.cancel { background: var(--pq-surface-2); color: var(--pq-ink-2); border-color: var(--pq-line-2); }
+.submit-bar button.apply, .submit-bar a.apply { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
+.submit-bar button.apply:hover, .submit-bar a.apply:hover { background: #1e293b; }
+</style>
+</head>
+<body>
+
+{% set m = mode|default('upload') %}
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="pi-page">
+
+      <div class="pi-head" data-dn="si:head" data-dn-tone="green">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">공급사</a> · <b>일괄 등록</b></div>
+          <div class="pi-title">📥 공급사 일괄 등록 (Excel)</div>
+          <div class="pi-meta">
+            엑셀 업로드 → 검증 미리보기 → 등록 확정 (3단계) · 공급사명 중복, 통화 오류 자동 검사
+          </div>
+        </div>
+        <div class="pi-actions">
+          <a href="/suppliers">↩ 목록</a>
+          <a href="/suppliers/import/template.xlsx" class="cta">⤓ 빈 템플릿</a>
+        </div>
+      </div>
+
+      <div class="step-bar">
+        <div class="step {% if m == 'upload' %}on{% elif m in ('preview','result') %}done{% endif %}">
+          <span class="n">1</span><span class="t">파일 업로드</span>
+        </div>
+        <div class="step {% if m == 'preview' %}on{% elif m == 'result' %}done{% endif %}">
+          <span class="n">2</span><span class="t">검증 미리보기</span>
+        </div>
+        <div class="step {% if m == 'result' %}on{% endif %}">
+          <span class="n">3</span><span class="t">등록 완료</span>
+        </div>
+      </div>
+
+      <div class="pi-body" data-dn="si:body">
+
+        {# ============== 모드 1: 업로드 ============== #}
+        {% if m == 'upload' %}
+          {% if result and result.error %}
+          <div style="padding:10px 14px;background:var(--pq-err-soft);border:1px solid var(--pq-err);border-left:4px solid var(--pq-err);border-radius:6px;color:var(--pq-err);font-size:12.5px;margin-bottom:14px;font-weight:600;">
+            ⚠ {{ result.error }}
+          </div>
+          {% endif %}
+
+          {% if has_write is defined and not has_write %}
+          <div style="padding:12px 16px;background:var(--pq-warn-soft);border:1px solid var(--pq-warn);border-left:4px solid var(--pq-warn);border-radius:8px;color:#92400e;font-size:13px;margin-bottom:14px;line-height:1.6;">
+            <b>⚠ 쓰기 권한이 없어 일괄 등록을 실행할 수 없습니다.</b><br>
+            <span style="font-size:12px;">관리자에게 <code style="font-family:var(--pq-mono);background:#fff;padding:1px 5px;border-radius:3px;">자재구매 쓰기 권한(can_use_logistics)</code> 부여를 요청하세요.</span>
+          </div>
+          {% endif %}
+
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">📥 엑셀 파일 업로드</span>
+              <span class="badge">.xlsx · 최대 10MB</span>
+            </div>
+            <form class="upload-zone" method="post" action="/suppliers/import" enctype="multipart/form-data" id="upForm">
+              <div class="drop" id="dropArea">
+                <div class="ico">🏢</div>
+                <div class="ttl">엑셀 파일을 선택하거나 드래그</div>
+                <div class="sub">공급사명 컬럼이 필수입니다</div>
+                {# v5H226z95 FIX: data-knk-no-dropzone — _v5_partials/dragdrop.html 의 autoWrap 우회.
+                   이 페이지는 자체 .drop UI 사용 → 자동 래핑 시 파일 picker 가 두 번 열리는 버그 해소. #}
+                <input type="file" name="file" accept=".xlsx,.xlsm" required id="fileInput" data-knk-no-dropzone>
+                <div class="btns">
+                  <a href="/suppliers/import/template.xlsx" class="btn-dl">⤓ 템플릿 다운로드</a>
+                  <button type="submit" class="submit">▶ 업로드 + 검증</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">📖 작성 가이드</span>
+            </div>
+            <div class="guide-grid">
+              <div class="guide-card">
+                <h4>✅ 필수 컬럼 (1개)</h4>
+                <ul>
+                  <li><code>공급사명</code> (name) — 기존 공급사명 중복 시 자동 제외</li>
+                </ul>
+              </div>
+              <div class="guide-card">
+                <h4>📋 선택 컬럼</h4>
+                <ul>
+                  <li><code>사업자등록번호</code>, <code>대표자</code>, <code>관리부서</code></li>
+                  <li><code>담당자1·2</code>, <code>전화1·2</code>, <code>이메일1·2</code></li>
+                  <li><code>국가</code>, <code>통화</code>, <code>결제조건</code>, <code>활성</code>, <code>비고</code></li>
+                </ul>
+              </div>
+              <div class="guide-card">
+                <h4>🔁 자동 헤더 매핑</h4>
+                <ul>
+                  <li><code>공급사명</code> = 거래처명 = 회사명 = name = supplier</li>
+                  <li><code>사업자등록번호</code> = 사업자번호 = biz_no</li>
+                  <li><code>대표자</code> = 대표 = ceo / <code>관리부서</code> = 부서 = dept</li>
+                  <li><code>담당자1·2</code> = 담당자 = contact / <code>전화1·2</code> = 연락처 = phone</li>
+                  <li>한글/영문 헤더 모두 인식</li>
+                </ul>
+              </div>
+              <div class="guide-card">
+                <h4>⚠ 자동 검증 항목</h4>
+                <ul>
+                  <li><b style="color:var(--pq-err);">error</b> — 공급사명 누락 / 통화 값 오류</li>
+                  <li><b style="color:var(--pq-warn);">dup</b> — 공급사명 중복 (기존 DB / 파일 내)</li>
+                  <li><b style="color:var(--pq-info);">ok</b> — 정상, 등록 가능</li>
+                  <li>통화: KRW / USD / JPY / CNY / EUR / VND</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        {# ============== 모드 2: 미리보기 ============== #}
+        {% if m == 'preview' %}
+          {% if result.error %}
+          <div style="padding:14px 18px;background:var(--pq-err-soft);border:1px solid var(--pq-err);border-radius:8px;color:var(--pq-err);font-size:13px;font-weight:600;margin-bottom:14px;">
+            ⚠ <b>업로드 오류:</b> {{ result.error }}
+            <div style="margin-top:8px;font-weight:500;font-size:12px;">
+              <a href="/suppliers/import" style="color:var(--pq-err);text-decoration:underline;">← 다시 업로드</a>
+            </div>
+          </div>
+          {% else %}
+
+          <div style="padding:9px 14px;background:var(--pq-info-soft);border:1px solid var(--pq-info);border-radius:6px;color:var(--pq-info);font-size:12px;font-weight:600;margin-bottom:14px;">
+            ✓ <b>{{ filename }}</b> 파싱 완료 — 아래 결과 확인 후 [등록 확정] 버튼을 눌러주세요. (이 단계에서는 DB 변경 0건)
+          </div>
+
+          {% set s = result.summary or {} %}
+          <div class="kpi-strip">
+            <div class="kpi-cell">
+              <div class="l">전체 행</div>
+              <div class="v">{{ result.total|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell ok">
+              <div class="l">✓ 정상</div>
+              <div class="v">{{ s.ok|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell dup">
+              <div class="l">⊘ 중복</div>
+              <div class="v">{{ s.dup|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell err">
+              <div class="l">⨯ 오류</div>
+              <div class="v">{{ s.error|default(0) }}<span class="u">건</span></div>
+            </div>
+          </div>
+
+          {% if result.unmapped_headers %}
+          <div style="padding:9px 14px;background:var(--pq-warn-soft);border-left:3px solid var(--pq-warn);border-radius:6px;color:var(--pq-warn);font-size:11.5px;margin-bottom:14px;">
+            ℹ 매핑 안 된 헤더:
+            {% for h in result.unmapped_headers %}<code style="background:#fff;padding:1px 4px;border-radius:2px;margin-right:4px;">{{ h.header }}</code>{% endfor %}
+            <span style="margin-left:6px;color:var(--pq-ink-4);">— 위 컬럼들은 무시됩니다</span>
+          </div>
+          {% endif %}
+
+          {# v5H226z96 — 등록 진행 중 풀스크린 오버레이 (form submit 시 JS 가 표시) #}
+          <div id="applyOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,0.55);align-items:center;justify-content:center;">
+            <div style="background:#fff;padding:28px 36px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);text-align:center;min-width:300px;">
+              <div style="width:48px;height:48px;border:4px solid #e5e7eb;border-top-color:var(--pq-ink);border-radius:50%;margin:0 auto 14px;animation:knkSpin 0.8s linear infinite;"></div>
+              <div style="font-size:15px;font-weight:700;color:var(--pq-ink);margin-bottom:6px;">⏳ 등록 중...</div>
+              <div style="font-size:12px;color:var(--pq-ink-3);line-height:1.5;">서버에서 데이터를 등록하고 있습니다.<br>잠시만 기다려주세요 — 페이지를 닫지 마세요.</div>
+            </div>
+          </div>
+          <style>@keyframes knkSpin { to { transform: rotate(360deg); } }</style>
+
+          <form method="post" action="/suppliers/import/apply" id="applyForm">
+            <input type="hidden" name="file_b64" value="{{ file_b64 }}">
+            <input type="hidden" name="filename" value="{{ filename }}">
+
+            <div class="qsec">
+              <div class="qsec-h">
+                <span class="ttl">📋 미리보기 ({{ result.preview|length }}건{% if result.preview_truncated %} / 200건 제한{% endif %})</span>
+                <span class="right">정상(ok) 행만 등록됩니다</span>
+              </div>
+              <div style="overflow:auto;max-height:60vh;">
+                <table class="tbl-erp">
+                  <thead>
+                    <tr>
+                      <th class="center" style="width:48px;">#</th>
+                      <th class="center" style="width:60px;">행</th>
+                      <th class="center" style="width:90px;">상태</th>
+                      <th>공급사명 / 대표자</th>
+                      <th style="width:140px;">사업자번호</th>
+                      <th style="width:100px;">담당자</th>
+                      <th style="width:150px;">연락처</th>
+                      <th style="width:170px;">검사 결과</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {% for p in result.preview %}
+                    <tr class="{{ p.status }}">
+                      <td class="center mute">{{ loop.index }}</td>
+                      <td class="center mute" style="font-family:var(--pq-mono);">{{ p.row_no }}</td>
+                      <td class="center"><span class="chip-st s-{{ p.status }}">{{ p.status }}</span></td>
+                      <td><b>{{ p.data.name|default('—') }}</b>
+                        {% if p.data.ceo_name %}<span class="mute" style="font-size:10.5px;"> · 대표 {{ p.data.ceo_name }}</span>{% endif %}
+                        {% if p.data.manage_dept %}<span class="mute" style="font-size:10.5px;"> · 🏛 {{ p.data.manage_dept }}</span>{% endif %}
+                        {% if p.data.country %}<span class="mute" style="font-size:10.5px;"> · {{ p.data.country }}</span>{% endif %}
+                        {% if p.data.currency %}<span class="mute" style="font-size:10.5px;"> · {{ p.data.currency }}</span>{% endif %}
+                      </td>
+                      <td class="code" style="font-weight:500;">{{ p.data.biz_no|default('—') }}</td>
+                      <td>{{ p.data.contact|default('—') }}
+                        {% if p.data.contact2 %}<div class="mute" style="font-size:10.5px;">+ {{ p.data.contact2 }}</div>{% endif %}
+                      </td>
+                      <td class="mute" style="font-size:11px;">
+                        {% if p.data.phone %}{{ p.data.phone }}{% endif %}
+                        {% if p.data.email %}{% if p.data.phone %}<br>{% endif %}{{ p.data.email }}{% endif %}
+                        {% if not p.data.phone and not p.data.email %}—{% endif %}
+                      </td>
+                      <td>
+                        {% if p.errors %}
+                          <div class="err-list">⚠ {{ p.errors|join(' / ') }}</div>
+                        {% else %}
+                          <span class="mute" style="font-size:11px;">✓ 등록 가능</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="submit-bar">
+              <span class="note">💡 정상({{ s.ok|default(0) }}) 행만 등록됩니다. 중복·오류 행은 자동 제외.</span>
+              <a href="/suppliers/import" class="cancel">← 다시 업로드</a>
+              <button type="submit" class="apply" onclick="return confirm('총 {{ s.ok|default(0) }}건의 공급사를 등록합니다. 계속하시겠습니까?');">✓ 등록 확정 ({{ s.ok|default(0) }}건)</button>
+            </div>
+          </form>
+          {% endif %}
+        {% endif %}
+
+        {# ============== 모드 3: 결과 ============== #}
+        {% if m == 'result' %}
+          {% if result.error %}
+          <div style="padding:14px 18px;background:var(--pq-err-soft);border:1px solid var(--pq-err);border-radius:8px;color:var(--pq-err);font-size:13px;font-weight:600;margin-bottom:14px;">
+            ⚠ <b>등록 실패:</b> {{ result.error }}
+            <div style="margin-top:8px;font-weight:500;font-size:12px;">
+              <a href="/suppliers/import" style="color:var(--pq-err);text-decoration:underline;">← 처음으로</a>
+            </div>
+          </div>
+          {% else %}
+          {% set s = result.summary or {} %}
+
+          <div style="padding:14px 18px;background:var(--pq-ok-soft);border:1px solid var(--pq-ok);border-left:4px solid var(--pq-ok);border-radius:8px;color:var(--pq-ok);font-size:14px;font-weight:700;margin-bottom:14px;">
+            ✅ <b>등록 완료</b> — {{ s.inserted|default(0) }}건 공급사 신규 등록 (파일: {{ filename }})
+          </div>
+
+          <div class="kpi-strip">
+            <div class="kpi-cell ok">
+              <div class="l">✓ 등록됨</div>
+              <div class="v">{{ s.inserted|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell dup">
+              <div class="l">⊘ 중복 스킵</div>
+              <div class="v">{{ s.dup|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell err">
+              <div class="l">⨯ 오류</div>
+              <div class="v">{{ s.error|default(0) }}<span class="u">건</span></div>
+            </div>
+            <div class="kpi-cell">
+              <div class="l">전체 행</div>
+              <div class="v">{{ result.total|default(0) }}<span class="u">건</span></div>
+            </div>
+          </div>
+
+          {% if result.inserted_ids %}
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">🏢 등록된 공급사 ({{ result.inserted_ids|length }}건)</span>
+              <span class="right">클릭하여 상세 확인</span>
+            </div>
+            <table class="tbl-erp">
+              <thead>
+                <tr>
+                  <th class="center" style="width:48px;">#</th>
+                  <th class="center" style="width:60px;">행</th>
+                  <th style="width:80px;">ID</th>
+                  <th>등록 공급사</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for it in result.inserted_ids %}
+                <tr class="inserted">
+                  <td class="center mute">{{ loop.index }}</td>
+                  <td class="center mute" style="font-family:var(--pq-mono);">{{ it.row_no }}</td>
+                  <td class="center"><a href="/suppliers/{{ it.id }}/edit" target="_blank" style="font-family:var(--pq-mono);font-weight:700;color:var(--pq-info);">#{{ it.id }}</a></td>
+                  <td><a href="/suppliers/{{ it.id }}/edit" style="color:var(--pq-ink-2);text-decoration:none;"><b>{{ it.name }}</b> · 상세·수정 →</a></td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+
+          {% if s.error or s.dup %}
+          <div class="qsec">
+            <div class="qsec-h">
+              <span class="ttl">⚠ 처리 안 된 행</span>
+              <span class="right">아래 행은 등록되지 않았습니다. 수정 후 재업로드 권장.</span>
+            </div>
+            <table class="tbl-erp">
+              <thead>
+                <tr>
+                  <th class="center" style="width:48px;">#</th>
+                  <th class="center" style="width:60px;">행</th>
+                  <th class="center" style="width:90px;">상태</th>
+                  <th style="width:280px;">공급사명</th>
+                  <th>오류 / 사유</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for p in result.preview if p.status in ('error','dup') %}
+                <tr class="{{ p.status }}">
+                  <td class="center mute">{{ loop.index }}</td>
+                  <td class="center mute" style="font-family:var(--pq-mono);">{{ p.row_no }}</td>
+                  <td class="center"><span class="chip-st s-{{ p.status }}">{{ p.status }}</span></td>
+                  <td>{{ p.data.name|default('—') }}</td>
+                  <td><div class="err-list">{{ p.errors|join(' / ') }}</div></td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+
+          <div class="submit-bar">
+            <a href="/suppliers/import" class="cancel">📥 새 일괄 등록</a>
+            <a href="/suppliers" class="apply">→ 공급사 목록 보기</a>
+          </div>
+          {% endif %}
+        {% endif %}
+
+      </div>
+    </div>
+  </main>
+</div>
+{% include "_v5_partials/debug_overlay.html" ignore missing %}
+
+<script>
+// 드래그앤드롭 (시각 효과 + 파일 주입)
+(function(){
+  var drop = document.getElementById('dropArea');
+  var fileInput = document.getElementById('fileInput');
+  if (!drop || !fileInput) return;
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.add('over'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    var files = e.dataTransfer.files;
+    if (files && files[0]) { fileInput.files = files; }
+  });
+})();
+
+// v5H226z96 — 등록 확정 시 진행 중 오버레이 표시 (대량 등록 시 사용자 대기 안내)
+(function(){
+  var form = document.getElementById('applyForm');
+  var overlay = document.getElementById('applyOverlay');
+  if (!form || !overlay) return;
+  form.addEventListener('submit', function(){
+    // 사용자가 onclick confirm 통과 후 도달 — 폼이 실제 제출되는 시점
+    overlay.style.display = 'flex';
+    var btn = form.querySelector('button.apply');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 등록 중...'; }
+    // 다시 누르지 못하게 form 전체 비활성화 (시각적·기능적)
+    Array.prototype.forEach.call(form.querySelectorAll('button, input, a.cancel'), function(el){
+      el.style.pointerEvents = 'none';
+      if (el.tagName === 'BUTTON') el.disabled = true;
+    });
+  });
+})();
+</script>
+</body>
+</html>

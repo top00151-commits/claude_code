@@ -5,9 +5,9 @@
   --border: #e5e7eb;
   --text: #111827;
   --text-soft: #6b7280;
-  --accent: #2563eb;
-  --accent-soft: #dbeafe;
-  --bubble-me: #fee500;       /* 카카오 노랑 — 친숙함 */
+  --accent: #A5282C;          /* KNK 레드 — 브랜드 메인 (HAIST WORKS 토큰 일치) */
+  --accent-soft: #FEF2F2;     /* 옅은 KNK 레드 — 호버 배경·서브 영역 */
+  --bubble-me: #FAD7D9;       /* 옅은 KNK 핑크 — 내 메시지 배경 */
   --bubble-me-text: #1f1f1f;
   --bubble-other: #ffffff;
   --bubble-other-text: #111827;
@@ -32,7 +32,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
   display: grid;
   place-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
+  background: linear-gradient(135deg, #A5282C 0%, #6B1015 100%);
   padding: 16px;
 }
 .login-card {
@@ -45,7 +45,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
 }
 .brand-mark {
   width: 56px; height: 56px; border-radius: 14px;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #A5282C, #6B1015);   /* KNK 브랜드 그라데이션 */
   color: #fff; display: grid; place-items: center;
   font-weight: 800; font-size: 18px;
   margin: 0 auto 14px;
@@ -70,7 +70,18 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
   border-radius: 10px; font-weight: 600;
   transition: background .15s;
 }
-.login-form button:hover { background: #1d4ed8; }
+.login-form button:hover { background: #8B1F23; }
+.login-form .checkbox-row {
+  display: flex; flex-direction: row; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-soft);
+  cursor: pointer;
+}
+.login-form .checkbox-row input[type="checkbox"] {
+  width: auto; height: auto; margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.login-form .checkbox-row span { font-size: 13px; }
 .login-form .error {
   background: #fef2f2; color: var(--danger);
   padding: 10px 12px; border-radius: 8px; font-size: 13px;
@@ -113,7 +124,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
 }
 .head-actions button:hover, .head-actions a:hover { background: var(--bg); color: var(--text); }
 
-.room-list { list-style: none; margin: 0; padding: 8px 0; overflow-y: auto; flex: 1; }
+.room-list { list-style: none; margin: 0; padding: 8px 0; overflow-y: auto; flex: 1; min-height: 0; }
 .room-list li {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; cursor: pointer;
@@ -147,9 +158,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
 }
 .chat-head .title { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-head .back { display: none; font-size: 22px; color: var(--text-soft); width: 32px; height: 32px; }
+.chat-head .head-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.chat-head .head-more { display: none; }
 
 .messages {
-  flex: 1; overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
   list-style: none; margin: 0; padding: 16px;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -205,15 +218,464 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
-.composer input {
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: var(--bg);
+
+/* 채팅 레이아웃 — 고정 영역(헤더·검색·필터·입력창)은 절대 줄어들지 않게 강제.
+   결과: 유연 영역(.room-list, .messages)만 남은 공간을 차지 + 그 안에서 스크롤.
+   창이 짧아져도 입력창은 항상 화면 하단에 보임. */
+.chat-app .sidebar-head,
+.chat-app .search-box,
+.chat-app .filter-bar,
+.chat-app .chat-head,
+.chat-app .composer-area,
+.chat-app .composer-langbar,
+.chat-app .composer { flex-shrink: 0; }
+/* chat-pane 자체도 overflow 클립 — 자식이 어떤 이유로 넘쳐도 화면 밖으로 새지 않게 */
+.chat-pane { overflow: hidden; }
+.sidebar { overflow: hidden; }
+
+/* ───────── 단독창(solo) 모드 — room-list 더블클릭으로 띄운 분리창 ─────────
+   URL 에 ?solo=1&room=<id> 가 있으면 사이드바 숨기고 chat-pane 만 풀화면.
+   <html> 에 .solo-window-pre 가 먼저 붙어 깜빡임 방지 (chat.html <head> 스크립트).
+   <body> 에는 app.js 가 .solo-window 클래스를 추가. */
+html.solo-window-pre .sidebar,
+body.solo-window .sidebar { display: none !important; }
+html.solo-window-pre .chat-app,
+body.solo-window .chat-app { grid-template-columns: 1fr !important; }
+body.solo-window .chat-head .back { display: none; }
+body.solo-window #newRoomBtn,
+body.solo-window #digestBtn,
+body.solo-window .sidebar-head .head-actions a[href$="dashboard"] { display: none; }
+/* 단독창에서는 디버그 토글 버튼 숨김 */
+body.solo-window #debugLayoutBtn { display: none; }
+/* 단독창은 모바일 미디어쿼리의 viewing-chat 토글에 영향받지 않게 — 항상 채팅 보임 */
+body.solo-window .chat-app:not(.viewing-chat) .chat-pane { display: flex !important; }
+
+/* ─── solo-window 컴팩트 — 좁은 폭(약 306px) 가로 overflow 완전 차단 ─── */
+/* 1) html / body 자체부터 차단 — 가로 스크롤바 발생 자체 봉쇄.
+   ★ html.solo-window-pre body 에도 zoom: 1 강제 — pointer:fine 미디어쿼리의
+     zoom 0.72 가 첫 페인트부터 적용되지 않게(JS 가 body 에 solo-window 붙기 전 시점 보호). */
+html.solo-window-pre,
+html.solo-window-pre body,
+body.solo-window { overflow-x: hidden !important; max-width: 100vw; }
+html.solo-window-pre body { zoom: 1 !important; }
+
+/* 2) Grid/Flex 자식의 min-content 보호 해제 — 가로 overflow 진짜 원인.
+      기본적으로 grid/flex item 은 자기 콘텐츠 최소 폭보다 작아지지 않으려 함.
+      이걸 min-width: 0 으로 해제해야 부모 폭에 강제로 맞춰짐. */
+body.solo-window .chat-app > *,
+body.solo-window .chat-pane > *,
+body.solo-window .composer > *,
+body.solo-window .composer-area > *,
+body.solo-window .chat-head > * { min-width: 0 !important; }
+
+/* 3) 모든 컨테이너 가로 오버플로우 강제 클립 */
+body.solo-window .chat-app,
+body.solo-window .chat-pane,
+body.solo-window .composer-area,
+body.solo-window .composer-langbar,
+body.solo-window .composer,
+body.solo-window .messages,
+body.solo-window .chat-head { overflow-x: hidden; max-width: 100%; }
+
+/* 4) 메시지 안 모든 미디어/이미지/임베드 폭 강제 제한 — 첨부 이미지가 폭 침범 차단 */
+body.solo-window .messages img,
+body.solo-window .messages video,
+body.solo-window .messages iframe,
+body.solo-window .bubble img,
+body.solo-window .bubble video,
+body.solo-window .msg img,
+body.solo-window .msg video { max-width: 100% !important; height: auto; }
+body.solo-window .msg,
+body.solo-window .messages > * { max-width: 100% !important; }
+
+/* 2) chat-head — padding 줄이고 아이콘 버튼들 28px 로 축소(6개 버튼 + gap 다 들어가게) */
+body.solo-window .chat-head { padding: 8px 10px; gap: 6px; }
+body.solo-window .chat-head .head-actions { gap: 2px; }
+body.solo-window .chat-head .head-btn,
+body.solo-window .chat-head .head-actions button,
+body.solo-window .chat-head .head-actions a {
+  width: 28px; height: 28px; font-size: 15px;
+}
+body.solo-window .chat-head .title { font-size: 14px; }
+
+/* 3) composer — padding/gap/버튼 압축, "전송" 버튼이 안 잘리게 */
+body.solo-window .composer { padding: 8px; gap: 6px; }
+body.solo-window .composer .attach-btn { width: 32px; height: 32px; font-size: 15px; }
+body.solo-window .composer input,
+body.solo-window .composer textarea { padding: 7px 12px; font-size: 13px; min-width: 0; min-height: 20px; }
+body.solo-window .composer button[type="submit"],
+body.solo-window .composer #sendBtn {
+  /* PC 공통 정의(➤ 아이콘 32×32) 그대로 사용 — solo 전용 추가 조정 불필요. */
+  flex-shrink: 0;
+}
+
+/* 4) composer-langbar — 번역 칩 컴팩트 (4개가 한 줄에 들어가게) */
+body.solo-window .composer-langbar { padding: 4px 8px; gap: 4px; }
+body.solo-window .composer-langbar .cl-label { font-size: 11px; margin-right: 2px; }
+body.solo-window .composer-langbar .cl-chip { padding: 3px 7px; font-size: 10.5px; }
+body.solo-window .composer-langbar .cl-hint { font-size: 10.5px; }
+
+/* 5) messages — 좌우 padding 축소(메시지 버블 폭 최대 확보), 아이템메타 줄바꿈 허용 */
+body.solo-window .messages { padding: 10px 8px; }
+body.solo-window .item-meta { flex-wrap: wrap; gap: 4px; }
+/* 메시지 버블이 좁은 폭에서도 단어단위 줄바꿈 — 긴 URL 등 안 튀어나가게 */
+body.solo-window .bubble { word-break: break-word; overflow-wrap: anywhere; max-width: 100%; }
+
+/* 6) messages 영역 글씨 축소 — 메인창의 zoom 0.72 와 비슷한 시각 크기로.
+   zoom 은 부모 폭에 영향 안 줘서 안전. 버블/아바타/이름/시간 모두 동시 축소. */
+body.solo-window .messages { zoom: 0.82; }
+
+/* ═══ 🔔 알림 시스템 — 설정 다이얼로그·인라인 토스트·사이드바 깜빡임 ═══ */
+/* 설정 다이얼로그 행 */
+.ns-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.ns-section:last-of-type { border-bottom: none; padding-bottom: 0; }
+.ns-section h4 { margin: 0 0 12px; font-size: 14px; color: var(--text); font-weight: 600; }
+.ns-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; cursor: pointer; }
+.ns-row.ns-indent { padding-left: 28px; cursor: default; }
+.ns-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+.ns-row .ns-label { flex: 1; color: var(--text); }
+.ns-row .ns-sub { color: var(--text-soft); font-size: 12px; min-width: 80px; }
+.ns-row input[type="range"] { flex: 1; max-width: 200px; }
+.ns-row .ns-pct { color: var(--accent); font-weight: 600; font-size: 12px; min-width: 36px; text-align: right; }
+.ns-row select { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-size: 13px; }
+.ns-preview-btn { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 6px; background: #fff; color: var(--accent); font-size: 12px; cursor: pointer; flex-shrink: 0; }
+.ns-preview-btn:hover { background: var(--accent-soft); }
+
+/* 화면 안 토스트 — 카카오톡PC 스타일.
+   우하단 컨테이너에 누적, 새 토스트는 아래에 들어와 위로 슬라이드업. */
+.toast-container {
+  position: fixed;
+  right: 16px; bottom: 16px;
+  display: flex; flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;            /* 컨테이너는 클릭 통과 — 토스트만 클릭 */
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+.inline-toast {
+  position: relative;
+  width: 280px; max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 14px;
+  background: #fff;                              /* 흰 배경 + KNK 레드 강조 보더 */
+  border: 1px solid #A5282C;                     /* KNK 레드 보더 */
+  border-left: 5px solid #A5282C;                /* 좌측 KNK 레드 강조 굵게 */
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(165, 40, 44, 0.18);  /* KNK 레드 톤 그림자 */
+  cursor: pointer;
+  font-size: 11.5px;                              /* 본문 글씨 축소 (13 → 11.5) */
+  animation: itSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+@keyframes itSlideUp {
+  from { transform: translateY(120%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.inline-toast.it-fade {
+  animation: itFadeOut 0.4s ease-in forwards;
+}
+@keyframes itFadeOut {
+  from { transform: translateY(0);   opacity: 1; }
+  to   { transform: translateX(40%); opacity: 0; }
+}
+.inline-toast .it-sender {
+  font-weight: 700;
+  font-size: 12px;                              /* sender 12 (조금 더 큼) */
+  margin-bottom: 3px;
+  color: #A5282C;                               /* KNK 레드 — KNK 알림임을 명확히 */
+  padding-right: 20px;
+}
+.inline-toast .it-body {
+  color: #1F2937;
+  font-size: 11.5px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.inline-toast .it-close {
+  position: absolute; top: 4px; right: 6px;
+  background: transparent; border: none; cursor: pointer;
+  color: #9CA3AF; font-size: 12px;
+  width: 18px; height: 18px;
+  line-height: 1; padding: 0;
+  display: grid; place-items: center;
+  border-radius: 50%;
+}
+.inline-toast .it-close:hover { color: #A5282C; background: #FEF2F2; }
+
+/* 사이드바 방 항목 깜빡임 — 진한 KNK 레드 펄스 + 좌측 강조 바, 6회. */
+.room-list li.blink {
+  animation: roomBlink 0.7s ease-in-out 6;
+  position: relative;
+}
+@keyframes roomBlink {
+  0%, 100% {
+    background: transparent;
+    box-shadow: none;
+  }
+  50% {
+    background: #FEE2E2;                                  /* 더 진한 분홍 (FEF2F2 → FEE2E2) */
+    box-shadow: inset 4px 0 0 #A5282C, 0 0 0 1px rgba(165, 40, 44, 0.3);  /* 좌측 KNK 레드 바 */
+  }
+}
+
+/* 방별 음소거 표시 — 방 이름 옆 🔕 */
+.room-list li .room-muted-icon { font-size: 12px; color: var(--text-soft); margin-left: 4px; opacity: 0.7; }
+
+/* 7) 메시지 hover 액션바 — 카카오톡식 우클릭 컨텍스트 메뉴로 대체.
+      기존 hover 시 자동 표시되는 액션바는 숨김 (메시지 가림 방지).
+      대신 우클릭(또는 모바일 길게 누르기) 시 마우스 위치에 컨텍스트 메뉴 표시. */
+body.chat-body .msg .msg-action-bar {
+  display: none !important;
+}
+
+/* 메시지 컨텍스트 메뉴 — 카카오톡PC 스타일 */
+.msg-context-menu {
+  position: fixed;
+  z-index: 9998;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 4px 0;
+  min-width: 160px;
+  font-size: 13px;
+  animation: msgMenuFadeIn 0.12s ease-out;
+}
+@keyframes msgMenuFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-context-menu .mcm-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  user-select: none;
+  color: #1F2937;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.msg-context-menu .mcm-item:hover {
+  background: #FEF2F2;
+  color: #A5282C;
+}
+.msg-context-menu .mcm-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.msg-context-menu .mcm-divider {
+  height: 1px;
+  background: #E5E7EB;
+  margin: 4px 0;
+}
+.msg-context-menu .mcm-section-label {
+  font-size: 11px;
+  color: #9CA3AF;
+  padding: 4px 14px 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+/* 길게 누르기 시각 피드백 */
+.msg.long-pressing .bubble {
+  transform: scale(0.97);
+  transition: transform 0.15s;
+  opacity: 0.85;
+}
+
+/* ─── 스레드(Threaded Reply) — Slack 식 사이드 패널 ─── */
+.thread-reply-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 4px;
+  padding: 4px 10px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+}
+.thread-reply-badge:hover {
+  background: #DBEAFE;
+}
+.thread-panel {
+  position: fixed;
+  top: 0; right: -420px;
+  width: 400px;
+  max-width: 92vw;
+  height: 100dvh;
+  background: #fff;
+  box-shadow: -8px 0 24px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column;
+  z-index: 9990;
+  transition: right 0.22s ease-out;
+}
+.thread-panel.open { right: 0; }
+.thread-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #E5E7EB;
+  background: #F9FAFB;
+}
+.thread-panel-head .thread-title {
+  font-weight: 700; font-size: 14px; color: #1F2937;
+}
+.thread-close-btn {
+  background: transparent; border: 0; cursor: pointer;
+  font-size: 18px; color: #6B7280;
+  padding: 4px 8px; border-radius: 6px;
+}
+.thread-close-btn:hover { background: #E5E7EB; }
+.thread-body {
+  flex: 1; overflow-y: auto;
+  padding: 14px;
+  background: #F3F4F6;
+}
+.thread-parent {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.thread-divider {
+  font-size: 11px;
+  color: #6B7280;
+  text-align: center;
+  margin: 8px 0;
+  font-weight: 600;
+}
+.thread-msg-row {
+  display: flex; gap: 8px;
+  padding: 8px 6px;
+}
+.thread-msg-body { flex: 1; min-width: 0; }
+.thread-msg-author {
+  font-size: 12px; font-weight: 600; color: #1F2937;
+  margin-bottom: 2px;
+}
+.thread-msg-time {
+  font-size: 10.5px; color: #9CA3AF; font-weight: 400;
+  margin-left: 6px;
+}
+.thread-msg-content {
+  font-size: 13px; color: #1F2937;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.thread-composer {
+  display: flex; gap: 6px; align-items: center;
+  padding: 10px;
+  border-top: 1px solid #E5E7EB;
+  background: #fff;
+}
+.thread-composer textarea {
+  flex: 1; resize: none;
+  padding: 8px 10px;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
   outline: none;
 }
-.composer input:focus { background: #fff; border-color: var(--accent); }
+.thread-composer textarea:focus { border-color: #A5282C; }
+.thread-send-btn {
+  background: #A5282C; color: #fff;
+  border: 0; border-radius: 50%;
+  width: 32px; height: 32px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.thread-send-btn:hover { background: #8a2024; }
+.thread-loading, .thread-error {
+  text-align: center; padding: 24px;
+  color: #6B7280; font-size: 13px;
+}
+
+/* 자동삭제 아이콘 (방 목록) */
+.room-retention-icon {
+  font-size: 11px; color: #9CA3AF; margin-left: 4px;
+}
+/* 자기 1인방 — 사이드바 강조 */
+.self-row {
+  background: linear-gradient(to right, #FEF3C7 0%, transparent 40%);
+}
+.composer input,
+.composer textarea {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 7px 12px;          /* PC 도 컴팩트하게 */
+  background: var(--bg);
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;            /* PC 글씨 축소 (사용자 요청) */
+  line-height: 1.4;
+  resize: none;
+  min-height: 32px;           /* attach·send 버튼과 같은 높이 */
+  max-height: 240px;          /* 10줄 정도 */
+  overflow-y: auto;
+  box-sizing: border-box;
+  /* 스크롤바 시각적 숨김 — 스크롤 기능은 유지 (휠/드래그 가능) */
+  scrollbar-width: none;             /* Firefox */
+  -ms-overflow-style: none;          /* IE/legacy Edge */
+}
+.composer input::-webkit-scrollbar,
+.composer textarea::-webkit-scrollbar {
+  display: none;                     /* Chrome/Safari/모바일 Webkit */
+  width: 0;
+  height: 0;
+}
+.composer input:focus,
+.composer textarea:focus { background: #fff; border-color: var(--accent); }
+/* 컴포저 — 카카오톡PC 처럼 첨부·전송 버튼은 입력창 중앙 정렬. */
+.composer { align-items: center !important; gap: 6px !important; padding: 8px 10px !important; }
+/* 첨부·전송 버튼 — flex 컨테이너 align 영향 안 받게 self center 강제 */
+.composer .attach-btn,
+.composer button[type="submit"],
+.composer #sendBtn { align-self: center !important; flex-shrink: 0 !important; }
+/* 첨부 버튼 — 32×32 정원 (PC·모바일 통일된 컴팩트 사이즈) */
+.composer .attach-btn {
+  width: 32px !important; height: 32px !important;
+  border-radius: 50% !important;
+  display: grid !important; place-items: center !important;
+  padding: 0 !important;
+  font-size: 15px !important;
+  box-sizing: border-box !important;
+}
+/* 전송 버튼 — ➤ 아이콘 only, 32×32 원형 (PC·모바일 통일) */
+.composer button[type="submit"],
+.composer #sendBtn {
+  width: 32px !important; height: 32px !important; min-width: 32px !important;
+  padding: 0 !important;
+  font-size: 0 !important;     /* "전송" 텍스트 숨김 */
+  border-radius: 50% !important;
+  display: grid !important; place-items: center !important;
+  background: var(--accent);
+  color: #fff;
+}
+.composer button[type="submit"]::before,
+.composer #sendBtn::before {
+  content: "➤";
+  font-size: 14px;
+  line-height: 1;
+  color: #fff;
+  display: inline-block;
+}
+.composer button[type="submit"]:disabled,
+.composer #sendBtn:disabled {
+  background: #D1D5DB;
+  opacity: 1;
+}
 .composer button {
   background: var(--accent); color: #fff;
   padding: 0 18px; border-radius: 999px;
@@ -221,7 +683,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
   transition: background .15s, opacity .15s;
 }
 .composer button:disabled { opacity: 0.4; cursor: not-allowed; }
-.composer button:not(:disabled):hover { background: #1d4ed8; }
+.composer button:not(:disabled):hover { background: #8B1F23; }
 
 /* ---- Modal (div based, 100% controlled) ---- */
 .modal {
@@ -550,6 +1012,7 @@ dialog h3 { margin: 0 0 8px; }
   display: block;
   background: var(--bg);
 }
+/* 파일 메시지 — 원래 단순한 형태 (첨부 카카오톡식 fix 되돌림) */
 .msg.file .bubble {
   display: flex; gap: 10px; align-items: center;
   padding: 12px 14px;
@@ -576,6 +1039,40 @@ dialog h3 { margin: 0 0 8px; }
   color: #fff;
   font-size: 12px; font-weight: 600;
   text-decoration: none;
+}
+
+/* ───── 카카오톡식 파일 다운로드 토스트 (우하단) ───── */
+.download-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px 10px 12px;
+  background: #1F2937;          /* 어두운 배경 — OS 알림 느낌 */
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  font-size: 13px;
+  animation: dtSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 320px;
+}
+@keyframes dtSlideIn {
+  from { transform: translateY(120%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.download-toast.dt-fade {
+  transition: opacity 0.4s, transform 0.4s;
+  opacity: 0;
+  transform: translateY(20%);
+}
+.download-toast .dt-icon { font-size: 20px; flex-shrink: 0; }
+.download-toast .dt-body { min-width: 0; }
+.download-toast .dt-title { font-weight: 600; font-size: 12px; color: #A5282C; }
+.download-toast .dt-name {
+  font-size: 12px; color: #E5E7EB;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
 }
 
 /* ---- Drag-and-drop overlay ---- */
@@ -756,7 +1253,7 @@ dialog h3 { margin: 0 0 8px; }
 }
 .req-action-btn:hover { background: #e5e7eb; }
 .req-action-btn.primary { background: var(--accent); color: #fff; }
-.req-action-btn.primary:hover { background: #1d4ed8; }
+.req-action-btn.primary:hover { background: #8B1F23; }
 
 .requests-actions {
   padding: 12px 20px;
@@ -768,7 +1265,7 @@ dialog h3 { margin: 0 0 8px; }
   font-weight: 600;
   transition: background .15s;
 }
-.primary-btn:hover { background: #1d4ed8; }
+.primary-btn:hover { background: #8B1F23; }
 
 .secondary-btn {
   background: var(--bg); color: var(--text);
@@ -792,7 +1289,7 @@ dialog h3 { margin: 0 0 8px; }
   text-align: left;
 }
 .leave-option:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-.leave-option.export:hover { background: #eff6ff; border-color: var(--accent); }
+.leave-option.export:hover { background: #FEF2F2; border-color: var(--accent); }
 .leave-option.just:hover { background: #fef2f2; border-color: var(--danger); }
 .leave-option-icon { font-size: 28px; flex-shrink: 0; }
 .leave-option-text { flex: 1; min-width: 0; }
@@ -1024,8 +1521,15 @@ dialog h3 { margin: 0 0 8px; }
   background: var(--accent-soft);
 }
 
-/* ---- Mobile ---- */
-@media (max-width: 720px) {
+/* ---- Mobile (터치 기기 전용 — pointer:coarse) ----
+   주의: pointer:coarse 한정자 절대 제거 금지.
+   이 블록 안의 viewport-locked 레이아웃(position:fixed body / overflow:hidden / --vvh /
+   fixed composer-area)은 폰의 화면 키보드 대응을 위한 것임. 데스크탑(마우스)에 적용되면
+   1) body.overflow:hidden 으로 스크롤바 안 생김
+   2) .chat-app.overflow:hidden 으로 콘텐츠 잘림
+   3) composer-area 가 viewport 에 떠다님
+   결과: pointer:fine(데스크탑) 의 min-size + scrollbar 동작과 충돌해 깨짐. */
+@media (max-width: 720px) and (pointer: coarse) {
   .chat-app { grid-template-columns: 1fr; }
   .sidebar { display: flex; }
   .chat-app.viewing-chat .sidebar { display: none; }
@@ -1034,5 +1538,664 @@ dialog h3 { margin: 0 0 8px; }
   .form-grid { grid-template-columns: 1fr; }
   .big-dialog { max-width: 100%; max-height: 95vh; width: 100vw; height: 95vh; border-radius: 0; }
   .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-  .messages .msg .msg-action-bar { display: flex; position: static; margin-top: 4px; box-shadow: none; padding: 0; }
+
+  /* 모바일 채팅 화면 레이아웃 — 헤더/입력창 항상 보이게 + 키보드 대응 */
+  /* JS 가 visualViewport 변경 시 --vvh 동적 갱신 */
+  /* 핵심: body 높이도 vvh 로 묶어야 키보드 열렸을 때 body 가 키보드 영역까지 안 늘어남
+     → 입력창이 키보드 바로 위에 딱 붙음 (Samsung Internet/일부 Android 흰 띠 방지) */
+  body.chat-body {
+    overflow: hidden; position: fixed;
+    top: 0; left: 0; right: 0;
+    width: 100%;
+    height: var(--vvh, 100dvh);
+    /* iOS Safari overscroll(당겨서 새로고침) 차단 — 사용자가 채팅창 아래로 당기면
+       페이지가 새로고침되어 작성 중인 메시지 날아가는 사고 방지. */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;     /* iOS 매끄러운 스크롤 */
+  }
+  /* messages 영역은 내부 스크롤은 허용하되 경계에서 외부로 전파 안 시킴 (iOS 바운스 효과 차단) */
+  .messages {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* viewport-fit=cover 사용으로 콘텐츠가 노치 영역까지 늘어남 → 좌우 safe-area padding 필수 */
+  /* 핵심: grid 단일 행 명시 (1fr) — 행 높이가 콘텐츠가 아닌 vvh 전체로 강제됨
+     → chat-pane 이 vvh 전체 채움 → 입력창이 vvh 최하단 = 키보드 바로 위 */
+  .chat-app {
+    height: var(--vvh, 100dvh); width: 100%; overflow: hidden;
+    grid-template-rows: 1fr;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .chat-pane {
+    height: 100%; min-height: 0;
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+  }
+  /* 사이드바도 같은 처리 (모바일에선 chat-pane 만 보이지만 안전망) */
+  .sidebar {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /* 모바일에서 input 자동 zoom 차단 — 16px 이상이면 iOS 가 zoom 안 함 */
+  input, textarea, select { font-size: 16px !important; }
+  /* 채팅 헤더 — 모바일에서 화면 상단 sticky, 한 줄로 깔끔하게 */
+  .chat-head {
+    position: sticky; top: 0; z-index: 50;
+    padding: 8px 10px;
+    gap: 8px;
+    background: var(--surface, #fff);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    /* 노치 영역 회피 — chat-app 에 inset 적용했지만 sticky 라 한 번 더 */
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+  .chat-head .back {
+    display: grid; place-items: center;
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--accent-soft, #FEF2F2);
+    color: var(--accent, #A5282C);
+    font-size: 22px; font-weight: 700;
+    flex-shrink: 0;
+    border: 0;
+  }
+  .chat-head .title-block { min-width: 0; flex: 1; }
+  .chat-head .title { font-size: 15px; font-weight: 600; }
+  .chat-head .item-meta {
+    display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden;
+    margin-top: 2px;
+    /* 모바일에선 한 줄로만, 넘치면 잘림 */
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 11px;
+  }
+  .chat-head .item-meta > * {
+    font-size: 10px; padding: 1px 5px; flex-shrink: 0;
+  }
+  /* 모바일에서 직접 노출 아이콘들은 숨기고, ⋮ 더보기 버튼만 노출 */
+  .chat-head .head-actions { display: none; }
+  .chat-head .head-more {
+    display: grid !important; place-items: center;
+    width: 36px; height: 36px; font-size: 22px;
+    background: transparent; border: 0; color: var(--text-soft);
+    flex-shrink: 0;
+  }
+  /* 더보기 메뉴 popup — 헤더 아래 우측 (노치 회피) */
+  .head-more-menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    right: max(8px, env(safe-area-inset-right));
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    z-index: 60;
+    min-width: 200px;
+    max-width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
+    display: flex; flex-direction: column;
+  }
+  .head-more-menu[hidden] { display: none; }
+  .head-more-menu button {
+    background: transparent; border: 0;
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 8px;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+    position: relative;
+  }
+  .head-more-menu button:hover { background: var(--accent-soft, #FEF2F2); }
+  .head-more-menu .hmm-badge {
+    margin-left: auto;
+    background: #ef4444; color: #fff;
+    border-radius: 10px; padding: 1px 7px;
+    font-size: 11px; font-weight: 600;
+  }
+  /* 백드롭 — 더보기 메뉴 열렸을 때 다른 영역 클릭 닫힘 */
+  .head-more-backdrop {
+    position: fixed; inset: 0;
+    background: transparent;
+    z-index: 59;
+  }
+  .head-more-backdrop[hidden] { display: none; }
+  /* messages — 헤더와 컴포저 사이 가용 공간 — flex:1 로 자동 채움 */
+  .messages {
+    padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: 8px;
+    flex: 1; min-height: 0; overflow-y: auto;
+  }
+  /* ========================================================
+     컴포저 영역 — 카톡 방식: position:fixed 로 viewport 하단 고정
+     JS 가 visualViewport 추적 → transform: translateY 로 키보드 위에 정확히 위치
+     이전 flex-shrink:0 방식은 Samsung/Android 일부 흰띠 문제 → 폐기
+     ======================================================== */
+  .composer-area {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    background: var(--surface, #fff);
+    /* JS 가 키보드 추적해서 translateY 설정 */
+    transform: translateY(0);
+    /* 부드러운 키보드 추적 — 너무 길면 끊겨 보이므로 짧게 */
+    transition: transform 0.1s ease-out;
+    /* 노치 좌우 여백 */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* 상단 그림자로 메시지와 시각적 분리 */
+    box-shadow: 0 -1px 4px rgba(0,0,0,0.04);
+  }
+  /* 메시지 영역 — 고정된 composer-area 만큼 padding-bottom 확보 (JS 동적 갱신) */
+  .messages {
+    padding-bottom: var(--composer-area-h, 100px) !important;
+  }
+  /* 토글바 + 입력창 — composer-area 안에 자연 배치 */
+  .composer-langbar {
+    padding: 4px 10px;
+    font-size: 11px; flex-shrink: 0;
+  }
+  .composer-langbar .cl-chip { padding: 3px 8px; font-size: 10px; }
+  .composer-langbar .cl-hint { font-size: 10px; margin-left: 4px; flex-basis: 100%; text-align: right; }
+  .composer {
+    display: flex; align-items: center; gap: 4px;       /* gap 6 → 4 */
+    background: var(--surface, #fff);
+    border-top: 1px solid var(--border);
+    padding: 6px 8px;                                    /* padding 축소 */
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+  }
+  /* 첨부 버튼 — 모바일에서 사이즈 축소 (textarea 폭 확보) */
+  .composer .attach-btn {
+    width: 36px; height: 36px;                           /* 40 → 36 */
+    flex-shrink: 0; flex-grow: 0;
+    font-size: 17px;
+    background: var(--bg) !important;
+    color: var(--text-soft) !important;
+    border-radius: 50%;
+    padding: 0;
+    display: grid; place-items: center;
+  }
+  .composer #msgInput, .composer input[type="text"], .composer input:not([type]),
+  .composer textarea#msgInput {
+    flex: 1 1 auto !important;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 6px 10px;                                    /* 더 슬림 */
+    background: var(--bg);
+    outline: none;
+    font-family: inherit;
+    font-size: 14px;                                      /* Android Chrome */
+    line-height: 1.35;
+    resize: none;
+    min-height: 32px;
+    max-height: 180px;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  /* iOS Safari 자동 zoom-in 방지 — iOS 는 font-size 16px 미만 input 에 포커스 시
+     화면을 자동으로 확대함. iOS 만 매칭하는 @supports 트릭으로 16px 강제. */
+  @supports (-webkit-touch-callout: none) {
+    .composer #msgInput, .composer input[type="text"], .composer input:not([type]),
+    .composer textarea#msgInput {
+      font-size: 16px;
+    }
+  }
+  /* 전송 버튼 — 아이콘 only ➤ (텍스트 "전송" 숨김), 32×32 정사각형으로 최소화 */
+  .composer #sendBtn, .composer button[type="submit"] {
+    flex-shrink: 0; flex-grow: 0;
+    height: 32px; width: 32px; min-width: 32px;
+    padding: 0;
+    background: var(--accent); color: #fff;
+    font-size: 0;                                          /* "전송" 텍스트 숨김 */
+    border-radius: 50%;
+    display: grid; place-items: center;
+  }
+  .composer #sendBtn::before, .composer button[type="submit"]::before {
+    content: "➤";
+    font-size: 14px;
+    line-height: 1;
+    color: #fff;
+  }
+  .composer #sendBtn:disabled, .composer button[type="submit"]:disabled {
+    background: #D1D5DB;
+  }
+  /* attach 버튼도 textarea 와 같은 높이 (32) */
+  .composer .attach-btn {
+    width: 32px; height: 32px;                            /* 36 → 32 */
+    font-size: 16px;
+  }
+
+  /* === 카톡식 액션바 — 평소 숨김, 메시지 탭 시에만 표시 === */
+  .messages .msg .msg-action-bar {
+    display: none;
+  }
+  .messages .msg.show-actions .msg-action-bar {
+    display: flex;
+    position: static;
+    flex-basis: 100%;
+    margin-top: 6px;
+    box-shadow: none;
+    padding: 4px;
+    background: var(--accent-soft, #FEF2F2);
+    border-radius: 10px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .messages .msg.mine.show-actions .msg-action-bar { justify-content: flex-start; }
+  /* 액션바 표시 중인 메시지 강조 */
+  .messages .msg.show-actions .bubble {
+    box-shadow: 0 0 0 2px var(--accent, #A5282C);
+  }
+
+  /* 메시지 줄 — 모바일에서 가로 공간이 좁아 wrap 안 하면 액션바/본문이 세로로 짜그러짐 */
+  .messages .msg {
+    flex-wrap: wrap;            /* 액션바를 다음 줄로 떨어뜨림 */
+    max-width: 92%;             /* 데스크탑 80% 보다 넓게 */
+  }
+  .messages .msg .body {
+    flex: 1 1 calc(100% - 40px);  /* 아바타(32px+gap) 제외한 나머지 모두 */
+    min-width: 0;
+  }
+  .messages .msg.mine .body {
+    flex: 1 1 100%;             /* mine 은 아바타 숨김 → 본문 폭 100% */
+  }
+  /* 액션바 버튼 사이즈 (탭 시 표시되는 경우) */
+  .messages .msg .msg-action-btn,
+  .messages .msg .star-btn {
+    font-size: 14px;
+    padding: 8px 12px;
+    min-height: 36px;
+    min-width: 36px;
+    background: #fff;
+    border-radius: 8px;
+    color: var(--text);
+  }
+  /* 파일 다운로드 버튼 줄바꿈 방지 */
+  .msg.file .file-link {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .msg.file .bubble {
+    flex-wrap: wrap;            /* 좁으면 받기 버튼이 새 줄로 */
+  }
+  /* 시간 영역 — 좁아도 가로 한 줄 유지 */
+  .msg .time {
+    white-space: nowrap;
+    flex-wrap: nowrap;
+  }
+  /* ack-row, reactions — 좁으면 wrap */
+  .msg .ack-row, .msg .reactions {
+    flex-wrap: wrap;
+  }
 }
+
+/* ============================================================
+   업로드 진행률 토스트 (대용량 파일)
+   ============================================================ */
+.upload-progress {
+  position: fixed;
+  bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #1f2937; color: #fff;
+  padding: 14px 20px; border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  min-width: 320px; max-width: 480px; z-index: 10000;
+  font-size: 13px;
+}
+.upload-progress .up-name {
+  font-weight: 500; margin-bottom: 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.upload-progress .up-track {
+  background: #374151; height: 6px; border-radius: 3px; overflow: hidden;
+}
+.upload-progress .up-fill {
+  background: #10b981; height: 100%; width: 0%;
+  transition: width .15s ease;
+}
+.upload-progress .up-pct {
+  margin-top: 6px; font-size: 11px; color: #9ca3af;
+}
+
+/* ============================================================
+   메시지 ack (전달확인) + 별표 (중요 결정)
+   ============================================================ */
+.msg .ack-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 4px; align-items: center;
+}
+.ack-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; font-size: 11px; line-height: 1;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: #fff; cursor: pointer; color: var(--text-soft);
+  transition: all .12s;
+}
+.ack-btn:hover { border-color: #10b981; color: #10b981; }
+.ack-btn.acked { background: #d1fae5; border-color: #10b981; color: #065f46; }
+.ack-count { font-size: 11px; color: var(--text-soft); }
+.ack-pending { color: #f59e0b; font-weight: 600; }
+
+.star-btn {
+  display: inline-flex; align-items: center;
+  padding: 3px 7px; font-size: 12px; line-height: 1;
+  border: 1px solid transparent; border-radius: 12px;
+  background: transparent; cursor: pointer; color: #d1d5db;
+  transition: all .12s;
+}
+.star-btn:hover { color: #f59e0b; }
+.star-btn.starred { color: #f59e0b; }
+
+.msg.starred .bubble {
+  border-left: 3px solid #f59e0b;
+}
+
+/* ============================================================
+   파일 버전 배지
+   ============================================================ */
+.ver-badge {
+  display: inline-block;
+  padding: 1px 6px; font-size: 10px; font-weight: 600;
+  background: #e5e7eb; color: #4b5563;
+  border-radius: 4px; margin-left: 4px;
+  vertical-align: middle;
+}
+.ver-badge.latest { background: #dbeafe; color: #1e40af; }
+
+/* ============================================================
+   AI 번역 (Claude Haiku) — 메시지 아래 표시 + 언어 선택 popup
+   ============================================================ */
+.msg-translation {
+  margin-top: 6px; padding: 8px 10px;
+  background: #f0f9ff; border-left: 3px solid #0ea5e9; border-radius: 4px;
+  font-size: 13px; line-height: 1.45;
+  color: #0c4a6e;
+}
+.msg-translation .tr-lang {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  background: #0ea5e9; color: #fff;
+  padding: 1px 6px; border-radius: 3px;
+  margin-right: 6px; vertical-align: middle;
+}
+.msg.mine .msg-translation { background: #ecfdf5; border-left-color: #10b981; color: #064e3b; }
+.msg.mine .msg-translation .tr-lang { background: #10b981; }
+
+.translate-menu {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px; min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 9999;
+}
+.translate-menu .tm-title {
+  font-size: 11px; color: var(--text-soft);
+  padding: 4px 8px 6px; border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.translate-menu button {
+  display: block; width: 100%;
+  padding: 8px 10px; border: 0; background: transparent;
+  text-align: left; cursor: pointer; border-radius: 4px;
+  font-size: 13px;
+}
+.translate-menu button:hover { background: #f3f4f6; }
+.translate-menu .tm-disabled {
+  padding: 12px; font-size: 12px; color: var(--text-soft);
+  text-align: center;
+}
+
+/* ============================================================
+   컴포저 자동 번역 토글바 (전송 시점 번역)
+   ============================================================ */
+.composer-langbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; background: #f9fafb;
+  border-top: 1px solid var(--border);
+  font-size: 12px; flex-wrap: wrap;
+}
+.composer-langbar .cl-label {
+  color: var(--text-soft); font-weight: 500;
+  margin-right: 4px;
+}
+.composer-langbar .cl-chip {
+  padding: 4px 10px; border: 1px solid var(--border);
+  background: #fff; border-radius: 14px;
+  font-size: 11px; cursor: pointer; line-height: 1.2;
+  transition: all .12s;
+}
+.composer-langbar .cl-chip:hover { border-color: #6b7280; }
+.composer-langbar .cl-chip[data-active="1"] {
+  background: #A5282C; color: #fff; border-color: #A5282C;
+  font-weight: 600;
+}
+.composer-langbar .cl-chip[data-lang="vi"][data-active="1"] {
+  background: #dc2626; border-color: #dc2626;  /* 베트남 국기 빨강 */
+}
+.composer-langbar .cl-chip[data-lang="en"][data-active="1"] {
+  background: #1e40af; border-color: #1e40af;  /* 영국 파랑 */
+}
+.composer-langbar .cl-chip[data-lang="ko"][data-active="1"] {
+  background: #0f172a; border-color: #0f172a;
+}
+.composer-langbar .cl-hint {
+  margin-left: auto; color: #A5282C; font-weight: 500; font-size: 11px;
+}
+
+/* 컴포저 자체에 모드별 보더색 — 사용자가 잊지 않도록 시각적 안전망 */
+.composer.tr-vi { border-top: 2px solid #dc2626; }
+.composer.tr-en { border-top: 2px solid #1e40af; }
+.composer.tr-ko { border-top: 2px solid #0f172a; }
+
+/* ============================================================
+   PWA 설치 안내 배너 (login 페이지 하단)
+   ============================================================ */
+.pwa-install {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: #FEF2F2;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: #6B1015;
+  position: relative;
+}
+.pwa-install-icon { font-size: 22px; flex-shrink: 0; }
+.pwa-install-body { flex: 1; min-width: 0; }
+.pwa-install-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.pwa-install-desc { font-size: 11.5px; color: #3730a3; line-height: 1.4; }
+.pwa-install button {
+  font-size: 12px; padding: 6px 12px;
+  background: #A5282C; color: #fff;
+  border: 0; border-radius: 6px;
+  cursor: pointer; font-weight: 600;
+  flex-shrink: 0;
+}
+.pwa-install button:hover { background: #8B1F23; }
+.pwa-install .pwa-close {
+  background: transparent; color: #6b7280;
+  padding: 4px 8px;
+  font-size: 16px;
+  font-weight: 400;
+}
+.pwa-install .pwa-close:hover { background: transparent; color: #111; }
+
+/* ============================================================
+   방 설정 다이얼로그 — 이름·별명·멤버 권한 관리
+   ============================================================ */
+.rs-section { margin: 16px 0; }
+.rs-section h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--text); }
+.rs-readonly { font-size: 13px; color: var(--text-soft); padding: 6px 0; }
+.rs-readonly b { color: var(--text); }
+.rs-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rs-form input[type="text"] {
+  flex: 1 1 200px; min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+.rs-form input[type="text"]:focus { border-color: var(--accent); }
+.rs-checkbox {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-soft); cursor: pointer;
+  flex-basis: 100%;
+}
+.rs-hint { font-size: 12px; color: var(--text-soft); margin-top: 6px; }
+.primary-btn {
+  background: var(--accent); color: #fff;
+  border: 0; border-radius: 8px;
+  padding: 8px 14px; font-size: 13px; font-weight: 500;
+  cursor: pointer;
+}
+.primary-btn:hover { background: #8B1F23; }
+.secondary-btn {
+  background: #fff; color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; font-size: 13px; cursor: pointer;
+}
+.secondary-btn:hover { background: var(--bg); }
+
+.rs-member-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 360px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px;
+}
+.rs-member {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fafbfc;
+  gap: 8px;
+}
+.rs-member:hover { background: #f3f4f6; }
+.rs-member-info { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.rs-member-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.rs-member-role { margin-top: 2px; }
+.rs-me { font-size: 11px; color: var(--text-soft); font-weight: 400; }
+.rs-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 999px;
+}
+.rs-host { background: #fee500; color: #3c1e1e; }
+.rs-sub  { background: #dbeafe; color: #1e40af; }
+.rs-member-actions {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.rs-act-btn {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.rs-act-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.rs-act-btn.rs-danger { color: #b91c1c; border-color: #fecaca; }
+.rs-act-btn.rs-danger:hover { background: #fee2e2; border-color: #f87171; }
+
+/* 모바일 — 액션 버튼 작게, member 아래로 wrap */
+@media (max-width: 720px) {
+  .rs-member { flex-direction: column; align-items: flex-start; }
+  .rs-member-actions { width: 100%; justify-content: flex-start; }
+  .rs-act-btn { font-size: 10px; padding: 3px 7px; }
+}
+
+/* ───── 메신저 전체 크기 축소 (글씨·여백·아바타·버튼 비례, 원본의 72%) ─────
+   데스크탑(마우스 환경)에만 적용 — 폰(pointer:coarse)의 모바일 레이아웃은
+   영향 없음(키보드 대응 등 민감 부분 보호). */
+@media (pointer: fine) {
+  body.chat-body,
+  body.login-body,
+  body.dashboard-body { zoom: 0.72; }
+
+  /* ── 메신저 레이아웃: 입력창 항상 보임 + 내부 영역만 스크롤 ──
+     세로 — 페이지 전체는 스크롤 안 됨(overflow-y:hidden). 메시지 목록(.messages),
+            대화방 목록(.room-list) 이 자체적으로 스크롤. 입력창(.composer)은 항상 하단 고정.
+     가로 — 최소 가로폭 470px(화면상 약 338px) 보장, 그보다 좁으면 가로 스크롤바.
+     zoom 보정 — zoom 된 body 가 뷰포트의 72%만 차지하는 문제를 1/0.72 배 높이로 해결. */
+  body.chat-body {
+    height: calc(100dvh / 0.72);
+    overflow-x: auto;     /* 가로폭 좁으면 좌우 스크롤 */
+    overflow-y: hidden;   /* 세로 페이지 스크롤 금지 — 입력창 항상 보이게 */
+  }
+  body.chat-body .chat-app {
+    height: calc(100dvh / 0.72);
+    min-width: 470px;     /* 화면상 약 338px */
+  }
+  body.login-body,
+  body.dashboard-body { min-height: calc(100dvh / 0.72); }
+
+  /* ★★★ solo-window 분리창은 zoom 무력화 ★★★
+     좁은 분리창(306×544)에 zoom 0.72 + min-width 470 적용되면 콘텐츠가
+     653px 폭으로 강제 그려져 가로 스크롤바 폭주. 솔로창은 1:1 zoom 으로. */
+  body.chat-body.solo-window {
+    zoom: 1 !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  body.chat-body.solo-window .chat-app {
+    height: 100dvh !important;
+    min-width: 0 !important;     /* 470px min-width 해제 */
+    width: 100% !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ▼▼▼  TEMP: 레이아웃 영역 가시화 (디버그용) — 검증 끝나면 이 블록 + chat.html
+       의 debugLayoutBtn 블록 함께 제거  ▼▼▼
+   · body.chat-body.debug-layout 일 때만 활성 (토글 버튼으로 ON/OFF)
+   · 영역 라벨은 chat.html JS 가 <span class="debug-label"> 으로 삽입 → 선택·복사 가능
+   ═══════════════════════════════════════════════════════════════════ */
+body.chat-body.debug-layout .sidebar        { outline: 2px dashed #2563eb !important; outline-offset: -2px; position: relative; }
+body.chat-body.debug-layout .sidebar-head   { outline: 2px dashed #06b6d4 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .search-box     { outline: 2px dashed #14b8a6 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .filter-bar     { outline: 2px dashed #84cc16 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .room-list      { outline: 2px dashed #10b981 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .chat-pane      { outline: 2px dashed #f97316 !important; outline-offset: -2px; position: relative; }
+body.chat-body.debug-layout .chat-head      { outline: 2px dashed #eab308 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .messages       { outline: 2px dashed #ec4899 !important; outline-offset: -4px; position: relative; }
+body.chat-body.debug-layout .composer-langbar,
+body.chat-body.debug-layout .composer       { outline: 2px dashed #A5282C !important; outline-offset: -2px; position: relative; }
+
+/* 영역 라벨 — JS 가 DOM 으로 삽입. 큰 글씨 + 텍스트 선택·복사 가능. */
+.debug-label {
+  position: absolute; top: 0; left: 0;
+  z-index: 9999;
+  font: 700 13px/1.3 ui-monospace, 'Consolas', monospace;
+  padding: 3px 7px;
+  color: #fff;
+  letter-spacing: 0.02em;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  border-bottom-right-radius: 4px;
+  pointer-events: auto;
+}
+
+/* 디버그 토글 버튼 — 우상단 고정. 클릭 시 ON/OFF 토글, localStorage 에 상태 저장. */
+#debugLayoutBtn {
+  position: fixed; top: 8px; right: 8px;
+  z-index: 99998;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1.5px solid #6b7280;
+  border-radius: 999px;
+  color: #6b7280;
+  font: 700 12px/1 ui-monospace, monospace;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+#debugLayoutBtn:hover { border-color: #A5282C; color: #A5282C; }
+body.chat-body.debug-layout #debugLayoutBtn {
+  background: #A5282C; color: #fff; border-color: #6B1015;
+}
+/* ▲▲▲  TEMP 끝 ▲▲▲ */

@@ -139,6 +139,7 @@
         <div class="pd-actions">
           <a class="btn-ghost" href="/po">↩ 목록</a>
           <a class="btn-ghost" href="/po/{{ p.id }}/edit">📝 수정</a>
+          <a class="btn-ghost" href="/po/{{ p.id }}/qr.svg?scale=10" target="_blank" title="발주서 QR — 입고 시 스캔용">📱 QR</a>
           {% if st in ('발주완료', '부분입고') %}
           <a class="btn-dark" href="/po/{{ p.id }}/receive">📥 입고 처리</a>
           {% endif %}

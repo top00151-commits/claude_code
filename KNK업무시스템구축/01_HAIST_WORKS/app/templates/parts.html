@@ -172,11 +172,26 @@
           <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
         </div>
         <div class="pl-actions">
-          <a class="btn-ghost" href="/parts/import">📥 일괄 등록</a>
+          {# v5H226z58 (2026-05-12) — 마스터 페이지는 "조회 중심"으로 정리
+             재분류·일괄등록 버튼은 헤더에서 제거 (재분류는 공통 과다 배너에서, 일괄등록은 자재 등록 페이지 사이드에서 진입) #}
           <a class="btn-ghost" href="/parts/export.xlsx">⤓ Excel</a>
           <a class="btn-dark" href="/parts/new">＋ 자재 등록</a>
         </div>
       </div>
+
+      {# v5H226z58 (2026-05-12) — 공통 분류 과다 경고 (실무 기준 10% 초과 시) #}
+      {% set common_cnt = parts|selectattr('biz_div','equalto','공통')|list|length %}
+      {% set common_pct = (common_cnt * 100 / total_cnt) if total_cnt else 0 %}
+      {% if common_cnt >= 20 and common_pct > 15 %}
+      <div style="margin:0 0 0 0;padding:10px 24px;background:#fef3c7;border-bottom:1px solid #fbbf24;border-left:4px solid #d97706;display:flex;align-items:center;gap:12px;font-size:12.5px;color:#92400e;">
+        <span style="font-size:18px;">⚠</span>
+        <div style="flex:1;line-height:1.5;">
+          <b>공통 분류 자재가 과다합니다</b> — 현재 <b>{{ common_cnt }}종 ({{ '%.1f'|format(common_pct) }}%)</b>이 "공통"으로 분류되어 있습니다.
+          실무 기준 공통은 <b>10% 미만</b>이 정상입니다. 출고 이력 기반으로 자동 재분류할 수 있습니다.
+        </div>
+        <a href="/parts/reclassify?focus=공통&days=365" style="padding:6px 14px;font-size:12px;font-weight:700;text-decoration:none;background:#0f172a;color:#fff;border-radius:6px;">🔀 재분류 도구 열기</a>
+      </div>
+      {% endif %}
 
       <div class="kpi-strip" data-dn="parts:kpi" data-dn-tone="green">
         <a class="kpi-cell {% if not biz_div %}active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">
@@ -216,6 +231,20 @@
         </div>
       </div>
 
+      {# v5H226z98 — 자재 일괄등록 완료 후 리다이렉트 시 결과 배너 #}
+      {% set imp = request.query_params.get('imported') %}
+      {% if imp and imp != '0' %}
+      <div style="padding:11px 24px;background:var(--pq-ok-soft);border-bottom:1px solid var(--pq-ok);color:var(--pq-ok);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>✅ <b>{{ imp }}건</b> 자재 신규 등록 완료
+          {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
+          {% set sm = request.query_params.get('sim') %}{% if sm and sm != '0' %} · 유사 경고 {{ sm }}건{% endif %}
+          {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
+          {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
+        </span>
+        <a href="/parts" style="margin-left:auto;color:var(--pq-ok);font-size:11px;font-weight:500;text-decoration:none;border:1px solid var(--pq-ok);padding:3px 9px;border-radius:4px;">닫기</a>
+      </div>
+      {% endif %}
+
       <form class="filterbar" method="get" action="/parts" data-dn="parts:filter" data-dn-tone="blue">
         <span class="fb-label">사업부</span>
         <a class="fb-chip {% if not biz_div %}is-active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">전체</a>
@@ -234,7 +263,7 @@
         <input type="hidden" name="category" value="{{ category|default('') }}">
         <div class="fb-search-wrap">
           <span class="fb-ic">⌕</span>
-          <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · 사양 · 제조사 검색" />
+          <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · 사양 · 제조사 · 용도 검색" />
         </div>
         <button type="submit" class="fb-go">검색</button>
         {% if q or biz_div or category %}
@@ -250,11 +279,12 @@
             <tr>
               <th style="width:160px;">코드</th>
               <th>자재명</th>
-              <th>규격 / 제조사</th>
+              <th>제조사</th>
+              <th>구매사</th>
               <th class="center" style="width:80px;">사업부</th>
               <th class="center" style="width:80px;">품목계정</th>
               <th class="center" style="width:80px;">분류</th>
-              <th class="num" style="width:100px;">표준가</th>
+              <th class="num" style="width:100px;">매입단가</th>
               <th class="center" style="width:60px;">단위</th>
               <th class="num" style="width:100px;">재고</th>
               <th class="center" style="width:120px;">안전재고</th>
@@ -272,11 +302,21 @@
             {% set stk_cls = 'is-critical' if (ss > 0 and sq < ss * 0.5) else ('is-low' if (ss > 0 and sq < ss) else '') %}
             <tr onclick="location.href='/parts/{{ p.id }}'">
               <td class="code">{{ p.part_no|default('—') }}</td>
-              <td><b>{{ p.part_name|default('—') }}</b></td>
               <td>
-                {% if p.spec %}<span>{{ p.spec }}</span>{% endif %}
-                {% if p.maker %}<span class="mute" style="font-size:11px;"> · {{ p.maker }}</span>{% endif %}
-                {% if not p.spec and not p.maker %}<span class="mute">—</span>{% endif %}
+                <b>{{ p.part_name|default('—') }}</b>
+                {# v5H226z99 (2026-05-16) — 용도 보조 표시 (한 줄 자르고 풀 텍스트는 툴팁) #}
+                {% if p.purpose %}
+                  {% set _purp = p.purpose|trim %}
+                  <div title="{{ _purp }}" style="font-size:10.5px;color:var(--pq-ink-4);line-height:1.4;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">📝 {{ _purp[:48] }}{% if _purp|length > 48 %}…{% endif %}</div>
+                {% endif %}
+              </td>
+              <td>
+                {# v5H226z84: 제조사만 표시 (규격 제거) #}
+                {% if p.maker %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p.maker }}</span>{% else %}<span class="mute">—</span>{% endif %}
+              </td>
+              <td>
+                {# v5H226z84: 대표 구매사 — 가장 최근 날짜 단가의 구매사 (여러 곳이면 "외 N") #}
+                {% if p._rep_vendor %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p._rep_vendor }}</span>{% if p._vendor_count and p._vendor_count > 1 %}<span class="mute" style="font-size:10.5px;"> 외 {{ p._vendor_count - 1 }}</span>{% endif %}{% else %}<span class="mute">—</span>{% endif %}
               </td>
               <td class="center">
                 {% if biz_div_v %}<span class="chip-biz {{ biz_cls }}">{{ biz_div_v }}</span>{% else %}<span class="mute">—</span>{% endif %}

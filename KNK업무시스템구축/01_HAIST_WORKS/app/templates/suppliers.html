@@ -61,17 +61,20 @@
 .fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
 
 .sp-zone { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 16px 24px; min-height: 0; }
-.sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.sp-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 10px; padding: 14px 16px; text-decoration: none; color: inherit; transition: border-color .12s, box-shadow .12s, transform .12s; display: flex; flex-direction: column; gap: 8px; min-height: 140px; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; align-items: stretch; }
+/* v5H226z98 — overflow:hidden + 일정 높이로 행간 transition 깔끔 */
+.sp-card { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 10px; padding: 0; text-decoration: none; color: inherit; transition: border-color .12s, box-shadow .12s, transform .12s; display: flex; flex-direction: column; min-height: 180px; overflow: hidden; }
 .sp-card:hover { border-color: var(--pq-line-3); box-shadow: 0 2px 4px rgba(15,23,42,0.06); transform: translateY(-1px); }
 .sp-card.inactive { opacity: 0.6; }
-.sp-card .top { display: flex; align-items: baseline; gap: 8px; }
-.sp-card .code { font-family: var(--pq-mono); font-size: 11px; color: var(--pq-ink-4); font-weight: 600; }
-.sp-card .name { font-size: 14px; font-weight: 600; color: var(--pq-ink); }
-.sp-card .meta { font-size: 11.5px; color: var(--pq-ink-3); display: flex; flex-direction: column; gap: 3px; }
+/* 부서명: 카드 상단 명확한 헤더 띠 (스크롤 시 카드 경계 시각적 분리) */
+.sp-card .top { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--pq-surface-2); border-bottom: 1px solid var(--pq-line); min-height: 30px; }
+.sp-card .top:empty { background: transparent; border-bottom: 0; min-height: 0; padding: 0; }
+.sp-card .code { font-family: var(--pq-mono); font-size: 11px; color: var(--pq-ink-4); font-weight: 700; }
+.sp-card .name { font-size: 14px; font-weight: 600; color: var(--pq-ink); padding: 10px 14px 4px; }
+.sp-card .meta { font-size: 11.5px; color: var(--pq-ink-3); display: flex; flex-direction: column; gap: 3px; padding: 0 14px 10px; }
 .sp-card .meta .row { display: flex; gap: 6px; align-items: center; }
 .sp-card .meta .ic { color: var(--pq-ink-4); width: 14px; }
-.sp-card .footer { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--pq-line); font-size: 11px; color: var(--pq-ink-4); }
+.sp-card .footer { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 14px; border-top: 1px solid var(--pq-line); font-size: 11px; color: var(--pq-ink-4); background: var(--pq-surface-inset); }
 .sp-card .pill-active, .sp-card .pill-inactive, .sp-card .terms, .sp-card .country, .sp-card .currency { padding: 1px 7px; font-size: 10px; font-weight: 600; border-radius: 3px; }
 .sp-card .pill-active { background: var(--pq-ok-soft); color: var(--pq-ok); }
 .sp-card .pill-inactive { background: var(--pq-surface-3); color: var(--pq-ink-4); }
@@ -117,9 +120,23 @@
         </div>
         <div class="sp-actions">
           <a class="btn-ghost" href="/suppliers/export.xlsx">⤓ Excel</a>
+          <a class="btn-ghost" href="/suppliers/import">📥 일괄 등록</a>
           <a class="btn-dark" href="/suppliers/new">＋ 공급사 등록</a>
         </div>
       </div>
+
+      {# v5H226z97 — 일괄등록 완료 후 리다이렉트 시 결과 배너 #}
+      {% set imp = request.query_params.get('imported') %}
+      {% if imp and imp != '0' %}
+      <div style="padding:11px 24px;background:var(--pq-ok-soft);border-bottom:1px solid var(--pq-ok);color:var(--pq-ok);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>✅ <b>{{ imp }}건</b> 공급사 신규 등록 완료
+          {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
+          {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
+          {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
+        </span>
+        <a href="/suppliers" style="margin-left:auto;color:var(--pq-ok);font-size:11px;font-weight:500;text-decoration:none;border:1px solid var(--pq-ok);padding:3px 9px;border-radius:4px;">닫기</a>
+      </div>
+      {% endif %}
 
       <div class="kpi-strip" data-dn="suppliers:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -161,12 +178,16 @@
           {% for s in suppliers %}
           <a class="sp-card {% if not s.is_active %}inactive{% endif %}" href="/suppliers/{{ s.id }}/edit">
             <div class="top">
-              {% if s.code %}<span class="code">{{ s.code }}</span>{% endif %}
+              {# v5H226z91: '코드' 표시 제거 — 관리부서로 식별 #}
+              {% if s.manage_dept %}<span class="code" style="color:var(--pq-info);">🏛 {{ s.manage_dept }}</span>{% endif %}
             </div>
             <div class="name">{{ s.name|default('—') }}</div>
             <div class="meta">
-              {% if s.contact %}<div class="row"><span class="ic">👤</span><span>{{ s.contact }}</span></div>{% endif %}
-              {% if s.phone %}<div class="row"><span class="ic">☎</span><span>{{ s.phone }}</span></div>{% endif %}
+              {% if s.ceo_name %}<div class="row"><span class="ic">👔</span><span>대표 {{ s.ceo_name }}</span></div>{% endif %}
+              {% if s.biz_no %}<div class="row"><span class="ic">🧾</span><span style="font-family:var(--pq-mono);">{{ s.biz_no }}</span></div>{% endif %}
+              {% if s.contact %}<div class="row"><span class="ic">👤</span><span>{{ s.contact }}{% if s.phone %} · {{ s.phone }}{% endif %}</span></div>{% endif %}
+              {% if s.contact2 %}<div class="row"><span class="ic">👤</span><span>{{ s.contact2 }}{% if s.phone2 %} · {{ s.phone2 }}{% endif %}</span></div>{% endif %}
+              {% if not s.contact and s.phone %}<div class="row"><span class="ic">☎</span><span>{{ s.phone }}</span></div>{% endif %}
               {% if s.email %}<div class="row"><span class="ic">@</span><span>{{ s.email }}</span></div>{% endif %}
             </div>
             <div class="footer">

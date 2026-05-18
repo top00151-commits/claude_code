@@ -150,15 +150,41 @@
       <div class="section-card">
         <h3>자재 정보</h3>
         <dl class="def">
-          <dt>코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--qv-ink-2);">{{ p.code|default('—') }}</dd>
+          <dt>코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--qv-ink-2);">{{ p.code|default(p.part_no|default('—')) }}</dd>
           <dt>자재명</dt><dd><b>{{ p.name|default(p.part_name|default('—')) }}</b></dd>
           <dt>사양</dt><dd>{{ p.spec|default('—') }}</dd>
           <dt>분류</dt><dd>{{ p.category|default('—') }}</dd>
+          <dt>제조사</dt><dd>{{ p.maker|default('—') }}</dd>
           <dt>사업부</dt><dd>{{ p.biz_div|default('—') }}</dd>
           <dt>단위</dt><dd>{{ p.unit|default('—') }}</dd>
-          <dt>표준 단가</dt><dd>{{ '{:,.0f}'.format(p.unit_price|default(0)) }} 원</dd>
+          <dt>매입단가</dt><dd>{{ '{:,.0f}'.format(p.unit_price|default(p.std_price|default(0))) }} 원</dd>
           <dt>상태</dt><dd>{% if p.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</dd>
+          {# v5H226z109 (2026-05-17) — 용도: 자재 정보 카드 마지막 (대표 지시) #}
+          {% if p.purpose %}
+          <dt>용도</dt><dd style="white-space:pre-wrap;line-height:1.55;color:var(--qv-ink-2,#333);font-size:12.5px;">📝 {{ p.purpose }}</dd>
+          {% endif %}
         </dl>
+      </div>
+
+      {# v5H226z58 (2026-05-12) — 자재 QR 카드 (창고·재고 라벨 인쇄용) #}
+      <div class="section-card" data-dn="pd:qr">
+        <h3>📱 자재 QR 코드</h3>
+        <div style="text-align:center;">
+          <div style="width:160px;height:160px;margin:0 auto;background:#fff;padding:8px;border:1px solid var(--qv-line);border-radius:8px;">
+            <img src="/parts/{{ p.id }}/qr.svg" alt="자재 QR" style="width:100%;height:100%;" loading="lazy">
+          </div>
+          <div style="margin-top:8px;font-family:monospace;font-size:10.5px;color:var(--qv-ink-3);word-break:break-all;">
+            KNK-PART:{{ p.part_no|default(p.code) }}|{{ p.id }}
+          </div>
+          <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            <a href="/parts/{{ p.id }}/qr.svg?scale=10" target="_blank" style="padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none;background:var(--qv-surface-2);color:var(--qv-ink-2);border:1px solid var(--qv-line);border-radius:4px;">🔍 크게 보기</a>
+            <a href="/parts/{{ p.id }}/qr.svg?scale=14" target="_blank" download="QR_{{ p.part_no|default(p.code) }}.svg" style="padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none;background:var(--qv-surface-2);color:var(--qv-ink-2);border:1px solid var(--qv-line);border-radius:4px;">⬇ 다운로드</a>
+            <a href="/parts/{{ p.id }}/qr/print" target="_blank" style="padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none;background:var(--qv-ink);color:#fff;border-radius:4px;">🖨 라벨 인쇄</a>
+          </div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--qv-ink-3);line-height:1.5;">
+            창고·자재 라벨용. 스캔 시 자재 식별 + 입고·재고 자동 매칭.
+          </div>
+        </div>
       </div>
     </aside>
   </div>

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>업무현황 · KNK HAIST WORKS</title>
+
+{# ============================================================
+   home.html — 시안 master_A_dashboard_home_v5H5.html 1:1 STANDALONE
+   2026-05-01 v5H5 standalone (base.html 상속 안 함)
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 마이그레이션 + data-dn 라벨
+              - paper/ink/mute/line/amber 계열 → --qv-* 토큰
+              - grad-amber/grad-knk-red → --qv-ink (잉크 단색)
+              - knk-red 보존: CTA(.btn-submit) + 위험/경고 + 알림 뱃지만
+              - 영역별 data-dn 부착 (?debug=1 라벨링)
+   원본 시안: 05_HAIST_WORKS_디자인팀/03_시안/_05_v5H5_풀세트시안/A_대시보드/master_A_dashboard_home_v5H5.html
+   레거시 백업: _legacy_home_v4.html, _legacy_home_v5alias.html
+   ============================================================ #}
+
+<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H11: chrome (.top/.sidebar/.sb-*) — _v5_partials/styles.html 사용
+   home은 dock 때문에 .app 3컬럼 유지 (아래 .app 정의가 partial보다 우선) */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: var(--qv-surface-2); color: var(--qv-ink); font-feature-settings: 'tnum'; }
+a { text-decoration: none; color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+
+/* v5H22: 빅터 dock이 chrome partial의 fixed-position 패널로 이전됨. .app은 표준 2컬럼. */
+.app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: var(--topbar-h) 1fr; min-height: 100vh; }
+
+/* === 토픽바 === */
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-5); background: var(--qv-surface); border-bottom: 1px solid var(--qv-line); box-shadow: 0 2px 16px rgba(212,146,59,0.05); position: sticky; top: 0; z-index: var(--z-topbar); padding-right: var(--space-4); }
+.tb-brand { padding: 0 var(--space-6); display: flex; align-items: center; gap: var(--space-3); border-right: 1px solid var(--qv-line); height: 100%; white-space: nowrap; flex-shrink: 0; }
+.tb-right { margin-left: auto; }
+.tb-brand img { height: 32px; }
+.tb-brand-name { font-size: 14px; font-weight: 700; color: var(--qv-ink); }
+.tb-brand-sub { font-size: 10px; color: var(--qv-ink-2); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
+.tb-tabs { display: flex; gap: 6px; }
+.tb-tab { padding: 9px 18px; border-radius: var(--radius-full); font-size: 13px; color: var(--qv-ink-3); font-weight: 500; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all .18s; }
+.tb-tab:hover { background: var(--qv-surface-3); color: var(--qv-ink); }
+.tb-tab.active { background: var(--qv-ink); color: white; font-weight: 700; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+.tb-tab.active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: white; box-shadow: 0 0 8px var(--qv-surface-2); }
+.tb-right { display: flex; align-items: center; gap: 8px; padding: 0 var(--space-6); }
+.tb-icon { width: 38px; height: 38px; border-radius: var(--radius-md); display: grid; place-items: center; cursor: pointer; font-size: 18px; color: var(--qv-ink-3); position: relative; border: 1px solid transparent; transition: all .18s; background: transparent; text-decoration: none; }
+.tb-icon:hover { background: var(--qv-surface-2); color: var(--qv-ink-2); border-color: var(--qv-line-2); }
+.tb-icon.active { background: var(--qv-surface-2); color: var(--qv-ink-2); }
+.tb-icon-badge { position: absolute; top: 4px; right: 4px; background: var(--knk-red); color: white; font-size: 9px; padding: 1px 5px; border-radius: var(--radius-full); font-weight: 700; min-width: 16px; text-align: center; }
+.tb-user { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-left: 1px solid var(--qv-line); cursor: pointer; text-decoration: none; color: var(--qv-ink); }
+.tb-user-avatar { width: 32px; height: 32px; background: var(--qv-ink); border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.tb-user-name { font-size: 13px; }
+.tb-user-name b { color: var(--qv-ink-2); }
+
+/* === 사이드바 === */
+.sidebar { background: var(--qv-surface); border-right: 1px solid var(--qv-line); padding: var(--space-5) 0; overflow-y: auto; }
+.sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--qv-ink-3); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--qv-ink); text-decoration: none; transition: background .12s; }
+.sb-item:hover { background: var(--qv-surface-2); }
+.sb-item.active { background: linear-gradient(90deg, var(--qv-surface-2) 0%, transparent 100%); font-weight: 600; position: relative; }
+.sb-item.active::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 3px; background: var(--qv-line-3); border-radius: 2px; }
+.sb-badge { background: var(--knk-red); color: white; font-size: 10px; padding: 1px 7px; border-radius: var(--radius-full); font-weight: 700; }
+.menu-code { display: inline-block; padding: 1px 6px; background: var(--qv-surface-3); color: var(--qv-ink-2); font-size: 9px; font-weight: 700; letter-spacing: 0.04em; border-radius: 4px; margin-left: 6px; vertical-align: 1px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* === 메인 === */
+.main { padding: var(--space-6) var(--content-pad); overflow-y: auto; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5); }
+.page-meta { font-size: 11px; color: var(--qv-ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--qv-ink); margin-top: 4px; }
+.page-title em { font-style: normal; background: var(--qv-ink); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-date-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--qv-ink-3); }
+.page-date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.page-date-nav a:hover { background: var(--qv-surface-2); }
+
+/* === 3 탭 === */
+.scope-tabs { display: flex; gap: 0; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 6px; margin-bottom: var(--space-5); }
+.scope-tab { flex: 1; padding: 12px 16px; text-align: center; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; color: var(--qv-ink-3); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; transition: all .18s; }
+.scope-tab:hover { background: var(--qv-surface-2); color: var(--qv-ink); }
+.scope-tab.active { background: var(--qv-ink); color: white; font-weight: 700; box-shadow: 0 2px 6px rgba(26,26,26,0.22), 0 0 0 1px var(--qv-ink); transform: translateY(-1px); }
+.scope-tab .ico { font-size: 16px; }
+.scope-tab .badge { background: rgba(255,255,255,0.25); color: white; padding: 1px 7px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
+
+/* === 빠른 입력 === */
+.quick-add { display: flex; align-items: center; gap: 12px; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: var(--space-5); }
+.quick-add-ico { width: 36px; height: 36px; background: var(--qv-surface-2); border-radius: 8px; display: grid; place-items: center; font-size: 20px; color: var(--qv-ink-2); font-weight: 700; flex-shrink: 0; }
+.quick-add input[type="text"] { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 14px; outline: none; color: var(--qv-ink); font-family: inherit; }
+.quick-add-extras { display: none; gap: 6px; align-items: center; flex-shrink: 0; }
+.quick-add-extras select, .quick-add-extras input[type="number"] { border: 1px solid var(--qv-line); border-radius: 6px; padding: 6px 10px; font-size: 12px; background: var(--qv-surface-2); color: var(--qv-ink); }
+.quick-add-extras input[type="number"] { width: 80px; }
+.btn-submit { background: var(--knk-red); color: white; border: 0; border-radius: 8px; padding: 10px 22px; font-weight: 700; font-size: 14px; flex-shrink: 0; transition: all .18s; }
+.btn-submit:hover { background: var(--knk-red-deep, #8B1F23); transform: translateY(-1px); }
+
+/* === 벤토 === */
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 130px; gap: var(--space-3); margin: 0; }
+.card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; justify-content: space-between; transition: all var(--t-base); text-decoration: none; color: inherit; }
+.card.clickable { cursor: pointer; }
+.card.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--qv-line-3); }
+.card-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--qv-ink-3); font-weight: 600; }
+.card-value { font-size: 30px; font-weight: 700; color: var(--qv-ink); line-height: 1.1; }
+.card-value .unit { font-size: 14px; color: var(--qv-ink-3); font-weight: 500; }
+.card-trend { font-size: 11.5px; font-weight: 600; }
+.card-trend.up { color: var(--success); }
+.card-trend.up::before { content: "↑ "; }
+.card-trend.alert { color: var(--knk-red); }
+.card-trend.alert::before { content: "⚠ "; }
+.card-trend.neutral { color: var(--qv-ink-3); }
+
+.card.hero { grid-column: span 2; grid-row: span 2; background: var(--qv-ink); color: white; border: 0; position: relative; overflow: hidden; }
+.card.hero::before { content: ""; position: absolute; top: -40%; right: -20%; width: 320px; height: 320px; background: transparent; opacity: 0.4; }
+.card.hero .card-label { color: var(--qv-surface-2); position: relative; z-index: 1; }
+.card.hero .card-value { color: white; font-size: 52px; position: relative; z-index: 1; }
+.card.hero .card-trend { color: var(--qv-surface-2); font-size: 13px; position: relative; z-index: 1; }
+.card.hero .card-trend.up::before { content: ""; }
+
+/* 액션 카드 */
+.actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-top: var(--space-5); }
+.action-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; transition: all var(--t-base); display: flex; align-items: center; gap: var(--space-3); text-decoration: none; color: inherit; }
+.action-card:hover { background: var(--qv-surface-2); border-color: var(--qv-line-3); transform: translateY(-2px); }
+.action-icon { width: 42px; height: 42px; background: var(--qv-surface-2); border-radius: var(--radius-md); display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
+.action-text { flex: 1; min-width: 0; }
+.action-text h4 { font-size: 13px; font-weight: 700; color: var(--qv-ink); }
+.action-text p { font-size: 11px; color: var(--qv-ink-3); margin-top: 2px; }
+.action-arrow { color: var(--qv-ink-2); font-weight: 700; flex-shrink: 0; }
+
+/* 섹션 */
+.section { margin: var(--space-7) 0 0; }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; color: var(--qv-ink); }
+.section h2::before { content: ""; width: 4px; height: 18px; background: var(--qv-line-3); border-radius: 2px; }
+.section h2 small { font-size: 11px; color: var(--qv-ink-3); font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+
+/* 알림·이슈 카드 */
+.feed { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+.feed-item { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); display: flex; gap: var(--space-3); align-items: flex-start; cursor: pointer; transition: all var(--t-fast); text-decoration: none; color: inherit; }
+.feed-item:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
+.feed-icon { font-size: 20px; flex-shrink: 0; }
+.feed-text { flex: 1; min-width: 0; }
+.feed-text .ttl { font-size: 13px; font-weight: 600; color: var(--qv-ink); }
+.feed-text .body { font-size: 12px; color: var(--qv-ink-3); margin-top: 3px; line-height: 1.55; }
+.feed-text .meta { font-size: 10.5px; color: var(--qv-ink-2); margin-top: 5px; letter-spacing: 0.05em; font-weight: 600; }
+
+/* === 빅터 dock === */
+.dock { background: var(--qv-surface-2); border-left: 1px solid var(--qv-line); display: flex; flex-direction: column; position: sticky; top: var(--topbar-h); height: calc(100vh - var(--topbar-h)); }
+.dock-head { padding: var(--space-4) var(--space-5); background: var(--qv-ink); color: white; position: relative; overflow: hidden; }
+.dock-head::before { content: ""; position: absolute; bottom: -40%; right: -20%; width: 200px; height: 200px; background: transparent; opacity: 0.3; }
+.dock-name { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; position: relative; z-index: 1; }
+.dock-name::before { content: ""; width: 10px; height: 10px; background: white; border-radius: 50%; box-shadow: 0 0 12px white; animation: pulse-dot 1.5s infinite; }
+.dock-role { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; margin-top: 4px; opacity: 0.85; position: relative; z-index: 1; }
+.dock-body { flex: 1; padding: var(--space-4); overflow-y: auto; }
+.dock-msg { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; margin-bottom: var(--space-3); color: var(--qv-ink); }
+.dock-msg b { color: var(--knk-red); }
+.dock-msg.user { background: var(--qv-ink); color: white; border: 0; border-radius: 12px 12px 4px 12px; margin-left: 24px; }
+.dock-input-wrap { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--qv-line); background: var(--qv-surface); display: flex; gap: 8px; }
+.dock-input-wrap input { flex: 1; min-width: 0; border: 1px solid var(--qv-line); background: var(--qv-surface-2); border-radius: var(--radius-md); padding: 8px 12px; font-size: 13px; font-family: inherit; color: var(--qv-ink); }
+.dock-input-wrap button { background: var(--qv-ink); color: white; border: 0; border-radius: var(--radius-md); padding: 0 14px; font-weight: 700; cursor: pointer; font-size: 12.5px; }
+
+@keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+
+/* 토스트 */
+.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9000; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--qv-ink); color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow-lg); opacity: 0; transition: opacity .2s; }
+.toast.show { opacity: 1; }
+
+/* 반응형 */
+@media (max-width: 1280px) {
+  .bento { grid-template-columns: repeat(3, 1fr); }
+  .actions { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 1023px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h) auto auto auto; }
+  .sidebar, .dock { display: none; }
+  .bento { grid-template-columns: 1fr 1fr; }
+  .actions { grid-template-columns: 1fr 1fr; }
+  .feed { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+{# ===== 집계 변수 ===== #}
+{% set total_my   = my_tasks|length %}
+{% set done_my    = my_tasks|selectattr('status','equalto','완료')|list|length %}
+{% set prog_my    = my_tasks|selectattr('status','equalto','진행중')|list|length %}
+{% set delay_my   = my_tasks|selectattr('status','equalto','지연')|list|length %}
+{% set wait_my    = my_tasks|selectattr('status','equalto','대기')|list|length %}
+{% set hours_my   = my_tasks|sum(attribute='hours') %}
+{% set rate_my    = ((done_my*100/total_my)|round(0,'floor')|int) if total_my else 0 %}
+{% set carry_cnt  = pending_yday|length %}
+{% set _sd        = ('&sel_date=' ~ sel_date) if sel_date and sel_date != today else '' %}
+{% set role       = (user.role or 'member')|lower %}
+
+<div class="app">
+  {# v5H11: 인라인 topbar+sidebar 제거 → chrome partial로 통일 (대표 지시 2026-05-02) #}
+  {% set active_tab = 'home' %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <!-- ============ 메인 ============ -->
+  <main class="main" data-dn="home-main">
+
+    <!-- Page Head -->
+    <div class="page-head" data-dn="home-pagehead">
+      <div>
+        <div class="page-meta">{{ sel_date }} · {{ greeting_bucket|upper|default('TODAY') }}</div>
+        <h1 class="page-title">{{ greeting|default('안녕하세요, ' ~ user.name ~ '님') }}</h1>
+        <div class="page-date-nav">
+          <a href="/home/{{ prev_date }}">‹</a>
+          <span>{{ sel_date }}</span>
+          {% if sel_date != today %}<a href="/home">오늘로</a>{% endif %}
+          <a href="/home/{{ next_date }}">›</a>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <a class="tb-icon" href="/notifications" title="알림">
+          🔔
+          {% if unread_notif and unread_notif > 0 %}<span class="tb-icon-badge">{{ unread_notif }}</span>{% endif %}
+        </a>
+        <button class="btn-submit" onclick="document.getElementById('newTitle').focus()">＋ 새 업무 등록</button>
+      </div>
+    </div>
+
+    <!-- 3 탭 -->
+    <div class="scope-tabs" data-dn="home-scope-tabs">
+      <a href="?tab=my{{ _sd }}" class="scope-tab {% if tab=='my' %}active{% endif %}">
+        <span class="ico">👤</span><span>내 업무</span>{% if total_my %}<span class="badge">{{ total_my }}</span>{% endif %}
+      </a>
+      <a href="?tab=team{{ _sd }}" class="scope-tab {% if tab=='team' %}active{% endif %}">
+        <span class="ico">👥</span><span>우리 팀</span>
+      </a>
+      {% if role in ('ceo','admin','executive','leader') %}
+      <a href="?tab=all{{ _sd }}" class="scope-tab {% if tab=='all' %}active{% endif %}">
+        <span class="ico">🏢</span><span>전사</span>
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- 빠른 입력 -->
+    <div class="quick-add" data-dn="home-quickadd">
+      <div class="quick-add-ico">＋</div>
+      <input type="text" id="newTitle" placeholder="지금 무슨 업무를 하고 계신가요? 입력 후 Enter ↵"
+             onkeydown="if(event.key==='Enter')addTask()"
+             onfocus="document.getElementById('quickExtras').style.display='flex'">
+      <div class="quick-add-extras" id="quickExtras">
+        <select id="newProject"><option value="">프로젝트</option>
+          {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+        <select id="newCustomer"><option value="">고객사</option>
+          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+        <input type="number" id="newHours" placeholder="공수" step="0.5" min="0" max="24">
+      </div>
+      <button class="btn-submit" onclick="addTask()">등록</button>
+    </div>
+
+    <!-- 벤토 그리드 -->
+    <div class="bento" data-dn="home-kpi-bento">
+      <div class="card hero">
+        <div class="card-label">내가 진행 중</div>
+        <div>
+          <div class="card-value">{{ prog_my + wait_my }} 건</div>
+          <div class="card-trend up">전체 {{ total_my }} · 완료 {{ done_my }}{% if delay_my > 0 %} · 지연 {{ delay_my }}{% endif %}</div>
+        </div>
+      </div>
+
+      <a class="card clickable" href="/history?status=완료">
+        <div class="card-label">완료율</div>
+        <div class="card-value">{{ rate_my }}<span class="unit">%</span></div>
+        <div class="card-trend up">{{ done_my }} / {{ total_my }}</div>
+      </a>
+
+      <a class="card clickable" href="/history?status=지연">
+        <div class="card-label">지연 카드</div>
+        <div class="card-value" {% if delay_my > 0 %}style="color:var(--knk-red);"{% endif %}>{{ delay_my }}</div>
+        <div class="card-trend {% if delay_my == 0 %}up{% else %}alert{% endif %}">{% if delay_my == 0 %}지연 없음{% else %}확인 필요{% endif %}</div>
+      </a>
+
+      <a class="card clickable" href="/daily">
+        <div class="card-label">누적 공수</div>
+        <div class="card-value">{{ '%.1f'|format(hours_my or 0) }}<span class="unit">h</span></div>
+        <div class="card-trend neutral">{{ prog_my }} 진행중</div>
+      </a>
+
+      <a class="card clickable" href="/notifications">
+        <div class="card-label">알림</div>
+        <div class="card-value">{{ hw_counts.changes_unread or 0 }}</div>
+        <div class="card-trend {% if (hw_counts.changes_unread or 0) > 0 %}alert{% else %}up{% endif %}">{% if (hw_counts.changes_unread or 0) > 0 %}미확인{% else %}확인 완료{% endif %}</div>
+      </a>
+
+      <a class="card clickable" href="/tickets">
+        <div class="card-label">내 티켓</div>
+        <div class="card-value">{{ hw_counts.tickets_pending or 0 }}</div>
+        <div class="card-trend {% if (hw_counts.tickets_pending or 0) > 0 %}alert{% else %}neutral{% endif %}">{% if (hw_counts.tickets_pending or 0) > 0 %}대기 중{% else %}없음{% endif %}</div>
+      </a>
+
+      {% if carry_cnt > 0 %}
+      <a class="card clickable" href="/daily" style="border-color:var(--qv-ink);">
+        <div class="card-label">어제 미완료</div>
+        <div class="card-value" style="color:var(--qv-ink);">{{ carry_cnt }}</div>
+        <div class="card-trend alert">이월 후보</div>
+      </a>
+      {% else %}
+      <a class="card clickable" href="/daily">
+        <div class="card-label">미작성 일일업무</div>
+        <div class="card-value" {% if total_my == 0 %}style="color:var(--knk-red);"{% endif %}>{{ 1 if total_my == 0 else 0 }}</div>
+        <div class="card-trend {% if total_my == 0 %}alert{% else %}up{% endif %}">{% if total_my == 0 %}16:30 알림{% else %}작성 완료{% endif %}</div>
+      </a>
+      {% endif %}
+    </div>
+
+    {% if is_executive %}
+    <!-- 경영진 매출 KPI -->
+    <div class="bento" data-dn="home-exec-bento" style="margin-top:var(--space-4);grid-template-columns:repeat(2,1fr);grid-auto-rows:130px;">
+      <div class="card" style="position:relative;">
+        <div style="position:absolute;top:10px;right:10px;background:var(--qv-surface-3);color:var(--qv-ink-2);font-size:9px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.5px;">🔒 경영진</div>
+        <div class="card-label">이번 달 수주</div>
+        {% if monthly_revenue is not none and monthly_revenue > 0 %}
+        <div class="card-value" style="font-size:24px;">{{ '{:,.0f}'.format(monthly_revenue) }}<span class="unit">원</span></div>
+        {% if yoy_delta is not none %}
+        <div class="card-trend {% if yoy_delta >= 0 %}up{% else %}alert{% endif %}">전년 동월 {{ '%+.1f'|format(yoy_delta) }}%</div>
+        {% endif %}
+        {% else %}
+        <div class="card-value" style="font-size:16px;color:var(--qv-ink-3);">데이터 준비 중</div>
+        <div class="card-trend neutral">/dashboard 참조</div>
+        {% endif %}
+      </div>
+      <a class="card clickable" href="/dashboard">
+        <div class="card-label">전사 활동</div>
+        <div class="card-value">{{ today_reporters }}<span class="unit"> / {{ total_users }}</span></div>
+        <div class="card-trend up">참여율 {{ participation_rate }}%</div>
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- 빠른 액션 -->
+    <div class="section" data-dn="home-quickactions">
+      <h2>빠른 액션</h2>
+      <div class="actions">
+        <a class="action-card" href="/daily">
+          <div class="action-icon">📝</div>
+          <div class="action-text"><h4>일일업무 작성</h4><p>오늘 16:30 마감</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/sales/quotes/new">
+          <div class="action-icon">📋</div>
+          <div class="action-text"><h4>새 견적 작성</h4><p>품목·단가 자동</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/tickets">
+          <div class="action-icon">🎫</div>
+          <div class="action-text"><h4>티켓 발행</h4><p>관리자 요청</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        <a class="action-card" href="/po">
+          <div class="action-icon">📦</div>
+          <div class="action-text"><h4>자재 발주</h4><p>재고 자동 확인</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+      </div>
+    </div>
+
+    {% if my_tasks %}
+    <div class="section" data-dn="home-todays">
+      <h2>오늘의 업무 <small>({{ total_my }})</small></h2>
+      <div class="feed">
+        {% for t in my_tasks[:6] %}
+        <a class="feed-item" href="/daily">
+          <div class="feed-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
+          <div class="feed-text">
+            <div class="ttl">{{ t.title }}</div>
+            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}{% if t.hours %} · {{ t.hours }}h{% endif %}</div>
+            <div class="meta">{{ t.status }}{% if t.comment_count %} · 💬 {{ t.comment_count }}{% endif %}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if pending_yday %}
+    <div class="section" data-dn="home-pending-yday">
+      <h2>어제 미완료 <small>({{ carry_cnt }} · 클릭하여 오늘로 이월)</small></h2>
+      <div class="feed">
+        {% for t in pending_yday[:4] %}
+        <a class="feed-item" href="javascript:void(0)" onclick="carryForward({{ t.id }})">
+          <div class="feed-icon">↪</div>
+          <div class="feed-text">
+            <div class="ttl">{{ t.title }}</div>
+            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}</div>
+            <div class="meta">{{ t.status }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if tab in ('team','all') and team_data %}
+    <div class="section" data-dn="home-team">
+      <h2>{% if tab == 'team' %}우리 팀 현황{% else %}전사 현황{% endif %}</h2>
+      <div class="feed">
+        {% for td in team_data %}
+        {% if tab == 'all' or (user.team_id and td.team.id == user.team_id) %}
+        <a class="feed-item" href="/team?team_id={{ td.team.id }}">
+          <div class="feed-icon">{% if td.signal == 'red' %}🔴{% elif td.signal == 'yellow' %}🟡{% else %}🟢{% endif %}</div>
+          <div class="feed-text">
+            <div class="ttl">{{ td.team.name }}</div>
+            <div class="body">참여 {{ td.reported }}/{{ td.total_members }}명 · 진행 {{ td.progress }} · 완료 {{ td.done }}{% if td.delay > 0 %} · <b style="color:var(--knk-red);">지연 {{ td.delay }}</b>{% endif %}</div>
+            <div class="meta">총 {{ td.total }}건</div>
+          </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </main>
+
+  {# v5H22: 인라인 dock 제거 — chrome partial의 fixed-position 빅터 dock 사용 (모든 페이지 공통, localStorage 상태 유지) #}
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const SEL_DATE = '{{ sel_date }}';
+
+async function addTask() {
+  const title = document.getElementById('newTitle').value.trim();
+  if (!title) return;
+  const r = await fetch('/api/task', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, work_date: SEL_DATE, status: '진행중',
+      hours: parseFloat(document.getElementById('newHours').value) || 0,
+      category: '기타',
+      project_id: document.getElementById('newProject').value || null,
+      customer_id: document.getElementById('newCustomer').value || null,
+    })
+  });
+  if (r.ok) { showToast('등록되었습니다'); setTimeout(() => location.reload(), 500); }
+  else { showToast('등록 실패'); }
+}
+
+async function carryForward(tid) {
+  if (!confirm('이 업무를 오늘로 이월하시겠습니까?')) return;
+  const r = await fetch('/api/task/' + tid + '/carry', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ work_date: SEL_DATE })
+  });
+  if (r.ok) { showToast('이월되었습니다'); setTimeout(() => location.reload(), 500); }
+  else { showToast('이월 실패'); }
+}
+
+/* v5H22: toggleDock·victorAsk·escapeHtml은 chrome partial로 이전됨.
+   home은 toast만 정의. 키보드 단축키는 chrome의 toggleVictorDock() 호출. */
+
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+function showToast(msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+// 키보드 단축키 — Esc: 빅터 dock 닫기 / Ctrl+K: 빅터 dock 열기 (chrome partial 함수 호출)
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.body.classList.contains('victor-open')) {
+    if (window.toggleVictorDock) window.toggleVictorDock(false);
+  } else if (e.ctrlKey && e.key === 'k') {
+    e.preventDefault();
+    if (window.toggleVictorDock) window.toggleVictorDock(true);
+  }
+});
+</script>
+</body>
+</html>

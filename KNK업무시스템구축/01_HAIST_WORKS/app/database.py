@@ -1919,7 +1919,7 @@ def init_db():
             )
             # 2026-04-28 자재 보기 시드 (실무자 폭넓게):
             #   - 영업팀(1), 검사기(2), 품질(3), 생산팀(7,8), 가공(9), 구매(10) 평직원 전원 자동
-            #     (재고·부품·단가·구매처 조회 필요)
+            #     (재고·부품·단가·구매사 조회 필요)
             c.execute(
                 "UPDATE users SET can_view_logistics=1 "
                 "WHERE role='member' AND is_active=1 AND team_id IN (1,2,3,7,8,9,10)"
@@ -1972,6 +1972,33 @@ def init_db():
                 c.execute("ALTER TABLE parts ADD COLUMN reorder_point REAL DEFAULT 0")
             if prcols and "reorder_qty" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN reorder_qty REAL DEFAULT 0")
+            # v5H226z83/z84 (2026-05-14): 매입단가 — 구매사 3곳 × 각 1~5차(날짜+단가) JSON
+            # 형식: [{"supplier":"공원전기(주)","entries":[{"seq":1,"date":"2026-05-01","price":52750}, ...]}, ...]
+            # 대표단가(std_price) = 전체 중 가장 최근 날짜의 단가
+            if prcols and "purchase_prices" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN purchase_prices TEXT")
+            # v5H226z99 (2026-05-16): 자재 용도(purpose) — 카탈로그 검색·식별 보조용 자유 텍스트
+            if prcols and "purpose" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN purpose TEXT")
+        except Exception:
+            pass
+        # v5H226z89 (2026-05-14): suppliers 에 사업자등록번호·대표자 컬럼 추가
+        #   (customers 테이블과 동일 명명 — biz_no / ceo_name)
+        # v5H226z90 (2026-05-14): 관리부서(manage_dept) + 담당자2 풀세트(contact2/phone2/email2)
+        try:
+            spcols = [r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()]
+            if spcols and "biz_no" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN biz_no TEXT")
+            if spcols and "ceo_name" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN ceo_name TEXT")
+            if spcols and "manage_dept" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN manage_dept TEXT")
+            if spcols and "contact2" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN contact2 TEXT")
+            if spcols and "phone2" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN phone2 TEXT")
+            if spcols and "email2" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN email2 TEXT")
         except Exception:
             pass
         # 마이그레이션: stock_movements에 FIFO/lot 컬럼 (2026-04-21 리서치 반영)
@@ -3837,9 +3864,10 @@ def parts_list(q: str = "", biz_div: str = "", category: str = ""):
     sql = "SELECT * FROM parts WHERE 1=1"
     params: list = []
     if q:
-        sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ?)"
+        # v5H226z99 (2026-05-16): purpose(용도) 검색 추가
+        sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?)"
         like = f"%{q}%"
-        params += [like, like, like, like]
+        params += [like, like, like, like, like]
     if biz_div:
         sql += " AND biz_div = ?"
         params.append(biz_div)
@@ -3854,6 +3882,181 @@ def parts_list(q: str = "", biz_div: str = "", category: str = ""):
 def parts_get(pid: int):
     with db_session() as c:
         return c.execute("SELECT * FROM parts WHERE id = ?", (pid,)).fetchone()
+
+
+def purchase_prices_rep(raw) -> dict:
+    """v5H226z84: 매입단가 JSON → 목록 표시용 요약.
+    반환: {"vendor": 대표 구매사명, "vendor_count": 구매사 수(이름 있는), "price": 대표단가 or None}
+    대표 = 가장 최근 날짜의 단가가 속한 구매사 (날짜 없으면 마지막 price>0).
+    """
+    import json as _json
+    out = {"vendor": "", "vendor_count": 0, "price": None}
+    if not raw:
+        return out
+    try:
+        vendors = raw if isinstance(raw, list) else _json.loads(raw)
+    except (ValueError, TypeError):
+        return out
+    if not isinstance(vendors, list):
+        return out
+    named = 0
+    best = None       # ((date, seq), price, supplier)
+    fallback = None   # (price, supplier)
+    for vend in vendors:
+        if not isinstance(vend, dict):
+            continue
+        supplier = str(vend.get("supplier") or "").strip()
+        if supplier:
+            named += 1
+        for ent in (vend.get("entries") or []):
+            if not isinstance(ent, dict):
+                continue
+            try:
+                price = float(ent.get("price") or 0)
+            except (TypeError, ValueError):
+                price = 0.0
+            if price <= 0:
+                continue
+            date = str(ent.get("date") or "").strip()
+            try:
+                seq = int(ent.get("seq") or 0)
+            except (TypeError, ValueError):
+                seq = 0
+            fallback = (price, supplier)
+            if date:
+                key = (date, seq)
+                if best is None or key > best[0]:
+                    best = (key, price, supplier)
+    out["vendor_count"] = named
+    if best is not None:
+        out["vendor"], out["price"] = best[2], best[1]
+    elif fallback is not None:
+        out["vendor"], out["price"] = fallback[1], fallback[0]
+    return out
+
+
+def parts_delete_impact(pid: int) -> dict:
+    """v5H226z81: 자재 삭제 영향도 — 발주/견적 연결 건수 + 재고 + 첨부.
+    수정 페이지의 '완전 삭제' 위험 경고에 사용."""
+    out = {"stock_qty": 0.0, "po_refs": 0, "quote_refs": 0,
+           "movement_refs": 0, "attach_refs": 0}
+    with db_session() as c:
+        def _count(sql, params=(pid,)):
+            try:
+                r = c.execute(sql, params).fetchone()
+                return int(r[0]) if r and r[0] is not None else 0
+            except Exception:
+                return 0
+        try:
+            r = c.execute("SELECT stock_qty FROM parts WHERE id=?", (pid,)).fetchone()
+            out["stock_qty"] = float(r[0]) if r and r[0] is not None else 0.0
+        except Exception:
+            pass
+        out["po_refs"]       = _count("SELECT COUNT(*) FROM po_items WHERE part_id=?")
+        out["quote_refs"]    = _count("SELECT COUNT(*) FROM quotation_items WHERE part_id=?")
+        out["movement_refs"] = _count("SELECT COUNT(*) FROM stock_movements WHERE part_id=?")
+        out["attach_refs"]   = _count("SELECT COUNT(*) FROM part_attachments WHERE part_id=?")
+    return out
+
+
+# =====================================================
+# v5H226z58 (2026-05-12) — 자재 중복 등록 방지 다층 방어 (A안)
+# 1) _normalize_part_key — 공백·대소문자·특수문자 제거 정규화
+# 2) _similarity_score — 정규화 일치도 + 부분 포함 + Levenshtein 거리 점수
+# 3) parts_find_similar — 유사 자재 검색 (점수 정렬, 상위 limit)
+# 사용: parts_create(force=True) 로 우회 가능 / 라우터 /parts/check JSON 응답
+# =====================================================
+import re as _pq_re
+
+def _normalize_part_key(s: str) -> str:
+    """공백·하이픈·언더스코어·특수문자 제거 + 소문자 통일.
+    영숫자·한글만 남김. 비교용 정규화 키."""
+    return _pq_re.sub(r'[^a-z0-9가-힣]', '', (s or '').lower())
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """편집 거리 (insert/delete/replace) — 짧은 문자열용 자체 구현."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            cur.append(min(cur[-1] + 1, prev[j] + 1, prev[j - 1] + cost))
+        prev = cur
+    return prev[-1]
+
+
+def _similarity_score(a: str, b: str) -> int:
+    """0~100 점수. 100=완전동일, ≥85=확정유사, ≥60=주의 권고."""
+    if not a or not b:
+        return 0
+    na, nb = _normalize_part_key(a), _normalize_part_key(b)
+    if not na or not nb:
+        return 0
+    if na == nb:
+        return 100
+    # 부분 포함 (긴 것이 짧은 것을 완전 포함)
+    if na in nb or nb in na:
+        ratio = min(len(na), len(nb)) / max(len(na), len(nb))
+        return int(60 + 30 * ratio)  # 60~90
+    # Levenshtein 거리 기반 (max len 대비)
+    dist = _levenshtein(na, nb)
+    max_len = max(len(na), len(nb))
+    sim = max(0, 100 - int(100 * dist / max_len))
+    return sim
+
+
+def parts_find_similar(name: str, spec: str = "", maker: str = "",
+                       exclude_id: int = 0, limit: int = 5,
+                       threshold: int = 60) -> list[dict]:
+    """유사 자재 검색. 자재명 위주 + spec/maker 보조 점수 가산.
+    반환: [{id, part_no, part_name, spec, maker, score}] 점수 내림차순.
+    threshold(60) 이상만 반환. 정확히 part_no 일치하는 행은 100점."""
+    name = (name or "").strip()
+    if not name:
+        return []
+    spec = (spec or "").strip()
+    maker = (maker or "").strip()
+    with db_session() as c:
+        # 1차 좁히기 — 정규화 키 첫 4자가 같은 행만 후보 (LIKE 인덱스 활용)
+        nk = _normalize_part_key(name)
+        prefix = nk[:3] if len(nk) >= 3 else nk
+        # 광범위 후보 가져오기 — part_name LIKE 또는 part_no LIKE
+        like = f"%{name[:6]}%" if len(name) >= 2 else f"%{name}%"
+        rows = c.execute(
+            """SELECT id, part_no, part_name, spec, maker, biz_div, category
+               FROM parts
+               WHERE id <> ? AND COALESCE(is_active,1)=1
+                 AND (part_name LIKE ? OR part_no LIKE ?)
+               LIMIT 200""",
+            (int(exclude_id or 0), like, like),
+        ).fetchall()
+    scored = []
+    for r in rows:
+        d = dict(r)
+        name_score = _similarity_score(name, d.get("part_name") or "")
+        # spec/maker 일치 시 가산 (각 +5, 최대 100)
+        bonus = 0
+        if spec and d.get("spec") and _normalize_part_key(spec) == _normalize_part_key(d.get("spec") or ""):
+            bonus += 5
+        if maker and d.get("maker") and _normalize_part_key(maker) == _normalize_part_key(d.get("maker") or ""):
+            bonus += 5
+        score = min(100, name_score + bonus)
+        if score >= threshold:
+            d["score"] = score
+            d["score_name"] = name_score
+            d["score_bonus"] = bonus
+            scored.append(d)
+    scored.sort(key=lambda x: (-x["score"], x["id"]))
+    return scored[:max(1, int(limit))]
 
 
 def _validate_parts_payload(data: dict) -> None:
@@ -3880,18 +4083,85 @@ def _validate_parts_payload(data: dict) -> None:
     if ia not in (0, 1):
         raise ValueError(f"is_active 는 0 또는 1이어야 합니다. (입력: {ia_raw})")
     data["is_active"] = ia
-    # std_price 음수 차단
+    # std_price(매입단가) 음수 차단
     try:
         if float(data.get("std_price") or 0) < 0:
-            raise ValueError("표준 단가(std_price)는 0 이상이어야 합니다.")
+            raise ValueError("매입단가(std_price)는 0 이상이어야 합니다.")
     except (TypeError, ValueError) as _e:
-        if "표준 단가" in str(_e):
+        if "매입단가" in str(_e):
             raise
-        raise ValueError("표준 단가(std_price)가 올바른 숫자가 아닙니다.")
+        raise ValueError("매입단가(std_price)가 올바른 숫자가 아닙니다.")
 
 
-def parts_create(data: dict) -> int:
+def _parse_purchase_prices(raw):
+    """v5H226z84: 매입단가 — 구매사 3곳 × 각 1~5차(날짜+단가) JSON 파싱.
+    입력: JSON 문자열 또는 list.
+      형식 [{"supplier":"공원전기(주)","entries":[{"seq":1,"date":"2026-05-01","price":52750}, ...]}, ...]
+    반환: (정규화 JSON 문자열 or None, 대표단가 float or None)
+    대표단가 = 전체 entries 중 '가장 최근 날짜'의 단가 (동일 날짜 시 높은 seq).
+              날짜 있는 단가가 하나도 없으면 마지막 price>0 단가로 폴백.
+    완전 빈 행/구매사는 제외. 구매사 최대 3, 각 차수 최대 5.
+    """
+    import json as _json
+    if not raw:
+        return None, None
+    try:
+        vendors = raw if isinstance(raw, list) else _json.loads(raw)
+    except (ValueError, TypeError):
+        return None, None
+    if not isinstance(vendors, list):
+        return None, None
+    cleaned = []
+    best = None       # ((date, seq), price) — 가장 최근 날짜
+    fallback = None   # 마지막 price>0 (날짜 없을 때)
+    for vend in vendors[:3]:
+        if not isinstance(vend, dict):
+            continue
+        supplier = str(vend.get("supplier") or "").strip()
+        raw_entries = vend.get("entries")
+        entries = []
+        if isinstance(raw_entries, list):
+            for ent in raw_entries[:5]:
+                if not isinstance(ent, dict):
+                    continue
+                try:
+                    seq = int(ent.get("seq") or 0)
+                except (TypeError, ValueError):
+                    seq = 0
+                date = str(ent.get("date") or "").strip()
+                try:
+                    price = float(ent.get("price") or 0)
+                except (TypeError, ValueError):
+                    price = 0.0
+                if price < 0:
+                    price = 0.0
+                if price <= 0 and not date:
+                    continue  # 완전 빈 행 스킵
+                entries.append({"seq": seq, "date": date, "price": price})
+                if price > 0:
+                    fallback = price
+                    if date:
+                        key = (date, seq)
+                        if best is None or key > best[0]:
+                            best = (key, price)
+        if supplier or entries:
+            cleaned.append({"supplier": supplier, "entries": entries})
+    if not cleaned:
+        return None, None
+    std_price = best[1] if best is not None else fallback
+    return _json.dumps(cleaned, ensure_ascii=False), std_price
+
+
+def parts_create(data: dict, force: bool = False) -> int:
+    """자재 신규 등록.
+    force=False (기본): 유사 자재(점수 ≥ 85) 발견 시 ValueError + 후보 노출 (3층 방어)
+    force=True: 유사 검사 통과 (사용자 confirm 후 재제출용).
+    part_no UNIQUE 중복은 force 무관 항상 차단 (DB 제약)."""
     _validate_parts_payload(data)
+    # v5H226z83: 매입단가 1~5차 → JSON 정규화 + 마지막 차수를 std_price 에 동기화
+    _pp_json, _pp_last = _parse_purchase_prices(data.get("purchase_prices"))
+    if _pp_last is not None:
+        data["std_price"] = _pp_last
     # v5H113 LOW#21: part_no 중복 친절 처리
     pno = (data.get("part_no") or "").strip()
     if pno:
@@ -3902,6 +4172,24 @@ def parts_create(data: dict) -> int:
                     f"부품 코드 '{pno}' 는 이미 등록되어 있습니다 "
                     f"(기존: [{dup['id']}] {dup['part_name']}). 다른 코드를 사용하거나 기존 부품을 수정해주세요."
                 )
+    # v5H226z58 (2026-05-12) — 3층 방어: 자재명 유사도 검사 (force=False 일 때만)
+    if not force:
+        sims = parts_find_similar(
+            name=(data.get("part_name") or "").strip(),
+            spec=(data.get("spec") or "").strip(),
+            maker=(data.get("maker") or "").strip(),
+            exclude_id=0, limit=5, threshold=85,
+        )
+        if sims:
+            # 점수 85 이상 = 확정 유사 → 사용자 confirm 요구
+            top = sims[0]
+            tail = ", ".join(f"[{s['id']}] {s['part_name']}({s['score']}점)" for s in sims[:3])
+            raise ValueError(
+                f"유사한 자재 {len(sims)}건 발견 — 정말 신규 등록이 맞나요?\n"
+                f"가장 유사: [{top['id']}] {top['part_name']} (점수 {top['score']})\n"
+                f"전체: {tail}\n"
+                f"기존 자재 수정 권장. 신규가 맞으면 'force=1' 로 재제출하세요."
+            )
     # v5H226z58 (2026-05-11): 자재모듈 표준 v2 — 13 컬럼 확장 (item_account/procurement_kind/
     #   category_main/category_series/reorder_point/reorder_qty/conversion_factor/sub_spec1~3/
     #   tax_invoice_name/trade_invoice_name/default_warehouse/hs_code)
@@ -3943,6 +4231,9 @@ def parts_create(data: dict) -> int:
         ("trade_invoice_name", (data.get("trade_invoice_name") or "").strip() or None),
         ("default_warehouse",  (data.get("default_warehouse") or "").strip() or None),
         ("hs_code",            (data.get("hs_code") or "").strip() or None),
+        ("purchase_prices",    _pp_json),
+        # v5H226z99 (2026-05-16): 용도 — 카탈로그 검색 보조 자유 텍스트
+        ("purpose",            (data.get("purpose") or "").strip() or None),
     ]
     with db_session() as c:
         # PRAGMA 로 실제 존재 컬럼만 추가 (z58 SQL 미적용 환경 호환)
@@ -3964,6 +4255,14 @@ def parts_create(data: dict) -> int:
 
 def parts_update(pid: int, data: dict) -> None:
     _validate_parts_payload(data)
+    # v5H226z83: 매입단가 1~5차 — "purchase_prices" 키가 전달된 경우에만 처리
+    #   (대량등록 등 키 미전달 호출은 기존 컬럼 값 보존)
+    _pp_provided = "purchase_prices" in data
+    _pp_json = None
+    if _pp_provided:
+        _pp_json, _pp_last = _parse_purchase_prices(data.get("purchase_prices"))
+        if _pp_last is not None:
+            data["std_price"] = _pp_last
     # v5H113 LOW#21: 다른 row 와 part_no 중복 차단
     pno = (data.get("part_no") or "").strip()
     if pno:
@@ -4014,6 +4313,12 @@ def parts_update(pid: int, data: dict) -> None:
         ("default_warehouse",  (data.get("default_warehouse") or "").strip() or None),
         ("hs_code",            (data.get("hs_code") or "").strip() or None),
     ]
+    # v5H226z99 (2026-05-16): 용도(purpose) — 폼에서 전달된 경우에만 SET (미전달 호출은 보존)
+    if "purpose" in data:
+        ext_pairs.append(("purpose", (data.get("purpose") or "").strip() or None))
+    # v5H226z83: purchase_prices 는 폼에서 전달된 경우에만 SET (미전달 호출은 보존)
+    if _pp_provided:
+        ext_pairs.append(("purchase_prices", _pp_json))
     with db_session() as c:
         existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
         ext_fields, ext_values = [], []
@@ -4751,25 +5056,39 @@ def supplier_create(data: dict) -> int:
         raise ValueError("공급사명은 필수입니다.")
     data["currency"] = _validate_currency(data)
     now = _logi_now()
+    base_cols = ["name", "code", "contact", "email", "phone", "country", "currency",
+                 "payment_terms", "note", "is_active", "created_at", "updated_at"]
+    base_vals = [
+        (data.get("name") or "").strip(),
+        (data.get("code") or "").strip() or None,
+        (data.get("contact") or "").strip(),
+        (data.get("email") or "").strip(),
+        (data.get("phone") or "").strip(),
+        (data.get("country") or "").strip(),
+        (data.get("currency") or "KRW").strip() or "KRW",
+        (data.get("payment_terms") or "").strip(),
+        (data.get("note") or "").strip(),
+        1 if data.get("is_active", 1) else 0,
+        now, now,
+    ]
+    # v5H226z89/z90: 확장 컬럼 — 존재 시에만 포함 (마이그레이션 호환 가드)
+    ext_pairs = [
+        ("biz_no",      (str(data.get("biz_no") or "")).strip() or None),
+        ("ceo_name",    (str(data.get("ceo_name") or "")).strip() or None),
+        ("manage_dept", (str(data.get("manage_dept") or "")).strip() or None),
+        ("contact2",    (str(data.get("contact2") or "")).strip() or None),
+        ("phone2",      (str(data.get("phone2") or "")).strip() or None),
+        ("email2",      (str(data.get("email2") or "")).strip() or None),
+    ]
     with db_session() as c:
-        cur = c.execute("""
-            INSERT INTO suppliers
-            (name, code, contact, email, phone, country, currency,
-             payment_terms, note, is_active, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            (data.get("name") or "").strip(),
-            (data.get("code") or "").strip() or None,
-            (data.get("contact") or "").strip(),
-            (data.get("email") or "").strip(),
-            (data.get("phone") or "").strip(),
-            (data.get("country") or "").strip(),
-            (data.get("currency") or "KRW").strip() or "KRW",
-            (data.get("payment_terms") or "").strip(),
-            (data.get("note") or "").strip(),
-            1 if data.get("is_active", 1) else 0,
-            now, now,
-        ))
+        existing = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
+        cols, vals = list(base_cols), list(base_vals)
+        for col, val in ext_pairs:
+            if col in existing:
+                cols.append(col)
+                vals.append(val)
+        ph = ",".join(["?"] * len(cols))
+        cur = c.execute(f"INSERT INTO suppliers ({','.join(cols)}) VALUES ({ph})", vals)
         return cur.lastrowid
 
 
@@ -4778,25 +5097,38 @@ def supplier_update(sid: int, data: dict) -> None:
     if not (data.get("name") or "").strip():
         raise ValueError("공급사명은 필수입니다.")
     data["currency"] = _validate_currency(data)
+    base_fields = ["name", "code", "contact", "email", "phone", "country",
+                   "currency", "payment_terms", "note", "is_active"]
+    base_vals = [
+        (data.get("name") or "").strip(),
+        (data.get("code") or "").strip() or None,
+        (data.get("contact") or "").strip(),
+        (data.get("email") or "").strip(),
+        (data.get("phone") or "").strip(),
+        (data.get("country") or "").strip(),
+        (data.get("currency") or "KRW").strip() or "KRW",
+        (data.get("payment_terms") or "").strip(),
+        (data.get("note") or "").strip(),
+        1 if data.get("is_active", 1) else 0,
+    ]
+    # v5H226z89/z90: 확장 컬럼 — 존재 시에만 SET
+    ext_pairs = [
+        ("biz_no",      (str(data.get("biz_no") or "")).strip() or None),
+        ("ceo_name",    (str(data.get("ceo_name") or "")).strip() or None),
+        ("manage_dept", (str(data.get("manage_dept") or "")).strip() or None),
+        ("contact2",    (str(data.get("contact2") or "")).strip() or None),
+        ("phone2",      (str(data.get("phone2") or "")).strip() or None),
+        ("email2",      (str(data.get("email2") or "")).strip() or None),
+    ]
     with db_session() as c:
-        c.execute("""
-            UPDATE suppliers SET
-              name=?, code=?, contact=?, email=?, phone=?, country=?,
-              currency=?, payment_terms=?, note=?, is_active=?, updated_at=?
-            WHERE id=?
-        """, (
-            (data.get("name") or "").strip(),
-            (data.get("code") or "").strip() or None,
-            (data.get("contact") or "").strip(),
-            (data.get("email") or "").strip(),
-            (data.get("phone") or "").strip(),
-            (data.get("country") or "").strip(),
-            (data.get("currency") or "KRW").strip() or "KRW",
-            (data.get("payment_terms") or "").strip(),
-            (data.get("note") or "").strip(),
-            1 if data.get("is_active", 1) else 0,
-            _logi_now(), sid,
-        ))
+        existing = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
+        fields, vals = list(base_fields), list(base_vals)
+        for col, val in ext_pairs:
+            if col in existing:
+                fields.append(col)
+                vals.append(val)
+        sets = ", ".join(f"{f}=?" for f in fields) + ", updated_at=?"
+        c.execute(f"UPDATE suppliers SET {sets} WHERE id=?", vals + [_logi_now(), sid])
 
 
 def supplier_delete(sid: int) -> None:
@@ -4847,6 +5179,229 @@ def suppliers_count() -> dict:
         total = c.execute("SELECT COUNT(*) FROM suppliers").fetchone()[0]
         active = c.execute("SELECT COUNT(*) FROM suppliers WHERE is_active = 1").fetchone()[0]
     return {"total": total, "active": active}
+
+
+def teams_name_list() -> list[str]:
+    """v5H226z90: 부서명 목록 (display_order 순) — 공급사 '관리부서' 드롭다운용."""
+    with db_session() as c:
+        return [r[0] for r in c.execute(
+            "SELECT name FROM teams ORDER BY display_order, id").fetchall()]
+
+
+# =====================================================
+# v5H226z88 (2026-05-14) — 공급사 일괄 등록 (Excel)
+# 자재 일괄등록(parts_bulk_import_excel)과 동일 3단계 패턴: 검증·미리보기·확정
+# =====================================================
+_SUPPLIERS_IMPORT_HEADER_MAP = {
+    # name (필수)
+    "공급사명": "name", "공급사": "name", "거래처명": "name", "거래처": "name",
+    "회사명": "name", "업체명": "name", "업체": "name", "name": "name",
+    "supplier": "name", "vendor": "name", "suppliername": "name", "companyname": "name",
+    # code
+    "코드": "code", "공급사코드": "code", "거래처코드": "code", "업체코드": "code",
+    "code": "code", "suppliercode": "code", "vendorcode": "code",
+    # biz_no — 사업자등록번호
+    "사업자등록번호": "biz_no", "사업자번호": "biz_no", "사업자등록": "biz_no",
+    "등록번호": "biz_no", "biz_no": "biz_no", "bizno": "biz_no",
+    "businessnumber": "biz_no", "businessno": "biz_no", "사업자": "biz_no",
+    # ceo_name — 대표자
+    "대표자": "ceo_name", "대표": "ceo_name", "대표자명": "ceo_name", "대표이사": "ceo_name",
+    "ceo": "ceo_name", "ceoname": "ceo_name", "representative": "ceo_name",
+    # manage_dept — 관리부서
+    "관리부서": "manage_dept", "담당부서": "manage_dept", "부서": "manage_dept",
+    "managedept": "manage_dept", "dept": "manage_dept", "department": "manage_dept",
+    # contact (담당자1)
+    "담당자": "contact", "담당": "contact", "담당자명": "contact", "담당자이름": "contact",
+    "담당자1": "contact", "contact": "contact", "manager": "contact", "contactperson": "contact",
+    # contact2 (담당자2)
+    "담당자2": "contact2", "담당자②": "contact2", "보조담당자": "contact2",
+    "부담당자": "contact2", "담당자2명": "contact2", "contact2": "contact2",
+    # email (담당자1)
+    "이메일": "email", "메일": "email", "이메일주소": "email", "이메일1": "email",
+    "email": "email", "mail": "email",
+    # email2 (담당자2)
+    "이메일2": "email2", "메일2": "email2", "email2": "email2",
+    # phone (담당자1)
+    "전화": "phone", "전화번호": "phone", "연락처": "phone", "휴대폰": "phone",
+    "전화1": "phone", "전화번호1": "phone",
+    "전화연락처": "phone", "phone": "phone", "tel": "phone", "telephone": "phone",
+    # phone2 (담당자2)
+    "전화2": "phone2", "전화번호2": "phone2", "연락처2": "phone2",
+    "휴대폰2": "phone2", "phone2": "phone2",
+    # country
+    "국가": "country", "나라": "country", "국적": "country", "country": "country",
+    # currency
+    "통화": "currency", "화폐": "currency", "currency": "currency",
+    # payment_terms
+    "결제조건": "payment_terms", "결제": "payment_terms", "지불조건": "payment_terms",
+    "결제방식": "payment_terms", "paymentterms": "payment_terms", "terms": "payment_terms",
+    # note
+    "비고": "note", "메모": "note", "특이사항": "note", "note": "note",
+    "remark": "note", "memo": "note",
+    # is_active
+    "활성": "is_active", "활성여부": "is_active", "사용여부": "is_active",
+    "상태": "is_active", "active": "is_active", "isactive": "is_active",
+}
+
+
+def suppliers_bulk_import_excel(file_path: str, dry_run: bool = True) -> dict:
+    """Excel(.xlsx) 공급사 일괄 등록. 1행=헤더, 2행~=데이터.
+    dry_run=True: 검증·미리보기만 (DB 변경 0).  dry_run=False: 실제 등록.
+    상태: ok / error(필수누락·통화오류) / dup(공급사명 또는 코드 기존 중복)
+    반환: {total, parsed, skipped_empty, header_map, unmapped_headers,
+           preview[{row_no,data,status,errors}], summary{ok,error,dup,inserted}, inserted_ids}
+    """
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return {"error": "openpyxl 미설치 — pip install openpyxl"}
+
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb.active
+    rows_iter = ws.iter_rows(values_only=True)
+    try:
+        header_row = next(rows_iter)
+    except StopIteration:
+        wb.close()
+        return {"error": "엑셀이 비어있습니다"}
+
+    header_map: dict = {}
+    unmapped: list = []
+    used_fields: set = set()
+    for i, h in enumerate(header_row):
+        if h is None:
+            continue
+        key = _norm_header_key(str(h))
+        fld = _SUPPLIERS_IMPORT_HEADER_MAP.get(key)
+        if fld and fld not in used_fields:
+            header_map[i] = fld
+            used_fields.add(fld)
+        else:
+            unmapped.append({"col_idx": i, "header": str(h)})
+
+    if "name" not in header_map.values():
+        wb.close()
+        return {
+            "error": "필수 컬럼 누락 — '공급사명/거래처명/name' 컬럼이 필요합니다",
+            "header_map": {str(k): v for k, v in header_map.items()},
+            "unmapped_headers": unmapped,
+        }
+
+    # 기존 공급사 — 중복 검사용
+    with db_session() as c:
+        existing = c.execute("SELECT id, name, code FROM suppliers").fetchall()
+    name_set: dict = {}
+    code_set: dict = {}
+    for r in existing:
+        nm = (r["name"] or "").strip().lower()
+        if nm:
+            name_set.setdefault(nm, r["id"])
+        cd = (r["code"] or "").strip().lower()
+        if cd:
+            code_set.setdefault(cd, r["id"])
+
+    preview: list = []
+    inserted_ids: list = []
+    skipped_empty = total = ok_cnt = err_cnt = dup_cnt = 0
+    seen_names: set = set()
+    seen_codes: set = set()
+
+    row_no = 1
+    for row in rows_iter:
+        row_no += 1
+        if all(v is None or (isinstance(v, str) and not v.strip()) for v in row):
+            skipped_empty += 1
+            continue
+        total += 1
+        data: dict = {}
+        for ci, fld in header_map.items():
+            if ci < len(row):
+                val = row[ci]
+                if isinstance(val, str):
+                    val = val.strip()
+                if val is not None and val != "":
+                    data[fld] = val
+        name = str(data.get("name") or "").strip()
+        code = str(data.get("code") or "").strip()
+        errors: list = []
+        status = "ok"
+
+        if not name:
+            errors.append("공급사명 필수")
+
+        # 통화 검증
+        cur = str(data.get("currency") or "").strip().upper()
+        if cur and cur not in CURRENCY_OPTIONS:
+            errors.append(f"통화 값 오류 '{cur}' ({'/'.join(CURRENCY_OPTIONS)})")
+            data.pop("currency", None)
+        elif cur:
+            data["currency"] = cur
+
+        # is_active 정규화
+        if "is_active" in data:
+            iav = str(data.get("is_active")).strip().lower()
+            data["is_active"] = 0 if iav in ("0", "n", "no", "false", "비활성", "중지", "미사용") else 1
+
+        # 중복 검사 (기존 DB + 같은 파일 내)
+        if name and not errors:
+            nl, cl = name.lower(), code.lower()
+            if nl in name_set:
+                errors.append(f"공급사명 중복 — 기존 #{name_set[nl]}")
+                status = "dup"
+            elif nl in seen_names:
+                errors.append("공급사명 중복 — 같은 파일 내")
+                status = "dup"
+            elif cl and cl in code_set:
+                errors.append(f"코드 중복 — 기존 #{code_set[cl]}")
+                status = "dup"
+            elif cl and cl in seen_codes:
+                errors.append("코드 중복 — 같은 파일 내")
+                status = "dup"
+            else:
+                seen_names.add(nl)
+                if cl:
+                    seen_codes.add(cl)
+
+        if errors and status != "dup":
+            status = "error"
+            err_cnt += 1
+        elif status == "dup":
+            dup_cnt += 1
+        else:
+            ok_cnt += 1
+
+        preview.append({"row_no": row_no, "data": data,
+                        "status": status, "errors": errors})
+
+    wb.close()
+
+    if not dry_run:
+        for p in preview:
+            if p["status"] == "ok" and not p["errors"]:
+                try:
+                    sid = supplier_create(p["data"])
+                    inserted_ids.append({"row_no": p["row_no"], "id": sid,
+                                          "name": p["data"].get("name"),
+                                          "code": p["data"].get("code")})
+                    p["status"] = "inserted"
+                    p["inserted_id"] = sid
+                except Exception as e:
+                    p["status"] = "error"
+                    p["errors"].append(str(e))
+                    err_cnt += 1
+                    ok_cnt = max(0, ok_cnt - 1)
+
+    return {
+        "total": total, "parsed": total, "skipped_empty": skipped_empty,
+        "header_map": {str(k): v for k, v in header_map.items()},
+        "unmapped_headers": unmapped,
+        "preview": preview[:200],
+        "preview_truncated": len(preview) > 200,
+        "summary": {"ok": ok_cnt, "error": err_cnt, "dup": dup_cnt,
+                    "inserted": len(inserted_ids)},
+        "inserted_ids": inserted_ids,
+        "dry_run": dry_run,
+    }
 
 
 # ── 발주번호 자동 채번 ─────────────────────────────────
@@ -6269,6 +6824,487 @@ def stock_kpi() -> dict:
         "in_30d": in_30,
         "out_30d": abs(out_30),  # 음수 저장 → 절대값 표시
     }
+
+
+def parts_usage_distribution(focus_biz_div: str = "공통",
+                              days: int = 365, limit: int = 500) -> list[dict]:
+    """v5H226z58 (2026-05-12) — 자재의 실제 사업부 사용 분포 계산.
+    근거: stock_movements (kind='OUT') → projects.biz_div 조인.
+    focus_biz_div: 분석 대상 자재의 현재 사업부 (예: '공통'으로 잘못 분류된 자재 정제용).
+    days: 최근 N일 출고 이력만 집계 (None=전체).
+    반환: [{part_id, part_no, part_name, biz_div(현재), m_qty, t_qty, unknown_qty, total_qty,
+            m_pct, t_pct, unknown_pct, recommended, evidence_count, confidence}]
+    confidence: HIGH(분포 90:10+, evidence≥5) / MID(70:30+, evidence≥3) / LOW (그 외)
+    recommended:
+      - M 90%+ → 'M'
+      - T 90%+ → 'T'
+      - 양쪽 30%+ → '공통'
+      - evidence 부족 → 'review' (수동 검토)
+    """
+    since_clause = ""
+    params: list = []
+    if days and days > 0:
+        cutoff = (_date.today() - _td(days=int(days))).isoformat()
+        since_clause = "AND DATE(sm.occurred_at) >= ?"
+        params.append(cutoff)
+
+    with db_session() as c:
+        # 대상 자재 후보: 현재 biz_div 가 focus_biz_div 인 활성 자재
+        if focus_biz_div:
+            base_rows = c.execute(
+                """SELECT id, part_no, part_name, biz_div, category
+                   FROM parts WHERE COALESCE(is_active,1)=1 AND biz_div = ?
+                   ORDER BY id DESC LIMIT ?""",
+                (focus_biz_div, int(limit)),
+            ).fetchall()
+        else:
+            base_rows = c.execute(
+                """SELECT id, part_no, part_name, biz_div, category
+                   FROM parts WHERE COALESCE(is_active,1)=1
+                   ORDER BY id DESC LIMIT ?""",
+                (int(limit),),
+            ).fetchall()
+
+        if not base_rows:
+            return []
+
+        pids = [r["id"] for r in base_rows]
+        qmarks = ",".join("?" * len(pids))
+
+        # 출고 분포 (stock_movements 출고 → projects.biz_div)
+        out_q = c.execute(
+            f"""SELECT sm.part_id,
+                       COALESCE(p.biz_div,'UNKNOWN') AS bd,
+                       SUM(ABS(sm.quantity)) AS qty,
+                       COUNT(*) AS cnt
+                FROM stock_movements sm
+                LEFT JOIN projects p ON sm.project_id = p.id
+                WHERE sm.kind='OUT' AND sm.part_id IN ({qmarks}) {since_clause}
+                GROUP BY sm.part_id, COALESCE(p.biz_div,'UNKNOWN')""",
+            tuple(pids) + tuple(params),
+        ).fetchall()
+
+    # 분포 집계
+    by_part: dict = {pid: {"M": 0.0, "T": 0.0, "공통": 0.0, "UNKNOWN": 0.0,
+                            "evidence": 0} for pid in pids}
+    for r in out_q:
+        bd = r["bd"] if r["bd"] in ("M", "T", "공통") else "UNKNOWN"
+        pid = r["part_id"]
+        if pid in by_part:
+            by_part[pid][bd] += float(r["qty"] or 0)
+            by_part[pid]["evidence"] += int(r["cnt"] or 0)
+
+    out: list[dict] = []
+    for base in base_rows:
+        pid = base["id"]
+        d = by_part[pid]
+        total = d["M"] + d["T"] + d["공통"] + d["UNKNOWN"]
+        # 알려진(M/T) 분포만으로 비율 계산
+        known = d["M"] + d["T"]
+        if known > 0:
+            m_pct = round(d["M"] * 100 / known, 1)
+            t_pct = round(d["T"] * 100 / known, 1)
+        else:
+            m_pct = 0.0
+            t_pct = 0.0
+        unknown_pct = round(d["UNKNOWN"] * 100 / total, 1) if total else 0.0
+        evidence = int(d["evidence"])
+
+        # 추천 사업부 결정
+        if evidence == 0 or known == 0:
+            rec = "review"
+            conf = "LOW"
+        elif m_pct >= 90:
+            rec = "M"
+            conf = "HIGH" if evidence >= 5 else ("MID" if evidence >= 3 else "LOW")
+        elif t_pct >= 90:
+            rec = "T"
+            conf = "HIGH" if evidence >= 5 else ("MID" if evidence >= 3 else "LOW")
+        elif m_pct >= 30 and t_pct >= 30:
+            rec = "공통"
+            conf = "MID"
+        else:
+            rec = "review"
+            conf = "LOW"
+
+        out.append({
+            "part_id": pid,
+            "part_no": base["part_no"] or "",
+            "part_name": base["part_name"] or "",
+            "biz_div": base["biz_div"] or "",
+            "category": base["category"] or "",
+            "m_qty": round(d["M"], 1),
+            "t_qty": round(d["T"], 1),
+            "unknown_qty": round(d["UNKNOWN"], 1),
+            "total_qty": round(total, 1),
+            "m_pct": m_pct,
+            "t_pct": t_pct,
+            "unknown_pct": unknown_pct,
+            "evidence_count": evidence,
+            "recommended": rec,
+            "confidence": conf,
+        })
+    # 정렬: 추천 변경(M/T) HIGH → MID → LOW → review 순
+    rec_order = {"M": 0, "T": 1, "공통": 2, "review": 3}
+    conf_order = {"HIGH": 0, "MID": 1, "LOW": 2}
+    out.sort(key=lambda x: (rec_order.get(x["recommended"], 9),
+                             conf_order.get(x["confidence"], 9),
+                             -x["evidence_count"]))
+    return out
+
+
+# =====================================================
+# v5H226z58 (2026-05-12) — 자재 일괄 등록 (Excel)
+# 컬럼 매핑 (헤더명 → DB 필드, 대소문자/공백 무시):
+#   part_no/자재코드/품번        → part_no (필수)
+#   part_name/자재명/품명        → part_name (필수)
+#   biz_div/사업부              → biz_div (M/T/공통)
+#   spec/규격                   → spec
+#   maker/제조사                → maker
+#   origin/원산지               → origin
+#   unit/단위                   → unit (기본 EA)
+#   currency/통화               → currency (기본 KRW)
+#   std_price/매입단가/표준단가/단가 → std_price
+#   category/분류                → category
+#   item_account/품목계정        → item_account (RAW/SUB/SEMI/FIN/CONS)
+#   safety_stock/안전재고        → safety_stock
+#   location/위치                → location
+#   reorder_point/재주문점/ROP   → reorder_point
+#   reorder_qty/재주문량/ROQ     → reorder_qty
+#   hs_code/HS코드               → hs_code
+#   note/비고                    → note
+# 옵션:
+#   dry_run=True  → 검증만 수행, INSERT 안 함 (미리보기)
+#   force=True    → 유사 자재 검사 우회 (중복 방지 3층 방어 끄기)
+# =====================================================
+_PARTS_IMPORT_HEADER_MAP = {
+    # 표준명 (lowercase, 공백/특수문자 제거 키 → DB 필드)
+    # part_no — KNK 표준은 제조사 원본 코드 사용 (PRODUCT CODE 우선)
+    # ⚠ 모호 키워드 "code" 단독은 제외 — BOM 양식의 "CODE" (KNK 내부 비사용 코드) 와 충돌
+    "productcode": "part_no", "제품코드": "part_no", "코드명": "part_no",
+    "partno": "part_no", "자재코드": "part_no", "품번": "part_no",
+    "자재번호": "part_no", "부품코드": "part_no",
+    # part_name
+    "productname": "part_name", "제품명": "part_name",
+    "partname": "part_name", "자재명": "part_name", "품명": "part_name",
+    "name": "part_name", "부품명": "part_name",
+    # biz_div
+    "bizdiv": "biz_div", "사업부": "biz_div", "사업부서": "biz_div",
+    # spec / maker / origin / unit / currency / price
+    "spec": "spec", "규격": "spec", "사양": "spec",
+    "manufacturer": "maker", "제조사": "maker", "메이커": "maker", "maker": "maker",
+    "origin": "origin", "원산지": "origin", "산지": "origin",
+    "unit": "unit", "단위": "unit",
+    "currency": "currency", "통화": "currency",
+    "unitprice": "std_price", "stdprice": "std_price", "표준단가": "std_price",
+    "단가": "std_price", "price": "std_price", "기준단가": "std_price",
+    "매입단가": "std_price", "purchaseprice": "std_price",  # v5H226z83 — 매입단가 표기 통일
+    # 분류
+    "category": "category", "분류": "category", "카테고리": "category", "구분": "category",
+    "itemaccount": "item_account", "품목계정": "item_account",
+    "procurementkind": "procurement_kind", "조달구분": "procurement_kind",
+    # 재고
+    "safetystock": "safety_stock", "안전재고": "safety_stock",
+    "location": "location", "위치": "location", "보관위치": "location",
+    "reorderpoint": "reorder_point", "재주문점": "reorder_point", "rop": "reorder_point",
+    "reorderqty": "reorder_qty", "재주문량": "reorder_qty", "roq": "reorder_qty",
+    "conversionfactor": "conversion_factor", "환산계수": "conversion_factor",
+    "hscode": "hs_code", "hs": "hs_code", "관세코드": "hs_code",
+    # 비고 / 기타
+    "note": "note", "비고": "note", "메모": "note",
+    "remarks": "note", "remarksnote": "note",
+    "defaultwarehouse": "default_warehouse", "기본창고": "default_warehouse",
+    "isactive": "is_active", "활성": "is_active", "사용여부": "is_active",
+}
+
+# v5H226z58 (2026-05-12) — BOM 양식 추가 (다국어/복합 헤더 부분 매칭용 우선순위 키워드)
+# 헤더 cell 안에 줄바꿈+한국어/베트남어 혼재 시 부분 매칭으로 fallback.
+# 매핑 우선순위 (길이 긴 키워드 먼저 매칭 — "productcode" 가 "code" 보다 우선)
+_PARTS_IMPORT_PARTIAL_KEYS = [
+    # part_no 계열 (PRODUCT CODE 우선)
+    ("productcode", "part_no"), ("제품코드", "part_no"), ("코드명", "part_no"),
+    ("partno", "part_no"), ("자재코드", "part_no"), ("자재번호", "part_no"),
+    ("부품코드", "part_no"), ("품번", "part_no"),
+    # part_name 계열 (PRODUCT NAME 우선)
+    ("productname", "part_name"), ("제품명", "part_name"),
+    ("partname", "part_name"), ("자재명", "part_name"), ("품명", "part_name"),
+    ("부품명", "part_name"),
+    # maker — MANUFACTURER 우선
+    ("manufacturer", "maker"), ("제조사", "maker"), ("메이커", "maker"),
+    # std_price — UNIT PRICE 우선
+    ("unitprice", "std_price"), ("표준단가", "std_price"), ("매입단가", "std_price"),
+    ("기준단가", "std_price"), ("단가", "std_price"),
+    # spec
+    ("규격", "spec"), ("사양", "spec"), ("spec", "spec"),
+    # category — 구분 우선 (BOM 양식)
+    ("category", "category"), ("카테고리", "category"), ("분류", "category"), ("구분", "category"),
+    # unit
+    ("단위", "unit"),  # "unitprice" 보다 뒤에 와야 함 — substring 충돌 방지
+    # 재고 / 기타
+    ("safetystock", "safety_stock"), ("안전재고", "safety_stock"),
+    ("reorderpoint", "reorder_point"), ("재주문점", "reorder_point"),
+    ("reorderqty", "reorder_qty"), ("재주문량", "reorder_qty"),
+    ("hscode", "hs_code"),
+    ("remarks", "note"), ("note", "note"), ("비고", "note"), ("메모", "note"),
+    ("bizdiv", "biz_div"), ("사업부", "biz_div"),
+    ("origin", "origin"), ("원산지", "origin"),
+    # 무시할 BOM 전용 컬럼 (자재마스터와 무관)
+    # — TOTAL, AMOUNT, DELIVERY, ORDER STATUS, DELIVERY DATE 등은 매핑 dict 에 없으므로 자동 스킵
+]
+
+
+def _norm_header_key(s: str) -> str:
+    """헤더명 정규화 — 영숫자·한글만 남기고 소문자."""
+    return _pq_re.sub(r'[^a-z0-9가-힣]', '', (s or '').lower())
+
+
+def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
+                             force_similar: bool = False) -> dict:
+    """Excel(.xlsx) 자재 일괄 등록.
+    파싱: 1행 = 헤더, 2행~ = 데이터.
+    dry_run=True: 검증·유사 자재 검사만 수행, DB INSERT 안 함 (미리보기 응답).
+    dry_run=False: 실제 등록 + 결과 반환.
+    force_similar=True: 유사 자재(>=85점) 검사 우회 (개별 행).
+    반환: {
+      'total': N, 'parsed': N, 'skipped_empty': N,
+      'header_map': {col_idx: db_field},
+      'unmapped_headers': [...],
+      'preview': [{row_no, data, status, errors, similar}],  # 최대 200건
+      'summary': {ok, error, similar_warn, unique_dup},
+      'inserted_ids': [...]  # dry_run=False 일 때만
+    }
+    """
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return {"error": "openpyxl 미설치 — pip install openpyxl"}
+
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb.active
+    rows_iter = ws.iter_rows(values_only=True)
+
+    # 헤더 행 파싱
+    try:
+        header_row = next(rows_iter)
+    except StopIteration:
+        wb.close()
+        return {"error": "엑셀이 비어있습니다"}
+
+    header_map: dict = {}   # col_idx → db_field
+    unmapped: list = []
+    used_fields: set = set()  # 우선순위 — 한 필드에는 첫 매칭 컬럼만 사용
+    for i, h in enumerate(header_row):
+        if h is None:
+            continue
+        key = _norm_header_key(str(h))
+        # 1) 정확 매칭
+        fld = _PARTS_IMPORT_HEADER_MAP.get(key)
+        if not fld:
+            # 2) 부분 매칭 fallback — BOM 양식 다국어/복합 헤더 지원
+            #    헤더 정규화 키에 키워드가 포함되면 매핑
+            for kw, mapped in _PARTS_IMPORT_PARTIAL_KEYS:
+                if kw in key:
+                    # 이미 같은 필드에 매핑된 컬럼이 있으면 스킵 (우선순위: 앞 키워드)
+                    if mapped not in used_fields:
+                        fld = mapped
+                        break
+        if fld and fld not in used_fields:
+            header_map[i] = fld
+            used_fields.add(fld)
+        else:
+            unmapped.append({"col_idx": i, "header": str(h)})
+
+    if "part_no" not in header_map.values() or "part_name" not in header_map.values():
+        wb.close()
+        return {
+            "error": "필수 컬럼 누락 — 'part_no/자재코드/품번' 과 'part_name/자재명/품명' 필수",
+            "header_map": {k: v for k, v in header_map.items()},
+            "unmapped_headers": unmapped,
+        }
+
+    preview: list = []
+    inserted_ids: list = []
+    skipped_empty = 0
+    total = 0
+    ok_cnt = 0
+    err_cnt = 0
+    sim_warn = 0
+    dup_cnt = 0
+
+    row_no = 1  # 헤더는 1행으로 카운트
+    for row in rows_iter:
+        row_no += 1
+        # 빈 행 스킵
+        if all(v is None or (isinstance(v, str) and not v.strip()) for v in row):
+            skipped_empty += 1
+            continue
+        total += 1
+        # 데이터 추출
+        data: dict = {}
+        for ci, fld in header_map.items():
+            if ci < len(row):
+                val = row[ci]
+                if isinstance(val, str):
+                    val = val.strip()
+                if val is not None and val != "":
+                    data[fld] = val
+        # 필수 검증
+        part_no = (data.get("part_no") or "").strip() if isinstance(data.get("part_no"), str) else str(data.get("part_no") or "").strip()
+        part_name = (data.get("part_name") or "").strip() if isinstance(data.get("part_name"), str) else str(data.get("part_name") or "").strip()
+        errors: list = []
+        sim_hits: list = []
+        status = "ok"
+
+        if not part_no:
+            errors.append("part_no 필수")
+        if not part_name:
+            errors.append("part_name 필수")
+
+        # 사업부 검증
+        bd = (data.get("biz_div") or "").strip() if isinstance(data.get("biz_div"), str) else str(data.get("biz_div") or "").strip()
+        if bd and bd not in ("M", "T", "공통"):
+            errors.append(f"사업부 값 오류 '{bd}' (M/T/공통)")
+            bd = ""
+        data["biz_div"] = bd or "공통"  # 기본 공통
+
+        # part_no UNIQUE 검사
+        if part_no and not errors:
+            with db_session() as c:
+                dup = c.execute("SELECT id, part_name FROM parts WHERE part_no=?", (part_no,)).fetchone()
+            if dup:
+                errors.append(f"코드 중복 — 기존 [{dup['id']}] {dup['part_name']}")
+                status = "dup"
+                dup_cnt += 1
+
+        # 유사 자재 검사 (force_similar=False 일 때만)
+        if part_name and not errors and not force_similar:
+            try:
+                sims = parts_find_similar(
+                    name=part_name,
+                    spec=str(data.get("spec") or ""),
+                    maker=str(data.get("maker") or ""),
+                    limit=3, threshold=85,
+                )
+                if sims:
+                    sim_hits = sims
+                    if status == "ok":
+                        status = "similar"
+                        sim_warn += 1
+            except Exception:
+                pass
+
+        if errors:
+            status = "error" if status == "ok" else status
+            err_cnt += 1
+        elif status == "ok":
+            ok_cnt += 1
+
+        preview.append({
+            "row_no": row_no,
+            "data": data,
+            "status": status,  # ok / error / dup / similar
+            "errors": errors,
+            "similar": [{
+                "id": s["id"], "part_no": s.get("part_no"),
+                "part_name": s.get("part_name"), "score": s.get("score"),
+            } for s in sim_hits[:3]] if sim_hits else [],
+        })
+
+    wb.close()
+
+    # 실제 등록 (dry_run=False 일 때만, status='ok' 또는 'similar' 행만)
+    if not dry_run:
+        for p in preview:
+            if p["status"] in ("ok", "similar") and not p["errors"]:
+                try:
+                    pid = parts_create(p["data"], force=True)
+                    inserted_ids.append({"row_no": p["row_no"], "id": pid,
+                                          "part_no": p["data"].get("part_no")})
+                    p["status"] = "inserted"
+                    p["inserted_id"] = pid
+                except Exception as e:
+                    p["status"] = "error"
+                    p["errors"].append(str(e))
+                    err_cnt += 1
+                    ok_cnt = max(0, ok_cnt - 1)
+
+    return {
+        "total": total,
+        "parsed": total,
+        "skipped_empty": skipped_empty,
+        "header_map": {str(k): v for k, v in header_map.items()},
+        "unmapped_headers": unmapped,
+        "preview": preview[:200],
+        "preview_truncated": len(preview) > 200,
+        "summary": {
+            "ok": ok_cnt, "error": err_cnt,
+            "similar_warn": sim_warn, "dup": dup_cnt,
+            "inserted": len(inserted_ids),
+        },
+        "inserted_ids": inserted_ids,
+        "dry_run": dry_run,
+    }
+
+
+def parts_bulk_reclassify(updates: list[dict], actor_id: int = 0) -> dict:
+    """v5H226z58 (2026-05-12) — 자재 사업부 일괄 재분류.
+    updates: [{'part_id': int, 'new_biz_div': 'M'|'T'|'공통'}]
+    반환: {'ok': N, 'errors': [...]}"""
+    ok = 0
+    errors = []
+    with db_session() as c:
+        for u in updates:
+            try:
+                pid = int(u.get("part_id") or 0)
+                bd = (u.get("new_biz_div") or "").strip()
+                if pid <= 0 or bd not in ("M", "T", "공통"):
+                    errors.append({"part_id": pid, "reason": "invalid input"})
+                    continue
+                c.execute(
+                    "UPDATE parts SET biz_div=?, updated_at=datetime('now','localtime') WHERE id=?",
+                    (bd, pid),
+                )
+                ok += 1
+            except Exception as e:
+                errors.append({"part_id": u.get("part_id"), "reason": str(e)})
+    return {"ok": ok, "errors": errors, "total": len(updates)}
+
+
+def stock_trend_7d() -> list[dict]:
+    """v5H226z58 (2026-05-12) — 자재구매센터 홈 hero 카드용 7일 입출고 추세.
+    반환: 오래된 날짜 → 최신 날짜 순서 7개 row.
+    각 row: {date: 'MM-DD', wday: '월~일', in_qty, out_qty, in_cnt, out_cnt}
+    외부 차트 라이브러리 0건 (호출자가 인라인 SVG 렌더링)."""
+    today = _date.today()
+    rows = []
+    with db_session() as c:
+        for d in range(6, -1, -1):  # 6일 전 → 오늘
+            target = today - _td(days=d)
+            target_s = target.isoformat()
+            in_row = c.execute(
+                """SELECT COALESCE(SUM(quantity),0) AS q, COUNT(*) AS n
+                   FROM stock_movements
+                   WHERE kind='IN' AND DATE(occurred_at)=?""",
+                (target_s,),
+            ).fetchone()
+            out_row = c.execute(
+                """SELECT COALESCE(SUM(ABS(quantity)),0) AS q, COUNT(*) AS n
+                   FROM stock_movements
+                   WHERE kind='OUT' AND DATE(occurred_at)=?""",
+                (target_s,),
+            ).fetchone()
+            wday_ko = ['월','화','수','목','금','토','일'][target.weekday()]
+            rows.append({
+                "date": target.strftime("%m-%d"),
+                "iso": target_s,
+                "wday": wday_ko,
+                "in_qty": float(in_row["q"] or 0),
+                "out_qty": float(out_row["q"] or 0),
+                "in_cnt": int(in_row["n"] or 0),
+                "out_cnt": int(out_row["n"] or 0),
+                "is_today": (d == 0),
+            })
+    return rows
 
 
 def part_stock_history(part_id: int, limit: int = 50) -> list[dict]:

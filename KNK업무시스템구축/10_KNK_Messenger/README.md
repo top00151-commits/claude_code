@@ -120,7 +120,7 @@ PWA
 
 ```cmd
 cd 10_KNK_Messenger
-START.bat
+메신저START.bat
 ```
 
 또는

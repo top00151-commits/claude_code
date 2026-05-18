@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>팀 게시판 선택 · KNK</title>
+{# board_teams.html — 팀 게시판 선택
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
+{% include "_v5_partials/styles.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="board-teams-main">
+  <div class="page-head" data-dn="board-teams-pagehead">
+    <div><div class="page-meta">팀 게시판</div><h1 class="page-title">📋 팀 <em>게시판</em></h1>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--qv-ink-3);">접근 가능한 팀 게시판 목록</div></div>
+  </div>
+
+  <div class="actions" data-dn="board-teams-grid" style="margin: 0;grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
+    {% for t in teams %}
+    <a class="action-card" href="/board/team/{{ t.id }}" style="background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;">
+      <div style="width:42px;height:42px;background:var(--qv-surface-2);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">📋</div>
+      <div style="flex:1;">
+        <h4 style="font-size:13px;font-weight:700;color:var(--qv-ink);">{{ t.name }}</h4>
+        <p style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">{{ t.post_count|default(0) }} 게시글{% if t.unread %} · <b style="color:var(--knk-red);">{{ t.unread }} 신규</b>{% endif %}</p>
+      </div>
+      <div style="color:var(--qv-ink-2);font-weight:700;">→</div>
+    </a>
+    {% else %}<div class="card empty" style="grid-column: 1/-1;"><div class="ico">📋</div><div class="ttl">접근 가능한 팀 게시판 없음</div></div>{% endfor %}
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main></div></body></html>

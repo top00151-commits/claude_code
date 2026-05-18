@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>알림함 · KNK HAIST WORKS</title>
+{# notifications.html — 알림함
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수)
+              - paper/ink/mute/line/amber 계열 → --qv-* 토큰
+              - notif-item.unread 좌측 보더 빨강 보존 (의미적 강조)
+              - pill-danger NEW 뱃지 빨강 보존 #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.notif-item { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; transition: all .12s; text-decoration: none; color: inherit; }
+.notif-item:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
+.notif-item.unread { border-left: 4px solid var(--knk-red); background: var(--qv-surface-3); }
+.notif-icon { font-size: 20px; flex-shrink: 0; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-ttl { font-size: 13.5px; font-weight: 600; color: var(--qv-ink); }
+.notif-msg { font-size: 12.5px; color: var(--qv-ink-3); margin-top: 4px; line-height: 1.5; }
+.notif-time { font-size: 11px; color: var(--qv-ink-2); margin-top: 6px; font-weight: 600; }
+</style>
+</head>
+<body>
+{% set unread = items|selectattr('is_read','equalto',0)|list|length if items else 0 %}
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="notif-main">
+  <div class="page-head" data-dn="notif-pagehead">
+    <div>
+      <div class="page-meta">알림함</div>
+      <h1 class="page-title">📢 <em>알림</em>{% if unread %} <span style="font-size:18px;color:var(--knk-red);">({{ unread }})</span>{% endif %}</h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      {% if unread > 0 %}
+      <form method="post" action="/notifications/read-all" style="display:inline;"><button class="btn btn-secondary">✓ 모두 읽음</button></form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="list-scroll" data-dn="notif-list" style="margin: 0;">
+    {% if items %}
+      {% for n in items %}
+      <a class="notif-item {% if not n.is_read %}unread{% endif %}" href="{{ n.link|default('/home') }}">
+        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% else %}🔔{% endif %}</div>
+        <div class="notif-body">
+          <div class="notif-ttl">{{ n.title }}</div>
+          {% if n.message %}<div class="notif-msg">{{ n.message }}</div>{% endif %}
+          <div class="notif-time">{{ n.created_at }}{% if n.from_name %} · {{ n.from_name }}{% endif %}</div>
+        </div>
+        {% if not n.is_read %}<span class="pill pill-danger">NEW</span>{% endif %}
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="card empty">
+        <div class="ico">📭</div>
+        <div class="ttl">알림이 없습니다</div>
+      </div>
+    {% endif %}
+  </div>
+  <div style="height: var(--space-7);"></div>
+</main>
+</div>
+</body>
+</html>

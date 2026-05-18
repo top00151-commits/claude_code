@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>KNK 메신저 — 아이템 대시보드</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="{{ base_path }}/manifest.json">
+  <meta name="theme-color" content="#A5282C">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
 </head>
 <body class="dashboard-body">
   <header class="dash-head">
     <div class="dash-head-left">
-      <a href="/chat" class="back-to-chat">← 채팅으로</a>
+      <a href="{{ base_path }}/chat" class="back-to-chat">← 채팅으로</a>
       <h1>📊 아이템 대시보드</h1>
     </div>
     <div class="dash-head-right">
@@ -20,7 +20,7 @@
         <span class="avatar" style="width:24px;height:24px;font-size:12px;background:{{ me['avatar_color'] }}">{{ me['display_name'][0] }}</span>
         {{ me['display_name'] }}
       </span>
-      <a href="/logout" class="logout-link">로그아웃</a>
+      <a href="{{ base_path }}/logout" class="logout-link">로그아웃</a>
     </div>
   </header>
 
@@ -130,7 +130,7 @@
           }
           const reqAttn = (i.open_requests + i.active_requests) > 0 ? ' attn' : '';
           return `
-            <a class="dash-card ${dueCls}" href="/chat?room=${i.room_id}">
+            <a class="dash-card ${dueCls}" href="{{ base_path }}/chat?room=${i.room_id}">
               <div class="dash-card-head">
                 ${i.customer ? `<span class="customer-chip">${escapeHtml(i.customer)}</span>` : ''}
                 ${i.code ? `<span class="code-chip">${escapeHtml(i.code)}</span>` : ''}
@@ -151,7 +151,7 @@
       }
 
       async function load() {
-        items = await fetch('/api/items/dashboard').then(r => r.json());
+        items = await fetch('{{ base_path }}/api/items/dashboard').then(r => r.json());
         renderSummary();
         render();
       }

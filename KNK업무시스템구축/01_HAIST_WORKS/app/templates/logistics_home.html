@@ -36,11 +36,44 @@
 .card-trend.up { color: var(--success); }
 .card-trend.alert { color: var(--knk-red); }
 .card-trend.neutral { color: var(--qv-ink-3); }
-.card.hero { grid-column: span 2; grid-row: span 2; background: var(--qv-ink); color: white; border: 0; position: relative; overflow: hidden; }
-.card.hero::before { content: ""; position: absolute; top: -40%; right: -20%; width: 320px; height: 320px; background: transparent; opacity: 0.4; }
-.card.hero .card-label { color: var(--qv-surface-2); position: relative; z-index: 1; }
-.card.hero .card-value { color: white; font-size: 52px; position: relative; z-index: 1; }
-.card.hero .card-trend { color: var(--qv-surface-2); font-size: 13px; position: relative; z-index: 1; }
+/* v5H226z58 (2026-05-12) — !important 로 _v5_partials/styles.html .card 규칙 덮기 */
+.card.hero {
+  grid-column: span 2 !important; grid-row: span 2 !important;
+  background: #0f172a !important; color: white !important;
+  border: 0 !important; position: relative !important; overflow: hidden !important;
+  padding: 18px 22px !important;
+}
+.card.hero .card-label { color: rgba(255,255,255,0.6) !important; position: relative; z-index: 1; font-size: 10.5px !important; }
+.card.hero .card-value { color: white !important; font-size: 36px !important; position: relative; z-index: 1; line-height: 1 !important; }
+.card.hero .card-trend { color: rgba(255,255,255,0.65) !important; font-size: 12px !important; position: relative; z-index: 1; margin-top: 2px; }
+/* v5H226z58 (2026-05-12) — hero 카드 7일 입출고 미니 차트 */
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.hero-top .lhs { flex: 0 0 auto; }
+.hero-top .rhs { display: flex; gap: 14px; align-items: flex-start; }
+.hero-stat { text-align: right; }
+.hero-stat .l { font-size: 9.5px; color: rgba(255,255,255,0.55); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.hero-stat .v { font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace; font-size: 18px; font-weight: 700; margin-top: 2px; }
+.hero-stat.in .v { color: #6ee7b7; }
+.hero-stat.out .v { color: #fca5a5; }
+.hero-chart { margin-top: 14px; position: relative; }
+.hero-chart svg { width: 100%; height: 105px; display: block; }
+.hero-chart .ax { stroke: rgba(255,255,255,0.12); stroke-width: 1; fill: none; stroke-dasharray: 2 3; }
+.hero-chart .grid-y { stroke: rgba(255,255,255,0.08); stroke-width: 1; fill: none; }
+.hero-chart .line-in  { stroke: #10b981; stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.hero-chart .line-out { stroke: #ef4444; stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.hero-chart .area-in  { fill: rgba(16,185,129,0.18); }
+.hero-chart .area-out { fill: rgba(239,68,68,0.15); }
+.hero-chart .dot-in   { fill: #10b981; }
+.hero-chart .dot-out  { fill: #ef4444; }
+.hero-chart .lbl-x { fill: rgba(255,255,255,0.5); font-size: 9px; font-family: ui-monospace, Consolas, monospace; text-anchor: middle; }
+.hero-chart .lbl-y { fill: rgba(255,255,255,0.35); font-size: 8.5px; font-family: ui-monospace, Consolas, monospace; text-anchor: end; }
+.hero-chart .today-mark { fill: rgba(255,255,255,0.12); }
+.hero-chart .v-tick { font-family: ui-monospace, Consolas, monospace; font-size: 9px; }
+.hero-legend { display: flex; gap: 12px; margin-top: 6px; font-size: 10.5px; color: rgba(255,255,255,0.6); align-items: center; }
+.hero-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.hero-legend .dot.in  { background: #10b981; }
+.hero-legend .dot.out { background: #ef4444; }
+.hero-empty { padding: 20px 0; text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; }
 
 .actions { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
 .action-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-md); padding: var(--space-4); transition: all .18s; display: flex; align-items: center; gap: var(--space-3); text-decoration: none; color: inherit; }
@@ -60,8 +93,10 @@
 .div-card .num { font-size: 22px; font-weight: 700; color: var(--ink); }
 .div-card .sub { font-size: 11px; color: var(--mute); margin-top: 4px; }
 
-@media (max-width: 1280px) { .bento { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1023px) { .bento { grid-template-columns: repeat(2, 1fr); } .actions { grid-template-columns: 1fr; } }
+@media (max-width: 1400px) { .actions { grid-template-columns: repeat(3, 1fr) !important; } }
+@media (max-width: 1280px) { .bento { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: repeat(3, 1fr) !important; } }
+@media (max-width: 1023px) { .bento { grid-template-columns: repeat(2, 1fr); } .actions { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width: 720px) { .actions { grid-template-columns: 1fr !important; } }
 </style>
 </head>
 <body>
@@ -76,19 +111,155 @@
   <main class="main">
     <div class="page-head">
       <div>
-        <div class="page-meta">{{ today }} · 자재구매현황</div>
+        <div class="page-meta">{{ today }} · 자재구매현황{% if demo_mode %} · <span style="color:#b45309;font-weight:700;">📊 DEMO MODE</span>{% endif %}</div>
         <h1 class="page-title">자재구매<em>센터</em></h1>
       </div>
-      {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
+      {% if demo_mode %}
+      <a href="/logistics" style="padding:6px 12px;font-size:11.5px;font-weight:600;text-decoration:none;background:#fef3c7;color:#b45309;border:1px solid #fbbf24;border-radius:6px;">데모 종료 ✕</a>
+      {% else %}
+      <a href="/logistics?demo=1" style="padding:6px 12px;font-size:11.5px;font-weight:500;text-decoration:none;background:transparent;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:6px;">📊 차트 데모 보기</a>
+      {% endif %}
     </div>
+
+    {% if demo_mode %}
+    <div style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef3c7;border:1px solid #fbbf24;border-left:4px solid #d97706;border-radius:6px;font-size:12.5px;color:#92400e;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:16px;">⚠</span>
+      <div><b>데모 모드 활성</b> — 아래 차트는 시연용 가짜 데이터입니다 (DB 변경 0건). 실제 운영 시 발주→입고 이력이 누적되면 동일 차트로 표시됩니다.</div>
+    </div>
+    {% endif %}
 
     <!-- KPI 벤토 -->
     <div class="bento">
-      <div class="card hero">
-        <div class="card-label">총 자재 종</div>
-        <div>
-          <div class="card-value">{{ ps.total|default(0) }}</div>
-          <div class="card-trend up">활성 {{ ps.active|default(0) }} · 비활성 {{ (ps.total|default(0)) - (ps.active|default(0)) }}</div>
+      {# v5H226z58 (2026-05-12) — hero 카드: 총 자재 종 + 7일 입출고 추세 미니 차트 #}
+      {% set t7 = trend_7d or [] %}
+      {% set in_total_7  = (t7|sum(attribute='in_qty'))  if t7 else 0 %}
+      {% set out_total_7 = (t7|sum(attribute='out_qty')) if t7 else 0 %}
+      {% set in_cnt_7    = (t7|sum(attribute='in_cnt'))  if t7 else 0 %}
+      {% set out_cnt_7   = (t7|sum(attribute='out_cnt')) if t7 else 0 %}
+      {% set max_y = 1 %}
+      {% if t7 %}
+        {% for r in t7 %}
+          {% if r.in_qty > max_y %}{% set max_y = r.in_qty %}{% endif %}
+          {% if r.out_qty > max_y %}{% set max_y = r.out_qty %}{% endif %}
+        {% endfor %}
+      {% endif %}
+      {# Jinja2 변수 재할당 — namespace 사용 #}
+      {% set ns = namespace(max_y=1) %}
+      {% if t7 %}
+        {% for r in t7 %}
+          {% if r.in_qty > ns.max_y %}{% set ns.max_y = r.in_qty %}{% endif %}
+          {% if r.out_qty > ns.max_y %}{% set ns.max_y = r.out_qty %}{% endif %}
+        {% endfor %}
+      {% endif %}
+
+      <div class="card hero" data-dn="lh:hero" style="background:#0f172a;color:#fff;border:0;padding:18px 22px;grid-column:span 2;grid-row:span 2;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="hero-top" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+          <div class="lhs">
+            <div style="color:rgba(255,255,255,0.6);font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;font-weight:600;">총 자재 종</div>
+            <div style="color:#fff;font-size:36px;font-weight:700;line-height:1;margin-top:6px;">{{ ps.total|default(0) }}</div>
+            <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:4px;">활성 {{ ps.active|default(0) }} · 비활성 {{ (ps.total|default(0)) - (ps.active|default(0)) }}</div>
+          </div>
+          <div class="rhs" style="display:flex;gap:18px;align-items:flex-start;">
+            <div style="text-align:right;">
+              <div style="font-size:9.5px;color:rgba(255,255,255,0.55);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">▲ 7일 입고</div>
+              <div style="font-family:ui-monospace,'JetBrains Mono',Consolas,monospace;font-size:18px;font-weight:700;color:#6ee7b7;margin-top:3px;">{{ '{:,.0f}'.format(in_total_7) }}</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:1px;">{{ in_cnt_7 }}건</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:9.5px;color:rgba(255,255,255,0.55);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">▼ 7일 출고</div>
+              <div style="font-family:ui-monospace,'JetBrains Mono',Consolas,monospace;font-size:18px;font-weight:700;color:#fca5a5;margin-top:3px;">{{ '{:,.0f}'.format(out_total_7) }}</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:1px;">{{ out_cnt_7 }}건</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-chart">
+          {% if t7 and ns.max_y > 0 %}
+            {# SVG 차트 — viewBox 400x105, 좌측 패딩 28, 우측 8, 상하 8 #}
+            {% set vb_w = 400 %}{% set vb_h = 105 %}
+            {% set pad_l = 28 %}{% set pad_r = 8 %}{% set pad_t = 8 %}{% set pad_b = 22 %}
+            {% set chart_w = vb_w - pad_l - pad_r %}
+            {% set chart_h = vb_h - pad_t - pad_b %}
+            {% set n = t7|length %}
+            {% set step = chart_w / (n - 1) if n > 1 else chart_w %}
+            <svg viewBox="0 0 {{ vb_w }} {{ vb_h }}" preserveAspectRatio="none" aria-label="7일 입출고 추세">
+              {# y축 격자선 (3등분) #}
+              {% for j in range(4) %}
+                {% set y = pad_t + chart_h * j / 3 %}
+                <line class="grid-y" x1="{{ pad_l }}" y1="{{ y }}" x2="{{ vb_w - pad_r }}" y2="{{ y }}" />
+                <text class="lbl-y" x="{{ pad_l - 4 }}" y="{{ y + 3 }}">{{ '{:,.0f}'.format(ns.max_y * (3 - j) / 3) }}</text>
+              {% endfor %}
+
+              {# 오늘 막대 강조 #}
+              {% set today_x = pad_l + step * (n - 1) %}
+              <rect class="today-mark" x="{{ today_x - 14 }}" y="{{ pad_t }}" width="28" height="{{ chart_h }}" rx="3" />
+
+              {# 영역 채우기 (입고) #}
+              <path class="area-in" d="
+                M {{ pad_l }} {{ pad_t + chart_h }}
+                {% for r in t7 %}
+                  {% set x = pad_l + step * loop.index0 %}
+                  {% set y = pad_t + chart_h - (r.in_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                  L {{ '%.1f'|format(x) }} {{ '%.1f'|format(y) }}
+                {% endfor %}
+                L {{ '%.1f'|format(pad_l + step * (n - 1)) }} {{ pad_t + chart_h }}
+                Z
+              " />
+
+              {# 영역 채우기 (출고) #}
+              <path class="area-out" d="
+                M {{ pad_l }} {{ pad_t + chart_h }}
+                {% for r in t7 %}
+                  {% set x = pad_l + step * loop.index0 %}
+                  {% set y = pad_t + chart_h - (r.out_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                  L {{ '%.1f'|format(x) }} {{ '%.1f'|format(y) }}
+                {% endfor %}
+                L {{ '%.1f'|format(pad_l + step * (n - 1)) }} {{ pad_t + chart_h }}
+                Z
+              " />
+
+              {# 라인 (입고) #}
+              <polyline class="line-in" points="
+                {% for r in t7 %}
+                  {% set x = pad_l + step * loop.index0 %}
+                  {% set y = pad_t + chart_h - (r.in_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                  {{ '%.1f'|format(x) }},{{ '%.1f'|format(y) }}
+                {% endfor %}
+              " />
+
+              {# 라인 (출고) #}
+              <polyline class="line-out" points="
+                {% for r in t7 %}
+                  {% set x = pad_l + step * loop.index0 %}
+                  {% set y = pad_t + chart_h - (r.out_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                  {{ '%.1f'|format(x) }},{{ '%.1f'|format(y) }}
+                {% endfor %}
+              " />
+
+              {# 점 + 요일 라벨 #}
+              {% for r in t7 %}
+                {% set x = pad_l + step * loop.index0 %}
+                {% set y_in = pad_t + chart_h - (r.in_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                {% set y_out = pad_t + chart_h - (r.out_qty / ns.max_y) * chart_h if ns.max_y else (pad_t + chart_h) %}
+                <circle class="dot-in" cx="{{ '%.1f'|format(x) }}" cy="{{ '%.1f'|format(y_in) }}" r="{% if r.is_today %}3{% else %}2{% endif %}" />
+                <circle class="dot-out" cx="{{ '%.1f'|format(x) }}" cy="{{ '%.1f'|format(y_out) }}" r="{% if r.is_today %}3{% else %}2{% endif %}" />
+                <text class="lbl-x" x="{{ '%.1f'|format(x) }}" y="{{ vb_h - 8 }}" {% if r.is_today %}style="fill:rgba(255,255,255,0.9);font-weight:700;"{% endif %}>{{ r.wday }}</text>
+                <text class="lbl-x" x="{{ '%.1f'|format(x) }}" y="{{ vb_h - 0 }}" style="font-size:7.5px;opacity:0.6;">{{ r.date }}</text>
+              {% endfor %}
+            </svg>
+          {% else %}
+            <div style="padding:36px 0;text-align:center;color:rgba(255,255,255,0.55);font-size:13px;line-height:1.7;">
+              <div style="font-size:32px;opacity:0.4;">📊</div>
+              <div style="margin-top:6px;font-weight:700;color:rgba(255,255,255,0.75);">7일간 입출고 이력이 없습니다</div>
+              <div style="margin-top:2px;font-size:11.5px;color:rgba(255,255,255,0.45);">발주 → 입고 처리 시 자동으로 추세 표시</div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="hero-legend" style="display:flex;gap:12px;margin-top:6px;font-size:10.5px;color:rgba(255,255,255,0.6);align-items:center;">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px;vertical-align:middle;"></span>입고</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>출고</span>
+          <span style="margin-left:auto;color:rgba(255,255,255,0.4);font-size:10px;">최근 7일 · 일별 수량</span>
         </div>
       </div>
 
@@ -123,10 +294,10 @@
       </a>
     </div>
 
-    <!-- 빠른 액션 -->
+    <!-- 빠른 액션 (v5H226z58 2026-05-12: 자재 일괄 등록 진입 카드 추가, 5칸 그리드) -->
     <div class="section">
       <h2>자재 작업</h2>
-      <div class="actions">
+      <div class="actions" style="grid-template-columns: repeat(5, 1fr);">
         <a class="action-card" href="/po/new">
           <div class="action-icon">📝</div>
           <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>
@@ -144,7 +315,13 @@
         </a>
         <a class="action-card" href="/parts/new">
           <div class="action-icon">📊</div>
-          <div class="action-text"><h4>자재 등록</h4><p>마스터 신규</p></div>
+          <div class="action-text"><h4>자재 등록</h4><p>마스터 단건 신규</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        {# v5H226z58 (2026-05-12 03:30) — 캐시 우회 query param 추가 (?v=cache_bust) #}
+        <a class="action-card" href="/parts/import?v=20260512" style="border-color:var(--qv-line-3);">
+          <div class="action-icon">📥</div>
+          <div class="action-text"><h4>자재 일괄 등록</h4><p>엑셀 업로드 (수십~수백 건)</p></div>
           <div class="action-arrow">→</div>
         </a>
       </div>

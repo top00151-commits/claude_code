@@ -49,7 +49,7 @@ systemctl restart knk-messenger
 sleep 3
 
 # 헬스체크
-HTTP=$(curl -fs -o /dev/null -w "%{http_code}" http://127.0.0.1:5050/login || echo "000")
+HTTP=$(curl -fs -o /dev/null -w "%{http_code}" http://127.0.0.1:5050/healthz || echo "000")
 if [ "$HTTP" = "200" ] || [ "$HTTP" = "302" ]; then
   echo ""
   echo "==================================================="

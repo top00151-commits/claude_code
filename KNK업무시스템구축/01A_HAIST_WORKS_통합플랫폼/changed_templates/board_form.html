@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if post %}글 수정{% else %}새 글{% endif %} · KNK</title>
+{# board_form.html — 게시글 작성/수정 폼
+   2026-05-10 실무팀1: Quiet Tone v3 토큰 + data-dn (v1+v2 차수) #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.form-card { margin: 0 0 var(--space-5); background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-6); }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 12px; font-weight: 600; }
+.field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
+.field textarea { min-height: 240px; resize: vertical; font-family: inherit; line-height: 1.6; }
+.row2 { display: grid; grid-template-columns: 1fr 200px; gap: 14px; }
+</style></head>
+<body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="post-form-main">
+  <div class="page-head" data-dn="post-form-pagehead">
+    <div><div class="crumbs"><a href="/board">게시판</a> · <b>{% if post %}수정{% else %}새 글{% endif %}</b></div>
+    <h1 class="page-title">{% if post %}글 <em>수정</em>{% else %}새 <em>글</em> 작성{% endif %}</h1></div>
+  </div>
+  <form method="post" action="{% if post %}/board/post/{{ post.id }}/edit{% else %}/board/new{% endif %}">
+    {% if not post %}<input type="hidden" name="board_id" value="{{ board_id }}">{% endif %}
+    <div class="form-card" data-dn="post-form-card">
+      <div class="row2">
+        <div class="field"><label>제목 *</label><input type="text" name="title" required value="{{ post.title|default('') }}"></div>
+        <div class="field"><label>분류</label>
+          <select name="category">{% for c in CATEGORIES %}<option value="{{ c }}" {% if post and post.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div class="field"><label>내용</label>
+        <textarea name="body" placeholder="내용 입력 (Markdown 지원)">{{ post.body|default('') }}</textarea>
+      </div>
+      <div style="font-size:12px;color:var(--qv-ink-3);margin-top:6px;"><label><input type="checkbox" name="is_pinned" value="1" {% if post and post.is_pinned %}checked{% endif %}> 📌 상단 고정</label></div>
+    </div>
+    <div style="margin: 0 0 var(--space-7);display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-secondary" href="/board">취소</a>
+      <button type="submit" class="btn btn-primary">📤 {% if post %}저장{% else %}게시{% endif %}</button>
+    </div>
+  </form>
+</main></div></body></html>

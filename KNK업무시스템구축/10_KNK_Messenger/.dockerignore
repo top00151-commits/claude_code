@@ -1,0 +1,66 @@
+# ============================================================
+# KNK Messenger - Docker 빌드 시 제외 항목
+# ============================================================
+# 큰 파일·민감 파일·플랫폼 의존 파일 제외해서 빌드 속도/이미지 크기 최적화
+
+# 데이터 (볼륨으로 마운트)
+data/
+backups/
+
+# 시크릿 (마운트로 주입)
+.env
+.env.production
+.env.production.dev.*
+data/secret.key
+data/vapid_private.pem
+
+# Python 캐시
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.env-*
+
+# Node / 기타 (혹시 모를)
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# 문서 (이미지 크기 절약 — 컨테이너 내부에서 안 봄)
+*.md
+참고자료/
+
+# Windows 배치/스크립트 (컨테이너에선 불필요)
+*.bat
+*.ps1
+메신저START.bat
+START.bat
+make_desktop_shortcut.py
+사내서버_정보확인.ps1
+사내서버_정보확인.bat
+사내서버_정보확인.sh
+
+# 사내 서버 베어메탈 배포 키트 (Docker 환경에선 불필요)
+deploy/setup_server.sh
+deploy/setup_server_dev.sh
+deploy/promote_to_production.sh
+deploy/update.sh
+deploy/sync_to_cloud.ps1
+deploy/nginx.conf
+deploy/knk-messenger.service
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

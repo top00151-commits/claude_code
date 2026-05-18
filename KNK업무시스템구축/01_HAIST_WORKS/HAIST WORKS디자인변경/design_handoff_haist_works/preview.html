@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>HAIST WORKS · 시안1 미리보기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html,body{margin:0;height:100%;background:#0f172a;}
+  /* Lock the page to a fixed 1440×900 frame so screenshots match production. */
+  #frame{
+    width:1440px;height:900px;
+    margin:0 auto;
+    background:var(--surface-2);
+    box-shadow:0 0 0 1px rgba(255,255,255,0.04);
+    overflow:hidden;
+    position:relative;
+  }
+  #root{height:100%;width:100%;}
+  /* Page selector — visible only when no ?page= */
+  #picker{
+    max-width:980px;margin:80px auto;padding:32px;
+    background:#fff;border-radius:14px;font-family:Pretendard,sans-serif;
+  }
+  #picker h1{font-size:24px;margin:0 0 8px;}
+  #picker p{color:#64748b;margin:0 0 24px;font-size:14px;}
+  #picker .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  #picker a{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:14px 16px;background:#f7f8fa;border-radius:8px;
+    text-decoration:none;color:#0f172a;font-size:14px;font-weight:500;
+    border:1px solid #eef0f4;
+  }
+  #picker a:hover{background:#eef0f4;border-color:#cbd5e1;}
+  #picker a code{font-family:ui-monospace,monospace;font-size:11px;color:#64748b;background:transparent;}
+</style>
+</head>
+<body>
+<div id="frame"><div id="root"></div></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="components-base.jsx"></script>
+<script type="text/babel" src="components-purchasing.jsx"></script>
+
+<script type="text/babel">
+// Map ?page= → component & label.
+const PAGES = {
+  "sales-home":    { c: "SalesHome",     ko: "01 · 매출 홈" },
+  "orders":        { c: "OrdersPage",    ko: "02 · 수주 관리 (캘린더)" },
+  "project":       { c: "ProjectDetail", ko: "03 · 프로젝트 상세 (PARTS 28컬럼)" },
+  "calendar":      { c: "CalendarPage",  ko: "04 · 캘린더" },
+  "daily":         { c: "DailyWork",     ko: "05 · 일일 업무" },
+  "purchase-home": { c: "PurchaseHome",  ko: "06 · 구매 홈" },
+  "po-manage":     { c: "POManage",      ko: "07 · 발주 관리" },
+  "bom":           { c: "BOMExplosion",  ko: "08 · BOM·소요량" },
+  "inventory":     { c: "Inventory",     ko: "09 · 재고" },
+  "vendor":        { c: "VendorMgmt",    ko: "10 · 공급사" },
+  "io":            { c: "IO",            ko: "11 · 입고·출고" },
+};
+
+let __root = null;
+function ensureRoot(){
+  if (!__root) __root = ReactDOM.createRoot(document.getElementById("root"));
+  return __root;
+}
+window.showPage = function(key){
+  if (!PAGES[key]) return;
+  const Comp = window[PAGES[key].c];
+  if (!Comp) return;
+  document.title = "HAIST WORKS · " + PAGES[key].ko;
+  ensureRoot().render(<Comp/>);
+};
+function boot(){
+  const params = new URLSearchParams(location.search);
+  const key = params.get("page");
+
+  if (key && PAGES[key]) {
+    window.showPage(key);
+  } else {
+    // Picker
+    document.getElementById("frame").style.background = "transparent";
+    document.getElementById("frame").style.height = "auto";
+    document.getElementById("frame").style.boxShadow = "none";
+    document.getElementById("frame").innerHTML =
+      '<div id="picker">' +
+      '<h1>HAIST WORKS · 시안1 페이지 미리보기</h1>' +
+      '<p>각 화면을 1440×900 프레임으로 단독 렌더합니다. URL의 <code>?page=KEY</code>로 직접 접근하세요.</p>' +
+      '<div class="grid">' +
+      Object.entries(PAGES).map(([k,v]) =>
+        '<a href="?page=' + k + '"><span>' + v.ko + '</span><code>' + k + '</code></a>'
+      ).join('') +
+      '</div></div>';
+  }
+}
+
+// Wait one tick so Babel finishes transpiling components-base/purchasing.
+setTimeout(boot, 100);
+</script>
+</body>
+</html>
