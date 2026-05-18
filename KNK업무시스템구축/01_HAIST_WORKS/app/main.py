@@ -8148,11 +8148,20 @@ async def suppliers_export_xlsx(req: Request):
 
 @app.get("/parts/export.xlsx")
 async def parts_export_xlsx(req: Request):
-    """v5H226z109 (2026-05-17) — 풀세트 자재 마스터 엑셀 (용도 포함 25컬럼)."""
+    """v5H226z110 (2026-05-17) — 자재 마스터 엑셀 다운로드.
+    표준 구조: [시트1 📖 안내] + [시트2 자재 마스터 (제목·부제·헤더·데이터)]."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from datetime import datetime as _dt
+
     with db_session() as c:
-        # PRAGMA — 확장 컬럼 존재 여부 가드 (DB 마이그레이션 미적용 환경 호환)
+        # PRAGMA — 확장 컬럼 존재 여부 가드 (마이그레이션 미적용 환경 호환)
         existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
         def _col(name, alias=None):
             return f"p.{name}" if name in existing else f"NULL AS {alias or name}"
@@ -8175,33 +8184,175 @@ async def parts_export_xlsx(req: Request):
             "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
             "ORDER BY p.part_no"
         ).fetchall()]
-    headers = [
-        "ID", "자재코드", "자재명", "사업부",
-        "규격", "제조사", "원산지", "단위", "통화", "매입단가",
-        "분류", "대분류", "분류시리즈",
-        "품목계정", "조달구분",
-        "안전재고", "재주문점", "재주문량", "환산계수",
-        "보조규격1", "보조규격2", "보조규격3",
-        "세금계산서명", "거래명세서명",
-        "위치", "기본창고", "HS코드",
-        "용도",
-        "활성", "비고", "현재재고",
+
+    # 헤더 + 컬럼 너비 + 설명 (시트1 가이드에서 재사용)
+    columns = [
+        ("ID",          7, "자동 생성 식별자 — 일괄등록 시 비워두세요"),
+        ("자재코드",     18, "PRODUCT CODE (제조사 원본 코드 우선). UNIQUE."),
+        ("자재명",       28, "자재의 정식 명칭. 유사 자재 자동 검사 대상."),
+        ("사업부",        9, "M(자동화) / T(검사기) / 공통 — 셋 중 하나"),
+        ("규격",         24, "주요 사양 1줄 (예: 200W·24V·3000rpm)"),
+        ("제조사",       14, "메이커명"),
+        ("원산지",       10, "예: 한국 / 일본 / 독일"),
+        ("단위",          7, "기본 단위 (예: EA / KG / SET)"),
+        ("통화",          7, "KRW / USD / JPY / CNY / EUR"),
+        ("매입단가",     12, "가장 최근 단가 (대표 단가)"),
+        ("분류",         14, "내부 분류명"),
+        ("대분류",       14, "상위 카테고리"),
+        ("분류시리즈",    14, "시리즈 코드"),
+        ("품목계정",     12, "RAW / SUB / SEMI / FIN / CONS"),
+        ("조달구분",     12, "구매 / 외주 / 자체제작 등"),
+        ("안전재고",     10, "이 수치 미만으로 떨어지면 경고"),
+        ("재주문점",     10, "Reorder Point"),
+        ("재주문량",     10, "Reorder Quantity"),
+        ("환산계수",     10, "단위 환산 비율 (기본 1)"),
+        ("보조규격1",    16, "보조 사양 1"),
+        ("보조규격2",    16, "보조 사양 2"),
+        ("보조규격3",    16, "보조 사양 3"),
+        ("세금계산서명",  22, "세금계산서 출력용 품명"),
+        ("거래명세서명",  22, "거래명세서 출력용 품명"),
+        ("위치",         12, "보관 위치 (창고 내 번지)"),
+        ("기본창고",     12, "기본 입출고 창고"),
+        ("HS코드",       12, "관세 분류 코드"),
+        ("용도",         48, "어디에 쓰는 자재인지 — 카탈로그 검색 보조"),
+        ("활성",          7, "활성 / 비활성"),
+        ("비고",         24, "기타 메모"),
+        ("현재재고",     10, "조회 시점 재고 수량"),
     ]
-    data = [[
-        r["id"], r["part_no"], r["part_name"], r["biz_div"],
-        r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], r["std_price"],
-        r["category"], r.get("category_main"), r.get("category_series"),
-        r.get("item_account"), r.get("procurement_kind"),
-        r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"), r.get("conversion_factor"),
-        r.get("sub_spec1"), r.get("sub_spec2"), r.get("sub_spec3"),
-        r.get("tax_invoice_name"), r.get("trade_invoice_name"),
-        r["location"], r.get("default_warehouse"), r.get("hs_code"),
-        r.get("purpose"),
-        "활성" if r["is_active"] else "비활성",
-        r["note"], r["on_hand"],
-    ] for r in rows]
-    return _make_xlsx_response(
-        [{"name": "자재 마스터", "headers": headers, "rows": data}], "자재마스터")
+
+    wb = Workbook()
+    # ────────────── 시트1: 📖 안내 ──────────────
+    g = wb.active
+    g.title = "📖 안내"
+
+    title_font   = Font(bold=True, size=18, color="0F172A")
+    subtitle_fnt = Font(size=11, color="64748B")
+    sec_font     = Font(bold=True, size=13, color="A5282C")
+    body_font    = Font(size=11, color="222222")
+    table_head   = Font(bold=True, size=10.5, color="FFFFFF")
+    table_head_fill = PatternFill("solid", fgColor="0F172A")
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    g.merge_cells("A1:C1")
+    g["A1"] = "📋 KNK 자재 마스터 — 엑셀 다운로드"
+    g["A1"].font = title_font
+    g["A1"].alignment = Alignment(vertical="center")
+    g.row_dimensions[1].height = 32
+
+    g.merge_cells("A2:C2")
+    g["A2"] = f"생성일: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건"
+    g["A2"].font = subtitle_fnt
+
+    g["A4"] = "📌 개요"
+    g["A4"].font = sec_font
+    overview = [
+        "이 파일은 KNK HAIST WORKS 시스템에 등록된 자재 마스터 데이터를 모두 내려받은 파일입니다.",
+        "시트 [📖 안내]에 컬럼 의미·작성 규칙을 정리하고, 실제 데이터는 [자재 마스터] 시트에 있습니다.",
+        "데이터를 수정하신 후 자재 일괄등록 페이지에서 그대로 업로드하시면, 같은 헤더 구조로 자동 매핑됩니다.",
+        "헤더 순서가 달라지거나 불필요한 컬럼이 섞여 있어도 시스템이 자동 인식합니다.",
+    ]
+    for i, line in enumerate(overview):
+        g.cell(row=5+i, column=1, value=f"• {line}").font = body_font
+        g.merge_cells(start_row=5+i, end_row=5+i, start_column=1, end_column=3)
+
+    g["A11"] = "📑 컬럼 설명"
+    g["A11"].font = sec_font
+    # 컬럼 의미 표
+    g.cell(row=12, column=1, value="컬럼명").font = table_head
+    g.cell(row=12, column=1).fill = table_head_fill
+    g.cell(row=12, column=1).alignment = Alignment(horizontal="center")
+    g.cell(row=12, column=2, value="권장 폭").font = table_head
+    g.cell(row=12, column=2).fill = table_head_fill
+    g.cell(row=12, column=2).alignment = Alignment(horizontal="center")
+    g.cell(row=12, column=3, value="설명").font = table_head
+    g.cell(row=12, column=3).fill = table_head_fill
+    g.cell(row=12, column=3).alignment = Alignment(horizontal="center")
+    for i, (h, w, desc) in enumerate(columns, 13):
+        g.cell(row=i, column=1, value=h).font = body_font
+        g.cell(row=i, column=2, value=w).font = body_font
+        g.cell(row=i, column=2).alignment = Alignment(horizontal="center")
+        g.cell(row=i, column=3, value=desc).font = body_font
+        for col in (1, 2, 3):
+            g.cell(row=i, column=col).border = border
+
+    g.column_dimensions["A"].width = 18
+    g.column_dimensions["B"].width = 10
+    g.column_dimensions["C"].width = 80
+    g.freeze_panes = "A13"
+
+    # ────────────── 시트2: 자재 마스터 ──────────────
+    ws = wb.create_sheet("자재 마스터")
+
+    n_cols = len(columns)
+    last_col = get_column_letter(n_cols)
+
+    # 1행: 큰 제목 (병합)
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = "📋 자재 마스터"
+    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 36
+
+    # 2행: 부제 (생성일·건수)
+    ws.merge_cells(f"A2:{last_col}2")
+    ws["A2"] = f"생성일: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요"
+    ws["A2"].font = Font(size=10.5, color="64748B")
+    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+
+    # 4행: 헤더 (3행은 여백)
+    HEADER_ROW = 4
+    knk_fill = PatternFill("solid", fgColor="0F172A")
+    white = Font(color="FFFFFF", bold=True, size=11)
+    for c_idx, (h, w, _desc) in enumerate(columns, 1):
+        cell = ws.cell(row=HEADER_ROW, column=c_idx, value=h)
+        cell.font = white
+        cell.fill = knk_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+        ws.column_dimensions[get_column_letter(c_idx)].width = w
+    ws.row_dimensions[HEADER_ROW].height = 26
+
+    # 5행~: 데이터
+    for r_idx, r in enumerate(rows, HEADER_ROW + 1):
+        vals = [
+            r["id"], r["part_no"], r["part_name"], r["biz_div"],
+            r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], r["std_price"],
+            r["category"], r.get("category_main"), r.get("category_series"),
+            r.get("item_account"), r.get("procurement_kind"),
+            r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"), r.get("conversion_factor"),
+            r.get("sub_spec1"), r.get("sub_spec2"), r.get("sub_spec3"),
+            r.get("tax_invoice_name"), r.get("trade_invoice_name"),
+            r["location"], r.get("default_warehouse"), r.get("hs_code"),
+            r.get("purpose"),
+            "활성" if r["is_active"] else "비활성",
+            r["note"], r["on_hand"],
+        ]
+        for c_idx, v in enumerate(vals, 1):
+            ws.cell(row=r_idx, column=c_idx, value=v)
+
+    # 헤더+제목 고정 (자재코드·자재명·사업부 컬럼도 고정)
+    ws.freeze_panes = f"E{HEADER_ROW+1}"
+
+    # 메모리 → 응답
+    import io
+    from urllib.parse import quote as _q
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    _fname_kr = f"KNK_자재마스터_{_dt.datetime.now().strftime('%Y%m%d')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="KNK_parts_master_{_dt.datetime.now().strftime("%Y%m%d")}.xlsx"; '
+                f"filename*=UTF-8''{_q(_fname_kr)}"
+            ),
+        },
+    )
 
 
 @app.get("/sales/orders/export.xlsx")
@@ -9063,11 +9214,14 @@ async def parts_import_template(req: Request):
         from openpyxl.styles import Font, PatternFill, Alignment
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from openpyxl.styles import Border, Side
+    from openpyxl.utils import get_column_letter
+    from datetime import datetime as _dt
+
     wb = Workbook()
-    ws = wb.active
-    ws.title = "자재 일괄 등록"
-    # v5H226z109 (2026-05-17) — 다운로드 양식과 동일 헤더 (용도 포함 풀세트)
-    # 필수 컬럼은 * 표시. 헤더 자동 매핑이 적용되므로 순서가 달라도 OK.
+    # v5H226z110 (2026-05-17) — 표준 구조:
+    #   [시트1] 📖 작성 가이드 (개요·필수컬럼·자동매핑·용도 팁)
+    #   [시트2] 자재 일괄 등록 (제목 행 + 부제 + 헤더 + 예시 3행)
     headers = [
         ("자재코드 *", 18), ("자재명 *", 28), ("사업부 *", 10),
         ("규격", 24), ("제조사", 14), ("원산지", 10),
@@ -9081,21 +9235,127 @@ async def parts_import_template(req: Request):
         ("용도", 38),
         ("활성", 8), ("비고", 24),
     ]
+
+    # ────────────── 시트1: 📖 작성 가이드 ──────────────
+    ws_g = wb.active
+    ws_g.title = "📖 작성 가이드"
+    sec_font   = Font(bold=True, size=13, color="A5282C")
+    body_font  = Font(size=11, color="222222")
+    sub_font   = Font(size=10.5, color="64748B")
+    ws_g.merge_cells("A1:C1")
+    ws_g["A1"] = "📋 KNK 자재 일괄 등록 — 작성 가이드"
+    ws_g["A1"].font = Font(bold=True, size=18, color="0F172A")
+    ws_g["A1"].alignment = Alignment(vertical="center")
+    ws_g.row_dimensions[1].height = 32
+    ws_g.merge_cells("A2:C2")
+    ws_g["A2"] = f"버전: v5H226z110    ·    생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}"
+    ws_g["A2"].font = sub_font
+
+    guide = [
+        ("📌 개요", None),
+        ("• 이 양식은 KNK HAIST WORKS 자재 마스터에 자재를 한꺼번에 등록할 때 사용합니다.", None),
+        ("• 실제 입력은 [자재 일괄 등록] 시트에서 작성하시고, 본 [📖 작성 가이드] 시트는 참고용입니다.", None),
+        ("• 헤더 순서가 달라지거나 불필요한 컬럼이 섞여 있어도 시스템이 자동 인식합니다.", None),
+        ("", None),
+        ("⚠ 필수 컬럼 — 미입력 시 행 단위 차단", None),
+        ("• 자재코드 (part_no) — UNIQUE. 중복 시 차단. 제조사 원본 PRODUCT CODE 우선 권장", None),
+        ("• 자재명 (part_name) — 유사 자재 자동 검사 (≥85점 시 등록 차단, force 옵션 우회 가능)", None),
+        ("• 사업부 (biz_div) — M(자동화) / T(검사기) / 공통 — 셋 중 하나 정확히 입력", None),
+        ("", None),
+        ("✅ 강력 추천 — 검색·식별 품질에 직결", None),
+        ("• 규격(spec) · 제조사(maker) · 매입단가(std_price)", None),
+        ("• 분류(category) · 안전재고(safety_stock) · 재주문점·재주문량", None),
+        ("• 용도(purpose) — 자재 카탈로그·검색 적중률에 가장 큰 영향. 1~3문장 권장", None),
+        ("", None),
+        ("📝 용도 작성 팁", None),
+        ("• 어떤 라인·공정에서 쓰는지 (예: \"자동화 라인 #2·#3 픽업 메커니즘\")", None),
+        ("• 어떤 기능을 하는지 (예: \"축 회전 구동\", \"신호 감지\")", None),
+        ("• 운영·관리 안내 (예: \"단종 시 ○○○으로 대체\", \"6개월 주기 점검\")", None),
+        ("• 사용처/대체품 정보가 있으면 검색이 훨씬 쉬워집니다.", None),
+        ("", None),
+        ("🔄 헤더명 자동 매핑 — 영문/별칭 OK", None),
+        ("• 자재코드 = part_no = code = 품번 = 부품코드 = 자재번호 = PRODUCT CODE", None),
+        ("• 자재명   = part_name = name = 품명 = 부품명 = PRODUCT NAME", None),
+        ("• 사업부   = biz_div = 사업부서", None),
+        ("• 매입단가 = 표준단가 = std_price = 단가 = price = 기준단가", None),
+        ("• 용도     = purpose = 사용처 = application", None),
+        ("• 보조규격 = sub_spec1/2/3 = 보조사양1/2/3", None),
+        ("• 세금계산서명 = tax_invoice_name = 세금계산서품명", None),
+        ("• 거래명세서명 = trade_invoice_name = 거래명세서품명", None),
+        ("• 대분류   = category_main · 분류시리즈 = category_series = 시리즈", None),
+        ("※ 헤더 순서가 다르거나 불필요한 컬럼이 섞여 있어도 자동 인식됩니다.", None),
+        ("", None),
+        ("🛡 처리 흐름 — 안전 3단계", None),
+        ("1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)", None),
+        ("2) 결과 확인 (ok / similar / dup / error 분류)", None),
+        ("3) [등록 확정] 버튼 → 실제 INSERT (트랜잭션)", None),
+        ("4) similar(유사 자재 있음) 행은 강제 등록 옵션 선택 후 재제출", None),
+        ("", None),
+        ("📏 제한", None),
+        ("• 파일 크기 10MB 이하", None),
+        ("• 미리보기 최대 200건", None),
+        ("• 한 번에 최대 ~1,000행 권장 (메모리·트랜잭션 성능)", None),
+        ("", None),
+        ("💡 비고", None),
+        ("• 기존 자재 데이터를 그대로 받아오시려면 자재 마스터 페이지 [엑셀 내보내기]를", None),
+        ("  이용하세요. 같은 헤더 구조라 그대로 수정·재업로드 가능합니다.", None),
+        ("• 매입단가 1~5차(구매사별)는 일괄등록에서 미지원입니다.", None),
+        ("  필요 시 등록 후 자재 편집 페이지에서 보완 입력해 주세요.", None),
+    ]
+    SECTION_PREFIX = ("📌", "⚠", "✅", "📝", "🔄", "🛡", "📏", "💡")
+    for i, (line, _) in enumerate(guide, 4):
+        c = ws_g.cell(row=i, column=1, value=line)
+        ws_g.merge_cells(start_row=i, end_row=i, start_column=1, end_column=3)
+        if line.startswith(SECTION_PREFIX):
+            c.font = sec_font
+        else:
+            c.font = body_font
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+    ws_g.column_dimensions["A"].width = 88
+    ws_g.column_dimensions["B"].width = 4
+    ws_g.column_dimensions["C"].width = 4
+    ws_g.freeze_panes = "A3"
+
+    # ────────────── 시트2: 자재 일괄 등록 (제목 + 헤더 + 예시) ──────────────
+    ws = wb.create_sheet("자재 일괄 등록")
+    n_cols = len(headers)
+    last_col = get_column_letter(n_cols)
+
+    # 1행 큰 제목 (병합)
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = "📋 자재 일괄 등록"
+    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 36
+
+    # 2행 부제
+    ws.merge_cells(f"A2:{last_col}2")
+    ws["A2"] = "필수 컬럼: 자재코드 · 자재명 · 사업부    ·    헤더 순서 변경 OK    ·    상세 안내는 [📖 작성 가이드] 시트 참조"
+    ws["A2"].font = Font(size=10.5, color="64748B")
+    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+
+    # 4행 헤더 (3행은 여백)
+    HEADER_ROW = 4
     head_font = Font(bold=True, color="FFFFFF", size=11)
     head_fill = PatternFill("solid", fgColor="0F172A")
-    # 필수 컬럼은 빨간 테두리 같은 시각 강조
-    req_fill = PatternFill("solid", fgColor="B91C1C")
+    req_fill  = PatternFill("solid", fgColor="B91C1C")  # 필수 컬럼 빨간 강조
+    thin = Side(style="thin", color="DDDDDD")
+    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
     for i, (h, w) in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=i, value=h)
+        cell = ws.cell(row=HEADER_ROW, column=i, value=h)
         cell.font = head_font
         cell.fill = req_fill if "*" in h else head_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        ws.column_dimensions[cell.column_letter].width = w
-    ws.row_dimensions[1].height = 30
-    # 헤더 행 고정 (스크롤 시 항상 보이게)
-    ws.freeze_panes = "D2"
+        cell.border = bd
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[HEADER_ROW].height = 30
 
-    # 예시 행 3개 — 풀세트 (용도 포함, 다양한 사업부/카테고리)
+    # 헤더 + 좌측 3컬럼 고정
+    ws.freeze_panes = f"D{HEADER_ROW+1}"
+
+    # 5행~ 예시 3건 — 풀세트 (용도 포함, 다양한 사업부/카테고리)
     examples = [
         # 자동화 — 모터
         ["P-M-MTR-0001", "AC 서보모터 200W", "M",
@@ -9136,66 +9396,12 @@ async def parts_import_template(req: Request):
     ]
     from openpyxl.styles import Alignment as _Al
     wrap = _Al(wrap_text=True, vertical="top")
-    for r_idx, row in enumerate(examples, 2):
+    # 데이터는 HEADER_ROW+1 부터 시작
+    for r_idx, row in enumerate(examples, HEADER_ROW + 1):
         for c_idx, val in enumerate(row, 1):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
             cell.alignment = wrap
         ws.row_dimensions[r_idx].height = 60
-
-    # 안내 시트
-    ws2 = wb.create_sheet("작성 가이드")
-    guide = [
-        ["KNK 자재 일괄 등록 — 작성 가이드 (v5H226z109)"],
-        [""],
-        ["[필수 컬럼 — 미입력 시 행 단위 차단]"],
-        ["  · 자재코드 (part_no) — UNIQUE. 중복 시 차단. 제조사 원본 PRODUCT CODE 우선 권장"],
-        ["  · 자재명 (part_name) — 유사 자재 자동 검사 (≥85점 시 등록 차단, force 옵션 우회 가능)"],
-        ["  · 사업부 (biz_div) — M(자동화) / T(검사기) / 공통 — 셋 중 하나 정확히 입력"],
-        [""],
-        ["[강력 추천 — 검색·식별 품질에 직결]"],
-        ["  · 규격(spec) · 제조사(maker) · 매입단가(std_price)"],
-        ["  · 분류(category) · 안전재고(safety_stock) · 재주문점·재주문량"],
-        ["  · 용도(purpose) — 자재 카탈로그·검색 적중률에 가장 큰 영향. 1~3문장 권장"],
-        [""],
-        ["[용도 작성 팁]"],
-        ["  · 어떤 라인·공정에서 쓰는지 (예: \"자동화 라인 #2·#3 픽업 메커니즘\")"],
-        ["  · 어떤 기능을 하는지 (예: \"축 회전 구동\", \"신호 감지\")"],
-        ["  · 운영·관리 안내 (예: \"단종 시 ○○○으로 대체\", \"6개월 주기 점검\")"],
-        ["  · 사용처/대체품 정보가 있으면 검색이 훨씬 쉬워집니다."],
-        [""],
-        ["[헤더명 자동 매핑 — 영문/별칭 OK]"],
-        ["  자재코드 = part_no = code = 품번 = 부품코드 = 자재번호 = PRODUCT CODE"],
-        ["  자재명   = part_name = name = 품명 = 부품명 = PRODUCT NAME"],
-        ["  사업부   = biz_div = 사업부서"],
-        ["  매입단가 = 표준단가 = std_price = 단가 = price = 기준단가"],
-        ["  용도     = purpose = 사용처 = application"],
-        ["  보조규격 = sub_spec1/2/3 = 보조사양1/2/3"],
-        ["  세금계산서명 = tax_invoice_name = 세금계산서품명"],
-        ["  거래명세서명 = trade_invoice_name = 거래명세서품명"],
-        ["  대분류   = category_main · 분류시리즈 = category_series = 시리즈"],
-        ["  ※ 헤더 순서가 다르거나 불필요한 컬럼이 섞여 있어도 자동 인식"],
-        [""],
-        ["[처리 흐름 — 안전 3단계]"],
-        ["  1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)"],
-        ["  2) 결과 확인 (ok / similar / dup / error 분류)"],
-        ["  3) [등록 확정] 버튼 → 실제 INSERT (트랜잭션)"],
-        ["  4) similar(유사 자재 있음) 행은 강제 등록 옵션 선택 후 재제출"],
-        [""],
-        ["[제한]"],
-        ["  · 파일 크기 10MB 이하"],
-        ["  · 미리보기 최대 200건"],
-        ["  · 한 번에 최대 ~1,000행 권장 (메모리·트랜잭션 성능)"],
-        [""],
-        ["[비고]"],
-        ["  · 기존 자재 데이터를 그대로 받아오시려면 자재 마스터 페이지 [엑셀 내보내기]를"],
-        ["    이용하세요. 같은 헤더 구조라 그대로 수정·재업로드 가능합니다."],
-        ["  · 매입단가 1~5차(구매사별)는 별도 시트 영역으로 현재 일괄등록 미지원."],
-        ["    필요 시 등록 후 자재 편집 페이지에서 보완 입력해 주세요."],
-    ]
-    for r_idx, row in enumerate(guide, 1):
-        ws2.cell(row=r_idx, column=1, value=row[0])
-    ws2.column_dimensions["A"].width = 88
-    ws2["A1"].font = Font(bold=True, size=14, color="0F172A")
 
     # 메모리 → 응답
     import io

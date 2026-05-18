@@ -656,6 +656,22 @@ def init_db():
     if "retention_days" not in existing_room_cols:
         cur.execute("ALTER TABLE rooms ADD COLUMN retention_days INTEGER")
 
+    # 초대 권한 정책 — 'all'(기본: 모든 멤버) | 'host_only'(방장·부방장만)
+    if "invite_policy" not in existing_room_cols:
+        cur.execute("ALTER TABLE rooms ADD COLUMN invite_policy TEXT NOT NULL DEFAULT 'all'")
+
+    # 매 부팅마다 created_by → host 자동 백필 (idempotent)
+    # 신규 방의 host 가 누락된 경우(seed/외부 INSERT) 자동 교정.
+    cur.execute("""
+        UPDATE room_members
+           SET role = 'host'
+         WHERE role != 'host'
+           AND (room_id, user_id) IN (
+               SELECT id, created_by FROM rooms
+                WHERE created_by IS NOT NULL
+           )
+    """)
+
     # 방 멤버 역할 (host=방장, sub_host=부방장, member=일반)
     existing_rm_cols = {row["name"] for row in cur.execute("PRAGMA table_info(room_members)").fetchall()}
     if "role" not in existing_rm_cols:
@@ -4061,12 +4077,28 @@ def api_room_transfer_host(room_id):
 @app.route("/api/rooms/<int:room_id>/invite", methods=["POST"])
 @login_required
 def api_room_invite(room_id):
-    """방 멤버 초대 — host 또는 sub_host. body: {user_ids: [int]}"""
+    """방 멤버 초대 — invite_policy 에 따라 권한 분기.
+    'all'(기본): 모든 방 멤버가 초대 가능. 'host_only': 방장·부방장만.
+    body: {user_ids: [int]}"""
     me = current_user()
     db = get_db()
+    # 본인이 멤버인지 확인
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone():
+        return jsonify({"error": "방 멤버 아님"}), 403
+    # 방의 초대 정책 조회
+    room_row = db.execute("SELECT invite_policy, type FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room_row:
+        return jsonify({"error": "방을 찾을 수 없음"}), 404
+    # 1:1·self 방은 멤버 추가 불가
+    if room_row["type"] in ("direct", "self"):
+        return jsonify({"error": "1:1 또는 1인방은 멤버를 추가할 수 없습니다"}), 400
+    invite_policy = room_row["invite_policy"] or "all"
     my_role = _my_room_role(db, room_id, me["id"])
-    if my_role not in ('host', 'sub_host'):
-        return jsonify({"error": "방장·부방장만 초대 가능"}), 403
+    if invite_policy == "host_only" and my_role not in ('host', 'sub_host'):
+        return jsonify({"error": "이 방은 방장·부방장만 초대할 수 있습니다"}), 403
     data = request.get_json(silent=True) or {}
     user_ids = list({int(x) for x in (data.get("user_ids") or [])})
     if not user_ids:
