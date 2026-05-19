@@ -748,6 +748,242 @@ body.chat-body .msg .msg-action-bar {
   color: #991B1B;
 }
 
+/* ─── 사이드바 탭 (방 / 사용자) ─── */
+.sidebar-tabs {
+  display: flex;
+  gap: 0;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.sb-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sb-tab:hover { color: var(--text); }
+.sb-tab.active {
+  color: #A5282C;
+  border-bottom-color: #A5282C;
+}
+
+/* ─── 사용자 탭 툴바 (➕ 직원 등록 버튼) ─── */
+.user-list-toolbar {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #FAFBFC;
+}
+
+/* ─── 사용자 목록 ─── */
+.user-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.user-dept-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: #FAFBFC;
+  position: sticky; top: 0; z-index: 1;
+}
+.user-dept-count {
+  display: inline-block;
+  background: #E5E7EB;
+  color: #4B5563;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.user-card:hover {
+  background: #F9FAFB;
+}
+.user-inactive-row {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.user-card-avatar {
+  position: relative;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 14px;
+  flex-shrink: 0;
+}
+.user-card-avatar .status-dot {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.user-card-info {
+  flex: 1; min-width: 0;
+}
+.user-card-name {
+  font-size: 13.5px; font-weight: 600; color: #1F2937;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.user-card-meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-soft);
+  margin-top: 2px;
+}
+.user-title-chip {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.user-ceo-badge {
+  background: #FEE500;
+  color: #3C1E1E;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.user-inactive {
+  color: #DC2626;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.user-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.user-card-menu-btn {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-soft);
+  padding: 4px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.user-card-menu-btn:hover {
+  background: #E5E7EB;
+  color: var(--text);
+}
+
+/* ─── 사용자 카드 컨텍스트 메뉴 (우클릭/롱프레스) ─── */
+.user-context-menu {
+  min-width: 260px;
+  max-width: 320px;
+}
+.ucm-card {
+  display: flex; gap: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, #FEF2F2 0%, #fff 100%);
+  border-bottom: 1px solid #E5E7EB;
+}
+.ucm-avatar {
+  position: relative;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 16px;
+  flex-shrink: 0;
+}
+.ucm-status-dot {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.ucm-body {
+  flex: 1; min-width: 0;
+}
+.ucm-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1F2937;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.ucm-me {
+  font-size: 11px;
+  color: #6B7280;
+  font-weight: 500;
+}
+.ucm-ceo {
+  background: #FEE500;
+  color: #3C1E1E;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.ucm-inactive {
+  background: #FEE2E2;
+  color: #991B1B;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.ucm-row {
+  display: flex; gap: 8px;
+  font-size: 12px;
+  padding: 1px 0;
+}
+.ucm-label {
+  width: 36px;
+  flex-shrink: 0;
+  color: #6B7280;
+  font-weight: 600;
+}
+.ucm-value {
+  flex: 1;
+  color: #1F2937;
+  word-break: break-word;
+}
+.ucm-mono {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #6B7280;
+}
+.ucm-link {
+  color: #1D4ED8;
+  text-decoration: none;
+  font-weight: 500;
+}
+.ucm-link:hover {
+  text-decoration: underline;
+}
+.ucm-unset {
+  color: #9CA3AF;
+  font-style: italic;
+  font-size: 11px;
+}
+
 /* 핀 고정된 방 — 사이드바 좌측 4px 노란 띠 */
 .pinned-row {
   background: linear-gradient(to right, #fff7ed 0%, transparent 60%);

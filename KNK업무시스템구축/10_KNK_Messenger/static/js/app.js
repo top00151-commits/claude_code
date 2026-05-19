@@ -116,6 +116,38 @@
     aiSummaryCopyBtn: $("aiSummaryCopyBtn"),
     aiRewriteBtn: $("aiRewriteBtn"),
     aiRewriteMenu: $("aiRewriteMenu"),
+    // 사이드바 탭 + 사용자 목록
+    sidebarTabs: $("sidebarTabs"),
+    userListToolbar: $("userListToolbar"),
+    newUserBtn: $("newUserBtn"),
+    newUserDialog: $("newUserDialog"),
+    nuDisplayName: $("nuDisplayName"),
+    nuEmail: $("nuEmail"),
+    nuPhone: $("nuPhone"),
+    nuTitle: $("nuTitle"),
+    nuDept: $("nuDept"),
+    nuRoleCeo: $("nuRoleCeo"),
+    nuSaveBtn: $("nuSaveBtn"),
+    nuResult: $("nuResult"),
+    changePwDialog: $("changePwDialog"),
+    cpwCurrent: $("cpwCurrent"),
+    cpwNew: $("cpwNew"),
+    cpwNew2: $("cpwNew2"),
+    cpwError: $("cpwError"),
+    cpwSaveBtn: $("cpwSaveBtn"),
+    userList: $("userList"),
+    userInfoDialog: $("userInfoDialog"),
+    uiName: $("uiName"),
+    uiHint: $("uiHint"),
+    uiTitle: $("uiTitle"),
+    uiDeptSelect: $("uiDeptSelect"),
+    uiDeptCustom: $("uiDeptCustom"),
+    uiEmail: $("uiEmail"),
+    uiPhone: $("uiPhone"),
+    uiCeoFields: $("uiCeoFields"),
+    uiDisplayName: $("uiDisplayName"),
+    uiActive: $("uiActive"),
+    uiSaveBtn: $("uiSaveBtn"),
     // 프로젝트 이력
     projectHistoryBtn: $("projectHistoryBtn"),
     projectHistoryDialog: $("projectHistoryDialog"),
@@ -323,15 +355,18 @@
 
   function renderRoomList() {
     const list = filteredRooms();
+    // 사이드바 탭이 '사용자' 이면 방 목록 표시 안 함 (refresh·socket 이벤트 시에도 유지)
+    // 아래 모든 분기에서 들어가도 hidden 유지하려면 여기서 조기 반환은 안 됨 — DOM 은 그려두되 .hidden 만 true.
+    const onUsersTab = (typeof _sidebarTab !== "undefined" && _sidebarTab === "users");
     if (activeFilter === "my-tasks") {
       els.roomList.hidden = true;
       els.searchResults.hidden = true;
-      els.myTasks.hidden = false;
-      renderMyTasks();
+      els.myTasks.hidden = onUsersTab ? true : false;
+      if (!onUsersTab) renderMyTasks();
       return;
     }
     els.myTasks.hidden = true;
-    els.roomList.hidden = false;
+    els.roomList.hidden = onUsersTab ? true : false;
     if (!list.length) {
       els.roomList.innerHTML = `<li class="empty-state" style="padding:32px;font-size:13px;">${rooms.length ? "이 필터에 해당하는 항목이 없습니다." : "대화가 없습니다.<br>＋ 버튼으로 새 아이템을 시작하세요."}</li>`;
       return;
@@ -2494,15 +2529,17 @@
 
   async function runSearch(q) {
     q = q.trim();
+    const onUsersTab = (typeof _sidebarTab !== "undefined" && _sidebarTab === "users");
     if (!q) {
       els.searchResults.hidden = true;
-      els.roomList.hidden = false;
+      els.roomList.hidden = onUsersTab ? true : false;   // 사용자 탭이면 그대로 숨김 유지
       return;
     }
     const data = await api.search(q);
     els.roomList.hidden = true;
     els.myTasks.hidden = true;
-    els.searchResults.hidden = false;
+    els.searchResults.hidden = onUsersTab ? true : false;  // 사용자 탭에선 검색 결과도 숨김
+    if (onUsersTab) return;   // 사용자 탭이면 검색 결과 렌더 자체를 안 함
     if (!data.length) {
       els.searchResults.innerHTML = `<div class="search-empty">"${escapeHtml(q)}" 결과 없음</div>`;
       return;
@@ -3854,6 +3891,520 @@
       }
     }
   });
+
+  // ============================================================
+  // 👥 사이드바 탭 — 방 목록 / 사용자 목록 토글
+  // ============================================================
+  let _sidebarTab = "rooms";   // 'rooms' | 'users'
+  let _usersCache = [];
+
+  function setSidebarTab(tab) {
+    if (tab !== "rooms" && tab !== "users") return;
+    _sidebarTab = tab;
+    // 탭 active 상태
+    if (els.sidebarTabs) {
+      els.sidebarTabs.querySelectorAll(".sb-tab").forEach(b => {
+        b.classList.toggle("active", b.dataset.tab === tab);
+      });
+    }
+    if (tab === "rooms") {
+      if (els.userList) els.userList.hidden = true;
+      if (els.userListToolbar) els.userListToolbar.hidden = true;
+      if (els.filterBar) els.filterBar.hidden = false;
+      if (els.searchResults) els.searchResults.hidden = true;
+      // 방 목록 보이기 — renderRoomList 가 my-tasks/empty 등 분기 처리
+      renderRoomList();
+    } else {
+      // 사용자 탭 — 방 관련 모든 패널 강제 숨김
+      if (els.roomList) els.roomList.hidden = true;
+      if (els.filterBar) els.filterBar.hidden = true;
+      if (els.searchResults) els.searchResults.hidden = true;
+      if (els.myTasks) els.myTasks.hidden = true;
+      if (els.userList) els.userList.hidden = false;
+      // 툴바 + 대표만 직원 등록 버튼
+      if (els.userListToolbar) els.userListToolbar.hidden = false;
+      const meRow = _usersCache.find(x => x.id === meId);
+      const isCeo = meRow && meRow.role === "ceo";
+      if (els.newUserBtn) els.newUserBtn.hidden = !isCeo;
+      renderUserList();
+    }
+  }
+
+  // 부서별 색상 (자동 — 사용자가 부서 추가하면 색상 자동 매핑)
+  const _DEPT_PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#a5282c", "#6366f1", "#f97316"];
+  function _deptColor(dept) {
+    if (!dept) return "#9ca3af";
+    let h = 0;
+    for (let i = 0; i < dept.length; i++) h = (h * 31 + dept.charCodeAt(i)) >>> 0;
+    return _DEPT_PALETTE[h % _DEPT_PALETTE.length];
+  }
+
+  async function refreshUserList() {
+    try {
+      _usersCache = await fetch(`${BASE}/api/users`).then(r => r.json());
+      if (_sidebarTab === "users") renderUserList();
+    } catch (e) { /* noop */ }
+  }
+
+  function renderUserList() {
+    if (!els.userList) return;
+    if (!_usersCache.length) {
+      els.userList.innerHTML = `<div class="empty-state" style="padding:32px;font-size:13px;">사용자가 없습니다.</div>`;
+      return;
+    }
+    // 부서별 그룹핑
+    const groups = {};
+    _usersCache.forEach(u => {
+      const key = u.department || "(미지정)";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(u);
+    });
+    const deptKeys = Object.keys(groups).sort((a, b) => {
+      if (a === "(미지정)") return 1; if (b === "(미지정)") return -1;
+      return a.localeCompare(b);
+    });
+    const isCeo = (window._meRole === "ceo");
+    let html = "";
+    deptKeys.forEach(dept => {
+      const color = _deptColor(dept);
+      html += `<div class="user-dept-head" style="border-left:3px solid ${color};">${escapeHtml(dept)} <span class="user-dept-count">${groups[dept].length}</span></div>`;
+      html += groups[dept].map(u => {
+        const isMe = u.id === meId;
+        const inactive = !u.active;
+        const statusInfo = (window._userStatusMap && window._userStatusMap[u.id]) || null;
+        const dotColor = statusInfo ? _getStatusColor(statusInfo.status) : "#9ca3af";
+        const statusLabel = statusInfo ? (statusInfo.label || statusInfo.status) : "";
+        const customText = statusInfo && statusInfo.custom_text ? ` · ${escapeHtml(statusInfo.custom_text)}` : "";
+        const title = u.title ? `<span class="user-title-chip">${escapeHtml(u.title)}</span>` : "";
+        const ceoBadge = u.role === "ceo" ? `<span class="user-ceo-badge">대표</span>` : "";
+        const inactiveLabel = inactive ? `<span class="user-inactive">비활성</span>` : "";
+        return `
+          <div class="user-card ${inactive ? 'user-inactive-row' : ''}" data-uid="${u.id}" ${inactive ? 'data-inactive="1"' : ''}>
+            <div class="user-card-avatar" style="background:${u.avatar_color || '#3b82f6'}">${escapeHtml(initial(u.display_name || '?'))}<span class="status-dot" style="background:${dotColor};"></span></div>
+            <div class="user-card-info">
+              <div class="user-card-name">${escapeHtml(u.display_name)}${isMe ? ' <span class="rs-me">(나)</span>' : ''} ${ceoBadge} ${inactiveLabel}</div>
+              <div class="user-card-meta">${title}<span class="user-status-text" style="color:${dotColor};">${escapeHtml(statusLabel)}${customText}</span></div>
+            </div>
+            <button type="button" class="user-card-menu-btn" data-uid="${u.id}" title="정보 수정·메뉴">⋮</button>
+          </div>`;
+      }).join("");
+    });
+    els.userList.innerHTML = html;
+    // 이벤트: 카드 클릭 → 1:1 채팅 / ⋮ 메뉴 클릭 → 정보 수정
+    els.userList.querySelectorAll(".user-card").forEach(card => {
+      card.addEventListener("click", async (e) => {
+        if (e.target.closest(".user-card-menu-btn")) return;   // 메뉴 버튼은 별도
+        const uid = parseInt(card.dataset.uid, 10);
+        if (uid === meId) {
+          // 본인 클릭 → 본인 정보 수정 다이얼로그
+          openUserInfoDialog(uid);
+          return;
+        }
+        if (card.dataset.inactive === "1") {
+          alert("비활성 사용자와는 새 1:1 채팅을 시작할 수 없습니다.");
+          return;
+        }
+        // 1:1 채팅 열기 (없으면 자동 생성)
+        const res = await fetch(`${BASE}/api/rooms/direct/${uid}`, { method: "POST" }).then(r => r.json());
+        if (res.error) { alert(res.error); return; }
+        await refreshRooms();
+        // 방 탭으로 전환하고 해당 방 열기
+        setSidebarTab("rooms");
+        const r = rooms.find(x => x.id === res.room_id);
+        if (r) openRoom(r);
+      });
+    });
+    els.userList.querySelectorAll(".user-card-menu-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const uid = parseInt(btn.dataset.uid, 10);
+        showUserContextMenu(uid, e.clientX, e.clientY);
+      });
+    });
+    // 우클릭 (PC) — 사용자 기본 정보 + 액션
+    els.userList.querySelectorAll(".user-card").forEach(card => {
+      card.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const uid = parseInt(card.dataset.uid, 10);
+        showUserContextMenu(uid, e.clientX, e.clientY);
+      });
+      // 모바일 롱프레스 (0.5초)
+      let _upTimer = null, _upXY = { x: 0, y: 0 };
+      card.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        _upXY = { x: t.clientX, y: t.clientY };
+        _upTimer = setTimeout(() => {
+          _upTimer = null;
+          const uid = parseInt(card.dataset.uid, 10);
+          showUserContextMenu(uid, _upXY.x, _upXY.y);
+        }, 500);
+      }, { passive: true });
+      card.addEventListener("touchmove", (e) => {
+        const t = e.touches[0];
+        if (Math.abs(t.clientX - _upXY.x) > 10 || Math.abs(t.clientY - _upXY.y) > 10) {
+          if (_upTimer) { clearTimeout(_upTimer); _upTimer = null; }
+        }
+      }, { passive: true });
+      card.addEventListener("touchend", () => {
+        if (_upTimer) { clearTimeout(_upTimer); _upTimer = null; }
+      }, { passive: true });
+      card.addEventListener("touchcancel", () => {
+        if (_upTimer) { clearTimeout(_upTimer); _upTimer = null; }
+      }, { passive: true });
+    });
+  }
+
+  // ─── 사용자 카드 컨텍스트 메뉴 (우클릭/롱프레스) ───
+  function closeUserContextMenu() {
+    document.querySelectorAll(".user-context-menu").forEach(m => m.remove());
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".user-context-menu")) closeUserContextMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeUserContextMenu();
+  });
+
+  function showUserContextMenu(uid, clientX, clientY) {
+    closeUserContextMenu();
+    const u = _usersCache.find(x => x.id === uid);
+    if (!u) return;
+    const me = _usersCache.find(x => x.id === meId);
+    const isCeo = me && me.role === "ceo";
+    const isSelf = uid === meId;
+    const statusInfo = (window._userStatusMap && window._userStatusMap[uid]) || null;
+    const dotColor = statusInfo ? _getStatusColor(statusInfo.status) : "#9ca3af";
+    const statusLabel = statusInfo ? (statusInfo.label || statusInfo.status) : "(미접속)";
+    const customText = statusInfo && statusInfo.custom_text ? statusInfo.custom_text : "";
+
+    const menu = document.createElement("div");
+    menu.className = "msg-context-menu user-context-menu";
+    menu.innerHTML = `
+      <div class="ucm-card">
+        <div class="ucm-avatar" style="background:${u.avatar_color || '#3b82f6'}">${escapeHtml(initial(u.display_name || '?'))}<span class="ucm-status-dot" style="background:${dotColor};"></span></div>
+        <div class="ucm-body">
+          <div class="ucm-name">${escapeHtml(u.display_name || '')}${isSelf ? ' <span class="ucm-me">(나)</span>' : ''}${u.role === 'ceo' ? ' <span class="ucm-ceo">👑 대표</span>' : ''}${!u.active ? ' <span class="ucm-inactive">⚠ 비활성</span>' : ''}</div>
+          <div class="ucm-row"><span class="ucm-label">직급</span><span class="ucm-value">${escapeHtml(u.title || '(미설정)')}</span></div>
+          <div class="ucm-row"><span class="ucm-label">부서</span><span class="ucm-value">${escapeHtml(u.department || '(미설정)')}</span></div>
+          <div class="ucm-row"><span class="ucm-label">이메일</span><span class="ucm-value">${u.email ? `<a href="mailto:${escapeHtml(u.email)}" class="ucm-link" title="이메일 보내기">${escapeHtml(u.email)}</a>` : '<span class="ucm-unset">(미설정)</span>'}</span></div>
+          <div class="ucm-row"><span class="ucm-label">전화</span><span class="ucm-value">${u.phone ? `<a href="tel:${escapeHtml((u.phone||'').replace(/[^0-9+]/g,''))}" class="ucm-link" title="전화 걸기">${escapeHtml(u.phone)}</a>` : '<span class="ucm-unset">(미설정)</span>'}</span></div>
+          <div class="ucm-row"><span class="ucm-label">상태</span><span class="ucm-value" style="color:${dotColor};font-weight:600;">${escapeHtml(statusLabel)}</span></div>
+          ${customText ? `<div class="ucm-row"><span class="ucm-label">메모</span><span class="ucm-value">${escapeHtml(customText)}</span></div>` : ''}
+          <div class="ucm-row"><span class="ucm-label">ID</span><span class="ucm-value ucm-mono">@${escapeHtml(u.username || '')}</span></div>
+        </div>
+      </div>
+      <div class="mcm-divider"></div>
+      ${!isSelf && u.active ? `<button type="button" class="mcm-item" data-act="dm"><span class="mcm-icon">💬</span><span>1:1 채팅</span></button>` : ''}
+      ${u.email ? `<button type="button" class="mcm-item" data-act="email"><span class="mcm-icon">📧</span><span>이메일 보내기</span></button>` : ''}
+      ${u.phone ? `<button type="button" class="mcm-item" data-act="phone"><span class="mcm-icon">📞</span><span>전화 걸기</span></button>` : ''}
+      ${u.phone ? `<button type="button" class="mcm-item" data-act="copy_phone"><span class="mcm-icon">📋</span><span>전화번호 복사</span></button>` : ''}
+      ${isSelf || isCeo ? `<button type="button" class="mcm-item" data-act="edit"><span class="mcm-icon">✏</span><span>정보 수정</span></button>` : ''}
+      ${isSelf ? `<button type="button" class="mcm-item" data-act="change_password"><span class="mcm-icon">🔐</span><span>비밀번호 변경</span></button>` : ''}
+      ${!isSelf ? `<button type="button" class="mcm-item" data-act="mention"><span class="mcm-icon">@</span><span>현재 방에 @멘션 삽입</span></button>` : ''}
+    `;
+    document.body.appendChild(menu);
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    let x = clientX, y = clientY;
+    if (x + w > window.innerWidth - 8) x = window.innerWidth - w - 8;
+    if (y + h > window.innerHeight - 8) y = window.innerHeight - h - 8;
+    if (x < 8) x = 8; if (y < 8) y = 8;
+    menu.style.left = x + "px"; menu.style.top = y + "px";
+    menu.querySelectorAll(".mcm-item").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        closeUserContextMenu();
+        if (act === "dm") {
+          const res = await fetch(`${BASE}/api/rooms/direct/${uid}`, { method: "POST" }).then(r => r.json());
+          if (res.error) { alert(res.error); return; }
+          await refreshRooms();
+          setSidebarTab("rooms");
+          const r = rooms.find(x => x.id === res.room_id);
+          if (r) openRoom(r);
+        } else if (act === "edit") {
+          openUserInfoDialog(uid);
+        } else if (act === "change_password") {
+          openChangePasswordDialog();
+        } else if (act === "email" && u.email) {
+          window.location.href = "mailto:" + u.email;
+        } else if (act === "phone" && u.phone) {
+          const digits = u.phone.replace(/[^0-9+]/g, "");
+          window.location.href = "tel:" + digits;
+        } else if (act === "copy_phone" && u.phone) {
+          try {
+            await navigator.clipboard.writeText(u.phone);
+            // 임시 토스트 (간단)
+            const t = document.createElement("div");
+            t.textContent = "📋 " + u.phone + " 복사됨";
+            t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#10B981;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.2);";
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 1500);
+          } catch (e) { alert("복사 실패: " + (e.message || e)); }
+        } else if (act === "mention") {
+          if (!activeRoom) {
+            alert("먼저 대화방을 선택하세요.");
+            return;
+          }
+          const tag = "@" + (u.username || u.display_name);
+          const input = els.msgInput;
+          if (input) {
+            const start = input.selectionStart || input.value.length;
+            const end = input.selectionEnd || input.value.length;
+            input.value = input.value.slice(0, start) + tag + " " + input.value.slice(end);
+            const pos = start + tag.length + 1;
+            input.selectionStart = input.selectionEnd = pos;
+            input.focus();
+            try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+          }
+        }
+      });
+    });
+  }
+
+  function _getStatusColor(status) {
+    const map = {
+      online: "#10B981", away: "#9CA3AF", busy: "#EF4444",
+      meeting: "#F59E0B", external: "#8B5CF6", dnd: "#DC2626", offline: "#6B7280",
+    };
+    return map[status] || "#9ca3af";
+  }
+
+  // 사용자 정보 수정 다이얼로그
+  function openUserInfoDialog(uid) {
+    const u = _usersCache.find(x => x.id === uid);
+    if (!u) return;
+    const me = _usersCache.find(x => x.id === meId);
+    const isCeo = me && me.role === "ceo";
+    const isSelf = uid === meId;
+    if (!isCeo && !isSelf) {
+      // 다른 사람 정보 — 읽기 전용 미리보기
+      const lines = [
+        `이름: ${u.display_name}`,
+        `직급: ${u.title || '(미설정)'}`,
+        `부서: ${u.department || '(미설정)'}`,
+        u.role === "ceo" ? "역할: 👑 대표이사" : "역할: 일반",
+        u.active ? "" : "⚠ 비활성 계정 (퇴사 등)",
+      ].filter(Boolean);
+      alert(lines.join("\n"));
+      return;
+    }
+    // 다이얼로그 채우기
+    if (els.uiName) els.uiName.textContent = u.display_name + (isSelf ? " (내 정보)" : "");
+    if (els.uiHint) els.uiHint.textContent = isCeo && !isSelf
+      ? "대표 권한으로 다른 사용자 정보를 변경합니다."
+      : "본인 정보를 변경합니다.";
+    if (els.uiTitle) els.uiTitle.value = u.title || "";
+    // 부서 — select 옵션에 있으면 select 사용, 없으면 기타 + 직접 입력
+    const knownDepts = Array.from(els.uiDeptSelect?.options || []).map(o => o.value);
+    if (u.department && knownDepts.includes(u.department)) {
+      els.uiDeptSelect.value = u.department;
+      els.uiDeptCustom.style.display = "none";
+      els.uiDeptCustom.value = "";
+    } else if (u.department) {
+      els.uiDeptSelect.value = "기타";
+      els.uiDeptCustom.style.display = "";
+      els.uiDeptCustom.value = u.department;
+    } else {
+      els.uiDeptSelect.value = "";
+      els.uiDeptCustom.style.display = "none";
+      els.uiDeptCustom.value = "";
+    }
+    // 부서 select 변경 시 "기타" 면 입력란 노출
+    els.uiDeptSelect.onchange = () => {
+      els.uiDeptCustom.style.display = els.uiDeptSelect.value === "기타" ? "" : "none";
+    };
+    // 이메일·전화번호 채우기
+    if (els.uiEmail) els.uiEmail.value = u.email || "";
+    if (els.uiPhone) els.uiPhone.value = u.phone || "";
+    // CEO 전용 필드
+    if (els.uiCeoFields) {
+      els.uiCeoFields.style.display = isCeo ? "" : "none";
+      if (isCeo && els.uiDisplayName) els.uiDisplayName.value = u.display_name || "";
+      if (isCeo && els.uiActive) els.uiActive.checked = !!u.active;
+    }
+    // 저장
+    els.uiSaveBtn.onclick = async () => {
+      const payload = {
+        title: els.uiTitle.value.trim(),
+        department: els.uiDeptSelect.value === "기타"
+          ? els.uiDeptCustom.value.trim()
+          : els.uiDeptSelect.value,
+        email: els.uiEmail ? els.uiEmail.value.trim() : "",
+        phone: els.uiPhone ? els.uiPhone.value.trim() : "",
+      };
+      if (isCeo) {
+        const newName = els.uiDisplayName?.value?.trim();
+        if (newName) payload.display_name = newName;
+        payload.active = els.uiActive?.checked ? 1 : 0;
+      }
+      const res = await fetch(`${BASE}/api/users/${uid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(r => r.json());
+      if (res.error) { alert(res.error); return; }
+      els.userInfoDialog.close();
+      await refreshUserList();
+    };
+    try { els.userInfoDialog.showModal(); } catch (_) {}
+  }
+
+  // 탭 클릭 wire
+  if (els.sidebarTabs) {
+    els.sidebarTabs.addEventListener("click", (e) => {
+      const b = e.target.closest(".sb-tab");
+      if (!b) return;
+      setSidebarTab(b.dataset.tab);
+    });
+  }
+
+  // ─── ➕ 직원 등록 (대표 전용) ───
+  if (els.newUserBtn && els.newUserDialog) {
+    els.newUserBtn.addEventListener("click", () => {
+      // 폼 초기화
+      ["nuDisplayName","nuEmail","nuPhone","nuTitle"].forEach(k => { if (els[k]) els[k].value = ""; });
+      if (els.nuDept) els.nuDept.value = "";
+      if (els.nuRoleCeo) els.nuRoleCeo.checked = false;
+      if (els.nuResult) els.nuResult.textContent = "";
+      try { els.newUserDialog.showModal(); } catch (_) {}
+    });
+    if (els.nuSaveBtn) {
+      els.nuSaveBtn.addEventListener("click", async () => {
+        const display_name = els.nuDisplayName?.value?.trim();
+        const email = els.nuEmail?.value?.trim()?.toLowerCase();
+        const phone = els.nuPhone?.value?.trim();
+        const title = els.nuTitle?.value?.trim();
+        const department = els.nuDept?.value;
+        const role = els.nuRoleCeo?.checked ? "ceo" : "staff";
+        if (!display_name) { alert("이름을 입력하세요."); return; }
+        if (!email || !email.includes("@")) { alert("회사 이메일을 입력하세요 (@ 포함)."); return; }
+        if (!phone) { alert("휴대폰 번호를 입력하세요."); return; }
+        const digits = phone.replace(/\D/g, "");
+        if (digits.length < 9) { alert("전화번호 자릿수가 부족합니다 (숫자 9자리 이상)."); return; }
+        els.nuSaveBtn.disabled = true;
+        const prevText = els.nuSaveBtn.textContent;
+        els.nuSaveBtn.textContent = "등록 중…";
+        try {
+          const res = await fetch(`${BASE}/api/users`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ display_name, email, phone, title, department, role }),
+          }).then(r => r.json());
+          if (res.error) {
+            if (els.nuResult) els.nuResult.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(res.error)}</span>`;
+            return;
+          }
+          if (els.nuResult) {
+            els.nuResult.innerHTML = `
+              <div style="background:#ECFDF5;border:1px solid #10B981;border-radius:8px;padding:10px;color:#065F46;">
+                ✅ 등록 완료 — <b>${escapeHtml(display_name)}</b><br>
+                <div style="margin-top:6px;font-size:11.5px;line-height:1.6;">
+                  • <b>로그인 ID</b>: <code>${escapeHtml(email)}</code><br>
+                  • <b>초기 비밀번호</b>: <code>${escapeHtml(digits)}</code> (휴대폰 번호 숫자)<br>
+                  • 본인에게 위 정보를 전달해 주세요. 첫 로그인 시 비밀번호 변경이 강제됩니다.
+                </div>
+              </div>`;
+          }
+          await refreshUserList();
+        } catch (e) {
+          if (els.nuResult) els.nuResult.innerHTML = `<span style="color:#dc2626;">❌ 네트워크 오류: ${escapeHtml(String(e))}</span>`;
+        } finally {
+          els.nuSaveBtn.disabled = false;
+          els.nuSaveBtn.textContent = prevText;
+        }
+      });
+    }
+  }
+
+  // ─── 🔐 비밀번호 변경 다이얼로그 (수동 호출용) ───
+  function openChangePasswordDialog() {
+    if (!els.changePwDialog) return;
+    // 폼 초기화
+    if (els.cpwCurrent) els.cpwCurrent.value = "";
+    if (els.cpwNew) els.cpwNew.value = "";
+    if (els.cpwNew2) els.cpwNew2.value = "";
+    if (els.cpwError) { els.cpwError.textContent = ""; els.cpwError.style.display = "none"; }
+    // 강제 모달이 아닌 일반 모드 — 헤더 안내 메시지 + 닫기 버튼 보이게
+    const head = els.changePwDialog.querySelector(".dialog-hint");
+    if (head) head.textContent = "현재 비밀번호와 새 비밀번호를 입력해 주세요. (6자 이상)";
+    // 닫기 버튼이 강제 모드에선 없으므로 동적으로 추가 (있으면 패스)
+    const actions = els.changePwDialog.querySelector(".dialog-actions");
+    if (actions && !actions.querySelector("[data-close]")) {
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.setAttribute("data-close", "");
+      cancelBtn.textContent = "취소";
+      actions.insertBefore(cancelBtn, actions.firstChild);
+      cancelBtn.addEventListener("click", () => { try { els.changePwDialog.close(); } catch (_) {} });
+    }
+    try { els.changePwDialog.showModal(); } catch (_) {}
+  }
+
+  // ─── 🔐 비밀번호 변경 강제 다이얼로그 (첫 로그인 시) ───
+  async function checkMustChangePassword() {
+    try {
+      const res = await fetch(`${BASE}/api/me/must_change_password`).then(r => r.json());
+      if (res.must_change) {
+        // 강제: ESC·바깥 클릭으로 닫히지 않게 따로 처리
+        try { els.changePwDialog.showModal(); } catch (_) {}
+        // 백드롭 클릭·ESC 막기
+        els.changePwDialog.addEventListener("click", (e) => {
+          if (e.target === els.changePwDialog) e.preventDefault();
+        });
+      }
+    } catch (e) { /* noop */ }
+  }
+  if (els.cpwSaveBtn) {
+    els.cpwSaveBtn.addEventListener("click", async () => {
+      const cur = els.cpwCurrent?.value || "";
+      const newPw = els.cpwNew?.value || "";
+      const newPw2 = els.cpwNew2?.value || "";
+      const showErr = (msg) => {
+        if (!els.cpwError) return;
+        els.cpwError.textContent = "❌ " + msg;
+        els.cpwError.style.display = "";
+      };
+      if (els.cpwError) els.cpwError.style.display = "none";
+      if (!cur) return showErr("현재 비밀번호(휴대폰 번호)를 입력하세요.");
+      if (newPw.length < 6) return showErr("새 비밀번호는 6자 이상이어야 합니다.");
+      if (newPw !== newPw2) return showErr("새 비밀번호 확인이 일치하지 않습니다.");
+      els.cpwSaveBtn.disabled = true;
+      els.cpwSaveBtn.textContent = "변경 중…";
+      try {
+        const res = await fetch(`${BASE}/api/me/password`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_password: cur, new_password: newPw }),
+        }).then(r => r.json());
+        if (res.error) { showErr(res.error); return; }
+        // 성공 — 다이얼로그 닫고 메신저 사용 시작
+        try { els.changePwDialog.close(); } catch (_) {}
+        alert("✅ 비밀번호가 변경되었습니다. 메신저를 사용하세요.");
+      } catch (e) {
+        showErr("네트워크 오류");
+      } finally {
+        els.cpwSaveBtn.disabled = false;
+        els.cpwSaveBtn.textContent = "🔐 비밀번호 저장 후 시작";
+      }
+    });
+  }
+  // 페이지 진입 직후 한 번 체크
+  setTimeout(checkMustChangePassword, 800);
+
+  // socket: 사용자 정보 변경 broadcast 수신 → 목록 갱신
+  function _wireUserInfoSocket() {
+    if (!window.socket) return setTimeout(_wireUserInfoSocket, 300);
+    socket.on("user_info_changed", (u) => {
+      const idx = _usersCache.findIndex(x => x.id === u.id);
+      if (idx >= 0) _usersCache[idx] = u;
+      else _usersCache.push(u);
+      if (_sidebarTab === "users") renderUserList();
+    });
+  }
+  setTimeout(_wireUserInfoSocket, 800);
+  // 최초 로드 + 5분 주기 갱신
+  setTimeout(refreshUserList, 1200);
+  setInterval(refreshUserList, 5 * 60 * 1000);
 
   // ============================================================
   // 📚 프로젝트 이력 (HAIST WORKS 연동 대비)

@@ -150,11 +150,24 @@
       <div class="section-card">
         <h3>자재 정보</h3>
         <dl class="def">
-          <dt>코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--qv-ink-2);">{{ p.code|default(p.part_no|default('—')) }}</dd>
+          <dt>코드 <span style="color:var(--qv-ink-3,#666);font-weight:400;font-size:10.5px;">= 모델명</span></dt><dd style="font-family:monospace;font-weight:700;color:var(--qv-ink-2);">{{ p.code|default(p.part_no|default('—')) }}</dd>
           <dt>자재명</dt><dd><b>{{ p.name|default(p.part_name|default('—')) }}</b></dd>
           <dt>사양</dt><dd>{{ p.spec|default('—') }}</dd>
           <dt>분류</dt><dd>{{ p.category|default('—') }}</dd>
           <dt>제조사</dt><dd>{{ p.maker|default('—') }}</dd>
+          {# v5H226z110c (2026-05-19) — 제조사 담당자 (자재 단위로 직접 입력) #}
+          {% if p.maker_contact_name or p.maker_contact_phone or p.maker_contact_email %}
+          <dt>제조사 담당</dt>
+          <dd style="line-height:1.55;">
+            {% if p.maker_contact_name %}<b>{{ p.maker_contact_name }}</b>{% endif %}
+            {% if p.maker_contact_phone %}<br>📞 <a href="tel:{{ p.maker_contact_phone }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ p.maker_contact_phone }}</a>{% endif %}
+            {% if p.maker_contact_email %}<br>✉ <a href="mailto:{{ p.maker_contact_email }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ p.maker_contact_email }}</a>{% endif %}
+          </dd>
+          {% endif %}
+          {# v5H226z110b (2026-05-19) — 기본 공급사명 (발주 자동 매칭) #}
+          {% if p.default_supplier %}
+          <dt>기본 공급사</dt><dd style="font-weight:600;color:var(--qv-ink-2);">{{ p.default_supplier }}</dd>
+          {% endif %}
           <dt>사업부</dt><dd>{{ p.biz_div|default('—') }}</dd>
           <dt>단위</dt><dd>{{ p.unit|default('—') }}</dd>
           <dt>매입단가</dt><dd>{{ '{:,.0f}'.format(p.unit_price|default(p.std_price|default(0))) }} 원</dd>
@@ -165,6 +178,49 @@
           {% endif %}
         </dl>
       </div>
+
+      {# v5H226z110c (2026-05-19) — 기본 공급사 정보 자동 카드 (담당자·연락처·이메일) #}
+      {% if default_supplier_info %}
+      {% set ds = default_supplier_info %}
+      <div class="section-card" data-dn="pd:supplier" style="border-left:3px solid var(--qv-ink);">
+        <h3>🏢 기본 공급사 정보
+          <a href="/suppliers/{{ ds.id }}/edit" style="font-size:11px;font-weight:400;color:var(--qv-ink-3,#666);margin-left:6px;text-decoration:none;">→ 공급사 상세</a>
+        </h3>
+        <dl class="def">
+          <dt>공급사명</dt><dd><b>{{ ds.name }}</b></dd>
+          {% if ds.manage_dept %}<dt>관리부서</dt><dd>{{ ds.manage_dept }}</dd>{% endif %}
+          {% if ds.biz_no %}<dt>사업자번호</dt><dd style="font-family:monospace;">{{ ds.biz_no }}</dd>{% endif %}
+          {% if ds.ceo_name %}<dt>대표자</dt><dd>{{ ds.ceo_name }}</dd>{% endif %}
+          {% if ds.contact or ds.phone or ds.email %}
+          <dt>담당자 1</dt>
+          <dd style="line-height:1.55;">
+            {% if ds.contact %}<b>{{ ds.contact }}</b>{% endif %}
+            {% if ds.phone %}<br>📞 <a href="tel:{{ ds.phone }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone }}</a>{% endif %}
+            {% if ds.email %}<br>✉ <a href="mailto:{{ ds.email }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.email }}</a>{% endif %}
+          </dd>
+          {% endif %}
+          {% if ds.contact2 or ds.phone2 or ds.email2 %}
+          <dt>담당자 2</dt>
+          <dd style="line-height:1.55;">
+            {% if ds.contact2 %}<b>{{ ds.contact2 }}</b>{% endif %}
+            {% if ds.phone2 %}<br>📞 <a href="tel:{{ ds.phone2 }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone2 }}</a>{% endif %}
+            {% if ds.email2 %}<br>✉ <a href="mailto:{{ ds.email2 }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.email2 }}</a>{% endif %}
+          </dd>
+          {% endif %}
+        </dl>
+        <div style="margin-top:10px;padding:7px 10px;background:var(--qv-surface-2,#f5f3ef);border-radius:6px;font-size:11px;color:var(--qv-ink-3,#666);line-height:1.5;">
+          💡 공급사 담당자 변경은 [→ 공급사 상세] 페이지에서 수정하시면 이 자재를 포함해 연결된 모든 자재에 자동 반영됩니다.
+        </div>
+      </div>
+      {% elif p.default_supplier %}
+      <div class="section-card" data-dn="pd:supplier-missing" style="border-left:3px solid var(--qv-warn,#d97706);background:var(--qv-warn-soft,#fef3c7);">
+        <h3 style="color:var(--qv-warn,#b45309);">⚠ 기본 공급사 미연결</h3>
+        <div style="font-size:12.5px;line-height:1.55;color:var(--qv-ink-2);">
+          자재에 입력된 공급사 <b>"{{ p.default_supplier }}"</b>가 공급사 마스터에 등록되어 있지 않습니다.<br>
+          <a href="/suppliers/new" style="color:var(--qv-ink-2);font-weight:700;">→ 공급사 마스터에 등록</a> 후 자재의 기본 공급사명을 동일하게 맞춰주시면 담당자·연락처가 자동 연결됩니다.
+        </div>
+      </div>
+      {% endif %}
 
       {# v5H226z58 (2026-05-12) — 자재 QR 카드 (창고·재고 라벨 인쇄용) #}
       <div class="section-card" data-dn="pd:qr">

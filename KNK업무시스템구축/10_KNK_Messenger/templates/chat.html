@@ -52,6 +52,11 @@
         <input id="globalSearch" type="search" placeholder="🔍 검색 (from:이름 in:방 has:file before:날짜)">
         <button type="button" id="searchHelpBtn" title="검색 필터 도움말" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:14px;color:var(--text-soft);padding:4px 6px;">ⓘ</button>
       </div>
+      <!-- 사이드바 탭 — 방 목록 / 사용자 목록 토글 -->
+      <nav class="sidebar-tabs" id="sidebarTabs">
+        <button class="sb-tab active" data-tab="rooms" type="button">📋 방</button>
+        <button class="sb-tab" data-tab="users" type="button">👥 사용자</button>
+      </nav>
       <nav class="filter-bar" id="filterBar">
         <button class="chip active" data-filter="all" type="button">전체</button>
         <button class="chip" data-filter="item" type="button">아이템</button>
@@ -61,6 +66,11 @@
         <button class="chip my-tasks" data-filter="my-tasks" type="button">📌 내 요청</button>
       </nav>
       <ul id="roomList" class="room-list"></ul>
+      <!-- 사용자 목록 (사용자 탭 활성 시 노출) -->
+      <div id="userListToolbar" class="user-list-toolbar" hidden>
+        <button type="button" id="newUserBtn" class="secondary-btn" style="width:100%;font-size:13px;" hidden>➕ 직원 등록</button>
+      </div>
+      <div id="userList" class="user-list" hidden></div>
       <div id="searchResults" class="search-results" hidden></div>
       <div id="myTasks" class="my-tasks-panel" hidden></div>
     </aside>
@@ -250,6 +260,116 @@
     </div>
 
     <!-- 멤버 초대 다이얼로그 -->
+    <!-- ➕ 직원 등록 다이얼로그 (대표만) -->
+    <div class="modal" id="newUserDialog" data-modal>
+      <div class="modal-content" style="max-width:460px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>➕ 직원 등록</h3>
+        <p class="dialog-hint">신규 직원을 등록합니다. <b>회사 이메일</b>이 로그인 ID 가 되고, <b>휴대폰 번호 (숫자만)</b>가 초기 비밀번호가 됩니다. 직원은 첫 로그인 시 비밀번호를 바꾸도록 안내받습니다.</p>
+        <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <label style="font-size:12px;color:var(--text-soft);">이름 <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuDisplayName" maxlength="40" placeholder="예: 홍길동" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">회사 이메일 (= 로그인 ID) <span style="color:#dc2626;">*</span></label>
+          <input type="email" id="nuEmail" maxlength="100" placeholder="예: hong@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">휴대폰 번호 (= 초기 비밀번호) <span style="color:#dc2626;">*</span></label>
+          <input type="tel" id="nuPhone" maxlength="30" placeholder="예: 010-1234-5678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;">
+              <label style="font-size:12px;color:var(--text-soft);">직급</label>
+              <input type="text" id="nuTitle" maxlength="40" placeholder="예: 사원·대리·과장" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:12px;color:var(--text-soft);">부서</label>
+              <select id="nuDept" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                <option value="">(선택)</option>
+                <option value="경영지원">경영지원</option>
+                <option value="영업">영업</option>
+                <option value="기술영업">기술영업</option>
+                <option value="기술">기술</option>
+                <option value="자재구매">자재구매</option>
+                <option value="생산">생산</option>
+                <option value="품질">품질</option>
+                <option value="해외">해외</option>
+              </select>
+            </div>
+          </div>
+          <label class="rs-checkbox" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
+            <input type="checkbox" id="nuRoleCeo">
+            <span>👑 대표 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화 가능)</span>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" data-close>취소</button>
+          <button type="button" id="nuSaveBtn" class="primary-btn">➕ 직원 등록</button>
+        </div>
+        <div id="nuResult" style="margin-top:10px;font-size:12.5px;color:var(--text);"></div>
+      </div>
+    </div>
+
+    <!-- 🔐 비밀번호 변경 강제 다이얼로그 (첫 로그인 시) -->
+    <div class="modal" id="changePwDialog" data-modal>
+      <div class="modal-content" style="max-width:420px;">
+        <h3>🔐 비밀번호 변경 필요</h3>
+        <p class="dialog-hint" id="cpwHint">처음 로그인하셨습니다. 보안을 위해 비밀번호를 본인만 아는 값으로 변경해 주세요.</p>
+        <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <label style="font-size:12px;color:var(--text-soft);">현재 비밀번호 (= 본인 휴대폰 번호 숫자)</label>
+          <input type="password" id="cpwCurrent" placeholder="예: 01012345678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 (6자 이상)</label>
+          <input type="password" id="cpwNew" placeholder="새 비밀번호" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 확인</label>
+          <input type="password" id="cpwNew2" placeholder="새 비밀번호 다시 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div id="cpwError" style="font-size:12px;color:#dc2626;display:none;"></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" id="cpwSaveBtn" class="primary-btn" style="width:100%;">🔐 비밀번호 저장 후 시작</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 👤 사용자 정보 수정 다이얼로그 -->
+    <div class="modal" id="userInfoDialog" data-modal>
+      <div class="modal-content" style="max-width:420px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3>👤 <span id="uiName">사용자 정보</span></h3>
+        <p class="dialog-hint" id="uiHint">본인은 직급·부서를 직접 수정할 수 있습니다. 대표는 모든 사람 수정 가능.</p>
+        <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <label style="font-size:12px;color:var(--text-soft);">직급</label>
+          <input type="text" id="uiTitle" maxlength="40" placeholder="예: 대표이사 / 부장 / 과장 / 사원 / 프로" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">부서</label>
+          <select id="uiDeptSelect" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            <option value="">(선택)</option>
+            <option value="경영지원">경영지원</option>
+            <option value="영업">영업</option>
+            <option value="기술영업">기술영업</option>
+            <option value="기술">기술</option>
+            <option value="자재구매">자재구매</option>
+            <option value="생산">생산</option>
+            <option value="품질">품질</option>
+            <option value="해외">해외</option>
+            <option value="기타">기타 (직접 입력)</option>
+          </select>
+          <input type="text" id="uiDeptCustom" maxlength="40" placeholder="기타 부서 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;display:none;">
+          <label style="font-size:12px;color:var(--text-soft);">회사 이메일</label>
+          <input type="email" id="uiEmail" maxlength="100" placeholder="예: name@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">전화번호</label>
+          <input type="tel" id="uiPhone" maxlength="30" placeholder="예: 010-1234-5678 또는 02-555-1234" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div id="uiCeoFields" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">
+            <label style="font-size:12px;color:var(--text-soft);">표시명 (대표만 변경)</label>
+            <input type="text" id="uiDisplayName" maxlength="40" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
+            <label style="font-size:12px;color:var(--text-soft);margin-top:8px;display:block;">계정 활성/비활성</label>
+            <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="uiActive"> <span>활성 (체크 해제 시 로그인 차단·퇴사자 처리)</span>
+            </label>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" data-close>취소</button>
+          <button type="button" id="uiChangePwBtn" class="secondary-btn" hidden>🔐 비밀번호 변경</button>
+          <button type="button" id="uiSaveBtn" class="primary-btn">저장</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 📚 프로젝트 이력 다이얼로그 (HAIST WORKS 연동 대비) -->
     <div class="modal" id="projectHistoryDialog" data-modal>
       <div class="modal-content big-dialog">

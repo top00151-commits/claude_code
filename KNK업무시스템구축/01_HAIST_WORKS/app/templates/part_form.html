@@ -200,8 +200,8 @@
                 <div class="f-body">
                   <div class="f-grid">
                     <div class="field col-2">
-                      <label>자재 코드 (part_no) <span class="req">*</span>{% if is_edit %} <span style="color:var(--pq-warn);font-weight:700;">⚠ 변경 주의</span>{% endif %}</label>
-                      <input type="text" name="part_no" id="partNo" required value="{{ part.part_no|default(part.code|default('')) }}" placeholder="예: P-M-MTR-0001"{% if is_edit %} data-original="{{ part.part_no|default(part.code|default('')) }}"{% endif %}>
+                      <label>자재 코드 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">= 제조사 모델명 (part_no)</span> <span class="req">*</span>{% if is_edit %} <span style="color:var(--pq-warn);font-weight:700;">⚠ 변경 주의</span>{% endif %}</label>
+                      <input type="text" name="part_no" id="partNo" required value="{{ part.part_no|default(part.code|default('')) }}" placeholder="예: MR-J4-200A · S7I15GD · KQ2L10-03NS"{% if is_edit %} data-original="{{ part.part_no|default(part.code|default('')) }}"{% endif %}>
                       {% if is_edit %}
                       <div style="margin-top:5px;font-size:10.5px;color:var(--pq-warn);line-height:1.5;">
                         v5H226z81 — 코드 변경 시 발행된 QR/라벨이 무효화됩니다. 저장 시 <b>2단계 확인</b>을 거칩니다.
@@ -235,9 +235,45 @@
                       <input type="text" name="maker" id="partMaker" value="{{ part.maker|default('') }}" placeholder="예: Mitsubishi">
                     </div>
 
+                    {# v5H226z110b (2026-05-19) — 기본 공급사명: 발주 자동 매칭용
+                       공급사 담당자 정보는 자재 상세에서 공급사 마스터로 자동 연결되어 표시 #}
+                    <div class="field col-2">
+                      <label>기본 공급사 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 발주 자동 매칭 (담당자 자동 연결)</span></label>
+                      <input type="text" name="default_supplier"
+                        value="{{ part.default_supplier or '' }}"
+                        placeholder="예: ㈜케이엔케이"
+                        list="suppliersList">
+                      {% if suppliers %}
+                      <datalist id="suppliersList">
+                        {% for s in suppliers %}<option value="{{ s.name }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
+                    </div>
+
                     <div class="field col-2">
                       <label>원산지 (origin)</label>
                       <input type="text" name="origin" value="{{ part.origin|default('') }}" placeholder="예: 일본 / 한국">
+                    </div>
+
+                    {# v5H226z110c (2026-05-19) — 제조사 담당자 풀세트
+                       제조사는 마스터 테이블이 없어 자재 단위로 직접 입력 #}
+                    <div class="field">
+                      <label>제조사 담당자 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 이름</span></label>
+                      <input type="text" name="maker_contact_name"
+                        value="{{ part.maker_contact_name or '' }}"
+                        placeholder="예: 田中 太郎">
+                    </div>
+                    <div class="field">
+                      <label>제조사 담당자 전화</label>
+                      <input type="text" name="maker_contact_phone"
+                        value="{{ part.maker_contact_phone or '' }}"
+                        placeholder="예: +81-3-1234-5678">
+                    </div>
+                    <div class="field col-2">
+                      <label>제조사 담당자 이메일</label>
+                      <input type="email" name="maker_contact_email"
+                        value="{{ part.maker_contact_email or '' }}"
+                        placeholder="예: tanaka@mitsubishi.co.jp">
                     </div>
                     <div class="field">
                       <label>단위 (unit)</label>

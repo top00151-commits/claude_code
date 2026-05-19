@@ -672,6 +672,21 @@ def init_db():
     existing_user_cols = {row["name"] for row in cur.execute("PRAGMA table_info(users)").fetchall()}
     if "active" not in existing_user_cols:
         cur.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+    # 직급·부서 — 사이드바 "사용자" 탭에서 표시
+    if "title" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN title TEXT")
+    if "department" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN department TEXT")
+    # 회사 이메일·전화번호 — 사내 디렉터리
+    if "email" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "phone" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+    # 첫 로그인 시 비밀번호 변경 강제 (신규 등록자는 1, 기존 사용자는 0)
+    if "must_change_password" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0")
+    # 첫 사용자(대표) 자동 기본값 — 빈 값일 때만
+    cur.execute("UPDATE users SET title='대표이사', department='경영지원' WHERE id=1 AND (title IS NULL OR title='') AND (department IS NULL OR department='')")
 
     # 방 이름 고정 플래그 (방장만 이름 변경 가능 vs 멤버 각자 별명 가능)
     existing_room_cols = {row["name"] for row in cur.execute("PRAGMA table_info(rooms)").fetchall()}
@@ -952,10 +967,111 @@ def api_me():
 @app.route("/api/users")
 @login_required
 def api_users():
+    """전체 사용자 목록 — 사이드바 '👥 사용자' 탭, 멤버 초대, 멘션 자동완성 등에서 공통 사용.
+    직급(title)·부서(department) 포함. 비활성(퇴사) 사용자는 active=0 으로 필터링 가능."""
     rows = get_db().execute(
-        "SELECT id, username, display_name, role, avatar_color FROM users ORDER BY display_name"
+        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
+        "FROM users ORDER BY "
+        " CASE WHEN department IS NULL OR department='' THEN 1 ELSE 0 END, "
+        " department ASC, "
+        " CASE role WHEN 'ceo' THEN 0 ELSE 1 END, "
+        " display_name ASC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/users/<int:user_id>", methods=["PATCH"])
+@login_required
+def api_user_patch(user_id):
+    """사용자 정보 수정 — 본인은 직급·부서 본인 것 수정 가능, 대표(ceo)는 모든 사람 수정 가능.
+    body: {title?, department?, display_name?, avatar_color?}"""
+    me = current_user()
+    if me["id"] != user_id and me["role"] != "ceo":
+        return jsonify({"error": "본인 또는 대표만 수정 가능"}), 403
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if "title" in data:
+        v = (data.get("title") or "").strip()[:40]
+        fields["title"] = v or None
+    if "department" in data:
+        v = (data.get("department") or "").strip()[:40]
+        fields["department"] = v or None
+    if "email" in data:
+        v = (data.get("email") or "").strip()[:100]
+        # 비어있어도 OK (지우기). 값 있으면 최소 @ 포함 검증
+        if v and "@" not in v:
+            return jsonify({"error": "이메일 형식이 올바르지 않습니다 (@ 누락)"}), 400
+        fields["email"] = v or None
+    if "phone" in data:
+        v = (data.get("phone") or "").strip()[:30]
+        fields["phone"] = v or None
+    # display_name·avatar_color 는 대표만 수정 가능
+    if me["role"] == "ceo":
+        if "display_name" in data:
+            v = (data.get("display_name") or "").strip()[:40]
+            if v:
+                fields["display_name"] = v
+        if "avatar_color" in data:
+            v = (data.get("avatar_color") or "").strip()
+            if v and len(v) <= 16:
+                fields["avatar_color"] = v
+        if "active" in data:
+            fields["active"] = 1 if data.get("active") else 0
+    if not fields:
+        return jsonify({"error": "변경할 필드가 없습니다"}), 400
+    db = get_db()
+    cols = ", ".join(f"{k} = ?" for k in fields.keys())
+    args = list(fields.values()) + [user_id]
+    db.execute(f"UPDATE users SET {cols} WHERE id = ?", args)
+    db.commit()
+    row = db.execute(
+        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active FROM users WHERE id=?",
+        (user_id,),
+    ).fetchone()
+    # 실시간 알림 — 다른 클라이언트도 사용자 정보 즉시 갱신
+    socketio.emit("user_info_changed", dict(row))
+    return jsonify({"ok": True, "user": dict(row)})
+
+
+@app.route("/api/rooms/direct/<int:other_user_id>", methods=["POST"])
+@login_required
+def api_rooms_direct_open(other_user_id):
+    """1:1 채팅방 열기 — 이미 있으면 그 방, 없으면 새로 생성.
+    사이드바 '👥 사용자' 탭에서 사람 클릭 시 호출됨."""
+    me = current_user()
+    if other_user_id == me["id"]:
+        return jsonify({"error": "본인과는 1:1 채팅 불가 — 📝 메모 사용"}), 400
+    db = get_db()
+    other = db.execute("SELECT id, active FROM users WHERE id=?", (other_user_id,)).fetchone()
+    if not other:
+        return jsonify({"error": "사용자 없음"}), 404
+    if not other["active"]:
+        return jsonify({"error": "비활성 사용자"}), 400
+    # 기존 1:1 방 찾기 (양쪽이 모두 멤버이며 다른 멤버가 없는 direct 방)
+    existing = db.execute("""
+        SELECT r.id FROM rooms r
+          JOIN room_members rm1 ON rm1.room_id=r.id AND rm1.user_id=?
+          JOIN room_members rm2 ON rm2.room_id=r.id AND rm2.user_id=?
+         WHERE r.type='direct'
+         LIMIT 1
+    """, (me["id"], other_user_id)).fetchone()
+    if existing:
+        return jsonify({"room_id": existing["id"], "existing": True})
+    # 신규 생성
+    now = datetime.now(timezone.utc).isoformat()
+    cur = db.execute(
+        "INSERT INTO rooms (name, type, created_by, created_at, name_locked) VALUES (?,?,?,?,1)",
+        ("", "direct", me["id"], now),
+    )
+    rid = cur.lastrowid
+    for uid in (me["id"], other_user_id):
+        role = "host" if uid == me["id"] else "member"
+        db.execute(
+            "INSERT INTO room_members (room_id, user_id, joined_at, role) VALUES (?,?,?,?)",
+            (rid, uid, now, role),
+        )
+    db.commit()
+    return jsonify({"room_id": rid, "existing": False})
 
 
 @app.route("/api/rooms")
@@ -3668,28 +3784,105 @@ def api_admin_cleanup_preview():
 @app.route("/api/users", methods=["POST"])
 @login_required
 def api_users_create():
-    """대표만 — 사용자 추가. 기술영업팀 베타 멤버 등록용."""
+    """대표만 — 직원 등록.
+    표준 정책: username = 회사 이메일, 초기 password = 전화번호 (숫자만), must_change_password=1.
+    body: {display_name, email, phone, title?, department?, role?, avatar_color?}
+    + 호환: 옛 방식의 {username, password, display_name} 도 허용."""
     me = current_user()
     if me["role"] != "ceo":
         abort(403)
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
-    password = data.get("password") or "knk1234"
     display_name = (data.get("display_name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    phone = (data.get("phone") or "").strip()
+    title = (data.get("title") or "").strip()[:40] or None
+    department = (data.get("department") or "").strip()[:40] or None
     role = data.get("role") or "staff"
     avatar_color = data.get("avatar_color") or "#3b82f6"
-    if not username or not display_name:
-        return jsonify({"error": "username과 display_name 필수"}), 400
+    # 호환: username·password 직접 지정 가능 (특수 케이스)
+    explicit_username = (data.get("username") or "").strip().lower()
+    explicit_password = data.get("password")
+
+    if not display_name:
+        return jsonify({"error": "이름(display_name) 필수"}), 400
+
+    # 표준 모드: 이메일·전화 기반
+    if not explicit_username:
+        if not email or "@" not in email:
+            return jsonify({"error": "회사 이메일(@ 포함) 필수"}), 400
+        if not phone:
+            return jsonify({"error": "휴대폰 번호 필수 (초기 비밀번호로 사용)"}), 400
+        username = email
+        # 비밀번호는 전화번호의 숫자만 (대시·공백 제거)
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if len(digits) < 9:
+            return jsonify({"error": "전화번호 자릿수 부족 (숫자 9자리 이상)"}), 400
+        password = digits
+        must_change = 1
+    else:
+        username = explicit_username
+        password = explicit_password or "knk1234"
+        must_change = 1 if data.get("must_change_password", True) else 0
+
     db = get_db()
     if db.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
-        return jsonify({"error": "이미 존재하는 username"}), 400
+        return jsonify({"error": f"이미 존재하는 ID: {username}"}), 400
     now = datetime.now(timezone.utc).isoformat()
     cur = db.execute(
-        "INSERT INTO users (username, password_hash, display_name, role, avatar_color, created_at) VALUES (?,?,?,?,?,?)",
-        (username, generate_password_hash(password), display_name, role, avatar_color, now),
+        "INSERT INTO users (username, password_hash, display_name, role, avatar_color, "
+        " created_at, email, phone, title, department, must_change_password) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (username, generate_password_hash(password), display_name, role, avatar_color,
+         now, email or None, phone or None, title, department, must_change),
     )
     db.commit()
-    return jsonify({"id": cur.lastrowid, "username": username, "display_name": display_name})
+    # broadcast — 사용자 목록 즉시 갱신
+    new_row = db.execute(
+        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
+        "FROM users WHERE id=?", (cur.lastrowid,)
+    ).fetchone()
+    socketio.emit("user_info_changed", dict(new_row))
+    return jsonify({
+        "id": cur.lastrowid,
+        "username": username,
+        "display_name": display_name,
+        "initial_password_hint": "전화번호 숫자만 (대시·공백 제외)" if must_change == 1 else None,
+    })
+
+
+@app.route("/api/me/password", methods=["PUT"])
+@login_required
+def api_me_password():
+    """본인 비밀번호 변경. body: {current_password, new_password}
+    must_change_password=1 인 첫 로그인 사용자도 이 엔드포인트로 변경."""
+    me = current_user()
+    data = request.get_json(silent=True) or {}
+    cur_pw = data.get("current_password") or ""
+    new_pw = data.get("new_password") or ""
+    if not new_pw or len(new_pw) < 6:
+        return jsonify({"error": "새 비밀번호는 6자 이상"}), 400
+    if new_pw == cur_pw:
+        return jsonify({"error": "현재 비밀번호와 동일 — 변경 의미 없음"}), 400
+    db = get_db()
+    row = db.execute("SELECT password_hash FROM users WHERE id=?", (me["id"],)).fetchone()
+    if not row or not check_password_hash(row["password_hash"], cur_pw):
+        return jsonify({"error": "현재 비밀번호가 올바르지 않습니다"}), 400
+    db.execute(
+        "UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?",
+        (generate_password_hash(new_pw), me["id"]),
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/me/must_change_password", methods=["GET"])
+@login_required
+def api_me_must_change():
+    """현재 사용자가 비밀번호 변경 강제 상태인지 조회 (UI 다이얼로그 트리거용)."""
+    me = current_user()
+    db = get_db()
+    row = db.execute("SELECT must_change_password FROM users WHERE id=?", (me["id"],)).fetchone()
+    return jsonify({"must_change": bool(row and row["must_change_password"])})
 
 
 def _parse_search_filters(q):

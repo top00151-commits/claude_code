@@ -1980,6 +1980,21 @@ def init_db():
             # v5H226z99 (2026-05-16): 자재 용도(purpose) — 카탈로그 검색·식별 보조용 자유 텍스트
             if prcols and "purpose" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN purpose TEXT")
+            # v5H226z110 (2026-05-18): 제조사 모델 번호 — part_no(내부 코드)와 별도 보관
+            #   예: Mitsubishi MR-J4-200A, SPG S7I15GD. 원제조사 스펙 검색·호환성 확인용
+            if prcols and "model_name" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN model_name TEXT")
+            # v5H226z110b (2026-05-19): 기본 공급사명 — 자재마다 주로 구매하는 공급사 이름
+            #   발주 자동 매칭에 활용. suppliers.name 과 매칭 시도, 자유 텍스트도 허용
+            if prcols and "default_supplier" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN default_supplier TEXT")
+            # v5H226z110c (2026-05-19): 제조사 담당자 풀세트 — 자재 단위로 관리 (제조사 마스터 미구축)
+            if prcols and "maker_contact_name" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN maker_contact_name TEXT")
+            if prcols and "maker_contact_phone" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN maker_contact_phone TEXT")
+            if prcols and "maker_contact_email" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN maker_contact_email TEXT")
         except Exception:
             pass
         # v5H226z89 (2026-05-14): suppliers 에 사업자등록번호·대표자 컬럼 추가
@@ -3865,6 +3880,7 @@ def parts_list(q: str = "", biz_div: str = "", category: str = ""):
     params: list = []
     if q:
         # v5H226z99 (2026-05-16): purpose(용도) 검색 추가
+        # v5H226z110 (2026-05-18): 자재코드 = 모델명 통합 — 별도 모델명 LIKE 제거 (part_no LIKE로 커버)
         sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?)"
         like = f"%{q}%"
         params += [like, like, like, like, like]
@@ -4234,6 +4250,12 @@ def parts_create(data: dict, force: bool = False) -> int:
         ("purchase_prices",    _pp_json),
         # v5H226z99 (2026-05-16): 용도 — 카탈로그 검색 보조 자유 텍스트
         ("purpose",            (data.get("purpose") or "").strip() or None),
+        # v5H226z110b (2026-05-19): 기본 공급사명 — 발주 자동 매칭
+        ("default_supplier",   (data.get("default_supplier") or "").strip() or None),
+        # v5H226z110c (2026-05-19): 제조사 담당자 풀세트
+        ("maker_contact_name",  (data.get("maker_contact_name") or "").strip() or None),
+        ("maker_contact_phone", (data.get("maker_contact_phone") or "").strip() or None),
+        ("maker_contact_email", (data.get("maker_contact_email") or "").strip() or None),
     ]
     with db_session() as c:
         # PRAGMA 로 실제 존재 컬럼만 추가 (z58 SQL 미적용 환경 호환)
@@ -4316,6 +4338,13 @@ def parts_update(pid: int, data: dict) -> None:
     # v5H226z99 (2026-05-16): 용도(purpose) — 폼에서 전달된 경우에만 SET (미전달 호출은 보존)
     if "purpose" in data:
         ext_pairs.append(("purpose", (data.get("purpose") or "").strip() or None))
+    # v5H226z110b (2026-05-19): 기본 공급사명 — 폼 전달 시에만 SET (보존)
+    if "default_supplier" in data:
+        ext_pairs.append(("default_supplier", (data.get("default_supplier") or "").strip() or None))
+    # v5H226z110c (2026-05-19): 제조사 담당자 풀세트 — 폼 전달 시에만 SET (보존)
+    for _k in ("maker_contact_name", "maker_contact_phone", "maker_contact_email"):
+        if _k in data:
+            ext_pairs.append((_k, (data.get(_k) or "").strip() or None))
     # v5H226z83: purchase_prices 는 폼에서 전달된 경우에만 SET (미전달 호출은 보존)
     if _pp_provided:
         ext_pairs.append(("purchase_prices", _pp_json))
@@ -7024,6 +7053,23 @@ _PARTS_IMPORT_HEADER_MAP = {
     "tradeinvoicename": "trade_invoice_name", "거래명세서명": "trade_invoice_name", "거래명세서품명": "trade_invoice_name",
     "categorymain": "category_main", "분류대": "category_main", "대분류": "category_main",
     "categoryseries": "category_series", "분류시리즈": "category_series", "시리즈": "category_series",
+    # v5H226z110 (2026-05-18) — 자재코드 = 제조사 모델명 (통합). 엑셀에 "모델명" 헤더가 있으면 자재코드로 매핑
+    "modelname": "part_no", "model": "part_no", "모델명": "part_no",
+    "모델번호": "part_no", "모델": "part_no", "manufacturermodel": "part_no",
+    # v5H226z110b (2026-05-19) — 기본 공급사명 (발주 자동 매칭용)
+    "defaultsupplier": "default_supplier", "기본공급사": "default_supplier",
+    "기본공급사명": "default_supplier", "공급사": "default_supplier",
+    "공급사명": "default_supplier", "주공급사": "default_supplier",
+    "vendor": "default_supplier", "supplier": "default_supplier",
+    # v5H226z110c (2026-05-19) — 제조사 담당자 풀세트
+    "makercontactname": "maker_contact_name", "제조사담당자": "maker_contact_name",
+    "제조사담당자명": "maker_contact_name", "메이커담당자": "maker_contact_name",
+    "manufacturercontact": "maker_contact_name",
+    "makercontactphone": "maker_contact_phone", "제조사전화": "maker_contact_phone",
+    "제조사담당자전화": "maker_contact_phone", "메이커전화": "maker_contact_phone",
+    "makercontactemail": "maker_contact_email", "제조사이메일": "maker_contact_email",
+    "제조사담당자이메일": "maker_contact_email", "메이커이메일": "maker_contact_email",
+    "manufactureremail": "maker_contact_email",
 }
 
 # v5H226z58 (2026-05-12) — BOM 양식 추가 (다국어/복합 헤더 부분 매칭용 우선순위 키워드)
