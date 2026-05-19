@@ -7399,166 +7399,186 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
 
 
 # v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
-CUST_XLSX_HEADERS = [
-    "고객사명", "사업자등록번호", "대표자명", "주소", "활성", "비고",
-    "1담당자명", "1전화번호", "1이메일", "1부서", "1담당자설명",
-    "2담당자명", "2전화번호", "2이메일", "2부서", "2담당자설명",
-    "3담당자명", "3전화번호", "3이메일", "3부서", "3담당자설명",
-    "4담당자명", "4전화번호", "4이메일", "4부서", "4담당자설명",
-    "5담당자명", "5전화번호", "5이메일", "5부서", "5담당자설명",
-]
-CUST_XLSX_INFO_LINES = [
-    ("🏢 KNK 고객사 일괄 등록 양식", "title"),
-    ("", None),
-    ("[양식 사용법]", "h2"),
-    ("  1. '고객사' 시트 선택", "p"),
-    ("  2. 노란 예제 3행 참고 → 그 아래부터 데이터 입력", "p"),
-    ("  3. 매출영업 → 고객사 → 우측 상단 [📤 엑셀 일괄 업로드] 클릭", "p"),
-    ("  4. 미리보기 확인 → 등록 확정", "p"),
-    ("", None),
-    ("[컬럼 설명]", "h2"),
-    ("  • 고객사명: 필수. 시스템에 동일명 존재 시 정보 업데이트 (중복 추가 X)", "p"),
-    ("  • 사업자등록번호: 선택. 예: 211-87-12345 (대시 포함/없이 모두 가능)", "p"),
-    ("  • 대표자명: 선택", "p"),
-    ("  • 주소: 선택", "p"),
-    ("  • 활성: 1 = 활성, 0 = 비활성. 비우면 1", "p"),
-    ("  • 비고: 자유 텍스트", "p"),
-    ("  • 담당자: 최대 5명. 각 담당자별 5필드 (담당자명/전화번호/이메일/부서/담당자설명)", "p"),
-    ("  • 6명 이상은 HAIST WORKS UI에서 직접 입력", "p"),
-    ("", None),
-    ("[동작]", "h2"),
-    ("  • 동일 이름 존재: 빈 칸 아닌 필드만 업데이트 (기존 데이터 보호)", "p"),
-    ("  • 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고)", "p"),
-    ("  • 등급은 등록 후 거래 실적에 따라 자동 재계산", "p"),
-    ("", None),
-    ("[검증]", "h2"),
-    ("  • 이메일 형식 검증 (잘못된 형식은 경고)", "p"),
-    ("  • 한 번에 100건 이내 권장", "p"),
-    ("  • 빈 행 자동 무시", "p"),
+# v5H226z121 (2026-05-19): 01C 자재 양식 패턴 매칭 — 헬퍼 함수 + 컬럼 정의 (이름/너비/설명/필수)
+_CUST_XLSX_COLUMNS = [
+    # (헤더명, 권장폭, 설명, 필수여부)
+    ("고객사명",       22, "고객사 정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 X)", True),
+    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 가능). 다른 이름인데 동일 번호면 경고", False),
+    ("대표자명",       12, "예: 홍길동", False),
+    ("주소",           32, "예: 경기도 평택시 ...", False),
+    ("활성",            8, "활성 / 비활성 (기본 활성)", False),
+    ("비고",           26, "자유 메모", False),
+    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 1번 슬롯 무시)", False),
+    ("1전화번호",      16, "예: 031-555-1234 / 010-1234-5678", False),
+    ("1이메일",        22, "예: contact@goodix.kr (형식 잘못되면 경고)", False),
+    ("1부서",          14, "예: 관리팀 / 구매2팀", False),
+    ("1담당자설명",    24, "1번 담당자 메모 (예: 25일 마감담당 / 야간 연락처)", False),
+    ("2담당자명",      14, "2번 담당자 이름", False),
+    ("2전화번호",      16, "", False),
+    ("2이메일",        22, "", False),
+    ("2부서",          14, "", False),
+    ("2담당자설명",    24, "", False),
+    ("3담당자명",      14, "3번 담당자 이름", False),
+    ("3전화번호",      16, "", False),
+    ("3이메일",        22, "", False),
+    ("3부서",          14, "", False),
+    ("3담당자설명",    24, "", False),
+    ("4담당자명",      14, "4번 담당자 이름", False),
+    ("4전화번호",      16, "", False),
+    ("4이메일",        22, "", False),
+    ("4부서",          14, "", False),
+    ("4담당자설명",    24, "", False),
+    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 HAIST WORKS UI에서 입력)", False),
+    ("5전화번호",      16, "", False),
+    ("5이메일",        22, "", False),
+    ("5부서",          14, "", False),
+    ("5담당자설명",    24, "", False),
 ]
 
 
-def _cust_xlsx_write_info_sheet(ws_info):
-    """v5H226z120: '📖_안내' 시트 — 사용법/컬럼 설명/동작/검증."""
-    from openpyxl.styles import Font, PatternFill, Alignment
-    ws_info.column_dimensions['A'].width = 100
-    title_fill = PatternFill("solid", fgColor="FEF3C7")
-    h2_fill = PatternFill("solid", fgColor="FFF7ED")
-    for idx, (text, kind) in enumerate(CUST_XLSX_INFO_LINES, 1):
-        cell = ws_info.cell(row=idx, column=1, value=text)
-        if kind == "title":
-            cell.font = Font(bold=True, size=16, color="9A3412")
-            cell.fill = title_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            ws_info.row_dimensions[idx].height = 32
-        elif kind == "h2":
-            cell.font = Font(bold=True, size=12, color="9A3412")
-            cell.fill = h2_fill
-        else:
-            cell.font = Font(size=11, color="334155")
-
-
-def _cust_xlsx_write_header(ws_data):
-    """v5H226z120: '고객사' 시트 헤더 — Row 1 제목, Row 2 안내, Row 3 31컬럼 헤더."""
+def _cust_xlsx_write_guide_sheet(ws, title, total_rows=None):
+    """v5H226z121: 시트1 안내 시트 — 01C 자재 양식 패턴 그대로 (섹션화 + 컬럼 설명 표)."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    n_cols = len(CUST_XLSX_HEADERS)  # 31
-    knk_fill = PatternFill("solid", fgColor="A5282C")
-    title_fill = PatternFill("solid", fgColor="FEF3C7")
+    from datetime import datetime as _dt
+    sec_font  = Font(bold=True, size=13, color="A5282C")
+    body_font = Font(size=11, color="222222")
+    sub_font  = Font(size=10.5, color="64748B")
     thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    # Row 1: 제목 (병합)
-    ws_data.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-    cell = ws_data.cell(row=1, column=1, value="🏢 고객사 일괄 등록 양식")
-    cell.font = Font(bold=True, size=16, color="9A3412")
-    cell.fill = title_fill
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws_data.row_dimensions[1].height = 28
-    # Row 2: 안내 (병합)
-    ws_data.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n_cols)
-    cell = ws_data.cell(row=2, column=1, value="① 위 3행은 예제 (참고/삭제 가능)  ② 그 아래 빈 행부터 입력  ③ 매출영업 → 고객사 → [📤 엑셀 일괄 업로드]")
-    cell.font = Font(size=10, color="9A3412", italic=True)
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws_data.row_dimensions[2].height = 20
-    # Row 3: 헤더
-    for col_idx, h in enumerate(CUST_XLSX_HEADERS, 1):
-        c = ws_data.cell(row=3, column=col_idx, value=h)
-        c.font = Font(color="FFFFFF", bold=True, size=10)
-        c.fill = knk_fill
-        c.alignment = Alignment(horizontal="center", vertical="center")
-        c.border = border
-    ws_data.row_dimensions[3].height = 22
-    # 컬럼 너비
-    widths = [22, 18, 12, 32, 8, 24] + [16, 16, 22, 14, 24] * 5
-    for col_idx, w in enumerate(widths, 1):
-        ws_data.column_dimensions[ws_data.cell(row=3, column=col_idx).column_letter].width = w
-    ws_data.freeze_panes = "A4"
+    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
 
+    ws.merge_cells("A1:C1")
+    ws["A1"] = title
+    ws["A1"].font = Font(bold=True, size=18, color="0F172A")
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 32
 
-def _cust_xlsx_write_examples(ws_data):
-    """v5H226z120: 예제 3행 (row 4~6) — GOODIX / 삼성디스플레이 / G2TOUCH."""
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    example_fill = PatternFill("solid", fgColor="FFFBEB")
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    examples = [
-        # GOODIX
-        ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당"],
-        # 삼성디스플레이
-        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "비활성", "",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함."],
-        # G2TOUCH
-        ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
-         "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
-         "", "", "", "", "",
-         "", "", "", "", "",
-         "", "", "", "", "",
-         "", "", "", "", ""],
+    ws.merge_cells("A2:C2")
+    sub = f"버전: v5H226z121    ·    생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}"
+    if total_rows is not None:
+        sub += f"    ·    총 {total_rows:,}건"
+    ws["A2"] = sub
+    ws["A2"].font = sub_font
+
+    sections = [
+        ("📌 개요", [
+            "본 양식은 KNK HAIST WORKS 고객사 마스터에 고객사를 일괄 등록·내려받기 위한 표준 엑셀입니다.",
+            "실제 데이터/입력은 [🏢 고객사 일괄 등록] 시트에 있고, 본 시트는 안내·컬럼 설명 참고용입니다.",
+            "한 행에 고객사 1개 + 담당자 최대 5명까지 입력 가능합니다.",
+        ]),
+        ("⚠ 필수 컬럼 — 미입력 시 행 단위 차단", [
+            "• 고객사명 — 정식 명칭. 시스템에 동일명 존재 시 정보만 업데이트 (중복 추가 X)",
+        ]),
+        ("✅ 강력 추천 — 검색·관리·자동 등급 산정에 직결", [
+            "• 사업자등록번호 — 중복 검사·국세청 매칭 (대시 포함/없이 모두 가능)",
+            "• 대표자명 · 주소 — 거래 관리 기본 정보",
+            "• 담당자 1~5명 — 부서별 분리 등록. 1번 담당자가 자동으로 주담당(★)",
+        ]),
+        ("👥 담당자 5명 입력 — 각 담당자별 5필드", [
+            "• 담당자명 — 이름 (이 칸이 비면 해당 슬롯 무시)",
+            "• 전화번호 — 휴대폰 / 사무실 모두 OK (예: 010-1234-5678)",
+            "• 이메일 — 형식 자동 검증 (잘못된 형식이면 경고)",
+            "• 부서 — 예: 구매2팀, 관리팀, 제조기술",
+            "• 담당자설명 — 자유 메모 (예: 25일 마감담당, 야간 연락처, 정산 담당)",
+        ]),
+        ("🔄 동작 — 안전한 UPSERT", [
+            "• 동일 고객사명 존재 시: 빈 칸 아닌 필드만 업데이트 (기존 데이터 보호)",
+            "• 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고만 표시)",
+            "• 등급(VIP/A/B/C/일반) — 거래 실적 기반 시스템 자동 산정 (수동 입력 X)",
+            "• 활성 기본값: 활성 (빈 칸은 활성 처리)",
+        ]),
+        ("🛡 처리 흐름 — 안전 3단계", [
+            "1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)",
+            "2) 결과 확인 (정상 / 경고 / 오류 분류)",
+            "3) [등록 확정] 버튼 → 실제 INSERT/UPDATE (트랜잭션)",
+        ]),
     ]
-    for row_offset, row_data in enumerate(examples):
-        row_idx = 4 + row_offset
-        for col_idx, v in enumerate(row_data, 1):
-            c = ws_data.cell(row=row_idx, column=col_idx, value=v)
-            c.font = Font(size=10, color="9A3412", italic=True)
-            c.fill = example_fill
-            c.alignment = Alignment(horizontal="left", vertical="center")
-            c.border = border
+    row = 4
+    for sec_title, lines in sections:
+        c = ws.cell(row=row, column=1, value=sec_title)
+        c.font = sec_font
+        ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+        row += 1
+        for ln in lines:
+            cc = ws.cell(row=row, column=1, value=ln)
+            cc.font = body_font
+            cc.alignment = Alignment(vertical="center", wrap_text=True)
+            ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+            row += 1
+        row += 1
+
+    # 컬럼 설명 표
+    ws.cell(row=row, column=1, value="📑 컬럼 설명 (31개)").font = sec_font
+    row += 1
+    head_font = Font(bold=True, size=10.5, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    for col_idx, label in enumerate(["컬럼명", "필수", "설명"], 1):
+        c = ws.cell(row=row, column=col_idx, value=label)
+        c.font = head_font; c.fill = head_fill
+        c.alignment = Alignment(horizontal="center"); c.border = bd
+    row += 1
+    for (hname, _w, desc, req) in _CUST_XLSX_COLUMNS:
+        ws.cell(row=row, column=1, value=hname).font = body_font
+        rc = ws.cell(row=row, column=2, value="필수" if req else "")
+        rc.font = Font(bold=True, color="B91C1C", size=10.5) if req else body_font
+        rc.alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=3, value=desc).font = body_font
+        for cc in (1, 2, 3):
+            ws.cell(row=row, column=cc).border = bd
+        row += 1
+
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["B"].width = 8
+    ws.column_dimensions["C"].width = 90
+    ws.freeze_panes = "A3"
+
+
+def _cust_xlsx_write_data_sheet(ws, title_text, subtitle_text):
+    """v5H226z121: 시트2 데이터 시트 — 01C 자재 양식 패턴 (제목 + 부제 + 헤더). HEADER_ROW 반환."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    n_cols = len(_CUST_XLSX_COLUMNS)
+    last_col = get_column_letter(n_cols)
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = title_text
+    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 36
+    ws.merge_cells(f"A2:{last_col}2")
+    ws["A2"] = subtitle_text
+    ws["A2"].font = Font(size=10.5, color="64748B")
+    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+    HEADER_ROW = 4
+    head_font = Font(bold=True, color="FFFFFF", size=11)
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    req_fill  = PatternFill("solid", fgColor="B91C1C")
+    thin = Side(style="thin", color="DDDDDD")
+    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for i, (h, w, _desc, req) in enumerate(_CUST_XLSX_COLUMNS, 1):
+        cell = ws.cell(row=HEADER_ROW, column=i, value=(h + " *" if req else h))
+        cell.font = head_font
+        cell.fill = req_fill if req else head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = bd
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[HEADER_ROW].height = 30
+    ws.freeze_panes = f"C{HEADER_ROW+1}"  # 고객사명·사업자번호 좌측 고정
+    return HEADER_ROW
 
 
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
-    """v5H226z120 (2026-05-12): 첨부 양식 매칭 — Sheet 2개, 31컬럼, 담당자 5명 × 5필드 분리.
-       Sheet 1 '📖_안내': 사용법 + 컬럼 설명 + 동작 + 검증
-       Sheet 2 '고객사': Row 1 제목 + Row 2 안내 + Row 3 헤더(31) + Row 4~6 예제 + Row 7+ 데이터"""
+    """v5H226z121 (2026-05-19): 01C 자재 양식 패턴 매칭 — 안내 시트 + 데이터 시트 (31컬럼)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    from datetime import datetime as _dt
 
-    wb = Workbook()
-    ws_info = wb.active
-    ws_info.title = "📖_안내"
-    _cust_xlsx_write_info_sheet(ws_info)
-
-    ws_data = wb.create_sheet("고객사")
-    _cust_xlsx_write_header(ws_data)
-    _cust_xlsx_write_examples(ws_data)
-
-    n_cols = len(CUST_XLSX_HEADERS)
     with db_session() as c:
         rows = c.execute(
             """SELECT cu.id, cu.name, cu.biz_no, cu.ceo_name, cu.address,
@@ -7566,58 +7586,60 @@ async def customers_export_xlsx(req: Request):
                FROM customers cu
                ORDER BY cu.tier_score DESC, cu.name"""
         ).fetchall()
+        rows = [dict(r) for r in rows]
+        # 각 고객사별 담당자 미리 fetch
         for r in rows:
-            d = dict(r)
-            cid = d.get("id")
-            contacts = c.execute(
+            r["_contacts"] = [dict(cc) for cc in c.execute(
                 """SELECT name, mobile, phone, email, department, note
                    FROM customer_contacts
                    WHERE customer_id = ?
                    ORDER BY is_primary DESC, id
                    LIMIT 5""",
-                (cid,)
-            ).fetchall()
-            # 담당자 5명 분배 (각 5필드: 이름·전화·이메일·부서·설명)
-            contact_cells = []
-            for cc in contacts:
-                cd = dict(cc)
-                contact_cells.extend([
-                    str(cd.get("name") or ""),
-                    str(cd.get("mobile") or cd.get("phone") or ""),
-                    str(cd.get("email") or ""),
-                    str(cd.get("department") or ""),
-                    str(cd.get("note") or ""),
-                ])
-            # 5명 미만은 빈 셀 채움
-            while len(contact_cells) < 25:  # 5 × 5 = 25
-                contact_cells.append("")
-            ws_data.append([
-                d.get("name"), d.get("biz_no"), d.get("ceo_name"),
-                d.get("address"),
-                "활성" if d.get("is_active") != 0 else "비활성",
-                d.get("note"),
-                *contact_cells[:25],
-            ])
+                (r["id"],)
+            ).fetchall()]
 
-    # 데이터 행 (row 7+) alignment
-    for row_idx in range(7, ws_data.max_row + 1):
-        for col_idx in range(1, n_cols + 1):
-            cell = ws_data.cell(row=row_idx, column=col_idx)
-            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
-            cell.border = border
+    wb = Workbook()
+    ws_guide = wb.active
+    ws_guide.title = "📖 안내"
+    _cust_xlsx_write_guide_sheet(ws_guide,
+        "🏢 KNK 고객사 마스터 — 엑셀 다운로드", total_rows=len(rows))
+    ws_data = wb.create_sheet("🏢 고객사 일괄 등록")
+    HEADER_ROW = _cust_xlsx_write_data_sheet(ws_data,
+        "🏢 KNK 고객사 일괄 등록",
+        f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요")
+
+    for r_idx, r in enumerate(rows, HEADER_ROW + 1):
+        contact_cells = []
+        for cc in r["_contacts"]:
+            contact_cells.extend([
+                str(cc.get("name") or ""),
+                str(cc.get("mobile") or cc.get("phone") or ""),
+                str(cc.get("email") or ""),
+                str(cc.get("department") or ""),
+                str(cc.get("note") or ""),
+            ])
+        while len(contact_cells) < 25:
+            contact_cells.append("")
+        vals = [
+            r["name"], r["biz_no"], r["ceo_name"],
+            r["address"],
+            "활성" if (r["is_active"] or 0) != 0 else "비활성",
+            r["note"],
+            *contact_cells[:25],
+        ]
+        for c_idx, v in enumerate(vals, 1):
+            ws_data.cell(row=r_idx, column=c_idx, value=v)
 
     import io
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    from urllib.parse import quote
-    fname = f"KNK_고객사_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf,
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
-        },
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_master_{today}.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사마스터_{today}.xlsx')}")},
     )
 
 
@@ -10806,23 +10828,30 @@ CUST_IMPORT_HEADERS = [
 
 
 def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
-    """v5H226z120: 첨부 양식 파싱 — Sheet '고객사' row7+ (예제 row 4-6 skip), 31컬럼.
-    담당자 5명 × 5필드 (이름/전화/이메일/부서/설명) 분리."""
+    """v5H226z121: 01C 자재 양식 패턴 파싱 — Sheet '🏢 고객사 일괄 등록' row5+ (HEADER_ROW=4),
+    31컬럼, 담당자 5명 × 5필드 (이름/전화/이메일/부서/설명) 분리."""
     from openpyxl import load_workbook
     import io as _io
     import re as _re
     wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
-    # 시트명 호환: 새 양식 '고객사', 구 양식 '고객사 데이터'/'Customers' 폴백
+    # 시트명 호환: 새 양식 '🏢 고객사 일괄 등록' 우선, 구 양식 폴백
     sheet_name = None
-    for candidate in ("고객사", "고객사 데이터", "Customers"):
+    for candidate in ("🏢 고객사 일괄 등록", "고객사", "고객사 데이터", "Customers"):
         if candidate in wb.sheetnames:
             sheet_name = candidate
             break
     if not sheet_name:
-        raise ValueError("'고객사' 시트를 찾을 수 없습니다")
+        raise ValueError("'🏢 고객사 일괄 등록' 시트를 찾을 수 없습니다")
     ws = wb[sheet_name]
-    # 데이터 시작 행: 첨부 양식은 row 7 (row 4-6 예제 skip), 구 z119은 row 4
-    data_start = 7 if sheet_name == "고객사" else 4
+    # 데이터 시작 행 자동 감지 (header row 찾기)
+    # 새 양식 (z121): Row 1 제목, Row 2 부제, Row 3 빈, Row 4 헤더, Row 5+ 데이터
+    # 구 양식 (첨부): Row 1 제목, Row 2 안내, Row 3 헤더, Row 4-6 예제, Row 7+ 데이터
+    if sheet_name == "🏢 고객사 일괄 등록":
+        data_start = 5
+    elif sheet_name == "고객사":
+        data_start = 7
+    else:
+        data_start = 4
 
     def _to_str(v) -> str:
         if v is None:
@@ -10942,7 +10971,7 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
 
 @app.get("/customers/import-template")
 async def customers_import_template(request: Request):
-    """v5H226z120: 첨부 양식 매칭 — Sheet 2개 + 31컬럼 + 예제 3행 (빈 양식)."""
+    """v5H226z121 (2026-05-19): 01C 자재 양식 패턴 — 안내 시트 + 데이터 시트 + 예시 3행."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -10950,31 +10979,65 @@ async def customers_import_template(request: Request):
         return RedirectResponse("/home", 303)
     try:
         from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
+    from datetime import datetime as _dt
 
     wb = Workbook()
-    ws_info = wb.active
-    ws_info.title = "📖_안내"
-    _cust_xlsx_write_info_sheet(ws_info)
+    ws_guide = wb.active
+    ws_guide.title = "📖 작성 가이드"
+    _cust_xlsx_write_guide_sheet(ws_guide,
+        "🏢 KNK 고객사 일괄 등록 — 작성 가이드")
+    ws_data = wb.create_sheet("🏢 고객사 일괄 등록")
+    HEADER_ROW = _cust_xlsx_write_data_sheet(ws_data,
+        "🏢 KNK 고객사 일괄 등록 양식",
+        "① 위 3행은 예제 (참고/삭제 가능)   ②  그 아래 빈 행부터 입력   ③  매출영업 → 고객사 → [📤 엑셀 일괄 업로드]")
 
-    ws_data = wb.create_sheet("고객사")
-    _cust_xlsx_write_header(ws_data)
-    _cust_xlsx_write_examples(ws_data)
-    # 데이터 영역은 비움 (row 7+ 빈)
+    # 예시 3행 (HEADER_ROW + 1 ~ +3) — 회색 이탤릭 + 노란 배경
+    examples = [
+        ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당"],
+        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "비활성", "",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함."],
+        ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
+         "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+    ]
+    example_fill = PatternFill("solid", fgColor="FFFBEB")
+    example_font = Font(size=10, color="9A3412", italic=True)
+    thin = Side(style="thin", color="EEEEEE")
+    bd_light = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for row_offset, row_data in enumerate(examples):
+        r_idx = HEADER_ROW + 1 + row_offset
+        for c_idx, v in enumerate(row_data, 1):
+            cell = ws_data.cell(row=r_idx, column=c_idx, value=v)
+            cell.font = example_font
+            cell.fill = example_fill
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            cell.border = bd_light
 
     import io
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    from urllib.parse import quote
-    fname = f"KNK_고객사_일괄등록_양식_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf,
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
-        },
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_import_template.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사_일괄등록_템플릿_{today}.xlsx')}")},
     )
 
 
