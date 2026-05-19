@@ -27,9 +27,11 @@ body {
   <div class="page-head" data-dn="page-head">
     <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>고객사</b></div><h1 class="page-title" data-dn="title">🏢 <em>고객사</em></h1></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn btn-secondary" href="/customers/export.xlsx" title="전체 고객사 + 담당자 엑셀 다운로드">📊 엑셀 내보내기</a>
-      <a class="btn btn-secondary" href="/customers/import-template" title="일괄 등록 양식 .xlsx 다운로드">📥 양식 다운로드</a>
+      <a class="btn btn-secondary" href="/customers/export.xlsx" title="전체 고객사 + 담당자 엑셀 다운로드 (Sheet1 안내 + Sheet2 데이터)">📊 엑셀 내보내기</a>
+      <a class="btn btn-secondary" href="/customers/import-template" title="일괄 등록 양식 .xlsx 다운로드 (담당자 5명 / round-trip 가능)">📥 양식 다운로드</a>
       <button type="button" class="btn btn-secondary" onclick="document.getElementById('cuImportXlsx').click()" title="작성한 양식 업로드 → 미리보기 → 일괄 등록">📤 엑셀 일괄 업로드</button>
+      {# v5H226z118: 엑셀 양식 안내 모달 — 발주서 _ORDERS/실무팀1_고객사_엑셀_양식_통일.md 기반 mock #}
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('xlsxGuideModal').style.display='flex'" title="엑셀 양식 사용법" style="padding:6px 10px;">ℹ 양식 안내</button>
       {# v5H226z75: data-knk-no-dropzone — 자동 dropzone 영역 생성 차단 (버튼 클릭으로만 동작) #}
       <input type="file" id="cuImportXlsx" accept=".xlsx" style="display:none;" data-knk-no-dropzone onchange="uploadCustomersXlsx(this.files[0])">
       <a class="btn btn-primary" href="/customers/new">＋ 고객사 등록</a>
@@ -269,4 +271,59 @@ function escapeHtml(s){
   }[ch]));
 }
 </script>
+
+<!-- v5H226z118: 엑셀 양식 안내 모달 (mock) — 빅터(01) 통합 시 백엔드 실제 구현 -->
+<div id="xlsxGuideModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;width:min(720px,96vw);max-height:90vh;overflow:auto;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.35);">
+    <div style="padding:16px 22px;background:linear-gradient(135deg,#c2410c 0%,#9a3412 100%);color:#fff;display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0;">
+      <h3 style="margin:0;font-size:16px;">📋 고객사 엑셀 양식 사용 가이드</h3>
+      <button type="button" onclick="document.getElementById('xlsxGuideModal').style.display='none'" style="background:rgba(255,255,255,.2);border:0;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-weight:700;">✕</button>
+    </div>
+    <div style="padding:18px 22px;font-size:13px;line-height:1.6;color:var(--ink);">
+      <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--amber-deep);">📊 엑셀 시트 구조 (2개 시트)</h4>
+      <ol style="margin:0 0 16px 18px;padding:0;">
+        <li><b>Sheet 1: 📖 사용 안내</b> — 양식 사용법 + 컬럼 설명</li>
+        <li><b>Sheet 2: 고객사 데이터</b> — 제목 + 헤더 + 데이터 행</li>
+      </ol>
+
+      <h4 style="margin:14px 0 10px 0;font-size:14px;color:var(--amber-deep);">📑 컬럼 (총 11개)</h4>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:6px 8px;border:1px solid var(--line);width:30px;">#</th>
+          <th style="padding:6px 8px;border:1px solid var(--line);text-align:left;">컬럼</th>
+          <th style="padding:6px 8px;border:1px solid var(--line);width:50px;">필수</th>
+          <th style="padding:6px 8px;border:1px solid var(--line);text-align:left;">예시</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">1</td><td style="padding:5px 8px;border:1px solid var(--line);"><b>고객사명</b></td><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;color:var(--knk-red);">✓</td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">㈜케이엔케이</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">2</td><td style="padding:5px 8px;border:1px solid var(--line);">사업자번호</td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">123-45-67890</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">3</td><td style="padding:5px 8px;border:1px solid var(--line);">대표자</td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">홍길동</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">4</td><td style="padding:5px 8px;border:1px solid var(--line);">주소</td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">경기도 화성시...</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">5</td><td style="padding:5px 8px;border:1px solid var(--line);">전화</td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">031-1234-5678</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">6</td><td style="padding:5px 8px;border:1px solid var(--line);">비고</td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">특이사항 / 메모</td></tr>
+          <tr><td style="padding:5px 8px;border:1px solid var(--line);text-align:center;">7~11</td><td style="padding:5px 8px;border:1px solid var(--line);"><b>담당자_1~5</b></td><td style="padding:5px 8px;border:1px solid var(--line);"></td><td style="padding:5px 8px;border:1px solid var(--line);font-family:monospace;font-size:11px;">김철수 / 구매2팀 / 010-1234-5678 / kim@ex.com</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="margin:14px 0 10px 0;font-size:14px;color:var(--amber-deep);">👥 담당자 셀 형식</h4>
+      <div style="background:#fff7ed;border:1px solid #fb923c;border-radius:8px;padding:10px 14px;font-size:12px;color:#9a3412;">
+        <code style="background:#fff;padding:2px 6px;border-radius:4px;border:1px solid #fb923c;font-family:monospace;">이름 / 부서 / 휴대폰 / 이메일</code> (구분자: <code style="background:#fff;padding:2px 4px;border-radius:3px;font-family:monospace;"> / </code> 공백슬래시공백)<br>
+        <b>최대 5명</b>까지 — 6명 이상은 HAIST WORKS UI에서 직접 입력
+      </div>
+
+      <h4 style="margin:14px 0 10px 0;font-size:14px;color:var(--amber-deep);">🔄 Round-trip 사용법</h4>
+      <ol style="margin:0 0 8px 18px;padding:0;font-size:12.5px;">
+        <li><b>📊 엑셀 내보내기</b> — 기존 고객사 데이터 다운로드</li>
+        <li>엑셀에서 수정 (Sheet 2 "고객사 데이터")</li>
+        <li><b>📤 엑셀 일괄 업로드</b> — 미리보기 → 등록 확정</li>
+        <li>사업자번호 일치 시 업데이트, 신규는 추가</li>
+      </ol>
+
+      <div style="margin-top:14px;padding:8px 12px;background:#dbeafe;border-radius:6px;font-size:11.5px;color:#1e3a8a;">
+        ⚙ <b>참고</b>: 본 양식 (Sheet 2개 + 11컬럼 + 담당자 5명) 구조는 빅터(01) 통합 사이클에서 백엔드 구현 중. 발주서: <code>_ORDERS/실무팀1_고객사_엑셀_양식_통일.md</code>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body></html>
