@@ -2322,6 +2322,84 @@ dialog h3 { margin: 0 0 8px; }
   .rs-act-btn { font-size: 10px; padding: 3px 7px; }
 }
 
+/* ─── 좁은 창(솔로 팝업·모바일 PWA·작은 데스크탑) — 가로 스크롤 방지 ─── */
+@media (max-width: 480px) {
+  /* 모달 컨테이너: 좌우 여백 최소화 */
+  .modal { padding: 8px; }
+  .modal-content {
+    padding: 14px 12px;
+    border-radius: 12px;
+    max-width: 100%;
+  }
+  /* 음소거 토글 행 — 한 줄 강제 + 사이즈 축소 */
+  .rs-mute-row {
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    align-items: center !important;
+  }
+  .rs-mute-row > span:first-child { font-size: 18px !important; }
+  .rs-mute-row > div { min-width: 0 !important; flex: 1 !important; }
+  .rs-mute-row > div > div:first-child { font-size: 12px !important; }
+  .rs-mute-row > div > div:last-child {
+    font-size: 10.5px !important;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rs-mute-row #rsMuteToggleBtn,
+  .rs-mute-row .primary-btn {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  /* 방 이름 입력·저장 */
+  .rs-form { gap: 6px; }
+  .rs-form input,
+  .rs-form select,
+  .rs-form textarea {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  /* 멤버 행 — 위/아래로 분리 (이미 720px 에서 적용되지만 명시) */
+  .rs-member { flex-direction: column; align-items: stretch; gap: 6px; }
+  .rs-member-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-start;
+  }
+  .rs-act-btn {
+    font-size: 10.5px;
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  /* 라디오 선택 카드 (초대 권한·자동삭제) — 좌우 여백 줄임 */
+  .rs-checkbox {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+  .rs-checkbox > span > div:first-child { font-size: 12px !important; }
+  .rs-checkbox > span > div:nth-child(2) { font-size: 10.5px !important; }
+  /* 상태 옵션 카드 (내 상태 다이얼로그) — 2열 → 1열 */
+  #statusOptionsArea { grid-template-columns: 1fr !important; }
+  /* dialog actions — 버튼 wrap */
+  .dialog-actions { flex-wrap: wrap; gap: 6px; }
+  .dialog-actions button { font-size: 12px; padding: 6px 10px; }
+}
+
+/* 매우 좁은 창 (솔로 팝업 306px) — 추가 축소 */
+@media (max-width: 360px) {
+  .modal { padding: 4px; }
+  .modal-content { padding: 12px 10px; }
+  .rs-section { margin: 12px 0; }
+  .rs-section h4 { font-size: 13px; }
+  .rs-mute-row > div > div:last-child { display: none; }   /* 부가 설명 숨김 */
+  .rs-act-btn {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+}
+
 /* ───── 메신저 전체 크기 축소 (글씨·여백·아바타·버튼 비례, 원본의 72%) ─────
    데스크탑(마우스 환경)에만 적용 — 폰(pointer:coarse)의 모바일 레이아웃은
    영향 없음(키보드 대응 등 민감 부분 보호). */
