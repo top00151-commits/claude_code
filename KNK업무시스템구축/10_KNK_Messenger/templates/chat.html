@@ -125,6 +125,22 @@
         <form class="composer" id="composer" autocomplete="off">
           <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
           <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
+
+          <!-- 첨부 미리보기 + 묶음 선택 다이얼로그 -->
+          <div class="modal" id="attachPreviewDialog" data-modal>
+            <div class="modal-content" style="max-width:520px;">
+              <button type="button" class="close-x modal-close-x" data-close>✕</button>
+              <h3 style="margin:0 0 8px;font-size:16px;">첨부 미리보기</h3>
+              <p class="dialog-hint" id="apSummary">파일 0개</p>
+              <div class="ap-grid" id="apGrid"></div>
+              <p class="dialog-hint" id="apOthersHint" hidden style="color:#9ca3af;margin-top:8px;">※ 사진이 아닌 파일은 항상 개별 전송됩니다.</p>
+              <div class="dialog-actions" style="flex-wrap:wrap;gap:6px;">
+                <button type="button" data-close>취소</button>
+                <button type="button" id="apIndividual">개별로 보내기</button>
+                <button type="button" id="apAlbum" class="primary-btn">앨범으로 묶기</button>
+              </div>
+            </div>
+          </div>
           <textarea id="msgInput" placeholder="메시지 입력..." disabled rows="1"></textarea>
           <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="✨ 작성 도움 (정중하게·짧게·전문가 톤)" style="font-size:16px;">✨</button>
           <button id="sendBtn" type="submit" disabled>전송</button>

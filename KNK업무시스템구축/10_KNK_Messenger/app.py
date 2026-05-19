@@ -659,6 +659,8 @@ def init_db():
         ("forwarded_from_created_at", "ALTER TABLE messages ADD COLUMN forwarded_from_created_at TEXT"),
         # 귓속말 — 특정 한 사용자에게만 보이는 메시지 (sender + recipient 만). NULL=공개.
         ("whisper_to_user_id", "ALTER TABLE messages ADD COLUMN whisper_to_user_id INTEGER"),
+        # 앨범 묶음 — 사진 N장을 1개 그리드 메시지로 묶을 때 부여하는 UUID. NULL=단독.
+        ("album_id", "ALTER TABLE messages ADD COLUMN album_id TEXT"),
     ]:
         if col not in existing_msg_cols:
             cur.execute(ddl)
@@ -666,6 +668,7 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_message_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_quoted ON messages(quoted_message_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_whisper ON messages(room_id, whisper_to_user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_album ON messages(album_id)")
 
     existing_item_cols = {row["name"] for row in cur.execute("PRAGMA table_info(items)").fetchall()}
     if "keep_forever" not in existing_item_cols:
@@ -1301,6 +1304,7 @@ def api_room_messages(room_id):
                m.forwarded_from_message_id, m.forwarded_from_user_id,
                m.forwarded_from_name, m.forwarded_from_room_name, m.forwarded_from_created_at,
                m.whisper_to_user_id,
+               m.album_id,
                u.id AS user_id, u.display_name, u.avatar_color
           FROM messages m
           JOIN users u ON u.id = m.user_id
@@ -3022,10 +3026,16 @@ def api_upload():
     rel_path = f"{room_id}/{unique}"
     now = datetime.now(timezone.utc).isoformat()
 
+    # 앨범 묶음 ID (선택) — 클라이언트가 같은 album_id 로 N번 업로드 호출 → 그리드 1개 메시지로 렌더.
+    # 사진(kind='image') 일 때만 의미가 있어 file 타입은 강제로 무시.
+    album_id = (request.form.get("album_id") or "").strip() or None
+    if album_id and kind != "image":
+        album_id = None
+
     cur = db.execute("""
-        INSERT INTO messages (room_id, user_id, content, kind, file_path, file_name, file_size, file_mime, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?)
-    """, (room_id, me["id"], original, kind, rel_path, original, size, mime, now))
+        INSERT INTO messages (room_id, user_id, content, kind, file_path, file_name, file_size, file_mime, album_id, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, (room_id, me["id"], original, kind, rel_path, original, size, mime, album_id, now))
     mid = cur.lastrowid
 
     # 동일 방·동일 원본 파일명으로 이전 업로드 있으면 버전 체인 연결
@@ -3089,6 +3099,7 @@ def api_upload():
         "created_at": now,
         "version_no": version_no,
         "parent_message_id": parent_id,
+        "album_id": album_id,
     }
     socketio.emit("new_message", payload, to=f"room_{room_id}")
     return jsonify(payload)

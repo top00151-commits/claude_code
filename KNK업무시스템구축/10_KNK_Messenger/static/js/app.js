@@ -306,12 +306,13 @@
     inviteToRoom: (rid, uids) => fetch(`${BASE}/api/rooms/${rid}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_ids: uids }) }).then(r => r.json()),
     kickMember: (rid, uid) => fetch(`${BASE}/api/rooms/${rid}/members/${uid}/kick`, { method: "POST" }).then(r => r.json()),
     markRead: (rid) => fetch(`${BASE}/api/rooms/${rid}/read`, { method: "POST" }),
-    upload: (rid, file, onProgress) => {
+    upload: (rid, file, onProgress, albumId) => {
       // XHR 사용 — 진행률 이벤트 받으려면 fetch 대신 XHR (Stream API 미흡)
       return new Promise((resolve, reject) => {
         const fd = new FormData();
         fd.append("room_id", rid);
         fd.append("file", file);
+        if (albumId) fd.append("album_id", albumId);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", BASE + "/api/upload");
         if (onProgress && xhr.upload) {
@@ -605,12 +606,46 @@
   });
 
   // ---------- render messages ----------
+  // 연속된 같은 album_id 인 image 메시지를 1개 묶음으로 그룹화.
+  function groupAlbums(msgs) {
+    const out = [];
+    let i = 0;
+    while (i < msgs.length) {
+      const m = msgs[i];
+      const isAlbum = m.album_id && m.kind === "image" && m.file_path;
+      if (isAlbum) {
+        const group = [m];
+        let j = i + 1;
+        while (j < msgs.length) {
+          const n = msgs[j];
+          if (n.album_id === m.album_id && n.kind === "image" && n.file_path && n.user_id === m.user_id) {
+            group.push(n);
+            j++;
+          } else break;
+        }
+        if (group.length >= 2) {
+          out.push({
+            ...m,
+            _album: group.map(g => ({
+              id: g.id, file_path: g.file_path, file_name: g.file_name
+            })),
+          });
+          i = j;
+          continue;
+        }
+      }
+      out.push(m);
+      i++;
+    }
+    return out;
+  }
+
   function renderMessages(msgs) {
     if (!msgs.length) {
       els.messages.innerHTML = `<div class="empty-state">아직 메시지가 없습니다.<br>첫 메시지를 보내보세요.</div>`;
       return;
     }
-    els.messages.innerHTML = msgs.map(msgHtml).join("");
+    els.messages.innerHTML = groupAlbums(msgs).map(msgHtml).join("");
     wireMessageActions();
     scrollToBottom({ force: true });  // 방 처음 열 때 / 메시지 전체 재로드 시 무조건 최하단
   }
@@ -673,8 +708,24 @@
       : "";
 
     let bubble = "";
-    if (m.kind === "image" && m.file_path) {
+    if (m.kind === "image" && m._album && m._album.length >= 2) {
+      // ★ 앨범 묶음 — 사진 N장을 1개 그리드 메시지로
+      cls += " image album";
+      const photos = m._album;
+      const display = photos.slice(0, 4);
+      const more = photos.length > 4 ? photos.length - 4 : 0;
+      const tiles = display.map((p, idx) => {
+        const moreOverlay = (idx === 3 && more > 0)
+          ? `<div class="album-more">+${more}</div>` : "";
+        return `<a class="album-tile" href="${BASE}/uploads/${escapeHtml(p.file_path)}" target="_blank" data-img="1" data-msg-id="${p.id}">
+          <img src="${BASE}/uploads/${escapeHtml(p.file_path)}" alt="${escapeHtml(p.file_name || "")}" loading="lazy">
+          ${moreOverlay}
+        </a>`;
+      }).join("");
+      bubble = `<div class="bubble album-bubble"><div class="album-grid album-grid-${Math.min(photos.length, 4)}">${tiles}</div></div>`;
+    } else if (m.kind === "image" && m.file_path) {
       cls += " image";
+      // album_id 가 있으면 (실시간 첫 도착 등) li 에 표식만 박아두고 외형은 그대로
       bubble = `<a class="bubble" href="${BASE}/uploads/${escapeHtml(m.file_path)}" target="_blank" data-img="1"><img src="${BASE}/uploads/${escapeHtml(m.file_path)}" alt="${escapeHtml(m.file_name || "")}" loading="lazy"></a>`;
     } else if (m.kind === "file" && m.file_path) {
       cls += " file";
@@ -770,7 +821,7 @@
     }
 
     return `
-      <li class="${cls}" data-msg-id="${m.id}" data-parent-msg-id="${m.parent_message_id || ""}" data-uid="${m.user_id || ""}" data-whisper-to="${m.whisper_to_user_id || ""}">
+      <li class="${cls}" data-msg-id="${m.id}" data-parent-msg-id="${m.parent_message_id || ""}" data-uid="${m.user_id || ""}" data-whisper-to="${m.whisper_to_user_id || ""}" data-album-id="${m.album_id || ""}">
         <div class="avatar" style="background:${m.avatar_color || "#3b82f6"}">${escapeHtml(initial(m.display_name))}</div>
         <div class="body">
           ${mine ? "" : `<div class="author" data-uid="${m.user_id || ""}" title="우클릭으로 사용자 메뉴">${escapeHtml(m.display_name)}</div>`}
@@ -808,11 +859,39 @@
     return "📎";
   }
 
+  // ─── 앨범 디바운스 재렌더 ───
+  // 같은 album_id 의 사진 N장이 거의 동시에 socket 으로 도착하므로,
+  // 200ms 디바운스 후 메시지 전체 재로드 → groupAlbums 가 그리드 1개로 묶음.
+  let _albumRerenderTimer = null;
+  let _albumRerenderForce = false;
+  function scheduleAlbumRerender(forceScroll) {
+    if (forceScroll) _albumRerenderForce = true;
+    if (_albumRerenderTimer) clearTimeout(_albumRerenderTimer);
+    _albumRerenderTimer = setTimeout(async () => {
+      _albumRerenderTimer = null;
+      const force = _albumRerenderForce;
+      _albumRerenderForce = false;
+      if (!activeRoom) return;
+      try {
+        const msgs = await api.messages(activeRoom.id);
+        if (!msgs.length) return;
+        els.messages.innerHTML = groupAlbums(msgs).map(msgHtml).join("");
+        wireMessageActions();
+        scrollToBottom({ force });
+      } catch (e) {}
+    }, 200);
+  }
+
   // forceScroll=true: 본인 메시지 전송 직후 등 무조건 최하단으로.
   // 기본: 사용자가 위쪽 보고 있으면 위치 유지, 맨 아래 근처면 자동 스크롤.
   function appendMessage(m, forceScroll) {
     if (!els.messages.querySelector(".msg")) {
       els.messages.innerHTML = "";
+    }
+    // 앨범 사진은 디바운스 재렌더 — N장 합쳐서 그리드 1개로 그림
+    if (m.album_id && m.kind === "image" && m.file_path) {
+      scheduleAlbumRerender(forceScroll);
+      return;
     }
     els.messages.insertAdjacentHTML("beforeend", msgHtml(m));
     wireMessageActions();
@@ -1883,13 +1962,64 @@
     }
   }
 
+  // ---------- 첨부 미리보기 + 묶음/개별 선택 ----------
+  // 반환: { mode: 'album' | 'individual' | 'cancel' }
+  // 사진 2장 이상 + 미리보기 다이얼로그 존재 시 사용자에게 묻는다. 아니면 'individual' 즉시 반환.
+  function chooseAttachMode(files) {
+    const dlg = document.getElementById("attachPreviewDialog");
+    if (!dlg) return Promise.resolve({ mode: "individual" });
+    const images = files.filter(f => (f.type || "").startsWith("image/"));
+    const others = files.filter(f => !((f.type || "").startsWith("image/")));
+    // 사진 2장 미만이면 묶을 게 없음 → 그냥 개별
+    if (images.length < 2) return Promise.resolve({ mode: "individual" });
+
+    const grid = dlg.querySelector("#apGrid");
+    const summary = dlg.querySelector("#apSummary");
+    const othersHint = dlg.querySelector("#apOthersHint");
+    const btnIndiv = dlg.querySelector("#apIndividual");
+    const btnAlbum = dlg.querySelector("#apAlbum");
+
+    // 썸네일 그리드 채우기 — Object URL 로 즉시 미리보기 (업로드 후 revoke)
+    const urls = [];
+    grid.innerHTML = images.map((f, idx) => {
+      const url = URL.createObjectURL(f);
+      urls.push(url);
+      return `<div class="ap-tile"><img src="${url}" alt="${escapeHtml(f.name)}" loading="lazy"></div>`;
+    }).join("");
+    summary.textContent = `사진 ${images.length}장${others.length ? ` + 다른 파일 ${others.length}개` : ""}`;
+    othersHint.hidden = others.length === 0;
+    btnIndiv.textContent = `개별 ${files.length}개 보내기`;
+    btnAlbum.textContent = `📷 사진 ${images.length}장 앨범으로 묶기`;
+
+    return new Promise(resolve => {
+      let settled = false;
+      const cleanup = () => {
+        urls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+        btnIndiv.removeEventListener("click", onIndiv);
+        btnAlbum.removeEventListener("click", onAlbum);
+        dlg.removeEventListener("close-cancelled", onCancel);
+        dlg.querySelectorAll("[data-close]").forEach(b => b.removeEventListener("click", onCancel));
+      };
+      const onIndiv = () => { if (settled) return; settled = true; dlg.close(); cleanup(); resolve({ mode: "individual" }); };
+      const onAlbum = () => { if (settled) return; settled = true; dlg.close(); cleanup(); resolve({ mode: "album" }); };
+      const onCancel = () => { if (settled) return; settled = true; dlg.close(); cleanup(); resolve({ mode: "cancel" }); };
+      btnIndiv.addEventListener("click", onIndiv);
+      btnAlbum.addEventListener("click", onAlbum);
+      // .modal 의 [data-close] 버튼들 — 취소 처리
+      dlg.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", onCancel));
+      dlg.showModal();
+    });
+  }
+
   // ---------- file upload (with progress) ----------
-  async function uploadFiles(files) {
+  // opts.albumId — 있으면 이미지 파일들만 같은 album_id 로 묶어 업로드 (그리드 1메시지)
+  async function uploadFiles(files, opts) {
     if (!activeRoom || !files || !files.length) return;
     // ★ FileList 류는 live 컬렉션일 수 있어 await 도중 항목이 사라질 수 있다.
     //   진입 시점에 정적 배열로 한 번 더 동결.
     const list = Array.from(files);
     files = list;
+    const albumId = (opts && opts.albumId) || null;
 
     // 진행률 표시 영역 — 메시지 영역 위에 떠있는 토스트
     const progBar = document.createElement("div");
@@ -1913,10 +2043,13 @@
       $fill.style.width = "0%";
       $pct.textContent = "0%";
       try {
+        // 앨범 모드면 이미지 파일에만 album_id 부여 (서버도 image 만 album 적용)
+        const isImage = (f.type || "").startsWith("image/");
+        const fileAlbumId = (albumId && isImage) ? albumId : null;
         const res = await api.upload(activeRoom.id, f, (pct, loaded, total) => {
           $fill.style.width = pct + "%";
           $pct.textContent = `${pct}%  (${fmtMB(loaded)}/${fmtMB(total)} MB)`;
-        });
+        }, fileAlbumId);
         if (res && res.error) {
           alert(`업로드 실패: ${f.name}\n${res.error}`);
         }
@@ -2756,14 +2889,24 @@
       if (dragCounter <= 0) { dragCounter = 0; overlay.style.display = "none"; }
     });
     els.chatPane.addEventListener("dragover", (e) => e.preventDefault());
-    els.chatPane.addEventListener("drop", (e) => {
+    els.chatPane.addEventListener("drop", async (e) => {
       e.preventDefault();
       dragCounter = 0;
       overlay.style.display = "none";
       if (!activeRoom) return;
       // dataTransfer.files 도 FileList → 정적 배열로 복사 후 넘긴다.
       const files = Array.from(e.dataTransfer.files || []);
-      if (files.length) uploadFiles(files);
+      if (!files.length) return;
+      const choice = await chooseAttachMode(files);
+      if (choice.mode === "cancel") return;
+      if (choice.mode === "album") {
+        const albumId = (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `alb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        await uploadFiles(files, { albumId });
+      } else {
+        await uploadFiles(files);
+      }
     });
 
     // paste image from clipboard
@@ -3629,13 +3772,23 @@
   if (_rsBtnEl) _rsBtnEl.addEventListener('click', () => openRoomSettings());
 
   els.attachBtn.addEventListener("click", () => els.fileInput.click());
-  els.fileInput.addEventListener("change", () => {
+  els.fileInput.addEventListener("change", async () => {
     // ★ input.files 는 live FileList — input.value="" 직후 비워짐.
     //   uploadFiles 가 async 라 await 중에 두번째 파일을 잃지 않도록
     //   먼저 정적 배열로 복사한 뒤 input.value 를 초기화한다.
     const picked = Array.from(els.fileInput.files);
     els.fileInput.value = "";
-    if (picked.length) uploadFiles(picked);
+    if (!picked.length) return;
+    const choice = await chooseAttachMode(picked);
+    if (choice.mode === "cancel") return;
+    if (choice.mode === "album") {
+      const albumId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `alb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      await uploadFiles(picked, { albumId });
+    } else {
+      await uploadFiles(picked);
+    }
   });
 
   if (els.exportBtn) {
