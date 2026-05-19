@@ -232,27 +232,30 @@
                     </div>
                     <div class="field col-2">
                       <label>제조사 (maker)</label>
-                      <input type="text" name="maker" id="partMaker" value="{{ part.maker|default('') }}" placeholder="예: Mitsubishi">
-                    </div>
-
-                    {# v5H226z110b (2026-05-19) — 기본 공급사명: 발주 자동 매칭용
-                       공급사 담당자 정보는 자재 상세에서 공급사 마스터로 자동 연결되어 표시 #}
-                    <div class="field col-2">
-                      <label>기본 공급사 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 발주 자동 매칭 (담당자 자동 연결)</span></label>
-                      <input type="text" name="default_supplier"
-                        value="{{ part.default_supplier or '' }}"
-                        placeholder="예: ㈜케이엔케이"
-                        list="suppliersList">
-                      {% if suppliers %}
-                      <datalist id="suppliersList">
-                        {% for s in suppliers %}<option value="{{ s.name }}">{% endfor %}
+                      <input type="text" name="maker" id="partMaker"
+                        value="{{ part.maker|default('') }}"
+                        placeholder="예: Mitsubishi"
+                        list="makersList" autocomplete="off">
+                      {% if makers %}
+                      <datalist id="makersList">
+                        {% for m in makers %}<option value="{{ m }}">{% endfor %}
                       </datalist>
                       {% endif %}
                     </div>
 
+                    {# v5H226z111 (2026-05-19) — 기본 협력사 입력은 [분류·재고 관리] 박스의 구매사1·2·3으로 이전됨 #}
+
                     <div class="field col-2">
                       <label>원산지 (origin)</label>
-                      <input type="text" name="origin" value="{{ part.origin|default('') }}" placeholder="예: 일본 / 한국">
+                      <input type="text" name="origin"
+                        value="{{ part.origin|default('') }}"
+                        placeholder="예: 일본 / 한국"
+                        list="originsList" autocomplete="off">
+                      {% if origins %}
+                      <datalist id="originsList">
+                        {% for o in origins %}<option value="{{ o }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
                     </div>
 
                     {# v5H226z110c (2026-05-19) — 제조사 담당자 풀세트
@@ -277,7 +280,15 @@
                     </div>
                     <div class="field">
                       <label>단위 (unit)</label>
-                      <input type="text" name="unit" value="{{ part.unit|default('EA') }}" placeholder="EA">
+                      <input type="text" name="unit"
+                        value="{{ part.unit|default('EA') }}"
+                        placeholder="EA"
+                        list="unitsList" autocomplete="off">
+                      {% if units %}
+                      <datalist id="unitsList">
+                        {% for un in units %}<option value="{{ un }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
                     </div>
                     <div class="field">
                       <label>통화</label>
@@ -310,7 +321,15 @@
                   <div class="f-grid">
                     <div class="field col-2">
                       <label>분류 (category)</label>
-                      <input type="text" name="category" value="{{ part.category|default('') }}" placeholder="예: 모터·구동부">
+                      <input type="text" name="category"
+                        value="{{ part.category|default('') }}"
+                        placeholder="예: 모터·구동부"
+                        list="categoriesList" autocomplete="off">
+                      {% if categories %}
+                      <datalist id="categoriesList">
+                        {% for cat in categories %}<option value="{{ cat }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
                     </div>
                     <div class="field col-2">
                       <label>품목 계정 (item_account)</label>
@@ -340,19 +359,40 @@
 
                     <div class="field col-4">
                       {# v5H226z84 — 매입단가: 구매사 3곳 × 각 1~5차 + 입력 날짜. 대표단가(std_price) = 가장 최근 날짜의 단가 #}
-                      <label>매입단가 (구매사 3곳 × 1~5차)</label>
-                      <div style="font-size:10.5px;color:var(--pq-info);margin:2px 0 8px;line-height:1.5;">
-                        💡 구매사별로 1~5차 단가를 <b>입력 날짜와 함께</b> 기록합니다.
-                        구매사·수량·시기에 따라 단가가 달라질 수 있습니다.
+                      <label>매입단가 (협력사 3곳 × 1~5차)</label>
+                      <div style="font-size:10.5px;color:var(--pq-info);margin:2px 0 8px;line-height:1.6;">
+                        💡 협력사별로 1~5차 단가를 <b>입력 날짜와 함께</b> 기록합니다.
+                        협력사·수량·시기에 따라 단가가 달라질 수 있습니다.
                         <b>가장 최근 날짜의 단가</b>가 대표 매입단가로 적용됩니다 (평균 아님).
+                        <br>
+                        ⭐ <b>라디오(○) 체크 = 기본 협력사(주 구매처)</b> — 3곳 중 1곳만 선택. 발주서 작성 시 기본값으로 자동 선택됩니다.
+                        <br>
+                        👤 <b>담당자 이름</b>은 협력사 마스터의 담당자 1·2 자동완성. 이름 선택하면 <b>전화·이메일이 자동으로 채워집니다</b>.
                       </div>
-                      {# v5H226z85 — 구매사 1·2·3 을 가로 3열로 배치 (한 화면에 표시) #}
+                      {# v5H226z112 (2026-05-19) — 협력사 1·2·3 (구매사) — 가로 3열
+                         · 라디오: 1개만 기본 협력사로 선택 (대표 매입처)
+                         · 협력사명: 마스터 자동완성 + 자유입력 차단
+                         · 담당자 정보 3칸 (이름·전화·이메일) — 자재 단위 기록
+                         · 1~5차 단가 (기존) #}
                       <div id="purchaseVendors" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
                         {% for v in range(1, 4) %}
                         <div class="pp-vendor" data-vendor="{{ v }}" style="border:1px solid var(--pq-line-2);border-radius:6px;padding:9px 9px;background:var(--pq-surface-inset);">
                           <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
-                            <span style="font-size:10.5px;font-weight:800;color:var(--pq-ink);background:var(--pq-surface-3);border-radius:4px;padding:4px 7px;white-space:nowrap;">구매사 {{ v }}</span>
-                            <input type="text" class="pp-supplier" placeholder="구매사명" autocomplete="off" style="flex:1;min-width:0;">
+                            <label title="기본 협력사로 표시 (1개만 선택 가능)" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10.5px;font-weight:700;color:var(--pq-ink);background:var(--pq-surface-3);border-radius:4px;padding:3px 7px;white-space:nowrap;">
+                              <input type="radio" name="pp_default_vendor" value="{{ v }}" class="pp-default" style="margin:0;">
+                              <span>협력사{{ v }}(구매사)</span>
+                            </label>
+                            <input type="text" class="pp-supplier knk-vendor-pick" list="vendorsListPP"
+                              placeholder="협력사 선택" autocomplete="off" style="flex:1;min-width:0;">
+                          </div>
+                          {# 담당자 정보 3칸 — 자재 단위 기록 (협력사 마스터와 별개)
+                             담당자 이름 자동완성 + 선택 시 전화·이메일 자동 채움 (v5H226z113) #}
+                          <div style="display:grid;grid-template-columns:1fr;gap:3px;margin-bottom:6px;padding:5px 6px;background:var(--pq-surface);border:1px dashed var(--pq-line-2);border-radius:4px;">
+                            <input type="text" class="pp-contact-name"  placeholder="담당자 이름"   autocomplete="off"
+                              list="ppContactsListV{{ v }}" style="font-size:11px;padding:4px 6px;">
+                            <input type="text" class="pp-contact-phone" placeholder="담당자 전화"   autocomplete="off" style="font-size:11px;padding:4px 6px;">
+                            <input type="email" class="pp-contact-email" placeholder="담당자 이메일" autocomplete="off" style="font-size:11px;padding:4px 6px;">
+                            <datalist id="ppContactsListV{{ v }}"></datalist>
                           </div>
                           <div style="display:flex;flex-direction:column;gap:4px;">
                             {% for i in range(1, 6) %}
@@ -366,6 +406,11 @@
                         </div>
                         {% endfor %}
                       </div>
+                      {% if suppliers %}
+                      <datalist id="vendorsListPP">
+                        {% for s in suppliers %}<option value="{{ s.name }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
                       <input type="hidden" name="purchase_prices" id="purchasePricesJson" value="">
                       <input type="hidden" name="std_price" id="stdPriceHidden" value="{{ part.std_price|default(part.unit_price|default(0)) if part else 0 }}">
                       <div style="margin-top:6px;font-size:11px;color:var(--pq-ink-3);">
@@ -392,13 +437,21 @@
                     </div>
                     <div class="field col-3">
                       <label>위치 (location)</label>
-                      <input type="text" name="location" value="{{ part.location|default('') }}" placeholder="WH-01-A-12">
+                      <input type="text" name="location"
+                        value="{{ part.location|default('') }}"
+                        placeholder="WH-01-A-12"
+                        list="locationsList" autocomplete="off">
+                      {% if locations %}
+                      <datalist id="locationsList">
+                        {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
+                      </datalist>
+                      {% endif %}
                     </div>
+
+                    {# v5H226z112 (2026-05-19) — 구매사 입력은 [매입단가] 박스의 협력사 헤더로 통합됨 #}
                   </div>
                 </div>
               </div>
-
-              <div class="qsec" data-dn="pf:extra">
                 <div class="qsec-h">
                   <span class="ttl">📐 추가 규격 · 문서 출력명</span>
                 </div>
@@ -459,7 +512,7 @@
               {# v5H226z83 — 아래 "구매사별 매입 단가" 섹션은 매입단가 1~5차로 역할 대체되어 숨김.
                  코드는 보존 — 복구하려면 아래 {% if false %} 를 {% if is_edit %} 로 변경. #}
               {% if false %}
-              {# v5H226z82 — 구매사(공급사)별 매입 단가: 제조사≠구매사, 다중 구매사·수량구간·시기별 단가 #}
+              {# v5H226z82 — 구매사(협력사)별 매입 단가: 제조사≠구매사, 다중 구매사·수량구간·시기별 단가 #}
               <div class="qsec" data-dn="pf:prices">
                 <div class="qsec-h">
                   <span class="ttl">💰 구매사별 매입 단가</span>
@@ -1251,14 +1304,21 @@
     var fallback = null;  // 날짜 없을 때 — 마지막 price>0
     vendorEls.forEach(function(vEl){
       var sup = (vEl.querySelector('.pp-supplier').value || '').trim();
+      // v5H226z112 — 기본 협력사 라디오 + 담당자 3칸
+      var isDefault   = !!(vEl.querySelector('.pp-default') && vEl.querySelector('.pp-default').checked);
+      var contactName = (vEl.querySelector('.pp-contact-name')  || {}).value  || '';
+      var contactPhone= (vEl.querySelector('.pp-contact-phone') || {}).value  || '';
+      var contactEmail= (vEl.querySelector('.pp-contact-email') || {}).value  || '';
+      contactName = contactName.trim();
+      contactPhone= contactPhone.trim();
+      contactEmail= contactEmail.trim();
       var entries = [];
       Array.prototype.forEach.call(vEl.querySelectorAll('.pp-row'), function(row){
         var seq = parseInt(row.getAttribute('data-seq'), 10) || 0;
         var date = (row.querySelector('.pp-date').value || '').trim();
-        // v5H226z86 — knk-money 포맷(천단위 콤마) 환원 후 숫자 변환
         var price = parseFloat((row.querySelector('.pp-price').value || '').replace(/,/g, '').trim());
         if (isNaN(price) || price < 0) price = 0;
-        if (price <= 0 && !date) return;  // 완전 빈 행 스킵
+        if (price <= 0 && !date) return;
         entries.push({ seq: seq, date: date, price: price });
         if (price > 0) {
           fallback = { price: price, supplier: sup };
@@ -1269,7 +1329,17 @@
           }
         }
       });
-      if (sup || entries.length) out.push({ supplier: sup, entries: entries });
+      // 정보가 하나라도 있으면 슬롯 저장 (빈 슬롯은 건너뛰기)
+      if (sup || entries.length || contactName || contactPhone || contactEmail) {
+        out.push({
+          supplier: sup,
+          is_default: isDefault,
+          contact_name: contactName,
+          contact_phone: contactPhone,
+          contact_email: contactEmail,
+          entries: entries
+        });
+      }
     });
     jsonInput.value = JSON.stringify(out);
 
@@ -1301,6 +1371,16 @@
         var vEl = vendorEls[vIdx];
         if (!vEl || !vend) return;
         vEl.querySelector('.pp-supplier').value = vend.supplier || '';
+        // v5H226z112 — 기본 협력사 라디오 + 담당자 복원
+        if (vend.is_default && vEl.querySelector('.pp-default')) {
+          vEl.querySelector('.pp-default').checked = true;
+        }
+        var cnEl = vEl.querySelector('.pp-contact-name');
+        var cpEl = vEl.querySelector('.pp-contact-phone');
+        var ceEl = vEl.querySelector('.pp-contact-email');
+        if (cnEl) cnEl.value = vend.contact_name  || '';
+        if (cpEl) cpEl.value = vend.contact_phone || '';
+        if (ceEl) ceEl.value = vend.contact_email || '';
         var rows = vEl.querySelectorAll('.pp-row');
         (Array.isArray(vend.entries) ? vend.entries : []).forEach(function(ent){
           var seq = parseInt(ent.seq, 10) || 0;
@@ -1328,7 +1408,108 @@
       inp.addEventListener('input', serialize);
       inp.addEventListener('change', serialize);
     });
+    // v5H226z112 — 담당자·기본 협력사 변경 시 재직렬화
+    Array.prototype.forEach.call(vEl.querySelectorAll('.pp-contact-name, .pp-contact-phone, .pp-contact-email'), function(inp){
+      inp.addEventListener('input', serialize);
+    });
+    var radio = vEl.querySelector('.pp-default');
+    if (radio) radio.addEventListener('change', serialize);
   });
+
+  // v5H226z112/z113 — 협력사명 자유입력 차단 + 담당자 자동완성·자동 채움
+  (function(){
+    // 협력사명 → {contact, phone, email, contact2, phone2, email2} 매핑
+    var supplierMap = {};
+    {% if suppliers %}
+    {% for s in suppliers %}
+    supplierMap[{{ s.name|tojson }}] = {
+      contact:  {{ (s.contact  or '')|tojson }},
+      phone:    {{ (s.phone    or '')|tojson }},
+      email:    {{ (s.email    or '')|tojson }},
+      contact2: {{ (s.contact2 or '')|tojson }},
+      phone2:   {{ (s.phone2   or '')|tojson }},
+      email2:   {{ (s.email2   or '')|tojson }},
+    };
+    {% endfor %}
+    {% endif %}
+    var allowed = new Set(Object.keys(supplierMap));
+    var lowerArr = Object.keys(supplierMap);
+    var lowerSet = lowerArr.map(function(x){return x.toLowerCase();});
+
+    // 슬롯별 담당자 datalist 갱신 (협력사 선택 후 호출)
+    function refreshContactsList(vEl, supName){
+      var slot = vEl.getAttribute('data-vendor');
+      var dl = document.getElementById('ppContactsListV' + slot);
+      if (!dl) return;
+      dl.innerHTML = '';
+      var info = supplierMap[supName];
+      if (!info) return;
+      if (info.contact)  { var o1 = document.createElement('option'); o1.value = info.contact;  dl.appendChild(o1); }
+      if (info.contact2) { var o2 = document.createElement('option'); o2.value = info.contact2; dl.appendChild(o2); }
+    }
+
+    // 담당자 이름 선택 시 전화·이메일 자동 채움
+    function autofillContact(vEl){
+      var supInput = vEl.querySelector('.pp-supplier');
+      var nameInput  = vEl.querySelector('.pp-contact-name');
+      var phoneInput = vEl.querySelector('.pp-contact-phone');
+      var emailInput = vEl.querySelector('.pp-contact-email');
+      var supName = (supInput.value || '').trim();
+      var name    = (nameInput.value || '').trim();
+      if (!name) return;
+      var info = supplierMap[supName];
+      if (!info) return;
+      if (name === info.contact)  { phoneInput.value = info.phone  || ''; emailInput.value = info.email  || ''; serialize(); }
+      else if (name === info.contact2) { phoneInput.value = info.phone2 || ''; emailInput.value = info.email2 || ''; serialize(); }
+    }
+
+    // 협력사 입력 — 자유입력 차단 + 담당자 datalist 갱신
+    document.querySelectorAll('.pp-vendor').forEach(function(vEl){
+      var inp = vEl.querySelector('.pp-supplier');
+      if (!inp) return;
+      // 초기화: 기존 값이 있으면 담당자 datalist 미리 갱신
+      if (inp.value && supplierMap[inp.value.trim()]) {
+        refreshContactsList(vEl, inp.value.trim());
+      }
+      // blur — 마스터 검증 + datalist 갱신
+      inp.addEventListener('blur', function(){
+        var v = (inp.value || '').trim();
+        if (!v) { inp.style.borderColor=''; inp.style.background=''; inp.title=''; refreshContactsList(vEl, ''); return; }
+        if (!allowed.has(v)) {
+          var idx = lowerSet.indexOf(v.toLowerCase());
+          if (idx >= 0) {
+            inp.value = lowerArr[idx];
+            inp.style.borderColor=''; inp.style.background='';
+            refreshContactsList(vEl, inp.value);
+            serialize();
+            return;
+          }
+          inp.style.borderColor = '#b91c1c';
+          inp.style.background  = '#fef2f2';
+          inp.title = '마스터에 등록된 협력사가 아닙니다 — 협력사 마스터에 먼저 등록 후 선택하세요';
+          alert('마스터에 등록된 협력사만 선택 가능합니다.\n입력하신 "' + v + '"는 협력사 마스터에 없습니다.');
+          inp.value = '';
+          refreshContactsList(vEl, '');
+          setTimeout(function(){ inp.style.background=''; }, 1500);
+          serialize();
+        } else {
+          inp.style.borderColor=''; inp.style.background=''; inp.title='';
+          refreshContactsList(vEl, v);
+        }
+      });
+      // datalist 옵션 선택 시 즉시 갱신 (input 이벤트)
+      inp.addEventListener('change', function(){
+        if (supplierMap[inp.value.trim()]) refreshContactsList(vEl, inp.value.trim());
+      });
+
+      // 담당자 이름 변경 시 — 자동 채움
+      var nameInput = vEl.querySelector('.pp-contact-name');
+      if (nameInput) {
+        nameInput.addEventListener('change', function(){ autofillContact(vEl); });
+        nameInput.addEventListener('input',  function(){ autofillContact(vEl); });
+      }
+    });
+  })();
 
   // 폼 제출 직전 최종 직렬화 (capture 단계 — 다른 submit 핸들러보다 먼저)
   var pf = document.getElementById('partForm');

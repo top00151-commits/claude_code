@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>공급사 일괄 등록 · KNK HAIST WORKS</title>
+<title>협력사 일괄 등록 · KNK HAIST WORKS</title>
 
-{# v5H226z88 (2026-05-14) — 공급사 일괄 등록 (Excel) — 자재 일괄등록과 동일 3단계 패턴
+{# v5H226z88 (2026-05-14) — 협력사 일괄 등록 (Excel) — 자재 일괄등록과 동일 3단계 패턴
    라우터:
      GET  /suppliers/import                → mode='upload'
      POST /suppliers/import                → mode='preview' (dry_run 결과)
@@ -139,10 +139,10 @@
 
       <div class="pi-head" data-dn="si:head" data-dn-tone="green">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">공급사</a> · <b>일괄 등록</b></div>
-          <div class="pi-title">📥 공급사 일괄 등록 (Excel)</div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">협력사</a> · <b>일괄 등록</b></div>
+          <div class="pi-title">📥 협력사 일괄 등록 (Excel)</div>
           <div class="pi-meta">
-            엑셀 업로드 → 검증 미리보기 → 등록 확정 (3단계) · 공급사명 중복, 통화 오류 자동 검사
+            엑셀 업로드 → 검증 미리보기 → 등록 확정 (3단계) · 협력사명 중복, 통화 오류 자동 검사
           </div>
         </div>
         <div class="pi-actions">
@@ -189,7 +189,7 @@
               <div class="drop" id="dropArea">
                 <div class="ico">🏢</div>
                 <div class="ttl">엑셀 파일을 선택하거나 드래그</div>
-                <div class="sub">공급사명 컬럼이 필수입니다</div>
+                <div class="sub">협력사명 컬럼이 필수입니다</div>
                 {# v5H226z95 FIX: data-knk-no-dropzone — _v5_partials/dragdrop.html 의 autoWrap 우회.
                    이 페이지는 자체 .drop UI 사용 → 자동 래핑 시 파일 picker 가 두 번 열리는 버그 해소. #}
                 <input type="file" name="file" accept=".xlsx,.xlsm" required id="fileInput" data-knk-no-dropzone>
@@ -209,7 +209,7 @@
               <div class="guide-card">
                 <h4>✅ 필수 컬럼 (1개)</h4>
                 <ul>
-                  <li><code>공급사명</code> (name) — 기존 공급사명 중복 시 자동 제외</li>
+                  <li><code>협력사명</code> (name) — 기존 협력사명 중복 시 자동 제외</li>
                 </ul>
               </div>
               <div class="guide-card">
@@ -223,7 +223,7 @@
               <div class="guide-card">
                 <h4>🔁 자동 헤더 매핑</h4>
                 <ul>
-                  <li><code>공급사명</code> = 거래처명 = 회사명 = name = supplier</li>
+                  <li><code>협력사명</code> = 거래처명 = 회사명 = name = supplier</li>
                   <li><code>사업자등록번호</code> = 사업자번호 = biz_no</li>
                   <li><code>대표자</code> = 대표 = ceo / <code>관리부서</code> = 부서 = dept</li>
                   <li><code>담당자1·2</code> = 담당자 = contact / <code>전화1·2</code> = 연락처 = phone</li>
@@ -233,8 +233,8 @@
               <div class="guide-card">
                 <h4>⚠ 자동 검증 항목</h4>
                 <ul>
-                  <li><b style="color:var(--pq-err);">error</b> — 공급사명 누락 / 통화 값 오류</li>
-                  <li><b style="color:var(--pq-warn);">dup</b> — 공급사명 중복 (기존 DB / 파일 내)</li>
+                  <li><b style="color:var(--pq-err);">error</b> — 협력사명 누락 / 통화 값 오류</li>
+                  <li><b style="color:var(--pq-warn);">dup</b> — 협력사명 중복 (기존 DB / 파일 내)</li>
                   <li><b style="color:var(--pq-info);">ok</b> — 정상, 등록 가능</li>
                   <li>통화: KRW / USD / JPY / CNY / EUR / VND</li>
                 </ul>
@@ -312,7 +312,7 @@
                       <th class="center" style="width:48px;">#</th>
                       <th class="center" style="width:60px;">행</th>
                       <th class="center" style="width:90px;">상태</th>
-                      <th>공급사명 / 대표자</th>
+                      <th>협력사명 / 대표자</th>
                       <th style="width:140px;">사업자번호</th>
                       <th style="width:100px;">담당자</th>
                       <th style="width:150px;">연락처</th>
@@ -357,7 +357,7 @@
             <div class="submit-bar">
               <span class="note">💡 정상({{ s.ok|default(0) }}) 행만 등록됩니다. 중복·오류 행은 자동 제외.</span>
               <a href="/suppliers/import" class="cancel">← 다시 업로드</a>
-              <button type="submit" class="apply" onclick="return confirm('총 {{ s.ok|default(0) }}건의 공급사를 등록합니다. 계속하시겠습니까?');">✓ 등록 확정 ({{ s.ok|default(0) }}건)</button>
+              <button type="submit" class="apply" onclick="return confirm('총 {{ s.ok|default(0) }}건의 협력사를 등록합니다. 계속하시겠습니까?');">✓ 등록 확정 ({{ s.ok|default(0) }}건)</button>
             </div>
           </form>
           {% endif %}
@@ -376,7 +376,7 @@
           {% set s = result.summary or {} %}
 
           <div style="padding:14px 18px;background:var(--pq-ok-soft);border:1px solid var(--pq-ok);border-left:4px solid var(--pq-ok);border-radius:8px;color:var(--pq-ok);font-size:14px;font-weight:700;margin-bottom:14px;">
-            ✅ <b>등록 완료</b> — {{ s.inserted|default(0) }}건 공급사 신규 등록 (파일: {{ filename }})
+            ✅ <b>등록 완료</b> — {{ s.inserted|default(0) }}건 협력사 신규 등록 (파일: {{ filename }})
           </div>
 
           <div class="kpi-strip">
@@ -401,7 +401,7 @@
           {% if result.inserted_ids %}
           <div class="qsec">
             <div class="qsec-h">
-              <span class="ttl">🏢 등록된 공급사 ({{ result.inserted_ids|length }}건)</span>
+              <span class="ttl">🏢 등록된 협력사 ({{ result.inserted_ids|length }}건)</span>
               <span class="right">클릭하여 상세 확인</span>
             </div>
             <table class="tbl-erp">
@@ -410,7 +410,7 @@
                   <th class="center" style="width:48px;">#</th>
                   <th class="center" style="width:60px;">행</th>
                   <th style="width:80px;">ID</th>
-                  <th>등록 공급사</th>
+                  <th>등록 협력사</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,7 +439,7 @@
                   <th class="center" style="width:48px;">#</th>
                   <th class="center" style="width:60px;">행</th>
                   <th class="center" style="width:90px;">상태</th>
-                  <th style="width:280px;">공급사명</th>
+                  <th style="width:280px;">협력사명</th>
                   <th>오류 / 사유</th>
                 </tr>
               </thead>
@@ -460,7 +460,7 @@
 
           <div class="submit-bar">
             <a href="/suppliers/import" class="cancel">📥 새 일괄 등록</a>
-            <a href="/suppliers" class="apply">→ 공급사 목록 보기</a>
+            <a href="/suppliers" class="apply">→ 협력사 목록 보기</a>
           </div>
           {% endif %}
         {% endif %}

@@ -287,7 +287,7 @@
         <a class="kpi-cell {% if status=='발주완료' %}active{% endif %}" href="/po?status=발주완료{% if q %}&q={{ q }}{% endif %}">
           <div class="l">발주완료</div>
           <div class="v">{{ issued_cnt }}<span class="u">건</span></div>
-          <div class="sub">공급사 통보</div>
+          <div class="sub">협력사 통보</div>
         </a>
         <a class="kpi-cell {% if status=='부분입고' %}active{% endif %}" href="/po?status=부분입고{% if q %}&q={{ q }}{% endif %}">
           <div class="l">부분입고</div>
@@ -360,7 +360,7 @@
             <tr>
               <th style="width:130px;">발주번호</th>
               <th class="center" style="width:80px;">발주일</th>
-              <th style="width:180px;">공급사</th>
+              <th style="width:180px;">협력사</th>
               <th>프로젝트 · 관리코드</th>
               <th class="num" style="width:130px;">금액</th>
               <th class="center" style="width:90px;">예상 입고</th>

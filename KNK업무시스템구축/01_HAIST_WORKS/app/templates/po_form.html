@@ -214,9 +214,9 @@
 
               <div class="field-row">
                 <div class="field">
-                  <label>거래처 (공급사) <span class="req">*</span></label>
+                  <label>거래처 (협력사) <span class="req">*</span></label>
                   <select name="supplier_id" required>
-                    <option value="">— 공급사 선택 —</option>
+                    <option value="">— 협력사 선택 —</option>
                     {% for s in suppliers %}
                     <option value="{{ s.id }}" {% if is_edit and po.supplier_id == s.id %}selected{% endif %}>
                       {{ s.name }}{% if s.business_no %} · {{ s.business_no }}{% endif %}
@@ -224,7 +224,7 @@
                     {% endfor %}
                   </select>
                   {% if not suppliers %}
-                  <div class="field-hint warn">⚠ 등록된 공급사가 없습니다. <a href="/suppliers">공급사 등록 →</a></div>
+                  <div class="field-hint warn">⚠ 등록된 협력사가 없습니다. <a href="/suppliers">협력사 등록 →</a></div>
                   {% else %}
                   <div class="field-hint">선택 시 단가 이력·결제조건이 <b>자동 불러오기</b>됩니다</div>
                   {% endif %}
@@ -415,7 +415,7 @@
             <div class="side-card">
               <h4>📜 작성 가이드</h4>
               <div style="font-size:11.5px; color: var(--pq-ink-3); line-height: 1.7;">
-                ① 공급사 + 발주일자 필수<br>
+                ① 협력사 + 발주일자 필수<br>
                 ② 품목 1개 이상 추가<br>
                 ③ 수량·단가 입력 시 금액 자동<br>
                 ④ 저장 후 입고 처리로 진행

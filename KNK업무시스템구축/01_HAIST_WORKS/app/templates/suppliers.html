@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>공급사 마스터 · KNK HAIST WORKS</title>
+<title>협력사 마스터 · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 공급사 목록 #}
+{# v5H226z57 시안1 + 룰 v4 — 실무팀3 협력사 목록 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
@@ -110,8 +110,8 @@
 
       <div class="sp-head" data-dn="suppliers:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>공급사 마스터</b></div>
-          <div class="sp-title">공급사 마스터</div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>협력사 마스터</b></div>
+          <div class="sp-title">협력사 마스터</div>
         </div>
         <div class="sp-meta">
           <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>사</span>
@@ -121,7 +121,7 @@
         <div class="sp-actions">
           <a class="btn-ghost" href="/suppliers/export.xlsx">⤓ Excel</a>
           <a class="btn-ghost" href="/suppliers/import">📥 일괄 등록</a>
-          <a class="btn-dark" href="/suppliers/new">＋ 공급사 등록</a>
+          <a class="btn-dark" href="/suppliers/new">＋ 협력사 등록</a>
         </div>
       </div>
 
@@ -129,7 +129,7 @@
       {% set imp = request.query_params.get('imported') %}
       {% if imp and imp != '0' %}
       <div style="padding:11px 24px;background:var(--pq-ok-soft);border-bottom:1px solid var(--pq-ok);color:var(--pq-ok);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span>✅ <b>{{ imp }}건</b> 공급사 신규 등록 완료
+        <span>✅ <b>{{ imp }}건</b> 협력사 신규 등록 완료
           {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
           {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
           {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
@@ -140,12 +140,12 @@
 
       <div class="kpi-strip" data-dn="suppliers:kpi" data-dn-tone="green">
         <div class="kpi-cell">
-          <div class="l">전체 공급사</div>
+          <div class="l">전체 협력사</div>
           <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">사</span></div>
           <div class="sub">필터 미적용</div>
         </div>
         <div class="kpi-cell">
-          <div class="l">활성 공급사</div>
+          <div class="l">활성 협력사</div>
           <div class="v">{{ '{:,}'.format(active_cnt) }}<span class="u">사</span></div>
           <div class="sub">사용중 거래처</div>
         </div>
@@ -202,8 +202,8 @@
         {% else %}
         <div class="sp-empty" data-dn="suppliers:empty">
           <div class="ico">🏢</div>
-          <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 공급사가 없습니다{% endif %}</div>
-          <div class="cta"><a href="/suppliers/new">＋ 공급사 등록</a></div>
+          <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 협력사가 없습니다{% endif %}</div>
+          <div class="cta"><a href="/suppliers/new">＋ 협력사 등록</a></div>
         </div>
         {% endif %}
       </div>

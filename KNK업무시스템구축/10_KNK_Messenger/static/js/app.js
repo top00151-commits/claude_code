@@ -146,6 +146,7 @@
     uiPhone: $("uiPhone"),
     uiCeoFields: $("uiCeoFields"),
     uiDisplayName: $("uiDisplayName"),
+    uiRoleCeo: $("uiRoleCeo"),
     uiActive: $("uiActive"),
     uiSaveBtn: $("uiSaveBtn"),
     // 프로젝트 이력
@@ -706,12 +707,20 @@
     // (옛 ack 데이터는 DB 에 남아있지만 UI 에 노출하지 않음)
     const ackHtml = "";
 
-    // 읽음/안읽음 — 내 메시지에만 표시
+    // 읽음/안읽음 — 내 메시지에만 표시.
+    // 귓속말이면 수신자 1명만 카운트 (다른 멤버는 메시지를 보지도 못 함).
     let readBadge = "";
     if (mine && roomReadStatus.members && roomReadStatus.members.length > 1) {
-      const others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+      let others;
+      if (m.whisper_to_user_id) {
+        others = roomReadStatus.members.filter(mb => mb.user_id === m.whisper_to_user_id);
+      } else {
+        others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+      }
       const unreadBy = others.filter(mb => (mb.last_read_message_id || 0) < m.id);
-      if (unreadBy.length > 0) {
+      if (others.length === 0) {
+        // 귓속말인데 수신자 정보 미상 — 표시 안 함
+      } else if (unreadBy.length > 0) {
         const unreadNames = unreadBy.map(mb => mb.display_name).join(", ");
         readBadge = `<span class="read-badge unread" title="${escapeHtml('안 읽음: ' + unreadNames)}">${unreadBy.length}</span>`;
       } else {
@@ -748,11 +757,24 @@
       </button>`;
     }
 
+    // 귓속말 — 메시지 자체에 노란 카드 + 🤫 + 대상자 표시
+    const isWhisper = !!m.whisper_to_user_id;
+    if (isWhisper) cls += " whisper-msg";
+    let whisperHeader = "";
+    if (isWhisper) {
+      const targetName = m.whisper_to_name || `사용자 #${m.whisper_to_user_id}`;
+      const fromTo = mine
+        ? `→ ${escapeHtml(targetName)} 에게만 보임`
+        : `${escapeHtml(m.display_name)} → 나에게만`;
+      whisperHeader = `<div class="whisper-header">🤫 귓속말 · ${fromTo}</div>`;
+    }
+
     return `
-      <li class="${cls}" data-msg-id="${m.id}" data-parent-msg-id="${m.parent_message_id || ""}">
+      <li class="${cls}" data-msg-id="${m.id}" data-parent-msg-id="${m.parent_message_id || ""}" data-uid="${m.user_id || ""}" data-whisper-to="${m.whisper_to_user_id || ""}">
         <div class="avatar" style="background:${m.avatar_color || "#3b82f6"}">${escapeHtml(initial(m.display_name))}</div>
         <div class="body">
-          ${mine ? "" : `<div class="author">${escapeHtml(m.display_name)}</div>`}
+          ${mine ? "" : `<div class="author" data-uid="${m.user_id || ""}" title="우클릭으로 사용자 메뉴">${escapeHtml(m.display_name)}</div>`}
+          ${whisperHeader}
           ${forwardCard}
           ${quoteCard}
           ${bubble}
@@ -1177,6 +1199,43 @@
   }
 
   // ============================================================
+  // 🤫 귓속말 (Whisper) — 대화방 안에서 1명에게만 보이는 메시지
+  // ============================================================
+  let _pendingWhisperUid = null;
+
+  function startWhisperMode(uid, name) {
+    if (!activeRoom) {
+      alert("먼저 대화방을 선택하세요.");
+      return;
+    }
+    _pendingWhisperUid = uid;
+    let bar = document.getElementById("whisperPreviewBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "whisperPreviewBar";
+      bar.className = "whisper-preview-bar";
+      const composerArea = document.getElementById("composerArea");
+      const composer = document.getElementById("composer");
+      if (composerArea && composer) composerArea.insertBefore(bar, composer);
+    }
+    bar.innerHTML = `
+      <div class="whisper-preview-left">
+        <div class="whisper-preview-label">🤫 귓속말 모드 — 이 방에서 ${escapeHtml(name)} 에게만 보임</div>
+        <div class="whisper-preview-body">다른 멤버에게는 표시되지 않습니다.</div>
+      </div>
+      <button type="button" id="whisperCancelBtn" class="quote-cancel-btn" title="귓속말 취소">✕</button>
+    `;
+    document.getElementById("whisperCancelBtn").addEventListener("click", cancelWhisperMode);
+    setTimeout(() => els.msgInput?.focus(), 50);
+  }
+
+  function cancelWhisperMode() {
+    _pendingWhisperUid = null;
+    const bar = document.getElementById("whisperPreviewBar");
+    if (bar) bar.remove();
+  }
+
+  // ============================================================
   // 인용 답장 (Quote Reply) — 본 채널에 답글 + 원본 미니 카드 표시
   // ============================================================
   let _pendingQuoteMid = null;
@@ -1466,6 +1525,46 @@
       });
     });
 
+    // 작성자 이름 우클릭/롱프레스 → 사용자 컨텍스트 메뉴 (귓속말 옵션 포함)
+    els.messages.querySelectorAll(".author[data-uid]").forEach(authorEl => {
+      if (authorEl._userCtxWired) return;
+      authorEl._userCtxWired = true;
+      authorEl.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = parseInt(authorEl.dataset.uid, 10);
+        if (uid) showUserContextMenu(uid, e.clientX, e.clientY);
+      });
+      // 모바일 롱프레스 (0.5초) — 시각 피드백·햅틱·iOS callout 차단
+      let _pt = null, _pxy = { x: 0, y: 0 };
+      authorEl.addEventListener("touchstart", (e) => {
+        e.stopPropagation();   // 메시지 li 의 long-press 핸들러로 버블 안 가게
+        const t = e.touches[0];
+        _pxy = { x: t.clientX, y: t.clientY };
+        authorEl.classList.add("author-pressing");
+        _pt = setTimeout(() => {
+          _pt = null;
+          authorEl.classList.remove("author-pressing");
+          if (navigator.vibrate) try { navigator.vibrate(40); } catch (_) {}
+          const uid = parseInt(authorEl.dataset.uid, 10);
+          if (uid) showUserContextMenu(uid, _pxy.x, _pxy.y);
+        }, 500);
+      }, { passive: true });
+      authorEl.addEventListener("touchmove", (e) => {
+        const t = e.touches[0];
+        if (Math.abs(t.clientX - _pxy.x) > 10 || Math.abs(t.clientY - _pxy.y) > 10) {
+          if (_pt) { clearTimeout(_pt); _pt = null; }
+          authorEl.classList.remove("author-pressing");
+        }
+      }, { passive: true });
+      const _endPress = () => {
+        if (_pt) { clearTimeout(_pt); _pt = null; }
+        authorEl.classList.remove("author-pressing");
+      };
+      authorEl.addEventListener("touchend", _endPress, { passive: true });
+      authorEl.addEventListener("touchcancel", _endPress, { passive: true });
+    });
+
     // 인용 카드 클릭 → 원본 메시지로 스크롤 + 강조
     els.messages.querySelectorAll(".quote-card[data-quote-mid]").forEach(card => {
       if (card._wired) return;
@@ -1494,8 +1593,9 @@
       li._ctxWired = true;
       // 데스크톱: 우클릭
       li.addEventListener("contextmenu", (e) => {
-        // 링크·이미지·input·textarea 위에서는 브라우저 기본 메뉴 우선 (복사 등)
-        if (e.target.closest("a, input, textarea, .it-close, button.rx-chip")) return;
+        // 링크·이미지·input·textarea·작성자 이름 위에서는 메시지 메뉴 스킵
+        // (.author 는 자체 사용자 컨텍스트 메뉴 — 귓속말 등)
+        if (e.target.closest("a, input, textarea, .it-close, button.rx-chip, .author")) return;
         e.preventDefault();
         showMessageContextMenu(li, e.clientX, e.clientY);
       });
@@ -1503,7 +1603,8 @@
       let touchTimer = null;
       let touchStartXY = null;
       li.addEventListener("touchstart", (e) => {
-        if (e.target.closest("a, button, input, textarea")) return;
+        // .author 는 자체 long-press 로 사용자 메뉴 (귓속말·정보 등)
+        if (e.target.closest("a, button, input, textarea, .author")) return;
         const t = e.touches[0];
         touchStartXY = { x: t.clientX, y: t.clientY };
         li.classList.add("long-pressing");
@@ -1735,10 +1836,12 @@
       // 평소 동작 — 빠른 socket 송신 (인용 답장이면 quoted_message_id 포함)
       const payload = { room_id: activeRoom.id, content: text };
       if (_pendingQuoteMid) payload.quoted_message_id = _pendingQuoteMid;
+      if (_pendingWhisperUid) payload.whisper_to_user_id = _pendingWhisperUid;
       socket.emit("send", payload);
       els.msgInput.value = "";
       autoGrowMsgInput();              // 높이 초기화
       cancelQuoteReply();               // 인용 미리보기 영역 제거
+      cancelWhisperMode();              // 귓속말 모드 해제
       els.msgInput.focus();
       return;
     }
@@ -1783,6 +1886,10 @@
   // ---------- file upload (with progress) ----------
   async function uploadFiles(files) {
     if (!activeRoom || !files || !files.length) return;
+    // ★ FileList 류는 live 컬렉션일 수 있어 await 도중 항목이 사라질 수 있다.
+    //   진입 시점에 정적 배열로 한 번 더 동결.
+    const list = Array.from(files);
+    files = list;
 
     // 진행률 표시 영역 — 메시지 영역 위에 떠있는 토스트
     const progBar = document.createElement("div");
@@ -2004,16 +2111,16 @@
       let actions = '';
       if (!isMe) {
         if (isHost) {
-          // 방장: 부방장 토글, 일반 멤버로, 방장 위임, 추방
+          // 방장: 부방장 토글, 일반 멤버로, 방장 위임, 내보내기
           if (m.role === 'sub_host') {
             actions += `<button class="rs-act-btn" data-act="demote" data-uid="${m.id}">⭐→👤 일반 멤버로</button>`;
           } else if (m.role === 'member') {
             actions += `<button class="rs-act-btn" data-act="promote" data-uid="${m.id}">👤→⭐ 부방장 지정</button>`;
           }
           actions += `<button class="rs-act-btn rs-danger" data-act="transfer" data-uid="${m.id}">👑 방장 위임</button>`;
-          actions += `<button class="rs-act-btn rs-danger" data-act="kick" data-uid="${m.id}">🚪 추방</button>`;
+          actions += `<button class="rs-act-btn rs-danger" data-act="kick" data-uid="${m.id}">🚪 내보내기</button>`;
         } else if (isSub && m.role === 'member') {
-          actions += `<button class="rs-act-btn rs-danger" data-act="kick" data-uid="${m.id}">🚪 추방</button>`;
+          actions += `<button class="rs-act-btn rs-danger" data-act="kick" data-uid="${m.id}">🚪 내보내기</button>`;
         }
       }
       return `
@@ -2109,7 +2216,7 @@
               </label>
               <button type="button" id="rsIpSaveBtn" class="primary-btn">초대 권한 저장</button>
             </div>
-            <div class="rs-hint">⚠ 추방 권한은 항상 방장·부방장만 가능 (이 설정과 무관).</div>
+            <div class="rs-hint">⚠ 내보내기 권한은 항상 방장·부방장만 가능 (이 설정과 무관).</div>
           `;
           document.getElementById('rsIpSaveBtn').onclick = async () => {
             const picked = document.querySelector('input[name="rsIp"]:checked')?.value || 'all';
@@ -2165,7 +2272,7 @@
           if (!confirm(`[${member.display_name}] 님에게 방장을 위임합니다. 본인은 일반 멤버가 됩니다. 진행할까요?`)) return;
           await api.transferHost(room.id, uid);
         } else if (act === 'kick') {
-          if (!confirm(`[${member.display_name}] 님을 방에서 추방할까요?`)) return;
+          if (!confirm(`[${member.display_name}] 님을 방에서 내보낼까요?`)) return;
           await api.kickMember(room.id, uid);
         }
         await openRoomSettings(room.id);
@@ -2654,8 +2761,9 @@
       dragCounter = 0;
       overlay.style.display = "none";
       if (!activeRoom) return;
-      const files = e.dataTransfer.files;
-      if (files && files.length) uploadFiles(files);
+      // dataTransfer.files 도 FileList → 정적 배열로 복사 후 넘긴다.
+      const files = Array.from(e.dataTransfer.files || []);
+      if (files.length) uploadFiles(files);
     });
 
     // paste image from clipboard
@@ -2767,22 +2875,31 @@
       // 메모리 상태만 빠르게 업데이트 (API 재호출 없이)
       const m = roomReadStatus.members.find(x => x.user_id === e.user_id);
       if (m) m.last_read_message_id = e.last_read;
-      // 내 메시지의 read-badge만 다시 그리기
+      // 내 메시지의 read-badge만 다시 그리기 — 귓속말은 수신자 1명만 기준
       els.messages.querySelectorAll(".msg.mine").forEach(li => {
         const mid = parseInt(li.dataset.msgId, 10);
         const badge = li.querySelector(".read-badge");
-        const others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+        if (!badge) return;
+        const whisperTo = parseInt(li.dataset.whisperTo, 10);
+        let others;
+        if (whisperTo) {
+          others = roomReadStatus.members.filter(mb => mb.user_id === whisperTo);
+        } else {
+          others = roomReadStatus.members.filter(mb => mb.user_id !== meId);
+        }
         const unreadBy = others.filter(mb => (mb.last_read_message_id || 0) < mid);
-        if (badge) {
-          if (unreadBy.length === 0) {
-            badge.className = "read-badge all-read";
-            badge.textContent = "읽음";
-            badge.title = "모두 읽음";
-          } else {
-            badge.className = "read-badge unread";
-            badge.textContent = unreadBy.length;
-            badge.title = "안 읽음: " + unreadBy.map(x => x.display_name).join(", ");
-          }
+        if (others.length === 0) {
+          badge.remove();
+          return;
+        }
+        if (unreadBy.length === 0) {
+          badge.className = "read-badge all-read";
+          badge.textContent = "읽음";
+          badge.title = "모두 읽음";
+        } else {
+          badge.className = "read-badge unread";
+          badge.textContent = unreadBy.length;
+          badge.title = "안 읽음: " + unreadBy.map(x => x.display_name).join(", ");
         }
       });
     });
@@ -3513,8 +3630,12 @@
 
   els.attachBtn.addEventListener("click", () => els.fileInput.click());
   els.fileInput.addEventListener("change", () => {
-    if (els.fileInput.files.length) uploadFiles(els.fileInput.files);
+    // ★ input.files 는 live FileList — input.value="" 직후 비워짐.
+    //   uploadFiles 가 async 라 await 중에 두번째 파일을 잃지 않도록
+    //   먼저 정적 배열로 복사한 뒤 input.value 를 초기화한다.
+    const picked = Array.from(els.fileInput.files);
     els.fileInput.value = "";
+    if (picked.length) uploadFiles(picked);
   });
 
   if (els.exportBtn) {
@@ -3921,7 +4042,7 @@
       if (els.searchResults) els.searchResults.hidden = true;
       if (els.myTasks) els.myTasks.hidden = true;
       if (els.userList) els.userList.hidden = false;
-      // 툴바 + 대표만 직원 등록 버튼
+      // 툴바 + 관리자만 직원 등록 버튼
       if (els.userListToolbar) els.userListToolbar.hidden = false;
       const meRow = _usersCache.find(x => x.id === meId);
       const isCeo = meRow && meRow.role === "ceo";
@@ -3941,7 +4062,9 @@
 
   async function refreshUserList() {
     try {
-      _usersCache = await fetch(`${BASE}/api/users`).then(r => r.json());
+      const all = await fetch(`${BASE}/api/users`).then(r => r.json());
+      // '_deleted_user' 플레이스홀더는 디렉터리에서 숨김 (메시지 작성자 표시용으로만 존재)
+      _usersCache = (Array.isArray(all) ? all : []).filter(u => u.username !== "_deleted_user");
       if (_sidebarTab === "users") renderUserList();
     } catch (e) { /* noop */ }
   }
@@ -3976,7 +4099,8 @@
         const statusLabel = statusInfo ? (statusInfo.label || statusInfo.status) : "";
         const customText = statusInfo && statusInfo.custom_text ? ` · ${escapeHtml(statusInfo.custom_text)}` : "";
         const title = u.title ? `<span class="user-title-chip">${escapeHtml(u.title)}</span>` : "";
-        const ceoBadge = u.role === "ceo" ? `<span class="user-ceo-badge">대표</span>` : "";
+        // 관리자 뱃지 — 본인이 자기 자신을 볼 때만 표시 (다른 사람에겐 권한 정보 비공개)
+        const ceoBadge = (u.role === "ceo" && isMe) ? `<span class="user-ceo-badge">관리자</span>` : "";
         const inactiveLabel = inactive ? `<span class="user-inactive">비활성</span>` : "";
         return `
           <div class="user-card ${inactive ? 'user-inactive-row' : ''}" data-uid="${u.id}" ${inactive ? 'data-inactive="1"' : ''}>
@@ -4083,7 +4207,7 @@
       <div class="ucm-card">
         <div class="ucm-avatar" style="background:${u.avatar_color || '#3b82f6'}">${escapeHtml(initial(u.display_name || '?'))}<span class="ucm-status-dot" style="background:${dotColor};"></span></div>
         <div class="ucm-body">
-          <div class="ucm-name">${escapeHtml(u.display_name || '')}${isSelf ? ' <span class="ucm-me">(나)</span>' : ''}${u.role === 'ceo' ? ' <span class="ucm-ceo">👑 대표</span>' : ''}${!u.active ? ' <span class="ucm-inactive">⚠ 비활성</span>' : ''}</div>
+          <div class="ucm-name">${escapeHtml(u.display_name || '')}${isSelf ? ' <span class="ucm-me">(나)</span>' : ''}${(u.role === 'ceo' && isSelf) ? ' <span class="ucm-ceo">👑 관리자</span>' : ''}${!u.active ? ' <span class="ucm-inactive">⚠ 비활성</span>' : ''}</div>
           <div class="ucm-row"><span class="ucm-label">직급</span><span class="ucm-value">${escapeHtml(u.title || '(미설정)')}</span></div>
           <div class="ucm-row"><span class="ucm-label">부서</span><span class="ucm-value">${escapeHtml(u.department || '(미설정)')}</span></div>
           <div class="ucm-row"><span class="ucm-label">이메일</span><span class="ucm-value">${u.email ? `<a href="mailto:${escapeHtml(u.email)}" class="ucm-link" title="이메일 보내기">${escapeHtml(u.email)}</a>` : '<span class="ucm-unset">(미설정)</span>'}</span></div>
@@ -4095,6 +4219,7 @@
       </div>
       <div class="mcm-divider"></div>
       ${!isSelf && u.active ? `<button type="button" class="mcm-item" data-act="dm"><span class="mcm-icon">💬</span><span>1:1 채팅</span></button>` : ''}
+      ${!isSelf && u.active && activeRoom && activeRoom.type !== 'direct' && activeRoom.type !== 'self' ? `<button type="button" class="mcm-item" data-act="whisper"><span class="mcm-icon">🤫</span><span>귓속말 — 둘만 보이는 메시지</span></button>` : ''}
       ${u.email ? `<button type="button" class="mcm-item" data-act="email"><span class="mcm-icon">📧</span><span>이메일 보내기</span></button>` : ''}
       ${u.phone ? `<button type="button" class="mcm-item" data-act="phone"><span class="mcm-icon">📞</span><span>전화 걸기</span></button>` : ''}
       ${u.phone ? `<button type="button" class="mcm-item" data-act="copy_phone"><span class="mcm-icon">📋</span><span>전화번호 복사</span></button>` : ''}
@@ -4125,6 +4250,8 @@
           openUserInfoDialog(uid);
         } else if (act === "change_password") {
           openChangePasswordDialog();
+        } else if (act === "whisper") {
+          startWhisperMode(uid, u.display_name);
         } else if (act === "email" && u.email) {
           window.location.href = "mailto:" + u.email;
         } else if (act === "phone" && u.phone) {
@@ -4177,12 +4304,11 @@
     const isCeo = me && me.role === "ceo";
     const isSelf = uid === meId;
     if (!isCeo && !isSelf) {
-      // 다른 사람 정보 — 읽기 전용 미리보기
+      // 다른 사람 정보 — 읽기 전용 미리보기. 권한(role) 은 노출 안 함.
       const lines = [
         `이름: ${u.display_name}`,
         `직급: ${u.title || '(미설정)'}`,
         `부서: ${u.department || '(미설정)'}`,
-        u.role === "ceo" ? "역할: 👑 대표이사" : "역할: 일반",
         u.active ? "" : "⚠ 비활성 계정 (퇴사 등)",
       ].filter(Boolean);
       alert(lines.join("\n"));
@@ -4191,7 +4317,7 @@
     // 다이얼로그 채우기
     if (els.uiName) els.uiName.textContent = u.display_name + (isSelf ? " (내 정보)" : "");
     if (els.uiHint) els.uiHint.textContent = isCeo && !isSelf
-      ? "대표 권한으로 다른 사용자 정보를 변경합니다."
+      ? "관리자 권한으로 다른 사용자 정보를 변경합니다."
       : "본인 정보를 변경합니다.";
     if (els.uiTitle) els.uiTitle.value = u.title || "";
     // 부서 — select 옵션에 있으면 select 사용, 없으면 기타 + 직접 입력
@@ -4216,11 +4342,51 @@
     // 이메일·전화번호 채우기
     if (els.uiEmail) els.uiEmail.value = u.email || "";
     if (els.uiPhone) els.uiPhone.value = u.phone || "";
+    // 본인 정보일 때만 비밀번호 변경 버튼 노출
+    const pwBtn = document.getElementById("uiChangePwBtn");
+    if (pwBtn) {
+      pwBtn.hidden = !isSelf;
+      pwBtn.onclick = () => {
+        try { els.userInfoDialog.close(); } catch (_) {}
+        openChangePasswordDialog();
+      };
+    }
     // CEO 전용 필드
     if (els.uiCeoFields) {
       els.uiCeoFields.style.display = isCeo ? "" : "none";
       if (isCeo && els.uiDisplayName) els.uiDisplayName.value = u.display_name || "";
+      if (isCeo && els.uiRoleCeo) els.uiRoleCeo.checked = u.role === "ceo";
       if (isCeo && els.uiActive) els.uiActive.checked = !!u.active;
+      // 🗑 삭제 버튼 — 본인 또는 id=1 은 노출 안 함 (서버도 차단하지만 UI 에서 명확)
+      const delBtn = document.getElementById("uiDeleteBtn");
+      if (delBtn) {
+        const canDelete = isCeo && !isSelf && uid !== 1;
+        delBtn.style.display = canDelete ? "" : "none";
+        delBtn.onclick = async () => {
+          const confirmMsg = `🗑 계정 완전 삭제\n\n사용자: ${u.display_name}\nID: ${u.username || u.email || '?'}\n\n이 작업은 되돌릴 수 없습니다.\n메시지·이력은 "(삭제된 사용자)" 로 표시됩니다.\n\n정말 삭제하시겠습니까?`;
+          if (!confirm(confirmMsg)) return;
+          // 2차 확인 — 이름 직접 입력
+          const typed = prompt(`확실하게 진행하려면 사용자 이름을 정확히 입력하세요:\n\n[${u.display_name}]`);
+          if (typed !== u.display_name) {
+            if (typed !== null) alert("이름이 일치하지 않습니다. 삭제 취소.");
+            return;
+          }
+          delBtn.disabled = true;
+          delBtn.textContent = "삭제 중…";
+          try {
+            const res = await fetch(`${BASE}/api/users/${uid}`, { method: "DELETE" }).then(r => r.json());
+            if (res.error) { alert("❌ " + res.error); return; }
+            alert(`✅ ${res.display_name} 님의 계정이 삭제되었습니다.`);
+            try { els.userInfoDialog.close(); } catch (_) {}
+            await refreshUserList();
+          } catch (e) {
+            alert("❌ 네트워크 오류: " + (e.message || e));
+          } finally {
+            delBtn.disabled = false;
+            delBtn.textContent = "🗑 이 계정 완전 삭제";
+          }
+        };
+      }
     }
     // 저장
     els.uiSaveBtn.onclick = async () => {
@@ -4236,6 +4402,13 @@
         const newName = els.uiDisplayName?.value?.trim();
         if (newName) payload.display_name = newName;
         payload.active = els.uiActive?.checked ? 1 : 0;
+        payload.role = els.uiRoleCeo?.checked ? "ceo" : "staff";
+        // 본인을 강등하려는 경우 한 번 더 확인
+        if (uid === meId && payload.role === "staff" && u.role === "ceo") {
+          if (!confirm("⚠ 본인의 관리자 권한을 해제하시겠습니까?\n\n해제하면 직원 등록·다른 사용자 정보 수정 등 관리 기능이 차단됩니다. 진행할까요?")) {
+            return;
+          }
+        }
       }
       const res = await fetch(`${BASE}/api/users/${uid}`, {
         method: "PATCH",
@@ -4258,7 +4431,7 @@
     });
   }
 
-  // ─── ➕ 직원 등록 (대표 전용) ───
+  // ─── ➕ 직원 등록 (관리자 전용) ───
   if (els.newUserBtn && els.newUserDialog) {
     els.newUserBtn.addEventListener("click", () => {
       // 폼 초기화
@@ -4266,8 +4439,109 @@
       if (els.nuDept) els.nuDept.value = "";
       if (els.nuRoleCeo) els.nuRoleCeo.checked = false;
       if (els.nuResult) els.nuResult.textContent = "";
+      // 일괄 탭 초기화
+      const bulkResult = document.getElementById("nuBulkResult");
+      if (bulkResult) bulkResult.innerHTML = "";
+      const bulkFile = document.getElementById("nuBulkFile");
+      if (bulkFile) bulkFile.value = "";
+      // 기본 탭: 1명 등록
+      _setNuTab("single");
       try { els.newUserDialog.showModal(); } catch (_) {}
     });
+    // 탭 토글
+    function _setNuTab(tab) {
+      document.querySelectorAll(".nu-tab").forEach(b => {
+        b.classList.toggle("active", b.dataset.nuTab === tab);
+      });
+      const single = document.getElementById("nuPaneSingle");
+      const bulk = document.getElementById("nuPaneBulk");
+      if (single) single.hidden = (tab !== "single");
+      if (bulk) bulk.hidden = (tab !== "bulk");
+    }
+    document.querySelectorAll(".nu-tab").forEach(b => {
+      b.addEventListener("click", () => _setNuTab(b.dataset.nuTab));
+    });
+    // 양식 다운로드
+    const tplBtn = document.getElementById("nuTplDownloadBtn");
+    if (tplBtn) {
+      tplBtn.addEventListener("click", () => {
+        // 새 탭 안 열고 다운로드 트리거
+        const a = document.createElement("a");
+        a.href = `${BASE}/api/users/bulk/template`;
+        a.download = "KNK_직원등록_양식.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+    // 엑셀 업로드 + 일괄 등록
+    const upBtn = document.getElementById("nuBulkUploadBtn");
+    if (upBtn) {
+      upBtn.addEventListener("click", async () => {
+        const fInput = document.getElementById("nuBulkFile");
+        const resultBox = document.getElementById("nuBulkResult");
+        if (!fInput || !fInput.files || !fInput.files[0]) {
+          alert("엑셀 파일을 선택하세요.");
+          return;
+        }
+        const file = fInput.files[0];
+        if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xlsm")) {
+          alert("엑셀(.xlsx) 파일만 업로드 가능합니다.");
+          return;
+        }
+        const fd = new FormData();
+        fd.append("file", file);
+        upBtn.disabled = true;
+        const prevText = upBtn.textContent;
+        upBtn.textContent = "업로드 중…";
+        if (resultBox) resultBox.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-soft);">📤 처리 중…</div>`;
+        try {
+          const res = await fetch(`${BASE}/api/users/bulk`, { method: "POST", body: fd }).then(r => r.json());
+          if (res.error) {
+            if (resultBox) resultBox.innerHTML = `<div style="padding:12px;color:#dc2626;">❌ ${escapeHtml(res.error)}</div>`;
+            return;
+          }
+          // 결과 렌더
+          let html = `
+            <div style="background:#ECFDF5;border:1px solid #10B981;border-radius:8px;padding:12px;margin-bottom:8px;">
+              <div style="font-weight:700;color:#065F46;font-size:14px;">
+                ✅ 일괄 등록 완료 — 성공 ${res.created_count}건 · 스킵 ${res.skipped_count}건 · 오류 ${res.error_count}건
+              </div>
+            </div>`;
+          if (res.created && res.created.length) {
+            html += `<details style="margin-bottom:6px;"><summary style="cursor:pointer;font-weight:600;color:#065F46;font-size:12.5px;">✅ 신규 등록 ${res.created.length}건 (펼쳐서 확인)</summary>`;
+            html += `<div style="max-height:200px;overflow-y:auto;font-size:11.5px;padding:6px;border:1px solid #D1FAE5;border-radius:6px;margin-top:4px;">`;
+            res.created.forEach(c => {
+              html += `<div style="padding:2px 0;"><b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.email)} · 초기PW: <code>${escapeHtml(c.phone_initial_pw)}</code></div>`;
+            });
+            html += `</div></details>`;
+          }
+          if (res.skipped && res.skipped.length) {
+            html += `<details style="margin-bottom:6px;"><summary style="cursor:pointer;font-weight:600;color:#92400E;font-size:12.5px;">⏭ 스킵 ${res.skipped.length}건 (이미 등록·예시 행)</summary>`;
+            html += `<div style="max-height:160px;overflow-y:auto;font-size:11.5px;padding:6px;border:1px solid #FDE68A;border-radius:6px;margin-top:4px;">`;
+            res.skipped.forEach(s => {
+              html += `<div style="padding:2px 0;">행 ${s.row}: <b>${escapeHtml(s.name)}</b> — ${escapeHtml(s.reason)}</div>`;
+            });
+            html += `</div></details>`;
+          }
+          if (res.errors && res.errors.length) {
+            html += `<details open style="margin-bottom:6px;"><summary style="cursor:pointer;font-weight:600;color:#991B1B;font-size:12.5px;">❌ 오류 ${res.errors.length}건 (수정 후 재업로드 필요)</summary>`;
+            html += `<div style="max-height:160px;overflow-y:auto;font-size:11.5px;padding:6px;border:1px solid #FCA5A5;border-radius:6px;margin-top:4px;">`;
+            res.errors.forEach(e => {
+              html += `<div style="padding:2px 0;">행 ${e.row}: <b>${escapeHtml(e.name)}</b> — ${escapeHtml(e.error)}</div>`;
+            });
+            html += `</div></details>`;
+          }
+          if (resultBox) resultBox.innerHTML = html;
+          await refreshUserList();
+        } catch (e) {
+          if (resultBox) resultBox.innerHTML = `<div style="padding:12px;color:#dc2626;">❌ 네트워크 오류: ${escapeHtml(String(e))}</div>`;
+        } finally {
+          upBtn.disabled = false;
+          upBtn.textContent = prevText;
+        }
+      });
+    }
     if (els.nuSaveBtn) {
       els.nuSaveBtn.addEventListener("click", async () => {
         const display_name = els.nuDisplayName?.value?.trim();
@@ -4398,6 +4672,11 @@
       const idx = _usersCache.findIndex(x => x.id === u.id);
       if (idx >= 0) _usersCache[idx] = u;
       else _usersCache.push(u);
+      if (_sidebarTab === "users") renderUserList();
+    });
+    socket.on("user_deleted", (e) => {
+      const idx = _usersCache.findIndex(x => x.id === e.user_id);
+      if (idx >= 0) _usersCache.splice(idx, 1);
       if (_sidebarTab === "users") renderUserList();
     });
   }
@@ -4703,6 +4982,14 @@
   // 사용자 정보 영역 클릭 → 상태 다이얼로그
   if (els.meInfoArea) {
     els.meInfoArea.addEventListener("click", openStatusDialog);
+  }
+  // 상태 다이얼로그 안의 🔐 비밀번호 변경 버튼
+  const _statusCpwBtn = document.getElementById("statusChangePwBtn");
+  if (_statusCpwBtn) {
+    _statusCpwBtn.addEventListener("click", () => {
+      try { els.statusDialog.close(); } catch (_) {}
+      openChangePasswordDialog();
+    });
   }
 
   // socket: 상태 변경 broadcast 수신

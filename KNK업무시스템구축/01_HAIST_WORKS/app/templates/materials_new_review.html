@@ -143,7 +143,7 @@ details button { grid-column: 1 / -1; padding:8px; }
             <details>
               <summary class="btn-mini btn-quote">💬 견적</summary>
               <form method="post" action="/materials/new-review/{{ it[0] }}/quote">
-                <input type="text" name="quote_supplier_id" placeholder="공급사 ID" />
+                <input type="text" name="quote_supplier_id" placeholder="협력사 ID" />
                 <input type="number" name="quoted_lead_days" placeholder="L/T(일)" />
                 <input type="number" name="quoted_price" step="any" placeholder="견적 단가" />
                 <div class="full"><textarea name="review_note" rows="2" placeholder="견적 메모"></textarea></div>

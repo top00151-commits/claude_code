@@ -657,12 +657,15 @@ def init_db():
         ("forwarded_from_name", "ALTER TABLE messages ADD COLUMN forwarded_from_name TEXT"),
         ("forwarded_from_room_name", "ALTER TABLE messages ADD COLUMN forwarded_from_room_name TEXT"),
         ("forwarded_from_created_at", "ALTER TABLE messages ADD COLUMN forwarded_from_created_at TEXT"),
+        # 귓속말 — 특정 한 사용자에게만 보이는 메시지 (sender + recipient 만). NULL=공개.
+        ("whisper_to_user_id", "ALTER TABLE messages ADD COLUMN whisper_to_user_id INTEGER"),
     ]:
         if col not in existing_msg_cols:
             cur.execute(ddl)
     # 스레드 답글 조회 인덱스
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_message_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_quoted ON messages(quoted_message_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_whisper ON messages(room_id, whisper_to_user_id)")
 
     existing_item_cols = {row["name"] for row in cur.execute("PRAGMA table_info(items)").fetchall()}
     if "keep_forever" not in existing_item_cols:
@@ -969,6 +972,8 @@ def api_me():
 def api_users():
     """전체 사용자 목록 — 사이드바 '👥 사용자' 탭, 멤버 초대, 멘션 자동완성 등에서 공통 사용.
     직급(title)·부서(department) 포함. 비활성(퇴사) 사용자는 active=0 으로 필터링 가능."""
+    me = current_user()
+    me_is_ceo = (me["role"] == "ceo") if me else False
     rows = get_db().execute(
         "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
         "FROM users ORDER BY "
@@ -977,7 +982,15 @@ def api_users():
         " CASE role WHEN 'ceo' THEN 0 ELSE 1 END, "
         " display_name ASC"
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    # 보안: role(권한) 은 본인 자신 또는 관리자만 볼 수 있게.
+    # 다른 일반 사용자에게는 role 필드를 응답에서 제거 (F12 네트워크 탭으로도 못 보게).
+    out = []
+    for r in rows:
+        d = dict(r)
+        if not me_is_ceo and d["id"] != (me["id"] if me else None):
+            d.pop("role", None)
+        out.append(d)
+    return jsonify(out)
 
 
 @app.route("/api/users/<int:user_id>", methods=["PATCH"])
@@ -987,7 +1000,7 @@ def api_user_patch(user_id):
     body: {title?, department?, display_name?, avatar_color?}"""
     me = current_user()
     if me["id"] != user_id and me["role"] != "ceo":
-        return jsonify({"error": "본인 또는 대표만 수정 가능"}), 403
+        return jsonify({"error": "본인 또는 관리자만 수정 가능"}), 403
     data = request.get_json(silent=True) or {}
     fields = {}
     if "title" in data:
@@ -1005,7 +1018,7 @@ def api_user_patch(user_id):
     if "phone" in data:
         v = (data.get("phone") or "").strip()[:30]
         fields["phone"] = v or None
-    # display_name·avatar_color 는 대표만 수정 가능
+    # display_name·avatar_color·role·active 는 관리자만 수정 가능
     if me["role"] == "ceo":
         if "display_name" in data:
             v = (data.get("display_name") or "").strip()[:40]
@@ -1017,6 +1030,17 @@ def api_user_patch(user_id):
                 fields["avatar_color"] = v
         if "active" in data:
             fields["active"] = 1 if data.get("active") else 0
+        if "role" in data:
+            new_role = (data.get("role") or "").strip().lower()
+            if new_role not in ("ceo", "staff"):
+                return jsonify({"error": "role 은 'ceo' 또는 'staff' 만 가능"}), 400
+            # 안전장치: 마지막 관리자가 자기 자신을 강등하려는 경우 차단
+            if user_id == me["id"] and new_role == "staff":
+                db_pre = get_db()
+                ceo_count = db_pre.execute("SELECT COUNT(*) AS n FROM users WHERE role='ceo' AND active=1").fetchone()["n"]
+                if ceo_count <= 1:
+                    return jsonify({"error": "마지막 관리자는 본인을 강등할 수 없습니다. 다른 사람을 먼저 관리자로 임명한 뒤 강등하세요."}), 400
+            fields["role"] = new_role
     if not fields:
         return jsonify({"error": "변경할 필드가 없습니다"}), 400
     db = get_db()
@@ -1079,6 +1103,8 @@ def api_rooms_direct_open(other_user_id):
 def api_rooms():
     me = current_user()
     db = get_db()
+    # 귓속말 필터 — 본인이 송신자/수신자가 아닌 귓속말은 last_message·unread 에서 모두 제외.
+    # 다른 사람 사이드바·푸시·미열람 카운트에 안 보이게 (귓속말은 진짜 둘만 보이게).
     rows = db.execute("""
         SELECT r.id, r.name, r.type, r.created_at, r.name_locked, r.created_by,
                r.retention_days, r.invite_policy,
@@ -1087,12 +1113,20 @@ def api_rooms():
                (SELECT alias FROM room_aliases WHERE room_id=r.id AND user_id=?) AS my_alias,
                it.code AS item_code, it.customer AS item_customer,
                it.status AS item_status, it.due_date AS item_due,
-               (SELECT content FROM messages WHERE room_id = r.id ORDER BY id DESC LIMIT 1) AS last_message,
-               (SELECT created_at FROM messages WHERE room_id = r.id ORDER BY id DESC LIMIT 1) AS last_at,
+               (SELECT content FROM messages
+                  WHERE room_id = r.id
+                    AND (whisper_to_user_id IS NULL OR whisper_to_user_id = ? OR user_id = ?)
+                  ORDER BY id DESC LIMIT 1) AS last_message,
+               (SELECT created_at FROM messages
+                  WHERE room_id = r.id
+                    AND (whisper_to_user_id IS NULL OR whisper_to_user_id = ? OR user_id = ?)
+                  ORDER BY id DESC LIMIT 1) AS last_at,
                (SELECT COUNT(*) FROM messages m
                   WHERE m.room_id = r.id
                     AND m.id > rm.last_read_message_id
-                    AND m.user_id != ?) AS unread
+                    AND m.user_id != ?
+                    AND (m.whisper_to_user_id IS NULL OR m.whisper_to_user_id = ?)
+               ) AS unread
           FROM rooms r
           JOIN room_members rm ON rm.room_id = r.id
           LEFT JOIN items it ON it.room_id = r.id
@@ -1103,7 +1137,13 @@ def api_rooms():
             CASE WHEN rm.order_value IS NOT NULL THEN 0 ELSE 1 END,
             rm.order_value ASC,
             (last_at IS NULL), last_at DESC, r.id DESC
-    """, (me["id"], me["id"], me["id"])).fetchall()
+    """, (
+        me["id"],                       # my_alias
+        me["id"], me["id"],             # last_message whisper filter (whisper_to_user_id=me OR user_id=me)
+        me["id"], me["id"],             # last_at whisper filter
+        me["id"], me["id"],             # unread: user_id != me AND (whisper IS NULL OR whisper=me)
+        me["id"],                       # rm.user_id = me
+    )).fetchall()
 
     out = []
     for r in rows:
@@ -1252,6 +1292,7 @@ def api_room_messages(room_id):
         abort(403)
     # 메인 타임라인은 스레드 부모(parent_message_id IS NULL)만 표시 — Slack 동작.
     # 답글은 /api/messages/<id>/thread 로 별도 조회.
+    # 귓속말 필터: whisper_to_user_id 가 NULL(공개) 이거나 송신자/수신자가 본인일 때만.
     rows = db.execute("""
         SELECT m.id, m.content, m.kind, m.created_at,
                m.file_path, m.file_name, m.file_size, m.file_mime,
@@ -1259,13 +1300,17 @@ def api_room_messages(room_id):
                m.quoted_message_id,
                m.forwarded_from_message_id, m.forwarded_from_user_id,
                m.forwarded_from_name, m.forwarded_from_room_name, m.forwarded_from_created_at,
+               m.whisper_to_user_id,
                u.id AS user_id, u.display_name, u.avatar_color
           FROM messages m
           JOIN users u ON u.id = m.user_id
          WHERE m.room_id = ?
            AND m.parent_message_id IS NULL
+           AND (m.whisper_to_user_id IS NULL
+                OR m.whisper_to_user_id = ?
+                OR m.user_id = ?)
          ORDER BY m.id ASC
-    """, (room_id,)).fetchall()
+    """, (room_id, me["id"], me["id"])).fetchall()
     out = [dict(r) for r in rows]
     if out:
         ids = tuple(r["id"] for r in out)
@@ -1344,6 +1389,21 @@ def api_room_messages(room_id):
              GROUP BY parent_message_id
         """, ids).fetchall()
         thread_map = {t["pid"]: dict(t) for t in thread_rows}
+
+        # 귓속말 수신자 표시명 batch 로드
+        whisper_ids = [r["whisper_to_user_id"] for r in out if r.get("whisper_to_user_id")]
+        whisper_name_map = {}
+        if whisper_ids:
+            wph = ",".join("?" for _ in whisper_ids)
+            wnrows = db.execute(
+                f"SELECT id, display_name FROM users WHERE id IN ({wph})",
+                whisper_ids,
+            ).fetchall()
+            whisper_name_map = {r["id"]: r["display_name"] for r in wnrows}
+        for r in out:
+            wid = r.get("whisper_to_user_id")
+            if wid:
+                r["whisper_to_name"] = whisper_name_map.get(wid)
 
         # 인용 답장 — quoted_message_id 가 가리키는 원본 메시지 batch 로드 (미니 카드용)
         quoted_ids = [r["quoted_message_id"] for r in out if r.get("quoted_message_id")]
@@ -3784,7 +3844,7 @@ def api_admin_cleanup_preview():
 @app.route("/api/users", methods=["POST"])
 @login_required
 def api_users_create():
-    """대표만 — 직원 등록.
+    """관리자만 — 직원 등록.
     표준 정책: username = 회사 이메일, 초기 password = 전화번호 (숫자만), must_change_password=1.
     body: {display_name, email, phone, title?, department?, role?, avatar_color?}
     + 호환: 옛 방식의 {username, password, display_name} 도 허용."""
@@ -3850,6 +3910,76 @@ def api_users_create():
     })
 
 
+def _ensure_deleted_placeholder_user(db):
+    """삭제된 사용자의 메시지·요청을 이전받을 플레이스홀더 사용자.
+    username='_deleted_user', active=0 (로그인 불가). 1회만 생성."""
+    row = db.execute("SELECT id FROM users WHERE username = '_deleted_user'").fetchone()
+    if row:
+        return row["id"]
+    now = datetime.now(timezone.utc).isoformat()
+    cur = db.execute(
+        "INSERT INTO users (username, password_hash, display_name, role, avatar_color, "
+        " created_at, active) VALUES (?,?,?,?,?,?,?)",
+        ("_deleted_user", "", "(삭제된 사용자)", "staff", "#9CA3AF", now, 0),
+    )
+    return cur.lastrowid
+
+
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+@login_required
+def api_user_delete(user_id):
+    """사용자 완전 삭제 (퇴사 등). 관리자(ceo) 만 가능.
+    동작:
+      1. 메시지·요청·방생성 기록을 '(삭제된 사용자)' 플레이스홀더로 이전 (이력 보존)
+      2. 사용자 행 DELETE → CASCADE 로 room_members·push_subscriptions·reactions 자동 정리
+    안전장치:
+      - 본인 삭제 불가
+      - 마지막 관리자 삭제 불가
+      - 초기 대표 계정(id=1) 삭제 불가 (비활성화는 가능)"""
+    me = current_user()
+    if me["role"] != "ceo":
+        return jsonify({"error": "관리자만 삭제 가능"}), 403
+    if user_id == me["id"]:
+        return jsonify({"error": "본인은 삭제할 수 없습니다. 다른 관리자에게 요청하세요."}), 400
+    db = get_db()
+    row = db.execute("SELECT id, display_name, role FROM users WHERE id=?", (user_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "사용자 없음"}), 404
+    # id=1 = 초기 대표 계정 — 절대 삭제 금지 (시드 보호)
+    if user_id == 1:
+        return jsonify({"error": "초기 대표 계정(id=1)은 삭제할 수 없습니다. 비활성화만 가능합니다."}), 400
+    # 플레이스홀더 사용자에게 본인을 삭제하려는 경우 — 차단
+    if row["display_name"] == "(삭제된 사용자)":
+        return jsonify({"error": "시스템 사용자는 삭제할 수 없습니다."}), 400
+    # 마지막 관리자 삭제 차단
+    if row["role"] == "ceo":
+        ceo_count = db.execute("SELECT COUNT(*) AS n FROM users WHERE role='ceo' AND active=1").fetchone()["n"]
+        if ceo_count <= 1:
+            return jsonify({"error": "마지막 관리자는 삭제할 수 없습니다. 다른 관리자를 먼저 임명하세요."}), 400
+    deleted_name = row["display_name"]
+    # 플레이스홀더 사용자 확보
+    placeholder_id = _ensure_deleted_placeholder_user(db)
+    # 메시지·요청·방생성 등 NOT NULL FK 가 있는 것들 → 플레이스홀더로 이전
+    db.execute("UPDATE messages SET user_id = ? WHERE user_id = ?", (placeholder_id, user_id))
+    db.execute("UPDATE messages SET forwarded_from_user_id = ? WHERE forwarded_from_user_id = ?", (placeholder_id, user_id))
+    db.execute("UPDATE rooms SET created_by = ? WHERE created_by = ?", (placeholder_id, user_id))
+    try:
+        db.execute("UPDATE requests SET requested_by = ? WHERE requested_by = ?", (placeholder_id, user_id))
+        db.execute("UPDATE requests SET assigned_to = NULL WHERE assigned_to = ?", (user_id,))
+    except Exception:
+        pass
+    try:
+        db.execute("UPDATE items SET created_by = ? WHERE created_by = ?", (placeholder_id, user_id))
+    except Exception:
+        pass
+    # 사용자 삭제 — CASCADE 로 room_members/push_subscriptions/reactions/acks/stars 등 자동 정리
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+    # 실시간 broadcast — 사용자 목록 즉시 갱신
+    socketio.emit("user_deleted", {"user_id": user_id, "display_name": deleted_name})
+    return jsonify({"ok": True, "deleted_user_id": user_id, "display_name": deleted_name})
+
+
 @app.route("/api/me/password", methods=["PUT"])
 @login_required
 def api_me_password():
@@ -3883,6 +4013,240 @@ def api_me_must_change():
     db = get_db()
     row = db.execute("SELECT must_change_password FROM users WHERE id=?", (me["id"],)).fetchone()
     return jsonify({"must_change": bool(row and row["must_change_password"])})
+
+
+@app.route("/api/users/bulk/template")
+@login_required
+def api_users_bulk_template():
+    """직원 일괄 등록용 엑셀 양식 다운로드. 관리자만."""
+    me = current_user()
+    if me["role"] != "ceo":
+        abort(403)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.worksheet.datavalidation import DataValidation
+    except ImportError:
+        return jsonify({"error": "openpyxl 미설치"}), 500
+    import io
+
+    wb = Workbook()
+    # ─── 시트 1: 입력 ───
+    ws = wb.active
+    ws.title = "직원등록"
+    headers = ["이름 *", "회사 이메일 * (=로그인 ID)", "휴대폰 * (=초기 비밀번호)", "직급", "부서", "권한"]
+    ws.append(headers)
+    # 헤더 스타일
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="A5282C", end_color="A5282C", fill_type="solid")
+    border_thin = Border(
+        left=Side(style='thin', color='D1D5DB'),
+        right=Side(style='thin', color='D1D5DB'),
+        top=Side(style='thin', color='D1D5DB'),
+        bottom=Side(style='thin', color='D1D5DB'),
+    )
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border_thin
+    ws.row_dimensions[1].height = 30
+    # 컬럼 너비
+    widths = [14, 32, 18, 14, 14, 12]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+    # 예시 행 3개
+    examples = [
+        ["홍길동", "hong@knknara.co.kr", "010-1234-5678", "사원", "영업", "일반"],
+        ["이순신", "lee@knknara.co.kr", "010-2345-6789", "과장", "기술", "일반"],
+        ["김영업", "kim.sales@knknara.co.kr", "010-3456-7890", "부장", "기술영업", "관리자"],
+    ]
+    for row in examples:
+        ws.append(row)
+    # 예시 행 색상 강조 (회색 — "예시" 표시)
+    example_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
+    for r in range(2, 5):
+        for c in range(1, 7):
+            cell = ws.cell(row=r, column=c)
+            cell.fill = example_fill
+            cell.font = Font(italic=True, color="9CA3AF")
+            cell.border = border_thin
+    # 빈 행 추가 (사용자가 직접 입력) — 100행
+    for _ in range(100):
+        ws.append(["", "", "", "", "", ""])
+    for r in range(5, 105):
+        for c in range(1, 7):
+            ws.cell(row=r, column=c).border = border_thin
+
+    # 권한 컬럼 (F열) 드롭다운: 관리자 / 일반
+    dv_role = DataValidation(type="list", formula1='"관리자,일반"', allow_blank=True)
+    dv_role.error = "권한은 '관리자' 또는 '일반' 만 가능합니다"
+    dv_role.errorTitle = "잘못된 권한"
+    ws.add_data_validation(dv_role)
+    dv_role.add(f"F2:F105")
+    # 부서 컬럼 (E열) 드롭다운: 미리 정의된 부서들
+    dv_dept = DataValidation(
+        type="list",
+        formula1='"경영지원,영업,기술영업,기술,자재구매,생산,품질,해외"',
+        allow_blank=True,
+    )
+    ws.add_data_validation(dv_dept)
+    dv_dept.add(f"E2:E105")
+
+    # ─── 시트 2: 안내 ───
+    ws2 = wb.create_sheet("안내")
+    notes = [
+        ["KNK 메신저 — 직원 일괄 등록 안내", ""],
+        ["", ""],
+        ["1. 필수 필드 (별표 * 표시)", ""],
+        ["", "이름 / 회사 이메일 / 휴대폰 — 3개는 반드시 입력"],
+        ["", "직급·부서·권한 은 비워둬도 됨 (나중에 본인이 직접 수정 가능)"],
+        ["", ""],
+        ["2. 로그인 ID 와 초기 비밀번호", ""],
+        ["", "회사 이메일 = 로그인 ID (그대로)"],
+        ["", "휴대폰 번호 (숫자만 사용) = 초기 비밀번호"],
+        ["", "예: 010-1234-5678 → 비밀번호 '01012345678'"],
+        ["", ""],
+        ["3. 첫 로그인 동작", ""],
+        ["", "직원이 처음 로그인하면 비밀번호 변경 다이얼로그가 강제로 노출됨"],
+        ["", "본인만 아는 비밀번호로 변경한 후에야 메신저 사용 가능"],
+        ["", ""],
+        ["4. 권한 옵션", ""],
+        ["", "'관리자' — 직원 등록·다른 사람 정보 수정·계정 비활성화·삭제 가능"],
+        ["", "'일반' (또는 빈칸) — 본인 정보만 수정. 평소 사용자"],
+        ["", ""],
+        ["5. 이메일 중복 검사", ""],
+        ["", "이미 등록된 이메일은 자동 스킵됨 (결과 화면에 표시)"],
+        ["", ""],
+        ["6. 양식 작성 팁", ""],
+        ["", "예시 3줄은 자동 무시됩니다 (회색·기울임 표시 행)"],
+        ["", "그 아래 빈 행부터 직접 입력하세요"],
+        ["", "100명 이상 등록 필요 시 여러 번 나눠 업로드"],
+    ]
+    for r, (a, b) in enumerate(notes, start=1):
+        ws2.cell(row=r, column=1, value=a)
+        ws2.cell(row=r, column=2, value=b)
+    ws2.column_dimensions['A'].width = 28
+    ws2.column_dimensions['B'].width = 80
+    # 1행 제목 굵게
+    ws2.cell(row=1, column=1).font = Font(bold=True, size=14, color="A5282C")
+
+    # 다운로드
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from flask import send_file
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name="KNK_직원등록_양식.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.route("/api/users/bulk", methods=["POST"])
+@login_required
+def api_users_bulk():
+    """엑셀 일괄 등록. 관리자만. multipart/form-data 의 'file' 필드에 .xlsx.
+    결과: {created: [...], skipped: [{row, name, reason}], errors: [{row, name, error}]}"""
+    me = current_user()
+    if me["role"] != "ceo":
+        return jsonify({"error": "관리자만 일괄 등록 가능"}), 403
+    if "file" not in request.files:
+        return jsonify({"error": "file 필드에 엑셀 첨부 필요"}), 400
+    f = request.files["file"]
+    if not f.filename or not f.filename.lower().endswith((".xlsx", ".xlsm")):
+        return jsonify({"error": "엑셀 파일(.xlsx) 만 업로드 가능"}), 400
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return jsonify({"error": "openpyxl 미설치"}), 500
+    try:
+        wb = load_workbook(f, read_only=True, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return jsonify({"error": f"엑셀 파일 열기 실패: {e}"}), 400
+
+    EXAMPLE_EMAILS = {"hong@knknara.co.kr", "lee@knknara.co.kr", "kim.sales@knknara.co.kr"}
+    EXAMPLE_NAMES = {"홍길동", "이순신", "김영업"}
+
+    created = []
+    skipped = []
+    errors = []
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+
+    # 헤더 한 줄 스킵 (row=1). row=2 부터 데이터.
+    for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
+            continue  # 빈 행 스킵
+        # 6컬럼: 이름·이메일·전화·직급·부서·권한
+        name = (str(row[0]) if row[0] is not None else "").strip()
+        email = (str(row[1]) if row[1] is not None else "").strip().lower()
+        phone = (str(row[2]) if row[2] is not None else "").strip()
+        title = (str(row[3]) if len(row) > 3 and row[3] is not None else "").strip()
+        department = (str(row[4]) if len(row) > 4 and row[4] is not None else "").strip()
+        role_raw = (str(row[5]) if len(row) > 5 and row[5] is not None else "").strip()
+        # 예시 행 자동 스킵
+        if email in EXAMPLE_EMAILS or name in EXAMPLE_NAMES:
+            skipped.append({"row": row_idx, "name": name, "reason": "예시 행 (자동 스킵)"})
+            continue
+        # 권한 변환
+        role = "ceo" if role_raw == "관리자" else "staff"
+        # 검증
+        if not name:
+            errors.append({"row": row_idx, "name": "(이름 없음)", "error": "이름 누락"})
+            continue
+        if not email or "@" not in email:
+            errors.append({"row": row_idx, "name": name, "error": "이메일 형식 오류 (@ 누락)"})
+            continue
+        if not phone:
+            errors.append({"row": row_idx, "name": name, "error": "휴대폰 번호 누락"})
+            continue
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if len(digits) < 9:
+            errors.append({"row": row_idx, "name": name, "error": f"전화번호 자릿수 부족 ({digits})"})
+            continue
+        # 중복 검사
+        if db.execute("SELECT 1 FROM users WHERE username=?", (email,)).fetchone():
+            skipped.append({"row": row_idx, "name": name, "reason": f"이미 등록됨 ({email})"})
+            continue
+        # 등록
+        try:
+            db.execute(
+                "INSERT INTO users (username, password_hash, display_name, role, avatar_color, "
+                " created_at, email, phone, title, department, must_change_password) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    email,
+                    generate_password_hash(digits),
+                    name, role, "#3b82f6",
+                    now, email, phone,
+                    title or None, department or None, 1,
+                ),
+            )
+            created.append({"row": row_idx, "name": name, "email": email, "phone_initial_pw": digits})
+        except Exception as e:
+            errors.append({"row": row_idx, "name": name, "error": f"DB 오류: {e}"})
+    db.commit()
+    # broadcast — 새로 등록된 사용자 목록 갱신
+    if created:
+        rows = db.execute(
+            "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
+            "FROM users WHERE username IN ({})".format(",".join("?" for _ in created)),
+            [c["email"] for c in created],
+        ).fetchall()
+        for r in rows:
+            socketio.emit("user_info_changed", dict(r))
+    return jsonify({
+        "created_count": len(created),
+        "skipped_count": len(skipped),
+        "error_count": len(errors),
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+    })
 
 
 def _parse_search_filters(q):
@@ -4901,12 +5265,12 @@ def api_room_invite(room_id):
 @app.route("/api/rooms/<int:room_id>/members/<int:user_id>/kick", methods=["POST"])
 @login_required
 def api_room_kick(room_id, user_id):
-    """멤버 추방. host 는 모든 멤버. sub_host 는 일반 member 만."""
+    """멤버 내보내기. host 는 모든 멤버. sub_host 는 일반 member 만."""
     me = current_user()
     db = get_db()
     my_role = _my_room_role(db, room_id, me["id"])
     if my_role not in ('host', 'sub_host'):
-        return jsonify({"error": "방장·부방장만 추방 가능"}), 403
+        return jsonify({"error": "방장·부방장만 내보낼 수 있습니다"}), 403
     if user_id == me["id"]:
         return jsonify({"error": "본인은 /leave 로 나가기"}), 400
     target = db.execute("SELECT u.display_name, rm.role FROM room_members rm "
@@ -4916,11 +5280,11 @@ def api_room_kick(room_id, user_id):
     if not target:
         return jsonify({"error": "멤버가 아님"}), 404
     if my_role == 'sub_host' and target["role"] in ('host', 'sub_host'):
-        return jsonify({"error": "부방장은 방장·부방장 추방 불가"}), 403
+        return jsonify({"error": "부방장은 방장·부방장을 내보낼 수 없습니다"}), 403
     db.execute("DELETE FROM room_members WHERE room_id=? AND user_id=?", (room_id, user_id))
     db.commit()
     now = datetime.now(timezone.utc).isoformat()
-    sys_text = f"[{target['display_name']}] 님이 추방됨 (by {me['display_name']})"
+    sys_text = f"[{target['display_name']}] 님이 방에서 나갔습니다 (by {me['display_name']})"
     cur = db.execute(
         "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
         (room_id, me["id"], sys_text, "system", now),
@@ -5066,6 +5430,14 @@ def on_send(data):
         quoted_id = int(quoted_id) if quoted_id else None
     except (ValueError, TypeError):
         quoted_id = None
+    # 귓속말 — whisper_to_user_id (선택). 송신자·수신자만 보이는 메시지.
+    whisper_to = data.get("whisper_to_user_id")
+    try:
+        whisper_to = int(whisper_to) if whisper_to else None
+    except (ValueError, TypeError):
+        whisper_to = None
+    if whisper_to == uid:
+        whisper_to = None   # 자기 자신에게 귓속말은 의미 없음
 
     with app.app_context():
         db = get_db()
@@ -5081,10 +5453,24 @@ def on_send(data):
             ).fetchone()
             if not qrow or qrow["room_id"] != room_id:
                 quoted_id = None
+        # 귓속말 대상이 같은 방 멤버인지 확인
+        whisper_to_name = None
+        if whisper_to:
+            wrow = db.execute(
+                "SELECT u.display_name FROM users u "
+                " JOIN room_members rm ON rm.user_id=u.id "
+                " WHERE u.id=? AND rm.room_id=?",
+                (whisper_to, room_id),
+            ).fetchone()
+            if not wrow:
+                whisper_to = None  # 같은 방이 아니면 귓속말 불가
+            else:
+                whisper_to_name = wrow["display_name"]
         now = datetime.now(timezone.utc).isoformat()
         cur = db.execute(
-            "INSERT INTO messages (room_id, user_id, content, kind, created_at, quoted_message_id) VALUES (?,?,?,?,?,?)",
-            (room_id, uid, content, "text", now, quoted_id),
+            "INSERT INTO messages (room_id, user_id, content, kind, created_at, quoted_message_id, whisper_to_user_id) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (room_id, uid, content, "text", now, quoted_id, whisper_to),
         )
         mid = cur.lastrowid
         db.commit()
@@ -5116,9 +5502,41 @@ def on_send(data):
     if quoted_id:
         payload["quoted_message_id"] = quoted_id
         payload["quoted"] = quoted_meta
-    socketio.emit("new_message", payload, to=f"room_{room_id}")
+    if whisper_to:
+        payload["whisper_to_user_id"] = whisper_to
+        payload["whisper_to_name"] = whisper_to_name
+    # 귓속말은 방 전체 broadcast 안 함 — 송신자·수신자 SID 에만 개별 emit
+    if whisper_to:
+        target_sids = set()
+        with _user_conn_lock:
+            for u_to_check in (uid, whisper_to):
+                for sid, info in (_user_connections.get(u_to_check, {})).items():
+                    target_sids.add(sid)
+        for sid in target_sids:
+            try:
+                socketio.emit("new_message", payload, to=sid)
+            except Exception as _e:
+                pass
+    else:
+        socketio.emit("new_message", payload, to=f"room_{room_id}")
 
     # Web Push — 백그라운드 알림 (송신자 제외 모든 방 멤버)
+    # 귓속말이면 푸시도 수신자 1명에게만 (송신자·다른 멤버 제외).
+    if PYWEBPUSH_OK and whisper_to:
+        # 귓속말 푸시
+        with app.app_context():
+            db3 = get_db()
+            r3 = db3.execute("SELECT name FROM rooms WHERE id=?", (room_id,)).fetchone()
+            room_name = r3["name"] if r3 else "채팅"
+        if not _user_has_active_pc(whisper_to):
+            import threading as _t
+            _t.Thread(
+                target=send_push_to_user,
+                args=(whisper_to, f"🤫 {u['display_name']} 귓속말 ({room_name})", content[:120]),
+                kwargs={"url": f"{BASE_PATH}/chat?room={room_id}", "tag": f"whisper_{room_id}_{uid}"},
+                daemon=True,
+            ).start()
+        return  # 일반 푸시 흐름 스킵
     if PYWEBPUSH_OK:
         # 방 이름 조회 + 메시지에 멘션 있는지 검사
         with app.app_context():

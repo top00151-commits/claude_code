@@ -38,14 +38,14 @@
     <div class="field"><label>유형</label><select name="price_type">{% for t in PRICE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
     <div class="field"><label>단가 *</label><input type="number" name="unit_price" step="0.01" min="0" required></div>
     <div class="field"><label>통화</label><select name="currency">{% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-    <div class="field"><label>공급사</label><select name="supplier_id"><option value="">—</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>협력사</label><select name="supplier_id"><option value="">—</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
     <button class="btn btn-primary" type="submit">＋ 등록</button>
   </form>
 
   <div class="tbl-wrap tbl-sticky">
     {% if prices %}
     <table class="tbl">
-      <thead><tr><th>적용일</th><th class="center">유형</th><th>공급사</th><th class="center">통화</th><th class="num">단가</th><th class="center">활성</th></tr></thead>
+      <thead><tr><th>적용일</th><th class="center">유형</th><th>협력사</th><th class="center">통화</th><th class="num">단가</th><th class="center">활성</th></tr></thead>
       <tbody>
       {% for p in prices %}
         <tr>

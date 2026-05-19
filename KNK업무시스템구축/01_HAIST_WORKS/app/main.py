@@ -682,8 +682,8 @@ VICTOR_CONTEXT_CHIPS = {
     "/admin":       ["사용자 추가", "권한 변경", "Excel 내보내기"],
     "/sales":       ["이번달 수주", "고객사 Top 5", "영업 단계별"],
     "/logistics":   ["안전재고 미달", "미입고 발주", "재고 금액"],
-    "/parts":       ["부품 검색", "FIFO 원가", "공급사 단가"],
-    "/po":          ["발주 등록", "미입고 발주", "공급사 리드타임"],
+    "/parts":       ["부품 검색", "FIFO 원가", "협력사 단가"],
+    "/po":          ["발주 등록", "미입고 발주", "협력사 리드타임"],
     "/stock/movements": ["최근 출고", "재고 실사", "수불부"],
     "/rates":       ["오늘 환율", "최근 갱신", "통화별 추세"],
     "/board/company": ["긴급 공지", "내 관련 글", "새 글쓰기"],
@@ -876,6 +876,16 @@ def require(req: Request, roles=None):
     if roles and u["role"] not in roles:
         return None
     return u
+
+
+# v5H226z108n13 (2026-05-18): workflow_builder 라우트 등록
+#   누락돼 있어 /workflow, /workflow/team, /workflow/wizard 등이 404 반환되던 문제 수정.
+try:
+    from . import workflow_builder as _wfb
+    _wfb.register_workflow_routes(app, tpl, ctx, get_user, db_session)
+    print("[ROUTES] workflow_builder routes registered")
+except Exception as _e:
+    print(f"[ROUTES] workflow_builder registration FAILED: {_e}")
 
 
 def role_home(user) -> str:
@@ -6081,7 +6091,7 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
         ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME", "DESCRIPTION", "PRODUCT"]),
         ("spec",        ["규격", "SPEC", "MODEL", "SPECIFICATION", "SIZE"]),
         ("maker",       ["메이커", "MAKER", "BRAND", "제조사", "MANUFACTURER", "MFR"]),
-        ("supplier",    ["업체명", "SUPPLIER", "VENDOR", "공급사", "거래처"]),
+        ("supplier",    ["업체명", "SUPPLIER", "VENDOR", "협력사", "거래처"]),
         ("unit",        ["단위", "UNIT", "UOM"]),
         ("origin",      ["원산지", "ORIGIN", "MADEIN", "MADE IN", "COO", "COUNTRYOFORIGIN"]),
         # 출고수량/수량 — '단가/금액' 보다 먼저 평가되어 '수량' substring 충돌 회피
@@ -7346,7 +7356,7 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
       - name: 시트명 (한글 OK)
       - headers: 컬럼 헤더 리스트
       - rows: 데이터 행 리스트 (각 행은 list 또는 tuple)
-    filename_prefix: 파일명 접두 (예: '공급사')
+    filename_prefix: 파일명 접두 (예: '협력사')
     파일명 자동: '{prefix}_{YYYY-MM-DD}.xlsx'"""
     try:
         from openpyxl import Workbook
@@ -7398,178 +7408,170 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
     )
 
 
-# v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
-# v5H226z121 (2026-05-19): 01C 자재 양식 패턴 매칭 — 헬퍼 함수 + 컬럼 정의 (이름/너비/설명/필수)
-_CUST_XLSX_COLUMNS = [
-    # (헤더명, 권장폭, 설명, 필수여부)
-    ("고객사명",       22, "고객사 정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 X)", True),
-    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 가능). 다른 이름인데 동일 번호면 경고", False),
-    ("대표자명",       12, "예: 홍길동", False),
-    ("주소",           32, "예: 경기도 평택시 ...", False),
-    ("활성",            8, "활성 / 비활성 (기본 활성)", False),
-    ("비고",           26, "자유 메모", False),
-    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 1번 슬롯 무시)", False),
-    ("1전화번호",      16, "예: 031-555-1234 / 010-1234-5678", False),
-    ("1이메일",        22, "예: contact@goodix.kr (형식 잘못되면 경고)", False),
-    ("1부서",          14, "예: 관리팀 / 구매2팀", False),
-    ("1담당자설명",    24, "1번 담당자 메모 (예: 25일 마감담당 / 야간 연락처)", False),
-    ("2담당자명",      14, "2번 담당자 이름", False),
-    ("2전화번호",      16, "", False),
-    ("2이메일",        22, "", False),
-    ("2부서",          14, "", False),
-    ("2담당자설명",    24, "", False),
-    ("3담당자명",      14, "3번 담당자 이름", False),
-    ("3전화번호",      16, "", False),
-    ("3이메일",        22, "", False),
-    ("3부서",          14, "", False),
-    ("3담당자설명",    24, "", False),
-    ("4담당자명",      14, "4번 담당자 이름", False),
-    ("4전화번호",      16, "", False),
-    ("4이메일",        22, "", False),
-    ("4부서",          14, "", False),
-    ("4담당자설명",    24, "", False),
-    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 HAIST WORKS UI에서 입력)", False),
-    ("5전화번호",      16, "", False),
-    ("5이메일",        22, "", False),
-    ("5부서",          14, "", False),
-    ("5담당자설명",    24, "", False),
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 엑셀 양식 — 처음부터 다시 작성
+#   원칙: 안내 시트와 데이터 시트의 컬럼이 100% 일치
+#         단일 정의 (_CUST_XLSX_COLS) → 양쪽 자동 동기화
+#   시트: '안내' (5섹션 + 31컬럼 표) + '고객사' (row1 헤더, row2+ 데이터)
+#   컬럼: 기본 6 + 담당자 5명 × 5필드 = 31
+# ==========================================================
+_CUST_XLSX_COLS = [
+    # (이름, 폭, 설명, 필수, 그룹)
+    ("고객사명",       22, "정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 없음)",          True,  "기본"),
+    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 OK)",                          False, "기본"),
+    ("대표자명",       12, "예: 홍길동",                                                          False, "기본"),
+    ("주소",           34, "예: 경기도 평택시 ...",                                               False, "기본"),
+    ("활성",            8, "활성 / 비활성 (빈 칸은 활성)",                                       False, "기본"),
+    ("비고",           26, "자유 메모",                                                            False, "기본"),
+    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 슬롯 무시. 1번이 자동 주담당 ★)",  False, "담당자1"),
+    ("1전화번호",      16, "예: 010-1234-5678 / 031-555-1234",                                False, "담당자1"),
+    ("1이메일",        22, "예: contact@example.com (형식 자동 검증)",                       False, "담당자1"),
+    ("1부서",          14, "예: 구매2팀, 관리팀, 제조기술",                                      False, "담당자1"),
+    ("1메모",          22, "자유 메모 (예: 25일 마감담당, 야간 연락처)",                       False, "담당자1"),
+    ("2담당자명",      14, "2번 담당자 이름",                                                     False, "담당자2"),
+    ("2전화번호",      16, "",                                                                     False, "담당자2"),
+    ("2이메일",        22, "",                                                                     False, "담당자2"),
+    ("2부서",          14, "",                                                                     False, "담당자2"),
+    ("2메모",          22, "",                                                                     False, "담당자2"),
+    ("3담당자명",      14, "3번 담당자 이름",                                                     False, "담당자3"),
+    ("3전화번호",      16, "",                                                                     False, "담당자3"),
+    ("3이메일",        22, "",                                                                     False, "담당자3"),
+    ("3부서",          14, "",                                                                     False, "담당자3"),
+    ("3메모",          22, "",                                                                     False, "담당자3"),
+    ("4담당자명",      14, "4번 담당자 이름",                                                     False, "담당자4"),
+    ("4전화번호",      16, "",                                                                     False, "담당자4"),
+    ("4이메일",        22, "",                                                                     False, "담당자4"),
+    ("4부서",          14, "",                                                                     False, "담당자4"),
+    ("4메모",          22, "",                                                                     False, "담당자4"),
+    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 시스템 UI에서 입력)",                  False, "담당자5"),
+    ("5전화번호",      16, "",                                                                     False, "담당자5"),
+    ("5이메일",        22, "",                                                                     False, "담당자5"),
+    ("5부서",          14, "",                                                                     False, "담당자5"),
+    ("5메모",          22, "",                                                                     False, "담당자5"),
 ]
 
+CUST_DATA_SHEET_NAME = "고객사"
+CUST_GUIDE_SHEET_NAME = "안내"
 
-def _cust_xlsx_write_guide_sheet(ws, title, total_rows=None):
-    """v5H226z121: 시트1 안내 시트 — 01C 자재 양식 패턴 그대로 (섹션화 + 컬럼 설명 표)."""
+
+def _cust_xlsx_build_guide(ws):
+    """안내 시트 — 단순 5섹션 + 31컬럼 매핑표 (데이터 시트와 100% 일치)."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from datetime import datetime as _dt
-    sec_font  = Font(bold=True, size=13, color="A5282C")
-    body_font = Font(size=11, color="222222")
-    sub_font  = Font(size=10.5, color="64748B")
+    sec = Font(bold=True, size=13, color="A5282C")
+    body = Font(size=11, color="222222")
+    sub = Font(size=10.5, color="64748B")
     thin = Side(style="thin", color="DDDDDD")
-    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    ws.merge_cells("A1:C1")
-    ws["A1"] = title
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "KNK 고객사 일괄 등록 — 작성 안내"
     ws["A1"].font = Font(bold=True, size=18, color="0F172A")
     ws["A1"].alignment = Alignment(vertical="center")
     ws.row_dimensions[1].height = 32
 
-    ws.merge_cells("A2:C2")
-    sub = f"버전: v5H226z121    ·    생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}"
-    if total_rows is not None:
-        sub += f"    ·    총 {total_rows:,}건"
-    ws["A2"] = sub
-    ws["A2"].font = sub_font
+    ws.merge_cells("A2:D2")
+    ws["A2"] = f"버전: v5H226z122   ·   기본 6 + 담당자 5명 × 5필드 = {len(_CUST_XLSX_COLS)}컬럼"
+    ws["A2"].font = sub
 
     sections = [
-        ("📌 개요", [
-            "본 양식은 KNK HAIST WORKS 고객사 마스터에 고객사를 일괄 등록·내려받기 위한 표준 엑셀입니다.",
-            "실제 데이터/입력은 [🏢 고객사 일괄 등록] 시트에 있고, 본 시트는 안내·컬럼 설명 참고용입니다.",
-            "한 행에 고객사 1개 + 담당자 최대 5명까지 입력 가능합니다.",
+        ("1. 필수 입력", [
+            "• 고객사명 — 이 칸이 비면 그 행은 등록되지 않습니다.",
+            "  동일명 존재 시: 빈 칸이 아닌 필드만 업데이트 (기존 데이터 보호)",
         ]),
-        ("⚠ 필수 컬럼 — 미입력 시 행 단위 차단", [
-            "• 고객사명 — 정식 명칭. 시스템에 동일명 존재 시 정보만 업데이트 (중복 추가 X)",
+        ("2. 작성 순서", [
+            "  ① [고객사] 시트로 이동",
+            "  ② 1행 헤더는 수정하지 말 것",
+            "  ③ 2행부터 한 줄에 한 고객사씩 입력",
+            "  ④ 매출영업 → 고객사 → [엑셀 일괄 업로드] 클릭",
+            "  ⑤ 미리보기 확인 → [등록 확정]",
         ]),
-        ("✅ 강력 추천 — 검색·관리·자동 등급 산정에 직결", [
-            "• 사업자등록번호 — 중복 검사·국세청 매칭 (대시 포함/없이 모두 가능)",
-            "• 대표자명 · 주소 — 거래 관리 기본 정보",
-            "• 담당자 1~5명 — 부서별 분리 등록. 1번 담당자가 자동으로 주담당(★)",
-        ]),
-        ("👥 담당자 5명 입력 — 각 담당자별 5필드", [
-            "• 담당자명 — 이름 (이 칸이 비면 해당 슬롯 무시)",
-            "• 전화번호 — 휴대폰 / 사무실 모두 OK (예: 010-1234-5678)",
-            "• 이메일 — 형식 자동 검증 (잘못된 형식이면 경고)",
+        ("3. 담당자 5명 — 각각 5필드 (총 25컬럼)", [
+            "• 담당자명 — 이 칸이 비면 해당 슬롯 무시",
+            "• 전화번호 — 휴대폰 / 사무실 모두 OK",
+            "• 이메일 — 형식 자동 검증 (잘못된 형식은 경고)",
             "• 부서 — 예: 구매2팀, 관리팀, 제조기술",
-            "• 담당자설명 — 자유 메모 (예: 25일 마감담당, 야간 연락처, 정산 담당)",
+            "• 메모 — 예: 25일 마감담당, 야간 연락처",
+            "  ※ 6명 이상은 시스템 UI에서 추가 입력 (엑셀 슬롯 5개)",
+            "  ※ 1번 담당자가 자동으로 주담당(★)",
         ]),
-        ("🔄 동작 — 안전한 UPSERT", [
-            "• 동일 고객사명 존재 시: 빈 칸 아닌 필드만 업데이트 (기존 데이터 보호)",
-            "• 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고만 표시)",
+        ("4. 안전 처리 — 3단계", [
+            "  ① 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)",
+            "  ② 결과 확인 (정상 / 경고 / 오류 분류)",
+            "  ③ [등록 확정] 버튼 → 실제 INSERT / UPDATE",
+        ]),
+        ("5. 자동 처리", [
+            "• 동일 이름 UPSERT — 빈 칸 아닌 필드만 업데이트",
+            "• 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고)",
+            "• 활성 빈 칸 → 활성 처리",
             "• 등급(VIP/A/B/C/일반) — 거래 실적 기반 시스템 자동 산정 (수동 입력 X)",
-            "• 활성 기본값: 활성 (빈 칸은 활성 처리)",
-        ]),
-        ("🛡 처리 흐름 — 안전 3단계", [
-            "1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)",
-            "2) 결과 확인 (정상 / 경고 / 오류 분류)",
-            "3) [등록 확정] 버튼 → 실제 INSERT/UPDATE (트랜잭션)",
         ]),
     ]
     row = 4
     for sec_title, lines in sections:
         c = ws.cell(row=row, column=1, value=sec_title)
-        c.font = sec_font
-        ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+        c.font = sec
+        ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
         row += 1
         for ln in lines:
             cc = ws.cell(row=row, column=1, value=ln)
-            cc.font = body_font
+            cc.font = body
             cc.alignment = Alignment(vertical="center", wrap_text=True)
-            ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+            ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
             row += 1
         row += 1
 
-    # 컬럼 설명 표
-    ws.cell(row=row, column=1, value="📑 컬럼 설명 (31개)").font = sec_font
+    ws.cell(row=row, column=1, value=f"6. 전체 컬럼 매핑 ({len(_CUST_XLSX_COLS)}개) — [고객사] 시트 1행 헤더와 동일").font = sec
     row += 1
     head_font = Font(bold=True, size=10.5, color="FFFFFF")
     head_fill = PatternFill("solid", fgColor="0F172A")
-    for col_idx, label in enumerate(["컬럼명", "필수", "설명"], 1):
-        c = ws.cell(row=row, column=col_idx, value=label)
-        c.font = head_font; c.fill = head_fill
-        c.alignment = Alignment(horizontal="center"); c.border = bd
+    for col_idx, label in enumerate(["#", "컬럼명", "필수", "설명"], 1):
+        cc = ws.cell(row=row, column=col_idx, value=label)
+        cc.font = head_font; cc.fill = head_fill
+        cc.alignment = Alignment(horizontal="center"); cc.border = bd
     row += 1
-    for (hname, _w, desc, req) in _CUST_XLSX_COLUMNS:
-        ws.cell(row=row, column=1, value=hname).font = body_font
-        rc = ws.cell(row=row, column=2, value="필수" if req else "")
-        rc.font = Font(bold=True, color="B91C1C", size=10.5) if req else body_font
+    req_font = Font(bold=True, color="B91C1C", size=10.5)
+    for idx, (hname, _w, desc, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        ws.cell(row=row, column=1, value=idx).font = body
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=2, value=hname).font = body
+        rc = ws.cell(row=row, column=3, value="필수" if req else "")
+        rc.font = req_font if req else body
         rc.alignment = Alignment(horizontal="center")
-        ws.cell(row=row, column=3, value=desc).font = body_font
-        for cc in (1, 2, 3):
+        ws.cell(row=row, column=4, value=desc).font = body
+        for cc in (1, 2, 3, 4):
             ws.cell(row=row, column=cc).border = bd
         row += 1
 
-    ws.column_dimensions["A"].width = 22
-    ws.column_dimensions["B"].width = 8
-    ws.column_dimensions["C"].width = 90
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 8
+    ws.column_dimensions["D"].width = 60
     ws.freeze_panes = "A3"
 
 
-def _cust_xlsx_write_data_sheet(ws, title_text, subtitle_text):
-    """v5H226z121: 시트2 데이터 시트 — 01C 자재 양식 패턴 (제목 + 부제 + 헤더). HEADER_ROW 반환."""
+def _cust_xlsx_build_data_headers(ws):
+    """데이터 시트 — row 1 헤더 (필수=빨강 배경). row 2부터 데이터."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    n_cols = len(_CUST_XLSX_COLUMNS)
-    last_col = get_column_letter(n_cols)
-    ws.merge_cells(f"A1:{last_col}1")
-    ws["A1"] = title_text
-    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 36
-    ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = subtitle_text
-    ws["A2"].font = Font(size=10.5, color="64748B")
-    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[2].height = 20
-    HEADER_ROW = 4
     head_font = Font(bold=True, color="FFFFFF", size=11)
     head_fill = PatternFill("solid", fgColor="0F172A")
-    req_fill  = PatternFill("solid", fgColor="B91C1C")
+    req_fill = PatternFill("solid", fgColor="B91C1C")
     thin = Side(style="thin", color="DDDDDD")
-    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for i, (h, w, _desc, req) in enumerate(_CUST_XLSX_COLUMNS, 1):
-        cell = ws.cell(row=HEADER_ROW, column=i, value=(h + " *" if req else h))
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for i, (h, w, _d, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        cell = ws.cell(row=1, column=i, value=h)
         cell.font = head_font
         cell.fill = req_fill if req else head_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = bd
         ws.column_dimensions[get_column_letter(i)].width = w
-    ws.row_dimensions[HEADER_ROW].height = 30
-    ws.freeze_panes = f"C{HEADER_ROW+1}"  # 고객사명·사업자번호 좌측 고정
-    return HEADER_ROW
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "C2"
 
 
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
-    """v5H226z121 (2026-05-19): 01C 자재 양식 패턴 매칭 — 안내 시트 + 데이터 시트 (31컬럼)."""
+    """v5H226z122 (2026-05-19): 깨끗하게 재작성 — 안내 + 고객사 (row1 헤더, row2+ 데이터)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -7587,28 +7589,23 @@ async def customers_export_xlsx(req: Request):
                ORDER BY cu.tier_score DESC, cu.name"""
         ).fetchall()
         rows = [dict(r) for r in rows]
-        # 각 고객사별 담당자 미리 fetch
         for r in rows:
             r["_contacts"] = [dict(cc) for cc in c.execute(
                 """SELECT name, mobile, phone, email, department, note
                    FROM customer_contacts
                    WHERE customer_id = ?
                    ORDER BY is_primary DESC, id
-                   LIMIT 5""",
-                (r["id"],)
+                   LIMIT 5""", (r["id"],)
             ).fetchall()]
 
     wb = Workbook()
     ws_guide = wb.active
-    ws_guide.title = "📖 안내"
-    _cust_xlsx_write_guide_sheet(ws_guide,
-        "🏢 KNK 고객사 마스터 — 엑셀 다운로드", total_rows=len(rows))
-    ws_data = wb.create_sheet("🏢 고객사 일괄 등록")
-    HEADER_ROW = _cust_xlsx_write_data_sheet(ws_data,
-        "🏢 KNK 고객사 일괄 등록",
-        f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요")
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
 
-    for r_idx, r in enumerate(rows, HEADER_ROW + 1):
+    for r_idx, r in enumerate(rows, 2):  # row 2부터 데이터
         contact_cells = []
         for cc in r["_contacts"]:
             contact_cells.extend([
@@ -7621,10 +7618,8 @@ async def customers_export_xlsx(req: Request):
         while len(contact_cells) < 25:
             contact_cells.append("")
         vals = [
-            r["name"], r["biz_no"], r["ceo_name"],
-            r["address"],
-            "활성" if (r["is_active"] or 0) != 0 else "비활성",
-            r["note"],
+            r["name"], r["biz_no"], r["ceo_name"], r["address"],
+            "활성" if (r["is_active"] or 0) != 0 else "비활성", r["note"],
             *contact_cells[:25],
         ]
         for c_idx, v in enumerate(vals, 1):
@@ -7660,36 +7655,300 @@ async def suppliers_export_xlsx(req: Request):
             "SELECT id, name, code, contact, email, phone, country, currency, "
             "payment_terms, COALESCE(is_active,1) AS is_active, note "
             "FROM suppliers ORDER BY name").fetchall()]
-    headers = ["ID","공급사명","코드","담당자","이메일","전화","국가","통화",
+    headers = ["ID","협력사명","코드","담당자","이메일","전화","국가","통화",
                "결제조건","활성","비고"]
     data = [[r["id"], r["name"], r["code"], r["contact"], r["email"], r["phone"],
              r["country"], r["currency"], r["payment_terms"],
              "활성" if r["is_active"] else "비활성", r["note"]] for r in rows]
     return _make_xlsx_response(
-        [{"name": "공급사", "headers": headers, "rows": data}], "공급사")
+        [{"name": "협력사", "headers": headers, "rows": data}], "협력사")
+
+
+# v5H226z114 (2026-05-19) — 자재 엑셀 양식 통일 (엑셀내보내기·양식받기 동일 구조)
+# 두 라우트가 동일한 시트 1(가이드) + 시트 2(데이터) 구조 사용
+# 차이점은 데이터 행만: export = 실제 자재 / template = 예시 3행
+_PARTS_COMMON_COLS = [
+    # (헤더명, 권장폭, 설명, 필수여부)
+    # ⚠ 설명은 '=' 로 시작 금지 (Excel 수식 오해)
+    ("자재코드",     22, "제조사 모델명과 동일 (예: MR-J4-200A). UNIQUE·중복 자동 차단", True),
+    ("자재명",       28, "자재 정식 명칭. 유사 자재 자동 검사", True),
+    ("사업부",        9, "M(자동화) / T(검사기) / 공통", True),
+    ("규격",         26, "사양 한 줄 (예: 200W·24V·3000rpm)", False),
+    ("제조사",       14, "메이커명 (예: Mitsubishi, SMC)", False),
+    ("기본공급사",   18, "주로 구매하는 협력사 이름 (마스터 등록 이름과 일치 시 담당자 자동 연결)", False),
+    ("원산지",       10, "한국 / 일본 / 독일 / 중국 등", False),
+    ("단위",          8, "EA / KG / SET / M", False),
+    ("통화",          8, "KRW / USD / JPY / CNY / EUR", False),
+    ("매입단가",     12, "대표 단가 (가장 최근 차수의 단가)", False),
+    ("분류",         14, "내부 분류명", False),
+    ("안전재고",     10, "이 수치 미만이면 경고", False),
+    ("재주문점",     10, "Reorder Point", False),
+    ("재주문량",     10, "Reorder Quantity", False),
+    ("위치",         12, "보관 위치 (예: WH-01-A-12)", False),
+    ("용도",         50, "어디에 쓰이는 자재인지 — 카탈로그 검색 보조 (1~3문장)", False),
+    ("활성",          8, "활성 / 비활성", False),
+    ("비고",         26, "기타 메모", False),
+    ("현재재고",     10, "조회 시점 재고 (내려받기에서만 채워짐, 업로드 시 무시)", False),
+]
+
+
+def _parts_xlsx_build(*, mode: str, data_rows: list) -> bytes:
+    """v5H226z114 — 자재 엑셀 통일 양식 빌더.
+    mode='export'   : 다운로드용 (시트1 안내 + 시트2 자재 마스터, 실제 데이터)
+    mode='template' : 양식받기  (시트1 가이드 + 시트2 자재 일괄 등록, 예시 데이터)
+    data_rows : 시트2에 채울 데이터 (각 행은 _PARTS_COMMON_COLS 순서 그대로)
+    반환: xlsx 바이트
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from datetime import datetime as _dt
+    import io
+
+    cols = _PARTS_COMMON_COLS
+    is_export = (mode == "export")
+    # 시트 이름/제목/부제
+    if is_export:
+        sheet1_name  = "📖 안내"
+        sheet1_title = "📋 KNK 자재 마스터 — 엑셀 다운로드"
+        sheet2_name  = "📦 자재 마스터"
+        sheet2_title = "📋 자재 마스터"
+        sub2 = (f"생성일 {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(data_rows):,}건    "
+                "·    [📖 안내] 시트에서 컬럼 설명을 확인하세요    "
+                "·    수정 후 일괄등록에 그대로 업로드 가능")
+    else:
+        sheet1_name  = "📖 작성 가이드"
+        sheet1_title = "📋 KNK 자재 일괄 등록 — 작성 가이드"
+        sheet2_name  = "📦 자재 일괄 등록"
+        sheet2_title = "📋 자재 일괄 등록"
+        sub2 = ("필수: 자재코드(=모델명) · 자재명 · 사업부    "
+                "·    헤더 순서 변경 OK    "
+                "·    상세는 [📖 작성 가이드] 시트")
+
+    wb = Workbook()
+
+    # ── 시트1: 가이드 (양쪽 거의 동일) ─────────────────────
+    g = wb.active
+    g.title = sheet1_name
+    sec_font  = Font(bold=True, size=13, color="A5282C")
+    body_font = Font(size=11, color="222222")
+    sub_font  = Font(size=10.5, color="64748B")
+    head_fn   = Font(bold=True, size=10.5, color="FFFFFF")
+    head_fl   = PatternFill("solid", fgColor="0F172A")
+    thin = Side(style="thin", color="DDDDDD")
+    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    g.merge_cells("A1:C1")
+    g["A1"] = sheet1_title
+    g["A1"].font = Font(bold=True, size=18, color="0F172A")
+    g.row_dimensions[1].height = 32
+    g.merge_cells("A2:C2")
+    g["A2"] = (f"버전 v5H226z114    ·    생성 {_dt.now().strftime('%Y-%m-%d %H:%M')}"
+               + (f"    ·    총 {len(data_rows):,}건" if is_export else ""))
+    g["A2"].font = sub_font
+
+    guide = [
+        ("📌 개요", [
+            "본 양식은 자재 마스터의 표준 엑셀입니다 (엑셀내보내기·양식받기 동일 구조).",
+            "실제 데이터/입력은 [" + sheet2_name + "] 시트에 있고, 본 시트는 참고용입니다.",
+            "헤더 순서가 달라지거나 불필요한 컬럼이 섞여 있어도 시스템이 자동 인식합니다.",
+        ]),
+        ("⚠ 필수 컬럼 — 미입력 시 차단", [
+            "• 자재코드 (제조사 모델명과 동일, 예: MR-J4-200A) — UNIQUE",
+            "• 자재명 — 유사 자재 자동 검사 대상",
+            "• 사업부 — M / T / 공통 — 셋 중 하나",
+        ]),
+        ("✅ 강력 추천 — 검색·발주 자동화에 직결", [
+            "• 규격 · 제조사 · 매입단가 · 분류",
+            "• 기본공급사 — 발주 자동 매칭 (협력사 마스터의 이름과 일치하면 담당자 자동 연결)",
+            "• 용도 — 자재 카탈로그 검색 적중률에 가장 큰 영향. 1~3문장 권장",
+        ]),
+        ("🔄 헤더 자동 매핑 — 영문/별칭 OK", [
+            "• 자재코드 : part_no / code / 품번 / PRODUCT CODE / model / 모델명 / 모델번호",
+            "• 자재명   : part_name / 품명 / name",
+            "• 사업부   : biz_div",
+            "• 매입단가 : std_price / 단가 / price / 표준단가",
+            "• 기본공급사 : supplier / 공급사 / 협력사 / vendor / partner",
+            "• 용도     : purpose / 사용처 / application",
+        ]),
+        ("🛡 처리 흐름 — 안전 3단계", [
+            "1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음)",
+            "2) 결과 확인 (ok / similar / dup / error)",
+            "3) [등록 확정] 버튼 → 실제 INSERT",
+        ]),
+        ("🔁 권장 워크플로우", [
+            "1) [엑셀내보내기] → 현재 자재 마스터 전체 내려받기",
+            "2) 엑셀에서 항목 수정·추가 (자재코드·자재명·사업부 필수)",
+            "3) [일괄 등록] 메뉴에서 그대로 업로드 → 검증 → 확정",
+            "   ※ 처음 등록이라면 [양식받기]로 빈 양식 받아도 동일 구조 — 그대로 작성 후 업로드",
+        ]),
+    ]
+    row = 4
+    for st, lines in guide:
+        g.cell(row=row, column=1, value=st).font = sec_font
+        g.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+        row += 1
+        for ln in lines:
+            g.cell(row=row, column=1, value=ln).font = body_font
+            g.merge_cells(start_row=row, end_row=row, start_column=1, end_column=3)
+            row += 1
+        row += 1
+    # 컬럼 설명 표
+    g.cell(row=row, column=1, value="📑 컬럼 설명").font = sec_font
+    row += 1
+    for c_idx, label in enumerate(["컬럼명", "필수", "설명"], 1):
+        c = g.cell(row=row, column=c_idx, value=label)
+        c.font = head_fn; c.fill = head_fl
+        c.alignment = Alignment(horizontal="center"); c.border = bd
+    row += 1
+    for (hn, _w, desc, req) in cols:
+        g.cell(row=row, column=1, value=hn).font = body_font
+        rc = g.cell(row=row, column=2, value="필수" if req else "")
+        rc.font = Font(bold=True, color="B91C1C", size=10.5) if req else body_font
+        rc.alignment = Alignment(horizontal="center")
+        g.cell(row=row, column=3, value=desc).font = body_font
+        for cc in (1, 2, 3):
+            g.cell(row=row, column=cc).border = bd
+        row += 1
+    g.column_dimensions["A"].width = 22
+    g.column_dimensions["B"].width = 8
+    g.column_dimensions["C"].width = 90
+    g.freeze_panes = "A3"
+
+    # ── 시트2: 데이터/예시 ────────────────────────────────
+    ws = wb.create_sheet(sheet2_name)
+    n = len(cols)
+    last = get_column_letter(n)
+    # 제목 행
+    ws.merge_cells(f"A1:{last}1")
+    ws["A1"] = sheet2_title
+    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 36
+    # 부제
+    ws.merge_cells(f"A2:{last}2")
+    ws["A2"] = sub2
+    ws["A2"].font = sub_font
+    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+    # 헤더
+    H = 4
+    req_fill = PatternFill("solid", fgColor="B91C1C")
+    for i, (hn, w, _d, req) in enumerate(cols, 1):
+        cell = ws.cell(row=H, column=i, value=(hn + " *" if req else hn))
+        cell.font = Font(bold=True, color="FFFFFF", size=11)
+        cell.fill = req_fill if req else head_fl
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = bd
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[H].height = 30
+    ws.freeze_panes = f"D{H+1}"
+    # 데이터
+    wrap = Alignment(wrap_text=True, vertical="top")
+    for r_idx, row_vals in enumerate(data_rows, H + 1):
+        for c_idx, val in enumerate(row_vals, 1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.alignment = wrap
+        if not is_export:
+            ws.row_dimensions[r_idx].height = 60
+
+    import io as _io
+    buf = _io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 @app.get("/parts/export.xlsx")
 async def parts_export_xlsx(req: Request):
+    """v5H226z114 — 자재 마스터 풀세트 엑셀 다운로드 (양식받기와 동일 구조)."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    try:
+        from openpyxl import Workbook  # noqa
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from datetime import datetime as _dt
+    from urllib.parse import quote as _q
     with db_session() as c:
+        existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+        def _col(name):
+            return f"p.{name}" if name in existing else f"NULL AS {name}"
+        sel = ", ".join([
+            "p.part_no", "p.part_name", "p.biz_div",
+            "p.spec", "p.maker", _col("default_supplier"),
+            "p.origin", "p.unit", "p.currency", "p.std_price",
+            "p.category",
+            "COALESCE(p.safety_stock,0) AS safety_stock",
+            _col("reorder_point"), _col("reorder_qty"),
+            "p.location", _col("purpose"),
+            "COALESCE(p.is_active,1) AS is_active", "p.note",
+            "COALESCE(sb.on_hand, 0) AS on_hand",
+        ])
         rows = [dict(r) for r in c.execute(
-            "SELECT p.id, p.part_no, p.part_name, p.spec, p.maker, p.origin, "
-            "p.unit, p.currency, p.std_price, p.biz_div, p.category, "
-            "COALESCE(p.is_active,1) AS is_active, p.note, "
-            "COALESCE(sb.on_hand, 0) AS on_hand "
-            "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
-            "ORDER BY p.part_no").fetchall()]
-    headers = ["ID","품번","품명","규격","제조사","원산지","단위","통화",
-               "표준단가","사업부","분류","활성","비고","현재재고"]
-    data = [[r["id"], r["part_no"], r["part_name"], r["spec"], r["maker"],
-             r["origin"], r["unit"], r["currency"], r["std_price"],
-             r["biz_div"], r["category"],
-             "활성" if r["is_active"] else "비활성",
-             r["note"], r["on_hand"]] for r in rows]
-    return _make_xlsx_response(
-        [{"name": "부품", "headers": headers, "rows": data}], "부품")
+            f"SELECT {sel} FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
+            "ORDER BY p.part_no"
+        ).fetchall()]
+    data_rows = [[
+        r["part_no"], r["part_name"], r["biz_div"],
+        r["spec"], r["maker"], r.get("default_supplier"),
+        r["origin"], r["unit"], r["currency"], r["std_price"],
+        r["category"],
+        r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"),
+        r["location"], r.get("purpose"),
+        "활성" if r["is_active"] else "비활성",
+        r["note"], r["on_hand"],
+    ] for r in rows]
+    content = _parts_xlsx_build(mode="export", data_rows=data_rows)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_parts_master_{today}.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_자재마스터_{today}.xlsx')}")},
+    )
+
+
+@app.get("/parts/import/template.xlsx")
+async def parts_import_template_xlsx(req: Request):
+    """v5H226z114 — 자재 일괄등록 양식 (엑셀내보내기와 동일 구조 + 예시 3행)."""
+    u = get_user(req)
+    if not u: return RedirectResponse("/login", 303)
+    try:
+        from openpyxl import Workbook  # noqa
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from urllib.parse import quote as _q
+    # 예시 데이터 — 컬럼 순서는 _PARTS_COMMON_COLS 와 동일 (현재재고는 빈값)
+    examples = [
+        ["MR-J4-200A", "AC 서보모터 200W", "M",
+         "200W·24V·3000rpm", "Mitsubishi", "한국미쓰비시(주)",
+         "일본", "EA", "KRW", 350000,
+         "전장 부품", 5, 10, 20, "WH-01-A-12",
+         "자동화 라인 #2·#3 축 회전 구동용. 정밀 위치 제어 픽업·이송 메커니즘에 사용.",
+         "활성", "", ""],
+        ["HL-50AR", "광학 렌즈 어레이 50mm", "T",
+         "50mm·BK7·AR", "Hoya", "(주)호야코리아",
+         "일본", "EA", "USD", 1200,
+         "센서·광학", 2, 3, 5, "WH-02-B-03",
+         "검사기 비전 시스템 광학부. 표면 결함 검사 카메라 모듈에 장착.",
+         "활성", "", ""],
+        ["BLT-M5-20-SUS304", "육각볼트 M5×20", "공통",
+         "M5×20·SUS304", "ETC", "성신볼트(주)",
+         "한국", "EA", "KRW", 120,
+         "체결구", 200, 300, 500, "WH-03-C-08",
+         "체결·고정용 표준 볼트 (KS B 1002). 풀림 방지 시 록타이트 처리.",
+         "활성", "박스 단위 발주 (1000개입)", ""],
+    ]
+    content = _parts_xlsx_build(mode="template", data_rows=examples)
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": (
+            'attachment; filename="KNK_parts_import_template.xlsx"; '
+            f"filename*=UTF-8''{_q('KNK_자재_일괄등록_템플릿.xlsx')}")},
+    )
 
 
 @app.get("/sales/orders/export.xlsx")
@@ -7770,7 +8029,7 @@ async def po_export_xlsx(req: Request):
             "FROM po_items pi LEFT JOIN purchase_orders po ON po.id=pi.po_id "
             "ORDER BY po.id DESC, pi.line_no").fetchall()]
     sheets = [
-        {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","공급사","프로젝트"],
+        {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","협력사","프로젝트"],
          "rows": [[r["id"], r["po_number"], r["order_date"], r["expected_date"],
                    r["status"], r["currency"], r["total_amount"],
                    r["supplier_name"], r["project_name"]] for r in head_rows]},
@@ -9768,7 +10027,7 @@ async def admin_toggle_logistics(request: Request,
 # ── 자재·구매 홈 (기존 /logistics — 명칭 통일) ──────────────
 @app.get("/logistics", response_class=HTMLResponse)
 async def logi_dashboard(request: Request):
-    """자재·구매 센터 (부품·공급사·발주·입출고·수불·환율)"""
+    """자재·구매 센터 (부품·협력사·발주·입출고·수불·환율)"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -9848,6 +10107,15 @@ async def sales_dashboard(request: Request):
                proj_stats=proj_stats, sales_kpi=sales_kpi)
 
 
+# v5H226z108n13: /catalog 별칭 — 사이드바 "🔍 자재 카탈로그" 링크 호환
+@app.get("/catalog")
+async def catalog_alias(request: Request):
+    """사이드바·node_detail 의 /catalog 링크를 /parts 로 리다이렉트."""
+    qs = str(request.url.query)
+    target = "/parts" + (("?" + qs) if qs else "")
+    return RedirectResponse(target, status_code=303)
+
+
 # ── 부품 마스터 (parts) ────────────────────────────────
 @app.get("/parts", response_class=HTMLResponse)
 async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
@@ -9863,6 +10131,64 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
                parts=rows, q=q, biz_div=biz_div, category=category)
 
 
+def _part_autocomplete_options():
+    """v5H226z110d (2026-05-19) — 자재 폼 자동완성 옵션 통합 조회.
+    suppliers + 기존 parts DB의 distinct 값 + 추천 기본값을 합쳐 반환.
+    각 키는 list of str (중복 제거·알파벳 정렬)."""
+    suppliers, makers, categories, origins, units, locations = [], [], [], [], [], []
+    try:
+        with db_session() as c:
+            # v5H226z113 (2026-05-19) — 담당자·전화·이메일 풀세트 (자재 폼 자동완성용)
+            spcols = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
+            def _scol(n):
+                return f"COALESCE(NULLIF(TRIM({n}),''),'') AS {n}" if n in spcols else f"'' AS {n}"
+            _sel = ", ".join([
+                "id", "name",
+                _scol("contact"), _scol("phone"), _scol("email"),
+                _scol("contact2"), _scol("phone2"), _scol("email2"),
+            ])
+            suppliers = [dict(r) for r in c.execute(
+                f"SELECT {_sel} FROM suppliers WHERE COALESCE(is_active,1)=1 ORDER BY name"
+            ).fetchall()]
+            makers = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(maker) FROM parts WHERE maker IS NOT NULL AND TRIM(maker)<>'' ORDER BY 1"
+            ).fetchall()]
+            categories = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(category) FROM parts WHERE category IS NOT NULL AND TRIM(category)<>'' ORDER BY 1"
+            ).fetchall()]
+            origins = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(origin) FROM parts WHERE origin IS NOT NULL AND TRIM(origin)<>'' ORDER BY 1"
+            ).fetchall()]
+            units = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(unit) FROM parts WHERE unit IS NOT NULL AND TRIM(unit)<>'' ORDER BY 1"
+            ).fetchall()]
+            locations = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(location) FROM parts WHERE location IS NOT NULL AND TRIM(location)<>'' ORDER BY 1"
+            ).fetchall()]
+    except Exception:
+        pass
+    # 추천 기본값 — DB 값이 적을 때 자주 쓰는 값도 보조 제공
+    DEFAULT_ORIGINS = ["한국", "일본", "독일", "중국", "대만", "미국", "이탈리아", "스위스", "프랑스", "베트남"]
+    DEFAULT_UNITS   = ["EA", "SET", "KG", "G", "M", "MM", "L", "ML", "BOX", "ROLL", "PCS"]
+    # 합치고 중복 제거 (DB 값 우선)
+    def _merge(db_vals, defaults):
+        seen = set()
+        out = []
+        for v in db_vals + defaults:
+            v = (v or "").strip()
+            if v and v not in seen:
+                seen.add(v); out.append(v)
+        return out
+    return {
+        "suppliers":  suppliers,           # [{id, name}, ...]
+        "makers":     makers,              # ["Mitsubishi", "SMC", ...]
+        "categories": categories,
+        "origins":    _merge(origins, DEFAULT_ORIGINS),
+        "units":      _merge(units, DEFAULT_UNITS),
+        "locations":  locations,
+    }
+
+
 @app.get("/parts/new", response_class=HTMLResponse)
 async def parts_new_form(request: Request):
     u = get_user(request)
@@ -9870,7 +10196,8 @@ async def parts_new_form(request: Request):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
-    return ctx(request, "part_form.html", user=u, active="parts", part=None)
+    return ctx(request, "part_form.html", user=u, active="parts",
+               part=None, **_part_autocomplete_options())
 
 
 @app.post("/parts/new")
@@ -9882,6 +10209,12 @@ async def parts_new_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
+    purpose: str = Form(""),
+    # v5H226z112 (2026-05-19) — 협력사(구매사) 정보는 매입단가 JSON으로 통합 (담당자·기본여부 포함)
+    purchase_prices: str = Form(""),
+    # v5H226z110c — 제조사 담당자
+    maker_contact_name: str = Form(""), maker_contact_phone: str = Form(""),
+    maker_contact_email: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -9897,6 +10230,11 @@ async def parts_new_submit(
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
+            "purpose": purpose,
+            "purchase_prices": purchase_prices,
+            "maker_contact_name": maker_contact_name,
+            "maker_contact_phone": maker_contact_phone,
+            "maker_contact_email": maker_contact_email,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -9920,7 +10258,8 @@ async def parts_edit_form(request: Request, pid: int):
     except Exception:
         attachments = []
     return ctx(request, "part_form.html", user=u, active="parts",
-               part=p, attachments=attachments)
+               part=p, attachments=attachments,
+               **_part_autocomplete_options())
 
 
 @app.post("/parts/{pid}/edit")
@@ -9932,6 +10271,12 @@ async def parts_edit_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
+    purpose: str = Form(""),
+    # v5H226z112 (2026-05-19) — 협력사(구매사) 정보는 매입단가 JSON으로 통합 (담당자·기본여부 포함)
+    purchase_prices: str = Form(""),
+    # v5H226z110c — 제조사 담당자
+    maker_contact_name: str = Form(""), maker_contact_phone: str = Form(""),
+    maker_contact_email: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -9947,6 +10292,11 @@ async def parts_edit_submit(
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
+            "purpose": purpose,
+            "purchase_prices": purchase_prices,
+            "maker_contact_name": maker_contact_name,
+            "maker_contact_phone": maker_contact_phone,
+            "maker_contact_email": maker_contact_email,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -10812,51 +11162,38 @@ async def projects_import_confirm(request: Request):
     })
 
 
-# =====================================================
-# v5H153 (2026-05-05): 고객사 엑셀 일괄 등록
-#   - GET  /customers/import-template  → 양식 .xlsx 다운로드
-#   - POST /customers/import-xlsx      → 업로드 + 파싱 + 검증 + 미리보기 JSON
-#   - POST /customers/import-confirm   → 확정 INSERT/UPDATE (UPSERT by name)
-#  양식: app/static/templates/고객사_일괄등록_양식.xlsx
-#  시트 '고객사' (row3=헤더, row4-6=예제, row7+=입력)
-#  컬럼: 고객사명/사업자등록번호/대표자명/담당자명/전화번호/이메일/주소/등급/활성/비고
-# =====================================================
-CUST_IMPORT_HEADERS = [
-    "고객사명", "사업자번호", "대표자", "주소", "전화", "비고",
-    "담당자_1", "담당자_2", "담당자_3", "담당자_4", "담당자_5"
-]
-
-
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 일괄 업로드 — 처음부터 다시 작성
+#   - GET  /customers/import-template  → 양식 xlsx (안내 + 고객사 + 예제 3행)
+#   - POST /customers/import-xlsx      → 업로드·파싱·검증 → 미리보기 JSON
+#   - POST /customers/import-confirm   → 확정 INSERT / UPDATE (UPSERT by name)
+#   시트: '고객사' row 1 헤더 / row 2+ 데이터 (31컬럼)
+# ==========================================================
 def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
-    """v5H226z121: 01C 자재 양식 패턴 파싱 — Sheet '🏢 고객사 일괄 등록' row5+ (HEADER_ROW=4),
-    31컬럼, 담당자 5명 × 5필드 (이름/전화/이메일/부서/설명) 분리."""
+    """v5H226z122: 시트 '고객사' row 2+ 31컬럼 파싱 — 담당자 5명 × 5필드."""
     from openpyxl import load_workbook
     import io as _io
     import re as _re
     wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
-    # 시트명 호환: 새 양식 '🏢 고객사 일괄 등록' 우선, 구 양식 폴백
     sheet_name = None
-    for candidate in ("🏢 고객사 일괄 등록", "고객사", "고객사 데이터", "Customers"):
+    # z122 신 양식 우선 → 구 양식 폴백
+    for candidate in (CUST_DATA_SHEET_NAME, "🏢 고객사 일괄 등록", "고객사 데이터", "Customers"):
         if candidate in wb.sheetnames:
             sheet_name = candidate
             break
     if not sheet_name:
-        raise ValueError("'🏢 고객사 일괄 등록' 시트를 찾을 수 없습니다")
+        raise ValueError(f"'{CUST_DATA_SHEET_NAME}' 시트를 찾을 수 없습니다")
     ws = wb[sheet_name]
-    # 데이터 시작 행 자동 감지 (header row 찾기)
-    # 새 양식 (z121): Row 1 제목, Row 2 부제, Row 3 빈, Row 4 헤더, Row 5+ 데이터
-    # 구 양식 (첨부): Row 1 제목, Row 2 안내, Row 3 헤더, Row 4-6 예제, Row 7+ 데이터
+    # 데이터 시작 행: z122 = row 2, z121 폴백 = row 5, 구 양식 = row 7
     if sheet_name == "🏢 고객사 일괄 등록":
         data_start = 5
-    elif sheet_name == "고객사":
+    elif sheet_name == "고객사 데이터":
         data_start = 7
     else:
-        data_start = 4
+        data_start = 2
 
     def _to_str(v) -> str:
-        if v is None:
-            return ""
-        return str(v).strip()
+        return "" if v is None else str(v).strip()
 
     name_map: dict[str, int] = {}
     bizno_map: dict[str, tuple[int, str]] = {}
@@ -10872,10 +11209,9 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
         pass
 
     email_re = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    EXPECTED_COLS = len(_CUST_XLSX_COLS)  # 31
     out = []
     row_no = 0
-    # 31컬럼: 0~5=기본, 6~30=담당자 5명 × 5필드
-    EXPECTED_COLS = 31 if sheet_name == "고객사" else 11
     for r in ws.iter_rows(min_row=data_start, values_only=True):
         row_no += 1
         actual_row = row_no + data_start - 1
@@ -10891,17 +11227,13 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
         active_raw = _to_str(cells[4])
         note = _to_str(cells[5])
 
-        # 활성: 1/0/활성/비활성/공란 → 공란은 1
-        if active_raw == "":
-            is_active = 1
-        elif active_raw in ("1", "활성", "Y", "y", "True", "true"):
+        if active_raw == "" or active_raw in ("1", "활성", "Y", "y", "True", "true"):
             is_active = 1
         elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
             is_active = 0
         else:
             is_active = 1
 
-        # 담당자 5명 × 5필드 (이름/전화/이메일/부서/설명)
         contacts = []
         for i in range(5):
             base = 6 + i * 5
@@ -10911,19 +11243,14 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             cdept = _to_str(cells[base + 3])
             cnote = _to_str(cells[base + 4])
             if not cname:
-                continue  # 이름 없으면 슬롯 무시
+                continue
             contacts.append({
-                "name": cname,
-                "mobile": cphone,
-                "email": cemail,
-                "department": cdept,
-                "note": cnote,
+                "name": cname, "mobile": cphone, "email": cemail,
+                "department": cdept, "note": cnote,
                 "is_primary": 1 if i == 0 else 0,
             })
 
-        errors = []
-        warnings = []
-
+        errors, warnings = [], []
         biz_no_norm = _re.sub(r"\D", "", biz_no_raw) if biz_no_raw else ""
         biz_no_display = biz_no_raw
         if biz_no_raw:
@@ -10939,39 +11266,28 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
 
         existing_id = name_map.get(name)
         action = "update" if existing_id else "create"
-
         if biz_no_norm and biz_no_norm in bizno_map:
             other_id, other_name = bizno_map[biz_no_norm]
             if other_name != name:
-                warnings.append(
-                    f"사업자번호 중복: 기존 '{other_name}' (#{other_id}) 와 동일"
-                )
+                warnings.append(f"사업자번호 중복: 기존 '{other_name}' (#{other_id})")
 
         out.append({
             "row_no": actual_row,
-            "name": name,
-            "biz_no": biz_no_display,
-            "biz_no_norm": biz_no_norm,
-            "ceo_name": ceo,
-            "address": address,
-            "phone": "",  # 첨부 양식엔 회사 전화 없음 (담당자 전화만)
-            "note": note,
-            "is_active": is_active,
+            "name": name, "biz_no": biz_no_display, "biz_no_norm": biz_no_norm,
+            "ceo_name": ceo, "address": address,
+            "phone": "", "note": note, "is_active": is_active,
             "contacts": contacts,
-            "manager_name": (contacts[0]["name"] if contacts else ""),  # 호환
-            "email": "",
-            "tier": "",
-            "_existing_id": existing_id,
-            "_action": action,
-            "_errors": errors,
-            "_warnings": warnings,
+            "manager_name": (contacts[0]["name"] if contacts else ""),
+            "email": "", "tier": "",
+            "_existing_id": existing_id, "_action": action,
+            "_errors": errors, "_warnings": warnings,
         })
     return out
 
 
 @app.get("/customers/import-template")
 async def customers_import_template(request: Request):
-    """v5H226z121 (2026-05-19): 01C 자재 양식 패턴 — 안내 시트 + 데이터 시트 + 예시 3행."""
+    """v5H226z122 (2026-05-19): 양식 — 안내 + 고객사 (row1 헤더 + row2~4 예제 3행)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -10986,28 +11302,24 @@ async def customers_import_template(request: Request):
 
     wb = Workbook()
     ws_guide = wb.active
-    ws_guide.title = "📖 작성 가이드"
-    _cust_xlsx_write_guide_sheet(ws_guide,
-        "🏢 KNK 고객사 일괄 등록 — 작성 가이드")
-    ws_data = wb.create_sheet("🏢 고객사 일괄 등록")
-    HEADER_ROW = _cust_xlsx_write_data_sheet(ws_data,
-        "🏢 KNK 고객사 일괄 등록 양식",
-        "① 위 3행은 예제 (참고/삭제 가능)   ②  그 아래 빈 행부터 입력   ③  매출영업 → 고객사 → [📤 엑셀 일괄 업로드]")
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
 
-    # 예시 3행 (HEADER_ROW + 1 ~ +3) — 회색 이탤릭 + 노란 배경
     examples = [
         ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
          "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
-         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당"],
-        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "비활성", "",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
-         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함."],
+         "김부장", "031-555-1235", "kim@goodix.kr", "구매2팀", "결제 담당",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "활성", "",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료 빠른 회신 선호",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
         ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
          "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
          "", "", "", "", "",
@@ -11020,7 +11332,7 @@ async def customers_import_template(request: Request):
     thin = Side(style="thin", color="EEEEEE")
     bd_light = Border(left=thin, right=thin, top=thin, bottom=thin)
     for row_offset, row_data in enumerate(examples):
-        r_idx = HEADER_ROW + 1 + row_offset
+        r_idx = 2 + row_offset
         for c_idx, v in enumerate(row_data, 1):
             cell = ws_data.cell(row=r_idx, column=c_idx, value=v)
             cell.font = example_font
@@ -11043,7 +11355,7 @@ async def customers_import_template(request: Request):
 
 @app.post("/customers/import-xlsx")
 async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
-    """고객사 엑셀 업로드 → 파싱 + 검증 → 미리보기 JSON 반환 (v5H153)."""
+    """v5H226z122: 업로드 → 파싱 + 검증 → 미리보기 JSON 반환."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -11059,21 +11371,15 @@ async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
     error_count = sum(1 for r in rows if r["_errors"])
     warning_count = sum(1 for r in rows if r["_warnings"] and not r["_errors"])
     return JSONResponse({
-        "ok": True,
-        "rows": rows,
-        "total": len(rows),
-        "create_count": create_count,
-        "update_count": update_count,
-        "error_count": error_count,
-        "warning_count": warning_count,
+        "ok": True, "rows": rows, "total": len(rows),
+        "create_count": create_count, "update_count": update_count,
+        "error_count": error_count, "warning_count": warning_count,
     })
 
 
 @app.post("/customers/import-confirm")
 async def customers_import_confirm(request: Request):
-    """미리보기 확정 → INSERT/UPDATE 실행 (v5H153).
-    body JSON: {rows: [...]}.
-    UPDATE 시 빈 칸이 아닌 필드만 갱신(기존 데이터 보호)."""
+    """v5H226z122: 미리보기 확정 → INSERT / UPDATE. 담당자 5명 INSERT (중복 이름 skip)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -11111,13 +11417,11 @@ async def customers_import_confirm(request: Request):
                 is_active = int(r.get("is_active") if r.get("is_active") is not None else 1)
                 note = (r.get("note") or "").strip()
 
-                # 이름으로 기존 행 재조회 (preview 후 동시 변경 가능성 방어)
                 existing = c.execute(
                     "SELECT id FROM customers WHERE name=?", (name,)
                 ).fetchone()
                 if existing:
                     cid = existing["id"] if hasattr(existing, "keys") else existing[0]
-                    # 빈 칸이 아닌 필드만 UPDATE
                     sets, vals = [], []
                     for col, v in (
                         ("biz_no", biz_no), ("ceo_name", ceo),
@@ -11128,7 +11432,6 @@ async def customers_import_confirm(request: Request):
                         if v:
                             sets.append(f"{col}=?")
                             vals.append(v)
-                    # 활성은 명시값 항상 반영
                     sets.append("is_active=?")
                     vals.append(is_active)
                     if sets:
@@ -11138,43 +11441,33 @@ async def customers_import_confirm(request: Request):
                             tuple(vals)
                         )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, cid)
-                        except Exception:
-                            pass
-                    # v5H226z119: 담당자 5명 다중 처리 (UPDATE — 새 contacts 추가만, 기존 보존)
+                        try: _ct.refresh_customer_tier(c, cid)
+                        except Exception: pass
                     contacts_list = r.get("contacts") or []
                     for ct in contacts_list:
-                        if not (ct.get("name") or "").strip():
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
                             continue
-                        # 동일 이름 중복 방지
                         existing_ct = c.execute(
                             "SELECT id FROM customer_contacts WHERE customer_id=? AND name=?",
-                            (cid, ct["name"])
+                            (cid, ct_name)
                         ).fetchone()
                         if existing_ct:
-                            continue  # 이미 있으면 skip
+                            continue
                         c.execute(
                             "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
-                            (cid, ct.get("name", ""), ct.get("department", ""),
+                            (cid, ct_name, ct.get("department", ""),
                              ct.get("mobile", ""), ct.get("email", ""),
                              int(ct.get("is_primary", 0)), "기타")
                         )
-                    updated.append({"row_no": r.get("row_no"),
-                                    "id": cid, "name": name})
+                    updated.append({"row_no": r.get("row_no"), "id": cid, "name": name})
                 else:
                     fields = {
-                        "name": name,
-                        # v5H181: '신규' 는 비표준 — 비어있으면 DB DEFAULT '일반' 사용 위해 미포함
-                        "tier": tier or "일반",
-                        "biz_no": biz_no,
-                        "ceo_name": ceo,
-                        "manager_name": manager,
-                        "phone": phone,
-                        "email": email,
-                        "address": address,
-                        "is_active": is_active,
-                        "note": note,
+                        "name": name, "tier": tier or "일반",
+                        "biz_no": biz_no, "ceo_name": ceo,
+                        "manager_name": manager, "phone": phone,
+                        "email": email, "address": address,
+                        "is_active": is_active, "note": note,
                     }
                     cols = ",".join(fields.keys())
                     ph = ",".join(["?"] * len(fields))
@@ -11183,24 +11476,21 @@ async def customers_import_confirm(request: Request):
                         tuple(fields.values())
                     )
                     new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    # v5H226z119: 담당자 5명 다중 INSERT (신규 고객사)
                     contacts_list = r.get("contacts") or []
                     for ct in contacts_list:
-                        if not (ct.get("name") or "").strip():
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
                             continue
                         c.execute(
                             "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
-                            (new_id, ct.get("name", ""), ct.get("department", ""),
+                            (new_id, ct_name, ct.get("department", ""),
                              ct.get("mobile", ""), ct.get("email", ""),
                              int(ct.get("is_primary", 0)), "기타")
                         )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, new_id)
-                        except Exception:
-                            pass
-                    created.append({"row_no": r.get("row_no"),
-                                    "id": new_id, "name": name})
+                        try: _ct.refresh_customer_tier(c, new_id)
+                        except Exception: pass
+                    created.append({"row_no": r.get("row_no"), "id": new_id, "name": name})
             except Exception as e:
                 failed.append({"row_no": r.get("row_no"),
                                "name": r.get("name"), "error": str(e)})
@@ -11214,7 +11504,6 @@ async def customers_import_confirm(request: Request):
         "updated": updated,
         "failed": failed,
     })
-
 
 @app.get("/projects/{pid}/edit", response_class=HTMLResponse)
 async def projects_edit_form(request: Request, pid: int):
@@ -11610,7 +11899,7 @@ async def customers_bulk_delete(request: Request):
 
 
 # =====================================================
-# HAIST WORKS — 공급사 (suppliers) 라우트
+# HAIST WORKS — 협력사 (suppliers) 라우트
 # =====================================================
 @app.get("/suppliers", response_class=HTMLResponse)
 async def suppliers_list_page(request: Request, q: str = ""):
@@ -11719,7 +12008,7 @@ async def suppliers_delete_submit(request: Request, sid: int):
         _logi.supplier_delete(sid)
     except Exception as e:
         return JSONResponse(
-            {"ok": False, "error": f"공급사 삭제 실패: {e}"}, status_code=400
+            {"ok": False, "error": f"협력사 삭제 실패: {e}"}, status_code=400
         )
     return RedirectResponse("/suppliers", status_code=303)
 
@@ -12155,7 +12444,7 @@ async def parts_price_approve_submit(request: Request, price_id: int):
 
 @app.get("/parts/{pid:int}", response_class=HTMLResponse)
 async def parts_detail_page(request: Request, pid: int):
-    """부품 상세 — FIFO 레이어, 공급사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
+    """부품 상세 — FIFO 레이어, 협력사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -12194,7 +12483,7 @@ async def parts_detail_page(request: Request, pid: int):
     # 적용일자 단가 (동적 변수 ②)
     managed_prices = part_prices_list(pid)
     active_price = part_active_price(pid)
-    # 공급사 선택지 (단가 등록 폼용)
+    # 협력사 선택지 (단가 등록 폼용)
     with db_session() as c:
         suppliers = [dict(r) for r in c.execute(
             "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
@@ -12204,20 +12493,52 @@ async def parts_detail_page(request: Request, pid: int):
         attachments = part_attachments_list(pid)
     except Exception:
         attachments = []
-    # v5H226z110c (2026-05-19) — 기본 공급사 마스터 자동 연결 (담당자·연락처 표시용)
-    default_supplier_info = None
+    # v5H226z111/z112 (2026-05-19) — 협력사 1·2·3 → 마스터 자동 연결 + 자재 단위 담당자·기본여부 (purchase_prices JSON)
+    vendors_info = []  # [{slot, name, info, is_default, contact_name/phone/email}]
     try:
-        _ds_name = (part.get("default_supplier") or "").strip()
-        if _ds_name:
-            with db_session() as _c:
+        import json as _json
+        # purchase_prices JSON 파싱 — 자재 단위 담당자·기본여부 추출
+        _pp_list = []
+        try:
+            _pp_raw = part.get("purchase_prices") or ""
+            if _pp_raw:
+                _pp_list = _json.loads(_pp_raw)
+                if not isinstance(_pp_list, list):
+                    _pp_list = []
+        except Exception:
+            _pp_list = []
+        with db_session() as _c:
+            for _slot in (1, 2, 3):
+                _name = (part.get(f"vendor{_slot}") or "").strip()
+                _ppv = _pp_list[_slot-1] if _slot-1 < len(_pp_list) and isinstance(_pp_list[_slot-1], dict) else {}
+                # vendor 컬럼이 비어 있어도 purchase_prices에 supplier 있으면 사용
+                if not _name and _ppv:
+                    _name = (_ppv.get("supplier") or "").strip()
+                if not _name and not _ppv:
+                    continue
                 _row = _c.execute(
                     "SELECT * FROM suppliers WHERE name=? AND COALESCE(is_active,1)=1 LIMIT 1",
-                    (_ds_name,)
-                ).fetchone()
-                if _row:
-                    default_supplier_info = dict(_row)
+                    (_name,)
+                ).fetchone() if _name else None
+                vendors_info.append({
+                    "slot": _slot,
+                    "name": _name,
+                    "info": dict(_row) if _row else None,
+                    "is_default":    bool(_ppv.get("is_default")),
+                    "contact_name":  (_ppv.get("contact_name")  or "").strip(),
+                    "contact_phone": (_ppv.get("contact_phone") or "").strip(),
+                    "contact_email": (_ppv.get("contact_email") or "").strip(),
+                })
     except Exception:
-        default_supplier_info = None
+        vendors_info = []
+    # 하위호환: default_supplier_info — is_default=True 인 슬롯 우선, 없으면 첫 슬롯
+    default_supplier_info = None
+    for _v in vendors_info:
+        if _v.get("is_default") and _v.get("info"):
+            default_supplier_info = _v["info"]
+            break
+    if not default_supplier_info and vendors_info and vendors_info[0].get("info"):
+        default_supplier_info = vendors_info[0]["info"]
     # v5H136 (2026-05-05): 자재가 어떤 프로젝트(장비)에서 얼마나 쓰였는지 (소모품 식별)
     project_usage = []
     try:
@@ -12236,6 +12557,7 @@ async def parts_detail_page(request: Request, pid: int):
                suppliers=suppliers,
                attachments=attachments,
                default_supplier_info=default_supplier_info,
+               vendors_info=vendors_info,
                project_usage=project_usage,
                CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")

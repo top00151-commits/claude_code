@@ -1995,6 +1995,14 @@ def init_db():
                 c.execute("ALTER TABLE parts ADD COLUMN maker_contact_phone TEXT")
             if prcols and "maker_contact_email" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN maker_contact_email TEXT")
+            # v5H226z111 (2026-05-19): 구매사(협력사) 3개 슬롯 — 분류·재고 관리 박스로 이전
+            #   기존 default_supplier 는 deprecated. vendor1·2·3 가 협력사 마스터에서 선택된 값
+            if prcols and "vendor1" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN vendor1 TEXT")
+            if prcols and "vendor2" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN vendor2 TEXT")
+            if prcols and "vendor3" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN vendor3 TEXT")
         except Exception:
             pass
         # v5H226z89 (2026-05-14): suppliers 에 사업자등록번호·대표자 컬럼 추가
@@ -4110,13 +4118,15 @@ def _validate_parts_payload(data: dict) -> None:
 
 
 def _parse_purchase_prices(raw):
-    """v5H226z84: 매입단가 — 구매사 3곳 × 각 1~5차(날짜+단가) JSON 파싱.
-    입력: JSON 문자열 또는 list.
-      형식 [{"supplier":"공원전기(주)","entries":[{"seq":1,"date":"2026-05-01","price":52750}, ...]}, ...]
+    """v5H226z84/z112: 매입단가 — 협력사 3곳(구매사) × 각 1~5차 JSON 파싱.
+    형식: [
+      {"supplier":"㈜A", "is_default":true,
+       "contact_name":"홍길동", "contact_phone":"010-...", "contact_email":"abc@a.com",
+       "entries":[{"seq":1,"date":"2026-05-01","price":52750}, ...]},
+      ...
+    ]
     반환: (정규화 JSON 문자열 or None, 대표단가 float or None)
-    대표단가 = 전체 entries 중 '가장 최근 날짜'의 단가 (동일 날짜 시 높은 seq).
-              날짜 있는 단가가 하나도 없으면 마지막 price>0 단가로 폴백.
-    완전 빈 행/구매사는 제외. 구매사 최대 3, 각 차수 최대 5.
+    · v5H226z112: 협력사명은 마스터 검증(없으면 NULL로 정규화). 담당자·기본 협력사 필드도 보존.
     """
     import json as _json
     if not raw:
@@ -4128,12 +4138,21 @@ def _parse_purchase_prices(raw):
     if not isinstance(vendors, list):
         return None, None
     cleaned = []
-    best = None       # ((date, seq), price) — 가장 최근 날짜
-    fallback = None   # 마지막 price>0 (날짜 없을 때)
+    best = None
+    fallback = None
+    default_seen = False  # 첫 is_default=True만 유효
     for vend in vendors[:3]:
         if not isinstance(vend, dict):
             continue
-        supplier = str(vend.get("supplier") or "").strip()
+        supplier_raw = str(vend.get("supplier") or "").strip()
+        # v5H226z112 — 마스터 검증: 없는 이름은 NULL 로 정규화 (오타 차단)
+        supplier = _validate_vendor_name(supplier_raw) or ""
+        is_default = bool(vend.get("is_default")) and not default_seen
+        if is_default:
+            default_seen = True
+        contact_name  = str(vend.get("contact_name")  or "").strip()
+        contact_phone = str(vend.get("contact_phone") or "").strip()
+        contact_email = str(vend.get("contact_email") or "").strip()
         raw_entries = vend.get("entries")
         entries = []
         if isinstance(raw_entries, list):
@@ -4152,7 +4171,7 @@ def _parse_purchase_prices(raw):
                 if price < 0:
                     price = 0.0
                 if price <= 0 and not date:
-                    continue  # 완전 빈 행 스킵
+                    continue
                 entries.append({"seq": seq, "date": date, "price": price})
                 if price > 0:
                     fallback = price
@@ -4160,12 +4179,84 @@ def _parse_purchase_prices(raw):
                         key = (date, seq)
                         if best is None or key > best[0]:
                             best = (key, price)
-        if supplier or entries:
-            cleaned.append({"supplier": supplier, "entries": entries})
+        # 빈 슬롯 건너뛰기 — 협력사·entries·담당자 중 하나라도 있어야 보존
+        if supplier or entries or contact_name or contact_phone or contact_email:
+            cleaned.append({
+                "supplier": supplier,
+                "is_default": is_default,
+                "contact_name": contact_name,
+                "contact_phone": contact_phone,
+                "contact_email": contact_email,
+                "entries": entries,
+            })
     if not cleaned:
         return None, None
     std_price = best[1] if best is not None else fallback
     return _json.dumps(cleaned, ensure_ascii=False), std_price
+
+
+def _pp_sync_vendor_columns(data: dict, pp_json: str | None) -> None:
+    """v5H226z112 (2026-05-19) — purchase_prices JSON 의 supplier 이름을
+    parts.vendor1/2/3 컬럼과 default_supplier 컬럼에 자동 미러.
+    JSON 내 is_default=true 인 협력사를 default_supplier 로 우선 사용.
+    호출 시점은 _parse_purchase_prices 직후 (data 에 in-place 반영)."""
+    import json as _json
+    if not pp_json:
+        return
+    try:
+        vendors = _json.loads(pp_json)
+    except (ValueError, TypeError):
+        return
+    if not isinstance(vendors, list):
+        return
+    # 슬롯별 vendor1/2/3 (이미 마스터 검증 완료된 supplier 만 들어옴)
+    for idx, vend in enumerate(vendors[:3], start=1):
+        if isinstance(vend, dict):
+            data[f"vendor{idx}"] = (vend.get("supplier") or "").strip() or None
+    # is_default=True 인 협력사 → default_supplier
+    default = None
+    for vend in vendors:
+        if isinstance(vend, dict) and vend.get("is_default"):
+            default = (vend.get("supplier") or "").strip()
+            if default:
+                break
+    if not default:
+        # 폴백: 첫 번째 협력사 (이름 있는 것)
+        for vend in vendors:
+            if isinstance(vend, dict):
+                _n = (vend.get("supplier") or "").strip()
+                if _n:
+                    default = _n
+                    break
+    if default is not None:
+        data["default_supplier"] = default
+
+
+def _validate_vendor_name(name) -> str | None:
+    """v5H226z111 (2026-05-19) — 구매사(협력사) 이름 마스터 검증.
+    suppliers.name 에 존재하는 이름만 통과. 빈값/매칭실패 → None.
+    공백·대소문자 차이는 정규화하여 비교."""
+    if not name:
+        return None
+    s = str(name).strip()
+    if not s:
+        return None
+    try:
+        with db_session() as c:
+            row = c.execute(
+                "SELECT name FROM suppliers WHERE TRIM(name)=? AND COALESCE(is_active,1)=1 LIMIT 1",
+                (s,)
+            ).fetchone()
+            if row:
+                return row[0]
+            # 대소문자 무시 매칭 한 번 더 시도
+            row = c.execute(
+                "SELECT name FROM suppliers WHERE LOWER(TRIM(name))=LOWER(?) AND COALESCE(is_active,1)=1 LIMIT 1",
+                (s,)
+            ).fetchone()
+            return row[0] if row else None
+    except Exception:
+        return None
 
 
 def parts_create(data: dict, force: bool = False) -> int:
@@ -4178,6 +4269,8 @@ def parts_create(data: dict, force: bool = False) -> int:
     _pp_json, _pp_last = _parse_purchase_prices(data.get("purchase_prices"))
     if _pp_last is not None:
         data["std_price"] = _pp_last
+    # v5H226z112: purchase_prices JSON 의 협력사명을 vendor1/2/3에 자동 미러 + 기본 협력사 추출
+    _pp_sync_vendor_columns(data, _pp_json)
     # v5H113 LOW#21: part_no 중복 친절 처리
     pno = (data.get("part_no") or "").strip()
     if pno:
@@ -4250,12 +4343,16 @@ def parts_create(data: dict, force: bool = False) -> int:
         ("purchase_prices",    _pp_json),
         # v5H226z99 (2026-05-16): 용도 — 카탈로그 검색 보조 자유 텍스트
         ("purpose",            (data.get("purpose") or "").strip() or None),
-        # v5H226z110b (2026-05-19): 기본 공급사명 — 발주 자동 매칭
+        # v5H226z110b (2026-05-19): 기본 협력사명 — deprecated (vendor1로 이전됨)
         ("default_supplier",   (data.get("default_supplier") or "").strip() or None),
         # v5H226z110c (2026-05-19): 제조사 담당자 풀세트
         ("maker_contact_name",  (data.get("maker_contact_name") or "").strip() or None),
         ("maker_contact_phone", (data.get("maker_contact_phone") or "").strip() or None),
         ("maker_contact_email", (data.get("maker_contact_email") or "").strip() or None),
+        # v5H226z111 (2026-05-19): 구매사(협력사) 3슬롯 — 마스터 검증 후 저장
+        ("vendor1",            _validate_vendor_name(data.get("vendor1"))),
+        ("vendor2",            _validate_vendor_name(data.get("vendor2"))),
+        ("vendor3",            _validate_vendor_name(data.get("vendor3"))),
     ]
     with db_session() as c:
         # PRAGMA 로 실제 존재 컬럼만 추가 (z58 SQL 미적용 환경 호환)
@@ -4285,6 +4382,8 @@ def parts_update(pid: int, data: dict) -> None:
         _pp_json, _pp_last = _parse_purchase_prices(data.get("purchase_prices"))
         if _pp_last is not None:
             data["std_price"] = _pp_last
+        # v5H226z112: vendor1/2/3·default_supplier 자동 미러
+        _pp_sync_vendor_columns(data, _pp_json)
     # v5H113 LOW#21: 다른 row 와 part_no 중복 차단
     pno = (data.get("part_no") or "").strip()
     if pno:
@@ -4345,6 +4444,10 @@ def parts_update(pid: int, data: dict) -> None:
     for _k in ("maker_contact_name", "maker_contact_phone", "maker_contact_email"):
         if _k in data:
             ext_pairs.append((_k, (data.get(_k) or "").strip() or None))
+    # v5H226z111 (2026-05-19): 구매사 3슬롯 — 마스터 검증 후 저장 (없는 이름은 NULL)
+    for _k in ("vendor1", "vendor2", "vendor3"):
+        if _k in data:
+            ext_pairs.append((_k, _validate_vendor_name(data.get(_k))))
     # v5H226z83: purchase_prices 는 폼에서 전달된 경우에만 SET (미전달 호출은 보존)
     if _pp_provided:
         ext_pairs.append(("purchase_prices", _pp_json))
@@ -7056,11 +7159,20 @@ _PARTS_IMPORT_HEADER_MAP = {
     # v5H226z110 (2026-05-18) — 자재코드 = 제조사 모델명 (통합). 엑셀에 "모델명" 헤더가 있으면 자재코드로 매핑
     "modelname": "part_no", "model": "part_no", "모델명": "part_no",
     "모델번호": "part_no", "모델": "part_no", "manufacturermodel": "part_no",
-    # v5H226z110b (2026-05-19) — 기본 공급사명 (발주 자동 매칭용)
+    # v5H226z110b (2026-05-19) — 기본 협력사명 (발주 자동 매칭용)
+    # v5H226z111 (2026-05-19) — "공급사" UI 표현이 "협력사"로 변경됨에 따라 별칭 추가
     "defaultsupplier": "default_supplier", "기본공급사": "default_supplier",
     "기본공급사명": "default_supplier", "공급사": "default_supplier",
     "공급사명": "default_supplier", "주공급사": "default_supplier",
+    "기본협력사": "default_supplier", "기본협력사명": "default_supplier",
+    "협력사": "default_supplier", "협력사명": "default_supplier",
+    "주협력사": "default_supplier",
     "vendor": "default_supplier", "supplier": "default_supplier",
+    "partner": "default_supplier",
+    # v5H226z111 (2026-05-19) — 구매사 3슬롯 (협력사 마스터 검증 후 저장)
+    "vendor1": "vendor1", "구매사1": "vendor1", "협력사1": "vendor1", "공급사1": "vendor1",
+    "vendor2": "vendor2", "구매사2": "vendor2", "협력사2": "vendor2", "공급사2": "vendor2",
+    "vendor3": "vendor3", "구매사3": "vendor3", "협력사3": "vendor3", "공급사3": "vendor3",
     # v5H226z110c (2026-05-19) — 제조사 담당자 풀세트
     "makercontactname": "maker_contact_name", "제조사담당자": "maker_contact_name",
     "제조사담당자명": "maker_contact_name", "메이커담당자": "maker_contact_name",

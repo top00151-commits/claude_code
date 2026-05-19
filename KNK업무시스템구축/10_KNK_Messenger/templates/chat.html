@@ -260,11 +260,16 @@
     </div>
 
     <!-- 멤버 초대 다이얼로그 -->
-    <!-- ➕ 직원 등록 다이얼로그 (대표만) -->
+    <!-- ➕ 직원 등록 다이얼로그 (관리자만) -->
     <div class="modal" id="newUserDialog" data-modal>
-      <div class="modal-content" style="max-width:460px;">
+      <div class="modal-content" style="max-width:520px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <h3>➕ 직원 등록</h3>
+        <div class="dialog-tabs" style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border);">
+          <button type="button" class="tab nu-tab active" data-nu-tab="single">👤 1명 등록</button>
+          <button type="button" class="tab nu-tab" data-nu-tab="bulk">📊 엑셀 일괄 등록</button>
+        </div>
+        <div id="nuPaneSingle">
         <p class="dialog-hint">신규 직원을 등록합니다. <b>회사 이메일</b>이 로그인 ID 가 되고, <b>휴대폰 번호 (숫자만)</b>가 초기 비밀번호가 됩니다. 직원은 첫 로그인 시 비밀번호를 바꾸도록 안내받습니다.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
           <label style="font-size:12px;color:var(--text-soft);">이름 <span style="color:#dc2626;">*</span></label>
@@ -295,7 +300,7 @@
           </div>
           <label class="rs-checkbox" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
             <input type="checkbox" id="nuRoleCeo">
-            <span>👑 대표 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화 가능)</span>
+            <span>👑 관리자 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화·삭제 가능)</span>
           </label>
         </div>
         <div class="dialog-actions">
@@ -303,6 +308,27 @@
           <button type="button" id="nuSaveBtn" class="primary-btn">➕ 직원 등록</button>
         </div>
         <div id="nuResult" style="margin-top:10px;font-size:12.5px;color:var(--text);"></div>
+        </div><!-- /nuPaneSingle -->
+        <div id="nuPaneBulk" hidden>
+          <p class="dialog-hint">엑셀로 여러 명을 한꺼번에 등록합니다. 양식을 먼저 다운로드해서 채운 뒤 업로드하세요.</p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px;">
+              <div style="font-weight:700;font-size:13.5px;color:#1E40AF;margin-bottom:6px;">📋 1단계 — 양식 다운로드</div>
+              <div style="font-size:12px;color:#1E3A8A;line-height:1.6;margin-bottom:10px;">엑셀 양식에는 헤더·예시 3줄·드롭다운(권한·부서)·안내 시트가 포함되어 있습니다.</div>
+              <button type="button" id="nuTplDownloadBtn" class="secondary-btn">📥 KNK_직원등록_양식.xlsx 다운로드</button>
+            </div>
+            <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:14px;">
+              <div style="font-weight:700;font-size:13.5px;color:#92400E;margin-bottom:6px;">📤 2단계 — 작성한 엑셀 업로드</div>
+              <div style="font-size:12px;color:#78350F;line-height:1.6;margin-bottom:10px;">
+                양식의 헤더는 그대로 두고 4행부터 직원 정보 입력 (예시 3줄은 자동 무시).<br>
+                <b>필수 필드</b>: 이름·이메일·휴대폰. <b>중복 이메일</b>은 자동 스킵.
+              </div>
+              <input type="file" id="nuBulkFile" accept=".xlsx,.xlsm" style="display:block;margin-bottom:8px;font-size:12px;">
+              <button type="button" id="nuBulkUploadBtn" class="primary-btn">📤 업로드 + 일괄 등록</button>
+            </div>
+            <div id="nuBulkResult" style="font-size:12.5px;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -331,7 +357,7 @@
       <div class="modal-content" style="max-width:420px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <h3>👤 <span id="uiName">사용자 정보</span></h3>
-        <p class="dialog-hint" id="uiHint">본인은 직급·부서를 직접 수정할 수 있습니다. 대표는 모든 사람 수정 가능.</p>
+        <p class="dialog-hint" id="uiHint">본인은 직급·부서를 직접 수정할 수 있습니다. 관리자는 모든 사람 수정 가능.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
           <label style="font-size:12px;color:var(--text-soft);">직급</label>
           <input type="text" id="uiTitle" maxlength="40" placeholder="예: 대표이사 / 부장 / 과장 / 사원 / 프로" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
@@ -354,12 +380,24 @@
           <label style="font-size:12px;color:var(--text-soft);">전화번호</label>
           <input type="tel" id="uiPhone" maxlength="30" placeholder="예: 010-1234-5678 또는 02-555-1234" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
           <div id="uiCeoFields" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">
-            <label style="font-size:12px;color:var(--text-soft);">표시명 (대표만 변경)</label>
+            <label style="font-size:12px;color:var(--text-soft);">표시명 (관리자만 변경)</label>
             <input type="text" id="uiDisplayName" maxlength="40" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
-            <label style="font-size:12px;color:var(--text-soft);margin-top:8px;display:block;">계정 활성/비활성</label>
-            <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="uiActive"> <span>활성 (체크 해제 시 로그인 차단·퇴사자 처리)</span>
+            <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">권한</label>
+            <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;">
+              <input type="checkbox" id="uiRoleCeo"> <span>👑 <b>관리자 권한</b> — 직원 등록·정보 수정·계정 비활성화·삭제 가능</span>
             </label>
+            <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">계정 활성/비활성 (퇴사 시 1차 처리)</label>
+            <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="uiActive"> <span>활성 (체크 해제 시 로그인 차단 — 데이터 보존)</span>
+            </label>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #FCA5A5;">
+              <div style="font-size:12px;color:#991B1B;font-weight:600;margin-bottom:6px;">⚠ 위험 구역 — 계정 완전 삭제</div>
+              <div style="font-size:11px;color:var(--text-soft);line-height:1.5;margin-bottom:8px;">
+                이 사용자의 계정을 영구 삭제합니다. 메시지·이력은 <b>"(삭제된 사용자)"</b> 로 표시되며 데이터 자체는 보존됩니다 (감사 추적용).<br>
+                되돌릴 수 없으므로 일반적으로는 <b>비활성화</b>를 먼저 사용하세요.
+              </div>
+              <button type="button" id="uiDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:12px;font-weight:600;">🗑 이 계정 완전 삭제</button>
+            </div>
           </div>
         </div>
         <div class="dialog-actions">
@@ -480,6 +518,7 @@
         </section>
         <div class="dialog-actions">
           <button type="button" data-close>취소</button>
+          <button type="button" id="statusChangePwBtn" class="secondary-btn">🔐 비밀번호 변경</button>
           <button type="button" id="statusSaveBtn" class="primary-btn">저장</button>
         </div>
       </div>
@@ -755,171 +794,5 @@
     }
   </script>
 
-  <!-- ═══════════════════════════════════════════════════════════════════
-       ▼▼▼  TEMP: 레이아웃 영역 가시화 토글 (디버그용)  ▼▼▼
-       검증 끝나면 이 블록 + style.css 의 TEMP 블록 함께 제거.
-       ═══════════════════════════════════════════════════════════════════ -->
-  <button id="debugLayoutBtn" type="button" title="레이아웃 영역 표시 ON/OFF — 드래그로 이동, 더블클릭으로 위치 초기화">🔍 레이아웃</button>
-  <script>
-    (function() {
-      const KEY = 'knk_debug_layout';
-      const POS_KEY = 'knk_debug_layout_pos';   // {top, left} 저장
-
-      // ─── 드래그 이동 + 위치 영속화 ───
-      function applyPos(top, left) {
-        const btn = document.getElementById('debugLayoutBtn');
-        if (!btn) return;
-        // 화면 밖으로 안 나가게 클램프
-        const w = btn.offsetWidth || 100;
-        const h = btn.offsetHeight || 30;
-        const maxL = window.innerWidth - w - 4;
-        const maxT = window.innerHeight - h - 4;
-        top = Math.max(4, Math.min(top, maxT));
-        left = Math.max(4, Math.min(left, maxL));
-        btn.style.top = top + 'px';
-        btn.style.left = left + 'px';
-        btn.style.right = 'auto';
-        btn.style.bottom = 'auto';
-      }
-      function loadPos() {
-        try {
-          const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-          if (v && typeof v.top === 'number' && typeof v.left === 'number') {
-            applyPos(v.top, v.left);
-          }
-        } catch (e) {}
-      }
-      function savePos(top, left) {
-        try { localStorage.setItem(POS_KEY, JSON.stringify({ top, left })); } catch (e) {}
-      }
-      function resetPos() {
-        const btn = document.getElementById('debugLayoutBtn');
-        if (!btn) return;
-        btn.style.top = ''; btn.style.left = '';
-        btn.style.right = ''; btn.style.bottom = '';
-        try { localStorage.removeItem(POS_KEY); } catch (e) {}
-      }
-      function wireDrag() {
-        const btn = document.getElementById('debugLayoutBtn');
-        if (!btn) return;
-        let dragging = false, moved = false, sx = 0, sy = 0, origT = 0, origL = 0;
-        const DRAG_THRESHOLD = 4;   // 4px 이상 움직여야 드래그로 인정 (클릭 보존)
-
-        function onPointerDown(e) {
-          // 모바일 long-press 메뉴 방지 위해 즉시 preventDefault
-          if (e.button !== undefined && e.button !== 0) return;   // 마우스 좌클릭만
-          const rect = btn.getBoundingClientRect();
-          sx = e.clientX; sy = e.clientY;
-          origT = rect.top; origL = rect.left;
-          dragging = true; moved = false;
-          btn.setPointerCapture && btn.setPointerCapture(e.pointerId);
-          e.preventDefault();
-        }
-        function onPointerMove(e) {
-          if (!dragging) return;
-          const dx = e.clientX - sx;
-          const dy = e.clientY - sy;
-          if (!moved && (Math.abs(dx) + Math.abs(dy) >= DRAG_THRESHOLD)) {
-            moved = true;
-            btn.classList.add('dragging');
-          }
-          if (moved) applyPos(origT + dy, origL + dx);
-        }
-        function onPointerUp(e) {
-          if (!dragging) return;
-          dragging = false;
-          btn.classList.remove('dragging');
-          if (moved) {
-            const rect = btn.getBoundingClientRect();
-            savePos(rect.top, rect.left);
-            // 드래그였으므로 이번 click 은 취소
-            btn._suppressClick = true;
-            setTimeout(() => { btn._suppressClick = false; }, 50);
-          }
-        }
-        btn.addEventListener('pointerdown', onPointerDown);
-        btn.addEventListener('pointermove', onPointerMove);
-        btn.addEventListener('pointerup', onPointerUp);
-        btn.addEventListener('pointercancel', onPointerUp);
-        // 더블클릭으로 위치 초기화
-        btn.addEventListener('dblclick', (e) => {
-          e.preventDefault(); e.stopPropagation();
-          resetPos();
-        });
-        // 창 크기 변경 시 화면 밖으로 안 나가게 재클램프
-        window.addEventListener('resize', () => {
-          try {
-            const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-            if (v) applyPos(v.top, v.left);
-          } catch (e) {}
-        });
-      }
-      // 영역별 셀렉터 + 라벨 텍스트 + 색상
-      const AREAS = [
-        { sel: '.sidebar',          label: 'SIDEBAR',           color: '#2563eb' },
-        { sel: '.sidebar-head',     label: 'sidebar-head',      color: '#06b6d4' },
-        { sel: '.search-box',       label: 'search-box',        color: '#14b8a6' },
-        { sel: '.filter-bar',       label: 'filter-bar',        color: '#84cc16' },
-        { sel: '.room-list',        label: 'room-list',         color: '#10b981' },
-        { sel: '.chat-pane',        label: 'CHAT-PANE',         color: '#f97316' },
-        { sel: '.chat-head',        label: 'chat-head',         color: '#eab308', fg: '#000' },
-        { sel: '.messages',         label: 'messages',          color: '#ec4899' },
-        { sel: '.composer-langbar', label: 'composer-langbar',  color: '#A5282C' },
-        { sel: '.composer',         label: 'composer (입력창)', color: '#A5282C' },
-      ];
-      function injectLabels() {
-        AREAS.forEach(a => {
-          document.querySelectorAll(a.sel).forEach(el => {
-            // 이미 자식으로 라벨 있으면 건너뜀 (중복 방지)
-            const existing = el.querySelector(':scope > .debug-label');
-            if (existing) return;
-            const lbl = document.createElement('span');
-            lbl.className = 'debug-label';
-            lbl.textContent = a.label;
-            lbl.style.background = a.color;
-            if (a.fg) lbl.style.color = a.fg;
-            el.appendChild(lbl);
-          });
-        });
-      }
-      function removeLabels() {
-        document.querySelectorAll('.debug-label').forEach(el => el.remove());
-      }
-      function apply(on) {
-        document.body.classList.toggle('debug-layout', on);
-        if (on) injectLabels(); else removeLabels();
-        try { localStorage.setItem(KEY, on ? '1' : '0'); } catch(e) {}
-        const btn = document.getElementById('debugLayoutBtn');
-        if (btn) btn.textContent = on ? '🔍 레이아웃 ON' : '🔍 레이아웃';
-      }
-      function init() {
-        const btn = document.getElementById('debugLayoutBtn');
-        if (!btn) return;
-        btn.addEventListener('click', (e) => {
-          // 드래그 후의 click 은 무시 (위치만 옮긴 거지 토글 의도 아님)
-          if (btn._suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
-          apply(!document.body.classList.contains('debug-layout'));
-        });
-        // 드래그 이동 + 위치 복원
-        wireDrag();
-        loadPos();
-        // localStorage 에서 이전 상태 복원
-        let on = false;
-        try { on = localStorage.getItem(KEY) === '1'; } catch(e) {}
-        apply(on);
-        // app.js 가 .room-list / .messages 의 innerHTML 을 교체하면 라벨이 사라짐
-        // → 500ms 주기로 누락된 라벨 재삽입 (디버그 ON 일 때만)
-        setInterval(() => {
-          if (document.body.classList.contains('debug-layout')) injectLabels();
-        }, 500);
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-      } else {
-        init();
-      }
-    })();
-  </script>
-  <!-- ▲▲▲  TEMP 끝 ▲▲▲ -->
 </body>
 </html>

@@ -135,7 +135,7 @@
       <div class="section-card">
         <h3>단가 이력</h3>
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
-          <thead><tr><th>일자</th><th>공급사</th><th class="num">단가</th><th class="num">수량</th></tr></thead>
+          <thead><tr><th>일자</th><th>협력사</th><th class="num">단가</th><th class="num">수량</th></tr></thead>
           <tbody>
           {% for h in price_history[:15] %}
             <tr><td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ h.date|default('—') }}</td><td>{{ h.supplier_name|default('—') }}</td><td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(h.unit_price|default(0)) }}</td><td class="num">{{ '{:,.0f}'.format(h.qty|default(0)) }}</td></tr>
@@ -164,9 +164,13 @@
             {% if p.maker_contact_email %}<br>✉ <a href="mailto:{{ p.maker_contact_email }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ p.maker_contact_email }}</a>{% endif %}
           </dd>
           {% endif %}
-          {# v5H226z110b (2026-05-19) — 기본 공급사명 (발주 자동 매칭) #}
-          {% if p.default_supplier %}
-          <dt>기본 공급사</dt><dd style="font-weight:600;color:var(--qv-ink-2);">{{ p.default_supplier }}</dd>
+          {# v5H226z111 (2026-05-19) — 구매사(협력사) 3슬롯 요약 표시 (상세는 별도 카드) #}
+          {% set _vlist = [p.vendor1, p.vendor2, p.vendor3]|select|list %}
+          {% if _vlist %}
+          <dt>구매사</dt>
+          <dd style="line-height:1.5;">
+            {% for vn in _vlist %}<span style="display:inline-block;padding:1px 7px;margin:1px 3px 1px 0;background:var(--qv-surface-3,#eee);border-radius:10px;font-size:11px;font-weight:600;">{{ loop.index }}. {{ vn }}</span>{% endfor %}
+          </dd>
           {% endif %}
           <dt>사업부</dt><dd>{{ p.biz_div|default('—') }}</dd>
           <dt>단위</dt><dd>{{ p.unit|default('—') }}</dd>
@@ -179,45 +183,74 @@
         </dl>
       </div>
 
-      {# v5H226z110c (2026-05-19) — 기본 공급사 정보 자동 카드 (담당자·연락처·이메일) #}
-      {% if default_supplier_info %}
-      {% set ds = default_supplier_info %}
-      <div class="section-card" data-dn="pd:supplier" style="border-left:3px solid var(--qv-ink);">
-        <h3>🏢 기본 공급사 정보
-          <a href="/suppliers/{{ ds.id }}/edit" style="font-size:11px;font-weight:400;color:var(--qv-ink-3,#666);margin-left:6px;text-decoration:none;">→ 공급사 상세</a>
-        </h3>
-        <dl class="def">
-          <dt>공급사명</dt><dd><b>{{ ds.name }}</b></dd>
-          {% if ds.manage_dept %}<dt>관리부서</dt><dd>{{ ds.manage_dept }}</dd>{% endif %}
-          {% if ds.biz_no %}<dt>사업자번호</dt><dd style="font-family:monospace;">{{ ds.biz_no }}</dd>{% endif %}
-          {% if ds.ceo_name %}<dt>대표자</dt><dd>{{ ds.ceo_name }}</dd>{% endif %}
-          {% if ds.contact or ds.phone or ds.email %}
-          <dt>담당자 1</dt>
-          <dd style="line-height:1.55;">
-            {% if ds.contact %}<b>{{ ds.contact }}</b>{% endif %}
-            {% if ds.phone %}<br>📞 <a href="tel:{{ ds.phone }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone }}</a>{% endif %}
-            {% if ds.email %}<br>✉ <a href="mailto:{{ ds.email }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.email }}</a>{% endif %}
-          </dd>
+      {# v5H226z112 (2026-05-19) — 협력사 1·2·3 (구매사) 카드 — 마스터 정보 + 자재 단위 담당자 + 기본 협력사 표시 #}
+      {% if vendors_info %}
+      <div class="section-card" data-dn="pd:vendors" style="border-left:3px solid var(--qv-ink);">
+        <h3>🛒 협력사 (구매사) — {{ vendors_info|length }}곳</h3>
+        {% for v in vendors_info %}
+        <div style="padding:10px 0;{% if not loop.last %}border-bottom:1px dashed var(--qv-line);margin-bottom:6px;{% endif %}">
+          <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--qv-ink-3,#666);font-weight:700;letter-spacing:.08em;margin-bottom:4px;">
+            <span>협력사 {{ v.slot }} (구매사)</span>
+            {% if v.is_default %}<span style="background:#0F172A;color:#fff;padding:1px 7px;border-radius:10px;font-size:9.5px;letter-spacing:.06em;">★ 기본</span>{% endif %}
+          </div>
+          {% if v.info %}
+          {% set ds = v.info %}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <b style="font-size:13.5px;">{{ ds.name }}</b>
+            <a href="/suppliers/{{ ds.id }}/edit" style="font-size:11px;color:var(--qv-ink-3,#666);text-decoration:none;">→ 협력사 상세</a>
+          </div>
+          {# 자재 단위 담당자 — 매입단가 박스에서 입력한 정보 우선 표시 #}
+          {% if v.contact_name or v.contact_phone or v.contact_email %}
+          <dl class="def" style="margin:0 0 6px;">
+            <dt>자재 담당자 <span style="font-size:10px;color:var(--qv-ink-3,#666);font-weight:400;">(이 자재 전용)</span></dt>
+            <dd style="line-height:1.55;">
+              {% if v.contact_name %}<b>{{ v.contact_name }}</b>{% endif %}
+              {% if v.contact_phone %}<br>📞 <a href="tel:{{ v.contact_phone }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ v.contact_phone }}</a>{% endif %}
+              {% if v.contact_email %}<br>✉ <a href="mailto:{{ v.contact_email }}" style="color:var(--qv-ink-2);text-decoration:none;font-size:11.5px;">{{ v.contact_email }}</a>{% endif %}
+            </dd>
+          </dl>
           {% endif %}
-          {% if ds.contact2 or ds.phone2 or ds.email2 %}
-          <dt>담당자 2</dt>
-          <dd style="line-height:1.55;">
-            {% if ds.contact2 %}<b>{{ ds.contact2 }}</b>{% endif %}
-            {% if ds.phone2 %}<br>📞 <a href="tel:{{ ds.phone2 }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone2 }}</a>{% endif %}
-            {% if ds.email2 %}<br>✉ <a href="mailto:{{ ds.email2 }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.email2 }}</a>{% endif %}
-          </dd>
+          {# 협력사 마스터 정보 — 자동 연결 #}
+          <dl class="def" style="margin:0;">
+            {% if ds.manage_dept %}<dt>관리부서</dt><dd>{{ ds.manage_dept }}</dd>{% endif %}
+            {% if ds.ceo_name %}<dt>대표자</dt><dd>{{ ds.ceo_name }}</dd>{% endif %}
+            {% if ds.contact or ds.phone or ds.email %}
+            <dt>마스터 담당자 1</dt>
+            <dd style="line-height:1.55;">
+              {% if ds.contact %}<b>{{ ds.contact }}</b>{% endif %}
+              {% if ds.phone %}<br>📞 <a href="tel:{{ ds.phone }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone }}</a>{% endif %}
+              {% if ds.email %}<br>✉ <a href="mailto:{{ ds.email }}" style="color:var(--qv-ink-2);text-decoration:none;font-size:11.5px;">{{ ds.email }}</a>{% endif %}
+            </dd>
+            {% endif %}
+            {% if ds.contact2 or ds.phone2 or ds.email2 %}
+            <dt>마스터 담당자 2</dt>
+            <dd style="line-height:1.55;">
+              {% if ds.contact2 %}<b>{{ ds.contact2 }}</b>{% endif %}
+              {% if ds.phone2 %}<br>📞 <a href="tel:{{ ds.phone2 }}" style="color:var(--qv-ink-2);text-decoration:none;">{{ ds.phone2 }}</a>{% endif %}
+              {% if ds.email2 %}<br>✉ <a href="mailto:{{ ds.email2 }}" style="color:var(--qv-ink-2);text-decoration:none;font-size:11.5px;">{{ ds.email2 }}</a>{% endif %}
+            </dd>
+            {% endif %}
+          </dl>
+          {% elif v.name %}
+          <div style="padding:6px 10px;background:var(--qv-warn-soft,#fef3c7);border-left:3px solid var(--qv-warn,#d97706);font-size:11.5px;color:var(--qv-ink-2);line-height:1.5;border-radius:4px;">
+            <b>{{ v.name }}</b> — 협력사 마스터에 등록되어 있지 않거나 비활성 상태입니다.<br>
+            <a href="/suppliers/new" style="color:var(--qv-ink-2);font-weight:700;">→ 협력사 마스터에 등록</a>하시면 자동 연결됩니다.
+          </div>
+          {% if v.contact_name or v.contact_phone or v.contact_email %}
+          <dl class="def" style="margin:6px 0 0;">
+            <dt>자재 담당자</dt>
+            <dd style="line-height:1.55;">
+              {% if v.contact_name %}<b>{{ v.contact_name }}</b>{% endif %}
+              {% if v.contact_phone %}<br>📞 {{ v.contact_phone }}{% endif %}
+              {% if v.contact_email %}<br>✉ {{ v.contact_email }}{% endif %}
+            </dd>
+          </dl>
           {% endif %}
-        </dl>
-        <div style="margin-top:10px;padding:7px 10px;background:var(--qv-surface-2,#f5f3ef);border-radius:6px;font-size:11px;color:var(--qv-ink-3,#666);line-height:1.5;">
-          💡 공급사 담당자 변경은 [→ 공급사 상세] 페이지에서 수정하시면 이 자재를 포함해 연결된 모든 자재에 자동 반영됩니다.
+          {% endif %}
         </div>
-      </div>
-      {% elif p.default_supplier %}
-      <div class="section-card" data-dn="pd:supplier-missing" style="border-left:3px solid var(--qv-warn,#d97706);background:var(--qv-warn-soft,#fef3c7);">
-        <h3 style="color:var(--qv-warn,#b45309);">⚠ 기본 공급사 미연결</h3>
-        <div style="font-size:12.5px;line-height:1.55;color:var(--qv-ink-2);">
-          자재에 입력된 공급사 <b>"{{ p.default_supplier }}"</b>가 공급사 마스터에 등록되어 있지 않습니다.<br>
-          <a href="/suppliers/new" style="color:var(--qv-ink-2);font-weight:700;">→ 공급사 마스터에 등록</a> 후 자재의 기본 공급사명을 동일하게 맞춰주시면 담당자·연락처가 자동 연결됩니다.
+        {% endfor %}
+        <div style="margin-top:10px;padding:7px 10px;background:var(--qv-surface-2,#f5f3ef);border-radius:6px;font-size:11px;color:var(--qv-ink-3,#666);line-height:1.5;">
+          💡 <b>자재 담당자</b>는 매입단가 박스에서 자재별로 입력. <b>마스터 담당자</b>는 [→ 협력사 상세]에서 수정 시 연결된 모든 자재에 자동 반영.
         </div>
       </div>
       {% endif %}

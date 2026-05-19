@@ -715,17 +715,17 @@ def h_how_to_stock_adjust(u, db):
 
 def h_how_to_supplier(u, db):
     return _guide_step(
-        title="💡 공급사 등록 방법",
-        intro="공급사를 먼저 등록해야 발주서에서 선택 가능.",
+        title="💡 협력사 등록 방법",
+        intro="협력사를 먼저 등록해야 발주서에서 선택 가능.",
         steps=[
-            "공급사 목록 열기",
+            "협력사 목록 열기",
             "'신규 등록' 클릭",
             "필수: 회사명·담당자·연락처·통화(KRW/USD/VND)·결제조건",
             "저장 → 발주서에서 선택 가능",
             "수정 화면에서 **평균 리드타임 자동 통계** 확인 가능",
         ],
         go_url="/suppliers",
-        go_label="공급사 목록으로 →",
+        go_label="협력사 목록으로 →",
     )
 
 
@@ -779,7 +779,7 @@ HOWTO_MAP = [
     ("how_out",       ["출고", "자재출고", "현장출고"],             h_how_to_stock_out),
     ("how_in",        ["입고", "입고처리", "받았"],                 h_how_to_stock_in),
     ("how_adjust",    ["실사", "실사조정", "재고조정"],             h_how_to_stock_adjust),
-    ("how_supplier",  ["공급사", "거래처", "vendor"],               h_how_to_supplier),
+    ("how_supplier",  ["협력사", "거래처", "vendor"],               h_how_to_supplier),
     ("how_schedule",  ["일정", "캘린더", "달력", "스케줄"],          h_how_to_schedule),
     ("how_task",      ["일일업무", "업무", "할일", "일지", "카드"], h_how_to_task),
     ("how_vacation",  ["휴가", "연차", "반차"],                     h_how_to_vacation),
@@ -801,7 +801,7 @@ INTENTS = [
                                     "/sales", "매출·영업 센터 →")),
     ("logistics_home",["자재구매", "구매센터", "자재센터", "구매자재"],
                       _simple_route("📦 자재·구매 센터",
-                                    "부품·공급사·발주·입출고·수불부·환율.",
+                                    "부품·협력사·발주·입출고·수불부·환율.",
                                     "/logistics", "자재·구매 센터 →")),
     ("sales",         ["매출", "수주", "오더", "매출현황", "실적", "주문금액"], h_sales),
     ("inventory",     ["재고", "자재", "부품", "파트", "납품"], h_inventory),
@@ -851,7 +851,7 @@ INTENTS = [
                                     "/bottlenecks", "병목 탐지 →")),
     ("logistics",     ["물류", "공급"],
                       _simple_route("📦 자재·구매 센터",
-                                    "부품·공급사·발주·입출고·수불부·환율.",
+                                    "부품·협력사·발주·입출고·수불부·환율.",
                                     "/logistics", "자재·구매 센터 →")),
     ("stock_mv",      ["수불부", "입출고", "재고이력", "원장", "재고변동"],
                       _simple_route("📒 수불부 (입출고 원장)",

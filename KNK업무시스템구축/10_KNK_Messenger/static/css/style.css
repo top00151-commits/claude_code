@@ -245,8 +245,6 @@ body.solo-window .chat-head .back { display: none; }
 body.solo-window #newRoomBtn,
 body.solo-window #digestBtn,
 body.solo-window .sidebar-head .head-actions a[href$="dashboard"] { display: none; }
-/* 단독창에서는 디버그 토글 버튼 숨김 */
-body.solo-window #debugLayoutBtn { display: none; }
 /* 단독창은 모바일 미디어쿼리의 viewing-chat 토글에 영향받지 않게 — 항상 채팅 보임 */
 body.solo-window .chat-app:not(.viewing-chat) .chat-pane { display: flex !important; }
 
@@ -701,6 +699,60 @@ body.chat-body .msg .msg-action-bar {
 }
 .forward-room {
   font-weight: 600; color: #78350F;
+}
+
+/* ─── 🤫 귓속말 (Whisper) — 1명에게만 보이는 메시지 ─── */
+.msg.whisper-msg .bubble {
+  background: #FEF3C7 !important;
+  border: 1px dashed #F59E0B !important;
+}
+.msg.whisper-msg.mine .bubble {
+  background: #FFE4B5 !important;
+  border: 1px dashed #D97706 !important;
+}
+.whisper-header {
+  font-size: 11px;
+  color: #92400E;
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: flex; align-items: center; gap: 4px;
+}
+/* 작성창 위 귓속말 모드 배너 */
+.whisper-preview-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.whisper-preview-left { flex: 1; min-width: 0; }
+.whisper-preview-label {
+  font-size: 12px; font-weight: 700; color: #92400E;
+}
+.whisper-preview-body {
+  font-size: 11px; color: #78350F;
+}
+/* 작성자 이름 hover — 우클릭 가능 표시 */
+.msg .author {
+  cursor: context-menu;
+  -webkit-user-select: none;       /* iOS 텍스트 선택 callout 차단 */
+  -webkit-touch-callout: none;     /* iOS Safari long-press 메뉴 차단 */
+  user-select: none;
+  display: inline-block;            /* 패딩 가능하게 */
+  padding: 2px 4px;
+  margin: -2px -4px;                /* 시각상 원래 위치 유지 */
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+.msg .author:hover {
+  text-decoration: underline dotted;
+}
+/* 모바일 롱프레스 시각 피드백 */
+.msg .author.author-pressing {
+  background: rgba(165, 40, 44, 0.15);
+  transform: scale(0.96);
+  transition: background 0.1s, transform 0.15s;
 }
 
 /* 인용 클릭 시 원본 강조 */
@@ -2676,64 +2728,3 @@ dialog h3 { margin: 0 0 8px; }
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   ▼▼▼  TEMP: 레이아웃 영역 가시화 (디버그용) — 검증 끝나면 이 블록 + chat.html
-       의 debugLayoutBtn 블록 함께 제거  ▼▼▼
-   · body.chat-body.debug-layout 일 때만 활성 (토글 버튼으로 ON/OFF)
-   · 영역 라벨은 chat.html JS 가 <span class="debug-label"> 으로 삽입 → 선택·복사 가능
-   ═══════════════════════════════════════════════════════════════════ */
-body.chat-body.debug-layout .sidebar        { outline: 2px dashed #2563eb !important; outline-offset: -2px; position: relative; }
-body.chat-body.debug-layout .sidebar-head   { outline: 2px dashed #06b6d4 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .search-box     { outline: 2px dashed #14b8a6 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .filter-bar     { outline: 2px dashed #84cc16 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .room-list      { outline: 2px dashed #10b981 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .chat-pane      { outline: 2px dashed #f97316 !important; outline-offset: -2px; position: relative; }
-body.chat-body.debug-layout .chat-head      { outline: 2px dashed #eab308 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .messages       { outline: 2px dashed #ec4899 !important; outline-offset: -4px; position: relative; }
-body.chat-body.debug-layout .composer-langbar,
-body.chat-body.debug-layout .composer       { outline: 2px dashed #A5282C !important; outline-offset: -2px; position: relative; }
-
-/* 영역 라벨 — JS 가 DOM 으로 삽입. 큰 글씨 + 텍스트 선택·복사 가능. */
-.debug-label {
-  position: absolute; top: 0; left: 0;
-  z-index: 9999;
-  font: 700 13px/1.3 ui-monospace, 'Consolas', monospace;
-  padding: 3px 7px;
-  color: #fff;
-  letter-spacing: 0.02em;
-  user-select: text;
-  -webkit-user-select: text;
-  cursor: text;
-  border-bottom-right-radius: 4px;
-  pointer-events: auto;
-}
-
-/* 디버그 토글 버튼 — 우상단 고정. 클릭 시 ON/OFF 토글, localStorage 에 상태 저장.
-   드래그로 어디든 이동 가능 (위치는 localStorage 에 영속). 더블클릭으로 우상단 복귀. */
-#debugLayoutBtn {
-  position: fixed; top: 8px; right: 8px;
-  z-index: 99998;
-  padding: 6px 12px;
-  background: #fff;
-  border: 1.5px solid #6b7280;
-  border-radius: 999px;
-  color: #6b7280;
-  font: 700 12px/1 ui-monospace, monospace;
-  cursor: grab;
-  user-select: none;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-  touch-action: none;     /* 모바일 드래그 시 스크롤 차단 */
-  transition: box-shadow 0.12s, transform 0.12s;
-}
-#debugLayoutBtn:hover { border-color: #A5282C; color: #A5282C; }
-#debugLayoutBtn:active { cursor: grabbing; }
-#debugLayoutBtn.dragging {
-  cursor: grabbing;
-  box-shadow: 0 6px 18px rgba(165,40,44,0.35);
-  transform: scale(1.05);
-  opacity: 0.92;
-}
-body.chat-body.debug-layout #debugLayoutBtn {
-  background: #A5282C; color: #fff; border-color: #6B1015;
-}
-/* ▲▲▲  TEMP 끝 ▲▲▲ */

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{% if supplier %}공급사 수정 {{ supplier.name }}{% else %}새 공급사 등록{% endif %} · KNK HAIST WORKS</title>
+<title>{% if supplier %}협력사 수정 {{ supplier.name }}{% else %}새 협력사 등록{% endif %} · KNK HAIST WORKS</title>
 
-{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 공급사 등록·수정 폼
+{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 협력사 등록·수정 폼
    라우터 호환 form name (필수=*):
      name* / code / contact / email / phone / country / currency / payment_terms / note / is_active
    라우터: POST /suppliers/new  |  POST /suppliers/{sid}/edit
@@ -138,14 +138,14 @@
         <!-- 헤더 -->
         <div class="sp-head" data-dn="sp:head">
           <div>
-            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">공급사</a> · <b>{% if is_edit %}{{ supplier.name }} 수정{% else %}새 공급사 등록{% endif %}</b></div>
+            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">협력사</a> · <b>{% if is_edit %}{{ supplier.name }} 수정{% else %}새 협력사 등록{% endif %}</b></div>
             <div class="sp-title">
               {% if is_edit %}
               <span>{{ supplier.name }}</span>
               {% if supplier.code %}<span class="code">{{ supplier.code }}</span>{% endif %}
               {% if supplier.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">비활성</span>{% endif %}
               {% else %}
-              <span>🏢 새 공급사 등록</span>
+              <span>🏢 새 협력사 등록</span>
               {% endif %}
             </div>
           </div>
@@ -173,13 +173,13 @@
               <div class="body">
                 <div class="field-row">
                   <div class="field">
-                    <label>공급사명 <span class="req">*</span></label>
+                    <label>협력사명 <span class="req">*</span></label>
                     <input type="text" name="name" required value="{{ supplier.name|default('') }}"
                            placeholder="예: 광원전기 / 우리산전 / OOO상사" />
-                    <div class="field-hint">정식 상호 또는 사업자등록증 명칭. 중복 검증 없음 — 동명 공급사 등록 가능.</div>
+                    <div class="field-hint">정식 상호 또는 사업자등록증 명칭. 중복 검증 없음 — 동명 협력사 등록 가능.</div>
                   </div>
                   <div class="field">
-                    {# v5H226z90 — 공급사 코드 → 관리부서 (사내 부서 선택) #}
+                    {# v5H226z90 — 협력사 코드 → 관리부서 (사내 부서 선택) #}
                     <label>관리부서</label>
                     <select name="manage_dept">
                       <option value="">— 선택 안함 —</option>
@@ -187,7 +187,7 @@
                       <option value="{{ d }}" {% if supplier and supplier.manage_dept == d %}selected{% endif %}>{{ d }}</option>
                       {% endfor %}
                     </select>
-                    <div class="field-hint">이 공급사를 등록·관리하는 사내 부서.</div>
+                    <div class="field-hint">이 협력사를 등록·관리하는 사내 부서.</div>
                   </div>
                 </div>
                 {# v5H226z89 — 사업자등록번호·대표자 #}
@@ -283,7 +283,7 @@
                       <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
                       <option value="VND" {% if cur == 'VND' %}selected{% endif %}>VND (₫)</option>
                     </select>
-                    <div class="field-hint">해당 공급사 기본 결제 통화. 발주 시 자동 적용.</div>
+                    <div class="field-hint">해당 협력사 기본 결제 통화. 발주 시 자동 적용.</div>
                   </div>
                   <div class="field">
                     <label>결제 조건</label>
@@ -319,7 +319,7 @@
 
             <div class="side-card">
               <h4>요약</h4>
-              <div class="summary-row"><span class="lbl">공급사명</span><span class="val">{{ supplier.name if is_edit else '신규' }}</span></div>
+              <div class="summary-row"><span class="lbl">협력사명</span><span class="val">{{ supplier.name if is_edit else '신규' }}</span></div>
               {% if is_edit and supplier.code %}
               <div class="summary-row"><span class="lbl">코드</span><span class="val mono">{{ supplier.code }}</span></div>
               {% endif %}
@@ -359,7 +359,7 @@
             <div class="side-card">
               <h4>💡 입력 가이드</h4>
               <div class="help-tip">
-                <b>공급사명</b>만 필수. 나머지는 선택.<br><br>
+                <b>협력사명</b>만 필수. 나머지는 선택.<br><br>
                 · <b>코드</b>는 자체 분류용 (SP-001 등)<br>
                 · <b>통화·결제조건</b>은 발주서 기본값으로 자동 적용<br>
                 · <b>이메일</b>은 발주서 PDF 전송에 사용
@@ -370,7 +370,7 @@
             <div class="side-card">
               <h4 style="color:var(--pq-err);">⚠️ 위험 작업</h4>
               <button type="button" class="btn btn-danger" style="width:100%;font-size:11.5px;padding:7px;"
-                      onclick="confirmDelete()">🗑 공급사 삭제</button>
+                      onclick="confirmDelete()">🗑 협력사 삭제</button>
               <div class="field-hint" style="margin-top:6px;">발주·단가 이력 cascade 처리됩니다.</div>
             </div>
             {% endif %}
@@ -382,7 +382,7 @@
         <!-- 하단 액션 -->
         <div class="action-bar" data-dn="sp:action" data-dn-tone="amber">
           <div class="info">
-            {% if is_edit %}🟡 <b>편집 모드</b> — 저장 시 이력 기록{% else %}💾 <b>새 공급사 등록</b>{% endif %}
+            {% if is_edit %}🟡 <b>편집 모드</b> — 저장 시 이력 기록{% else %}💾 <b>새 협력사 등록</b>{% endif %}
           </div>
           <div class="btns">
             <a href="/suppliers" class="btn btn-cancel">취소</a>
@@ -402,7 +402,7 @@
 <script>
 {% if is_edit %}
 function confirmDelete() {
-  if (!confirm('이 공급사를 삭제하시겠습니까?\n\n발주 / 단가 이력은 연결 해제되거나 cascade 처리됩니다.\n복구 불가.')) return;
+  if (!confirm('이 협력사를 삭제하시겠습니까?\n\n발주 / 단가 이력은 연결 해제되거나 cascade 처리됩니다.\n복구 불가.')) return;
   document.getElementById('supplierDeleteForm').submit();
 }
 {% endif %}
