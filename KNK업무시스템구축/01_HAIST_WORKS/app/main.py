@@ -7399,12 +7399,145 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
 
 
 # v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
+CUST_XLSX_HEADERS = [
+    "고객사명", "사업자등록번호", "대표자명", "주소", "활성", "비고",
+    "1담당자명", "1전화번호", "1이메일", "1부서", "1담당자설명",
+    "2담당자명", "2전화번호", "2이메일", "2부서", "2담당자설명",
+    "3담당자명", "3전화번호", "3이메일", "3부서", "3담당자설명",
+    "4담당자명", "4전화번호", "4이메일", "4부서", "4담당자설명",
+    "5담당자명", "5전화번호", "5이메일", "5부서", "5담당자설명",
+]
+CUST_XLSX_INFO_LINES = [
+    ("🏢 KNK 고객사 일괄 등록 양식", "title"),
+    ("", None),
+    ("[양식 사용법]", "h2"),
+    ("  1. '고객사' 시트 선택", "p"),
+    ("  2. 노란 예제 3행 참고 → 그 아래부터 데이터 입력", "p"),
+    ("  3. 매출영업 → 고객사 → 우측 상단 [📤 엑셀 일괄 업로드] 클릭", "p"),
+    ("  4. 미리보기 확인 → 등록 확정", "p"),
+    ("", None),
+    ("[컬럼 설명]", "h2"),
+    ("  • 고객사명: 필수. 시스템에 동일명 존재 시 정보 업데이트 (중복 추가 X)", "p"),
+    ("  • 사업자등록번호: 선택. 예: 211-87-12345 (대시 포함/없이 모두 가능)", "p"),
+    ("  • 대표자명: 선택", "p"),
+    ("  • 주소: 선택", "p"),
+    ("  • 활성: 1 = 활성, 0 = 비활성. 비우면 1", "p"),
+    ("  • 비고: 자유 텍스트", "p"),
+    ("  • 담당자: 최대 5명. 각 담당자별 5필드 (담당자명/전화번호/이메일/부서/담당자설명)", "p"),
+    ("  • 6명 이상은 HAIST WORKS UI에서 직접 입력", "p"),
+    ("", None),
+    ("[동작]", "h2"),
+    ("  • 동일 이름 존재: 빈 칸 아닌 필드만 업데이트 (기존 데이터 보호)", "p"),
+    ("  • 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고)", "p"),
+    ("  • 등급은 등록 후 거래 실적에 따라 자동 재계산", "p"),
+    ("", None),
+    ("[검증]", "h2"),
+    ("  • 이메일 형식 검증 (잘못된 형식은 경고)", "p"),
+    ("  • 한 번에 100건 이내 권장", "p"),
+    ("  • 빈 행 자동 무시", "p"),
+]
+
+
+def _cust_xlsx_write_info_sheet(ws_info):
+    """v5H226z120: '📖_안내' 시트 — 사용법/컬럼 설명/동작/검증."""
+    from openpyxl.styles import Font, PatternFill, Alignment
+    ws_info.column_dimensions['A'].width = 100
+    title_fill = PatternFill("solid", fgColor="FEF3C7")
+    h2_fill = PatternFill("solid", fgColor="FFF7ED")
+    for idx, (text, kind) in enumerate(CUST_XLSX_INFO_LINES, 1):
+        cell = ws_info.cell(row=idx, column=1, value=text)
+        if kind == "title":
+            cell.font = Font(bold=True, size=16, color="9A3412")
+            cell.fill = title_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws_info.row_dimensions[idx].height = 32
+        elif kind == "h2":
+            cell.font = Font(bold=True, size=12, color="9A3412")
+            cell.fill = h2_fill
+        else:
+            cell.font = Font(size=11, color="334155")
+
+
+def _cust_xlsx_write_header(ws_data):
+    """v5H226z120: '고객사' 시트 헤더 — Row 1 제목, Row 2 안내, Row 3 31컬럼 헤더."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    n_cols = len(CUST_XLSX_HEADERS)  # 31
+    knk_fill = PatternFill("solid", fgColor="A5282C")
+    title_fill = PatternFill("solid", fgColor="FEF3C7")
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    # Row 1: 제목 (병합)
+    ws_data.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
+    cell = ws_data.cell(row=1, column=1, value="🏢 고객사 일괄 등록 양식")
+    cell.font = Font(bold=True, size=16, color="9A3412")
+    cell.fill = title_fill
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws_data.row_dimensions[1].height = 28
+    # Row 2: 안내 (병합)
+    ws_data.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n_cols)
+    cell = ws_data.cell(row=2, column=1, value="① 위 3행은 예제 (참고/삭제 가능)  ② 그 아래 빈 행부터 입력  ③ 매출영업 → 고객사 → [📤 엑셀 일괄 업로드]")
+    cell.font = Font(size=10, color="9A3412", italic=True)
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws_data.row_dimensions[2].height = 20
+    # Row 3: 헤더
+    for col_idx, h in enumerate(CUST_XLSX_HEADERS, 1):
+        c = ws_data.cell(row=3, column=col_idx, value=h)
+        c.font = Font(color="FFFFFF", bold=True, size=10)
+        c.fill = knk_fill
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = border
+    ws_data.row_dimensions[3].height = 22
+    # 컬럼 너비
+    widths = [22, 18, 12, 32, 8, 24] + [16, 16, 22, 14, 24] * 5
+    for col_idx, w in enumerate(widths, 1):
+        ws_data.column_dimensions[ws_data.cell(row=3, column=col_idx).column_letter].width = w
+    ws_data.freeze_panes = "A4"
+
+
+def _cust_xlsx_write_examples(ws_data):
+    """v5H226z120: 예제 3행 (row 4~6) — GOODIX / 삼성디스플레이 / G2TOUCH."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    example_fill = PatternFill("solid", fgColor="FFFBEB")
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    examples = [
+        # GOODIX
+        ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당"],
+        # 삼성디스플레이
+        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "비활성", "",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함.",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료를 빨리주면 좋아함."],
+        # G2TOUCH
+        ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
+         "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+    ]
+    for row_offset, row_data in enumerate(examples):
+        row_idx = 4 + row_offset
+        for col_idx, v in enumerate(row_data, 1):
+            c = ws_data.cell(row=row_idx, column=col_idx, value=v)
+            c.font = Font(size=10, color="9A3412", italic=True)
+            c.fill = example_fill
+            c.alignment = Alignment(horizontal="left", vertical="center")
+            c.border = border
+
+
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
-    """v5H226z119 (2026-05-12): 대표 직접 지시 — 새 엑셀 양식 (Sheet 2개)
-       Sheet 1 '📖 사용 안내': 양식 사용법 + 컬럼 설명
-       Sheet 2 '고객사 데이터': 제목 + 헤더 + 11컬럼 (담당자 5명 분배)
-       발주서: _ORDERS/실무팀1_고객사_엑셀_양식_통일.md"""
+    """v5H226z120 (2026-05-12): 첨부 양식 매칭 — Sheet 2개, 31컬럼, 담당자 5명 × 5필드 분리.
+       Sheet 1 '📖_안내': 사용법 + 컬럼 설명 + 동작 + 검증
+       Sheet 2 '고객사': Row 1 제목 + Row 2 안내 + Row 3 헤더(31) + Row 4~6 예제 + Row 7+ 데이터"""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -7413,173 +7546,72 @@ async def customers_export_xlsx(req: Request):
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
-
-    # 스타일 정의
-    knk_fill   = PatternFill("solid", fgColor="A5282C")  # KNK 빨강
-    amber_fill = PatternFill("solid", fgColor="C2410C")  # amber
-    title_fill = PatternFill("solid", fgColor="FEF3C7")  # 연한 amber 배경
-    white_bold = Font(color="FFFFFF", bold=True, size=11)
-    title_font = Font(color="9A3412", bold=True, size=16)
-    header_font = Font(color="FFFFFF", bold=True, size=10)
     thin = Side(style="thin", color="DDDDDD")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     wb = Workbook()
-
-    # ============================================================
-    # Sheet 1: 📖 사용 안내
-    # ============================================================
     ws_info = wb.active
-    ws_info.title = "📖 사용 안내"
+    ws_info.title = "📖_안내"
+    _cust_xlsx_write_info_sheet(ws_info)
 
-    info_lines = [
-        ("🏢 KNK 고객사 일괄 등록 양식 안내", "title"),
-        ("", None),
-        ("[양식 사용법]", "h2"),
-        ("1. '고객사 데이터' 시트의 각 행에 정보 입력", "p"),
-        ("2. 1~3행은 제목/헤더이므로 수정 금지 (데이터는 4행부터)", "p"),
-        ("3. 고객사명은 필수 (빈 셀이면 등록 안 됨)", "p"),
-        ("4. 사업자번호 형식: 123-45-67890 (하이픈 자동 변환)", "p"),
-        ("5. 담당자는 최대 5명까지 — 추가는 HAIST WORKS UI에서 입력", "p"),
-        ("", None),
-        ("[컬럼 설명]", "h2"),
-        ("# 1  고객사명     필수  텍스트         예: ㈜케이엔케이", "code"),
-        ("# 2  사업자번호         123-45-67890   예: 123-45-67890", "code"),
-        ("# 3  대표자             텍스트         예: 홍길동", "code"),
-        ("# 4  주소               텍스트         예: 경기도 화성시 동탄...", "code"),
-        ("# 5  전화               031-1234-5678  예: 031-1234-5678", "code"),
-        ("# 6  비고               텍스트         예: 특이사항 / 메모", "code"),
-        ("# 7-11  담당자_1~5      '이름 / 부서 / 휴대폰 / 이메일' 형식", "code"),
-        ("", None),
-        ("[담당자 셀 형식]", "h2"),
-        ("- 구분자: ' / ' (공백 + 슬래시 + 공백)", "p"),
-        ("- 순서: 이름 / 부서 / 휴대폰 / 이메일", "p"),
-        ("- 일부만 채워도 OK (예: '김철수 / / 010-1234-5678 /')", "p"),
-        ("- 예시: '김철수 / 구매2팀 / 010-1234-5678 / kim@example.com'", "p"),
-        ("", None),
-        ("[업로드 → 미리보기 → 확정]", "h2"),
-        ("1. 양식 작성한 엑셀 파일을 업로드 버튼으로 업로드", "p"),
-        ("2. 미리보기 모달에서 데이터 검증 결과 확인", "p"),
-        ("3. ❌ 오류 행은 자동 제외, ⚠ 경고 행은 통과", "p"),
-        ("4. '등록 확정' 클릭 → INSERT/UPDATE", "p"),
-        ("", None),
-        ("[Round-trip 사용]", "h2"),
-        ("- 기존 고객사 정보를 엑셀로 다운로드", "p"),
-        ("- 수정 후 다시 업로드 → 사업자번호/고객사명 일치 시 업데이트", "p"),
-        ("", None),
-        (f"생성일: {date.today().isoformat()}", "meta"),
-        (f"시스템: HAIST WORKS v5H226z119", "meta"),
-    ]
-    ws_info.column_dimensions['A'].width = 100
-    for idx, (text, kind) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=idx, column=1, value=text)
-        if kind == "title":
-            cell.font = title_font
-            cell.fill = title_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            ws_info.row_dimensions[idx].height = 32
-        elif kind == "h2":
-            cell.font = Font(bold=True, size=12, color="9A3412")
-            cell.fill = PatternFill("solid", fgColor="FFF7ED")
-        elif kind == "code":
-            cell.font = Font(name="Consolas", size=10, color="334155")
-        elif kind == "meta":
-            cell.font = Font(size=9, color="9CA3AF", italic=True)
-        else:
-            cell.font = Font(size=10, color="334155")
+    ws_data = wb.create_sheet("고객사")
+    _cust_xlsx_write_header(ws_data)
+    _cust_xlsx_write_examples(ws_data)
 
-    # ============================================================
-    # Sheet 2: 고객사 데이터
-    # ============================================================
-    ws_data = wb.create_sheet("고객사 데이터")
-    HEADERS = ["고객사명", "사업자번호", "대표자", "주소", "전화", "비고",
-               "담당자_1", "담당자_2", "담당자_3", "담당자_4", "담당자_5"]
-    n_cols = len(HEADERS)  # 11
-
-    # Row 1: 제목 (병합)
-    with db_session() as c:
-        cust_count = c.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
-
-    ws_data.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-    title_cell = ws_data.cell(row=1, column=1, value=f"🏢 KNK 고객사 일괄 등록 — {cust_count}건")
-    title_cell.font = title_font
-    title_cell.fill = title_fill
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws_data.row_dimensions[1].height = 28
-
-    # Row 2: 빈 줄
-    ws_data.row_dimensions[2].height = 6
-
-    # Row 3: 헤더
-    for col_idx, h in enumerate(HEADERS, 1):
-        cell = ws_data.cell(row=3, column=col_idx, value=h)
-        cell.font = white_bold
-        cell.fill = knk_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
-    ws_data.row_dimensions[3].height = 22
-
-    # Row 4+: 데이터
+    n_cols = len(CUST_XLSX_HEADERS)
     with db_session() as c:
         rows = c.execute(
             """SELECT cu.id, cu.name, cu.biz_no, cu.ceo_name, cu.address,
-                      cu.phone, cu.note
+                      cu.is_active, cu.note
                FROM customers cu
                ORDER BY cu.tier_score DESC, cu.name"""
         ).fetchall()
-        # 고객사별 담당자 가져오기 (최대 5명)
         for r in rows:
             d = dict(r)
             cid = d.get("id")
             contacts = c.execute(
-                """SELECT name, department, mobile, email
+                """SELECT name, mobile, phone, email, department, note
                    FROM customer_contacts
                    WHERE customer_id = ?
                    ORDER BY is_primary DESC, id
                    LIMIT 5""",
                 (cid,)
             ).fetchall()
-            # 담당자 셀 5개 분배 (이름 / 부서 / 휴대폰 / 이메일)
+            # 담당자 5명 분배 (각 5필드: 이름·전화·이메일·부서·설명)
             contact_cells = []
             for cc in contacts:
                 cd = dict(cc)
-                parts = [
+                contact_cells.extend([
                     str(cd.get("name") or ""),
-                    str(cd.get("department") or ""),
-                    str(cd.get("mobile") or ""),
+                    str(cd.get("mobile") or cd.get("phone") or ""),
                     str(cd.get("email") or ""),
-                ]
-                contact_cells.append(" / ".join(parts))
-            # 5명 미만은 빈 문자열로 채움
-            while len(contact_cells) < 5:
+                    str(cd.get("department") or ""),
+                    str(cd.get("note") or ""),
+                ])
+            # 5명 미만은 빈 셀 채움
+            while len(contact_cells) < 25:  # 5 × 5 = 25
                 contact_cells.append("")
             ws_data.append([
                 d.get("name"), d.get("biz_no"), d.get("ceo_name"),
-                d.get("address"), d.get("phone"), d.get("note"),
-                *contact_cells[:5],
+                d.get("address"),
+                "활성" if d.get("is_active") != 0 else "비활성",
+                d.get("note"),
+                *contact_cells[:25],
             ])
 
-    # 컬럼 너비 — 컬럼별 적정
-    widths = [22, 16, 12, 32, 16, 24, 30, 30, 30, 30, 30]
-    for col_idx, w in enumerate(widths, 1):
-        ws_data.column_dimensions[ws_data.cell(row=3, column=col_idx).column_letter].width = w
-    # 데이터 행 alignment
-    for row_idx in range(4, ws_data.max_row + 1):
+    # 데이터 행 (row 7+) alignment
+    for row_idx in range(7, ws_data.max_row + 1):
         for col_idx in range(1, n_cols + 1):
             cell = ws_data.cell(row=row_idx, column=col_idx)
             cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
             cell.border = border
 
-    # 헤더 행 freeze (3행까지 고정)
-    ws_data.freeze_panes = "A4"
-
-    # 메모리 → BytesIO → StreamingResponse
     import io
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
     from urllib.parse import quote
-    fname = f"고객사_{date.today().isoformat()}.xlsx"
+    fname = f"KNK_고객사_{date.today().isoformat()}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -10773,43 +10805,24 @@ CUST_IMPORT_HEADERS = [
 ]
 
 
-def _parse_contact_cell(s: str) -> dict | None:
-    """v5H226z119: 담당자 셀 '이름 / 부서 / 휴대폰 / 이메일' → dict.
-    이름이 없으면 None 반환 (그 슬롯 무시)."""
-    if not s or not s.strip():
-        return None
-    parts = [p.strip() for p in s.split("/")]
-    while len(parts) < 4:
-        parts.append("")
-    name = parts[0]
-    if not name:
-        return None
-    return {
-        "name": name,
-        "department": parts[1],
-        "mobile": parts[2],
-        "email": parts[3],
-    }
-
-
 def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
-    """v5H226z119: 새 양식 파싱 — Sheet '고객사 데이터' row4+, 11컬럼.
-    담당자 5명 셀 분리 (이름 / 부서 / 휴대폰 / 이메일)."""
+    """v5H226z120: 첨부 양식 파싱 — Sheet '고객사' row7+ (예제 row 4-6 skip), 31컬럼.
+    담당자 5명 × 5필드 (이름/전화/이메일/부서/설명) 분리."""
     from openpyxl import load_workbook
     import io as _io
     import re as _re
     wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
-    # 양식 호환: 새 시트명 우선, 구 시트명도 폴백
+    # 시트명 호환: 새 양식 '고객사', 구 양식 '고객사 데이터'/'Customers' 폴백
     sheet_name = None
-    for candidate in ("고객사 데이터", "고객사", "Customers"):
+    for candidate in ("고객사", "고객사 데이터", "Customers"):
         if candidate in wb.sheetnames:
             sheet_name = candidate
             break
     if not sheet_name:
-        raise ValueError("'고객사 데이터' 시트를 찾을 수 없습니다 (새 양식 확인)")
+        raise ValueError("'고객사' 시트를 찾을 수 없습니다")
     ws = wb[sheet_name]
-    # 데이터 시작 행 (새 양식: row 4 / 구 양식: row 7)
-    data_start = 4 if sheet_name == "고객사 데이터" else 7
+    # 데이터 시작 행: 첨부 양식은 row 7 (row 4-6 예제 skip), 구 z119은 row 4
+    data_start = 7 if sheet_name == "고객사" else 4
 
     def _to_str(v) -> str:
         if v is None:
@@ -10832,35 +10845,52 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
     email_re = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     out = []
     row_no = 0
+    # 31컬럼: 0~5=기본, 6~30=담당자 5명 × 5필드
+    EXPECTED_COLS = 31 if sheet_name == "고객사" else 11
     for r in ws.iter_rows(min_row=data_start, values_only=True):
         row_no += 1
         actual_row = row_no + data_start - 1
         if not r or all((c is None or str(c).strip() == "") for c in r):
             continue
-        # 11 컬럼 (부족 시 None 채움)
-        cells = list(r) + [None] * (11 - len(r)) if len(r) < 11 else list(r[:11])
+        cells = list(r) + [None] * (EXPECTED_COLS - len(r)) if len(r) < EXPECTED_COLS else list(r[:EXPECTED_COLS])
         name = _to_str(cells[0])
         if not name:
             continue
-        # 예시 / 안내 행 잔존 방어
-        if name.startswith("예)") or name.startswith("예 )") or name.startswith("㈜케이엔케이"):
-            # 예시 행 (양식 다운로드 시 회색 예시) 자동 스킵
-            # 단 실제 등록 시는 제외 (이름 같으면 사용자가 명시 입력 의도일 수도)
-            # → 회색 예시는 일반적으로 사용자가 수정. 그대로 두면 사업자번호 등 그대로면 스킵
-            pass
         biz_no_raw = _to_str(cells[1])
         ceo = _to_str(cells[2])
         address = _to_str(cells[3])
-        phone = _to_str(cells[4])
+        active_raw = _to_str(cells[4])
         note = _to_str(cells[5])
-        # 담당자 5명 셀 파싱
+
+        # 활성: 1/0/활성/비활성/공란 → 공란은 1
+        if active_raw == "":
+            is_active = 1
+        elif active_raw in ("1", "활성", "Y", "y", "True", "true"):
+            is_active = 1
+        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
+            is_active = 0
+        else:
+            is_active = 1
+
+        # 담당자 5명 × 5필드 (이름/전화/이메일/부서/설명)
         contacts = []
         for i in range(5):
-            c_dict = _parse_contact_cell(_to_str(cells[6 + i]))
-            if c_dict:
-                if i == 0:
-                    c_dict["is_primary"] = 1
-                contacts.append(c_dict)
+            base = 6 + i * 5
+            cname = _to_str(cells[base + 0])
+            cphone = _to_str(cells[base + 1])
+            cemail = _to_str(cells[base + 2])
+            cdept = _to_str(cells[base + 3])
+            cnote = _to_str(cells[base + 4])
+            if not cname:
+                continue  # 이름 없으면 슬롯 무시
+            contacts.append({
+                "name": cname,
+                "mobile": cphone,
+                "email": cemail,
+                "department": cdept,
+                "note": cnote,
+                "is_primary": 1 if i == 0 else 0,
+            })
 
         errors = []
         warnings = []
@@ -10873,11 +10903,10 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             else:
                 biz_no_display = f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
 
-        # 담당자 이메일 형식 검증
         for ci, ct in enumerate(contacts, 1):
             em = ct.get("email", "")
             if em and not email_re.match(em):
-                warnings.append(f"담당자_{ci} 이메일 형식: '{em}'")
+                warnings.append(f"{ci}담당자 이메일 형식: '{em}'")
 
         existing_id = name_map.get(name)
         action = "update" if existing_id else "create"
@@ -10896,13 +10925,13 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             "biz_no_norm": biz_no_norm,
             "ceo_name": ceo,
             "address": address,
-            "phone": phone,
+            "phone": "",  # 첨부 양식엔 회사 전화 없음 (담당자 전화만)
             "note": note,
+            "is_active": is_active,
             "contacts": contacts,
-            "manager_name": (contacts[0]["name"] if contacts else ""),  # 미리보기 호환
-            "email": "",  # 새 양식엔 고객사 이메일 없음
-            "tier": "",   # 새 양식엔 등급 없음 (자동 계산)
-            "is_active": 1,  # 새 양식엔 활성 없음 (기본 활성)
+            "manager_name": (contacts[0]["name"] if contacts else ""),  # 호환
+            "email": "",
+            "tier": "",
             "_existing_id": existing_id,
             "_action": action,
             "_errors": errors,
@@ -10913,8 +10942,7 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
 
 @app.get("/customers/import-template")
 async def customers_import_template(request: Request):
-    """v5H226z119 (2026-05-12): 새 양식 동적 생성 (export.xlsx 와 동일 구조, 데이터 0건)
-       Sheet 1 '📖 사용 안내' + Sheet 2 '고객사 데이터' (헤더만, 데이터 없음)"""
+    """v5H226z120: 첨부 양식 매칭 — Sheet 2개 + 31컬럼 + 예제 3행 (빈 양식)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -10922,102 +10950,18 @@ async def customers_import_template(request: Request):
         return RedirectResponse("/home", 303)
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
 
-    knk_fill   = PatternFill("solid", fgColor="A5282C")
-    title_fill = PatternFill("solid", fgColor="FEF3C7")
-    white_bold = Font(color="FFFFFF", bold=True, size=11)
-    title_font = Font(color="9A3412", bold=True, size=16)
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
     wb = Workbook()
-
-    # Sheet 1: 📖 사용 안내 (export와 동일)
     ws_info = wb.active
-    ws_info.title = "📖 사용 안내"
-    info_lines = [
-        ("🏢 KNK 고객사 일괄 등록 양식", "title"),
-        ("", None),
-        ("[양식 사용법]", "h2"),
-        ("1. '고객사 데이터' 시트의 각 행에 정보 입력", "p"),
-        ("2. 1~3행은 제목/헤더이므로 수정 금지 (데이터는 4행부터)", "p"),
-        ("3. 고객사명은 필수 (빈 셀이면 등록 안 됨)", "p"),
-        ("4. 사업자번호 형식: 123-45-67890 (하이픈 자동 변환)", "p"),
-        ("5. 담당자는 최대 5명까지 — 추가는 HAIST WORKS UI에서 입력", "p"),
-        ("", None),
-        ("[컬럼 11개]", "h2"),
-        ("# 1  고객사명     필수  텍스트         예: ㈜케이엔케이", "code"),
-        ("# 2  사업자번호         123-45-67890   예: 123-45-67890", "code"),
-        ("# 3  대표자             텍스트         예: 홍길동", "code"),
-        ("# 4  주소               텍스트         예: 경기도 화성시 동탄...", "code"),
-        ("# 5  전화               031-1234-5678  예: 031-1234-5678", "code"),
-        ("# 6  비고               텍스트         예: 특이사항 / 메모", "code"),
-        ("# 7-11  담당자_1~5      '이름 / 부서 / 휴대폰 / 이메일' 형식", "code"),
-        ("", None),
-        ("[담당자 셀 형식]", "h2"),
-        ("- 구분자: ' / ' (공백 + 슬래시 + 공백)", "p"),
-        ("- 순서: 이름 / 부서 / 휴대폰 / 이메일", "p"),
-        ("- 예시: '김철수 / 구매2팀 / 010-1234-5678 / kim@example.com'", "p"),
-        ("", None),
-        ("[업로드 절차]", "h2"),
-        ("1. 양식 작성한 엑셀 파일을 업로드", "p"),
-        ("2. 미리보기 모달에서 검증 결과 확인", "p"),
-        ("3. ❌ 오류 행 자동 제외, '등록 확정' 클릭", "p"),
-        ("", None),
-        (f"생성일: {date.today().isoformat()}", "meta"),
-        (f"시스템: HAIST WORKS v5H226z119", "meta"),
-    ]
-    ws_info.column_dimensions['A'].width = 100
-    for idx, (text, kind) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=idx, column=1, value=text)
-        if kind == "title":
-            cell.font = title_font; cell.fill = title_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            ws_info.row_dimensions[idx].height = 32
-        elif kind == "h2":
-            cell.font = Font(bold=True, size=12, color="9A3412")
-            cell.fill = PatternFill("solid", fgColor="FFF7ED")
-        elif kind == "code":
-            cell.font = Font(name="Consolas", size=10, color="334155")
-        elif kind == "meta":
-            cell.font = Font(size=9, color="9CA3AF", italic=True)
-        else:
-            cell.font = Font(size=10, color="334155")
+    ws_info.title = "📖_안내"
+    _cust_xlsx_write_info_sheet(ws_info)
 
-    # Sheet 2: 고객사 데이터 (빈 양식)
-    ws_data = wb.create_sheet("고객사 데이터")
-    HEADERS = ["고객사명", "사업자번호", "대표자", "주소", "전화", "비고",
-               "담당자_1", "담당자_2", "담당자_3", "담당자_4", "담당자_5"]
-    n_cols = len(HEADERS)
-    ws_data.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-    title_cell = ws_data.cell(row=1, column=1, value="🏢 KNK 고객사 일괄 등록 — 양식")
-    title_cell.font = title_font; title_cell.fill = title_fill
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws_data.row_dimensions[1].height = 28
-    ws_data.row_dimensions[2].height = 6
-    for col_idx, h in enumerate(HEADERS, 1):
-        cell = ws_data.cell(row=3, column=col_idx, value=h)
-        cell.font = white_bold; cell.fill = knk_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
-    ws_data.row_dimensions[3].height = 22
-    # 예시 1행 (회색)
-    example = ["㈜케이엔케이", "123-45-67890", "홍길동", "경기도 화성시 동탄...",
-               "031-1234-5678", "특이사항",
-               "김철수 / 구매2팀 / 010-1234-5678 / kim@ex.com",
-               "", "", "", ""]
-    for col_idx, v in enumerate(example, 1):
-        cell = ws_data.cell(row=4, column=col_idx, value=v)
-        cell.font = Font(size=10, color="9CA3AF", italic=True)
-        cell.alignment = Alignment(horizontal="left", vertical="center")
-        cell.border = border
-    widths = [22, 16, 12, 32, 16, 24, 30, 30, 30, 30, 30]
-    for col_idx, w in enumerate(widths, 1):
-        ws_data.column_dimensions[ws_data.cell(row=3, column=col_idx).column_letter].width = w
-    ws_data.freeze_panes = "A4"
+    ws_data = wb.create_sheet("고객사")
+    _cust_xlsx_write_header(ws_data)
+    _cust_xlsx_write_examples(ws_data)
+    # 데이터 영역은 비움 (row 7+ 빈)
 
     import io
     buf = io.BytesIO()
