@@ -34,6 +34,18 @@ if __name__ == "__main__":
     print(f"  모드: {'운영' if _is_prod else '개발'}  (KNK_MODE={_mode})")
     print(f"  접속: http://{_host}:{_port}")
     print(f"  종료: Ctrl+C")
+    # v5H226z108n17 — Claude(AI) 연동 상태 표시 (키는 OS 환경변수 ANTHROPIC_API_KEY)
+    try:
+        from app.ai_client import ai_status as _ai_status
+        _ai = _ai_status()
+        if _ai["available"]:
+            print(f"  [AI] Claude 연동 활성  (model={_ai['model']}, key={_ai['key_masked']})")
+        elif not _ai["sdk_installed"]:
+            print("  [AI] 비활성 — anthropic 미설치 (pip install -r requirements.txt)")
+        else:
+            print("  [AI] 비활성 — ANTHROPIC_API_KEY 미등록 (KNK_AI키등록.bat 실행)")
+    except Exception as _e:
+        print(f"  [AI] 상태 확인 불가: {_e}")
     print("=" * 60)
     if _is_prod:
         # 운영: reload off, workers 다중 (uvicorn 직접 호출은 string app path 필요)
