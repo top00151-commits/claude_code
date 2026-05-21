@@ -23,28 +23,22 @@
         <input id="loginUsername" name="username" autocomplete="username" required>
       </label>
       <label>비밀번호
-        <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+        <div class="pw-wrap">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="pw-toggle" data-pw-toggle-for="loginPassword" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+        </div>
       </label>
       <label class="checkbox-row">
         <input type="checkbox" id="rememberId" checked>
         <span>아이디 기억하기</span>
       </label>
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      {% if notice %}<div class="error" style="background:#FEF3C7;color:#92400E;border-color:#FCD34D;">{{ notice }}</div>{% endif %}
       <button type="submit">로그인</button>
       <p class="hint" style="margin-top:8px;font-size:11px;color:#9ca3af;">한번 로그인하면 로그아웃 누르기 전까지 자동 로그인 유지됩니다 (90일).</p>
     </form>
     <p class="hint" style="font-size:11px;color:#9ca3af;">신규 직원 등록은 관리자에게 문의 — 초기 비밀번호는 본인 휴대폰 번호</p>
 
-    <!-- PWA 설치 안내 (브라우저 별로 다른 안내) -->
-    <div class="pwa-install" id="pwaInstall" hidden>
-      <div class="pwa-install-icon">📱</div>
-      <div class="pwa-install-body">
-        <div class="pwa-install-title">앱처럼 별도 창으로 사용하기</div>
-        <div class="pwa-install-desc" id="pwaInstallDesc"></div>
-      </div>
-      <button type="button" id="pwaInstallBtn" hidden>설치</button>
-      <button type="button" class="pwa-close" id="pwaCloseBtn" aria-label="닫기">✕</button>
-    </div>
   </main>
 
   <script>
@@ -76,63 +70,23 @@
       });
     })();
 
-    // ===== PWA 설치 안내 (별도 창처럼 사용) =====
-    (function() {
-      const banner = document.getElementById("pwaInstall");
-      const desc = document.getElementById("pwaInstallDesc");
-      const btn = document.getElementById("pwaInstallBtn");
-      const closeBtn = document.getElementById("pwaCloseBtn");
-
-      // 이미 PWA 모드(standalone) 면 안내 안 함
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true;
-      if (isStandalone) return;
-
-      // 사용자가 X 눌렀으면 24시간 안 보임
-      try {
-        const dismissed = localStorage.getItem("knkmsg.pwaDismissed");
-        if (dismissed && (Date.now() - parseInt(dismissed)) < 86400000) return;
-      } catch(e) {}
-
-      const ua = navigator.userAgent;
-      const isiOS = /iPhone|iPad|iPod/.test(ua) && !window.MSStream;
-      const isAndroid = /Android/.test(ua);
-
-      if (isiOS) {
-        // iOS Safari — beforeinstallprompt 지원 안 함. 수동 안내.
-        desc.innerHTML = '아래 <b>공유 버튼</b> ↑ 누르고 → "홈 화면에 추가" 선택';
-        banner.hidden = false;
-      } else if (isAndroid) {
-        // Android Chrome — beforeinstallprompt 자동 트리거 가능. 안 되면 수동 안내.
-        desc.innerHTML = '브라우저 메뉴(⋮) → "홈 화면에 추가" / "앱 설치"';
-        banner.hidden = false;
-      } else {
-        // 데스크탑 Chrome / Edge — beforeinstallprompt 시 설치 버튼 표시
-        desc.innerHTML = '주소창 우측 ⊕ 아이콘 또는 메뉴 → "앱 설치"';
-        banner.hidden = false;
-      }
-
-      // 브라우저가 beforeinstallprompt 이벤트 주면 자동 설치 버튼 활성
-      let deferredPrompt = null;
-      window.addEventListener("beforeinstallprompt", (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        btn.hidden = false;
-        desc.innerHTML = '한 번 누르면 바탕화면/홈화면에 앱처럼 추가됩니다';
+    // ===== 비밀번호 보기/숨기기 토글 (👁) =====
+    document.querySelectorAll(".pw-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-pw-toggle-for");
+        var inp = document.getElementById(id);
+        if (!inp) return;
+        var shown = inp.type === "text";
+        inp.type = shown ? "password" : "text";
+        btn.textContent = shown ? "👁" : "🙈";
+        btn.classList.toggle("shown", !shown);
+        btn.setAttribute("aria-label", shown ? "비밀번호 보기" : "비밀번호 숨기기");
       });
-      btn.addEventListener("click", async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (choice.outcome === "accepted") banner.hidden = true;
-        deferredPrompt = null;
-      });
+    });
 
-      closeBtn.addEventListener("click", () => {
-        banner.hidden = true;
-        try { localStorage.setItem("knkmsg.pwaDismissed", Date.now().toString()); } catch(e) {}
-      });
-    })();
+    // ===== PWA 설치 안내 — 삭제됨 (대표 지시 2026-05-19) =====
+    // 옛 dismissed 마커가 있으면 정리 (모든 사용자 1회성 클린업)
+    try { localStorage.removeItem("knkmsg.pwaDismissed"); } catch(e) {}
   </script>
 </body>
 </html>

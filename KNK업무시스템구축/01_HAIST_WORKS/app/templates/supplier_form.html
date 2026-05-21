@@ -299,10 +299,19 @@
               </div>
             </div>
 
-            <!-- 섹션 4: 비고 -->
+            <!-- 섹션 4: 주소 + 비고 -->
             <div class="sp-card" data-dn="sp:note" data-dn-tone="blue">
-              <div class="head"><h3>비고</h3></div>
+              <div class="head"><h3>주소 · 비고</h3></div>
               <div class="body">
+                {# v5H226z117 (2026-05-19) — 주소 (택배·우편 발송용) #}
+                <div class="field-row">
+                  <div class="field field-full">
+                    <label>주소 <span style="color:var(--qv-ink-3,#666);font-weight:400;font-size:11px;">— 택배·우편 발송용</span></label>
+                    <input type="text" name="address"
+                      value="{{ supplier.address|default('') }}"
+                      placeholder="예: 서울특별시 금천구 디지털로 130 남성프라자 5층">
+                  </div>
+                </div>
                 <div class="field-row">
                   <div class="field field-full">
                     <label>비고</label>

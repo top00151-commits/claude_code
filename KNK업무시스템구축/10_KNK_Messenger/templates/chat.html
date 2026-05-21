@@ -12,6 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="KNK 메신저">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
+  <!-- 전 기기 이모지 통일용 자체호스팅 글꼴 (Noto Color Emoji, OFL) — 대표 지시 2026-05-20 미리보기 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/noto-color-emoji.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
   <!-- 단독창(solo) 모드 — ?solo=1 쿼리가 있으면 사이드바 즉시 숨김 (깜빡임 방지). -->
   <script>
@@ -28,24 +30,42 @@
   <div id="app" class="chat-app"
        data-me-id="{{ me['id'] }}"
        data-me-name="{{ me['display_name'] }}"
+       data-me-role="{{ me['role'] }}"
+       data-me-owner="{{ '1' if me_is_owner else '' }}"
+       data-me-teamlead="{{ '1' if me_is_team_lead else '' }}"
        data-me-color="{{ me['avatar_color'] }}">
 
     <aside class="sidebar" id="sidebar">
       <header class="sidebar-head">
-        <div class="me" id="meInfoArea" style="cursor:pointer;" title="클릭해서 내 상태 변경">
-          <div class="avatar" style="background: {{ me['avatar_color'] }}; position:relative;">{{ me['display_name'][0] }}<span class="status-dot status-online" id="myStatusDot"></span></div>
-          <div class="me-name" style="display:flex;flex-direction:column;line-height:1.15;">
-            <span>{{ me['display_name'] }}</span>
-            <span class="me-status-text" id="myStatusText" style="font-size:10.5px;color:var(--text-soft);">🟢 온라인</span>
+        <!-- 1행: 본인 정보 + 로그아웃(우측 상단) — 대표 지시 2026-05-20 -->
+        <div class="sidebar-head-top-row">
+          <div class="me" id="meInfoArea" style="cursor:pointer;" title="클릭해서 내 상태 변경">
+            <div class="avatar" id="meHeaderAvatar" style="background: {{ me['avatar_color'] }}; position:relative;">
+              {% if me['avatar_url'] %}<img class="avatar-img" src="{{ me['avatar_url'] }}" alt="" onerror="this.style.display='none';">{% else %}{{ me['display_name'][0] }}{% endif %}<span class="status-dot status-online" id="myStatusDot"></span>
+            </div>
+            <div class="me-info">
+              <div class="me-name-line" id="meNameTitle">
+                {{ me['display_name'] }}{% if me['title'] %} {{ me['title'] }}{% endif %}
+              </div>
+              <div class="me-meta-line">
+                <span class="me-dept-text" id="meDeptText"{% if not me['department'] %} hidden{% endif %}>{{ me['department'] or '' }}</span>
+                <span class="me-meta-sep" id="meMetaSep"{% if not me['department'] %} hidden{% endif %}>·</span>
+                <span class="me-status-text" id="myStatusText">💻 컴퓨터</span>
+              </div>
+            </div>
           </div>
+          <a href="{{ base_path }}/logout" class="logout sidebar-logout" title="로그아웃">↩&#xFE0E;</a>
         </div>
-        <div class="head-actions">
-          <a href="{{ base_path }}/dashboard" title="📊 아이템 대시보드">📊</a>
-          <button id="digestBtn" title="🌅 오늘 할 일 다이제스트">🌅</button>
-          <button id="notifySettingsBtn" title="🔔 알림 설정 (소리·진동·화면)">🔔</button>
-          <button id="hardReloadBtn" title="🔄 강제 새로고침 (캐시 비우기) — 화면이 이상할 때 클릭">🔄</button>
-          <button id="newRoomBtn" title="새 아이템/대화">＋</button>
-          <a href="{{ base_path }}/logout" class="logout" title="로그아웃">↩</a>
+        <!-- 2행: 왼쪽 "대화방 만들기" 버튼 / 오른쪽 아이콘 액션바 (대표 지시 2026-05-20) -->
+        <div class="sidebar-head-actions-row">
+          <button id="newRoomBtn" title="새 대화방 만들기"><span class="nrb-ico">✏️</span><span class="nrb-text">대화방만들기</span></button>
+          <div class="head-actions">
+            <button id="newUserBtn" title="🆔 직원 등록 (관리자 전용)" hidden>🆔</button>
+            <a href="{{ base_path }}/dashboard" title="📊 프로젝트 대시보드">📊</a>
+            <button id="digestBtn" title="🌅 오늘 할 일 다이제스트">🌅</button>
+            <button id="hardReloadBtn" title="🔄 강제 새로고침 (캐시 비우기) — 화면이 이상할 때 클릭">🔄</button>
+            <button id="notifySettingsBtn" title="🔔 알림 설정 (소리·진동·화면)">🔔</button>
+          </div>
         </div>
       </header>
       <div class="search-box" style="position:relative;">
@@ -59,17 +79,15 @@
       </nav>
       <nav class="filter-bar" id="filterBar">
         <button class="chip active" data-filter="all" type="button">전체</button>
-        <button class="chip" data-filter="item" type="button">아이템</button>
+        <button class="chip" data-filter="item" type="button">프로젝트</button>
         <button class="chip" data-filter="direct" type="button">1:1</button>
         <button class="chip" data-filter="group" type="button">그룹</button>
         <button class="chip" data-filter="channel" type="button">채널</button>
         <button class="chip my-tasks" data-filter="my-tasks" type="button">📌 내 요청</button>
       </nav>
       <ul id="roomList" class="room-list"></ul>
-      <!-- 사용자 목록 (사용자 탭 활성 시 노출) -->
-      <div id="userListToolbar" class="user-list-toolbar" hidden>
-        <button type="button" id="newUserBtn" class="secondary-btn" style="width:100%;font-size:13px;" hidden>➕ 직원 등록</button>
-      </div>
+      <!-- 사용자 목록 (사용자 탭 활성 시 노출) — 직원 등록은 헤더로 이동 (2026-05-20) -->
+      <div id="userListToolbar" class="user-list-toolbar" hidden></div>
       <div id="userList" class="user-list" hidden></div>
       <div id="searchResults" class="search-results" hidden></div>
       <div id="myTasks" class="my-tasks-panel" hidden></div>
@@ -86,14 +104,15 @@
         <div class="head-actions" id="headActions">
           <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
           <button class="head-btn" id="aiSummaryBtn" type="button" hidden title="🧠 AI 요약 (최근 80개 메시지)">🧠</button>
-          <button class="head-btn" id="projectHistoryBtn" type="button" hidden title="📚 프로젝트 이력 (아이템 방) — 하루 1회 자동 + 수동 즉시 갱신">📚</button>
+          <button class="head-btn" id="projectHistoryBtn" type="button" hidden title="📚 프로젝트 이력 (프로젝트 방) — 하루 1회 자동 + 수동 즉시 갱신">📚</button>
           <button class="head-btn" id="starredBtn" type="button" hidden title="중요 결정 모음 (별표)">★</button>
           <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
-          <button class="head-btn" id="exportBtn" type="button" hidden title="아이템 이력 Excel 다운로드">📥</button>
-          <button class="head-btn" id="itemEditBtn" type="button" hidden title="아이템 정보 수정">⚙</button>
-          <button class="head-btn" id="roomSettingsBtn" type="button" hidden title="방 설정 (멤버·이름·권한)">👥</button>
-          <button class="head-btn" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
+          <button class="head-btn" id="exportBtn" type="button" hidden title="프로젝트 이력 Excel 다운로드">📥</button>
+          <button class="head-btn" id="itemEditBtn" type="button" hidden title="프로젝트 정보 수정">⚙</button>
+          <button class="head-btn" id="roomSettingsBtn" type="button" hidden title="방 설정 (멤버·이름·권한)">🛠️</button>
         </div>
+        <!-- 나가기 — 데스크탑: 방 이름 줄 우측 상단. 모바일: 더보기 메뉴에서 처리 (대표 지시 2026-05-20) -->
+        <button class="head-btn head-leave" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
         <!-- 모바일에서만 보이는 더보기 버튼 -->
         <button class="head-btn head-more" id="headMoreBtn" type="button" hidden aria-label="더보기">⋮</button>
       </header>
@@ -106,8 +125,8 @@
         <button type="button" data-act="starred">★ 중요 결정</button>
         <button type="button" data-act="gallery">🖼️ 사진·파일 갤러리</button>
         <button type="button" data-act="export">📥 Excel 다운로드</button>
-        <button type="button" data-act="edit">⚙ 아이템 정보 수정</button>
-        <button type="button" data-act="settings">👥 방 설정 (멤버·이름)</button>
+        <button type="button" data-act="edit">⚙ 프로젝트 정보 수정</button>
+        <button type="button" data-act="settings">🛠️ 방 설정 (멤버·이름)</button>
         <button type="button" data-act="leave">🚪 이 방 나가기</button>
       </div>
       <ol class="messages" id="messages"></ol>
@@ -115,7 +134,7 @@
       <div class="composer-area" id="composerArea">
         <!-- 전송 시점 자동 번역 토글 (방별 기억) -->
         <div class="composer-langbar" id="composerLangbar" hidden>
-          <span class="cl-label">함께 보낼 번역:</span>
+          <span class="cl-label">번역:</span>
           <button type="button" class="cl-chip" data-lang="" data-active="1" title="번역 없이 전송">OFF</button>
           <button type="button" class="cl-chip" data-lang="vi" title="한국어/입력 → 베트남어 함께 전송">🇻🇳 베트남어</button>
           <button type="button" class="cl-chip" data-lang="en" title="한국어/입력 → 영어 함께 전송">🇺🇸 영어</button>
@@ -123,48 +142,75 @@
           <span class="cl-hint" id="composerLangHint"></span>
         </div>
         <form class="composer" id="composer" autocomplete="off">
-          <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
-          <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
-
-          <!-- 첨부 미리보기 + 묶음 선택 다이얼로그 -->
-          <div class="modal" id="attachPreviewDialog" data-modal>
-            <div class="modal-content" style="max-width:520px;">
-              <button type="button" class="close-x modal-close-x" data-close>✕</button>
-              <h3 style="margin:0 0 8px;font-size:16px;">첨부 미리보기</h3>
-              <p class="dialog-hint" id="apSummary">파일 0개</p>
-              <div class="ap-grid" id="apGrid"></div>
-              <p class="dialog-hint" id="apOthersHint" hidden style="color:#9ca3af;margin-top:8px;">※ 사진이 아닌 파일은 항상 개별 전송됩니다.</p>
-              <div class="dialog-actions" style="flex-wrap:wrap;gap:6px;">
-                <button type="button" data-close>취소</button>
-                <button type="button" id="apIndividual">개별로 보내기</button>
-                <button type="button" id="apAlbum" class="primary-btn">앨범으로 묶기</button>
-              </div>
-            </div>
+          <!-- 위 툴바 — 좌측: 첨부 / AI 작성도움 · 우측: 전송 -->
+          <div class="composer-toolbar">
+            <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
+            <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="✨ 작성 도움 (정중하게·짧게·전문가 톤)" style="font-size:16px;">✨</button>
+            <button class="attach-btn" id="emojiBtn" type="button" disabled title="이모지 삽입" style="font-size:16px;">😀</button>
+            <button class="attach-btn" id="stickerBtn" type="button" disabled title="스티커 보내기" style="font-size:16px;">🐶</button>
+            <span class="composer-spacer"></span>
+            <button id="sendBtn" type="submit" disabled aria-label="전송">
+              <svg class="send-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
           </div>
-          <textarea id="msgInput" placeholder="메시지 입력..." disabled rows="1"></textarea>
-          <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="✨ 작성 도움 (정중하게·짧게·전문가 톤)" style="font-size:16px;">✨</button>
-          <button id="sendBtn" type="submit" disabled>전송</button>
+          <!-- 이모지 피커 팝업 — textarea 위에 떠 있는 그리드 -->
+          <div class="emoji-picker" id="emojiPicker" hidden>
+            <div class="ep-tabs" id="epTabs"></div>
+            <div class="ep-grid" id="epGrid"></div>
+            <input type="text" class="ep-search" id="epSearch" placeholder="검색 (예: 웃음, 손, 별)" autocomplete="off">
+          </div>
+          <!-- 이모지 자동완성 추천 바 — 입력 중 단어가 키워드와 맞으면 떠서 클릭 시 이모지로 교체 -->
+          <div class="emoji-suggest" id="emojiSuggest" hidden></div>
+          <!-- 스티커 패널 — 입력창 위에 떠 있는 그리드. 클릭 시 스티커를 메시지로 전송. -->
+          <div class="sticker-picker" id="stickerPicker" hidden>
+            <div class="sp-head">스티커</div>
+            <div class="sp-grid" id="spGrid"></div>
+          </div>
+          <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
+          <!-- 아래 입력 박스 -->
+          <textarea id="msgInput" placeholder="메시지 입력..." disabled rows="2"></textarea>
         </form>
       </div>
     </section>
 
     <!-- ===== 모달 (div 기반, 100% 제어) ===== -->
 
+    <!-- 첨부 미리보기 + 묶음 선택 다이얼로그 — chat-app 바깥 최상위 모달 영역 -->
+    <div class="modal" id="attachPreviewDialog" data-modal>
+      <div class="modal-content" style="max-width:560px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3 style="margin:0 0 8px;font-size:16px;">첨부 미리보기</h3>
+        <p class="dialog-hint" id="apSummary">파일 0개</p>
+        <div class="ap-grid" id="apGrid"></div>
+        <p class="dialog-hint" id="apOthersHint" hidden style="color:#9ca3af;margin-top:8px;">※ 사진이 아닌 파일은 항상 개별 전송됩니다.</p>
+        <div class="dialog-actions" style="flex-wrap:wrap;gap:6px;">
+          <button type="button" data-close>취소</button>
+          <button type="button" id="apIndividual">개별로 보내기</button>
+          <button type="button" id="apAlbum" class="primary-btn">📷 앨범으로 묶기</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="newRoomDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <form id="newRoomForm">
           <div class="dialog-tabs">
-            <button type="button" class="tab active" data-tab="item">아이템</button>
+            <button type="button" class="tab active" data-tab="item">프로젝트</button>
             <button type="button" class="tab" data-tab="dm">1:1 / 그룹</button>
+            <button type="button" class="tab" data-tab="channel">📢 채널</button>
           </div>
 
           <div class="tab-pane active" data-tab-pane="item">
-            <p class="dialog-hint">고객사 × 모델 단위로 방을 만듭니다. 모든 메시지·사진·파일이 이 아이템에 자동으로 묶여 정리됩니다.</p>
+            <p class="dialog-hint">고객사 × 모델 단위로 방을 만듭니다. 모든 메시지·사진·파일이 이 프로젝트에 자동으로 묶여 정리됩니다.</p>
             <div class="form-grid">
               <label>고객사 <input id="itemCustomer" placeholder="예: 삼성전자"></label>
-              <label>모델/품번 <input id="itemCode" placeholder="예: 003M2501"></label>
-              <label class="full">아이템명 * <input id="itemName" placeholder="예: Watch Molding 자동화"></label>
+              <label style="position:relative;">관리번호 <input id="itemCode" placeholder="예: 003M2501" autocomplete="off">
+                <div id="itemCodeSuggest" class="code-suggest" hidden></div>
+              </label>
+              <label class="full">프로젝트명 * <input id="itemName" placeholder="예: Watch Molding 자동화"></label>
               <label>상태
                 <select id="itemStatus">
                   <option value="active">진행중</option>
@@ -177,17 +223,39 @@
             </div>
             <div class="member-section">
               <div class="member-section-label">참여자 선택</div>
+              <div class="user-picker-search-wrap">
+                <input type="text" id="itemUserSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+                <span class="user-picker-count" id="itemUserPickerCount"></span>
+              </div>
               <div id="itemUserPicker" class="user-picker"></div>
             </div>
           </div>
 
           <div class="tab-pane" data-tab-pane="dm">
             <p class="dialog-hint">사람을 선택하세요. 1명 → 1:1 / 2명 이상 → 그룹채팅.</p>
+            <div class="user-picker-search-wrap">
+              <input type="text" id="userSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+              <span class="user-picker-count" id="userPickerCount"></span>
+            </div>
             <div id="userPicker" class="user-picker"></div>
             <label class="group-name-label">그룹 이름 (선택) <input id="roomName" placeholder="예: 영업팀, 프로젝트A 등"></label>
             <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#374151">
               <input id="roomNameLock" type="checkbox">
               <span>이름 고정 (방장만 이름 변경 가능. 미체크 시 각자 별명 가능)</span>
+            </label>
+          </div>
+
+          <div class="tab-pane" data-tab-pane="channel">
+            <p class="dialog-hint">📢 공지·정보 공유용 <b>채널</b>을 만듭니다. 참여할 사람을 고르고 채널 이름을 입력하세요. (사이드바 '채널' 탭에 표시)</p>
+            <div class="user-picker-search-wrap">
+              <input type="text" id="channelUserSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+              <span class="user-picker-count" id="channelUserPickerCount"></span>
+            </div>
+            <div id="channelUserPicker" class="user-picker"></div>
+            <label class="group-name-label">채널 이름 * <input id="channelName" placeholder="예: 안전공지, 영업팀 채널"></label>
+            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#374151">
+              <input id="channelNameLock" type="checkbox" checked>
+              <span>이름 고정 (만든 사람만 채널 이름 변경)</span>
             </label>
           </div>
 
@@ -203,11 +271,11 @@
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <form id="itemEditForm">
-          <h3>아이템 정보 수정</h3>
+          <h3>프로젝트 정보 수정</h3>
           <div class="form-grid">
             <label>고객사 <input id="editCustomer"></label>
-            <label>모델/품번 <input id="editCode"></label>
-            <label class="full">아이템명 <input id="editName"></label>
+            <label>관리번호 <input id="editCode"></label>
+            <label class="full">프로젝트명 <input id="editName"></label>
             <label>상태
               <select id="editStatus">
                 <option value="active">진행중</option>
@@ -269,6 +337,13 @@
           </div>
         </section>
 
+        <!-- 채널 삭제 (관리자 전용, 자동채널 제외) — 대표 지시 2026-05-21 -->
+        <section class="rs-section" id="rsChannelDeleteSection" style="display:none;">
+          <h4 style="color:#991B1B;">⚠ 채널 삭제</h4>
+          <div style="font-size:11px;color:var(--text-soft);line-height:1.5;margin-bottom:8px;">이 채널과 모든 대화·첨부가 영구 삭제됩니다. 되돌릴 수 없습니다.</div>
+          <button type="button" id="rsChannelDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:12px;font-weight:600;">🗑 이 채널 삭제</button>
+        </section>
+
         <div class="dialog-actions">
           <button type="button" data-close>닫기</button>
         </div>
@@ -294,6 +369,8 @@
           <input type="email" id="nuEmail" maxlength="100" placeholder="예: hong@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
           <label style="font-size:12px;color:var(--text-soft);">휴대폰 번호 (= 초기 비밀번호) <span style="color:#dc2626;">*</span></label>
           <input type="tel" id="nuPhone" maxlength="30" placeholder="예: 010-1234-5678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:12px;color:var(--text-soft);">사번</label>
+          <input type="text" id="nuEmployeeNo" maxlength="30" placeholder="예: K2401" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
           <div style="display:flex;gap:8px;">
             <div style="flex:1;">
               <label style="font-size:12px;color:var(--text-soft);">직급</label>
@@ -303,14 +380,36 @@
               <label style="font-size:12px;color:var(--text-soft);">부서</label>
               <select id="nuDept" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
                 <option value="">(선택)</option>
-                <option value="경영지원">경영지원</option>
-                <option value="영업">영업</option>
-                <option value="기술영업">기술영업</option>
-                <option value="기술">기술</option>
-                <option value="자재구매">자재구매</option>
-                <option value="생산">생산</option>
-                <option value="품질">품질</option>
-                <option value="해외">해외</option>
+                <optgroup label="── 임원 ──">
+                  <option value="총괄">00 총괄</option>
+                </optgroup>
+                <optgroup label="── 한국 ──">
+                  <option value="기술영업팀">01 기술영업팀</option>
+                  <option value="검사기팀">02 검사기팀</option>
+                  <option value="품질팀">03 품질팀</option>
+                  <option value="설계팀(자동화)">04 설계팀(자동화)</option>
+                  <option value="설계팀(검사기)">04 설계팀(검사기)</option>
+                  <option value="소프트웨어팀">05 소프트웨어팀</option>
+                  <option value="전장설계팀">06 전장설계팀</option>
+                  <option value="제조기술1팀">07 제조기술1팀</option>
+                  <option value="제조기술2팀">08 제조기술2팀</option>
+                  <option value="가공팀">09 가공팀</option>
+                  <option value="구매팀">10 구매팀</option>
+                  <option value="관리팀">11 관리팀</option>
+                  <option value="개발혁신팀">13 개발혁신팀</option>
+                  <option value="라이프밸류팀">14 라이프밸류팀</option>
+                </optgroup>
+                <optgroup label="── 베트남법인 ──">
+                  <option value="12-VN01 기술팀">12-VN01 기술팀</option>
+                  <option value="12-VN02 조립팀">12-VN02 조립팀</option>
+                  <option value="12-VN03 전장팀">12-VN03 전장팀</option>
+                  <option value="12-VN04 설계팀">12-VN04 설계팀</option>
+                  <option value="12-VN05 소프트웨어팀">12-VN05 소프트웨어팀</option>
+                  <option value="12-VN06 가공팀">12-VN06 가공팀</option>
+                  <option value="12-VN07 품질팀">12-VN07 품질팀</option>
+                  <option value="12-VN08 구매팀">12-VN08 구매팀</option>
+                  <option value="12-VN09 관리팀">12-VN09 관리팀</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -355,11 +454,20 @@
         <p class="dialog-hint" id="cpwHint">처음 로그인하셨습니다. 보안을 위해 비밀번호를 본인만 아는 값으로 변경해 주세요.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
           <label style="font-size:12px;color:var(--text-soft);">현재 비밀번호 (= 본인 휴대폰 번호 숫자)</label>
-          <input type="password" id="cpwCurrent" placeholder="예: 01012345678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div class="pw-wrap">
+            <input type="password" id="cpwCurrent" placeholder="예: 01012345678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwCurrent" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+          </div>
           <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 (6자 이상)</label>
-          <input type="password" id="cpwNew" placeholder="새 비밀번호" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div class="pw-wrap">
+            <input type="password" id="cpwNew" placeholder="새 비밀번호" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+          </div>
           <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 확인</label>
-          <input type="password" id="cpwNew2" placeholder="새 비밀번호 다시 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <div class="pw-wrap">
+            <input type="password" id="cpwNew2" placeholder="새 비밀번호 다시 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew2" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+          </div>
           <div id="cpwError" style="font-size:12px;color:#dc2626;display:none;"></div>
         </div>
         <div class="dialog-actions">
@@ -375,19 +483,43 @@
         <h3>👤 <span id="uiName">사용자 정보</span></h3>
         <p class="dialog-hint" id="uiHint">본인은 직급·부서를 직접 수정할 수 있습니다. 관리자는 모든 사람 수정 가능.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <label style="font-size:12px;color:var(--text-soft);">사번</label>
+          <input type="text" id="uiEmployeeNo" maxlength="30" placeholder="예: K2401" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
           <label style="font-size:12px;color:var(--text-soft);">직급</label>
           <input type="text" id="uiTitle" maxlength="40" placeholder="예: 대표이사 / 부장 / 과장 / 사원 / 프로" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
           <label style="font-size:12px;color:var(--text-soft);">부서</label>
           <select id="uiDeptSelect" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
             <option value="">(선택)</option>
-            <option value="경영지원">경영지원</option>
-            <option value="영업">영업</option>
-            <option value="기술영업">기술영업</option>
-            <option value="기술">기술</option>
-            <option value="자재구매">자재구매</option>
-            <option value="생산">생산</option>
-            <option value="품질">품질</option>
-            <option value="해외">해외</option>
+            <optgroup label="── 임원 ──">
+              <option value="총괄">00 총괄</option>
+            </optgroup>
+            <optgroup label="── 한국 ──">
+              <option value="기술영업팀">01 기술영업팀</option>
+              <option value="검사기팀">02 검사기팀</option>
+              <option value="품질팀">03 품질팀</option>
+              <option value="설계팀(자동화)">04 설계팀(자동화)</option>
+              <option value="설계팀(검사기)">04 설계팀(검사기)</option>
+              <option value="소프트웨어팀">05 소프트웨어팀</option>
+              <option value="전장설계팀">06 전장설계팀</option>
+              <option value="제조기술1팀">07 제조기술1팀</option>
+              <option value="제조기술2팀">08 제조기술2팀</option>
+              <option value="가공팀">09 가공팀</option>
+              <option value="구매팀">10 구매팀</option>
+              <option value="관리팀">11 관리팀</option>
+              <option value="개발혁신팀">13 개발혁신팀</option>
+              <option value="라이프밸류팀">14 라이프밸류팀</option>
+            </optgroup>
+            <optgroup label="── 베트남법인 ──">
+              <option value="12-VN01 기술팀">12-VN01 기술팀</option>
+              <option value="12-VN02 조립팀">12-VN02 조립팀</option>
+              <option value="12-VN03 전장팀">12-VN03 전장팀</option>
+              <option value="12-VN04 설계팀">12-VN04 설계팀</option>
+              <option value="12-VN05 소프트웨어팀">12-VN05 소프트웨어팀</option>
+              <option value="12-VN06 가공팀">12-VN06 가공팀</option>
+              <option value="12-VN07 품질팀">12-VN07 품질팀</option>
+              <option value="12-VN08 구매팀">12-VN08 구매팀</option>
+              <option value="12-VN09 관리팀">12-VN09 관리팀</option>
+            </optgroup>
             <option value="기타">기타 (직접 입력)</option>
           </select>
           <input type="text" id="uiDeptCustom" maxlength="40" placeholder="기타 부서 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;display:none;">
@@ -398,14 +530,20 @@
           <div id="uiCeoFields" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">
             <label style="font-size:12px;color:var(--text-soft);">표시명 (관리자만 변경)</label>
             <input type="text" id="uiDisplayName" maxlength="40" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
-            <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">권한</label>
-            <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;">
-              <input type="checkbox" id="uiRoleCeo"> <span>👑 <b>관리자 권한</b> — 직원 등록·정보 수정·계정 비활성화·삭제 가능</span>
-            </label>
+            <div id="uiRoleRow">
+              <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">권한 <span style="color:#9CA3AF;font-size:11px;">(관리자 선정·해지는 최고관리자만 가능)</span></label>
+              <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;">
+                <input type="checkbox" id="uiRoleCeo"> <span>👑 <b>관리자 권한</b> — 직원 등록·정보 수정·계정 비활성화·삭제 가능</span>
+              </label>
+            </div>
             <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">계정 활성/비활성 (퇴사 시 1차 처리)</label>
             <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" id="uiActive"> <span>활성 (체크 해제 시 로그인 차단 — 데이터 보존)</span>
             </label>
+            <div style="margin-top:12px;">
+              <button type="button" id="uiResetPwBtn" class="secondary-btn" style="font-size:12px;">📱 전화번호로 비밀번호 초기화</button>
+              <div style="font-size:11px;color:var(--text-soft);margin-top:4px;line-height:1.5;">비밀번호를 이 사용자의 <b>전화번호(숫자만)</b>로 초기화합니다. 사용자는 첫 로그인 시 새 비밀번호를 설정하게 됩니다.</div>
+            </div>
             <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #FCA5A5;">
               <div style="font-size:12px;color:#991B1B;font-weight:600;margin-bottom:6px;">⚠ 위험 구역 — 계정 완전 삭제</div>
               <div style="font-size:11px;color:var(--text-soft);line-height:1.5;margin-bottom:8px;">
@@ -444,7 +582,7 @@
       </div>
     </div>
 
-    <!-- 🧠 AI 요약 다이얼로그 (Slack AI / Teams Copilot 식) -->
+    <!-- 🧠 AI 요약 다이얼로그 -->
     <div class="modal" id="aiSummaryDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
@@ -490,48 +628,70 @@
       </button>
     </div>
 
-    <!-- 🟢 내 상태 변경 다이얼로그 (Slack/Teams 식) -->
+    <!-- 🟢 내 상태 변경 다이얼로그 -->
     <div class="modal" id="statusDialog" data-modal>
       <div class="modal-content" style="max-width:480px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <h3>🟢 내 상태</h3>
-        <p class="dialog-hint">다른 사람들에게 보일 상태를 선택하세요. 방해금지(🚫)는 본인 알림도 차단합니다.</p>
-        <div id="statusOptionsArea" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
-        <div style="margin-top:10px;">
-          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">사용자 정의 문구 (선택)</label>
-          <input type="text" id="statusCustomText" maxlength="80" placeholder="예: HAIST WORKS 운영 중" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-        </div>
-        <div style="margin-top:10px;">
-          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">자동 해제 시각 (선택)</label>
-          <input type="datetime-local" id="statusUntilAt" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-        </div>
-        <section class="rs-section" style="margin-top:18px;">
-          <h4>📅 일정 추가 (자동 회의중 전환)</h4>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;">
-            <div style="flex:1;min-width:140px;">
-              <label style="font-size:11px;color:var(--text-soft);">제목</label>
-              <input type="text" id="calTitle" maxlength="80" placeholder="회의 / 외근" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text-soft);">시작</label>
-              <input type="datetime-local" id="calStart" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text-soft);">종료</label>
-              <input type="datetime-local" id="calEnd" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text-soft);">종류</label>
-              <select id="calKind" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-                <option value="meeting">🤝 회의</option>
-                <option value="external">🚗 외근</option>
-                <option value="busy">🔴 바쁨</option>
-              </select>
-            </div>
-            <button type="button" id="calAddBtn" class="primary-btn" style="height:32px;">＋ 추가</button>
+        <p class="dialog-hint" style="margin-bottom:10px;">
+          다른 사람에게 표시되는 내 상태입니다. 자리비움·휴가일 때 답이 늦어질 수 있음을 미리 알려둘 수 있어요.<br>
+          <span style="color:var(--accent);font-size:11px;">💡 카드를 <b>더블클릭</b> 하면 즉시 적용됩니다.</span>
+        </p>
+        <div id="statusOptionsArea" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;"></div>
+        <!-- 글씨 크기 (앱 전체) — 대표 지시 2026-05-20 -->
+        <div style="margin-top:4px;margin-bottom:6px;">
+          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">글씨 크기 <span style="color:#9CA3AF;font-size:11px;">(앱 전체 · 이 기기에 저장)</span></label>
+          <div id="fontSizeOptions">
+            <button type="button" class="fs-opt" data-fs="0">더작게</button>
+            <button type="button" class="fs-opt" data-fs="1">작게</button>
+            <button type="button" class="fs-opt" data-fs="2">표준</button>
+            <button type="button" class="fs-opt" data-fs="3">크게</button>
+            <button type="button" class="fs-opt" data-fs="4">더크게</button>
           </div>
-          <div id="calEventList" style="margin-top:10px;max-height:160px;overflow-y:auto;"></div>
-        </section>
+        </div>
+        <div style="margin-top:8px;">
+          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:3px;">사용자 정의 문구 (선택)</label>
+          <input type="text" id="statusCustomText" maxlength="80" placeholder="예: HAIST WORKS 운영 중" style="width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div style="margin-top:8px;">
+          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:3px;">
+            자동 해제 시각 (선택)
+            <span style="font-weight:normal;color:#9CA3AF;font-size:10.5px;">— 이 시각이 지나면 자동으로 기본('💻 컴퓨터'/'📱 휴대폰') 으로 복귀 (예: 회의 종료 시각)</span>
+          </label>
+          <input type="datetime-local" id="statusUntilAt" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <details class="status-calendar-collapsible" style="margin-top:12px;">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text);padding:6px 0;">
+            📅 일정 추가 (자동 회의 중 전환)
+          </summary>
+          <div style="padding-top:8px;">
+            <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px;">일정을 등록하면 시작 시각에 자동으로 '🤝 회의 중' 으로 바뀌고, 종료 시각에 자동 해제됩니다.</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;">
+              <div style="flex:1;min-width:140px;">
+                <label style="font-size:11px;color:var(--text-soft);">제목</label>
+                <input type="text" id="calTitle" maxlength="80" placeholder="회의 / 외근" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text-soft);">시작</label>
+                <input type="datetime-local" id="calStart" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text-soft);">종료</label>
+                <input type="datetime-local" id="calEnd" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text-soft);">종류</label>
+                <select id="calKind" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                  <option value="meeting">🤝 회의</option>
+                  <option value="external">🚗 외근</option>
+                  <option value="busy">🔴 바쁨</option>
+                </select>
+              </div>
+              <button type="button" id="calAddBtn" class="primary-btn" style="height:32px;">＋ 추가</button>
+            </div>
+            <div id="calEventList" style="margin-top:8px;max-height:120px;overflow-y:auto;"></div>
+          </div>
+        </details>
         <div class="dialog-actions">
           <button type="button" data-close>취소</button>
           <button type="button" id="statusChangePwBtn" class="secondary-btn">🔐 비밀번호 변경</button>
@@ -540,7 +700,7 @@
       </div>
     </div>
 
-    <!-- 검색 필터 도움말 다이얼로그 (Slack/Discord 식 고급 필터) -->
+    <!-- 검색 필터 도움말 다이얼로그 (고급 필터) -->
     <div class="modal" id="searchHelpDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
@@ -664,16 +824,25 @@
           </label>
         </section>
 
-        <section class="ns-section">
-          <h4>📱 휴대폰 푸시 알림 진단</h4>
+        <details class="ns-section ns-collapse" id="nsPushDiagnose">
+          <summary style="cursor:pointer;list-style:none;margin:0 0 12px;font-size:14px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;">
+            <span class="ns-collapse-arrow">▶</span>
+            📱 휴대폰 푸시 알림 진단 <span style="font-size:11px;color:var(--text-soft);font-weight:400;">(필요할 때만 펼치기)</span>
+          </summary>
           <p class="dialog-hint" style="font-size:12px;">앱이 닫혀있어도 OS 알림이 도착하려면 푸시 구독이 필요합니다. 휴대폰에서 알림 안 오면 여기서 진단·재구독.</p>
-          <div id="nsPushStatus" style="padding:8px 10px;background:#F9FAFB;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:12px;line-height:1.5;">진단 중...</div>
+          <div id="nsPushStatus" style="padding:8px 10px;background:#F9FAFB;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:12px;line-height:1.5;overflow-wrap:anywhere;">진단 중...</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button type="button" id="nsPushTestBtn" class="ns-preview-btn">📨 테스트 알림 보내기</button>
+            <button type="button" id="nsPushSimBtn" class="ns-preview-btn" style="border-color:#A5282C;color:#A5282C;">💬 실제 수신 시뮬레이션</button>
             <button type="button" id="nsPushResubBtn" class="ns-preview-btn" style="border-color:#6b7280;color:#374151;">🔄 푸시 재구독</button>
           </div>
-          <div id="nsPushResult" style="margin-top:8px;font-size:12px;color:var(--text-soft);"></div>
-        </section>
+          <p class="dialog-hint" style="font-size:11px;margin-top:4px;color:#9CA3AF;">
+            · <b>테스트 알림</b>: 푸시 인프라 자체 확인 (항상 발송)<br>
+            · <b>실제 수신 시뮬레이션</b>: 다른 사람이 보낸 것처럼 — PC 켜져있으면 스킵(정상), 휴대폰만 두면 알림<br>
+            · <b>휴대폰에서 로그아웃(↩)</b> 하면 폰·PC 전부 로그아웃 + <b>오프라인</b> / <b>PC 로그아웃</b>은 PC만 (휴대폰 유지)
+          </p>
+          <div id="nsPushResult" style="margin-top:8px;font-size:12px;color:var(--text-soft);overflow-wrap:anywhere;"></div>
+        </details>
 
         <div class="dialog-actions">
           <button type="button" data-close>닫기</button>
@@ -682,9 +851,22 @@
     </div>
 
     <div class="modal lightbox-modal" id="lightbox" data-modal>
-      <button type="button" class="close-x lightbox-x" id="closeLightbox" data-close>✕</button>
-      <img id="lightboxImg" src="" alt="">
-      <div class="lightbox-meta" id="lightboxMeta"></div>
+      <div class="lb-toolbar">
+        <span class="lb-counter" id="lbCounter">1 / 1</span>
+        <div class="lb-actions">
+          <button type="button" id="lbSaveOne" class="lb-btn" title="이 사진만 저장">💾 이 사진 저장</button>
+          <button type="button" id="lbSaveAll" class="lb-btn" hidden title="앨범 전체를 ZIP 으로 저장">📦 전체 저장 (ZIP)</button>
+          <button type="button" id="closeLightbox" class="lb-btn lb-close" data-close title="닫기 (Esc)">✕</button>
+        </div>
+      </div>
+      <button type="button" id="lbPrev" class="lb-nav lb-prev" aria-label="이전 사진" hidden>‹</button>
+      <button type="button" id="lbNext" class="lb-nav lb-next" aria-label="다음 사진" hidden>›</button>
+      <div class="lb-stage">
+        <img id="lightboxImg" src="" alt="">
+      </div>
+      <div class="lb-bottom">
+        <div class="lightbox-meta" id="lightboxMeta"></div>
+      </div>
     </div>
 
     <div class="modal" id="requestsDialog" data-modal>

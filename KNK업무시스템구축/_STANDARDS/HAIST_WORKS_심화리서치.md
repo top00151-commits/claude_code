@@ -50,7 +50,7 @@
 
 | # | 발견 | 근거 | 시사점 |
 |---|---|---|---|
-| 1 | **설문 1·2순위(진행률·변경 Inform·요청 티켓)는 상용 도구로 80% 해결 가능하지만 Excel/ERP 이중 입력이 발생** | 구매·관리팀 설문 + Notion 제조업 사례(15~20분/주문 수작업) | 기존 도구(WEHAGO 하이웍스·KNK PMS·카톡)를 **유지하면서** 그 위에 얇은 통합 레이어(`HAIST WORKS`)를 깔아야 함 |
+| 1 | **설문 1·2순위(진행률·변경 Inform·요청 티켓)는 상용 도구로 80% 해결 가능하지만 Excel/ERP 이중 입력이 발생** | 구매·관리팀 설문 + Notion 제조업 사례(15~20분/주문 수작업) | 기존 도구(외부 ERP 외부 그룹웨어·KNK PMS·카톡)를 **유지하면서** 그 위에 얇은 통합 레이어(`HAIST WORKS`)를 깔아야 함 |
 | 2 | **AI 2026 트렌드 = Agentic (자율 에이전트) + MCP (데이터 연결 표준)**. Microsoft는 이미 "제품 변경 관리 에이전트" 상용화 — 승인 기간 몇 주→며칠, BOM 종속성 누락 80% 감소 | Microsoft Industry Blog 2025.12 · Anthropic Managed Agents 2026.01 · MODEX 2026 | **설문 1순위 ②(변경 Inform)는 AI 에이전트의 가장 적합한 적용 영역**. KNK의 제조2 사고(변경 통보 누락)를 정확히 해결 |
 | 3 | **KNK의 `baby`(엑셀) + `web`(FastAPI)은 이미 2026 모범 패턴과 정확히 일치** — FastAPI로 12개 마이크로서비스, Claude API로 PDF→구조화 데이터, 제조업 맞춤 ERP는 "20영업일 안에 1주차 결과" 가능 | FastAPI 2026 production guide · Syntora Claude manufacturing | **지금 방향이 맞다**. 상용 ERP로 갈아타는 건 비용·위험·KNK 표준(관리코드 8자리 `001T2604`) 손실 측면에서 불합리 |
 
@@ -60,7 +60,7 @@
 |---|---|---|
 | **SAP B1 / Odoo / 더존으로 전면 교체?** | ❌ 하지 마라 | SAP SME 실패율 73%, Lidl $500M 손실, Revlon 공장 중단. KNK 규모로는 과잉 투자 |
 | **Notion만으로 통합?** | ❌ 불가능 | 10,000행 성능 저하, 복잡 자동화 한계, 관리코드 450+ 수용 불안 |
-| **Airtable + Monday 조합으로 대체?** | 🟡 부분 | Airtable 50K 레코드 한도, 한국 세관·WEHAGO·하이웍스 연동 부재 |
+| **Airtable + Monday 조합으로 대체?** | 🟡 부분 | Airtable 50K 레코드 한도, 한국 세관·외부 ERP·외부 그룹웨어 연동 부재 |
 | **MRPeasy / OpenBOM 구매?** | 🟡 검토 가치 있음 | 4·5단계 입고·재고 + BOM 영역만 한정 도입 가능. 단 $79/user 비용 |
 | **Claude Managed Agents / MCP 도입?** | ✅ **즉시 도입 권장** | 설문 1순위 ②(변경 Inform)에 정확히 매칭. 비용은 API 사용량만 (사용자당 월 $10~30 예상) |
 | **AI 시대에 자체 구축이 맞나?** | ✅ **지금이 최적기** | Claude API로 20영업일 안에 커스텀 ERP 가능, 공공 스마트공장 지원사업(최대 3억원·75%)도 활용 가능 |
@@ -109,7 +109,7 @@
 | **HAIST_WORKS 웹** | FastAPI + SQLite, 8커밋 ~17,000줄 | 구축 중 (8081포트) |
 | **HAIST_WORKS_baby** | 엑셀 V1·V2 (영업 중심 재설계) | V1 완료, V2 진행 중 |
 | **카카오톡** | 일상 커뮤니케이션 | 전사 사용 (대체 불가) |
-| **WEHAGO/하이웍스** | 근태·전자결재·급여 | 운영 중 (파트너 API 존재) |
+| **외부 ERP/외부 그룹웨어** | 근태·전자결재·급여 | 운영 중 (파트너 API 존재) |
 | **Altium / SolidWorks** | 회로·기구 CAD | 설계팀 사용 |
 | **Git** | SW팀 코드 저장소 | SW팀 사용 |
 
@@ -146,7 +146,7 @@
 ### 원칙 2. 기존 도구 연동 우선 (Integrate, Don't Replace)
 
 **근거**:
-- 설문: Git·Altium·SolidWorks·WEHAGO·카톡 모두 교체 요구 0건
+- 설문: Git·Altium·SolidWorks·외부 ERP·카톡 모두 교체 요구 0건
 - 구매(정성진): "카톡 출고 요청 기록" — 카톡 대체가 아니라 티켓화
 - 2026 MCP 트렌드: "Claude now has directory with 75+ connectors" — 연동이 표준
 - BOM-ERP 통합 연구: "common database를 통한 중복 제거"
@@ -240,7 +240,7 @@
 **한계**:
 - **가격 비쌈**: $20/seat/월 = Monday.com $9 대비 2배
 - 한국어 UI는 있으나 어색한 번역
-- 한국 세관·WEHAGO·하이웍스 연동 부재
+- 한국 세관·외부 ERP·외부 그룹웨어 연동 부재
 - 오프라인 접근 불가 (클라우드 전용)
 
 **KNK 적합도 판정**: ⭐⭐⭐⭐
@@ -294,7 +294,7 @@
 **한계**:
 - **비쌈**: $79/user/월 (Odoo $24 · SAP B1 $149 중간)
 - 한국어 지원 제한
-- 카톡·WEHAGO 연동 부재
+- 카톡·외부 ERP 연동 부재
 - KNK 표준 관리코드(`001T2604`) 강제화 어려움 (MRPeasy 내부 코드 체계 존재)
 
 **KNK 적합도 판정**: ⭐⭐⭐⭐ (한정 영역)
@@ -426,15 +426,15 @@
 - **더존 ERP**: 중소기업 1위, 전국 지원망 — 단 스마트A 2023.12 단종, 2025년 말 유지보수 종료
 - **영림원 K-System Ace**: 제조·건설 특화 커스터마이징 깊이 우수
 
-**KNK 적합도 판정**: ⭐⭐ (재무·급여만 WEHAGO로 기존 운영)
+**KNK 적합도 판정**: ⭐⭐ (재무·급여만 외부 ERP로 기존 운영)
 - **결론**: **전면 도입 금지** — 73% 실패 확률 + 관리코드 표준 손실
-- **활용 방식**: WEHAGO/하이웍스는 근태·전자결재·급여 영역으로 **유지**, 나머지는 KNK 자체 시스템
+- **활용 방식**: 외부 ERP/외부 그룹웨어는 근태·전자결재·급여 영역으로 **유지**, 나머지는 KNK 자체 시스템
 
 **흡수할 기능**:
 - Odoo의 모듈화 개념 (web 사이드바 모듈 구조)
 - SAP의 MRP 계획 알고리즘 (재주문점 · 안전재고)
 
-### 4.10 WEHAGO / 하이웍스 (더존) — ⭐⭐⭐⭐⭐ (필수 유지)
+### 4.10 외부 ERP / 외부 그룹웨어 (더존) — ⭐⭐⭐⭐⭐ (필수 유지)
 
 **강점 (KNK에게 완벽)**:
 - **한국 기업용 그룹웨어 M/S 1위**
@@ -451,7 +451,7 @@
 **KNK 적합도 판정**: ⭐⭐⭐⭐⭐ (이미 도입·필수 유지)
 - **도입 영역**: 근태·전자결재·급여·지출 — **절대 대체 금지**
 - **HAIST_WORKS와 연동 방식**:
-  1. 하이웍스 근태 API → HAIST_WORKS 대시보드 "오늘 휴가·출장" 표시
+  1. 외부 그룹웨어 근태 API → HAIST_WORKS 대시보드 "오늘 휴가·출장" 표시
   2. 증빙 제출 포털 → 전자결재 자동 생성
   3. 인사 변동 → HAIST_WORKS 사용자 자동 동기화
 
@@ -472,11 +472,11 @@
 | SolidWorks PDM | ~$1.5K 1회 | 도면 버전 | 🟢 **도입 검토** (설계 5명) |
 | Slack/Kakao Work | $7~13 | — | 🔴 불필요 (카톡 유지) |
 | SAP B1/Odoo | $24~149 | — | 🔴 과도한 교체 |
-| WEHAGO/하이웍스 | 기존 | 근태·전자결재 | 🟢 **필수 유지** |
+| 외부 ERP/외부 그룹웨어 | 기존 | 근태·전자결재 | 🟢 **필수 유지** |
 
 **권고 결론**:
 - **신규 구매**: OpenBOM (BOM), SolidWorks PDM (도면 — 선택)
-- **기존 유지**: WEHAGO/하이웍스
+- **기존 유지**: 외부 ERP/외부 그룹웨어
 - **자체 구축**: 나머지 전부 — FastAPI + Claude API
 
 ---
@@ -533,7 +533,7 @@
 │  2. knk-web-mcp    → web DB (projects, tickets, ..) │
 │  3. knk-cad-mcp    → Altium/SolidWorks metadata    │
 │  4. knk-git-mcp   → SW팀 Git 메타데이터             │
-│  5. knk-hiworks-mcp → WEHAGO/하이웍스 근태          │
+│  5. knk-외부 그룹웨어-mcp → 외부 ERP/외부 그룹웨어 근태          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -604,7 +604,7 @@
 **n8n KNK 활용 예시**:
 - baby 엑셀 변경 → web DB 자동 sync (5분 cron)
 - 카톡 메시지 webhook → 티켓 자동 생성
-- WEHAGO 근태 데이터 → 대시보드 자동 갱신
+- 외부 ERP 근태 데이터 → 대시보드 자동 갱신
 - Altium BOM 내보내기 → OpenBOM API 자동 업로드
 
 **자체 호스팅 사례**: StepStone (유럽 최대 구직 플랫폼) — **200+ 프로덕션 워크플로우** n8n 운영 중.
@@ -677,7 +677,7 @@
 
 1. ✅ **점진적 모듈 추가** (변경 Inform → 티켓 → 대시보드 → BOM 순)
 2. ✅ **KNK 표준 유지** (관리코드·수주번호 손대지 않기)
-3. ✅ **기존 도구 연동 (MCP)** (baby·WEHAGO·카톡 그대로)
+3. ✅ **기존 도구 연동 (MCP)** (baby·외부 ERP·카톡 그대로)
 4. ✅ **부서별 사용 가이드 작성** (가공팀 "정체 설명" 원칙)
 5. ✅ **AI는 초안 생성, 최종은 인간 승인** (Human-in-the-loop)
 
@@ -692,8 +692,8 @@
 |---|---|---|
 | **더존** | 중소기업 1위, 회계·재무 강함 | 스마트A 2023.12 단종 → 2025.12 유지보수 종료. 고객 교체 고민 중 |
 | **영림원** | 제조·건설 특화 (K-System Ace) | 깊은 커스터마이징 제공 |
-| **WEHAGO** | 더존 계열, 근태·전자결재 | KNK 이미 사용 중 |
-| **하이웍스** | 그룹웨어 시장 점유율 1위 | KNK 이미 사용 중 |
+| **외부 ERP** | 더존 계열, 근태·전자결재 | KNK 이미 사용 중 |
+| **외부 그룹웨어** | 그룹웨어 시장 점유율 1위 | KNK 이미 사용 중 |
 | **SAP** | 대기업·중견 | K-스타트업은 B1 도입 많음 |
 | **Odoo** | 오픈소스, 한국 파트너 증가 | 가격 경쟁력 우수 |
 
@@ -811,13 +811,13 @@ OECD + 독일 SME 연구 종합:
 **A안 (SAP 등) 치명적 결함**:
 - 설문 1순위 "변경 Inform" — 패키지에 거의 없는 기능
 - KNK 관리코드(`001T2604`) 강제 포기
-- WEHAGO/하이웍스와 기능 중복 → 이중 지출
+- 외부 ERP/외부 그룹웨어와 기능 중복 → 이중 지출
 - Hershey·Haribo·Revlon 실패 재연 가능성
 
 **B안 (SaaS 조합) 치명적 결함**:
 - Notion 10,000행 저하 + Airtable 50K 한도 + Monday 관계형 약함
 - 다수 라이선스 월 지출: 135명 × $50~100 = 월 **1,400만원**
-- 한국 특화 부재 (WEHAGO·카톡·세관·국세청)
+- 한국 특화 부재 (외부 ERP·카톡·세관·국세청)
 - AI 통합 파편화 (각 도구별 별도 AI)
 
 ### 9.4 C안 확신 근거
@@ -846,7 +846,7 @@ OECD + 독일 SME 연구 종합:
 | 부서 | 1위 고통 | 기능 대응 | baby | web | AI | 외부 도구 |
 |---|---|---|---|---|---|---|
 | **구매** | 카톡 누락 + 이중 입력 | 요청 티켓 + ERP read-only | 🟢 입력 owner | 🟢 티켓 UI | 🟢 카테고리 분류 AI | — |
-| **관리** | 증빙 제출 지연 + 법인카드 | 증빙 포털 + 자동 라우팅 | — | 🟢 포털 UI | 🟢 영수증 OCR→분류 | WEHAGO |
+| **관리** | 증빙 제출 지연 + 법인카드 | 증빙 포털 + 자동 라우팅 | — | 🟢 포털 UI | 🟢 영수증 OCR→분류 | 외부 ERP |
 | **영업** | 진척율 가시화·Set Up | 모델별 진척 모바일 + KNKVN 뷰 | 🟢 V2 진행 | 🟢 모바일 import | 🟢 이메일→수주 요약 | — |
 | **전장** | 기구 변경 대기 1~3일 | **변경 Inform** + 영향 분석 | — | 🟢 등록 UI | 🟢 **영향 판단 에이전트** | — |
 | **설계** | 본사↔베트남 공유 | 통합 뷰 + 변경 Inform | 🟡 V2 KNKVN | 🟢 타임라인 | 🟢 번역 자동 | — |
@@ -866,7 +866,7 @@ OECD + 독일 SME 연구 종합:
 | 🔴 1순위 ② | **변경 Inform + AI 영향 분석** | 🟡 중간 | 🟢 **핵심 AI** | 2주 |
 | 🟠 2순위 ③ | 요청 티켓 (카톡 보조) + AI 분류 | 🟢 낮음 | 🟡 분류 AI | 1주 |
 | 🟠 2순위 ④ | 개인 PC → 공용 NAS 이전 | 🟢 정책 | ⚪ 없음 | 1주 |
-| 🟠 2순위 ⑤ | 전사 근태 (WEHAGO 연동) | 🟢 낮음 | ⚪ 없음 | 3일 |
+| 🟠 2순위 ⑤ | 전사 근태 (외부 ERP 연동) | 🟢 낮음 | ⚪ 없음 | 3일 |
 | 🟡 3순위 ⑥ | BOM 통합 마스터 | 🔴 높음 | 🟢 RAG 검색 | 4주 |
 | 🟡 3순위 ⑦ | 이슈·AS DB + 유사 이슈 검색 | 🟡 중간 | 🟢 **RAG 핵심** | 3주 |
 | 🟡 3순위 ⑧ | 도면 버전 관리 (PDM 연동) | 🟡 중간 | ⚪ 없음 | 2주 |
@@ -959,9 +959,9 @@ OECD + 독일 SME 연구 종합:
 1. 영수증 OCR (상호·금액·날짜·품목)
 2. 사업자번호 → 거래처 자동 매칭
 3. 법인카드 사용자 자동 식별
-4. WEHAGO 전자결재 초안 생성
+4. 외부 ERP 전자결재 초안 생성
 
-**기술**: Claude Vision + WEHAGO API
+**기술**: Claude Vision + 외부 ERP API
 
 **효과**: 관리팀 최대 고통 (증빙 지연) 해결
 
@@ -1025,7 +1025,7 @@ OECD + 독일 SME 연구 종합:
 ┌────────────────────┐    ┌───────────────┐  ┌──────────────┐
 │ Claude API 레이어   │    │ 기존 시스템    │  │ 외부 도구     │
 │ + MCP 오케스트레이션 │    │               │  │              │
-│ ─────────────────── │    │ baby 엑셀 PMS │  │ WEHAGO/하이웍스│
+│ ─────────────────── │    │ baby 엑셀 PMS │  │ 외부 ERP/외부 그룹웨어│
 │ - 변경 Inform AI   │◀──▶│ - 관리코드     │  │ - 근태        │
 │ - 일일 요약 AI     │    │ - 수주·진척    │  │ - 전자결재    │
 │ - 티켓 분류 AI     │    │ - 매출·자금    │  │               │
@@ -1099,9 +1099,9 @@ OECD + 독일 SME 연구 종합:
 
 **구현**: Git CLI + 로컬 인덱스
 
-#### MCP Server 5: knk-hiworks-mcp
+#### MCP Server 5: knk-외부 그룹웨어-mcp
 
-**역할**: WEHAGO/하이웍스 API 게이트웨이
+**역할**: 외부 ERP/외부 그룹웨어 API 게이트웨이
 
 **제공 Tool**:
 - `get_attendance(user_id, date)` — 근태 조회
@@ -1109,7 +1109,7 @@ OECD + 독일 SME 연구 종합:
 - `create_expense_report(expense_data)` — 전자결재 생성
 - `list_pending_approvals(user_id)` — 미결재
 
-**구현**: 하이웍스 REST API 호출 래퍼
+**구현**: 외부 그룹웨어 REST API 호출 래퍼
 
 ### 11.3 Claude 에이전트 레이어 설계
 
@@ -1363,7 +1363,7 @@ async def analyze_change_impact(change: ChangeDraft):
 **작업**:
 - [ ] n8n cron 08:00 스케줄
 - [ ] Claude 요약 프롬프트 (대표/팀장별 개인화)
-- [ ] `knk-hiworks-mcp` 서버 구축
+- [ ] `knk-외부 그룹웨어-mcp` 서버 구축
 - [ ] 근태 대시보드 (오늘 휴가·출장·재택)
 - [ ] 카톡·메일 자동 발송
 
@@ -1395,7 +1395,7 @@ async def analyze_change_impact(change: ChangeDraft):
 **작업**:
 - [ ] `/expense/new` 사진 업로드
 - [ ] Claude Vision OCR (상호·금액·날짜)
-- [ ] WEHAGO 전자결재 자동 생성 (knk-hiworks-mcp 활용)
+- [ ] 외부 ERP 전자결재 자동 생성 (knk-외부 그룹웨어-mcp 활용)
 - [ ] **스마트공장 AI 트랙 신청서 작성** (5/8 마감이므로 이 일정은 조정 필요)
 
 ### 8주 완료 시 기대 상태
@@ -1448,7 +1448,7 @@ async def analyze_change_impact(change: ChangeDraft):
 
 **2월 — 외부 시스템 고도화**
 - Altium / SolidWorks 실시간 연동 (메타데이터 → 실시간)
-- Git + Altium + SolidWorks + baby + WEHAGO 완전 통합
+- Git + Altium + SolidWorks + baby + 외부 ERP 완전 통합
 - 디지털 트윈 개념 적용 (설치 완료 장비 관리)
 
 **3월 — 전사 적용 완료 + 회고**
@@ -1485,7 +1485,7 @@ async def analyze_change_impact(change: ChangeDraft):
 | 5 | **5천행 Notion 벽** | 성능 저하 | Notion은 위키만, 데이터는 PG |
 | 6 | **SaaS 락인** | 이전 비용 수천만 | 데이터 owner는 KNK DB, SaaS는 참조만 |
 | 7 | **카톡 대체 저항** | 전사 보이콧 | 카톡 유지, 티켓은 선택적 |
-| 8 | **WEHAGO 중복 개발** | 이중 투자 | 근태·결재·급여는 WEHAGO 위임 |
+| 8 | **외부 ERP 중복 개발** | 이중 투자 | 근태·결재·급여는 외부 ERP 위임 |
 | 9 | **직원 교육 부족** | 사용 저조 | 부서별 사용 가이드 .md + 스크린샷 |
 | 10 | **김정락 대표 번아웃** | 추진력 상실 | AI 페어코딩으로 시간 절약, 단계적 위임 |
 
@@ -1494,7 +1494,7 @@ async def analyze_change_impact(change: ChangeDraft):
 | 항목 | 상태 | 조치 |
 |---|---|---|
 | 영업비밀 (BOM·원가) | 🟡 주의 | web DB 접근 권한 부서별 분리 |
-| 개인정보 (135명 인사) | 🟡 주의 | WEHAGO에서만 관리, web은 사용자ID만 |
+| 개인정보 (135명 인사) | 🟡 주의 | 외부 ERP에서만 관리, web은 사용자ID만 |
 | 고객사 정보 | 🟡 주의 | 이슈 DB 고객사 이름 마스킹 옵션 |
 | Claude API 데이터 | 🟢 안전 | Anthropic 정책: 기본 학습에 안 씀 |
 | MCP 서버 인증 | 🔴 필수 | 로컬 MCP는 부족, OAuth·감사추적 구현 |
@@ -1557,7 +1557,7 @@ baby V2 영업 보완 마무리해줘.
 ```
 
 **필수 참조**:
-- 이 문서 §4.10 WEHAGO 연동 패턴
+- 이 문서 §4.10 외부 ERP 연동 패턴
 - 이 문서 §11.2 MCP Server 1 knk-pms-mcp 설계
 - `HAIST_WORKS_종합설계분석.md` §3 baby V2 설계
 - `HAIST_WORKS_baby/V1/README_v1.md`
@@ -1603,7 +1603,7 @@ baby V2 영업 보완 마무리해줘.
 | 16 | 반도체 검사기 PLM ERP | deskera · infosys · critical manufacturing · siemens |
 | 17 | AI agent framework LangChain CrewAI | intuz · fungies · turing · o-mega · lindy |
 | 18 | KakaoTalk work ticket 자동화 | wikidocs n8n · sendbird · 360smsapp |
-| 19 | WEHAGO 하이웍스 API | developers.hiworks.com · hiworks.com · wehago.com · foxcg |
+| 19 | 외부 ERP 외부 그룹웨어 API | developers.외부 그룹웨어.com · 외부 그룹웨어.com · 외부 ERP.com · foxcg |
 | 20 | n8n Zapier Make 워크플로우 | digidop · zapier blog · cipherprojects · goodspeed |
 | 21 | FastAPI enterprise production | fastlaunchapi · dev.to · flatlogic · syntora.io |
 | 22 | Dify Langflow Flowise enterprise | toolhalla · zenml · aixsociety · stackai |
@@ -1630,7 +1630,7 @@ baby V2 영업 보완 마무리해줘.
 
 **한국 현황**:
 - https://www.bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000115998 (제조AI 스마트공장)
-- https://developers.hiworks.com/about (하이웍스 개발자센터)
+- https://developers.외부 그룹웨어.com/about (외부 그룹웨어 개발자센터)
 - https://korea-erp.com/erp-company-top5/ (한국 ERP TOP5)
 
 **ERP 실패**:

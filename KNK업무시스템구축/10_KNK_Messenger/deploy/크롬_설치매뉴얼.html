@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>크롬에서 KNK 메신저 설치하기</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm 13mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", sans-serif;
+    color: #1f2937; font-size: 11px; line-height: 1.5;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .head {
+    background: #A5282C; color: #fff; border-radius: 12px;
+    padding: 13px 18px; display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+  }
+  .head .logo { font-size: 30px; line-height: 1; }
+  .head h1 { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; }
+  .head .sub { font-size: 11px; color: #FCE3E4; margin-top: 3px; }
+  .head .url { background:#fff; color:#A5282C; font-weight:800; border-radius:6px; padding:2px 8px; font-size:11px; display:inline-block; margin-top:5px; }
+
+  .body { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px; align-items: start; }
+
+  /* 단계 */
+  .steps { }
+  .step { display: flex; gap: 9px; margin-bottom: 13px; align-items: flex-start; }
+  .num { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: #A5282C; color: #fff;
+    font-size: 12px; font-weight: 800; display: grid; place-items: center; margin-top: 1px; }
+  .step .t { flex: 1; padding-top: 1px; }
+  .step b { color: #A5282C; }
+  .hl { background: #FCE3E4; color: #A5282C; font-weight: 800; border-radius: 4px; padding: 1px 5px; }
+
+  /* 우측 이미지 */
+  .shot { border: 2px solid #A5282C; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot-cap { text-align: center; font-size: 10px; color: #6b7280; margin-top: 6px; }
+  .shot-cap b { color: #A5282C; }
+
+  .tip { background:#F9FAFB; border:1px solid #e5e7eb; border-radius:8px; padding:8px 11px; font-size:10px; color:#374151; margin-top:6px; }
+  .tip b { color:#A5282C; }
+
+  .foot { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .foot .box { border-radius: 9px; padding: 9px 12px; font-size: 10px; }
+  .foot .ok { background:#ECFDF5; border:1px solid #6EE7B7; color:#065f46; }
+  .foot .warn { background:#FEF2F2; border:1px solid #FCA5A5; color:#991b1b; }
+  .foot b { font-weight: 800; }
+  .credit { text-align:center; color:#9ca3af; font-size:9.5px; margin-top:12px; }
+</style>
+</head>
+<body>
+
+  <div class="head">
+    <div class="logo">🌐</div>
+    <div>
+      <h1>크롬(Chrome)에서 KNK 메신저 설치하기</h1>
+      <div class="sub">한 번 설치하면 익숙한 메신저처럼 독립 창 + 창을 닫아도 알림이 옵니다.</div>
+      <div class="url">접속 주소 &nbsp;https://haist.knknara.co.kr/msg/</div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div class="t">크롬으로 위 <b>접속 주소</b>에 들어가 로그인합니다.</div></div>
+      <div class="step"><div class="num">2</div><div class="t">크롬 <b>오른쪽 위 ⋮ (점 3개)</b> 메뉴를 클릭합니다.</div></div>
+      <div class="step"><div class="num">3</div><div class="t"><b>전송, 저장, 공유</b> 에 마우스를 올린 뒤 → <b>저장</b> → <span class="hl">KNK 메신저 설치...</span> 를 클릭합니다. <span style="color:#6b7280;">(오른쪽 그림 참고)</span></div></div>
+      <div class="step"><div class="num">4</div><div class="t">뜨는 팝업에서 <b>[설치]</b> 를 누르면 → 독립 창이 열리고 <b>시작 메뉴·바탕화면에 KNK 아이콘</b>이 생깁니다.</div></div>
+      <div class="step"><div class="num">5</div><div class="t">처음 나오는 <b>알림 권한을 "허용"</b> → 이후 창을 닫아도 메시지가 오면 <b>우측 하단 알림</b>이 옵니다.</div></div>
+      <div class="step"><div class="num">6</div><div class="t"><b>(선택) 켤 때 자동 실행</b> — 주소창에 <b>chrome://apps</b> 입력 → KNK 아이콘 <b>우클릭</b> → <b>"시작 시 열기"</b> 체크.</div></div>
+
+      <div class="tip">💡 <b>더 쉬운 방법</b> — 주소창 오른쪽 끝의 <b>설치 아이콘(⊕ / 모니터 모양)</b> 을 클릭해도 똑같이 설치됩니다.</div>
+    </div>
+
+    <div>
+      <div class="shot"><img src="manual_images/01_menu.png" alt="크롬 메뉴 → 저장 → KNK 메신저 설치"></div>
+      <div class="shot-cap">▲ ⋮ 메뉴 → 전송·저장·공유 → 저장 →<br><b>"KNK 메신저 설치..."</b> 클릭</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <div class="box ok">✅ <b>설치하면</b> — 같은 사람·같은 방 알림은 1개로 합쳐지고, 앱 아이콘에 <b>안 읽은 메시지 개수</b>가 표시됩니다.</div>
+    <div class="box warn">📌 <b>로그인</b> — 휴대폰 1대 + PC 1대까지 동시 사용. 휴대폰에서 로그아웃하면 PC도 함께 로그아웃됩니다.</div>
+  </div>
+
+  <div class="credit">KNK 메신저 · 크롬 설치 안내 · 문의: 관리자 &nbsp;|&nbsp; 2026-05-20</div>
+
+</body>
+</html>

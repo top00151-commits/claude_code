@@ -15,8 +15,8 @@
 - [ ] 마이그레이션 실행 → `/admin` 에서 프로젝트 건수 확인
 - [ ] 초기 비밀번호 배포 (`/admin` → 재생성 버튼 → Excel 다운로드)
 
-### 2. 하이웍스 API 토큰 (선택, 알림 활성화)
-- [ ] 하이웍스 오피스 로그인 (관리자)
+### 2. 외부 그룹웨어 API 토큰 (선택, 알림 활성화)
+- [ ] 외부 그룹웨어 오피스 로그인 (관리자)
 - [ ] 오피스 관리 → 환경 설정 → **API 관리**
 - [ ] **메신저 알림 API** 토큰 발급 → `/admin/settings`
 - [ ] 인사관리 / 전자결재 토큰 (선택)
@@ -140,7 +140,7 @@ python C:\path\to\01_HAIST_WORKS\scripts\backup_db.py --keep 60
 - 목표: 물류 입출고 / 이슈 DB 실사용
 
 ### Phase P3 — 전사 60명 (3주차)
-- 하이웍스 API 토큰 활성 (알림 발송 시작)
+- 외부 그룹웨어 API 토큰 활성 (알림 발송 시작)
 - 실사용 수치 모니터링
 
 ---
@@ -183,7 +183,7 @@ sudo systemctl start haist
 |------|------|
 | 비밀번호 초기화 | `/admin` → 재생성 |
 | 프로젝트 일괄 등록 | `/admin` → 관리코드 엑셀 업로드 |
-| 하이웍스 토큰 교체 | `/admin/settings` |
+| 외부 그룹웨어 토큰 교체 | `/admin/settings` |
 | 부서원 추가 | `/admin` → 사용자 탭 |
 | 백업 다운로드 | `data/backups/` 에서 파일 복사 |
 | 로그 확인 | `tail -f nohup.out` 또는 systemd `journalctl -u haist` |

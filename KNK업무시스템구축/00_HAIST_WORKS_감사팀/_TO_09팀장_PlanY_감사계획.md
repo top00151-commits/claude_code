@@ -54,9 +54,9 @@
 - 신청 POST → DB INSERT · 조회 GET(200) · 상태 변경 사이클
 - 스크린샷 4장
 
-### 3.2 하이웍스 결재 링크 연동 (읽기 전용)
-- `attendance_requests.hiworks_link_id` 존재
-- hiworks_client.py API 호출 200
+### 3.2 외부 그룹웨어 결재 링크 연동 (읽기 전용)
+- `attendance_requests.외부 그룹웨어_link_id` 존재
+- 외부 그룹웨어_client.py API 호출 200
 - 실 결재 흐름은 04 담당 (감사팀은 연동 확인만)
 
 ### 3.3 수출입 설계 문서 ↔ DB 스키마 일치

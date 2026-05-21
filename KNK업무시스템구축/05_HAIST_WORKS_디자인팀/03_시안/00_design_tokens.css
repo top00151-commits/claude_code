@@ -62,7 +62,7 @@
 
   /* ---------- Typography ---------- */
   --font-family: "Pretendard Variable", "Pretendard", system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  --font-mono: "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --font-mono: "Consolas", "Courier New", monospace;
 
   /* 고정 스케일 (하위 호환) */
   --fs-xs: 11px;

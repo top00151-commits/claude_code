@@ -37,10 +37,10 @@
 - 증거: `profile.html:117-121` `[:8]` + `+N`
 - 권장: "전체 권한 보기" 링크
 
-## E-006 [P2] /hr/hiworks URL 미설정 안내 단절
-- 페이지: /hr/hiworks
+## E-006 [P2] /hr/외부 그룹웨어 URL 미설정 안내 단절
+- 페이지: /hr/외부 그룹웨어
 - 페르소나: 최혜연 사원
-- 증거: `hr_hiworks.html:49,20` opacity:0.5 + 텍스트만
+- 증거: `hr_외부 그룹웨어.html:49,20` opacity:0.5 + 텍스트만
 - 문제: 사원이 설정 진입 못 함
 - 권장: "관리자에게 요청" 버튼
 
@@ -140,8 +140,8 @@
 - 문제: 일자 고정 → 향후 결정과 불일치
 - 권장: `{{ today_date }}.md` 동적
 
-## E-022 [P2] /admin/hiworks-settings 저장 피드백 미확인
-- 페이지: /admin/hiworks-settings
+## E-022 [P2] /admin/외부 그룹웨어-settings 저장 피드백 미확인
+- 페이지: /admin/외부 그룹웨어-settings
 - 페르소나: 김정락
 - 증거: `main.py:3281` 저장 후 응답 미확인
 - 권장: ?saved=1

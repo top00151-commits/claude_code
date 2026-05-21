@@ -741,7 +741,7 @@ CREATE TABLE IF NOT EXISTS change_reads (
 CREATE INDEX IF NOT EXISTS idx_cread_change ON change_reads(change_id);
 CREATE INDEX IF NOT EXISTS idx_cread_user ON change_reads(user_id);
 
--- ============ 요청 티켓 시스템 (HAIST WORKS — 카톡 누락 해결) ============
+-- ============ 요청 티켓 시스템 (HAIST WORKS — 메신저 요청 누락 해결) ============
 CREATE TABLE IF NOT EXISTS tickets (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ticket_no       TEXT NOT NULL UNIQUE,           -- TKT-YYMMDD-NNN
@@ -1981,7 +1981,7 @@ def init_db():
             if prcols and "purpose" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN purpose TEXT")
             # v5H226z110 (2026-05-18): 제조사 모델 번호 — part_no(내부 코드)와 별도 보관
-            #   예: Mitsubishi MR-J4-200A, SPG S7I15GD. 원제조사 스펙 검색·호환성 확인용
+            #   예: 제조사 모델 코드(SVM-200A 등). 원제조사 스펙 검색·호환성 확인용
             if prcols and "model_name" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN model_name TEXT")
             # v5H226z110b (2026-05-19): 기본 공급사명 — 자재마다 주로 구매하는 공급사 이름
@@ -2022,6 +2022,9 @@ def init_db():
                 c.execute("ALTER TABLE suppliers ADD COLUMN phone2 TEXT")
             if spcols and "email2" not in spcols:
                 c.execute("ALTER TABLE suppliers ADD COLUMN email2 TEXT")
+            # v5H226z117 (2026-05-19) — 협력사 주소
+            if spcols and "address" not in spcols:
+                c.execute("ALTER TABLE suppliers ADD COLUMN address TEXT")
         except Exception:
             pass
         # 마이그레이션: stock_movements에 FIFO/lot 컬럼 (2026-04-21 리서치 반영)
@@ -2059,7 +2062,7 @@ def init_db():
             )
         except Exception:
             pass
-        # 시드: app_settings 기본값 (하이웍스 통합 — 카카오워크 미사용)
+        # 시드: app_settings 기본값 (전자결재·메일 외부 연동)
         try:
             for k, v, desc in [
                 # 외부 링크 (사이드바)
@@ -2080,8 +2083,9 @@ def init_db():
                 ("notify_channel",       "off",     "알림 채널: off (기본 — 토큰 미설정 시 안전) / hiworks (메신저) / smtp (메일)"),
             ]:
                 c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
-            # 2026-04-22 대표 결재(D01-06): 카카오워크 완전 폐기 — kakaowork_webhook 키 완전 삭제
-            c.execute("DELETE FROM app_settings WHERE key='kakaowork_webhook'")
+            # 2026-04-22 대표 결재(D01-06): 외부 웹훅 연동 폐기 — 레거시 키 정리
+            for _legacy_key in ('legacy_chat_webhook', 'kakaowork_webhook'):
+                c.execute("DELETE FROM app_settings WHERE key=?", (_legacy_key,))
         except Exception:
             pass
         # 게시판 시드: 전사 게시판 + 팀별 게시판 자동 생성
@@ -5211,6 +5215,8 @@ def supplier_create(data: dict) -> int:
         ("contact2",    (str(data.get("contact2") or "")).strip() or None),
         ("phone2",      (str(data.get("phone2") or "")).strip() or None),
         ("email2",      (str(data.get("email2") or "")).strip() or None),
+        # v5H226z117 (2026-05-19) — 협력사 주소
+        ("address",     (str(data.get("address") or "")).strip() or None),
     ]
     with db_session() as c:
         existing = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
@@ -5251,6 +5257,8 @@ def supplier_update(sid: int, data: dict) -> None:
         ("contact2",    (str(data.get("contact2") or "")).strip() or None),
         ("phone2",      (str(data.get("phone2") or "")).strip() or None),
         ("email2",      (str(data.get("email2") or "")).strip() or None),
+        # v5H226z117 (2026-05-19) — 협력사 주소
+        ("address",     (str(data.get("address") or "")).strip() or None),
     ]
     with db_session() as c:
         existing = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
@@ -5373,6 +5381,9 @@ _SUPPLIERS_IMPORT_HEADER_MAP = {
     # is_active
     "활성": "is_active", "활성여부": "is_active", "사용여부": "is_active",
     "상태": "is_active", "active": "is_active", "isactive": "is_active",
+    # v5H226z117 (2026-05-19) — 주소
+    "주소": "address", "address": "address", "주소지": "address",
+    "회사주소": "address", "본사주소": "address", "소재지": "address",
 }
 
 
@@ -8434,7 +8445,7 @@ CHANGE_SOURCES = [
     "Altium 365",      # Push to MCAD/ECAD 이벤트 (향후)
     "Git",             # 커밋·태그
     "OpenBOM",         # BOM 변경 (Phase 2)
-    "카톡",            # 카톡 메시지 변환
+    "메신저",          # 사내 메신저 메시지 변환
     "메일",
     "기타",
 ]
@@ -8601,7 +8612,7 @@ def set_setting(key: str, value: str, user_id: int = None, description: str = No
 
 
 # =====================================================
-# 통합 푸시 알림 — 하이웍스 메신저 (2026-04-22 대표 결재: 카카오워크 완전 폐기)
+# 통합 푸시 알림 — 전자결재·메일 연동 채널 (2026-04-22 대표 결재: 외부 웹훅 폐기)
 # =====================================================
 def hiworks_notify(channel_id: str, text: str) -> bool:
     """하이웍스 메신저 알림 발송.
@@ -8887,7 +8898,7 @@ def change_unread_count(user_id: int) -> int:
 
 
 # === 영향 강도 분류 (알림 피로 방지) ===
-# high: 직접 작업 영향 → 즉시 알림 (web + 카톡)
+# high: 직접 작업 영향 → 즉시 알림 (web + 메신저)
 # medium: 일정 협의 필요 → web 알림만
 # low: 참고용 → daily digest로 묶기
 IMPACT_INTENSITY = {
@@ -8964,13 +8975,13 @@ def change_recent_count(user_id: int = None, days: int = 1) -> int:
 
 # =====================================================
 # 요청 티켓 시스템 (HAIST WORKS)
-# 설문 1순위 ③ / 10팀 카톡 누락 해결
+# 설문 1순위 ③ / 10팀 메신저 요청 누락 해결
 # =====================================================
 
 TICKET_CATEGORIES = ["자재요청", "긴급가공", "MODIFY", "검수요청", "AS", "기타"]
 TICKET_URGENCIES = ["일반", "긴급", "지연"]
 TICKET_STATUSES = ["요청", "접수", "처리중", "완료", "반려", "지연"]
-TICKET_SOURCES = ["web", "카톡", "메일", "전화"]
+TICKET_SOURCES = ["web", "메신저", "메일", "전화"]
 
 # 카테고리별 자동 라우팅 (수신 부서)
 TICKET_ROUTING = {
@@ -10893,19 +10904,20 @@ def seed_business_data():
         ).fetchall()]
 
         # ───────── 1. PARTS 12종 ─────────
+        # v5H226z118 (2026-05-19) — 데모 시드: 제조사명은 가상(외부 상표 비거론). 운영 DB 실데이터와 무관
         parts_seed = [
-            ("KNK-T-CCD-001",  "CCD 카메라 모듈 5MP",    "1/1.8\" / Global Shutter", "Sony",       "Japan",   "EA",  450_000, "T", "자재"),
-            ("KNK-T-LEN-001",  "M12 광학렌즈 16mm",     "F2.4 / Coated",            "Edmund",     "USA",     "EA",  120_000, "T", "자재"),
-            ("KNK-T-LED-001",  "Bar Type LED 조명 200x30", "White 6500K",          "CCS",        "Japan",   "EA",  220_000, "T", "자재"),
+            ("KNK-T-CCD-001",  "CCD 카메라 모듈 5MP",    "1/1.8\" / Global Shutter", "비전테크",   "Japan",   "EA",  450_000, "T", "자재"),
+            ("KNK-T-LEN-001",  "M12 광학렌즈 16mm",     "F2.4 / Coated",            "옵티코",     "USA",     "EA",  120_000, "T", "자재"),
+            ("KNK-T-LED-001",  "Bar Type LED 조명 200x30", "White 6500K",          "라이트텍",   "Japan",   "EA",  220_000, "T", "자재"),
             ("KNK-T-PCB-001",  "검사기 메인 PCB v3.2",   "8layer FR4",               "KNK설계",    "Korea",   "EA",  380_000, "T", "완성품"),
-            ("KNK-M-SVR-001",  "Servo Motor 400W",       "Pulse 2500P/R",            "Mitsubishi", "Japan",   "EA",  680_000, "M", "자재"),
-            ("KNK-M-CYL-001",  "Pneumatic Cylinder Φ32", "Stroke 100mm",             "SMC",        "Japan",   "EA",   85_000, "M", "자재"),
-            ("KNK-M-PLC-001",  "PLC CPU Module",         "16-Slot",                  "Omron",      "Japan",   "EA",  720_000, "M", "자재"),
-            ("KNK-M-BLT-001",  "Conveyor Belt 1200x100", "PVC Anti-static",          "Habasit",    "Swiss",   "EA",  140_000, "M", "자재"),
-            ("KNK-C-PWR-001",  "DC 24V/5A Power",        "AC100-240V Input",         "MeanWell",   "Taiwan",  "EA",   62_000, "공통", "소모품"),
-            ("KNK-C-CBL-001",  "Industrial Ethernet Cable 5m", "Cat6A / SHIELD",   "TE",         "Germany", "EA",   28_000, "공통", "소모품"),
-            ("KNK-C-FIL-001",  "Air Filter 5μm",          "1/4\" NPT",               "SMC",        "Japan",   "EA",   18_000, "공통", "소모품"),
-            ("KNK-C-LBR-001",  "Industrial Lubricant 1L", "Food grade NSF H1",       "Klüber",     "Germany", "EA",   42_000, "공통", "소모품"),
+            ("KNK-M-SVR-001",  "Servo Motor 400W",       "Pulse 2500P/R",            "서보맥스",   "Japan",   "EA",  680_000, "M", "자재"),
+            ("KNK-M-CYL-001",  "Pneumatic Cylinder Φ32", "Stroke 100mm",             "에어시스템", "Japan",   "EA",   85_000, "M", "자재"),
+            ("KNK-M-PLC-001",  "PLC CPU Module",         "16-Slot",                  "컨트롤텍",   "Japan",   "EA",  720_000, "M", "자재"),
+            ("KNK-M-BLT-001",  "Conveyor Belt 1200x100", "PVC Anti-static",          "벨트프로",   "Swiss",   "EA",  140_000, "M", "자재"),
+            ("KNK-C-PWR-001",  "DC 24V/5A Power",        "AC100-240V Input",         "파워셀",     "Taiwan",  "EA",   62_000, "공통", "소모품"),
+            ("KNK-C-CBL-001",  "Industrial Ethernet Cable 5m", "Cat6A / SHIELD",   "커넥라인",   "Germany", "EA",   28_000, "공통", "소모품"),
+            ("KNK-C-FIL-001",  "Air Filter 5μm",          "1/4\" NPT",               "에어시스템", "Japan",   "EA",   18_000, "공통", "소모품"),
+            ("KNK-C-LBR-001",  "Industrial Lubricant 1L", "Food grade NSF H1",       "루브리프로", "Germany", "EA",   42_000, "공통", "소모품"),
         ]
         for pn, nm, sp, mk, og, un, pr, bd, cat in parts_seed:
             c.execute(
@@ -10921,13 +10933,14 @@ def seed_business_data():
             return 0
 
         # ───────── 2. SUPPLIERS 6 ─────────
+        # v5H226z118 — 데모 시드: 협력사명은 가상 (외부 상표 비거론)
         sup_seed = [
             ("성진엔지니어링",  "SUP-001", "박상호 차장", "sj@sjeng.kr",     "031-555-1100", "KR",  "KRW", "30일"),
             ("한빛전자부품",    "SUP-002", "김미진 대리", "mj@hb.kr",        "031-777-2200", "KR",  "KRW", "현금"),
             ("동광정밀",        "SUP-003", "이재훈 과장", "lee@dkjm.kr",     "032-310-3300", "KR",  "KRW", "60일"),
-            ("Sony Korea",      "SUP-004", "Tanaka",      "tn@sony.co.kr",   "02-555-4400",  "KR",  "USD", "선금"),
-            ("SMC Korea",       "SUP-005", "Yamada",      "ym@smc.co.kr",    "031-460-5500", "KR",  "KRW", "30일"),
-            ("MeanWell Trade",  "SUP-006", "Chen",        "chen@mw.tw",      "+886-2-66789", "TW",  "USD", "선금"),
+            ("비전테크코리아",  "SUP-004", "다나카",      "tn@visiontech.kr","02-555-4400",  "KR",  "USD", "선금"),
+            ("에어시스템코리아","SUP-005", "야마다",      "ym@airsys.kr",    "031-460-5500", "KR",  "KRW", "30일"),
+            ("파워셀무역",      "SUP-006", "첸",          "chen@powercell.tw","+886-2-66789", "TW",  "USD", "선금"),
         ]
         for nm, cd, ct, em, ph, cnt, cur, pt in sup_seed:
             c.execute(

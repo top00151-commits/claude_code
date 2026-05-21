@@ -23,7 +23,7 @@
 | `app/victor.py` | 973 | 🟢 적정 | 빅터 AI ask 로직 |
 | `app/i18n.py` | 562 | 🟢 적정 | 4개 언어 번역 |
 | `app/menu_catalog.py` | 292 | 🟢 깨끗 | M-XX-YY 메뉴 식별 (Phase 1 신규) |
-| `app/hiworks_client.py` | 174 | 🟢 깨끗 | 하이웍스 API (스캐폴드) |
+| `app/외부 그룹웨어_client.py` | 174 | 🟢 깨끗 | 외부 그룹웨어 API (스캐폴드) |
 
 ### Templates (Top 10)
 | 파일 | 행 수 |
@@ -169,14 +169,14 @@
 | §67 | GUIDE | 3270 | `/guide` | M-00-13 |
 | §68 | EXTERNAL ASSETS REVIEW | 3283 | `/admin/external-assets`, `/api/admin/external-asset-decision` |  |
 | §69 | COMPANY INFO ADMIN | 3445 | `/admin/company-info` | M-04-03 |
-| §70 | HIWORKS LINKS (HR) | 3519 | `/hr/hiworks` | M-03-02 |
+| §70 | 외부 그룹웨어 LINKS (HR) | 3519 | `/hr/외부 그룹웨어` | M-03-02 |
 | §71 | PROFILE | 3616 | `/profile`, `/api/profile/*` | M-03-01 |
 | §72 | REMINDERS | 3799 | `/admin/reminders` |  |
 | §73 | EXPORT WEEKLY CSV | 3840 | `/export/weekly` |  |
 | §74 | PERMISSIONS S3 (위임 1차) | 6208 | `/admin/permissions`, `/grant`, `/revoke`, `/audit` | M-04-02 |
 | §75 | PERMISSIONS S3 v3 (그룹·매트릭스) | 6458 | `/admin/permissions/groups`, `/matrix` |  |
 | §76 | PERMISSIONS REPORT | 6749 | `/admin/permissions/report/*` |  |
-| §77 | (관리자 헬스 등 추가 영역) | (분산) | `/admin/health`, `/admin/settings`, `/admin/hiworks-settings` | M-04-04·M-04-05 |
+| §77 | (관리자 헬스 등 추가 영역) | (분산) | `/admin/health`, `/admin/settings`, `/admin/외부 그룹웨어-settings` | M-04-04·M-04-05 |
 
 ### PART XIII. AI 통합
 | § | 영역 | Line | 라우트 |
@@ -275,7 +275,7 @@ app/
 ├── database.py             (Phase 2.5에서 분할 예정)
 ├── i18n.py                 (그대로)
 ├── victor.py               (그대로)
-└── hiworks_client.py       (그대로)
+└── 외부 그룹웨어_client.py       (그대로)
 ```
 
 각 router 분할 후 04 회귀 검증 1회씩, 4사이클 분산.

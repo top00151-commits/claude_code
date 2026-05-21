@@ -23,8 +23,8 @@
 ### P-02 최혜연 (`database.py:1568`) — 11 관리 member / 프로
 - 권한: member → /home / 매출 view ❌ (관리팀 평직원, flag) / 자재 view ❌
 - 본업: 신청서 / 휴가 / 근태 (`database.py:2186` 박지은과 같은 팀)
-- 동선 8단계: /home → /daily → /hr/hiworks → /profile → /board/company → /notifications → /now → /search
-- 핵심 OPS: E-006 hiworks URL 미설정 안내 / E-015 /profile 비번 변경 취소 URL / A-005 배너 타임아웃
+- 동선 8단계: /home → /daily → /hr/외부 그룹웨어 → /profile → /board/company → /notifications → /now → /search
+- 핵심 OPS: E-006 외부 그룹웨어 URL 미설정 안내 / E-015 /profile 비번 변경 취소 URL / A-005 배너 타임아웃
 
 ### P-03 이해림 (`database.py:1482`) — 01 영업 leader / 이사
 - 권한: leader → 매출 view ✅ + 자재 view ❌

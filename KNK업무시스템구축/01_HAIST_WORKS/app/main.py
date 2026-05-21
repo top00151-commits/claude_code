@@ -339,96 +339,6 @@ async def _v5_global_exception_handler(request: Request, exc: Exception):
 def startup():
     init_db()
     seed_all()
-    # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
-    try:
-        from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate
-        from .database import DB_PATH as _DB_PATH
-        _r = _wfb_migrate(_DB_PATH)
-        if _r.get('added_cols') or _r.get('countries'):
-            print(f"[WFB-MIG] {_r}")
-    except Exception as _e:
-        print(f"[WFB-MIG ERR] {_e}")
-    # v5H226z105 (2026-05-16): 가이드형 워크플로우 보강 (idempotent)
-    try:
-        from .migrations.m_z105_guided_workflow import migrate as _wfb_migrate2
-        from .database import DB_PATH as _DB_PATH
-        _r2 = _wfb_migrate2(_DB_PATH)
-        if _r2.get('added_cols') or _r2.get('meta_updated'):
-            print(f"[WFB-MIG-Z105] {_r2}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z105 ERR] {_e}")
-    # v5H226z106 (2026-05-16): 마법사 v2 — 제조구분 4섹션 + 출하/셋업 3옵션
-    try:
-        from .migrations.m_z106_wizard_v2 import migrate as _wfb_migrate3
-        from .database import DB_PATH as _DB_PATH
-        _r3 = _wfb_migrate3(_DB_PATH)
-        if _r3.get('added_cols') or _r3.get('new_nodes'):
-            print(f"[WFB-MIG-Z106] {_r3}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z106 ERR] {_e}")
-    # v5H226z107 (2026-05-16): 업무카드 통합 — tasks.workflow_node_id
-    try:
-        from .migrations.m_z107_workcard_unification import migrate as _wfb_migrate4
-        from .database import DB_PATH as _DB_PATH
-        _r4 = _wfb_migrate4(_DB_PATH)
-        if _r4.get('added_cols'):
-            print(f"[WFB-MIG-Z107] {_r4}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z107 ERR] {_e}")
-    # v5H226z108d (2026-05-17): 엑셀 100% 통합 — 22 신규 노드 + 2 컬럼
-    try:
-        from .migrations.m_z108d_excel_full_integration import migrate as _wfb_migrate5
-        from .database import DB_PATH as _DB_PATH
-        _r5 = _wfb_migrate5(_DB_PATH)
-        if _r5.get('added_cols') or _r5.get('new_nodes'):
-            print(f"[WFB-MIG-Z108D] {_r5}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108D ERR] {_e}")
-    # v5H226z108h (2026-05-17): KNK 실제 부서명 적용 (대표 지시)
-    try:
-        from .migrations.m_z108h_knk_dept_rename import migrate as _wfb_migrate6
-        from .database import DB_PATH as _DB_PATH
-        _r6 = _wfb_migrate6(_DB_PATH)
-        if _r6.get('updated'):
-            print(f"[WFB-MIG-Z108H] {_r6}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108H ERR] {_e}")
-    # v5H226z108i (2026-05-17): 노드 제목 KNK 친화 정비 (체크리스트 내용)
-    try:
-        from .migrations.m_z108i_knk_node_titles import migrate as _wfb_migrate7
-        from .database import DB_PATH as _DB_PATH
-        _r7 = _wfb_migrate7(_DB_PATH)
-        if _r7.get('updated'):
-            print(f"[WFB-MIG-Z108I] {_r7}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108I ERR] {_e}")
-    # v5H226z108j (2026-05-17): 시나리오별 부서 정합성 수정
-    try:
-        from .migrations.m_z108j_scenario_dept_fix import migrate as _wfb_migrate8
-        from .database import DB_PATH as _DB_PATH
-        _r8 = _wfb_migrate8(_DB_PATH)
-        if _r8.get('existing_updated') or _r8.get('new_nodes'):
-            print(f"[WFB-MIG-Z108J] {_r8}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108J ERR] {_e}")
-    # v5H226z108k (2026-05-17): 기존 워크플로우 노드 코드 교체 (T4 customs/delivery)
-    try:
-        from .migrations.m_z108k_existing_wf_fix import migrate as _wfb_migrate9
-        from .database import DB_PATH as _DB_PATH
-        _r9 = _wfb_migrate9(_DB_PATH)
-        if _r9.get('nodes_updated'):
-            print(f"[WFB-MIG-Z108K] {_r9}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108K ERR] {_e}")
-    # v5H226z108n11 (2026-05-18): 깨진 시스템 링크 URL 교정 (/quotations 등 → 실제 경로)
-    try:
-        from .migrations.m_z108n11_fix_sys_links import migrate as _wfb_migrate10
-        from .database import DB_PATH as _DB_PATH
-        _r10 = _wfb_migrate10(_DB_PATH)
-        if _r10.get('updated') or _r10.get('cleared'):
-            print(f"[WFB-MIG-Z108N11] {_r10}")
-    except Exception as _e:
-        print(f"[WFB-MIG-Z108N11 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -772,15 +682,12 @@ VICTOR_CONTEXT_CHIPS = {
     "/admin":       ["사용자 추가", "권한 변경", "Excel 내보내기"],
     "/sales":       ["이번달 수주", "고객사 Top 5", "영업 단계별"],
     "/logistics":   ["안전재고 미달", "미입고 발주", "재고 금액"],
-    "/parts":       ["부품 검색", "FIFO 원가", "공급사 단가"],
-    "/po":          ["발주 등록", "미입고 발주", "공급사 리드타임"],
+    "/parts":       ["부품 검색", "FIFO 원가", "협력사 단가"],
+    "/po":          ["발주 등록", "미입고 발주", "협력사 리드타임"],
     "/stock/movements": ["최근 출고", "재고 실사", "수불부"],
     "/rates":       ["오늘 환율", "최근 갱신", "통화별 추세"],
     "/board/company": ["긴급 공지", "내 관련 글", "새 글쓰기"],
     "/board/team": ["팀 공지", "내 팀 글", "승인 대기"],
-    # v5H226z105 — 워크플로우 가이드
-    "/workflow":    ["내 할 일", "새 워크플로우", "IC 페어"],
-    "/workflow/my": ["진행중 노드", "다음 단계", "막힌 노드"],
 }
 
 def _victor_chips_for_path(path: str):
@@ -1033,7 +940,7 @@ def can_view_sales(user) -> bool:
 
 def can_view_logistics(user) -> bool:
     """자재·구매 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
-    실무자가 부품·재고·단가·구매사를 조회해야 할 때 폭넓게 허용.
+    실무자가 부품·재고·단가·구매처를 조회해야 할 때 폭넓게 허용.
     - admin / ceo / executive / leader: 항상 허용
     - team_id 1,2,3,7,8,9,10 (영업·검사기·품질·생산1·생산2·가공·구매): 항상 허용
     - 그 외: users.can_view_logistics 플래그 1
@@ -1391,54 +1298,6 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
     except Exception:
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
 
-    # z108: 홈 진입점 워크플로우 업무카드 (오늘 처리할 업무)
-    # z108e: 본인 배정 + 본인 부서 미배정 + 진행 가능 여부(직전 단계 완료) 표시
-    home_wf_cards = []
-    home_wf_unassigned = []
-    try:
-        with db_session() as c:
-            # 본인 배정
-            home_wf_cards = [dict(r) for r in c.execute("""
-                SELECT n.id, n.node_code, n.seq, n.status,
-                       m.title_ko, m.default_dept, m.sop_guide, m.system_link_template,
-                       p.id AS project_id, p.name AS project_name, p.mgmt_code,
-                       (SELECT COUNT(*) FROM project_workflow_node_checkpoints
-                        WHERE pwfn_id=n.id) AS cp_total,
-                       (SELECT COUNT(*) FROM project_workflow_node_checkpoints
-                        WHERE pwfn_id=n.id AND is_done=1) AS cp_done,
-                       (SELECT COUNT(*) FROM project_workflow_nodes pn
-                        WHERE pn.workflow_id=n.workflow_id AND pn.seq<n.seq
-                          AND pn.status NOT IN ('done','skipped')) AS blockers
-                FROM project_workflow_nodes n
-                JOIN workflow_nodes_master m ON m.node_code=n.node_code
-                JOIN project_workflow pw ON pw.id=n.workflow_id
-                JOIN projects p ON p.id=pw.project_id
-                WHERE n.assigned_user_id=? AND n.status IN ('pending','in_progress','blocked')
-                ORDER BY (CASE n.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END),
-                         p.id DESC, n.seq
-                LIMIT 8
-            """, (u["id"],)).fetchall()]
-            # z108e: 본인 부서 미배정 (잡기 가능)
-            _dept = u.get('dept') or u.get('team_name') or ''
-            if _dept:
-                home_wf_unassigned = [dict(r) for r in c.execute("""
-                    SELECT n.id, n.node_code, n.seq, n.status,
-                           m.title_ko, m.default_dept,
-                           p.id AS project_id, p.name AS project_name, p.mgmt_code,
-                           (SELECT COUNT(*) FROM project_workflow_nodes pn
-                            WHERE pn.workflow_id=n.workflow_id AND pn.seq<n.seq
-                              AND pn.status NOT IN ('done','skipped')) AS blockers
-                    FROM project_workflow_nodes n
-                    JOIN workflow_nodes_master m ON m.node_code=n.node_code
-                    JOIN project_workflow pw ON pw.id=n.workflow_id
-                    JOIN projects p ON p.id=pw.project_id
-                    WHERE m.default_dept=? AND n.assigned_user_id IS NULL
-                      AND n.status IN ('pending','in_progress')
-                    ORDER BY p.id DESC, n.seq LIMIT 6
-                """, (_dept,)).fetchall()]
-    except Exception as _e:
-        print(f"[HOME-WF ERR] {_e}")
-
     return ctx(
         req, "home.html",
         user=u, sel_date=sel_date, prev_date=prev_d, next_date=next_d,
@@ -1451,8 +1310,6 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         hw_counts=hw_counts,
         tab=tab,           # 05 디자인팀 3탭
         no_perm=no_perm,   # D01-NEW-BANNER: 권한 없음 안내 배너
-        home_wf_cards=home_wf_cards,  # z108
-        home_wf_unassigned=home_wf_unassigned,  # z108e
         # 힐링 #12 §8-bis 권한 분기 컨텍스트
         monthly_revenue=monthly_revenue,
         yoy_delta=yoy_delta,
@@ -1533,25 +1390,6 @@ async def daily_page(req: Request, sel_date: str = ""):
         ).fetchone()
         week_stats = dict(week_stats)
 
-        # z107: 내 워크플로우 업무카드 (배정된 노드 중 pending/in_progress/blocked)
-        wf_cards = []
-        try:
-            wf_cards = [dict(r) for r in c.execute("""
-                SELECT n.id, n.node_code, n.seq, n.status, n.assigned_entity,
-                       m.title_ko, m.category, m.default_dept,
-                       p.id AS project_id, p.name AS project_name, p.mgmt_code,
-                       (SELECT COUNT(*) FROM tasks WHERE workflow_node_id=n.id AND user_id=? AND work_date=?) AS has_today_log
-                FROM project_workflow_nodes n
-                JOIN workflow_nodes_master m ON m.node_code=n.node_code
-                JOIN project_workflow pw ON pw.id=n.workflow_id
-                JOIN projects p ON p.id=pw.project_id
-                WHERE n.assigned_user_id=? AND n.status IN ('pending','in_progress','blocked')
-                ORDER BY (CASE n.status WHEN 'in_progress' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END), p.id DESC, n.seq
-                LIMIT 10
-            """, (u["id"], sel_date, u["id"])).fetchall()]
-        except Exception as _e:
-            print(f"[DAILY-WFCARDS ERR] {_e}")
-
     return ctx(
         req, "daily.html",
         user=u, tasks=tasks, sel_date=sel_date,
@@ -1559,7 +1397,6 @@ async def daily_page(req: Request, sel_date: str = ""):
         pending_yday=pending_yday,
         projects=projects, customers=customers,
         week_stats=week_stats, week_range=f"{wk_mon} ~ {wk_sun}",
-        wf_cards=wf_cards,  # z107: 워크플로우 업무카드
     )
 
 
@@ -1608,19 +1445,12 @@ async def api_create_task(req: Request):
     _plabel = (d.get("project_label") or "").strip() or None
     _cid = d.get("customer_id") or None
     _clabel = (d.get("customer_label") or "").strip() or None
-    # z107: 워크플로우 노드 연결 (선택)
-    _wf_node_id = d.get("workflow_node_id") or None
-    try:
-        _wf_node_id = int(_wf_node_id) if _wf_node_id else None
-    except (ValueError, TypeError):
-        _wf_node_id = None
     with db_session() as c:
         cur = c.execute(
             """INSERT INTO tasks(user_id, work_date, title, category, project_id, project_label,
                                   customer_id, customer_label,
-                                  status, hours, notes, next_plan, due_date,
-                                  workflow_node_id)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  status, hours, notes, next_plan, due_date)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 u["id"],
                 d.get("work_date") or date.today().isoformat(),
@@ -1635,18 +1465,8 @@ async def api_create_task(req: Request):
                 d.get("notes") or "",
                 (d.get("next_plan") or "").strip(),
                 d.get("due_date") or None,
-                _wf_node_id,
             ),
         )
-        # z107: 워크플로우 노드가 'pending' 이었으면 'in_progress'로 자동 전환
-        if _wf_node_id:
-            try:
-                c.execute(
-                    "UPDATE project_workflow_nodes SET status='in_progress' WHERE id=? AND status='pending'",
-                    (_wf_node_id,)
-                )
-            except Exception:
-                pass
         new_id = cur.lastrowid
         log_activity(c, u["id"], "task_create",
                      title=f"{u['name']} 신규 카드: {(d.get('title') or '')[:60]}",
@@ -2280,7 +2100,7 @@ async def api_user_search(req: Request, q: str = ""):
 
 
 # =====================================================
-# SIDEBAR TREE — Notion 스타일 좌측 트리 데이터
+# SIDEBAR TREE — 접이식 계층형 좌측 트리 데이터
 # =====================================================
 @app.get("/api/sidebar-tree")
 async def api_sidebar_tree(req: Request):
@@ -4536,432 +4356,6 @@ async def guide_page(req: Request):
     return ctx(req, "guide.html", user=u, active="guide")
 
 
-@app.get("/design/samples", response_class=HTMLResponse)
-async def design_samples_page(req: Request):
-    """v5H226z48 (2026-05-09): 색상 톤 샘플 비교 페이지 (Q2 관리번호 / Q3 헤드라인)."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    return ctx(req, "design_samples.html", user=u, active="design_samples")
-
-
-# =====================================================
-# v5H226z94 (2026-05-11): 자재 카탈로그 + 통합 요청서 + 신규 검토 대시보드
-# 전 부서 공통 — 설계(BOM) / 영업(견적) / 서비스(AS) / 생산(자재청구) / 관리(일반)
-# =====================================================
-from typing import Optional as _Opt
-import json as _json
-
-_CART_DEFAULT = {
-    'request_type': 'bom', 'title': '', 'project_id': None, 'note': '',
-    'items': [],      # [{part_id, part_no, part_name, spec, qty, note}]
-    'new_items': [],  # [{requested_part_no, requested_part_name, requested_spec, qty, reason}]
-}
-
-def _cart_get(req: Request):
-    """세션 기반 장바구니 — request_type 와 라인 목록.
-    v5H226z100: 누락 키 자동 보충 (이전 세션 호환).
-    """
-    cart = req.session.get('mat_cart')
-    if not isinstance(cart, dict):
-        cart = dict(_CART_DEFAULT)
-        cart['items'] = []
-        cart['new_items'] = []
-        req.session['mat_cart'] = cart
-        return cart
-    # 누락 키 자동 보충 + 타입 안전
-    changed = False
-    for k, v in _CART_DEFAULT.items():
-        if k not in cart:
-            cart[k] = [] if isinstance(v, list) else v
-            changed = True
-    if not isinstance(cart.get('items'), list):
-        cart['items'] = []; changed = True
-    if not isinstance(cart.get('new_items'), list):
-        cart['new_items'] = []; changed = True
-    if changed:
-        req.session['mat_cart'] = cart
-    return cart
-
-def _cart_save(req: Request, cart):
-    req.session['mat_cart'] = cart
-
-@app.get("/catalog", response_class=HTMLResponse)
-async def catalog_page(req: Request,
-                        q: str = "", category: str = "", maker: str = "",
-                        page: int = 1, per: int = 30, fav: int = 0):
-    """전 부서 공통 자재 카탈로그 검색."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    with db_session() as c:
-        # 카테고리 트리 (parts.category groupby)
-        cats = c.execute("""SELECT COALESCE(category,'(미분류)') AS cat, COUNT(*) AS n
-                            FROM parts WHERE is_active=1 GROUP BY category
-                            ORDER BY n DESC""").fetchall()
-        makers = c.execute("""SELECT COALESCE(maker,'(미상)') AS mk, COUNT(*) AS n
-                              FROM parts WHERE is_active=1 GROUP BY maker
-                              ORDER BY n DESC LIMIT 20""").fetchall()
-        # 검색
-        where = ["is_active=1"]
-        args = []
-        if q:
-            # v5H226z96: 한영 동의어 사전으로 검색 확장 — "솔밸브" → solenoid/sy 등
-            try:
-                from .synonyms_parts import expand_query
-                keywords = expand_query(q)
-            except Exception:
-                keywords = [q]
-            # 너무 많으면 성능 영향 → 상위 25개로 제한
-            keywords = keywords[:25]
-            # v5H226z99 (2026-05-16): 'purpose'(용도) 검색 추가 — 카탈로그 식별 보조
-            cols = ['part_no', 'part_name', 'spec', 'category', 'maker', 'purpose']
-            or_parts = []
-            for kw in keywords:
-                for col in cols:
-                    or_parts.append(f"{col} LIKE ?")
-                    args.append(f'%{kw}%')
-            where.append("(" + " OR ".join(or_parts) + ")")
-        if category:
-            where.append("COALESCE(category,'(미분류)')=?")
-            args.append(category)
-        if maker:
-            where.append("COALESCE(maker,'(미상)')=?")
-            args.append(maker)
-        if fav:
-            where.append("id IN (SELECT part_id FROM catalog_favorites WHERE user_id=?)")
-            args.append(u['id'])
-        w_sql = " AND ".join(where)
-        total = c.execute(f"SELECT COUNT(*) FROM parts WHERE {w_sql}", args).fetchone()[0]
-        page = max(1, int(page or 1))
-        per = min(100, max(10, int(per or 30)))
-        offset = (page - 1) * per
-        parts = c.execute(f"""SELECT id, part_no, part_name, spec, maker, category,
-                                     std_price, currency, stock_qty, safety_stock, unit,
-                                     purpose
-                              FROM parts WHERE {w_sql}
-                              ORDER BY part_name LIMIT ? OFFSET ?""",
-                          args + [per, offset]).fetchall()
-        # 즐겨찾기 id 집합
-        favs = set(r[0] for r in c.execute(
-            "SELECT part_id FROM catalog_favorites WHERE user_id=?", (u['id'],)))
-    cart = _cart_get(req)
-    cart_count = len(cart['items']) + len(cart['new_items'])
-    return ctx(req, "catalog.html", user=u, active="catalog",
-               parts=parts, categories=cats, makers=makers, favs=favs,
-               q=q, category=category, maker=maker, fav=fav,
-               page=page, per=per, total=total,
-               pages=(total + per - 1) // per, cart_count=cart_count)
-
-
-@app.post("/api/catalog/favorites/{part_id}")
-async def catalog_fav_toggle(part_id: int, req: Request):
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False}, status_code=401)
-    with db_session() as c:
-        row = c.execute("SELECT 1 FROM catalog_favorites WHERE user_id=? AND part_id=?",
-                        (u['id'], part_id)).fetchone()
-        if row:
-            c.execute("DELETE FROM catalog_favorites WHERE user_id=? AND part_id=?",
-                      (u['id'], part_id))
-            fav = False
-        else:
-            c.execute("INSERT INTO catalog_favorites(user_id, part_id) VALUES(?,?)",
-                      (u['id'], part_id))
-            fav = True
-        c.commit()
-    return JSONResponse({"ok": True, "fav": fav})
-
-
-@app.get("/catalog/cart", response_class=HTMLResponse)
-async def catalog_cart_page(req: Request):
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    cart = _cart_get(req)
-    with db_session() as c:
-        # v5H226z95: projects.is_active 컬럼 없음 — status / mgmt_code 기반으로 정정
-        projects = c.execute("""SELECT id, COALESCE(mgmt_code,'') || ' ' || COALESCE(name,'') AS label
-                                FROM projects
-                                ORDER BY id DESC LIMIT 200""").fetchall()
-    return ctx(req, "catalog_cart.html", user=u, active="catalog",
-               cart=cart, projects=projects)
-
-
-@app.post("/catalog/cart/add")
-async def cart_add(req: Request,
-                    part_id: int = Form(...), qty: float = Form(1),
-                    note: str = Form("")):
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    with db_session() as c:
-        p = c.execute("SELECT id, part_no, part_name, spec FROM parts WHERE id=?",
-                      (part_id,)).fetchone()
-    is_ajax = req.headers.get('x-requested-with', '').lower() == 'xmlhttprequest'
-    if not p:
-        if is_ajax:
-            return JSONResponse({"ok": False, "error": "부품을 찾을 수 없습니다"}, status_code=404)
-        return RedirectResponse("/catalog", 303)
-    cart = _cart_get(req)
-    merged = False
-    for it in cart['items']:
-        if it['part_id'] == part_id:
-            it['qty'] = float(it.get('qty', 0)) + float(qty)
-            merged = True
-            break
-    if not merged:
-        cart['items'].append({
-            'part_id': int(p[0]), 'part_no': p[1], 'part_name': p[2], 'spec': p[3] or '',
-            'qty': float(qty), 'note': note,
-        })
-    _cart_save(req, cart)
-    if is_ajax:
-        # v5H226z103: AJAX 응답 — 토스트 + 카운트 갱신
-        cart_count = len(cart['items']) + len(cart['new_items'])
-        return JSONResponse({
-            "ok": True, "merged": merged,
-            "part_no": p[1], "part_name": p[2], "qty": float(qty),
-            "cart_count": cart_count,
-        })
-    return RedirectResponse(req.headers.get('referer') or '/catalog', 303)
-
-
-@app.post("/catalog/cart/add-new")
-async def cart_add_new(req: Request,
-                        requested_part_no: str = Form(""),
-                        requested_part_name: str = Form(...),
-                        requested_spec: str = Form(""),
-                        requested_maker: str = Form(""),
-                        qty: float = Form(1), unit: str = Form("EA"),
-                        request_reason: str = Form("")):
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    cart = _cart_get(req)
-    cart['new_items'].append({
-        'requested_part_no': requested_part_no,
-        'requested_part_name': requested_part_name,
-        'requested_spec': requested_spec,
-        'requested_maker': requested_maker,
-        'qty': float(qty), 'unit': unit,
-        'request_reason': request_reason,
-    })
-    _cart_save(req, cart)
-    return RedirectResponse('/catalog/cart', 303)
-
-
-@app.post("/catalog/cart/remove")
-async def cart_remove(req: Request, kind: str = Form(...), idx: int = Form(...)):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    cart = _cart_get(req)
-    key = 'items' if kind == 'item' else 'new_items'
-    if 0 <= idx < len(cart.get(key, [])):
-        cart[key].pop(idx)
-        _cart_save(req, cart)
-    return RedirectResponse('/catalog/cart', 303)
-
-
-@app.post("/catalog/cart/clear")
-async def cart_clear(req: Request):
-    if 'mat_cart' in req.session:
-        del req.session['mat_cart']
-    return RedirectResponse('/catalog/cart', 303)
-
-
-@app.post("/materials/requests")
-async def material_request_submit(req: Request,
-                                    request_type: str = Form("bom"),
-                                    title: str = Form(...),
-                                    project_id: str = Form(""),
-                                    note: str = Form("")):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    cart = _cart_get(req)
-    if not cart['items'] and not cart['new_items']:
-        return RedirectResponse('/catalog/cart?empty=1', 303)
-    from datetime import datetime as _dt
-    req_no = f"MR-{_dt.now().strftime('%Y%m%d-%H%M%S')}"
-    proj_id = int(project_id) if project_id and project_id.isdigit() else None
-    total_items = len(cart['items']) + len(cart['new_items'])
-    new_count = len(cart['new_items'])
-    with db_session() as c:
-        cur = c.execute("""INSERT INTO material_requests
-                            (request_no, request_type, title, project_id, requester_id,
-                             requester_team_id, status, total_items, new_item_count, note)
-                            VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                         (req_no, request_type, title, proj_id, u['id'],
-                          u.get('team_id'), '제출', total_items, new_count, note))
-        req_id = cur.lastrowid
-        ln = 0
-        for it in cart['items']:
-            ln += 1
-            c.execute("""INSERT INTO material_request_items
-                          (request_id, line_no, part_id, quantity, unit, is_new_review, review_status)
-                          VALUES(?,?,?,?,?,0,'pending')""",
-                       (req_id, ln, it['part_id'], it['qty'], 'EA'))
-        for it in cart['new_items']:
-            ln += 1
-            c.execute("""INSERT INTO material_request_items
-                          (request_id, line_no, is_new_review, requested_part_no,
-                           requested_part_name, requested_spec, requested_maker,
-                           quantity, unit, request_reason, review_status)
-                          VALUES(?,?,1,?,?,?,?,?,?,?,'pending')""",
-                       (req_id, ln, it['requested_part_no'], it['requested_part_name'],
-                        it['requested_spec'], it.get('requested_maker',''),
-                        it['qty'], it.get('unit','EA'), it['request_reason']))
-        c.commit()
-    # 장바구니 비움
-    if 'mat_cart' in req.session: del req.session['mat_cart']
-    return RedirectResponse(f"/materials/requests/{req_id}", 303)
-
-
-@app.get("/materials/requests", response_class=HTMLResponse)
-async def material_requests_list(req: Request,
-                                   request_type: str = "", status: str = "",
-                                   mine: int = 0):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    where = ["1=1"]; args = []
-    if request_type: where.append("request_type=?"); args.append(request_type)
-    if status: where.append("status=?"); args.append(status)
-    if mine: where.append("requester_id=?"); args.append(u['id'])
-    w = " AND ".join(where)
-    with db_session() as c:
-        rows = c.execute(f"""SELECT mr.id, mr.request_no, mr.request_type, mr.title,
-                                    mr.status, mr.total_items, mr.new_item_count,
-                                    mr.created_at, u.name AS requester_name,
-                                    p.name AS project_name
-                              FROM material_requests mr
-                              LEFT JOIN users u ON mr.requester_id = u.id
-                              LEFT JOIN projects p ON mr.project_id = p.id
-                              WHERE {w}
-                              ORDER BY mr.id DESC LIMIT 300""", args).fetchall()
-        # 통계
-        stats_type = c.execute("""SELECT request_type, COUNT(*) FROM material_requests
-                                  GROUP BY request_type""").fetchall()
-        stats_status = c.execute("""SELECT status, COUNT(*) FROM material_requests
-                                    GROUP BY status""").fetchall()
-    return ctx(req, "materials_requests.html", user=u, active="materials",
-               requests=rows, stats_type=stats_type, stats_status=stats_status,
-               f_type=request_type, f_status=status, mine=mine)
-
-
-@app.get("/materials/requests/{rid:int}", response_class=HTMLResponse)
-async def material_request_detail(rid: int, req: Request):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    with db_session() as c:
-        mr = c.execute("""SELECT mr.*, u.name AS requester_name, p.name AS project_name
-                          FROM material_requests mr
-                          LEFT JOIN users u ON mr.requester_id=u.id
-                          LEFT JOIN projects p ON mr.project_id=p.id
-                          WHERE mr.id=?""", (rid,)).fetchone()
-        if not mr:
-            return RedirectResponse("/materials/requests", 303)
-        items = c.execute("""SELECT mri.*, p.part_no AS p_part_no, p.part_name AS p_part_name,
-                                    p.spec AS p_spec, p.std_price AS p_std_price, p.stock_qty AS p_stock
-                              FROM material_request_items mri
-                              LEFT JOIN parts p ON mri.part_id=p.id
-                              WHERE mri.request_id=? ORDER BY mri.line_no""", (rid,)).fetchall()
-    return ctx(req, "materials_request_detail.html", user=u, active="materials",
-               mr=mr, items=items)
-
-
-@app.get("/materials/new-review", response_class=HTMLResponse)
-async def materials_new_review_dashboard(req: Request,
-                                           team: str = "", status: str = "pending"):
-    """구매팀용 신규 검토 자재 대시보드 — 전 부서 통합."""
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    where = ["mri.is_new_review=1"]; args = []
-    if status: where.append("mri.review_status=?"); args.append(status)
-    w = " AND ".join(where)
-    with db_session() as c:
-        rows = c.execute(f"""SELECT mri.id, mri.request_id, mri.requested_part_no,
-                                    mri.requested_part_name, mri.requested_spec,
-                                    mri.requested_maker, mri.quantity, mri.unit,
-                                    mri.request_reason, mri.review_status,
-                                    mri.created_at,
-                                    mr.request_no, mr.request_type, mr.title AS req_title,
-                                    u.name AS requester_name, t.name AS team_name
-                              FROM material_request_items mri
-                              JOIN material_requests mr ON mri.request_id = mr.id
-                              LEFT JOIN users u ON mr.requester_id = u.id
-                              LEFT JOIN teams t ON u.team_id = t.id
-                              WHERE {w}
-                              ORDER BY mri.created_at DESC LIMIT 300""", args).fetchall()
-        # 통계
-        stats = c.execute("""SELECT review_status, COUNT(*) FROM material_request_items
-                              WHERE is_new_review=1 GROUP BY review_status""").fetchall()
-        by_type = c.execute("""SELECT mr.request_type, COUNT(*)
-                                FROM material_request_items mri
-                                JOIN material_requests mr ON mri.request_id=mr.id
-                                WHERE mri.is_new_review=1 GROUP BY mr.request_type""").fetchall()
-    return ctx(req, "materials_new_review.html", user=u, active="materials_review",
-               items=rows, stats=stats, by_type=by_type, f_status=status)
-
-
-@app.post("/materials/new-review/{iid:int}/register")
-async def new_review_register(iid: int, req: Request,
-                                part_no: str = Form(...), part_name: str = Form(...),
-                                spec: str = Form(""), maker: str = Form(""),
-                                std_price: float = Form(0), category: str = Form(""),
-                                review_note: str = Form("")):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    with db_session() as c:
-        # parts 등록
-        cur = c.execute("""INSERT INTO parts (part_no, part_name, spec, maker, origin, unit,
-                                              currency, std_price, biz_div, category, note,
-                                              is_active, stock_qty, safety_stock)
-                            VALUES(?,?,?,?,'',?,'KRW',?,'공압',?,?,1,0,0)""",
-                         (part_no, part_name, spec, maker, 'EA', std_price, category,
-                          f'[Z94] 신규 검토 → 등록 by {u["name"]}'))
-        new_part_id = cur.lastrowid
-        c.execute("""UPDATE material_request_items
-                      SET review_status='registered', registered_part_id=?,
-                          review_note=?, updated_at=datetime('now','localtime')
-                      WHERE id=?""", (new_part_id, review_note, iid))
-        c.commit()
-    return RedirectResponse('/materials/new-review', 303)
-
-
-@app.post("/materials/new-review/{iid:int}/reject")
-async def new_review_reject(iid: int, req: Request, review_note: str = Form("")):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    with db_session() as c:
-        c.execute("""UPDATE material_request_items
-                      SET review_status='rejected', review_note=?,
-                          updated_at=datetime('now','localtime')
-                      WHERE id=?""", (review_note, iid))
-        c.commit()
-    return RedirectResponse('/materials/new-review', 303)
-
-
-@app.post("/materials/new-review/{iid:int}/quote")
-async def new_review_quote(iid: int, req: Request,
-                              quote_supplier_id: str = Form(""),
-                              quoted_price: float = Form(0),
-                              quoted_lead_days: int = Form(0),
-                              review_note: str = Form("")):
-    u = get_user(req)
-    if not u: return RedirectResponse("/login", 303)
-    sup_id = int(quote_supplier_id) if quote_supplier_id and quote_supplier_id.isdigit() else None
-    with db_session() as c:
-        c.execute("""UPDATE material_request_items
-                      SET review_status='quote_requested', quote_supplier_id=?,
-                          quoted_price=?, quoted_lead_days=?, review_note=?,
-                          updated_at=datetime('now','localtime')
-                      WHERE id=?""", (sup_id, quoted_price, quoted_lead_days, review_note, iid))
-        c.commit()
-    return RedirectResponse('/materials/new-review', 303)
-
-
-
 # =====================================================
 # 외부자산 점검 (대표 직접 판단용 spike, 2026-04-27)
 # 출처: 00_HAIST_WORKS_감사팀/_TO_09팀장_2026-04-27_긴급감사_openpyxl외부자산.md
@@ -5204,7 +4598,7 @@ async def admin_settings_save(req: Request):
 # 외부 자산 0건 (iframe import 없음, 외부 링크만 노출)
 # =====================================================
 HIWORKS_LINK_KEYS = [
-    ("hiworks_main_url",       "하이웍스 메인",       "https://office.hiworks.com/"),
+    ("hiworks_main_url",       "외부 그룹웨어 메인",  "https://office.hiworks.com/"),
     ("hiworks_attendance_url", "출퇴근 / 근태",       ""),
     ("hiworks_leave_url",      "휴가 신청",           ""),
     ("hiworks_payroll_url",    "급여 명세서",         ""),
@@ -6687,7 +6081,7 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
         ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME", "DESCRIPTION", "PRODUCT"]),
         ("spec",        ["규격", "SPEC", "MODEL", "SPECIFICATION", "SIZE"]),
         ("maker",       ["메이커", "MAKER", "BRAND", "제조사", "MANUFACTURER", "MFR"]),
-        ("supplier",    ["업체명", "SUPPLIER", "VENDOR", "공급사", "거래처"]),
+        ("supplier",    ["업체명", "SUPPLIER", "VENDOR", "협력사", "거래처"]),
         ("unit",        ["단위", "UNIT", "UOM"]),
         ("origin",      ["원산지", "ORIGIN", "MADEIN", "MADE IN", "COO", "COUNTRYOFORIGIN"]),
         # 출고수량/수량 — '단가/금액' 보다 먼저 평가되어 '수량' substring 충돌 회피
@@ -7952,7 +7346,7 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
       - name: 시트명 (한글 OK)
       - headers: 컬럼 헤더 리스트
       - rows: 데이터 행 리스트 (각 행은 list 또는 tuple)
-    filename_prefix: 파일명 접두 (예: '공급사')
+    filename_prefix: 파일명 접두 (예: '협력사')
     파일명 자동: '{prefix}_{YYYY-MM-DD}.xlsx'"""
     try:
         from openpyxl import Workbook
@@ -8004,119 +7398,233 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
     )
 
 
-# v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 엑셀 양식 — 처음부터 다시 작성
+#   원칙: 안내 시트와 데이터 시트의 컬럼이 100% 일치
+#         단일 정의 (_CUST_XLSX_COLS) → 양쪽 자동 동기화
+#   시트: '안내' (5섹션 + 31컬럼 표) + '고객사' (row1 헤더, row2+ 데이터)
+#   컬럼: 기본 6 + 담당자 5명 × 5필드 = 31
+# ==========================================================
+_CUST_XLSX_COLS = [
+    # (이름, 폭, 설명, 필수, 그룹)
+    ("고객사명",       22, "정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 없음)",          True,  "기본"),
+    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 OK)",                          False, "기본"),
+    ("대표자명",       12, "예: 홍길동",                                                          False, "기본"),
+    ("주소",           34, "예: 경기도 평택시 ...",                                               False, "기본"),
+    ("활성",            8, "활성 / 비활성 (빈 칸은 활성)",                                       False, "기본"),
+    ("비고",           26, "자유 메모",                                                            False, "기본"),
+    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 슬롯 무시. 1번이 자동 주담당 ★)",  False, "담당자1"),
+    ("1전화번호",      16, "예: 010-1234-5678 / 031-555-1234",                                False, "담당자1"),
+    ("1이메일",        22, "예: contact@example.com (형식 자동 검증)",                       False, "담당자1"),
+    ("1부서",          14, "예: 구매2팀, 관리팀, 제조기술",                                      False, "담당자1"),
+    ("1메모",          22, "자유 메모 (예: 25일 마감담당, 야간 연락처)",                       False, "담당자1"),
+    ("2담당자명",      14, "2번 담당자 이름",                                                     False, "담당자2"),
+    ("2전화번호",      16, "",                                                                     False, "담당자2"),
+    ("2이메일",        22, "",                                                                     False, "담당자2"),
+    ("2부서",          14, "",                                                                     False, "담당자2"),
+    ("2메모",          22, "",                                                                     False, "담당자2"),
+    ("3담당자명",      14, "3번 담당자 이름",                                                     False, "담당자3"),
+    ("3전화번호",      16, "",                                                                     False, "담당자3"),
+    ("3이메일",        22, "",                                                                     False, "담당자3"),
+    ("3부서",          14, "",                                                                     False, "담당자3"),
+    ("3메모",          22, "",                                                                     False, "담당자3"),
+    ("4담당자명",      14, "4번 담당자 이름",                                                     False, "담당자4"),
+    ("4전화번호",      16, "",                                                                     False, "담당자4"),
+    ("4이메일",        22, "",                                                                     False, "담당자4"),
+    ("4부서",          14, "",                                                                     False, "담당자4"),
+    ("4메모",          22, "",                                                                     False, "담당자4"),
+    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 시스템 UI에서 입력)",                  False, "담당자5"),
+    ("5전화번호",      16, "",                                                                     False, "담당자5"),
+    ("5이메일",        22, "",                                                                     False, "담당자5"),
+    ("5부서",          14, "",                                                                     False, "담당자5"),
+    ("5메모",          22, "",                                                                     False, "담당자5"),
+]
+
+CUST_DATA_SHEET_NAME = "고객사"
+CUST_GUIDE_SHEET_NAME = "안내"
+
+
+def _cust_xlsx_build_guide(ws):
+    """안내 시트 — 단순 5섹션 + 31컬럼 매핑표 (데이터 시트와 100% 일치)."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    sec = Font(bold=True, size=13, color="A5282C")
+    body = Font(size=11, color="222222")
+    sub = Font(size=10.5, color="64748B")
+    thin = Side(style="thin", color="DDDDDD")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "KNK 고객사 일괄 등록 — 작성 안내"
+    ws["A1"].font = Font(bold=True, size=18, color="0F172A")
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 32
+
+    ws.merge_cells("A2:D2")
+    ws["A2"] = f"버전: v5H226z122   ·   기본 6 + 담당자 5명 × 5필드 = {len(_CUST_XLSX_COLS)}컬럼"
+    ws["A2"].font = sub
+
+    sections = [
+        ("1. 필수 입력", [
+            "• 고객사명 — 이 칸이 비면 그 행은 등록되지 않습니다.",
+            "  동일명 존재 시: 빈 칸이 아닌 필드만 업데이트 (기존 데이터 보호)",
+        ]),
+        ("2. 작성 순서", [
+            "  ① [고객사] 시트로 이동",
+            "  ② 1행 헤더는 수정하지 말 것",
+            "  ③ 2행부터 한 줄에 한 고객사씩 입력",
+            "  ④ 매출영업 → 고객사 → [엑셀 일괄 업로드] 클릭",
+            "  ⑤ 미리보기 확인 → [등록 확정]",
+        ]),
+        ("3. 담당자 5명 — 각각 5필드 (총 25컬럼)", [
+            "• 담당자명 — 이 칸이 비면 해당 슬롯 무시",
+            "• 전화번호 — 휴대폰 / 사무실 모두 OK",
+            "• 이메일 — 형식 자동 검증 (잘못된 형식은 경고)",
+            "• 부서 — 예: 구매2팀, 관리팀, 제조기술",
+            "• 메모 — 예: 25일 마감담당, 야간 연락처",
+            "  ※ 6명 이상은 시스템 UI에서 추가 입력 (엑셀 슬롯 5개)",
+            "  ※ 1번 담당자가 자동으로 주담당(★)",
+        ]),
+        ("4. 안전 처리 — 3단계", [
+            "  ① 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)",
+            "  ② 결과 확인 (정상 / 경고 / 오류 분류)",
+            "  ③ [등록 확정] 버튼 → 실제 INSERT / UPDATE",
+        ]),
+        ("5. 자동 처리", [
+            "• 동일 이름 UPSERT — 빈 칸 아닌 필드만 업데이트",
+            "• 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고)",
+            "• 활성 빈 칸 → 활성 처리",
+            "• 등급(VIP/A/B/C/일반) — 거래 실적 기반 시스템 자동 산정 (수동 입력 X)",
+        ]),
+    ]
+    row = 4
+    for sec_title, lines in sections:
+        c = ws.cell(row=row, column=1, value=sec_title)
+        c.font = sec
+        ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
+        row += 1
+        for ln in lines:
+            cc = ws.cell(row=row, column=1, value=ln)
+            cc.font = body
+            cc.alignment = Alignment(vertical="center", wrap_text=True)
+            ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
+            row += 1
+        row += 1
+
+    ws.cell(row=row, column=1, value=f"6. 전체 컬럼 매핑 ({len(_CUST_XLSX_COLS)}개) — [고객사] 시트 1행 헤더와 동일").font = sec
+    row += 1
+    head_font = Font(bold=True, size=10.5, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    for col_idx, label in enumerate(["#", "컬럼명", "필수", "설명"], 1):
+        cc = ws.cell(row=row, column=col_idx, value=label)
+        cc.font = head_font; cc.fill = head_fill
+        cc.alignment = Alignment(horizontal="center"); cc.border = bd
+    row += 1
+    req_font = Font(bold=True, color="B91C1C", size=10.5)
+    for idx, (hname, _w, desc, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        ws.cell(row=row, column=1, value=idx).font = body
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=2, value=hname).font = body
+        rc = ws.cell(row=row, column=3, value="필수" if req else "")
+        rc.font = req_font if req else body
+        rc.alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=4, value=desc).font = body
+        for cc in (1, 2, 3, 4):
+            ws.cell(row=row, column=cc).border = bd
+        row += 1
+
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 8
+    ws.column_dimensions["D"].width = 60
+    ws.freeze_panes = "A3"
+
+
+def _cust_xlsx_build_data_headers(ws):
+    """데이터 시트 — row 1 헤더 (필수=빨강 배경). row 2부터 데이터."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    head_font = Font(bold=True, color="FFFFFF", size=11)
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    req_fill = PatternFill("solid", fgColor="B91C1C")
+    thin = Side(style="thin", color="DDDDDD")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for i, (h, w, _d, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        cell = ws.cell(row=1, column=i, value=h)
+        cell.font = head_font
+        cell.fill = req_fill if req else head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = bd
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "C2"
+
+
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
-    """전체 고객사 + 담당자 데이터를 .xlsx 로 다운로드.
-    시트1: 고객사 (회사정보 + 자동 등급 + 점수)
-    시트2: 담당자 (고객사명 + 부서/이름/전화/이메일/특징)"""
+    """v5H226z122 (2026-05-19): 깨끗하게 재작성 — 안내 + 고객사 (row1 헤더, row2+ 데이터)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
-    wb = Workbook()
+    from datetime import datetime as _dt
 
-    # === 시트 1: 고객사 ===
-    ws1 = wb.active
-    ws1.title = "고객사"
-    headers1 = ["ID", "고객사명", "등급", "점수",
-                "사업자번호", "대표자", "대표 전화", "대표 이메일",
-                "주소", "활성", "비고", "프로젝트수",
-                "수주합계(원)", "최근거래일", "등급계산일"]
-    ws1.append(headers1)
-    # 헤더 스타일
-    knk_fill = PatternFill("solid", fgColor="A5282C")
-    white = Font(color="FFFFFF", bold=True)
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for col_idx, _ in enumerate(headers1, 1):
-        cell = ws1.cell(row=1, column=col_idx)
-        cell.font = white
-        cell.fill = knk_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
     with db_session() as c:
         rows = c.execute(
-            """SELECT cu.id, cu.name, cu.tier, cu.tier_score,
-                      cu.biz_no, cu.ceo_name, cu.phone, cu.email, cu.address,
-                      cu.is_active, cu.note, cu.tier_computed_at,
-                      COUNT(DISTINCT p.id) AS proj_count,
-                      COALESCE(SUM(p.order_amount), 0) AS total_amount,
-                      MAX(p.order_date) AS last_order
+            """SELECT cu.id, cu.name, cu.biz_no, cu.ceo_name, cu.address,
+                      cu.is_active, cu.note
                FROM customers cu
-               LEFT JOIN projects p ON p.customer_id = cu.id
-               GROUP BY cu.id
                ORDER BY cu.tier_score DESC, cu.name"""
         ).fetchall()
+        rows = [dict(r) for r in rows]
         for r in rows:
-            d = dict(r)
-            ws1.append([
-                d.get("id"), d.get("name"), d.get("tier"), d.get("tier_score") or 0,
-                d.get("biz_no"), d.get("ceo_name"), d.get("phone"), d.get("email"),
-                d.get("address"),
-                "활성" if (d.get("is_active") != 0) else "비활성",
-                d.get("note"), d.get("proj_count") or 0,
-                d.get("total_amount") or 0, d.get("last_order"),
-                d.get("tier_computed_at"),
-            ])
-        # === 시트 2: 담당자 ===
-        ws2 = wb.create_sheet("담당자")
-        headers2 = ["고객사명", "부서", "이름", "직위",
-                    "전화", "휴대폰", "이메일", "주담당", "특징/메모"]
-        ws2.append(headers2)
-        for col_idx, _ in enumerate(headers2, 1):
-            cell = ws2.cell(row=1, column=col_idx)
-            cell.font = white
-            cell.fill = knk_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = border
-        contacts = c.execute(
-            """SELECT cu.name AS cust_name, cc.department, cc.name, cc.position,
-                      cc.phone, cc.mobile, cc.email, cc.is_primary, cc.note
-               FROM customer_contacts cc
-               JOIN customers cu ON cu.id = cc.customer_id
-               ORDER BY cu.tier_score DESC, cu.name, cc.is_primary DESC, cc.id"""
-        ).fetchall()
-        for r in contacts:
-            d = dict(r)
-            ws2.append([
-                d.get("cust_name"), d.get("department"), d.get("name"),
-                d.get("position"), d.get("phone"), d.get("mobile"),
-                d.get("email"),
-                "★" if d.get("is_primary") else "",
-                d.get("note"),
-            ])
+            r["_contacts"] = [dict(cc) for cc in c.execute(
+                """SELECT name, mobile, phone, email, department, note
+                   FROM customer_contacts
+                   WHERE customer_id = ?
+                   ORDER BY is_primary DESC, id
+                   LIMIT 5""", (r["id"],)
+            ).fetchall()]
 
-    # 컬럼 너비 자동 (대략)
-    for ws in [ws1, ws2]:
-        for col in ws.columns:
-            max_len = 8
-            col_letter = col[0].column_letter
-            for cell in col:
-                v = str(cell.value) if cell.value is not None else ""
-                # 한글은 2칸으로 추정
-                disp_len = sum(2 if ord(c) > 0x7F else 1 for c in v)
-                max_len = max(max_len, min(50, disp_len + 2))
-            ws.column_dimensions[col_letter].width = max_len
-        ws.freeze_panes = "A2"  # 헤더 고정
+    wb = Workbook()
+    ws_guide = wb.active
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
 
-    # 메모리 → BytesIO → StreamingResponse
+    for r_idx, r in enumerate(rows, 2):  # row 2부터 데이터
+        contact_cells = []
+        for cc in r["_contacts"]:
+            contact_cells.extend([
+                str(cc.get("name") or ""),
+                str(cc.get("mobile") or cc.get("phone") or ""),
+                str(cc.get("email") or ""),
+                str(cc.get("department") or ""),
+                str(cc.get("note") or ""),
+            ])
+        while len(contact_cells) < 25:
+            contact_cells.append("")
+        vals = [
+            r["name"], r["biz_no"], r["ceo_name"], r["address"],
+            "활성" if (r["is_active"] or 0) != 0 else "비활성", r["note"],
+            *contact_cells[:25],
+        ]
+        for c_idx, v in enumerate(vals, 1):
+            ws_data.cell(row=r_idx, column=c_idx, value=v)
+
     import io
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    from urllib.parse import quote
-    fname = f"고객사_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf,
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
-        },
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_master_{today}.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사마스터_{today}.xlsx')}")},
     )
 
 
@@ -8134,234 +7642,39 @@ async def suppliers_export_xlsx(req: Request):
     if not u: return RedirectResponse("/login", 303)
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
-            "SELECT id, name, "
-            "COALESCE(biz_no,'') AS biz_no, COALESCE(ceo_name,'') AS ceo_name, "
-            "COALESCE(manage_dept,'') AS manage_dept, "
-            "contact, phone, email, "
-            "COALESCE(contact2,'') AS contact2, COALESCE(phone2,'') AS phone2, "
-            "COALESCE(email2,'') AS email2, "
-            "country, currency, "
+            "SELECT id, name, code, contact, email, phone, country, currency, "
             "payment_terms, COALESCE(is_active,1) AS is_active, note "
             "FROM suppliers ORDER BY name").fetchall()]
-    # v5H226z91: '코드' 컬럼 제거 — 폼·내보내기 일치 (DB 컬럼·일괄등록 중복검사는 내부 보존)
-    headers = ["ID","공급사명","사업자등록번호","대표자","관리부서",
-               "담당자1","전화1","이메일1","담당자2","전화2","이메일2",
-               "국가","통화","결제조건","활성","비고"]
-    data = [[r["id"], r["name"], r["biz_no"], r["ceo_name"], r["manage_dept"],
-             r["contact"], r["phone"], r["email"], r["contact2"], r["phone2"], r["email2"],
+    headers = ["ID","협력사명","코드","담당자","이메일","전화","국가","통화",
+               "결제조건","활성","비고"]
+    data = [[r["id"], r["name"], r["code"], r["contact"], r["email"], r["phone"],
              r["country"], r["currency"], r["payment_terms"],
              "활성" if r["is_active"] else "비활성", r["note"]] for r in rows]
     return _make_xlsx_response(
-        [{"name": "공급사", "headers": headers, "rows": data}], "공급사")
+        [{"name": "협력사", "headers": headers, "rows": data}], "협력사")
 
 
 @app.get("/parts/export.xlsx")
 async def parts_export_xlsx(req: Request):
-    """v5H226z110 (2026-05-17) — 자재 마스터 엑셀 다운로드.
-    표준 구조: [시트1 📖 안내] + [시트2 자재 마스터 (제목·부제·헤더·데이터)]."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        return JSONResponse({"error": "openpyxl 미설치"}, 500)
-    from datetime import datetime as _dt
-
     with db_session() as c:
-        # PRAGMA — 확장 컬럼 존재 여부 가드 (마이그레이션 미적용 환경 호환)
-        existing = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
-        def _col(name, alias=None):
-            return f"p.{name}" if name in existing else f"NULL AS {alias or name}"
-        sel = ", ".join([
-            "p.id", "p.part_no", "p.part_name", "p.biz_div",
-            "p.spec", "p.maker", "p.origin", "p.unit", "p.currency", "p.std_price",
-            "p.category", _col("category_main"), _col("category_series"),
-            _col("item_account"), _col("procurement_kind"),
-            "COALESCE(p.safety_stock,0) AS safety_stock",
-            _col("reorder_point"), _col("reorder_qty"), _col("conversion_factor"),
-            _col("sub_spec1"), _col("sub_spec2"), _col("sub_spec3"),
-            _col("tax_invoice_name"), _col("trade_invoice_name"),
-            "p.location", _col("default_warehouse"), _col("hs_code"),
-            _col("purpose"),
-            "COALESCE(p.is_active,1) AS is_active", "p.note",
-            "COALESCE(sb.on_hand, 0) AS on_hand",
-        ])
         rows = [dict(r) for r in c.execute(
-            f"SELECT {sel} "
+            "SELECT p.id, p.part_no, p.part_name, p.spec, p.maker, p.origin, "
+            "p.unit, p.currency, p.std_price, p.biz_div, p.category, "
+            "COALESCE(p.is_active,1) AS is_active, p.note, "
+            "COALESCE(sb.on_hand, 0) AS on_hand "
             "FROM parts p LEFT JOIN stock_balances sb ON sb.part_id=p.id "
-            "ORDER BY p.part_no"
-        ).fetchall()]
-
-    # 헤더 + 컬럼 너비 + 설명 (시트1 가이드에서 재사용)
-    columns = [
-        ("ID",          7, "자동 생성 식별자 — 일괄등록 시 비워두세요"),
-        ("자재코드",     18, "PRODUCT CODE (제조사 원본 코드 우선). UNIQUE."),
-        ("자재명",       28, "자재의 정식 명칭. 유사 자재 자동 검사 대상."),
-        ("사업부",        9, "M(자동화) / T(검사기) / 공통 — 셋 중 하나"),
-        ("규격",         24, "주요 사양 1줄 (예: 200W·24V·3000rpm)"),
-        ("제조사",       14, "메이커명"),
-        ("원산지",       10, "예: 한국 / 일본 / 독일"),
-        ("단위",          7, "기본 단위 (예: EA / KG / SET)"),
-        ("통화",          7, "KRW / USD / JPY / CNY / EUR"),
-        ("매입단가",     12, "가장 최근 단가 (대표 단가)"),
-        ("분류",         14, "내부 분류명"),
-        ("대분류",       14, "상위 카테고리"),
-        ("분류시리즈",    14, "시리즈 코드"),
-        ("품목계정",     12, "RAW / SUB / SEMI / FIN / CONS"),
-        ("조달구분",     12, "구매 / 외주 / 자체제작 등"),
-        ("안전재고",     10, "이 수치 미만으로 떨어지면 경고"),
-        ("재주문점",     10, "Reorder Point"),
-        ("재주문량",     10, "Reorder Quantity"),
-        ("환산계수",     10, "단위 환산 비율 (기본 1)"),
-        ("보조규격1",    16, "보조 사양 1"),
-        ("보조규격2",    16, "보조 사양 2"),
-        ("보조규격3",    16, "보조 사양 3"),
-        ("세금계산서명",  22, "세금계산서 출력용 품명"),
-        ("거래명세서명",  22, "거래명세서 출력용 품명"),
-        ("위치",         12, "보관 위치 (창고 내 번지)"),
-        ("기본창고",     12, "기본 입출고 창고"),
-        ("HS코드",       12, "관세 분류 코드"),
-        ("용도",         48, "어디에 쓰는 자재인지 — 카탈로그 검색 보조"),
-        ("활성",          7, "활성 / 비활성"),
-        ("비고",         24, "기타 메모"),
-        ("현재재고",     10, "조회 시점 재고 수량"),
-    ]
-
-    wb = Workbook()
-    # ────────────── 시트1: 📖 안내 ──────────────
-    g = wb.active
-    g.title = "📖 안내"
-
-    title_font   = Font(bold=True, size=18, color="0F172A")
-    subtitle_fnt = Font(size=11, color="64748B")
-    sec_font     = Font(bold=True, size=13, color="A5282C")
-    body_font    = Font(size=11, color="222222")
-    table_head   = Font(bold=True, size=10.5, color="FFFFFF")
-    table_head_fill = PatternFill("solid", fgColor="0F172A")
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-    g.merge_cells("A1:C1")
-    g["A1"] = "📋 KNK 자재 마스터 — 엑셀 다운로드"
-    g["A1"].font = title_font
-    g["A1"].alignment = Alignment(vertical="center")
-    g.row_dimensions[1].height = 32
-
-    g.merge_cells("A2:C2")
-    g["A2"] = f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건"
-    g["A2"].font = subtitle_fnt
-
-    g["A4"] = "📌 개요"
-    g["A4"].font = sec_font
-    overview = [
-        "이 파일은 KNK HAIST WORKS 시스템에 등록된 자재 마스터 데이터를 모두 내려받은 파일입니다.",
-        "시트 [📖 안내]에 컬럼 의미·작성 규칙을 정리하고, 실제 데이터는 [자재 마스터] 시트에 있습니다.",
-        "데이터를 수정하신 후 자재 일괄등록 페이지에서 그대로 업로드하시면, 같은 헤더 구조로 자동 매핑됩니다.",
-        "헤더 순서가 달라지거나 불필요한 컬럼이 섞여 있어도 시스템이 자동 인식합니다.",
-    ]
-    for i, line in enumerate(overview):
-        g.cell(row=5+i, column=1, value=f"• {line}").font = body_font
-        g.merge_cells(start_row=5+i, end_row=5+i, start_column=1, end_column=3)
-
-    g["A11"] = "📑 컬럼 설명"
-    g["A11"].font = sec_font
-    # 컬럼 의미 표
-    g.cell(row=12, column=1, value="컬럼명").font = table_head
-    g.cell(row=12, column=1).fill = table_head_fill
-    g.cell(row=12, column=1).alignment = Alignment(horizontal="center")
-    g.cell(row=12, column=2, value="권장 폭").font = table_head
-    g.cell(row=12, column=2).fill = table_head_fill
-    g.cell(row=12, column=2).alignment = Alignment(horizontal="center")
-    g.cell(row=12, column=3, value="설명").font = table_head
-    g.cell(row=12, column=3).fill = table_head_fill
-    g.cell(row=12, column=3).alignment = Alignment(horizontal="center")
-    for i, (h, w, desc) in enumerate(columns, 13):
-        g.cell(row=i, column=1, value=h).font = body_font
-        g.cell(row=i, column=2, value=w).font = body_font
-        g.cell(row=i, column=2).alignment = Alignment(horizontal="center")
-        g.cell(row=i, column=3, value=desc).font = body_font
-        for col in (1, 2, 3):
-            g.cell(row=i, column=col).border = border
-
-    g.column_dimensions["A"].width = 18
-    g.column_dimensions["B"].width = 10
-    g.column_dimensions["C"].width = 80
-    g.freeze_panes = "A13"
-
-    # ────────────── 시트2: 자재 마스터 ──────────────
-    ws = wb.create_sheet("자재 마스터")
-
-    n_cols = len(columns)
-    last_col = get_column_letter(n_cols)
-
-    # 1행: 큰 제목 (병합)
-    ws.merge_cells(f"A1:{last_col}1")
-    ws["A1"] = "📋 자재 마스터"
-    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 36
-
-    # 2행: 부제 (생성일·건수)
-    ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = f"생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}    ·    총 {len(rows):,}건    ·    [📖 안내] 시트에서 컬럼 설명을 확인하세요"
-    ws["A2"].font = Font(size=10.5, color="64748B")
-    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[2].height = 20
-
-    # 4행: 헤더 (3행은 여백)
-    HEADER_ROW = 4
-    knk_fill = PatternFill("solid", fgColor="0F172A")
-    white = Font(color="FFFFFF", bold=True, size=11)
-    for c_idx, (h, w, _desc) in enumerate(columns, 1):
-        cell = ws.cell(row=HEADER_ROW, column=c_idx, value=h)
-        cell.font = white
-        cell.fill = knk_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
-        ws.column_dimensions[get_column_letter(c_idx)].width = w
-    ws.row_dimensions[HEADER_ROW].height = 26
-
-    # 5행~: 데이터
-    for r_idx, r in enumerate(rows, HEADER_ROW + 1):
-        vals = [
-            r["id"], r["part_no"], r["part_name"], r["biz_div"],
-            r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], r["std_price"],
-            r["category"], r.get("category_main"), r.get("category_series"),
-            r.get("item_account"), r.get("procurement_kind"),
-            r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"), r.get("conversion_factor"),
-            r.get("sub_spec1"), r.get("sub_spec2"), r.get("sub_spec3"),
-            r.get("tax_invoice_name"), r.get("trade_invoice_name"),
-            r["location"], r.get("default_warehouse"), r.get("hs_code"),
-            r.get("purpose"),
-            "활성" if r["is_active"] else "비활성",
-            r["note"], r["on_hand"],
-        ]
-        for c_idx, v in enumerate(vals, 1):
-            ws.cell(row=r_idx, column=c_idx, value=v)
-
-    # 헤더+제목 고정 (자재코드·자재명·사업부 컬럼도 고정)
-    ws.freeze_panes = f"E{HEADER_ROW+1}"
-
-    # 메모리 → 응답
-    import io
-    from urllib.parse import quote as _q
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    _fname_kr = f"KNK_자재마스터_{_dt.now().strftime('%Y%m%d')}.xlsx"
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="KNK_parts_master_{_dt.now().strftime("%Y%m%d")}.xlsx"; '
-                f"filename*=UTF-8''{_q(_fname_kr)}"
-            ),
-        },
-    )
+            "ORDER BY p.part_no").fetchall()]
+    headers = ["ID","품번","품명","규격","제조사","원산지","단위","통화",
+               "표준단가","사업부","분류","활성","비고","현재재고"]
+    data = [[r["id"], r["part_no"], r["part_name"], r["spec"], r["maker"],
+             r["origin"], r["unit"], r["currency"], r["std_price"],
+             r["biz_div"], r["category"],
+             "활성" if r["is_active"] else "비활성",
+             r["note"], r["on_hand"]] for r in rows]
+    return _make_xlsx_response(
+        [{"name": "부품", "headers": headers, "rows": data}], "부품")
 
 
 @app.get("/sales/orders/export.xlsx")
@@ -8442,7 +7755,7 @@ async def po_export_xlsx(req: Request):
             "FROM po_items pi LEFT JOIN purchase_orders po ON po.id=pi.po_id "
             "ORDER BY po.id DESC, pi.line_no").fetchall()]
     sheets = [
-        {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","공급사","프로젝트"],
+        {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","협력사","프로젝트"],
          "rows": [[r["id"], r["po_number"], r["order_date"], r["expected_date"],
                    r["status"], r["currency"], r["total_amount"],
                    r["supplier_name"], r["project_name"]] for r in head_rows]},
@@ -8487,7 +7800,7 @@ async def stock_balances_export_xlsx(req: Request):
             "sb.last_movement_at, p.std_price, p.spec "
             "FROM stock_balances sb LEFT JOIN parts p ON p.id=sb.part_id "
             "ORDER BY sb.part_no").fetchall()]
-    headers = ["품번","품명","규격","재고수량","단위","매입단가","재고가치(원)","최종거래일"]
+    headers = ["품번","품명","규격","재고수량","단위","표준단가","재고가치(원)","최종거래일"]
     data = [[r["part_no"], r["part_name"], r["spec"], r["on_hand"], r["unit"],
              r["std_price"], (r["on_hand"] or 0) * (r["std_price"] or 0),
              r["last_movement_at"]] for r in rows]
@@ -9093,343 +8406,9 @@ async def _alias_admin_perm_groups_new(req: Request):
     return RedirectResponse("/admin/permissions/groups", 303)
 
 
-# =====================================================
-# v5H226z58 (2026-05-12) — 자재 일괄 등록 (Excel)
-# 라우터:
-#   GET  /parts/import              → 업로드 폼 + 가이드
-#   POST /parts/import              → 업로드 → 검증 → 미리보기 (dry_run)
-#   POST /parts/import/apply        → 실제 INSERT 실행
-#   GET  /parts/import/template.xlsx → 빈 템플릿 다운로드
-# =====================================================
 @app.get("/parts/import", response_class=HTMLResponse)
-async def parts_import_page(req: Request):
-    """일괄 등록 페이지 진입 — view 권한이면 페이지는 보이고, 실제 등록(POST)에서만 use 권한 확인.
-       이래야 권한 부족 시 사용자에게 정확한 안내가 가능 (조용한 /home redirect 방지)."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
-    # 쓰기 권한 여부 → 템플릿에서 안내 배너 표시용
-    has_write = can_use_logistics(u)
-    return ctx(req, "parts_import.html", user=u, active="parts",
-               result=None, mode="upload", has_write=has_write)
-
-
-@app.post("/parts/import")
-async def parts_import_submit(req: Request, file: UploadFile = File(...)):
-    """엑셀 업로드 → 검증 + 미리보기 (dry_run=True). 실제 INSERT는 /apply 에서."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    raw = await file.read()
-    if not raw:
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result={"error": "빈 파일입니다"}, mode="upload")
-    if len(raw) > 10 * 1024 * 1024:
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result={"error": "파일이 너무 큽니다 (10MB 제한)"}, mode="upload")
-    fname = (file.filename or "upload.xlsx")
-    if not fname.lower().endswith((".xlsx", ".xlsm")):
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result={"error": "Excel 파일(.xlsx)만 지원합니다 (현재: " + fname + ")"},
-                   mode="upload")
-
-    # 임시 저장 → 파싱 → 결과 (DB INSERT 안 함)
-    import tempfile, os, base64
-    tmp_dir = tempfile.mkdtemp(prefix="parts_import_")
-    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
-    with open(tmp_path, "wb") as f:
-        f.write(raw)
-    try:
-        from .database import parts_bulk_import_excel as _pbi
-        result = _pbi(tmp_path, dry_run=True, force_similar=False)
-    except Exception as e:
-        result = {"error": f"파싱 오류: {e}"}
-    # 파일은 apply 단계에서 다시 필요 → base64로 form에 hidden 전달
-    file_b64 = base64.b64encode(raw).decode("ascii") if not result.get("error") else ""
-    try:
-        os.remove(tmp_path)
-        os.rmdir(tmp_dir)
-    except Exception:
-        pass
-    return ctx(req, "parts_import.html", user=u, active="parts",
-               result=result, mode="preview",
-               file_b64=file_b64, filename=fname)
-
-
-@app.post("/parts/import/apply")
-async def parts_import_apply(req: Request,
-                              file_b64: str = Form(""),
-                              filename: str = Form("upload.xlsx"),
-                              force_similar: str = Form("0")):
-    """미리보기 후 사용자 confirm → 실제 INSERT 실행."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    import base64, tempfile, os
-    try:
-        raw = base64.b64decode(file_b64 or "")
-    except Exception:
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result={"error": "파일 데이터 손상 — 다시 업로드해주세요"}, mode="upload")
-    if not raw:
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result={"error": "파일 데이터 없음 — 다시 업로드해주세요"}, mode="upload")
-    tmp_dir = tempfile.mkdtemp(prefix="parts_import_apply_")
-    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
-    with open(tmp_path, "wb") as f:
-        f.write(raw)
-    try:
-        from .database import parts_bulk_import_excel as _pbi
-        result = _pbi(tmp_path, dry_run=False, force_similar=(force_similar == "1"))
-    except Exception as e:
-        result = {"error": f"등록 오류: {e}"}
-    try:
-        os.remove(tmp_path)
-        os.rmdir(tmp_dir)
-    except Exception:
-        pass
-    # v5H226z98: 파싱/실행 오류는 import 페이지에 유지, 정상 완료 시 자재 목록으로 리다이렉트
-    if result.get("error"):
-        return ctx(req, "parts_import.html", user=u, active="parts",
-                   result=result, mode="result", filename=filename)
-    s = result.get("summary") or {}
-    from urllib.parse import urlencode
-    qs = urlencode({
-        "imported": s.get("inserted", 0),
-        "dup": s.get("dup", 0),
-        "sim": s.get("similar_warn", 0),
-        "err": s.get("error", 0),
-        "total": result.get("total", 0),
-    })
-    return RedirectResponse(f"/parts?{qs}", status_code=303)
-
-
-@app.get("/parts/import/template.xlsx")
-async def parts_import_template(req: Request):
-    """빈 일괄 등록 템플릿 다운로드 — 헤더 + 예시 2행."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment
-    except ImportError:
-        return JSONResponse({"error": "openpyxl 미설치"}, 500)
-    from openpyxl.styles import Border, Side
-    from openpyxl.utils import get_column_letter
-    from datetime import datetime as _dt
-
-    wb = Workbook()
-    # v5H226z110 (2026-05-17) — 표준 구조:
-    #   [시트1] 📖 작성 가이드 (개요·필수컬럼·자동매핑·용도 팁)
-    #   [시트2] 자재 일괄 등록 (제목 행 + 부제 + 헤더 + 예시 3행)
-    headers = [
-        ("자재코드 *", 18), ("자재명 *", 28), ("사업부 *", 10),
-        ("규격", 24), ("제조사", 14), ("원산지", 10),
-        ("단위", 8), ("통화", 8), ("매입단가", 12),
-        ("분류", 14), ("대분류", 14), ("분류시리즈", 14),
-        ("품목계정", 12), ("조달구분", 12),
-        ("안전재고", 10), ("재주문점", 10), ("재주문량", 10), ("환산계수", 10),
-        ("보조규격1", 16), ("보조규격2", 16), ("보조규격3", 16),
-        ("세금계산서명", 22), ("거래명세서명", 22),
-        ("위치", 12), ("기본창고", 12), ("HS코드", 12),
-        ("용도", 38),
-        ("활성", 8), ("비고", 24),
-    ]
-
-    # ────────────── 시트1: 📖 작성 가이드 ──────────────
-    ws_g = wb.active
-    ws_g.title = "📖 작성 가이드"
-    sec_font   = Font(bold=True, size=13, color="A5282C")
-    body_font  = Font(size=11, color="222222")
-    sub_font   = Font(size=10.5, color="64748B")
-    ws_g.merge_cells("A1:C1")
-    ws_g["A1"] = "📋 KNK 자재 일괄 등록 — 작성 가이드"
-    ws_g["A1"].font = Font(bold=True, size=18, color="0F172A")
-    ws_g["A1"].alignment = Alignment(vertical="center")
-    ws_g.row_dimensions[1].height = 32
-    ws_g.merge_cells("A2:C2")
-    ws_g["A2"] = f"버전: v5H226z110    ·    생성일: {_dt.now().strftime('%Y-%m-%d %H:%M')}"
-    ws_g["A2"].font = sub_font
-
-    guide = [
-        ("📌 개요", None),
-        ("• 이 양식은 KNK HAIST WORKS 자재 마스터에 자재를 한꺼번에 등록할 때 사용합니다.", None),
-        ("• 실제 입력은 [자재 일괄 등록] 시트에서 작성하시고, 본 [📖 작성 가이드] 시트는 참고용입니다.", None),
-        ("• 헤더 순서가 달라지거나 불필요한 컬럼이 섞여 있어도 시스템이 자동 인식합니다.", None),
-        ("", None),
-        ("⚠ 필수 컬럼 — 미입력 시 행 단위 차단", None),
-        ("• 자재코드 (part_no) — UNIQUE. 중복 시 차단. 제조사 원본 PRODUCT CODE 우선 권장", None),
-        ("• 자재명 (part_name) — 유사 자재 자동 검사 (≥85점 시 등록 차단, force 옵션 우회 가능)", None),
-        ("• 사업부 (biz_div) — M(자동화) / T(검사기) / 공통 — 셋 중 하나 정확히 입력", None),
-        ("", None),
-        ("✅ 강력 추천 — 검색·식별 품질에 직결", None),
-        ("• 규격(spec) · 제조사(maker) · 매입단가(std_price)", None),
-        ("• 분류(category) · 안전재고(safety_stock) · 재주문점·재주문량", None),
-        ("• 용도(purpose) — 자재 카탈로그·검색 적중률에 가장 큰 영향. 1~3문장 권장", None),
-        ("", None),
-        ("📝 용도 작성 팁", None),
-        ("• 어떤 라인·공정에서 쓰는지 (예: \"자동화 라인 #2·#3 픽업 메커니즘\")", None),
-        ("• 어떤 기능을 하는지 (예: \"축 회전 구동\", \"신호 감지\")", None),
-        ("• 운영·관리 안내 (예: \"단종 시 ○○○으로 대체\", \"6개월 주기 점검\")", None),
-        ("• 사용처/대체품 정보가 있으면 검색이 훨씬 쉬워집니다.", None),
-        ("", None),
-        ("🔄 헤더명 자동 매핑 — 영문/별칭 OK", None),
-        ("• 자재코드 = part_no = code = 품번 = 부품코드 = 자재번호 = PRODUCT CODE", None),
-        ("• 자재명   = part_name = name = 품명 = 부품명 = PRODUCT NAME", None),
-        ("• 사업부   = biz_div = 사업부서", None),
-        ("• 매입단가 = 표준단가 = std_price = 단가 = price = 기준단가", None),
-        ("• 용도     = purpose = 사용처 = application", None),
-        ("• 보조규격 = sub_spec1/2/3 = 보조사양1/2/3", None),
-        ("• 세금계산서명 = tax_invoice_name = 세금계산서품명", None),
-        ("• 거래명세서명 = trade_invoice_name = 거래명세서품명", None),
-        ("• 대분류   = category_main · 분류시리즈 = category_series = 시리즈", None),
-        ("※ 헤더 순서가 다르거나 불필요한 컬럼이 섞여 있어도 자동 인식됩니다.", None),
-        ("", None),
-        ("🛡 처리 흐름 — 안전 3단계", None),
-        ("1) 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)", None),
-        ("2) 결과 확인 (ok / similar / dup / error 분류)", None),
-        ("3) [등록 확정] 버튼 → 실제 INSERT (트랜잭션)", None),
-        ("4) similar(유사 자재 있음) 행은 강제 등록 옵션 선택 후 재제출", None),
-        ("", None),
-        ("📏 제한", None),
-        ("• 파일 크기 10MB 이하", None),
-        ("• 미리보기 최대 200건", None),
-        ("• 한 번에 최대 ~1,000행 권장 (메모리·트랜잭션 성능)", None),
-        ("", None),
-        ("💡 비고", None),
-        ("• 기존 자재 데이터를 그대로 받아오시려면 자재 마스터 페이지 [엑셀 내보내기]를", None),
-        ("  이용하세요. 같은 헤더 구조라 그대로 수정·재업로드 가능합니다.", None),
-        ("• 매입단가 1~5차(구매사별)는 일괄등록에서 미지원입니다.", None),
-        ("  필요 시 등록 후 자재 편집 페이지에서 보완 입력해 주세요.", None),
-    ]
-    SECTION_PREFIX = ("📌", "⚠", "✅", "📝", "🔄", "🛡", "📏", "💡")
-    for i, (line, _) in enumerate(guide, 4):
-        c = ws_g.cell(row=i, column=1, value=line)
-        ws_g.merge_cells(start_row=i, end_row=i, start_column=1, end_column=3)
-        if line.startswith(SECTION_PREFIX):
-            c.font = sec_font
-        else:
-            c.font = body_font
-        c.alignment = Alignment(vertical="center", wrap_text=True)
-    ws_g.column_dimensions["A"].width = 88
-    ws_g.column_dimensions["B"].width = 4
-    ws_g.column_dimensions["C"].width = 4
-    ws_g.freeze_panes = "A3"
-
-    # ────────────── 시트2: 자재 일괄 등록 (제목 + 헤더 + 예시) ──────────────
-    ws = wb.create_sheet("자재 일괄 등록")
-    n_cols = len(headers)
-    last_col = get_column_letter(n_cols)
-
-    # 1행 큰 제목 (병합)
-    ws.merge_cells(f"A1:{last_col}1")
-    ws["A1"] = "📋 자재 일괄 등록"
-    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor="A5282C")
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 36
-
-    # 2행 부제
-    ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = "필수 컬럼: 자재코드 · 자재명 · 사업부    ·    헤더 순서 변경 OK    ·    상세 안내는 [📖 작성 가이드] 시트 참조"
-    ws["A2"].font = Font(size=10.5, color="64748B")
-    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[2].height = 20
-
-    # 4행 헤더 (3행은 여백)
-    HEADER_ROW = 4
-    head_font = Font(bold=True, color="FFFFFF", size=11)
-    head_fill = PatternFill("solid", fgColor="0F172A")
-    req_fill  = PatternFill("solid", fgColor="B91C1C")  # 필수 컬럼 빨간 강조
-    thin = Side(style="thin", color="DDDDDD")
-    bd   = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for i, (h, w) in enumerate(headers, 1):
-        cell = ws.cell(row=HEADER_ROW, column=i, value=h)
-        cell.font = head_font
-        cell.fill = req_fill if "*" in h else head_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = bd
-        ws.column_dimensions[get_column_letter(i)].width = w
-    ws.row_dimensions[HEADER_ROW].height = 30
-
-    # 헤더 + 좌측 3컬럼 고정
-    ws.freeze_panes = f"D{HEADER_ROW+1}"
-
-    # 5행~ 예시 3건 — 풀세트 (용도 포함, 다양한 사업부/카테고리)
-    examples = [
-        # 자동화 — 모터
-        ["P-M-MTR-0001", "AC 서보모터 200W", "M",
-         "200W·24V·3000rpm", "Mitsubishi", "일본",
-         "EA", "KRW", 350000,
-         "모터·구동부", "전장 부품", "MTR-A",
-         "RAW", "구매",
-         5, 10, 20, 1,
-         "축경 8mm", "엔코더 2500ppr", "감속비 1:5",
-         "AC 서보모터 200W", "AC SERVO MOTOR 200W",
-         "WH-01-A-12", "WH-01", "8501.31",
-         "자동화 라인 #2·#3 축 회전 구동용. 정밀 위치 제어 필요한 픽업·이송 메커니즘에 사용. 단종 시 동급 200W AC서보모터로 대체.",
-         1, "검사기·자동화 공용 시 공통 등록"],
-        # 검사기 — 광학 렌즈
-        ["P-T-LNS-0001", "광학 렌즈 어레이 50mm", "T",
-         "50mm·BK7·AR 코팅", "Hoya", "일본",
-         "EA", "USD", 1200,
-         "광학부", "센서·광학", "LNS-50",
-         "RAW", "구매",
-         2, 3, 5, 1,
-         "초점거리 50mm", "F/2.8", "AR 405-650nm",
-         "광학 렌즈 어레이 50mm BK7", "OPTICAL LENS ARRAY 50MM",
-         "WH-02-B-03", "WH-02", "9001.90",
-         "검사기 비전 시스템 광학부. 표면 결함 검사용 카메라 모듈에 장착. 취급 시 표면 청결 유지(렌즈 페이퍼만 사용).",
-         1, ""],
-        # 공통 소모품 — 볼트
-        ["F-COM-BLT-M5-20", "육각볼트 M5×20", "공통",
-         "M5×20mm·SUS304", "ETC", "한국",
-         "EA", "KRW", 120,
-         "체결구", "표준 부품", "BLT-M5",
-         "RAW", "구매",
-         200, 300, 500, 1,
-         "두께 1.5mm", "토크 4.5N·m", "",
-         "육각볼트 M5×20 SUS304", "HEX BOLT M5X20 SUS304",
-         "WH-03-C-08", "WH-03", "7318.15",
-         "부품 체결·고정용 표준 볼트 (KS B 1002). 풀림 방지 필요 시 록타이트 처리. 전 사업부 공통 표준 부품.",
-         1, "박스 단위 발주 (1000개입)"],
-    ]
-    from openpyxl.styles import Alignment as _Al
-    wrap = _Al(wrap_text=True, vertical="top")
-    # 데이터는 HEADER_ROW+1 부터 시작
-    for r_idx, row in enumerate(examples, HEADER_ROW + 1):
-        for c_idx, val in enumerate(row, 1):
-            cell = ws.cell(row=r_idx, column=c_idx, value=val)
-            cell.alignment = wrap
-        ws.row_dimensions[r_idx].height = 60
-
-    # 메모리 → 응답
-    import io
-    from urllib.parse import quote as _q
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    # v5H226z92 FIX: 한글 파일명 → latin-1 HTTP 헤더 인코딩 실패 방지 (RFC 5987)
-    _fname_kr = "KNK_자재_일괄등록_템플릿.xlsx"
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": (
-                'attachment; filename="KNK_parts_import_template.xlsx"; '
-                f"filename*=UTF-8''{_q(_fname_kr)}"
-            ),
-        },
-    )
+async def _alias_parts_import(req: Request):
+    return RedirectResponse("/parts", 303)
 
 
 @app.get("/projects/{pid:int}", response_class=HTMLResponse)
@@ -9788,8 +8767,8 @@ async def changes_new_submit(
 
 def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
     """변경 등록 후 통합 알림 발송 — 영향 강도별 차별화 (알림 피로 방지)
-    - high: 즉시 카톡 푸시 + web 알림 + 게시판
-    - medium: web 알림 + 게시판 (카톡 안 보냄)
+    - high: 즉시 메신저 푸시 + web 알림 + 게시판
+    - medium: web 알림 + 게시판 (메신저 안 보냄)
     - low: 게시판 글에만 노출 (직접 알림 X)
     - 긴급(urgency=긴급): 강도 무시하고 모두 high로 격상
     """
@@ -9999,7 +8978,7 @@ async def api_progress_summary(req: Request):
 
 
 # =====================================================
-# HAIST WORKS — 요청 티켓 시스템 (1순위 ③ / 10팀 카톡 누락 해결)
+# HAIST WORKS — 요청 티켓 시스템 (1순위 ③ / 10팀 메신저 요청 누락 해결)
 # =====================================================
 from .database import (tickets_list, ticket_get, ticket_create,
                         ticket_change_status, ticket_comments_list,
@@ -10774,57 +9753,22 @@ async def admin_toggle_logistics(request: Request,
 # ── 자재·구매 홈 (기존 /logistics — 명칭 통일) ──────────────
 @app.get("/logistics", response_class=HTMLResponse)
 async def logi_dashboard(request: Request):
-    """자재·구매 센터 (부품·공급사·발주·입출고·수불·환율)"""
+    """자재·구매 센터 (부품·협력사·발주·입출고·수불·환율)"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     parts_stats = _logi.parts_count()
-    from .database import stock_kpi as _stock_kpi, stock_trend_7d as _stock_trend_7d
+    from .database import stock_kpi as _stock_kpi
     try:
         s_kpi = _stock_kpi()
     except Exception:
         s_kpi = None
-    # v5H226z58 (2026-05-12) — hero 카드용 7일 입출고 추세
-    try:
-        trend_7d = _stock_trend_7d()
-    except Exception:
-        trend_7d = []
-    # v5H226z58 (2026-05-12) — 데모 모드 ?demo=1: 차트 시연용 가짜 데이터 (DB 변경 0건)
-    demo_mode = request.query_params.get("demo") == "1"
-    if demo_mode:
-        from datetime import date as _date, timedelta as _td
-        today = _date.today()
-        # 실제 운영처럼 보이는 자연스러운 분포 (평일 입고 多, 주말 0, 출고 일별)
-        demo_pattern = [
-            {"in_qty": 120, "out_qty": 45, "in_cnt": 3, "out_cnt": 8},   # D-6
-            {"in_qty": 85,  "out_qty": 60, "in_cnt": 2, "out_cnt": 11},  # D-5
-            {"in_qty": 0,   "out_qty": 28, "in_cnt": 0, "out_cnt": 5},   # D-4 (주말 가정)
-            {"in_qty": 150, "out_qty": 75, "in_cnt": 4, "out_cnt": 14},  # D-3
-            {"in_qty": 95,  "out_qty": 52, "in_cnt": 3, "out_cnt": 9},   # D-2
-            {"in_qty": 200, "out_qty": 90, "in_cnt": 5, "out_cnt": 17},  # D-1
-            {"in_qty": 65,  "out_qty": 38, "in_cnt": 2, "out_cnt": 7},   # 오늘
-        ]
-        trend_7d = []
-        for d in range(6, -1, -1):
-            target = today - _td(days=d)
-            p = demo_pattern[6 - d]
-            wday_ko = ['월','화','수','목','금','토','일'][target.weekday()]
-            trend_7d.append({
-                "date": target.strftime("%m-%d"),
-                "iso": target.isoformat(),
-                "wday": wday_ko,
-                "in_qty": p["in_qty"], "out_qty": p["out_qty"],
-                "in_cnt": p["in_cnt"], "out_cnt": p["out_cnt"],
-                "is_today": (d == 0),
-            })
     return ctx(request, "logistics_home.html",
                user=u, active="logistics",
                parts_stats=parts_stats,
-               stock_kpi=s_kpi,
-               trend_7d=trend_7d,
-               demo_mode=demo_mode)
+               stock_kpi=s_kpi)
 
 
 # ── 매출·영업 홈 (신규 · 2026-04-21 도메인 분리) ──────────────
@@ -10899,20 +9843,58 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.parts_list(q=q, biz_div=biz_div, category=category)
-    # v5H226z84: 목록에 대표 구매사 표시 — purchase_prices JSON 요약
-    parts_view = []
-    for r in rows:
-        d = dict(r)
-        try:
-            rep = _logi.purchase_prices_rep(d.get("purchase_prices"))
-        except Exception:
-            rep = {"vendor": "", "vendor_count": 0, "price": None}
-        d["_rep_vendor"] = rep["vendor"]
-        d["_vendor_count"] = rep["vendor_count"]
-        parts_view.append(d)
     return ctx(request, "parts.html",
                user=u, active="parts",
-               parts=parts_view, q=q, biz_div=biz_div, category=category)
+               parts=rows, q=q, biz_div=biz_div, category=category)
+
+
+def _part_autocomplete_options():
+    """v5H226z110d (2026-05-19) — 자재 폼 자동완성 옵션 통합 조회.
+    suppliers + 기존 parts DB의 distinct 값 + 추천 기본값을 합쳐 반환.
+    각 키는 list of str (중복 제거·알파벳 정렬)."""
+    suppliers, makers, categories, origins, units, locations = [], [], [], [], [], []
+    try:
+        with db_session() as c:
+            suppliers = [dict(r) for r in c.execute(
+                "SELECT id, name FROM suppliers WHERE COALESCE(is_active,1)=1 ORDER BY name"
+            ).fetchall()]
+            makers = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(maker) FROM parts WHERE maker IS NOT NULL AND TRIM(maker)<>'' ORDER BY 1"
+            ).fetchall()]
+            categories = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(category) FROM parts WHERE category IS NOT NULL AND TRIM(category)<>'' ORDER BY 1"
+            ).fetchall()]
+            origins = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(origin) FROM parts WHERE origin IS NOT NULL AND TRIM(origin)<>'' ORDER BY 1"
+            ).fetchall()]
+            units = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(unit) FROM parts WHERE unit IS NOT NULL AND TRIM(unit)<>'' ORDER BY 1"
+            ).fetchall()]
+            locations = [r[0] for r in c.execute(
+                "SELECT DISTINCT TRIM(location) FROM parts WHERE location IS NOT NULL AND TRIM(location)<>'' ORDER BY 1"
+            ).fetchall()]
+    except Exception:
+        pass
+    # 추천 기본값 — DB 값이 적을 때 자주 쓰는 값도 보조 제공
+    DEFAULT_ORIGINS = ["한국", "일본", "독일", "중국", "대만", "미국", "이탈리아", "스위스", "프랑스", "베트남"]
+    DEFAULT_UNITS   = ["EA", "SET", "KG", "G", "M", "MM", "L", "ML", "BOX", "ROLL", "PCS"]
+    # 합치고 중복 제거 (DB 값 우선)
+    def _merge(db_vals, defaults):
+        seen = set()
+        out = []
+        for v in db_vals + defaults:
+            v = (v or "").strip()
+            if v and v not in seen:
+                seen.add(v); out.append(v)
+        return out
+    return {
+        "suppliers":  suppliers,           # [{id, name}, ...]
+        "makers":     makers,              # 제조사 distinct 목록 (예: 정밀모터·에어시스템)
+        "categories": categories,
+        "origins":    _merge(origins, DEFAULT_ORIGINS),
+        "units":      _merge(units, DEFAULT_UNITS),
+        "locations":  locations,
+    }
 
 
 @app.get("/parts/new", response_class=HTMLResponse)
@@ -10922,7 +9904,8 @@ async def parts_new_form(request: Request):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
-    return ctx(request, "part_form.html", user=u, active="parts", part=None)
+    return ctx(request, "part_form.html", user=u, active="parts",
+               part=None, **_part_autocomplete_options())
 
 
 @app.post("/parts/new")
@@ -10934,20 +9917,12 @@ async def parts_new_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
-    # v5H226z58 자재모듈 표준 v2 — 신규 13 필드
-    item_account: str = Form(""), procurement_kind: str = Form(""),
-    category_main: str = Form(""), category_series: str = Form(""),
-    reorder_point: str = Form("0"), reorder_qty: str = Form("0"),
-    conversion_factor: str = Form("1"),
-    sub_spec1: str = Form(""), sub_spec2: str = Form(""), sub_spec3: str = Form(""),
-    tax_invoice_name: str = Form(""), trade_invoice_name: str = Form(""),
-    default_warehouse: str = Form(""), hs_code: str = Form(""),
-    # v5H226z83 (2026-05-14) — 매입단가 1~5차 (JSON 문자열)
-    purchase_prices: str = Form(""),
-    # v5H226z99 (2026-05-16) — 용도(카탈로그 검색 보조 자유 텍스트)
     purpose: str = Form(""),
-    # v5H226z58 (2026-05-12) — 자재 중복 방지 3층 방어 (A안): force 플래그
-    force: str = Form("0"),
+    # v5H226z111 (2026-05-19) — 구매사(협력사) 3슬롯 (마스터 검증)
+    vendor1: str = Form(""), vendor2: str = Form(""), vendor3: str = Form(""),
+    # v5H226z110c — 제조사 담당자
+    maker_contact_name: str = Form(""), maker_contact_phone: str = Form(""),
+    maker_contact_email: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -10956,302 +9931,23 @@ async def parts_new_submit(
         return RedirectResponse("/home", 303)
     # v5H113: 검증 실패 친절한 에러
     try:
-        new_pid = _logi.parts_create({
+        _logi.parts_create({
             "part_no": part_no, "part_name": part_name, "spec": spec,
             "maker": maker, "origin": origin, "unit": unit,
             "currency": currency, "std_price": std_price,
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
-            # z58 신규
-            "item_account": item_account, "procurement_kind": procurement_kind,
-            "category_main": category_main, "category_series": category_series,
-            "reorder_point": reorder_point, "reorder_qty": reorder_qty,
-            "conversion_factor": conversion_factor,
-            "sub_spec1": sub_spec1, "sub_spec2": sub_spec2, "sub_spec3": sub_spec3,
-            "tax_invoice_name": tax_invoice_name, "trade_invoice_name": trade_invoice_name,
-            "default_warehouse": default_warehouse, "hs_code": hs_code,
-            # v5H226z83 매입단가 1~5차
-            "purchase_prices": purchase_prices,
-            # v5H226z99 용도
             "purpose": purpose,
-        }, force=(force == "1"))
+            "vendor1": vendor1, "vendor2": vendor2, "vendor3": vendor3,
+            "maker_contact_name": maker_contact_name,
+            "maker_contact_phone": maker_contact_phone,
+            "maker_contact_email": maker_contact_email,
+        })
     except ValueError as ve:
         from urllib.parse import quote
         return RedirectResponse(f"/parts/new?error={quote(str(ve))}", status_code=303)
-    # v5H226z58 (2026-05-12) — 등록 후 수정 페이지로 자동 이동
-    # → 사진/도면 첨부 + QR 라벨 인쇄를 같은 흐름에서 즉시 처리 (UX 단절 해소)
-    from urllib.parse import quote as _q
-    msg = _q("자재 등록 완료 — 아래에서 사진·도면을 첨부하고 QR 라벨을 출력하세요")
-    if new_pid:
-        return RedirectResponse(f"/parts/{int(new_pid)}/edit?success={msg}", status_code=303)
     return RedirectResponse("/parts", status_code=303)
-
-
-# =====================================================
-# v5H226z58 (2026-05-12) — 자재 중복 방지 실시간 검색 API (A안 2층)
-# 라우터: GET /parts/check?name=&spec=&maker=&exclude_id=
-# 응답: JSON {hits: [{id, part_no, part_name, spec, maker, score}], threshold_hard: 85}
-# =====================================================
-# =====================================================
-# v5H226z58 (2026-05-12) — 자재 사업부 일괄 재분류 도구
-# 라우터: GET /parts/reclassify (분포 + 추천 표) / POST /parts/reclassify/apply
-# 근거: stock_movements 출고 → projects.biz_div 사용 분포
-# 운영: 신규 등록 차단 (필수 select) + 기존 200종 정제 (이 라우터)
-# =====================================================
-@app.get("/parts/reclassify", response_class=HTMLResponse)
-async def parts_reclassify_page(request: Request,
-                                focus: str = "공통",
-                                days: int = 365):
-    """사업부 재분류 도구 — 현재 분류 + 실 사용 분포 + 추천."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    from .database import parts_usage_distribution as _pud
-    rows = _pud(focus_biz_div=focus, days=int(days or 365), limit=500)
-    # 통계
-    total = len(rows)
-    rec_m = sum(1 for r in rows if r["recommended"] == "M")
-    rec_t = sum(1 for r in rows if r["recommended"] == "T")
-    rec_common = sum(1 for r in rows if r["recommended"] == "공통")
-    rec_review = sum(1 for r in rows if r["recommended"] == "review")
-    summary = {
-        "total": total,
-        "rec_m": rec_m, "rec_t": rec_t,
-        "rec_common": rec_common, "rec_review": rec_review,
-        "focus": focus, "days": int(days or 365),
-        "actionable_pct": round((rec_m + rec_t) * 100 / total, 1) if total else 0,
-    }
-    return ctx(request, "parts_reclassify.html", user=u, active="parts",
-               rows=rows, summary=summary)
-
-
-@app.post("/parts/reclassify/apply")
-async def parts_reclassify_apply(request: Request):
-    """선택된 자재들의 사업부를 일괄 재분류."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    form = await request.form()
-    # part_id_N (체크박스) + new_biz_div_N (각 행의 추천값) 형식
-    updates = []
-    for key in form.keys():
-        if not key.startswith("apply_"):
-            continue
-        try:
-            pid = int(key.replace("apply_", ""))
-        except ValueError:
-            continue
-        new_bd = (form.get(f"new_{pid}") or "").strip()
-        if pid > 0 and new_bd in ("M", "T", "공통"):
-            updates.append({"part_id": pid, "new_biz_div": new_bd})
-
-    if not updates:
-        return RedirectResponse("/parts/reclassify?error=선택된+자재+없음", 303)
-
-    from .database import parts_bulk_reclassify as _pbr
-    result = _pbr(updates, actor_id=u["id"])
-    from urllib.parse import quote as _q
-    msg = f"재분류 완료: {result['ok']}건 성공 / {len(result['errors'])}건 실패 (총 {result['total']}건)"
-    return RedirectResponse(f"/parts/reclassify?success={_q(msg)}", 303)
-
-
-@app.get("/parts/check")
-async def parts_check_similar(request: Request,
-                              name: str = "", spec: str = "",
-                              maker: str = "", exclude_id: int = 0):
-    """자재 신규 등록 시 입력하는 동안 유사 자재 실시간 노출.
-    debounce 400ms 권장. score ≥ 60 (정보), ≥ 85 (확정 유사 → 등록 차단)."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"hits": [], "error": "login"}, status_code=401)
-    if not can_use_logistics(u):
-        return JSONResponse({"hits": [], "error": "권한 없음"}, status_code=403)
-    name = (name or "").strip()
-    if not name or len(name) < 2:
-        return JSONResponse({"hits": [], "threshold_hard": 85, "threshold_soft": 60})
-    try:
-        sims = _logi.parts_find_similar(
-            name=name, spec=spec, maker=maker,
-            exclude_id=int(exclude_id or 0),
-            limit=5, threshold=60,
-        )
-    except Exception as e:
-        return JSONResponse({"hits": [], "error": str(e)}, status_code=200)
-    return JSONResponse({
-        "hits": [{
-            "id": s["id"], "part_no": s.get("part_no") or "",
-            "part_name": s.get("part_name") or "",
-            "spec": s.get("spec") or "", "maker": s.get("maker") or "",
-            "biz_div": s.get("biz_div") or "",
-            "category": s.get("category") or "",
-            "score": int(s.get("score") or 0),
-        } for s in sims],
-        "threshold_hard": 85, "threshold_soft": 60,
-        "count": len(sims),
-    })
-
-
-# =====================================================
-# v5H226z58 (2026-05-12) — QR 코드 발행 (자재 + 발주)
-# 자재 QR 페이로드: "KNK-PART:{part_no}|{id}"  → 입고·재고관리·창고 라벨용
-# 발주 QR 페이로드: "KNK-PO:{po_number}|{id}"  → 입고 처리 시 QR 스캔 자동 매칭
-# 외부 자산 0건 (Python qrcode 패키지로 SVG 생성, CDN 호출 없음)
-# =====================================================
-import qrcode as _pq_qrcode
-from qrcode.image.svg import SvgPathImage as _pq_SvgPath
-import io as _pq_io
-
-
-def _make_qr_svg(payload: str, scale: int = 6) -> str:
-    """payload 문자열을 SVG QR 코드로 변환. box_size로 크기 조정."""
-    qr = _pq_qrcode.QRCode(
-        version=None, error_correction=_pq_qrcode.constants.ERROR_CORRECT_M,
-        box_size=max(2, int(scale or 6)), border=2,
-    )
-    qr.add_data(payload or "")
-    qr.make(fit=True)
-    img = qr.make_image(image_factory=_pq_SvgPath)
-    buf = _pq_io.BytesIO()
-    img.save(buf)
-    return buf.getvalue().decode("utf-8")
-
-
-@app.get("/parts/{pid}/qr.svg")
-async def parts_qr_svg(request: Request, pid: int, scale: int = 6):
-    """자재 QR (SVG) — 페이로드 'KNK-PART:{part_no}|{id}'.
-    스캔하면 part_no + id 식별 → 입고/재고/창고 라벨에 사용."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"error": "login"}, status_code=401)
-    if not can_use_logistics(u):
-        return JSONResponse({"error": "권한 없음"}, status_code=403)
-    p = _logi.parts_get(pid)
-    if not p:
-        return JSONResponse({"error": "자재 없음"}, status_code=404)
-    payload = f"KNK-PART:{(p['part_no'] or '').strip()}|{int(pid)}"
-    svg = _make_qr_svg(payload, scale=scale)
-    return Response(content=svg, media_type="image/svg+xml")
-
-
-@app.get("/po/{po_id}/qr.svg")
-async def po_qr_svg(request: Request, po_id: int, scale: int = 6):
-    """발주 QR (SVG) — 페이로드 'KNK-PO:{po_number}|{id}'.
-    스캔하면 po_number + id 식별 → 입고 처리 시 자동 매칭."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"error": "login"}, status_code=401)
-    if not can_use_logistics(u):
-        return JSONResponse({"error": "권한 없음"}, status_code=403)
-    try:
-        po = _logi.po_get(po_id)
-    except Exception:
-        po = None
-    if not po:
-        with db_session() as c:
-            row = c.execute("SELECT id, po_number FROM purchase_orders WHERE id=?", (int(po_id),)).fetchone()
-            po = dict(row) if row else None
-    if not po:
-        return JSONResponse({"error": "발주 없음"}, status_code=404)
-    po_no = (po.get("po_number") if isinstance(po, dict) else po["po_number"]) or ""
-    payload = f"KNK-PO:{po_no.strip()}|{int(po_id)}"
-    svg = _make_qr_svg(payload, scale=scale)
-    return Response(content=svg, media_type="image/svg+xml")
-
-
-@app.get("/parts/{pid}/qr/print", response_class=HTMLResponse)
-async def parts_qr_print(request: Request, pid: int, count: int = 12):
-    """자재 QR 라벨 인쇄 view — A4 격자 (3×4 = 12장 기본). 외부 자산 0건."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    p = _logi.parts_get(pid)
-    if not p:
-        return RedirectResponse("/parts", 303)
-    n = max(1, min(int(count or 12), 48))  # 1~48장 (A4 4페이지)
-    return ctx(request, "part_qr_print.html", user=u, part=dict(p),
-               count=n, active="parts")
-
-
-@app.get("/po/{po_id}/qr/print", response_class=HTMLResponse)
-async def po_qr_print(request: Request, po_id: int):
-    """발주 QR 라벨 인쇄 view — 발주서 단독 큰 QR + 발주 요약."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    with db_session() as c:
-        row = c.execute(
-            """SELECT po.*, s.name AS supplier_name
-               FROM purchase_orders po
-               LEFT JOIN suppliers s ON po.supplier_id = s.id
-               WHERE po.id=?""", (int(po_id),)
-        ).fetchone()
-    if not row:
-        return RedirectResponse("/po", 303)
-    return ctx(request, "po_qr_print.html", user=u, po=dict(row), active="po")
-
-
-@app.get("/qr/scan")
-async def qr_scan_resolve(request: Request, payload: str = ""):
-    """QR 스캐너가 디코딩한 payload 문자열을 받아 자재/발주 식별.
-    응답: {type: 'PART'|'PO', id, part_no/po_number, redirect_url}
-    클라이언트(예: 입고 폼)에서 payload 읽고 자동 라우팅에 사용."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"error": "login"}, status_code=401)
-    s = (payload or "").strip()
-    if not s:
-        return JSONResponse({"error": "empty"}, status_code=400)
-    # 페이로드 파싱: "KNK-{TYPE}:{no}|{id}"
-    if s.startswith("KNK-PART:"):
-        body = s[len("KNK-PART:"):]
-        no, _, id_s = body.partition("|")
-        try:
-            pid = int(id_s) if id_s else 0
-        except ValueError:
-            pid = 0
-        # id 우선, fallback part_no 조회
-        p = _logi.parts_get(pid) if pid else None
-        if not p and no:
-            with db_session() as c:
-                row = c.execute("SELECT * FROM parts WHERE part_no=?", (no,)).fetchone()
-                p = dict(row) if row else None
-        if not p:
-            return JSONResponse({"type": "PART", "found": False, "no": no, "id": pid})
-        return JSONResponse({
-            "type": "PART", "found": True,
-            "id": p["id"], "part_no": p["part_no"], "part_name": p["part_name"],
-            "spec": p.get("spec") if isinstance(p, dict) else p["spec"],
-            "redirect_url": f"/parts/{p['id']}",
-        })
-    if s.startswith("KNK-PO:"):
-        body = s[len("KNK-PO:"):]
-        no, _, id_s = body.partition("|")
-        try:
-            po_id = int(id_s) if id_s else 0
-        except ValueError:
-            po_id = 0
-        with db_session() as c:
-            if po_id:
-                row = c.execute("SELECT id, po_number, status FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
-            else:
-                row = c.execute("SELECT id, po_number, status FROM purchase_orders WHERE po_number=?", (no,)).fetchone()
-        if not row:
-            return JSONResponse({"type": "PO", "found": False, "no": no, "id": po_id})
-        return JSONResponse({
-            "type": "PO", "found": True,
-            "id": row["id"], "po_number": row["po_number"], "status": row["status"],
-            "redirect_url": f"/po/{row['id']}/receive",
-        })
-    return JSONResponse({"type": "UNKNOWN", "found": False, "raw": s})
 
 
 @app.get("/parts/{pid}/edit", response_class=HTMLResponse)
@@ -11269,32 +9965,9 @@ async def parts_edit_form(request: Request, pid: int):
         attachments = part_attachments_list(pid)
     except Exception:
         attachments = []
-    # v5H226z81: 완전 삭제 위험 경고용 — 발주/견적/재고이동 연결 건수 + 재고
-    try:
-        del_impact = _logi.parts_delete_impact(pid)
-    except Exception:
-        del_impact = {"stock_qty": 0, "po_refs": 0, "quote_refs": 0,
-                      "movement_refs": 0, "attach_refs": 0}
-    # v5H226z82: 구매사(공급사)별 단가 관리 — 수정 페이지에 단가 섹션 노출
-    try:
-        managed_prices = _logi.part_prices_list(pid)
-    except Exception:
-        managed_prices = []
-    try:
-        price_changes = _logi.price_change_history_list(pid, limit=30)
-    except Exception:
-        price_changes = []
-    try:
-        with db_session() as _c:
-            suppliers = [dict(r) for r in _c.execute(
-                "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
-            ).fetchall()]
-    except Exception:
-        suppliers = []
     return ctx(request, "part_form.html", user=u, active="parts",
-               part=p, attachments=attachments, del_impact=del_impact,
-               managed_prices=managed_prices, price_changes=price_changes,
-               suppliers=suppliers, PRICE_TYPES=PRICE_TYPES, CURRENCIES=CURRENCIES)
+               part=p, attachments=attachments,
+               **_part_autocomplete_options())
 
 
 @app.post("/parts/{pid}/edit")
@@ -11306,18 +9979,12 @@ async def parts_edit_submit(
     std_price: str = Form("0"), biz_div: str = Form(""),
     category: str = Form(""), note: str = Form(""), is_active: str = Form("1"),
     safety_stock: str = Form("0"), location: str = Form(""),
-    # v5H226z58 자재모듈 표준 v2 — 신규 13 필드
-    item_account: str = Form(""), procurement_kind: str = Form(""),
-    category_main: str = Form(""), category_series: str = Form(""),
-    reorder_point: str = Form("0"), reorder_qty: str = Form("0"),
-    conversion_factor: str = Form("1"),
-    sub_spec1: str = Form(""), sub_spec2: str = Form(""), sub_spec3: str = Form(""),
-    tax_invoice_name: str = Form(""), trade_invoice_name: str = Form(""),
-    default_warehouse: str = Form(""), hs_code: str = Form(""),
-    # v5H226z83 (2026-05-14) — 매입단가 1~5차 (JSON 문자열)
-    purchase_prices: str = Form(""),
-    # v5H226z99 (2026-05-16) — 용도(카탈로그 검색 보조 자유 텍스트)
     purpose: str = Form(""),
+    # v5H226z111 (2026-05-19) — 구매사(협력사) 3슬롯 (마스터 검증)
+    vendor1: str = Form(""), vendor2: str = Form(""), vendor3: str = Form(""),
+    # v5H226z110c — 제조사 담당자
+    maker_contact_name: str = Form(""), maker_contact_phone: str = Form(""),
+    maker_contact_email: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -11333,18 +10000,11 @@ async def parts_edit_submit(
             "biz_div": biz_div, "category": category, "note": note,
             "is_active": is_active,
             "safety_stock": safety_stock, "location": location,
-            # z58 신규
-            "item_account": item_account, "procurement_kind": procurement_kind,
-            "category_main": category_main, "category_series": category_series,
-            "reorder_point": reorder_point, "reorder_qty": reorder_qty,
-            "conversion_factor": conversion_factor,
-            "sub_spec1": sub_spec1, "sub_spec2": sub_spec2, "sub_spec3": sub_spec3,
-            "tax_invoice_name": tax_invoice_name, "trade_invoice_name": trade_invoice_name,
-            "default_warehouse": default_warehouse, "hs_code": hs_code,
-            # v5H226z83 매입단가 1~5차
-            "purchase_prices": purchase_prices,
-            # v5H226z99 용도
             "purpose": purpose,
+            "vendor1": vendor1, "vendor2": vendor2, "vendor3": vendor3,
+            "maker_contact_name": maker_contact_name,
+            "maker_contact_phone": maker_contact_phone,
+            "maker_contact_email": maker_contact_email,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -12210,40 +10870,39 @@ async def projects_import_confirm(request: Request):
     })
 
 
-# =====================================================
-# v5H153 (2026-05-05): 고객사 엑셀 일괄 등록
-#   - GET  /customers/import-template  → 양식 .xlsx 다운로드
-#   - POST /customers/import-xlsx      → 업로드 + 파싱 + 검증 + 미리보기 JSON
-#   - POST /customers/import-confirm   → 확정 INSERT/UPDATE (UPSERT by name)
-#  양식: app/static/templates/고객사_일괄등록_양식.xlsx
-#  시트 '고객사' (row3=헤더, row4-6=예제, row7+=입력)
-#  컬럼: 고객사명/사업자등록번호/대표자명/담당자명/전화번호/이메일/주소/등급/활성/비고
-# =====================================================
-CUST_IMPORT_HEADERS = [
-    "고객사명", "사업자등록번호", "대표자명", "담당자명",
-    "전화번호", "이메일", "주소", "등급", "활성", "비고"
-]
-CUST_IMPORT_TIERS = {"A", "B", "C", "VIP", ""}
-
-
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 일괄 업로드 — 처음부터 다시 작성
+#   - GET  /customers/import-template  → 양식 xlsx (안내 + 고객사 + 예제 3행)
+#   - POST /customers/import-xlsx      → 업로드·파싱·검증 → 미리보기 JSON
+#   - POST /customers/import-confirm   → 확정 INSERT / UPDATE (UPSERT by name)
+#   시트: '고객사' row 1 헤더 / row 2+ 데이터 (31컬럼)
+# ==========================================================
 def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
-    """고객사 일괄 등록 양식 파싱.
-    시트 '고객사' row7+ 데이터, 빈 고객사명 행 자동 스킵.
-    예제 row 4-6 도 고객사명이 '예) ...' 또는 자연 스킵 대상."""
+    """v5H226z122: 시트 '고객사' row 2+ 31컬럼 파싱 — 담당자 5명 × 5필드."""
     from openpyxl import load_workbook
     import io as _io
     import re as _re
     wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
-    if "고객사" not in wb.sheetnames:
-        raise ValueError("'고객사' 시트를 찾을 수 없습니다 (양식 파일 확인)")
-    ws = wb["고객사"]
+    sheet_name = None
+    # z122 신 양식 우선 → 구 양식 폴백
+    for candidate in (CUST_DATA_SHEET_NAME, "🏢 고객사 일괄 등록", "고객사 데이터", "Customers"):
+        if candidate in wb.sheetnames:
+            sheet_name = candidate
+            break
+    if not sheet_name:
+        raise ValueError(f"'{CUST_DATA_SHEET_NAME}' 시트를 찾을 수 없습니다")
+    ws = wb[sheet_name]
+    # 데이터 시작 행: z122 = row 2, z121 폴백 = row 5, 구 양식 = row 7
+    if sheet_name == "🏢 고객사 일괄 등록":
+        data_start = 5
+    elif sheet_name == "고객사 데이터":
+        data_start = 7
+    else:
+        data_start = 2
 
     def _to_str(v) -> str:
-        if v is None:
-            return ""
-        return str(v).strip()
+        return "" if v is None else str(v).strip()
 
-    # 기존 고객사 인덱스 (이름 / 사업자번호 정규화) 캐시
     name_map: dict[str, int] = {}
     bizno_map: dict[str, tuple[int, str]] = {}
     try:
@@ -12258,121 +10917,153 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
         pass
 
     email_re = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    EXPECTED_COLS = len(_CUST_XLSX_COLS)  # 31
     out = []
     row_no = 0
-    # row7+ 데이터 (row1-2=제목/안내, row3=헤더, row4-6=예제)
-    for r in ws.iter_rows(min_row=7, values_only=True):
+    for r in ws.iter_rows(min_row=data_start, values_only=True):
         row_no += 1
-        actual_row = row_no + 6
+        actual_row = row_no + data_start - 1
         if not r or all((c is None or str(c).strip() == "") for c in r):
             continue
-        cells = list(r) + [None] * (10 - len(r)) if len(r) < 10 else list(r[:10])
+        cells = list(r) + [None] * (EXPECTED_COLS - len(r)) if len(r) < EXPECTED_COLS else list(r[:EXPECTED_COLS])
         name = _to_str(cells[0])
         if not name:
             continue
-        # 예제 행 잔존 방어
-        if name.startswith("예)") or name.startswith("예 )"):
-            continue
         biz_no_raw = _to_str(cells[1])
         ceo = _to_str(cells[2])
-        manager = _to_str(cells[3])
-        phone = _to_str(cells[4])
-        email = _to_str(cells[5])
-        address = _to_str(cells[6])
-        tier = _to_str(cells[7]).upper()
-        active_raw = _to_str(cells[8])
-        note = _to_str(cells[9])
+        address = _to_str(cells[3])
+        active_raw = _to_str(cells[4])
+        note = _to_str(cells[5])
 
-        errors = []
-        warnings = []
+        if active_raw == "" or active_raw in ("1", "활성", "Y", "y", "True", "true"):
+            is_active = 1
+        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
+            is_active = 0
+        else:
+            is_active = 1
 
-        # 사업자번호: 대시 제거 후 10자리 숫자 검증 (입력 있을 때만)
+        contacts = []
+        for i in range(5):
+            base = 6 + i * 5
+            cname = _to_str(cells[base + 0])
+            cphone = _to_str(cells[base + 1])
+            cemail = _to_str(cells[base + 2])
+            cdept = _to_str(cells[base + 3])
+            cnote = _to_str(cells[base + 4])
+            if not cname:
+                continue
+            contacts.append({
+                "name": cname, "mobile": cphone, "email": cemail,
+                "department": cdept, "note": cnote,
+                "is_primary": 1 if i == 0 else 0,
+            })
+
+        errors, warnings = [], []
         biz_no_norm = _re.sub(r"\D", "", biz_no_raw) if biz_no_raw else ""
         biz_no_display = biz_no_raw
         if biz_no_raw:
             if len(biz_no_norm) != 10 or not biz_no_norm.isdigit():
                 errors.append(f"사업자번호 형식 오류(10자리 숫자): '{biz_no_raw}'")
             else:
-                # 표준 표기 999-99-99999
-                biz_no_display = (
-                    f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
-                )
+                biz_no_display = f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
 
-        # 이메일
-        if email and not email_re.match(email):
-            errors.append(f"이메일 형식 오류: '{email}'")
+        for ci, ct in enumerate(contacts, 1):
+            em = ct.get("email", "")
+            if em and not email_re.match(em):
+                warnings.append(f"{ci}담당자 이메일 형식: '{em}'")
 
-        # 등급
-        if tier not in CUST_IMPORT_TIERS:
-            errors.append(f"등급 화이트리스트 위반: '{tier}' (A/B/C/VIP/공란)")
-            tier = ""
-
-        # 활성: 1/0/공란 → 공란은 1
-        if active_raw == "":
-            is_active = 1
-        elif active_raw in ("1", "활성", "Y", "y", "True", "true"):
-            is_active = 1
-        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
-            is_active = 0
-        else:
-            errors.append(f"활성 값 오류(1/0): '{active_raw}'")
-            is_active = 1
-
-        # UPSERT 모드 판정
         existing_id = name_map.get(name)
         action = "update" if existing_id else "create"
-
-        # 사업자번호 중복 (다른 이름) → 경고만
         if biz_no_norm and biz_no_norm in bizno_map:
             other_id, other_name = bizno_map[biz_no_norm]
             if other_name != name:
-                warnings.append(
-                    f"사업자번호 중복: 기존 '{other_name}' (#{other_id}) 와 동일"
-                )
+                warnings.append(f"사업자번호 중복: 기존 '{other_name}' (#{other_id})")
 
         out.append({
             "row_no": actual_row,
-            "name": name,
-            "biz_no": biz_no_display,
-            "biz_no_norm": biz_no_norm,
-            "ceo_name": ceo,
-            "manager_name": manager,
-            "phone": phone,
-            "email": email,
-            "address": address,
-            "tier": tier,
-            "is_active": is_active,
-            "note": note,
-            "_existing_id": existing_id,
-            "_action": action,
-            "_errors": errors,
-            "_warnings": warnings,
+            "name": name, "biz_no": biz_no_display, "biz_no_norm": biz_no_norm,
+            "ceo_name": ceo, "address": address,
+            "phone": "", "note": note, "is_active": is_active,
+            "contacts": contacts,
+            "manager_name": (contacts[0]["name"] if contacts else ""),
+            "email": "", "tier": "",
+            "_existing_id": existing_id, "_action": action,
+            "_errors": errors, "_warnings": warnings,
         })
     return out
 
 
 @app.get("/customers/import-template")
 async def customers_import_template(request: Request):
-    """고객사 일괄 등록 양식 다운로드 (v5H153)."""
+    """v5H226z122 (2026-05-19): 양식 — 안내 + 고객사 (row1 헤더 + row2~4 예제 3행)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
-    from pathlib import Path as _Path
-    p = _Path(__file__).parent / "static" / "templates" / "고객사_일괄등록_양식.xlsx"
-    if not p.exists():
-        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
-    return FileResponse(
-        str(p),
-        filename="KNK_고객사_일괄등록_양식.xlsx",
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
+    from datetime import datetime as _dt
+
+    wb = Workbook()
+    ws_guide = wb.active
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
+
+    examples = [
+        ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "김부장", "031-555-1235", "kim@goodix.kr", "구매2팀", "결제 담당",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "활성", "",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료 빠른 회신 선호",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+        ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
+         "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+    ]
+    example_fill = PatternFill("solid", fgColor="FFFBEB")
+    example_font = Font(size=10, color="9A3412", italic=True)
+    thin = Side(style="thin", color="EEEEEE")
+    bd_light = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for row_offset, row_data in enumerate(examples):
+        r_idx = 2 + row_offset
+        for c_idx, v in enumerate(row_data, 1):
+            cell = ws_data.cell(row=r_idx, column=c_idx, value=v)
+            cell.font = example_font
+            cell.fill = example_fill
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            cell.border = bd_light
+
+    import io
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_import_template.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사_일괄등록_템플릿_{today}.xlsx')}")},
     )
 
 
 @app.post("/customers/import-xlsx")
 async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
-    """고객사 엑셀 업로드 → 파싱 + 검증 → 미리보기 JSON 반환 (v5H153)."""
+    """v5H226z122: 업로드 → 파싱 + 검증 → 미리보기 JSON 반환."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -12388,21 +11079,15 @@ async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
     error_count = sum(1 for r in rows if r["_errors"])
     warning_count = sum(1 for r in rows if r["_warnings"] and not r["_errors"])
     return JSONResponse({
-        "ok": True,
-        "rows": rows,
-        "total": len(rows),
-        "create_count": create_count,
-        "update_count": update_count,
-        "error_count": error_count,
-        "warning_count": warning_count,
+        "ok": True, "rows": rows, "total": len(rows),
+        "create_count": create_count, "update_count": update_count,
+        "error_count": error_count, "warning_count": warning_count,
     })
 
 
 @app.post("/customers/import-confirm")
 async def customers_import_confirm(request: Request):
-    """미리보기 확정 → INSERT/UPDATE 실행 (v5H153).
-    body JSON: {rows: [...]}.
-    UPDATE 시 빈 칸이 아닌 필드만 갱신(기존 데이터 보호)."""
+    """v5H226z122: 미리보기 확정 → INSERT / UPDATE. 담당자 5명 INSERT (중복 이름 skip)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -12440,13 +11125,11 @@ async def customers_import_confirm(request: Request):
                 is_active = int(r.get("is_active") if r.get("is_active") is not None else 1)
                 note = (r.get("note") or "").strip()
 
-                # 이름으로 기존 행 재조회 (preview 후 동시 변경 가능성 방어)
                 existing = c.execute(
                     "SELECT id FROM customers WHERE name=?", (name,)
                 ).fetchone()
                 if existing:
                     cid = existing["id"] if hasattr(existing, "keys") else existing[0]
-                    # 빈 칸이 아닌 필드만 UPDATE
                     sets, vals = [], []
                     for col, v in (
                         ("biz_no", biz_no), ("ceo_name", ceo),
@@ -12457,7 +11140,6 @@ async def customers_import_confirm(request: Request):
                         if v:
                             sets.append(f"{col}=?")
                             vals.append(v)
-                    # 활성은 명시값 항상 반영
                     sets.append("is_active=?")
                     vals.append(is_active)
                     if sets:
@@ -12467,25 +11149,33 @@ async def customers_import_confirm(request: Request):
                             tuple(vals)
                         )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, cid)
-                        except Exception:
-                            pass
-                    updated.append({"row_no": r.get("row_no"),
-                                    "id": cid, "name": name})
+                        try: _ct.refresh_customer_tier(c, cid)
+                        except Exception: pass
+                    contacts_list = r.get("contacts") or []
+                    for ct in contacts_list:
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
+                            continue
+                        existing_ct = c.execute(
+                            "SELECT id FROM customer_contacts WHERE customer_id=? AND name=?",
+                            (cid, ct_name)
+                        ).fetchone()
+                        if existing_ct:
+                            continue
+                        c.execute(
+                            "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
+                            (cid, ct_name, ct.get("department", ""),
+                             ct.get("mobile", ""), ct.get("email", ""),
+                             int(ct.get("is_primary", 0)), "기타")
+                        )
+                    updated.append({"row_no": r.get("row_no"), "id": cid, "name": name})
                 else:
                     fields = {
-                        "name": name,
-                        # v5H181: '신규' 는 비표준 — 비어있으면 DB DEFAULT '일반' 사용 위해 미포함
-                        "tier": tier or "일반",
-                        "biz_no": biz_no,
-                        "ceo_name": ceo,
-                        "manager_name": manager,
-                        "phone": phone,
-                        "email": email,
-                        "address": address,
-                        "is_active": is_active,
-                        "note": note,
+                        "name": name, "tier": tier or "일반",
+                        "biz_no": biz_no, "ceo_name": ceo,
+                        "manager_name": manager, "phone": phone,
+                        "email": email, "address": address,
+                        "is_active": is_active, "note": note,
                     }
                     cols = ",".join(fields.keys())
                     ph = ",".join(["?"] * len(fields))
@@ -12494,13 +11184,21 @@ async def customers_import_confirm(request: Request):
                         tuple(fields.values())
                     )
                     new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    contacts_list = r.get("contacts") or []
+                    for ct in contacts_list:
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
+                            continue
+                        c.execute(
+                            "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
+                            (new_id, ct_name, ct.get("department", ""),
+                             ct.get("mobile", ""), ct.get("email", ""),
+                             int(ct.get("is_primary", 0)), "기타")
+                        )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, new_id)
-                        except Exception:
-                            pass
-                    created.append({"row_no": r.get("row_no"),
-                                    "id": new_id, "name": name})
+                        try: _ct.refresh_customer_tier(c, new_id)
+                        except Exception: pass
+                    created.append({"row_no": r.get("row_no"), "id": new_id, "name": name})
             except Exception as e:
                 failed.append({"row_no": r.get("row_no"),
                                "name": r.get("name"), "error": str(e)})
@@ -12514,7 +11212,6 @@ async def customers_import_confirm(request: Request):
         "updated": updated,
         "failed": failed,
     })
-
 
 @app.get("/projects/{pid}/edit", response_class=HTMLResponse)
 async def projects_edit_form(request: Request, pid: int):
@@ -12910,7 +11607,7 @@ async def customers_bulk_delete(request: Request):
 
 
 # =====================================================
-# HAIST WORKS — 공급사 (suppliers) 라우트
+# HAIST WORKS — 협력사 (suppliers) 라우트
 # =====================================================
 @app.get("/suppliers", response_class=HTMLResponse)
 async def suppliers_list_page(request: Request, q: str = ""):
@@ -12934,8 +11631,7 @@ async def suppliers_new_form(request: Request):
         return RedirectResponse("/home", 303)
     return ctx(request, "supplier_form.html",
                user=u, active="suppliers", supplier=None,
-               PAYMENT_TERMS=_logi.PAYMENT_TERMS,
-               DEPT_OPTIONS=_logi.teams_name_list())
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS)
 
 
 @app.post("/suppliers/new")
@@ -12945,11 +11641,6 @@ async def suppliers_new_submit(
     email: str = Form(""), phone: str = Form(""), country: str = Form(""),
     currency: str = Form("KRW"), payment_terms: str = Form(""),
     note: str = Form(""), is_active: str = Form("1"),
-    # v5H226z89 — 사업자등록번호·대표자
-    biz_no: str = Form(""), ceo_name: str = Form(""),
-    # v5H226z90 — 관리부서 + 담당자2 풀세트
-    manage_dept: str = Form(""), contact2: str = Form(""),
-    phone2: str = Form(""), email2: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -12962,9 +11653,6 @@ async def suppliers_new_submit(
             "name": name, "code": code, "contact": contact, "email": email,
             "phone": phone, "country": country, "currency": currency,
             "payment_terms": payment_terms, "note": note, "is_active": is_active,
-            "biz_no": biz_no, "ceo_name": ceo_name,
-            "manage_dept": manage_dept, "contact2": contact2,
-            "phone2": phone2, "email2": email2,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -12987,8 +11675,7 @@ async def suppliers_edit_form(request: Request, sid: int):
     return ctx(request, "supplier_form.html",
                user=u, active="suppliers", supplier=s,
                leadtime=leadtime,
-               PAYMENT_TERMS=_logi.PAYMENT_TERMS,
-               DEPT_OPTIONS=_logi.teams_name_list())
+               PAYMENT_TERMS=_logi.PAYMENT_TERMS)
 
 
 @app.post("/suppliers/{sid}/edit")
@@ -12998,11 +11685,6 @@ async def suppliers_edit_submit(
     email: str = Form(""), phone: str = Form(""), country: str = Form(""),
     currency: str = Form("KRW"), payment_terms: str = Form(""),
     note: str = Form(""), is_active: str = Form("1"),
-    # v5H226z89 — 사업자등록번호·대표자
-    biz_no: str = Form(""), ceo_name: str = Form(""),
-    # v5H226z90 — 관리부서 + 담당자2 풀세트
-    manage_dept: str = Form(""), contact2: str = Form(""),
-    phone2: str = Form(""), email2: str = Form(""),
 ):
     _u = get_user(request)
     if not _u:
@@ -13015,9 +11697,6 @@ async def suppliers_edit_submit(
             "name": name, "code": code, "contact": contact, "email": email,
             "phone": phone, "country": country, "currency": currency,
             "payment_terms": payment_terms, "note": note, "is_active": is_active,
-            "biz_no": biz_no, "ceo_name": ceo_name,
-            "manage_dept": manage_dept, "contact2": contact2,
-            "phone2": phone2, "email2": email2,
         })
     except ValueError as ve:
         from urllib.parse import quote
@@ -13037,214 +11716,9 @@ async def suppliers_delete_submit(request: Request, sid: int):
         _logi.supplier_delete(sid)
     except Exception as e:
         return JSONResponse(
-            {"ok": False, "error": f"공급사 삭제 실패: {e}"}, status_code=400
+            {"ok": False, "error": f"협력사 삭제 실패: {e}"}, status_code=400
         )
     return RedirectResponse("/suppliers", status_code=303)
-
-
-# =====================================================
-# v5H226z88 (2026-05-14) — 공급사 일괄 등록 (Excel) — 자재 일괄등록과 동일 패턴
-#   GET  /suppliers/import               → 업로드 폼 + 가이드
-#   POST /suppliers/import               → 업로드 → 검증 → 미리보기 (dry_run)
-#   POST /suppliers/import/apply         → 실제 INSERT
-#   GET  /suppliers/import/template.xlsx → 빈 템플릿 다운로드
-# =====================================================
-@app.get("/suppliers/import", response_class=HTMLResponse)
-async def suppliers_import_page(req: Request):
-    """공급사 일괄 등록 진입 — view 권한이면 페이지 노출, 실제 등록(POST)에서만 use 권한 확인."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
-    has_write = can_use_logistics(u)
-    return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-               result=None, mode="upload", has_write=has_write)
-
-
-@app.post("/suppliers/import")
-async def suppliers_import_submit(req: Request, file: UploadFile = File(...)):
-    """엑셀 업로드 → 검증 + 미리보기 (dry_run=True). 실제 INSERT는 /apply 에서."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    raw = await file.read()
-    if not raw:
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result={"error": "빈 파일입니다"}, mode="upload")
-    if len(raw) > 10 * 1024 * 1024:
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result={"error": "파일이 너무 큽니다 (10MB 제한)"}, mode="upload")
-    fname = (file.filename or "upload.xlsx")
-    if not fname.lower().endswith((".xlsx", ".xlsm")):
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result={"error": "Excel 파일(.xlsx)만 지원합니다 (현재: " + fname + ")"},
-                   mode="upload")
-    import tempfile, os, base64
-    tmp_dir = tempfile.mkdtemp(prefix="suppliers_import_")
-    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
-    with open(tmp_path, "wb") as f:
-        f.write(raw)
-    try:
-        from .database import suppliers_bulk_import_excel as _sbi
-        result = _sbi(tmp_path, dry_run=True)
-    except Exception as e:
-        result = {"error": f"파싱 오류: {e}"}
-    file_b64 = base64.b64encode(raw).decode("ascii") if not result.get("error") else ""
-    try:
-        os.remove(tmp_path)
-        os.rmdir(tmp_dir)
-    except Exception:
-        pass
-    return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-               result=result, mode="preview", file_b64=file_b64, filename=fname)
-
-
-@app.post("/suppliers/import/apply")
-async def suppliers_import_apply(req: Request,
-                                  file_b64: str = Form(""),
-                                  filename: str = Form("upload.xlsx")):
-    """미리보기 후 사용자 confirm → 실제 INSERT 실행."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    import base64, tempfile, os
-    try:
-        raw = base64.b64decode(file_b64 or "")
-    except Exception:
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result={"error": "파일 데이터 손상 — 다시 업로드해주세요"}, mode="upload")
-    if not raw:
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result={"error": "파일 데이터 없음 — 다시 업로드해주세요"}, mode="upload")
-    tmp_dir = tempfile.mkdtemp(prefix="suppliers_import_apply_")
-    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
-    with open(tmp_path, "wb") as f:
-        f.write(raw)
-    try:
-        from .database import suppliers_bulk_import_excel as _sbi
-        result = _sbi(tmp_path, dry_run=False)
-    except Exception as e:
-        result = {"error": f"등록 오류: {e}"}
-    try:
-        os.remove(tmp_path)
-        os.rmdir(tmp_dir)
-    except Exception:
-        pass
-    # v5H226z97: 파싱/실행 오류는 import 페이지에 유지, 정상 완료 시 공급사 마스터로 리다이렉트
-    if result.get("error"):
-        return ctx(req, "suppliers_import.html", user=u, active="suppliers",
-                   result=result, mode="result", filename=filename)
-    s = result.get("summary") or {}
-    from urllib.parse import urlencode
-    qs = urlencode({
-        "imported": s.get("inserted", 0),
-        "dup": s.get("dup", 0),
-        "err": s.get("error", 0),
-        "total": result.get("total", 0),
-    })
-    return RedirectResponse(f"/suppliers?{qs}", status_code=303)
-
-
-@app.get("/suppliers/import/template.xlsx")
-async def suppliers_import_template(req: Request):
-    """빈 공급사 일괄 등록 템플릿 — 헤더 + 예시 2행 + 가이드 시트."""
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment
-    except ImportError:
-        return JSONResponse({"error": "openpyxl 미설치"}, 500)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "공급사 일괄 등록"
-    headers = [
-        ("공급사명 *", 26), ("사업자등록번호", 16), ("대표자", 12), ("관리부서", 14),
-        ("담당자1", 14), ("전화1", 15), ("이메일1", 22),
-        ("담당자2", 14), ("전화2", 15), ("이메일2", 22),
-        ("국가", 10), ("통화", 8), ("결제조건", 12), ("활성", 8), ("비고", 24),
-    ]
-    head_font = Font(bold=True, color="FFFFFF", size=11)
-    head_fill = PatternFill("solid", fgColor="0F172A")
-    for i, (h, w) in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=i, value=h)
-        cell.font = head_font
-        cell.fill = head_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        ws.column_dimensions[cell.column_letter].width = w
-    ws.row_dimensions[1].height = 28
-    examples = [
-        ["공원전기(주)", "134-29-36670", "나수미", "구매팀",
-         "김담당", "02-1234-5678", "sales@gongwon.co.kr",
-         "이대리", "010-1111-2222", "cs@gongwon.co.kr",
-         "한국", "KRW", "30일", 1, "전장 부품 주력"],
-        ["(주)우리산전", "124-38-89075", "이은서", "검사기팀",
-         "이과장", "031-987-6543", "info@woori.co.kr",
-         "", "", "",
-         "한국", "KRW", "현금", 1, ""],
-    ]
-    for r_idx, row in enumerate(examples, 2):
-        for c_idx, val in enumerate(row, 1):
-            ws.cell(row=r_idx, column=c_idx, value=val)
-    ws2 = wb.create_sheet("작성 가이드")
-    guide = [
-        "v5H226z88 공급사 일괄 등록 가이드",
-        "",
-        "[필수 컬럼]",
-        "  공급사명 (name) — 기존 공급사명/코드와 중복 시 자동 제외",
-        "",
-        "[선택 컬럼]",
-        "  사업자등록번호, 대표자, 관리부서, 담당자1, 전화1, 이메일1,",
-        "  담당자2, 전화2, 이메일2, 국가, 통화, 결제조건, 활성, 비고",
-        "",
-        "[헤더명 자동 매핑]",
-        "  공급사명 = 거래처명 = 회사명 = 업체명 = name = supplier",
-        "  사업자등록번호 = 사업자번호 = biz_no   /   대표자 = 대표 = 대표이사 = ceo",
-        "  관리부서 = 담당부서 = 부서 = dept (사내 부서명)",
-        "  담당자1 = 담당자 = 담당 = contact   /   담당자2 = 보조담당자 = contact2",
-        "  전화1 = 전화 = 연락처 = phone   /   전화2 = 연락처2 = phone2",
-        "  이메일1 = 이메일 = email   /   이메일2 = email2",
-        "  통화 = currency (KRW/USD/JPY/CNY/EUR/VND)",
-        "  결제조건 = 결제 = payment_terms   /   활성 = 사용여부 (1/0, Y/N)",
-        "",
-        "[처리 흐름]",
-        "  1) 업로드 → 검증 미리보기 (DB INSERT 없음)",
-        "  2) 결과 확인 (ok / dup / error)",
-        "  3) [등록 확정] 버튼 → 정상(ok) 행만 INSERT",
-        "",
-        "[제한]",
-        "  · 파일 크기 10MB 이하",
-        "  · 미리보기 최대 200건",
-    ]
-    for r_idx, line in enumerate(guide, 1):
-        ws2.cell(row=r_idx, column=1, value=line)
-    ws2.column_dimensions["A"].width = 80
-    ws2["A1"].font = Font(bold=True, size=14)
-    import io as _io
-    from urllib.parse import quote as _q
-    buf = _io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    # v5H226z92 FIX: 한글 파일명 → latin-1 HTTP 헤더 인코딩 실패 방지 (RFC 5987)
-    _fname_kr = "KNK_공급사_일괄등록_템플릿.xlsx"
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": (
-                'attachment; filename="KNK_suppliers_import_template.xlsx"; '
-                f"filename*=UTF-8''{_q(_fname_kr)}"
-            ),
-        },
-    )
 
 
 # =====================================================
@@ -13376,9 +11850,6 @@ async def po_new_submit(request: Request):
         "payment_terms": form.get("payment_terms", ""),
         "po_type": form.get("po_type", "일반"),
         "note": form.get("note", ""),
-        # v5H226z58 자재모듈 표준 v2 — VAT 모드 + 과세구분
-        "vat_mode": form.get("vat_mode", "vat_excluded"),
-        "tax_classification": form.get("tax_classification", "taxable"),
     }
     # 라인 파싱: item_part_id[], item_qty[], item_price[], item_delivery[], item_note[]
     items = _parse_po_lines_from_form(form)
@@ -13497,9 +11968,6 @@ async def po_edit_submit(request: Request, po_id: int):
         "payment_terms": form.get("payment_terms", ""),
         "po_type": form.get("po_type", "일반"),
         "note": form.get("note", ""),
-        # v5H226z58: VAT 모드 + 과세구분
-        "vat_mode": form.get("vat_mode", "vat_excluded"),
-        "tax_classification": form.get("tax_classification", "taxable"),
     }
     # v5H112: 라인 id 파싱 (UPSERT 위해) — 신규 라인은 빈 값
     items = _parse_po_lines_from_form(form, with_id=True)
@@ -13666,10 +12134,8 @@ async def parts_price_create_submit(
             pass  # 본 등록은 성공했으므로 훅 실패는 흡수
     except Exception as e:
         from urllib.parse import quote
-        # v5H226z82: 단가 등록 폼이 수정 페이지로 이동 → 리다이렉트도 수정 페이지
-        return RedirectResponse(f"/parts/{pid}/edit?error={quote(str(e))}", 303)
-    return RedirectResponse(
-        f"/parts/{pid}/edit?success=%EA%B5%AC%EB%A7%A4%EC%B2%98+%EB%8B%A8%EA%B0%80%EA%B0%80+%EB%93%B1%EB%A1%9D%EB%90%98%EC%97%88%EC%8A%B5%EB%8B%88%EB%8B%A4", 303)
+        return RedirectResponse(f"/parts/{pid}?error={quote(str(e))}", 303)
+    return RedirectResponse(f"/parts/{pid}?price_added=1", 303)
 
 
 @app.post("/parts/prices/{price_id}/approve")
@@ -13681,14 +12147,12 @@ async def parts_price_approve_submit(request: Request, price_id: int):
         row = c.execute("SELECT part_id FROM part_prices WHERE id=?", (price_id,)).fetchone()
     part_price_approve(price_id, user_id=u["id"])
     pid = row["part_id"] if row else 0
-    # v5H226z82: 수정 페이지로 복귀
-    return RedirectResponse(
-        f"/parts/{pid}/edit?success=%EB%8B%A8%EA%B0%80%EA%B0%80+%EC%8A%B9%EC%9D%B8%EB%90%98%EC%97%88%EC%8A%B5%EB%8B%88%EB%8B%A4", 303)
+    return RedirectResponse(f"/parts/{pid}?approved=1", 303)
 
 
 @app.get("/parts/{pid:int}", response_class=HTMLResponse)
 async def parts_detail_page(request: Request, pid: int):
-    """부품 상세 — FIFO 레이어, 공급사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
+    """부품 상세 — FIFO 레이어, 협력사 단가 이력, 적용일자 단가, 입출고 이력 통합"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -13727,7 +12191,7 @@ async def parts_detail_page(request: Request, pid: int):
     # 적용일자 단가 (동적 변수 ②)
     managed_prices = part_prices_list(pid)
     active_price = part_active_price(pid)
-    # 공급사 선택지 (단가 등록 폼용)
+    # 협력사 선택지 (단가 등록 폼용)
     with db_session() as c:
         suppliers = [dict(r) for r in c.execute(
             "SELECT id, name FROM suppliers WHERE is_active=1 ORDER BY name"
@@ -13737,6 +12201,24 @@ async def parts_detail_page(request: Request, pid: int):
         attachments = part_attachments_list(pid)
     except Exception:
         attachments = []
+    # v5H226z111 (2026-05-19) — 구매사 1·2·3 → 협력사 마스터 자동 연결 (담당자·연락처 표시용)
+    vendors_info = []  # [{slot:1, info:{...}}, ...]  info 가 None이면 마스터 미등록
+    try:
+        with db_session() as _c:
+            for _slot in (1, 2, 3):
+                _name = (part.get(f"vendor{_slot}") or "").strip()
+                if not _name:
+                    continue
+                _row = _c.execute(
+                    "SELECT * FROM suppliers WHERE name=? AND COALESCE(is_active,1)=1 LIMIT 1",
+                    (_name,)
+                ).fetchone()
+                vendors_info.append({"slot": _slot, "name": _name,
+                                     "info": dict(_row) if _row else None})
+    except Exception:
+        vendors_info = []
+    # 하위호환: 기존 템플릿 default_supplier_info 참조 보호 (vendor1을 기본 협력사로 매핑)
+    default_supplier_info = (vendors_info[0]["info"] if vendors_info and vendors_info[0]["info"] else None)
     # v5H136 (2026-05-05): 자재가 어떤 프로젝트(장비)에서 얼마나 쓰였는지 (소모품 식별)
     project_usage = []
     try:
@@ -13754,6 +12236,8 @@ async def parts_detail_page(request: Request, pid: int):
                stock_self_heal=stock_self_heal,
                suppliers=suppliers,
                attachments=attachments,
+               default_supplier_info=default_supplier_info,
+               vendors_info=vendors_info,
                project_usage=project_usage,
                CURRENCIES=CURRENCIES, PRICE_TYPES=PRICE_TYPES,
                active="parts")
@@ -14195,7 +12679,7 @@ _PARTS_UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                   "uploads", "parts")
 _PARTS_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".pdf", ".dwg", ".dxf", ".gif"}
 _PARTS_MAX_BYTES = 20 * 1024 * 1024  # 20MB (원본 — 클라이언트에서 더 줄여 보내라고 안내)
-_PARTS_KIND_WHITELIST = {"photo", "drawing", "datasheet", "other", "spec"}  # v5H226z99: 4종(사진/도면/데이터시트/기타) + 기존 spec 하위호환
+_PARTS_KIND_WHITELIST = {"photo", "drawing", "spec"}
 
 
 def _parts_safe_filename(name: str) -> str:
@@ -20116,14 +18600,3 @@ async def api_parts_search(request: Request, q: str = ""):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
     return JSONResponse({"ok": True, "rows": rows})
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# v5H226z104 (2026-05-16) — 워크플로우 레고 빌더 라우트 등록
-# 대표 결재: (c) 1+2차 통합 모드
-# ═══════════════════════════════════════════════════════════════════════════════
-try:
-    from . import workflow_builder as _wfb
-    _wfb.register_workflow_routes(app, tpl, ctx, get_user, db_session)
-    print("[WFB] workflow lego builder routes registered (z104)")
-except Exception as _e:
-    print(f"[WFB ERR] {_e}")

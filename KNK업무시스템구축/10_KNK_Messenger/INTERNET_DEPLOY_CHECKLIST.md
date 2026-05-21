@@ -217,7 +217,7 @@ cd "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\10_KNK_Messenger"
 
 ### G-2. 기술영업팀 합류 (3~5일, dev 모드) [ ]
 - 6명에게 URL + ID/임시비번 안내 (시드: lhr, lh, okh, bsj, ajy, lsr / 모두 `knk1234`)
-- 카톡 그룹과 병행, 자료는 우리 메신저에 업로드
+- 기존 메신저 그룹과 병행, 자료는 우리 메신저에 업로드
 - 발견된 문제 → 빅터 sync로 즉시 패치
 
 ### G-3. UptimeRobot 등록 [ ]
@@ -247,9 +247,9 @@ sudo bash /opt/knk_messenger/deploy/promote_to_production.sh
 - 한/베 이중 안내 메일 (빅터 초안 작성)
 - 응답속도 (~70-100ms) 체감 확인
 
-### G-6. 카톡 → 메신저 전환 공지 [ ]
-- 카톡 전사 공지: "신규 자료는 메신저로, 카톡은 1개월 읽기전용 병행"
-- 1개월 후 카톡 그룹 정리
+### G-6. 기존 메신저 → 메신저 전환 공지 [ ]
+- 기존 메신저 전사 공지: "신규 자료는 메신저로, 기존 메신저은 1개월 읽기전용 병행"
+- 1개월 후 기존 메신저 그룹 정리
 
 ### G-7. (선택) S3 백업 연결 [ ]
 1. AWS S3 → 버킷 생성 `knk-messenger-backup` (Tokyo)
@@ -280,7 +280,7 @@ ls -lh /opt/knk_messenger/backups/
 | UptimeRobot | ₩0 |
 | **합계** | **약 ₩15,400/월** |
 
-카카오워크 Mini 140명 ₩406,000/월 대비 **26배 절감**.
+상용 메신저(유료) 140명 약 ₩406,000/월 대비 **26배 절감**.
 
 ---
 
@@ -322,7 +322,7 @@ ls -lh /opt/knk_messenger/backups/
                                                             [로컬 코드 수정] (반복)
 
 며칠 안정 확인 후:
-[ssh -> promote_to_production.sh] -> 운영 모드 전환 -> 카톡 전환 공지
+[ssh -> promote_to_production.sh] -> 운영 모드 전환 -> 기존 메신저 전환 공지
 ```
 
 각 사이클 1분 이내. 베트남·iOS·푸시·PWA 모두 진짜 환경에서 검증된 상태로 운영 모드 진입.

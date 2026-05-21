@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>KNK 메신저 — 아이템 대시보드</title>
+  <title>KNK 메신저 — 프로젝트 대시보드</title>
   <link rel="manifest" href="{{ base_path }}/manifest.json">
   <meta name="theme-color" content="#A5282C">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
@@ -13,7 +13,7 @@
   <header class="dash-head">
     <div class="dash-head-left">
       <a href="{{ base_path }}/chat" class="back-to-chat">← 채팅으로</a>
-      <h1>📊 아이템 대시보드</h1>
+      <h1>📊 프로젝트 대시보드</h1>
     </div>
     <div class="dash-head-right">
       <span class="me-name-pill">
@@ -27,7 +27,7 @@
   <section class="dash-summary" id="dashSummary"></section>
 
   <section class="dash-controls">
-    <input id="dashSearch" type="search" placeholder="🔍 고객사·아이템·코드 검색">
+    <input id="dashSearch" type="search" placeholder="🔍 고객사·프로젝트·코드 검색">
     <div class="dash-filter-bar" id="dashFilterBar">
       <button class="chip active" data-status="all" type="button">전체</button>
       <button class="chip" data-status="active" type="button">진행중</button>
@@ -105,7 +105,7 @@
         const totalImg = items.reduce((s, i) => s + i.image_count, 0);
         const totalFile = items.reduce((s, i) => s + i.file_count, 0);
         summary.innerHTML = `
-          <div class="dash-stat"><div class="dash-stat-num">${total}</div><div class="dash-stat-label">아이템 (진행 ${active})</div></div>
+          <div class="dash-stat"><div class="dash-stat-num">${total}</div><div class="dash-stat-label">프로젝트 (진행 ${active})</div></div>
           <div class="dash-stat"><div class="dash-stat-num">${totalReqs}</div><div class="dash-stat-label">열린 요청</div></div>
           <div class="dash-stat"><div class="dash-stat-num">${totalImg}</div><div class="dash-stat-label">사진</div></div>
           <div class="dash-stat"><div class="dash-stat-num">${totalFile}</div><div class="dash-stat-label">파일</div></div>
@@ -115,7 +115,7 @@
       function render() {
         const list = filtered();
         if (!list.length) {
-          grid.innerHTML = `<div class="empty-state" style="padding:48px;color:#9ca3af;text-align:center;width:100%">조건에 맞는 아이템이 없습니다.</div>`;
+          grid.innerHTML = `<div class="empty-state" style="padding:48px;color:#9ca3af;text-align:center;width:100%">조건에 맞는 프로젝트이 없습니다.</div>`;
           return;
         }
         grid.innerHTML = list.map(i => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>IC 페어 모니터 · KNK HAIST WORKS</title>
+<title>사내거래 짝 모니터 (법인 간 매매) · KNK HAIST WORKS</title>
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
@@ -36,42 +36,42 @@
 {% include "_v5_partials/chrome.html" %}
 <main class="main">
   <div class="page-head">
-    <div class="page-meta">WORKFLOW · IC PAIRS · z104</div>
-    <h1 class="page-title">⚡ IC 페어 모니터 (회계팀)</h1>
-    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:4px;">본사↔법인 양방향 매출·매입 거래를 한 화면에서 매칭 확인.</div>
+    <div class="page-meta">일순서 · 사내거래 짝 · z104</div>
+    <h1 class="page-title">⚡ 사내거래 짝 모니터 (법인 간 매매) — 회계팀</h1>
+    <div style="font-size:12px; color:var(--qv-ink-3); margin-top:4px;">본사 ↔ 법인 사이 양방향 매출·매입 거래를 한 화면에서 짝짓기 확인.</div>
   </div>
 
   <div class="wrap">
     <div class="kpi">
-      <div class="card"><div class="label">⏳ 매칭 대기</div><div class="value" style="color:#92400e;">{{ counts.get('pending', 0) }}</div></div>
-      <div class="card"><div class="label">✓ 매칭 완료</div><div class="value" style="color:#166534;">{{ counts.get('matched', 0) }}</div></div>
-      <div class="card"><div class="label">🔒 클로즈</div><div class="value" style="color:#3730a3;">{{ counts.get('closed', 0) }}</div></div>
+      <div class="card"><div class="label">⏳ 짝짓기 대기</div><div class="value" style="color:#92400e;">{{ counts.get('pending', 0) }}</div></div>
+      <div class="card"><div class="label">✓ 짝짓기 완료</div><div class="value" style="color:#166534;">{{ counts.get('matched', 0) }}</div></div>
+      <div class="card"><div class="label">🔒 마감</div><div class="value" style="color:#3730a3;">{{ counts.get('closed', 0) }}</div></div>
       <div class="card"><div class="label">전체</div><div class="value">{{ pairs|length }}</div></div>
     </div>
 
     <div class="filter-bar">
       <a href="?status=" class="{% if not status_filter %}on{% endif %}">전체</a>
       <a href="?status=pending" class="{% if status_filter=='pending' %}on{% endif %}">⏳ 대기</a>
-      <a href="?status=matched" class="{% if status_filter=='matched' %}on{% endif %}">✓ 매칭</a>
-      <a href="?status=closed" class="{% if status_filter=='closed' %}on{% endif %}">🔒 클로즈</a>
+      <a href="?status=matched" class="{% if status_filter=='matched' %}on{% endif %}">✓ 짝짓기</a>
+      <a href="?status=closed" class="{% if status_filter=='closed' %}on{% endif %}">🔒 마감</a>
     </div>
 
     <table class="tbl">
       <thead><tr>
-        <th>페어코드</th><th>프로젝트</th><th>매출→매입</th><th>금액</th><th>상태</th><th>매칭일시</th>
+        <th>짝 코드</th><th>프로젝트</th><th>매출 → 매입</th><th>금액</th><th>상태</th><th>짝짓기 일시</th>
       </tr></thead>
       <tbody>
       {% for p in pairs %}
       <tr>
         <td><code style="font-size:11px;">{{ p.pair_code }}</code></td>
         <td><a href="/workflow/project/{{ p.project_id }}" style="color:#3730a3;">{{ p.mgmt_code or '' }} {{ p.project_name or '-' }}</a></td>
-        <td><span class="chip k-{{ p.sell_entity|lower }}">{{ p.sell_entity }}</span> → <span class="chip k-{{ p.buy_entity|lower }}">{{ p.buy_entity }}</span></td>
+        <td><span class="chip k-{{ p.sell_entity|lower }}">{{ p.sell_entity|replace('KR','한국')|replace('VN','베트남') }}</span> → <span class="chip k-{{ p.buy_entity|lower }}">{{ p.buy_entity|replace('KR','한국')|replace('VN','베트남') }}</span></td>
         <td style="font-family:monospace;">{% if p.amount %}{{ '{:,.0f}'.format(p.amount) }} {{ p.currency }}{% else %}—{% endif %}</td>
         <td><span class="s-{{ p.status }}">{{ p.status }}</span></td>
         <td style="font-size:11px; color:var(--qv-ink-3);">{{ p.matched_at or '—' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center; padding:40px; color:var(--qv-ink-3);">IC 페어가 없습니다.</td></tr>
+      <tr><td colspan="6" style="text-align:center; padding:40px; color:var(--qv-ink-3);">사내거래 짝이 없습니다.</td></tr>
       {% endfor %}
       </tbody>
     </table>

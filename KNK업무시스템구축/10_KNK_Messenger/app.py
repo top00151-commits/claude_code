@@ -10,6 +10,7 @@ import json
 import base64
 import mimetypes
 import sqlite3
+import secrets
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -34,7 +35,7 @@ UPLOAD_DIR = os.path.join(APP_DIR, "data", "uploads")
 PORT = int(os.environ.get("KNK_MSG_PORT", "5050"))
 # 업로드 한도 — DWG 도면·동영상 대비 500MB 기본. 환경변수로 조정 가능.
 # Synology Reverse Proxy / nginx 의 client_max_body_size 도 동시에 키워야 함.
-MAX_UPLOAD_MB = int(os.environ.get("KNK_MSG_MAX_UPLOAD_MB", "500"))
+MAX_UPLOAD_MB = int(os.environ.get("KNK_MSG_MAX_UPLOAD_MB", "1000"))   # 요청당 전체 1GB (대표 지시 2026-05-19. nginx client_max_body_size 함께 조정 필요)
 MESSAGE_RETENTION_MONTHS = int(os.environ.get("KNK_MSG_RETENTION_MONTHS", "12"))
 VAPID_PRIV_PATH = os.path.join(APP_DIR, "data", "vapid_private.pem")
 VAPID_CONTACT = os.environ.get("KNK_MSG_CONTACT", "mailto:admin@knknara.co.kr")
@@ -43,6 +44,30 @@ VAPID_CONTACT = os.environ.get("KNK_MSG_CONTACT", "mailto:admin@knknara.co.kr")
 # 운영 모드: KNK_MSG_ENV=production 으로 켜면 보안 헤더·HTTPS 강제·CORS 제한 활성
 ENV = os.environ.get("KNK_MSG_ENV", "development").lower()
 IS_PRODUCTION = ENV == "production"
+
+# === 최고관리자(소유자) — 대표 지시 2026-05-21 ===
+# 이 username 계정은 부팅 시 자동으로 관리자(ceo)·활성 보장되고,
+# 강등·비활성·삭제가 차단(보호)되며, 화면에 '👑 최고관리자' 로 표시된다.
+# 코드/환경변수로 지정되므로 운영 DB 를 직접 안 만져도 배포(재시작)만으로 적용.
+OWNER_USERNAME = os.environ.get("KNK_MSG_OWNER_USERNAME", "top0015@knknara.co.kr").strip().lower()
+
+def _is_owner(username):
+    """이 계정이 최고관리자(소유자)인지."""
+    return bool(username) and str(username).strip().lower() == OWNER_USERNAME
+
+
+def _is_team_lead(user):
+    """직급(title)에 '팀장' 포함 = 팀장. (대표 지시 2026-05-21 — 채널 생성·관리 권한)"""
+    try:
+        return bool(user) and ("팀장" in (user["title"] or ""))
+    except Exception:
+        return False
+
+
+def _norm_dept(dept):
+    """부서 정규화 — 끝의 (괄호) 제거. 동일 부서 인식용.
+    예) '04 설계팀(자동화)'·'04 설계팀(검사기)' → '04 설계팀' (대표 지시 2026-05-21)."""
+    return re.sub(r'\s*\([^)]*\)\s*$', '', (dept or '').strip())
 # Socket.IO async_mode: 개발=threading(Windows OK), 운영=eventlet(gunicorn worker)
 ASYNC_MODE = os.environ.get("KNK_MSG_ASYNC", "threading")
 # CORS allowed origins: 콤마 구분. 예) "https://o.knknara.co.kr"
@@ -109,7 +134,7 @@ def vapid_public_key_b64u():
         return None
 
 
-# ---------- Presence (Telegram-style: PC 활성 시 모바일 푸시 억제) ----------
+# ---------- Presence (PC 활성 시 모바일 푸시 억제) ----------
 # 메모리 내 SID 매핑: uid -> { sid: {"device": "pc"|"mobile"|"unknown", "active": bool, "ts": float} }
 # 단일 worker (eventlet) 환경 가정. 멀티 워커 확장 시 Redis 등으로 교체 필요.
 import threading as _pres_threading
@@ -142,22 +167,57 @@ def _presence_unregister(uid, sid):
         if not conns:
             _user_connections.pop(uid, None)
 
+# PC presence 가 이 시간(초) 이상 갱신 안 되면 "실제로 보고 있지 않음"(절전·자리비움)으로 간주.
+# 클라이언트가 30초마다 heartbeat 를 보내므로, 60초 = heartbeat 2회 누락 시 비활성 판정.
+# (대표 지시 2026-05-20: PC 켜둬도 자리 비우면 모바일 알림 와야 함)
+_PC_ACTIVE_STALE_SEC = 60
+
 def _user_has_active_pc(uid):
-    """해당 사용자의 PC 연결 중 active(포커스 있음) 게 있으면 True.
-    이 때는 모바일 푸시를 발송하지 않음 — Telegram 동작."""
+    """해당 사용자의 PC 연결 중 '실제로 활성'(포커스 + 최근 heartbeat) 게 있으면 True.
+    이 때만 모바일 푸시를 발송하지 않음 — PC 활성 감지 + 자리비움 보정.
+    PC active 라도 마지막 presence 갱신이 _PC_ACTIVE_STALE_SEC 이상 오래됐으면
+    절전·잠금·자리비움으로 보고 False 반환 → 모바일 푸시 정상 발송."""
     if not uid:
         return False
+    now = _pres_time.time()
     with _user_conn_lock:
         conns = _user_connections.get(uid, {})
         for sid, info in conns.items():
             if info.get("device") == "pc" and info.get("active"):
+                ts = info.get("ts", 0)
+                if now - ts <= _PC_ACTIVE_STALE_SEC:
+                    return True   # PC 가 진짜 활성 (최근 heartbeat 있음)
+    return False
+
+
+def _user_is_online(uid):
+    """uid 의 활성 SocketIO 연결이 하나라도 있으면 True (= 로그인 상태).
+    아무 연결도 없으면 False (= 미접속·오프라인).
+    상태 점등용 — 사용자가 별도 상태 설정을 하지 않아도 본 함수가 False 면 'offline' 강제."""
+    if not uid:
+        return False
+    with _user_conn_lock:
+        return bool(_user_connections.get(uid))
+
+
+def _user_has_pc_connection(uid):
+    """uid 의 현재 소켓 연결 중 'pc' 기기가 하나라도 있으면 True.
+    상태 자동표시용 — PC 접속 있으면 '가능', 휴대폰만이면 '휴대폰'.
+    (절전·자리비움 stale 체크는 안 함 — 그건 푸시 억제용 _user_has_active_pc 의 역할)."""
+    if not uid:
+        return False
+    with _user_conn_lock:
+        for info in _user_connections.get(uid, {}).values():
+            if info.get("device") == "pc":
                 return True
     return False
 
 
-def send_push_to_user(user_id, title, body, url=None, tag=None, collect_errors=False):
+def send_push_to_user(user_id, title, body, url=None, tag=None, collect_errors=False, clear=False):
     """특정 사용자의 모든 push 구독에 알림 전송. 410/404는 만료로 간주하고 삭제.
-    collect_errors=True 이면 (sent_count, [{id, endpoint, error}], total_subs) 튜플 반환."""
+    collect_errors=True 이면 (sent_count, [{id, endpoint, error}], total_subs) 튜플 반환.
+    clear=True 이면 알림을 띄우는 대신 '읽음' 신호(type=clear)를 보내 sw.js 가 해당 방(tag)
+    알림을 닫고 배지만 갱신하게 한다 — 다른 기기(백그라운드 휴대폰)의 알림 자동 삭제용."""
     errors = []
     if not PYWEBPUSH_OK:
         if collect_errors:
@@ -175,6 +235,24 @@ def send_push_to_user(user_id, title, body, url=None, tag=None, collect_errors=F
             "SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
             (user_id,),
         ).fetchall()
+        # 앱 아이콘 배지용 — 이 사용자의 전체 안 읽은 메시지 총합 (방 목록 unread 와 동일 계산)
+        badge_count = 0
+        try:
+            brow = db.execute("""
+                SELECT COALESCE(SUM(cnt), 0) AS total FROM (
+                    SELECT (SELECT COUNT(*) FROM messages m
+                              WHERE m.room_id = rm.room_id
+                                AND m.id > rm.last_read_message_id
+                                AND m.user_id != ?
+                                AND (m.whisper_to_user_id IS NULL OR m.whisper_to_user_id = ?)
+                           ) AS cnt
+                      FROM room_members rm
+                     WHERE rm.user_id = ?
+                )
+            """, (user_id, user_id, user_id)).fetchone()
+            badge_count = (brow["total"] or 0) if brow else 0
+        except Exception:
+            badge_count = 0
         total = len(subs)
         sent = 0
         for s in subs:
@@ -185,7 +263,11 @@ def send_push_to_user(user_id, title, body, url=None, tag=None, collect_errors=F
                         "endpoint": s["endpoint"],
                         "keys": {"p256dh": s["p256dh"], "auth": s["auth"]},
                     },
-                    data=json.dumps({"title": title, "body": body, "url": url or "/chat", "tag": tag}),
+                    data=json.dumps(
+                        {"type": "clear", "tag": tag, "badge": badge_count}
+                        if clear else
+                        {"title": title, "body": body, "url": url or "/chat", "tag": tag, "badge": badge_count}
+                    ),
                     vapid_private_key=priv,
                     vapid_claims={"sub": VAPID_CONTACT},
                     ttl=43200,  # 12시간
@@ -237,12 +319,119 @@ def push_message_to_room_members(room_id, sender_user_id, title, body, url=None,
     finally:
         db.close()
     for m in members:
-        # Telegram-style: 해당 사용자가 PC에서 활성(포커스) 상태이면 푸시 스킵.
+        # 해당 사용자가 PC에서 활성(포커스) 상태이면 푸시 스킵.
         # 이중 알림(PC 화면 + 휴대폰 진동) 피로 해소가 1차 목적.
         if _user_has_active_pc(m["user_id"]):
-            print(f"[push] skip uid={m['user_id']} — PC active (Telegram-style)")
+            print(f"[push] skip uid={m['user_id']} — PC active")
             continue
         send_push_to_user(m["user_id"], title, body, url=url, tag=tag)
+# ============================================================
+# 🛡️ 파일 업로드 보안 정책 (대표 지시 2026-05-19 강화)
+#   1) 화이트리스트 — 허용된 확장자만 통과
+#   2) 블랙리스트 — 위험 실행 파일 명시 차단 (defense-in-depth)
+#   3) Magic Number 검증 — 확장자 위조 차단 (예: report.pdf 인데 PE 헤더)
+#   4) 더블 확장자 차단 — 예: "report.pdf.exe"
+#   5) 단일 파일 크기 — 별도 제한 (PER_FILE_MAX_MB)
+# ============================================================
+DANGEROUS_EXT = {
+    # Windows 실행
+    "exe", "scr", "com", "bat", "cmd", "pif", "msi", "msu", "msp", "cpl",
+    "vb", "vbs", "vbe", "js", "jse", "wsf", "wsh", "ps1", "ps2", "psc1", "psc2",
+    "lnk", "url", "inf", "reg",
+    # 매크로 가능 Office
+    "docm", "xlsm", "pptm", "dotm", "xltm", "potm",
+    # Linux/Mac 실행
+    "sh", "bash", "zsh", "csh", "ksh", "fish",
+    "app", "dmg", "pkg", "deb", "rpm",
+    # 기타 위험
+    "jar", "class", "war", "ear",   # Java
+    "py", "pl", "rb", "php",         # 스크립트
+    "apk", "ipa",                    # 모바일
+    "html", "htm", "xhtml", "shtml", # HTML (XSS 위험 — 다운로드 후 브라우저로 열면 JS 실행)
+    "svg",                           # SVG (script 임베드 가능)
+    "iso", "img",                    # 디스크 이미지
+}
+# 실행 파일 magic number — 확장자 위조에도 검출
+EXECUTABLE_MAGIC = [
+    b"MZ",          # Windows PE (exe, dll, scr ...)
+    b"\x7fELF",     # Linux ELF
+    b"\xca\xfe\xba\xbe",  # Mach-O fat binary
+    b"\xcf\xfa\xed\xfe",  # Mach-O 64bit
+    b"\xfe\xed\xfa\xce",  # Mach-O 32bit
+    b"\xfe\xed\xfa\xcf",  # Mach-O 64bit BE
+    b"PK\x03\x04",        # zip (jar/apk 도 zip — 확장자로 추가 판단)
+    b"#!",                # Shebang (스크립트)
+]
+PER_FILE_MAX_MB = int(os.environ.get("KNK_MSG_PER_FILE_MAX_MB", "500"))   # 단일 파일 500MB (대표 지시 2026-05-19)
+
+# ============================================================
+# 🛡️ Rate Limiter (In-Memory, 분 단위 슬라이딩 윈도)
+#   uid + 액션 별로 분당 호출 횟수 제한. 스팸·DoS 차단.
+#   단일 worker 환경 가정. 다중 worker 확장 시 Redis 로 교체.
+# ============================================================
+import collections as _rl_collections
+_rate_buckets = _rl_collections.defaultdict(list)  # (uid, action) -> [timestamps]
+_rate_lock = _pres_threading.Lock()
+
+def _check_rate_limit(uid, action, max_per_minute=60):
+    """uid 의 액션 분당 횟수 검사. 통과 시 True, 초과 시 False.
+    호출 시점을 기록 → 60초 이전 기록은 자동 정리."""
+    if not uid:
+        return True
+    now = _pres_time.time()
+    cutoff = now - 60.0
+    key = (uid, action)
+    with _rate_lock:
+        bucket = _rate_buckets[key]
+        # 60초 이전 기록 제거
+        while bucket and bucket[0] < cutoff:
+            bucket.pop(0)
+        if len(bucket) >= max_per_minute:
+            return False
+        bucket.append(now)
+    return True
+
+def _is_dangerous_filename(filename):
+    """파일명 자체에 위험 패턴이 있는지 확인.
+    - 더블 확장자 (report.pdf.exe)
+    - 위험 확장자 (exe, bat, ...)
+    - 숨김 파일 (.htaccess)"""
+    if not filename:
+        return True, "파일명이 비어 있습니다"
+    fn = filename.lower().strip()
+    # 더블 확장자 — 위험 확장자가 마지막이 아닌 중간에 있으면 의심
+    parts = fn.split(".")
+    if len(parts) >= 3:
+        # 마지막에서 두 번째 부분이 위험 확장자면 → 위장 의심
+        for p in parts[1:-1]:
+            if p in DANGEROUS_EXT:
+                return True, f"이중 확장자 의심 (.{p}.~)"
+    last_ext = parts[-1] if len(parts) > 1 else ""
+    if last_ext in DANGEROUS_EXT:
+        return True, f"실행 파일 확장자 차단 (.{last_ext})"
+    return False, ""
+
+def _check_executable_magic(file_storage):
+    """파일 첫 16바이트 읽어 magic number 검사 — 실행 파일이면 차단.
+    호출 후 stream pointer 를 처음으로 되돌려 놓음."""
+    try:
+        header = file_storage.stream.read(16)
+        file_storage.stream.seek(0)
+    except Exception:
+        return False, ""
+    for sig in EXECUTABLE_MAGIC:
+        if header.startswith(sig):
+            # PK (zip) 은 docx/xlsx 등도 zip 이므로 별도 처리. 여기는 확장자가 이미 화이트리스트 통과한 후라
+            # zip 매직이라도 OK. 다만 명시적으로 zip 확장자 아니면서 PK 면 위험.
+            if sig == b"PK\x03\x04":
+                continue
+            # 셔뱅 #! — 텍스트 파일에도 있을 수 있으나 .txt 화이트리스트 안에서 보면 위험 X
+            if sig == b"#!":
+                continue
+            return True, f"실행 파일 헤더 검출 (magic: {sig.hex()})"
+    return False, ""
+
+
 ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "gif", "webp", "bmp", "heic"}
 ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "hwp", "hwpx",
@@ -319,7 +508,9 @@ socketio = SocketIO(
     app,
     cors_allowed_origins=CORS_ALLOWED,
     async_mode=ASYNC_MODE,
-    max_http_buffer_size=MAX_UPLOAD_MB * 1024 * 1024,
+    # SocketIO 버퍼는 단일 메시지 한도 — HTTP 업로드는 별도 (Flask MAX_CONTENT_LENGTH 가 1GB).
+    # 1GB 버퍼는 OOM 위험 (단일 worker, 4-8GB RAM) → 512MB 로 제한 (2026-05-20).
+    max_http_buffer_size=512 * 1024 * 1024,
 )
 
 
@@ -348,6 +539,45 @@ if BASE_PATH:
     app.wsgi_app = _PrefixMiddleware(app.wsgi_app, BASE_PATH)
 
 
+@app.errorhandler(500)
+def handle_500(err):
+    """500 에러 자동 로깅 + 관리자 socketio 알림 (대표 지시 2026-05-19)."""
+    import traceback as _tb
+    tb_str = _tb.format_exc()
+    try:
+        # 파일 로그 — 운영 시점 디버깅 가능하도록 영속화
+        log_path = os.path.join(APP_DIR, "data", "error.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n\n=== [{datetime.now(timezone.utc).isoformat()}] {request.method} {request.path} ===\n")
+            try:
+                uid = session.get("user_id")
+                f.write(f"user_id={uid}, ip={request.remote_addr}, ua={request.user_agent.string[:200]}\n")
+            except Exception:
+                pass
+            f.write(tb_str)
+    except Exception:
+        pass
+    # 관리자(ceo) 들에게 실시간 알림 (socketio) — 최초 100자만
+    try:
+        short = tb_str.split("\n")[-2] if len(tb_str.split("\n")) >= 2 else str(err)
+        socketio.emit("admin_error_alert", {
+            "path": request.path,
+            "method": request.method,
+            "error": short[:200],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+    return jsonify({"error": "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+
+
+@app.errorhandler(413)
+def handle_413(err):
+    """파일이 너무 큼 (Flask MAX_CONTENT_LENGTH 초과)."""
+    return jsonify({"error": f"파일이 너무 큽니다 (최대 {MAX_UPLOAD_MB}MB)"}), 413
+
+
 @app.after_request
 def no_cache_html_js(resp):
     """동적 응답(HTML/JS/CSS/JSON)에 캐시 방지 헤더. 운영에서도 코드 수정 즉시 반영을 위해 유지.
@@ -369,9 +599,19 @@ def get_db():
     db = getattr(g, "_db", None)
     if db is None:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        db = g._db = sqlite3.connect(DB_PATH)
+        db = g._db = sqlite3.connect(DB_PATH, timeout=20.0)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
+        # 동시성 향상 — WAL 모드: 읽기·쓰기 동시 가능, 쓰기 락 범위 축소 (2026-05-20)
+        # 75명 동시 사용 시 DB 락 병목 해소.
+        db.execute("PRAGMA journal_mode=WAL")
+        # 안전성-성능 trade-off: NORMAL — 전원 차단 시 마지막 트랜잭션 손실 가능하나 OS 크래시엔 안전
+        db.execute("PRAGMA synchronous=NORMAL")
+        # 락 대기 — 동시 INSERT 충돌 시 최대 20초 재시도 (기본 5초 → 20초)
+        db.execute("PRAGMA busy_timeout=20000")
+        # 캐시 — 페이지 캐시 64MB (기본 2MB → 64MB)
+        db.execute("PRAGMA cache_size=-65536")
+        # WAL 자동 체크포인트 — 1000 페이지 (기본). 너무 늦추면 .wal 파일 커짐.
     return db
 
 
@@ -384,9 +624,16 @@ def close_db(_exc):
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+    # WAL 모드 한 번만 적용 (DB 파일 메타에 영구 저장됨) — 2026-05-20
+    try:
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=20000")
+    except Exception as _e:
+        print(f"[init_db] PRAGMA 적용 실패 (무시): {_e}", flush=True)
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY,
@@ -426,12 +673,12 @@ def init_db():
     );
     CREATE INDEX IF NOT EXISTS idx_messages_room_created ON messages(room_id, created_at);
 
-    -- 아이템(=프로젝트/품목): 카톡의 '방'을 자동 정리 가능한 단위로 승격
+    -- 프로젝트(=프로젝트/품목): 일반 메신저의 '방'을 자동 정리 가능한 단위로 승격
     CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY,
         room_id INTEGER UNIQUE NOT NULL,
-        code TEXT,                          -- 모델/품번 e.g. 003M2501
-        name TEXT NOT NULL,                 -- 아이템명
+        code TEXT,                          -- 관리번호 e.g. 003M2501
+        name TEXT NOT NULL,                 -- 프로젝트명
         customer TEXT,                      -- 고객사 e.g. 삼성전자
         status TEXT DEFAULT 'active',       -- active | hold | done | cancelled
         due_date TEXT,                      -- 납기 (ISO date)
@@ -482,7 +729,7 @@ def init_db():
     );
     CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_id);
 
-    -- 메시지 전달확인 (acknowledgment) — 카톡 '읽음'을 넘어선 명시적 확인
+    -- 메시지 전달확인 (acknowledgment) — '읽음'을 넘어선 명시적 확인
     -- "내가 봤고 처리하겠습니다" 의지 표시
     CREATE TABLE IF NOT EXISTS message_acks (
         id INTEGER PRIMARY KEY,
@@ -540,7 +787,7 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_translations_msg ON message_translations(message_id);
     CREATE INDEX IF NOT EXISTS idx_translations_created ON message_translations(created_at);
 
-    -- 사용자 상태 (Slack/Teams 식: 자리비움·회의중·외근·방해금지·온라인·오프라인)
+    -- 사용자 상태 (자리비움·회의중·외근·방해금지·온라인·오프라인)
     -- user_id PRIMARY KEY = 사용자 1명당 1개 행 (UPSERT 패턴).
     CREATE TABLE IF NOT EXISTS user_statuses (
         user_id INTEGER PRIMARY KEY,
@@ -570,7 +817,7 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_cal_user_start ON user_calendar_events(user_id, start_at);
     CREATE INDEX IF NOT EXISTS idx_cal_applied ON user_calendar_events(applied, start_at, end_at);
 
-    -- 프로젝트(아이템 방) 이력 스냅샷 — HAIST WORKS 연동 대비.
+    -- 프로젝트(프로젝트 방) 이력 스냅샷 — HAIST WORKS 연동 대비.
     -- 하루 1회 자동 + 수동 즉시 갱신. 각 스냅샷은 마지막 스냅샷 이후 새 메시지를 요약.
     CREATE TABLE IF NOT EXISTS project_history (
         id INTEGER PRIMARY KEY,
@@ -597,7 +844,7 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_ph_room_created ON project_history(room_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_ph_synced ON project_history(synced_to_hw, room_id);
 
-    -- AI 요약 캐시 (Slack AI / Teams Copilot 식)
+    -- AI 요약 캐시
     -- scope_type 으로 무엇을 요약했는지 구분: 'channel_recent'(방의 최근 N개) | 'thread'(스레드)
     -- scope_key 는 그 식별자: 'room:{id}:last:{N}' 또는 'thread:{parent_msg_id}'
     -- last_message_id 는 캐시 무효화 기준 — 새 메시지가 들어왔으면 다시 생성
@@ -634,6 +881,19 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
+    -- 동시 로그인 제한 (휴대폰 1대 + PC 1대) — (user_id, device_type) 당 활성 세션 1개만.
+    -- 같은 종류 기기에서 새로 로그인하면 token 이 덮어써져 옛 기기 세션이 무효화됨.
+    CREATE TABLE IF NOT EXISTS active_sessions (
+        user_id INTEGER NOT NULL,
+        device_type TEXT NOT NULL,   -- 'pc' | 'mobile'
+        token TEXT NOT NULL,
+        user_agent TEXT,
+        ip TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, device_type),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
     """)
     conn.commit()
 
@@ -644,12 +904,12 @@ def init_db():
         ("file_name", "ALTER TABLE messages ADD COLUMN file_name TEXT"),
         ("file_size", "ALTER TABLE messages ADD COLUMN file_size INTEGER"),
         ("file_mime", "ALTER TABLE messages ADD COLUMN file_mime TEXT"),
-        # Slack 식 스레드 — parent_message_id 가 채워지면 스레드 답글.
+        # 스레드 — parent_message_id 가 채워지면 스레드 답글.
         # NULL=일반 메시지 (메인 채널에 표시). NOT NULL=답글 (스레드 패널에만 표시).
         ("parent_message_id", "ALTER TABLE messages ADD COLUMN parent_message_id INTEGER"),
         # 인용 답장(Quote Reply) — 본 채널에 답글 + 원본 미니 카드 표시 (스레드와 별개)
         ("quoted_message_id", "ALTER TABLE messages ADD COLUMN quoted_message_id INTEGER"),
-        # 전달(Forward) 출처 — Telegram 식 메타데이터 보존
+        # 전달(Forward) 출처 — 메타데이터 보존
         # 원본 메시지 ID. 원본이 삭제돼도 아래 forwarded_* 캐시로 복원 가능
         ("forwarded_from_message_id", "ALTER TABLE messages ADD COLUMN forwarded_from_message_id INTEGER"),
         ("forwarded_from_user_id", "ALTER TABLE messages ADD COLUMN forwarded_from_user_id INTEGER"),
@@ -661,6 +921,8 @@ def init_db():
         ("whisper_to_user_id", "ALTER TABLE messages ADD COLUMN whisper_to_user_id INTEGER"),
         # 앨범 묶음 — 사진 N장을 1개 그리드 메시지로 묶을 때 부여하는 UUID. NULL=단독.
         ("album_id", "ALTER TABLE messages ADD COLUMN album_id TEXT"),
+        # 편집 이력 — 마지막 수정 시각 (NULL=한 번도 편집 안 함) (대표 지시 2026-05-19)
+        ("edited_at", "ALTER TABLE messages ADD COLUMN edited_at TEXT"),
     ]:
         if col not in existing_msg_cols:
             cur.execute(ddl)
@@ -691,8 +953,212 @@ def init_db():
     # 첫 로그인 시 비밀번호 변경 강제 (신규 등록자는 1, 기존 사용자는 0)
     if "must_change_password" not in existing_user_cols:
         cur.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0")
+    # 사번 — 회사 내부 직원 식별 번호 (대표 지시 2026-05-19)
+    if "employee_no" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN employee_no TEXT")
+    # 아바타 사진 URL — 본인 사진 업로드용. NULL 이면 이름 첫 글자 + 배경색 표시 (대표 지시 2026-05-19)
+    if "avatar_url" not in existing_user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+
+    # 사용자 상태 — 'dnd' (방해금지) 옵션 제거됨 → 기존 dnd 사용자는 online(회사)로 환원
+    try:
+        cur.execute("UPDATE user_statuses SET status='online' WHERE status='dnd'")
+    except Exception:
+        pass
+
+    # 옛 부서명 '경영지원' (시드값) → KNK 표준 '관리팀' (대표 지시 2026-05-19).
+    # 단, 직급이 '대표이사'인 사람은 부서 소속 없음 → 대상 제외.
+    try:
+        cur.execute(
+            "UPDATE users SET department='관리팀' "
+            "WHERE department='경영지원' AND (title IS NULL OR title != '대표이사')"
+        )
+    except Exception:
+        pass
+
+    # 마이그레이션 버전 추적 테이블 — 1회성 데이터 변환이 매 재시작마다 반복되지 않도록 (대표 지시 2026-05-19)
+    try:
+        cur.execute("CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT)")
+    except Exception:
+        pass
+
+    def _migration_applied(name):
+        try:
+            return cur.execute("SELECT 1 FROM app_migrations WHERE name=?", (name,)).fetchone() is not None
+        except Exception:
+            return False
+
+    def _mark_migration(name):
+        try:
+            cur.execute("INSERT OR REPLACE INTO app_migrations (name, applied_at) VALUES (?, ?)",
+                        (name, datetime.now(timezone.utc).isoformat()))
+        except Exception:
+            pass
+
+    # 대표이사 직급 → '총괄' (00) 부서 1회성 배정.
+    # 이후 UI 에서 부서 수동 변경 시 덮어쓰지 않음 (마이그레이션 버전 마커).
+    if not _migration_applied("v2_ceo_to_chonggwal"):
+        try:
+            cur.execute("UPDATE users SET department='총괄' WHERE title='대표이사' AND (department IS NULL OR department != '총괄')")
+            _mark_migration("v2_ceo_to_chonggwal")
+        except Exception:
+            pass
+
+    # 베트남법인 부서값 재포맷 — 1회성. 'VN기술팀' → 'VN12-01 기술팀' 등.
+    # (이력 보존용 — 이후 v5_vn_format_swap 에서 다시 '12-VN01 기술팀' 형식으로 swap)
+    if not _migration_applied("v2_vn_remap"):
+        try:
+            _vn_remap = {
+                "VN기술팀":       "VN12-01 기술팀",
+                "VN조립팀":       "VN12-02 조립팀",
+                "VN전장팀":       "VN12-03 전장팀",
+                "VN설계팀":       "VN12-04 설계팀",
+                "VN소프트웨어팀": "VN12-05 소프트웨어팀",
+                "VN가공팀":       "VN12-06 가공팀",
+                "VN품질팀":       "VN12-07 품질팀",
+                "VN구매팀":       "VN12-08 구매팀",
+                "VN관리팀":       "VN12-09 관리팀",
+            }
+            for old_val, new_val in _vn_remap.items():
+                cur.execute("UPDATE users SET department=? WHERE department=?", (new_val, old_val))
+            _mark_migration("v2_vn_remap")
+        except Exception:
+            pass
+
+    # 베트남법인 부서값 포맷 변경 (대표 지시 2026-05-20)
+    #   'VN12-NN 부서명' → '12-VNNN 부서명'
+    #   예: 'VN12-09 관리팀' → '12-VN09 관리팀'
+    #   한국법인 코드 12 가 앞으로 나오고 VN 이 베트남 부서번호 앞에 붙음.
+    if not _migration_applied("v5_vn_format_swap"):
+        try:
+            _vn_swap = {
+                "VN12-01 기술팀":       "12-VN01 기술팀",
+                "VN12-02 조립팀":       "12-VN02 조립팀",
+                "VN12-03 전장팀":       "12-VN03 전장팀",
+                "VN12-04 설계팀":       "12-VN04 설계팀",
+                "VN12-05 소프트웨어팀": "12-VN05 소프트웨어팀",
+                "VN12-06 가공팀":       "12-VN06 가공팀",
+                "VN12-07 품질팀":       "12-VN07 품질팀",
+                "VN12-08 구매팀":       "12-VN08 구매팀",
+                "VN12-09 관리팀":       "12-VN09 관리팀",
+            }
+            _vs_changed = 0
+            for old_val, new_val in _vn_swap.items():
+                r = cur.execute("UPDATE users SET department=? WHERE department=?", (new_val, old_val))
+                _vs_changed += (r.rowcount or 0)
+            _mark_migration("v5_vn_format_swap")
+            print(f"[migration] v5_vn_format_swap 1회 실행 — {_vs_changed}명 UPDATE", flush=True)
+        except Exception as _e:
+            print(f"[migration] v5_vn_format_swap 실패: {_e}", flush=True)
+
+    # ── KNK 직원 명단 Excel 기준 부서값 일괄 정정 (대표 지시 2026-05-19) ──
+    # 1회성 마이그레이션. 이후 UI 변경은 보존됨.
+    # 강제 재실행: 버전 이름 ('v4_excel_dept_remap') 을 새 번호로 바꾸면 다시 1회 실행됨.
+    # 모호 케이스: 김동현→설계팀(자동화), 김범수→설계팀(검사기), 윤경호→설계팀(자동화)
+    # chkcsd(최홍광 전무)→총괄, dhkimman/top0015(대표이사)→총괄
+    if not _migration_applied("v4_excel_dept_remap"):
+        EXCEL_DEPT_REMAP = {
+            "anjiyeon@knknara.co.kr": "기술영업팀",
+            "b8004@knknara.co.kr": "검사기팀",
+            "bumsu.kim@knknara.co.kr": "설계팀(검사기)",
+            "buy1@knknara.co.kr": "구매팀",
+            "buy2@knknara.co.kr": "구매팀",
+            "buy3@knknara.co.kr": "구매팀",
+            "buy4@knknara.co.kr": "구매팀",
+            "buy5@knknara.co.kr": "구매팀",
+            "changho.choi@knknara.co.kr": "소프트웨어팀",
+            "cheongmyung.lee@knknara.co.kr": "가공팀",
+            "chkcsd@knknara.co.kr": "총괄",  # 최홍광 전무 — 00 총괄 (대표 지시 2026-05-19 갱신)
+            "chunghee.lee@knknara.co.kr": "소프트웨어팀",
+            "chungil71@knknara.co.kr": "제조기술1팀",
+            "daeseong.kang@knknara.co.kr": "제조기술2팀",
+            "dhkimman@knknara.co.kr": "총괄",
+            "donghyun.kim@knknara.co.kr": "설계팀(자동화)",
+            "dongwook.kim@knknara.co.kr": "소프트웨어팀",
+            "giwoon.kim@knknara.co.kr": "소프트웨어팀",
+            "hanbin@knknara.co.kr": "검사기팀",
+            "hanjung.lee@knknara.co.kr": "소프트웨어팀",
+            "hojae.an@knknara.co.kr": "설계팀(검사기)",
+            "hyun.lee@knknara.co.kr": "기술영업팀",
+            "hyungjin.jeong@knknara.co.kr": "품질팀",
+            "hyungryul.kim@knknara.co.kr": "전장설계팀",
+            "hyunkyu.choi@knknara.co.kr": "설계팀(자동화)",
+            "jaekyeom.na@knknara.co.kr": "라이프밸류팀",
+            "jaeun.han@knknara.co.kr": "설계팀(자동화)",
+            "jihoon.kim@knknara.co.kr": "검사기팀",
+            "jihyeon.park@knknara.co.kr": "제조기술2팀",
+            "jinho.joo@knknara.co.kr": "소프트웨어팀",
+            "jinho.keum@knknara.co.kr": "제조기술1팀",
+            "jks7434@knknara.co.kr": "검사기팀",
+            "jongpil.hyeon@knknara.co.kr": "소프트웨어팀",
+            "joochang.park@knknara.co.kr": "소프트웨어팀",
+            "jun0130@knknara.co.kr": "설계팀(검사기)",
+            "jungseok.hwang@knknara.co.kr": "소프트웨어팀",
+            "jungwoo.lee@knknara.co.kr": "소프트웨어팀",
+            "junyeob.shin@knknara.co.kr": "관리팀",
+            "junyoung.ma@knknara.co.kr": "제조기술1팀",
+            "khy9631@knknara.co.kr": "검사기팀",
+            "kiseon.kim@knknara.co.kr": "라이프밸류팀",
+            "kjr7749@knknara.co.kr": "품질팀",
+            "knk1@knknara.co.kr": "관리팀",
+            "knk2@knknara.co.kr": "관리팀",
+            "knk3@knknara.co.kr": "관리팀",
+            "knk4@knknara.co.kr": "관리팀",
+            "kunghwan.oh@knknara.co.kr": "기술영업팀",
+            "kwanghun.yoon@knknara.co.kr": "검사기팀",
+            "kwangyoung.shin@knknara.co.kr": "설계팀(자동화)",
+            "lhl2425@knknara.co.kr": "기술영업팀",
+            "mingyu.jeong@knknara.co.kr": "설계팀(자동화)",
+            "ngoclan.le@knknara.co.kr": "구매팀",
+            "sales1@knknara.co.kr": "기술영업팀",
+            "sangchon.lee@knknara.co.kr": "설계팀(자동화)",
+            "sb8664@knknara.co.kr": "가공팀",
+            "sejin.kim@knknara.co.kr": "가공팀",
+            "seojoon.lee@knknara.co.kr": "검사기팀",
+            "seungjin.bae@knknara.co.kr": "기술영업팀",
+            "soft@knknara.co.kr": "개발혁신팀",
+            "suhyeon.kim@knknara.co.kr": "개발혁신팀",
+            "sungjin.jung@knknara.co.kr": "구매팀",
+            "sungjin.lee@knknara.co.kr": "검사기팀",
+            "sungki.bang@knknara.co.kr": "제조기술2팀",
+            "sungsu.park@knknara.co.kr": "라이프밸류팀",
+            "taehum.yeon@knknara.co.kr": "제조기술2팀",
+            "taehyoung.kim@knknara.co.kr": "검사기팀",
+            "taekhun.leem@knknara.co.kr": "제조기술2팀",
+            "taewoo.lee@knknara.co.kr": "제조기술1팀",
+            "top0015@knknara.co.kr": "총괄",
+            "wangxia1019@knknara.co.kr": "제조기술2팀",
+            "yoon5468@knknara.co.kr": "가공팀",
+            "yoon5959@knknara.co.kr": "설계팀(자동화)",
+            "younghoon.na@knknara.co.kr": "제조기술2팀",
+            "youngjun.lee2@knknara.co.kr": "소프트웨어팀",
+            "yslee@knknara.co.kr": "12-VN09 관리팀",
+        }
+        try:
+            _ed_changed = 0
+            for _email, _dept in EXCEL_DEPT_REMAP.items():
+                if _dept is None:
+                    _r = cur.execute(
+                        "UPDATE users SET department=NULL WHERE LOWER(username)=? AND department IS NOT NULL",
+                        (_email.lower(),)
+                    )
+                else:
+                    # 대표이사 제외 가드 제거 — 총괄 배정이 대표이사에게 적용되어야 함
+                    _r = cur.execute(
+                        "UPDATE users SET department=? "
+                        "WHERE LOWER(username)=? "
+                        "  AND COALESCE(department,'') != ?",
+                        (_dept, _email.lower(), _dept)
+                    )
+                if _r.rowcount > 0:
+                    _ed_changed += 1
+            _mark_migration("v4_excel_dept_remap")
+            print(f"[migration] v4_excel_dept_remap 1회 실행 — {_ed_changed}명 UPDATE", flush=True)
+        except Exception as _e:
+            print(f"[migration] Excel 부서 정정 실패: {_e}", flush=True)
     # 첫 사용자(대표) 자동 기본값 — 빈 값일 때만
-    cur.execute("UPDATE users SET title='대표이사', department='경영지원' WHERE id=1 AND (title IS NULL OR title='') AND (department IS NULL OR department='')")
+    # 대표이사(시드 id=1)는 직급만 부여. 부서는 비워둠 — 대표이사는 조직 위에 있어 부서 소속 X (대표 지시 2026-05-19).
+    cur.execute("UPDATE users SET title='대표이사' WHERE id=1 AND (title IS NULL OR title='')")
 
     # 방 이름 고정 플래그 (방장만 이름 변경 가능 vs 멤버 각자 별명 가능)
     existing_room_cols = {row["name"] for row in cur.execute("PRAGMA table_info(rooms)").fetchall()}
@@ -708,20 +1174,40 @@ def init_db():
     if "invite_policy" not in existing_room_cols:
         cur.execute("ALTER TABLE rooms ADD COLUMN invite_policy TEXT NOT NULL DEFAULT 'all'")
 
-    # 매 부팅마다 created_by → host 자동 백필 (idempotent)
-    # 신규 방의 host 가 누락된 경우(seed/외부 INSERT) 자동 교정.
-    cur.execute("""
-        UPDATE room_members
-           SET role = 'host'
-         WHERE role != 'host'
-           AND (room_id, user_id) IN (
-               SELECT id, created_by FROM rooms
-                WHERE created_by IS NOT NULL
-           )
-    """)
+    # 채널 소속 범위 (대표 지시 2026-05-20) — NULL(일반/사용자채널) | 'all'(KNK WORLD 전직원)
+    # | 'hq'(본사) | 'vn'(베트남). 자동 생성·멤버 자동 동기화·나가기 금지 대상.
+    if "channel_scope" not in existing_room_cols:
+        cur.execute("ALTER TABLE rooms ADD COLUMN channel_scope TEXT")
 
-    # self 방 이름을 '📝 메모' 로 통일 (옛 '📝 나에게 보내기' 자동 갱신)
-    cur.execute("UPDATE rooms SET name='📝 메모' WHERE type='self' AND name != '📝 메모'")
+    # 방/채널 아바타 이미지 URL — 관리자가 채널 아이콘에 사진 설정 (대표 지시 2026-05-20)
+    if "avatar_url" not in existing_room_cols:
+        cur.execute("ALTER TABLE rooms ADD COLUMN avatar_url TEXT")
+
+    # created_by → host 자동 백필 — 1회성. 매번 부팅 시 실행되면
+    # 사용자가 UI 에서 호스트를 강등한 경우 매번 복귀되는 버그 발생.
+    if not _migration_applied("v2_room_host_backfill"):
+        try:
+            cur.execute("""
+                UPDATE room_members
+                   SET role = 'host'
+                 WHERE role != 'host'
+                   AND (room_id, user_id) IN (
+                       SELECT id, created_by FROM rooms
+                        WHERE created_by IS NOT NULL
+                   )
+            """)
+            _mark_migration("v2_room_host_backfill")
+        except Exception:
+            pass
+
+    # self 방 이름 '📝 메모' 통일 — 1회성 (옛 '📝 나에게 보내기' 갱신).
+    # 매번 실행되면 사용자가 self 방 이름 바꿔도 매번 리셋되는 버그.
+    if not _migration_applied("v2_self_room_rename"):
+        try:
+            cur.execute("UPDATE rooms SET name='📝 메모' WHERE type='self' AND name != '📝 메모'")
+            _mark_migration("v2_self_room_rename")
+        except Exception:
+            pass
 
     # 방 멤버 역할 (host=방장, sub_host=부방장, member=일반)
     existing_rm_cols = {row["name"] for row in cur.execute("PRAGMA table_info(room_members)").fetchall()}
@@ -741,6 +1227,9 @@ def init_db():
         cur.execute("ALTER TABLE room_members ADD COLUMN order_value REAL")
     if "pinned" not in existing_rm_cols:
         cur.execute("ALTER TABLE room_members ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    # 마지막 읽은 시각 — 읽음 명단의 '언제 읽었는지' 표시용 (대표 지시 2026-05-19)
+    if "last_read_at" not in existing_rm_cols:
+        cur.execute("ALTER TABLE room_members ADD COLUMN last_read_at TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_rm_user_order ON room_members(user_id, pinned, order_value)")
 
     # 방 별명 (멤버 각자 자기 화면에서만 보이는 이름)
@@ -810,7 +1299,7 @@ def init_db():
         )
         conn.commit()
 
-    # 시드 아이템 — 대표가 보여준 카톡방 4개 미러 (items 테이블 비어있으면 1회 주입)
+    # 시드 프로젝트 — 대표가 보여준 기존 대화방 4개 미러 (items 테이블 비어있으면 1회 주입)
     cur.execute("SELECT COUNT(*) AS n FROM items")
     if cur.fetchone()["n"] == 0:
         items_seed = [
@@ -837,24 +1326,252 @@ def init_db():
                 )
         conn.commit()
 
+    # 자동 채널(KNK WORLD/본사/베트남) 생성 + 전 직원 멤버십 동기화 + '전체공지' 삭제 (대표 지시 2026-05-20)
+    try:
+        _resync_auto_channels(conn)
+    except Exception as e:
+        print(f"[init_db] 자동채널 동기화 실패(무시): {e}", flush=True)
+
+    # 최고관리자(소유자) 자동 보장 — OWNER_USERNAME 계정이 있으면 ceo·활성 강제 (대표 지시 2026-05-21)
+    try:
+        conn.execute("UPDATE users SET role='ceo' WHERE LOWER(username)=? AND role!='ceo'", (OWNER_USERNAME,))
+        conn.execute("UPDATE users SET active=1 WHERE LOWER(username)=? AND COALESCE(active,1)!=1", (OWNER_USERNAME,))
+        conn.commit()
+    except Exception as e:
+        print(f"[init_db] 최고관리자 보장 실패(무시): {e}", flush=True)
+
     conn.close()
 
 
+# ===== 자동 채널 (KNK WORLD / 본사 / 베트남) — 대표 지시 2026-05-20 =====
+# 부서값 '12-VN…' = 베트남, 그 외(또는 미지정) = 본사.
+# 3개 채널은 자동 생성·멤버 자동 동기화·나가기 금지(channel_scope 로 식별).
+AUTO_CHANNELS = [
+    ("all", "🌏 KNK WORLD"),   # 아시아 지구 (대표 지시 2026-05-21)
+    ("hq",  "🇰🇷 본사채널"),   # 본사 앞 이모지 태극기로 (대표 지시 2026-05-21)
+    ("vn",  "🇻🇳 베트남채널"),
+]
+
+
+def _user_is_vietnam(department):
+    """부서값이 '12-VN' 으로 시작하면 베트남법인 소속."""
+    return bool(department) and str(department).strip().startswith("12-VN")
+
+
+def _desired_scopes_for(department, active, is_owner=False):
+    """이 사용자가 속해야 할 자동채널 scope 집합.
+    최고관리자(소유자)는 본사·베트남 구분 없이 모든 채널 소속 (대표 지시 2026-05-21, 규칙 2)."""
+    if not active:
+        return set()
+    if is_owner:
+        return {"all", "hq", "vn"}
+    return {"all", ("vn" if _user_is_vietnam(department) else "hq")}
+
+
+def _auto_channel_ids(db):
+    """scope -> room_id 매핑 (없으면 생성). + 레거시 '전체공지' 채널 제거."""
+    now = datetime.now(timezone.utc).isoformat()
+    # 레거시 '전체공지' 삭제 (대표 지시: 전체공지 삭제) — 메시지·멤버도 명시적 정리(FK 미적용 대비)
+    try:
+        for o in db.execute(
+            "SELECT id FROM rooms WHERE type='channel' AND name='전체공지' AND channel_scope IS NULL"
+        ).fetchall():
+            rid = o["id"]
+            db.execute("DELETE FROM messages WHERE room_id=?", (rid,))
+            db.execute("DELETE FROM room_members WHERE room_id=?", (rid,))
+            db.execute("DELETE FROM rooms WHERE id=?", (rid,))
+    except Exception as e:
+        print(f"[auto_channel] 전체공지 삭제 실패(무시): {e}")
+    ids = {}
+    for scope, cname in AUTO_CHANNELS:
+        row = db.execute("SELECT id, name FROM rooms WHERE channel_scope=?", (scope,)).fetchone()
+        if row:
+            ids[scope] = row["id"]
+            # 기존 채널 이름이 바뀐 경우(예: 본사 🏢→🇰🇷) 자동 동기화 (대표 지시 2026-05-21)
+            if row["name"] != cname:
+                db.execute("UPDATE rooms SET name=? WHERE id=?", (cname, row["id"]))
+        else:
+            cur = db.execute(
+                "INSERT INTO rooms (name, type, created_by, created_at, name_locked, channel_scope) "
+                "VALUES (?,?,?,?,?,?)",
+                (cname, "channel", 1, now, 1, scope),
+            )
+            ids[scope] = cur.lastrowid
+    return ids
+
+
+def _sync_user_auto_channels(db, uid):
+    """한 사용자의 자동채널 멤버십을 소속에 맞춰 추가/제거 (직원 등록·정보수정 후 호출)."""
+    try:
+        u = db.execute(
+            "SELECT id, username, department, COALESCE(active,1) AS active FROM users WHERE id=?", (uid,)
+        ).fetchone()
+        if not u:
+            return
+        ids = _auto_channel_ids(db)
+        want = _desired_scopes_for(u["department"], u["active"], _is_owner(u["username"]))
+        now = datetime.now(timezone.utc).isoformat()
+        for scope, rid in ids.items():
+            if scope in want:
+                db.execute(
+                    "INSERT OR IGNORE INTO room_members (room_id, user_id, joined_at, role) VALUES (?,?,?,?)",
+                    (rid, uid, now, "member"),
+                )
+            else:
+                db.execute("DELETE FROM room_members WHERE room_id=? AND user_id=?", (rid, uid))
+        db.commit()
+    except Exception as e:
+        print(f"[auto_channel] sync_user({uid}) 실패: {e}")
+
+
+def _resync_auto_channels(db):
+    """전 직원 자동채널 멤버십 일괄 동기화 (+ 채널 생성·전체공지 삭제). 부팅·일괄등록 시 호출."""
+    ids = _auto_channel_ids(db)
+    now = datetime.now(timezone.utc).isoformat()
+    users = db.execute("SELECT id, username, department, COALESCE(active,1) AS active FROM users").fetchall()
+    want = {rid: set() for rid in ids.values()}
+    for u in users:
+        for scope in _desired_scopes_for(u["department"], u["active"], _is_owner(u["username"])):
+            want[ids[scope]].add(u["id"])
+    for scope, rid in ids.items():
+        have = set(r["user_id"] for r in db.execute(
+            "SELECT user_id FROM room_members WHERE room_id=?", (rid,)
+        ).fetchall())
+        for uid in (want[rid] - have):
+            db.execute(
+                "INSERT OR IGNORE INTO room_members (room_id, user_id, joined_at, role) VALUES (?,?,?,?)",
+                (rid, uid, now, "member"),
+            )
+        for uid in (have - want[rid]):
+            db.execute("DELETE FROM room_members WHERE room_id=? AND user_id=?", (rid, uid))
+    db.commit()
+
+
 # ---------- Auth ----------
+# ===== 동시 로그인 제한 (휴대폰 1대 + PC 1대) =====
+_MOBILE_UA_RE = re.compile(r"Android|iPhone|iPad|iPod|IEMobile|Windows Phone|BlackBerry|Mobile|Mobi|Tablet", re.I)
+
+
+def _device_type_from_ua(ua):
+    """User-Agent 로 기기 종류 판별 — 휴대폰/태블릿은 'mobile', 그 외(PC)는 'pc'."""
+    return "mobile" if (ua and _MOBILE_UA_RE.search(ua)) else "pc"
+
+
+def _upsert_active_session(uid, dtype, token, ua):
+    """(user_id, device_type) 활성 세션 등록/교체 — 같은 종류 옛 토큰을 덮어써 옛 기기를 무효화."""
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("""
+        INSERT INTO active_sessions (user_id, device_type, token, user_agent, ip, created_at)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT(user_id, device_type) DO UPDATE SET
+            token=excluded.token, user_agent=excluded.user_agent,
+            ip=excluded.ip, created_at=excluded.created_at
+    """, (uid, dtype, token, (ua or "")[:200], (request.remote_addr if request else None), now))
+    db.commit()
+
+
+def _session_token_valid(uid):
+    """현재 세션이 (user, device_type) 활성 세션과 일치하는지.
+    · 토큰 없는 기존 로그인(배포 전)은 자동 인정(grandfather) — 대량 강제 로그아웃 방지.
+    · 같은 종류 기기에서 새로 로그인하면 토큰이 안 맞아 False (= 밀려남)."""
+    try:
+        tok = session.get("sess_token")
+        dtype = session.get("device_type")
+        ua = request.headers.get("User-Agent", "") if request else ""
+        if not tok:
+            # 배포 전 로그인 — 토큰 발급 + 등록(adopt)
+            dtype = _device_type_from_ua(ua)
+            tok = secrets.token_urlsafe(24)
+            session["sess_token"] = tok
+            session["device_type"] = dtype
+            _upsert_active_session(uid, dtype, tok, ua)
+            return True
+        row = get_db().execute(
+            "SELECT token FROM active_sessions WHERE user_id=? AND device_type=?",
+            (uid, dtype or "pc"),
+        ).fetchone()
+        if row is None:
+            # 활성행 없음 = 이 세션은 종료됨 (휴대폰 완전 로그아웃으로 삭제됐거나 다른 기기가 차지 후 로그아웃).
+            # → 무효 처리해 다음 요청에서 로그인 화면으로. (토큰 없는 '기존 로그인'은 위 grandfather 에서 이미 처리)
+            return False
+        return row["token"] == tok
+    except Exception as e:
+        # 검증 중 오류가 나도 로그인은 막지 않음 (안전 측 default)
+        print(f"[session] token 검증 오류: {e}")
+        return True
+
+
 def current_user():
     uid = session.get("user_id")
     if not uid:
         return None
-    return get_db().execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    user = get_db().execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        return None
+    # 동시 로그인 제한 — 다른 같은종류 기기에서 로그인했으면 이 세션은 무효
+    if not _session_token_valid(uid):
+        return None
+    return user
 
 
 def login_required(view):
     @wraps(view)
     def wrapped(*a, **k):
         if not current_user():
+            # user_id 는 있는데 current_user 가 None → 다른 기기 로그인으로 밀려남 (kicked)
+            kicked = bool(session.get("user_id"))
+            session.clear()
+            if kicked:
+                return redirect(url_for("login") + "?kicked=1")
             return redirect(url_for("login"))
         return view(*a, **k)
     return wrapped
+
+
+def _force_logout_same_device_type(uid, dtype):
+    """같은 종류 기기로 새 로그인 시, 기존 같은 종류 소켓에 즉시 force_logout 전송.
+    밀려난 기기가 실시간으로 로그인 화면으로 빠지게 함 (HTTP 검증과 별개의 즉시 반영)."""
+    try:
+        sids = []
+        with _user_conn_lock:
+            for sid, info in _user_connections.get(uid, {}).items():
+                if info.get("device") == dtype:
+                    sids.append(sid)
+        for sid in sids:
+            try:
+                socketio.emit("force_logout", {"reason": "다른 기기 로그인"}, to=sid)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[session] force_logout emit 실패: {e}")
+
+
+def _force_logout_all(uid):
+    """이 사용자의 '모든' 소켓에 force_logout 전송 — 휴대폰 로그아웃 시 PC 등 전부 함께 로그아웃."""
+    try:
+        sids = []
+        with _user_conn_lock:
+            sids = list(_user_connections.get(uid, {}).keys())
+        for sid in sids:
+            try:
+                socketio.emit("force_logout", {"reason": "휴대폰에서 로그아웃"}, to=sid)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[session] force_logout_all emit 실패: {e}")
+
+
+def _presence_offline_status(uid):
+    """소켓이 모두 끊겼을 때 남에게 보여줄 상태 —
+    푸시 구독이 남아있으면 'mobile'(📱 휴대폰), 없으면 'offline'(완전 오프라인)."""
+    try:
+        has_push = get_db().execute(
+            "SELECT 1 FROM push_subscriptions WHERE user_id=? LIMIT 1", (uid,)
+        ).fetchone()
+        return "mobile" if has_push else "offline"
+    except Exception:
+        return "offline"
 
 
 # ---------- Pages ----------
@@ -890,15 +1607,90 @@ def login():
             # 자동 로그인 유지 — PERMANENT_SESSION_LIFETIME 만큼(기본 90일) 쿠키 유지.
             # 명시적 /logout 호출 전까지 브라우저 닫고 켜도 로그인 상태.
             session.permanent = True
+            # 동시 로그인 제한 — 기기 종류(폰/PC)별 토큰 발급 + 등록.
+            # 같은 종류로 이미 로그인된 다른 기기는 이 토큰이 덮어써 자동 무효화(밀려남).
+            try:
+                ua = request.headers.get("User-Agent", "")
+                dtype = _device_type_from_ua(ua)
+                tok = secrets.token_urlsafe(24)
+                session["sess_token"] = tok
+                session["device_type"] = dtype
+                _upsert_active_session(row["id"], dtype, tok, ua)
+                # 같은 종류 기기로 이미 접속 중이던 기기는 즉시 force_logout (실시간 밀어내기)
+                _force_logout_same_device_type(row["id"], dtype)
+            except Exception as e:
+                print(f"[login] active_session 등록 실패: {e}")
             return redirect(url_for("chat") + f"?v={STATIC_VERSION}&t={int(_time.time())}")
         return render_template("login.html", error="아이디 또는 비밀번호가 올바르지 않습니다.")
-    return render_template("login.html")
+    # GET — 강제 로그아웃(밀려남/휴대폰 완전로그아웃) 안내
+    kicked_msg = None
+    if request.args.get("kicked"):
+        r = request.args.get("r") or ""
+        if "휴대폰" in r:
+            kicked_msg = "휴대폰에서 로그아웃하여 이 PC도 함께 로그아웃되었습니다."
+        else:
+            kicked_msg = "다른 기기에서 로그인되어 이 기기는 로그아웃되었습니다. (동시 사용은 휴대폰 1대 + PC 1대까지)"
+    return render_template("login.html", notice=kicked_msg)
 
 
 @app.route("/logout")
 def logout():
+    # 비대칭 로그아웃 (대표 지시 2026-05-20):
+    #  · 휴대폰 로그아웃 = '완전 로그아웃' — 폰+PC 전부 로그아웃 + 모든 푸시 삭제 → 완전 오프라인.
+    #  · PC 로그아웃     = '이 PC 만'   — PC 세션·PC 푸시만 정리. 휴대폰은 세션·알림 그대로.
+    uid = session.get("user_id")
+    dtype = session.get("device_type") or "pc"
+    tok = session.get("sess_token")
+    ep = session.get("push_endpoint")
+    if uid:
+        try:
+            db = get_db()
+            if dtype == "mobile":
+                # 휴대폰 = 모든 기기 완전 로그아웃
+                db.execute("DELETE FROM push_subscriptions WHERE user_id=?", (uid,))
+                db.execute("DELETE FROM active_sessions WHERE user_id=?", (uid,))
+                db.commit()
+                _force_logout_all(uid)               # PC 등 다른 기기 즉시 로그아웃
+                try:
+                    _last_status_bcast[uid] = "offline"   # disconnect 중복 emit 방지
+                    socketio.emit("user_status_changed", {
+                        "user_id": uid, "status": "offline",
+                        "custom_text": None, "emoji": None,
+                        "label": STATUS_LABEL_KO.get("offline", "오프라인"),
+                    })
+                except Exception:
+                    pass
+            else:
+                # PC = 이 기기만 — 휴대폰에 영향 없음
+                #  · 이 PC 의 푸시 구독만 삭제 (세션에 기록된 endpoint, 없으면 클라이언트 sendBeacon 이 처리)
+                if ep:
+                    db.execute("DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?", (uid, ep))
+                if tok:
+                    db.execute("DELETE FROM active_sessions WHERE user_id=? AND token=?", (uid, tok))
+                db.commit()
+                # 상태 broadcast 는 소켓 disconnect 핸들러가 '휴대폰/오프라인' 정확히 계산해 처리
+        except Exception as e:
+            print(f"[logout] cleanup 실패: {e}")
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/logout_local")
+def logout_local():
+    """'이 기기만' 로그아웃 — 다른 기기 로그인으로 밀려난 기기 전용.
+    푸시 구독은 건드리지 않음(계정의 다른 기기 알림을 끄면 안 되므로). 세션만 정리."""
+    uid = session.get("user_id")
+    tok = session.get("sess_token")
+    if uid and tok:
+        try:
+            db = get_db()
+            # 내 토큰의 활성세션 행만 제거 — 이미 새 기기가 덮어썼으면 불일치로 아무것도 안 지워짐(안전)
+            db.execute("DELETE FROM active_sessions WHERE user_id=? AND token=?", (uid, tok))
+            db.commit()
+        except Exception:
+            pass
+    session.clear()
+    return redirect(url_for("login", kicked=1, r=(request.args.get("r") or "")))
 
 
 @app.route("/chat")
@@ -909,13 +1701,16 @@ def chat():
         _ensure_self_room(session["user_id"])
     except Exception as e:
         print(f"[chat] self_room 보장 실패: {e}")
-    return render_template("chat.html", me=current_user())
+    _me = current_user()
+    return render_template("chat.html", me=_me, me_is_owner=_is_owner(_me["username"]), me_is_team_lead=_is_team_lead(_me))
 
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
     return render_template("dashboard.html", me=current_user())
+
+
 
 
 # ---------- API ----------
@@ -939,7 +1734,7 @@ def serve_manifest():
     data = {
         "name": "KNK 메신저",
         "short_name": "KNK",
-        "description": "KNK 사내 업무 전용 메신저 — 아이템별 자동 정리·요청 추적·전사 검색",
+        "description": "KNK 사내 업무 전용 메신저 — 프로젝트별 자동 정리·요청 추적·전사 검색",
         "start_url": f"{bp}/chat",
         "scope": f"{bp}/",
         "display": "standalone",
@@ -967,6 +1762,8 @@ def api_me():
         "id": u["id"], "username": u["username"],
         "display_name": u["display_name"], "role": u["role"],
         "avatar_color": u["avatar_color"],
+        "is_owner": _is_owner(u["username"]),
+        "is_team_lead": _is_team_lead(u),
     })
 
 
@@ -978,8 +1775,10 @@ def api_users():
     me = current_user()
     me_is_ceo = (me["role"] == "ceo") if me else False
     rows = get_db().execute(
-        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
-        "FROM users ORDER BY "
+        "SELECT id, username, display_name, role, avatar_color, avatar_url, title, department, email, phone, employee_no, active "
+        "FROM users "
+        "WHERE username != '_deleted_user' "   # 시스템 플레이스홀더는 디렉터리 응답에서 제외 (대표 지시 2026-05-20)
+        "ORDER BY "
         " CASE WHEN department IS NULL OR department='' THEN 1 ELSE 0 END, "
         " department ASC, "
         " CASE role WHEN 'ceo' THEN 0 ELSE 1 END, "
@@ -990,8 +1789,10 @@ def api_users():
     out = []
     for r in rows:
         d = dict(r)
+        d["is_owner"] = _is_owner(d.get("username"))   # 최고관리자(소유자) 여부
         if not me_is_ceo and d["id"] != (me["id"] if me else None):
             d.pop("role", None)
+            d.pop("is_owner", None)
         out.append(d)
     return jsonify(out)
 
@@ -1021,8 +1822,14 @@ def api_user_patch(user_id):
     if "phone" in data:
         v = (data.get("phone") or "").strip()[:30]
         fields["phone"] = v or None
+    if "employee_no" in data:
+        v = (data.get("employee_no") or "").strip()[:30]
+        fields["employee_no"] = v or None
     # display_name·avatar_color·role·active 는 관리자만 수정 가능
     if me["role"] == "ceo":
+        # 최고관리자(소유자) 보호 — 강등·비활성 차단 (대표 지시 2026-05-21)
+        _tgt = get_db().execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
+        _target_is_owner = _tgt and _is_owner(_tgt["username"])
         if "display_name" in data:
             v = (data.get("display_name") or "").strip()[:40]
             if v:
@@ -1032,11 +1839,18 @@ def api_user_patch(user_id):
             if v and len(v) <= 16:
                 fields["avatar_color"] = v
         if "active" in data:
+            if _target_is_owner and not data.get("active"):
+                return jsonify({"error": "최고관리자 계정은 비활성화할 수 없습니다."}), 400
             fields["active"] = 1 if data.get("active") else 0
         if "role" in data:
+            # 관리자 선정·해지는 최고관리자(소유자)만 가능 (대표 지시 2026-05-21, 규칙 1)
+            if not _is_owner(me["username"]):
+                return jsonify({"error": "관리자 선정·해지는 최고관리자만 할 수 있습니다."}), 403
             new_role = (data.get("role") or "").strip().lower()
             if new_role not in ("ceo", "staff"):
                 return jsonify({"error": "role 은 'ceo' 또는 'staff' 만 가능"}), 400
+            if _target_is_owner and new_role != "ceo":
+                return jsonify({"error": "최고관리자 계정은 강등할 수 없습니다."}), 400
             # 안전장치: 마지막 관리자가 자기 자신을 강등하려는 경우 차단
             if user_id == me["id"] and new_role == "staff":
                 db_pre = get_db()
@@ -1051,13 +1865,179 @@ def api_user_patch(user_id):
     args = list(fields.values()) + [user_id]
     db.execute(f"UPDATE users SET {cols} WHERE id = ?", args)
     db.commit()
+    # 부서·활성 변경 시 자동채널(KNK WORLD/본사/베트남) 멤버십 재동기화 (대표 지시 2026-05-20)
+    if ("department" in fields) or ("active" in fields):
+        try: _sync_user_auto_channels(db, user_id)
+        except Exception as e: print(f"[auto_channel] patch sync 실패: {e}")
     row = db.execute(
-        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active FROM users WHERE id=?",
+        "SELECT id, username, display_name, role, avatar_color, avatar_url, title, department, email, phone, employee_no, active FROM users WHERE id=?",
         (user_id,),
     ).fetchone()
     # 실시간 알림 — 다른 클라이언트도 사용자 정보 즉시 갱신
     socketio.emit("user_info_changed", dict(row))
     return jsonify({"ok": True, "user": dict(row)})
+
+
+# ============================================================
+# 📷 아바타 사진 업로드 (대표 지시 2026-05-19)
+#   본인 또는 관리자만 업로드 가능. jpg/png/webp/gif, 5MB 이하.
+#   저장: data/uploads/avatars/<user_id>.<ext>  (한 사용자 1장)
+#   URL: BASE_PATH + /uploads/avatars/<user_id>.<ext>?v=<ts>  (캐시 무력화용 timestamp)
+# ============================================================
+AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
+os.makedirs(AVATAR_DIR, exist_ok=True)
+AVATAR_ALLOWED_EXT = {"jpg", "jpeg", "png", "webp", "gif"}
+AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5MB
+# 방/채널 아바타 이미지 (관리자가 채널 아이콘에 사진 설정) — data/uploads/room_avatars/<room_id>.<ext>
+ROOM_AVATAR_DIR = os.path.join(UPLOAD_DIR, "room_avatars")
+os.makedirs(ROOM_AVATAR_DIR, exist_ok=True)
+
+@app.route("/api/users/<int:user_id>/avatar", methods=["POST"])
+@login_required
+def api_user_avatar_upload(user_id):
+    """아바타 사진 업로드 — multipart/form-data 의 'file' 필드.
+    권한: 본인 또는 관리자(ceo).
+    반환: {ok: True, avatar_url: '...?v=12345'}"""
+    me = current_user()
+    if me["id"] != user_id and me["role"] != "ceo":
+        return jsonify({"error": "본인 또는 관리자만 업로드 가능"}), 403
+    if "file" not in request.files:
+        return jsonify({"error": "file 필드에 이미지 첨부 필요"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "파일명 누락"}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in AVATAR_ALLOWED_EXT:
+        return jsonify({"error": f"지원 형식: {', '.join(AVATAR_ALLOWED_EXT)}"}), 400
+    # 크기 체크 — content_length 신뢰 안 되면 stream 으로 측정
+    data = f.read()
+    if len(data) > AVATAR_MAX_BYTES:
+        return jsonify({"error": f"파일이 너무 큽니다 ({len(data)//1024}KB > {AVATAR_MAX_BYTES//1024//1024}MB)"}), 400
+    if len(data) < 100:
+        return jsonify({"error": "파일이 너무 작거나 손상되었습니다"}), 400
+    # 기존 파일 (다른 확장자) 삭제
+    for old_ext in AVATAR_ALLOWED_EXT:
+        old_path = os.path.join(AVATAR_DIR, f"{user_id}.{old_ext}")
+        if os.path.exists(old_path):
+            try: os.remove(old_path)
+            except Exception: pass
+    # 저장
+    save_path = os.path.join(AVATAR_DIR, f"{user_id}.{ext}")
+    with open(save_path, "wb") as out:
+        out.write(data)
+    # DB 갱신 (캐시 무력화용 timestamp 쿼리)
+    import time as _t
+    ts = int(_t.time())
+    rel_url = f"{BASE_PATH}/uploads/avatars/{user_id}.{ext}?v={ts}"
+    db = get_db()
+    db.execute("UPDATE users SET avatar_url=? WHERE id=?", (rel_url, user_id))
+    db.commit()
+    # 실시간 broadcast
+    row = db.execute(
+        "SELECT id, username, display_name, role, avatar_color, avatar_url, title, department, email, phone, employee_no, active FROM users WHERE id=?",
+        (user_id,),
+    ).fetchone()
+    socketio.emit("user_info_changed", dict(row))
+    return jsonify({"ok": True, "avatar_url": rel_url})
+
+
+@app.route("/api/users/<int:user_id>/avatar", methods=["DELETE"])
+@login_required
+def api_user_avatar_delete(user_id):
+    """아바타 사진 제거 — 본인 또는 관리자."""
+    me = current_user()
+    if me["id"] != user_id and me["role"] != "ceo":
+        return jsonify({"error": "본인 또는 관리자만 삭제 가능"}), 403
+    for ext in AVATAR_ALLOWED_EXT:
+        p = os.path.join(AVATAR_DIR, f"{user_id}.{ext}")
+        if os.path.exists(p):
+            try: os.remove(p)
+            except Exception: pass
+    db = get_db()
+    db.execute("UPDATE users SET avatar_url=NULL WHERE id=?", (user_id,))
+    db.commit()
+    row = db.execute(
+        "SELECT id, username, display_name, role, avatar_color, avatar_url, title, department, email, phone, employee_no, active FROM users WHERE id=?",
+        (user_id,),
+    ).fetchone()
+    socketio.emit("user_info_changed", dict(row))
+    return jsonify({"ok": True})
+
+
+@app.route("/uploads/avatars/<path:filename>")
+def serve_avatar(filename):
+    """업로드된 아바타 이미지 서빙."""
+    return send_from_directory(AVATAR_DIR, filename)
+
+
+@app.route("/uploads/room_avatars/<path:filename>")
+def serve_room_avatar(filename):
+    """업로드된 방/채널 아바타 이미지 서빙."""
+    return send_from_directory(ROOM_AVATAR_DIR, filename)
+
+
+@app.route("/api/rooms/<int:room_id>/avatar", methods=["POST"])
+@login_required
+def api_room_avatar_upload(room_id):
+    """채널/방 아바타 이미지 업로드 — 관리자(ceo) 전용. (대표 지시 2026-05-20)"""
+    me = current_user()
+    if me["role"] != "ceo":
+        return jsonify({"error": "관리자만 채널 아이콘을 설정할 수 있습니다."}), 403
+    db = get_db()
+    room = db.execute("SELECT id FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        return jsonify({"error": "방이 없습니다."}), 404
+    if "file" not in request.files:
+        return jsonify({"error": "file 필드에 이미지 첨부 필요"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "파일명 누락"}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in AVATAR_ALLOWED_EXT:
+        return jsonify({"error": f"지원 형식: {', '.join(AVATAR_ALLOWED_EXT)}"}), 400
+    data = f.read()
+    if len(data) > AVATAR_MAX_BYTES:
+        return jsonify({"error": f"파일이 너무 큽니다 ({len(data)//1024}KB > {AVATAR_MAX_BYTES//1024//1024}MB)"}), 400
+    if len(data) < 100:
+        return jsonify({"error": "파일이 너무 작거나 손상되었습니다"}), 400
+    for old_ext in AVATAR_ALLOWED_EXT:
+        op = os.path.join(ROOM_AVATAR_DIR, f"{room_id}.{old_ext}")
+        if os.path.exists(op):
+            try: os.remove(op)
+            except Exception: pass
+    with open(os.path.join(ROOM_AVATAR_DIR, f"{room_id}.{ext}"), "wb") as out:
+        out.write(data)
+    import time as _t
+    rel_url = f"{BASE_PATH}/uploads/room_avatars/{room_id}.{ext}?v={int(_t.time())}"
+    db.execute("UPDATE rooms SET avatar_url=? WHERE id=?", (rel_url, room_id))
+    db.commit()
+    try:
+        _emit_room_event(room_id, "room_avatar_changed", {"room_id": room_id, "avatar_url": rel_url})
+    except Exception:
+        pass
+    return jsonify({"ok": True, "avatar_url": rel_url})
+
+
+@app.route("/api/rooms/<int:room_id>/avatar", methods=["DELETE"])
+@login_required
+def api_room_avatar_delete(room_id):
+    """채널/방 아바타 이미지 제거 — 관리자(ceo) 전용."""
+    me = current_user()
+    if me["role"] != "ceo":
+        return jsonify({"error": "관리자만 가능"}), 403
+    for ext in AVATAR_ALLOWED_EXT:
+        p = os.path.join(ROOM_AVATAR_DIR, f"{room_id}.{ext}")
+        if os.path.exists(p):
+            try: os.remove(p)
+            except Exception: pass
+    db = get_db()
+    db.execute("UPDATE rooms SET avatar_url=NULL WHERE id=?", (room_id,))
+    db.commit()
+    try:
+        _emit_room_event(room_id, "room_avatar_changed", {"room_id": room_id, "avatar_url": None})
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 @app.route("/api/rooms/direct/<int:other_user_id>", methods=["POST"])
@@ -1110,7 +2090,7 @@ def api_rooms():
     # 다른 사람 사이드바·푸시·미열람 카운트에 안 보이게 (귓속말은 진짜 둘만 보이게).
     rows = db.execute("""
         SELECT r.id, r.name, r.type, r.created_at, r.name_locked, r.created_by,
-               r.retention_days, r.invite_policy,
+               r.retention_days, r.invite_policy, r.channel_scope, r.avatar_url,
                rm.role AS my_role,
                rm.pinned, rm.order_value,
                (SELECT alias FROM room_aliases WHERE room_id=r.id AND user_id=?) AS my_alias,
@@ -1119,10 +2099,12 @@ def api_rooms():
                (SELECT content FROM messages
                   WHERE room_id = r.id
                     AND (whisper_to_user_id IS NULL OR whisper_to_user_id = ? OR user_id = ?)
+                    AND (r.type != 'self' OR COALESCE(kind,'text') NOT IN ('system','deleted'))
                   ORDER BY id DESC LIMIT 1) AS last_message,
                (SELECT created_at FROM messages
                   WHERE room_id = r.id
                     AND (whisper_to_user_id IS NULL OR whisper_to_user_id = ? OR user_id = ?)
+                    AND (r.type != 'self' OR COALESCE(kind,'text') NOT IN ('system','deleted'))
                   ORDER BY id DESC LIMIT 1) AS last_at,
                (SELECT COUNT(*) FROM messages m
                   WHERE m.room_id = r.id
@@ -1164,7 +2146,7 @@ def api_rooms():
                 d["name"] = other["display_name"]
                 d["avatar_color"] = other["avatar_color"]
         else:
-            # 그룹/아이템 방: name_locked=0 이고 내 별명 있으면 별명 우선
+            # 그룹/프로젝트 방: name_locked=0 이고 내 별명 있으면 별명 우선
             if not r["name_locked"] and r["my_alias"]:
                 d["display_name_override"] = r["my_alias"]
                 d["original_name"] = r["name"]
@@ -1180,7 +2162,7 @@ def api_items_create():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     if not name:
-        return jsonify({"error": "아이템 이름은 필수입니다."}), 400
+        return jsonify({"error": "프로젝트 이름은 필수입니다."}), 400
     code = (data.get("code") or "").strip() or None
     customer = (data.get("customer") or "").strip() or None
     status = data.get("status") or "active"
@@ -1194,7 +2176,7 @@ def api_items_create():
 
     db = get_db()
     now = datetime.now(timezone.utc).isoformat()
-    # 아이템 방은 이름 고정 (방장만 변경 가능)
+    # 프로젝트 방은 이름 고정 (방장만 변경 가능)
     cur = db.execute(
         "INSERT INTO rooms (name, type, created_by, created_at, name_locked) VALUES (?,?,?,?,1)",
         (name, "item", me["id"], now),
@@ -1213,10 +2195,66 @@ def api_items_create():
         )
     db.execute(
         "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
-        (rid, me["id"], f"아이템 [{name}] 생성됨", "system", now),
+        (rid, me["id"], f"프로젝트 [{name}] 생성됨", "system", now),
     )
     db.commit()
     return jsonify({"room_id": rid, "name": name})
+
+
+@app.route("/api/items/lookup", methods=["GET"])
+@login_required
+def api_items_lookup():
+    """관리번호(관리번호) 자동완성 — 기존 등록된 프로젝트에서 동일·유사 코드 조회.
+
+    Query string:
+        code  : 검색 문자열 (전방·중간 부분 일치)
+        limit : 최대 반환 건수 (기본 10, 상한 30)
+
+    응답:
+        [{code, customer, name, status, due_date, room_id, created_at, source: 'local'}]
+        - code 별로 가장 최근(created_at MAX) 1건만 반환 (DISTINCT)
+        - 정렬: 정확 일치 > 전방 일치 > 부분 일치, 동률은 최신 우선
+
+    향후: HAIST WORKS 시스템 연동 시 'source' 필드 분기 사용 가능
+        (예: source='haist_works' / 'local')
+    """
+    q = (request.args.get("code") or "").strip()
+    try:
+        limit = int(request.args.get("limit", 10))
+    except (ValueError, TypeError):
+        limit = 10
+    limit = max(1, min(limit, 30))
+    if not q or len(q) < 1:
+        return jsonify([])
+    db = get_db()
+    # SQLite — case-insensitive LIKE (ASCII). 한글은 대소문자 영향 없음.
+    like = f"%{q}%"
+    # 같은 code 가 여러 번 등록됐을 때 최신 1건만 반환 (서브쿼리 GROUP BY).
+    rows = db.execute("""
+        SELECT it.id, it.room_id, it.code, it.customer, it.name,
+               it.status, it.due_date, it.created_at
+          FROM items it
+         INNER JOIN (
+             SELECT code, MAX(created_at) AS max_ts
+               FROM items
+              WHERE code IS NOT NULL AND code != '' AND code LIKE ?
+              GROUP BY code
+         ) latest
+            ON it.code = latest.code AND it.created_at = latest.max_ts
+         ORDER BY
+             CASE WHEN LOWER(it.code) = LOWER(?) THEN 0
+                  WHEN LOWER(it.code) LIKE LOWER(?) THEN 1
+                  ELSE 2
+             END,
+             it.created_at DESC
+         LIMIT ?
+    """, (like, q, f"{q}%", limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["source"] = "local"   # 향후 HAIST WORKS 연동 시 'haist_works' 등으로 분기
+        out.append(d)
+    return jsonify(out)
 
 
 @app.route("/api/items/<int:room_id>", methods=["GET"])
@@ -1293,7 +2331,7 @@ def api_room_messages(room_id):
         (room_id, me["id"]),
     ).fetchone():
         abort(403)
-    # 메인 타임라인은 스레드 부모(parent_message_id IS NULL)만 표시 — Slack 동작.
+    # 메인 타임라인은 스레드 부모(parent_message_id IS NULL)만 표시.
     # 답글은 /api/messages/<id>/thread 로 별도 조회.
     # 귓속말 필터: whisper_to_user_id 가 NULL(공개) 이거나 송신자/수신자가 본인일 때만.
     rows = db.execute("""
@@ -1457,7 +2495,7 @@ def api_room_messages(room_id):
 @app.route("/api/messages/<int:message_id>/forward", methods=["POST"])
 @login_required
 def api_message_forward(message_id):
-    """전달(Forward) — Telegram 식 출처 보존.
+    """전달(Forward) — 출처 보존.
     body: {to_room_ids: [int, ...], add_comment?: str (선택)}
     원본 메시지 1건을 N개 대상 방에 복사. 각 새 메시지에는 forwarded_from_* 메타가 박힘.
     원본이 첨부파일이면 같은 파일 정보도 복사 (실제 파일은 공유)."""
@@ -1509,7 +2547,7 @@ def api_message_forward(message_id):
     new_ids = []
     for rid in to_rooms:
         # 코멘트 + (있으면) 원본 텍스트. 첨부파일은 파일 정보 복사.
-        # 텍스트 메시지의 경우 본문은 원본 텍스트를 그대로 옮김 (Telegram 식).
+        # 텍스트 메시지의 경우 본문은 원본 텍스트를 그대로 옮김.
         new_content = src["content"] if (src["kind"] in ("text", "image", "file") and src["content"]) else ""
         if add_comment:
             # 사용자 코멘트가 있으면 본문 앞에 코멘트, 새 줄 후 원본 (둘 다 표시)
@@ -1572,7 +2610,7 @@ def api_message_forward(message_id):
 @app.route("/api/messages/<int:message_id>/thread", methods=["GET"])
 @login_required
 def api_message_thread(message_id):
-    """스레드 답글 목록 + 부모 메시지. Slack 식 사이드 패널 데이터.
+    """스레드 답글 목록 + 부모 메시지. 사이드 패널 데이터.
     응답: { parent: {...}, replies: [...] }"""
     me = current_user()
     db = get_db()
@@ -1741,7 +2779,7 @@ ACK_TYPES = ("ok", "doing", "done", "reject")
 @app.route("/api/messages/<int:message_id>/ack", methods=["POST"])
 @login_required
 def api_message_ack(message_id):
-    """전달확인 — '내가 봤고 처리하겠다' 명시. 카톡 '읽음' 보다 강한 의지 표시.
+    """전달확인 — '내가 봤고 처리하겠다' 명시. 단순 '읽음' 보다 강한 의지 표시.
 
     body: { "ack_type": "ok" | "doing" | "done" | "reject", "comment": "..." (선택) }
     토글 동작 — 같은 ack_type 다시 호출하면 해제.
@@ -1836,6 +2874,199 @@ def api_message_acks_list(message_id):
 
 
 # ---------- 메시지 별표 (중요 결정 마킹) ----------
+@app.route("/api/messages/<int:message_id>/read_status", methods=["GET"])
+@login_required
+def api_message_read_status(message_id):
+    """메시지를 읽은 사람·안 읽은 사람 명단 (대표 지시 2026-05-19).
+
+    동작:
+        - 방 멤버 전체 조회
+        - 각 멤버의 last_read_message_id 와 비교
+        - last_read >= message_id → 읽음
+        - 그 미만 → 안 읽음
+        - 발신자 본인은 명단에서 제외 (본인은 항상 본 거니까)
+
+    응답:
+        {
+          message_id,
+          read: [{user_id, display_name, avatar_color, avatar_url, last_read_at}],
+          unread: [{user_id, display_name, avatar_color, avatar_url}],
+          read_count, unread_count, total_members
+        }
+    """
+    me = current_user()
+    db = get_db()
+    msg = db.execute(
+        "SELECT id, room_id, user_id, created_at FROM messages WHERE id=?", (message_id,)
+    ).fetchone()
+    if not msg:
+        return jsonify({"error": "메시지를 찾을 수 없습니다"}), 404
+    # 방 멤버인지 확인
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?",
+        (msg["room_id"], me["id"])
+    ).fetchone():
+        return jsonify({"error": "이 방 멤버만 조회 가능"}), 403
+    # 방 멤버 전원 조회 (발신자 제외)
+    rows = db.execute("""
+        SELECT u.id, u.display_name, u.avatar_color, u.avatar_url,
+               rm.last_read_message_id, rm.last_read_at
+          FROM room_members rm
+          JOIN users u ON u.id = rm.user_id
+         WHERE rm.room_id = ? AND u.id != ? AND u.active = 1
+         ORDER BY u.display_name
+    """, (msg["room_id"], msg["user_id"])).fetchall()
+    read = []
+    unread = []
+    for r in rows:
+        d = {
+            "user_id": r["id"],
+            "display_name": r["display_name"],
+            "avatar_color": r["avatar_color"],
+            "avatar_url": r["avatar_url"],
+        }
+        last_read = r["last_read_message_id"] or 0
+        if last_read >= message_id:
+            d["last_read_at"] = r["last_read_at"]
+            read.append(d)
+        else:
+            unread.append(d)
+    return jsonify({
+        "message_id": message_id,
+        "sender_user_id": msg["user_id"],
+        "read": read,
+        "unread": unread,
+        "read_count": len(read),
+        "unread_count": len(unread),
+        "total_members": len(read) + len(unread),
+    })
+
+
+@app.route("/api/messages/<int:message_id>", methods=["PATCH"])
+@login_required
+def api_message_edit(message_id):
+    """메시지 편집 — 본인 텍스트 메시지만 (대표 지시 2026-05-19).
+
+    body: {content: '새 내용'}
+    제약:
+        - 본인 메시지만 (관리자도 X — 보안)
+        - 텍스트 메시지만 (kind='text' 또는 NULL)
+        - 삭제된 메시지(kind='deleted')는 편집 불가
+        - 시스템 메시지(kind='system')는 편집 불가
+        - content 길이 1~4000자
+    동작:
+        - content 업데이트 + edited_at = 현재 시각
+        - 검색 인덱스(FTS) 자동 동기화 (trigger)
+        - socketio 'message_edited' broadcast → 다른 사용자 화면 즉시 갱신
+    """
+    me = current_user()
+    db = get_db()
+    msg = db.execute(
+        "SELECT id, room_id, user_id, kind FROM messages WHERE id = ?",
+        (message_id,)
+    ).fetchone()
+    if not msg:
+        return jsonify({"error": "메시지를 찾을 수 없습니다"}), 404
+    # 권한 — 본인만
+    if msg["user_id"] != me["id"]:
+        return jsonify({"error": "본인 메시지만 편집 가능"}), 403
+    # 종류 제약
+    if msg["kind"] == "deleted":
+        return jsonify({"error": "삭제된 메시지는 편집 불가"}), 400
+    if msg["kind"] in ("image", "file", "system", "sticker"):
+        return jsonify({"error": "사진·파일·스티커·시스템 메시지는 편집 불가"}), 400
+    data = request.get_json(silent=True) or {}
+    new_content = (data.get("content") or "").strip()
+    if not new_content:
+        return jsonify({"error": "내용이 비어 있습니다"}), 400
+    if len(new_content) > 4000:
+        new_content = new_content[:4000]
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "UPDATE messages SET content = ?, edited_at = ? WHERE id = ?",
+        (new_content, now, message_id)
+    )
+    db.commit()
+    # broadcast
+    try:
+        socketio.emit("message_edited", {
+            "message_id": message_id,
+            "room_id": msg["room_id"],
+            "content": new_content,
+            "edited_at": now,
+        }, to=f"room_{msg['room_id']}")
+    except Exception as e:
+        print(f"[message edit] socketio emit 실패: {e}", flush=True)
+    return jsonify({"ok": True, "message_id": message_id, "content": new_content, "edited_at": now})
+
+
+@app.route("/api/messages/<int:message_id>", methods=["DELETE"])
+@login_required
+def api_message_delete(message_id):
+    """메시지 삭제 (대표 지시 2026-05-19).
+
+    권한:
+        - 본인 메시지: 언제든 삭제 가능
+        - 관리자(ceo): 누구 메시지든 삭제 가능 (보안·법무 대응)
+        - 그 외: 403
+
+    동작 (soft delete):
+        - content → '🗑️ 삭제된 메시지'
+        - kind → 'deleted'
+        - 첨부 파일이 있으면 디스크에서도 제거
+        - 인용·답글·전달 메타데이터 NULL 화 (혼란 방지)
+        - socketio 'message_deleted' broadcast → 모든 방 멤버 화면 즉시 갱신
+
+    record 자체는 보존 (이력 추적·읽음 카운트·인덱스 일관성)."""
+    me = current_user()
+    db = get_db()
+    msg = db.execute(
+        "SELECT id, room_id, user_id, kind, file_path FROM messages WHERE id = ?",
+        (message_id,)
+    ).fetchone()
+    if not msg:
+        return jsonify({"error": "메시지를 찾을 수 없습니다"}), 404
+    # 권한 체크 — 본인 또는 ceo
+    if msg["user_id"] != me["id"] and me["role"] != "ceo":
+        return jsonify({"error": "본인이 보낸 메시지만 삭제할 수 있습니다"}), 403
+    # 이미 삭제된 메시지면 no-op
+    if msg["kind"] == "deleted":
+        return jsonify({"ok": True, "message": "이미 삭제됨"})
+    # 첨부 파일 디스크에서 제거
+    if msg["file_path"]:
+        try:
+            full_path = os.path.join(UPLOAD_DIR, msg["file_path"])
+            if os.path.exists(full_path):
+                os.remove(full_path)
+        except Exception as e:
+            print(f"[message delete] 파일 제거 실패: {e}", flush=True)
+    # soft delete — content/kind 만 교체, record 보존
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("""
+        UPDATE messages SET
+            content = '🗑️ 삭제된 메시지',
+            kind = 'deleted',
+            file_path = NULL, file_name = NULL, file_size = NULL, file_mime = NULL,
+            quoted_message_id = NULL,
+            forwarded_from_message_id = NULL, forwarded_from_user_id = NULL,
+            forwarded_from_name = NULL, forwarded_from_room_name = NULL, forwarded_from_created_at = NULL,
+            album_id = NULL
+        WHERE id = ?
+    """, (message_id,))
+    db.commit()
+    # 실시간 broadcast — 모든 방 멤버에게 알림
+    try:
+        socketio.emit("message_deleted", {
+            "message_id": message_id,
+            "room_id": msg["room_id"],
+            "deleted_by": me["id"],
+            "deleted_at": now,
+        }, to=f"room_{msg['room_id']}")
+    except Exception as e:
+        print(f"[message delete] socketio emit 실패: {e}", flush=True)
+    return jsonify({"ok": True, "message_id": message_id})
+
+
 @app.route("/api/messages/<int:message_id>/star", methods=["POST"])
 @login_required
 def api_message_star(message_id):
@@ -1889,8 +3120,8 @@ def api_room_starred(room_id):
 
 
 # ---------- AI 요약·재작성 (Claude Haiku) ----------
-# Slack AI / Teams Copilot 식 — 채널 일간 요약 / 긴 스레드 요약 / 작성 톤 조정.
-# 한국어 1순위. Slack AI 가 한국어 미지원이라 즉시 차별화 가능.
+# AI 보조 — 채널 일간 요약 / 긴 스레드 요약 / 작성 톤 조정.
+# 한국어 1순위 — 한국어 특화로 차별화.
 AI_SUMMARY_MODEL = os.environ.get("KNK_MSG_AI_SUMMARY_MODEL", "claude-haiku-4-5")
 
 
@@ -1973,7 +3204,7 @@ Rules:
 
 
 def _claude_summarize_for_history(messages_payload, item_meta=None):
-    """프로젝트(아이템 방) 이력용 요약 — HAIST WORKS 프로젝트 이력 포맷.
+    """프로젝트(프로젝트 방) 이력용 요약 — HAIST WORKS 프로젝트 이력 포맷.
     messages_payload 는 _claude_summarize_messages 와 같은 dict 리스트.
     item_meta 는 {code, name, customer, status} (있으면 컨텍스트로 전달).
     반환 형식: 기존 함수와 동일 ({summary_text, in_tokens, out_tokens, cost_usd, model}, None)."""
@@ -2017,7 +3248,7 @@ def _claude_summarize_for_history(messages_payload, item_meta=None):
     if item_meta:
         bits = []
         if item_meta.get("code"): bits.append(f"품번 {item_meta['code']}")
-        if item_meta.get("name"): bits.append(f"아이템명 {item_meta['name']}")
+        if item_meta.get("name"): bits.append(f"프로젝트명 {item_meta['name']}")
         if item_meta.get("customer"): bits.append(f"고객사 {item_meta['customer']}")
         if item_meta.get("status"): bits.append(f"상태 {item_meta['status']}")
         if bits:
@@ -2117,7 +3348,7 @@ def _generate_project_history(room_id, created_by_uid=None):
             # 자동 워커: 메시지 1개만으론 의미있는 요약 어려움. 다음 사이클에 시도.
             return None, "too_few"
 
-        # 아이템 메타
+        # 프로젝트 메타
         item_meta = None
         item_row = db.execute("""
             SELECT it.code, it.name, it.customer, it.status
@@ -2188,7 +3419,7 @@ def _generate_project_history(room_id, created_by_uid=None):
 
 
 def _auto_generate_project_histories():
-    """모든 아이템 방에 대해 자동 이력 생성 (하루 1회 호출)."""
+    """모든 프로젝트 방에 대해 자동 이력 생성 (하루 1회 호출)."""
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
     try:
@@ -2243,7 +3474,7 @@ REWRITE_TONES = {
 
 
 def _claude_rewrite(text, tone="formal"):
-    """작성 톤 조정 (Slack AI Compose 식)."""
+    """작성 톤 조정 (AI 작성 도움)."""
     try:
         import anthropic
     except ImportError:
@@ -2595,7 +3826,7 @@ def api_thread_summarize(message_id):
 @app.route("/api/ai/rewrite", methods=["POST"])
 @login_required
 def api_ai_rewrite():
-    """작성 톤 조정 (Slack AI Compose 식).
+    """작성 톤 조정 (AI 작성 도움).
     body: {text: str, tone: 'formal'|'short'|'professional'|'casual'|'polite'}"""
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -2668,10 +3899,10 @@ def api_room_history_generate(room_id):
         (room_id, me["id"]),
     ).fetchone():
         abort(403)
-    # 아이템 방만 — 일반 방은 이력 비활성
+    # 프로젝트 방만 — 일반 방은 이력 비활성
     rtype = db.execute("SELECT type FROM rooms WHERE id=?", (room_id,)).fetchone()
     if not rtype or rtype["type"] != "item":
-        return jsonify({"error": "이력은 아이템 방에서만 생성 가능합니다"}), 400
+        return jsonify({"error": "이력은 프로젝트 방에서만 생성 가능합니다"}), 400
     hist, err = _generate_project_history(room_id, created_by_uid=me["id"])
     if err == "no_new":
         return jsonify({"error": "마지막 이력 이후 새 메시지가 없습니다", "no_new": True}), 200
@@ -2828,7 +4059,7 @@ def api_messages_send():
 
     이게 Socket 'send' 이벤트와 다른 점:
       - 번역 비용·시간 때문에 sync REST 로 분리
-      - 보내는 사람이 양국어 동시에 만들어 발송 (카톡 번역의 한계 극복: 받은 사람만 번역되는 문제 X)
+      - 보내는 사람이 양국어 동시에 만들어 발송 (일반 메신저 번역의 한계 극복: 받은 사람만 번역되는 문제 X)
     """
     me = current_user()
     data = request.get_json(silent=True) or {}
@@ -3008,8 +4239,30 @@ def api_upload():
 
     original = f.filename
     ext = ext_of(original)
+
+    # 🛡️ 보안 검사 1: 위험 확장자 + 이중 확장자 차단
+    dangerous, why = _is_dangerous_filename(original)
+    if dangerous:
+        return jsonify({"error": f"보안 정책에 따라 차단됨: {why}"}), 400
+
+    # 🛡️ 보안 검사 2: 화이트리스트 통과
     if ext and ext not in ALLOWED_FILE_EXT:
         return jsonify({"error": f"허용되지 않는 확장자(.{ext})"}), 400
+
+    # 🛡️ 보안 검사 3: 실행 파일 magic number — 확장자 위조 차단
+    is_exec, why = _check_executable_magic(f)
+    if is_exec:
+        return jsonify({"error": f"실행 파일은 업로드할 수 없습니다 — {why}"}), 400
+
+    # 🛡️ 보안 검사 4: 단일 파일 크기 — Content-Length 사전 검사
+    content_len = request.content_length or 0
+    if content_len > PER_FILE_MAX_MB * 1024 * 1024:
+        return jsonify({"error": f"파일이 너무 큽니다 (단일 {PER_FILE_MAX_MB}MB 초과)"}), 413
+
+    # 🛡️ 보안 검사 5: 사용자별 분당 업로드 횟수 제한 (Rate Limit)
+    # 사진 일괄 업로드 (30장) + 약간의 여유 = 60개/분 (대표 지시 2026-05-19)
+    if not _check_rate_limit(me["id"], "upload", max_per_minute=60):
+        return jsonify({"error": "업로드 속도 제한 — 잠시 후 다시 시도하세요 (1분에 60개)"}), 429
 
     safe_base = secure_filename(original) or "file"
     if not ext_of(safe_base):
@@ -3115,6 +4368,67 @@ def serve_upload(room_id, filename):
     ).fetchone():
         abort(403)
     return send_from_directory(os.path.join(UPLOAD_DIR, str(room_id)), filename)
+
+
+@app.route("/api/albums/<album_id>/zip")
+@login_required
+def api_album_zip(album_id):
+    """앨범(같은 album_id 의 image 메시지들)을 ZIP 으로 묶어 다운로드.
+    권한: 해당 방의 멤버여야 한다.
+    """
+    import zipfile
+    import io
+    from flask import send_file as _send_file
+
+    if not album_id or len(album_id) > 80:
+        abort(400)
+    me = current_user()
+    db = get_db()
+    rows = db.execute("""
+        SELECT m.file_path, m.file_name, m.room_id, m.created_at
+          FROM messages m
+         WHERE m.album_id = ?
+           AND m.kind = 'image'
+           AND m.file_path IS NOT NULL
+         ORDER BY m.id ASC
+    """, (album_id,)).fetchall()
+    if not rows:
+        abort(404)
+    room_id = rows[0]["room_id"]
+    if not db.execute(
+        "SELECT 1 FROM room_members WHERE room_id=? AND user_id=?", (room_id, me["id"])
+    ).fetchone():
+        abort(403)
+
+    buf = io.BytesIO()
+    used = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for r in rows:
+            src = os.path.join(UPLOAD_DIR, r["file_path"])
+            if not os.path.exists(src):
+                continue
+            name = r["file_name"] or os.path.basename(r["file_path"])
+            # 동명 충돌 방지 — 사진명_1.jpg, _2.jpg 식
+            arc = name
+            n = 1
+            while arc in used:
+                stem, ext = os.path.splitext(name)
+                arc = f"{stem}_{n}{ext}"
+                n += 1
+            used.add(arc)
+            zf.write(src, arcname=arc)
+    if not used:
+        abort(404)
+    buf.seek(0)
+
+    short = (album_id or "album")[:8]
+    zip_name = f"album_{short}.zip"
+    return _send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_name,
+    )
 
 
 @app.route("/api/rooms/<int:room_id>/attachments")
@@ -3331,7 +4645,7 @@ def fts_query_safe(q):
 @app.route("/api/rooms/<int:room_id>/summary")
 @login_required
 def api_room_summary(room_id):
-    """방 요약 — 아이템 카드 헤더 / 다이제스트용 카운트"""
+    """방 요약 — 프로젝트 카드 헤더 / 다이제스트용 카운트"""
     me = current_user()
     db = get_db()
     if not db.execute(
@@ -3355,7 +4669,7 @@ def api_room_summary(room_id):
 @app.route("/api/items/dashboard")
 @login_required
 def api_items_dashboard():
-    """전체 아이템 대시보드 — 카운트·최근활동 한눈"""
+    """전체 프로젝트 대시보드 — 카운트·최근활동 한눈"""
     me = current_user()
     db = get_db()
     rows = db.execute("""
@@ -3378,7 +4692,7 @@ def api_items_dashboard():
 def api_digest():
     """오늘 / 이번주 — 로그인 직후 보여주는 자동 다이제스트.
 
-    카톡에서 묻혀서 못 보고 지나가는 일을 막기 위한 핵심 기능.
+    일반 메신저에서 묻혀서 못 보고 지나가는 일을 막기 위한 핵심 기능.
     """
     me = current_user()
     db = get_db()
@@ -3461,9 +4775,9 @@ def api_digest():
 @app.route("/api/rooms/<int:room_id>/export.xlsx")
 @login_required
 def api_room_export_xlsx(room_id):
-    """아이템 이력 Excel 내보내기 — 4시트(개요/메시지/요청/첨부).
+    """프로젝트 이력 Excel 내보내기 — 4시트(개요/메시지/요청/첨부).
 
-    카톡으로 절대 못 했던 기능: 아이템 단위로 모든 이력을 한 파일로.
+    일반 메신저로 못 했던 기능: 프로젝트 단위로 모든 이력을 한 파일로.
     감사·법무 보고·인수인계용.
     """
     me = current_user()
@@ -3526,7 +4840,7 @@ def api_room_export_xlsx(room_id):
     # Sheet 1: 개요
     ws1 = wb.active
     ws1.title = "개요"
-    ws1["A1"] = "KNK 메신저 — 아이템 이력 보고서"
+    ws1["A1"] = "KNK 메신저 — 프로젝트 이력 보고서"
     ws1["A1"].font = Font(bold=True, size=14)
     ws1.merge_cells("A1:B1")
     rows1 = [
@@ -3534,12 +4848,12 @@ def api_room_export_xlsx(room_id):
         ["내보낸 사람", me["display_name"]],
         ["", ""],
         ["방 이름", room["name"] if room else ""],
-        ["타입", {"item": "아이템", "channel": "채널", "group": "그룹채팅", "direct": "1:1"}.get(room["type"] if room else "", "")],
+        ["타입", {"item": "프로젝트", "channel": "채널", "group": "그룹채팅", "direct": "1:1"}.get(room["type"] if room else "", "")],
     ]
     if item:
         rows1.extend([
             ["고객사", item["customer"] or ""],
-            ["모델/품번", item["code"] or ""],
+            ["관리번호", item["code"] or ""],
             ["상태", ITEM_STATUS.get(item["status"], item["status"] or "")],
             ["납기", item["due_date"] or ""],
             ["영구보존", "예" if item["keep_forever"] else "아니오"],
@@ -3632,7 +4946,7 @@ def api_room_export_xlsx(room_id):
 @app.route("/api/rooms/<int:room_id>/timeline")
 @login_required
 def api_room_timeline(room_id):
-    """아이템 타임라인 — 날짜별로 사진·파일·요청·결정 그룹.
+    """프로젝트 타임라인 — 날짜별로 사진·파일·요청·결정 그룹.
 
     신규 담당자가 인수받을 때 처음부터 끝까지 한 페이지로 보기 위한 용도.
     """
@@ -3701,6 +5015,11 @@ def api_push_subscribe():
     except Exception as e:
         print(f"[push/subscribe] INSERT 실패 user={me['id']}: {e}")
         return jsonify({"error": f"DB INSERT 실패: {e}"}), 500
+    # 이 기기(세션)의 push endpoint 기록 — PC 로그아웃 시 '이 PC 의 푸시만' 정확히 삭제하기 위함.
+    try:
+        session["push_endpoint"] = endpoint
+    except Exception:
+        pass
     # 저장 확인 — INSERT 직후 다시 조회해서 row 수 반환
     count = db.execute(
         "SELECT COUNT(*) FROM push_subscriptions WHERE user_id=?", (me["id"],)
@@ -3751,10 +5070,26 @@ def api_push_unsubscribe():
     return jsonify({"ok": True})
 
 
+@app.route("/api/push/unsubscribe_all", methods=["POST"])
+@login_required
+def api_push_unsubscribe_all():
+    """내 계정의 모든 기기 푸시 구독 삭제 — '완전 오프라인' 확실한 탈출구.
+    로그아웃 정리가 실패해 '휴대폰' 상태로 끼어있을 때 즉시 정리용."""
+    me = current_user()
+    db = get_db()
+    n = db.execute(
+        "SELECT COUNT(*) FROM push_subscriptions WHERE user_id=?", (me["id"],)
+    ).fetchone()[0]
+    db.execute("DELETE FROM push_subscriptions WHERE user_id=?", (me["id"],))
+    db.commit()
+    return jsonify({"ok": True, "deleted": n})
+
+
 @app.route("/api/push/test", methods=["POST"])
 @login_required
 def api_push_test():
-    """테스트 푸시 발송 + 실패 시 상세 에러 반환 (진단용)."""
+    """테스트 푸시 발송 + 실패 시 상세 에러 반환 (진단용).
+    본인→본인 직접 발송 (억제 로직 우회) — 푸시 인프라 자체 동작 확인용."""
     me = current_user()
     sent, errors, total = send_push_to_user(
         me["id"],
@@ -3766,10 +5101,37 @@ def api_push_test():
     return jsonify({"sent": sent, "total_subscriptions": total, "errors": errors})
 
 
+@app.route("/api/push/test_simulate", methods=["POST"])
+@login_required
+def api_push_test_simulate():
+    """실제 메시지 수신 시나리오 시뮬레이션 — 똑똑한 억제 로직(_user_has_active_pc) 적용.
+    '다른 사람이 보낸 메시지' 처럼 동작:
+      · PC 가 실제 활성(focus+최근 heartbeat) → 모바일 푸시 스킵 (정상 동작 확인)
+      · PC 비활성/자리비움/끔 → 모바일 푸시 발송 (백그라운드 알림 확인)
+    """
+    me = current_user()
+    pc_active = _user_has_active_pc(me["id"])
+    if pc_active:
+        return jsonify({
+            "pc_active": True,
+            "skipped": True,
+            "message": "PC가 활성 상태라 모바일 푸시를 스킵했습니다 (똑똑한 억제 정상 동작). "
+                       "휴대폰만 두고 PC를 끄거나 1분 이상 자리를 비운 뒤 다시 시도하세요.",
+        })
+    sent, errors, total = send_push_to_user(
+        me["id"],
+        "💬 테스트발송 — 새 메시지",
+        "실제 수신 시나리오 시뮬레이션입니다. 이 알림이 보이면 백그라운드 푸시 정상!",
+        url="/chat", tag="test_sim",
+        collect_errors=True,
+    )
+    return jsonify({"pc_active": False, "skipped": False, "sent": sent, "total_subscriptions": total, "errors": errors})
+
+
 @app.route("/api/admin/cleanup", methods=["POST"])
 @login_required
 def api_admin_cleanup():
-    """메시지 자동삭제 — N개월 이전 메시지(첨부 포함) 제거. 단 keep_forever=1 아이템·system 메시지 보존.
+    """메시지 자동삭제 — N개월 이전 메시지(첨부 포함) 제거. 단 keep_forever=1 프로젝트·system 메시지 보존.
 
     수동 실행 또는 외부 스케줄러(Windows 작업스케줄러·cron)에서 호출.
     """
@@ -3780,7 +5142,7 @@ def api_admin_cleanup():
     cutoff = (datetime.now(timezone.utc).date().replace(day=1)).isoformat()
     # cutoff = "오늘 - N개월" 의 첫날
     months = MESSAGE_RETENTION_MONTHS
-    # 1단계: 전역 보존 정책 (N개월). keep_forever=1 아이템은 제외.
+    # 1단계: 전역 보존 정책 (N개월). keep_forever=1 프로젝트은 제외.
     # SQLite date() 산술
     rows = db.execute("""
         SELECT m.id, m.file_path
@@ -3852,6 +5214,198 @@ def api_admin_cleanup_preview():
     })
 
 
+# ============================================================
+# 🧪 부하 테스트 전용 API (대표 지시 2026-05-20)
+#   격리된 테스트 계정·방·메시지 일괄 생성/삭제. admin 전용.
+#   계정 username 패턴: loadtest_001@knktest.local ~ loadtest_NNN@knktest.local
+#   방 이름 prefix: [LOADTEST]
+#   confirm_token 필수 (URL 또는 body): "I_UNDERSTAND_LOAD_TEST"
+# ============================================================
+LOAD_TEST_USERNAME_PREFIX = "loadtest_"
+LOAD_TEST_USERNAME_DOMAIN = "@knktest.local"
+LOAD_TEST_ROOM_NAME_PREFIX = "[LOADTEST]"
+LOAD_TEST_CONFIRM_TOKEN = "I_UNDERSTAND_LOAD_TEST"
+
+
+@app.route("/api/admin/load_test/setup", methods=["POST"])
+@login_required
+def api_load_test_setup():
+    """N개 격리 테스트 계정 + 1개 격리 방 자동 생성.
+    body: {count: 75, confirm_token: 'I_UNDERSTAND_LOAD_TEST'}
+    응답: {users: [{username, password, id}, ...], room_id, room_name}"""
+    me = current_user()
+    if me["role"] != "ceo":
+        abort(403)
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm_token") != LOAD_TEST_CONFIRM_TOKEN:
+        return jsonify({"error": f"confirm_token 필수: '{LOAD_TEST_CONFIRM_TOKEN}'"}), 400
+    count = int(data.get("count", 75))
+    if count < 1 or count > 200:
+        return jsonify({"error": "count 는 1~200 사이"}), 400
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    created_users = []
+    for i in range(1, count + 1):
+        username = f"{LOAD_TEST_USERNAME_PREFIX}{i:03d}{LOAD_TEST_USERNAME_DOMAIN}"
+        password = f"{LOAD_TEST_USERNAME_PREFIX}{i:03d}_pwd"
+        display_name = f"부하테스트{i:03d}"
+        # 이미 존재하면 그 id 사용
+        existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        if existing:
+            uid = existing["id"]
+            # 비밀번호 갱신 (이전 테스트 잔존 대비)
+            db.execute("UPDATE users SET password_hash=?, must_change_password=0, active=1 WHERE id=?",
+                       (generate_password_hash(password), uid))
+        else:
+            cur = db.execute(
+                "INSERT INTO users (username, password_hash, display_name, role, avatar_color, created_at, "
+                " email, title, department, must_change_password, active) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (username, generate_password_hash(password), display_name, "staff", "#9CA3AF",
+                 now, username, "부하테스트", "테스트", 0, 1)
+            )
+            uid = cur.lastrowid
+        created_users.append({"id": uid, "username": username, "password": password})
+    # 격리 방 생성 (이미 존재하면 재활용)
+    room_name = f"{LOAD_TEST_ROOM_NAME_PREFIX} 부하 테스트 방"
+    existing_room = db.execute("SELECT id FROM rooms WHERE name=?", (room_name,)).fetchone()
+    if existing_room:
+        room_id = existing_room["id"]
+        # 기존 멤버 다 비우고 재구성
+        db.execute("DELETE FROM room_members WHERE room_id=?", (room_id,))
+    else:
+        cur = db.execute(
+            "INSERT INTO rooms (name, type, created_by, created_at, invite_policy) "
+            "VALUES (?, 'group', ?, ?, 'all')",
+            (room_name, me["id"], now)
+        )
+        room_id = cur.lastrowid
+    # admin + 75개 테스트 계정 모두 멤버로
+    db.execute("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'host', ?)",
+               (room_id, me["id"], now))
+    for u in created_users:
+        db.execute("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)",
+                   (room_id, u["id"], now))
+    db.commit()
+    return jsonify({
+        "users": created_users,
+        "room_id": room_id,
+        "room_name": room_name,
+        "count": len(created_users),
+    })
+
+
+@app.route("/api/admin/load_test/cleanup", methods=["POST"])
+@login_required
+def api_load_test_cleanup():
+    """loadtest_* 계정 + [LOADTEST] 방 + 관련 메시지·파일 일괄 삭제.
+    body: {confirm_token: 'I_UNDERSTAND_LOAD_TEST'}"""
+    me = current_user()
+    if me["role"] != "ceo":
+        abort(403)
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm_token") != LOAD_TEST_CONFIRM_TOKEN:
+        return jsonify({"error": f"confirm_token 필수: '{LOAD_TEST_CONFIRM_TOKEN}'"}), 400
+    db = get_db()
+    # 1) [LOADTEST] 방의 모든 메시지·파일 삭제
+    rooms = db.execute("SELECT id FROM rooms WHERE name LIKE ?", (f"{LOAD_TEST_ROOM_NAME_PREFIX}%",)).fetchall()
+    deleted_files = 0
+    deleted_msgs = 0
+    deleted_rooms = 0
+    for r in rooms:
+        rid = r["id"]
+        # 파일 디스크 삭제
+        files = db.execute("SELECT file_path FROM messages WHERE room_id=? AND file_path IS NOT NULL", (rid,)).fetchall()
+        for f in files:
+            try:
+                fpath = os.path.join(UPLOAD_DIR, f["file_path"])
+                if os.path.exists(fpath):
+                    os.remove(fpath)
+                    deleted_files += 1
+            except Exception:
+                pass
+        # 방 디렉토리 자체 삭제 시도
+        try:
+            room_dir = os.path.join(UPLOAD_DIR, str(rid))
+            if os.path.isdir(room_dir):
+                import shutil as _sh
+                _sh.rmtree(room_dir, ignore_errors=True)
+        except Exception:
+            pass
+        # 메시지 + 멤버 + 방 삭제 (FK CASCADE 의존)
+        c = db.execute("DELETE FROM messages WHERE room_id=?", (rid,))
+        deleted_msgs += c.rowcount or 0
+        db.execute("DELETE FROM room_members WHERE room_id=?", (rid,))
+        db.execute("DELETE FROM requests WHERE room_id=?", (rid,))
+        db.execute("DELETE FROM rooms WHERE id=?", (rid,))
+        deleted_rooms += 1
+    # 2) loadtest_* 계정 삭제 — 다른 곳에 있는 멤버십·메시지도 정리
+    test_users = db.execute(
+        "SELECT id FROM users WHERE username LIKE ?",
+        (f"{LOAD_TEST_USERNAME_PREFIX}%{LOAD_TEST_USERNAME_DOMAIN}",)
+    ).fetchall()
+    deleted_users = 0
+    for u in test_users:
+        uid = u["id"]
+        db.execute("DELETE FROM room_members WHERE user_id=?", (uid,))
+        db.execute("DELETE FROM messages WHERE user_id=?", (uid,))
+        db.execute("DELETE FROM users WHERE id=?", (uid,))
+        deleted_users += 1
+    db.commit()
+    return jsonify({
+        "deleted_users": deleted_users,
+        "deleted_rooms": deleted_rooms,
+        "deleted_messages": deleted_msgs,
+        "deleted_files": deleted_files,
+    })
+
+
+@app.route("/api/admin/load_test/status")
+@login_required
+def api_load_test_status():
+    me = current_user()
+    if me["role"] != "ceo":
+        abort(403)
+    db = get_db()
+    test_users = db.execute(
+        "SELECT COUNT(*) AS n FROM users WHERE username LIKE ?",
+        (f"{LOAD_TEST_USERNAME_PREFIX}%{LOAD_TEST_USERNAME_DOMAIN}",)
+    ).fetchone()
+    test_rooms = db.execute("SELECT id, name FROM rooms WHERE name LIKE ?",
+                            (f"{LOAD_TEST_ROOM_NAME_PREFIX}%",)).fetchall()
+    test_msgs = 0
+    for r in test_rooms:
+        c = db.execute("SELECT COUNT(*) AS n FROM messages WHERE room_id=?", (r["id"],)).fetchone()
+        test_msgs += c["n"]
+    return jsonify({
+        "test_users_count": test_users["n"],
+        "test_rooms": [{"id": r["id"], "name": r["name"]} for r in test_rooms],
+        "test_messages_count": test_msgs,
+    })
+
+
+@app.route("/api/admin/backup_now", methods=["POST"])
+@login_required
+def api_admin_backup_now():
+    """수동 백업 즉시 실행 — deploy/backup.sh 호출. admin 전용."""
+    me = current_user()
+    if me["role"] != "ceo":
+        abort(403)
+    try:
+        import subprocess as _sp
+        backup_script = os.path.join(APP_DIR, "deploy", "backup.sh")
+        if not os.path.exists(backup_script):
+            return jsonify({"error": f"backup.sh not found at {backup_script}"}), 500
+        result = _sp.run(["bash", backup_script], capture_output=True, text=True, timeout=600)
+        return jsonify({
+            "exit_code": result.returncode,
+            "stdout": result.stdout[-2000:],
+            "stderr": result.stderr[-2000:],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/users", methods=["POST"])
 @login_required
 def api_users_create():
@@ -3868,6 +5422,7 @@ def api_users_create():
     phone = (data.get("phone") or "").strip()
     title = (data.get("title") or "").strip()[:40] or None
     department = (data.get("department") or "").strip()[:40] or None
+    employee_no = (data.get("employee_no") or "").strip()[:30] or None
     role = data.get("role") or "staff"
     avatar_color = data.get("avatar_color") or "#3b82f6"
     # 호환: username·password 직접 지정 가능 (특수 케이스)
@@ -3901,15 +5456,18 @@ def api_users_create():
     now = datetime.now(timezone.utc).isoformat()
     cur = db.execute(
         "INSERT INTO users (username, password_hash, display_name, role, avatar_color, "
-        " created_at, email, phone, title, department, must_change_password) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " created_at, email, phone, title, department, employee_no, must_change_password) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (username, generate_password_hash(password), display_name, role, avatar_color,
-         now, email or None, phone or None, title, department, must_change),
+         now, email or None, phone or None, title, department, employee_no, must_change),
     )
     db.commit()
+    # 신규 직원 → 자동채널(KNK WORLD + 본사/베트남) 자동 가입 (대표 지시 2026-05-20)
+    try: _sync_user_auto_channels(db, cur.lastrowid)
+    except Exception as e: print(f"[auto_channel] create sync 실패: {e}")
     # broadcast — 사용자 목록 즉시 갱신
     new_row = db.execute(
-        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
+        "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, employee_no, active "
         "FROM users WHERE id=?", (cur.lastrowid,)
     ).fetchone()
     socketio.emit("user_info_changed", dict(new_row))
@@ -3959,6 +5517,10 @@ def api_user_delete(user_id):
     # id=1 = 초기 대표 계정 — 절대 삭제 금지 (시드 보호)
     if user_id == 1:
         return jsonify({"error": "초기 대표 계정(id=1)은 삭제할 수 없습니다. 비활성화만 가능합니다."}), 400
+    # 최고관리자(소유자) — 삭제 금지 (대표 지시 2026-05-21)
+    _own = db.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
+    if _own and _is_owner(_own["username"]):
+        return jsonify({"error": "최고관리자 계정은 삭제할 수 없습니다."}), 400
     # 플레이스홀더 사용자에게 본인을 삭제하려는 경우 — 차단
     if row["display_name"] == "(삭제된 사용자)":
         return jsonify({"error": "시스템 사용자는 삭제할 수 없습니다."}), 400
@@ -3989,6 +5551,30 @@ def api_user_delete(user_id):
     # 실시간 broadcast — 사용자 목록 즉시 갱신
     socketio.emit("user_deleted", {"user_id": user_id, "display_name": deleted_name})
     return jsonify({"ok": True, "deleted_user_id": user_id, "display_name": deleted_name})
+
+
+@app.route("/api/users/<int:user_id>/reset_password", methods=["POST"])
+@login_required
+def api_user_reset_password(user_id):
+    """관리자가 사용자 비밀번호를 전화번호(숫자만)로 초기화 (대표 지시 2026-05-21, 규칙 5).
+    초기화 후 must_change_password=1 → 사용자 첫 로그인 시 새 비밀번호 설정 강제."""
+    me = current_user()
+    if me["role"] != "ceo":
+        return jsonify({"error": "관리자만 비밀번호를 초기화할 수 있습니다."}), 403
+    db = get_db()
+    row = db.execute("SELECT id, username, display_name, phone FROM users WHERE id=?", (user_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "사용자 없음"}), 404
+    # 최고관리자 비밀번호는 탈취 방지 — 본인(최고관리자)만 변경 가능
+    if _is_owner(row["username"]) and not _is_owner(me["username"]):
+        return jsonify({"error": "최고관리자 비밀번호는 본인만 변경할 수 있습니다."}), 403
+    digits = "".join(ch for ch in (row["phone"] or "") if ch.isdigit())
+    if not digits:
+        return jsonify({"error": "이 사용자의 전화번호가 없어 초기화할 수 없습니다. 먼저 전화번호를 등록하세요."}), 400
+    db.execute("UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?",
+               (generate_password_hash(digits), user_id))
+    db.commit()
+    return jsonify({"ok": True, "temp_password": digits, "display_name": row["display_name"]})
 
 
 @app.route("/api/me/password", methods=["PUT"])
@@ -4045,7 +5631,7 @@ def api_users_bulk_template():
     # ─── 시트 1: 입력 ───
     ws = wb.active
     ws.title = "직원등록"
-    headers = ["이름 *", "회사 이메일 * (=로그인 ID)", "휴대폰 * (=초기 비밀번호)", "직급", "부서", "권한"]
+    headers = ["이름 *", "회사 이메일 * (=로그인 ID)", "휴대폰 * (=초기 비밀번호)", "사번", "직급", "부서", "권한"]
     ws.append(headers)
     # 헤더 스타일
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -4063,47 +5649,49 @@ def api_users_bulk_template():
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = border_thin
     ws.row_dimensions[1].height = 30
-    # 컬럼 너비
-    widths = [14, 32, 18, 14, 14, 12]
+    # 컬럼 너비 (이름, 이메일, 휴대폰, 사번, 직급, 부서, 권한)
+    widths = [14, 32, 18, 12, 14, 14, 12]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[chr(64 + i)].width = w
     # 예시 행 3개
     examples = [
-        ["홍길동", "hong@knknara.co.kr", "010-1234-5678", "사원", "영업", "일반"],
-        ["이순신", "lee@knknara.co.kr", "010-2345-6789", "과장", "기술", "일반"],
-        ["김영업", "kim.sales@knknara.co.kr", "010-3456-7890", "부장", "기술영업", "관리자"],
+        ["홍길동", "hong@knknara.co.kr", "010-1234-5678", "K2401", "사원", "영업", "일반"],
+        ["이순신", "lee@knknara.co.kr", "010-2345-6789", "K2402", "과장", "기술", "일반"],
+        ["김영업", "kim.sales@knknara.co.kr", "010-3456-7890", "K2403", "부장", "기술영업", "관리자"],
     ]
     for row in examples:
         ws.append(row)
     # 예시 행 색상 강조 (회색 — "예시" 표시)
     example_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
     for r in range(2, 5):
-        for c in range(1, 7):
+        for c in range(1, 8):
             cell = ws.cell(row=r, column=c)
             cell.fill = example_fill
             cell.font = Font(italic=True, color="9CA3AF")
             cell.border = border_thin
     # 빈 행 추가 (사용자가 직접 입력) — 100행
     for _ in range(100):
-        ws.append(["", "", "", "", "", ""])
+        ws.append(["", "", "", "", "", "", ""])
     for r in range(5, 105):
-        for c in range(1, 7):
+        for c in range(1, 8):
             ws.cell(row=r, column=c).border = border_thin
 
-    # 권한 컬럼 (F열) 드롭다운: 관리자 / 일반
+    # 권한 컬럼 (G열) 드롭다운: 관리자 / 일반
     dv_role = DataValidation(type="list", formula1='"관리자,일반"', allow_blank=True)
     dv_role.error = "권한은 '관리자' 또는 '일반' 만 가능합니다"
     dv_role.errorTitle = "잘못된 권한"
     ws.add_data_validation(dv_role)
-    dv_role.add(f"F2:F105")
-    # 부서 컬럼 (E열) 드롭다운: 미리 정의된 부서들
+    dv_role.add(f"G2:G105")
+    # 부서 컬럼 (F열) 드롭다운 — 본사 14 + 베트남법인 9 (대표 지시 2026-05-20 갱신)
+    # 본사: 'NN 부서명' / 베트남: '12-VNNN 부서명' (베트남은 DB에도 코드 포함하여 통째로 저장)
+    # 일괄 등록 파싱이 prefix 자동 인식 → 본사는 부서명 그대로, 베트남은 '12-VNNN 부서명' 그대로 DB 저장.
     dv_dept = DataValidation(
         type="list",
-        formula1='"경영지원,영업,기술영업,기술,자재구매,생산,품질,해외"',
+        formula1='"00 총괄,01 기술영업팀,02 검사기팀,03 품질팀,04 설계팀(자동화),04 설계팀(검사기),05 소프트웨어팀,06 전장설계팀,07 제조기술1팀,08 제조기술2팀,09 가공팀,10 구매팀,11 관리팀,13 개발혁신팀,14 라이프밸류팀,12-VN01 기술팀,12-VN02 조립팀,12-VN03 전장팀,12-VN04 설계팀,12-VN05 소프트웨어팀,12-VN06 가공팀,12-VN07 품질팀,12-VN08 구매팀,12-VN09 관리팀"',
         allow_blank=True,
     )
     ws.add_data_validation(dv_dept)
-    dv_dept.add(f"E2:E105")
+    dv_dept.add(f"F2:F105")
 
     # ─── 시트 2: 안내 ───
     ws2 = wb.create_sheet("안내")
@@ -4134,6 +5722,25 @@ def api_users_bulk_template():
         ["", "예시 3줄은 자동 무시됩니다 (회색·기울임 표시 행)"],
         ["", "그 아래 빈 행부터 직접 입력하세요"],
         ["", "100명 이상 등록 필요 시 여러 번 나눠 업로드"],
+        ["", ""],
+        ["7. 부서 코드 매핑표 (참고용)", ""],
+        ["[임원]", ""],
+        ["", "00 총괄  (대표이사 전용)"],
+        ["[본사 — 한국]", ""],
+        ["", "01 기술영업팀         07 제조기술1팀"],
+        ["", "02 검사기팀           08 제조기술2팀"],
+        ["", "03 품질팀             09 가공팀"],
+        ["", "04 설계팀(자동화)     10 구매팀"],
+        ["", "04 설계팀(검사기)     11 관리팀"],
+        ["", "05 소프트웨어팀       13 개발혁신팀"],
+        ["", "06 전장설계팀         14 라이프밸류팀"],
+        ["", "※ 12번은 베트남법인 prefix 전용 — 본사엔 12 없음"],
+        ["[베트남법인 — 12번 산하]", ""],
+        ["", "12-VN01 기술팀         12-VN06 가공팀"],
+        ["", "12-VN02 조립팀         12-VN07 품질팀"],
+        ["", "12-VN03 전장팀         12-VN08 구매팀"],
+        ["", "12-VN04 설계팀         12-VN09 관리팀"],
+        ["", "12-VN05 소프트웨어팀"],
     ]
     for r, (a, b) in enumerate(notes, start=1):
         ws2.cell(row=r, column=1, value=a)
@@ -4192,13 +5799,28 @@ def api_users_bulk():
     for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
             continue  # 빈 행 스킵
-        # 6컬럼: 이름·이메일·전화·직급·부서·권한
+        # 7컬럼: 이름·이메일·전화·사번·직급·부서·권한
         name = (str(row[0]) if row[0] is not None else "").strip()
         email = (str(row[1]) if row[1] is not None else "").strip().lower()
         phone = (str(row[2]) if row[2] is not None else "").strip()
-        title = (str(row[3]) if len(row) > 3 and row[3] is not None else "").strip()
-        department = (str(row[4]) if len(row) > 4 and row[4] is not None else "").strip()
-        role_raw = (str(row[5]) if len(row) > 5 and row[5] is not None else "").strip()
+        employee_no = (str(row[3]) if len(row) > 3 and row[3] is not None else "").strip()
+        title = (str(row[4]) if len(row) > 4 and row[4] is not None else "").strip()
+        department = (str(row[5]) if len(row) > 5 and row[5] is not None else "").strip()
+        # 부서 코드 정규화 (대표 지시 2026-05-20 갱신)
+        #  · '01 기술영업팀'    → '기술영업팀'           (본사 — code prefix 제거)
+        #  · '12-VN01 기술팀'  → '12-VN01 기술팀'      (베트남법인 — DB에도 코드 포함하여 통째로 저장)
+        #  · 'VN12-01 기술팀'  → '12-VN01 기술팀'      (legacy 포맷 자동 변환)
+        import re as _re_dept
+        m_vn_new = _re_dept.match(r"^\s*12-VN(\d{2})\s+(.+)$", department)
+        m_vn_legacy = _re_dept.match(r"^\s*VN12-(\d{2})\s+(.+)$", department) if not m_vn_new else None
+        m_kr = _re_dept.match(r"^\s*(\d{2})\s+(.+)$", department) if (not m_vn_new and not m_vn_legacy) else None
+        if m_vn_new:
+            department = f"12-VN{m_vn_new.group(1)} {m_vn_new.group(2).strip()}"
+        elif m_vn_legacy:
+            department = f"12-VN{m_vn_legacy.group(1)} {m_vn_legacy.group(2).strip()}"
+        elif m_kr:
+            department = m_kr.group(2).strip()
+        role_raw = (str(row[6]) if len(row) > 6 and row[6] is not None else "").strip()
         # 예시 행 자동 스킵
         if email in EXAMPLE_EMAILS or name in EXAMPLE_NAMES:
             skipped.append({"row": row_idx, "name": name, "reason": "예시 행 (자동 스킵)"})
@@ -4227,24 +5849,28 @@ def api_users_bulk():
         try:
             db.execute(
                 "INSERT INTO users (username, password_hash, display_name, role, avatar_color, "
-                " created_at, email, phone, title, department, must_change_password) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                " created_at, email, phone, title, department, employee_no, must_change_password) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     email,
                     generate_password_hash(digits),
                     name, role, "#3b82f6",
                     now, email, phone,
-                    title or None, department or None, 1,
+                    title or None, department or None, employee_no or None, 1,
                 ),
             )
             created.append({"row": row_idx, "name": name, "email": email, "phone_initial_pw": digits})
         except Exception as e:
             errors.append({"row": row_idx, "name": name, "error": f"DB 오류: {e}"})
     db.commit()
+    # 일괄 등록 후 자동채널(KNK WORLD/본사/베트남) 멤버십 전체 재동기화 (대표 지시 2026-05-20)
+    if created:
+        try: _resync_auto_channels(db)
+        except Exception as e: print(f"[auto_channel] bulk resync 실패: {e}")
     # broadcast — 새로 등록된 사용자 목록 갱신
     if created:
         rows = db.execute(
-            "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, active "
+            "SELECT id, username, display_name, role, avatar_color, title, department, email, phone, employee_no, active "
             "FROM users WHERE username IN ({})".format(",".join("?" for _ in created)),
             [c["email"] for c in created],
         ).fetchall()
@@ -4261,7 +5887,7 @@ def api_users_bulk():
 
 
 def _parse_search_filters(q):
-    """Slack/Discord 식 검색 필터 파싱.
+    """고급 검색 필터 파싱.
        지원 키: from:이름, in:방이름, has:file|image|link, before:YYYY-MM-DD, after:YYYY-MM-DD
        이름·방에는 # 또는 @ 접두 가능 (예: in:#영업, from:@김정락).
        반환: (plain_text, filters)"""
@@ -4303,7 +5929,7 @@ def _parse_search_filters(q):
 @app.route("/api/search")
 @login_required
 def api_search():
-    """전문 검색 + Slack/Discord 식 고급 필터.
+    """전문 검색 + 고급 필터.
        사용 예: "발주 from:김정락 has:file before:2026-05-01 in:#영업\""""
     me = current_user()
     raw_q = (request.args.get("q") or "").strip()
@@ -4401,7 +6027,7 @@ def api_search():
         # 검색어가 전부 stop-word 등으로 fts_query_safe 가 비어졌고 필터도 없음 → 빈 결과
         msg_rows = []
 
-    # 아이템 메타 검색 (LIKE) — plain_q 기준. 필터링 모드(예: from:만)면 스킵.
+    # 프로젝트 메타 검색 (LIKE) — plain_q 기준. 필터링 모드(예: from:만)면 스킵.
     item_results = []
     if plain_q:
         tokens = re.findall(r"[\w가-힣]+", plain_q)
@@ -4426,7 +6052,7 @@ def api_search():
             """, like_args).fetchall()
             item_results = [dict(r) for r in item_rows]
 
-    # 아이템 결과 먼저, 그 다음 메시지 결과
+    # 프로젝트 결과 먼저, 그 다음 메시지 결과
     return jsonify(item_results + [dict(r) for r in msg_rows])
 
 
@@ -4441,6 +6067,21 @@ def api_rooms_create():
     if len(user_ids) < 2:
         return jsonify({"error": "최소 2명 이상이어야 합니다."}), 400
     type_ = data.get("type") or ("direct" if len(user_ids) == 2 else "group")
+    # 채널 생성 — 관리자(ceo) 또는 팀장 (대표 지시 2026-05-21)
+    if type_ == "channel":
+        _tl = _is_team_lead(me)
+        if me["role"] != "ceo" and not _tl:
+            return jsonify({"error": "채널은 관리자 또는 팀장만 만들 수 있습니다."}), 403
+        # 팀장(비ceo)은 같은 부서원만 채널에 넣을 수 있음
+        if me["role"] != "ceo" and _tl:
+            _db0 = get_db()
+            my_nd = _norm_dept(me["department"])
+            for uid in user_ids:
+                if uid == me["id"]:
+                    continue
+                ur = _db0.execute("SELECT department FROM users WHERE id=?", (uid,)).fetchone()
+                if not ur or _norm_dept(ur["department"]) != my_nd:
+                    return jsonify({"error": "팀장은 같은 부서원만 채널에 초대할 수 있습니다."}), 403
     name = (data.get("name") or "").strip() or None
     # 이름 고정 — 방장이 지정한 이름을 다른 멤버가 변경/별명 불가
     name_locked = 1 if data.get("name_locked") else 0
@@ -4489,9 +6130,12 @@ def api_leave_room(room_id):
     ).fetchone():
         return jsonify({"error": "이 방의 멤버가 아닙니다."}), 404
 
-    room = db.execute("SELECT type, name FROM rooms WHERE id=?", (room_id,)).fetchone()
+    room = db.execute("SELECT type, name, channel_scope FROM rooms WHERE id=?", (room_id,)).fetchone()
     if not room:
         return jsonify({"error": "방이 없습니다."}), 404
+    # 자동 채널(KNK WORLD/본사/베트남)은 전사·소속 채널이라 나갈 수 없음 (대표 지시 2026-05-20)
+    if room["channel_scope"]:
+        return jsonify({"error": "전사·소속 채널은 나갈 수 없습니다."}), 400
 
     now = datetime.now(timezone.utc).isoformat()
     sys_text = f"[{me['display_name']}] 님이 나갔습니다."
@@ -4521,7 +6165,18 @@ def api_leave_room(room_id):
 def _my_room_role(db, room_id, user_id):
     r = db.execute("SELECT role FROM room_members WHERE room_id=? AND user_id=?",
                    (room_id, user_id)).fetchone()
-    return r["role"] if r else None
+    if not r:
+        return None
+    role = r["role"]
+    # 채널에서는 등록된 관리자(ceo)·최고관리자 모두가 방장 기능 수행 가능 (대표 지시 2026-05-21)
+    # → 멤버이기만 하면 ceo 는 effective 'host' 로 취급 (rename·멤버관리·초대정책·삭제 등).
+    if role != 'host':
+        room = db.execute("SELECT type FROM rooms WHERE id=?", (room_id,)).fetchone()
+        if room and room["type"] == 'channel':
+            u = db.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+            if u and u["role"] == 'ceo':
+                return 'host'
+    return role
 
 
 def _room_members_full(db, room_id):
@@ -4540,6 +6195,34 @@ def _emit_room_event(room_id, event, payload):
     socketio.emit(event, payload, to=f"room_{room_id}")
 
 
+@app.route("/api/rooms/<int:room_id>", methods=["DELETE"])
+@login_required
+def api_room_delete(room_id):
+    """채널(대화방) 삭제 (대표 지시 2026-05-21).
+    관리자(ceo)는 모든 채널, 팀장은 본인이 만든 채널만. 자동 채널은 삭제 불가."""
+    me = current_user()
+    db = get_db()
+    room = db.execute("SELECT id, type, channel_scope, name, created_by FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        return jsonify({"error": "방을 찾을 수 없습니다."}), 404
+    if room["channel_scope"]:
+        return jsonify({"error": "자동 채널(KNK WORLD/본사/베트남)은 삭제할 수 없습니다."}), 400
+    if room["type"] != "channel":
+        return jsonify({"error": "채널만 삭제할 수 있습니다."}), 400
+    # 권한: 관리자(ceo) 또는 본인이 만든 채널의 팀장
+    if me["role"] != "ceo":
+        if not (_is_team_lead(me) and room["created_by"] == me["id"]):
+            return jsonify({"error": "채널은 관리자 또는 채널을 만든 팀장만 삭제할 수 있습니다."}), 403
+    name = room["name"]
+    _emit_room_event(room_id, "room_deleted", {"room_id": room_id, "name": name})
+    # 의존 데이터 명시 정리 (FK CASCADE 미적용 대비) — 전체공지 삭제와 동일 패턴
+    db.execute("DELETE FROM messages WHERE room_id=?", (room_id,))
+    db.execute("DELETE FROM room_members WHERE room_id=?", (room_id,))
+    db.execute("DELETE FROM rooms WHERE id=?", (room_id,))
+    db.commit()
+    return jsonify({"ok": True, "deleted": name})
+
+
 @app.route("/api/rooms/<int:room_id>/members", methods=["GET"])
 @login_required
 def api_room_members(room_id):
@@ -4549,7 +6232,7 @@ def api_room_members(room_id):
     if not _my_room_role(db, room_id, me["id"]):
         abort(403)
     room = db.execute(
-        "SELECT id, name, type, created_by, name_locked, retention_days, invite_policy FROM rooms WHERE id=?",
+        "SELECT id, name, type, created_by, name_locked, retention_days, invite_policy, avatar_url FROM rooms WHERE id=?",
         (room_id,),
     ).fetchone()
     if not room:
@@ -4562,6 +6245,8 @@ def api_room_members(room_id):
             "created_by": room["created_by"], "name_locked": bool(room["name_locked"]),
             "retention_days": room["retention_days"],
             "invite_policy": room["invite_policy"] or "all",
+            # 방 설정 화면의 '아이콘 사진 변경/제거' 버튼 표시에 필요 (대표 지시 2026-05-20)
+            "avatar_url": room["avatar_url"],
         },
         "members": _room_members_full(db, room_id),
         "my_alias": alias["alias"] if alias else None,
@@ -4608,12 +6293,12 @@ def api_room_alias(room_id):
 @app.route("/api/rooms/<int:room_id>/name", methods=["PATCH"])
 @login_required
 def api_room_rename(room_id):
-    """방 이름 변경 — 방장만. body: {name, name_locked?}"""
+    """방 이름 변경 — 방장 또는 관리자(ceo). body: {name, name_locked?}"""
     me = current_user()
     db = get_db()
     role = _my_room_role(db, room_id, me["id"])
-    if role != 'host':
-        return jsonify({"error": "방장만 가능"}), 403
+    if role != 'host' and me["role"] != 'ceo':
+        return jsonify({"error": "방장 또는 관리자만 가능"}), 403
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     if not name:
@@ -4701,15 +6386,21 @@ def api_room_retention(room_id):
     return jsonify({"ok": True, "retention_days": rd})
 
 
-# ---------- 사용자 상태 (Slack/Teams 식) + 캘린더 동기화 ----------
-VALID_STATUSES = ("online", "away", "busy", "meeting", "external", "dnd", "offline")
+# ---------- 사용자 상태 + 캘린더 동기화 ----------
+# 대표 지시 2026-05-19: '온라인'→'회사' 라벨 변경, 방해금지 제거,
+# 해외출장·국내출장·휴가 신규 추가.
+# (status 키 'online' 은 코드 호환 위해 유지하고 라벨만 변경)
+VALID_STATUSES = ("online", "away", "busy", "meeting", "external", "overseas", "domestic", "vacation", "offline")
 STATUS_LABEL_KO = {
-    "online":   "🟢 온라인",
+    "online":   "💻 컴퓨터",
+    "mobile":   "📱 휴대폰",
     "away":     "🌙 자리비움",
     "busy":     "🔴 바쁨",
     "meeting":  "🤝 회의 중",
     "external": "🚗 외근",
-    "dnd":      "🚫 방해금지",
+    "overseas": "✈️ 해외출장",
+    "domestic": "🚆 국내출장",
+    "vacation": "🌴 휴가",
     "offline":  "⚫ 오프라인",
 }
 
@@ -4737,6 +6428,54 @@ def _get_user_status(uid):
             pass
     d["label"] = STATUS_LABEL_KO.get(d["status"], d["status"])
     return d
+
+
+def _computed_user_status(uid):
+    """uid 의 '표시용' 상태 dict — 자동표시 규칙 적용 (다른 사람에게 보이는 값).
+      · 접속 중 + 기본('online') → PC 연결 있으면 'online'(가능), 휴대폰만이면 'mobile'(📱 휴대폰)
+      · 접속 중 + 특수상태(회의중·외근 등) → 그대로 (사용자 선택)
+      · 미접속 → 푸시 있으면 'mobile', 없으면 'offline'
+    호출 측에서 app context 보장 필요 (get_db 사용)."""
+    base = _get_user_status(uid)
+    status = base["status"]
+    if _user_is_online(uid):
+        if status == "online":
+            status = "online" if _user_has_pc_connection(uid) else "mobile"
+        # else: 특수상태 그대로
+    else:
+        try:
+            has_push = get_db().execute(
+                "SELECT 1 FROM push_subscriptions WHERE user_id=? LIMIT 1", (uid,)
+            ).fetchone()
+        except Exception:
+            has_push = None
+        status = "mobile" if has_push else "offline"
+        base["custom_text"] = None
+        base["emoji"] = None
+        base["until_at"] = None
+    base["status"] = status
+    base["label"] = STATUS_LABEL_KO.get(status, status)
+    return base
+
+
+# 직전에 broadcast 한 표시상태 캐시 — 동일 상태 중복 emit 방지 (uid -> status). eventlet 단일스레드 가정.
+_last_status_bcast = {}
+
+def _broadcast_status_if_changed(uid):
+    """uid 의 표시 상태를 계산해, 직전 broadcast 와 다를 때만 user_status_changed emit.
+    호출 측에서 app context 보장 필요."""
+    try:
+        s = _computed_user_status(uid)
+        if _last_status_bcast.get(uid) == s["status"]:
+            return
+        _last_status_bcast[uid] = s["status"]
+        socketio.emit("user_status_changed", {
+            "user_id": uid, "status": s["status"],
+            "custom_text": s.get("custom_text"), "emoji": s.get("emoji"),
+            "label": s["label"],
+        })
+    except Exception as e:
+        print(f"[status] broadcast 실패: {e}")
 
 
 @app.route("/api/me/status", methods=["GET", "PUT"])
@@ -4769,11 +6508,14 @@ def api_me_status():
             auto_set=0, updated_at=excluded.updated_at
     """, (me["id"], status, custom_text, emoji, until_at, now))
     db.commit()
-    cur = _get_user_status(me["id"])
+    cur = _get_user_status(me["id"])  # 본인에게 돌려줄 값 = 본인이 고른 상태
+    # 다른 사람에게는 자동표시 규칙(가능/휴대폰) 적용한 값으로 broadcast
+    disp = _computed_user_status(me["id"])
+    _last_status_bcast[me["id"]] = disp["status"]
     socketio.emit("user_status_changed", {
-        "user_id": me["id"], "status": cur["status"],
-        "custom_text": cur.get("custom_text"), "emoji": cur.get("emoji"),
-        "label": cur["label"],
+        "user_id": me["id"], "status": disp["status"],
+        "custom_text": disp.get("custom_text"), "emoji": disp.get("emoji"),
+        "label": disp["label"],
     })
     return jsonify({"ok": True, "current": cur})
 
@@ -4783,6 +6525,8 @@ def api_me_status():
 def api_users_statuses():
     """전체 사용자 현재 상태 일괄 조회 — 사이드바·메시지 아바타 색점용."""
     db = get_db()
+    me = current_user()
+    my_uid = me["id"] if me else None
     rows = db.execute("""
         SELECT u.id AS user_id, u.display_name,
                COALESCE(us.status, 'online') AS status,
@@ -4791,13 +6535,42 @@ def api_users_statuses():
           LEFT JOIN user_statuses us ON us.user_id = u.id
          WHERE u.active = 1
     """).fetchall()
+    # 푸시 구독이 있는 사용자 집합 — 앱이 닫혀도(연결 끊겨도) 알림 받을 수 있음 = '📱 휴대폰'
+    # (대표 지시 2026-05-20: 오프라인 vs 휴대폰 구분. 오프라인=로그아웃·알림X, 휴대폰=알림O)
+    try:
+        push_uids = set(r["user_id"] for r in db.execute(
+            "SELECT DISTINCT user_id FROM push_subscriptions"
+        ).fetchall())
+    except Exception:
+        push_uids = set()
     out = []
     now_iso = datetime.now(timezone.utc).isoformat()
     for r in rows:
         d = dict(r)
-        # 만료된 until_at 은 online 으로 강등 (DB 미반영, 표시상만)
+        # ★ 본인은 항상 online 으로 간주 (API 호출 자체가 활성 세션 증거)
+        #   SocketIO connect 전 API 호출 race condition 회피 (대표 지시 2026-05-19).
+        is_self = (my_uid is not None and d["user_id"] == my_uid)
+        uid = d["user_id"]
+        online = _user_is_online(uid)
+        # 만료된 until_at 은 기본(online)으로 강등 (DB 미반영, 표시상만)
         if d.get("until_at") and d["until_at"] < now_iso:
             d["status"] = "online"
+            d["until_at"] = None
+        set_status = d["status"]  # 사용자가 설정한 상태 (없으면 'online')
+        # ★ 상태 자동표시 규칙 (대표 지시 2026-05-20):
+        #   · 접속 중 + 기본('online') → PC 연결 있으면 '가능', 휴대폰만이면 '📱 휴대폰'
+        #   · 접속 중 + 특수상태(회의중·외근 등) → 그대로 (사용자 선택)
+        #   · 미접속 → 푸시 있으면 '휴대폰', 없으면 '오프라인'
+        if online or is_self:
+            if set_status == "online":
+                # 본인인데 아직 소켓 미연결(로드 직후 race)이면 PC 판정 불가 → '가능' 기본
+                d["status"] = "online" if (_user_has_pc_connection(uid) or (is_self and not online)) else "mobile"
+            else:
+                d["status"] = set_status
+        else:
+            d["status"] = "mobile" if uid in push_uids else "offline"
+            d["custom_text"] = None
+            d["emoji"] = None
             d["until_at"] = None
         d["label"] = STATUS_LABEL_KO.get(d["status"], d["status"])
         out.append(d)
@@ -4916,6 +6689,61 @@ def _start_calendar_worker():
                 print(f"[calendar worker] error: {e}")
             _t.sleep(60)
     import threading as _th
+    _th.Thread(target=_loop, daemon=True).start()
+
+
+# ============================================================
+# 🛡️ 자동 백업 워커 (대표 지시 2026-05-19)
+#   매일 새벽 3시 (KST) deploy/backup.sh 실행. cron 별도 설정 불필요.
+#   threading.Thread daemon — eventlet 환경에서도 안전 (subprocess 사용).
+# ============================================================
+_backup_thread_started = False
+
+def _start_backup_worker():
+    global _backup_thread_started
+    if _backup_thread_started:
+        return
+    _backup_thread_started = True
+    import threading as _th, subprocess as _sp, time as _t
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    def _loop():
+        # KST = UTC+9
+        kst = _tz(_td(hours=9))
+        while True:
+            try:
+                now_kst = _dt.now(kst)
+                # 다음 새벽 3시 (KST) 계산
+                target = now_kst.replace(hour=3, minute=0, second=0, microsecond=0)
+                if now_kst >= target:
+                    target = target + _td(days=1)
+                wait_seconds = (target - now_kst).total_seconds()
+                # 한 번에 너무 오래 자지 않도록 — 6시간씩 끊어서 sleep
+                while wait_seconds > 0:
+                    chunk = min(wait_seconds, 6 * 3600)
+                    _t.sleep(chunk)
+                    wait_seconds -= chunk
+                # 백업 실행
+                backup_script = os.path.join(APP_DIR, "deploy", "backup.sh")
+                if os.path.exists(backup_script):
+                    try:
+                        # 백업 로그는 data/backup.log 에 누적
+                        log_path = os.path.join(APP_DIR, "data", "backup.log")
+                        with open(log_path, "a", encoding="utf-8") as logf:
+                            _sp.run(
+                                ["bash", backup_script],
+                                stdout=logf, stderr=_sp.STDOUT,
+                                timeout=1800,  # 30분 타임아웃
+                            )
+                        print(f"[backup worker] 백업 완료 ({_dt.now(kst).isoformat()})", flush=True)
+                    except _sp.TimeoutExpired:
+                        print("[backup worker] 백업 타임아웃 (30분 초과)", flush=True)
+                    except Exception as e:
+                        print(f"[backup worker] 백업 실행 에러: {e}", flush=True)
+                else:
+                    print(f"[backup worker] 백업 스크립트 없음: {backup_script}", flush=True)
+            except Exception as e:
+                print(f"[backup worker] loop error: {e}", flush=True)
+                _t.sleep(3600)  # 에러 시 1시간 후 재시도
     _th.Thread(target=_loop, daemon=True).start()
 
 
@@ -5092,7 +6920,7 @@ def api_room_order(room_id):
 
 def _ensure_self_room(uid):
     """사용자의 '나에게 보내기' 1인방 보장. 없으면 생성.
-    Telegram Saved Messages / KakaoTalk 나와의 채팅 모델.
+    '나와의 채팅' 모델.
     type='self' 이며 room_members 엔트리 1개(본인)만 가짐."""
     db = get_db()
     row = db.execute("""
@@ -5227,7 +7055,7 @@ def api_room_invite(room_id):
     ).fetchone():
         return jsonify({"error": "방 멤버 아님"}), 403
     # 방의 초대 정책 조회
-    room_row = db.execute("SELECT invite_policy, type FROM rooms WHERE id=?", (room_id,)).fetchone()
+    room_row = db.execute("SELECT invite_policy, type, created_by FROM rooms WHERE id=?", (room_id,)).fetchone()
     if not room_row:
         return jsonify({"error": "방을 찾을 수 없음"}), 404
     # 1:1·self 방은 멤버 추가 불가
@@ -5241,6 +7069,15 @@ def api_room_invite(room_id):
     user_ids = list({int(x) for x in (data.get("user_ids") or [])})
     if not user_ids:
         return jsonify({"error": "초대할 사용자 ID 필요"}), 400
+    # 팀장(비ceo)은 본인이 만든 채널에 같은 부서원만 초대 가능 (대표 지시 2026-05-21)
+    if me["role"] != "ceo" and _is_team_lead(me) and room_row["type"] == "channel":
+        if room_row["created_by"] != me["id"]:
+            return jsonify({"error": "팀장은 본인이 만든 채널에만 초대할 수 있습니다."}), 403
+        my_nd = _norm_dept(me["department"])
+        for uid in user_ids:
+            ur = db.execute("SELECT department FROM users WHERE id=?", (uid,)).fetchone()
+            if not ur or _norm_dept(ur["department"]) != my_nd:
+                return jsonify({"error": "팀장은 같은 부서원만 채널에 초대할 수 있습니다."}), 403
     now = datetime.now(timezone.utc).isoformat()
     added = []
     for uid in user_ids:
@@ -5315,11 +7152,25 @@ def api_room_kick(room_id, user_id):
 def api_mark_read(room_id):
     me = current_user()
     db = get_db()
+    # 읽기 전 — 이 방에 내가 안 읽은(남이 보낸) 메시지가 있었는지 확인.
+    #  있었다면 읽음 처리 후, 다른 기기(특히 백그라운드 휴대폰)의 이 방 알림을 clear 푸시로 닫는다.
+    #  (안 읽은 게 없었으면 알림도 없으니 불필요한 푸시를 보내지 않음 — 푸시 남용/배터리 방지)
+    prevrow = db.execute(
+        "SELECT last_read_message_id FROM room_members WHERE room_id=? AND user_id=?",
+        (room_id, me["id"]),
+    ).fetchone()
+    prev_read = (prevrow["last_read_message_id"] or 0) if prevrow else 0
+    had_unread = db.execute(
+        "SELECT 1 FROM messages WHERE room_id=? AND id>? AND user_id!=? "
+        "AND (whisper_to_user_id IS NULL OR whisper_to_user_id=?) LIMIT 1",
+        (room_id, prev_read, me["id"], me["id"]),
+    ).fetchone() is not None
     last = db.execute("SELECT MAX(id) AS m FROM messages WHERE room_id=?", (room_id,)).fetchone()
     if last and last["m"]:
+        now_iso = datetime.now(timezone.utc).isoformat()
         db.execute(
-            "UPDATE room_members SET last_read_message_id=? WHERE room_id=? AND user_id=?",
-            (last["m"], room_id, me["id"]),
+            "UPDATE room_members SET last_read_message_id=?, last_read_at=? WHERE room_id=? AND user_id=?",
+            (last["m"], now_iso, room_id, me["id"]),
         )
         db.commit()
         # 같은 방의 다른 클라이언트에 읽음 알림 → 그쪽 UI에서 "안 읽음 N" 숫자 갱신
@@ -5327,7 +7178,20 @@ def api_mark_read(room_id):
             "room_id": room_id,
             "user_id": me["id"],
             "last_read": last["m"],
+            "last_read_at": now_iso,
         }, to=f"room_{room_id}")
+    # 다른 기기의 이 방 OS 알림 자동 닫기 — 백그라운드 휴대폰은 소켓이 끊겨 푸시로만 닿으므로
+    # clear 푸시를 보내 sw.js 가 tag=room_<id> 알림을 닫고 배지를 갱신하게 한다. (대표 지시 2026-05-20)
+    #  ?clear=0 (활성 방 메시지 자동 읽음 등 같은 기기에서 이미 닫는 경우)이면 생략 — 푸시 낭비 방지.
+    suppress_clear = (request.args.get("clear") == "0")
+    if had_unread and PYWEBPUSH_OK and not suppress_clear:
+        try:
+            socketio.start_background_task(
+                send_push_to_user, me["id"], "", "",
+                url=None, tag=f"room_{room_id}", clear=True,
+            )
+        except Exception:
+            pass
     return jsonify({"ok": True, "last_read": last["m"] if last else 0})
 
 
@@ -5342,7 +7206,8 @@ def api_read_status(room_id):
     ).fetchone():
         abort(403)
     rows = db.execute("""
-        SELECT rm.user_id, rm.last_read_message_id, u.display_name, u.avatar_color
+        SELECT rm.user_id, rm.last_read_message_id, rm.last_read_at,
+               u.display_name, u.avatar_color, u.avatar_url, u.title, u.department
           FROM room_members rm JOIN users u ON u.id = rm.user_id
          WHERE rm.room_id = ?
     """, (room_id,)).fetchall()
@@ -5356,7 +7221,7 @@ def api_read_status(room_id):
 @socketio.on("connect")
 def on_connect():
     """클라이언트 SocketIO 연결 시점에 사용자가 속한 모든 방에 자동 join.
-    카카오톡식 동작 — 활성 방이 아니어도 모든 방의 new_message broadcast 를 받아
+    일반 메신저식 동작 — 활성 방이 아니어도 모든 방의 new_message broadcast 를 받아
     소리·토스트·사이드바 깜빡임 등 알림이 동작.
     + Presence 등록 — 클라이언트가 곧이어 "presence" 이벤트로 device/active 갱신."""
     uid = session.get("user_id")
@@ -5373,7 +7238,8 @@ def on_connect():
     except Exception as e:
         print(f"[socket connect] auto-join 실패: {e}")
     # Presence — 일단 device 미상·active=True 로 등록.
-    # 클라이언트가 connect 직후 emit("presence", {device, active}) 보내며 갱신.
+    # 온라인 진입 broadcast 는 곧이어 오는 on_presence(기기 종류 확정 후)에서 처리 →
+    # PC 면 '가능', 휴대폰만이면 '휴대폰' 으로 정확히 표시 (connect 시점엔 기기 미상이라 깜빡임 방지).
     try:
         _presence_register(uid, request.sid, device="unknown", active=True)
     except Exception as e:
@@ -5382,12 +7248,18 @@ def on_connect():
 
 @socketio.on("disconnect")
 def on_disconnect():
-    """SocketIO 연결 해제 시 presence 에서 제거."""
+    """SocketIO 연결 해제 시 presence 에서 제거.
+    마지막 연결이 끊겼으면 다른 사용자에게 offline 알림."""
     uid = session.get("user_id")
     if not uid:
         return
     try:
         _presence_unregister(uid, request.sid)
+        # 연결 해제 후 표시 상태 재계산 broadcast:
+        #  · PC 끊기고 휴대폰 남음 → '가능'→'휴대폰' 으로 전환
+        #  · 마지막 연결까지 끊김 → 푸시 있으면 '휴대폰', 없으면 '오프라인'
+        with app.app_context():
+            _broadcast_status_if_changed(uid)
     except Exception as e:
         print(f"[presence] unregister 실패: {e}")
 
@@ -5406,6 +7278,9 @@ def on_presence(data):
     active = bool(data.get("active", True))
     try:
         _presence_register(uid, request.sid, device=device, active=active)
+        # 기기 종류(pc/mobile) 확정 → 표시 상태(가능/휴대폰) 변동 시 broadcast
+        with app.app_context():
+            _broadcast_status_if_changed(uid)
     except Exception as e:
         print(f"[presence] update 실패: {e}")
 
@@ -5424,14 +7299,55 @@ def on_leave(data):
         sio_leave(f"room_{rid}")
 
 
+# ============================================================
+# 스티커 — static/stickers/manifest.json 의 허용 파일 + 라벨
+# ============================================================
+STICKER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "stickers")
+_STICKER_LABELS = None
+def _sticker_labels():
+    """{파일명: 라벨} dict. manifest.json 1회 로드 후 캐시."""
+    global _STICKER_LABELS
+    if _STICKER_LABELS is None:
+        labels = {}
+        try:
+            with open(os.path.join(STICKER_DIR, "manifest.json"), encoding="utf-8") as fp:
+                for item in json.load(fp):
+                    f = item.get("file")
+                    if f:
+                        labels[f] = item.get("label", "")
+        except Exception:
+            labels = {}
+        _STICKER_LABELS = labels
+    return _STICKER_LABELS
+
+
 @socketio.on("send")
 def on_send(data):
     uid = session.get("user_id")
     if not uid or not isinstance(data, dict):
         return
+    # 🛡️ Rate Limit — 분당 60개 메시지 (1초당 1개 평균. 스팸 차단)
+    if not _check_rate_limit(uid, "send_message", max_per_minute=60):
+        try:
+            socketio.emit("rate_limited", {"action": "send_message", "message": "메시지 전송 속도 제한 — 1분에 60개"}, to=request.sid)
+        except Exception:
+            pass
+        return
     room_id = data.get("room_id")
     content = (data.get("content") or "").strip()
-    if not room_id or not content:
+    # 스티커 전송 — sticker=파일명. static/stickers 의 허용된 파일만 처리. content 는 라벨로 대체.
+    sticker_file = (data.get("sticker") or "").strip()
+    is_sticker = False
+    if sticker_file:
+        _labels = _sticker_labels()
+        if sticker_file in _labels:
+            is_sticker = True
+            content = _labels.get(sticker_file) or "스티커"
+        else:
+            return  # 허용되지 않은 스티커 파일명 — 무시
+    if not room_id:
+        return
+    if not is_sticker and not content:
         return
     if len(content) > 4000:
         content = content[:4000]
@@ -5478,10 +7394,11 @@ def on_send(data):
             else:
                 whisper_to_name = wrow["display_name"]
         now = datetime.now(timezone.utc).isoformat()
+        kind = "sticker" if is_sticker else "text"
         cur = db.execute(
-            "INSERT INTO messages (room_id, user_id, content, kind, created_at, quoted_message_id, whisper_to_user_id) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (room_id, uid, content, "text", now, quoted_id, whisper_to),
+            "INSERT INTO messages (room_id, user_id, content, kind, created_at, quoted_message_id, whisper_to_user_id, file_name) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (room_id, uid, content, kind, now, quoted_id, whisper_to, sticker_file if is_sticker else None),
         )
         mid = cur.lastrowid
         db.commit()
@@ -5507,9 +7424,11 @@ def on_send(data):
         "display_name": u["display_name"],
         "avatar_color": u["avatar_color"],
         "content": content,
-        "kind": "text",
+        "kind": kind,
         "created_at": now,
     }
+    if is_sticker:
+        payload["file_name"] = sticker_file
     if quoted_id:
         payload["quoted_message_id"] = quoted_id
         payload["quoted"] = quoted_meta
@@ -5557,6 +7476,9 @@ def on_send(data):
         title = f"💬 {u['display_name']} ({room_name})"
         body = content[:120]
         # 비동기 스레드로 발송 (pywebpush는 HTTP 호출이라 블로킹)
+        # tag 를 '방 단위'(room_N)로 — 같은 방 알림은 1개 카드로 합쳐짐. 새 메시지는
+        # renotify 로 그 카드를 갱신·재알림. 알림창이 메시지 수만큼 쌓이는 문제 해결. (2026-05-20)
+        # 앱 아이콘 배지 숫자는 sw.js 의 setAppBadge(payload.badge=안읽음 총합) 가 담당 → tag 와 무관.
         import threading
         threading.Thread(
             target=push_message_to_room_members,
@@ -5590,6 +7512,7 @@ if __name__ == "__main__":
     init_db()
     _start_calendar_worker()  # 캘린더 자동 상태 전환 백그라운드 워커
     _start_project_history_worker()  # 프로젝트 이력 하루 1회 자동 생성
+    _start_backup_worker()  # 매일 새벽 3시(KST) 자동 백업 (대표 지시 2026-05-19)
     print()
     print(" ============================================")
     print("  KNK Messenger - server start")

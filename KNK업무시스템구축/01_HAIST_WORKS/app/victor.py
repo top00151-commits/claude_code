@@ -545,7 +545,7 @@ def h_how_to_change(u, db):
 def h_how_to_ticket(u, db):
     return _guide_step(
         title="💡 요청 티켓 등록 방법",
-        intro="카톡·구두 요청 대신 티켓 → **자동 라우팅 + 이력 추적**.",
+        intro="메신저·구두 요청 대신 티켓 → **자동 라우팅 + 이력 추적**.",
         steps=[
             "티켓 등록 페이지 열기",
             "카테고리 선택 (자재요청/긴급가공/MODIFY/검수/AS/기타) → 담당 팀 자동 배정",

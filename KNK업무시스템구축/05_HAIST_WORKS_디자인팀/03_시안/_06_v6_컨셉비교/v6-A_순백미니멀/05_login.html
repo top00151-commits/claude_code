@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8" /><title>v6-A 순백 · /login</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+:root { --bg:#FFFFFF; --paper-2:#FAFAFA; --paper-3:#F4F4F4; --ink:#111111; --mute:#757575; --line:#ECECEC; --line-strong:#D4D4D4; --knk:#A5282C; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;color:var(--ink);background:var(--bg);min-height:100vh;display:grid;place-items:center;padding:40px}
+.box{width:100%;max-width:420px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:48px;justify-content:center}
+.brand img{height:32px}
+.brand-name{font-size:18px;font-weight:700}
+.label-tag{font-size:10px;background:var(--paper-3);color:var(--ink);padding:2px 8px;border-radius:9999px;font-weight:700;margin-left:8px}
+.title{font-size:32px;font-weight:700;letter-spacing:-.025em;margin-bottom:8px;line-height:1.2}
+.sub{font-size:14px;color:var(--mute);margin-bottom:40px;line-height:1.6}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:8px}
+.field input{width:100%;padding:13px 16px;border:1px solid var(--line-strong);border-radius:8px;font-family:inherit;font-size:15px;background:var(--bg)}
+.field input:focus{outline:none;border-color:var(--ink)}
+.field-row{display:flex;justify-content:space-between;align-items:center;margin:16px 0 28px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);cursor:pointer}
+.check input{accent-color:var(--ink);width:14px;height:14px}
+.link{font-size:13px;color:var(--ink);font-weight:600;text-decoration:none;cursor:pointer}
+.link:hover{color:var(--knk)}
+.btn-primary{width:100%;padding:14px;background:var(--ink);color:white;border:0;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-primary:hover{background:var(--knk)}
+.divider{display:flex;align-items:center;gap:12px;margin:24px 0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.btn-sso{width:100%;padding:13px;background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink)}
+.btn-sso:hover{border-color:var(--ink)}
+.footer{margin-top:48px;text-align:center;font-size:12px;color:var(--mute);line-height:1.6}
+.footer b{color:var(--ink)}
+</style></head><body>
+<div class="box">
+<div class="brand"><img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK"/><div class="brand-name">HAIST WORKS<span class="label-tag">v6-A 순백</span></div></div>
+
+<h1 class="title">반갑습니다</h1>
+<p class="sub">사번 또는 사내 이메일로 로그인해주세요.</p>
+
+<div class="field"><label>사번 / 이메일</label><input type="text" placeholder="knk2024 또는 name@knk.co.kr" value="knk2024"/></div>
+<div class="field"><label>비밀번호</label><input type="password" placeholder="비밀번호" value="••••••••"/></div>
+
+<div class="field-row">
+<label class="check"><input type="checkbox" checked/> 로그인 유지</label>
+<a class="link">비밀번호 찾기 →</a>
+</div>
+
+<button class="btn-primary">로그인 →</button>
+
+<div class="divider">또는</div>
+
+<button class="btn-sso">🔒 SSO 통합 로그인</button>
+
+<div class="footer">㈜케이엔케이 · HAIST Innovation<br><b>02-3142-XXXX</b> · helpdesk@knk.co.kr</div>
+</div>
+</body></html>

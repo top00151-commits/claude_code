@@ -8,7 +8,7 @@
 
 <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--info);">
   <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">⚙️ 시스템 설정</h1>
-  <div style="font-size:13px;color:var(--mute);">하이웍스 외부 시스템 URL과 알림 채널 등을 관리합니다.</div>
+  <div style="font-size:13px;color:var(--mute);">외부 그룹웨어 URL과 알림 채널 등을 관리합니다.</div>
   {% if request.query_params.get('saved') %}
   <div style="margin-top:12px;background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">
     ✓ {{ request.query_params.get('saved') }}개 설정이 저장되었습니다.
@@ -18,9 +18,9 @@
 
 <form method="post" action="/admin/settings">
   <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:var(--info);">🔗 하이웍스 (외부 시스템)</h2>
+    <h2 style="margin:0 0 16px;font-size:16px;font-weight:800;color:var(--info);">🔗 외부 그룹웨어</h2>
     <p style="margin:0 0 16px;font-size:12px;color:var(--mute);background:var(--amber-glow);border-left:3px solid var(--amber);padding:8px 12px;border-radius:6px;">
-      <strong>정책:</strong> 전자결제·메일은 하이웍스에서 계속 사용합니다. 자체 결재/메일 모듈은 만들지 않습니다.
+      <strong>정책:</strong> 전자결재·메일은 외부 그룹웨어에서 계속 사용합니다. 자체 결재/메일 모듈은 만들지 않습니다.
     </p>
 
     {% set hw_keys = [
@@ -43,10 +43,10 @@
   </div>
 
   <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-    <h2 style="margin:0 0 6px;font-size:16px;font-weight:800;color:var(--success);">📡 하이웍스 API 토큰</h2>
+    <h2 style="margin:0 0 6px;font-size:16px;font-weight:800;color:var(--success);">📡 외부 그룹웨어 API 토큰</h2>
     <p style="margin:0 0 14px;font-size:12px;color:var(--mute);">
-      <strong>발급 위치</strong>: 하이웍스 오피스 → 오피스 관리 → 환경 설정 → API 관리<br>
-      <strong>참조 가이드</strong>: <code>03_HAIST_WORKS_Research/하이웍스_연결방법_총망라.md</code><br>
+      <strong>발급 위치</strong>: 외부 그룹웨어 오피스 → 관리 → 환경 설정 → API 관리<br>
+      <strong>참조 가이드</strong>: <code>03_HAIST_WORKS_Research/그룹웨어_연결방법_총망라.md</code><br>
       토큰을 비워두면 해당 기능은 자동 OFF (게시판·웹 알림은 정상 동작).
     </p>
 
@@ -77,7 +77,7 @@
       {% set mtoken = settings.get('hiworks_messenger_token', {}).get('value', '') %}
       <select name="k_notify_channel" style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;font-size:13px;">
         <option value="off"     {% if ch=='off' %}selected{% endif %}>off — 푸시 끔 (안전 기본값)</option>
-        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>hiworks — 하이웍스 메신저로 발송</option>
+        <option value="hiworks" {% if ch=='hiworks' %}selected{% endif %}>groupware — 사내 메신저로 발송</option>
         <option value="smtp"    {% if ch=='smtp' %}selected{% endif %}>smtp — 메일 발송 (Phase 2 미구현)</option>
       </select>
       {% if ch == 'hiworks' and not mtoken %}
@@ -97,7 +97,7 @@
     </div>
   </div>
 
-  {# 외부 메신저 통합은 하이웍스로 단일화 (대표 결재 D01-06, 2026-04-22) #}
+  {# 외부 메신저 통합은 그룹웨어로 단일화 (대표 결재 D01-06, 2026-04-22) #}
 
   {# 그 외 설정 자동 표시 (위에서 안 다룬 키만) #}
   {% set known = ['hiworks_approval_url','hiworks_mail_url','hiworks_domain',

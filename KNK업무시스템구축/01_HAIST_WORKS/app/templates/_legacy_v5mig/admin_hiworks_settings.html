@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}하이웍스 URL 설정 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block title %}그룹웨어 연동 설정 — {{ app_name|default('HAIST WORKS') }}{% endblock %}
 {% block body %}
-{# 사이클 79 (2026-04-27) DEC-2 — 하이웍스 인사총무 연동 URL 입력 (admin/ceo 전용) #}
+{# 사이클 79 (2026-04-27) DEC-2 — 그룹웨어 인사총무 연동 설정 (admin/ceo 전용) #}
 {# 저장: app_settings 테이블 / 외부 자산 0건 / 화이트리스트 키만 #}
 
 <div style="margin-bottom:14px;">
@@ -9,7 +9,7 @@
 </div>
 
 <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--success);">
-  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">⚙ 하이웍스 연동 URL 설정</h1>
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">⚙ 그룹웨어 연동 설정</h1>
   <div style="font-size:var(--text-sm);color:var(--mute);">인사총무 페이지(<code>/hr/hiworks</code>)의 외부 링크 카드에 사용됩니다.</div>
   {% if saved %}
   <div style="margin-top:12px;background:var(--paper-2);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">
@@ -17,14 +17,14 @@
   </div>
   {% endif %}
   <div style="margin-top:12px;background:#F0F5EB;border-left:3px solid #C9A961;color:var(--success);padding:10px 14px;border-radius:6px;font-size:var(--text-xs);line-height:1.6;">
-    <strong>안내</strong>: 하이웍스 시스템(office.hiworks.com)의 각 메뉴 URL을 그대로 복사하여 입력하세요.<br>
+    <strong>안내</strong>: 외부 그룹웨어 시스템의 각 메뉴 URL을 복사하여 입력하세요.<br>
     미입력 항목은 <code>/hr/hiworks</code> 페이지에서 비활성화 카드로 표시됩니다. 외부 라이브러리·iframe·CDN 호출은 일체 사용하지 않습니다 (외부 자산 0건).
   </div>
 </div>
 
 <form method="post" action="/admin/hiworks-settings">
   <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-    <h2 style="margin:0 0 16px;font-size:var(--text-md);font-weight:800;color:var(--success);">🔗 하이웍스 URL 입력</h2>
+    <h2 style="margin:0 0 16px;font-size:var(--text-md);font-weight:800;color:var(--success);">🔗 그룹웨어 URL 입력</h2>
 
     {% for key, label, default in keys %}
     <div style="margin-bottom:14px;">

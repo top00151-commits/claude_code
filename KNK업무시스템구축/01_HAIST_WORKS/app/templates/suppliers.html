@@ -119,7 +119,9 @@
           <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
         </div>
         <div class="sp-actions">
-          <a class="btn-ghost" href="/suppliers/export.xlsx">⤓ Excel</a>
+          {# v5H226z115 (2026-05-19) — 자재 마스터와 동일 패턴 (엑셀내보내기·양식받기·일괄 등록) #}
+          <a class="btn-ghost" href="/suppliers/export.xlsx" title="현재 등록된 모든 협력사를 엑셀로 받기">⤓ 엑셀내보내기</a>
+          <a class="btn-ghost" href="/suppliers/import/template.xlsx" title="일괄등록용 빈 엑셀 양식 (예시 + 가이드 시트)">📋 양식받기</a>
           <a class="btn-ghost" href="/suppliers/import">📥 일괄 등록</a>
           <a class="btn-dark" href="/suppliers/new">＋ 협력사 등록</a>
         </div>

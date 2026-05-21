@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>워크플로우 레고 빌더 · KNK HAIST WORKS</title>
+<title>일 순서 만들기 (워크플로우) · KNK HAIST WORKS</title>
 {# v5H226z104 (2026-05-16): 워크플로우 레고 빌더 — 허브 #}
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
@@ -56,8 +56,8 @@
     {% if can_run_wizard %}
     <a href="/workflow/wizard" class="cta-wizard">
       <div>
-        <div class="t">🎯 마법사로 새 워크플로우 만들기</div>
-        <div class="s">8문항 답하시면 → 노드 조립 + IC 페어 자동 매칭 + 매트릭스 뷰</div>
+        <div class="t">🎯 일순서 새로 만들기 (만들기 길잡이)</div>
+        <div class="s">8가지 질문에 답하시면 → 일(단계) 조립 + 사내거래(법인 간 매매) 짝 자동 연결 + 표 형태 보기</div>
       </div>
       <span class="btn-go">시작 →</span>
     </a>
@@ -73,38 +73,38 @@
 
     {# z108c: 4가지 형태 시각 순서도 안내 #}
     <a href="/workflow/scenarios" style="display:block; background:#fff; border:1px solid var(--qv-line); border-left:4px solid var(--knk-red); border-radius:10px; padding:14px 18px; text-decoration:none; color:inherit; margin-top:8px;">
-      <div style="font-size:14px; font-weight:700; color:var(--qv-ink);">📋 KNK 4가지 업무 진행 형태 (참고자료 1:1 매핑)</div>
-      <div style="font-size:11.5px; color:var(--qv-ink-3); margin-top:3px;">국내·국내+VN·해외+VN·VN PO — 단계별 순서도 + 부서 매핑 한 화면. 인쇄 가능.</div>
+      <div style="font-size:14px; font-weight:700; color:var(--qv-ink);">📋 KNK 4가지 업무 진행 형태 (참고자료 1:1 연결)</div>
+      <div style="font-size:11.5px; color:var(--qv-ink-3); margin-top:3px;">국내 · 국내+베트남 · 해외+베트남 · 베트남 직접 주문 — 단계별 흐름 + 부서 배정 한 화면. 인쇄 가능.</div>
     </a>
 
     <div class="kpi">
-      <div class="card"><div class="label">등록된 업무 노드</div><div class="value">{{ node_count }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
-      <div class="card"><div class="label">빠른시작 시나리오</div><div class="value">{{ templates|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
-      <div class="card"><div class="label">IC 페어 대기</div><div class="value" style="color:#92400e;">{{ ic_pending }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">건</span></div></div>
+      <div class="card"><div class="label">등록된 업무 단계 (일)</div><div class="value">{{ node_count }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
+      <div class="card"><div class="label">자주 쓰는 흐름</div><div class="value">{{ templates|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">개</span></div></div>
+      <div class="card"><div class="label">사내거래 짝 대기 (법인 간 매매)</div><div class="value" style="color:#92400e;">{{ ic_pending }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">건</span></div></div>
       <div class="card"><div class="label">진행중 프로젝트</div><div class="value">{{ projects|selectattr('has_wf')|list|length }}<span style="font-size:13px; color:var(--qv-ink-3); margin-left:6px;">건</span></div></div>
     </div>
 
     {% if can_run_wizard %}
-    <div class="section-h">🚀 빠른시작 시나리오 (마법사 시작점으로 활용)</div>
+    <div class="section-h">🚀 자주 쓰는 5가지 흐름 (한 번 고르면 알아서 채워줍니다)</div>
     <div class="tpl-grid">
       {% for t in templates %}
       <a href="/workflow/wizard?template={{ t.code }}" class="tpl-card">
         <div class="tpl-title">{{ t.title_ko }}</div>
         <div class="tpl-desc">{{ t.description }}</div>
         <div class="tpl-meta">
-          {% if t.customer_country_hint %}<span class="chip">고객 {{ t.customer_country_hint }}</span>{% endif %}
-          {% if t.po_entity_hint %}<span class="chip k-{{ t.po_entity_hint|lower }}">PO {{ t.po_entity_hint }}</span>{% endif %}
-          {% if t.ship_entity_hint %}<span class="chip k-{{ t.ship_entity_hint|lower }}">출하 {{ t.ship_entity_hint }}</span>{% endif %}
+          {% if t.customer_country_hint %}<span class="chip">고객 {{ t.customer_country_hint|replace('KR','한국')|replace('VN','베트남')|replace('IN','인도') }}</span>{% endif %}
+          {% if t.po_entity_hint %}<span class="chip k-{{ t.po_entity_hint|lower }}">주문 받는 곳: {{ t.po_entity_hint|replace('KR','한국')|replace('VN','베트남') }}</span>{% endif %}
+          {% if t.ship_entity_hint %}<span class="chip k-{{ t.ship_entity_hint|lower }}">배송: {{ t.ship_entity_hint|replace('KR','한국')|replace('VN','베트남') }}</span>{% endif %}
         </div>
       </a>
       {% endfor %}
     </div>
     {% endif %}
 
-    <div class="section-h">📋 프로젝트별 워크플로우 ({{ projects|length }})</div>
+    <div class="section-h">📋 프로젝트별 일순서 ({{ projects|length }})</div>
     <table class="proj-tbl">
       <thead><tr>
-        <th>관리번호</th><th>프로젝트</th><th>고객국</th><th>PO 법인</th><th>출하 법인</th><th>워크플로우</th><th>액션</th>
+        <th>관리번호</th><th>프로젝트</th><th>고객 국가</th><th>주문 받는 법인</th><th>배송 법인</th><th>일순서</th><th>동작</th>
       </tr></thead>
       <tbody>
       {% for p in projects %}
@@ -112,14 +112,14 @@
         <td><code>{{ p.mgmt_code or '-' }}</code></td>
         <td>{{ p.name or '(이름없음)' }}</td>
         <td>{{ p.customer_country or '-' }}</td>
-        <td>{% if p.po_entity %}<span class="chip k-{{ p.po_entity|lower }}">{{ p.po_entity }}</span>{% else %}-{% endif %}</td>
-        <td>{% if p.ship_entity %}<span class="chip k-{{ p.ship_entity|lower }}">{{ p.ship_entity }}</span>{% else %}-{% endif %}</td>
+        <td>{% if p.po_entity %}<span class="chip k-{{ p.po_entity|lower }}">{{ p.po_entity|replace('KR','한국')|replace('VN','베트남') }}</span>{% else %}-{% endif %}</td>
+        <td>{% if p.ship_entity %}<span class="chip k-{{ p.ship_entity|lower }}">{{ p.ship_entity|replace('KR','한국')|replace('VN','베트남') }}</span>{% else %}-{% endif %}</td>
         <td>{% if p.has_wf %}✓ 설정됨{% else %}—{% endif %}</td>
         <td>
           {% if p.has_wf %}
             <a href="/workflow/project/{{ p.id }}" class="btn btn-prim">열기 →</a>
           {% elif can_run_wizard %}
-            <a href="/workflow/wizard?project_id={{ p.id }}" class="btn btn-sec">마법사 →</a>
+            <a href="/workflow/wizard?project_id={{ p.id }}" class="btn btn-sec">만들기 길잡이 →</a>
           {% else %}
             <span style="color:var(--qv-ink-3); font-size:11px;">— 미설정 —</span>
           {% endif %}

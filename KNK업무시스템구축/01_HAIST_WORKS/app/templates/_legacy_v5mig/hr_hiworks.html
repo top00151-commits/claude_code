@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}인사총무 (하이웍스) — {{ app_name|default('HAIST WORKS') }}{% endblock %}
+{% block title %}인사총무 (그룹웨어 연동) — {{ app_name|default('HAIST WORKS') }}{% endblock %}
 {% block body %}
-{# 사이클 79 (2026-04-27) DEC-2 — 인사총무 하이웍스 연동 카드 #}
+{# 사이클 79 (2026-04-27) DEC-2 — 인사총무 그룹웨어 연동 카드 #}
 {# 외부 자산 0건 / iframe import 0건 / 외부 링크만 노출 / 본인 KNK 정보만 표시 #}
 
 <div style="margin-bottom:14px;">
@@ -10,13 +10,13 @@
 
 {# 상단 안내 카드 #}
 <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;border-top:4px solid var(--success);">
-  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🏢 인사총무 (하이웍스 연동)</h1>
+  <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-0.02em;">🏢 인사총무 (그룹웨어 연동)</h1>
   <div style="font-size:var(--text-sm);color:var(--mute);line-height:1.6;">
-    <strong style="color:var(--success);">인사총무 업무는 하이웍스 시스템에서 처리합니다.</strong>
+    <strong style="color:var(--success);">인사총무 업무는 외부 그룹웨어 시스템에서 처리합니다.</strong>
     HAIST WORKS는 연동 + 조회만 제공합니다.
   </div>
   <div style="margin-top:12px;background:#F0F5EB;border-left:3px solid #C9A961;color:var(--success);padding:10px 14px;border-radius:6px;font-size:var(--text-xs);line-height:1.6;">
-    <strong>안내</strong>: 출퇴근·휴가·급여·인사 정보는 아래 외부 링크를 통해 하이웍스에서 직접 처리하세요.<br>
+    <strong>안내</strong>: 출퇴근·휴가·급여·인사 정보는 아래 외부 링크를 통해 외부 그룹웨어에서 직접 처리하세요.<br>
     링크가 비어있는 항목은 관리자(<a href="/admin/hiworks-settings" style="color:var(--success);text-decoration:underline;">/admin/hiworks-settings</a>)에서 URL 입력 후 사용 가능합니다.
   </div>
 </div>
@@ -38,9 +38,9 @@
   </div>
 </div>
 
-{# 하이웍스 연동 카드 4개 (외부 링크만, iframe 없음) #}
+{# 그룹웨어 연동 카드 4개 (외부 링크만, iframe 없음) #}
 <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px;">
-  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;color:var(--success);">🔗 하이웍스 연동 카드</h2>
+  <h2 style="margin:0 0 14px;font-size:var(--text-md);font-weight:800;color:var(--success);">🔗 그룹웨어 연동 카드</h2>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
     {% for link in links %}
       {% if link.key != 'hiworks_main_url' %}
@@ -66,7 +66,7 @@
         </div>
         {# OPS-P1-L3 [E-006]: 항목별 관리자 요청 버튼 #}
         {% if not link.url and not link.default %}
-        <a href="/tickets/new?category=기타&title={{ ('하이웍스 ' ~ link.label ~ ' URL 설정 요청')|urlencode }}"
+        <a href="/tickets/new?category=기타&title={{ ('그룹웨어 ' ~ link.label ~ ' URL 설정 요청')|urlencode }}"
            onclick="event.stopPropagation();"
            style="display:inline-block;margin-top:6px;padding:4px 10px;background:#FFF3E0;border:1px solid #FFB74D;color:#E65100;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none;">
           📩 관리자에게 요청
@@ -77,17 +77,17 @@
     {% endfor %}
   </div>
 
-  {# 하이웍스 메인 별도 안내 #}
+  {# 그룹웨어 메인 별도 안내 #}
   {% for link in links %}
     {% if link.key == 'hiworks_main_url' %}
     <div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);">
       <a href="{{ link.url or link.default or '#' }}"
          {% if link.url or link.default %}target="_blank" rel="noopener"{% endif %}
          style="display:inline-block;background:linear-gradient(135deg,#5D7F61,var(--success));color:#fff;padding:10px 22px;border-radius:8px;font-weight:800;text-decoration:none;font-size:var(--text-sm);box-shadow:0 4px 10px rgba(63,92,68,.3);">
-        🏢 하이웍스 메인 열기 ↗
+        🏢 그룹웨어 메인 열기 ↗
       </a>
       <span style="margin-left:10px;font-size:var(--text-xs);color:var(--mute);">
-        하이웍스 통합 메인 페이지로 이동합니다.
+        외부 그룹웨어 통합 메인 페이지로 이동합니다.
       </span>
     </div>
     {% endif %}
@@ -97,7 +97,7 @@
 {% if user.role in ['ceo','admin'] %}
 <div style="margin-bottom:30px;">
   <a href="/admin/hiworks-settings" style="font-size:var(--text-sm);color:var(--success);text-decoration:underline;">
-    ⚙ 관리자: 하이웍스 URL 설정
+    ⚙ 관리자: 그룹웨어 URL 설정
   </a>
 </div>
 {% endif %}

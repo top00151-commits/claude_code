@@ -12,7 +12,7 @@
 | 1 | 관리자 홈 | `/admin` | **P0** | M-04-01 | A 그리드 진입 |
 | 2 | 회사 정보 | `/admin/company-info` | **P0** | M-04-03 | B 폼형 |
 | 3 | 환경설정 | `/admin/settings` | P1 | M-04-04 | C 그룹별 |
-| 4 | 하이웍스 토큰 | `/admin/hiworks-settings` | P1 | M-04-05 | D OAuth |
+| 4 | 외부 그룹웨어 토큰 | `/admin/외부 그룹웨어-settings` | P1 | M-04-05 | D OAuth |
 | 5 | **권한 위임 메인 (마스터)** | `/admin/permissions` | **P0** | M-04-02 | 마스터 |
 | 6 | 위임 발송 | `/admin/permissions/grant` | P1 | — | E 폼 |
 | 7 | 위임 회수 | `/admin/permissions/revoke` | P1 | — | F 회수 매트릭스 |
@@ -54,7 +54,7 @@
 - 그룹별 섹션 (일반·알림·언어·백업·통합)
 - 각 그룹은 토글 + 입력 조합
 
-### D. /admin/hiworks-settings
+### D. /admin/외부 그룹웨어-settings
 - OAuth 흐름: 연결 / 토큰 갱신 / 권한 / 해제
 - 상태 칩 (연결됨·만료·해제)
 

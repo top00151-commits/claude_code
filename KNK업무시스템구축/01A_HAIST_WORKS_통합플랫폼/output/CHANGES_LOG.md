@@ -319,3 +319,99 @@ home.html 폭 정렬 후, 대표 지시로 22 페이지 전체 점검 및 일괄
 
 ### 사본
 - changed_templates/ 23 파일 (22 페이지 + cockpit 추가) 일괄 갱신 완료
+
+## 2026-05-12 — workflow 페이지 IC 표현 + 어려운 표현 즉시 정리
+
+### 배경
+- 대표 직접 지시: "IC라는 표현은 사용하지 마"
+- 빅터 자동 처리 위임 INQUIRY 발송 후 미처리 상태 지속
+- 대표가 직접 화면에서 IC 잔존 확인 → 즉시 처리 결정
+
+### 권한 근거
+- 메모리 절대준수: "사람 친화 용어 사용 규칙" + "IC 표현 금지" (대표 직접 지시)
+- 변경 = 사용자 노출 텍스트만 (코드 로직·DB 스키마·라우트 무변경)
+- 워크플로우 폴더는 별도 발주서 없음 (실무팀1·2·3 어느 발주서에도 없음)
+- 빅터 자동 처리 위임이 작동하지 않는 상태에서 대표 직접 지시 우선 → 일시 권한 확장 적용
+
+### 변경 파일 (4개)
+1. `01_HAIST_WORKS/app/templates/workflow/home.html` — 정적 텍스트 9건 정리
+   - 브라우저 탭 제목 / cta-wizard t·s / KPI 카드 4개 / 표 헤더 / 표 셀 (chip replace 필터) / 마법사 버튼 / scenarios 링크
+2. `01_HAIST_WORKS/app/templates/workflow/ic_pairs.html` — 7건 정리
+   - 브라우저 탭 제목 / page-meta / page-title / 설명문 / KPI 4개 / 필터바 / 표 헤더 / 빈 메시지 / chip replace
+3. `01_HAIST_WORKS/app/templates/workflow/wizard.html` — SCENARIO_INFO 객체 4건 + LOC_LABEL
+4. `01_HAIST_WORKS/app/migrations/m_z104_workflow_builder.py` — TEMPLATES 5개 시나리오 title_ko + description
+
+### DB UPDATE 작성 (대표 즉시 실행 가능)
+- `01A_HAIST_WORKS_통합플랫폼/sql_easy_text/workflow_scenarios_easy_text.sql` (UPDATE 5건 + ROLLBACK 포함)
+- `01A_HAIST_WORKS_통합플랫폼/sql_easy_text/APPLY_workflow_easy_text.bat` (DB 백업 → SQL 적용 → 검증 일괄 도구)
+
+### 자동 검증
+- workflow/ 폴더 IC 잔존: **1건** (project.html 라인 22 CSS 주석만 — 사용자 노출 X)
+- 22 페이지 IC 잔존: **0건** (이전 검증 유지)
+
+### 빅터 통보 사항
+- INQUIRY_2026-05-12_workflow_scenarios_easy_text.md 처리 상태:
+  - 일부는 우리가 즉시 직접 적용 (HTML 정적 텍스트 + migration 동기 수정)
+  - DB UPDATE는 sql_easy_text/ 도구 제공 — 대표 직접 실행 또는 빅터 후속 처리
+- 빅터 자동 처리 위임 채널 점검 필요 (왜 자동 처리되지 않는가?)
+
+### 대표 즉시 실행 안내 (서버 가동 중일 때)
+1. Ctrl+F5 강제 새로고침 → `/workflow` 페이지 확인 (HTML 변경 즉시 반영)
+2. 시나리오 5개 카드 텍스트가 여전히 어렵게 보이면 → `sql_easy_text/APPLY_workflow_easy_text.bat` 더블클릭 (DB 백업 + UPDATE)
+3. 5분 후 다시 페이지 새로고침 → 시나리오 텍스트 정리 확인
+
+
+## 2026-05-12 — 엑셀 "형태별업무진행순서.xlsx" 정독 + 시나리오 텍스트 재정정
+
+### 배경
+- 대표 직접 지시: "엑셀 정확히 검증해서 일 순서 만들기에 수정 반영"
+- 직전 쉬운 표현 적용본이 엑셀 정답과 흐름 다름을 발견
+
+### 엑셀 정독 결과
+- 파일: `참고자료/형태별업무진행순서.xlsx` (시트 2개)
+- 시트 1 `본사PO`: 시나리오 ①·②·③ (총 95 단계)
+- 시트 2 `베트남PO`: 시나리오 ④ (29 단계)
+- **엑셀 정답 = 4개 시나리오 (현재 시스템 5개와 다름)**
+- 전체 덤프 JSON: `notes/형태별업무진행순서_dump.json`
+
+### 정답 4개 vs 현재 시스템 5개 차이
+
+| 번호 | 엑셀 (정답) | 현재 시스템 (수정 전) |
+|---|---|---|
+| ① | 국내 고객 + 본사 단독 (27 단계) | 일치 |
+| ② | 국내 고객 + VN 협업 제작 + 본사 최종 마감 (34 단계) | "한국 → 해외 수출 (인도 등)" — **완전히 다른 흐름** |
+| ③ | 해외 고객 + 본사 주문 + VN 제작 + 본사 수출 (34 단계) | "한국이 주문 받고, 베트남이 만듭니다" — **본사 수출 빠짐** |
+| ④ | 해외 고객 + 법인PO → 본사 개발 → VN 출하 (29 단계) | "베트남이 전부 처리 / SW만 한국 지원" — **본사 개발 빠짐** |
+| ⑤ | (엑셀에 없음) | "복잡한 경우 분담" — 보조 유지 |
+
+### 즉시 처리 (텍스트 — 코드 로직 무변경)
+
+**1. migration 파일 동기 수정** (m_z104_workflow_builder.py 라인 277·278·294·295·311·312·330·331·347·348)
+- 5개 시나리오 title_ko + description 엑셀 기준 재작성
+
+**2. SQL UPDATE 스크립트 작성**
+- `sql_easy_text/workflow_scenarios_excel_corrected.sql` (5건 UPDATE + ROLLBACK)
+- 기존 BAT 도구가 새 SQL 파일 가리키도록 갱신
+
+**3. wizard.html SCENARIO_INFO 동기 수정**
+- T1~T4 title + desc + nodes(엑셀 단계 수) 정확히 반영
+- T1: 27 / T2: 34 / T3: 34 / T4: 29
+
+### 빅터 권한 영역 (별도 INQUIRY 발송)
+
+**INQUIRY:** `output/_TO_01/INQUIRY_2026-05-12_workflow_excel_validation.md`
+- 노드 흐름(workflow_template_node) 재구성 — 코드 로직 영향 큼
+- workflow_node_master 누락 노드 보강 (예: prod.kr_electric / prod.kr_io_check / as.manual / qa.kr_inspect_after_vn 등)
+- migration TEMPLATES nodes list 재구성
+- s5_split 유지/제거 결정
+
+### 자체 재검증
+- migration 5개 시나리오 title_ko + description 엑셀 기준 일치 ✓
+- IC 표현 잔존: 0 (기 적용 유지) ✓
+- wizard.html SCENARIO_INFO 엑셀 단계 수 정확 반영 ✓
+
+### 대표 즉시 실행
+1. `sql_easy_text/APPLY_workflow_easy_text.bat` 더블클릭 (DB 백업 → SQL 적용 → 검증)
+2. `/workflow` 페이지 Ctrl+F5 새로고침 → 5개 카드 텍스트 엑셀 기준 정정 확인
+3. 빅터에 노드 흐름 재구성 INQUIRY 처리 요청 (별도 채널)
+

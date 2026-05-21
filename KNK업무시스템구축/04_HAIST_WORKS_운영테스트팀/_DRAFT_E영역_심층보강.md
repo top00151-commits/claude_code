@@ -17,7 +17,7 @@ E 영역 미Read 6 페이지 추가 검증 — **117건 회귀 PASS 5건 + 신�
 | OPS | 영역 | 검증 결과 |
 |---|---|---|
 | EE-회귀-1 [E-007 P0] | admin_company_info.html `?saved=1` | ✅ line 14 `{% if saved and saved|int > 0 %}` + line 16 "✓ N개 항목 저장" |
-| EE-회귀-2 [E-022 P2] | admin_hiworks_settings 저장 피드백 | ✅ line 14 `{% if saved %}` 동일 패턴 |
+| EE-회귀-2 [E-022 P2] | admin_외부 그룹웨어_settings 저장 피드백 | ✅ line 14 `{% if saved %}` 동일 패턴 |
 | EE-회귀-3 [E-021 P1] | external_assets_review 결정 문서 동적 일자 | ✅ line 25 `99_DISPATCH/외부자산_결정_{{ today }}.md` (OPS-P1-U5 적용) |
 | EE-회귀-4 [E-008 P1] | external_assets 색상 분기 | ✅ line 33-39 보안=knk-red / 의존=#C9A961 / 기타=mute-2 (3 stop 일관) |
 | EE-회귀-5 [B-013 P1] | company-info 미입력 시 빨간 배너 정합 | ✅ line 41 `<code>[등록 대기]</code>` 명시 + quotation_print.html:87-89 D6 배너 표기 |

@@ -1,6 +1,6 @@
 @echo off
 REM === KNK Messenger Launcher (auto-opens app window) ===
-REM LAST UPDATE: 2026-05-11 - Auto-load .env (ANTHROPIC_API_KEY 등 자동 설정)
+REM LAST UPDATE: 2026-05-21 - 내상태 팝업 상태카드 컴팩트 1줄 디자인 + 모바일 2열 유지(설정창 한화면에 표시)
 cd /d "%~dp0"
 cls
 echo.

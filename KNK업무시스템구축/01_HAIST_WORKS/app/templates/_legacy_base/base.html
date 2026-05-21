@@ -303,21 +303,21 @@
 
     {# C안 §3-3 — 도메인 그룹 제거 (매출·영업 / 자재·구매 → 상단 워크스페이스 스위처로 이전) #}
 
-    {# 그룹 5: 외부 · 관리 (하이웍스·팀트리·관리자) #}
+    {# 그룹 5: 외부 · 관리 (그룹웨어·팀트리·관리자) #}
     <div class="sb-section">
-      <div class="sb-head">관리 <span style="background:var(--paper-2);color:var(--amber-deep);font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;letter-spacing:0.04em;">하이웍스</span></div>
-      <a href="{{ hiworks_approval_url|default('https://office.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="전자결제는 하이웍스에서 계속 사용">
+      <div class="sb-head">관리 <span style="background:var(--paper-2);color:var(--amber-deep);font-size:9px;padding:2px 7px;border-radius:999px;font-weight:800;letter-spacing:0.04em;">그룹웨어</span></div>
+      <a href="{{ hiworks_approval_url|default('#') }}" target="_blank" rel="noopener" class="sb-item" title="전자결재 (외부 그룹웨어)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         전자결제<span style="margin-left:auto;font-size:10px;color:var(--mute-2);">↗</span>
       </a>
-      <a href="{{ hiworks_mail_url|default('https://mail.hiworks.com/') }}" target="_blank" rel="noopener" class="sb-item" title="메일은 하이웍스에서 계속 사용">
+      <a href="{{ hiworks_mail_url|default('#') }}" target="_blank" rel="noopener" class="sb-item" title="메일 (외부 그룹웨어)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
         메일<span style="margin-left:auto;font-size:10px;color:var(--mute-2);">↗</span>
       </a>
-      {# 사이클 79 (DEC-2) — 인사총무 하이웍스 연동 페이지 (모든 로그인 사용자, 본인 정보만) #}
-      <a href="/hr/hiworks" class="sb-item {% if active=='hr_hiworks' %}sb-active{% endif %}" title="인사총무 업무는 하이웍스 시스템에서 처리 (HAIST WORKS는 연동·조회만)">
+      {# 사이클 79 (DEC-2) — 인사총무 그룹웨어 연동 페이지 (모든 로그인 사용자, 본인 정보만) #}
+      <a href="/hr/hiworks" class="sb-item {% if active=='hr_hiworks' %}sb-active{% endif %}" title="인사총무 업무는 외부 그룹웨어에서 처리 (HAIST WORKS는 연동·조회만)">
         <span class="sb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1"/></svg></span>
-        인사총무 (하이웍스) <span class="menu-code">M-03-02</span>
+        인사총무 (그룹웨어 연동) <span class="menu-code">M-03-02</span>
       </a>
       {% if user.role in ['leader','executive','ceo','admin'] %}
       {# CEO/임원/admin 은 team_id 없을 수 있음 → /team/permissions (인덱스) 로 #}
@@ -821,7 +821,7 @@ async function resolveDelegation(did, tid){
     "구매팀": {
       icon: "📦",
       key_features: [
-        ["요청 티켓", "/tickets?scope=team", "카톡 자재요청을 자동 라우팅으로 받음 (누락 0)"],
+        ["요청 티켓", "/tickets?scope=team", "메신저 자재요청을 자동 라우팅으로 받음 (누락 0)"],
         ["진행률 대시보드", "/progress", "발주 → 입고 → 조립 공정 진척 한눈"],
         ["변경 공지", "/changes?scope=me", "BOM 변경 → 영향 자재 즉시 인지"]
       ]
@@ -921,7 +921,7 @@ async function resolveDelegation(did, tid){
     key_features: [
       ["진행률 대시보드", "/progress", "프로젝트 진행 한눈에"],
       ["변경 공지", "/changes", "프로젝트 변경 자동 알림"],
-      ["요청 티켓", "/tickets", "카톡 대신 추적 가능한 요청"]
+      ["요청 티켓", "/tickets", "메신저 대신 추적 가능한 요청"]
     ]
   };
 
@@ -1377,7 +1377,7 @@ function menuHelpToggle() {
     <div class="dock-search-empty" id="dockSearchEmpty">
       <span class="empty-ico">🔍</span>
       검색어를 입력하면 결과가 표시됩니다<br>
-      <span style="font-size:11px;color:var(--ink-4,#8FA594)">예: "삼성", "라벨링", "김재훈", "발주서"</span>
+      <span style="font-size:11px;color:var(--ink-4,#8FA594)">예: "고객사명", "라벨링", "김재훈", "발주서"</span>
     </div>
   </div>
 </aside>

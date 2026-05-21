@@ -274,8 +274,8 @@ TEMPLATES = [
     # code, title, desc, customer_country_hint, po_entity, ship_entity, order, nodes (list of node_code)
     {
         'code': 's1_kr_domestic',
-        'title_ko': '① 국내 (한국 고객·KR 수주·KR 출하)',
-        'description': '본사 수주 → 한국 설계·생산 → 국내 출하',
+        'title_ko': '① 국내 고객 + 본사 단독 진행',
+        'description': '한국 고객사 → 본사가 주문 받고 → 본사에서 설계·제작·출하 → 국내 고객사 배송. 가장 단순한 흐름입니다.',
         'customer_country_hint': 'KR', 'po_entity_hint': 'KR', 'ship_entity_hint': 'KR',
         'order': 1,
         'nodes': [
@@ -291,8 +291,8 @@ TEMPLATES = [
     },
     {
         'code': 's2_kr_export_in',
-        'title_ko': '② KR 수출 (인도 등 KR 직수출)',
-        'description': '본사 수주 → 한국 설계·생산 → 인도/해외 수출',
+        'title_ko': '② 국내 고객 + 베트남 협업 제작 + 본사 최종 마감',
+        'description': '한국 고객사 → 본사가 주문 받고 → 설계는 본사·베트남 협업 → 베트남에서 제작 → 본사로 다시 들여와 최종 검증·마감 → 국내 고객사 배송.',
         'customer_country_hint': 'IN', 'po_entity_hint': 'KR', 'ship_entity_hint': 'KR',
         'order': 2,
         'nodes': [
@@ -308,8 +308,8 @@ TEMPLATES = [
     },
     {
         'code': 's3_vn_export',
-        'title_ko': '③ VN 수출 (본사 수주 → VN 출하·KR↔VN IC)',
-        'description': '본사가 수주받고 VN 법인이 생산·출하 (KR→VN 자재판매 + VN→KR 가공품 매출 IC 페어)',
+        'title_ko': '③ 해외 고객 + 본사 주문 + 베트남 제작 + 본사 수출',
+        'description': '해외 고객사(인도·터키 등) → 본사가 주문 받음 → 본사·베트남 협업 설계 → 베트남 제작 → 본사로 들여와 최종 검증 → 본사가 해외로 직접 수출 → 해외 고객사 도착.',
         'customer_country_hint': 'VN', 'po_entity_hint': 'KR', 'ship_entity_hint': 'VN',
         'order': 3,
         'nodes': [
@@ -327,8 +327,8 @@ TEMPLATES = [
     },
     {
         'code': 's4_vn_local_po',
-        'title_ko': '④ VN 현지 수주 (VN 법인 직수주·VN 출하)',
-        'description': 'VN 법인이 직접 수주·생산·VN 현지 출하 (SW만 한국 지원 가능)',
+        'title_ko': '④ 해외 고객 + 베트남 법인 직접 주문 + 본사 개발 + 베트남 출하',
+        'description': '해외 고객사 → 베트남 법인이 직접 주문 받음 → 본사로 주문 발행 → 본사가 개발·자재·완성품 수출 → 베트남에서 제작 → 베트남 법인이 직접 해외 고객사에 출하.',
         'customer_country_hint': 'VN', 'po_entity_hint': 'VN', 'ship_entity_hint': 'VN',
         'order': 4,
         'nodes': [
@@ -344,8 +344,8 @@ TEMPLATES = [
     },
     {
         'code': 's5_split',
-        'title_ko': '⑤ 분담 시나리오 (설계 KR+VN, 생산 KR)',
-        'description': '복합 케이스 — 마법사 8문항으로 미세조정',
+        'title_ko': '⑤ 위 4가지에 안 맞는 경우 (자유 조합)',
+        'description': '위 4가지 자주 쓰는 흐름에 정확히 맞지 않는 복잡한 경우. 8가지 질문에 답하시면 자동으로 세부 맞춤됩니다.',
         'customer_country_hint': None, 'po_entity_hint': None, 'ship_entity_hint': None,
         'order': 5,
         'nodes': [

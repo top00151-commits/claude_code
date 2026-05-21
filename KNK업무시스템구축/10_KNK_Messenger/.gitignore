@@ -23,3 +23,7 @@ secret.key
 
 # 운영 환경 산출물
 uploads/
+
+# 직원 명단 (개인정보 — 휴대폰·이메일 포함, git 절대 금지)
+KNK_직원등록.xlsx
+_excel_mapping.json

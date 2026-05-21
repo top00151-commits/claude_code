@@ -1,8 +1,42 @@
 // KNK Messenger Service Worker — pass-through + 강제 네트워크
-// v8-force-net-js-css: app.js / style.css 도 항상 네트워크에서 받음 (PWA 캐시로 옛 코드 잔존 차단)
-const CACHE = "knk-messenger-v8-force-net-js-css";
+// v10-resub: SW 교체 시 푸시 구독 자동 복구(pushsubscriptionchange) — 알림 끊김 방지
+const CACHE = "knk-messenger-v11-clear";
 // 하위 경로 배포(/msg) 지원 — 등록 시 ?base= 쿼리로 전달받은 접두어
 const BASE = (new URL(self.location).searchParams.get("base") || "");
+
+// base64url → Uint8Array (applicationServerKey 변환용)
+function _urlBase64ToUint8Array(base64) {
+  const padding = "=".repeat((4 - base64.length % 4) % 4);
+  const base64Std = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64Std);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// 푸시 구독 재등록 — SW 교체·만료 시 구독이 깨지면 자동 복구.
+async function _resubscribePush() {
+  try {
+    const resp = await fetch(BASE + "/api/push/vapid_public");
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+    if (!cfg || !cfg.public_key || !cfg.enabled) return;
+    const sub = await self.registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlBase64ToUint8Array(cfg.public_key),
+    });
+    await fetch(BASE + "/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+  } catch (e) { /* ignore */ }
+}
+
+// SW 가 교체되거나 브라우저가 구독을 무효화하면 자동 재구독 (알림 끊김 방지)
+self.addEventListener("pushsubscriptionchange", (e) => {
+  e.waitUntil(_resubscribePush());
+});
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
@@ -10,8 +44,15 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
+    (async () => {
+      await caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+      await self.clients.claim();
+      // SW 교체 후 푸시 구독이 없으면 자동 재구독 (v8→v9 교체 시 알림 끊긴 문제 복구)
+      try {
+        const sub = await self.registration.pushManager.getSubscription();
+        if (!sub) await _resubscribePush();
+      } catch (e) { /* ignore */ }
+    })()
   );
 });
 
@@ -38,6 +79,25 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch (err) { data = { title: "KNK 메신저", body: e.data?.text() || "" }; }
+  // 읽음 신호(type=clear) — 다른 기기에서 그 방을 읽었을 때 서버가 보냄.
+  // 알림을 새로 띄우지 않고, 해당 방(tag) 알림을 닫고 앱 배지만 갱신. (대표 지시 2026-05-20)
+  if (data && data.type === "clear") {
+    e.waitUntil((async () => {
+      try {
+        const tag = data.tag;
+        const notes = await self.registration.getNotifications();
+        notes.forEach(n => { if (!tag || n.tag === tag) { try { n.close(); } catch (e) {} } });
+      } catch (e) { /* ignore */ }
+      try {
+        if ("setAppBadge" in self.navigator) {
+          const n = (typeof data.badge === "number") ? data.badge : 0;
+          if (n > 0) await self.navigator.setAppBadge(n);
+          else if ("clearAppBadge" in self.navigator) await self.navigator.clearAppBadge();
+        }
+      } catch (e) { /* ignore */ }
+    })());
+    return;
+  }
   const title = data.title || "KNK 메신저";
   const opts = {
     body: data.body || "",
@@ -53,8 +113,14 @@ self.addEventListener("push", (e) => {
   const updateBadge = (async () => {
     if ("setAppBadge" in self.navigator) {
       try {
-        // 정확한 unread 카운트를 모르므로 +1 누적. clearAppBadge 는 클라이언트 열릴 때.
-        await self.navigator.setAppBadge();
+        // 서버가 push payload 에 정확한 안 읽은 메시지 총합(badge)을 보냄.
+        // 있으면 그 숫자로, 없으면(구버전) 점만 표시.
+        const n = (typeof data.badge === "number" && data.badge > 0) ? data.badge : undefined;
+        if (n !== undefined) {
+          await self.navigator.setAppBadge(n);
+        } else {
+          await self.navigator.setAppBadge();
+        }
       } catch (e) { /* ignore */ }
     }
   })();

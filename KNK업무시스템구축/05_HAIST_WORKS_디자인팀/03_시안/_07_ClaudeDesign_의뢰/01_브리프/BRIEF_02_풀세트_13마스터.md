@@ -74,7 +74,7 @@
 ### H. 결재 (Approval) — 통합 결재함
 - `master_H_inbox.html` — 내 결재함 (탭: 대기 / 처리 / 위임)
 - `master_H_approval_detail.html` — 결재 상세 (승인·반려·전결)
-- ⚠ 하이웍스 전자결재 계속 사용 정책 (시스템 범위 정책) — 본 화면은 KNK 자체 결재 (간단 발주 결재용)
+- ⚠ 외부 그룹웨어 전자결재 계속 사용 정책 (시스템 범위 정책) — 본 화면은 KNK 자체 결재 (간단 발주 결재용)
 
 ### I. 알림·메신저
 - `master_I_notifications.html` — 알림 센터 (10_KNK_Messenger 연계)
