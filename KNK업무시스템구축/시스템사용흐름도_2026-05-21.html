@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KNK 시스템 사용 흐름도 — 2026-05-21</title>
+<style>
+  :root {
+    --ink:#1f2937; --ink-2:#4b5563; --ink-3:#9ca3af;
+    --line:#e5e7eb; --bg:#fafafa; --knk-red:#a5282c; --accent:#6366f1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+
+  .topbar{
+    position:sticky;top:0;z-index:50;background:#fff;border-bottom:2px solid var(--knk-red);
+    padding:14px 24px;display:flex;align-items:center;gap:18px;box-shadow:0 2px 8px rgba(0,0,0,.04);
+  }
+  .brand{font-size:18px;font-weight:800;color:var(--knk-red);letter-spacing:-.5px}
+  .brand-sub{font-size:12px;color:var(--ink-3);margin-left:6px}
+  .grow{flex:1}
+  .fbtn{padding:7px 13px;font-size:12.5px;font-weight:700;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;transition:.15s}
+  .fbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .fbtn.on{background:var(--knk-red);border-color:var(--knk-red);color:#fff}
+
+  .layout{display:flex;min-height:calc(100vh - 62px)}
+  .canvas-wrap{flex:1;position:relative;overflow:auto;padding:24px;background:linear-gradient(180deg,#fff 0%,#f5f5f5 100%)}
+  .side{
+    width:340px;border-left:1px solid var(--line);background:#fff;padding:20px;
+    position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto;
+  }
+
+  /* SVG 캔버스 */
+  #stage-svg{position:absolute;inset:0;pointer-events:none;z-index:1}
+  .stage-area{position:relative;z-index:2}
+
+  /* 6 단계 컬럼 */
+  .stages{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:32px;}
+  @media (max-width:1300px){.stages{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:850px){.stages{grid-template-columns:1fr}}
+
+  .stage-col{display:flex;flex-direction:column;gap:10px;min-height:300px}
+  .stage-head{
+    background:linear-gradient(135deg,var(--knk-red) 0%,#7c2128 100%);color:#fff;
+    padding:10px 12px;border-radius:10px;font-weight:800;text-align:center;font-size:13.5px;letter-spacing:-.2px;
+    box-shadow:0 2px 6px rgba(165,40,44,.25);
+  }
+  .stage-head small{display:block;font-weight:500;font-size:10.5px;opacity:.9;margin-top:2px;letter-spacing:.04em}
+
+  /* 화면 카드 */
+  .screen{
+    background:#fff;border:1.5px solid var(--line);border-left-width:5px;border-radius:10px;
+    padding:10px 12px;cursor:pointer;transition:all .15s;position:relative;
+  }
+  .screen:hover{transform:translateX(2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .screen.hub-tot{border-left-color:#7c3aed}
+  .screen.hub-sales{border-left-color:#dc2626}
+  .screen.hub-logi{border-left-color:#16a34a}
+  .screen.hub-wf{border-left-color:#0369a1}
+  .screen.hub-admin{border-left-color:#6b7280}
+  .screen.hub-msg{border-left-color:#ca8a04}
+  .screen.selected{box-shadow:0 0 0 3px var(--knk-red);transform:translateX(4px)}
+  .screen.dim{opacity:.25}
+
+  .screen .ic{font-size:18px;margin-right:5px}
+  .screen .name{font-size:13px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:4px}
+  .screen .url{font-size:10.5px;font-family:monospace;color:var(--ink-3);margin-top:2px}
+  .screen .auto-tag{
+    position:absolute;top:6px;right:6px;font-size:9px;
+    background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;font-weight:700;
+  }
+  .screen .auto-tag.auto{background:#dcfce7;color:#166534}
+
+  /* 횡단 메뉴 (하단 가로 바) */
+  .cross-band{
+    background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-top:8px;
+  }
+  .cross-band h3{font-size:13px;color:var(--ink-2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .cross-band h3 small{font-size:10.5px;color:var(--ink-3);font-weight:500}
+  .cross-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+
+  /* 옆 패널 */
+  .side h2{font-size:17px;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .side .sub{font-size:11.5px;color:var(--ink-3);margin-bottom:14px}
+  .scard{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px;margin-bottom:10px}
+  .scard h4{font-size:11px;color:var(--ink-3);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase}
+  .scard p{font-size:12.5px;color:var(--ink);line-height:1.55}
+  .scard .url-pill{
+    display:inline-block;padding:5px 11px;background:#1e40af;color:#fff;border-radius:6px;
+    font-family:monospace;font-size:11px;font-weight:700;text-decoration:none;
+  }
+  .scard .url-pill:hover{background:#1e3a8a}
+
+  .conn-list{display:flex;flex-direction:column;gap:5px}
+  .conn-item{
+    display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fff;border:1px solid var(--line);
+    border-radius:6px;font-size:12px;cursor:pointer;transition:.15s;
+  }
+  .conn-item:hover{border-color:var(--accent)}
+  .conn-arrow{color:var(--knk-red);font-weight:800;width:22px;flex-shrink:0;text-align:center}
+  .conn-name{flex:1;font-weight:700}
+  .conn-type{font-size:10px;color:var(--ink-3);padding:1px 6px;border-radius:4px;background:var(--bg)}
+  .conn-type.auto{background:#dcfce7;color:#166534}
+  .conn-type.nav{background:#dbeafe;color:#1e40af}
+
+  /* 화살표 */
+  .edge-nav{stroke:#94a3b8;stroke-width:1.8;fill:none;stroke-opacity:.5}
+  .edge-auto{stroke:#16a34a;stroke-width:1.5;fill:none;stroke-opacity:.55;stroke-dasharray:5 3}
+  .edge.active{stroke-opacity:1;stroke-width:3}
+  .edge.dim{stroke-opacity:.07}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:14px;font-size:11.5px}
+  .legend-item{display:flex;align-items:center;gap:6px}
+  .legend-bar{display:inline-block;width:30px;height:2.5px;border-radius:2px}
+
+  @media print{
+    .topbar,.side,.fbtn{display:none!important}
+    .layout{display:block}
+    .canvas-wrap{overflow:visible}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="brand">KNK 시스템 사용 흐름도</span>
+    <span class="brand-sub">2026-05-21 · 일(데이터)이 화면 사이를 어떻게 흐르는가</span>
+  </div>
+  <div class="grow"></div>
+  <button class="fbtn on" data-hub="all">전체</button>
+  <button class="fbtn" data-hub="sales">매출·영업</button>
+  <button class="fbtn" data-hub="logi">자재·구매</button>
+  <button class="fbtn" data-hub="wf">워크플로우</button>
+  <button class="fbtn" data-hub="tot">통합</button>
+  <button class="fbtn" data-hub="msg">메신저</button>
+  <button class="fbtn" onclick="window.print()">🖨 인쇄</button>
+</div>
+
+<div class="layout">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div class="legend">
+      <div class="legend-item"><span class="legend-bar" style="background:#7c3aed"></span>통합</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#dc2626"></span>매출·영업</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#16a34a"></span>자재·구매</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#0369a1"></span>워크플로우</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#6b7280"></span>관리</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#ca8a04"></span>메신저(별도)</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#94a3b8"></span>사용자 이동</div>
+      <div class="legend-item"><span class="legend-bar" style="background:#16a34a;border-top:1px dashed #16a34a"></span>자동 데이터 흐름</div>
+    </div>
+
+    <div class="stage-area">
+      <svg id="stage-svg"></svg>
+      <div class="stages" id="stages"></div>
+      <div class="cross-band">
+        <h3>🌐 횡단 (모든 단계에서 상시 사용) <small>— 데일리·소통·관리</small></h3>
+        <div class="cross-grid" id="cross-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="side">
+    <h2 id="side-title">📘 사용 안내</h2>
+    <div class="sub" id="side-sub">화면 카드를 클릭하면 그 화면의 입출력·연결을 보여줍니다.</div>
+    <div id="side-content"></div>
+  </aside>
+</div>
+
+<script>
+const BASE_URL = 'http://localhost:8081';
+
+// ─── 화면 카탈로그 ───────────────────────────────────────────
+// id: 고유 / hub: 색상그룹 / stage: 1~6 / name·url·icon · desc · auto: 자동생성여부
+const SCREENS = [
+  // ── ① 영업·수주 ────────────────────────────
+  {id:'sales-home', hub:'sales', stage:1, name:'매출 홈',           url:'/sales',              icon:'📈', desc:'영업 KPI 대시보드, 빠른 이동'},
+  {id:'customers',  hub:'sales', stage:1, name:'고객사',             url:'/customers',          icon:'🏢', desc:'고객사 등록·관리·등급'},
+  {id:'quote-new',  hub:'sales', stage:1, name:'견적 작성',          url:'/sales/quotations/new', icon:'📝', desc:'BOM 기반 견적·환율·결재 첨부'},
+  {id:'quote-list', hub:'sales', stage:1, name:'견적 목록',          url:'/sales/quotations',   icon:'📋', desc:'견적 추적·상태·전환'},
+  {id:'order-new',  hub:'sales', stage:1, name:'수주 등록',          url:'/orders/new',         icon:'✍️', desc:'고객 PO 수신 → 시스템 등록'},
+  {id:'orders',     hub:'sales', stage:1, name:'수주 목록',          url:'/sales/orders',       icon:'📦', desc:'수주 진행·납기·금액'},
+
+  // ── ② 일순서(워크플로우) 만들기 ─────────────
+  {id:'proj-list',  hub:'sales', stage:2, name:'프로젝트',           url:'/projects',           icon:'🧩', desc:'고객사×모델 단위 프로젝트', auto:'수주→자동생성'},
+  {id:'proj-detail',hub:'sales', stage:2, name:'프로젝트 상세',      url:'/projects/{id}',      icon:'📂', desc:'프로젝트 단일 화면'},
+  {id:'wf-wizard',  hub:'wf',    stage:2, name:'일 순서 만들기 (마법사)', url:'/workflow/wizard', icon:'🧙', desc:'8문항 → 시나리오 T1~T4 자동 결정'},
+  {id:'wf-project', hub:'wf',    stage:2, name:'프로젝트 일 순서',   url:'/workflow/project/{id}', icon:'🌳', desc:'27~47 노드 체크리스트', auto:'마법사→자동생성'},
+
+  // ── ③ 설계·자재 ────────────────────────────
+  {id:'wf-node',    hub:'wf',    stage:3, name:'일(노드) 자세히',    url:'/workflow/node/{id}', icon:'🎯', desc:'5W 가이드·체크포인트·메모'},
+  {id:'wf-my',      hub:'wf',    stage:3, name:'내 할 일',           url:'/workflow/my',        icon:'📥', desc:'본인 담당 노드 모음'},
+  {id:'catalog',    hub:'logi',  stage:3, name:'자재 카탈로그',      url:'/catalog',            icon:'🔍', desc:'전 부서 공통 자재 검색·장바구니'},
+  {id:'mat-req',    hub:'logi',  stage:3, name:'자재 요청서',        url:'/materials/requests', icon:'📋', desc:'BOM·신규자재 요청 통합'},
+  {id:'mat-review', hub:'logi',  stage:3, name:'신규자재 검토',      url:'/materials/new-review', icon:'✅', desc:'구매팀 검토·등록·견적·거절'},
+
+  // ── ④ 발주·제조 ────────────────────────────
+  {id:'po-new',     hub:'logi',  stage:4, name:'발주 작성',          url:'/po/new',             icon:'🛒', desc:'공급사 발주서 작성', auto:'자재요청→연계'},
+  {id:'po-list',    hub:'logi',  stage:4, name:'발주 목록',          url:'/po',                 icon:'📦', desc:'발주 추적·진행·결재'},
+  {id:'po-receive', hub:'logi',  stage:4, name:'입고 처리',          url:'/po/{id}/receive',    icon:'📥', desc:'수량·사양 검수·재고 가산'},
+  {id:'stock-bal',  hub:'logi',  stage:4, name:'재고 현황',          url:'/stock/balances',     icon:'📊', desc:'부품별 재고·안전재고·부족 경고', auto:'입고→자동반영'},
+  {id:'wo',         hub:'logi',  stage:4, name:'작업지시 (WO)',      url:'/wo',                 icon:'🔧', desc:'본사·VN 조립·가공 지시'},
+  {id:'ic-pairs',   hub:'wf',    stage:4, name:'IC 페어 모니터',     url:'/workflow/ic_pairs',  icon:'⚡', desc:'본사↔VN 매출·매입 양방향 짝', auto:'워크플로우→자동생성'},
+
+  // ── ⑤ 품질·출하 ────────────────────────────
+  {id:'qc',         hub:'logi',  stage:5, name:'QC 리포트',          url:'/qc',                 icon:'✓', desc:'입고/공정/최종/FAT 검사'},
+  {id:'qms',        hub:'logi',  stage:5, name:'QMS 대시보드',       url:'/qms',                icon:'📈', desc:'파레토·재발방지·CAPA'},
+  {id:'wf-logi',    hub:'wf',    stage:5, name:'출하·물류 노드',     url:'/workflow/node/{id}', icon:'🚢', desc:'포장·통관·B/L·현지인도'},
+  {id:'fta',        hub:'sales', stage:5, name:'FTA 원산지',         url:'/fta/certificates',   icon:'📜', desc:'수출 시 FTA 증명 발급'},
+
+  // ── ⑥ 회계·AS ─────────────────────────────
+  {id:'wf-finance', hub:'wf',    stage:6, name:'회계 노드',          url:'/workflow/node/{id}', icon:'💰', desc:'INVOICE·수금·지급·IC'},
+  {id:'issues',     hub:'sales', stage:6, name:'이슈/AS',            url:'/issues',             icon:'🔧', desc:'고객 이슈·재발방지·조치'},
+  {id:'changes',    hub:'tot',   stage:6, name:'변경 공지',          url:'/changes',            icon:'📢', desc:'엔지니어링 변경 등록·영향 알림'},
+];
+
+// ─── 횡단 메뉴 ───────────────────────────────────────────────
+const CROSS_SCREENS = [
+  {id:'home',          hub:'tot',   name:'통합 홈',         url:'/',               icon:'🏠', desc:'전사 KPI·오늘 할 일·알림 위젯'},
+  {id:'daily',         hub:'tot',   name:'일일 업무',       url:'/daily',          icon:'📅', desc:'오늘 한 일 기록 (노드 완료 시 자동 생성)', auto:'노드완료→자동'},
+  {id:'weekly',        hub:'tot',   name:'주간 보고',       url:'/weekly',         icon:'📊', desc:'주간 자동 집계', auto:'일일→자동집계'},
+  {id:'notif',         hub:'tot',   name:'알림함',          url:'/notifications',  icon:'🔔', desc:'핸드오프·변경·결재 알림 통합'},
+  {id:'tickets',       hub:'tot',   name:'요청 티켓',       url:'/tickets',        icon:'🎫', desc:'부서 간 요청 추적 (대화 요청 승격)'},
+  {id:'board',         hub:'tot',   name:'게시판',          url:'/board',          icon:'📰', desc:'부서·전사 공지·결재'},
+  {id:'calendar',      hub:'tot',   name:'캘린더',          url:'/calendar',       icon:'📆', desc:'한·베 공휴일·회의·납기'},
+  {id:'team-status',   hub:'wf',    name:'우리 팀 현황',     url:'/workflow/team',  icon:'🗂', desc:'팀별 진행률·블로커'},
+  {id:'msg',           hub:'msg',   name:'메신저 (별도)',   url:'http://localhost:8082', icon:'💬', desc:'KNK Messenger — 아이템 카드·요청 승격·일간 다이제스트'},
+  {id:'hiworks',       hub:'admin', name:'외부 그룹웨어',   url:'#',               icon:'📋', desc:'전자결재·메일·근태 (외부)'},
+  {id:'permissions',   hub:'admin', name:'권한 관리',       url:'/admin/permissions', icon:'🔐', desc:'사용자·팀·역할'},
+  {id:'victor',        hub:'tot',   name:'빅터 AI',         url:'#victor',         icon:'🤖', desc:'사내 AI 컨시어지 (자연어 질의)'},
+];
+
+// ─── 연결(엣지) ──────────────────────────────────────────────
+// type: 'nav' = 사용자 이동 / 'auto' = 자동 데이터 흐름
+// label: 호버/패널에 표시할 설명
+const EDGES = [
+  // ① 영업 진입 흐름
+  {from:'sales-home', to:'customers',   type:'nav',  label:'고객 등록 진입'},
+  {from:'customers',  to:'quote-new',   type:'nav',  label:'그 고객으로 견적 시작'},
+  {from:'sales-home', to:'quote-new',   type:'nav',  label:'바로 견적 작성'},
+  {from:'quote-new',  to:'quote-list',  type:'auto', label:'견적 저장 → 목록 등록'},
+  {from:'quote-list', to:'order-new',   type:'nav',  label:'견적 확정 → 수주 등록'},
+  {from:'order-new',  to:'orders',      type:'auto', label:'수주 저장 → 목록'},
+
+  // ② 일순서 만들기
+  {from:'orders',      to:'proj-list',   type:'auto', label:'수주 → 프로젝트 자동 생성'},
+  {from:'order-new',   to:'proj-list',   type:'auto', label:'수주 등록 시 프로젝트 동시'},
+  {from:'proj-list',   to:'proj-detail', type:'nav',  label:'프로젝트 클릭'},
+  {from:'proj-detail', to:'wf-wizard',   type:'nav',  label:'[일 순서 만들기] 버튼'},
+  {from:'wf-wizard',   to:'wf-project',  type:'auto', label:'마법사 완료 → 27~47 노드 생성'},
+
+  // ③ 설계·자재
+  {from:'wf-project', to:'wf-node',    type:'nav',  label:'노드 클릭 → 상세'},
+  {from:'wf-project', to:'wf-my',      type:'nav',  label:'내 담당만 모아보기'},
+  {from:'wf-node',    to:'catalog',    type:'nav',  label:'설계: 자재 찾기'},
+  {from:'catalog',    to:'mat-req',    type:'auto', label:'장바구니 → 자재요청'},
+  {from:'mat-req',    to:'mat-review', type:'auto', label:'신규자재 → 구매 검토 큐'},
+  {from:'wf-node',    to:'daily',      type:'auto', label:'완료 시 일일업무 자동 등록'},
+  {from:'wf-node',    to:'wf-node',    type:'auto', label:'다음 담당자 자동 알림 + 다음 노드 진행'},
+
+  // ④ 발주·제조
+  {from:'mat-review', to:'po-new',     type:'auto', label:'승인된 신규자재 → 발주 큐'},
+  {from:'mat-req',    to:'po-new',     type:'auto', label:'정식 자재 → 발주 큐'},
+  {from:'po-new',     to:'po-list',    type:'auto', label:'발주 저장 → 목록'},
+  {from:'po-list',    to:'po-receive', type:'nav',  label:'입고 처리 진입'},
+  {from:'po-receive', to:'stock-bal',  type:'auto', label:'입고 → 재고 자동 가산'},
+  {from:'stock-bal',  to:'wo',         type:'nav',  label:'재고 보고 작업지시'},
+  {from:'wf-project', to:'wo',         type:'auto', label:'제조 노드 → 작업지시'},
+  {from:'wf-project', to:'ic-pairs',   type:'auto', label:'IC 노드 → 페어 자동 생성'},
+
+  // ⑤ 품질·출하
+  {from:'wo',         to:'qc',         type:'auto', label:'WO 완료 → QC 큐'},
+  {from:'qc',         to:'qms',        type:'auto', label:'QC 누적 → QMS 분석'},
+  {from:'qc',         to:'wf-logi',    type:'nav',  label:'QC 통과 → 출하 노드'},
+  {from:'wf-logi',    to:'fta',        type:'nav',  label:'수출 시 FTA 첨부'},
+  {from:'qms',        to:'issues',     type:'nav',  label:'재발이슈 등록'},
+
+  // ⑥ 회계·AS
+  {from:'wf-logi',    to:'wf-finance', type:'auto', label:'출하 완료 → INVOICE 노드'},
+  {from:'wf-finance', to:'ic-pairs',   type:'auto', label:'IC INVOICE → 페어 매칭'},
+  {from:'wf-finance', to:'issues',     type:'nav',  label:'사후 이슈 진입'},
+  {from:'issues',     to:'changes',    type:'nav',  label:'재발 시 변경 공지'},
+  {from:'changes',    to:'notif',      type:'auto', label:'영향 부서 자동 알림'},
+
+  // 횡단 연결 (대표적인 것만)
+  {from:'home',       to:'daily',      type:'nav',  label:'데일리 진입'},
+  {from:'home',       to:'wf-my',      type:'nav',  label:'내 할 일 위젯'},
+  {from:'daily',      to:'weekly',     type:'auto', label:'주간 자동 집계'},
+  {from:'tickets',    to:'wf-node',    type:'nav',  label:'티켓 → 관련 노드'},
+  {from:'msg',        to:'tickets',    type:'auto', label:'메시지 → 요청 승격'},
+  {from:'wf-node',    to:'notif',      type:'auto', label:'핸드오프 발생 → 알림'},
+  {from:'changes',    to:'tickets',    type:'auto', label:'변경 영향 → 티켓 생성'},
+];
+
+// ─── 렌더 ────────────────────────────────────────────────────
+const HUB_NAMES = {tot:'통합', sales:'매출·영업', logi:'자재·구매', wf:'워크플로우', admin:'관리', msg:'메신저'};
+const STAGE_TITLES = [
+  ['① 영업·수주', '견적·수주·고객 등록'],
+  ['② 일 순서', '프로젝트·마법사·노드 생성'],
+  ['③ 설계·자재', '노드·자재 카탈로그·요청'],
+  ['④ 발주·제조', '발주·입고·재고·작업지시'],
+  ['⑤ 품질·출하', 'QC·QMS·통관·인도'],
+  ['⑥ 회계·AS',   'INVOICE·수금·이슈·변경'],
+];
+
+let hubFilter = 'all', selectedScreen = null;
+const ALL_SCREENS = [...SCREENS, ...CROSS_SCREENS];
+const SCREEN_BY_ID = Object.fromEntries(ALL_SCREENS.map(s => [s.id, s]));
+
+function renderStages() {
+  const root = document.getElementById('stages');
+  root.innerHTML = '';
+  for (let s=1; s<=6; s++) {
+    const col = document.createElement('div');
+    col.className = 'stage-col';
+    col.innerHTML = `<div class="stage-head">${STAGE_TITLES[s-1][0]}<small>${STAGE_TITLES[s-1][1]}</small></div>`;
+    SCREENS.filter(sc => sc.stage === s).forEach(sc => col.appendChild(screenCard(sc)));
+    root.appendChild(col);
+  }
+}
+function renderCross() {
+  const root = document.getElementById('cross-grid');
+  root.innerHTML = '';
+  CROSS_SCREENS.forEach(sc => root.appendChild(screenCard(sc)));
+}
+function screenCard(sc) {
+  const div = document.createElement('div');
+  div.className = `screen hub-${sc.hub}`;
+  div.dataset.id = sc.id;
+  div.innerHTML = `
+    ${sc.auto ? `<span class="auto-tag auto">${sc.auto}</span>` : ''}
+    <div class="name"><span class="ic">${sc.icon}</span>${sc.name}</div>
+    <div class="url">${sc.url}</div>
+  `;
+  div.addEventListener('click', (e) => { e.stopPropagation(); selectScreen(sc.id); });
+  return div;
+}
+
+function selectScreen(id) {
+  selectedScreen = id;
+  applyFilters();
+  renderSide();
+}
+
+function applyFilters() {
+  document.querySelectorAll('.screen').forEach(el => {
+    const sc = SCREEN_BY_ID[el.dataset.id];
+    let visible = (hubFilter === 'all' || sc.hub === hubFilter);
+    el.style.display = visible ? '' : 'none';
+    el.classList.remove('selected','dim');
+  });
+  if (!selectedScreen) {
+    drawEdges(); return;
+  }
+  const connected = new Set([selectedScreen]);
+  EDGES.forEach(e => {
+    if (e.from === selectedScreen) connected.add(e.to);
+    if (e.to === selectedScreen) connected.add(e.from);
+  });
+  document.querySelectorAll('.screen').forEach(el => {
+    if (el.dataset.id === selectedScreen) el.classList.add('selected');
+    else if (!connected.has(el.dataset.id)) el.classList.add('dim');
+  });
+  drawEdges();
+}
+
+function drawEdges() {
+  // 단계 영역 크기에 SVG 맞추기
+  const wrap = document.getElementById('canvas-wrap');
+  const area = document.querySelector('.stage-area');
+  const svg = document.getElementById('stage-svg');
+  const r = area.getBoundingClientRect();
+  svg.setAttribute('width', r.width);
+  svg.setAttribute('height', r.height);
+  svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+  svg.style.width = r.width+'px';
+  svg.style.height = r.height+'px';
+  // 비우기
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  // 마커
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `
+    <marker id="m-nav" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#94a3b8" />
+    </marker>
+    <marker id="m-auto" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#16a34a" />
+    </marker>
+    <marker id="m-active" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#a5282c" />
+    </marker>`;
+  svg.appendChild(defs);
+
+  // 화면 위치 측정
+  const pos = {};
+  document.querySelectorAll('.screen').forEach(el => {
+    if (el.style.display === 'none') return;
+    const b = el.getBoundingClientRect();
+    pos[el.dataset.id] = {
+      x: b.left - r.left + b.width/2,
+      y: b.top - r.top + b.height/2,
+      right: b.right - r.left,
+      left: b.left - r.left,
+      top: b.top - r.top,
+      bottom: b.bottom - r.top,
+    };
+  });
+
+  for (const e of EDGES) {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) continue;
+    // 두 화면이 같은 라인에 있지 않으면 곡선, 인접 컬럼이면 직선 베지어
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const cls = e.type === 'auto' ? 'edge-auto' : 'edge-nav';
+    path.setAttribute('class', `edge ${cls}`);
+    // 좌→우 방향이면 right→left, 같은 컬럼 또는 아래쪽이면 직선
+    let x1, y1, x2, y2;
+    if (a.right < b.left - 5) { x1=a.right; y1=a.y; x2=b.left; y2=b.y; }
+    else if (b.right < a.left - 5) { x1=a.left; y1=a.y; x2=b.right; y2=b.y; }
+    else { x1=a.x; y1=a.bottom; x2=b.x; y2=b.top; }
+    const dx = x2-x1, dy = y2-y1;
+    const cx1 = x1 + dx*0.5;
+    const cy1 = y1 + dy*0.0;
+    const cx2 = x1 + dx*0.5;
+    const cy2 = y2 - dy*0.0;
+    path.setAttribute('d', `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`);
+    path.setAttribute('marker-end', `url(#${e.type==='auto'?'m-auto':'m-nav'})`);
+    path.dataset.from = e.from; path.dataset.to = e.to; path.dataset.type = e.type;
+    if (selectedScreen) {
+      if (e.from === selectedScreen || e.to === selectedScreen) {
+        path.classList.add('active');
+        path.setAttribute('stroke', '#a5282c');
+        path.setAttribute('marker-end', 'url(#m-active)');
+      } else {
+        path.classList.add('dim');
+      }
+    }
+    svg.appendChild(path);
+  }
+}
+
+function renderSide() {
+  const t = document.getElementById('side-title');
+  const s = document.getElementById('side-sub');
+  const c = document.getElementById('side-content');
+  if (!selectedScreen) {
+    t.textContent = '📘 사용 안내';
+    s.textContent = '화면 카드를 클릭하면 입력·출력·연결을 보여줍니다.';
+    c.innerHTML = `
+      <div class="scard">
+        <h4>🎯 협의 가이드</h4>
+        <p>
+          1) <b>① 영업·수주</b>부터 ⑥까지 흐름을 따라가며 단계 누락 확인<br>
+          2) <b>실선 화살표</b>: 사용자가 직접 클릭해 이동<br>
+          3) <b>녹색 점선</b>: 시스템이 자동으로 다음으로 흘려보냄 (입력 없이도 채워짐)<br>
+          4) 카드의 <span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;">자동</span> 태그 = 사람이 안 만들고 시스템이 자동 생성<br>
+          5) <b>상단 Hub 필터</b>로 그 부서가 쓰는 화면만 추리기
+        </p>
+      </div>
+      <div class="scard">
+        <h4>🔥 흐름 핵심 5</h4>
+        <p>
+          • 수주 등록 → <b>프로젝트 자동 생성</b><br>
+          • 마법사 → <b>27~47 노드 자동 생성</b><br>
+          • 노드 완료 → <b>다음 담당자 자동 알림 + 일일업무 자동 등록</b><br>
+          • 입고 → <b>재고 자동 가산</b><br>
+          • 메신저 메시지 → <b>요청 티켓 승격</b> (✱ 메시지 옆 📌 클릭)
+        </p>
+      </div>
+    `;
+    return;
+  }
+  const sc = SCREEN_BY_ID[selectedScreen];
+  t.innerHTML = `<span>${sc.icon}</span> ${sc.name}`;
+  s.innerHTML = `<span style="display:inline-block;background:var(--bg);padding:2px 7px;border-radius:4px;color:var(--ink-2);font-weight:700;">${HUB_NAMES[sc.hub] || sc.hub}</span> <span style="margin-left:6px;">${sc.desc || ''}</span>`;
+
+  const incoming = EDGES.filter(e => e.to === selectedScreen);
+  const outgoing = EDGES.filter(e => e.from === selectedScreen);
+
+  let html = `
+    <div class="scard">
+      <h4>🔗 시스템 URL</h4>
+      <a class="url-pill" href="${BASE_URL}${sc.url.replace('{id}','1')}" target="_blank">${BASE_URL}${sc.url}</a>
+      ${sc.auto ? `<div style="margin-top:8px;font-size:11.5px;"><b style="color:#16a34a;">⚡ ${sc.auto}</b></div>` : ''}
+    </div>
+  `;
+
+  if (incoming.length) {
+    html += `<div class="scard"><h4>⬇ 들어오는 흐름 (${incoming.length})</h4><div class="conn-list">`;
+    for (const e of incoming) {
+      const from = SCREEN_BY_ID[e.from] || {name:e.from,icon:'❓'};
+      html += `<div class="conn-item" onclick="selectScreen('${e.from}')">
+        <span class="conn-arrow">←</span>
+        <span class="conn-name">${from.icon} ${from.name}</span>
+        <span class="conn-type ${e.type}">${e.type==='auto'?'자동':'사용자'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--ink-3);padding:0 10px 6px 38px;">${e.label||''}</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  if (outgoing.length) {
+    html += `<div class="scard"><h4>⬆ 나가는 흐름 (${outgoing.length})</h4><div class="conn-list">`;
+    for (const e of outgoing) {
+      const to = SCREEN_BY_ID[e.to] || {name:e.to,icon:'❓'};
+      html += `<div class="conn-item" onclick="selectScreen('${e.to}')">
+        <span class="conn-arrow">→</span>
+        <span class="conn-name">${to.icon} ${to.name}</span>
+        <span class="conn-type ${e.type}">${e.type==='auto'?'자동':'사용자'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--ink-3);padding:0 10px 6px 38px;">${e.label||''}</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  if (!incoming.length && !outgoing.length) {
+    html += `<div class="scard"><h4>🔗 연결</h4><p>이 화면에 정의된 연결이 없습니다. (단독 진입/조회용)</p></div>`;
+  }
+  document.getElementById('side-content').innerHTML = html;
+}
+
+// 필터
+document.querySelectorAll('.fbtn[data-hub]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.fbtn[data-hub]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    hubFilter = b.dataset.hub;
+    selectedScreen = null;
+    applyFilters();
+    renderSide();
+  });
+});
+
+// 빈 공간 클릭 → 선택 해제
+document.getElementById('canvas-wrap').addEventListener('click', (e) => {
+  if (!e.target.closest('.screen')) {
+    selectedScreen = null;
+    applyFilters();
+    renderSide();
+  }
+});
+
+// 리사이즈 시 엣지 재계산
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawEdges, 100);
+});
+
+// 초기 렌더
+renderStages();
+renderCross();
+setTimeout(() => { drawEdges(); renderSide(); }, 50);
+</script>
+</body>
+</html>
