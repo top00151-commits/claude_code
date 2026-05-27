@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KNK 업무 연결성 네트워크 그래프 — 2026-05-21</title>
+<style>
+  :root {
+    --ink:#1f2937; --ink-2:#4b5563; --ink-3:#9ca3af;
+    --line:#e5e7eb; --bg:#fafafa; --knk-red:#a5282c; --accent:#6366f1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif;background:var(--bg);color:var(--ink);overflow:hidden;height:100vh}
+
+  .topbar{
+    position:fixed;top:0;left:0;right:0;height:62px;z-index:50;
+    background:#fff;border-bottom:2px solid var(--knk-red);
+    display:flex;align-items:center;gap:14px;padding:0 22px;
+    box-shadow:0 2px 8px rgba(0,0,0,.04);
+  }
+  .brand{font-size:17px;font-weight:800;color:var(--knk-red);letter-spacing:-.5px}
+  .brand-sub{font-size:11px;color:var(--ink-3);margin-left:6px}
+  .grow{flex:1}
+
+  .filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .filter-group{display:flex;gap:4px;align-items:center;padding:0 6px;border-right:1px solid var(--line)}
+  .filter-group:last-child{border-right:none}
+  .filter-group .label{font-size:10.5px;color:var(--ink-3);font-weight:700;letter-spacing:.06em;margin-right:4px;text-transform:uppercase}
+  .fbtn{
+    padding:6px 11px;font-size:12px;font-weight:700;border-radius:999px;
+    border:1.5px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;transition:.15s;
+  }
+  .fbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .fbtn.on{background:var(--knk-red);border-color:var(--knk-red);color:#fff}
+  .fbtn.scen{padding:6px 9px;font-size:11px}
+
+  .layout{position:fixed;top:62px;left:0;right:0;bottom:0;display:flex}
+  .canvas-wrap{flex:1;position:relative;overflow:hidden;background:radial-gradient(circle at center,#fff 0%,#f3f4f6 100%)}
+  svg{width:100%;height:100%;display:block;cursor:grab}
+  svg:active{cursor:grabbing}
+
+  .side{
+    width:340px;border-left:1px solid var(--line);background:#fff;
+    overflow-y:auto;padding:20px;
+  }
+  .side h2{font-size:16px;color:var(--ink);margin-bottom:6px}
+  .side .sub{font-size:11.5px;color:var(--ink-3);margin-bottom:14px}
+  .side-card{
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:14px;margin-bottom:10px;
+  }
+  .side-card h3{font-size:14px;color:var(--ink);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .side-card .meta{font-size:11.5px;color:var(--ink-2);line-height:1.7}
+  .side-card .meta b{color:var(--knk-red)}
+  .conn-list{display:flex;flex-direction:column;gap:6px}
+  .conn-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 10px;background:#fff;border:1px solid var(--line);border-radius:6px;font-size:12px;
+  }
+  .conn-item .with{font-weight:700;color:var(--ink)}
+  .conn-item .freq{font-size:10.5px;color:var(--ink-3);font-weight:700}
+  .conn-item:hover{border-color:var(--accent);cursor:pointer}
+
+  .legend{
+    position:absolute;left:14px;bottom:14px;
+    background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:11.5px;backdrop-filter:blur(6px);
+    box-shadow:0 4px 12px rgba(0,0,0,.06);
+  }
+  .legend h4{font-size:11px;color:var(--ink-3);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase}
+  .legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .legend-row:last-child{margin-bottom:0}
+  .legend-dot{width:14px;height:14px;border-radius:50%}
+  .legend-line{width:24px;height:2.5px;background:#94a3b8;border-radius:2px}
+  .legend-line.thick{height:5px;background:var(--knk-red)}
+
+  .hint-box{
+    position:absolute;right:14px;top:14px;
+    background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:12px;max-width:240px;line-height:1.5;backdrop-filter:blur(6px);
+    box-shadow:0 4px 12px rgba(0,0,0,.06);
+  }
+  .hint-box .tip{color:var(--ink-3);font-size:11px;margin-top:4px}
+
+  /* SVG 노드 스타일 */
+  .node circle{transition:filter .2s,stroke-width .2s}
+  .node text{font-size:11.5px;font-weight:700;text-anchor:middle;fill:var(--ink);pointer-events:none;font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif}
+  .node .ic{font-size:18px}
+  .node.kr circle{fill:#dbeafe;stroke:#2563eb;stroke-width:2.5}
+  .node.vn circle{fill:#dcfce7;stroke:#16a34a;stroke-width:2.5}
+  .node.customer circle{fill:#ede9fe;stroke:#7c3aed;stroke-width:2.5}
+  .node{cursor:pointer}
+  .node:hover circle{stroke-width:4;filter:drop-shadow(0 4px 8px rgba(0,0,0,.18))}
+  .node.selected circle{stroke-width:5;stroke:var(--knk-red);filter:drop-shadow(0 0 0 6px rgba(165,40,44,.18))}
+  .node.dim{opacity:.18}
+
+  .edge{fill:none;stroke:#94a3b8;stroke-opacity:.35;transition:stroke-opacity .2s,stroke-width .2s}
+  .edge.active{stroke:var(--knk-red);stroke-opacity:.85}
+  .edge.dim{stroke-opacity:.05}
+
+  /* 인쇄 */
+  @media print{
+    .topbar,.side,.legend,.hint-box{display:none!important}
+    .layout{position:static;display:block}
+    .canvas-wrap{height:100vh}
+    body{overflow:visible}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="brand">KNK 업무 연결성 네트워크</span>
+    <span class="brand-sub">2026-05-21 · 직원 협의용 · 누가 누구와 일하는가</span>
+  </div>
+  <div class="grow"></div>
+  <div class="filters">
+    <div class="filter-group">
+      <span class="label">사업</span>
+      <button class="fbtn on" data-bizfilter="all">전체</button>
+      <button class="fbtn" data-bizfilter="auto">🤖 자동화</button>
+      <button class="fbtn" data-bizfilter="insp">🔍 검사기</button>
+      <button class="fbtn" data-bizfilter="cons">🧰 소모품</button>
+    </div>
+    <div class="filter-group">
+      <span class="label">시나리오</span>
+      <button class="fbtn scen on" data-scenfilter="all">전체</button>
+      <button class="fbtn scen" data-scenfilter="T1">T1 국내단순</button>
+      <button class="fbtn scen" data-scenfilter="T2">T2 국내+VN</button>
+      <button class="fbtn scen" data-scenfilter="T3">T3 해외수출</button>
+      <button class="fbtn scen" data-scenfilter="T4">T4 VN직수주</button>
+    </div>
+    <button class="fbtn" onclick="window.print()">🖨 인쇄</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="canvas-wrap">
+    <svg id="svg" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <h4>📖 범례</h4>
+      <div class="legend-row"><span class="legend-dot" style="background:#dbeafe;border:2px solid #2563eb;"></span>본사(KR)</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#dcfce7;border:2px solid #16a34a;"></span>베트남법인(VN)</div>
+      <div class="legend-row"><span class="legend-dot" style="background:#ede9fe;border:2px solid #7c3aed;"></span>고객사</div>
+      <div class="legend-row"><span class="legend-line"></span>협업 (선이 굵을수록 빈도↑)</div>
+      <div class="legend-row"><span class="legend-line thick"></span>선택한 부서의 연결</div>
+    </div>
+    <div class="hint-box">
+      <div><b>💡 사용법</b></div>
+      <div>• 부서 클릭 → 협업 부서 강조</div>
+      <div>• 상단 사업/시나리오 필터로 흐름 비교</div>
+      <div>• 빈 공간 클릭 → 선택 해제</div>
+      <div class="tip">선이 굵을수록 같은 단계에서 자주 함께 일함</div>
+    </div>
+  </div>
+
+  <aside class="side" id="side">
+    <h2 id="side-title">🌐 전체 협업 구조</h2>
+    <div class="sub" id="side-sub">부서를 클릭하면 해당 부서의 협업 관계만 표시됩니다.</div>
+    <div id="side-content"></div>
+  </aside>
+</div>
+
+<script>
+// ─── 데이터 ──────────────────────────────────────────────────
+const DEPTS = {
+  '고객사_국내':{icon:'🏢',short:'고객사(국내)',entity:'customer'},
+  '고객사_해외':{icon:'🌏',short:'고객사(해외)',entity:'customer'},
+  '기술영업':  {icon:'💼',short:'기술영업',entity:'kr'},
+  '설계':      {icon:'📐',short:'설계',entity:'kr'},
+  '전장설계':  {icon:'⚡',short:'전장설계',entity:'kr'},
+  '소프트웨어':{icon:'💻',short:'소프트웨어',entity:'kr'},
+  '제조기술2': {icon:'🔧',short:'제조기술2',entity:'kr'},
+  '구매':      {icon:'🛒',short:'구매',entity:'kr'},
+  'VN관리':    {icon:'🇻🇳',short:'VN관리',entity:'vn'},
+  'VN구매':    {icon:'🇻🇳',short:'VN구매',entity:'vn'},
+  'VN설계':    {icon:'🇻🇳',short:'VN설계',entity:'vn'},
+  'VN전장':    {icon:'🇻🇳',short:'VN전장',entity:'vn'},
+  'VN소프트웨어':{icon:'🇻🇳',short:'VN소프트웨어',entity:'vn'},
+  'VN조립':    {icon:'🇻🇳',short:'VN조립',entity:'vn'},
+};
+
+const DEPT_TASKS = {
+  '기술영업':'고객 컨택·견적·수주·사양 협의·일정 총괄',
+  '설계':'기구설계 (3D·조립도·부품도·BOM)',
+  '전장설계':'전기 회로·결선·PLC IO',
+  '소프트웨어':'PLC·HMI·비전 알고리즘',
+  '제조기술2':'본사 조립·가공·작업지시',
+  '구매':'자재 검토·발주·입고·신규자재',
+  'VN관리':'VN 통관·현지 인도·고객 응대',
+  'VN구매':'VN 현지 자재 발주·입고',
+  'VN설계':'VN 기구설계',
+  'VN전장':'VN 전기설계·현지 규격',
+  'VN소프트웨어':'VN SW·테스트',
+  'VN조립':'VN 조립·가공·포장',
+  '고객사_국내':'국내 고객 — 회의·사양·검수',
+  '고객사_해외':'해외 고객 — 회의·사양·수령',
+};
+
+// 3종 프로젝트 phase 데이터 (이전 트리도와 동일 구조)
+const PROJ_PHASES = {
+  auto: [
+    {no:1,name:'영업·수주', depts:['고객사_국내','고객사_해외','기술영업']},
+    {no:2,name:'설계',       depts:['설계','전장설계','소프트웨어','VN설계','VN전장','VN소프트웨어']},
+    {no:3,name:'자재·구매',  depts:['구매','VN구매']},
+    {no:4,name:'제조·조립',  depts:['제조기술2','VN조립']},
+    {no:5,name:'품질·검증',  depts:['제조기술2','VN조립','소프트웨어']},
+    {no:6,name:'출하·물류',  depts:['제조기술2','VN조립','VN관리']},
+    {no:7,name:'설치·시운전',depts:['소프트웨어','전장설계','VN관리','기술영업']},
+    {no:8,name:'회계·정산',  depts:['기술영업']},
+    {no:9,name:'사후 AS',    depts:['기술영업','소프트웨어']},
+  ],
+  insp: [
+    {no:1,name:'영업·수주', depts:['고객사_국내','고객사_해외','기술영업']},
+    {no:2,name:'설계',       depts:['소프트웨어','설계','전장설계','VN설계','VN전장','VN소프트웨어']},
+    {no:3,name:'자재·구매',  depts:['구매','VN구매']},
+    {no:4,name:'제조·조립',  depts:['제조기술2','VN조립']},
+    {no:5,name:'품질·검증',  depts:['소프트웨어','제조기술2','VN조립']},
+    {no:6,name:'출하·물류',  depts:['제조기술2','VN조립','VN관리']},
+    {no:7,name:'설치·시운전',depts:['소프트웨어','전장설계','VN관리']},
+    {no:8,name:'회계·정산',  depts:['기술영업']},
+    {no:9,name:'사후 AS',    depts:['소프트웨어','기술영업']},
+  ],
+  cons: [
+    {no:1,name:'견적·수주', depts:['고객사_국내','고객사_해외','기술영업']},
+    {no:2,name:'자재 확보', depts:['구매']},
+    {no:3,name:'검수·포장', depts:['구매','제조기술2']},
+    {no:4,name:'출하',       depts:['기술영업','VN관리']},
+    {no:5,name:'회계',       depts:['기술영업']},
+  ],
+};
+
+// 시나리오 T1~T4 단계별 부서 (요약 — 핵심 연결만)
+// T1=국내단순(VN 없음) / T2=국내+VN협업 / T3=해외수출(VN 제작) / T4=VN직수주
+const SCEN_PHASES = {
+  T1: [['고객사_국내','기술영업'],['기술영업','설계','전장설계','소프트웨어'],['구매'],['제조기술2'],['소프트웨어','전장설계','기술영업']],
+  T2: [['고객사_국내','기술영업'],['설계','전장설계','소프트웨어','VN설계','VN전장','VN소프트웨어'],['구매','VN구매'],['제조기술2','VN조립'],['VN관리','기술영업']],
+  T3: [['고객사_해외','기술영업'],['설계','전장설계','소프트웨어','VN설계','VN전장','VN소프트웨어'],['구매','VN구매'],['VN조립','제조기술2'],['VN관리','기술영업']],
+  T4: [['고객사_해외','VN관리','기술영업'],['VN설계','VN전장','VN소프트웨어','설계'],['VN구매','구매'],['VN조립'],['VN관리','VN조립']],
+};
+
+// ─── 연결 그래프 계산 ────────────────────────────────────────
+// 같은 phase 안의 부서들끼리, 그리고 phase N→N+1 사이의 부서들끼리 edge 가산
+function buildEdges(phases) {
+  const w = {}; // 'A||B' → weight
+  const add = (a,b) => {
+    if (a===b) return;
+    const key = a<b ? a+'||'+b : b+'||'+a;
+    w[key] = (w[key]||0) + 1;
+  };
+  for (let i=0;i<phases.length;i++) {
+    const cur = phases[i].depts || phases[i];
+    // 동일 phase 내 협업
+    for (let a=0;a<cur.length;a++) for (let b=a+1;b<cur.length;b++) add(cur[a],cur[b]);
+    // 다음 phase 로 핸드오프
+    if (i+1<phases.length) {
+      const nxt = phases[i+1].depts || phases[i+1];
+      for (const da of cur) for (const db of nxt) add(da,db);
+    }
+  }
+  return w;
+}
+
+// 현재 필터에 따라 활성 edges 산출
+function computeActiveEdges(bizFilter, scenFilter) {
+  const sources = [];
+  if (bizFilter === 'all') {
+    sources.push(PROJ_PHASES.auto, PROJ_PHASES.insp, PROJ_PHASES.cons);
+  } else {
+    sources.push(PROJ_PHASES[bizFilter]);
+  }
+  if (scenFilter !== 'all') {
+    sources.length = 0; // 시나리오 필터가 더 우선
+    sources.push(SCEN_PHASES[scenFilter]);
+  }
+  const merged = {};
+  for (const ph of sources) {
+    const e = buildEdges(ph);
+    for (const k in e) merged[k] = (merged[k]||0) + e[k];
+  }
+  return merged;
+}
+
+// ─── 원형 좌표 배치 ──────────────────────────────────────────
+// 중심 600,380, 반지름 280
+// 고객사: 12시 / 본사: 1~5시(우측) / VN: 7~11시(좌측)
+const CX = 600, CY = 380, R = 270;
+
+function angle(idx, total, startDeg, endDeg) {
+  const span = endDeg - startDeg;
+  const step = span / Math.max(1, total - 1);
+  return (startDeg + step * idx) * Math.PI / 180;
+}
+
+function positionDepts() {
+  const pos = {};
+  const customers = ['고객사_국내','고객사_해외'];
+  const krs = ['기술영업','설계','전장설계','소프트웨어','제조기술2','구매'];
+  const vns = ['VN관리','VN구매','VN설계','VN전장','VN소프트웨어','VN조립'];
+
+  // 고객사: -100° ~ -80° (상단 좁게)
+  customers.forEach((d,i)=>{
+    const a = angle(i, customers.length, -100, -80);
+    pos[d] = { x: CX + R*Math.cos(a), y: CY + R*Math.sin(a) };
+  });
+  // 본사 KR: -60° ~ 60° (우측 절반)
+  krs.forEach((d,i)=>{
+    const a = angle(i, krs.length, -60, 60);
+    pos[d] = { x: CX + R*Math.cos(a), y: CY + R*Math.sin(a) };
+  });
+  // VN: 120° ~ 240° (좌측 절반, 위에서 아래로)
+  vns.forEach((d,i)=>{
+    const a = angle(i, vns.length, -240, -120); // 시계방향 좌측
+    pos[d] = { x: CX + R*Math.cos(a), y: CY + R*Math.sin(a) };
+  });
+  return pos;
+}
+
+const POS = positionDepts();
+
+// ─── SVG 렌더링 ──────────────────────────────────────────────
+const svg = document.getElementById('svg');
+let bizFilter = 'all', scenFilter = 'all', selectedDept = null;
+
+function render() {
+  const edges = computeActiveEdges(bizFilter, scenFilter);
+  const maxW = Math.max(1, ...Object.values(edges));
+
+  // SVG 비우기
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // 1) defs — 화살표 마커
+  const defs = svgEl('defs');
+  defs.innerHTML = `
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a5282c" />
+    </marker>
+  `;
+  svg.appendChild(defs);
+
+  // 2) 영역 라벨 (배경)
+  const labels = [
+    {text:'고객사', cx:CX, cy:CY-R-30, color:'#7c3aed'},
+    {text:'본사 (KR)', cx:CX+R+40, cy:CY, color:'#2563eb'},
+    {text:'베트남 법인 (VN)', cx:CX-R-50, cy:CY, color:'#16a34a'},
+  ];
+  for (const lb of labels) {
+    const t = svgEl('text');
+    t.setAttribute('x', lb.cx); t.setAttribute('y', lb.cy);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill', lb.color);
+    t.setAttribute('font-size','14');
+    t.setAttribute('font-weight','800');
+    t.setAttribute('letter-spacing','.04em');
+    t.textContent = lb.text;
+    svg.appendChild(t);
+  }
+
+  // 3) Edges
+  for (const key in edges) {
+    const [a,b] = key.split('||');
+    const pa = POS[a], pb = POS[b];
+    if (!pa || !pb) continue;
+    const w = edges[key];
+    const norm = w / maxW;
+    const thickness = 0.8 + norm * 4.5;
+    const opacity = 0.18 + norm * 0.4;
+
+    // 곡선 — 중심 방향으로 약간 휘기
+    const mx = (pa.x + pb.x)/2;
+    const my = (pa.y + pb.y)/2;
+    const dx = mx - CX, dy = my - CY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const k = dist > 0 ? 0.35 * (R - dist)/R : 0;
+    const cx = mx + dx * k * -1; // 중심 쪽으로
+    const cy = my + dy * k * -1;
+    const path = svgEl('path');
+    path.setAttribute('d', `M ${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`);
+    path.setAttribute('class', 'edge');
+    path.setAttribute('stroke-width', thickness);
+    path.setAttribute('stroke-opacity', opacity);
+    path.dataset.a = a; path.dataset.b = b; path.dataset.w = w;
+    svg.appendChild(path);
+  }
+
+  // 4) Nodes
+  for (const d in DEPTS) {
+    const info = DEPTS[d];
+    const p = POS[d];
+    if (!p) continue;
+    const g = svgEl('g');
+    g.setAttribute('class', `node ${info.entity}`);
+    g.setAttribute('transform', `translate(${p.x},${p.y})`);
+    g.dataset.dept = d;
+
+    const circle = svgEl('circle');
+    circle.setAttribute('r', 38);
+    g.appendChild(circle);
+
+    const ic = svgEl('text');
+    ic.setAttribute('class', 'ic');
+    ic.setAttribute('y', -4);
+    ic.setAttribute('text-anchor','middle');
+    ic.setAttribute('font-size', 20);
+    ic.textContent = info.icon;
+    g.appendChild(ic);
+
+    const label = svgEl('text');
+    label.setAttribute('y', 16);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size', 10.5);
+    label.setAttribute('font-weight', 700);
+    label.textContent = info.short || d;
+    g.appendChild(label);
+
+    g.addEventListener('click', (e) => { e.stopPropagation(); selectDept(d); });
+    svg.appendChild(g);
+  }
+
+  // 빈 공간 클릭 → 선택 해제
+  svg.addEventListener('click', () => selectDept(null));
+
+  // 선택 상태 적용
+  applySelection();
+}
+
+function svgEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function selectDept(d) {
+  selectedDept = d;
+  applySelection();
+  renderSide();
+}
+
+function applySelection() {
+  // 모든 노드/엣지 dim 해제
+  svg.querySelectorAll('.node').forEach(n => n.classList.remove('selected','dim'));
+  svg.querySelectorAll('.edge').forEach(e => e.classList.remove('active','dim'));
+  if (!selectedDept) return;
+
+  const target = selectedDept;
+  // 연결된 부서 set
+  const connected = new Set([target]);
+  svg.querySelectorAll('.edge').forEach(e => {
+    if (e.dataset.a === target || e.dataset.b === target) {
+      e.classList.add('active');
+      connected.add(e.dataset.a);
+      connected.add(e.dataset.b);
+    } else {
+      e.classList.add('dim');
+    }
+  });
+  svg.querySelectorAll('.node').forEach(n => {
+    if (n.dataset.dept === target) n.classList.add('selected');
+    else if (!connected.has(n.dataset.dept)) n.classList.add('dim');
+  });
+}
+
+function renderSide() {
+  const title = document.getElementById('side-title');
+  const sub = document.getElementById('side-sub');
+  const content = document.getElementById('side-content');
+
+  if (!selectedDept) {
+    title.textContent = '🌐 전체 협업 구조';
+    sub.textContent = '부서를 클릭하면 해당 부서의 협업 관계만 표시됩니다.';
+    content.innerHTML = renderOverview();
+    return;
+  }
+  const info = DEPTS[selectedDept];
+  title.innerHTML = `${info.icon} ${info.short || selectedDept}`;
+  sub.textContent = DEPT_TASKS[selectedDept] || '';
+
+  const edges = computeActiveEdges(bizFilter, scenFilter);
+  const partners = [];
+  for (const key in edges) {
+    const [a,b] = key.split('||');
+    if (a===selectedDept) partners.push({other:b, w:edges[key]});
+    else if (b===selectedDept) partners.push({other:a, w:edges[key]});
+  }
+  partners.sort((x,y) => y.w - x.w);
+
+  let html = `
+    <div class="side-card">
+      <h3>📊 협업 횟수</h3>
+      <div class="meta">
+        같은 단계·연속 단계에서 함께 일하는 빈도 합산<br>
+        <b>${partners.length}개 부서</b>와 연결, 총 <b>${partners.reduce((s,p)=>s+p.w,0)}회</b>
+      </div>
+    </div>
+    <div class="side-card">
+      <h3>🤝 협업 부서 (많은 순)</h3>
+      <div class="conn-list">
+        ${partners.map(p => {
+          const oi = DEPTS[p.other] || {icon:'❓',short:p.other};
+          return `<div class="conn-item" onclick="selectDept('${p.other}')">
+            <span class="with">${oi.icon} ${oi.short}</span>
+            <span class="freq">${p.w}회</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  content.innerHTML = html;
+}
+
+function renderOverview() {
+  const edges = computeActiveEdges(bizFilter, scenFilter);
+  // 부서별 총 연결 수
+  const total = {};
+  for (const key in edges) {
+    const [a,b] = key.split('||');
+    total[a] = (total[a]||0) + edges[key];
+    total[b] = (total[b]||0) + edges[key];
+  }
+  const sorted = Object.entries(total).sort((a,b) => b[1] - a[1]);
+  const filterLabel = scenFilter !== 'all' ? `시나리오 ${scenFilter}` :
+                      bizFilter === 'all' ? '전체 사업' :
+                      bizFilter === 'auto' ? '자동화' :
+                      bizFilter === 'insp' ? '검사기' : '소모품';
+  return `
+    <div class="side-card">
+      <h3>🔥 협업 허브 (${filterLabel})</h3>
+      <div class="meta">가장 많이 협업하는 부서 = 정보·자료·의사결정의 허브</div>
+      <div class="conn-list" style="margin-top:8px;">
+        ${sorted.slice(0,8).map(([d,w]) => {
+          const di = DEPTS[d] || {icon:'❓',short:d};
+          return `<div class="conn-item" onclick="selectDept('${d}')">
+            <span class="with">${di.icon} ${di.short}</span>
+            <span class="freq">${w}회</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="side-card">
+      <h3>💡 협의 가이드</h3>
+      <div class="meta">
+        1) <b>허브 부서</b>에 일이 몰리지 않는가?<br>
+        2) <b>본사 ↔ VN 라인</b>이 충분히 굵은가?<br>
+        3) <b>고객사 → 기술영업</b> 외 다른 진입로가 필요한가?<br>
+        4) 시나리오별 필터로 흐름 차이 비교
+      </div>
+    </div>
+  `;
+}
+
+// ─── 필터 버튼 ───────────────────────────────────────────────
+document.querySelectorAll('.fbtn[data-bizfilter]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.fbtn[data-bizfilter]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    bizFilter = b.dataset.bizfilter;
+    // 사업 필터 선택 시 시나리오 필터는 '전체'로
+    document.querySelectorAll('.fbtn[data-scenfilter]').forEach(x => x.classList.remove('on'));
+    document.querySelector('.fbtn[data-scenfilter="all"]').classList.add('on');
+    scenFilter = 'all';
+    render(); renderSide();
+  });
+});
+document.querySelectorAll('.fbtn[data-scenfilter]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.fbtn[data-scenfilter]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    scenFilter = b.dataset.scenfilter;
+    render(); renderSide();
+  });
+});
+
+// 초기 렌더
+render();
+renderSide();
+</script>
+</body>
+</html>
