@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KNK 업무 연결성 트리도 — 2026-05-21</title>
+<style>
+  :root {
+    --ink: #1f2937;
+    --ink-2: #4b5563;
+    --ink-3: #9ca3af;
+    --line: #e5e7eb;
+    --surface: #ffffff;
+    --surface-2: #f9fafb;
+    --surface-3: #f3f4f6;
+    --knk-red: #a5282c;
+    --accent: #6366f1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Pretendard', 'Malgun Gothic', system-ui, -apple-system, sans-serif;
+    background: var(--surface-2);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: #fff;
+    border-bottom: 2px solid var(--knk-red);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  }
+  .topbar .brand { font-size: 18px; font-weight: 800; color: var(--knk-red); letter-spacing: -.5px; }
+  .topbar .sub { font-size: 12px; color: var(--ink-3); margin-left: -10px; }
+  .topbar .grow { flex: 1; }
+  .tab-btn {
+    padding: 9px 18px; font-size: 14px; font-weight: 700; border-radius: 999px;
+    border: 1.5px solid var(--line); background: #fff; color: var(--ink-2); cursor: pointer;
+    transition: .15s;
+  }
+  .tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tab-btn.on { background: var(--knk-red); border-color: var(--knk-red); color: #fff; }
+  .print-btn {
+    padding: 9px 14px; font-size: 13px; font-weight: 700; border-radius: 8px;
+    border: 1.5px solid var(--line); background: #fff; color: var(--ink-2); cursor: pointer;
+  }
+  .print-btn:hover { background: var(--surface-3); }
+
+  .view { display: none; padding: 24px; }
+  .view.on { display: block; }
+
+  .view-head { margin-bottom: 18px; }
+  .view-head h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.5px; }
+  .view-head .hint { font-size: 13px; color: var(--ink-3); }
+
+  /* ── 프로젝트 중심 뷰 (3 컬럼) ───────────────────────────── */
+  .proj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 1100px) { .proj-grid { grid-template-columns: 1fr; } }
+
+  .proj-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .proj-card.t-auto  { border-top: 6px solid #16a34a; }
+  .proj-card.t-insp  { border-top: 6px solid #0369a1; }
+  .proj-card.t-cons  { border-top: 6px solid #ca8a04; }
+
+  .proj-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .proj-emoji { font-size: 36px; }
+  .proj-head h2 { margin: 0; font-size: 22px; letter-spacing: -.3px; }
+  .proj-head .biz { font-size: 11px; color: var(--ink-3); margin-top: 2px; font-weight: 700; letter-spacing: .1em; }
+  .proj-desc { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; }
+  .proj-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; font-size: 11px; }
+  .proj-meta span { padding: 3px 9px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); font-weight: 700; }
+
+  .phase { margin-bottom: 12px; }
+  .phase h3 { font-size: 13px; margin: 0 0 6px; color: var(--ink-2); font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .phase h3 .step-no { background: var(--knk-red); color: #fff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .phase .work { font-size: 12.5px; color: var(--ink); margin: 0 0 6px; padding-left: 30px; }
+  .phase .dept-list { display: flex; gap: 4px; flex-wrap: wrap; padding-left: 30px; }
+
+  .dept-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--surface-3); color: var(--ink-2); cursor: default;
+  }
+  .dept-chip[data-dept] { cursor: pointer; }
+  .dept-chip.highlight { box-shadow: 0 0 0 2px var(--knk-red); transform: scale(1.05); }
+
+  .proj-menus { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .proj-menus h4 { font-size: 12px; color: var(--ink-3); margin: 0 0 6px; letter-spacing: .08em; text-transform: uppercase; }
+  .menu-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .menu-pill {
+    padding: 4px 10px; border-radius: 6px; background: #eff6ff; color: #1e40af;
+    font-size: 11.5px; font-weight: 700; text-decoration: none; border: 1px solid #dbeafe;
+  }
+  .menu-pill:hover { background: #dbeafe; }
+
+  /* ── 부서 중심 뷰 ───────────────────────────────────────── */
+  .dept-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px; background: #fff; border-radius: 10px; border: 1px solid var(--line); }
+  .dept-tab {
+    padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    background: var(--surface-3); color: var(--ink-2); border: 1.5px solid transparent;
+  }
+  .dept-tab:hover { border-color: var(--accent); }
+  .dept-tab.on { background: var(--knk-red); color: #fff; }
+
+  .dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+
+  .dept-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    position: relative;
+  }
+  .dept-card.entity-kr { border-left: 6px solid #2563eb; }
+  .dept-card.entity-vn { border-left: 6px solid #16a34a; }
+  .dept-card.entity-customer { border-left: 6px solid #7c3aed; }
+  .dept-card.dim { opacity: .35; }
+
+  .dept-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .dept-emoji { font-size: 32px; }
+  .dept-head h2 { margin: 0; font-size: 19px; }
+  .dept-head .ent-tag { font-size: 10.5px; color: #fff; padding: 2px 8px; border-radius: 999px; font-weight: 800; letter-spacing: .05em; }
+  .dept-head .ent-tag.kr { background: #2563eb; }
+  .dept-head .ent-tag.vn { background: #16a34a; }
+  .dept-head .ent-tag.cu { background: #7c3aed; }
+
+  .dept-sec { margin-top: 10px; }
+  .dept-sec h4 { font-size: 11px; color: var(--ink-3); margin: 0 0 5px; letter-spacing: .08em; text-transform: uppercase; }
+  .dept-tasks { font-size: 12.5px; color: var(--ink); margin: 0; }
+  .scen-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+  .scen-pill {
+    padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--surface-3); color: var(--ink-2);
+  }
+  .scen-pill.has { background: #fef3c7; color: #92400e; }
+  .scen-pill.empty { color: var(--ink-3); }
+  .step-count { font-size: 13px; font-weight: 800; color: var(--knk-red); margin-left: 4px; }
+
+  details.step-detail { margin-top: 6px; }
+  details.step-detail summary {
+    cursor: pointer; font-size: 11.5px; color: var(--accent); padding: 3px 0;
+    list-style: none; user-select: none;
+  }
+  details.step-detail summary::-webkit-details-marker { display: none; }
+  details.step-detail summary::before { content: "▶ "; font-size: 9px; }
+  details.step-detail[open] summary::before { content: "▼ "; }
+  details.step-detail ul { margin: 4px 0 0; padding-left: 20px; font-size: 11.5px; color: var(--ink-2); }
+
+  .dept-menus { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+
+  .legend {
+    background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px;
+    margin-bottom: 18px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* 인쇄 최적화 */
+  @media print {
+    .topbar { position: static; box-shadow: none; }
+    .tab-btn, .print-btn, .dept-tabs { display: none !important; }
+    .view { display: block !important; padding: 8mm 4mm; page-break-after: always; }
+    .view:last-child { page-break-after: auto; }
+    .proj-card, .dept-card { break-inside: avoid; box-shadow: none; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="brand">KNK 업무 연결성 트리도</div>
+    <div class="sub">2026-05-21 · HAIST WORKS · 직원 협의용</div>
+  </div>
+  <div class="grow"></div>
+  <button class="tab-btn on" data-view="proj">🅰 프로젝트 중심</button>
+  <button class="tab-btn"    data-view="dept">🅱 부서 중심</button>
+  <button class="print-btn" onclick="window.print()">🖨 인쇄 (A3 가로)</button>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<!-- VIEW A: 프로젝트 중심 (자동화 / 검사기 / 소모품)              -->
+<!-- ───────────────────────────────────────────────────────────── -->
+<section class="view on" id="view-proj">
+  <div class="view-head">
+    <h1>🅰 프로젝트 중심 — 업무 단계 + 담당 부서</h1>
+    <div class="hint">KNK 사업 3종이 어떻게 다르고, 각 단계에 누가 참여하는지 한눈에. 부서 칩 클릭 시 부서 중심 뷰로 점프.</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#16a34a;"></span><b>자동화(M)</b> — 조립·생산 자동화 라인</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#0369a1;"></span><b>검사기(T)</b> — Vision/IR/X-ray 등 검사 장비</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#ca8a04;"></span><b>소모품</b> — 반복 수주 · 짧은 사이클</div>
+  </div>
+
+  <div class="proj-grid" id="proj-grid"><!-- JS 주입 --></div>
+</section>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<!-- VIEW B: 부서 중심 (14개 부서 카드)                            -->
+<!-- ───────────────────────────────────────────────────────────── -->
+<section class="view" id="view-dept">
+  <div class="view-head">
+    <h1>🅱 부서 중심 — 우리 팀 업무 + 시스템 메뉴</h1>
+    <div class="hint">각 부서가 ① 어떤 일을 ② 어느 시나리오에서 ③ 어떤 메뉴로 처리하는지. 단계 펼침으로 구체 업무 확인.</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#2563eb;"></span>본사(KR)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#16a34a;"></span>베트남법인(VN)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#7c3aed;"></span>고객사</div>
+    <div class="legend-item"><span class="scen-pill has">T2 ✓</span>그 부서가 해당 시나리오에서 일함</div>
+  </div>
+
+  <div class="dept-tabs" id="dept-tabs"><!-- JS 주입 --></div>
+  <div class="dept-grid" id="dept-grid"><!-- JS 주입 --></div>
+</section>
+
+<script>
+// ─── 데이터 ──────────────────────────────────────────────────
+const DEPTS = {"고객사_국내": {"color": "#7c3aed", "icon": "🏢", "short": "고객사(국내)"}, "고객사_해외": {"color": "#9333ea", "icon": "🌏", "short": "고객사(해외)"}, "기술영업": {"color": "#dc2626", "icon": "💼", "short": "기술영업"}, "설계": {"color": "#0891b2", "icon": "📐", "short": "설계"}, "전장설계": {"color": "#0e7490", "icon": "⚡", "short": "전장설계"}, "소프트웨어": {"color": "#0369a1", "icon": "💻", "short": "소프트웨어"}, "제조기술2": {"color": "#16a34a", "icon": "🔧", "short": "제조기술2"}, "구매": {"color": "#ca8a04", "icon": "🛒", "short": "구매"}, "VN관리": {"color": "#dc2626", "icon": "🇻🇳", "short": "VN관리"}, "VN구매": {"color": "#ca8a04", "icon": "🇻🇳", "short": "VN구매"}, "VN설계": {"color": "#0891b2", "icon": "🇻🇳", "short": "VN설계"}, "VN전장": {"color": "#0e7490", "icon": "🇻🇳", "short": "VN전장"}, "VN소프트웨어": {"color": "#0369a1", "icon": "🇻🇳", "short": "VN소프트웨어"}, "VN조립": {"color": "#16a34a", "icon": "🇻🇳", "short": "VN조립"}};
+const SCENARIOS = {"T1": {"title": "유형 ① 국내 단순", "flow": "고객사(국내) → 본사 → 본사제작 → 본사확인 → 본사출하", "desc": "본사가 수주·설계·제작·출하 모두 담당. 가장 단순한 형태."}, "T2": {"title": "유형 ② 국내 + VN 협업", "flow": "고객사(국내) → 본사 → 법인제작 → 본사입고 → 본사확인 → 본사출하", "desc": "VN 법인 제작 후 본사로 반입하여 본사에서 최종 검증 + 국내 출하."}, "T3": {"title": "유형 ③ 해외 직수출", "flow": "고객사(해외) → 본사 → 법인제작 → 본사입고 → 본사확인 → 본사수출", "desc": "해외 고객사로부터 본사가 직접 수주 · VN 제작 · 본사에서 해외로 수출."}, "T4": {"title": "유형 ④ 해외 — VN 법인 직수주", "flow": "고객사(해외) → 법인 PO → 본사 PO → 본사 상품/제품 수출 → 법인제작 → 법인출하", "desc": "해외 고객사가 VN 법인에 직발주. VN이 본사에 IC PO 발행 · 본사 매출 처리."}};
+const DEPT_STEPS = {"고객사_국내": {"T1": [{"no": 1, "title": "프로젝트 회의 요청", "loc": "CUSTOMER_KR"}, {"no": 6, "title": "제작사 확정 + PO 전달", "loc": "CUSTOMER_KR"}], "T2": [{"no": 1, "title": "프로젝트 회의 요청", "loc": "CUSTOMER_KR"}, {"no": 6, "title": "제작사 확정 + PO 전달", "loc": "CUSTOMER_KR"}], "T3": [], "T4": []}, "고객사_해외": {"T1": [], "T2": [], "T3": [{"no": 1, "title": "프로젝트 회의 요청", "loc": "CUSTOMER_OVERSEAS"}, {"no": 6, "title": "제작사 확정 + PO 전달", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 1, "title": "프로젝트 회의 요청", "loc": "CUSTOMER_OVERSEAS"}, {"no": 6, "title": "제작사 확정 + PO 전달 (VN 법인으로)", "loc": "CUSTOMER_OVERSEAS"}]}, "기술영업": {"T1": [{"no": 2, "title": "회의 참석 진행", "loc": "KR"}, {"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 5, "title": "견적서 + 고객사 협의", "loc": "KR"}, {"no": 7, "title": "PO 입수 + 프로젝트 등록", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 22, "title": "출하검증 (FAT)", "loc": "KR"}, {"no": 24, "title": "출하 처리", "loc": "KR"}, {"no": 27, "title": "최종 마감 정리", "loc": "KR"}], "T2": [{"no": 2, "title": "회의 참석 진행", "loc": "KR"}, {"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 5, "title": "견적서 + 고객사 협의", "loc": "KR"}, {"no": 7, "title": "PO 입수 + 프로젝트 등록", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 18, "title": "본사 → VN 자재 발송", "loc": "KR"}, {"no": 26, "title": "본사 장비 수입 처리", "loc": "KR"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 31, "title": "출하 처리", "loc": "KR"}, {"no": 34, "title": "최종 마감 정리", "loc": "KR"}], "T3": [{"no": 2, "title": "회의 참석", "loc": "KR"}, {"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 5, "title": "견적서 + 고객사 협의", "loc": "KR"}, {"no": 7, "title": "PO 입수 + 프로젝트 등록", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 18, "title": "본사 → VN 자재 발송", "loc": "KR"}, {"no": 26, "title": "본사 장비 수입 처리", "loc": "KR"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 31, "title": "수출 출하 처리", "loc": "KR"}, {"no": 34, "title": "최종 마감 정리", "loc": "KR"}], "T4": [{"no": 2, "title": "회의 참석", "loc": "KR"}, {"no": 3, "title": "컨셉회의", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 5, "title": "견적서 + 고객사 협의", "loc": "KR"}, {"no": 8, "title": "VN에서 PO 입수 + 프로젝트 등록 + VN으로 견적서 발행", "loc": "KR"}, {"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 19, "title": "본사 → VN 자재 발송", "loc": "KR"}]}, "설계": {"T1": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 9, "title": "3D 설계 + BOM 작성 + 2D 설계", "loc": "KR"}, {"no": 15, "title": "가공품 발주 (비교견적·납기)", "loc": "KR"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR"}, {"no": 22, "title": "출하검증 (FAT)", "loc": "KR"}, {"no": 25, "title": "셋업지 셋업 (국내)", "loc": "KR"}, {"no": 26, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T2": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 9, "title": "3D 설계 + BOM 작성 + 2D 설계", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (국내)", "loc": "KR"}, {"no": 33, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T3": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 9, "title": "3D 설계 + BOM + 2D 설계", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}, {"no": 33, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T4": [{"no": 3, "title": "컨셉회의", "loc": "KR"}, {"no": 4, "title": "제안서 작성", "loc": "KR"}, {"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 10, "title": "3D 설계 + BOM + 2D 설계", "loc": "KR_VN"}, {"no": 16, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 18, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}, {"no": 28, "title": "설비 매뉴얼 작성", "loc": "KR_VN"}]}, "전장설계": {"T1": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 10, "title": "전장 설계 + BOM 작성", "loc": "KR"}, {"no": 22, "title": "출하검증 (FAT)", "loc": "KR"}, {"no": 25, "title": "셋업지 셋업 (국내)", "loc": "KR"}], "T2": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 10, "title": "전장 설계 + BOM 작성", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (국내)", "loc": "KR"}], "T3": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 10, "title": "전장 설계 + BOM", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 3, "title": "컨셉회의", "loc": "KR"}, {"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 11, "title": "전장 설계 + BOM", "loc": "KR_VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}]}, "소프트웨어": {"T1": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 11, "title": "소프트웨어 개발 + BOM 작성", "loc": "KR"}, {"no": 21, "title": "프로그램 적용 · 드라이런 · 디버깅 · 최종 검증", "loc": "KR"}, {"no": 22, "title": "출하검증 (FAT)", "loc": "KR"}, {"no": 25, "title": "셋업지 셋업 (국내)", "loc": "KR"}, {"no": 26, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T2": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 11, "title": "소프트웨어 개발 + BOM 작성", "loc": "KR_VN"}, {"no": 23, "title": "SW 적용·드라이런·디버깅·1차 검증 (VN)", "loc": "KR_VN"}, {"no": 28, "title": "SW 적용·디버깅·2차 최종 검증 (본사)", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (국내)", "loc": "KR"}, {"no": 33, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T3": [{"no": 3, "title": "컨셉회의 진행", "loc": "KR"}, {"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 11, "title": "소프트웨어 + BOM", "loc": "KR_VN"}, {"no": 23, "title": "SW 적용·드라이런·디버깅·1차 검증 (VN)", "loc": "KR_VN"}, {"no": 28, "title": "SW 적용·디버깅·2차 검증 (본사)", "loc": "KR_VN"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}, {"no": 33, "title": "설비 매뉴얼 작성", "loc": "KR"}], "T4": [{"no": 3, "title": "컨셉회의", "loc": "KR"}, {"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 12, "title": "소프트웨어 + BOM", "loc": "KR_VN"}, {"no": 24, "title": "SW 적용·드라이런·디버깅·최종 검증", "loc": "KR_VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}, {"no": 28, "title": "설비 매뉴얼 작성", "loc": "KR_VN"}]}, "제조기술2": {"T1": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 18, "title": "기구 조립 진행", "loc": "KR"}, {"no": 19, "title": "전장 작업 진행", "loc": "KR"}, {"no": 20, "title": "I/O 체크", "loc": "KR"}, {"no": 22, "title": "출하검증 (FAT)", "loc": "KR"}, {"no": 23, "title": "장비 출하 준비", "loc": "KR"}, {"no": 25, "title": "셋업지 셋업 (국내)", "loc": "KR"}], "T2": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 20, "title": "기구 조립 진행", "loc": "KR_VN"}, {"no": 21, "title": "전장 작업 진행", "loc": "KR_VN"}, {"no": 22, "title": "I/O 체크", "loc": "KR_VN"}, {"no": 27, "title": "입고 장비 동작 검증", "loc": "KR"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 30, "title": "장비 출하 준비", "loc": "KR"}, {"no": 32, "title": "셋업지 셋업 (국내)", "loc": "KR"}], "T3": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 20, "title": "기구 조립", "loc": "KR_VN"}, {"no": 21, "title": "전장 작업", "loc": "KR_VN"}, {"no": 22, "title": "I/O 체크", "loc": "KR_VN"}, {"no": 27, "title": "입고 장비 동작 검증", "loc": "KR"}, {"no": 29, "title": "출하검증 (FAT)", "loc": "KR_VN"}, {"no": 30, "title": "장비 출하 준비", "loc": "KR"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}]}, "구매": {"T1": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 12, "title": "장납기 자재 선행 발주", "loc": "KR"}, {"no": 13, "title": "전체 PART LIST 작성", "loc": "KR"}, {"no": 14, "title": "자재 발주 (비교견적·납기)", "loc": "KR"}, {"no": 15, "title": "가공품 발주 (비교견적·납기)", "loc": "KR"}, {"no": 16, "title": "자재 입고 확인", "loc": "KR"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR"}], "T2": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 12, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 13, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 14, "title": "자재 발주", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 16, "title": "자재 입고 확인", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR_VN"}, {"no": 18, "title": "본사 → VN 자재 발송", "loc": "KR"}, {"no": 26, "title": "본사 장비 수입 처리", "loc": "KR"}], "T3": [{"no": 8, "title": "프로젝트 시작 미팅", "loc": "KR"}, {"no": 12, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 13, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 14, "title": "자재 발주", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 16, "title": "자재 입고", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 18, "title": "본사 → VN 자재 발송", "loc": "KR"}, {"no": 26, "title": "본사 장비 수입 처리", "loc": "KR"}], "T4": [{"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 13, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 14, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 15, "title": "자재 발주", "loc": "KR_VN"}, {"no": 16, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "자재 입고", "loc": "KR_VN"}, {"no": 18, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 19, "title": "본사 → VN 자재 발송", "loc": "KR"}]}, "VN관리": {"T1": [], "T2": [{"no": 19, "title": "VN 자재 입고 처리", "loc": "VN"}, {"no": 25, "title": "VN → 본사 장비 출하", "loc": "VN"}], "T3": [{"no": 19, "title": "VN 자재 입고 처리", "loc": "VN"}, {"no": 25, "title": "VN → 본사 장비 출하", "loc": "VN"}], "T4": [{"no": 7, "title": "PO 입수 → 본사로 IC PO 발행", "loc": "VN"}, {"no": 9, "title": "프로젝트 시작 미팅", "loc": "KR_VN"}, {"no": 20, "title": "VN 자재 입고 처리", "loc": "VN"}, {"no": 26, "title": "출하 처리 (VN→해외)", "loc": "VN"}, {"no": 29, "title": "최종 마감 정리", "loc": "VN"}]}, "VN구매": {"T1": [], "T2": [{"no": 12, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 13, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 14, "title": "자재 발주", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 16, "title": "자재 입고 확인", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR_VN"}, {"no": 19, "title": "VN 자재 입고 처리", "loc": "VN"}], "T3": [{"no": 12, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 13, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 14, "title": "자재 발주", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 16, "title": "자재 입고", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 19, "title": "VN 자재 입고 처리", "loc": "VN"}], "T4": [{"no": 13, "title": "장납기 자재 선행 발주", "loc": "KR_VN"}, {"no": 14, "title": "전체 PART LIST 작성", "loc": "KR_VN"}, {"no": 15, "title": "자재 발주", "loc": "KR_VN"}, {"no": 16, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "자재 입고", "loc": "KR_VN"}, {"no": 18, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 20, "title": "VN 자재 입고 처리", "loc": "VN"}]}, "VN설계": {"T1": [], "T2": [{"no": 9, "title": "3D 설계 + BOM 작성 + 2D 설계", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고 확인", "loc": "KR_VN"}], "T3": [{"no": 9, "title": "3D 설계 + BOM + 2D 설계", "loc": "KR_VN"}, {"no": 15, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 17, "title": "가공품 입고", "loc": "KR_VN"}], "T4": [{"no": 10, "title": "3D 설계 + BOM + 2D 설계", "loc": "KR_VN"}, {"no": 16, "title": "가공품 발주", "loc": "KR_VN"}, {"no": 18, "title": "가공품 입고", "loc": "KR_VN"}, {"no": 25, "title": "출하검증", "loc": "VN"}, {"no": 28, "title": "설비 매뉴얼 작성", "loc": "KR_VN"}]}, "VN전장": {"T1": [], "T2": [{"no": 10, "title": "전장 설계 + BOM 작성", "loc": "KR_VN"}], "T3": [{"no": 10, "title": "전장 설계 + BOM", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 11, "title": "전장 설계 + BOM", "loc": "KR_VN"}, {"no": 25, "title": "출하검증", "loc": "VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}]}, "VN소프트웨어": {"T1": [], "T2": [{"no": 11, "title": "소프트웨어 개발 + BOM 작성", "loc": "KR_VN"}, {"no": 23, "title": "SW 적용·드라이런·디버깅·1차 검증 (VN)", "loc": "KR_VN"}, {"no": 28, "title": "SW 적용·디버깅·2차 최종 검증 (본사)", "loc": "KR_VN"}], "T3": [{"no": 11, "title": "소프트웨어 + BOM", "loc": "KR_VN"}, {"no": 23, "title": "SW 적용·드라이런·디버깅·1차 검증 (VN)", "loc": "KR_VN"}, {"no": 28, "title": "SW 적용·디버깅·2차 검증 (본사)", "loc": "KR_VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 12, "title": "소프트웨어 + BOM", "loc": "KR_VN"}, {"no": 24, "title": "SW 적용·드라이런·디버깅·최종 검증", "loc": "KR_VN"}, {"no": 25, "title": "출하검증", "loc": "VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}, {"no": 28, "title": "설비 매뉴얼 작성", "loc": "KR_VN"}]}, "VN조립": {"T1": [], "T2": [{"no": 20, "title": "기구 조립 진행", "loc": "KR_VN"}, {"no": 21, "title": "전장 작업 진행", "loc": "KR_VN"}, {"no": 22, "title": "I/O 체크", "loc": "KR_VN"}, {"no": 24, "title": "기본사항 확인 + 포장", "loc": "VN"}], "T3": [{"no": 20, "title": "기구 조립", "loc": "KR_VN"}, {"no": 21, "title": "전장 작업", "loc": "KR_VN"}, {"no": 22, "title": "I/O 체크", "loc": "KR_VN"}, {"no": 24, "title": "포장", "loc": "VN"}, {"no": 32, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}], "T4": [{"no": 21, "title": "기구 조립", "loc": "VN"}, {"no": 22, "title": "전장 작업", "loc": "VN"}, {"no": 23, "title": "I/O 체크", "loc": "VN"}, {"no": 25, "title": "출하검증", "loc": "VN"}, {"no": 27, "title": "셋업지 셋업 (해외)", "loc": "CUSTOMER_OVERSEAS"}]}};
+
+// 부서 정체성 (본사 KR / 베트남 VN / 고객사)
+const DEPT_ENTITY = {
+  '고객사_국내':'customer','고객사_해외':'customer',
+  '기술영업':'kr','설계':'kr','전장설계':'kr','소프트웨어':'kr','제조기술2':'kr','구매':'kr',
+  'VN관리':'vn','VN구매':'vn','VN설계':'vn','VN전장':'vn','VN소프트웨어':'vn','VN조립':'vn',
+};
+
+// 부서별 담당업무 한 줄 설명
+const DEPT_TASKS = {
+  '기술영업':  '고객 컨택 · 견적 · 수주 · 사양 협의 · 일정·진행 총괄',
+  '설계':      '기구설계 — 3D 모델링·조립도·부품도 (BOM 작성)',
+  '전장설계':  '전기 회로 · 결선도 · PLC 입출력 설계',
+  '소프트웨어':'PLC 프로그램 · HMI 화면 · 비전 알고리즘',
+  '제조기술2':'본사 조립 · 가공 · 작업지시 실행 · 셀프 체크',
+  '구매':      '자재 검토 · 발주 · 입고 검수 · 신규자재 등록',
+  'VN관리':    '베트남 법인 통관 · 현지 인도 · 고객 응대',
+  'VN구매':    '베트남 현지 자재 발주 · 입고',
+  'VN설계':    'VN 기구설계 (본사 검토 지원 가능)',
+  'VN전장':    'VN 전기설계 · 현지 인증 규격 반영',
+  'VN소프트웨어':'VN SW 개발 · 테스트',
+  'VN조립':    'VN 공장 조립 · 가공 · 포장',
+  '고객사_국내':'국내 고객 — 회의 요청 · 사양 협의 · 검수 · 수령',
+  '고객사_해외':'해외 고객 — 회의 요청 · 사양 협의 · 현지 인도 수령',
+};
+
+// 부서별 KNK 시스템 사용 메뉴 (localhost:8081 자동 링크)
+const DEPT_MENUS = {
+  '기술영업':  [['매출 홈','/sales'],['프로젝트','/projects'],['견적','/sales/quotations'],['수주','/sales/orders'],['고객사','/customers'],['일일업무','/daily']],
+  '설계':      [['프로젝트','/projects'],['자재 카탈로그','/catalog'],['자재 요청','/materials/requests'],['일일업무','/daily']],
+  '전장설계':  [['프로젝트','/projects'],['자재 카탈로그','/catalog'],['자재 요청','/materials/requests'],['일일업무','/daily']],
+  '소프트웨어':[['프로젝트','/projects'],['일일업무','/daily']],
+  '제조기술2':[['작업지시','/wo'],['QC 리포트','/qc'],['프로젝트','/projects'],['일일업무','/daily']],
+  '구매':      [['자재 카탈로그','/catalog'],['자재 요청','/materials/requests'],['발주','/po'],['공급사','/suppliers'],['재고','/stock/balances'],['신규자재 검토','/materials/new-review']],
+  'VN관리':    [['프로젝트','/projects'],['워크플로우','/workflow'],['일일업무','/daily']],
+  'VN구매':    [['자재 카탈로그','/catalog'],['자재 요청','/materials/requests'],['발주','/po']],
+  'VN설계':    [['프로젝트','/projects'],['자재 카탈로그','/catalog']],
+  'VN전장':    [['프로젝트','/projects'],['자재 카탈로그','/catalog']],
+  'VN소프트웨어':[['프로젝트','/projects']],
+  'VN조립':    [['작업지시','/wo'],['QC 리포트','/qc'],['프로젝트','/projects']],
+  '고객사_국내':[],
+  '고객사_해외':[],
+};
+
+// 부서 핸드오프 (이 부서 → 다음 부서)
+const DEPT_HANDOFF = {
+  '기술영업':  ['설계','전장설계','소프트웨어','구매','회계','VN관리'],
+  '설계':      ['구매','제조기술2','VN조립'],
+  '전장설계':  ['구매','제조기술2','VN조립'],
+  '소프트웨어':['제조기술2','VN조립'],
+  '구매':      ['제조기술2','VN조립'],
+  '제조기술2':['QC(품질)','기술영업(출하)','VN조립'],
+  'VN관리':    ['VN조립','VN구매','기술영업'],
+  'VN조립':    ['VN관리','VN구매','기술영업'],
+  'VN구매':    ['VN조립'],
+};
+
+// 3종 프로젝트 정의 (자동화 · 검사기 · 소모품)
+// 자동화·검사기는 동일 시나리오 골격(T1~T4), 소모품은 짧은 별도 흐름
+const PROJ_TYPES = [
+  {
+    key: 'auto', code: 'M', emoji: '🤖', title: '자동화 (Automation)',
+    cls: 't-auto',
+    desc: '조립·생산 자동화 라인. 사양·공정 협의 비중 큼. 통상 1대당 수개월 단위. T1~T4 시나리오 모두 적용 가능.',
+    meta: ['사업부 M','평균 27~47 단계','한 건당 中~大','시나리오 T1·T2·T3·T4'],
+    phases: [
+      { no: 1, name: '① 영업·수주', work: '고객 회의·사양 협의·견적·수주·PO 등록·프로젝트 시작 미팅', depts: ['기술영업','고객사_국내','고객사_해외'] },
+      { no: 2, name: '② 설계', work: '사양서·BOM·기구/전장/SW 설계 (본사 또는 VN 협업)', depts: ['설계','전장설계','소프트웨어','VN설계','VN전장','VN소프트웨어'] },
+      { no: 3, name: '③ 자재·구매', work: '자재 검토·발주·입고·신규자재 등록', depts: ['구매','VN구매'] },
+      { no: 4, name: '④ 제조·조립', work: '작업지시·가공·조립·셀프 체크', depts: ['제조기술2','VN조립'] },
+      { no: 5, name: '⑤ 품질·검증', work: '입고검사·공정검사·최종검사·FAT(고객 입회)', depts: ['제조기술2','VN조립'] },
+      { no: 6, name: '⑥ 출하·물류', work: '포장·수출서류·통관·현지 인도', depts: ['제조기술2','VN조립','VN관리'] },
+      { no: 7, name: '⑦ 설치·시운전', work: '현장 설치·SAT·고객 사인', depts: ['소프트웨어','전장설계','VN관리'] },
+      { no: 8, name: '⑧ 회계·정산', work: 'INVOICE·수금·IC 페어(본사↔VN)·지급', depts: ['기술영업'] },
+      { no: 9, name: '⑨ 사후 (AS)', work: '인수인계·매뉴얼·보증·이슈 대응', depts: ['기술영업','소프트웨어'] },
+    ],
+    menus: [['매출 홈','/sales'],['프로젝트','/projects'],['워크플로우(일순서)','/workflow'],['자재 카탈로그','/catalog'],['발주·재고','/po'],['QC','/qc'],['IC 페어','/workflow/ic_pairs']]
+  },
+  {
+    key: 'insp', code: 'T', emoji: '🔍', title: '검사기 (Inspection)',
+    cls: 't-insp',
+    desc: 'Vision/IR/X-ray 등 검사 장비. SW·알고리즘 비중 큼 (소프트웨어팀 핵심). 사양 검증·재현성 중요.',
+    meta: ['사업부 T','평균 27~47 단계','한 건당 中','시나리오 T1·T2·T3·T4'],
+    phases: [
+      { no: 1, name: '① 영업·수주', work: '검사 사양 협의(샘플 측정·정밀도 합의)·견적·수주', depts: ['기술영업','고객사_국내','고객사_해외'] },
+      { no: 2, name: '② 설계 (SW 중심)', work: '비전 알고리즘·HMI·검사 시퀀스 + 기구/전장', depts: ['소프트웨어','설계','전장설계','VN설계','VN전장','VN소프트웨어'] },
+      { no: 3, name: '③ 자재·구매', work: '센서·카메라·조명·렌즈 등 핵심 부품 발주', depts: ['구매','VN구매'] },
+      { no: 4, name: '④ 제조·조립', work: '광학계·기구 조립·셀프 체크', depts: ['제조기술2','VN조립'] },
+      { no: 5, name: '⑤ 품질·검증', work: '검사 정확도 측정·반복정밀도·FAT (Golden Sample)', depts: ['소프트웨어','제조기술2','VN조립'] },
+      { no: 6, name: '⑥ 출하·물류', work: '캘리브레이션 보존 출하·통관', depts: ['제조기술2','VN조립','VN관리'] },
+      { no: 7, name: '⑦ 설치·시운전', work: '현장 라인 통합·실제 워크피스 검사·SAT', depts: ['소프트웨어','전장설계','VN관리'] },
+      { no: 8, name: '⑧ 회계·정산', work: 'INVOICE·수금·IC 페어', depts: ['기술영업'] },
+      { no: 9, name: '⑨ 사후 (AS)', work: '알고리즘 튜닝·라이브러리 업데이트·이슈 대응', depts: ['소프트웨어','기술영업'] },
+    ],
+    menus: [['매출 홈','/sales'],['프로젝트','/projects'],['워크플로우(일순서)','/workflow'],['자재 카탈로그','/catalog'],['발주','/po'],['QC','/qc']]
+  },
+  {
+    key: 'cons', code: 'C', emoji: '🧰', title: '소모품 (Consumables)',
+    cls: 't-cons',
+    desc: '치공구·교체부품·소형 부자재. 짧은 사이클·반복 수주. 재고 회전·납기가 핵심. 별도 모듈로 단순화.',
+    meta: ['반복 수주','평균 5~10 단계','한 건당 小','빠른 회전'],
+    phases: [
+      { no: 1, name: '① 견적·수주', work: '카탈로그 기반 빠른 견적·수주', depts: ['기술영업','고객사_국내','고객사_해외'] },
+      { no: 2, name: '② 자재 확보', work: '재고 확인 → 부족 시 즉시 발주', depts: ['구매'] },
+      { no: 3, name: '③ 검수·포장', work: '입고 검수·간단 포장', depts: ['구매','제조기술2'] },
+      { no: 4, name: '④ 출하', work: '국내 발송 · 해외는 통관 절차', depts: ['기술영업','VN관리'] },
+      { no: 5, name: '⑤ 회계', work: 'INVOICE·수금', depts: ['기술영업'] },
+    ],
+    menus: [['소모품','/consumables'],['자재 카탈로그','/catalog'],['발주','/po'],['재고','/stock/balances'],['매출 홈','/sales']]
+  }
+];
+
+// 시나리오별 부서 등장 횟수 (이미 DEPT_STEPS 로 계산됨)
+
+// ─── 렌더링 ──────────────────────────────────────────────────
+const BASE_URL = 'http://localhost:8081';
+
+function renderProj() {
+  const root = document.getElementById('proj-grid');
+  root.innerHTML = PROJ_TYPES.map(p => `
+    <div class="proj-card ${p.cls}">
+      <div class="proj-head">
+        <div class="proj-emoji">${p.emoji}</div>
+        <div>
+          <div class="biz">사업 구분 · ${p.code}</div>
+          <h2>${p.title}</h2>
+        </div>
+      </div>
+      <div class="proj-desc">${p.desc}</div>
+      <div class="proj-meta">${p.meta.map(m => `<span>${m}</span>`).join('')}</div>
+      ${p.phases.map(ph => `
+        <div class="phase">
+          <h3><span class="step-no">${ph.no}</span> ${ph.name}</h3>
+          <p class="work">${ph.work}</p>
+          <div class="dept-list">
+            ${ph.depts.map(d => deptChipHTML(d)).join('')}
+          </div>
+        </div>
+      `).join('')}
+      <div class="proj-menus">
+        <h4>📌 이 프로젝트가 쓰는 시스템 메뉴</h4>
+        <div class="menu-pills">
+          ${p.menus.map(([n,u]) => `<a class="menu-pill" target="_blank" href="${BASE_URL}${u}">${n}</a>`).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function deptChipHTML(d) {
+  const info = DEPTS[d] || { icon: '👥', short: d };
+  return `<span class="dept-chip" data-dept="${d}" onclick="jumpToDept('${d}')">${info.icon} ${info.short || d}</span>`;
+}
+
+function renderDept() {
+  // 탭 (전체 + 본사 + 베트남 + 고객사)
+  const tabs = document.getElementById('dept-tabs');
+  const filters = [
+    ['all','🌐 전체'],
+    ['kr','🇰🇷 본사'],
+    ['vn','🇻🇳 베트남법인'],
+    ['customer','🏢 고객사'],
+  ];
+  tabs.innerHTML = filters.map((f,i) => `<div class="dept-tab ${i===0?'on':''}" data-filter="${f[0]}">${f[1]}</div>`).join('');
+  tabs.querySelectorAll('.dept-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      tabs.querySelectorAll('.dept-tab').forEach(x => x.classList.remove('on'));
+      t.classList.add('on');
+      filterDept(t.dataset.filter);
+    });
+  });
+
+  const grid = document.getElementById('dept-grid');
+  grid.innerHTML = Object.keys(DEPTS).map(d => {
+    const info = DEPTS[d];
+    const ent = DEPT_ENTITY[d] || 'kr';
+    const entTag = ent === 'kr' ? ['kr','본사 KR'] : ent === 'vn' ? ['vn','베트남 VN'] : ['cu','고객사'];
+    const steps = DEPT_STEPS[d] || {};
+    const totalSteps = ['T1','T2','T3','T4'].reduce((s,k) => s + (steps[k]||[]).length, 0);
+    const menus = DEPT_MENUS[d] || [];
+    const handoff = DEPT_HANDOFF[d] || [];
+
+    const scenPills = ['T1','T2','T3','T4'].map(k => {
+      const n = (steps[k]||[]).length;
+      return `<span class="scen-pill ${n>0?'has':'empty'}" title="${SCENARIOS[k].title}">${k} ${n>0?'✓ '+n:'—'}</span>`;
+    }).join('');
+
+    const stepDetail = ['T1','T2','T3','T4'].map(k => {
+      const items = steps[k]||[];
+      if (!items.length) return '';
+      return `<details class="step-detail"><summary>${k} (${items.length}단계 보기)</summary>
+        <ul>${items.map(s => `<li>${String(s.no).padStart(2,'0')}. ${s.title}</li>`).join('')}</ul>
+      </details>`;
+    }).join('');
+
+    return `
+      <div class="dept-card entity-${ent}" data-dept="${d}" data-entity="${ent}">
+        <div class="dept-head">
+          <div class="dept-emoji">${info.icon}</div>
+          <div style="flex:1;">
+            <h2>${info.short || d}<span class="step-count">· ${totalSteps}회 등장</span></h2>
+          </div>
+          <span class="ent-tag ${entTag[0]}">${entTag[1]}</span>
+        </div>
+
+        <div class="dept-sec">
+          <h4>📌 담당 업무</h4>
+          <p class="dept-tasks">${DEPT_TASKS[d] || '(부서 설명 — 추가 협의 필요)'}</p>
+        </div>
+
+        <div class="dept-sec">
+          <h4>📊 시나리오별 참여</h4>
+          <div class="scen-pills">${scenPills}</div>
+          ${stepDetail}
+        </div>
+
+        ${menus.length ? `
+        <div class="dept-menus">
+          <h4>🔗 우리가 쓰는 메뉴 (클릭 → 시스템 이동)</h4>
+          <div class="menu-pills">
+            ${menus.map(([n,u]) => `<a class="menu-pill" target="_blank" href="${BASE_URL}${u}">${n}</a>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${handoff.length ? `
+        <div class="dept-sec">
+          <h4>➡ 다음 부서로 넘김 (핸드오프)</h4>
+          <div class="dept-list">${handoff.map(d2 => deptChipHTML(d2.split('(')[0])).join('')}</div>
+        </div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function filterDept(filter) {
+  document.querySelectorAll('.dept-card').forEach(c => {
+    if (filter === 'all' || c.dataset.entity === filter) c.classList.remove('dim');
+    else c.classList.add('dim');
+  });
+}
+
+function jumpToDept(deptKey) {
+  // 부서 뷰로 전환
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('on'));
+  document.querySelector('[data-view="dept"]').classList.add('on');
+  document.getElementById('view-proj').classList.remove('on');
+  document.getElementById('view-dept').classList.add('on');
+  // 해당 카드로 스크롤 + 강조
+  setTimeout(() => {
+    const card = document.querySelector(`.dept-card[data-dept="${deptKey}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.transition = 'box-shadow .3s';
+      card.style.boxShadow = '0 0 0 4px var(--knk-red)';
+      setTimeout(() => card.style.boxShadow = '', 1800);
+    }
+  }, 100);
+}
+
+// 뷰 토글
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+    document.getElementById('view-' + b.dataset.view).classList.add('on');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+});
+
+// 초기 렌더
+renderProj();
+renderDept();
+</script>
+</body>
+</html>
