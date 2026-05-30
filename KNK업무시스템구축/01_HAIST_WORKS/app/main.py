@@ -1766,6 +1766,26 @@ async def api_delete_task(req: Request, tid: int):
         return JSONResponse({"ok": False, "error": f"DB 오류: {type(e).__name__}: {str(e)[:200]}"}, 500)
 
 
+# v5H226z112 (2026-05-31): 메모 인라인 편집 자동저장 (daily.html debounce 600ms)
+# notes 만 단독 PATCH (PUT /api/task/{tid} 는 title required 라 부분 업데이트 불가)
+@app.post("/api/task/{tid}/notes")
+async def api_update_notes(req: Request, tid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+    notes = (d.get("notes") or "").strip()
+    with db_session() as c:
+        prev = c.execute("SELECT user_id FROM tasks WHERE id=?", (tid,)).fetchone()
+        if not prev or prev["user_id"] != u["id"]:
+            return JSONResponse({"error": "권한 없음"}, 403)
+        c.execute(
+            "UPDATE tasks SET notes=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (notes, tid),
+        )
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/task/{tid}/status")
 async def api_quick_status(req: Request, tid: int):
     u = get_user(req)
@@ -4229,9 +4249,38 @@ async def calendar_page(req: Request, month: str = "", scope: str = "me"):
     month_done = sum(d["done"] for d in by_date.values())
     month_hours = round(sum(d["hours"] for d in by_date.values()), 1)
 
+    # v5H226z112 (2026-05-31): 분할 레이아웃 — 우측 임박 일정 7일 (calendar split)
+    # 오늘 ~ +7일 사이의 본인 업무 데이터 + 공휴일 합산
+    upcoming = []
+    today_dt = date.today()
+    with db_session() as c2:
+        for i in range(8):  # 오늘 포함 7일
+            dt_i = today_dt + timedelta(days=i)
+            ds_i = dt_i.isoformat()
+            row = c2.execute(
+                """SELECT COUNT(*) AS cnt, COALESCE(SUM(hours),0) AS hours,
+                          SUM(CASE WHEN status='완료' THEN 1 ELSE 0 END) AS done
+                   FROM tasks WHERE user_id=? AND work_date=?""",
+                (u["id"], ds_i),
+            ).fetchone()
+            upcoming.append({
+                "date": ds_i,
+                "day": dt_i.day,
+                "wd": dt_i.weekday(),
+                "is_today": (i == 0),
+                "is_tomorrow": (i == 1),
+                "rel_label": ["오늘", "내일", "모레"][i] if i < 3 else f"D+{i}",
+                "total": (row["cnt"] if row else 0) or 0,
+                "done":  (row["done"] if row else 0) or 0,
+                "hours": round((row["hours"] if row else 0) or 0, 1),
+                "hol_kr": HOLIDAYS_KR.get(ds_i),
+                "hol_vn": HOLIDAYS_VN.get(ds_i),
+            })
+
     return ctx(req, "calendar.html",
                user=u, weeks=weeks, month=month, prev_m=prev_m, next_m=next_m,
                month_total=month_total, month_done=month_done, month_hours=month_hours,
+               upcoming=upcoming,
                scope=scope, can_team=u["role"] in ("leader","executive","ceo","admin") and u.get("team_id") is not None,
                active="calendar")
 

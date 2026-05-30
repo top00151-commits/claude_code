@@ -38,6 +38,22 @@
 .date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .date-nav a:hover { background: var(--qv-surface-2); }
 .bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
+
+/* v5H226z112 (2026-05-31): v3+ specs — 시간대별 카드 그룹 (오전/오후/야간) */
+.time-band { margin-top: var(--space-5); }
+.time-band-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 6px 10px; background: var(--qv-surface-2); border-left: 3px solid var(--qv-ink); border-radius: 4px; }
+.time-band-icon { font-size: 16px; }
+.time-band-label { font-size: 13px; font-weight: 800; color: var(--qv-ink); letter-spacing: 0.5px; }
+.time-band-count { font-size: 11.5px; color: var(--qv-ink-3); margin-left: auto; font-family: ui-monospace, Consolas, monospace; }
+.time-band-empty { padding: 12px 14px; background: var(--qv-surface); border: 1px dashed var(--qv-line-2); border-radius: var(--radius-md); color: var(--qv-ink-3); font-size: 12px; text-align: center; }
+
+/* v5H226z112: 메모 인라인 편집 자동저장 (debounce 600ms) */
+.task-notes-edit { width: 100%; min-height: 48px; padding: 8px 10px; background: var(--qv-surface-3); border: 1px solid var(--qv-line); border-radius: var(--radius-sm); font-family: inherit; font-size: 12.5px; color: var(--qv-ink); line-height: 1.6; resize: vertical; outline: none; margin-top: 8px; transition: border-color .15s; }
+.task-notes-edit:focus { border-color: var(--qv-ink-3); background: var(--qv-surface); }
+.notes-status { font-size: 10.5px; color: var(--qv-ink-3); margin-top: 4px; font-family: ui-monospace, Consolas, monospace; min-height: 14px; transition: color .2s; }
+.notes-status.saving { color: var(--qv-ink-2); }
+.notes-status.saved { color: var(--success, #16a34a); }
+.notes-status.error { color: var(--knk-red); }
 </style>
 </head>
 <body>
@@ -175,36 +191,63 @@
   </div>
   {% endif %}
 
-  <!-- 오늘 업무 -->
+  <!-- 오늘 업무 (v5H226z112: 시간대별 카드 그룹) -->
   <div class="section" data-dn="daily-tasks">
     <h2>📋 오늘 업무 ({{ total }})</h2>
     {% if tasks %}
-      <div class="list-scroll-tall">
-      {% for t in tasks %}
-      <div class="task-card {% if t.status == '완료' %}done{% elif t.status == '지연' %}delay{% endif %}">
-        <div class="task-row">
-          <div class="task-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
-          <div class="task-body">
-            <div class="task-ttl">{{ t.title }}</div>
-            <div class="task-meta">
-              <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
-              {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
-              {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
-              {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
-              {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
-              {% if t.comment_count %}<span>💬 {{ t.comment_count }}</span>{% endif %}
-              {% if t.has_ceo_req %}<span class="pill pill-danger">🔴 대표 요청</span>{% endif %}
+      {# 시간대별 분리 — created_at 의 시간(HH) 기준 #}
+      {% set bands = [
+        ('morning',   '🌅', '오전',  0, 12),
+        ('afternoon', '☀️', '오후', 12, 18),
+        ('evening',   '🌙', '야간', 18, 24),
+      ] %}
+      {% for band_key, band_icon, band_label, h_from, h_to in bands %}
+        {% set band_tasks = [] %}
+        {% for t in tasks %}
+          {% set hour = (t.created_at or '00:00:00')[11:13]|int %}
+          {% if hour >= h_from and hour < h_to %}
+            {% set _ = band_tasks.append(t) %}
+          {% endif %}
+        {% endfor %}
+        <div class="time-band" data-dn="daily-band-{{ band_key }}">
+          <div class="time-band-head">
+            <span class="time-band-icon">{{ band_icon }}</span>
+            <span class="time-band-label">{{ band_label }} <span style="font-weight:400;color:var(--qv-ink-3);">({{ h_from }}:00 ~ {{ h_to }}:00)</span></span>
+            <span class="time-band-count">{{ band_tasks|length }}건</span>
+          </div>
+          {% if band_tasks %}
+            {% for t in band_tasks %}
+            <div class="task-card {% if t.status == '완료' %}done{% elif t.status == '지연' %}delay{% endif %}" data-task-id="{{ t.id }}">
+              <div class="task-row">
+                <div class="task-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
+                <div class="task-body">
+                  <div class="task-ttl">{{ t.title }}</div>
+                  <div class="task-meta">
+                    <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
+                    {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
+                    {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
+                    {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
+                    {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
+                    {% if t.comment_count %}<span>💬 {{ t.comment_count }}</span>{% endif %}
+                    {% if t.has_ceo_req %}<span class="pill pill-danger">🔴 대표 요청</span>{% endif %}
+                    <span style="margin-left:auto;font-size:11px;color:var(--qv-ink-4);font-family:ui-monospace,Consolas,monospace;">{{ (t.created_at or '')[11:16] }}</span>
+                  </div>
+                  {# v5H226z112: 메모 인라인 편집 (자동저장 디바운스 600ms) #}
+                  <textarea class="task-notes-edit" data-task-id="{{ t.id }}" placeholder="메모를 입력하세요. (자동 저장)">{{ t.notes or '' }}</textarea>
+                  <div class="notes-status" data-status-for="{{ t.id }}"></div>
+                </div>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                  <button class="btn btn-secondary" onclick="changeStatus({{ t.id }})">↻</button>
+                  <a class="btn btn-secondary" href="/task/{{ t.id }}">상세</a>
+                </div>
+              </div>
             </div>
-            {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
-          </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
-            <button class="btn btn-secondary" onclick="changeStatus({{ t.id }})">↻</button>
-            <a class="btn btn-secondary" href="/task/{{ t.id }}">상세</a>
-          </div>
+            {% endfor %}
+          {% else %}
+            <div class="time-band-empty">이 시간대 등록된 업무가 없습니다.</div>
+          {% endif %}
         </div>
-      </div>
       {% endfor %}
-      </div>
     {% else %}
       <div class="card empty">
         <div class="ico">📭</div>
@@ -339,6 +382,87 @@ async function changeStatus(tid) {
   });
   if (r.ok) location.reload();
 }
+
+/* v5H226z112 (2026-05-31): 메모 인라인 편집 자동저장 (debounce 600ms)
+   PUT /api/task/{tid} 활용 — 기존 라우터, 변경 0건 */
+(function(){
+  const SAVE_DEBOUNCE_MS = 600;
+  const timers = {};   // tid → timeoutId
+  const lastSaved = {}; // tid → 마지막 저장된 값 (중복 방지)
+
+  function setStatus(tid, kind, text){
+    const el = document.querySelector('.notes-status[data-status-for="' + tid + '"]');
+    if (!el) return;
+    el.className = 'notes-status ' + kind;
+    el.textContent = text;
+  }
+
+  async function saveNotes(tid, notes){
+    setStatus(tid, 'saving', '저장 중...');
+    try {
+      const r = await fetch('/api/task/' + tid + '/notes', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ notes: notes }),
+      });
+      if (r.ok) {
+        lastSaved[tid] = notes;
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2,'0');
+        const mm = String(now.getMinutes()).padStart(2,'0');
+        setStatus(tid, 'saved', '✓ 저장됨 ' + hh + ':' + mm);
+        // 3초 후 상태 라벨 비우기
+        setTimeout(function(){
+          const el = document.querySelector('.notes-status[data-status-for="' + tid + '"]');
+          if (el && el.classList.contains('saved')) { el.textContent = ''; el.className = 'notes-status'; }
+        }, 3000);
+      } else {
+        setStatus(tid, 'error', '✗ 저장 실패 (' + r.status + ')');
+      }
+    } catch (e) {
+      setStatus(tid, 'error', '✗ 네트워크 오류');
+    }
+  }
+
+  function bindNotesAutosave(){
+    document.querySelectorAll('.task-notes-edit').forEach(function(ta){
+      const tid = ta.dataset.taskId;
+      if (!tid) return;
+      lastSaved[tid] = ta.value;
+      ta.addEventListener('input', function(){
+        const val = ta.value;
+        // 마지막 저장값과 같으면 skip
+        if (val === lastSaved[tid]) {
+          setStatus(tid, '', '');
+          if (timers[tid]) { clearTimeout(timers[tid]); delete timers[tid]; }
+          return;
+        }
+        // 디바운스 재시작
+        if (timers[tid]) clearTimeout(timers[tid]);
+        setStatus(tid, '', '입력 중...');
+        timers[tid] = setTimeout(function(){
+          saveNotes(tid, val);
+          delete timers[tid];
+        }, SAVE_DEBOUNCE_MS);
+      });
+      // 페이지 떠나기 직전 강제 저장 (디바운스 대기 중일 때)
+      ta.addEventListener('blur', function(){
+        if (timers[tid]) {
+          clearTimeout(timers[tid]);
+          delete timers[tid];
+          if (ta.value !== lastSaved[tid]) saveNotes(tid, ta.value);
+        }
+      });
+    });
+  }
+
+  // DOM 준비 후 바인딩
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindNotesAutosave);
+  } else {
+    bindNotesAutosave();
+  }
+})();
 </script>
 </body>
 </html>

@@ -36,6 +36,40 @@
 .cal-day .hol-badge .b.alt.vn { color: #fb923c; border-color: #fb923c; }
 .cal-day .hol-name { display: block; margin-top: 2px; font-size: 10px; color: #dc2626; font-weight: 700; line-height: 1.2; }
 .bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
+
+/* v5H226z112 (2026-05-31): v3+ specs — 좌(월간 그리드) + 우(임박 일정 320px) 분할 레이아웃 */
+.cal-split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-4); align-items: start; margin-top: var(--space-5); }
+@media (max-width: 1100px) {
+  .cal-split { grid-template-columns: minmax(0, 1fr); }
+}
+.cal-split .cal-wrap { margin: 0; }
+
+/* 우측 임박 일정 패널 */
+.upcoming-panel { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); overflow: hidden; }
+.upcoming-head { padding: 12px 14px; background: var(--qv-surface-3); border-bottom: 1px solid var(--qv-line); display: flex; align-items: center; gap: 8px; }
+.upcoming-title { font-size: 13px; font-weight: 800; color: var(--qv-ink); letter-spacing: 0.3px; }
+.upcoming-subtitle { font-size: 11px; color: var(--qv-ink-3); margin-left: auto; }
+.upcoming-list { display: flex; flex-direction: column; }
+.upcoming-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--qv-line); color: var(--qv-ink); text-decoration: none; transition: background .15s; }
+.upcoming-item:last-child { border-bottom: 0; }
+.upcoming-item:hover { background: var(--qv-surface-2); }
+.upcoming-item.today { background: var(--qv-surface-2); border-left: 3px solid var(--qv-ink); }
+.upcoming-item.weekend { background: #fafbfc; }
+.upcoming-date { flex-shrink: 0; width: 40px; text-align: center; }
+.upcoming-date .day { font-size: 18px; font-weight: 800; color: var(--qv-ink); line-height: 1; font-family: ui-monospace, Consolas, monospace; }
+.upcoming-date .day.sun { color: #dc2626; }
+.upcoming-date .day.sat { color: #2563eb; }
+.upcoming-date .rel { font-size: 9.5px; color: var(--qv-ink-3); margin-top: 2px; font-weight: 700; letter-spacing: 0.3px; }
+.upcoming-date .rel.now { color: var(--qv-ink); }
+.upcoming-info { flex: 1; min-width: 0; }
+.upcoming-info .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--qv-ink-3); }
+.upcoming-info .meta b { color: var(--qv-ink); font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.upcoming-info .hol { font-size: 10.5px; color: #dc2626; font-weight: 700; margin-top: 2px; }
+.upcoming-info .hol.vn { color: #fb923c; }
+.upcoming-empty { padding: 14px; text-align: center; color: var(--qv-ink-3); font-size: 12px; }
+
+.upcoming-foot { padding: 10px 14px; background: var(--qv-surface-3); border-top: 1px solid var(--qv-line); font-size: 11px; color: var(--qv-ink-3); text-align: center; }
+.upcoming-foot a { color: var(--qv-ink-2); font-weight: 700; }
 </style>
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -59,41 +93,85 @@
     <div class="kpi-card"><div class="kpi-label">누적 공수</div><div class="kpi-num">{{ month_hours }}<span class="unit">h</span></div></div>
   </div>
 
-  <div style="margin-top: var(--space-5);"></div>
-  <div class="cal-wrap" data-dn="cal-grid">
-    <div class="cal-head">
-      <div class="dow sun">일</div><div class="dow">월</div><div class="dow">화</div><div class="dow">수</div><div class="dow">목</div><div class="dow">금</div><div class="dow sat">토</div>
-    </div>
-    <div class="cal-grid">
-    {% for week in weeks %}
-      {% for d in week %}
-        {% set _is_hol = d.hol_kr or d.hol_vn %}
-        {% if d.day == 0 %}
-        <div class="cal-day other"></div>
-        {% else %}
-        <a href="/daily/{{ d.date }}" class="cal-day {% if d.is_today %}today{% endif %} {% if _is_hol %}holiday{% endif %}"
-           title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %}">
-          {% if _is_hol %}
-          <span class="hol-badge">
-            {% if d.hol_kr %}<span class="b kr {% if '대체' in d.hol_kr %}alt{% endif %}" title="{{ d.hol_kr }}">K</span>{% endif %}
-            {% if d.hol_vn %}<span class="b vn {% if 'Nghỉ bù' in d.hol_vn %}alt{% endif %}" title="{{ d.hol_vn }}">V</span>{% endif %}
-          </span>
+  {# v5H226z112: 좌(월간 그리드) + 우(임박 일정 7일) 분할 레이아웃 #}
+  <div class="cal-split" data-dn="cal-split">
+
+    <div class="cal-wrap" data-dn="cal-grid">
+      <div class="cal-head">
+        <div class="dow sun">일</div><div class="dow">월</div><div class="dow">화</div><div class="dow">수</div><div class="dow">목</div><div class="dow">금</div><div class="dow sat">토</div>
+      </div>
+      <div class="cal-grid">
+      {% for week in weeks %}
+        {% for d in week %}
+          {% set _is_hol = d.hol_kr or d.hol_vn %}
+          {% if d.day == 0 %}
+          <div class="cal-day other"></div>
+          {% else %}
+          <a href="/daily/{{ d.date }}" class="cal-day {% if d.is_today %}today{% endif %} {% if _is_hol %}holiday{% endif %}"
+             title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %}">
+            {% if _is_hol %}
+            <span class="hol-badge">
+              {% if d.hol_kr %}<span class="b kr {% if '대체' in d.hol_kr %}alt{% endif %}" title="{{ d.hol_kr }}">K</span>{% endif %}
+              {% if d.hol_vn %}<span class="b vn {% if 'Nghỉ bù' in d.hol_vn %}alt{% endif %}" title="{{ d.hol_vn }}">V</span>{% endif %}
+            </span>
+            {% endif %}
+            <div class="num {% if d.is_sun %}sun{% elif d.is_sat %}sat{% endif %}{% if _is_hol %} hol{% endif %}">{{ d.day }}</div>
+            {% if d.hol_kr %}<span class="hol-name">{{ d.hol_kr }}</span>{% endif %}
+            {% if d.d %}
+            <div class="stat">
+              <span class="pill pill-progress">{{ d.d.total }}</span>
+              {% if d.d.done %}<span class="pill pill-done">✓{{ d.d.done }}</span>{% endif %}
+              {% if d.d.delay %}<span class="pill pill-danger">⚠{{ d.d.delay }}</span>{% endif %}
+            </div>
+            {% if d.d.hours %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:3px;">{{ d.d.hours }}h</div>{% endif %}
+            {% endif %}
+          </a>
           {% endif %}
-          <div class="num {% if d.is_sun %}sun{% elif d.is_sat %}sat{% endif %}{% if _is_hol %} hol{% endif %}">{{ d.day }}</div>
-          {% if d.hol_kr %}<span class="hol-name">{{ d.hol_kr }}</span>{% endif %}
-          {% if d.d %}
-          <div class="stat">
-            <span class="pill pill-progress">{{ d.d.total }}</span>
-            {% if d.d.done %}<span class="pill pill-done">✓{{ d.d.done }}</span>{% endif %}
-            {% if d.d.delay %}<span class="pill pill-danger">⚠{{ d.d.delay }}</span>{% endif %}
-          </div>
-          {% if d.d.hours %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:3px;">{{ d.d.hours }}h</div>{% endif %}
-          {% endif %}
-        </a>
-        {% endif %}
+        {% endfor %}
       {% endfor %}
-    {% endfor %}
+      </div>
     </div>
+
+    {# 우측 임박 일정 패널 (오늘 ~ +7일) #}
+    <div class="upcoming-panel" data-dn="cal-upcoming">
+      <div class="upcoming-head">
+        <span style="font-size:16px;">📌</span>
+        <span class="upcoming-title">임박 일정</span>
+        <span class="upcoming-subtitle">오늘 + 7일</span>
+      </div>
+      <div class="upcoming-list">
+      {% for u in upcoming|default([]) %}
+        {% set _is_hol_u = u.hol_kr or u.hol_vn %}
+        {% set _is_weekend = u.wd == 5 or u.wd == 6 %}
+        <a href="/daily/{{ u.date }}"
+           class="upcoming-item{% if u.is_today %} today{% endif %}{% if _is_weekend and not u.is_today %} weekend{% endif %}">
+          <div class="upcoming-date">
+            <div class="day{% if u.wd == 6 or u.hol_kr %} sun{% elif u.wd == 5 %} sat{% endif %}">{{ u.day }}</div>
+            <div class="rel{% if u.is_today %} now{% endif %}">{{ u.rel_label }}</div>
+          </div>
+          <div class="upcoming-info">
+            <div class="meta">
+              {% if u.total %}
+                <span>📝 <b>{{ u.total }}</b>건</span>
+                {% if u.done %}<span>✓ <b>{{ u.done }}</b></span>{% endif %}
+                {% if u.hours %}<span>⏱ <b>{{ u.hours }}h</b></span>{% endif %}
+              {% else %}
+                <span style="color:var(--qv-ink-4);">업무 없음</span>
+              {% endif %}
+            </div>
+            {% if u.hol_kr %}<div class="hol">🇰🇷 {{ u.hol_kr }}</div>{% endif %}
+            {% if u.hol_vn %}<div class="hol vn">🇻🇳 {{ u.hol_vn }}</div>{% endif %}
+          </div>
+        </a>
+      {% else %}
+        <div class="upcoming-empty">임박 일정 데이터가 없습니다.</div>
+      {% endfor %}
+      </div>
+      <div class="upcoming-foot">
+        <a href="/daily">오늘 업무 →</a>
+      </div>
+    </div>
+
   </div>
 
   <!-- v5H202: 공휴일 범례 (수주관리 캘린더 통일) -->
