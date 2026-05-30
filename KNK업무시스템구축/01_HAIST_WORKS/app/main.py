@@ -965,7 +965,27 @@ def get_user(req: Request):
                WHERE u.id=? AND u.is_active=1""",
             (uid,),
         ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        # v5H226z117 (2026-05-31): SSO 사용자는 5분 주기 pwv 동기화 (Q4=B)
+        # admin 백도어 사용자(sso_local=True)는 건너뜀
+        try:
+            if not req.session.get("sso_local"):
+                from .sso_client import should_check_pwv, mark_pwv_checked, fetch_userinfo
+                if should_check_pwv(uid):
+                    token = req.session.get("sso_token")
+                    if token:
+                        info = fetch_userinfo(token)
+                        if info and info.get("_invalid"):
+                            # pwv 불일치 / 토큰 무효 → 세션 파기 (다음 요청에서 /sso/login)
+                            req.session.clear()
+                            return None
+                        # 정상이면 다음 5분간 skip
+                        mark_pwv_checked(uid)
+        except Exception:
+            # SSO 동기화 실패해도 기존 세션은 유지 (graceful)
+            pass
+        return dict(row)
 
 
 def require(req: Request, roles=None):
@@ -1134,19 +1154,32 @@ def fetch_customers(c):
 
 # =====================================================
 # AUTH
+# v5H226z117 (2026-05-31) SSO Phase 2 — 메신저(IdP) 기반 통합 인증
+# - /login → /sso/login redirect (Q6=C: 일반 사용자는 SSO)
+# - POST /login → admin 백도어만 (Q2=B: 메신저 장애 대비)
+# - /sso/login → 메신저 /msg/sso/login 으로 redirect (callback 명시)
+# - /sso/callback → JWT 검증 + 자동 upsert (Q1=A) + 세션 생성
+# - /logout → 세션 파기 (메신저 글로벌 logout 은 미연동)
 # =====================================================
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(req: Request):
-    return ctx(req, "login.html", error=None)
+    """일반 로그인 진입 → 메신저 SSO 로 자동 유도.
+    ?admin=1 쿼리 시 admin 백도어 폼 표시 (Q2=B 메신저 장애 대비)."""
+    if req.query_params.get("admin") == "1":
+        return ctx(req, "login.html",
+                   error=None, admin_mode=True,
+                   notice="⚠ Admin 백도어 — 메신저 장애 시에만 사용. 일반 사용자는 메신저 SSO 를 이용하세요.")
+    # 일반 진입 → SSO redirect
+    return RedirectResponse("/sso/login", 303)
 
 
 @app.post("/login")
 async def login_post(req: Request, login_id: str = Form(...), password: str = Form(...)):
-    # v5H226f-4: verify_pw 로 pbkdf2 + legacy sha256 모두 지원, legacy 면 즉시 pbkdf2 로 업그레이드.
-    # v5H226z109 (2026-05-30): 사번 SSO 준비 — 사번(employee_no)·이메일·login_id 3순위 매칭
+    """v5H226z117 (Q2=B + Q6=C): POST /login 은 admin/ceo 만 허용 (메신저 장애 대비 백도어).
+    일반 사용자는 /sso/login 으로 유도."""
     key = login_id.strip()
     with db_session() as c:
-        # 1순위: 사번 매칭 (employee_no 컬럼 있을 때만 — PRAGMA gate)
+        # 사번 → 이메일 → login_id 3순위 매칭
         u = None
         try:
             u = c.execute(
@@ -1154,19 +1187,24 @@ async def login_post(req: Request, login_id: str = Form(...), password: str = Fo
                 (key,),
             ).fetchone()
         except Exception:
-            pass  # employee_no 컬럼 없음 → 마이그레이션 전, skip
-        # 2순위: 이메일 매칭
+            pass
         if not u:
             u = c.execute(
                 "SELECT * FROM users WHERE email=? AND is_active=1",
                 (key,),
             ).fetchone()
-        # 3순위: login_id 매칭 (기존 호환)
         if not u:
             u = c.execute(
                 "SELECT * FROM users WHERE login_id=? AND is_active=1",
                 (key,),
             ).fetchone()
+
+        # v5H226z117: admin 백도어 — admin/ceo 만 자체 로그인 허용
+        if u and u["role"] not in ("admin", "ceo"):
+            return ctx(req, "login.html",
+                       error="일반 사용자는 메신저 SSO 로 로그인하세요.",
+                       admin_mode=True)
+
         if u and verify_pw(password, u["password"]):
             if is_legacy_hash(u["password"]):
                 try:
@@ -1175,28 +1213,89 @@ async def login_post(req: Request, login_id: str = Form(...), password: str = Fo
                 except Exception:
                     pass
             req.session["user_id"] = u["id"]
-            # 첫 로그인 강제 비번 변경 (must_change_pw=1)
-            # v5H226z109: 마이그레이션 완료 사용자는 첫 로그인 시 비번 변경 권장
-            # (지금은 /profile 비번 변경 화면 사용 — SSO 완료 후 강제 화면 추가 예정)
+            req.session["sso_local"] = True  # admin 백도어 표시 (pwv 동기화 건너뛰기)
             try:
                 if u["must_change_pw"]:
                     return RedirectResponse("/profile?first=1", 303)
             except (KeyError, IndexError):
-                pass  # 컬럼 없음 (마이그레이션 전) → skip
+                pass
             r = u["role"]
-            if r == "admin":
+            if r in ("admin", "ceo"):
                 return RedirectResponse("/dashboard", 303)
-            if r == "ceo":
-                return RedirectResponse("/dashboard", 303)
-            if r in ("leader", "executive"):
-                return RedirectResponse("/team", 303)
             return RedirectResponse("/daily", 303)
-    return ctx(req, "login.html", error="아이디 또는 비밀번호가 올바르지 않습니다.")
+    return ctx(req, "login.html",
+               error="아이디 또는 비밀번호가 올바르지 않습니다.",
+               admin_mode=True)
+
+
+# ── v5H226z117 SSO Phase 2 ─────────────────────────────────
+@app.get("/sso/login")
+async def sso_login(req: Request):
+    """메신저 SSO 로그인 화면으로 redirect.
+    callback URL 은 본 서비스 (works.knknara.co.kr/sso/callback) 절대 경로."""
+    from .sso_client import build_login_url
+    # callback URL 구성 — 운영(HTTPS) / 로컬(HTTP) 둘 다 안전
+    scheme = req.headers.get("x-forwarded-proto") or req.url.scheme
+    host = req.headers.get("host") or req.url.netloc
+    callback_url = f"{scheme}://{host}/sso/callback"
+    # 원래 가려던 URL (사용자가 보호 라우트 접근 후 redirect 된 경우 보존)
+    next_path = req.query_params.get("next") or "/home"
+    req.session["sso_next"] = next_path
+    return RedirectResponse(build_login_url(callback_url), 303)
+
+
+@app.get("/sso/callback")
+async def sso_callback(req: Request):
+    """메신저가 redirect 한 callback — ?token=<JWT> 수신 → 검증 → upsert → 세션 생성."""
+    from .sso_client import verify_token, upsert_user_from_payload, mark_pwv_checked
+    token = req.query_params.get("token") or ""
+    if not token:
+        return ctx(req, "login.html",
+                   error="SSO 토큰이 없습니다. 다시 로그인해주세요.",
+                   admin_mode=False)
+
+    # JWT 검증 (RS256, audience, issuer, exp)
+    payload = verify_token(token)
+    if not payload:
+        return ctx(req, "login.html",
+                   error="SSO 토큰 검증 실패. 다시 로그인해주세요.",
+                   admin_mode=False)
+
+    # 사용자 upsert (Q1=A: 메신저가 마스터, HAIST WORKS는 캐시)
+    with db_session() as c:
+        uid = upsert_user_from_payload(c, payload)
+    if not uid:
+        return ctx(req, "login.html",
+                   error="사용자 동기화 실패. (사번 컬럼 마이그레이션 필요 가능)",
+                   admin_mode=False)
+
+    # 세션 생성
+    req.session["user_id"] = uid
+    req.session["sso_local"] = False
+    req.session["sso_pwv"] = int(payload.get("pwv") or 1)  # 발급 시점 pwv 보관
+    req.session["sso_token"] = token  # userinfo 호출 시 재사용
+    mark_pwv_checked(uid)
+
+    # 원래 가려던 페이지로
+    next_path = req.session.pop("sso_next", None) or "/home"
+    if not next_path.startswith("/"):
+        next_path = "/home"
+    return RedirectResponse(next_path, 303)
 
 
 @app.get("/logout")
 async def logout(req: Request):
+    """로컬 세션 파기. 메신저 글로벌 로그아웃은 미연동 (메신저는 계속 로그인 상태)."""
+    # pwv 캐시도 정리
+    try:
+        from .sso_client import invalidate_pwv_check
+        uid = req.session.get("user_id")
+        if uid:
+            invalidate_pwv_check(uid)
+    except Exception:
+        pass
     req.session.clear()
+    # 로그아웃 후 메신저로 돌려보내지 않음 (선택 정책 — 안전한 기본값)
     return RedirectResponse("/login", 303)
 
 
@@ -9127,8 +9226,14 @@ async def contacts_scan(req: Request):
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
             "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+    try:
+        from . import ai_client as _aic
+        _ai_on = _aic.ai_available()
+    except Exception:
+        _ai_on = False
     return ctx(req, "contacts_scan.html", user=u, customers=customers,
-               ocr_ready=_biz_doc.has_tesseract(), korean_ready=_biz_doc.has_korean())
+               ocr_ready=_biz_doc.has_tesseract(), korean_ready=_biz_doc.has_korean(),
+               ai_vision_ready=_ai_on)
 
 
 @app.get("/contacts/from-signature")
@@ -9179,21 +9284,39 @@ async def contacts_parse_card(req: Request, file: UploadFile = File(...)):
     save_path = os.path.join(_CONTACT_IMG_DIR, save_name)
     with open(save_path, "wb") as wf:
         wf.write(content)
-    # v5H227: 명함 전용 다중-PSM OCR (로컬) → 항목 최다 결과 채택 → (옵션) 사내 AI 재분리
+    # v5H227c 인식 우선순위:
+    #   1) AI 비전(이미지 직접 판독) — 켜져 있으면 최우선 (실제 명함 인식율 최상)
+    #   2) Tesseract 명함 전용 다중-PSM OCR + 정규식 (+텍스트 AI) — 폴백
+    raw = ""
+    vision = _contacts.ai_vision_card(save_path)   # None: 비전 비활성/PDF/실패
+
+    # Tesseract 경로 (비전 보완용 + 비전 실패 시 본 경로)
     variants, mode = _biz_doc.extract_card_texts(save_path, fn)
-    if mode.startswith("error:"):
-        msg = _biz_doc._friendly_error(mode[6:])
-        # 텍스트 추출 실패해도 이미지는 저장됨 → 직접 입력으로 진행 가능
+    tess_fields = {}
+    if not mode.startswith("error:"):
+        tb = _contacts.parse_card_best(variants, use_ai=(vision is None))
+        raw = tb.pop("_raw", "")
+        tb.pop("_engine", None)
+        tess_fields = tb
+
+    if vision and sum(1 for v in vision.values() if v) > 0:
+        # 비전 결과 우선, 빈 항목만 Tesseract 로 보완
+        merged = _contacts._merge_fields(vision, tess_fields or _contacts._empty_fields())
+        fields = {k: merged.get(k, "") for k in _contacts.FIELD_KEYS}
+        engine = "ai-vision"
+    elif tess_fields:
+        fields = {k: tess_fields.get(k, "") for k in _contacts.FIELD_KEYS}
+        engine = "regex"
+    else:
+        # 비전도 없고 Tesseract 도 실패 → 이미지만 저장, 직접 입력 안내
+        msg = _biz_doc._friendly_error(mode[6:]) if mode.startswith("error:") \
+              else "글자를 읽지 못했습니다. 직접 입력해 주세요."
         return JSONResponse({"ok": False, "message": msg,
                              "card_image": f"/uploads/contacts/{save_name}",
                              "fields": _contacts._empty_fields()})
-    # use_ai=True: 사내 AI 연동(텍스트만 전송)이 켜져 있으면 활용, 미설정 시 정규식 자동 폴백
-    result = _contacts.parse_card_best(variants, use_ai=True)
-    engine = result.pop("_engine", "regex")
-    raw = result.pop("_raw", "")
-    fields = {k: result.get(k, "") for k in _contacts.FIELD_KEYS}
+
     found = sum(1 for v in fields.values() if v)
-    eng_label = "AI 정밀분리" if engine == "ai+regex" else "자동인식"
+    eng_label = {"ai-vision": "AI 비전", "ai+regex": "AI 정밀분리"}.get(engine, "기본 인식")
     return JSONResponse({
         "ok": found > 0,
         "fields": fields,
@@ -9201,7 +9324,7 @@ async def contacts_parse_card(req: Request, file: UploadFile = File(...)):
         "engine": engine,
         "card_image": f"/uploads/contacts/{save_name}",
         "message": (f"{found}개 항목을 인식했습니다 ({eng_label}). 내용을 확인하고 저장하세요."
-                    if found else "글자는 읽었지만 항목을 구분하지 못했습니다. 직접 입력해 주세요."),
+                    if found else "항목을 구분하지 못했습니다. 직접 입력해 주세요."),
         "raw_excerpt": raw[:300],
     })
 

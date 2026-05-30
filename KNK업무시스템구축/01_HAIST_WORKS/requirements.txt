@@ -12,7 +12,15 @@ openai>=1.40
 
 # v5H210 (2026-05-08) — 한국·베트남 공휴일 자동 계산 (음력 환산·대체공휴일 규칙 포함)
 # 라이브러리 업데이트만으로 매년 자동 갱신 — 수동 입력 불필요
-holidays>=0.96
+holidays>=0.40
+
+# v5H226z108n20 (2026-05-28) — 자재 QR 코드 SVG 생성
+qrcode
+
+# v5H226z117 (2026-05-31) — SSO Phase 2: 메신저 JWT(RS256) 토큰 검증
+# cryptography 는 RS256 디코딩에 필요 (PyJWT extras로 자동 설치)
+PyJWT[crypto]>=2.8.0
+httpx>=0.27.0  # 메신저 SSO public-key / userinfo 호출 (anthropic 가 끌어와도 명시)
 
 # v5H57 (2026-05-03) — 사업자등록증 자동 파서
 pdfplumber          # 텍스트 PDF 추출 (홈택스/정부24 발급분)
