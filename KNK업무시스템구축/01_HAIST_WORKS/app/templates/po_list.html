@@ -20,17 +20,6 @@
 <style>
 /* ── 자재구매 ERP 토큰 (시안1 / tokens.css) ──────────────────── */
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-line-3: #cbd5e1;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
   --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
   --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
   --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
@@ -94,37 +83,7 @@
 .kpi-cell.ok .v { color: var(--pq-ok); }
 
 /* ── FilterBar ─────────────────────────────────────────────── */
-.filterbar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 10px 24px; background: var(--pq-surface);
-  border-bottom: 1px solid var(--pq-line);
-}
-.filterbar .fb-label {
-  font-size: 11px; color: var(--pq-ink-3); font-weight: 600;
-  letter-spacing: 0.04em; text-transform: uppercase; margin-right: 4px;
-}
-.fb-chip {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
-  background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px;
-  font-size: 12px; color: var(--pq-ink-2); cursor: pointer; font-weight: 500;
-  text-decoration: none;
-}
-.fb-chip:hover { border-color: var(--pq-line-3); background: var(--pq-surface-3); }
-.fb-chip.is-active { background: var(--pq-ink); border-color: var(--pq-ink); color: #fff; }
 .fb-chip .fb-x { opacity: 0.7; font-size: 11px; }
-.fb-divider { width: 1px; height: 18px; background: var(--pq-line-2); margin: 0 4px; }
-.fb-search-wrap { position: relative; margin-left: 8px; }
-.fb-search-wrap .fb-ic {
-  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
-  font-size: 12px; color: var(--pq-ink-4); pointer-events: none;
-}
-.fb-search {
-  height: 28px; padding: 0 10px 0 28px;
-  border: 1px solid var(--pq-line-2); border-radius: 6px;
-  font-size: 12.5px; background: var(--pq-surface); color: var(--pq-ink);
-  min-width: 220px; font-family: inherit;
-}
-.fb-search:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
 .fb-go {
   height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2);
   border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer;
@@ -223,7 +182,6 @@
   .kpi-cell { border-right: none; border-bottom: 1px solid var(--pq-line); }
   .kpi-cell:nth-child(2n) { border-right: 0; }
   .po-head { padding: 12px 16px; gap: 10px; }
-  .filterbar { padding: 10px 16px; }
   .tbl-erp { min-width: 720px; }
 }
 </style>

@@ -1,0 +1,155 @@
+{# ============================================================
+   _components.html — 다중 페이지 공통 컴포넌트 표준 정의
+   v5H226z113 (2026-05-31) — 페이지 고유 컴포넌트 표준화 (Phase G)
+   ============================================================
+   이 partial 은 styles.html 에서 자동 include 됨.
+   모든 페이지에서 자동 로드 — 페이지 자체 CSS 정의 불필요.
+
+   추출 출처 (중복 정의 제거 대상):
+   - .mgmt-pill (17 페이지) — 관리번호 잉크 알약
+   - .filterbar + .fb-* (7 페이지) — 칩+검색 필터 바
+   - --pq-* 토큰 alias (7 페이지 자체 정의) → --qv-* 매핑
+
+   추후 추가 가능: .chip-po (3 페이지) / .tbl-dense (2 페이지)
+   ============================================================ #}
+<style>
+/* ============================================================
+   1. --pq-* 토큰 호환 alias (--qv-* 시안1 토큰으로 매핑)
+   ------------------------------------------------------------
+   외부 작업으로 들어온 --pq-* 사용 페이지가 있어 호환 레이어 제공.
+   값은 --qv-* 와 동일. 향후 페이지의 --pq-* 사용을 점진적으로 --qv-* 로 치환.
+   ============================================================ */
+:root {
+  --pq-surface:       var(--qv-surface, #ffffff);
+  --pq-surface-2:     var(--qv-surface-2, #f7f8fa);
+  --pq-surface-3:     var(--qv-surface-3, #eef0f4);
+  --pq-surface-inset: var(--qv-surface-inset, #fafbfc);
+  --pq-line:          var(--qv-line, #eef0f4);
+  --pq-line-2:        var(--qv-line-2, #e2e8f0);
+  --pq-line-3:        var(--qv-line-3, #cbd5e1);
+  --pq-ink:           var(--qv-ink, #0f172a);
+  --pq-ink-2:         var(--qv-ink-2, #334155);
+  --pq-ink-3:         var(--qv-ink-3, #64748b);
+  --pq-ink-4:         var(--qv-ink-4, #94a3b8);
+}
+
+/* ============================================================
+   2. .mgmt-pill — 관리번호 잉크 알약 (17 페이지 공통)
+   ------------------------------------------------------------
+   사용: <span class="mgmt-pill">T-260530-1</span>
+   변형: .mgmt-pill.sm (12px) · .mgmt-pill.lg (18px) · .mgmt-pill.empty
+   ============================================================ */
+.mgmt-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--qv-ink, #0f172a); color: #ffffff;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 16px; font-weight: 700;
+  letter-spacing: 0.5px; line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.mgmt-pill.empty {
+  background: var(--qv-surface-2, #f7f8fa);
+  color: var(--qv-ink-3, #64748b);
+  box-shadow: none;
+  border: 1px dashed var(--qv-line, #eef0f4);
+  font-weight: 500;
+}
+.mgmt-pill.sm { padding: 2px 8px;  font-size: 13px; }
+.mgmt-pill.lg { padding: 6px 16px; font-size: 18px; }
+a.mgmt-pill, .mgmt-pill[href] { text-decoration: none; transition: background .15s; }
+a.mgmt-pill:hover, .mgmt-pill[href]:hover { background: var(--qv-ink-2, #334155); color: #ffffff; }
+
+/* ============================================================
+   3. .filterbar + .fb-* — 칩 + 검색 필터 바 (7 페이지 공통)
+   ------------------------------------------------------------
+   사용:
+     <div class="filterbar">
+       <span class="fb-label">필터</span>
+       <a class="fb-chip is-active">전체</a>
+       <a class="fb-chip">진행중</a>
+       <div class="fb-divider"></div>
+       <div class="fb-search-wrap">
+         <span class="fb-ic">🔍</span>
+         <input class="fb-search" placeholder="검색...">
+       </div>
+     </div>
+   ============================================================ */
+.filterbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 24px;
+  background: var(--qv-surface, #ffffff);
+  border-bottom: 1px solid var(--qv-line, #eef0f4);
+}
+.filterbar .fb-label {
+  font-size: 11px;
+  color: var(--qv-ink-3, #64748b);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.fb-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  background: var(--qv-surface-2, #f7f8fa);
+  border: 1px solid var(--qv-line-2, #e2e8f0);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--qv-ink-2, #334155);
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+}
+.fb-chip:hover {
+  border-color: var(--qv-line-3, #cbd5e1);
+  background: var(--qv-surface-3, #eef0f4);
+}
+.fb-chip.is-active {
+  background: var(--qv-ink, #0f172a);
+  border-color: var(--qv-ink, #0f172a);
+  color: #fff;
+}
+.fb-divider {
+  width: 1px; height: 18px;
+  background: var(--qv-line-2, #e2e8f0);
+  margin: 0 4px;
+}
+.fb-search {
+  height: 28px;
+  padding: 0 10px 0 28px;
+  border: 1px solid var(--qv-line-2, #e2e8f0);
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: var(--qv-surface, #ffffff);
+  color: var(--qv-ink, #0f172a);
+  min-width: 240px;
+  font-family: inherit;
+  position: relative;
+}
+.fb-search:focus {
+  outline: none;
+  border-color: var(--qv-ink, #0f172a);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+.fb-search-wrap {
+  position: relative;
+  margin-left: 8px;
+}
+.fb-search-wrap .fb-ic {
+  position: absolute;
+  left: 9px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--qv-ink-4, #94a3b8);
+  pointer-events: none;
+}
+
+/* 1100px 이하 반응형 — filterbar padding 축소 */
+@media (max-width: 1100px) {
+  .filterbar { padding: 10px 16px; }
+  .fb-search { min-width: 180px; }
+}
+</style>
