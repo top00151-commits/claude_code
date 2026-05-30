@@ -54,6 +54,22 @@
 .notes-status.saving { color: var(--qv-ink-2); }
 .notes-status.saved { color: var(--success, #16a34a); }
 .notes-status.error { color: var(--knk-red); }
+
+/* v5H226z115 (2026-05-31): 업무 카드 사진 첨부 (드래그앤드롭 + 클립보드) */
+.task-photo-zone { margin-top: 8px; padding: 10px 12px; background: var(--qv-surface-2); border: 1.5px dashed var(--qv-line-2); border-radius: var(--radius-sm); text-align: center; cursor: pointer; transition: all .15s; font-size: 11.5px; color: var(--qv-ink-3); user-select: none; }
+.task-photo-zone:hover { border-color: var(--qv-ink-3); background: var(--qv-surface-3); color: var(--qv-ink-2); }
+.task-photo-zone.dragover { border-color: var(--qv-ink); background: var(--qv-surface); color: var(--qv-ink); border-style: solid; }
+.task-photo-zone .ico { font-size: 16px; margin-right: 6px; }
+.task-photo-zone .hint { font-size: 10.5px; color: var(--qv-ink-4); margin-top: 2px; }
+.task-photo-zone input[type="file"] { display: none; }
+
+.task-photo-preview { margin-top: 8px; position: relative; display: inline-block; max-width: 100%; }
+.task-photo-preview img { max-width: 100%; max-height: 240px; border-radius: var(--radius-sm); border: 1px solid var(--qv-line); display: block; cursor: pointer; }
+.task-photo-preview .photo-remove { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; background: var(--qv-ink); color: #fff; border: 0; border-radius: 50%; font-size: 12px; cursor: pointer; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.2); opacity: 0.85; transition: opacity .15s; }
+.task-photo-preview .photo-remove:hover { opacity: 1; }
+.task-photo-preview .photo-status { font-size: 10.5px; color: var(--qv-ink-3); margin-top: 4px; font-family: ui-monospace, Consolas, monospace; }
+.task-photo-preview .photo-status.uploading { color: var(--qv-ink-2); }
+.task-photo-preview .photo-status.error { color: var(--knk-red); }
 </style>
 </head>
 <body>
@@ -235,6 +251,23 @@
                   {# v5H226z112: 메모 인라인 편집 (자동저장 디바운스 600ms) #}
                   <textarea class="task-notes-edit" data-task-id="{{ t.id }}" placeholder="메모를 입력하세요. (자동 저장)">{{ t.notes or '' }}</textarea>
                   <div class="notes-status" data-status-for="{{ t.id }}"></div>
+
+                  {# v5H226z115: 사진 첨부 (드래그앤드롭 + 클립보드 Ctrl+V + 클릭 선택) #}
+                  <div class="task-photo-container" data-task-id="{{ t.id }}">
+                    {% if t.photo_path %}
+                    <div class="task-photo-preview" data-photo-for="{{ t.id }}">
+                      <img src="{{ t.photo_path }}" alt="업무 사진" onclick="window.open(this.src,'_blank')">
+                      <button type="button" class="photo-remove" data-remove-for="{{ t.id }}" title="사진 제거">×</button>
+                      <div class="photo-status" data-photo-status="{{ t.id }}"></div>
+                    </div>
+                    {% else %}
+                    <label class="task-photo-zone" data-zone-for="{{ t.id }}">
+                      <span class="ico">📷</span>사진 첨부 (드래그·붙여넣기·클릭)
+                      <div class="hint">JPG · PNG · WebP · GIF · 10MB 이하</div>
+                      <input type="file" accept="image/*" data-input-for="{{ t.id }}">
+                    </label>
+                    {% endif %}
+                  </div>
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0;">
                   <button class="btn btn-secondary" onclick="changeStatus({{ t.id }})">↻</button>
@@ -382,6 +415,149 @@ async function changeStatus(tid) {
   });
   if (r.ok) location.reload();
 }
+
+/* v5H226z115 (2026-05-31): 업무 카드 사진 첨부 (드래그앤드롭 + 클립보드 Ctrl+V + 클릭)
+   POST /api/task/{tid}/photo (multipart) · POST /api/task/{tid}/photo/delete */
+(function(){
+  function setPhotoStatus(tid, kind, text){
+    const el = document.querySelector('[data-photo-status="' + tid + '"]');
+    if (!el) return;
+    el.className = 'photo-status ' + (kind || '');
+    el.textContent = text || '';
+  }
+
+  function replaceContainerWithPreview(tid, photoUrl){
+    const container = document.querySelector('.task-photo-container[data-task-id="' + tid + '"]');
+    if (!container) return;
+    container.innerHTML = ''
+      + '<div class="task-photo-preview" data-photo-for="' + tid + '">'
+      + '  <img src="' + photoUrl + '" alt="업무 사진" onclick="window.open(this.src,\'_blank\')">'
+      + '  <button type="button" class="photo-remove" data-remove-for="' + tid + '" title="사진 제거">×</button>'
+      + '  <div class="photo-status" data-photo-status="' + tid + '"></div>'
+      + '</div>';
+    bindPhotoRemove(container);
+    setPhotoStatus(tid, 'saved', '✓ 업로드 완료');
+    setTimeout(function(){ setPhotoStatus(tid, '', ''); }, 2500);
+  }
+
+  function replaceContainerWithZone(tid){
+    const container = document.querySelector('.task-photo-container[data-task-id="' + tid + '"]');
+    if (!container) return;
+    container.innerHTML = ''
+      + '<label class="task-photo-zone" data-zone-for="' + tid + '">'
+      + '  <span class="ico">📷</span>사진 첨부 (드래그·붙여넣기·클릭)'
+      + '  <div class="hint">JPG · PNG · WebP · GIF · 10MB 이하</div>'
+      + '  <input type="file" accept="image/*" data-input-for="' + tid + '">'
+      + '</label>';
+    bindPhotoZone(container);
+  }
+
+  async function uploadPhoto(tid, fileObj){
+    if (!fileObj) return;
+    if (!fileObj.type.startsWith('image/')) {
+      alert('이미지 파일만 첨부 가능합니다.');
+      return;
+    }
+    if (fileObj.size > 10 * 1024 * 1024) {
+      alert('10MB 이하만 가능합니다. (현재 ' + Math.round(fileObj.size/1024/1024) + 'MB)');
+      return;
+    }
+    setPhotoStatus(tid, 'uploading', '업로드 중...');
+    const fd = new FormData();
+    fd.append('file', fileObj);
+    try {
+      const r = await fetch('/api/task/' + tid + '/photo', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (r.ok && data.photo_path) {
+        replaceContainerWithPreview(tid, data.photo_path);
+      } else {
+        setPhotoStatus(tid, 'error', '✗ ' + (data.error || '업로드 실패'));
+      }
+    } catch (e) {
+      setPhotoStatus(tid, 'error', '✗ 네트워크 오류');
+    }
+  }
+
+  async function removePhoto(tid){
+    if (!confirm('사진을 삭제할까요?')) return;
+    try {
+      const r = await fetch('/api/task/' + tid + '/photo/delete', { method: 'POST' });
+      if (r.ok) {
+        replaceContainerWithZone(tid);
+      } else {
+        alert('삭제 실패');
+      }
+    } catch (e) {
+      alert('네트워크 오류');
+    }
+  }
+
+  function bindPhotoZone(scope){
+    (scope || document).querySelectorAll('.task-photo-zone').forEach(function(zone){
+      const tid = zone.dataset.zoneFor;
+      const input = zone.querySelector('input[type="file"]');
+      // 클릭 → 파일 선택 (label이 input 감싸므로 자동)
+      // 파일 input change
+      input.addEventListener('change', function(e){
+        const f = e.target.files && e.target.files[0];
+        if (f) uploadPhoto(tid, f);
+      });
+      // 드래그 오버
+      zone.addEventListener('dragover', function(e){
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+      zone.addEventListener('dragleave', function(){
+        zone.classList.remove('dragover');
+      });
+      // 드롭
+      zone.addEventListener('drop', function(e){
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) uploadPhoto(tid, f);
+      });
+    });
+  }
+
+  function bindPhotoRemove(scope){
+    (scope || document).querySelectorAll('.photo-remove').forEach(function(btn){
+      const tid = btn.dataset.removeFor;
+      btn.addEventListener('click', function(){ removePhoto(tid); });
+    });
+  }
+
+  // 클립보드 Ctrl+V 처리 — textarea 포커스 시점의 task 카드에 붙여넣음
+  function bindClipboardPaste(){
+    document.addEventListener('paste', function(e){
+      // 포커스가 task-notes-edit 인 경우만 (다른 곳에서 paste 영향 X)
+      const active = document.activeElement;
+      if (!active || !active.classList.contains('task-notes-edit')) return;
+      const items = (e.clipboardData || {}).items || [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf('image/') === 0) {
+          const f = items[i].getAsFile();
+          if (f) {
+            const tid = active.dataset.taskId;
+            if (tid) {
+              e.preventDefault();
+              uploadPhoto(tid, f);
+              return;
+            }
+          }
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){
+      bindPhotoZone(); bindPhotoRemove(); bindClipboardPaste();
+    });
+  } else {
+    bindPhotoZone(); bindPhotoRemove(); bindClipboardPaste();
+  }
+})();
 
 /* v5H226z112 (2026-05-31): 메모 인라인 편집 자동저장 (debounce 600ms)
    PUT /api/task/{tid} 활용 — 기존 라우터, 변경 0건 */

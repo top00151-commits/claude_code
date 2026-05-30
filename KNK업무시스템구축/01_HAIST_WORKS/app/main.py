@@ -1786,6 +1786,86 @@ async def api_update_notes(req: Request, tid: int):
     return JSONResponse({"ok": True})
 
 
+# v5H226z115 (2026-05-31): 업무 카드 사진 첨부 (드래그앤드롭 + 클립보드)
+# 단일 사진 (1 task = 1 photo) · 10MB 이하 · 이미지 확장자 화이트리스트
+@app.post("/api/task/{tid}/photo")
+async def api_task_photo_upload(req: Request, tid: int,
+                                 file: UploadFile = File(...)):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    # 권한 검증
+    with db_session() as c:
+        prev = c.execute("SELECT user_id, photo_path FROM tasks WHERE id=?", (tid,)).fetchone()
+        if not prev or prev["user_id"] != u["id"]:
+            return JSONResponse({"error": "권한 없음"}, 403)
+    # 파일 검증
+    orig_name = file.filename or "photo.jpg"
+    ext = os.path.splitext(orig_name)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        return JSONResponse({"error": f"이미지만 업로드 가능 (jpg/png/webp/gif). 현재: {ext or '없음'}"}, 400)
+    raw = await file.read()
+    if len(raw) > 10 * 1024 * 1024:
+        return JSONResponse({"error": f"10MB 이하만 가능 (현재 {len(raw)//1024//1024}MB)"}, 400)
+    if len(raw) < 50:
+        return JSONResponse({"error": "빈 파일 또는 손상"}, 400)
+    # 저장: uploads/tasks/user_{uid}/task_{tid}_{timestamp}.ext
+    import time as _time
+    upload_dir = os.path.join("uploads", "tasks", f"user_{u['id']}")
+    os.makedirs(upload_dir, exist_ok=True)
+    ts = int(_time.time())
+    safe_ext = ext if ext != ".jpeg" else ".jpg"
+    filename = f"task_{tid}_{ts}{safe_ext}"
+    disk_path = os.path.join(upload_dir, filename)
+    with open(disk_path, "wb") as f:
+        f.write(raw)
+    # 구 사진 삭제 (단일 사진 정책)
+    if prev["photo_path"]:
+        try:
+            old_disk = prev["photo_path"].lstrip("/")
+            if os.path.exists(old_disk) and old_disk != disk_path.replace("\\", "/"):
+                os.remove(old_disk)
+        except Exception:
+            pass
+    # URL 경로 (/uploads/...) 저장
+    photo_url = "/" + disk_path.replace("\\", "/")
+    with db_session() as c:
+        try:
+            c.execute(
+                "UPDATE tasks SET photo_path=?, updated_at=datetime('now','localtime') WHERE id=?",
+                (photo_url, tid),
+            )
+        except Exception:
+            return JSONResponse({"error": "photo_path 컬럼 없음 — 마이그레이션 v5H226z115 적용 필요"}, 500)
+    return JSONResponse({"ok": True, "photo_path": photo_url})
+
+
+@app.post("/api/task/{tid}/photo/delete")
+async def api_task_photo_delete(req: Request, tid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        prev = c.execute("SELECT user_id, photo_path FROM tasks WHERE id=?", (tid,)).fetchone()
+        if not prev or prev["user_id"] != u["id"]:
+            return JSONResponse({"error": "권한 없음"}, 403)
+        if prev["photo_path"]:
+            try:
+                old_disk = prev["photo_path"].lstrip("/")
+                if os.path.exists(old_disk):
+                    os.remove(old_disk)
+            except Exception:
+                pass
+        try:
+            c.execute(
+                "UPDATE tasks SET photo_path=NULL, updated_at=datetime('now','localtime') WHERE id=?",
+                (tid,),
+            )
+        except Exception:
+            pass
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/task/{tid}/status")
 async def api_quick_status(req: Request, tid: int):
     u = get_user(req)
@@ -9099,25 +9179,41 @@ async def contacts_parse_card(req: Request, file: UploadFile = File(...)):
     save_path = os.path.join(_CONTACT_IMG_DIR, save_name)
     with open(save_path, "wb") as wf:
         wf.write(content)
-    # OCR 텍스트 추출 (biz_doc 재사용 — 로컬, 외부 송신 0건)
-    text, mode = _biz_doc.extract_text(save_path, fn)
+    # v5H227: 명함 전용 다중-PSM OCR (로컬) → 항목 최다 결과 채택 → (옵션) 사내 AI 재분리
+    variants, mode = _biz_doc.extract_card_texts(save_path, fn)
     if mode.startswith("error:"):
         msg = _biz_doc._friendly_error(mode[6:])
         # 텍스트 추출 실패해도 이미지는 저장됨 → 직접 입력으로 진행 가능
         return JSONResponse({"ok": False, "message": msg,
                              "card_image": f"/uploads/contacts/{save_name}",
                              "fields": _contacts._empty_fields()})
-    fields = _contacts.parse_card_text(text)
+    # use_ai=True: 사내 AI 연동(텍스트만 전송)이 켜져 있으면 활용, 미설정 시 정규식 자동 폴백
+    result = _contacts.parse_card_best(variants, use_ai=True)
+    engine = result.pop("_engine", "regex")
+    raw = result.pop("_raw", "")
+    fields = {k: result.get(k, "") for k in _contacts.FIELD_KEYS}
     found = sum(1 for v in fields.values() if v)
+    eng_label = "AI 정밀분리" if engine == "ai+regex" else "자동인식"
     return JSONResponse({
         "ok": found > 0,
         "fields": fields,
         "found_count": found,
+        "engine": engine,
         "card_image": f"/uploads/contacts/{save_name}",
-        "message": (f"{found}개 항목을 인식했습니다. 내용을 확인하고 저장하세요."
+        "message": (f"{found}개 항목을 인식했습니다 ({eng_label}). 내용을 확인하고 저장하세요."
                     if found else "글자는 읽었지만 항목을 구분하지 못했습니다. 직접 입력해 주세요."),
-        "raw_excerpt": text[:300],
+        "raw_excerpt": raw[:300],
     })
+
+
+@app.post("/contacts/upgrade-korean-ocr")
+async def contacts_upgrade_korean_ocr(req: Request):
+    """v5H227 (B): 한국어 OCR 데이터를 최고품질(tessdata_best)로 강제 업그레이드."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    res = _biz_doc.download_korean_traineddata(force_best=True)
+    return JSONResponse(res)
 
 
 @app.post("/contacts/parse-signature")
