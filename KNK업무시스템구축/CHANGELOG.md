@@ -4,6 +4,57 @@
 
 ---
 
+## 🚀 v5H226z108n20 (2026-05-29) — NAS 배포 완료 + 운영 모드 진입
+
+### 최종 결과
+- **`https://works.knknara.co.kr/` 정상 동작** (HTTP)
+- HTTPS 활성화 대기 중 (인증서는 발급 완료 / DSM Reverse Proxy 항목 추가 필요)
+- 메신저(`/msg/`) 영향 0 — 서브도메인 분리로 완전 격리
+- 컨테이너 KNKHAIST 안에서 `/opt/knk_haist/` 운영 중 (Python 3.11.9 pyenv)
+
+### 배포 트러블슈팅 5건 해결
+1. `holidays>=0.96` Python 3.8 미지원 → `>=0.40`으로 완화
+2. nginx 백업 위치 오류 (`sites-enabled/` 안 → duplicate server) → `/root/nginx-backups/`
+3. `str | None` PEP 604 Python 3.8 미지원 (51곳) → pyenv로 Python 3.11.9 별도 빌드
+4. `qrcode` 의존성 누락 → requirements.txt 추가
+5. SQLite `database is locked` (workers=2 동시 init) → `KNK_WORKERS=1` 표준화
+
+### DSM 한계 발견 → 서브도메인 분리
+- DSM Reverse Proxy는 **path 라우팅 미지원** (호스트명+포트만)
+- 처음 계획 `haist.knknara.co.kr/works/` (path 기반) 폐기
+- 최종: `works.knknara.co.kr` 별도 서브도메인 (전산담당자 처리)
+- SSL 인증서 3종 발급: haist / works / msg (Let's Encrypt, 8월 만기)
+
+### 비상복구 키트 신설 (2026-05-30)
+- `_재해복구키트_HAIST_WORKS/` 5개 파일 (메신저 키트와 동일 구조)
+- 자산 인벤토리·재현 가이드·비밀번호 양식·CLAUDE.md·프로젝트 히스토리
+
+### 폴더 정리 (2026-05-30)
+- 시안1 사이클 산출물(00·04·05·09·99) → `_ARCHIVE_시안1사이클_2026-04~05/` 통합
+- 표준 가치 자산 10건 → `_STANDARDS/` (디자인원칙 5종·운영테스트 정책·사이클 운영지침 등)
+- Research 보고서 7건 → `03_HAIST_WORKS_Research/`
+- 루트 작업기록 4종 + 외부지시서 2종 → `작업기록/`
+- 중복·일회성 BAT 정리: `바탕화면_바로가기_만들기.bat`·`START.bat` 삭제, `KNK_운영시작.bat` 아카이브
+
+### 다음 사이클 트리거 대기
+- HTTPS 활성화 (전산담당자)
+- 사번 SSO 통합 (메신저 세션 발주서 `_TO_메신저세션/2026-05-29_사번SSO.md`)
+- z56·z58 마이그레이션 NAS 적용
+- 부품 수출 마진 시스템 (대표 결재 4건 대기 `_TO_빅터/`)
+
+### 메모리 통합
+- 구 `session_team1_platform`/`team2_sales`/`team3_purchase` 3개 → 1개 통합
+- 새 정체성: HAIST WORKS 빅터(01) 통합 운영팀
+
+---
+
+## v5H226z122 (2026-05-21) — 고객사 양식 이식 + 외부 상용명 익명화
+- 위하고/하이웍스/카톡/삼성 등 실명 → 외부 그룹웨어/사내 메신저/고객사A·B 등 중립 명칭으로 전면 치환
+- 0건 검증 완료
+- 후속 보류 4건: 변수명·라우트·파일명·API URL (단계적 처리)
+
+---
+
 ## v5H226d (2026-05-08) — BAT 8192자 라인 한계 재발 fix
 - 직전 v5H226c 까지 LAST UPDATE REM 줄이 누적되며 KNK_시작.bat 라인 3 이 8759자, START.bat 18852자 → cmd.exe 8192자 한계 초과로 BAT 더블클릭 시 검은 창 깜빡 후 즉시 종료
 - BAT 두 파일 짧은 요약 + CHANGELOG.md 참조 형태로 재정리 (라인 max 82자)
