@@ -3,7 +3,7 @@ HAIST Victor — 사내 AI 컨시어지 (Phase 1: 키워드 라우팅)
 =========================================================
 
 사용자 자연어 질문을 받아:
-  1) 페이지 라우팅 ("결재 어디서 해?" → 하이웍스 링크)
+  1) 페이지 라우팅 ("결재 어디서 해?" → 외부 그룹웨어 링크)
   2) 데이터 조회 ("이번달 매출 알려줘" → DB 집계 + 카드)
   3) 검색 안내 ("리니어가이드 재고" → 자재 검색 결과)
   4) 모르면 → "이렇게 물어보세요" 가이드
@@ -18,8 +18,8 @@ HAIST Victor — 사내 AI 컨시어지 (Phase 1: 키워드 라우팅)
   "일정 입력 어디서해?"   → 일일업무/캘린더 링크
   "전체 매출 현황"         → 대시보드 데이터 + 링크
   "리니어가이드 입고 현황"  → 자재 검색 결과
-  "결재 올려줘"            → 하이웍스 전자결재 링크
-  "휴가 신청"              → 하이웍스 결재
+  "결재 올려줘"            → 외부 그룹웨어 전자결재 링크
+  "휴가 신청"              → 외부 그룹웨어 결재
   "내 할 일"               → 홈 개인화
   "확인 안 한 변경"         → /changes 필터 링크
 """
@@ -75,13 +75,13 @@ def h_schedule_input(u, db):
 
 def h_approval(u, db):
     from .database import get_setting
-    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    url = (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip()
     return {
         "type": "external",
-        "title": "📋 전자결재 (하이웍스)",
-        "text": "결재는 하이웍스에서 진행합니다. 결재 필요 변경/티켓은 URL을 첨부하면 영향 부서가 자동 확인합니다.",
+        "title": "📋 전자결재 (그룹웨어)",
+        "text": "결재는 외부 그룹웨어에서 진행합니다. 결재 필요 변경/티켓은 URL을 첨부하면 영향 부서가 자동 확인합니다.",
         "links": [
-            _link("하이웍스 전자결재 열기 ↗", url, "primary"),
+            _link("전자결재 열기 ↗", url, "primary"),
             _link("변경 등록 (결재 URL 첨부 가능)", "/changes/new", "secondary"),
             _link("티켓 등록 (결재 URL 첨부 가능)", "/tickets/new", "secondary"),
         ],
@@ -90,23 +90,23 @@ def h_approval(u, db):
 
 def h_mail(u, db):
     from .database import get_setting
-    url = get_setting("hiworks_mail_url", "https://mail.hiworks.com/")
+    url = (get_setting("groupware_mail_url", "") or get_setting("hiworks_mail_url", "") or "").strip()
     return {
         "type": "external",
         "title": "📧 회사 메일",
-        "text": "메일은 하이웍스에서 사용합니다.",
-        "links": [_link("하이웍스 메일 열기 ↗", url, "primary")],
+        "text": "메일은 외부 그룹웨어에서 사용합니다.",
+        "links": [_link("메일 열기 ↗", url, "primary")],
     }
 
 
 def h_vacation(u, db):
     from .database import get_setting
-    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    url = (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip()
     return {
         "type": "external",
         "title": "🏖 휴가 신청",
-        "text": "휴가는 하이웍스 전자결재에서 신청합니다.",
-        "links": [_link("하이웍스 결재 열기 ↗", url, "primary")],
+        "text": "휴가는 외부 그룹웨어 전자결재에서 신청합니다.",
+        "links": [_link("전자결재 열기 ↗", url, "primary")],
     }
 
 
@@ -321,11 +321,11 @@ def h_my_todo(u, db):
 
 
 def h_attendance_today(u, db):
-    """오늘 출근 현황 — 하이웍스 API 연동 시 확장 (Phase 2)"""
+    """오늘 출근 현황 — 외부 그룹웨어 API 연동 시 확장 (Phase 2)"""
     return {
         "type": "guide",
         "title": "👥 오늘 출근 현황",
-        "text": "근태 조회는 하이웍스 인사관리 API 연동 후 활성화됩니다.\n(admin 설정에서 토큰 발급 후 입력)",
+        "text": "근태 조회는 외부 그룹웨어 인사관리 API 연동 후 활성화됩니다.\n(admin 설정에서 토큰 발급 후 입력)",
         "links": [
             _link("일일업무 피드 →", "/feed", "primary"),
             _link("(관리자) API 설정 →", "/admin/settings", "secondary"),
@@ -537,7 +537,7 @@ def h_how_to_change(u, db):
         ],
         go_url="/changes/new",
         go_label="변경 등록 화면으로 →",
-        notes="⚠️ 결재 필요한 변경은 하이웍스에서 결재 후 URL 첨부.",
+        notes="⚠️ 결재 필요한 변경은 외부 그룹웨어에서 결재 후 URL 첨부.",
         extra_links=[{"label": "변경 목록", "href": "/changes", "style": "secondary"}],
     )
 
@@ -656,19 +656,19 @@ def h_how_to_schedule(u, db):
 
 def h_how_to_approval(u, db):
     from .database import get_setting
-    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    url = (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip()
     return _guide_step(
         title="💡 전자결재 진행 방법",
-        intro="결재는 **하이웍스**에서 진행 (HAIST WORKS에는 결재 기능 없음).",
+        intro="결재는 **외부 그룹웨어**에서 진행 (HAIST WORKS에는 결재 기능 없음).",
         steps=[
-            "하이웍스 전자결재 페이지 열기",
+            "전자결재 페이지 열기",
             "문서 작성 (기안)",
             "결재선 지정 + 제출",
             "승인 후 결재 문서 URL 복사",
             "관련 HAIST 변경/티켓에 결재 URL 첨부",
         ],
         go_url=url,
-        go_label="하이웍스 결재 열기 ↗",
+        go_label="전자결재 열기 ↗",
         auto=False,
         notes="📌 결재 URL 첨부는 변경/티켓 등록 4단계에서 가능.",
         extra_links=[
@@ -680,18 +680,18 @@ def h_how_to_approval(u, db):
 
 def h_how_to_vacation(u, db):
     from .database import get_setting
-    url = get_setting("hiworks_approval_url", "https://office.hiworks.com/")
+    url = (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip()
     return _guide_step(
         title="💡 휴가 신청 방법",
-        intro="휴가는 **하이웍스 전자결재**에서 신청합니다.",
+        intro="휴가는 **외부 그룹웨어 전자결재**에서 신청합니다.",
         steps=[
-            "하이웍스 로그인",
+            "외부 그룹웨어 로그인",
             "전자결재 → 휴가신청서 양식 선택",
             "사용 일자·유형(연차/반차/월차) 선택",
             "결재선 지정 → 제출",
         ],
         go_url=url,
-        go_label="하이웍스 열기 ↗",
+        go_label="그룹웨어 열기 ↗",
         auto=False,
     )
 
@@ -891,7 +891,7 @@ INTENTS = [
                                     "/admin", "관리자 →")),
     ("settings",      ["설정", "시스템설정", "API설정", "토큰"],
                       _simple_route("⚙️ 시스템 설정",
-                                    "하이웍스 URL/토큰 등을 관리합니다.",
+                                    "외부 그룹웨어 URL/토큰 등을 관리합니다.",
                                     "/admin/settings", "시스템 설정 →")),
 
     # 도움말 (가장 마지막)

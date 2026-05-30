@@ -16,7 +16,7 @@
 
   {% if saved %}<div style="margin: 0 var(--content-pad) var(--space-3);background:rgba(122,155,92,.10);border:1px solid var(--success);color:var(--success);padding:10px 14px;border-radius:8px;font-weight:700;">✓ 저장 완료</div>{% endif %}
 
-  <form method="post" action="/admin/hiworks-settings" class="cfg-form">
+  <form method="post" action="/admin/groupware-settings" class="cfg-form">
     {% for k in keys|default([]) %}
     <div class="fld">
       <label>{{ k.label|default(k.key) }}</label>

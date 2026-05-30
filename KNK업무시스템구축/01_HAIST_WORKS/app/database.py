@@ -22,7 +22,7 @@ Phase 1 MVP - Task Card 기반 구조
    §C1.  COMMENTS & 멘션 파싱                         L 2500
    §C2.  활동 로그 / 반응 / 회고                       L 2580
    §C3.  알림시스템 통합 헬퍼 (notify_user 등)         L 3049
-   §C4.  하이웍스 메신저 push                          L 5621
+   §C4.  사내 메신저 push                             L 5621
 
  PART D. 자재구매 (Logistics)
    §D1.  parts / 관리코드 발행대장                      L 3095
@@ -265,6 +265,35 @@ CREATE TABLE IF NOT EXISTS customer_contacts (
 );
 CREATE INDEX IF NOT EXISTS idx_ccontact_cust ON customer_contacts(customer_id);
 CREATE INDEX IF NOT EXISTS idx_ccontact_role ON customer_contacts(role);
+
+-- v5H227 (2026-05-31 대표 지시) — 전사 공유 연락처(주소록)
+-- customer_contacts(거래처 종속)와 별개. 전 직원이 등록·검색·열람하는 공용 주소록.
+-- 자동등록 3경로: 명함 사진(OCR=source 'card') / 메일 서명(source 'signature') / 직접입력('manual')
+-- 수정·삭제 권한: 등록 본인 + 관리자. 열람·검색: 전 직원.
+CREATE TABLE IF NOT EXISTS shared_contacts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,           -- 이름
+    position        TEXT,                    -- 직책/직위 (예: 부장, 대표)
+    company         TEXT,                    -- 회사명
+    department      TEXT,                    -- 부서
+    mobile          TEXT,                    -- 휴대폰
+    phone           TEXT,                    -- 회사 전화
+    fax             TEXT,                    -- 팩스
+    email           TEXT,                    -- 이메일
+    address         TEXT,                    -- 주소
+    note            TEXT,                    -- 비고
+    card_image      TEXT,                    -- 명함 사진 파일 경로 (/uploads/contacts/..)
+    source          TEXT DEFAULT 'manual',   -- manual / card / signature
+    customer_id     INTEGER REFERENCES customers(id) ON DELETE SET NULL,  -- 거래처 연결 (선택)
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_by      INTEGER REFERENCES users(id),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_scontact_name    ON shared_contacts(name);
+CREATE INDEX IF NOT EXISTS idx_scontact_company ON shared_contacts(company);
+CREATE INDEX IF NOT EXISTS idx_scontact_email   ON shared_contacts(email);
+CREATE INDEX IF NOT EXISTS idx_scontact_mobile  ON shared_contacts(mobile);
 
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -809,7 +838,7 @@ CREATE INDEX IF NOT EXISTS idx_pp_assignee ON project_phases(assignee_id);
 
 -- =====================================================
 -- APP SETTINGS (key-value, admin/ceo만 변경) — 2026-04-20
--- 하이웍스 URL 등 운영 설정 저장
+-- 외부 그룹웨어 URL 등 운영 설정 저장
 -- =====================================================
 CREATE TABLE IF NOT EXISTS app_settings (
     key         TEXT PRIMARY KEY,
@@ -1795,8 +1824,8 @@ USERS = [
 
 # 주요 고객사
 CUSTOMERS = [
-    ("삼성전자",   "주요", "1차 협력사"),
-    ("삼성전기",   "주요", "1차 협력사"),
+    ("고객사A",    "주요", "1차 협력사"),
+    ("고객사B",    "주요", "1차 협력사"),
     ("드림텍",     "주요", ""),
     ("한국성전",   "주요", ""),
     ("기타전장",   "일반", "전장사업 관련"),
@@ -1946,7 +1975,7 @@ def init_db():
                 c.execute("ALTER TABLE changes ADD COLUMN source TEXT DEFAULT '수동'")
             if ccols and "source_ref" not in ccols:
                 c.execute("ALTER TABLE changes ADD COLUMN source_ref TEXT")
-            # B: 하이웍스 결재 URL 첨부 (자체 결재 X, 외부 결재 링크만)
+            # B: 외부 그룹웨어 결재 URL 첨부 (자체 결재 X, 외부 결재 링크만)
             if ccols and "approval_url" not in ccols:
                 c.execute("ALTER TABLE changes ADD COLUMN approval_url TEXT")
         except Exception:
@@ -2066,16 +2095,16 @@ def init_db():
         try:
             for k, v, desc in [
                 # 외부 링크 (사이드바)
-                ("hiworks_approval_url", "https://office.hiworks.com/", "하이웍스 전자결제 URL (사이드바 외부 링크)"),
-                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "하이웍스 메일 URL (사이드바 외부 링크)"),
-                ("hiworks_domain",       "",                              "회사 하이웍스 도메인 (예: knk.co.kr)"),
-                # 사이클 79 (DEC-2): 인사총무 하이웍스 연동 카드 — 외부 자산 0건, 외부 링크만
-                ("hiworks_main_url",        "https://office.hiworks.com/",   "하이웍스 메인 (인사총무 카드 — 외부 링크)"),
-                ("hiworks_attendance_url",  "",                              "하이웍스 출퇴근/근태 URL (외부 링크)"),
-                ("hiworks_leave_url",       "",                              "하이웍스 휴가 신청 URL (외부 링크)"),
-                ("hiworks_payroll_url",     "",                              "하이웍스 급여 명세서 URL (외부 링크)"),
-                ("hiworks_profile_url",     "",                              "하이웍스 인사 정보 URL (외부 링크)"),
-                # 하이웍스 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
+                ("hiworks_approval_url", "https://office.hiworks.com/", "전자결재 URL (사이드바 외부 링크)"),
+                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "메일 URL (사이드바 외부 링크)"),
+                ("hiworks_domain",       "",                              "회사 그룹웨어 도메인 (예: knk.co.kr)"),
+                # 사이클 79 (DEC-2): 인사총무 그룹웨어 연동 카드 — 외부 자산 0건, 외부 링크만
+                ("hiworks_main_url",        "https://office.hiworks.com/",   "그룹웨어 메인 (인사총무 카드 — 외부 링크)"),
+                ("hiworks_attendance_url",  "",                              "출퇴근/근태 URL (외부 링크)"),
+                ("hiworks_leave_url",       "",                              "휴가 신청 URL (외부 링크)"),
+                ("hiworks_payroll_url",     "",                              "급여 명세서 URL (외부 링크)"),
+                ("hiworks_profile_url",     "",                              "인사 정보 URL (외부 링크)"),
+                # 그룹웨어 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
                 ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용"),
                 ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
                 ("hiworks_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
@@ -2692,9 +2721,9 @@ def seed_all():
 
         # 6) Sample Projects
         samples = [
-            ("P-2026-001", "갤럭시 S27 메인보드 ICT",       "삼성전자",  "검사기"),
-            ("P-2026-002", "갤럭시 S27 FCT 라인",           "삼성전자",  "검사기"),
-            ("P-2026-003", "전장 제어보드 자동조립 라인",   "삼성전기",  "자동화"),
+            ("P-2026-001", "제품1 메인보드 ICT 검사기",       "고객사A",  "검사기"),
+            ("P-2026-002", "제품1 FCT 라인 검사기",           "고객사A",  "검사기"),
+            ("P-2026-003", "전장 제어보드 자동조립 라인",   "고객사B",  "자동화"),
             ("P-2026-004", "카메라 모듈 검사장비",          "드림텍",    "검사기"),
             ("P-2026-005", "EV 배터리 BMS 검사장비",        "한국성전",  "검사기"),
             ("P-2026-006", "사내 자동화 통합 MES",           "내부",      "자동화"),
@@ -2861,16 +2890,16 @@ TASK_TEMPLATES = {
 }
 
 TEAM_HEADLINES = {
-    "01": ["삼성전자 S27 견적 1차 완료, 2차 금주 중 회신 예정", "드림텍 신규 카메라 프로젝트 착수, 사양 협의 중", "금주 견적 5건 완료, 수주 파이프라인 정상"],
-    "02": ["S27 ICT 시제품 전기 검사 마무리 단계, 양산 이관 준비", "FCT 라인 지그 수정 완료, 양산 이관 D-3", "BMS 검사기 1차 회로도 완성, 설계 검증 진행"],
-    "03": ["삼성전자 클레임 1건 대응 완료, 재발 방지 보고서 작성 중", "품질 미팅 정례화, 불량률 1.2% → 0.8% 개선", "FCT 라인 불량률 분석 진행 중, 금주 내 결과 보고"],
-    "04": ["S27 메커니컬 도면 80% 완료, 금주 출도 목표", "BMS 검사장비 3D 모델링 진행 중", "자동화 라인 지그 설계 수정 완료"],
+    "01": ["고객사A 제품1 견적 1차 완료, 2차 금주 중 회신 예정", "드림텍 신규 카메라 프로젝트 착수, 사양 협의 중", "금주 견적 5건 완료, 수주 파이프라인 정상"],
+    "02": ["P001 ICT 시제품 전기 검사 마무리 단계, 양산 이관 준비", "FCT 라인 지그 수정 완료, 양산 이관 D-3", "BMS 검사기 1차 회로도 완성, 설계 검증 진행"],
+    "03": ["고객사A 클레임 1건 대응 완료, 재발 방지 보고서 작성 중", "품질 미팅 정례화, 불량률 1.2% → 0.8% 개선", "FCT 라인 불량률 분석 진행 중, 금주 내 결과 보고"],
+    "04": ["P001 메커니컬 도면 80% 완료, 금주 출도 목표", "BMS 검사장비 3D 모델링 진행 중", "자동화 라인 지그 설계 수정 완료"],
     "05": ["ICT 펌웨어 v2.3 릴리즈 완료, 현장 적용 중", "BMS SW 통합 테스트 80%, 금주 완료 예정", "비전 알고리즘 정확도 98.7% 달성"],
     "06": ["자동조립 라인 PLC 로직 작성 완료, 시뮬레이션 단계", "전장 회로 검토 회의 완료, 수정사항 반영 중", "신규 전장 표준화 작업 착수"],
-    "07": ["S27 검사기 본체 5대 조립 완료, 금주 출하 예정", "지그 가공 스케줄 정상, 납기 이상 없음", "양산 이관 안정화 진행 중"],
+    "07": ["P001 검사기 본체 5대 조립 완료, 금주 출하 예정", "지그 가공 스케줄 정상, 납기 이상 없음", "양산 이관 안정화 진행 중"],
     "08": ["자동조립 라인 셋업 진행률 70%, 현장 파견 중", "드림텍 장비 인수 테스트 대응", "벨트 얼라인 재조정 완료"],
     "09": ["CNC 가동률 92%, 납기 지연 없음", "지그 부품 가공 정상 진행", "설비 정기점검 완료"],
-    "10": ["삼성전기 부품 긴급 수배 완료", "신규 협력사 2곳 등록 심사 중", "주요 부품 재고 정상"],
+    "10": ["고객사B 관련 부품 긴급 수배 완료", "신규 협력사 2곳 등록 심사 중", "주요 부품 재고 정상"],
     "11": ["월간 급여 마감 진행 중, 4월 10일 완료 예정", "신입 2명 입사 절차 진행", "손익 마감 자료 취합 중"],
     "12": ["하노이 현지 조립 2대 완료, 본사 자재 대기 1건", "현지 품질 이슈 대응 완료", "본사 기술지원 1건 요청"],
     "13": ["차세대 비전 알고리즘 POC 1차 완료", "특허 출원 2건 검토 중", "신규 검사 기법 사내 공유 완료"],
@@ -8044,14 +8073,14 @@ def health_check() -> list[dict]:
                        "level": "external"})
     elif notify_ch == "hiworks":
         if msg_token:
-            checks.append({"name": "외부 푸시 알림 (하이웍스)",
+            checks.append({"name": "외부 푸시 알림 (그룹웨어)",
                            "status": "warn",
-                           "detail": "하이웍스 토큰 설정됨. ⚠️ 실제 엔드포인트 동작은 첫 호출 시 확인 필요 (Postman 검증 권장).",
+                           "detail": "그룹웨어 토큰 설정됨. ⚠️ 실제 엔드포인트 동작은 첫 호출 시 확인 필요 (Postman 검증 권장).",
                            "level": "external"})
         else:
-            checks.append({"name": "외부 푸시 알림 (하이웍스)",
+            checks.append({"name": "외부 푸시 알림 (그룹웨어)",
                            "status": "error",
-                           "detail": "🚨 채널은 hiworks지만 토큰 비어있음 → 발송 시 silent skip (실제 발송 0)",
+                           "detail": "🚨 채널은 groupware지만 토큰 비어있음 → 발송 시 silent skip (실제 발송 0)",
                            "level": "external"})
     elif notify_ch == "smtp":
         checks.append({"name": "외부 푸시 알림 (SMTP)",
@@ -8059,17 +8088,17 @@ def health_check() -> list[dict]:
                        "detail": "SMTP 채널은 미구현 (Phase 2). 콘솔 로그만 발생.",
                        "level": "external"})
 
-    # 6. 하이웍스 외부 링크
+    # 6. 외부 그룹웨어 링크
     apv_url = get_setting("hiworks_approval_url", "")
     mail_url = get_setting("hiworks_mail_url", "")
     domain = get_setting("hiworks_domain", "")
     if not domain:
-        checks.append({"name": "하이웍스 외부 링크",
+        checks.append({"name": "외부 그룹웨어 링크",
                        "status": "warn",
                        "detail": f"기본 URL 사용 중 (회사 도메인 미설정). 결재: {apv_url}",
                        "level": "external"})
     else:
-        checks.append({"name": "하이웍스 외부 링크",
+        checks.append({"name": "외부 그룹웨어 링크",
                        "status": "ok",
                        "detail": f"회사 도메인 {domain} 설정됨",
                        "level": "external"})
@@ -8614,11 +8643,12 @@ def set_setting(key: str, value: str, user_id: int = None, description: str = No
 # =====================================================
 # 통합 푸시 알림 — 전자결재·메일 연동 채널 (2026-04-22 대표 결재: 외부 웹훅 폐기)
 # =====================================================
-def hiworks_notify(channel_id: str, text: str) -> bool:
-    """하이웍스 메신저 알림 발송.
+def groupware_notify(channel_id: str, text: str) -> bool:
+    """사내 메신저 알림 발송 (외부 그룹웨어 API).
+    v5H226z110 (2026-05-30): hiworks_notify → groupware_notify 리네임
 
     notify_channel 설정에 따라:
-      - 'hiworks' (기본): 하이웍스 메신저 API
+      - 'hiworks' (기본): 외부 그룹웨어 메신저 API
       - 'off':            개발 모드 (콘솔 로그만)
       - 'smtp':           Phase 2 SMTP 메일 발송 (TBD)
     """
@@ -8626,15 +8656,20 @@ def hiworks_notify(channel_id: str, text: str) -> bool:
     if channel == "off":
         print(f"[NOTIFY OFF] channel={channel_id} text={text[:80]}")
         return True
-    if channel == "hiworks":
+    # v5H226z110: 'hiworks' 채널명 → 'groupware' (구 채널명 호환 fallback)
+    if channel in ("groupware", "hiworks"):
         try:
-            from .hiworks_client import notify as hw_notify
-            return hw_notify(text, recipients=channel_id)
+            from .groupware_client import notify as gw_notify
+            return gw_notify(text, recipients=channel_id)
         except Exception as e:
-            print(f"[HIWORKS NOTIFY ERR] {e}")
+            print(f"[그룹웨어 알림 ERR] {e}")
             return False
     print(f"[NOTIFY UNKNOWN channel={channel}] {text[:80]}")
     return False
+
+
+# v5H226z110: 구 함수명 alias (기존 import 호환, 추후 deprecate)
+hiworks_notify = groupware_notify
 
 
 # ── 변경 Inform CRUD ─────────────────────────────────────────
@@ -11178,8 +11213,8 @@ def seed_business_data():
 
         # ───────── 10. ISSUES (QMS) 5 + CORRECTIVE/PREVENTIVE ─────────
         iss_seed = [
-            ("CCD 카메라 노이즈 발생", "심각", "품질", "조치중", "삼성전자",   "T", "고객 라인 가동 중 5분에 1회 노이즈 라인", "전원 노이즈 추정", "필터 모듈 추가 적용", ""),
-            ("Servo 위치 오차 0.05mm", "중",   "설계결함", "원인분석", "삼성전기", "M", "0.05mm 위치 오차 반복 발생", "엔코더 케이블 EMI", "차폐 케이블 교체 검토", ""),
+            ("CCD 카메라 노이즈 발생", "심각", "품질", "조치중", "고객사A",   "T", "고객 라인 가동 중 5분에 1회 노이즈 라인", "전원 노이즈 추정", "필터 모듈 추가 적용", ""),
+            ("Servo 위치 오차 0.05mm", "중",   "설계결함", "원인분석", "고객사B", "M", "0.05mm 위치 오차 반복 발생", "엔코더 케이블 EMI", "차폐 케이블 교체 검토", ""),
             ("PLC 통신 단선",          "치명", "AS",    "해결",    "드림텍",   "M", "야간 라인 통신 단선", "RJ45 커넥터 산화", "신규 커넥터 교체 / SOP 갱신", "정기 점검 매월 1회"),
             ("LED 조명 휘도 저하",      "경",   "품질",  "접수",    "한국성전", "T", "출하 1주일 만에 휘도 80%로 저하", "", "", ""),
             ("BOM 오기재로 잘못 출고",   "중",   "기타",  "재발방지등록", "기타전장", "T", "BOM Rev2 vs Rev3 혼동", "관리코드 확인 누락", "출고 전 2인 확인 SOP", "체크리스트 도입"),

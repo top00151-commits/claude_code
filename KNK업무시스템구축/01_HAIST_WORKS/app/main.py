@@ -909,9 +909,15 @@ def ctx(request, name, **kwargs):
         "app_subtitle": "KNK 통합 업무 플랫폼",
         "brand_slogan": "Human & AI create the Best",
         # 외부 그룹웨어 URL (admin 설정에서 변경 가능)
-        "hiworks_approval_url": get_setting("hiworks_approval_url", "https://office.hiworks.com/"),
-        "hiworks_mail_url":     get_setting("hiworks_mail_url",     "https://mail.hiworks.com/"),
-        "hiworks_domain":       get_setting("hiworks_domain", ""),
+        # v5H226z110 (2026-05-30): hiworks_* → groupware_* 키 전환, 하드코딩 제거
+        # 구 키 fallback 유지 (마이그레이션 호환)
+        "groupware_approval_url": (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip(),
+        "groupware_mail_url":     (get_setting("groupware_mail_url",     "") or get_setting("hiworks_mail_url",     "") or "").strip(),
+        "groupware_domain":       (get_setting("groupware_domain",       "") or get_setting("hiworks_domain",       "") or "").strip(),
+        # 구 변수명도 임시 유지 (템플릿 호환, 추후 deprecate)
+        "hiworks_approval_url": (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip(),
+        "hiworks_mail_url":     (get_setting("groupware_mail_url",     "") or get_setting("hiworks_mail_url",     "") or "").strip(),
+        "hiworks_domain":       (get_setting("groupware_domain",       "") or get_setting("hiworks_domain",       "") or "").strip(),
         # Victor 도크 맥락 칩 (제안 #08)
         "victor_chips":         _victor_chips_for_path(str(request.url.path) if hasattr(request, "url") else ""),
         # C안 v2 §2-4 — 워크스페이스 스위처 (uppercase + lowercase 양쪽 노출)
@@ -5230,24 +5236,43 @@ async def admin_settings_save(req: Request):
 # 인사총무 업무는 외부 그룹웨어 사용. HAIST WORKS는 연동 카드 + 외부 링크 + 본인 KNK 정보 조회만.
 # 외부 자산 0건 (iframe import 없음, 외부 링크만 노출)
 # =====================================================
-HIWORKS_LINK_KEYS = [
-    ("hiworks_main_url",       "그룹웨어 메인",       "https://office.hiworks.com/"),
-    ("hiworks_attendance_url", "출퇴근 / 근태",       ""),
-    ("hiworks_leave_url",      "휴가 신청",           ""),
-    ("hiworks_payroll_url",    "급여 명세서",         ""),
-    ("hiworks_profile_url",    "인사 정보",           ""),
+GROUPWARE_LINK_KEYS = [
+    ("groupware_main_url",       "그룹웨어 메인",       ""),   # v5H226z110: 하드코딩 제거 (admin 설정 강제)
+    ("groupware_attendance_url", "출퇴근 / 근태",       ""),
+    ("groupware_leave_url",      "휴가 신청",           ""),
+    ("groupware_payroll_url",    "급여 명세서",         ""),
+    ("groupware_profile_url",    "인사 정보",           ""),
 ]
+# 구 키 → 신 키 매핑 (v5H226z110 마이그레이션) — fallback 조회용
+_GROUPWARE_LEGACY_FALLBACK = {
+    "groupware_main_url":       "hiworks_main_url",
+    "groupware_attendance_url": "hiworks_attendance_url",
+    "groupware_leave_url":      "hiworks_leave_url",
+    "groupware_payroll_url":    "hiworks_payroll_url",
+    "groupware_profile_url":    "hiworks_profile_url",
+}
 
 
-@app.get("/hr/hiworks", response_class=HTMLResponse)
-async def hr_hiworks_page(req: Request):
+def _get_groupware_setting(key: str) -> str:
+    """그룹웨어 설정 조회 — 신 키 우선, 없으면 구 키 fallback (마이그레이션 호환)"""
+    v = (get_setting(key, "") or "").strip()
+    if v:
+        return v
+    legacy = _GROUPWARE_LEGACY_FALLBACK.get(key)
+    if legacy:
+        return (get_setting(legacy, "") or "").strip()
+    return ""
+
+
+@app.get("/hr/groupware", response_class=HTMLResponse)
+async def hr_groupware_page(req: Request):
     """인사총무 그룹웨어 연동 페이지 — 모든 로그인 사용자, 본인 KNK 정보만 노출."""
     u = require(req)
     if not u:
         return RedirectResponse("/login", 303)
     # admin_settings 에 입력된 외부 링크 (미입력 시 빈 문자열)
-    links = [{"key": k, "label": label, "url": (get_setting(k, "") or "").strip(), "default": default}
-             for k, label, default in HIWORKS_LINK_KEYS]
+    links = [{"key": k, "label": label, "url": _get_groupware_setting(k), "default": default}
+             for k, label, default in GROUPWARE_LINK_KEYS]
     # 본인 KNK 정보 (다른 직원 정보 노출 금지 — 개인정보 보호)
     me = {
         "name":       u.get("name", ""),
@@ -5258,31 +5283,37 @@ async def hr_hiworks_page(req: Request):
         "email":      u.get("email", "") or "",
         "hire_date":  u.get("created_at", "") or "",
     }
-    return ctx(req, "hr_hiworks.html", user=u,
-               links=links, me=me, active="hr_hiworks")
+    return ctx(req, "hr_groupware.html", user=u,
+               links=links, me=me, active="hr_groupware")
 
 
-@app.get("/admin/hiworks-settings", response_class=HTMLResponse)
-async def admin_hiworks_settings_page(req: Request):
+# v5H226z110: 구 라우트 임시 redirect (북마크 호환, 추후 deprecate)
+@app.get("/hr/hiworks")
+async def hr_hiworks_redirect(req: Request):
+    return RedirectResponse("/hr/groupware", 301)
+
+
+@app.get("/admin/groupware-settings", response_class=HTMLResponse)
+async def admin_groupware_settings_page(req: Request):
     """그룹웨어 연동 URL 설정 (admin/ceo only)."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
     saved = req.query_params.get("saved", "")
-    current = {k: (get_setting(k, "") or "") for k, _l, _d in HIWORKS_LINK_KEYS}
-    return ctx(req, "admin_hiworks_settings.html", user=u,
-               keys=HIWORKS_LINK_KEYS, current=current,
+    current = {k: _get_groupware_setting(k) for k, _l, _d in GROUPWARE_LINK_KEYS}
+    return ctx(req, "admin_groupware_settings.html", user=u,
+               keys=GROUPWARE_LINK_KEYS, current=current,
                saved=saved, active="admin")
 
 
-@app.post("/admin/hiworks-settings")
-async def admin_hiworks_settings_save(req: Request):
+@app.post("/admin/groupware-settings")
+async def admin_groupware_settings_save(req: Request):
     """그룹웨어 URL 저장 → app_settings UPSERT (화이트리스트만)."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
     form = await req.form()
-    allowed = {k for k, _l, _d in HIWORKS_LINK_KEYS}
+    allowed = {k for k, _l, _d in GROUPWARE_LINK_KEYS}
     saved = 0
     for k, v in form.items():
         if not k.startswith("k_"):
@@ -5292,7 +5323,18 @@ async def admin_hiworks_settings_save(req: Request):
             continue
         set_setting(key, (v or "").strip(), user_id=u["id"])
         saved += 1
-    return RedirectResponse(f"/admin/hiworks-settings?saved={saved}", 303)
+    return RedirectResponse(f"/admin/groupware-settings?saved={saved}", 303)
+
+
+# v5H226z110: 구 라우트 임시 redirect
+@app.get("/admin/hiworks-settings")
+async def admin_hiworks_settings_redirect(req: Request):
+    return RedirectResponse("/admin/groupware-settings", 301)
+
+
+@app.post("/admin/hiworks-settings")
+async def admin_hiworks_settings_save_redirect(req: Request):
+    return RedirectResponse("/admin/groupware-settings", 307)  # POST preserve
 
 
 @app.get("/admin/download-passwords")
@@ -8899,6 +8941,254 @@ async def admin_recompute_all_tiers(req: Request):
     with db_session() as c:
         n = _ct.refresh_all_customer_tiers(c)
     return JSONResponse({"ok": True, "refreshed": n})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  전사 공유 연락처(주소록) — v5H227 (2026-05-31 대표 지시)
+#  열람·검색: 전 직원 / 수정·삭제: 등록 본인 + 관리자
+#  자동등록 3경로: 명함 사진(OCR) · 메일 서명 · 직접 입력
+# ═══════════════════════════════════════════════════════════════════════════
+from . import contacts as _contacts
+
+_CONTACT_IMG_DIR = os.path.join(BASE, "uploads", "contacts")
+_CARD_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".pdf")
+
+
+def _contact_form_data(form) -> dict:
+    """폼/요청에서 연락처 입력 필드 추출."""
+    d = {}
+    for k in _contacts.FIELD_KEYS:
+        d[k] = (form.get(k) or "").strip()
+    cid = (form.get("customer_id") or "").strip()
+    d["customer_id"] = int(cid) if cid.isdigit() else None
+    d["card_image"] = (form.get("card_image") or "").strip()
+    d["source"] = (form.get("source") or "manual").strip()
+    return d
+
+
+@app.get("/contacts")
+async def contacts_list(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    q = (req.query_params.get("q") or "").strip()
+    with db_session() as c:
+        items = _contacts.list_contacts(c, q)
+    return ctx(req, "contacts_list.html", user=u, contacts=items, q=q,
+               total=len(items))
+
+
+@app.get("/contacts/new")
+async def contacts_new(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+    return ctx(req, "contact_form.html", user=u, contact=None,
+               customers=customers, mode="new")
+
+
+@app.get("/contacts/scan")
+async def contacts_scan(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+    return ctx(req, "contacts_scan.html", user=u, customers=customers,
+               ocr_ready=_biz_doc.has_tesseract(), korean_ready=_biz_doc.has_korean())
+
+
+@app.get("/contacts/from-signature")
+async def contacts_from_signature(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+    return ctx(req, "contacts_signature.html", user=u, customers=customers)
+
+
+@app.get("/contacts/export.csv")
+async def contacts_export_csv(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        data = _contacts.export_csv_bytes(c)
+    from urllib.parse import quote
+    fn = "전사연락처.csv"
+    headers = {
+        "Content-Disposition": f"attachment; filename=contacts.csv; filename*=UTF-8''{quote(fn)}"
+    }
+    return StreamingResponse(io.BytesIO(data),
+                             media_type="text/csv; charset=utf-8-sig",
+                             headers=headers)
+
+
+@app.post("/contacts/parse-card")
+async def contacts_parse_card(req: Request, file: UploadFile = File(...)):
+    """명함 사진/스캔 업로드 → OCR 텍스트 추출 → 필드 자동 채움(JSON).
+    이미지는 uploads/contacts/ 에 저장하고 경로를 반환(저장 시 명함 원본 보존)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    fn = file.filename or "card"
+    ext = os.path.splitext(fn)[1].lower()
+    if ext not in _CARD_EXTS:
+        return JSONResponse({"ok": False,
+            "message": f"지원하지 않는 형식입니다: {ext}\nJPG / PNG / PDF 만 가능합니다."})
+    content = await file.read()
+    # 영구 저장 (명함 원본 보존)
+    import secrets as _sec
+    os.makedirs(_CONTACT_IMG_DIR, exist_ok=True)
+    save_name = f"card_{_sec.token_hex(6)}{ext}"
+    save_path = os.path.join(_CONTACT_IMG_DIR, save_name)
+    with open(save_path, "wb") as wf:
+        wf.write(content)
+    # OCR 텍스트 추출 (biz_doc 재사용 — 로컬, 외부 송신 0건)
+    text, mode = _biz_doc.extract_text(save_path, fn)
+    if mode.startswith("error:"):
+        msg = _biz_doc._friendly_error(mode[6:])
+        # 텍스트 추출 실패해도 이미지는 저장됨 → 직접 입력으로 진행 가능
+        return JSONResponse({"ok": False, "message": msg,
+                             "card_image": f"/uploads/contacts/{save_name}",
+                             "fields": _contacts._empty_fields()})
+    fields = _contacts.parse_card_text(text)
+    found = sum(1 for v in fields.values() if v)
+    return JSONResponse({
+        "ok": found > 0,
+        "fields": fields,
+        "found_count": found,
+        "card_image": f"/uploads/contacts/{save_name}",
+        "message": (f"{found}개 항목을 인식했습니다. 내용을 확인하고 저장하세요."
+                    if found else "글자는 읽었지만 항목을 구분하지 못했습니다. 직접 입력해 주세요."),
+        "raw_excerpt": text[:300],
+    })
+
+
+@app.post("/contacts/parse-signature")
+async def contacts_parse_signature(req: Request):
+    """메일 서명 텍스트 → 필드 자동 분리(JSON)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    text = (form.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"ok": False, "message": "서명 텍스트가 비어있습니다.",
+                             "fields": _contacts._empty_fields()})
+    fields = _contacts.parse_signature(text)
+    found = sum(1 for v in fields.values() if v)
+    return JSONResponse({"ok": found > 0, "fields": fields, "found_count": found,
+        "message": (f"{found}개 항목을 인식했습니다. 내용을 확인하고 저장하세요."
+                    if found else "항목을 구분하지 못했습니다. 직접 입력해 주세요.")})
+
+
+@app.post("/contacts/check-dup")
+async def contacts_check_dup(req: Request):
+    """등록 전 중복 감지 — 같은 휴대폰/이메일/전화 기존 연락처 반환(JSON)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    exclude = (form.get("exclude_id") or "").strip()
+    with db_session() as c:
+        dups = _contacts.find_duplicates(
+            c,
+            mobile=(form.get("mobile") or ""),
+            email=(form.get("email") or ""),
+            phone=(form.get("phone") or ""),
+            exclude_id=int(exclude) if exclude.isdigit() else 0,
+        )
+    return JSONResponse({"ok": True, "duplicates": [
+        {"id": d["id"], "name": d["name"], "company": d.get("company") or "",
+         "mobile": d.get("mobile") or "", "email": d.get("email") or ""}
+        for d in dups]})
+
+
+@app.post("/contacts")
+async def contacts_create(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    data = _contact_form_data(form)
+    if not data["name"]:
+        return JSONResponse({"ok": False, "message": "이름은 필수입니다."}, 400)
+    with db_session() as c:
+        new_id = _contacts.create_contact(c, data, u["id"])
+    return RedirectResponse(f"/contacts/{new_id}", 303)
+
+
+@app.get("/contacts/{cid:int}")
+async def contacts_detail(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+    if not contact:
+        return RedirectResponse("/contacts", 303)
+    return ctx(req, "contact_detail.html", user=u, contact=contact,
+               can_edit=_contacts.can_edit(contact, u))
+
+
+@app.get("/contacts/{cid:int}/edit")
+async def contacts_edit(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+        if not contact:
+            return RedirectResponse("/contacts", 303)
+        if not _contacts.can_edit(contact, u):
+            return ctx(req, "contact_detail.html", user=u, contact=contact,
+                       can_edit=False, perm_error="수정 권한이 없습니다 (등록 본인·관리자만 가능).")
+        customers = [dict(r) for r in c.execute(
+            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+    return ctx(req, "contact_form.html", user=u, contact=contact,
+               customers=customers, mode="edit")
+
+
+@app.post("/contacts/{cid:int}")
+async def contacts_update(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+        if not contact:
+            return RedirectResponse("/contacts", 303)
+        if not _contacts.can_edit(contact, u):
+            return JSONResponse({"ok": False, "message": "수정 권한이 없습니다."}, 403)
+        data = _contact_form_data(form)
+        if not data["name"]:
+            return JSONResponse({"ok": False, "message": "이름은 필수입니다."}, 400)
+        _contacts.update_contact(c, cid, data, u["id"])
+    return RedirectResponse(f"/contacts/{cid}", 303)
+
+
+@app.post("/contacts/{cid:int}/delete")
+async def contacts_delete(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+        if not contact:
+            return JSONResponse({"ok": False, "message": "이미 삭제된 연락처입니다."}, 404)
+        if not _contacts.can_edit(contact, u):
+            return JSONResponse({"ok": False,
+                "message": "삭제 권한이 없습니다 (등록 본인·관리자만 가능)."}, 403)
+        _contacts.delete_contact(c, cid)
+    return JSONResponse({"ok": True})
 
 
 def _customer_contacts_from_form(form) -> list[dict]:
