@@ -2093,23 +2093,27 @@ def init_db():
             pass
         # 시드: app_settings 기본값 (전자결재·메일 외부 연동)
         try:
+            # v5H226z114 (2026-05-31): 익명화 후속 4건 완전 종료 — hiworks_* → groupware_*
+            # - 하드코딩 URL 기본값 제거 (admin 페이지에서 입력 강제)
+            # - notify_channel 옵션값 "hiworks" → "groupware" (구값은 코드에서 자동 호환)
             for k, v, desc in [
-                # 외부 링크 (사이드바)
-                ("hiworks_approval_url", "https://office.hiworks.com/", "전자결재 URL (사이드바 외부 링크)"),
-                ("hiworks_mail_url",     "https://mail.hiworks.com/",   "메일 URL (사이드바 외부 링크)"),
-                ("hiworks_domain",       "",                              "회사 그룹웨어 도메인 (예: knk.co.kr)"),
-                # 사이클 79 (DEC-2): 인사총무 그룹웨어 연동 카드 — 외부 자산 0건, 외부 링크만
-                ("hiworks_main_url",        "https://office.hiworks.com/",   "그룹웨어 메인 (인사총무 카드 — 외부 링크)"),
-                ("hiworks_attendance_url",  "",                              "출퇴근/근태 URL (외부 링크)"),
-                ("hiworks_leave_url",       "",                              "휴가 신청 URL (외부 링크)"),
-                ("hiworks_payroll_url",     "",                              "급여 명세서 URL (외부 링크)"),
-                ("hiworks_profile_url",     "",                              "인사 정보 URL (외부 링크)"),
-                # 그룹웨어 API 토큰 (오피스 관리 > 환경설정 > API 관리에서 발급)
-                ("hiworks_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용"),
-                ("hiworks_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
-                ("hiworks_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
+                # 외부 링크 (사이드바) — admin/groupware-settings 에서 입력
+                ("groupware_approval_url", "", "전자결재 URL (사이드바 외부 링크)"),
+                ("groupware_mail_url",     "", "메일 URL (사이드바 외부 링크)"),
+                ("groupware_domain",       "", "회사 그룹웨어 도메인 (예: knk.co.kr)"),
+                # 인사총무 외부 그룹웨어 연동 카드 — 외부 자산 0건, 외부 링크만
+                ("groupware_main_url",        "", "그룹웨어 메인 (인사총무 카드 — 외부 링크)"),
+                ("groupware_attendance_url",  "", "출퇴근/근태 URL (외부 링크)"),
+                ("groupware_leave_url",       "", "휴가 신청 URL (외부 링크)"),
+                ("groupware_payroll_url",     "", "급여 명세서 URL (외부 링크)"),
+                ("groupware_profile_url",     "", "인사 정보 URL (외부 링크)"),
+                # 그룹웨어 API 토큰 (관리자 페이지 > 환경설정 > API 관리에서 발급)
+                ("groupware_messenger_token", "", "메신저 알림 API 토큰 — 변경/이슈 푸시용"),
+                ("groupware_hr_token",        "", "인사관리 API 토큰 — 근태/조직 조회용 (선택)"),
+                ("groupware_approval_token",  "", "전자결재 API 토큰 — 자동 기안용 (Phase 2, 선택)"),
+                ("groupware_api_base",        "", "외부 그룹웨어 API base URL (예: https://api.your-groupware.com)"),
                 # 알림 채널 마스터 스위치
-                ("notify_channel",       "off",     "알림 채널: off (기본 — 토큰 미설정 시 안전) / hiworks (메신저) / smtp (메일)"),
+                ("notify_channel",       "off",     "알림 채널: off (기본 — 토큰 미설정 시 안전) / groupware (메신저) / smtp (메일)"),
             ]:
                 c.execute("INSERT OR IGNORE INTO app_settings(key, value, description) VALUES(?,?,?)", (k, v, desc))
             # 2026-04-22 대표 결재(D01-06): 외부 웹훅 연동 폐기 — 레거시 키 정리
@@ -8064,14 +8068,16 @@ def health_check() -> list[dict]:
                        "level": "data"})
 
     # 5. 알림 채널 마스터 스위치
+    # v5H226z114 (2026-05-31): groupware_* 우선, hiworks_* fallback
     notify_ch = get_setting("notify_channel", "off")
-    msg_token = get_setting("hiworks_messenger_token", "")
+    msg_token = (get_setting("groupware_messenger_token", "") or
+                 get_setting("hiworks_messenger_token", ""))
     if notify_ch == "off":
         checks.append({"name": "외부 푸시 알림",
                        "status": "info",
                        "detail": "OFF — 사이트 내 알림 / 게시판은 정상. 외부 메신저 푸시 없음.",
                        "level": "external"})
-    elif notify_ch == "hiworks":
+    elif notify_ch in ("groupware", "hiworks"):  # 구 채널명 호환
         if msg_token:
             checks.append({"name": "외부 푸시 알림 (그룹웨어)",
                            "status": "warn",
@@ -8088,10 +8094,10 @@ def health_check() -> list[dict]:
                        "detail": "SMTP 채널은 미구현 (Phase 2). 콘솔 로그만 발생.",
                        "level": "external"})
 
-    # 6. 외부 그룹웨어 링크
-    apv_url = get_setting("hiworks_approval_url", "")
-    mail_url = get_setting("hiworks_mail_url", "")
-    domain = get_setting("hiworks_domain", "")
+    # 6. 외부 그룹웨어 링크 — groupware_* 우선, hiworks_* fallback
+    apv_url  = (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", ""))
+    mail_url = (get_setting("groupware_mail_url",     "") or get_setting("hiworks_mail_url",     ""))
+    domain   = (get_setting("groupware_domain",       "") or get_setting("hiworks_domain",       ""))
     if not domain:
         checks.append({"name": "외부 그룹웨어 링크",
                        "status": "warn",

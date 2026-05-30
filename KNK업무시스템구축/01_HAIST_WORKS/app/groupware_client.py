@@ -13,13 +13,13 @@
 - 토큰 미입력 시 silent skip (개발/대기 상태에서 알림 폭주 방지)
 
 토큰 발급 안내 (사용자 작업):
-1. 외부 그룹웨어 오피스 로그인 (관리자 권한)
-2. 오피스 홈 → 오피스 관리 → 환경 설정 → API 관리
+1. 외부 그룹웨어 관리자 페이지 로그인 (관리자 권한)
+2. 환경 설정 → API 관리
 3. 필요 API별 토큰 생성:
-   - hiworks_messenger_token (메신저 알림)
-   - hiworks_hr_token (인사관리)
-   - hiworks_approval_token (전자결재)
-4. /admin/settings 페이지에 입력
+   - groupware_messenger_token (메신저 알림)
+   - groupware_hr_token (인사관리)
+   - groupware_approval_token (전자결재)
+4. /admin/groupware-settings 페이지에 입력
 """
 from __future__ import annotations
 import json
