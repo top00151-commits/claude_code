@@ -1,0 +1,56 @@
+[
+  [
+    "S3",
+    "전체",
+    "title_brand_inconsistent",
+    "제목 'KNK' 7건 vs 'HAIST WORKS' 15건 — 브랜드 일관성 결함"
+  ],
+  [
+    "S3",
+    "/changes/new",
+    "placeholder_too_long",
+    "placeholder ≥25자 3건 (디자인 원칙 §1-7 위반)"
+  ],
+  [
+    "S3",
+    "/tickets/new",
+    "placeholder_too_long",
+    "placeholder ≥25자 3건 (디자인 원칙 §1-7 위반)"
+  ],
+  [
+    "S3",
+    "/suppliers/new",
+    "placeholder_too_long",
+    "placeholder ≥25자 1건 (디자인 원칙 §1-7 위반)"
+  ],
+  [
+    "S2",
+    "/dashboard",
+    "no_flash_banner_for_leader",
+    "leader 가 /dashboard 차단 시 안내 배너 부재 (OPS-012 5차 누적)"
+  ],
+  [
+    "S2",
+    "/api/task",
+    "input_validation_빈 제목",
+    "빈 제목 입력이 200 저장됨 (서버 검증 부재 — OPS-002 회귀)"
+  ],
+  [
+    "S2",
+    "/api/task",
+    "input_validation_음수 시간",
+    "음수 시간 입력이 200 저장됨 (서버 검증 부재 — OPS-002 회귀)"
+  ],
+  [
+    "S2",
+    "/api/task",
+    "input_validation_40시간/일",
+    "40시간/일 입력이 200 저장됨 (서버 검증 부재 — OPS-002 회귀)"
+  ],
+  [
+    "S2",
+    "/api/task",
+    "input_validation_잘못된 카테고리",
+    "잘못된 카테고리 입력이 200 저장됨 (서버 검증 부재 — OPS-002 회귀)"
+  ]
+]

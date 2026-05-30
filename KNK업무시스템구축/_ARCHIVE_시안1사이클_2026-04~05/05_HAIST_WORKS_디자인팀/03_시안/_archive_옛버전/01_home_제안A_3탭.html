@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 — 상표권·라이선스 준수 선언
+  · 외부 폰트 CDN 호출: 없음 (시스템 폴백만)
+  · 외부 아이콘 팩: 없음 (Lucide inline SVG path, ISC 라이선스)
+  · 외부 이미지·일러스트: 없음
+  · 타사 브랜드명 언급: 없음
+  · 상위 정책: 04_라이선스_상표권_정책.md
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈 제안 A (3탭) · HAIST WORKS — 05 디자인팀 시안</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+/* =========================================================
+   Layout: 상단 헤더 + 메인
+   ========================================================= */
+.topbar {
+  height: 56px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--ink-200);
+  display: flex; align-items: center;
+  padding: 0 var(--s-5);
+  gap: var(--s-4);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-weight: var(--fw-bold); font-size: var(--fs-lg);
+  color: var(--knk-red);
+}
+.brand-badge {
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  background: var(--knk-red-bg); color: var(--knk-red);
+  padding: 2px 6px; border-radius: var(--r-pill);
+}
+.spacer { flex: 1; }
+.tb-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--r-md);
+  color: var(--ink-500);
+}
+.tb-icon-btn:hover { background: var(--ink-100); color: var(--ink-900); }
+.tb-user {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-2) var(--s-3); border-radius: var(--r-md);
+}
+.tb-user:hover { background: var(--ink-100); }
+.tb-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--primary-grad); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: var(--fw-bold); font-size: var(--fs-sm);
+}
+.tb-user-name { font-weight: var(--fw-semi); font-size: var(--fs-sm); }
+.tb-user-role { font-size: var(--fs-xs); color: var(--ink-500); }
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-5) var(--s-12);
+}
+
+/* =========================================================
+   Page head (환영 + 날짜 네비) — 한 화면에 1개 page title만
+   ========================================================= */
+.page-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-5);
+}
+.page-title h1 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+.page-sub {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin-top: 4px;
+  font-size: var(--fs-sm); color: var(--ink-500);
+}
+.date-nav {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: var(--r-sm);
+  color: var(--ink-500);
+}
+.date-nav:hover { background: var(--ink-100); color: var(--ink-900); }
+.today-pill {
+  font-size: var(--fs-xs); color: var(--knk-red);
+  background: var(--knk-red-bg);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  font-weight: var(--fw-semi);
+}
+
+.btn-primary {
+  background: var(--primary-grad); color: #fff;
+  padding: 10px 18px; border-radius: var(--r-md);
+  font-weight: var(--fw-bold); font-size: var(--fs-sm);
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  box-shadow: 0 2px 8px rgba(165,40,44,0.2);
+}
+.btn-primary:hover { opacity: 0.95; }
+
+/* =========================================================
+   Tabs — "내 업무 / 우리 팀 / 전사"
+   ========================================================= */
+.tabs {
+  display: flex; gap: var(--s-2);
+  background: var(--bg-card);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: var(--s-1);
+  margin-bottom: var(--s-6);
+  width: fit-content;
+}
+.tab {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  padding: 8px 18px; border-radius: 8px;
+  font-weight: var(--fw-semi); font-size: var(--fs-sm);
+  color: var(--ink-500);
+  transition: all .15s;
+}
+.tab:hover { color: var(--ink-900); background: var(--ink-100); }
+.tab.on {
+  background: var(--ink-900); color: #fff;
+}
+.tab-count {
+  font-size: var(--fs-xs);
+  background: var(--ink-200);
+  color: var(--ink-700);
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-bold);
+}
+.tab.on .tab-count {
+  background: rgba(255,255,255,.2);
+  color: #fff;
+}
+
+.tab-panel { display: none; }
+.tab-panel.on { display: block; }
+
+/* =========================================================
+   Quick Add (7자 placeholder)
+   ========================================================= */
+.quick {
+  display: flex; align-items: center; gap: var(--s-3);
+  background: var(--bg-card);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-6);
+}
+.quick-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--knk-red-bg); color: var(--knk-red);
+}
+.quick-in {
+  flex: 1;
+  border: none; outline: none;
+  font-size: var(--fs-md);
+  background: transparent;
+}
+.quick-hint {
+  font-size: var(--fs-xs); color: var(--ink-400);
+  margin-top: 4px;
+}
+
+/* =========================================================
+   KPI Grid — single grid, 4 cards, NO spark bars, neutral icons
+   ========================================================= */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+.kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: var(--s-5);
+  display: flex; flex-direction: column;
+  transition: all .15s;
+}
+.kpi:hover { border-color: var(--ink-300); box-shadow: var(--shadow-2); transform: translateY(-1px); }
+.kpi-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: var(--s-3);
+}
+.kpi-lab {
+  font-size: var(--fs-xs);
+  color: var(--ink-500);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.kpi-ico {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--ink-100); color: var(--ink-700);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kpi-val {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  color: var(--ink-900);
+}
+.kpi-val .unit { font-size: var(--fs-lg); color: var(--ink-500); margin-left: 3px; }
+.kpi-delta {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--ink-500);
+  display: flex; align-items: center; gap: var(--s-1);
+}
+.kpi-delta.down { color: var(--st-delay); }
+.kpi-delta.up { color: var(--st-done); }
+
+/* Highlight the primary KPI (한 화면 강조 1개) */
+.kpi.primary {
+  background: linear-gradient(145deg, #fff 0%, #FFEBEE 100%);
+  border-color: #FCA5A5;
+}
+.kpi.primary .kpi-ico {
+  background: var(--knk-red-bg); color: var(--knk-red);
+}
+
+/* =========================================================
+   Carry banner
+   ========================================================= */
+.carry {
+  display: flex; align-items: center; gap: var(--s-3);
+  background: #FFF8E1;
+  border: 1px solid #FDE68A;
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-6);
+  font-size: var(--fs-sm); color: #92400E;
+}
+.carry b { color: #78350F; }
+.carry-btn {
+  margin-left: auto;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  background: #FDE68A; color: #78350F;
+  padding: 6px 12px; border-radius: var(--r-sm);
+}
+.carry-btn:hover { background: #FCD34D; }
+
+/* =========================================================
+   Task card list — status segment buttons (4-way)
+   ========================================================= */
+.section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-4);
+}
+.section-title h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+.section-count {
+  font-size: var(--fs-sm);
+  color: var(--ink-500);
+  background: var(--ink-100);
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-semi);
+}
+
+.task-list { display: flex; flex-direction: column; gap: var(--s-3); }
+.task {
+  background: var(--bg-card);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--s-4);
+  align-items: center;
+}
+.task-title {
+  font-weight: var(--fw-semi);
+  font-size: var(--fs-md);
+  margin-bottom: var(--s-1);
+}
+.task-meta {
+  display: flex; gap: var(--s-2); flex-wrap: wrap;
+  font-size: var(--fs-xs); color: var(--ink-500);
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--ink-100); color: var(--ink-700);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  font-size: var(--fs-xs); font-weight: var(--fw-semi);
+}
+.task-expand {
+  width: 28px; height: 28px; border-radius: var(--r-sm);
+  color: var(--ink-400);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.task-expand:hover { background: var(--ink-100); color: var(--ink-700); }
+
+/* Status segment — 4 buttons, 1-click direct assignment */
+.status-seg {
+  display: inline-flex;
+  background: var(--ink-100);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.status-seg button {
+  padding: 5px 10px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: var(--ink-500);
+  border-radius: 4px;
+  transition: all .12s;
+}
+.status-seg button:hover { background: #fff; color: var(--ink-900); }
+.status-seg button.on-progress { background: var(--st-progress); color: #fff; }
+.status-seg button.on-done     { background: var(--st-done); color: #fff; }
+.status-seg button.on-delay    { background: var(--st-delay); color: #fff; }
+.status-seg button.on-wait     { background: var(--st-wait); color: #fff; }
+
+/* =========================================================
+   Empty states for hidden tabs
+   ========================================================= */
+.placeholder-tab {
+  text-align: center;
+  padding: var(--s-12) var(--s-5);
+  color: var(--ink-500);
+}
+.placeholder-tab .emoji { font-size: 48px; display: block; margin-bottom: var(--s-4); }
+.placeholder-tab h3 { margin: 0 0 var(--s-2); font-size: var(--fs-lg); color: var(--ink-700); }
+.placeholder-tab p { margin: 0; font-size: var(--fs-sm); }
+
+/* Annotation (design notes overlay, visible only in prototype) */
+.note-panel {
+  position: fixed;
+  bottom: var(--s-4); right: var(--s-4);
+  max-width: 360px;
+  background: var(--ink-900);
+  color: #fff;
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  z-index: 100;
+}
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-panel li { margin-bottom: 4px; }
+.note-close {
+  position: absolute; top: 6px; right: 8px;
+  color: #fff; font-size: 18px; line-height: 1;
+  opacity: 0.5;
+}
+.note-close:hover { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ========================================================
+     Topbar
+     ======================================================== -->
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안</span>
+  </div>
+  <div class="spacer"></div>
+  <button class="tb-icon-btn" title="알림">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+  </button>
+  <a href="#" class="tb-user">
+    <div class="tb-avatar">엄</div>
+    <div>
+      <div class="tb-user-name">엄주영</div>
+      <div class="tb-user-role">관리팀 · 사원</div>
+    </div>
+  </a>
+</header>
+
+<!-- ========================================================
+     Page
+     ======================================================== -->
+<div class="page">
+
+  <!-- Page Head -->
+  <div class="page-head">
+    <div class="page-title">
+      <h1>안녕하세요, 엄주영 사원 👋</h1>
+      <div class="page-sub">
+        <a href="#" class="date-nav">‹</a>
+        <span>2026-04-21 (화)</span>
+        <a href="#" class="date-nav">›</a>
+      </div>
+    </div>
+    <button class="btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      새 업무 등록
+    </button>
+  </div>
+
+  <!-- Tabs (핵심 개선) -->
+  <div class="tabs" role="tablist">
+    <button class="tab on" data-tab="my" role="tab" aria-selected="true">
+      내 업무 <span class="tab-count">5</span>
+    </button>
+    <button class="tab" data-tab="team" role="tab" aria-selected="false">
+      우리 팀
+    </button>
+    <button class="tab" data-tab="all" role="tab" aria-selected="false">
+      전사
+    </button>
+  </div>
+
+  <!-- ==================== Tab: 내 업무 ==================== -->
+  <div class="tab-panel on" data-panel="my">
+
+    <!-- Quick Add (placeholder 7자 이내) -->
+    <div class="quick">
+      <div class="quick-ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div style="flex:1;">
+        <input class="quick-in" type="text" placeholder="업무 제목">
+        <div class="quick-hint">입력 후 Enter ↵ · 프로젝트·공수는 저장 후 설정</div>
+      </div>
+      <button class="btn-primary">등록</button>
+    </div>
+
+    <!-- KPI Grid: 한 화면 1개 그리드, 스파크바 없음, 중립 아이콘 -->
+    <div class="kpi-grid">
+      <a href="#" class="kpi primary">
+        <div class="kpi-top">
+          <span class="kpi-lab">내 업무</span>
+          <span class="kpi-ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </span>
+        </div>
+        <div class="kpi-val">5</div>
+        <div class="kpi-delta">전체 카드</div>
+      </a>
+      <a href="#" class="kpi">
+        <div class="kpi-top">
+          <span class="kpi-lab">완료율</span>
+          <span class="kpi-ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </span>
+        </div>
+        <div class="kpi-val">40<span class="unit">%</span></div>
+        <div class="kpi-delta up">2 / 5 완료</div>
+      </a>
+      <a href="#" class="kpi">
+        <div class="kpi-top">
+          <span class="kpi-lab">누적 공수</span>
+          <span class="kpi-ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+        </div>
+        <div class="kpi-val">6.5<span class="unit">h</span></div>
+        <div class="kpi-delta">3 진행중</div>
+      </a>
+      <a href="#" class="kpi">
+        <div class="kpi-top">
+          <span class="kpi-lab">지연 카드</span>
+          <span class="kpi-ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+        </div>
+        <div class="kpi-val">0</div>
+        <div class="kpi-delta up">지연 없음</div>
+      </a>
+    </div>
+
+    <!-- Carry Banner (only when has pending) -->
+    <div class="carry">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><polyline points="14 21 17 18 20 21"/><line x1="17" y1="14" x2="17" y2="21"/></svg>
+      <span>어제 미완료 업무 <b>2건</b></span>
+      <button class="carry-btn">전부 오늘로 이월</button>
+    </div>
+
+    <!-- My Task List -->
+    <div class="section-title">
+      <h2>나의 업무</h2>
+      <span class="section-count">5건</span>
+    </div>
+
+    <div class="task-list">
+
+      <div class="task">
+        <div class="status-seg" role="group" aria-label="상태">
+          <button class="on-progress">진행중</button>
+          <button>완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div>
+          <div class="task-title">전사 공지: 5월 워크숍 참석 확인 메일 취합</div>
+          <div class="task-meta">
+            <span class="chip">📋 2026 상반기 운영</span>
+            <span class="chip">⏱ 1.5h</span>
+            <span class="chip">💬 2</span>
+          </div>
+        </div>
+        <button class="task-expand" title="상세">⋯</button>
+      </div>
+
+      <div class="task">
+        <div class="status-seg">
+          <button class="on-progress">진행중</button>
+          <button>완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div>
+          <div class="task-title">HAIST WORKS 로그인 테스트 피드백 정리</div>
+          <div class="task-meta">
+            <span class="chip">📋 HAIST WORKS 구축</span>
+            <span class="chip">⏱ 1.0h</span>
+          </div>
+        </div>
+        <button class="task-expand">⋯</button>
+      </div>
+
+      <div class="task">
+        <div class="status-seg">
+          <button>진행중</button>
+          <button class="on-done">완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div>
+          <div class="task-title">4월 4주차 관리팀 주간보고 초안</div>
+          <div class="task-meta">
+            <span class="tag tag-done">완료</span>
+            <span class="chip">⏱ 2.0h</span>
+            <span class="chip">💬 1</span>
+          </div>
+        </div>
+        <button class="task-expand">⋯</button>
+      </div>
+
+      <div class="task">
+        <div class="status-seg">
+          <button>진행중</button>
+          <button class="on-done">완료</button>
+          <button>지연</button>
+          <button>대기</button>
+        </div>
+        <div>
+          <div class="task-title">비품 재고 엑셀 업데이트</div>
+          <div class="task-meta">
+            <span class="tag tag-done">완료</span>
+            <span class="chip">⏱ 1.0h</span>
+          </div>
+        </div>
+        <button class="task-expand">⋯</button>
+      </div>
+
+      <div class="task">
+        <div class="status-seg">
+          <button>진행중</button>
+          <button>완료</button>
+          <button>지연</button>
+          <button class="on-wait">대기</button>
+        </div>
+        <div>
+          <div class="task-title">신입 OT 자료 검토 요청 대기</div>
+          <div class="task-meta">
+            <span class="tag tag-wait">대기</span>
+            <span class="chip">⏱ 1.0h</span>
+          </div>
+        </div>
+        <button class="task-expand">⋯</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== Tab: 우리 팀 ==================== -->
+  <div class="tab-panel" data-panel="team">
+    <div class="placeholder-tab">
+      <span class="emoji">👥</span>
+      <h3>우리 팀</h3>
+      <p>팀장 이상 접근 가능. 팀별 작성률·실시간 피드·팀원 카드가 여기로 이동합니다.</p>
+      <p style="margin-top:var(--s-3);font-size:var(--fs-xs);color:var(--ink-400);">(시안에서는 placeholder. 실제 구현 시 기존 home.html 섹션 6~7의 컴포넌트가 여기로 이전됨)</p>
+    </div>
+  </div>
+
+  <!-- ==================== Tab: 전사 ==================== -->
+  <div class="tab-panel" data-panel="all">
+    <div class="placeholder-tab">
+      <span class="emoji">📊</span>
+      <h3>전사</h3>
+      <p>CEO · 경영진 기본 탭. 주간 트렌드·업무 분포·HAIST 협업 핵심 4지표(진행률/변경/티켓/게시판) 이동.</p>
+      <p style="margin-top:var(--s-3);font-size:var(--fs-xs);color:var(--ink-400);">(시안에서는 placeholder. 실제 구현 시 기존 home.html 섹션 5~6의 KPI와 차트가 여기로 이전됨)</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Design-note overlay (시안 한정, 실제 구현 시 제거) -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 05 디자인팀 주석</h4>
+  <ul>
+    <li><b>탭 3개</b>로 9섹션 한 페이지 → 3탭 분할 (H-1 해결)</li>
+    <li><b>KPI 그리드 1개</b>만 노출 (H-2 해결)</li>
+    <li><b>스파크바 28개 제거</b> — 중립 아이콘만 (H-3 해결)</li>
+    <li><b>상태 세그먼트 4버튼</b> (cycle 대체, H-4 해결)</li>
+    <li><b>placeholder "업무 제목"</b> 7자 (H-5 해결)</li>
+    <li>강조 CTA 단 1개 (새 업무 등록)</li>
+    <li>외부 폰트·CDN 0건 (대표 승인 불필요)</li>
+  </ul>
+</div>
+
+<script>
+/* Tab switching */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(b => {
+      b.classList.toggle('on', b === btn);
+      b.setAttribute('aria-selected', b === btn);
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.toggle('on', p.dataset.panel === key);
+    });
+  });
+});
+
+/* Status segment: 1-click direct set */
+document.querySelectorAll('.status-seg').forEach(seg => {
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const map = {'진행중':'on-progress','완료':'on-done','지연':'on-delay','대기':'on-wait'};
+      seg.querySelectorAll('button').forEach(b => {
+        b.className = '';
+      });
+      btn.className = map[btn.textContent.trim()] || '';
+    });
+  });
+});
+</script>
+
+</body>
+</html>

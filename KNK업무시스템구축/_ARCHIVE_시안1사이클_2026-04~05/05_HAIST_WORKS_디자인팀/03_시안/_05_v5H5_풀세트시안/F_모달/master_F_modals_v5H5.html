@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>F. 모달 마스터 — 5종 표준 모달 · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+body { background: var(--paper-2); padding: var(--space-7); }
+
+.gallery-head { max-width: 1200px; margin: 0 auto var(--space-6); }
+.gallery-head h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.gallery-head h1 em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.gallery-head p { color: var(--mute); font-size: 14px; }
+
+.gallery {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+
+.modal-spec { background: var(--paper-3); border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--line); }
+.modal-spec-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-4); }
+.modal-spec-head h2 { font-size: 18px; font-weight: 700; }
+.modal-spec-head h2 .num { color: var(--amber-deep); font-family: 'Courier New', monospace; font-size: 14px; margin-right: 8px; }
+.modal-spec-head .meta { font-size: 12px; color: var(--mute); }
+
+/* === 모달 표준 (배경 + 카드) === */
+.modal-stage {
+  background: rgba(45, 37, 32, 0.55);
+  backdrop-filter: blur(2px);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+}
+
+.modal {
+  background: var(--paper-3);
+  border-radius: var(--radius-2xl);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  position: relative;
+}
+.modal--lg { max-width: 640px; }
+.modal--sm { max-width: 380px; }
+
+.modal-head {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.modal-head .ico {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-md);
+  display: grid; place-items: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.modal-head .ico--warn { background: var(--knk-red); color: white; }
+.modal-head .ico--amber { background: var(--amber-glow); color: var(--amber-deep); }
+.modal-head .ico--info { background: var(--paper-2); color: var(--ink); }
+.modal-head .text { flex: 1; }
+.modal-head h3 { font-size: 17px; font-weight: 700; color: var(--ink); }
+.modal-head p { font-size: 13px; color: var(--mute); margin-top: 4px; line-height: 1.55; }
+.modal-head .close { background: transparent; border: 0; font-size: 22px; color: var(--mute); cursor: pointer; padding: 4px 8px; }
+
+.modal-body { padding: var(--space-5) var(--space-6); }
+
+.modal-foot {
+  padding: var(--space-3) var(--space-6) var(--space-5);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--paper-2);
+}
+.btn { font-family: inherit; font-size: 13.5px; font-weight: 700; padding: 10px 18px; border-radius: var(--radius-md); border: 0; cursor: pointer; }
+.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
+.btn-danger { background: var(--knk-red); color: white; }
+.btn-ghost { background: transparent; color: var(--mute); }
+.btn-ghost:hover { color: var(--ink); }
+.btn-secondary { background: var(--paper-3); border: 1px solid var(--line); color: var(--ink); }
+
+/* === 모달 1: 안전재고 confirm === */
+.safety-warn {
+  background: linear-gradient(135deg, rgba(165,40,44,0.08) 0%, rgba(212,146,59,0.08) 100%);
+  border: 1px solid rgba(165,40,44,0.2);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.safety-warn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+.safety-warn-row .lbl { color: var(--mute); }
+.safety-warn-row .val { font-weight: 700; color: var(--ink); }
+.safety-warn-row.alert .val { color: var(--knk-red); font-size: 16px; }
+
+/* === 모달 2: 부적합 disposition === */
+.disp-options { display: grid; gap: 10px; }
+.disp-option {
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--t-base);
+}
+.disp-option:hover { background: var(--amber-glow); border-color: var(--amber); }
+.disp-option.selected { background: var(--amber-glow); border-color: var(--amber); }
+.disp-option .ttl { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.disp-option .desc { font-size: 12px; color: var(--mute); margin-top: 4px; line-height: 1.5; }
+
+/* === 모달 3: 라인 추가 === */
+.line-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--space-3); }
+.line-form .field { display: flex; flex-direction: column; gap: 4px; }
+.line-form label { font-size: 11px; color: var(--mute); font-weight: 600; }
+.line-form input, .line-form select { padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 13px; font-family: inherit; background: var(--paper); color: var(--ink); }
+.line-form .full { grid-column: span 3; }
+
+/* === 모달 4: 거래처 신규 === */
+.quick-form { display: grid; gap: var(--space-3); }
+.quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.quick-form label { font-size: 11px; color: var(--mute); font-weight: 600; margin-bottom: 4px; display: block; }
+.quick-form input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 13px; font-family: inherit; background: var(--paper); color: var(--ink); }
+.quick-form input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+
+/* === 모달 5: 발행 확인 === */
+.confirm-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--space-3);
+  background: var(--paper-2);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+}
+.confirm-check .ico { font-size: 18px; color: var(--success); }
+.confirm-check .text { flex: 1; font-size: 13px; line-height: 1.5; }
+.confirm-check .text b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="gallery-head">
+  <h1>F. <em>모달 5종</em> 표준 — v5 H5</h1>
+  <p>현재 시스템 미흡 영역 보완. 01팀이 본 마스터를 그대로 컴포넌트화하면 5종 모두 일관성 보장.</p>
+</div>
+
+<div class="gallery">
+
+  <!-- 모달 1: 안전재고 confirm -->
+  <div class="modal-spec">
+    <div class="modal-spec-head">
+      <h2><span class="num">F-01</span> 안전재고 미만 출고 확인</h2>
+      <div class="meta">트리거: <code>/stock/issue</code> · <code>confirm()</code> 대체</div>
+    </div>
+    <div class="modal-stage">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="ico ico--warn">⚠</div>
+          <div class="text">
+            <h3>안전재고 미만 출고</h3>
+            <p>출고 후 재고가 안전재고 임계치 미만으로 떨어집니다. 그래도 진행하시겠습니까?</p>
+          </div>
+          <button class="close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="safety-warn">
+            <div class="safety-warn-row"><span class="lbl">자재</span><span class="val">컨베이어 모터 1.5kW (MTR-CV-15)</span></div>
+            <div class="safety-warn-row"><span class="lbl">현재 재고</span><span class="val">5 EA</span></div>
+            <div class="safety-warn-row"><span class="lbl">출고 수량</span><span class="val">3 EA</span></div>
+            <div class="safety-warn-row"><span class="lbl">출고 후 재고</span><span class="val">2 EA</span></div>
+            <div class="safety-warn-row alert"><span class="lbl">안전재고 임계치</span><span class="val">⚠ 5 EA</span></div>
+          </div>
+          <div style="font-size: 12.5px; color: var(--mute); line-height: 1.6;">
+            💡 <b style="color: var(--knk-red);">빅터 추천</b>: 대원전기 신규 발주(D-9 입고 예정)와 함께 진행 권장.
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost">취소</button>
+          <button class="btn btn-secondary">📦 발주 먼저 하기</button>
+          <button class="btn btn-danger">⚠ 그래도 출고</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모달 2: 부적합 disposition -->
+  <div class="modal-spec">
+    <div class="modal-spec-head">
+      <h2><span class="num">F-02</span> 부적합 자재 처분 (Disposition)</h2>
+      <div class="meta">트리거: <code>/stock/qc/{id}</code> NG 결과 시</div>
+    </div>
+    <div class="modal-stage">
+      <div class="modal modal--lg">
+        <div class="modal-head">
+          <div class="ico ico--amber">🔍</div>
+          <div class="text">
+            <h3>부적합 자재 처분 결정</h3>
+            <p>베어링 6204 ZZ × 5 EA 가 검수 부적합 처리되었습니다. 처분 방안을 선택해주세요.</p>
+          </div>
+          <button class="close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="disp-options">
+            <div class="disp-option selected">
+              <div class="ttl">📤 거래처 반품 (RTV)</div>
+              <div class="desc">대원전기로 반품 후 신규 입고. 운송비는 거래처 부담. 대체 입고 약 5일 소요.</div>
+            </div>
+            <div class="disp-option">
+              <div class="ttl">🔧 재작업 (Rework)</div>
+              <div class="desc">사내 재작업 후 재검수. 추가 비용 약 ₩50,000. 24h 소요.</div>
+            </div>
+            <div class="disp-option">
+              <div class="ttl">🟡 양보승인 (Use-as-is)</div>
+              <div class="desc">규격 미달이지만 사용 가능 — 품질팀·생산팀 동시 승인 필요.</div>
+            </div>
+            <div class="disp-option">
+              <div class="ttl">🗑 폐기 (Scrap)</div>
+              <div class="desc">사용 불가. 폐기 처리 후 거래처에 비용 청구.</div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-4);">
+            <label style="font-size: 11px; color: var(--mute); font-weight: 600; display: block; margin-bottom: 4px;">처분 사유 (필수)</label>
+            <textarea style="width:100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 13px; font-family: inherit; background: var(--paper); color: var(--ink); min-height: 60px;" placeholder="검수 결과·사진 첨부 후 사유 기재…">치수 공차 +0.05mm 초과 (규격 ±0.02mm). 사진 5매 첨부됨.</textarea>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost">취소</button>
+          <button class="btn btn-primary">처분 확정 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모달 3: 라인 추가 -->
+  <div class="modal-spec">
+    <div class="modal-spec-head">
+      <h2><span class="num">F-03</span> 견적·발주 라인 추가</h2>
+      <div class="meta">트리거: 견적·발주 폼의 "+ 새 품목 추가" 버튼</div>
+    </div>
+    <div class="modal-stage">
+      <div class="modal modal--lg">
+        <div class="modal-head">
+          <div class="ico ico--amber">＋</div>
+          <div class="text">
+            <h3>품목 추가</h3>
+            <p>자재 마스터에서 검색하거나 신규 입력하세요.</p>
+          </div>
+          <button class="close">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: var(--space-4);">
+            <input style="width:100%; padding: 12px 16px; border: 2px solid var(--amber); border-radius: var(--radius-md); font-size: 14px; font-family: inherit; background: var(--paper); color: var(--ink); box-shadow: 0 0 0 3px var(--amber-glow);" placeholder="🔍 자재명·코드 검색 (예: 컨베이어 모터)" value="컨베이어 모터" />
+          </div>
+          <div class="line-form">
+            <div class="field">
+              <label>자재 (자동완성)</label>
+              <select>
+                <option>MTR-CV-15 · 컨베이어 모터 1.5kW</option>
+                <option>MTR-CV-22 · 컨베이어 모터 2.2kW</option>
+                <option>+ 신규 자재 등록</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>수량</label>
+              <input type="number" value="10" />
+            </div>
+            <div class="field">
+              <label>단가 (자동)</label>
+              <input type="text" value="482,000" readonly style="background: var(--paper-2); color: var(--mute);" />
+            </div>
+            <div class="full" style="font-size: 12px; color: var(--mute);">
+              📊 단가: 최근 3개월 평균 (대원전기) · 협상 여지 +5%
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost">취소</button>
+          <button class="btn btn-secondary">+ 추가하고 계속</button>
+          <button class="btn btn-primary">✓ 추가 완료</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모달 4: 거래처 신규 등록 -->
+  <div class="modal-spec">
+    <div class="modal-spec-head">
+      <h2><span class="num">F-04</span> 거래처 신규 빠른 등록</h2>
+      <div class="meta">트리거: 발주·견적 거래처 선택 시 "신규 거래처 등록"</div>
+    </div>
+    <div class="modal-stage">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="ico ico--amber">🏢</div>
+          <div class="text">
+            <h3>거래처 신규 등록</h3>
+            <p>최소 정보만 입력하고 발주를 계속하세요. 상세 정보는 나중에 보완 가능합니다.</p>
+          </div>
+          <button class="close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="quick-form">
+            <div>
+              <label>회사명 *</label>
+              <input placeholder="(주)신규거래처" />
+            </div>
+            <div class="quick-row">
+              <div>
+                <label>사업자등록번호 *</label>
+                <input placeholder="000-00-00000" />
+              </div>
+              <div>
+                <label>대표자명</label>
+                <input placeholder="홍길동" />
+              </div>
+            </div>
+            <div class="quick-row">
+              <div>
+                <label>담당자</label>
+                <input placeholder="이름" />
+              </div>
+              <div>
+                <label>전화</label>
+                <input placeholder="02-0000-0000" />
+              </div>
+            </div>
+            <div>
+              <label>분류</label>
+              <select style="width:100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 13px; font-family: inherit; background: var(--paper); color: var(--ink);">
+                <option>모터·구동부</option>
+                <option>베어링·체결</option>
+                <option>금속·압출재</option>
+                <option>전장·제어</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost">취소</button>
+          <button class="btn btn-primary">등록하고 발주 계속 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모달 5: 발행 확인 -->
+  <div class="modal-spec">
+    <div class="modal-spec-head">
+      <h2><span class="num">F-05</span> 발주·견적 발행 최종 확인</h2>
+      <div class="meta">트리거: 폼 마스터 "발행" 버튼</div>
+    </div>
+    <div class="modal-stage">
+      <div class="modal modal--sm">
+        <div class="modal-head">
+          <div class="ico ico--info">📤</div>
+          <div class="text">
+            <h3>발주서 발행</h3>
+            <p>발행 후 거래처로 자동 발송됩니다.</p>
+          </div>
+          <button class="close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="confirm-check"><div class="ico">✓</div><div class="text">거래처 정보 <b>확인됨</b> (대원전기)</div></div>
+          <div class="confirm-check"><div class="ico">✓</div><div class="text">품목 3종 <b>입력 완료</b></div></div>
+          <div class="confirm-check"><div class="ico">✓</div><div class="text">결제·납기 조건 <b>설정됨</b></div></div>
+          <div class="confirm-check"><div class="ico">✓</div><div class="text">총액 <b>₩6,903,000</b> (부가세 포함)</div></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost">검토 더 하기</button>
+          <button class="btn btn-primary">📤 발행</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

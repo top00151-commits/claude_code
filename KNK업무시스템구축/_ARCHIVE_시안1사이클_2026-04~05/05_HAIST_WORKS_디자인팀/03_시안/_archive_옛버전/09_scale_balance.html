@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시안 #09 — 좌 사이드바 고정 + 메인 유동 타이포 (AS-IS vs TO-BE)</title>
+<style>
+/* ============================================================
+   HAIST WORKS 디자인 원칙 v5 · 제안 #09 (2차 정리)
+   좌 사이드바 = 고정 260px (우측 도크 420px 와 같은 방식)
+   메인 = --fs-fluid-* 유동 타이포
+   드래그·폰트 스케일링 JS 전부 제거
+   ============================================================ */
+
+:root{
+  --r: #A5282C;  --rd:#8B1E22;
+  --t: #1F1F1F;  --g: #6B6B6B;
+  --bg:#FAFAFA;  --bd:#E5E7EB;  --lg:#F5F5F5;
+
+  /* 유동 타이포 (뷰포트 기반 자동 스케일) */
+  --fs-fluid-xs:  clamp(10px, 0.55vw + 7px, 13px);
+  --fs-fluid-sm:  clamp(12px, 0.60vw + 9px, 15px);
+  --fs-fluid-md:  clamp(13px, 0.70vw + 10px, 16px);
+  --fs-fluid-lg:  clamp(15px, 0.85vw + 11px, 19px);
+  --fs-fluid-xl:  clamp(18px, 1.25vw + 13px, 26px);
+  --fs-fluid-2xl: clamp(24px, 2.00vw + 16px, 40px);
+  --fs-fluid-hero:clamp(32px, 4.50vw + 20px, 72px);
+
+  --grad-brand: linear-gradient(135deg,#A5282C 0%,#8B1E22 70%,#5B1014 100%);
+  --ease-out: cubic-bezier(0.33,1,0.68,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard Variable',Pretendard,system-ui,sans-serif;
+  font-size: var(--fs-fluid-md);
+  color:var(--t);background:var(--bg);line-height:1.6;overflow-x:hidden;
+}
+
+.banner{
+  background:#111;color:#fff;padding:10px 18px;display:flex;
+  gap:10px;align-items:center;flex-wrap:wrap;
+  font-size:var(--fs-fluid-sm);position:sticky;top:0;z-index:100;
+}
+.banner h1{font-size:var(--fs-fluid-md);font-weight:700;margin-right:12px}
+.banner .hint{color:#aaa}
+.banner button{
+  background:var(--r);color:#fff;border:0;padding:6px 14px;border-radius:999px;
+  font-size:var(--fs-fluid-sm);font-weight:600;cursor:pointer;
+}
+.banner button.alt{background:#333}
+.banner button:hover{filter:brightness(1.1)}
+.banner .tag{background:#222;color:#fff;padding:2px 10px;border-radius:6px;font-size:var(--fs-fluid-xs)}
+
+.topbar{
+  background:var(--grad-brand);color:#fff;padding:10px 16px;
+  display:flex;align-items:center;gap:14px;
+  box-shadow:0 2px 6px rgba(0,0,0,.1);
+}
+.topbar .logo{font-size:var(--fs-fluid-lg);font-weight:900;letter-spacing:1px}
+.topbar .title{font-size:var(--fs-fluid-lg);font-weight:700;margin-left:auto;opacity:.95}
+.topbar .user{font-size:var(--fs-fluid-sm);opacity:.85}
+
+.layout{display:flex;height:calc(100vh - 44px - 48px);}
+
+/* ====== 좌 사이드바 : 고정 폭, 드래그 없음, 본문과 같은 유동 토큰 ====== */
+.sidebar{
+  position:relative;background:#fff;
+  border-right:1px solid var(--bd);
+  padding:14px 8px;overflow-y:auto;
+  width: 260px;          /* ★ 고정 */
+  flex-shrink: 0;
+  /* ★ 본문과 같은 유동 타이포 스케일 */
+  --sb-font-size: var(--fs-fluid-md);
+  --sb-head-size: var(--fs-fluid-xs);
+}
+/* 반응형 자동 폭 조정 (수동 드래그 X, 미디어쿼리만) */
+@media (max-width:1280px){ .sidebar{ width:240px } }
+@media (max-width:1100px){ .sidebar{ width:220px } }
+@media (max-width:1024px){ .sidebar{ width:200px } }
+
+.sb-section{padding:6px 6px;border-bottom:1px solid #f0f0f0}
+.sb-head{
+  font-size:var(--sb-head-size);
+  font-weight:800;color:var(--g);
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:4px;padding:6px 10px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;
+  font-size:var(--sb-font-size);
+  color:var(--t);text-decoration:none;border-radius:8px;
+  cursor:pointer;transition:background .15s;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sb-item:hover{background:#F5F5F5}
+.sb-item.active{
+  background:linear-gradient(135deg,var(--r),var(--rd));color:#fff;font-weight:700;
+  box-shadow:0 4px 12px rgba(165,40,44,.2);
+}
+.sb-ico{
+  width:calc(var(--sb-font-size) + 4px);
+  height:calc(var(--sb-font-size) + 4px);
+  flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--g);
+}
+.sb-item.active .sb-ico{color:#fff}
+.sb-badge{
+  margin-left:auto;background:#FFE4E6;color:var(--r);
+  padding:2px 8px;border-radius:999px;font-size:var(--fs-fluid-xs);font-weight:700;
+}
+
+/* 메인창 */
+.main{flex:1;overflow-y:auto;padding:20px 24px;min-width:0}
+.page-title h1{font-size:var(--fs-fluid-xl);color:var(--r);font-weight:800;line-height:1.2}
+.page-sub{font-size:var(--fs-fluid-sm);color:var(--g);margin-top:4px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:18px}
+.kpi{
+  background:#fff;border:1px solid var(--bd);border-radius:14px;padding:18px 16px;
+  position:relative;overflow:hidden;transition:transform .2s var(--ease-out),box-shadow .2s var(--ease-out);
+}
+.kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad-brand)}
+.kpi:hover{transform:translateY(-4px);box-shadow:0 10px 24px rgba(0,0,0,.08)}
+.kpi-num{font-size:var(--fs-fluid-2xl);font-weight:800;color:var(--t);line-height:1}
+.kpi-lab{font-size:var(--fs-fluid-sm);color:var(--g);font-weight:600;margin-top:8px}
+.kpi-sub{font-size:var(--fs-fluid-xs);color:var(--g);margin-top:2px}
+
+.section-head{display:flex;align-items:baseline;gap:10px;margin:28px 0 12px}
+.section-head h2{
+  font-size:var(--fs-fluid-lg);color:var(--rd);font-weight:700;
+  border-left:4px solid var(--r);padding-left:10px;
+}
+.section-head .count{background:var(--lg);color:var(--g);padding:2px 10px;border-radius:10px;font-size:var(--fs-fluid-xs)}
+
+.card{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:10px}
+.card-title{font-size:var(--fs-fluid-md);font-weight:700}
+.card-meta{font-size:var(--fs-fluid-xs);color:var(--g);margin-top:4px}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:var(--fs-fluid-xs);font-weight:600;background:#FFE4E6;color:var(--r)}
+
+table{width:100%;border-collapse:collapse;font-size:var(--fs-fluid-sm);margin-top:8px}
+th{background:var(--r);color:#fff;padding:8px;text-align:left;font-weight:600}
+td{padding:8px;border-bottom:1px solid var(--bd)}
+
+.btn-primary{
+  background:var(--grad-brand);color:#fff;padding:8px 18px;border:0;border-radius:6px;
+  font-weight:600;font-size:var(--fs-fluid-sm);cursor:pointer;transition:transform .2s,box-shadow .2s;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(165,40,44,.3)}
+
+/* ====== 우측 빅터 도크 (고정 420 → 반응형 360) ====== */
+.dock{
+  width:360px;flex-shrink:0;background:#fff;
+  border-left:1px solid var(--bd);display:flex;flex-direction:column;
+}
+.dock-head{background:var(--grad-brand);color:#fff;padding:14px 16px}
+.dock-head .t{font-size:var(--fs-fluid-md);font-weight:800}
+.dock-head .s{font-size:var(--fs-fluid-xs);opacity:.85;margin-top:2px}
+.dock-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.dock-chip{background:#FFE4E6;color:var(--r);padding:4px 12px;border-radius:999px;font-size:var(--fs-fluid-xs);font-weight:600;cursor:pointer}
+.dock-msg{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:var(--fs-fluid-sm);line-height:1.5}
+.dock-msg.user{background:var(--grad-brand);color:#fff;margin-left:40px}
+.dock-foot{border-top:1px solid var(--bd);padding:10px;display:flex;gap:8px}
+.dock-foot input{flex:1;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;font-size:var(--fs-fluid-sm);font-family:inherit}
+.dock-foot button{background:var(--r);color:#fff;border:0;width:36px;height:36px;border-radius:8px;cursor:pointer}
+
+/* ============ AS-IS 모드 (비교용) ============ */
+/* 드래그 가능 + 동적 폰트 + 메인 고정 px 혼재 */
+body.mode-asis .sidebar{
+  --sb-font-size: 17px;
+  --sb-head-size: 14px;
+}
+body.mode-asis .sb-resize-demo{ display:block }
+body.mode-asis{font-size:16px}
+body.mode-asis .page-title h1{font-size:25px}
+body.mode-asis .page-sub{font-size:15px}
+body.mode-asis .kpi-num{font-size:33px}
+body.mode-asis .kpi-lab{font-size:15px}
+body.mode-asis .kpi-sub{font-size:14px}
+body.mode-asis .section-head h2{font-size:18px}
+body.mode-asis .section-head .count{font-size:14px}
+body.mode-asis .card-title{font-size:18px}
+body.mode-asis .card-meta{font-size:14px}
+body.mode-asis .tag{font-size:14px}
+body.mode-asis table{font-size:15px}
+body.mode-asis .btn-primary{font-size:16px}
+body.mode-asis .topbar .logo,
+body.mode-asis .topbar .title{font-size:19px}
+body.mode-asis .topbar .user{font-size:15px}
+body.mode-asis .sb-badge{font-size:13px}
+body.mode-asis .dock-head .t{font-size:16px}
+body.mode-asis .dock-head .s{font-size:12px}
+body.mode-asis .dock-chip{font-size:12px}
+body.mode-asis .dock-msg{font-size:14px}
+
+/* AS-IS 모드에서만 드래그 핸들 노출 */
+.sb-resize-demo{
+  display:none;
+  position:absolute;top:0;right:-5px;width:10px;height:100%;cursor:col-resize;z-index:20;
+  background:linear-gradient(to right,transparent 40%,rgba(165,40,44,.08) 50%,transparent 60%);
+  transition:background .15s;
+}
+.sb-resize-demo::after{
+  content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:3px;height:36px;background:rgba(165,40,44,.18);border-radius:2px;
+}
+.sb-resize-demo:hover{background:rgba(165,40,44,.14)}
+body.mode-asis .sidebar.resizing{box-shadow:inset -4px 0 0 rgba(165,40,44,.35)}
+
+/* 실측 표시 */
+.live-meta{
+  position:fixed;bottom:12px;left:12px;z-index:90;
+  background:rgba(0,0,0,.85);color:#fff;padding:10px 14px;border-radius:10px;
+  font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  line-height:1.6;pointer-events:none;
+}
+.live-meta b{color:#FFD600}
+
+@media (max-width:1280px){ .dock{width:300px} }
+@media (max-width:1024px){ .dock{display:none} }
+@media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+</style>
+</head>
+<body class="mode-tobe">
+
+<div class="banner">
+  <h1>시안 #09 — 좌 사이드바 고정 + 유동 타이포</h1>
+  <span class="tag">v5 · 2차 정리</span>
+  <span class="hint">모드 전환:</span>
+  <button id="btn-tobe">TO-BE (좌우 모두 고정 · 메인 유동)</button>
+  <button id="btn-asis" class="alt">AS-IS (좌측 드래그 · 메인 고정 px)</button>
+  <span class="hint">→ 창 크기 변경·줌 (+/-) 해보기. TO-BE 에서는 사이드바 폭·글씨 건드릴 수 없음</span>
+</div>
+
+<header class="topbar">
+  <span class="logo">HAIST</span>
+  <span class="title">통합 업무 시스템</span>
+  <span class="user">김정락 · 대표이사</span>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sb">
+    <!-- TO-BE 모드에서는 숨김. AS-IS 비교용으로만 존재 -->
+    <div class="sb-resize-demo" id="sbResize" title="[AS-IS] 드래그로 너비 조절 → 폰트가 따라 변함 (문제)"></div>
+
+    <div class="sb-section">
+      <div class="sb-head">내 업무</div>
+      <a class="sb-item active"><span class="sb-ico">🏠</span>업무 현황<span class="sb-badge">3</span></a>
+      <a class="sb-item"><span class="sb-ico">📅</span>일일 업무</a>
+      <a class="sb-item"><span class="sb-ico">🔔</span>알림<span class="sb-badge">12</span></a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">전사 흐름</div>
+      <a class="sb-item"><span class="sb-ico">📈</span>부서 피드</a>
+      <a class="sb-item"><span class="sb-ico">⚡</span>실시간 피드</a>
+      <a class="sb-item"><span class="sb-ico">🔍</span>검색</a>
+      <a class="sb-item"><span class="sb-ico">📊</span>전사 대시보드</a>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-head">업무 추적</div>
+      <a class="sb-item"><span class="sb-ico">📊</span>진행률 매트릭스</a>
+      <a class="sb-item"><span class="sb-ico">🎫</span>요청 티켓</a>
+      <a class="sb-item"><span class="sb-ico">⚠️</span>이슈 · AS</a>
+      <a class="sb-item"><span class="sb-ico">🔔</span>변경 알림</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-title"><h1>통합 업무 현황</h1></div>
+    <div class="page-sub">오늘의 내 업무 · 팀 · 전사 흐름을 한눈에</div>
+
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-num">12</div><div class="kpi-lab">내 할 일</div><div class="kpi-sub">오늘 마감 3건</div></div>
+      <div class="kpi"><div class="kpi-num">5</div><div class="kpi-lab">지연 공정</div><div class="kpi-sub">어제 대비 +1</div></div>
+      <div class="kpi"><div class="kpi-num">87%</div><div class="kpi-lab">팀 참여율</div><div class="kpi-sub">이번 주</div></div>
+      <div class="kpi"><div class="kpi-num">₩4.2억</div><div class="kpi-lab">이번 달 매출</div><div class="kpi-sub">전년 대비 +12%</div></div>
+    </div>
+
+    <div class="section-head"><h2>오늘 주요 일정</h2><span class="count">4건</span></div>
+    <div class="card"><div class="card-title">설계 리뷰 미팅 · 영업1팀</div><div class="card-meta">오전 10:00 · 회의실 A · 참여자 6명</div></div>
+    <div class="card"><div class="card-title">자재 납기 확인 <span class="tag">긴급</span></div><div class="card-meta">오전 11:30 · 구매팀 → 생산팀</div></div>
+    <div class="card"><div class="card-title">주간 대시보드 리포트 작성</div><div class="card-meta">오후 2:00 · 마감 18:00</div></div>
+
+    <div class="section-head"><h2>이번 주 진행률</h2><span class="count">8개 팀</span></div>
+    <table>
+      <thead><tr><th>팀</th><th>진행률</th><th>지연</th><th>담당자</th></tr></thead>
+      <tbody>
+        <tr><td>영업1팀</td><td>82%</td><td>1건</td><td>김영업</td></tr>
+        <tr><td>설계팀</td><td>67%</td><td>3건</td><td>이설계</td></tr>
+        <tr><td>생산팀</td><td>91%</td><td>0건</td><td>박생산</td></tr>
+        <tr><td>품질팀</td><td>75%</td><td>2건</td><td>최품질</td></tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top:18px"><button class="btn-primary">전체 보기 →</button></div>
+    <div style="height:80px"></div>
+  </main>
+
+  <aside class="dock">
+    <div class="dock-head"><div class="t">🤖 HAIST 빅터</div><div class="s">사내 AI 컨시어지 · 실시간 대기</div></div>
+    <div class="dock-body">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <button class="dock-chip">내 할 일</button>
+        <button class="dock-chip">지연 공정</button>
+        <button class="dock-chip">팀 현황</button>
+      </div>
+      <div class="dock-msg user">지연된 공정 요약해줘</div>
+      <div class="dock-msg"><b>지연 공정 3건</b> 입니다:<br>· 설계팀 · 라벨링 검토 (2일 지연)<br>· 품질팀 · 시료 승인 (1일 지연)<br>· 구매팀 · 자재 납기 (3일 지연)</div>
+      <div class="dock-msg" style="background:#ECFDF5;border-color:#10B981"><b>바로 실행 →</b> 담당자 전체에게 알림 전송</div>
+    </div>
+    <div class="dock-foot"><input type="text" placeholder="빅터에게 물어보세요... (⌘K)"><button>➤</button></div>
+  </aside>
+</div>
+
+<div class="live-meta" id="meta">
+  <b>실측 폰트</b><br>
+  사이드바 메뉴: <span id="mSide">-</span><br>
+  메인 본문: <span id="mMain">-</span><br>
+  빅터 도크: <span id="mDock">-</span><br>
+  뷰포트: <span id="mVw">-</span><br>
+  사이드바 폭: <span id="mSbW">-</span>
+</div>
+
+<script>
+const sbEl = document.getElementById('sb');
+const handle = document.getElementById('sbResize');
+
+/* ============ AS-IS 모드 전용: 레거시 드래그 + 폰트 스케일 ============ */
+(function(){
+  const MIN_W = 180, MAX_W = 520;
+  const MIN_F = 13,  MAX_F = 24;
+  const MIN_H = 11,  MAX_H = 18;
+  let dragging = false, startX = 0, startW = 0;
+
+  function legacyApplyFont(w){
+    const r = Math.max(0, Math.min(1, (w - MIN_W) / (MAX_W - MIN_W)));
+    sbEl.style.setProperty('--sb-font-size', (MIN_F + (MAX_F-MIN_F)*r).toFixed(1) + 'px');
+    sbEl.style.setProperty('--sb-head-size', (MIN_H + (MAX_H-MIN_H)*r).toFixed(1) + 'px');
+  }
+
+  handle.addEventListener('mousedown', (e) => {
+    if (!document.body.classList.contains('mode-asis')) return;
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startW = sbEl.getBoundingClientRect().width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    sbEl.classList.add('resizing');
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    let w = startW + (e.clientX - startX);
+    w = Math.max(MIN_W, Math.min(MAX_W, w));
+    sbEl.style.width = w + 'px';
+    legacyApplyFont(w);     /* ★ AS-IS 문제: 드래그 → 폰트 급변 */
+    updateMeta();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    sbEl.classList.remove('resizing');
+  });
+})();
+
+/* ============ 모드 토글 ============ */
+function setMode(mode){
+  document.body.classList.remove('mode-tobe','mode-asis');
+  document.body.classList.add('mode-'+mode);
+  if (mode === 'tobe'){
+    /* TO-BE: 고정 폭, 유동 토큰 복귀 */
+    sbEl.style.removeProperty('width');
+    sbEl.style.removeProperty('--sb-font-size');
+    sbEl.style.removeProperty('--sb-head-size');
+  } else {
+    /* AS-IS: 드래그 가능, 초기 폭 260px */
+    sbEl.style.width = '260px';
+    const MIN_W=180, MAX_W=520, MIN_F=13, MAX_F=24, MIN_H=11, MAX_H=18;
+    const w = 260;
+    const r = (w - MIN_W) / (MAX_W - MIN_W);
+    sbEl.style.setProperty('--sb-font-size', (MIN_F + (MAX_F-MIN_F)*r).toFixed(1) + 'px');
+    sbEl.style.setProperty('--sb-head-size', (MIN_H + (MAX_H-MIN_H)*r).toFixed(1) + 'px');
+  }
+  updateMeta();
+}
+document.getElementById('btn-tobe').addEventListener('click', () => setMode('tobe'));
+document.getElementById('btn-asis').addEventListener('click', () => setMode('asis'));
+
+/* ============ 실측 표시 ============ */
+function updateMeta(){
+  const sItem = document.querySelector('.sb-item');
+  const mCard = document.querySelector('.card-title');
+  const dMsg  = document.querySelector('.dock-msg');
+  document.getElementById('mSide').textContent = sItem ? getComputedStyle(sItem).fontSize : '-';
+  document.getElementById('mMain').textContent = mCard ? getComputedStyle(mCard).fontSize : '-';
+  document.getElementById('mDock').textContent = dMsg  ? getComputedStyle(dMsg).fontSize  : '-';
+  document.getElementById('mVw').textContent = window.innerWidth + ' × ' + window.innerHeight + 'px';
+  document.getElementById('mSbW').textContent = Math.round(sbEl.getBoundingClientRect().width) + 'px';
+}
+updateMeta();
+window.addEventListener('resize', updateMeta);
+new ResizeObserver(updateMeta).observe(sbEl);
+</script>
+
+</body>
+</html>

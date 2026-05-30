@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>v5-H ④ 청록 살롱 (Deep Teal Cool) — KNK HAIST WORKS</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<style>
+  /* ============ ④ 청록 살롱: 깊은 청록 + 먼지장미 (쿨 힐링) ============ */
+  :root {
+    --bg:           #F0F4F3;   /* 살짝 청록 기운 도는 흰색 */
+    --paper:        #FFFFFF;
+    --paper-2:      #E8EEED;   /* 카드 배경 */
+    --teal-deep:    #1F4A52;   /* 메인 잉크 — 깊은 청록 */
+    --teal-mid:     #2D5961;
+    --teal-soft:    #6B8B8F;
+    --rose-dust:    #C8A6A6;   /* 먼지장미 액센트 */
+    --peach-soft:   #F4D5C5;   /* 부드러운 복숭아 */
+    --ink:          #1A1F22;
+    --mute:         #6B7B7E;
+    --line:         #D4DDDC;
+    --knk-red:      #A5282C;
+    --success:      #5C8A7B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .app { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 100vh; }
+
+  /* ============ 사이드바 — 깊은 청록 ============ */
+  .sidebar {
+    background: var(--teal-deep);
+    color: var(--bg);
+    padding: 22px 0;
+  }
+  .sb-brand {
+    padding: 0 22px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    margin-bottom: 14px;
+  }
+  .sb-brand img { height: 30px; filter: brightness(0) invert(1); }
+  .sb-brand-sub {
+    font-size: 10px;
+    color: var(--peach-soft);
+    margin-top: 6px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .sb-group {
+    padding: 14px 22px 6px;
+    font-size: 10px;
+    color: rgba(244,213,197,0.7);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .sb-item {
+    padding: 10px 22px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sb-item:hover { background: rgba(255,255,255,0.06); }
+  .sb-item.active {
+    background: var(--teal-mid);
+    border-left: 3px solid var(--rose-dust);
+    padding-left: 19px;
+    font-weight: 600;
+  }
+  .sb-badge {
+    background: var(--rose-dust);
+    color: var(--teal-deep);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+
+  /* ============ 헤더 ============ */
+  .main { background: var(--bg); }
+  .top {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 32px;
+    align-items: center;
+    padding: 14px 32px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .top-tabs { display: flex; gap: 4px; }
+  .top-tab {
+    padding: 9px 20px;
+    border-radius: 22px;
+    font-size: 13px;
+    color: var(--mute);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .top-tab:hover { background: var(--paper-2); }
+  .top-tab.active {
+    background: var(--teal-deep);
+    color: var(--bg);
+    font-weight: 700;
+  }
+  .top-tab.active::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--rose-dust);
+    box-shadow: 0 0 8px var(--rose-dust);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .top-user {
+    font-size: 13px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .top-user .avatar {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--rose-dust), var(--peach-soft));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--teal-deep); font-weight: 700; font-size: 13px;
+  }
+
+  /* ============ 페이지 ============ */
+  .page { padding: 26px 32px 40px; }
+  .page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .page-meta {
+    font-size: 11px;
+    color: var(--teal-soft);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .page-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--teal-deep);
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+  }
+
+  /* ===== 벤토 ===== */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 130px;
+    gap: 14px;
+  }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--teal-soft);
+    box-shadow: 0 8px 24px rgba(31,74,82,0.08);
+  }
+  .card-label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--teal-soft);
+    font-weight: 600;
+  }
+  .card-value {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--teal-deep);
+    font-feature-settings: "tnum";
+  }
+  .card-trend { font-size: 11px; font-weight: 600; }
+  .card-trend.up { color: var(--success); }
+  .card-trend.up::before { content: "↑ "; }
+  .card-trend.down { color: var(--mute); }
+  .card-trend.down::before { content: "↓ "; }
+  .card-trend.alert { color: var(--knk-red); }
+  .card-trend.alert::before { content: "⚠ "; }
+
+  .card.hero {
+    grid-column: span 2;
+    grid-row: span 2;
+    background: linear-gradient(135deg, var(--teal-deep) 0%, var(--teal-mid) 100%);
+    color: var(--bg);
+    border: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .card.hero::after {
+    content: "";
+    position: absolute;
+    top: -40%;
+    right: -20%;
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, var(--rose-dust) 0%, transparent 65%);
+    opacity: 0.25;
+  }
+  .card.hero .card-label { color: var(--peach-soft); }
+  .card.hero .card-value { color: var(--bg); font-size: 52px; }
+  .card.hero .quote {
+    font-size: 13px;
+    color: var(--rose-dust);
+    margin-top: 6px;
+    font-style: italic;
+  }
+  .card.hero .card-trend { color: var(--peach-soft); font-size: 13px; }
+
+  /* 매트릭스 */
+  .matrix-mini {
+    grid-column: span 4;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 26px;
+  }
+  .matrix-mini h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--teal-deep);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .matrix-mini h3::before {
+    content: "";
+    width: 4px; height: 18px;
+    background: var(--rose-dust);
+    border-radius: 2px;
+  }
+  table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 10px 8px;
+    font-weight: 600;
+    font-size: 10px;
+    color: var(--teal-soft);
+    border-bottom: 1px solid var(--line);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+  }
+  td:nth-child(2) { font-weight: 700; color: var(--teal-deep); }
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .pill-vip { background: var(--knk-red); color: var(--bg); }
+  .pill-a { background: var(--teal-deep); color: var(--peach-soft); }
+  .pill-b { background: var(--peach-soft); color: var(--teal-deep); }
+
+  /* ============ 빅터 ============ */
+  .victor {
+    background: var(--paper);
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+  .victor-head {
+    padding: 16px 20px;
+    background: var(--teal-deep);
+    color: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+  .victor-head::after {
+    content: "";
+    position: absolute;
+    bottom: -50%;
+    right: -20%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, var(--rose-dust) 0%, transparent 70%);
+    opacity: 0.2;
+  }
+  .victor-head .name {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .victor-head .name::before {
+    content: "";
+    width: 10px; height: 10px;
+    background: var(--rose-dust);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--rose-dust);
+    animation: pulse 1.5s infinite;
+  }
+  .victor-head .role {
+    font-size: 10px;
+    color: var(--peach-soft);
+    margin-top: 4px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .v-msg-list { flex: 1; padding: 18px; overflow-y: auto; }
+  .v-msg { margin-bottom: 14px; font-size: 13px; line-height: 1.6; }
+  .v-msg.ai {
+    background: var(--paper-2);
+    padding: 12px 14px;
+    border-radius: 14px 14px 14px 4px;
+    color: var(--ink);
+    border-left: 3px solid var(--rose-dust);
+  }
+  .v-msg.ai b { color: var(--knk-red); }
+  .v-msg.user {
+    background: var(--teal-mid);
+    color: var(--bg);
+    padding: 11px 14px;
+    border-radius: 14px 14px 4px 14px;
+    margin-left: 28px;
+  }
+  .v-msg time {
+    display: block;
+    font-size: 10px;
+    color: var(--mute);
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+  }
+  .v-msg.user time { color: var(--peach-soft); }
+  .victor-input {
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 8px;
+    background: var(--paper-2);
+  }
+  .victor-input input {
+    flex: 1;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  .victor-input input:focus { border-color: var(--teal-soft); outline: none; box-shadow: 0 0 0 3px rgba(107,139,143,0.15); }
+  .victor-input button {
+    background: var(--knk-red);
+    color: var(--bg);
+    border: 0;
+    border-radius: 12px;
+    padding: 0 18px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .design-note {
+    margin: 28px 0 0;
+    padding: 18px 24px;
+    background: var(--paper);
+    border-radius: 12px;
+    border-left: 4px solid var(--teal-deep);
+  }
+  .design-note h4 {
+    font-size: 12px;
+    color: var(--teal-deep);
+    margin-bottom: 8px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .design-note p {
+    font-size: 13px;
+    color: var(--mute);
+    line-height: 1.7;
+  }
+  .design-note p b { color: var(--teal-deep); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <img src="../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="sb-brand-sub">v5 ④ Deep Teal</div>
+    </div>
+    <div class="sb-group">워크스페이스</div>
+    <div class="sb-item active">통합 대시보드</div>
+    <div class="sb-item">매출영업센터 <span class="sb-badge">3</span></div>
+    <div class="sb-item">자재구매센터</div>
+    <div class="sb-item">물류·배송</div>
+    <div class="sb-group">매출 매트릭스</div>
+    <div class="sb-item">대시 요약</div>
+    <div class="sb-item">일별 매출</div>
+    <div class="sb-item">월별 매출</div>
+    <div class="sb-item">연간 매출</div>
+    <div class="sb-item">고객별 매출</div>
+    <div class="sb-group">관리</div>
+    <div class="sb-item">사용자·권한</div>
+    <div class="sb-item">설정</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div></div>
+      <div class="top-tabs">
+        <div class="top-tab active">통합 플랫폼</div>
+        <div class="top-tab">매출영업센터</div>
+        <div class="top-tab">자재구매센터</div>
+      </div>
+      <div class="top-user">
+        <div class="avatar">김</div>
+        <div>김 부장 · 영업1팀</div>
+      </div>
+    </header>
+
+    <section class="page">
+      <div class="page-head">
+        <div>
+          <div class="page-meta">2026 · APR · DASHBOARD</div>
+          <h1 class="page-title">오늘도, 깊고 차분하게</h1>
+        </div>
+        <div class="page-meta">UPDATED 14:23 · 자동갱신 5분</div>
+      </div>
+
+      <div class="bento">
+        <div class="card hero">
+          <div>
+            <div class="card-label">이번 달 매출</div>
+          </div>
+          <div>
+            <div class="card-value">₩4.82억</div>
+            <div class="quote">"숨을 깊게, 데이터는 정확히."</div>
+            <div class="card-trend up">+18.2% vs 전월 · 견적 23건 진행 중</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">진행 견적</div>
+          <div class="card-value">23<span style="font-size:14px;color:var(--mute)"> 건</span></div>
+          <div class="card-trend up">+5</div>
+        </div>
+        <div class="card">
+          <div class="card-label">미수금</div>
+          <div class="card-value">₩1.2억</div>
+          <div class="card-trend down">-3.4%</div>
+        </div>
+        <div class="card">
+          <div class="card-label">발주 대기</div>
+          <div class="card-value">8</div>
+          <div class="card-trend up">+2</div>
+        </div>
+        <div class="card">
+          <div class="card-label">재고 경고</div>
+          <div class="card-value" style="color:var(--knk-red)">3</div>
+          <div class="card-trend alert">+1 신규</div>
+        </div>
+
+        <div class="matrix-mini">
+          <h3>최근 매출 — Top 5 고객사</h3>
+          <table>
+            <thead>
+              <tr><th>고객사</th><th>이번 달</th><th>전월비</th><th>등급</th><th>담당</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>(주)대성기업</td><td>₩1.28억</td><td>+22%</td><td><span class="pill pill-vip">VIP</span></td><td>김 부장</td></tr>
+              <tr><td>한일물산</td><td>₩9,200만</td><td>+8%</td><td><span class="pill pill-a">A</span></td><td>이 차장</td></tr>
+              <tr><td>삼강산업</td><td>₩7,800만</td><td>+15%</td><td><span class="pill pill-a">A</span></td><td>박 대리</td></tr>
+              <tr><td>동양FA</td><td>₩6,400만</td><td>-4%</td><td><span class="pill pill-b">B</span></td><td>최 과장</td></tr>
+              <tr><td>경동건설</td><td>₩5,100만</td><td>+11%</td><td><span class="pill pill-b">B</span></td><td>김 부장</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="design-note">
+        <h4>★ ④ 청록 살롱 (Deep Teal Cool) — 디자인 메모</h4>
+        <p>
+          <b>녹색 완전 탈피한 힐링</b> — 청록(#1F4A52) 사이드바 + 먼지장미·복숭아 액센트.
+          이전 ①②③ 의 <b>따뜻한 크림 일변도를 정반대 방향에서 깨뜨림</b>. 청록은 명상실·차한잔의 정적,
+          먼지장미는 <b>KNK 레드의 보색 가족</b>이라 CTA 강조 자연스러움.
+          <br>
+          김 부장 50대 사용자에게 <b>"진중하지만 차갑지 않은"</b> 감각.
+          매거진 v4의 흑백을 떠나 채도 있는 색을 두려워하지 않은 첫 시안.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <aside class="victor">
+    <div class="victor-head">
+      <div class="name">빅터 AI</div>
+      <div class="role">CALM PARTNER</div>
+    </div>
+    <div class="v-msg-list">
+      <div class="v-msg ai">
+        김 부장님, 좋은 오후입니다. 오늘 진행 중인 견적 23건 중 <b>(주)대성기업 추가 견적이 마감 D-2</b>입니다.
+        <time>14:21</time>
+      </div>
+      <div class="v-msg user">
+        대성 견적 진행 상태 정리해줘
+        <time>14:22</time>
+      </div>
+      <div class="v-msg ai">
+        대성 견적 4건 중 <b>2건 승인 완료</b>, 1건 검토중, 1건 자재 단가 확정 대기.
+        자재팀에 단가 요청 메모 보낼까요?
+        <time>14:22</time>
+      </div>
+    </div>
+    <div class="victor-input">
+      <input placeholder="빅터에게 물어보기…" />
+      <button>전송</button>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

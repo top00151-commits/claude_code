@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 #06 — 로그인 화면 브랜드 스플릿 (재설계)
+  배경: 대표 피드백 "로그인 화면은 완전 안 맞고" · 기존 시안 기각
+  상위 정책: 04_라이선스_상표권_정책.md · 외부 자산 0건
+  (로고 SVG = 01_HAIST_WORKS/static/logo.svg 원본 인라인 사용)
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAIST WORKS · 로그인</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-family);
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+/* =========================================================
+   Split container (좌 브랜드 · 우 로그인)
+   ========================================================= */
+.split {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  height: 100vh;
+  position: relative;
+}
+
+/* =========================================================
+   LEFT — 브랜드 패널
+   KNK RED 깊은 그라디언트 + 기하 SVG 애니메이션 + 큰 메시지
+   ========================================================= */
+.brand-panel {
+  background: var(--grad-brand-deep);
+  color: #fff;
+  padding: clamp(32px, 4vw, 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+/* SVG 애니메이션 배경 */
+.bg-shapes {
+  position: absolute; inset: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.bg-shapes .ring {
+  position: absolute; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  animation: drift 20s ease-in-out infinite;
+}
+.bg-shapes .r1 { width: 420px; height: 420px; top: -120px; left: -120px; animation-delay: 0s; }
+.bg-shapes .r2 { width: 320px; height: 320px; bottom: -80px; right: 80px; animation-delay: -7s; }
+.bg-shapes .r3 { width: 200px; height: 200px; top: 40%; right: -60px; animation-delay: -14s; border-color: rgba(255, 200, 200, 0.25); }
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(28px, -20px) scale(1.04); }
+}
+
+.bg-dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 30% 40%, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 30% 40%, black 30%, transparent 70%);
+}
+
+/* 좌측 상단 로고 */
+.brand-logo {
+  position: relative; z-index: 2;
+  display: inline-flex; align-items: center; gap: 14px;
+  color: #fff;
+}
+.brand-logo svg { height: clamp(34px, 2.4vw, 48px); width: auto; }
+.brand-logo svg polygon, .brand-logo svg rect { fill: #fff !important; }
+.brand-logo svg text { fill: rgba(255,255,255,0.85) !important; }
+
+/* 중앙 메시지 */
+.brand-msg {
+  position: relative; z-index: 2;
+  max-width: 560px;
+}
+.brand-msg .eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: var(--fs-fluid-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.14em;
+  color: rgba(255, 220, 220, 0.9);
+  text-transform: uppercase;
+  margin-bottom: var(--s-5);
+}
+.brand-msg .eyebrow::before {
+  content: ''; display: inline-block;
+  width: 36px; height: 2px; background: rgba(255,255,255,0.5);
+}
+.brand-msg h1 {
+  font-size: var(--fs-fluid-hero);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--s-5);
+}
+.brand-msg h1 .accent {
+  background: linear-gradient(100deg, #FFB4B8 0%, #FFE4E6 55%, #fff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.brand-msg .lede {
+  font-size: var(--fs-fluid-lg);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 500;
+  max-width: 44ch;
+}
+
+/* 좌측 하단 세 가지 약속 (bullet) */
+.promises {
+  position: relative; z-index: 2;
+  display: flex; gap: clamp(16px, 2vw, 40px);
+  flex-wrap: wrap;
+}
+.promise {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: var(--fs-fluid-sm);
+  color: rgba(255, 255, 255, 0.8);
+}
+.promise b {
+  font-size: var(--fs-fluid-md);
+  color: #fff;
+  font-weight: var(--fw-bold);
+}
+.promise .ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: var(--s-2);
+}
+
+/* =========================================================
+   RIGHT — 로그인 폼 (미니멀, 힌트 제거)
+   ========================================================= */
+.form-panel {
+  background: var(--bg-card);
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(24px, 3vw, 56px);
+  position: relative;
+}
+
+.form-inner {
+  width: 100%;
+  max-width: 420px;
+}
+
+.form-head {
+  margin-bottom: var(--s-8);
+}
+.form-head .label {
+  display: inline-block;
+  font-size: var(--fs-fluid-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.14em;
+  color: var(--knk-red);
+  text-transform: uppercase;
+  background: var(--knk-red-bg);
+  padding: 4px 10px; border-radius: var(--r-pill);
+  margin-bottom: var(--s-4);
+}
+.form-head h2 {
+  font-size: var(--fs-fluid-xl);
+  font-weight: var(--fw-bold);
+  color: var(--ink-900);
+  margin: 0 0 var(--s-2);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.form-head p {
+  font-size: var(--fs-fluid-sm);
+  color: var(--ink-500);
+  margin: 0;
+}
+
+/* 폼 필드 */
+.field {
+  position: relative;
+  margin-bottom: var(--s-4);
+}
+.field label {
+  position: absolute;
+  left: 16px; top: 16px;
+  font-size: var(--fs-fluid-md);
+  color: var(--ink-400);
+  pointer-events: none;
+  transition: all var(--dur-fast) var(--ease-out);
+  background: var(--bg-card);
+  padding: 0 6px;
+}
+.field input {
+  width: 100%;
+  padding: 16px 16px 16px 22px;
+  font-size: var(--fs-fluid-md);
+  font-family: inherit;
+  color: var(--ink-900);
+  background: var(--bg-card);
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--r-md);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  box-sizing: border-box;
+}
+.field input:focus {
+  border-color: var(--knk-red);
+  box-shadow: 0 0 0 3px rgba(165, 40, 44, 0.1);
+}
+.field input:focus + label,
+.field input:not(:placeholder-shown) + label {
+  top: -8px; left: 12px;
+  font-size: var(--fs-fluid-xs);
+  color: var(--knk-red);
+  font-weight: var(--fw-semi);
+}
+.field.with-icon input { padding-left: 48px; }
+.field .field-ico {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  color: var(--ink-400);
+  transition: color var(--dur-fast);
+  pointer-events: none;
+}
+.field input:focus ~ .field-ico { color: var(--knk-red); }
+
+/* CTA 버튼 */
+.btn-login {
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--grad-brand-warm);
+  color: #fff;
+  font-size: var(--fs-fluid-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
+  border: none; border-radius: var(--r-md);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow: 0 4px 12px rgba(165, 40, 44, 0.25);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: var(--s-5);
+}
+.btn-login:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(165, 40, 44, 0.4);
+}
+.btn-login:active { transform: translateY(0); }
+.btn-login svg { transition: transform var(--dur-fast); }
+.btn-login:hover svg { transform: translateX(4px); }
+
+/* 에러 */
+.err {
+  background: #FEE2E2; color: #991B1B;
+  padding: 12px 14px; border-radius: var(--r-sm);
+  font-size: var(--fs-fluid-sm); margin-bottom: var(--s-4);
+  display: flex; gap: 8px; align-items: center;
+}
+
+/* 하단 부가 */
+.form-foot {
+  margin-top: var(--s-6);
+  text-align: center;
+  font-size: var(--fs-fluid-xs);
+  color: var(--ink-400);
+}
+.form-foot .sep { margin: 0 8px; color: var(--ink-300); }
+
+/* 오른쪽 상단: 언어 선택 */
+.lang-sel {
+  position: absolute; top: var(--s-5); right: var(--s-5);
+  display: flex; gap: 4px;
+  background: var(--ink-100); border-radius: var(--r-pill);
+  padding: 3px;
+}
+.lang-sel button {
+  padding: 5px 12px;
+  font-size: var(--fs-fluid-xs);
+  font-weight: var(--fw-semi);
+  color: var(--ink-500);
+  border: none; background: none; border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.lang-sel button.on { background: var(--bg-card); color: var(--ink-900); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+/* =========================================================
+   Responsive (768px 이하: 세로 스택)
+   ========================================================= */
+@media (max-width: 768px) {
+  body { overflow: auto; }
+  .split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto; min-height: 100vh;
+  }
+  .brand-panel {
+    padding: var(--s-6) var(--s-5);
+    min-height: 320px;
+  }
+  .brand-msg h1 { margin-bottom: var(--s-3); }
+  .brand-msg .lede { font-size: var(--fs-fluid-md); }
+  .promises { gap: var(--s-4); }
+  .form-panel { padding: var(--s-6) var(--s-5); }
+  .lang-sel { top: var(--s-3); right: var(--s-3); }
+}
+
+/* =========================================================
+   Design-note overlay (시안 전용)
+   ========================================================= */
+.note-panel {
+  position: fixed; bottom: var(--s-4); left: var(--s-4);
+  max-width: 360px; background: var(--ink-900); color: #fff;
+  border-radius: var(--r-md); padding: var(--s-4);
+  font-size: var(--fs-xs); line-height: 1.6;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 100;
+}
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-panel li { margin-bottom: 4px; }
+.note-close {
+  position: absolute; top: 6px; right: 8px;
+  color: #fff; font-size: 18px; line-height: 1; opacity: 0.5;
+  background: none; border: none; cursor: pointer;
+}
+.note-close:hover { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="split">
+
+  <!-- =======================================================
+       LEFT — 브랜드 패널
+       ======================================================= -->
+  <aside class="brand-panel">
+    <!-- 배경 기하 도형 -->
+    <div class="bg-dots"></div>
+    <div class="bg-shapes">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
+    </div>
+
+    <!-- KNK 로고 (원본 SVG 인라인 · 흰색 버전) -->
+    <div class="brand-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 88">
+        <polygon points="0,6 16,6 16,30 42,6 62,6 32,34 64,66 43,66 16,36 16,66 0,66"/>
+        <polygon points="70,6 86,6 116,50 116,6 132,6 132,66 116,66 86,22 86,66 70,66"/>
+        <rect x="142" y="6" width="4.5" height="60" rx="1"/>
+        <rect x="151" y="6" width="4.5" height="60" rx="1"/>
+        <rect x="160" y="6" width="4.5" height="60" rx="1"/>
+        <polygon points="174,6 190,6 190,30 216,6 236,6 206,34 238,66 217,66 190,36 190,66 174,66"/>
+        <text x="1" y="84" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="16" letter-spacing="2.5">HAIST Innovation</text>
+      </svg>
+    </div>
+
+    <!-- 중앙 메시지 (반응형 유동 타이포) -->
+    <div class="brand-msg">
+      <div class="eyebrow">HAIST WORKS</div>
+      <h1>
+        오늘 하루,<br>
+        <span class="accent">한 화면에서</span><br>
+        일이 흐릅니다.
+      </h1>
+      <p class="lede">
+        업무 · 프로젝트 · 변경 · 요청까지 —
+        뛰어다니지 않고 <strong style="color:#fff;">한 곳에서</strong> 처리하는 KNK 통합 업무 플랫폼.
+      </p>
+    </div>
+
+    <!-- 세 가지 약속 -->
+    <div class="promises">
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <b>3 클릭 이내</b>
+        <span>어떤 업무든</span>
+      </div>
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <b>실시간 공유</b>
+        <span>14개 팀 연결</span>
+      </div>
+      <div class="promise">
+        <div class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 8.84 8.56 21.19a4.5 4.5 0 1 1-6.36-6.36L14.56 2.47a3 3 0 1 1 4.24 4.24L6.44 19.07a1.5 1.5 0 1 1-2.12-2.12l12.02-12.02"/></svg>
+        </div>
+        <b>한국어·영어·베트남어</b>
+        <span>135명 동시 사용</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =======================================================
+       RIGHT — 로그인 폼 (미니멀)
+       ======================================================= -->
+  <section class="form-panel">
+
+    <!-- 언어 선택 (우상단) -->
+    <div class="lang-sel" role="group" aria-label="언어 선택">
+      <button class="on">KO</button>
+      <button>EN</button>
+      <button>VI</button>
+    </div>
+
+    <div class="form-inner">
+
+      <div class="form-head">
+        <span class="label">Sign In</span>
+        <h2>환영합니다</h2>
+        <p>KNK 계정으로 로그인하세요</p>
+      </div>
+
+      <form onsubmit="event.preventDefault(); document.querySelector('.err').style.display='flex'; setTimeout(()=>document.querySelector('.err').style.display='none', 3000);">
+
+        <!-- 아이디 -->
+        <div class="field with-icon">
+          <span class="field-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <input type="text" id="loginId" placeholder=" " autocomplete="username">
+          <label for="loginId">아이디</label>
+        </div>
+
+        <!-- 비밀번호 -->
+        <div class="field with-icon">
+          <span class="field-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </span>
+          <input type="password" id="loginPw" placeholder=" " autocomplete="current-password">
+          <label for="loginPw">비밀번호</label>
+        </div>
+
+        <!-- 에러 (시안 시연용) -->
+        <div class="err" style="display:none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>(시안 데모) 아이디 또는 비밀번호가 올바르지 않습니다.</span>
+        </div>
+
+        <!-- CTA -->
+        <button type="submit" class="btn-login">
+          로그인
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
+
+      <!-- 푸터 (힌트 블록 제거, 대표이사 ID 노출 해결) -->
+      <div class="form-foot">
+        ㈜케이엔케이 · HAIST Innovation
+        <span class="sep">·</span>
+        비밀번호 문의는 관리자에게
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<!-- 시안 주석 -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 시안 #06 주석</h4>
+  <ul>
+    <li><b>스플릿 레이아웃</b>: 좌 브랜드 모멘트 / 우 미니멀 폼</li>
+    <li><b>유동 타이포</b>: 브라우저 폭 바꾸면 글자 크기 자동 조정 (clamp)</li>
+    <li><b>SVG 애니메이션 배경</b>: 외부 이미지 0건, 순수 CSS + SVG</li>
+    <li><b>대표이사 ID 힌트 제거</b> (정책 §0·L-1·L-2 해소)</li>
+    <li><b>플로팅 라벨</b>: 입력 포커스 시 라벨이 위로 축소 이동</li>
+    <li><b>호버 lift</b>: 버튼에 2px translate + shadow 확장</li>
+    <li><b>768px 이하</b>: 상단 브랜드 + 하단 폼 자동 세로 스택</li>
+    <li>외부 자산 0건 (KNK 로고 인라인 SVG만)</li>
+  </ul>
+</div>
+
+</body>
+</html>

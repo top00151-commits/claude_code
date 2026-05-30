@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>base.html · 통합 hub — v5 H5 마스터 시안</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+/* ===== base.html 전용 레이아웃 ===== */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr var(--dock-w);
+  grid-template-rows: var(--topbar-h) 1fr;
+  min-height: 100vh;
+}
+
+/* ===== 토픽바 (상단) ===== */
+.topbar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr auto;
+  gap: var(--space-6);
+  align-items: center;
+  background: var(--paper-3);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 16px rgba(212,146,59,0.05);
+  z-index: var(--z-topbar);
+  position: sticky;
+  top: 0;
+}
+.tb-brand {
+  padding: 0 var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-right: 1px solid var(--line);
+  height: 100%;
+}
+.tb-brand img { height: 32px; }
+.tb-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.tb-brand-name {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ink);
+}
+.tb-brand-sub {
+  font-size: 10px;
+  color: var(--amber-deep);
+  letter-spacing: var(--letter-wider);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  margin-top: 2px;
+}
+
+.tb-tabs { display: flex; gap: 6px; }
+.tb-tab {
+  padding: 9px 18px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  color: var(--mute);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--font-weight-medium);
+  transition: all var(--t-base);
+  text-decoration: none;
+}
+.tb-tab:hover { background: var(--paper-2); color: var(--ink); }
+.tb-tab.active {
+  background: var(--grad-amber);
+  color: white;
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-amber);
+}
+.tb-tab.active::before {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-6);
+}
+.tb-icon {
+  width: 38px; height: 38px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--mute);
+  transition: all var(--t-base);
+  position: relative;
+  border: 1px solid transparent;
+}
+.tb-icon:hover { background: var(--amber-glow); color: var(--amber-deep); border-color: var(--amber-light); }
+.tb-icon.active { background: var(--amber-glow); color: var(--amber-deep); }
+.tb-icon-badge {
+  position: absolute;
+  top: 4px; right: 4px;
+  background: var(--knk-red);
+  color: white;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  min-width: 16px;
+  text-align: center;
+}
+.tb-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  margin-left: var(--space-2);
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+}
+.tb-user-avatar {
+  width: 32px; height: 32px;
+  background: var(--grad-amber);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: white;
+  font-weight: var(--font-weight-bold);
+  font-size: 13px;
+}
+.tb-user-name {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: var(--font-weight-medium);
+}
+.tb-user-name b { color: var(--amber-deep); }
+
+/* ===== 사이드바 ===== */
+.sidebar {
+  background: var(--paper-3);
+  border-right: 1px solid var(--line);
+  padding: var(--space-5) 0;
+  overflow-y: auto;
+}
+.sb-group {
+  padding: var(--space-3) var(--space-5) var(--space-1);
+  font-size: 10px;
+  color: var(--mute);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-widest);
+  text-transform: uppercase;
+}
+.sb-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 14px;
+  margin: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background var(--t-fast);
+}
+.sb-item:hover { background: var(--amber-glow); }
+.sb-item.active {
+  background: linear-gradient(90deg, var(--amber-glow) 0%, transparent 100%);
+  font-weight: var(--font-weight-semibold);
+  position: relative;
+}
+.sb-item.active::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 8px; bottom: 8px;
+  width: 3px;
+  background: var(--amber);
+  border-radius: 2px;
+}
+.sb-item-text { display: flex; align-items: center; gap: 6px; flex: 1; }
+.sb-badge {
+  background: var(--knk-red);
+  color: white;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-bold);
+}
+
+/* ===== 메인 콘텐츠 ===== */
+.main {
+  padding: var(--space-6) var(--content-pad);
+  overflow-y: auto;
+}
+.placeholder-banner {
+  background: var(--paper-2);
+  border: 1px dashed var(--amber-deep);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-6);
+}
+.placeholder-banner h3 {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--amber-deep);
+  margin-bottom: 4px;
+}
+.placeholder-banner p {
+  font-size: 12.5px;
+  color: var(--mute);
+  line-height: 1.65;
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 130px;
+  gap: var(--space-3);
+}
+.card-mini {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.card-mini.hero {
+  grid-column: span 2;
+  grid-row: span 2;
+  background: var(--grad-amber);
+  color: white;
+  border: 0;
+  position: relative;
+  overflow: hidden;
+}
+.card-mini.hero::before {
+  content: "";
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 320px; height: 320px;
+  background: var(--glow-amber-radial);
+  opacity: 0.4;
+}
+
+/* ===== 빅터 dock ===== */
+.dock {
+  background: var(--paper);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  z-index: var(--z-dock);
+}
+.dock-head {
+  padding: var(--space-4) var(--space-5);
+  background: var(--grad-amber);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+.dock-head::before {
+  content: "";
+  position: absolute;
+  bottom: -40%; right: -20%;
+  width: 200px; height: 200px;
+  background: var(--glow-amber-radial);
+  opacity: 0.3;
+}
+.dock-name {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.dock-name::before {
+  content: "";
+  width: 10px; height: 10px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 12px white;
+  animation: pulse-dot 1.5s infinite;
+}
+.dock-role {
+  font-size: 10px;
+  letter-spacing: var(--letter-widest);
+  text-transform: uppercase;
+  margin-top: 4px;
+  opacity: 0.85;
+  position: relative;
+  z-index: 1;
+}
+.dock-body {
+  flex: 1;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+.dock-msg {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 12px 4px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin-bottom: var(--space-3);
+}
+.dock-msg b { color: var(--knk-red); }
+.dock-input-wrap {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--paper-3);
+  display: flex;
+  gap: 8px;
+}
+.dock-input-wrap input {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+}
+.dock-input-wrap button {
+  background: var(--grad-amber);
+  color: white;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0 14px;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+/* ===== 디자인 노트 ===== */
+.design-note {
+  margin-top: var(--space-7);
+  padding: var(--space-5) var(--space-6);
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--amber);
+  border-radius: var(--radius-md);
+}
+.design-note h4 {
+  font-size: 12px;
+  color: var(--amber-deep);
+  margin-bottom: 8px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+}
+.design-note p {
+  font-size: 12.5px;
+  color: var(--mute);
+  line-height: 1.7;
+}
+.design-note p b { color: var(--ink); }
+.design-note .menu-code { vertical-align: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 상단 토픽바 ============ -->
+  <header class="topbar">
+    <div class="tb-brand">
+      <img src="../../../../../01_HAIST_WORKS/static/logo.png" alt="KNK" />
+      <div class="tb-brand-text">
+        <div class="tb-brand-name">HAIST WORKS</div>
+        <div class="tb-brand-sub">v5 H5 · 통합 플랫폼</div>
+      </div>
+    </div>
+
+    <div class="tb-tabs">
+      <a class="tb-tab active" href="#">통합 플랫폼</a>
+      <a class="tb-tab" href="../../../../01_HAIST_WORKS/templates/base_sales.html">매출영업센터</a>
+      <a class="tb-tab" href="../../../../01_HAIST_WORKS/templates/base_logi.html">자재구매센터</a>
+    </div>
+
+    <div class="tb-right">
+      <div class="tb-icon active" title="빅터 AI 도크 (단축키 V)">🤖</div>
+      <div class="tb-icon" title="도움말 (Phase 1 ❓ 버튼)">❓</div>
+      <div class="tb-icon" title="알림">
+        🔔
+        <span class="tb-icon-badge">3</span>
+      </div>
+      <div class="tb-icon" title="언어">🌐</div>
+      <div class="tb-user">
+        <div class="tb-user-avatar">김</div>
+        <div class="tb-user-name">김 부장 · <b>영업1팀</b></div>
+      </div>
+      <div class="tb-icon" title="나가기">🚪</div>
+    </div>
+  </header>
+
+  <!-- ============ 좌측 사이드바 ============ -->
+  <aside class="sidebar">
+    <div class="sb-group">워크스페이스</div>
+    <a class="sb-item active" href="#">
+      <span class="sb-item-text">📊 통합 대시보드 <span class="menu-code">M-00-01</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">💼 매출영업센터 <span class="menu-code">M-01-01</span></span>
+      <span class="sb-badge">3</span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📦 자재구매센터 <span class="menu-code">M-02-01</span></span>
+      <span class="sb-badge">2</span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">🚚 물류·배송</span>
+    </a>
+
+    <div class="sb-group">빠른 시작</div>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📝 일일업무 <span class="menu-code">M-00-02</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📢 알림함 <span class="menu-code">M-00-09</span></span>
+      <span class="sb-badge">3</span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📋 게시판 <span class="menu-code">M-00-10</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">🎫 티켓 <span class="menu-code">M-00-12</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📅 캘린더 <span class="menu-code">M-00-08</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📈 실시간 진행 <span class="menu-code">M-00-03</span></span>
+    </a>
+
+    <div class="sb-group">팀 / 보고</div>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">👥 팀 대시보드 <span class="menu-code">M-00-07</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">📑 주간 보고 <span class="menu-code">M-05-02</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">🏢 대표 대시 <span class="menu-code">M-05-01</span></span>
+    </a>
+
+    <div class="sb-group">관리</div>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">⚙️ 관리자 <span class="menu-code">M-04-01</span></span>
+    </a>
+    <a class="sb-item" href="#">
+      <span class="sb-item-text">🔐 권한 위임 <span class="menu-code">M-04-02</span></span>
+    </a>
+  </aside>
+
+  <!-- ============ 메인 콘텐츠 (placeholder + 데모) ============ -->
+  <main class="main">
+    <div class="placeholder-banner">
+      <h3>📐 base.html 마스터 시안 — 콘텐츠 영역 (`{% block content %}{% endblock %}`)</h3>
+      <p>
+        이 영역에 각 페이지의 콘텐츠가 들어옵니다. 본 시안은 layout(좌 사이드바 / 상단 토픽바 / 우측 빅터 dock)을 확정합니다.
+        실제 페이지 시안은 카테고리 마스터 (A_대시보드 / B_매트릭스 / C_폼 …)를 참조.
+      </p>
+    </div>
+
+    <!-- 데모 콘텐츠 (참고용 미니 대시보드) -->
+    <div class="demo-grid">
+      <div class="card-mini hero">
+        <div class="label-up" style="color: var(--amber-glow);">이번 달 매출</div>
+        <div>
+          <div style="font-size: 52px; font-weight: 700; line-height: 1;">₩4.82억</div>
+          <div style="font-size: 13px; color: var(--amber-glow); margin-top: 6px;">↑ +18.2% vs 전월</div>
+        </div>
+      </div>
+      <div class="card-mini">
+        <div class="label-up">진행 견적</div>
+        <div style="font-size: 28px; font-weight: 700;">23 건</div>
+        <div style="font-size: 11px; color: var(--success); font-weight: 600;">↑ +5</div>
+      </div>
+      <div class="card-mini">
+        <div class="label-up">미수금</div>
+        <div style="font-size: 28px; font-weight: 700;">₩1.2억</div>
+        <div style="font-size: 11px; color: var(--mute); font-weight: 600;">↓ -3.4%</div>
+      </div>
+      <div class="card-mini">
+        <div class="label-up">발주 대기</div>
+        <div style="font-size: 28px; font-weight: 700;">8</div>
+        <div style="font-size: 11px; color: var(--success); font-weight: 600;">↑ +2</div>
+      </div>
+      <div class="card-mini">
+        <div class="label-up">재고 경고</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--knk-red);">3</div>
+        <div style="font-size: 11px; color: var(--knk-red); font-weight: 600;">⚠ +1 신규</div>
+      </div>
+    </div>
+
+    <div class="design-note">
+      <h4>★ base.html 마스터 — 디자인 메모</h4>
+      <p>
+        <b>레이아웃 표준</b>: 사이드바 240px / 토픽바 80px / dock 320px. 본 마스터를 따르면 57개 템플릿이 자동 적용됨.
+        <br><br>
+        <b>토픽바 6 아이콘</b> (01 응답서 §6 인계): 빅터 / ❓ 도움말 / 알림 / 언어 / 사용자 / 나가기 — 모두 호버 시 앰버 글로우.
+        <br>
+        <b>빅터 ws-tabs</b>: 통합·매출·자재 3종 — active 시 그라데이션 + 글로우 점.
+        <br>
+        <b>사이드바 메뉴 식별번호</b> <span class="menu-code">M-00-01</span> 형식 — Phase 1 신규 요구 (대표 결재 2026-04-29). 모든 메뉴 라벨 옆에 고정 표기.
+        <br>
+        <b>빅터 dock (우측 320px)</b>: top: 80px / 그라데이션 헤더 + 펄스 닷 + 채팅 영역 + 입력창. base.html에만 존재 (base_sales / base_logi에서는 dock 영역을 콘텐츠로 사용 가능).
+      </p>
+    </div>
+  </main>
+
+  <!-- ============ 우측 빅터 dock ============ -->
+  <aside class="dock">
+    <div class="dock-head">
+      <div class="dock-name">빅터 AI</div>
+      <div class="dock-role">YOUR WARM PARTNER</div>
+    </div>
+    <div class="dock-body">
+      <div class="dock-msg">
+        김 부장님, 좋은 오후입니다. 오늘 진행 중인 견적 23건 중 <b>(주)대성기업 추가 견적이 마감 D-2</b>입니다.
+        <div style="font-size: 10px; color: var(--mute); margin-top: 4px;">14:21</div>
+      </div>
+      <div class="dock-msg" style="background: var(--grad-amber); color: white; border: 0; border-radius: 12px 12px 4px 12px; margin-left: 24px;">
+        대성 견적 진행 상태 정리해줘
+        <div style="font-size: 10px; color: var(--amber-glow); margin-top: 4px;">14:22</div>
+      </div>
+      <div class="dock-msg">
+        대성 견적 4건 중 <b>2건 승인 완료</b>, 1건 검토중, 1건 자재 단가 확정 대기. 자재팀에 단가 요청 메모 보낼까요?
+        <div style="font-size: 10px; color: var(--mute); margin-top: 4px;">14:22</div>
+      </div>
+    </div>
+    <div class="dock-input-wrap">
+      <input placeholder="빅터에게 물어보기…" />
+      <button>전송</button>
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>

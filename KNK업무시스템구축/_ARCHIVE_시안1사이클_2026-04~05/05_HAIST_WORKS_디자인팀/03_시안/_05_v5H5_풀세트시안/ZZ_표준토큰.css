@@ -1,0 +1,406 @@
+/* ============================================================
+   v5-H5 표준 토큰 CSS — 단일 시트
+   2026-04-29 · 05 디자인팀 빅터
+   01팀 응답서 §5 권고 — 단일 토큰 시트로 충돌 제거
+   본 파일이 모든 v5 H5 시안의 ROOT 토큰 정의
+   ============================================================ */
+
+:root {
+  /* ============ 1. 색상 토큰 ============ */
+
+  /* 배경 그라데이션 (5단계) */
+  --paper:           #FBF5EC;   /* 베이스 크림 — body */
+  --paper-2:         #F5EBD9;   /* 보조 카드 배경 */
+  --paper-3:         #FFFFFF;   /* 콘텐츠 카드 (가장 밝음) */
+  --paper-warm:      #F7F1E5;   /* 따뜻한 변형 */
+  --warm-tan:        #E8D5B7;   /* 워밍 액센트 배경 */
+
+  /* 잉크 (텍스트) */
+  --ink:             #2D2520;   /* 메인 텍스트 — 따뜻한 검정 */
+  --ink-soft:        #4A3D2E;   /* 보조 텍스트 */
+  --mute:            #8B7C6E;   /* 라벨·메타 */
+  --mute-2:          #B8AC9C;   /* 비활성·placeholder */
+
+  /* 앰버 (메인 액센트) */
+  --amber:           #D4923B;   /* 메인 앰버 */
+  --amber-light:     #F0C880;   /* 보조 라이트 */
+  --amber-glow:      #FFE5B8;   /* 호버·하이라이트 */
+  --amber-deep:      #B8843A;   /* 강조·라벨 */
+  --amber-burnt:     #C2693A;   /* 그라데이션 끝점 (KNK 레드 방향) */
+
+  /* 분할선 */
+  --line:            #ECE0CB;   /* 기본 보더 */
+  --line-strong:     #D4DDDC;   /* 강한 분할 */
+  --line-soft:       #F4ECDB;   /* 미세 호버 */
+
+  /* 브랜드 */
+  --knk-red:         #A5282C;   /* KNK 레드 — VIP·CTA·경고 */
+  --knk-red-soft:    #C25A5E;   /* 다크모드용 변형 (예비) */
+
+  /* 상태 색 */
+  --success:         #7A9B5C;   /* 양호·완료 */
+  --warn:            #C97D3F;   /* 주의·검토 필요 */
+  --danger:          var(--knk-red);  /* 위험·긴급 (KNK red 재사용) */
+  --info:            #5C8A9B;   /* 정보·알림 */
+
+  /* 그라데이션 */
+  --grad-amber:      linear-gradient(135deg, var(--amber) 0%, var(--amber-burnt) 100%);
+  --grad-amber-soft: linear-gradient(135deg, var(--amber-light) 0%, var(--amber-glow) 100%);
+  --grad-ink:        linear-gradient(135deg, var(--ink) 0%, #4A3D2E 100%);
+  --grad-knk-red:    linear-gradient(135deg, var(--knk-red) 0%, var(--amber-burnt) 100%);
+
+  /* 글로우 (radial gradient) */
+  --glow-amber-radial: radial-gradient(circle, var(--amber-glow) 0%, transparent 65%);
+  --glow-amber-strong: radial-gradient(circle, var(--amber) 0%, transparent 60%);
+
+  /* ============ 2. 알리아스 (이전 sage 호환) ============ */
+  /* v4 발주서의 alias 레이어 정신 — 이전 토큰을 H5로 매핑 */
+  /* 점진 마이그레이션 시 안전판 */
+  --sage-50:         var(--paper);
+  --sage-100:        var(--paper-2);
+  --sage-200:        var(--warm-tan);
+  --sage-300:        var(--mute-2);
+  --sage-400:        var(--mute);
+  --sage-500:        var(--mute);
+  --sage-600:        var(--ink-soft);
+  --sage-700:        var(--ink);
+  --sage-800:        var(--ink);
+  --sage-900:        var(--ink);
+  --grad-sage:       var(--grad-ink);
+  --grad-header:     var(--paper-3);
+  --rose:            var(--knk-red);
+  --accent:          var(--amber);
+
+  /* ============ 3. 간격 토큰 ============ */
+  --space-1:         4px;
+  --space-2:         8px;
+  --space-3:         12px;
+  --space-4:         16px;
+  --space-5:         20px;
+  --space-6:         24px;
+  --space-7:         28px;
+  --space-8:         32px;
+  --space-10:        40px;
+  --space-12:        48px;
+  --space-14:        56px;
+  --space-16:        64px;
+
+  /* ============ 4. 모서리 토큰 ============ */
+  --radius-xs:       4px;     /* 칩·인라인 */
+  --radius-sm:       8px;     /* 작은 카드·인풋 */
+  --radius-md:       12px;    /* 표준 카드 */
+  --radius-lg:       14px;    /* 대형 카드 */
+  --radius-xl:       18px;    /* 히어로 카드 */
+  --radius-2xl:      24px;    /* 모달·강조 */
+  --radius-full:     9999px;  /* 둥근 버튼·뱃지 */
+
+  /* ============ 5. 그림자 토큰 ============ */
+  --shadow-sm:       0 2px 8px rgba(212,146,59,0.04);                       /* 카드 기본 */
+  --shadow-md:       0 8px 24px rgba(212,146,59,0.10);                      /* 호버 */
+  --shadow-lg:       0 12px 28px rgba(212,146,59,0.14);                     /* 강조 카드 */
+  --shadow-xl:       0 20px 48px rgba(212,146,59,0.18);                     /* 모달 */
+  --shadow-amber:    0 4px 14px rgba(212,146,59,0.25);                      /* 앰버 그림자 (CTA 버튼) */
+  --shadow-amber-lg: 0 8px 22px rgba(212,146,59,0.32);                      /* 강한 앰버 글로우 */
+  --shadow-knk-red:  0 8px 24px rgba(165,40,44,0.18);                       /* KNK red 강조 */
+  --shadow-inset:    inset 0 0 0 1px var(--line);                           /* 카드 내부 보더 효과 */
+
+  /* ============ 6. 타이포그래피 ============ */
+  --font-family:     'Pretendard', -apple-system, BlinkMacSystemFont,
+                     'Segoe UI', Roboto, sans-serif;
+  --font-mono:       'Courier New', Consolas, monospace;
+  --font-serif:      'Cormorant Garamond', 'Pretendard', serif; /* 매거진 변형 시 */
+
+  --font-xs:         11px;
+  --font-sm:         12.5px;
+  --font-base:       14px;
+  --font-md:         15px;
+  --font-lg:         16px;
+  --font-xl:         18px;
+  --font-2xl:        22px;
+  --font-3xl:        26px;
+  --font-4xl:        30px;
+  --font-5xl:        38px;
+  --font-6xl:        52px;
+
+  --font-weight-light:    300;
+  --font-weight-normal:   400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+  --font-weight-extra:    800;
+
+  --line-height-tight:    1.2;
+  --line-height-snug:     1.4;
+  --line-height-normal:   1.55;
+  --line-height-relaxed:  1.65;
+  --line-height-loose:    1.75;
+
+  /* 글자 간격 */
+  --letter-tighter: -0.025em;
+  --letter-tight:   -0.015em;
+  --letter-normal:  0;
+  --letter-wide:    0.05em;
+  --letter-wider:   0.12em;
+  --letter-widest:  0.22em;        /* 라벨 UPPERCASE */
+
+  /* ============ 7. 레이아웃 ============ */
+  --topbar-h:        80px;          /* 01 응답서 §6 인계 */
+  --sidebar-w:       240px;
+  --dock-w:          320px;
+  --container-max:   1440px;
+  --content-pad:     32px;
+  --content-pad-lg:  48px;
+
+  /* ============ 8. 트랜지션 ============ */
+  --t-fast:          0.15s ease;
+  --t-base:          0.2s ease;
+  --t-slow:          0.3s ease;
+  --t-bounce:        0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ============ 9. Z-index 스택 ============ */
+  --z-base:          0;
+  --z-dropdown:      100;
+  --z-sticky:        200;
+  --z-topbar:        500;
+  --z-dock:          600;
+  --z-modal-bg:      900;
+  --z-modal:         1000;
+  --z-toast:         1100;
+}
+
+/* ============ 10. 글로벌 리셋 ============ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-base);
+  line-height: var(--line-height-normal);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "tnum" 1;  /* 숫자 등폭 */
+}
+
+/* 스크롤바 — 따뜻한 톤 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--paper-2); }
+::-webkit-scrollbar-thumb { background: var(--warm-tan); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--amber-light); }
+
+/* 선택 텍스트 */
+::selection { background: var(--amber-glow); color: var(--ink); }
+
+/* 포커스 링 */
+*:focus { outline: none; }
+*:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ============ 11. 유틸리티 클래스 ============ */
+.label-up {
+  font-size: var(--font-xs);
+  letter-spacing: var(--letter-widest);
+  text-transform: uppercase;
+  color: var(--mute);
+  font-weight: var(--font-weight-semibold);
+}
+
+.label-up--amber {
+  color: var(--amber-deep);
+}
+
+.text-mute { color: var(--mute); }
+.text-amber { color: var(--amber-deep); }
+.text-knk { color: var(--knk-red); }
+.text-success { color: var(--success); }
+.text-warn { color: var(--warn); }
+
+.bg-grad-amber { background: var(--grad-amber); color: white; }
+.bg-grad-ink { background: var(--grad-ink); color: var(--paper); }
+
+/* ============ 12. 카드 표준 ============ */
+.card {
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--t-base);
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--amber);
+}
+
+.card--hero {
+  background: var(--grad-amber);
+  color: white;
+  border: 0;
+  position: relative;
+  overflow: hidden;
+}
+.card--hero::before {
+  content: "";
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 320px; height: 320px;
+  background: var(--glow-amber-radial);
+  opacity: 0.4;
+}
+
+/* ============ 13. 버튼 표준 ============ */
+.btn {
+  font-family: inherit;
+  font-size: var(--font-base);
+  font-weight: var(--font-weight-semibold);
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: 0;
+  cursor: pointer;
+  transition: all var(--t-base);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn--primary {
+  background: var(--grad-amber);
+  color: white;
+  box-shadow: var(--shadow-amber);
+}
+.btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-amber-lg);
+}
+
+.btn--secondary {
+  background: var(--paper-3);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn--secondary:hover {
+  background: var(--amber-glow);
+  border-color: var(--amber);
+}
+
+.btn--danger {
+  background: var(--knk-red);
+  color: white;
+}
+
+/* ============ 14. 칩 / 뱃지 / 핀 ============ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+}
+.pill--vip { background: var(--grad-knk-red); color: white; }
+.pill--a { background: var(--amber-glow); color: var(--amber-deep); }
+.pill--b { background: var(--warm-tan); color: var(--ink); }
+.pill--ok { background: var(--success); color: white; }
+.pill--warn { background: var(--warn); color: white; }
+.pill--low { background: var(--knk-red); color: white; }
+
+/* ============ 15. 메뉴 식별번호 핀 (M-XX-YY) ============ */
+/* 01 응답서 §5-4 — Phase 1 메뉴 식별번호 시안 표기 */
+.menu-code {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--amber-deep);
+  background: var(--amber-glow);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+  font-weight: var(--font-weight-bold);
+}
+
+/* ============ 16. 상태 닷 ============ */
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.status-dot--success { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.status-dot--warn    { background: var(--warn);    box-shadow: 0 0 8px var(--warn); }
+.status-dot--danger  { background: var(--knk-red); box-shadow: 0 0 8px var(--knk-red); }
+.status-dot--pulse   { animation: pulse-dot 1.5s infinite; }
+
+@keyframes pulse-dot { 50% { opacity: 0.4; } }
+
+/* ============ 17. 입력 ============ */
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: var(--font-base);
+  color: var(--ink);
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: all var(--t-base);
+}
+.input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-glow);
+}
+.input::placeholder { color: var(--mute-2); }
+
+/* ============ 18. 표 표준 ============ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-base);
+}
+.table thead th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-xs);
+  color: var(--amber-deep);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+  letter-spacing: var(--letter-wider);
+  text-transform: uppercase;
+}
+.table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.table tbody tr { transition: background var(--t-fast); }
+.table tbody tr:hover { background: var(--amber-glow); }
+
+/* ============ 19. 반응형 (브레이크포인트) ============ */
+/* 모바일 우선 9개 페이지 (01 응답서 §4-4) */
+@media (max-width: 768px) {
+  :root {
+    --content-pad: 16px;
+    --content-pad-lg: 20px;
+    --sidebar-w: 0px;
+    --dock-w: 0px;
+  }
+  .card { padding: var(--space-3) var(--space-4); }
+}
+
+@media print {
+  /* 인쇄 전용 페이지 (01 응답서 G 카테고리 6종) */
+  body { background: white; color: black; }
+  .card { box-shadow: none; border: 1px solid #000; }
+  .btn, .dock, .sidebar { display: none !important; }
+}
+
+/* ============ END ============ */

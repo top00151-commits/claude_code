@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<!--
+  05 디자인팀 시안 #05 — /admin 탭 축약
+  상위 정책: 04_라이선스_상표권_정책.md · 외부 자산 0건
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 시안 · HAIST WORKS 05 디자인팀</title>
+<link rel="stylesheet" href="00_design_tokens.css">
+<style>
+.topbar { height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--ink-200); display: flex; align-items: center; padding: 0 var(--s-5); gap: var(--s-4); position: sticky; top: 0; z-index: 10; }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-lg); color: var(--knk-red); }
+.brand-badge { font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--knk-red-bg); color: var(--knk-red); padding: 2px 6px; border-radius: var(--r-pill); }
+.spacer { flex: 1; }
+
+.page { max-width: 1280px; margin: 0 auto; padding: var(--s-5); }
+.page-head { margin-bottom: var(--s-4); }
+.page-head h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.page-sub { color: var(--ink-500); font-size: var(--fs-sm); margin-top: 2px; }
+
+/* Tabs */
+.tabs {
+  display: flex; gap: var(--s-2); background: var(--bg-card);
+  border: 1px solid var(--ink-200); border-radius: var(--r-md);
+  padding: var(--s-1); margin-bottom: var(--s-5); width: fit-content;
+}
+.tab {
+  padding: 8px 18px; border-radius: 8px;
+  font-weight: var(--fw-semi); font-size: var(--fs-sm);
+  color: var(--ink-500);
+}
+.tab:hover { color: var(--ink-900); background: var(--ink-100); }
+.tab.on { background: var(--ink-900); color: #fff; }
+.tab.security.on { background: var(--st-delay); }
+
+.panel { display: none; }
+.panel.on { display: block; }
+
+/* KPI grid */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); margin-bottom: var(--s-5); }
+.kpi {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-4);
+}
+.kpi-lab { font-size: var(--fs-xs); color: var(--ink-500); font-weight: var(--fw-semi); text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi-num { font-size: var(--fs-2xl); font-weight: var(--fw-bold); margin-top: 4px; line-height: 1.1; }
+
+/* Nav cards (제안 C) — 그라디언트 제거, 단색 카드 */
+.nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); margin-bottom: var(--s-5); }
+.nav-card {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-4);
+  display: flex; gap: var(--s-3); align-items: flex-start;
+  transition: border-color .12s;
+}
+.nav-card:hover { border-color: var(--knk-red); }
+.nav-card .anc-icon {
+  width: 40px; height: 40px; border-radius: var(--r-sm);
+  background: var(--ink-100); color: var(--ink-700);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.nav-card .anc-title { font-weight: var(--fw-bold); font-size: var(--fs-md); }
+.nav-card .anc-sub { font-size: var(--fs-xs); color: var(--ink-500); margin-top: 2px; }
+
+/* Summary cards (제안 B — 4 테이블을 요약으로) */
+.sum-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-3); }
+.sum-card {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-5);
+}
+.sum-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-3);
+}
+.sum-head h3 { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.sum-head .count-pill {
+  font-size: var(--fs-xs); background: var(--ink-100); color: var(--ink-700);
+  padding: 2px 10px; border-radius: var(--r-pill); font-weight: var(--fw-semi);
+}
+.sum-stats {
+  display: flex; gap: var(--s-4); margin-bottom: var(--s-3);
+  font-size: var(--fs-sm); color: var(--ink-500);
+}
+.sum-stats b { color: var(--ink-900); font-weight: var(--fw-bold); }
+.sum-actions { display: flex; gap: var(--s-2); }
+.btn-sm {
+  font-size: var(--fs-xs); padding: 6px 12px;
+  border: 1px solid var(--ink-200); border-radius: var(--r-sm);
+  background: var(--bg-card); font-weight: var(--fw-semi);
+}
+.btn-sm:hover { border-color: var(--ink-400); }
+.btn-sm.primary {
+  background: var(--primary-grad); color: #fff; border-color: transparent;
+}
+
+/* Teams card — 14 팀 표시 */
+.teams-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  margin-top: var(--s-3);
+}
+.team-chip {
+  background: var(--ink-100); padding: 6px 8px; border-radius: var(--r-sm);
+  font-size: var(--fs-xs); text-align: center; color: var(--ink-700);
+}
+
+/* Security panel */
+.security-card {
+  background: var(--bg-card); border: 1px solid var(--st-delay);
+  border-left: 4px solid var(--st-delay);
+  border-radius: var(--r-md); padding: var(--s-5); margin-bottom: var(--s-3);
+}
+.security-card h3 { margin: 0 0 var(--s-2); font-size: var(--fs-lg); font-weight: var(--fw-bold); color: #991B1B; display: flex; align-items: center; gap: var(--s-2); }
+.security-card p { margin: 0 0 var(--s-3); font-size: var(--fs-sm); color: var(--ink-700); line-height: 1.6; }
+.security-card .btn-danger {
+  background: var(--st-delay); color: #fff; padding: 10px 18px;
+  border-radius: var(--r-sm); font-weight: var(--fw-bold); font-size: var(--fs-sm);
+}
+.security-card .btn-danger:hover { opacity: .9; }
+
+/* 2단계 확인 모달 */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(15,23,42,.6); z-index: 100;
+  align-items: center; justify-content: center;
+}
+.modal-bg.open { display: flex; }
+.modal-card {
+  background: #fff; border-radius: var(--r-lg);
+  padding: var(--s-6); max-width: 480px; margin: var(--s-4);
+}
+.modal-card h3 { margin: 0 0 var(--s-3); font-size: var(--fs-lg); color: #991B1B; }
+.modal-card p { margin: 0 0 var(--s-3); font-size: var(--fs-sm); line-height: 1.6; }
+.modal-card label { display: flex; gap: var(--s-2); align-items: center; font-size: var(--fs-sm); margin-bottom: var(--s-3); }
+.modal-card input[type="text"] {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--ink-200); border-radius: var(--r-sm);
+  font-size: var(--fs-sm); margin-bottom: var(--s-4);
+}
+.modal-card .actions { display: flex; gap: var(--s-2); justify-content: flex-end; }
+
+/* Data upload panel */
+.upload-card {
+  background: var(--bg-card); border: 1px solid var(--ink-200);
+  border-radius: var(--r-md); padding: var(--s-5); margin-bottom: var(--s-3);
+}
+.upload-card h3 { margin: 0 0 var(--s-2); font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.upload-card p { margin: 0 0 var(--s-3); font-size: var(--fs-sm); color: var(--ink-500); }
+.upload-card input[type="file"] { margin-right: var(--s-2); }
+
+/* Note */
+.note-panel { position: fixed; bottom: var(--s-4); right: var(--s-4); max-width: 340px; background: var(--ink-900); color: #fff; border-radius: var(--r-md); padding: var(--s-4); font-size: var(--fs-xs); line-height: 1.6; box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 50; }
+.note-panel h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: #FCA5A5; }
+.note-panel ul { margin: 0; padding-left: var(--s-4); }
+.note-close { position: absolute; top: 6px; right: 8px; color: #fff; opacity: .5; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:var(--primary-grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">KNK</span>
+    HAIST WORKS
+    <span class="brand-badge">시안 #05</span>
+  </div>
+  <div class="spacer"></div>
+  <span style="font-size:var(--fs-xs);color:var(--ink-500);">관리자 · CEO 전용</span>
+</header>
+
+<div class="page">
+
+  <div class="page-head">
+    <h1>관리자</h1>
+    <div class="page-sub">팀·사용자·프로젝트·고객사 관리</div>
+  </div>
+
+  <!-- 탭 3분할 (제안 A) -->
+  <div class="tabs">
+    <button class="tab on" data-panel="dash" onclick="go('dash')">📊 대시보드</button>
+    <button class="tab" data-panel="data" onclick="go('data')">📥 데이터</button>
+    <button class="tab security" data-panel="sec" onclick="go('sec')">🔐 보안</button>
+  </div>
+
+  <!-- ============================================
+       Panel 1: 대시보드
+       ============================================ -->
+  <div class="panel on" data-panel="dash">
+
+    <!-- KPI 4 -->
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lab">팀</div><div class="kpi-num">14</div></div>
+      <div class="kpi"><div class="kpi-lab">사용자</div><div class="kpi-num">84</div></div>
+      <div class="kpi"><div class="kpi-lab">프로젝트</div><div class="kpi-num">23</div></div>
+      <div class="kpi"><div class="kpi-lab">고객사</div><div class="kpi-num">12</div></div>
+    </div>
+
+    <!-- Nav cards (제안 C — 그라디언트 제거) -->
+    <div class="nav-grid">
+      <a class="nav-card" href="#" onclick="event.preventDefault()">
+        <div class="anc-icon">⚙️</div>
+        <div>
+          <div class="anc-title">시스템 설정</div>
+          <div class="anc-sub">URL·토큰·알림 마스터 스위치</div>
+        </div>
+      </a>
+      <a class="nav-card" href="#" onclick="event.preventDefault()">
+        <div class="anc-icon">🩺</div>
+        <div>
+          <div class="anc-title">건전성 점검</div>
+          <div class="anc-sub">동작 · 설정 필요 항목</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Summary cards (제안 B) -->
+    <div class="sum-grid">
+
+      <div class="sum-card">
+        <div class="sum-head">
+          <h3>팀</h3>
+          <span class="count-pill">14개</span>
+        </div>
+        <div class="sum-stats">
+          <span>연구소 <b>3</b></span>
+          <span>일반 <b>11</b></span>
+        </div>
+        <div class="teams-grid">
+          <span class="team-chip">관리</span>
+          <span class="team-chip">구매</span>
+          <span class="team-chip">기술영업</span>
+          <span class="team-chip">설계</span>
+          <span class="team-chip">전장설계</span>
+          <span class="team-chip">SW</span>
+          <span class="team-chip">검사기</span>
+          <span class="team-chip">가공</span>
+          <span class="team-chip">품질</span>
+          <span class="team-chip">제조1</span>
+          <span class="team-chip">제조2</span>
+          <span class="team-chip">개발혁신</span>
+          <span class="team-chip">해외(VN)</span>
+          <span class="team-chip">경영</span>
+        </div>
+        <div class="sum-actions" style="margin-top:var(--s-4)">
+          <button class="btn-sm">목록 관리 →</button>
+        </div>
+      </div>
+
+      <div class="sum-card">
+        <div class="sum-head">
+          <h3>사용자</h3>
+          <span class="count-pill">84명</span>
+        </div>
+        <div class="sum-stats">
+          <span>활성 <b>80</b></span>
+          <span>비활성 <b>4</b></span>
+          <span>VN 법인 <b>5</b></span>
+        </div>
+        <div class="sum-actions">
+          <button class="btn-sm primary">+ 사용자 추가</button>
+          <button class="btn-sm">목록 관리 →</button>
+        </div>
+      </div>
+
+      <div class="sum-card">
+        <div class="sum-head">
+          <h3>프로젝트</h3>
+          <span class="count-pill">23건</span>
+        </div>
+        <div class="sum-stats">
+          <span>검사기(T) <b>12</b></span>
+          <span>자동화(M) <b>11</b></span>
+          <span>진행 중 <b>18</b></span>
+        </div>
+        <div class="sum-actions">
+          <button class="btn-sm primary">+ 프로젝트 추가</button>
+          <button class="btn-sm">목록 관리 →</button>
+        </div>
+      </div>
+
+      <div class="sum-card">
+        <div class="sum-head">
+          <h3>고객사</h3>
+          <span class="count-pill">12사</span>
+        </div>
+        <div class="sum-stats">
+          <span>국내 <b>10</b></span>
+          <span>해외 <b>2</b></span>
+        </div>
+        <div class="sum-actions">
+          <button class="btn-sm primary">+ 고객사 추가</button>
+          <button class="btn-sm">목록 관리 →</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ============================================
+       Panel 2: 데이터
+       ============================================ -->
+  <div class="panel" data-panel="data">
+
+    <div class="upload-card">
+      <h3>📥 관리코드발행목록 업로드</h3>
+      <p><b>업무 고도화작업 (START-END)</b>에서 받은 <b>관리코드발행목록.xls</b> 파일을 업로드하면, M(자동화)·T(검사기) 두 시트가 자동 파싱되어 프로젝트·고객사가 일괄 등록/갱신됩니다.</p>
+      <div style="display:flex;gap:var(--s-2);align-items:center;">
+        <input type="file" accept=".xls,.xlsx">
+        <button class="btn-sm primary">업로드 & 임포트</button>
+      </div>
+    </div>
+
+    <div class="upload-card">
+      <h3>📤 데이터 내보내기</h3>
+      <p>팀·사용자·프로젝트·고객사 전체를 Excel로 다운로드.</p>
+      <div style="display:flex;gap:var(--s-2);">
+        <button class="btn-sm">팀 Excel</button>
+        <button class="btn-sm">사용자 Excel</button>
+        <button class="btn-sm">프로젝트 Excel</button>
+        <button class="btn-sm">고객사 Excel</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================
+       Panel 3: 보안 (제안 D — 2단계 확인)
+       ============================================ -->
+  <div class="panel" data-panel="sec">
+
+    <div class="security-card">
+      <h3>🔐 초기 비밀번호 일괄 재생성</h3>
+      <p>모든 활성 사용자의 비밀번호를 <b>knk + 4자리 랜덤숫자</b>로 재생성하고, 팀별로 정리된 배포용 Excel을 다운로드합니다.</p>
+      <p style="background:#FEE2E2;border-left:3px solid var(--st-delay);padding:10px 14px;border-radius:var(--r-sm);color:#991B1B;">
+        ⚠ <b>주의</b>: 재생성 즉시 기존 비밀번호는 무효화됩니다. <b>실사용 킥오프 시 1회만</b> 실행하세요.
+      </p>
+      <div style="display:flex;gap:var(--s-2);">
+        <button class="btn-danger" onclick="openConfirm()">🔁 비밀번호 재생성 시작</button>
+        <button class="btn-sm">📥 기존 파일 다시 받기</button>
+      </div>
+    </div>
+
+    <div class="security-card" style="border-left-color:#F59E0B;border-color:#F59E0B">
+      <h3 style="color:#92400E">👥 권한 정책 점검</h3>
+      <p>현재 물류 권한 부여: CEO·admin·executive 자동 / leader·member 수동 토글.<br>미부여 member 있으면 <b>자재 모듈 접근 불가</b> (04 OPS-001).</p>
+      <div style="display:flex;gap:var(--s-2);">
+        <button class="btn-sm">권한 미부여자 목록</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- 2단계 확인 모달 -->
+<div class="modal-bg" id="confirmModal">
+  <div class="modal-card">
+    <h3>⚠ 정말 전체 비밀번호를 재생성하시겠습니까?</h3>
+    <p>이 작업은 <b>즉시 적용</b>되며 되돌릴 수 없습니다. 모든 직원이 새 비밀번호를 받기 전까지 로그인할 수 없습니다.</p>
+    <label>
+      <input type="checkbox" id="chkAck"> 위 내용을 이해했습니다.
+    </label>
+    <label style="flex-direction:column;align-items:flex-start;gap:4px;">
+      <span style="font-size:var(--fs-xs);color:var(--ink-500);">대표이사명을 정확히 입력하세요</span>
+      <input type="text" id="ceoName" placeholder="예: 김정락" oninput="checkConfirm()">
+    </label>
+    <div class="actions">
+      <button class="btn-sm" onclick="closeConfirm()">취소</button>
+      <button class="btn-danger" id="finalBtn" disabled style="opacity:.4">재생성 실행</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note -->
+<div class="note-panel" id="notePanel">
+  <button class="note-close" onclick="document.getElementById('notePanel').style.display='none'">×</button>
+  <h4>📐 시안 #05 주석</h4>
+  <ul>
+    <li><b>탭 3분할</b>: 대시보드·데이터·보안 (F-17)</li>
+    <li><b>4 테이블 → 요약 카드</b> + "목록 관리 →" 링크</li>
+    <li><b>그라디언트 카드 제거</b>, 단색 통일 (F-19)</li>
+    <li><b>비번 재생성 2단계 확인</b>: 체크박스 + 대표이사명 입력</li>
+    <li><b>보안 탭 별도 분리</b>: 실수 방지</li>
+    <li>외부 자산 0건</li>
+  </ul>
+</div>
+
+<script>
+function go(key) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.panel === key));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.dataset.panel === key));
+}
+function openConfirm() {
+  document.getElementById('confirmModal').classList.add('open');
+  document.getElementById('chkAck').checked = false;
+  document.getElementById('ceoName').value = '';
+  checkConfirm();
+}
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('open');
+}
+function checkConfirm() {
+  const ack = document.getElementById('chkAck').checked;
+  const name = document.getElementById('ceoName').value.trim();
+  const btn = document.getElementById('finalBtn');
+  if (ack && name === '김정락') {
+    btn.disabled = false; btn.style.opacity = 1;
+  } else {
+    btn.disabled = true; btn.style.opacity = .4;
+  }
+}
+document.getElementById('chkAck').addEventListener('change', checkConfirm);
+</script>
+
+</body>
+</html>

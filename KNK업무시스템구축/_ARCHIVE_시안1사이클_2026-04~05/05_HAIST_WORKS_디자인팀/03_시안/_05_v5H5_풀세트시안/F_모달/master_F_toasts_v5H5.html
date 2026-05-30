@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>F. 토스트·알림 5종 · v5 H5</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+<link href="../ZZ_표준토큰.css" rel="stylesheet" />
+<style>
+body { background: var(--paper-2); padding: var(--space-7) 0; }
+.gallery-head { max-width: 1100px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.gallery-head h1 { font-size: 28px; font-weight: 700; }
+.gallery-head h1 em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.gallery-head p { color: var(--mute); font-size: 14px; margin-top: 6px; }
+
+.gallery { max-width: 1100px; margin: 0 auto; padding: 0 var(--content-pad); display: grid; gap: var(--space-5); }
+
+.toast-spec { background: var(--paper-3); border-radius: var(--radius-xl); padding: var(--space-5); border: 1px solid var(--line); }
+.toast-spec-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-4); }
+.toast-spec-head h2 { font-size: 17px; font-weight: 700; }
+.toast-spec-head h2 .num { color: var(--amber-deep); font-family: 'Courier New', monospace; font-size: 14px; margin-right: 8px; }
+.toast-spec-head .meta { font-size: 12px; color: var(--mute); }
+
+/* 시뮬레이션 영역 */
+.toast-stage {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  position: relative;
+  min-height: 140px;
+  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 50%, var(--line) 50%, var(--line) 75%, transparent 75%, transparent);
+  background-size: 20px 20px;
+  background-color: var(--paper);
+}
+
+/* === 토스트 표준 (우상단 고정) === */
+.toast {
+  background: var(--paper-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 320px;
+  max-width: 480px;
+  position: relative;
+  border-left: 4px solid var(--amber);
+  margin-bottom: 10px;
+}
+.toast--success { border-left-color: var(--success); }
+.toast--info    { border-left-color: var(--info); }
+.toast--warn    { border-left-color: var(--warn); }
+.toast--danger  { border-left-color: var(--knk-red); }
+.toast--loading { border-left-color: var(--amber); }
+
+.toast-ico {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.toast--success .toast-ico { background: rgba(122,155,92,0.15); color: var(--success); }
+.toast--info    .toast-ico { background: rgba(92,138,155,0.15); color: var(--info); }
+.toast--warn    .toast-ico { background: rgba(201,125,63,0.15); color: var(--warn); }
+.toast--danger  .toast-ico { background: rgba(165,40,44,0.15); color: var(--knk-red); }
+.toast--loading .toast-ico { background: var(--amber-glow); color: var(--amber-deep); }
+
+.toast-text { flex: 1; }
+.toast-text .ttl { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.toast-text .body { font-size: 12px; color: var(--mute); margin-top: 3px; line-height: 1.55; }
+.toast-text .body b { color: var(--ink); }
+.toast-text .actions { display: flex; gap: 8px; margin-top: 10px; }
+.toast-text .actions a {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber-deep);
+  text-decoration: none;
+  cursor: pointer;
+}
+.toast-text .actions a.danger { color: var(--knk-red); }
+
+.toast-close { background: transparent; border: 0; font-size: 16px; color: var(--mute); cursor: pointer; padding: 0 4px; }
+
+/* 진척 막대 (loading 토스트용) */
+.toast-progress {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--paper-2);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  overflow: hidden;
+}
+.toast-progress > div {
+  height: 100%;
+  background: var(--grad-amber);
+  width: 65%;
+  animation: progress-loop 2s ease-in-out infinite;
+}
+@keyframes progress-loop {
+  0%   { width: 10%; }
+  50%  { width: 85%; }
+  100% { width: 10%; }
+}
+
+/* 스피너 */
+.toast-spinner {
+  width: 18px; height: 18px;
+  border: 3px solid var(--paper-2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.usage {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--mute);
+  font-family: 'Courier New', monospace;
+}
+.usage b { color: var(--knk-red); font-family: var(--font-family); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="gallery-head">
+  <h1>F. <em>토스트</em> 5종 + 알림 — v5 H5</h1>
+  <p>화면 우상단 (z-index: 1100) 자동 사라짐 (success 3s · info 4s · warn 6s · danger 수동닫기 · loading 작업끝까지). N-4 보강.</p>
+</div>
+
+<div class="gallery">
+
+  <!-- T-01 success -->
+  <div class="toast-spec">
+    <div class="toast-spec-head">
+      <h2><span class="num">T-01</span> 성공 (Success)</h2>
+      <div class="meta">자동 닫기 3초 · 트리거: 저장·발행·완료</div>
+    </div>
+    <div class="toast-stage">
+      <div class="toast toast--success">
+        <div class="toast-ico">✓</div>
+        <div class="toast-text">
+          <div class="ttl">발주서 발행 완료</div>
+          <div class="body">PO-2604-018 거래처에 자동 발송 완료 · <b>3분 후</b> 자재팀 입고 알림</div>
+          <div class="actions">
+            <a>📑 발주서 보기</a>
+            <a>📂 PDF</a>
+          </div>
+        </div>
+        <button class="toast-close">×</button>
+      </div>
+    </div>
+    <div class="usage">window.victor.toast.<b>success</b>("발주서 발행 완료", { actions: [...] })</div>
+  </div>
+
+  <!-- T-02 info -->
+  <div class="toast-spec">
+    <div class="toast-spec-head">
+      <h2><span class="num">T-02</span> 정보 (Info)</h2>
+      <div class="meta">자동 닫기 4초 · 트리거: 자동저장·동기화·로그</div>
+    </div>
+    <div class="toast-stage">
+      <div class="toast toast--info">
+        <div class="toast-ico">ⓘ</div>
+        <div class="toast-text">
+          <div class="ttl">자동 저장됨</div>
+          <div class="body">5분 전 임시저장된 작성 중 견적이 복구되었습니다.</div>
+          <div class="actions">
+            <a>↩ 새로 시작</a>
+          </div>
+        </div>
+        <button class="toast-close">×</button>
+      </div>
+    </div>
+    <div class="usage">window.victor.toast.<b>info</b>("자동 저장됨")</div>
+  </div>
+
+  <!-- T-03 warn -->
+  <div class="toast-spec">
+    <div class="toast-spec-head">
+      <h2><span class="num">T-03</span> 주의 (Warning)</h2>
+      <div class="meta">자동 닫기 6초 · 트리거: 안전재고 미만·마감 임박·승인 대기</div>
+    </div>
+    <div class="toast-stage">
+      <div class="toast toast--warn">
+        <div class="toast-ico">⚠</div>
+        <div class="toast-text">
+          <div class="ttl">대성기업 견적 D-2 마감</div>
+          <div class="body">자재 단가 확정이 아직 대기 중입니다. <b>14:30 이전</b> 발행 권장.</div>
+          <div class="actions">
+            <a>🔍 견적 보기</a>
+            <a>📤 자재팀에 메모</a>
+          </div>
+        </div>
+        <button class="toast-close">×</button>
+      </div>
+    </div>
+    <div class="usage">window.victor.toast.<b>warn</b>("대성기업 견적 D-2", { duration: 6000 })</div>
+  </div>
+
+  <!-- T-04 danger -->
+  <div class="toast-spec">
+    <div class="toast-spec-head">
+      <h2><span class="num">T-04</span> 위험 (Danger)</h2>
+      <div class="meta">수동 닫기 · 트리거: 실패·삭제·통신 오류</div>
+    </div>
+    <div class="toast-stage">
+      <div class="toast toast--danger">
+        <div class="toast-ico">✕</div>
+        <div class="toast-text">
+          <div class="ttl">발주서 발행 실패</div>
+          <div class="body">거래처 정보 미등록 — <b>대원전기</b> 사업자번호 확인 후 재시도.</div>
+          <div class="actions">
+            <a>🏢 거래처 수정</a>
+            <a class="danger">↻ 재시도</a>
+          </div>
+        </div>
+        <button class="toast-close">×</button>
+      </div>
+    </div>
+    <div class="usage">window.victor.toast.<b>danger</b>("발주서 발행 실패", { sticky: true })</div>
+  </div>
+
+  <!-- T-05 loading -->
+  <div class="toast-spec">
+    <div class="toast-spec-head">
+      <h2><span class="num">T-05</span> 로딩 (Loading)</h2>
+      <div class="meta">작업 종료까지 표시 · 트리거: 비동기 처리·대용량 보고서</div>
+    </div>
+    <div class="toast-stage">
+      <div class="toast toast--loading">
+        <div class="toast-ico">
+          <div class="toast-spinner"></div>
+        </div>
+        <div class="toast-text">
+          <div class="ttl">매출 데이터 집계 중…</div>
+          <div class="body">156개 고객사 분석 진행 — 약 8초 남음</div>
+        </div>
+        <div class="toast-progress"><div></div></div>
+      </div>
+    </div>
+    <div class="usage">const t = window.victor.toast.<b>loading</b>("집계 중") · t.<b>finish</b>(...)</div>
+  </div>
+</div>
+
+<div style="max-width: 1100px; margin: var(--space-6) auto 0; padding: 0 var(--content-pad);">
+  <div style="background: var(--paper-3); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5);">
+    <h4 style="font-size: 12px; color: var(--amber-deep); margin-bottom: 8px; font-weight: 700;">★ 토스트·알림 5종 — 디자인 메모</h4>
+    <p style="font-size: 12.5px; color: var(--mute); line-height: 1.7;">
+      <b style="color: var(--ink);">위치</b>: 우상단 고정 (z-index 1100) · <b style="color: var(--ink);">스택</b>: 최대 4개 (5번째부터 자동 묵음) · <b style="color: var(--ink);">애니메이션</b>: slide-in-right (0.3s)
+      <br>
+      <b style="color: var(--ink);">자동 닫기</b>: success 3s / info 4s / warn 6s / danger 수동 / loading 작업끝까지
+      <br>
+      <b style="color: var(--ink);">접근성</b>: aria-live="polite" (success·info), aria-live="assertive" (warn·danger)
+      <br>
+      현재 시스템에 토스트 시스템 미구현 → 본 마스터 신규 적용 권고. <b style="color: var(--knk-red);">F-06</b> 으로 모달 카테고리에 통합.
+    </p>
+  </div>
+</div>
+</body>
+</html>
