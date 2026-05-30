@@ -127,7 +127,7 @@ from .database import (db_session, init_db, seed_all, seed_sample_tasks,
 #    §67. GUIDE                                                L 3270
 #    §68. EXTERNAL ASSETS REVIEW                               L 3283
 #    §69. COMPANY INFO ADMIN                                   L 3445
-#    §70. HIWORKS LINKS (HR)                                   L 3519
+#    §70. 외부 그룹웨어 LINKS (HR)                               L 3519
 #    §71. PROFILE                                              L 3616
 #    §72. REMINDERS                                            L 3799
 #    §73. EXPORT WEEKLY CSV                                    L 3840
@@ -908,7 +908,7 @@ def ctx(request, name, **kwargs):
         "app_name": "HAIST WORKS",
         "app_subtitle": "KNK 통합 업무 플랫폼",
         "brand_slogan": "Human & AI create the Best",
-        # 하이웍스 외부 시스템 URL (admin 설정에서 변경 가능)
+        # 외부 그룹웨어 URL (admin 설정에서 변경 가능)
         "hiworks_approval_url": get_setting("hiworks_approval_url", "https://office.hiworks.com/"),
         "hiworks_mail_url":     get_setting("hiworks_mail_url",     "https://mail.hiworks.com/"),
         "hiworks_domain":       get_setting("hiworks_domain", ""),
@@ -1137,11 +1137,30 @@ async def login_page(req: Request):
 @app.post("/login")
 async def login_post(req: Request, login_id: str = Form(...), password: str = Form(...)):
     # v5H226f-4: verify_pw 로 pbkdf2 + legacy sha256 모두 지원, legacy 면 즉시 pbkdf2 로 업그레이드.
+    # v5H226z109 (2026-05-30): 사번 SSO 준비 — 사번(employee_no)·이메일·login_id 3순위 매칭
+    key = login_id.strip()
     with db_session() as c:
-        u = c.execute(
-            "SELECT * FROM users WHERE login_id=? AND is_active=1",
-            (login_id.strip(),),
-        ).fetchone()
+        # 1순위: 사번 매칭 (employee_no 컬럼 있을 때만 — PRAGMA gate)
+        u = None
+        try:
+            u = c.execute(
+                "SELECT * FROM users WHERE employee_no=? AND is_active=1",
+                (key,),
+            ).fetchone()
+        except Exception:
+            pass  # employee_no 컬럼 없음 → 마이그레이션 전, skip
+        # 2순위: 이메일 매칭
+        if not u:
+            u = c.execute(
+                "SELECT * FROM users WHERE email=? AND is_active=1",
+                (key,),
+            ).fetchone()
+        # 3순위: login_id 매칭 (기존 호환)
+        if not u:
+            u = c.execute(
+                "SELECT * FROM users WHERE login_id=? AND is_active=1",
+                (key,),
+            ).fetchone()
         if u and verify_pw(password, u["password"]):
             if is_legacy_hash(u["password"]):
                 try:
@@ -1150,6 +1169,14 @@ async def login_post(req: Request, login_id: str = Form(...), password: str = Fo
                 except Exception:
                     pass
             req.session["user_id"] = u["id"]
+            # 첫 로그인 강제 비번 변경 (must_change_pw=1)
+            # v5H226z109: 마이그레이션 완료 사용자는 첫 로그인 시 비번 변경 권장
+            # (지금은 /profile 비번 변경 화면 사용 — SSO 완료 후 강제 화면 추가 예정)
+            try:
+                if u["must_change_pw"]:
+                    return RedirectResponse("/profile?first=1", 303)
+            except (KeyError, IndexError):
+                pass  # 컬럼 없음 (마이그레이션 전) → skip
             r = u["role"]
             if r == "admin":
                 return RedirectResponse("/dashboard", 303)
@@ -5199,12 +5226,12 @@ async def admin_settings_save(req: Request):
 
 
 # =====================================================
-# 사이클 79 (DEC-2 · 2026-04-27) — 인사총무 하이웍스 연동 카드
-# 인사총무 업무는 하이웍스 외부 시스템 사용. HAIST WORKS는 연동 카드 + 외부 링크 + 본인 KNK 정보 조회만.
+# 사이클 79 (DEC-2 · 2026-04-27) — 인사총무 외부 그룹웨어 연동 카드
+# 인사총무 업무는 외부 그룹웨어 사용. HAIST WORKS는 연동 카드 + 외부 링크 + 본인 KNK 정보 조회만.
 # 외부 자산 0건 (iframe import 없음, 외부 링크만 노출)
 # =====================================================
 HIWORKS_LINK_KEYS = [
-    ("hiworks_main_url",       "하이웍스 메인",       "https://office.hiworks.com/"),
+    ("hiworks_main_url",       "그룹웨어 메인",       "https://office.hiworks.com/"),
     ("hiworks_attendance_url", "출퇴근 / 근태",       ""),
     ("hiworks_leave_url",      "휴가 신청",           ""),
     ("hiworks_payroll_url",    "급여 명세서",         ""),
@@ -5214,7 +5241,7 @@ HIWORKS_LINK_KEYS = [
 
 @app.get("/hr/hiworks", response_class=HTMLResponse)
 async def hr_hiworks_page(req: Request):
-    """인사총무 하이웍스 연동 페이지 — 모든 로그인 사용자, 본인 KNK 정보만 노출."""
+    """인사총무 그룹웨어 연동 페이지 — 모든 로그인 사용자, 본인 KNK 정보만 노출."""
     u = require(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -5237,7 +5264,7 @@ async def hr_hiworks_page(req: Request):
 
 @app.get("/admin/hiworks-settings", response_class=HTMLResponse)
 async def admin_hiworks_settings_page(req: Request):
-    """하이웍스 연동 URL 설정 (admin/ceo only)."""
+    """그룹웨어 연동 URL 설정 (admin/ceo only)."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
@@ -5250,7 +5277,7 @@ async def admin_hiworks_settings_page(req: Request):
 
 @app.post("/admin/hiworks-settings")
 async def admin_hiworks_settings_save(req: Request):
-    """하이웍스 URL 저장 → app_settings UPSERT (화이트리스트만)."""
+    """그룹웨어 URL 저장 → app_settings UPSERT (화이트리스트만)."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
@@ -5435,6 +5462,16 @@ async def change_password(req: Request,
             return RedirectResponse("/profile?err=현재 비밀번호가 맞지 않습니다", 303)
         c.execute("UPDATE users SET password=? WHERE id=?",
                   (hash_pw(new_pw), u["id"]))
+        # v5H226z109 (2026-05-30): JWT SSO 토큰 무효화 — password_version += 1
+        # 컬럼 없으면 skip (마이그레이션 전)
+        try:
+            c.execute(
+                "UPDATE users SET password_version=COALESCE(password_version,1)+1, "
+                "must_change_pw=0 WHERE id=?",
+                (u["id"],)
+            )
+        except Exception:
+            pass
         # v5H115: 본인 비번 변경도 user_history 에 기록 (감사 추적)
         try:
             c.execute(
@@ -8004,121 +8041,234 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
     )
 
 
-# v5H66: 고객사 전체 엑셀 내보내기 (회사정보 + 담당자 2시트)
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 엑셀 양식 — 처음부터 다시 작성
+#   원칙: 안내 시트와 데이터 시트의 컬럼이 100% 일치
+#         단일 정의 (_CUST_XLSX_COLS) → 양쪽 자동 동기화
+#   시트: '안내' (5섹션 + 31컬럼 표) + '고객사' (row1 헤더, row2+ 데이터)
+#   컬럼: 기본 6 + 담당자 5명 × 5필드 = 31
+# ==========================================================
+_CUST_XLSX_COLS = [
+    # (이름, 폭, 설명, 필수, 그룹)
+    ("고객사명",       22, "정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 없음)",          True,  "기본"),
+    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 OK)",                          False, "기본"),
+    ("대표자명",       12, "예: 홍길동",                                                          False, "기본"),
+    ("주소",           34, "예: 경기도 평택시 ...",                                               False, "기본"),
+    ("활성",            8, "활성 / 비활성 (빈 칸은 활성)",                                       False, "기본"),
+    ("비고",           26, "자유 메모",                                                            False, "기본"),
+    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 슬롯 무시. 1번이 자동 주담당 ★)",  False, "담당자1"),
+    ("1전화번호",      16, "예: 010-1234-5678 / 031-555-1234",                                False, "담당자1"),
+    ("1이메일",        22, "예: contact@example.com (형식 자동 검증)",                       False, "담당자1"),
+    ("1부서",          14, "예: 구매2팀, 관리팀, 제조기술",                                      False, "담당자1"),
+    ("1메모",          22, "자유 메모 (예: 25일 마감담당, 야간 연락처)",                       False, "담당자1"),
+    ("2담당자명",      14, "2번 담당자 이름",                                                     False, "담당자2"),
+    ("2전화번호",      16, "",                                                                     False, "담당자2"),
+    ("2이메일",        22, "",                                                                     False, "담당자2"),
+    ("2부서",          14, "",                                                                     False, "담당자2"),
+    ("2메모",          22, "",                                                                     False, "담당자2"),
+    ("3담당자명",      14, "3번 담당자 이름",                                                     False, "담당자3"),
+    ("3전화번호",      16, "",                                                                     False, "담당자3"),
+    ("3이메일",        22, "",                                                                     False, "담당자3"),
+    ("3부서",          14, "",                                                                     False, "담당자3"),
+    ("3메모",          22, "",                                                                     False, "담당자3"),
+    ("4담당자명",      14, "4번 담당자 이름",                                                     False, "담당자4"),
+    ("4전화번호",      16, "",                                                                     False, "담당자4"),
+    ("4이메일",        22, "",                                                                     False, "담당자4"),
+    ("4부서",          14, "",                                                                     False, "담당자4"),
+    ("4메모",          22, "",                                                                     False, "담당자4"),
+    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 시스템 UI에서 입력)",                  False, "담당자5"),
+    ("5전화번호",      16, "",                                                                     False, "담당자5"),
+    ("5이메일",        22, "",                                                                     False, "담당자5"),
+    ("5부서",          14, "",                                                                     False, "담당자5"),
+    ("5메모",          22, "",                                                                     False, "담당자5"),
+]
+
+CUST_DATA_SHEET_NAME = "고객사"
+CUST_GUIDE_SHEET_NAME = "안내"
+
+
+def _cust_xlsx_build_guide(ws):
+    """안내 시트 — 단순 5섹션 + 31컬럼 매핑표 (데이터 시트와 100% 일치)."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    sec = Font(bold=True, size=13, color="A5282C")
+    body = Font(size=11, color="222222")
+    sub = Font(size=10.5, color="64748B")
+    thin = Side(style="thin", color="DDDDDD")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "KNK 고객사 일괄 등록 — 작성 안내"
+    ws["A1"].font = Font(bold=True, size=18, color="0F172A")
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 32
+
+    ws.merge_cells("A2:D2")
+    ws["A2"] = f"버전: v5H226z122   ·   기본 6 + 담당자 5명 × 5필드 = {len(_CUST_XLSX_COLS)}컬럼"
+    ws["A2"].font = sub
+
+    sections = [
+        ("1. 필수 입력", [
+            "• 고객사명 — 이 칸이 비면 그 행은 등록되지 않습니다.",
+            "  동일명 존재 시: 빈 칸이 아닌 필드만 업데이트 (기존 데이터 보호)",
+        ]),
+        ("2. 작성 순서", [
+            "  ① [고객사] 시트로 이동",
+            "  ② 1행 헤더는 수정하지 말 것",
+            "  ③ 2행부터 한 줄에 한 고객사씩 입력",
+            "  ④ 매출영업 → 고객사 → [엑셀 일괄 업로드] 클릭",
+            "  ⑤ 미리보기 확인 → [등록 확정]",
+        ]),
+        ("3. 담당자 5명 — 각각 5필드 (총 25컬럼)", [
+            "• 담당자명 — 이 칸이 비면 해당 슬롯 무시",
+            "• 전화번호 — 휴대폰 / 사무실 모두 OK",
+            "• 이메일 — 형식 자동 검증 (잘못된 형식은 경고)",
+            "• 부서 — 예: 구매2팀, 관리팀, 제조기술",
+            "• 메모 — 예: 25일 마감담당, 야간 연락처",
+            "  ※ 6명 이상은 시스템 UI에서 추가 입력 (엑셀 슬롯 5개)",
+            "  ※ 1번 담당자가 자동으로 주담당(★)",
+        ]),
+        ("4. 안전 처리 — 3단계", [
+            "  ① 엑셀 업로드 → 검증 미리보기 (DB INSERT 없음 / dry-run)",
+            "  ② 결과 확인 (정상 / 경고 / 오류 분류)",
+            "  ③ [등록 확정] 버튼 → 실제 INSERT / UPDATE",
+        ]),
+        ("5. 자동 처리", [
+            "• 동일 이름 UPSERT — 빈 칸 아닌 필드만 업데이트",
+            "• 사업자번호 중복 검사 (다른 이름인데 같은 번호면 경고)",
+            "• 활성 빈 칸 → 활성 처리",
+            "• 등급(VIP/A/B/C/일반) — 거래 실적 기반 시스템 자동 산정 (수동 입력 X)",
+        ]),
+    ]
+    row = 4
+    for sec_title, lines in sections:
+        c = ws.cell(row=row, column=1, value=sec_title)
+        c.font = sec
+        ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
+        row += 1
+        for ln in lines:
+            cc = ws.cell(row=row, column=1, value=ln)
+            cc.font = body
+            cc.alignment = Alignment(vertical="center", wrap_text=True)
+            ws.merge_cells(start_row=row, end_row=row, start_column=1, end_column=4)
+            row += 1
+        row += 1
+
+    ws.cell(row=row, column=1, value=f"6. 전체 컬럼 매핑 ({len(_CUST_XLSX_COLS)}개) — [고객사] 시트 1행 헤더와 동일").font = sec
+    row += 1
+    head_font = Font(bold=True, size=10.5, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    for col_idx, label in enumerate(["#", "컬럼명", "필수", "설명"], 1):
+        cc = ws.cell(row=row, column=col_idx, value=label)
+        cc.font = head_font; cc.fill = head_fill
+        cc.alignment = Alignment(horizontal="center"); cc.border = bd
+    row += 1
+    req_font = Font(bold=True, color="B91C1C", size=10.5)
+    for idx, (hname, _w, desc, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        ws.cell(row=row, column=1, value=idx).font = body
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=2, value=hname).font = body
+        rc = ws.cell(row=row, column=3, value="필수" if req else "")
+        rc.font = req_font if req else body
+        rc.alignment = Alignment(horizontal="center")
+        ws.cell(row=row, column=4, value=desc).font = body
+        for cc in (1, 2, 3, 4):
+            ws.cell(row=row, column=cc).border = bd
+        row += 1
+
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 8
+    ws.column_dimensions["D"].width = 60
+    ws.freeze_panes = "A3"
+
+
+def _cust_xlsx_build_data_headers(ws):
+    """데이터 시트 — row 1 헤더 (필수=빨강 배경). row 2부터 데이터."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    head_font = Font(bold=True, color="FFFFFF", size=11)
+    head_fill = PatternFill("solid", fgColor="0F172A")
+    req_fill = PatternFill("solid", fgColor="B91C1C")
+    thin = Side(style="thin", color="DDDDDD")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for i, (h, w, _d, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+        cell = ws.cell(row=1, column=i, value=h)
+        cell.font = head_font
+        cell.fill = req_fill if req else head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = bd
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "C2"
+
+
 @app.get("/customers/export.xlsx")
 async def customers_export_xlsx(req: Request):
-    """전체 고객사 + 담당자 데이터를 .xlsx 로 다운로드.
-    시트1: 고객사 (회사정보 + 자동 등급 + 점수)
-    시트2: 담당자 (고객사명 + 부서/이름/전화/이메일/특징)"""
+    """v5H226z122 (2026-05-19): 깨끗하게 재작성 — 안내 + 고객사 (row1 헤더, row2+ 데이터)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
-    wb = Workbook()
+    from datetime import datetime as _dt
 
-    # === 시트 1: 고객사 ===
-    ws1 = wb.active
-    ws1.title = "고객사"
-    headers1 = ["ID", "고객사명", "등급", "점수",
-                "사업자번호", "대표자", "대표 전화", "대표 이메일",
-                "주소", "활성", "비고", "프로젝트수",
-                "수주합계(원)", "최근거래일", "등급계산일"]
-    ws1.append(headers1)
-    # 헤더 스타일
-    knk_fill = PatternFill("solid", fgColor="A5282C")
-    white = Font(color="FFFFFF", bold=True)
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for col_idx, _ in enumerate(headers1, 1):
-        cell = ws1.cell(row=1, column=col_idx)
-        cell.font = white
-        cell.fill = knk_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
     with db_session() as c:
         rows = c.execute(
-            """SELECT cu.id, cu.name, cu.tier, cu.tier_score,
-                      cu.biz_no, cu.ceo_name, cu.phone, cu.email, cu.address,
-                      cu.is_active, cu.note, cu.tier_computed_at,
-                      COUNT(DISTINCT p.id) AS proj_count,
-                      COALESCE(SUM(p.order_amount), 0) AS total_amount,
-                      MAX(p.order_date) AS last_order
+            """SELECT cu.id, cu.name, cu.biz_no, cu.ceo_name, cu.address,
+                      cu.is_active, cu.note
                FROM customers cu
-               LEFT JOIN projects p ON p.customer_id = cu.id
-               GROUP BY cu.id
                ORDER BY cu.tier_score DESC, cu.name"""
         ).fetchall()
+        rows = [dict(r) for r in rows]
         for r in rows:
-            d = dict(r)
-            ws1.append([
-                d.get("id"), d.get("name"), d.get("tier"), d.get("tier_score") or 0,
-                d.get("biz_no"), d.get("ceo_name"), d.get("phone"), d.get("email"),
-                d.get("address"),
-                "활성" if (d.get("is_active") != 0) else "비활성",
-                d.get("note"), d.get("proj_count") or 0,
-                d.get("total_amount") or 0, d.get("last_order"),
-                d.get("tier_computed_at"),
-            ])
-        # === 시트 2: 담당자 ===
-        ws2 = wb.create_sheet("담당자")
-        headers2 = ["고객사명", "부서", "이름", "직위",
-                    "전화", "휴대폰", "이메일", "주담당", "특징/메모"]
-        ws2.append(headers2)
-        for col_idx, _ in enumerate(headers2, 1):
-            cell = ws2.cell(row=1, column=col_idx)
-            cell.font = white
-            cell.fill = knk_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = border
-        contacts = c.execute(
-            """SELECT cu.name AS cust_name, cc.department, cc.name, cc.position,
-                      cc.phone, cc.mobile, cc.email, cc.is_primary, cc.note
-               FROM customer_contacts cc
-               JOIN customers cu ON cu.id = cc.customer_id
-               ORDER BY cu.tier_score DESC, cu.name, cc.is_primary DESC, cc.id"""
-        ).fetchall()
-        for r in contacts:
-            d = dict(r)
-            ws2.append([
-                d.get("cust_name"), d.get("department"), d.get("name"),
-                d.get("position"), d.get("phone"), d.get("mobile"),
-                d.get("email"),
-                "★" if d.get("is_primary") else "",
-                d.get("note"),
-            ])
+            r["_contacts"] = [dict(cc) for cc in c.execute(
+                """SELECT name, mobile, phone, email, department, note
+                   FROM customer_contacts
+                   WHERE customer_id = ?
+                   ORDER BY is_primary DESC, id
+                   LIMIT 5""", (r["id"],)
+            ).fetchall()]
 
-    # 컬럼 너비 자동 (대략)
-    for ws in [ws1, ws2]:
-        for col in ws.columns:
-            max_len = 8
-            col_letter = col[0].column_letter
-            for cell in col:
-                v = str(cell.value) if cell.value is not None else ""
-                # 한글은 2칸으로 추정
-                disp_len = sum(2 if ord(c) > 0x7F else 1 for c in v)
-                max_len = max(max_len, min(50, disp_len + 2))
-            ws.column_dimensions[col_letter].width = max_len
-        ws.freeze_panes = "A2"  # 헤더 고정
+    wb = Workbook()
+    ws_guide = wb.active
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
 
-    # 메모리 → BytesIO → StreamingResponse
+    for r_idx, r in enumerate(rows, 2):  # row 2부터 데이터
+        contact_cells = []
+        for cc in r["_contacts"]:
+            contact_cells.extend([
+                str(cc.get("name") or ""),
+                str(cc.get("mobile") or cc.get("phone") or ""),
+                str(cc.get("email") or ""),
+                str(cc.get("department") or ""),
+                str(cc.get("note") or ""),
+            ])
+        while len(contact_cells) < 25:
+            contact_cells.append("")
+        vals = [
+            r["name"], r["biz_no"], r["ceo_name"], r["address"],
+            "활성" if (r["is_active"] or 0) != 0 else "비활성", r["note"],
+            *contact_cells[:25],
+        ]
+        for c_idx, v in enumerate(vals, 1):
+            ws_data.cell(row=r_idx, column=c_idx, value=v)
+
     import io
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    from urllib.parse import quote
-    fname = f"고객사_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf,
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}",
-        },
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_master_{today}.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사마스터_{today}.xlsx')}")},
     )
-
 
 # v5H67: 12개 모듈 엑셀 내보내기 일괄 추가 (대표 지시 — 모든 데이터 엑셀화)
 def _xls_str(v):
@@ -9777,7 +9927,7 @@ async def changes_new_submit(
         "approval_url": approval_url.strip() or None,
     }, author_id=u["id"])
 
-    # 알림 발송 (web 게시판 자동 글 + 하이웍스 메신저)
+    # 알림 발송 (web 게시판 자동 글 + 사내 메신저)
     try:
         notify_change_impacts(cid, change_no, change_type, title, urgency, u)
     except Exception as e:
@@ -9815,7 +9965,7 @@ def notify_change_impacts(cid, change_no, change_type, title, urgency, author):
         else:
             low_teams.append(imp)
 
-    # 1. high 강도 → 하이웍스 메신저 즉시 푸시 (토큰 없으면 silent skip)
+    # 1. high 강도 → 사내 메신저 즉시 푸시 (토큰 없으면 silent skip)
     for imp in high_teams:
         hiworks_notify(
             channel_id=f"team_{imp['impact_team_id']}",
@@ -10169,7 +10319,7 @@ async def tickets_new_submit(
         "approval_url": approval_url,
     }, requester_id=u["id"])
 
-    # 하이웍스 메신저 푸시 (수신 부서) — 토큰 없으면 silent skip
+    # 사내 메신저 푸시 (수신 부서) — 토큰 없으면 silent skip
     try:
         ticket = ticket_get(tid)
         if ticket and ticket.get("recipient_team_id"):
@@ -10407,7 +10557,7 @@ async def issues_new_submit(
         "description": description, "owner_team_id": otid,
     }, created_by=u["id"])
 
-    # 치명/심각 이슈 → 하이웍스 메신저 즉시 푸시
+    # 치명/심각 이슈 → 사내 메신저 즉시 푸시
     if severity in ("치명", "심각"):
         try:
             issue = issue_get(iid)
@@ -12210,40 +12360,39 @@ async def projects_import_confirm(request: Request):
     })
 
 
-# =====================================================
-# v5H153 (2026-05-05): 고객사 엑셀 일괄 등록
-#   - GET  /customers/import-template  → 양식 .xlsx 다운로드
-#   - POST /customers/import-xlsx      → 업로드 + 파싱 + 검증 + 미리보기 JSON
-#   - POST /customers/import-confirm   → 확정 INSERT/UPDATE (UPSERT by name)
-#  양식: app/static/templates/고객사_일괄등록_양식.xlsx
-#  시트 '고객사' (row3=헤더, row4-6=예제, row7+=입력)
-#  컬럼: 고객사명/사업자등록번호/대표자명/담당자명/전화번호/이메일/주소/등급/활성/비고
-# =====================================================
-CUST_IMPORT_HEADERS = [
-    "고객사명", "사업자등록번호", "대표자명", "담당자명",
-    "전화번호", "이메일", "주소", "등급", "활성", "비고"
-]
-CUST_IMPORT_TIERS = {"A", "B", "C", "VIP", ""}
-
-
+# ==========================================================
+# v5H226z122 (2026-05-19): 고객사 일괄 업로드 — 처음부터 다시 작성
+#   - GET  /customers/import-template  → 양식 xlsx (안내 + 고객사 + 예제 3행)
+#   - POST /customers/import-xlsx      → 업로드·파싱·검증 → 미리보기 JSON
+#   - POST /customers/import-confirm   → 확정 INSERT / UPDATE (UPSERT by name)
+#   시트: '고객사' row 1 헤더 / row 2+ 데이터 (31컬럼)
+# ==========================================================
 def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
-    """고객사 일괄 등록 양식 파싱.
-    시트 '고객사' row7+ 데이터, 빈 고객사명 행 자동 스킵.
-    예제 row 4-6 도 고객사명이 '예) ...' 또는 자연 스킵 대상."""
+    """v5H226z122: 시트 '고객사' row 2+ 31컬럼 파싱 — 담당자 5명 × 5필드."""
     from openpyxl import load_workbook
     import io as _io
     import re as _re
     wb = load_workbook(_io.BytesIO(file_bytes), data_only=True, read_only=True)
-    if "고객사" not in wb.sheetnames:
-        raise ValueError("'고객사' 시트를 찾을 수 없습니다 (양식 파일 확인)")
-    ws = wb["고객사"]
+    sheet_name = None
+    # z122 신 양식 우선 → 구 양식 폴백
+    for candidate in (CUST_DATA_SHEET_NAME, "🏢 고객사 일괄 등록", "고객사 데이터", "Customers"):
+        if candidate in wb.sheetnames:
+            sheet_name = candidate
+            break
+    if not sheet_name:
+        raise ValueError(f"'{CUST_DATA_SHEET_NAME}' 시트를 찾을 수 없습니다")
+    ws = wb[sheet_name]
+    # 데이터 시작 행: z122 = row 2, z121 폴백 = row 5, 구 양식 = row 7
+    if sheet_name == "🏢 고객사 일괄 등록":
+        data_start = 5
+    elif sheet_name == "고객사 데이터":
+        data_start = 7
+    else:
+        data_start = 2
 
     def _to_str(v) -> str:
-        if v is None:
-            return ""
-        return str(v).strip()
+        return "" if v is None else str(v).strip()
 
-    # 기존 고객사 인덱스 (이름 / 사업자번호 정규화) 캐시
     name_map: dict[str, int] = {}
     bizno_map: dict[str, tuple[int, str]] = {}
     try:
@@ -12258,121 +12407,153 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
         pass
 
     email_re = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    EXPECTED_COLS = len(_CUST_XLSX_COLS)  # 31
     out = []
     row_no = 0
-    # row7+ 데이터 (row1-2=제목/안내, row3=헤더, row4-6=예제)
-    for r in ws.iter_rows(min_row=7, values_only=True):
+    for r in ws.iter_rows(min_row=data_start, values_only=True):
         row_no += 1
-        actual_row = row_no + 6
+        actual_row = row_no + data_start - 1
         if not r or all((c is None or str(c).strip() == "") for c in r):
             continue
-        cells = list(r) + [None] * (10 - len(r)) if len(r) < 10 else list(r[:10])
+        cells = list(r) + [None] * (EXPECTED_COLS - len(r)) if len(r) < EXPECTED_COLS else list(r[:EXPECTED_COLS])
         name = _to_str(cells[0])
         if not name:
             continue
-        # 예제 행 잔존 방어
-        if name.startswith("예)") or name.startswith("예 )"):
-            continue
         biz_no_raw = _to_str(cells[1])
         ceo = _to_str(cells[2])
-        manager = _to_str(cells[3])
-        phone = _to_str(cells[4])
-        email = _to_str(cells[5])
-        address = _to_str(cells[6])
-        tier = _to_str(cells[7]).upper()
-        active_raw = _to_str(cells[8])
-        note = _to_str(cells[9])
+        address = _to_str(cells[3])
+        active_raw = _to_str(cells[4])
+        note = _to_str(cells[5])
 
-        errors = []
-        warnings = []
+        if active_raw == "" or active_raw in ("1", "활성", "Y", "y", "True", "true"):
+            is_active = 1
+        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
+            is_active = 0
+        else:
+            is_active = 1
 
-        # 사업자번호: 대시 제거 후 10자리 숫자 검증 (입력 있을 때만)
+        contacts = []
+        for i in range(5):
+            base = 6 + i * 5
+            cname = _to_str(cells[base + 0])
+            cphone = _to_str(cells[base + 1])
+            cemail = _to_str(cells[base + 2])
+            cdept = _to_str(cells[base + 3])
+            cnote = _to_str(cells[base + 4])
+            if not cname:
+                continue
+            contacts.append({
+                "name": cname, "mobile": cphone, "email": cemail,
+                "department": cdept, "note": cnote,
+                "is_primary": 1 if i == 0 else 0,
+            })
+
+        errors, warnings = [], []
         biz_no_norm = _re.sub(r"\D", "", biz_no_raw) if biz_no_raw else ""
         biz_no_display = biz_no_raw
         if biz_no_raw:
             if len(biz_no_norm) != 10 or not biz_no_norm.isdigit():
                 errors.append(f"사업자번호 형식 오류(10자리 숫자): '{biz_no_raw}'")
             else:
-                # 표준 표기 999-99-99999
-                biz_no_display = (
-                    f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
-                )
+                biz_no_display = f"{biz_no_norm[:3]}-{biz_no_norm[3:5]}-{biz_no_norm[5:]}"
 
-        # 이메일
-        if email and not email_re.match(email):
-            errors.append(f"이메일 형식 오류: '{email}'")
+        for ci, ct in enumerate(contacts, 1):
+            em = ct.get("email", "")
+            if em and not email_re.match(em):
+                warnings.append(f"{ci}담당자 이메일 형식: '{em}'")
 
-        # 등급
-        if tier not in CUST_IMPORT_TIERS:
-            errors.append(f"등급 화이트리스트 위반: '{tier}' (A/B/C/VIP/공란)")
-            tier = ""
-
-        # 활성: 1/0/공란 → 공란은 1
-        if active_raw == "":
-            is_active = 1
-        elif active_raw in ("1", "활성", "Y", "y", "True", "true"):
-            is_active = 1
-        elif active_raw in ("0", "비활성", "N", "n", "False", "false"):
-            is_active = 0
-        else:
-            errors.append(f"활성 값 오류(1/0): '{active_raw}'")
-            is_active = 1
-
-        # UPSERT 모드 판정
         existing_id = name_map.get(name)
         action = "update" if existing_id else "create"
-
-        # 사업자번호 중복 (다른 이름) → 경고만
         if biz_no_norm and biz_no_norm in bizno_map:
             other_id, other_name = bizno_map[biz_no_norm]
             if other_name != name:
-                warnings.append(
-                    f"사업자번호 중복: 기존 '{other_name}' (#{other_id}) 와 동일"
-                )
+                warnings.append(f"사업자번호 중복: 기존 '{other_name}' (#{other_id})")
 
         out.append({
             "row_no": actual_row,
-            "name": name,
-            "biz_no": biz_no_display,
-            "biz_no_norm": biz_no_norm,
-            "ceo_name": ceo,
-            "manager_name": manager,
-            "phone": phone,
-            "email": email,
-            "address": address,
-            "tier": tier,
-            "is_active": is_active,
-            "note": note,
-            "_existing_id": existing_id,
-            "_action": action,
-            "_errors": errors,
-            "_warnings": warnings,
+            "name": name, "biz_no": biz_no_display, "biz_no_norm": biz_no_norm,
+            "ceo_name": ceo, "address": address,
+            "phone": "", "note": note, "is_active": is_active,
+            "contacts": contacts,
+            "manager_name": (contacts[0]["name"] if contacts else ""),
+            "email": "", "tier": "",
+            "_existing_id": existing_id, "_action": action,
+            "_errors": errors, "_warnings": warnings,
         })
     return out
 
 
 @app.get("/customers/import-template")
 async def customers_import_template(request: Request):
-    """고객사 일괄 등록 양식 다운로드 (v5H153)."""
+    """v5H226z122 (2026-05-19): 양식 — 안내 + 고객사 (row1 헤더 + row2~4 예제 3행)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
-    from pathlib import Path as _Path
-    p = _Path(__file__).parent / "static" / "templates" / "고객사_일괄등록_양식.xlsx"
-    if not p.exists():
-        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
-    return FileResponse(
-        str(p),
-        filename="KNK_고객사_일괄등록_양식.xlsx",
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치 — pip install openpyxl"}, 500)
+    from datetime import datetime as _dt
+
+    wb = Workbook()
+    ws_guide = wb.active
+    ws_guide.title = CUST_GUIDE_SHEET_NAME
+    _cust_xlsx_build_guide(ws_guide)
+    ws_data = wb.create_sheet(CUST_DATA_SHEET_NAME)
+    _cust_xlsx_build_data_headers(ws_data)
+
+    examples = [
+        ["GOODIX", "211-87-12345", "장 회장", "경기도 평택시 ...", "활성", "주력 고객사",
+         "이매니저", "031-555-1234", "contact@goodix.kr", "관리팀", "25일 마감담당",
+         "김부장", "031-555-1235", "kim@goodix.kr", "구매2팀", "결제 담당",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+        ["삼성디스플레이", "124-81-00012", "한 사장", "충남 천안시 ...", "활성", "",
+         "박과장", "041-589-1234", "po@sds.com", "제조기술", "자료 빠른 회신 선호",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+        ["G2TOUCH", "", "", "서울시 강남구 ...", "활성", "신규 거래처",
+         "김대표", "02-3456-7890", "g2@g2touch.com", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", "",
+         "", "", "", "", ""],
+    ]
+    example_fill = PatternFill("solid", fgColor="FFFBEB")
+    example_font = Font(size=10, color="9A3412", italic=True)
+    thin = Side(style="thin", color="EEEEEE")
+    bd_light = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for row_offset, row_data in enumerate(examples):
+        r_idx = 2 + row_offset
+        for c_idx, v in enumerate(row_data, 1):
+            cell = ws_data.cell(row=r_idx, column=c_idx, value=v)
+            cell.font = example_font
+            cell.fill = example_fill
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            cell.border = bd_light
+
+    import io
+    from urllib.parse import quote as _q
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    today = _dt.now().strftime("%Y%m%d")
+    return Response(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_customers_import_template.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_고객사_일괄등록_템플릿_{today}.xlsx')}")},
     )
 
 
 @app.post("/customers/import-xlsx")
 async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
-    """고객사 엑셀 업로드 → 파싱 + 검증 → 미리보기 JSON 반환 (v5H153)."""
+    """v5H226z122: 업로드 → 파싱 + 검증 → 미리보기 JSON 반환."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -12388,21 +12569,15 @@ async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
     error_count = sum(1 for r in rows if r["_errors"])
     warning_count = sum(1 for r in rows if r["_warnings"] and not r["_errors"])
     return JSONResponse({
-        "ok": True,
-        "rows": rows,
-        "total": len(rows),
-        "create_count": create_count,
-        "update_count": update_count,
-        "error_count": error_count,
-        "warning_count": warning_count,
+        "ok": True, "rows": rows, "total": len(rows),
+        "create_count": create_count, "update_count": update_count,
+        "error_count": error_count, "warning_count": warning_count,
     })
 
 
 @app.post("/customers/import-confirm")
 async def customers_import_confirm(request: Request):
-    """미리보기 확정 → INSERT/UPDATE 실행 (v5H153).
-    body JSON: {rows: [...]}.
-    UPDATE 시 빈 칸이 아닌 필드만 갱신(기존 데이터 보호)."""
+    """v5H226z122: 미리보기 확정 → INSERT / UPDATE. 담당자 5명 INSERT (중복 이름 skip)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -12440,13 +12615,11 @@ async def customers_import_confirm(request: Request):
                 is_active = int(r.get("is_active") if r.get("is_active") is not None else 1)
                 note = (r.get("note") or "").strip()
 
-                # 이름으로 기존 행 재조회 (preview 후 동시 변경 가능성 방어)
                 existing = c.execute(
                     "SELECT id FROM customers WHERE name=?", (name,)
                 ).fetchone()
                 if existing:
                     cid = existing["id"] if hasattr(existing, "keys") else existing[0]
-                    # 빈 칸이 아닌 필드만 UPDATE
                     sets, vals = [], []
                     for col, v in (
                         ("biz_no", biz_no), ("ceo_name", ceo),
@@ -12457,7 +12630,6 @@ async def customers_import_confirm(request: Request):
                         if v:
                             sets.append(f"{col}=?")
                             vals.append(v)
-                    # 활성은 명시값 항상 반영
                     sets.append("is_active=?")
                     vals.append(is_active)
                     if sets:
@@ -12467,25 +12639,33 @@ async def customers_import_confirm(request: Request):
                             tuple(vals)
                         )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, cid)
-                        except Exception:
-                            pass
-                    updated.append({"row_no": r.get("row_no"),
-                                    "id": cid, "name": name})
+                        try: _ct.refresh_customer_tier(c, cid)
+                        except Exception: pass
+                    contacts_list = r.get("contacts") or []
+                    for ct in contacts_list:
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
+                            continue
+                        existing_ct = c.execute(
+                            "SELECT id FROM customer_contacts WHERE customer_id=? AND name=?",
+                            (cid, ct_name)
+                        ).fetchone()
+                        if existing_ct:
+                            continue
+                        c.execute(
+                            "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
+                            (cid, ct_name, ct.get("department", ""),
+                             ct.get("mobile", ""), ct.get("email", ""),
+                             int(ct.get("is_primary", 0)), "기타")
+                        )
+                    updated.append({"row_no": r.get("row_no"), "id": cid, "name": name})
                 else:
                     fields = {
-                        "name": name,
-                        # v5H181: '신규' 는 비표준 — 비어있으면 DB DEFAULT '일반' 사용 위해 미포함
-                        "tier": tier or "일반",
-                        "biz_no": biz_no,
-                        "ceo_name": ceo,
-                        "manager_name": manager,
-                        "phone": phone,
-                        "email": email,
-                        "address": address,
-                        "is_active": is_active,
-                        "note": note,
+                        "name": name, "tier": tier or "일반",
+                        "biz_no": biz_no, "ceo_name": ceo,
+                        "manager_name": manager, "phone": phone,
+                        "email": email, "address": address,
+                        "is_active": is_active, "note": note,
                     }
                     cols = ",".join(fields.keys())
                     ph = ",".join(["?"] * len(fields))
@@ -12494,13 +12674,21 @@ async def customers_import_confirm(request: Request):
                         tuple(fields.values())
                     )
                     new_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    contacts_list = r.get("contacts") or []
+                    for ct in contacts_list:
+                        ct_name = (ct.get("name") or "").strip()
+                        if not ct_name:
+                            continue
+                        c.execute(
+                            "INSERT INTO customer_contacts(customer_id, name, department, mobile, email, is_primary, role) VALUES(?,?,?,?,?,?,?)",
+                            (new_id, ct_name, ct.get("department", ""),
+                             ct.get("mobile", ""), ct.get("email", ""),
+                             int(ct.get("is_primary", 0)), "기타")
+                        )
                     if _ct:
-                        try:
-                            _ct.refresh_customer_tier(c, new_id)
-                        except Exception:
-                            pass
-                    created.append({"row_no": r.get("row_no"),
-                                    "id": new_id, "name": name})
+                        try: _ct.refresh_customer_tier(c, new_id)
+                        except Exception: pass
+                    created.append({"row_no": r.get("row_no"), "id": new_id, "name": name})
             except Exception as e:
                 failed.append({"row_no": r.get("row_no"),
                                "name": r.get("name"), "error": str(e)})
