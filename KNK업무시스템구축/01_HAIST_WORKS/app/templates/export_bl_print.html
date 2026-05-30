@@ -1,80 +1,184 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>BILL OF LADING — {{ bl.bl_no }}</title>
+<meta charset="UTF-8" />
+<title>BILL OF LADING — {{ bl.bl_no|default('BL-' ~ bl.id) }}</title>
+
+{# v5H226z111 (2026-05-30) — 시안1 모노 인쇄 (export_ci/pl_print 대칭)
+   라우터: GET /export/bl/{bl_id}/print(?auto=1)
+   전달: bl / customs / today #}
+
 <style>
-  @page { size: A4; margin: 18mm 16mm; }
-  *  { box-sizing: border-box; }
-  body { font-family: "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
-         color:#111; font-size:12pt; margin:0; padding:24px; background:#fafafa; }
-  .sheet { background:#fff; max-width:780px; margin:0 auto; padding:28px 32px;
-           border:1px solid #ddd; }
-  h1 { text-align:center; font-size:22pt; letter-spacing:2px; margin:0 0 4px; }
-  h2 { text-align:center; font-size:13pt; color:#555; margin:0 0 18px; font-weight:400; }
-  h3 { font-size:13pt; margin:18px 0 8px; border-bottom:1px solid #999; padding-bottom:3px; }
-  .meta { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:11pt; }
-  .meta td { border:1px solid #999; padding:6px 8px; vertical-align:top; }
-  .meta .lbl { background:#f3f3f3; width:25%; font-weight:600; }
-  table.cust { width:100%; border-collapse:collapse; font-size:11pt; }
-  table.cust th, table.cust td { border:1px solid #999; padding:6px 8px; }
-  table.cust th { background:#eee; }
-  table.cust td.num { text-align:right; }
-  .actions { text-align:center; margin:0 0 20px; }
-  .btn { display:inline-block; padding:8px 16px; background:#0c52d6; color:#fff;
-         border:none; border-radius:4px; text-decoration:none; cursor:pointer; }
-  .btn-back { background:#666; margin-left:8px; }
-  @media print {
-    body { background:#fff; padding:0; }
-    .sheet { border:none; padding:0; max-width:none; }
-    .actions, .no-print { display:none !important; }
-  }
+@page { size: A4; margin: 14mm 12mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif;
+  color: #0f172a; font-size: 10.5pt; background: #e2e8f0; padding: 20px;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.actions { max-width: 820px; margin: 0 auto 14px; text-align: right; }
+.actions button, .actions a {
+  display: inline-block; padding: 7px 16px; font-size: 12px; font-weight: 700;
+  text-decoration: none; border-radius: 6px; cursor: pointer; font-family: inherit;
+  border: 1px solid;
+}
+.actions .print-btn { background: #0f172a; color: #fff; border-color: #0f172a; }
+.actions .back-btn  { background: #fff; color: #334155; border-color: #cbd5e1; margin-left: 6px; }
+
+.sheet {
+  background: #fff; max-width: 820px; margin: 0 auto;
+  padding: 22mm 18mm; border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 10px rgba(15,23,42,0.06);
+}
+
+.title-block { text-align: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+.title-en { font-size: 19pt; font-weight: 800; letter-spacing: 2px; color: #0f172a; }
+.title-ko { font-size: 11.5pt; color: #475569; margin-top: 4px; font-weight: 500; }
+.doc-no { display: inline-block; margin-top: 8px; padding: 3px 14px; background: #0f172a; color: #fff; font-size: 10.5pt; font-weight: 700; letter-spacing: 1px; border-radius: 3px; font-family: ui-monospace, Consolas, monospace; }
+
+.section-head { font-size: 10pt; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; margin: 14px 0 6px; padding-bottom: 3px; border-bottom: 1.5px solid #0f172a; text-transform: uppercase; }
+
+.exporter-block { margin: 12px 0; padding: 10px 12px; background: #f7f8fa; border-left: 3px solid #0f172a; }
+.exporter-block .role { font-size: 9pt; color: #64748b; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+.exporter-block .name { font-size: 12pt; font-weight: 800; color: #0f172a; margin-top: 2px; }
+.exporter-block .addr { font-size: 10pt; color: #334155; margin-top: 3px; line-height: 1.5; }
+
+.meta-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 9.5pt; }
+.meta-table td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+.meta-table td.lbl { background: #f1f5f9; width: 22%; font-weight: 700; font-size: 9pt; color: #475569; letter-spacing: 0.3px; }
+.meta-table td.val { color: #0f172a; }
+.meta-table td.val b { font-weight: 700; }
+
+.customs-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9pt; }
+.customs-tbl th { background: #0f172a; color: #fff; padding: 6px 6px; font-size: 8.5pt; font-weight: 700; letter-spacing: 0.4px; text-align: center; border: 1px solid #0f172a; }
+.customs-tbl td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 9pt; }
+.customs-tbl td.center { text-align: center; }
+.customs-tbl tbody tr:nth-child(even) td { background: #fafbfc; }
+.customs-tbl .empty-row td { text-align: center; color: #94a3b8; padding: 16px; font-style: italic; }
+
+.sig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+.sig-cell { border: 1px solid #cbd5e1; padding: 9px 10px; text-align: center; }
+.sig-cell .role { font-size: 9pt; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 6px; border-bottom: 1px dashed #cbd5e1; margin-bottom: 16px; }
+
+.footer-meta { margin-top: 14px; padding-top: 8px; border-top: 1px solid #cbd5e1; font-size: 8.5pt; color: #94a3b8; text-align: center; font-family: ui-monospace, Consolas, monospace; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .actions { display: none; }
+  .sheet { border: none; box-shadow: none; max-width: none; padding: 0; }
+}
 </style>
 </head>
 <body>
-<div class="actions no-print">
-  <button class="btn" onclick="window.print()">인쇄</button>
-  <a class="btn btn-back" href="/export/orders/{{ bl.export_order_id }}">돌아가기</a>
+
+<div class="actions">
+  <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
+  <a class="back-btn" href="/export/orders/{{ bl.export_order_id }}">← 돌아가기</a>
 </div>
+
 <div class="sheet">
-  <h1>BILL OF LADING</h1>
-  <h2>선하증권 · 관세 신고 양식</h2>
-  <table class="meta">
-    <tr><td class="lbl">B/L No / 선하증권번호</td><td><strong>{{ bl.bl_no }}</strong></td>
-        <td class="lbl">Status</td><td>{{ bl.status }}</td></tr>
-    <tr><td class="lbl">Shipping Co. / 운송사</td><td>{{ bl.shipping_company or '-' }}</td>
-        <td class="lbl">Vessel / 선명·항공편</td><td>{{ bl.vessel or '-' }}</td></tr>
-    <tr><td class="lbl">Departure / 출항일</td><td>{{ bl.departure_date or '-' }}</td>
-        <td class="lbl">Arrival / 도착예정</td><td>{{ bl.arrival_date or '-' }}</td></tr>
-    <tr><td class="lbl">Tracking No / 추적번호</td><td>{{ bl.tracking_no or '-' }}</td>
-        <td class="lbl">Order No / 수주번호</td><td>{{ bl.order_no }}</td></tr>
-    <tr><td class="lbl">Buyer / 수입자</td><td colspan="3">{{ bl.buyer or '-' }}</td></tr>
-    <tr><td class="lbl">POL / 선적항</td><td>{{ bl.port_of_loading or '-' }}</td>
-        <td class="lbl">POD / 양륙항</td><td>{{ bl.port_of_discharge or '-' }}</td></tr>
-    <tr><td class="lbl">Shipping Terms</td><td colspan="3">{{ bl.shipping_terms or '-' }}</td></tr>
+  <div class="title-block">
+    <div class="title-en">BILL OF LADING</div>
+    <div class="title-ko">선하증권 / 통관 정보</div>
+    <div class="doc-no">{{ bl.bl_no|default('BL-' ~ bl.id) }}</div>
+  </div>
+
+  <div class="exporter-block">
+    <div class="role">Shipper / 송하인 (Exporter)</div>
+    <div class="name">KNK · HAIST Innovation</div>
+    <div class="addr">㈜케이엔케이 · KNK Co., Ltd.</div>
+  </div>
+
+  <div class="section-head">B/L Information</div>
+  <table class="meta-table">
+    <tr>
+      <td class="lbl">Consignee / 수하인</td>
+      <td class="val" colspan="3"><b>{{ bl.buyer|default('-') }}</b></td>
+    </tr>
+    <tr>
+      <td class="lbl">Order No / 수주번호</td>
+      <td class="val">{{ bl.order_no|default('-') }}</td>
+      <td class="lbl">Issue Date / 발급일</td>
+      <td class="val">{{ bl.issue_date|default(today) }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Vessel / 선박명</td>
+      <td class="val">{{ bl.vessel_name|default('-') }}</td>
+      <td class="lbl">Voyage No / 항차</td>
+      <td class="val">{{ bl.voyage_no|default('-') }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Port of Loading / 선적항</td>
+      <td class="val">{{ bl.port_of_loading|default('-') }}</td>
+      <td class="lbl">Port of Discharge / 양륙항</td>
+      <td class="val">{{ bl.port_of_discharge|default('-') }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">ETD / 출발 예정</td>
+      <td class="val">{{ bl.etd|default('-') }}</td>
+      <td class="lbl">ETA / 도착 예정</td>
+      <td class="val">{{ bl.eta|default('-') }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Shipping Terms / 운송조건</td>
+      <td class="val" colspan="3">{{ bl.shipping_terms|default('-') }}</td>
+    </tr>
   </table>
 
-  <h3>Customs Declaration / 관세 신고</h3>
-  <table class="cust">
-    <thead><tr>
-      <th>Decl. No / 신고번호</th><th>HS Code</th>
-      <th>FTA Origin</th><th>Declared Value</th><th>Status</th>
-    </tr></thead>
+  <div class="section-head">Customs Declarations / 통관 신고</div>
+  <table class="customs-tbl">
+    <thead>
+      <tr>
+        <th style="width: 5%;">#</th>
+        <th style="width: 15%;">Customs No / 신고번호</th>
+        <th style="width: 12%;">Type / 종류</th>
+        <th style="width: 12%;">Filed Date / 신고일</th>
+        <th>Remarks / 비고</th>
+        <th style="width: 12%;">Status / 상태</th>
+      </tr>
+    </thead>
     <tbody>
-    {% for cd in customs %}
-      <tr><td>{{ cd.declaration_no or '-' }}</td>
-          <td>{{ cd.hs_code }}</td>
-          <td>{{ cd.fta_origin or '-' }}</td>
-          <td class="num">{{ '{:,.2f}'.format(cd.declared_value or 0) }}</td>
-          <td>{{ cd.status }}</td></tr>
-    {% else %}
-      <tr><td colspan="5" style="text-align:center;color:#888;">(미신고 / no declaration)</td></tr>
-    {% endfor %}
+      {% for cd in customs|default([]) %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td class="center"><b>{{ cd.customs_no|default('-') }}</b></td>
+          <td class="center">{{ cd.kind|default('-') }}</td>
+          <td class="center">{{ cd.filed_date|default('-') }}</td>
+          <td>{{ cd.remarks|default('-') }}</td>
+          <td class="center">{{ cd.status|default('-') }}</td>
+        </tr>
+      {% else %}
+        <tr class="empty-row"><td colspan="6">No customs declarations / 통관 신고 없음</td></tr>
+      {% endfor %}
     </tbody>
   </table>
-  <p style="margin-top:18px;font-size:10pt;color:#666;">
-    Printed on {{ today }} — HAIST WORKS / KNK Co., Ltd.
-  </p>
+
+  <div class="sig-grid">
+    <div class="sig-cell">
+      <div class="role">Carrier / 운송인</div>
+      <div class="name">&nbsp;</div>
+    </div>
+    <div class="sig-cell">
+      <div class="role">Company Stamp / 회사 인장</div>
+      <div class="name">&nbsp;</div>
+    </div>
+    <div class="sig-cell">
+      <div class="role">Customs / 세관 확인</div>
+      <div class="name">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="footer-meta">
+    HAIST WORKS · Generated {{ today }} · Document ID: BL-{{ bl.id }}
+  </div>
 </div>
+
+<script>
+(function(){
+  if (new URLSearchParams(location.search).get('auto') === '1') {
+    setTimeout(function(){ window.print(); }, 400);
+  }
+})();
+</script>
 </body>
 </html>

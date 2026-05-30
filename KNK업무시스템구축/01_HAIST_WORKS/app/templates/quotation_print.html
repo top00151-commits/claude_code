@@ -12,7 +12,7 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
 .print-head .meta { font-size: 12px; color: var(--mute); }
 .print-actions { position: fixed; top: 12px; right: 12px; display: flex; gap: 8px; }
 .btn { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: white; text-decoration: none; color: var(--ink); }
-.btn-primary { background: var(--grad-amber); color: white; border: 0; }
+.btn-primary { background: var(--qv-ink, #0f172a); color: white; border: 0; }  /* v5H226z111: amber → 시안1 잉크 */
 @media print { .print-actions { display: none !important; } }
 
 </style>
@@ -37,10 +37,10 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
 .qp-wrap { max-width: 800px; margin: 0 auto; padding: 24px; background: #fff; color: #111; font-size: var(--text-sm); }
 .qp-toolbar { display:flex; gap:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap; }
 .qp-toolbar button, .qp-toolbar a {
-  background: var(--knk-red, #E11D48); color:#fff; border:none; border-radius:8px;
+  background: var(--qv-ink, #0f172a); color:#fff; border:none; border-radius:8px;
   padding:8px 16px; font-size:var(--text-sm); font-weight:700; cursor:pointer; text-decoration:none;
-}
-.qp-toolbar a.qp-back { background: var(--mute); }
+}  /* v5H226z111: knk-red → 시안1 잉크 */
+.qp-toolbar a.qp-back { background: var(--qv-ink-3, #64748b); }
 .qp-langbar { display:flex; gap:10px; align-items:center; margin-left: 8px; padding: 6px 10px;
               border: 1px solid var(--line); border-radius: 8px; background:var(--paper); font-size:var(--text-xs); }
 .qp-langbar .qp-lang-label { font-weight:700; color:var(--ink); }
@@ -54,7 +54,7 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
 .qp-company .qp-co-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; font-size: var(--text-xs); color:var(--ink); }
 .qp-company .qp-co-row { display:flex; gap:6px; }
 .qp-company .qp-co-label { font-weight:700; color:var(--mute); min-width:72px; }
-.qp-company .qp-co-pending { color:var(--knk-red); font-style: italic; }
+.qp-company .qp-co-pending { color:var(--qv-ink-2, #334155); font-style: italic; }  /* v5H226z111: 회사정보 pending 잉크 톤 */
 .qp-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 18px; font-size: var(--text-xs); }
 .qp-meta .qp-row { display:flex; gap:8px; }
 .qp-meta .qp-label { font-weight:700; min-width:72px; color:var(--ink); }
@@ -111,10 +111,10 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
 
     {# OPS-P1-D6 [B-013]: 회사 식별 정보 미입력 시 경고 배너 (admin/ceo 만 표시) #}
     {% if user and user.role in ['admin','ceo'] and (not company.company_name_ko or not company.company_biz_no or not company.company_address) %}
-    <div style="background:#FEF2F2;border:2px solid var(--knk-red);color:var(--knk-red-dk);padding:12px 16px;border-radius:8px;font-weight:700;margin-bottom:14px;">
+    <div style="background:#f7f8fa;border:2px solid var(--qv-ink, #0f172a);color:var(--qv-ink, #0f172a);padding:12px 16px;border-radius:8px;font-weight:700;margin-bottom:14px;">
       ⚠ 회사 식별 정보가 누락되어 거래처가 식별 불가합니다.
-      <a href="/admin/company-info" style="color:#7F1D1D;text-decoration:underline;margin-left:8px;">→ 회사 정보 입력</a>
-    </div>
+      <a href="/admin/company-info" style="color:var(--qv-ink, #0f172a);text-decoration:underline;margin-left:8px;">→ 회사 정보 입력</a>
+    </div>{# v5H226z111: 빨강 경고 → 잉크 톤 (관리자만 표시, 위험 의미 보존: 두꺼운 보더+볼드) #}
     {% endif %}
 
     {# 사이클 61 U6 — 회사 식별 정보 (한국 상관행: 발행자 식별) #}
