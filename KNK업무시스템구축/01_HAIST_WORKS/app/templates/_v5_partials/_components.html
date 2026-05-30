@@ -152,4 +152,26 @@ a.mgmt-pill:hover, .mgmt-pill[href]:hover { background: var(--qv-ink-2, #334155)
   .filterbar { padding: 10px 16px; }
   .fb-search { min-width: 180px; }
 }
+
+/* ============================================================
+   4. .chip-po — 발주(PO) 상태 칩 (3 페이지 공통)
+   ------------------------------------------------------------
+   사용: <span class="chip-po s-draft">DRAFT</span>
+   상태 5종: s-draft / s-issued / s-partial / s-received / s-cancelled
+   v5H226z113: --pq-purple/--pq-warn 보조 토큰 + qv-* fallback
+   ============================================================ */
+.chip-po {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px;
+  font-size: 11px; font-weight: 600; border-radius: 4px;
+  white-space: nowrap;
+}
+.chip-po::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.chip-po.s-draft     { background: var(--qv-surface-3, #eef0f4); color: var(--qv-ink-3, #64748b); }
+.chip-po.s-issued    { background: #eef0fb;                      color: #4f46e5; }
+.chip-po.s-partial   { background: #fef3c7;                      color: #b45309; }
+.chip-po.s-received  { background: var(--qv-ink, #0f172a);       color: #ffffff; }
+.chip-po.s-cancelled { background: var(--qv-surface-3, #eef0f4); color: var(--qv-ink-4, #94a3b8); text-decoration: line-through; }
 </style>

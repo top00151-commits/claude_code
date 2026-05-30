@@ -145,22 +145,6 @@
 }
 .tbl-erp tfoot td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
 
-/* ── chip-po (PO_STATUSES 매핑) ─────────────────────────────── */
-.chip-po {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 22px; padding: 0 8px;
-  font-size: 11px; font-weight: 600; border-radius: 4px;
-  white-space: nowrap;
-}
-.chip-po::before {
-  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
-}
-.chip-po.s-draft     { background: var(--pq-surface-3);  color: var(--pq-ink-3); }
-.chip-po.s-issued    { background: var(--pq-purple-soft); color: var(--pq-purple); }
-.chip-po.s-partial   { background: var(--pq-warn-soft);   color: var(--pq-warn); }
-.chip-po.s-received  { background: var(--pq-ink);         color: #fff; }
-.chip-po.s-cancelled { background: var(--pq-surface-3);   color: var(--pq-ink-4); text-decoration: line-through; }
-
 /* ── Empty state ────────────────────────────────────────────── */
 .po-empty {
   padding: 64px 20px; text-align: center; color: var(--pq-ink-3);
