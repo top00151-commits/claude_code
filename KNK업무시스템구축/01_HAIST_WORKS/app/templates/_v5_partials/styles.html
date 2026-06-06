@@ -1,7 +1,36 @@
 {# v5H5 STANDALONE 공통 스타일 — _v5_partials/styles.html (v5H55 셸 고정, v5H56 다중 담당자) #}
 <link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
 <style>
+/* v5H226z131 (2026-05-31): 페이지 전환 깜빡임 제거
+   ① View Transitions — 크롬 계열에서 페이지 간 부드러운 크로스페이드(미지원 브라우저는 자동 무시)
+   ② html 배경을 종이색(#FBF5EC)으로 고정 → 전환 순간 흰 화면 번쩍 방지 */
+@view-transition { navigation: auto; }
+/* 기본 크로스페이드(두 화면 동시 반투명 → 배경 비침 '번쩍') 대신,
+   '이전 화면만 사라지고 그 아래 새 화면(불투명)이 드러나는' 방식 → 배경 비침 0 */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-new(root) { animation: none; z-index: 1; }            /* 새 화면: 즉시 불투명, 아래층 */
+  ::view-transition-old(root) { animation: knk-vt-fade .16s ease both; z-index: 2; }  /* 이전 화면: 위에서 페이드아웃 */
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }       /* 모션 최소화 설정 시 즉시 전환 */
+}
+@keyframes knk-vt-fade { from { opacity: 1; } to { opacity: 0; } }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* v5H226z170 (대표 지시): 입력 예시(placeholder) 글자를 전체적으로 더 연하게 —
+   진하게 보여 '입력된 값'처럼 오인되던 문제. 입력값(진함)과 확실히 구분. */
+input::placeholder, textarea::placeholder {
+  color: #c3bdaf !important; opacity: 1; font-weight: 400;
+}
+input::-webkit-input-placeholder, textarea::-webkit-input-placeholder { color: #c3bdaf !important; opacity: 1; }
+input::-moz-placeholder, textarea::-moz-placeholder { color: #c3bdaf !important; opacity: 1; }
+input:-ms-input-placeholder, textarea:-ms-input-placeholder { color: #c3bdaf !important; }
+/* v5H226z175 (2026-06-03 대표 지시): 상태 영문 enum → 한글(영문) 2줄 표기 (status_kr 필터).
+   한글을 크게, 영문 원본은 작고 연하게 보조 표시. pill 안에서도 가운데 정렬 유지. */
+.pill .st-kr, .so-pill .st-kr { display:block; font-weight:700; line-height:1.12; }
+.pill .st-en, .so-pill .st-en { display:block; font-size:.72em; opacity:.55;
+  font-weight:600; letter-spacing:.02em; line-height:1.1; }
+.st-kr { font-weight:700; }
+.st-en { font-size:.72em; opacity:.55; font-weight:600; letter-spacing:.02em; }
 /* v5H55 (2026-05-03 대표 지시 — 스크롤 시 상단바/사이드바 사라지는 문제 해결):
    앱 셸을 viewport(100vh)에 고정하여 .top / .sidebar / .main 이 각자 독립 스크롤.
    기존 min-height:100vh 는 콘텐츠가 길 때 body 자체가 스크롤되어 topbar/sidebar
@@ -10,7 +39,7 @@ html, body {
   height: 100vh;
   overflow: hidden;     /* body 스크롤 차단 — 내부 영역만 스크롤 */
 }
-html { overflow-x: auto; }   /* 좁은 창에서 가로 스크롤만 허용 */
+html { overflow-x: auto; background: #FBF5EC; }   /* 좁은 창 가로 스크롤 + 종이색 고정(흰 번쩍 방지) */
 body {
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   background: var(--paper); color: var(--ink); font-feature-settings: 'tnum';
@@ -38,16 +67,25 @@ button { font-family: inherit; cursor: pointer; }
   min-width: 0;
   min-height: 0;        /* grid item flex 보정 */
   overflow-y: auto;     /* 메인 콘텐츠 영역만 스크롤 */
+  /* v5H226z182: 스크롤바 자리 항상 예약 — 스크롤바 등장으로 인한 미세한 가로 흔들림 방지.
+     (가로폭이 크게 변하던 진짜 원인은 폼 min-width:0 으로 z185 에서 해결) */
+  scrollbar-gutter: stable;
 }
-/* v5H226z106f (대표 지시 2026-05-16):
+/* v5H226z106f (대표 지시 2026-05-16) / z266 (2026-06-06): 전역 하단 여백 15px.
    하단 여백 전역 확보 — 스크롤 끝까지 내려도 콘텐츠 끝임을 시각적으로 인지.
-   .main 이 flex 컨테이너로 중복 정의되어 있어서 padding-bottom 이 스크롤 끝에 안 잡힘.
-   ::after pseudo 로 실제 20px 블록을 마지막 자식으로 삽입 — 스크롤 영역이 이를 포함. */
+   overflow 컨테이너는 padding-bottom 이 스크롤 끝에서 무시되므로 ::after 블록으로 확보. */
 .main::after {
   content: "";
   display: block;
-  min-height: 20px;
+  min-height: 15px;
   flex-shrink: 0;
+}
+/* v5H226z266 (대표 지시): 왼쪽 사이드바도 동일하게 하단 15px — 메뉴 스크롤 끝에서
+   잘린 듯 보이던 문제. (사이드바는 flex 가 아니므로 일반 블록 ::after 로 확보) */
+.sidebar::after {
+  content: "";
+  display: block;
+  min-height: 15px;
 }
 .sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--knk-red); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
@@ -202,3 +240,7 @@ button { font-family: inherit; cursor: pointer; }
 
 {# v5H226z113 (2026-05-31): 페이지 고유 컴포넌트 표준 (mgmt-pill / filterbar / --pq-* alias) #}
 {% include "_v5_partials/_components.html" ignore missing %}
+
+{# v5H226z132 (2026-05-31): 빅터 dock 열림 상태를 '그리기 전(head)'에 적용 →
+   페이지 전환 시 dock 이 닫혔다 다시 열리는 깜빡임·슬라이드 재생 방지 #}
+<script>try{ if(localStorage.getItem('knk_victor_open')==='1') document.documentElement.classList.add('victor-open'); }catch(e){}</script>
