@@ -491,14 +491,22 @@ function openStagePanel(kind, ref, tr){
   const code=((tr.querySelector('.c1 a')||{}).textContent||'').trim();
   const name=((tr.querySelector('.c3')||{}).getAttribute&&(tr.querySelector('.c3').textContent))||'';
   document.getElementById('smTitle').textContent='단계 진행 — '+code+(name?' · '+name.trim():'');
-  document.getElementById('smBody').innerHTML='불러오는 중…';
+  const _sb=document.getElementById('smBody');
+  _sb.innerHTML='불러오는 중…';
   document.getElementById('stageModal').classList.add('show');
-  fetch('/sales/schedule/stages?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref))
-    .then(r=>r.json()).then(j=>{
-      if(!j.ok){ document.getElementById('smBody').textContent='불러오기 실패: '+(j.error||''); return; }
+  // v5H226z272: 실제 상태/응답을 드러내도록 — r.json() 대신 text 받아 직접 파싱
+  fetch('/sales/schedule/stages?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref), {credentials:'same-origin'})
+    .then(r=>r.text().then(t=>({status:r.status, text:t})))
+    .then(res=>{
+      let j=null; try{ j=JSON.parse(res.text); }catch(e){}
+      if(j===null){
+        _sb.textContent='서버 오류('+res.status+') — '+String(res.text).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+        return;
+      }
+      if(!j.ok){ _sb.textContent='불러오기 실패('+res.status+'): '+(j.error||j.detail||''); return; }
       _stagePanel.spec=j.spec||[]; _stagePanel.rows=j.rows||{}; _stagePanel.canMoney=j.can_money;
-      renderStages();
-    }).catch(()=>{ document.getElementById('smBody').textContent='통신 오류'; });
+      try{ renderStages(); }catch(err){ _sb.textContent='표시 오류: '+(err&&err.message||err); }
+    }).catch(err=>{ _sb.textContent='통신 오류: '+(err&&err.message||err); });
 }
 function closeStagePanel(){
   document.getElementById('stageModal').classList.remove('show');

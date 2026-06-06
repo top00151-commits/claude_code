@@ -13025,22 +13025,28 @@ async def schedule_board_stages(request: Request, kind: str = "", ref_id: int = 
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if kind not in ("project", "consumable") or not ref_id:
         return JSONResponse({"ok": False, "error": "bad_ref"}, 400)
-    can_money = bool(can_view_sales(u))
-    # spec 구성 — 금액(sales_only) 단계는 권한 없으면 제외(데이터 자체 미전송)
-    spec = []
-    for s in _logi.STAGE_SPEC:
-        if s.get("sales_only") and not can_money:
-            continue
-        spec.append({"key": s["key"], "label": s["label"], "owner": s["owner"],
-                     "group": s["group"], "subs": s.get("subs", []),
-                     "sales_only": bool(s.get("sales_only"))})
-    rows = _logi.stage_rows_for(kind, int(ref_id))
-    out_rows = {}
-    for (sk, sub), v in rows.items():
-        if sk == "tax_invoice" and not can_money:
-            continue  # 금액 데이터 미전송
-        out_rows[f"{sk}|{sub}"] = v
-    return JSONResponse({"ok": True, "spec": spec, "rows": out_rows, "can_money": can_money})
+    # v5H226z272: 어떤 예외든 JSON 으로 반환(전역 HTML 핸들러로 새지 않게) — 프론트가 원인 표시 가능
+    try:
+        can_money = bool(can_view_sales(u))
+        # spec 구성 — 금액(sales_only) 단계는 권한 없으면 제외(데이터 자체 미전송)
+        spec = []
+        for s in _logi.STAGE_SPEC:
+            if s.get("sales_only") and not can_money:
+                continue
+            spec.append({"key": s["key"], "label": s["label"], "owner": s["owner"],
+                         "group": s["group"], "subs": s.get("subs", []),
+                         "sales_only": bool(s.get("sales_only"))})
+        rows = _logi.stage_rows_for(kind, int(ref_id))
+        out_rows = {}
+        for (sk, sub), v in rows.items():
+            if sk == "tax_invoice" and not can_money:
+                continue  # 금액 데이터 미전송
+            out_rows[f"{sk}|{sub}"] = v
+        return JSONResponse({"ok": True, "spec": spec, "rows": out_rows, "can_money": can_money})
+    except Exception as e:
+        import traceback as _tb
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}",
+                             "trace": _tb.format_exc()[-400:]}, 200)
 
 
 @app.post("/sales/schedule/stage")
