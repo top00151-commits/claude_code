@@ -12825,15 +12825,24 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         return info
 
     # 수주번호(SO)·납품위치 맵 — 프로젝트별 대표 수주번호(orders.order_no)+ship_to 1개
+    # v5H226z263 (대표 지시·연결성 감사): 기존 'ORDER BY id'(오름차순)는 가장 오래된 SO를 골라
+    #   옛 납품처가 표시되던 문제. → 최신 SO(id DESC) 기준으로 바꾸고, 최신 SO의 납품처가 비어 있으면
+    #   그 다음 최신 SO의 납품처로 보강(빈칸 방지). 같은 프로젝트의 SO 중 '현재' 건이 보이게.
     _so_map = {}
     try:
         with db_session() as _c:
             _ocols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
             _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
             for _r2 in _c.execute(
-                f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id"):
-                if _r2[0] and _r2[0] not in _so_map:
-                    _so_map[_r2[0]] = (_r2[1] or "", _r2[2] or "")
+                f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                _pid2 = _r2[0]
+                if not _pid2:
+                    continue
+                _ono2, _sto2 = (_r2[1] or ""), (_r2[2] or "")
+                if _pid2 not in _so_map:
+                    _so_map[_pid2] = [_ono2, _sto2]      # 최신 SO 기준(번호·납품처)
+                elif not _so_map[_pid2][1] and _sto2:
+                    _so_map[_pid2][1] = _sto2             # 최신에 납품처 없으면 다음 최신값으로 보강
     except Exception:
         pass
 
@@ -14000,6 +14009,17 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False) -> li
                         note = f"{note} / 연결코드: {link_code}"
                     else:
                         note = f"연결코드: {link_code}"
+            # v5H226z263 (대표 지시·연결성 감사): 미리보기 'N건 정상' ≠ 실제 등록수 불일치 해소.
+            #   근본원인 = '사업부 미상'은 확정(projects_import_confirm) 단계에서만 실패해 미리보기엔 안 잡힘.
+            #   조치 = 확정과 '동일 조건'(사업부 열 비고 + 관리번호로도 T/M/L/E/C 판단 불가)을 파서에서도
+            #   미리 검사해 errors 에 추가 → 미리보기 단계에서 바로 표기.
+            import re as _re_bd
+            _bd_chk = (biz_div or "").strip().upper()
+            if _bd_chk not in ("T", "M", "L", "E", "C"):
+                _mc_chk = (mgmt_code or "").strip().upper()
+                if not _re_bd.fullmatch(r"\d{3}[TMLEC]\d{4}", _mc_chk):
+                    errors.append("사업부 미상 — 사업부 열이 비었고 관리번호로도 판단 불가"
+                                  "(사업부를 입력하거나 관리번호 형식을 확인하세요)")
             out.append({
                 "sheet": sh_name,
                 "biz_div": biz_div,

@@ -5780,6 +5780,17 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
         except Exception:
             pass
 
+        # 1-j) v5H226z263 (대표 지시·연결성 감사): parent_project_id 명시 정리.
+        #   근본원인 = parent_project_id 는 FK 미선언 + projects 자기참조라, 위 z259 동적 패스의
+        #   'tname != projects' 가드에서 누락 → 부모 장비 삭제 시 자식(소모품/수리)의 부모참조가
+        #   끊긴 채 남아(dangling) 상세의 '연결 관리번호'가 없는 부모를 가리킴. SET NULL 로 끊는다.
+        try:
+            _pcols = [r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()]
+            if "parent_project_id" in _pcols:
+                c.execute("UPDATE projects SET parent_project_id=NULL WHERE parent_project_id=?", (pid,))
+        except Exception:
+            pass
+
         # 2. 본체 삭제
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
 
@@ -11053,22 +11064,46 @@ def clone_quotation_to_order(quotation_id: int, due_date: str | None = None,
         if not q:
             return (0, "")
         # order_no 시퀀스 생성 (SO-YYYYMM-####)
+        # v5H226z263 (대표 지시·연결성 감사): 근본원인 = COUNT(*) 기반 채번은 중간 행 삭제 시
+        #   번호를 재사용 → 기존 SO 번호와 충돌(orders.order_no UNIQUE 위반)·채번 실패.
+        #   조치 = MAX(접미 일련번호)+1 로 바꿔 삭제분 재사용 차단 + UNIQUE 충돌 시 다음 번호로 재시도.
+        import re as _re_so
         ym = datetime.now().strftime("%Y%m")
-        row = c.execute(
-            "SELECT COUNT(*) FROM orders WHERE order_no LIKE ?",
+        _rows_so = c.execute(
+            "SELECT order_no FROM orders WHERE order_no LIKE ?",
             (f"SO-{ym}-%",),
-        ).fetchone()
-        seq = (row[0] if row else 0) + 1
-        order_no = f"SO-{ym}-{seq:04d}"
-        cur = c.execute(
-            """INSERT INTO orders
-               (order_no, quote_id, customer_id, order_date, due_date,
-                total_amount, status, created_by)
-               VALUES (?,?,?,?,?,?,'CONFIRMED',?)""",
-            (order_no, q[0], q[1], date.today().isoformat(),
-             due_date, q[2] or 0, created_by or None),
-        )
-        order_id = cur.lastrowid
+        ).fetchall()
+        _seq = 0
+        for _rso in _rows_so:
+            _mso = _re_so.match(rf"^SO-{ym}-(\d+)$", str(_rso[0] or ""))
+            if _mso:
+                _seq = max(_seq, int(_mso.group(1)))
+        _seq += 1
+        order_id = None
+        order_no = ""
+        for _attempt in range(8):
+            order_no = f"SO-{ym}-{_seq:04d}"
+            try:
+                cur = c.execute(
+                    """INSERT INTO orders
+                       (order_no, quote_id, customer_id, order_date, due_date,
+                        total_amount, status, created_by)
+                       VALUES (?,?,?,?,?,?,'CONFIRMED',?)""",
+                    (order_no, q[0], q[1], date.today().isoformat(),
+                     due_date, q[2] or 0, created_by or None),
+                )
+                order_id = cur.lastrowid
+                break
+            except sqlite3.IntegrityError as _ie_so:
+                # v5H226z263: '수주번호(order_no) 중복'일 때만 다음 번호로 재시도.
+                #   FK 등 다른 무결성 오류는 즉시 재발생시켜 표면화(엉뚱하게 '발급 충돌'로 가리지 않음).
+                _msg = str(_ie_so).lower()
+                if "order_no" in _msg or ("unique" in _msg and "order" in _msg):
+                    _seq += 1
+                    continue
+                raise
+        if order_id is None:
+            raise RuntimeError(f"수주번호(SO) 발급 충돌 — 재시도 초과 (SO-{ym})")
         # 라인 복제 — quotation_items → order_items
         items = c.execute(
             """SELECT part_id, qty, unit_price, total_price
