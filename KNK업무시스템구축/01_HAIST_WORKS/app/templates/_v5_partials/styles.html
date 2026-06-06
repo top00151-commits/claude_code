@@ -77,15 +77,15 @@ button { font-family: inherit; cursor: pointer; }
 .main::after {
   content: "";
   display: block;
-  min-height: 15px;
+  min-height: 50px;
   flex-shrink: 0;
 }
-/* v5H226z266 (대표 지시): 왼쪽 사이드바도 동일하게 하단 15px — 메뉴 스크롤 끝에서
+/* v5H226z266/z267 (대표 지시): 왼쪽 사이드바도 동일하게 하단 여백 — 메뉴 스크롤 끝에서
    잘린 듯 보이던 문제. (사이드바는 flex 가 아니므로 일반 블록 ::after 로 확보) */
 .sidebar::after {
   content: "";
   display: block;
-  min-height: 15px;
+  min-height: 50px;
 }
 .sb-group { padding: var(--space-3) var(--space-5) var(--space-1); font-size: 10px; color: var(--knk-red); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .sb-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; margin: 1px var(--space-2); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; }
