@@ -59,9 +59,14 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--paper-3); border-right: 2px solid var(--knk-red);
   padding: var(--space-5) 0;
   grid-column: 1; grid-row: 2;
-  overflow-y: auto;     /* 사이드바 메뉴 길면 자체 스크롤 */
+  /* v5H226z268b (대표 지시): [스크롤 메뉴영역(.sb-scroll)] + [고정 하단 50px 띠(.sb-bottom-pad)] 분리.
+     사이드바 자체는 스크롤 안 하고(overflow:hidden), 메뉴는 .sb-scroll 안에서만 스크롤 →
+     하단 50px 띠는 항상 비어 있어 메뉴 글씨가 그 아래로 내려가지 않음. */
+  display: flex; flex-direction: column;
+  overflow: hidden;
   min-height: 0;        /* grid item 이 자식에 의해 늘어나지 않도록 */
 }
+.sb-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .main {
   grid-column: 2; grid-row: 2;
   min-width: 0;

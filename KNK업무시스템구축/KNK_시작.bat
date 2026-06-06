@@ -1,6 +1,7 @@
 @echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-06-06 v5H226z268 (사이드바 하단 여백 미적용 수정 - 대표 보고. 메인은 50px 적용됐는데 사이드바 ::after 가 이 환경에서 스크롤 끝에 안 잡힘 → chrome.html 사이드바 끝에 실제 요소 .sb-bottom-pad(min-height:50px·flex-shrink:0) 삽입으로 확실히 확보)
+REM   LAST UPDATE: 2026-06-06 v5H226z269 (사이드바 하단 50px '고정 띠' - 대표 지시. 메뉴 글씨가 하단 여백 아래로 안 내려가게. 사이드바를 flex column 으로: [스크롤 메뉴영역 .sb-scroll(flex:1·overflow-y auto)] + [고정 하단 50px 띠 .sb-bottom-pad(밖)]. 사이드바 자체 overflow:hidden → 메뉴는 .sb-scroll 안에서만 스크롤, 하단 50px는 항상 비어있음. chrome.html 메뉴 전체를 .sb-scroll 로 래핑)
+REM   - 2026-06-06 v5H226z268 (사이드바 하단 여백 미적용 수정 - 대표 보고. 메인은 50px 적용됐는데 사이드바 ::after 가 이 환경에서 스크롤 끝에 안 잡힘 → chrome.html 사이드바 끝에 실제 요소 .sb-bottom-pad(min-height:50px·flex-shrink:0) 삽입으로 확실히 확보)
 REM   - 2026-06-06 v5H226z267 (전역 하단 여백 15→50px - 대표 지시. .main::after / .sidebar::after min-height 50px)
 REM   - 2026-06-06 v5H226z266 (전역 하단 여백 15px - 대표 지시. 메인·사이드바 스크롤 끝에서 여백 없어 잘린 듯 보이던 문제. overflow 컨테이너는 padding-bottom이 스크롤 끝에서 무시되므로 ::after 블록으로 확보. .main::after 20→15 통일 + .sidebar::after 15px 신규(사이드바엔 없던 것). styles.html 공유 스타일이라 전 페이지 적용)
 REM   - 2026-06-06 v5H226z265 (작업 일정표 - 너비조정 정확화 + 비율채움 레이아웃 - 대표 지시. 기존 고정픽셀 방식의 2버그: ①너비 손잡이가 글자끝에 있고 th overflow에 잘려 안 잡힘 → th-wrap width:100%+손잡이 right:0(경계에 정확히) ②칸 숨기면 앞쪽 날짜만 불균일하게 넓어짐 → 근본전환: table-layout fixed+width:100% '비율(가중치) 채움' 모델. 각 칸 %=가중치/Σ×표폭 → 항상 폭 100% 채움, 칸 숨기면 남은 칸이 비율대로 균일하게 넓어짐(날짜 칸 균일). 드래그=대상칸 정확히 그 폭(wknew=targetPx*Sother/(W-targetPx)), 나머지 비율 양보. 신규: 날짜 칸 너비 조절(±) + 날짜 표시 범위(시작~끝, 인쇄영역 확보용 날짜 숨김). 인쇄=표 100% 페이지폭. 드래그 중 폭만 갱신(applyWidths)·표시토글 분리. 검증: Jinja 렌더 OK(날짜 col/th/td 31 data-day))

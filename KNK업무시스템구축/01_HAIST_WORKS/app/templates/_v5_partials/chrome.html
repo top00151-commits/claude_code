@@ -172,6 +172,7 @@
 </script>
 
 <aside class="sidebar" data-dn="sidebar" data-dn-tone="blue">
+  <div class="sb-scroll">{# v5H226z268b: 메뉴는 이 영역 안에서만 스크롤 — 하단 50px 띠는 밖(고정) #}
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
     <div class="sb-group">매출·영업</div>
@@ -249,7 +250,8 @@
 
   <div class="sb-group">&nbsp;</div>
   <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
-  <div class="sb-bottom-pad" aria-hidden="true"></div>{# v5H226z268: 사이드바 하단 여백 50px 확보 #}
+  </div>{# /.sb-scroll #}
+  <div class="sb-bottom-pad" aria-hidden="true"></div>{# v5H226z268b: 고정 하단 50px 띠 — 메뉴 글씨가 이 아래로 안 내려감 #}
 </aside>
 
 {# ─────────── 빅터 AI Dock — 모든 페이지 공통 (v5H22) ─────────── #}
