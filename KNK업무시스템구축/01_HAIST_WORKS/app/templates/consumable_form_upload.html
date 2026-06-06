@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>소모품 발주 신규 · KNK HAIST WORKS</title>
-{# v5H145 (2026-05-05) — 소모품 발주 신규: 등록 완료 흐름 강화 (성공 배너 + 3개 다음단계 버튼) #}
+<title>소모품 수주 신규 · KNK HAIST WORKS</title>
+{# v5H145 (2026-05-05) — 소모품 수주 신규: 등록 완료 흐름 강화 (성공 배너 + 3개 다음단계 버튼) #}
 <link href="/static/css/v5_tokens.css?v=20260505v5H145" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
@@ -72,7 +72,7 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-
   {% include "_v5_partials/chrome.html" with context %}
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
-      <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 발주</a> · <b>C 소모품 입력</b></div>
+      <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span style="font-size:30px;">📦</span>
         <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
@@ -110,8 +110,11 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-
           <div class="field" style="grid-column: span 3;"><label>비고</label>
             <input type="text" name="note" placeholder="발주 메모 / 참고사항" />
           </div>
-          <div class="field"><label>엑셀 파일 (.xlsx)</label>
+          <div class="field"><label>엑셀 파일 (.xlsx)
+              <a href="/consumables/import-template" style="float:right;font-size:10px;color:#1d4ed8;font-weight:700;">📥 양식 다운로드</a>
+            </label>
             <input type="file" name="file" accept=".xlsx,.xls" required />
+            <div style="font-size:10px;color:var(--qv-ink-3);margin-top:3px;">고객사(드림텍) 파일을 그대로 올려도 됩니다. 형식이 없으면 <b>양식 다운로드</b>로 받아 작성하세요.</div>
           </div>
         </div>
         <div class="btn-row">

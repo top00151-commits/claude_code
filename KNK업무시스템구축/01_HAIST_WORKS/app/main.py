@@ -22299,6 +22299,28 @@ async def consumables_new_form(request: Request):
                customers=_logi.customers_for_picker())
 
 
+@app.get("/consumables/import-template")
+async def consumables_import_template(request: Request):
+    """v5H226z261 (대표 지시): 소모품 수주 양식 다운로드 — 드림텍 형식 그대로 복제.
+    데이터 시트(소모품) 헤더는 드림텍 원본과 동일(NO·MODEL USE·SUPPLIER NAME(품명)·
+    ORDER DATE·Q'TY·UNIT·업체명) → 고객사 파일을 그대로 붙여넣어도 파서가 인식. 단가는 업로드 후 화면 입력."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "static" / "templates" / "소모품수주_양식.xlsx"
+    if not p.exists():
+        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    return FileResponse(
+        str(p), filename="KNK_소모품수주_양식.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"},
+    )
+
+
 @app.post("/consumables/upload-xlsx")
 async def consumables_upload_xlsx(request: Request,
                                    file: UploadFile = File(...),
