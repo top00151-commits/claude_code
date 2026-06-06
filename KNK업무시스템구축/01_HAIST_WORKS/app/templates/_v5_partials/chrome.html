@@ -23,7 +23,7 @@
 
 {# 허브별 path 목록 — longest-prefix 계산용 #}
 {% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
-{% set _paths_sales = ['/sales','/projects','/customers','/sales/quotations','/sales/orders','/sales/shipments-receipts','/sales/outstanding','/export'] %}
+{% set _paths_sales = ['/sales','/projects','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
 {% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates'] %}
 {% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/admin','/admin/permissions'] %}
 {% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
@@ -65,86 +65,129 @@
     <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">자재구매센터</a>
   </div>
   <div class="tb-headline" style="font-size:28px;font-weight:800;letter-spacing:0.1em;color:var(--knk-red);white-space:nowrap;">HAIST WORKS</div>
-  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+  <div id="knkTopRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    {# v5H226z123: 새로고침 — 배포 후 최신 화면 반영. 새 버전 감지 시 빨강 점 강조 #}
+    <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="새로고침 (새 버전 반영)" style="background:var(--paper-2);color:var(--mute);position:relative;">↻</a>
     {% if _role in ('ceo','admin','leader','executive') %}
     <a class="top-icon" href="javascript:void(0)" onclick="openFakeDateUI()" title="테스트 날짜 변경" style="background:{% if fake_date_active %}#ffeb3b;color:#000{% else %}var(--paper-2);color:var(--mute){% endif %};">🧪</a>
     {% endif %}
-    <a class="top-icon" href="javascript:void(0)" onclick="toggleVictorDock()" title="빅터 AI (열기/닫기)" style="background:rgba(165,40,44,0.10);color:var(--knk-red);" id="victorToggleBtn">🤖</a>
+    <a href="javascript:void(0)" onclick="toggleVictorDock()" title="빅터 AI {% if ai_on %}· 사용 가능{% else %}· 현재 사용 불가{% endif %} (열기/닫기)" id="victorToggleBtn" class="ai-avatar {{ 'on' if ai_on else 'off' }}">AI</a>
     <a class="top-icon" href="/notifications" title="알림">🔔</a>
     <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
     <a class="top-user" href="/profile">
       <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
-      <div>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+      <div>{{ vname(user) }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
     </a>
     <a class="top-icon" href="/logout" title="나가기">🚪</a>
   </div>
 </header>
 
-{# v5H175: 전역 '이전 페이지' 플로팅 버튼 — 모든 페이지 공통.
-   - 홈/탑탭 메인(현재 위치)에서는 의미가 없으므로 숨김.
-   - history 길이 ≤ 1 (새 탭 직접 진입) 이면 sidebar의 부모 메뉴(/sales 또는 /logistics)로 fallback.
-   - Alt+← 와 동일 동작이지만 마우스 사용자도 즉시 클릭 가능하도록 노출. #}
-{% set _hide_back_paths = ['/home','/sales','/logistics','/login'] %}
-{% if _path not in _hide_back_paths %}
-<a id="knkBackBtn" href="javascript:void(0)" onclick="knkGoBack(event)" title="이전 페이지로 (Alt+←)"
-   style="position:fixed;left:230px;bottom:18px;z-index:900;display:flex;align-items:center;gap:6px;
-          padding:9px 14px 9px 11px;background:#fff;color:var(--knk-red);
-          border:1px solid var(--line);border-radius:24px;
-          box-shadow:0 3px 10px rgba(0,0,0,0.10);
-          font-size:13px;font-weight:700;text-decoration:none;
-          transition:transform .1s, box-shadow .15s, background .12s;">
-  <span style="font-size:15px;line-height:1;">←</span>
-  <span>이전 페이지</span>
-</a>
-<style>
-  #knkBackBtn:hover { background:var(--paper-2); transform:translateY(-1px); box-shadow:0 5px 14px rgba(0,0,0,0.14); }
-  @media (max-width: 980px) { #knkBackBtn { left: 14px; bottom: 14px; } }
-</style>
+{# v5H226z189 (대표 지시): '이전 페이지' 버튼 — SPA 대응 전면 재작성.
+   ① 위치(z190): 오른쪽 상단 top bar 우측 클러스터(#knkTopRight)에 배치 (JS 생성·삽입).
+   ② 동작: 경로(pathname) 기반 방문 스택 → '정말 직전에 들어왔던 다른 페이지' 로 이동.
+      같은 경로의 쿼리/상태 변화(유형선택→폼 등)는 한 페이지로 묶어 건너뜀.
+   ③ 홈/허브에선 숨김.
+   ※ 인앱 링크는 spa_nav(.main 만 교체)로 동작 → 'knk:navigated' 이벤트에도 반응해
+     매 전환마다 버튼 재삽입 + 스택 기록 (전체 새로고침 1회만으론 부족). #}
 <script>
-  function knkGoBack(ev){
-    if (ev) ev.preventDefault();
-    // 같은 origin 의 referrer 가 있으면 우선 사용 (history.back 보다 신뢰성 높음)
-    var ref = document.referrer || '';
-    var sameOrigin = ref && ref.indexOf(location.origin) === 0 && ref !== location.href;
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-    if (sameOrigin) { window.location.href = ref; return; }
-    // fallback: 현재 탭의 허브 홈으로
-    var p = location.pathname;
-    if (p.indexOf('/sales') === 0 || p.indexOf('/projects') === 0 || p.indexOf('/customer') === 0
-        || p.indexOf('/quote') === 0 || p.indexOf('/order') === 0 || p.indexOf('/export') === 0) {
-      window.location.href = '/sales';
-    } else if (p.indexOf('/logistics') === 0 || p.indexOf('/po') === 0 || p.indexOf('/parts') === 0
-        || p.indexOf('/supplier') === 0 || p.indexOf('/stock') === 0 || p.indexOf('/rates') === 0) {
-      window.location.href = '/logistics';
-    } else {
-      window.location.href = '/home';
-    }
+(function(){
+  if (window.__knkBackInit) return; window.__knkBackInit = true;
+  var KEY = 'knkNavStack';
+  var HUBS = ['/home','/sales','/logistics','/login','/'];   // 버튼 숨길(이전 의미 없는) 경로
+  function pathOf(u){ try { return new URL(u, location.origin).pathname; } catch(e){ return (u||'').split('?')[0]; } }
+  function load(){ try { return JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch(e){ return []; } }
+  function save(s){ try { sessionStorage.setItem(KEY, JSON.stringify(s.slice(-50))); } catch(e){} }
+  function isHub(p){ return HUBS.indexOf(p) >= 0; }
+
+  // === 방문 스택 기록 (경로 기준) ===
+  function recordNav(){
+    if (sessionStorage.getItem('knkNavBack') === '1') { sessionStorage.removeItem('knkNavBack'); return; }
+    var cur = location.pathname + location.search, curPath = location.pathname;
+    var s = load();
+    if (s.length && pathOf(s[s.length-1]) === curPath) s[s.length-1] = cur;  // 같은 경로 → 한 페이지로 갱신
+    else s.push(cur);                                                         // 새 페이지 → 추가
+    save(s);
   }
-  // Alt+← 단축키 보조 (브라우저 기본 동작과 합치, 없으면 처리)
+
+  // === 진짜 '직전에 들어왔던 다른 페이지' 로 이동 ===
+  window.knkGoBack = function(ev){
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var s = load(), curP = location.pathname;
+    while (s.length && pathOf(s[s.length-1]) === curP) s.pop();   // 현재 경로 항목 모두 제거(같은 페이지 단계 건너뜀)
+    if (s.length) {
+      var target = s[s.length-1];
+      save(s); sessionStorage.setItem('knkNavBack', '1'); location.assign(target); return;
+    }
+    var ref = document.referrer || '';
+    if (ref && ref.indexOf(location.origin) === 0 && pathOf(ref) !== curP) {
+      sessionStorage.setItem('knkNavBack', '1'); location.assign(ref); return;
+    }
+    var p = location.pathname;
+    if (/^\/(sales|projects|customer|quote|order|export)/.test(p)) location.assign('/sales');
+    else if (/^\/(logistics|po|parts|supplier|stock|rates|materials)/.test(p)) location.assign('/logistics');
+    else location.assign('/home');
+  };
+
+  // === 버튼 생성/배치 (제목 왼쪽 앞) — SPA 로 .main 이 교체되면 버튼이 사라지므로 매번 재삽입 ===
+  function createBtn(){
+    var a = document.createElement('a');
+    a.id = 'knkBackBtn'; a.href = 'javascript:void(0)'; a.title = '이전 페이지로 (Alt+←)';
+    a.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 12px;'
+      + 'background:#fff;color:var(--knk-red);border:1px solid var(--line);border-radius:16px;'
+      + 'font-size:12.5px;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap;flex:none;'
+      + 'transition:background .12s, box-shadow .15s;';
+    a.innerHTML = '<span style="font-size:13px;line-height:1;">←</span><span>이전 페이지</span>';
+    a.addEventListener('mouseenter', function(){ a.style.background = 'var(--paper-2)'; a.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)'; });
+    a.addEventListener('mouseleave', function(){ a.style.background = '#fff'; a.style.boxShadow = 'none'; });
+    a.addEventListener('click', window.knkGoBack);
+    return a;
+  }
+  // v5H226z190 (대표 지시): 위치를 '오른쪽 상단(top bar 우측 클러스터)' 로 이동.
+  //   top bar 는 SPA 전환에도 유지되므로 한 번만 삽입하고, 페이지별로 표시만 토글(홈/허브는 숨김).
+  function placeBack(){
+    var host = document.getElementById('knkTopRight');
+    if (!host) return;
+    var btn = document.getElementById('knkBackBtn') || createBtn();
+    var refresh = document.getElementById('knkRefreshBtn');   // ↻ 새로고침
+    // v5H226z191 (대표 지시): 새로고침(↻) '앞쪽' 에 배치
+    if (refresh) { if (refresh.previousElementSibling !== btn) host.insertBefore(btn, refresh); }
+    else if (btn.parentElement !== host) host.insertBefore(btn, host.firstChild);
+    btn.style.display = isHub(location.pathname) ? 'none' : 'inline-flex';
+  }
+
+  function onNav(){ recordNav(); placeBack(); }
+
+  // 최초(전체) 로드
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onNav);
+  else onNav();
+  // SPA 부분전환 — URL/제목 갱신 직후 실행되도록 0ms 디퍼
+  document.addEventListener('knk:navigated', function(){ setTimeout(onNav, 0); });
+  // Alt+← 단축키
   document.addEventListener('keydown', function(e){
-    if (e.altKey && e.key === 'ArrowLeft' && !e.target.matches('input,textarea,select')) {
-      // 브라우저가 기본적으로 처리하지만, 일부 환경에서 막힐 때를 대비
-      // (기본 동작 그대로 두고 추가 처리는 하지 않음)
+    if (e.altKey && e.key === 'ArrowLeft' && !(e.target.matches && e.target.matches('input,textarea,select'))) {
+      e.preventDefault(); window.knkGoBack();
     }
   });
+})();
 </script>
-{% endif %}
 
 <aside class="sidebar" data-dn="sidebar" data-dn-tone="blue">
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
     <div class="sb-group">매출·영업</div>
     {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
-    {{ a('/projects/new',          '🆕 프로젝트 등록',                'M-01-11') }}
+    {{ a('/projects',              '📋 프로젝트',                     'M-01-11') }}
+    {# v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 #}
+    {{ a('/sales/schedule',        '📅 작업 일정표', 'M-01-14') }}
     {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
     {{ a('/sales/quotations',      '📋 견적서',      'M-01-02') }}
     {{ a('/sales/orders',          '📑 수주',        'M-01-03') }}
+    {# v5H226z246 (대표 지시): 소모품 진입은 '프로젝트 등록 → C 소모품' 한 곳으로 통일 →
+       사이드바 '소모품 발주' 메뉴 항목 제거. 목록은 프로젝트 목록 🧴소모품 책갈피에서 조회. #}
     {{ a('/sales/shipments-receipts','🚚 납품·수금', 'M-01-04') }}
     {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
     {{ a('/export',                '🌐 수출입',      'M-01-10') }}
+    {{ a('/as',                    '🛠 A/S 관리',    'M-01-12') }}
   {% elif _at == 'logi' %}
     <div class="sb-group">자재·구매</div>
     {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
@@ -188,6 +231,7 @@
   {% if _is_pm %}
   {{ a('/workflow',           '🧩 일 순서 만들기', 'M-00-18') }}
   {% endif %}
+  {{ a('/contacts',      '📇 연락처(주소록)', 'M-00-16') }}
   {{ a('/notifications', '📢 알림함',    'M-00-09') }}
   {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}
   {{ a('/tickets',       '🎫 티켓',      'M-00-12') }}
@@ -199,25 +243,30 @@
   <div class="sb-group">관리</div>
   {{ a('/admin',             '⚙️ 관리자',    'M-04-01') }}
   {{ a('/admin/permissions', '🔐 권한 위임', 'M-04-02') }}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', '🤖 AI 모델 설정', 'M-04-08') }}{% endif %}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', '🗑 데모 초기화', 'M-04-09') }}{% endif %}
   {% endif %}
 
   <div class="sb-group">&nbsp;</div>
   <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
+  <div class="sb-bottom-pad" aria-hidden="true"></div>{# v5H226z268: 사이드바 하단 여백 50px 확보 #}
 </aside>
 
 {# ─────────── 빅터 AI Dock — 모든 페이지 공통 (v5H22) ─────────── #}
 <aside id="victorDock" class="victor-dock" aria-hidden="true">
   <div class="vd-head">
     <div>
-      <div class="vd-name">빅터 AI</div>
-      <div class="vd-role">YOUR WARM PARTNER</div>
+      <div class="vd-name" style="display:flex;align-items:center;gap:7px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span> 빅터</div>
+      {% if ai_on %}<div class="vd-role">YOUR WARM PARTNER · AI 사용 가능</div>
+      {% else %}<div class="vd-role" style="color:#dc2626;font-weight:700;">AI 사용 불가 — 메뉴 검색만 됩니다</div>{% endif %}
     </div>
     <button type="button" class="vd-close" onclick="toggleVictorDock(false)" aria-label="닫기">✕</button>
   </div>
   <div class="vd-body" id="vdBody">
     <div class="vd-msg">
-      안녕하세요 {{ user.name|default('') }}님 👋<br>
+      안녕하세요 {{ vname(user) or '' }}님 👋<br>
       자연어로 메뉴를 물어보세요. 예: <b>"견적 작성"</b>, <b>"수불부"</b>, <b>"권한 위임"</b>
+      {% if ai_on %}<br><span class="ai-mark on">AI</span> 켜짐 — 메뉴에 없는 질문·메일 초안도 물어보세요{% endif %}
     </div>
   </div>
   <form class="vd-input-wrap" onsubmit="event.preventDefault();victorAsk(document.getElementById('vdInput').value);">
@@ -237,15 +286,15 @@
   transition: transform .25s ease-out;
   z-index: 95;
 }
-body.victor-open .victor-dock { transform: translateX(0); }
+.victor-open .victor-dock { transform: translateX(0); }
 /* 빅터 dock 열렸을 때 메인 콘텐츠 우측 padding 확보 → 컨텐츠가 가려지지 않도록 */
 .main { transition: padding-right .25s ease-out; }
-body.victor-open .main { padding-right: 320px; }
+.victor-open .main { padding-right: 320px; }
 /* v5H42: 상단바는 dock과 무관하게 원래 너비 유지 (HAIST WORKS 조기 숨김 문제 해결).
    우측 아이콘은 dock에 일부 가려질 수 있으나 토픽바 레이아웃 안정성 우선 */
 /* v5H42: 상단바·HAIST 위치는 dock과 무관 (보정 제거) — 메인만 좌측 padding 추가 */
 @media (max-width: 1023px) {
-  body.victor-open .main { padding-right: 0; }
+  .victor-open .main { padding-right: 0; }
 }
 .vd-head { padding: 16px 18px; background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%); color: white; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .vd-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
@@ -266,7 +315,25 @@ body.victor-open .main { padding-right: 320px; }
 .vd-input-wrap input:focus { outline: none; border-color: var(--knk-red); }
 .vd-input-wrap button { background: var(--knk-red); color: white; border: 0; border-radius: 8px; padding: 0 14px; font-weight: 700; cursor: pointer; font-size: 12.5px; }
 .vd-input-wrap button:hover { background: #7A1D20; }
-#victorToggleBtn.is-open { background: var(--knk-red) !important; color: white !important; }
+#victorToggleBtn.is-open { box-shadow: 0 0 0 3px rgba(0,0,0,0.22); }  /* 열림=링(AI 상태색 유지) */
+/* v5H226z128: AI 표식 = 아바타형 원형 배지. 동작=파란 원 / 미동작=빨간 원, 글씨 흰색(양쪽서 잘 보임) */
+.ai-avatar { display:inline-flex; align-items:center; justify-content:center;
+             width:50px; height:50px; border-radius:50%; color:#fff; font-weight:800;
+             font-size:17px; letter-spacing:.03em; line-height:1; flex-shrink:0;
+             border:2px solid #fff; box-sizing:border-box;
+             text-decoration:none; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.20);
+             transition:transform .12s ease, box-shadow .15s ease; }
+.ai-avatar.on  { background:#2563eb; }   /* 파랑 = AI 동작/사용 가능 */
+.ai-avatar.off { background:#dc2626; }   /* 빨강 = AI 미동작/사용 불가 */
+.ai-avatar:hover { transform:translateY(-1px); box-shadow:0 3px 9px rgba(0,0,0,.24); }
+.ai-avatar.sm { width:22px; height:22px; font-size:9px; border-width:1px; box-shadow:0 1px 2px rgba(0,0,0,.16); }
+/* 인라인 텍스트형(문장 속 'AI' 색만) — 보조 */
+.ai-mark { font-weight:800; letter-spacing:.02em; }
+.ai-mark.on  { color:#2563eb; }
+.ai-mark.off { color:#dc2626; }
+/* v5H226z126: 빅터 AI 응답·생각중 메시지 */
+.vd-msg.vd-thinking { opacity: .6; font-style: italic; }
+.vd-msg.vd-ai { background: rgba(165,40,44,0.06); border-left: 3px solid var(--knk-red); line-height: 1.6; white-space: normal; }
 @media (max-width: 1023px) {
   .victor-dock { width: 100%; }
 }
@@ -277,6 +344,7 @@ body.victor-open .main { padding-right: 320px; }
 (function(){
   var KEY = 'knk_victor_open';
   function applyState(open){
+    document.documentElement.classList.toggle('victor-open', !!open);  /* html 동기화(전환 깜빡임 방지) */
     document.body.classList.toggle('victor-open', !!open);
     var btn = document.getElementById('victorToggleBtn');
     if (btn) btn.classList.toggle('is-open', !!open);
@@ -304,6 +372,9 @@ async function victorAsk(q){
   body.insertAdjacentHTML('beforeend',
     '<div class="vd-msg user">' + _vdEsc(q) + '</div>');
   var inp = document.getElementById('vdInput'); if (inp) inp.value = '';
+  var _think = document.createElement('div');
+  _think.className = 'vd-msg vd-thinking'; _think.textContent = '🤖 생각 중…';
+  body.appendChild(_think);
   body.scrollTop = body.scrollHeight;
   try {
     var r = await fetch('/victor/route', {
@@ -311,6 +382,7 @@ async function victorAsk(q){
       body: JSON.stringify({ q: q })
     });
     var j = await r.json();
+    if (_think) _think.remove();
     if (j.ok && j.auto_navigate && j.path){
       body.insertAdjacentHTML('beforeend',
         '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b> 페이지로 이동합니다 (' + _vdEsc(j.code||'') + ')</div>');
@@ -324,11 +396,15 @@ async function victorAsk(q){
       html += '</div>';
       body.insertAdjacentHTML('beforeend', html);
       body.scrollTop = body.scrollHeight;
+    } else if (j.ai && j.msg){
+      body.insertAdjacentHTML('beforeend',
+        '<div class="vd-msg vd-ai">🤖 ' + _vdEsc(j.msg).replace(/\n/g,'<br>') + '</div>');
     } else {
       body.insertAdjacentHTML('beforeend',
         '<div class="vd-msg">' + _vdEsc(j.msg || '해당하는 메뉴를 찾지 못했습니다') + '</div>');
     }
   } catch(e){
+    if (_think) _think.remove();
     body.insertAdjacentHTML('beforeend', '<div class="vd-msg">통신 실패: ' + _vdEsc(e.message||'') + '</div>');
   }
   body.scrollTop = body.scrollHeight;
@@ -408,3 +484,126 @@ window.setFakeDate = async function(dateStr){
 {# v5H226z51 (2026-05-09): 베이스 컬러 = 기본 잉크 (#0f172a) 확정 — 위젯 제거 #}
 {# Q4 후보 (Navy / Green / Charcoal) CSS 는 design_quiet_v3.html 에 보존됨 #}
 {# 추후 변경 원하면 URL 에 ?accent=navy 추가 또는 design_quiet_v3.html 에서 default 교체 #}
+
+{# v5H226z122 (2026-05-31): 목록 행 우클릭 '새 탭/새 창에서 열기' 지원 (대표 지시: 멀티탭 업무 효율) #}
+<style>
+  /* 목록 행 셀을 진짜 링크로 — 색·밑줄은 기존 그대로, 셀 폭 채움 */
+  a.knk-rowlink { display:block; color:inherit; text-decoration:none; cursor:pointer; }
+  a.knk-rowlink:hover { color:inherit; text-decoration:none; }
+  tr[data-knk-rowlink] { cursor:pointer; }
+</style>
+<script>
+/* tr[onclick="location.href='URL'"] 형태의 목록 행을 진짜 <a href> 로 보강한다.
+   - 브라우저 네이티브 우클릭/Ctrl+클릭/가운데클릭 '새 탭에서 열기' 활성화
+   - 버튼·입력·기존 링크가 든 셀은 건드리지 않아 체크박스·액션버튼 정상 동작
+   - onclick 은 제거(중복 내비게이션·Ctrl+클릭 시 현재탭 동시이동 방지) */
+(function () {
+  function urlFromOnclick(oc) {
+    if (!oc) return null;
+    var m = oc.match(/location\.href\s*=\s*['"]([^'"]+)['"]/);
+    return m ? m[1] : null;
+  }
+  function enhance(root) {
+    var rows = (root || document).querySelectorAll('tr[onclick]');
+    Array.prototype.forEach.call(rows, function (tr) {
+      if (tr.hasAttribute('data-knk-rowlink')) return;
+      var url = urlFromOnclick(tr.getAttribute('onclick'));
+      if (!url) return;                       // location.href 패턴이 아니면 건너뜀
+      tr.setAttribute('data-knk-rowlink', '1');
+      tr.removeAttribute('onclick');          // 좌클릭은 셀 <a> 가 처리
+      Array.prototype.forEach.call(tr.children, function (cell) {
+        // 인터랙티브 요소(버튼·입력·기존 링크 등)가 있는 셀은 그대로 둠
+        if (cell.querySelector('a, button, input, select, textarea, label')) return;
+        if (cell.querySelector('a.knk-rowlink')) return;
+        var a = document.createElement('a');
+        a.href = url;
+        a.className = 'knk-rowlink';
+        while (cell.firstChild) a.appendChild(cell.firstChild);
+        cell.appendChild(a);
+      });
+    });
+  }
+  function run() { try { enhance(document); } catch (e) {} }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else { run(); }
+  // 동적으로 그려지는 표(검색·필터 후 갱신)도 다시 보강할 수 있도록 노출
+  window.KNK_enhanceRowLinks = enhance;
+})();
+</script>
+
+{# v5H226z123 (2026-05-31): 새 버전(배포) 감지 → '새로고침' 안내 (대표 지시) #}
+<style>
+  /* 새 버전 감지 시 새로고침 아이콘 강조 (빨강 점 + 맥동) */
+  #knkRefreshBtn.knk-update::after {
+    content:''; position:absolute; top:-2px; right:-2px;
+    width:9px; height:9px; border-radius:50%;
+    background:#e11d48; box-shadow:0 0 0 2px var(--paper-3, #fff);
+    animation:knkPulse 1.2s ease-in-out infinite;
+  }
+  #knkRefreshBtn.knk-update { background:rgba(225,29,72,0.12) !important; color:#e11d48 !important; }
+  @keyframes knkPulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.5);opacity:.55;} }
+
+  /* 새 버전 배너 (하단 중앙 토스트) */
+  #knkUpdateBar {
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+    z-index:99999; display:flex; align-items:center; gap:14px;
+    background:#0f172a; color:#fff; padding:13px 18px; border-radius:14px;
+    box-shadow:0 12px 34px rgba(0,0,0,0.32); font-size:14px; font-weight:600;
+    max-width:92vw; animation:knkSlideUp .35s ease;
+  }
+  @keyframes knkSlideUp { from{opacity:0;transform:translate(-50%,16px);} to{opacity:1;transform:translate(-50%,0);} }
+  #knkUpdateBar .knk-up-reload {
+    background:#e11d48; color:#fff; border:0; border-radius:10px;
+    padding:9px 16px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  #knkUpdateBar .knk-up-reload:hover { background:#be123c; }
+  #knkUpdateBar .knk-up-later {
+    background:transparent; color:rgba(255,255,255,0.7); border:0;
+    font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+</style>
+<script>
+/* 배포(코드 변경) 감지: 페이지 로드시 버전과 서버 버전(/api/version)을 주기 비교.
+   서버 버전이 바뀌면 = 새로 배포됨 → 새로고침 아이콘 강조 + 안내 배너. (대표 지시 2026-05-31) */
+(function () {
+  var LOADED = "{{ APP_VERSION }}";          // 이 화면이 로드된 시점의 버전
+  if (!LOADED) return;
+  var shown = false;
+  function showBanner() {
+    if (shown) return; shown = true;
+    var btn = document.getElementById('knkRefreshBtn');
+    if (btn) { btn.classList.add('knk-update'); btn.title = '새 버전이 있습니다 — 클릭해 새로고침'; }
+    if (document.getElementById('knkUpdateBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'knkUpdateBar';
+    var msg = document.createElement('span');
+    msg.textContent = '🆕 새 버전이 배포되었습니다. 최신 화면으로 새로고침해주세요.';
+    var reload = document.createElement('button');
+    reload.className = 'knk-up-reload';
+    reload.textContent = '지금 새로고침 ↻';
+    reload.onclick = function () { location.reload(); };
+    var later = document.createElement('button');
+    later.className = 'knk-up-later';
+    later.textContent = '나중에';
+    later.onclick = function () { var b = document.getElementById('knkUpdateBar'); if (b) b.remove(); };
+    bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(later);
+    document.body.appendChild(bar);
+  }
+  function check() {
+    fetch('/api/version', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.v && String(d.v) !== LOADED) showBanner(); })
+      .catch(function () { /* 네트워크 일시 오류 무시 */ });
+  }
+  setTimeout(check, 20000);        // 첫 확인: 20초 후
+  setInterval(check, 90000);       // 이후 90초마다
+  // 탭을 다시 활성화할 때도 즉시 확인 (오래 켜둔 탭 대응)
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') check();
+  });
+})();
+</script>
+
+{# v5H226z134: 부분 전환(SPA식) — 본문만 교체해 전환 깜빡임 제거 (전 페이지 공통) #}
+{% include "_v5_partials/spa_nav.html" ignore missing %}
