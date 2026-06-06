@@ -67,9 +67,15 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-
 </style>
 </head>
 <body>
+{% if embed %}<style>/* v5H226z274: 모달 임베드 — 메뉴·상단바 숨기고 폼만 */
+.top,.sidebar,.victor-dock,#victorDock{display:none!important;}
+.app{display:block!important;min-width:0!important;height:auto!important;}
+.main{height:auto!important;overflow:visible!important;}
+html,body{background:#fff!important;overflow:auto!important;}
+.page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">
   {% set active_tab = "sales" %}
-  {% include "_v5_partials/chrome.html" with context %}
+  {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
       <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
@@ -79,7 +85,7 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-
         <em>등록</em>
       </h1>
       <div style="margin-top:6px;">
-        <a href="/projects/new" style="font-size:12px;color:var(--qv-ink-3);text-decoration:none;">← 다른 유형으로 변경</a>
+        <a href="/projects/new{% if embed %}?embed=1{% endif %}" style="font-size:12px;color:var(--qv-ink-3);text-decoration:none;">← 다른 유형으로 변경</a>
       </div>
     </div>
 

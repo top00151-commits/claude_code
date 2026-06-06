@@ -13353,7 +13353,7 @@ async def projects_bulk_template_download(request: Request):
 
 @app.get("/projects/new", response_class=HTMLResponse)
 async def projects_new_form(request: Request,
-                            type: str = "", biz_div: str = ""):
+                            type: str = "", biz_div: str = "", embed: str = ""):
     """v5H148 (2026-05-05) — 대표 직접 지시: 프로젝트 등록 진입점 통합.
     - type 파라미터 없으면 4-카드 chooser (T검사기/M자동화/기타/소모품)
     - type 있으면 기존 폼 + biz_div/project_type 사전 선택
@@ -13363,11 +13363,13 @@ async def projects_new_form(request: Request,
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
+    # v5H226z274 (대표 지시): 작업 일정표 '여기서 등록' — embed 모드(메뉴·상단바 없이 폼만, 모달용)
+    _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     # type 없으면 chooser 페이지
     _t = (type or "").strip().upper()
     if not _t:
         return ctx(request, "project_new_chooser.html",
-                   user=u, active="sales_projects")
+                   user=u, active="sales_projects", embed=_embed)
     # v5H221: CONSUMABLE 도 폼 재활용 (project_form.html — 일정/금액 숨김), SERVICE 만 OTHER 흡수
     if _t not in ("NEW_EQUIP", "OTHER", "CONSUMABLE"):
         _t = "OTHER" if _t == "SERVICE" else "NEW_EQUIP"
@@ -13385,7 +13387,7 @@ async def projects_new_form(request: Request,
     return ctx(request, "project_form.html",
                user=u, active="sales_projects",
                project=None,
-               preset=_preset,
+               preset=_preset, embed=_embed,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
                customers=_logi.customers_for_picker())
@@ -13421,6 +13423,9 @@ async def projects_new_submit(request: Request):
     _back_qs = f"type={_ptype_form}"
     if biz_div:
         _back_qs += f"&biz_div={biz_div}"
+    # v5H226z274: embed(모달) 모드면 검증실패 재렌더도 embed 유지
+    if str(form.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y"):
+        _back_qs += "&embed=1"
     def _err_redirect(code: str, extra: str = "") -> RedirectResponse:
         url = f"/projects/new?{_back_qs}&error={code}"
         if extra:
@@ -22510,14 +22515,15 @@ async def consumables_list(request: Request, status: str = "", q: str = ""):
 
 
 @app.get("/consumables/new", response_class=HTMLResponse)
-async def consumables_new_form(request: Request):
+async def consumables_new_form(request: Request, embed: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return RedirectResponse("/home", 303)
+    _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     return ctx(request, "consumable_form_upload.html",
-               user=u, active="consumables",
+               user=u, active="consumables", embed=_embed,
                customers=_logi.customers_for_picker())
 
 

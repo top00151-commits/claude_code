@@ -51,8 +51,14 @@
 .pc-card.lifevalue .go { color: #9d174d; }
 </style></head>
 <body>
+{% if embed %}<style>/* v5H226z274: 모달 임베드 — 메뉴·상단바 숨기고 폼만 */
+.top,.sidebar,.victor-dock,#victorDock{display:none!important;}
+.app{display:block!important;min-width:0!important;height:auto!important;}
+.main{height:auto!important;overflow:visible!important;}
+html,body{background:#fff!important;overflow:auto!important;}
+.page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">{% set active_tab = 'sales' %}
-{% include "_v5_partials/chrome.html" with context %}
+{% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main">
   <div class="page-head">
     <div>
@@ -77,7 +83,7 @@
     </p>
 
     <div class="pc-grid">
-      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=T">
+      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=T{% if embed %}&embed=1{% endif %}">
         <div class="ic">🔬</div>
         <div class="code">TESTER</div>
         <h3>T 검사기</h3>
@@ -86,7 +92,7 @@
         <span class="go">선택 →</span>
       </a>
 
-      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=M">
+      <a class="pc-card" href="/projects/new?type=NEW_EQUIP&biz_div=M{% if embed %}&embed=1{% endif %}">
         <div class="ic">🤖</div>
         <div class="code">MACHINE</div>
         <h3>M 자동화</h3>
@@ -95,7 +101,7 @@
         <span class="go">선택 →</span>
       </a>
 
-      <a class="pc-card lifevalue" href="/projects/new?type=NEW_EQUIP&biz_div=L">
+      <a class="pc-card lifevalue" href="/projects/new?type=NEW_EQUIP&biz_div=L{% if embed %}&embed=1{% endif %}">
         <div class="ic">💄</div>
         <div class="code">LIFEVALUE</div>
         <h3>L 라이프밸류</h3>
@@ -104,7 +110,7 @@
         <span class="go">선택 →</span>
       </a>
 
-      <a class="pc-card other" href="/projects/new?type=OTHER">
+      <a class="pc-card other" href="/projects/new?type=OTHER{% if embed %}&embed=1{% endif %}">
         <div class="ic">🌐</div>
         <div class="code">ETC.</div>
         <h3>E 기타</h3>
@@ -115,7 +121,7 @@
 
       {# v5H226z245 (대표 지시): 소모품 시작을 프로젝트 등록에서 → '소모품 수주'(업로드) 화면으로 연결.
          (카드 설명이 이미 업로드 흐름인데 링크만 수기 폼이던 불일치 수정) #}
-      <a class="pc-card consumable" href="/consumables/new">
+      <a class="pc-card consumable" href="/consumables/new{% if embed %}?embed=1{% endif %}">
         <div class="ic">📦</div>
         <div class="code">CONSUMABLE</div>
         <h3>C 소모품</h3>
