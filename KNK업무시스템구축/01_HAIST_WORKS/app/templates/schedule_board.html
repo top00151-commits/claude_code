@@ -250,30 +250,35 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <div class="empty">📅 {{ month_label }}에 표시할 일정이 없습니다. (발주일·납기일이 이 달과 겹치는 건이 없음)</div>
     {% endif %}
   </div>
+  {# v5H226z271: 모달·토스트를 .main 안으로 — SPA 이동(.main 교체) 시에도 함께 들어오도록 #}
+  <div class="memo-pop" id="memoPop">
+    <div class="mp-head" id="memoHead">진행 메모</div>
+    <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
+    <div class="mp-btns">
+      <button type="button" onclick="closeMemo()">취소</button>
+      <button type="button" class="mp-save" onclick="saveMemo()">저장</button>
+    </div>
+  </div>
+  <div id="schedToast"></div>
+  <div class="stage-modal" id="stageModal">
+    <div class="stage-card">
+      <div class="sm-head">
+        <div class="sm-title" id="smTitle">단계 진행</div>
+        <button type="button" class="sm-x" onclick="closeStagePanel()">✕</button>
+      </div>
+      <div class="sm-body" id="smBody">불러오는 중…</div>
+    </div>
+  </div>
 </main>
 </div>
 
-<div class="memo-pop" id="memoPop">
-  <div class="mp-head" id="memoHead">진행 메모</div>
-  <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
-  <div class="mp-btns">
-    <button type="button" onclick="closeMemo()">취소</button>
-    <button type="button" class="mp-save" onclick="saveMemo()">저장</button>
-  </div>
-</div>
-<div id="schedToast"></div>
-
-<div class="stage-modal" id="stageModal">
-  <div class="stage-card">
-    <div class="sm-head">
-      <div class="sm-title" id="smTitle">단계 진행</div>
-      <button type="button" class="sm-x" onclick="closeStagePanel()">✕</button>
-    </div>
-    <div class="sm-body" id="smBody">불러오는 중…</div>
-  </div>
-</div>
-
 <script>
+(function(){
+// v5H226z271: SPA 재실행 안전 — 전체를 IIFE로 감싸 const 재선언 오류 방지 + document 리스너 정리.
+if (window.__schedCleanup) { try { window.__schedCleanup(); } catch(e){} }
+var __docL = [];
+function _on(t, ty, fn){ t.addEventListener(ty, fn); __docL.push([t, ty, fn]); }
+window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].removeEventListener(h[1], h[2]); }catch(e){} }); __docL = []; };
 // ===== z265: 작업 일정표 — 비율(채움) 컬럼 모델 =====
 const COL_KEYS = ['code','so_no','name','model','equip','note','qty','trade','po','cust','dept','owner','ship','stage'];
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',trade:'거래구분',po:'PO유형',cust:'고객사',dept:'부서',owner:'담당자',ship:'납품위치',stage:'단계'};
@@ -360,7 +365,7 @@ function buildColsMenu(){
   });
 }
 function toggleColsMenu(e){ e.stopPropagation(); document.getElementById('colsPop').classList.toggle('show'); }
-document.addEventListener('click',(e)=>{ if(!e.target.closest('.cols-menu')){ const p=document.getElementById('colsPop'); if(p) p.classList.remove('show'); }});
+_on(document,'click',(e)=>{ if(!e.target.closest('.cols-menu')){ const p=document.getElementById('colsPop'); if(p) p.classList.remove('show'); }});
 
 // ---- 날짜 너비 / 표시 범위 ----
 function stepDateW(dir){
@@ -387,7 +392,7 @@ document.querySelectorAll('.col-resizer').forEach(h=>{
     document.body.style.cursor='col-resize';
   });
 });
-document.addEventListener('mousemove',(e)=>{
+_on(document,'mousemove',(e)=>{
   if(!_rz) return;
   const t=document.getElementById('schedTable');
   const W=t.getBoundingClientRect().width;
@@ -403,7 +408,7 @@ document.addEventListener('mousemove',(e)=>{
   _rz.x=e.clientX;
   applyWidths();
 });
-document.addEventListener('mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); }});
+_on(document,'mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); }});
 
 // ---- 전체화면 ----
 function schedFullscreen(){
@@ -413,9 +418,9 @@ function schedFullscreen(){
   } else if(document.fullscreenElement){ document.exitFullscreen(); }
   else { w.classList.toggle('fs'); applyCols(); }
 }
-document.addEventListener('fullscreenchange',()=>setTimeout(applyCols,50));
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ document.getElementById('schedWrap').classList.remove('fs'); setTimeout(applyCols,30);} });
-window.addEventListener('resize',()=>setTimeout(updateSticky,50));
+_on(document,'fullscreenchange',()=>setTimeout(applyCols,50));
+_on(document,'keydown',(e)=>{ if(e.key==='Escape'){ document.getElementById('schedWrap').classList.remove('fs'); setTimeout(applyCols,30);} });
+_on(window,'resize',()=>setTimeout(updateSticky,50));
 function schedPrint(){ window.print(); }
 
 // ---- 셀 인라인 편집 ----
@@ -592,11 +597,14 @@ function refetchStages(){
   fetch('/sales/schedule/stages?kind='+encodeURIComponent(_stagePanel.kind)+'&ref_id='+encodeURIComponent(_stagePanel.ref))
     .then(r=>r.json()).then(j=>{ if(j.ok){ _stagePanel.spec=j.spec||[]; _stagePanel.rows=j.rows||{}; renderStages(); }});
 }
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && document.getElementById('stageModal').classList.contains('show')) closeStagePanel(); });
+_on(document,'keydown',(e)=>{ if(e.key==='Escape' && document.getElementById('stageModal').classList.contains('show')) closeStagePanel(); });
 
 // 초기화
 applyCols(); buildColsMenu(); syncDayInputs();
-window.addEventListener('load',()=>setTimeout(updateSticky,80));
+_on(window,'load',()=>setTimeout(updateSticky,80));
+// v5H226z271: 인라인 onclick/onchange 핸들러용 전역 노출 (IIFE 내부 함수들)
+Object.assign(window, {schedFullscreen, schedPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, closeMemo, saveMemo, closeStagePanel});
+})();
 </script>
 </body>
 </html>
