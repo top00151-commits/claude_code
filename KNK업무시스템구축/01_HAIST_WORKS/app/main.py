@@ -166,6 +166,20 @@ app.add_middleware(
     https_only=_PROD,
     max_age=14 * 24 * 60 * 60,  # 14일
 )
+
+
+# v5H226z... http→https 강제 전환 (대표 지시 2026-06-04). 메신저와 동일 효과, FastAPI 미들웨어 방식.
+#   DSM 리버스 프록시가 원래 scheme 을 X-Forwarded-Proto 로 정확히 전달함(메신저에서 실측 확인 2026-06-04).
+#   - http 로 들어오면 https 로 301 영구 전환.
+#   - https 는 헤더가 'https' 라 전환 안 함 → 무한루프 없음.
+#   - X-Forwarded-Proto 헤더가 없으면(내부 직접접속·헬스체크) 전환 안 함 → 안전(최악의 경우 현상 유지).
+@app.middleware("http")
+async def _force_https(request: Request, call_next):
+    if request.headers.get("x-forwarded-proto", "").lower() == "http":
+        return RedirectResponse(str(request.url).replace("http://", "https://", 1), status_code=301)
+    return await call_next(request)
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
 # v5H142: 업로드 파일(소모품 발주 이미지 등) 정적 서빙
 _uploads_root = os.path.join(BASE, "uploads")
@@ -185,6 +199,104 @@ def _t_helper(key: str, default: str = "", lang: str = "ko"):
         pass
     return default or key
 tpl.env.globals["t"] = _t_helper
+
+
+# =====================================================
+# v5H226z144 (2026-06-01): 직원 이름 공통 표기 함수 (대표 지시)
+#   베트남 직원은 기본 표기를 "베트남어 (한국발음)" 으로.
+#   예: Nguyễn Văn A (응우옌반아)  /  한국 직원은 한국 이름 그대로.
+#   템플릿: {{ vname(user) }}  또는  {{ user|vname }}  또는  {{ vname(name, name_vi) }}
+# =====================================================
+def vname(u, name_vi=None, entity=None):
+    """직원 표시 이름. 베트남 직원(name_vi 보유) → 'name_vi (name)'.
+    u: users dict/Row (name·name_vi·entity 포함) 또는 이름 문자열."""
+    try:
+        if isinstance(u, str):
+            name = u
+        elif hasattr(u, "get"):                      # dict
+            name = u.get("name") or ""
+            name_vi = name_vi if name_vi is not None else u.get("name_vi")
+            entity = entity if entity is not None else u.get("entity")
+        else:                                          # sqlite3.Row 등
+            keys = set(u.keys()) if hasattr(u, "keys") else set()
+            name = (u["name"] if "name" in keys else "") or ""
+            if name_vi is None and "name_vi" in keys:
+                name_vi = u["name_vi"]
+            if entity is None and "entity" in keys:
+                entity = u["entity"]
+    except Exception:
+        return str(u or "")
+    name = (name or "").strip()
+    nv = (name_vi or "").strip()
+    # 베트남어 이름이 있고 한국발음과 다르면 병기. (name_vi 는 VN 직원만 채워짐)
+    if nv and nv != name:
+        return f"{nv} ({name})" if name else nv
+    return name
+tpl.env.globals["vname"] = vname
+tpl.env.filters["vname"] = vname
+
+
+# =====================================================
+# v5H226z175 (2026-06-03): 상태(status) 영문 enum → 한글 표기 공통 필터 (대표 지시)
+#   매출·수출·진행현황 등에서 SHIPPED / IN_PRODUCTION 같은 영문 코드가 그대로
+#   보이는 문제 해결. "한글(큰글씨) + 영문(작은글씨)" 2줄로 통일 표기.
+#   - 매핑에 없는 값(이미 한글이거나 미지정)은 원문 그대로 통과 → 기존 화면 안전.
+#   - 색상 판정용 조건(== 'PAID' 등)은 영문 원본을 그대로 두고, 보이는 글자만 교체.
+#   사용:  {{ s.status|status_kr }}        (pill 안 — 2줄)
+#          {{ quote.status|status_kr('inline') }}  (한 줄 텍스트 — "한글(영문)")
+# =====================================================
+_STATUS_KR_MAP = {
+    # --- 수주(SO) / 매출 ---
+    "DRAFT": "임시", "CONFIRMED": "수주확정", "IN_PRODUCTION": "진행중",
+    "READY_TO_SHIP": "납품대기", "SHIPPED": "납품완료", "INVOICED": "송장발행",
+    "PAID": "수금완료", "CANCELLED": "취소", "CANCELED": "취소",
+    # --- 수출(export order / CI / PL / BL / 통관) ---
+    "CI_ISSUED": "CI발행", "PL_READY": "PL준비", "CLEARED": "통관완료",
+    "ISSUED": "발행", "DELIVERED": "납품완료", "SUBMITTED": "제출",
+    "REJECTED": "반려", "APPROVED": "승인",
+    # --- 진행현황(progress) ---
+    "DONE": "완료", "DELAY": "지연", "PROGRESS": "진행중",
+    # --- 공통 ---
+    "PENDING": "대기", "PARTIAL": "부분", "COMPLETED": "완료",
+    "OPEN": "진행", "CLOSED": "마감", "ADJUSTED": "조정완료",
+}
+def status_kr(val, mode="stack"):
+    """상태 영문 enum → '한글 + 영문' 표기. 매핑 없으면 원문 그대로."""
+    from markupsafe import Markup, escape
+    s = "" if val is None else str(val).strip()
+    if not s:
+        return Markup("—")
+    kr = _STATUS_KR_MAP.get(s.upper())
+    if not kr:                                   # 이미 한글이거나 미지정 → 원문
+        return Markup(escape(s))
+    if mode == "inline":
+        return Markup(f'{escape(kr)} <span class="st-en">({escape(s)})</span>')
+    return Markup(f'<span class="st-kr">{escape(kr)}</span>'
+                  f'<span class="st-en">{escape(s)}</span>')
+tpl.env.filters["status_kr"] = status_kr
+tpl.env.globals["status_kr"] = status_kr
+
+
+# v5H226z123 (2026-05-31): 앱 버전(배포 감지용) — git 커밋 해시.
+# 배포(git pull + 재시작) 때마다 값이 바뀜 → 프론트가 주기 확인해 '새 버전' 안내.
+def _compute_app_version():
+    try:
+        import subprocess
+        h = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=BASE, timeout=3,
+        ).decode().strip()
+        if h:
+            return h
+    except Exception:
+        pass
+    # git 불가 시 폴백: main.py 변경 시각(배포 시 파일 갱신되면 바뀜)
+    try:
+        return "t" + str(int(os.path.getmtime(__file__)))
+    except Exception:
+        return "0"
+APP_VERSION = _compute_app_version()
+tpl.env.globals["APP_VERSION"] = APP_VERSION
 
 
 # =====================================================
@@ -684,6 +796,17 @@ async def victor_route_query(req: Request):
     candidates = _menu.search(q, limit=5)
     print(f"[VICTOR-ROUTE] candidates={len(candidates)} → {[c['code'] for c in candidates]}")
     if not candidates:
+        # v5H226z126 (2026-05-31): 메뉴 무매치 → 빅터 AI(LLM) 폴백 (Phase 1: 읽기·안내·작성 보조)
+        # 블로킹 API 호출은 threadpool 로 — 이벤트 루프 안 막음. 데이터 안전: 민감 DB 미주입.
+        try:
+            from starlette.concurrency import run_in_threadpool
+            from .victor import h_ai_assist
+            ai_res = await run_in_threadpool(h_ai_assist, u, db_session, q)
+            if ai_res and ai_res.get("text"):
+                print("[VICTOR-ROUTE] AI fallback 응답")
+                return JSONResponse({"ok": True, "ai": True, "msg": ai_res["text"]})
+        except Exception as _e:
+            print(f"[VICTOR-ROUTE] AI fallback error: {_e}")
         return JSONResponse({
             "ok": False,
             "msg": f"'{q}' 와 일치하는 메뉴를 찾지 못했습니다. M-XX-YY 코드 또는 메뉴 이름으로 시도해주세요.",
@@ -865,6 +988,29 @@ def fake_today_iso(request) -> str:
     return date.today().isoformat()
 
 
+def ai_enabled_for(user) -> bool:
+    """v5H226z127 (2026-05-31): 이 사용자가 지금 빅터 AI 를 쓸 수 있는가.
+    True  → AI 표식 파란색(동작/사용가능)
+    False → AI 표식 빨간색(미동작 또는 그 직원은 사용불가)
+    판정: ① AI 서비스 가용(키·SDK) ② 로그인 사용자 ③ (선택) users.can_use_ai 플래그.
+    can_use_ai 컬럼이 없으면 기본 허용(graceful) — 특정 직원 차단은 플래그로 확장."""
+    try:
+        from . import ai_client
+        if not ai_client.ai_available():
+            return False
+    except Exception:
+        return False
+    if not user:
+        return False
+    try:
+        flag = user.get("can_use_ai") if isinstance(user, dict) else None
+        if flag is not None:
+            return bool(flag)
+    except Exception:
+        pass
+    return True
+
+
 def ctx(request, name, **kwargs):
     # 사용자 언어 결정
     user = kwargs.get("user")
@@ -899,6 +1045,8 @@ def ctx(request, name, **kwargs):
         "real_today": date.today().isoformat(),
         "fake_date_active": _fake_active,
         "now": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        # v5H226z127: AI 사용 가능 여부 → 표식 파랑(True)/빨강(False)
+        "ai_on": ai_enabled_for(user),
         "today_kor": _today_kor,            # CX23c 마스트헤드용
         "edition_no": _edition_no,          # CX23c VOL/NO 표시
         "lang": lang,
@@ -967,23 +1115,26 @@ def get_user(req: Request):
         ).fetchone()
         if not row:
             return None
-        # v5H226z117 (2026-05-31): SSO 사용자는 5분 주기 pwv 동기화 (Q4=B)
-        # admin 백도어 사용자(sso_local=True)는 건너뜀
+        # v5H226z122 (2026-05-31): 멀티탭 효율 우선 — 세션 유지 정책.
+        # 토큰 유효(1시간) 동안만 pwv 동기화. 토큰 만료/무효 시에는 WORKS 세션을
+        # 파기하지 않고(14일 쿠키 유지) 죽은 토큰만 제거해 재확인을 멈춘다.
+        #  → 새 탭/새 창을 열어도 로그인으로 튕기지 않음 (대표 지시 2026-05-31).
+        #  ※ 트레이드오프: 메신저 비번변경 '즉시 로그아웃'은 토큰 유효구간(1h)에만 보장.
+        #    그 이후엔 메신저 재진입(토큰 갱신)·쿠키만료·수동 로그아웃 시 반영.
         try:
-            if not req.session.get("sso_local"):
+            token = req.session.get("sso_token")
+            if token:
                 from .sso_client import should_check_pwv, mark_pwv_checked, fetch_userinfo
                 if should_check_pwv(uid):
-                    token = req.session.get("sso_token")
-                    if token:
-                        info = fetch_userinfo(token)
-                        if info and info.get("_invalid"):
-                            # pwv 불일치 / 토큰 무효 → 세션 파기 (다음 요청에서 /sso/login)
-                            req.session.clear()
-                            return None
-                        # 정상이면 다음 5분간 skip
+                    info = fetch_userinfo(token)
+                    if info and info.get("_invalid"):
+                        # 토큰 만료/무효 → 세션은 유지, 죽은 토큰만 제거 (재확인 중단)
+                        req.session.pop("sso_token", None)
+                        req.session.pop("sso_pwv", None)
+                    else:
                         mark_pwv_checked(uid)
         except Exception:
-            # SSO 동기화 실패해도 기존 세션은 유지 (graceful)
+            # 동기화 실패(메신저 일시 장애 등)해도 기존 세션은 유지 (graceful)
             pass
         return dict(row)
 
@@ -1154,139 +1305,67 @@ def fetch_customers(c):
 
 # =====================================================
 # AUTH
-# v5H226z117 (2026-05-31) SSO Phase 2 — 메신저(IdP) 기반 통합 인증
-# - /login → /sso/login redirect (Q6=C: 일반 사용자는 SSO)
-# - POST /login → admin 백도어만 (Q2=B: 메신저 장애 대비)
-# - /sso/login → 메신저 /msg/sso/login 으로 redirect (callback 명시)
-# - /sso/callback → JWT 검증 + 자동 upsert (Q1=A) + 세션 생성
-# - /logout → 세션 파기 (메신저 글로벌 logout 은 미연동)
+# v5H226z121 (2026-05-31) 메신저 정문 단일 진입 — WORKS 자체 로그인 폐지
+# 발주: _TO_빅터/메신저_WORKS연결_발주_20260531.md (대표 재결정)
+# - 진입: 메신저 "🔗 WORKS" 버튼 → 메신저가 JWT 발급 → GET /sso/land?token=
+# - WORKS 자체 로그인 폼·POST /login 폐지 (비상 백도어 없음 — 대표 결정 2026-05-31)
+# - 권한 게이트: 토큰 claim works_access==true (또는 is_admin) 만 입장
+# - 로그인/로그아웃 독립: WORKS 세션만 관리, 재진입은 메신저 버튼
 # =====================================================
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(req: Request):
-    """일반 로그인 진입 → 메신저 SSO 로 자동 유도.
-    ?admin=1 쿼리 시 admin 백도어 폼 표시 (Q2=B 메신저 장애 대비)."""
-    if req.query_params.get("admin") == "1":
-        return ctx(req, "login.html",
-                   error=None, admin_mode=True,
-                   notice="⚠ Admin 백도어 — 메신저 장애 시에만 사용. 일반 사용자는 메신저 SSO 를 이용하세요.")
-    # 일반 진입 → SSO redirect
-    return RedirectResponse("/sso/login", 303)
+    """미인증 안내 페이지 — WORKS 는 자체 로그인을 받지 않는다.
+    메신저에서 'WORKS 열기' 버튼으로 진입하도록 안내."""
+    u = get_user(req)
+    if u:
+        return RedirectResponse(role_home(u), 303)
+    from .sso_client import MESSENGER_BASE
+    return ctx(req, "login.html", messenger_url=MESSENGER_BASE, error=None)
 
 
-@app.post("/login")
-async def login_post(req: Request, login_id: str = Form(...), password: str = Form(...)):
-    """v5H226z117 (Q2=B + Q6=C): POST /login 은 admin/ceo 만 허용 (메신저 장애 대비 백도어).
-    일반 사용자는 /sso/login 으로 유도."""
-    key = login_id.strip()
-    with db_session() as c:
-        # 사번 → 이메일 → login_id 3순위 매칭
-        u = None
-        try:
-            u = c.execute(
-                "SELECT * FROM users WHERE employee_no=? AND is_active=1",
-                (key,),
-            ).fetchone()
-        except Exception:
-            pass
-        if not u:
-            u = c.execute(
-                "SELECT * FROM users WHERE email=? AND is_active=1",
-                (key,),
-            ).fetchone()
-        if not u:
-            u = c.execute(
-                "SELECT * FROM users WHERE login_id=? AND is_active=1",
-                (key,),
-            ).fetchone()
-
-        # v5H226z117: admin 백도어 — admin/ceo 만 자체 로그인 허용
-        if u and u["role"] not in ("admin", "ceo"):
-            return ctx(req, "login.html",
-                       error="일반 사용자는 메신저 SSO 로 로그인하세요.",
-                       admin_mode=True)
-
-        if u and verify_pw(password, u["password"]):
-            if is_legacy_hash(u["password"]):
-                try:
-                    c.execute("UPDATE users SET password=? WHERE id=?",
-                              (hash_pw(password), u["id"]))
-                except Exception:
-                    pass
-            req.session["user_id"] = u["id"]
-            req.session["sso_local"] = True  # admin 백도어 표시 (pwv 동기화 건너뛰기)
-            try:
-                if u["must_change_pw"]:
-                    return RedirectResponse("/profile?first=1", 303)
-            except (KeyError, IndexError):
-                pass
-            r = u["role"]
-            if r in ("admin", "ceo"):
-                return RedirectResponse("/dashboard", 303)
-            return RedirectResponse("/daily", 303)
-    return ctx(req, "login.html",
-               error="아이디 또는 비밀번호가 올바르지 않습니다.",
-               admin_mode=True)
-
-
-# ── v5H226z117 SSO Phase 2 ─────────────────────────────────
-@app.get("/sso/login")
-async def sso_login(req: Request):
-    """메신저 SSO 로그인 화면으로 redirect.
-    callback URL 은 본 서비스 (works.knknara.co.kr/sso/callback) 절대 경로."""
-    from .sso_client import build_login_url
-    # callback URL 구성 — 운영(HTTPS) / 로컬(HTTP) 둘 다 안전
-    scheme = req.headers.get("x-forwarded-proto") or req.url.scheme
-    host = req.headers.get("host") or req.url.netloc
-    callback_url = f"{scheme}://{host}/sso/callback"
-    # 원래 가려던 URL (사용자가 보호 라우트 접근 후 redirect 된 경우 보존)
-    next_path = req.query_params.get("next") or "/home"
-    req.session["sso_next"] = next_path
-    return RedirectResponse(build_login_url(callback_url), 303)
-
-
-@app.get("/sso/callback")
-async def sso_callback(req: Request):
-    """메신저가 redirect 한 callback — ?token=<JWT> 수신 → 검증 → upsert → 세션 생성."""
-    from .sso_client import verify_token, upsert_user_from_payload, mark_pwv_checked
+@app.get("/sso/land")
+async def sso_land(req: Request):
+    """메신저가 발급한 JWT 를 받아 입장 — 발주 §3.
+    토큰 검증 → works_access 게이트 → 계정 upsert → WORKS 세션 생성 → 역할별 홈."""
+    from .sso_client import (verify_token, upsert_user_from_payload,
+                             mark_pwv_checked, MESSENGER_BASE)
     token = req.query_params.get("token") or ""
     if not token:
-        return ctx(req, "login.html",
-                   error="SSO 토큰이 없습니다. 다시 로그인해주세요.",
-                   admin_mode=False)
+        return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
+                   error="입장 토큰이 없습니다. 메신저에서 'WORKS 열기'로 다시 들어와주세요.")
 
-    # JWT 검증 (RS256, audience, issuer, exp)
     payload = verify_token(token)
     if not payload:
-        return ctx(req, "login.html",
-                   error="SSO 토큰 검증 실패. 다시 로그인해주세요.",
-                   admin_mode=False)
+        return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
+                   error="입장 토큰 검증 실패(만료 가능). 메신저에서 다시 열어주세요.")
 
-    # 사용자 upsert (Q1=A: 메신저가 마스터, HAIST WORKS는 캐시)
+    # 권한 게이트 — works_access==true (메신저 관리자가 부여). admin 은 항상 허용.
+    has_access = bool(payload.get("works_access")) or bool(payload.get("is_admin"))
+    if not has_access:
+        return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
+                   error="WORKS 사용 권한이 없습니다. 메신저 관리자에게 'WORKS 사용 권한'을 요청해주세요.")
+
+    # 계정 동기화 (메신저가 마스터) — 사번 매칭 upsert
     with db_session() as c:
         uid = upsert_user_from_payload(c, payload)
     if not uid:
-        return ctx(req, "login.html",
-                   error="사용자 동기화 실패. (사번 컬럼 마이그레이션 필요 가능)",
-                   admin_mode=False)
+        return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
+                   error="사용자 동기화 실패(사번 컬럼 마이그레이션 필요 가능). 관리자에게 문의해주세요.")
 
-    # 세션 생성
+    # WORKS 세션 생성 (메신저 세션과 독립)
     req.session["user_id"] = uid
-    req.session["sso_local"] = False
-    req.session["sso_pwv"] = int(payload.get("pwv") or 1)  # 발급 시점 pwv 보관
-    req.session["sso_token"] = token  # userinfo 호출 시 재사용
+    req.session["sso_pwv"] = int(payload.get("pwv") or 1)
+    req.session["sso_token"] = token  # 주기적 pwv 동기화에 재사용
     mark_pwv_checked(uid)
 
-    # 원래 가려던 페이지로
-    next_path = req.session.pop("sso_next", None) or "/home"
-    if not next_path.startswith("/"):
-        next_path = "/home"
-    return RedirectResponse(next_path, 303)
+    # 메신저 진입 첫 화면 = '업무현황'(/home) 고정 (대표 지시 2026-05-31)
+    # role 무관 — 대표도 업무현황으로 진입 (대시보드는 메뉴에서 이동)
+    return RedirectResponse("/home", 303)
 
 
 @app.get("/logout")
 async def logout(req: Request):
-    """로컬 세션 파기. 메신저 글로벌 로그아웃은 미연동 (메신저는 계속 로그인 상태)."""
-    # pwv 캐시도 정리
+    """WORKS 세션만 파기. 메신저 세션은 영향 없음. 재진입은 메신저 'WORKS 열기' 버튼."""
     try:
         from .sso_client import invalidate_pwv_check
         uid = req.session.get("user_id")
@@ -1295,8 +1374,14 @@ async def logout(req: Request):
     except Exception:
         pass
     req.session.clear()
-    # 로그아웃 후 메신저로 돌려보내지 않음 (선택 정책 — 안전한 기본값)
     return RedirectResponse("/login", 303)
+
+
+@app.get("/api/version")
+async def api_version():
+    """현재 배포된 앱 버전(커밋 해시). 프론트가 주기 확인 → 새 배포 감지 시 새로고침 안내.
+    인증 불필요(버전 문자열만 반환)."""
+    return JSONResponse({"v": APP_VERSION})
 
 
 # =====================================================
@@ -1360,7 +1445,7 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
         team_data = []
         for tm in teams:
             members = [dict(r) for r in c.execute(
-                """SELECT id, name, rank, role FROM users
+                """SELECT id, name, name_vi, rank, role FROM users
                    WHERE team_id=? AND is_active=1
                    ORDER BY CASE role WHEN 'ceo' THEN 0 WHEN 'executive' THEN 1
                             WHEN 'leader' THEN 2 ELSE 3 END, id""",
@@ -2961,7 +3046,7 @@ async def team_permissions_page(req: Request, team_id: int):
             return RedirectResponse("/home", 303)
         team = dict(team)
         members = [dict(r) for r in c.execute(
-            """SELECT id, name, rank, role,
+            """SELECT id, name, name_vi, rank, role,
                       can_use_sales, can_use_logistics,
                       can_view_sales, can_view_logistics,
                       can_edit_changes, can_close_tickets, is_admin
@@ -3103,7 +3188,7 @@ async def team_page(req: Request, sel_date: str = ""):
         members = []
         if target_team_id:
             members = [dict(r) for r in c.execute(
-                """SELECT id, name, rank, role FROM users
+                """SELECT id, name, name_vi, rank, role FROM users
                    WHERE team_id=? AND is_active=1
                    ORDER BY CASE role
                         WHEN 'ceo' THEN 0 WHEN 'executive' THEN 1
@@ -4763,6 +4848,225 @@ async def api_regen_pw(req: Request):
                          "download": "/admin/download-passwords"})
 
 
+@app.get("/admin/reset-demo", response_class=HTMLResponse)
+async def admin_reset_demo_page(req: Request):
+    """데모/시드 데이터 초기화 — 미리보기 화면 (admin/ceo 전용)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    return _reset_demo_render(req, u)
+
+
+def _reset_demo_render(req, u, *, done=None, group_done=None, sales_div_done=None, error=None):
+    """데모 초기화 화면 공통 렌더 — 미리보기 3종(전체/그룹/사업부) + 결과/에러."""
+    from .database import (reset_demo_preview, reset_groups_preview,
+                           reset_sales_division_preview)
+    return ctx(req, "admin_reset_demo.html", user=u, active="admin",
+               preview=reset_demo_preview(), groups_preview=reset_groups_preview(),
+               sales_div_preview=reset_sales_division_preview(),
+               done=done, group_done=group_done, sales_div_done=sales_div_done, error=error)
+
+
+@app.post("/admin/reset-demo")
+async def admin_reset_demo_apply(req: Request, confirm: str = Form("")):
+    """실제 초기화 실행 — 확인 문구('데이터초기화') 일치 시에만. (admin/ceo 전용)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from .database import reset_demo_apply
+    if (confirm or "").strip() != "데이터초기화":
+        return _reset_demo_render(req, u, error="확인 문구가 일치하지 않습니다. '데이터초기화' 를 정확히 입력하세요.")
+    res = reset_demo_apply(actor_name=u.get("name", ""))
+    return _reset_demo_render(req, u, done=res)
+
+
+@app.post("/admin/reset-demo-groups")
+async def admin_reset_demo_groups_apply(req: Request, confirm: str = Form("")):
+    """v5H226z192 (대표 지시): 선택한 '항목(그룹)' 만 초기화. (admin/ceo 전용)
+    확인 문구('데이터초기화') 일치 + 그룹 1개 이상 선택 시 실행. 자동 백업."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from .database import reset_groups_apply
+    form = await req.form()
+    sel_keys = [k for k in form.getlist("groups") if k]
+    if (confirm or "").strip() != "데이터초기화":
+        return _reset_demo_render(req, u, error="확인 문구가 일치하지 않습니다. '데이터초기화' 를 정확히 입력하세요.")
+    if not sel_keys:
+        return _reset_demo_render(req, u, error="초기화할 항목을 하나 이상 선택하세요.")
+    res = reset_groups_apply(sel_keys, actor_name=u.get("name", ""))
+    return _reset_demo_render(req, u, group_done=res)
+
+
+@app.post("/admin/reset-demo-sales-division")
+async def admin_reset_demo_sales_division_apply(req: Request, confirm: str = Form("")):
+    """v5H226z193 (대표 지시): 매출·영업 '사업부별' 초기화 (자동화 M만 등). (admin/ceo 전용)
+    해당 사업부 프로젝트 + 딸린 매출 데이터 연쇄삭제. 확인 문구 + 사업부 1개 이상."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from .database import reset_sales_division_apply
+    form = await req.form()
+    sel = [k for k in form.getlist("divisions") if k]
+    if (confirm or "").strip() != "데이터초기화":
+        return _reset_demo_render(req, u, error="확인 문구가 일치하지 않습니다. '데이터초기화' 를 정확히 입력하세요.")
+    if not sel:
+        return _reset_demo_render(req, u, error="초기화할 사업부를 하나 이상 선택하세요.")
+    res = reset_sales_division_apply(sel, actor_name=u.get("name", ""))
+    return _reset_demo_render(req, u, sales_div_done=res)
+
+
+@app.get("/admin/ai-settings", response_class=HTMLResponse)
+async def admin_ai_settings_page(req: Request):
+    """AI 공급사·모델 설정 (admin/ceo 전용). 환경변수 > 앱설정 > 기본 순."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    from . import ai_client
+    prov = ai_client.get_provider()
+    info = {
+        "available": ai_client.ai_available(),
+        "provider": prov or "(비활성)",
+        "model": ai_client.default_model() if prov else "",
+        "set_provider": (get_setting("ai_provider", "") or ""),
+        "set_model": (get_setting("ai_model", "") or ""),
+        "env_provider": (os.environ.get("KNK_AI_PROVIDER", "") or ""),
+        "env_model": (os.environ.get("KNK_AI_MODEL", "") or ""),
+        "default_openai": ai_client.DEFAULT_MODEL_OPENAI,
+        "default_claude": ai_client.DEFAULT_MODEL_CLAUDE,
+    }
+    return ctx(req, "admin_ai_settings.html", user=u, active="admin",
+               info=info, saved=(req.query_params.get("saved") == "1"))
+
+
+@app.post("/admin/ai-settings")
+async def admin_ai_settings_save(req: Request,
+                                 ai_provider: str = Form(""), ai_model: str = Form("")):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        for k, v in (("ai_provider", (ai_provider or "").strip()),
+                     ("ai_model", (ai_model or "").strip())):
+            c.execute(
+                "INSERT INTO app_settings(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+    return RedirectResponse("/admin/ai-settings?saved=1", 303)
+
+
+@app.post("/admin/ai-settings/test")
+async def admin_ai_settings_test(req: Request):
+    """현재 설정된 모델로 실제 호출 테스트 (잘못된 모델명 즉시 감지)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    from . import ai_client
+    if not ai_client.ai_available():
+        return JSONResponse({"ok": False, "error": "AI 비활성 — API 키가 설정돼야 합니다."})
+    from starlette.concurrency import run_in_threadpool
+    ok, ans = await run_in_threadpool(
+        lambda: ai_client.ai_chat("한 단어로 'OK' 라고만 답하세요.", max_tokens=10, temperature=0))
+    return JSONResponse({
+        "ok": bool(ok), "provider": ai_client.get_provider(),
+        "model": ai_client.default_model(),
+        "answer": (ans or "")[:200] if ok else "",
+        "error": "" if ok else (ans or "알 수 없는 오류"),
+    })
+
+
+@app.post("/admin/sync-directory")
+async def admin_sync_directory(req: Request):
+    """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import sso_client
+    with db_session() as c:
+        res = sso_client.sync_directory_from_messenger(c)
+    import urllib.parse as _up
+    if res.get("ok"):
+        return RedirectResponse(f"/admin?synced={res.get('synced',0)}&total={res.get('total',0)}", 303)
+    return RedirectResponse(f"/admin?sync_err={_up.quote((res.get('error') or '')[:200])}", 303)
+
+
+@app.get("/admin/sync-employees", response_class=HTMLResponse)
+async def admin_sync_employees_page(req: Request):
+    """메신저 직원 → WORKS DB 직접 동기화 — 미리보기(dry-run) 화면. (admin/ceo)
+    DB 를 전혀 변경하지 않고 '갱신/신규/WORKS전용' 숫자·예시만 보여준다."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    from . import sso_client
+    from .database import get_db
+    conn = get_db()
+    try:
+        preview = sso_client.sync_employees_from_messenger_db(conn.cursor())
+    finally:
+        conn.rollback()   # 미리보기 — 아무 것도 반영하지 않음
+        conn.close()
+    return ctx(req, "admin_sync_employees.html", user=u, active="admin",
+               preview=preview, done=None, error=None)
+
+
+@app.post("/admin/sync-employees")
+async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
+    """실제 반영 — 확인 문구('직원동기화') 일치 시 WORKS DB 백업 후 commit. (admin/ceo)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import sso_client
+    from .database import get_db, DB_PATH
+
+    def _preview():
+        cn = get_db()
+        try:
+            return sso_client.sync_employees_from_messenger_db(cn.cursor())
+        finally:
+            cn.rollback()
+            cn.close()
+
+    if (confirm or "").strip() != "직원동기화":
+        return ctx(req, "admin_sync_employees.html", user=u, active="admin",
+                   preview=_preview(), done=None,
+                   error="확인 문구가 일치하지 않습니다. '직원동기화' 를 정확히 입력하세요.")
+
+    # 1) WORKS DB 백업 (필수)
+    import shutil, datetime as _dt
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_empsync_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return ctx(req, "admin_sync_employees.html", user=u, active="admin",
+                   preview=_preview(), done=None, error=f"백업 실패 — 중단: {e}")
+
+    # 2) 실제 반영
+    conn = get_db()
+    try:
+        res = sso_client.sync_employees_from_messenger_db(conn.cursor())
+        if res.get("ok"):
+            conn.commit()
+            res["backup"] = os.path.basename(backup)
+        else:
+            conn.rollback()
+    except Exception as e:
+        conn.rollback()
+        res = {"ok": False, "error": f"동기화 실행 오류: {e}"}
+    finally:
+        conn.close()
+
+    if not res.get("ok"):
+        return ctx(req, "admin_sync_employees.html", user=u, active="admin",
+                   preview=_preview(), done=None, error=res.get("error"))
+    return ctx(req, "admin_sync_employees.html", user=u, active="admin",
+               preview=res, done=res, error=None)
+
+
 @app.get("/admin/health", response_class=HTMLResponse)
 async def admin_health_page(req: Request):
     """건전성 점검 — 어떤 기능이 진짜 동작하는지 한눈에"""
@@ -4903,9 +5207,12 @@ async def catalog_page(req: Request,
                               FROM parts WHERE {w_sql}
                               ORDER BY part_name LIMIT ? OFFSET ?""",
                           args + [per, offset]).fetchall()
-        # 즐겨찾기 id 집합
-        favs = set(r[0] for r in c.execute(
-            "SELECT part_id FROM catalog_favorites WHERE user_id=?", (u['id'],)))
+        # 즐겨찾기 id 집합 (테이블 미생성 등에도 페이지는 떠야 함 — graceful)
+        try:
+            favs = set(r[0] for r in c.execute(
+                "SELECT part_id FROM catalog_favorites WHERE user_id=?", (u['id'],)))
+        except Exception:
+            favs = set()
     cart = _cart_get(req)
     cart_count = len(cart['items']) + len(cart['new_items'])
     return ctx(req, "catalog.html", user=u, active="catalog",
@@ -5936,6 +6243,22 @@ async def admin_users_edit_submit(req: Request, uid: int):
                  form.get("rank", ""), form.get("email", ""),
                  int(form.get("is_active") or 1), uid)
             )
+        # v5H226z141: 사번(로그인ID) + 센터 진입 권한 저장
+        _sabeon = (form.get("login_id") or "").strip()
+        if _sabeon:
+            try:
+                c.execute("UPDATE users SET login_id=? WHERE id=?", (_sabeon, uid))
+                _ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
+                if "employee_no" in _ucols:
+                    c.execute("UPDATE users SET employee_no=? WHERE id=?", (_sabeon, uid))
+            except Exception:
+                pass
+        for _flag in ("can_view_sales", "can_use_sales", "can_view_logistics", "can_use_logistics"):
+            try:
+                c.execute(f"UPDATE users SET {_flag}=? WHERE id=?",
+                          (1 if form.get(_flag) else 0, uid))
+            except Exception:
+                pass
         # v5H113 LOW#18: user_history diff 기록
         new_data = {
             "name": name,
@@ -5978,7 +6301,7 @@ async def admin_teams_new_form(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         users = [dict(r) for r in c.execute(
-            "SELECT id, name, rank FROM users WHERE is_active=1 "
+            "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
             "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
     return ctx(req, "admin_team_form.html", user=u, active="admin",
                team=None, users=users)
@@ -6019,7 +6342,7 @@ async def admin_teams_edit_form(req: Request, tid: int):
         if not row:
             return RedirectResponse("/admin", 303)
         users = [dict(r) for r in c.execute(
-            "SELECT id, name, rank FROM users WHERE is_active=1 "
+            "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
             "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
     # v5H114: 팀 변경 이력 카드
     try:
@@ -6465,7 +6788,7 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
         ws.append(["⚠ 헤더 행(5행)은 변경하지 마세요. 28컬럼 자동 인식 (순번/관리코드/품명/규격/메이커/업체명/원산지/수량/단가/금액/입고일정/HS CODE/DUTY/VAT/인보이스(KRW·USD)/관세(KRW·USD)/최종 USD/상세/PALLET/중량). 라인만 추가/수정."])
         ws.append([])  # 빈 줄
     elif is_co:
-        ws.append(["KNK HAIST WORKS — 소모품 발주 표준 양식"])
+        ws.append(["KNK HAIST WORKS — 소모품 수주 표준 양식"])
         ws.append([f"관리코드: {prow['mgmt_code'] or '-'}",
                    "", f"프로젝트: {prow['name'] or '-'}"])
         ws.append([f"수주번호: {srow['order_no'] or '-'}",
@@ -7395,7 +7718,7 @@ async def projects_quick_status(req: Request, pid: int):
         _need_code_qs = (
             new_status in _logi.WON_STATUSES and not cur["mgmt_code"]
             and (
-                (cur["biz_div"] in ("T", "M") and _cur_ptype in ("NEW_EQUIP", "CONSUMABLE"))
+                (cur["biz_div"] in ("T", "M", "L") and _cur_ptype in ("NEW_EQUIP", "CONSUMABLE"))
                 or _cur_ptype == "OTHER"
             )
         )
@@ -8319,38 +8642,46 @@ def _make_xlsx_response(sheets: list, filename_prefix: str):
 #   컬럼: 기본 6 + 담당자 5명 × 5필드 = 31
 # ==========================================================
 _CUST_XLSX_COLS = [
-    # (이름, 폭, 설명, 필수, 그룹)
-    ("고객사명",       22, "정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 없음)",          True,  "기본"),
-    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 OK)",                          False, "기본"),
-    ("대표자명",       12, "예: 홍길동",                                                          False, "기본"),
-    ("주소",           34, "예: 경기도 평택시 ...",                                               False, "기본"),
-    ("활성",            8, "활성 / 비활성 (빈 칸은 활성)",                                       False, "기본"),
-    ("비고",           26, "자유 메모",                                                            False, "기본"),
-    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 슬롯 무시. 1번이 자동 주담당 ★)",  False, "담당자1"),
-    ("1전화번호",      16, "예: 010-1234-5678 / 031-555-1234",                                False, "담당자1"),
-    ("1이메일",        22, "예: contact@example.com (형식 자동 검증)",                       False, "담당자1"),
-    ("1부서",          14, "예: 구매2팀, 관리팀, 제조기술",                                      False, "담당자1"),
-    ("1메모",          22, "자유 메모 (예: 25일 마감담당, 야간 연락처)",                       False, "담당자1"),
-    ("2담당자명",      14, "2번 담당자 이름",                                                     False, "담당자2"),
-    ("2전화번호",      16, "",                                                                     False, "담당자2"),
-    ("2이메일",        22, "",                                                                     False, "담당자2"),
-    ("2부서",          14, "",                                                                     False, "담당자2"),
-    ("2메모",          22, "",                                                                     False, "담당자2"),
-    ("3담당자명",      14, "3번 담당자 이름",                                                     False, "담당자3"),
-    ("3전화번호",      16, "",                                                                     False, "담당자3"),
-    ("3이메일",        22, "",                                                                     False, "담당자3"),
-    ("3부서",          14, "",                                                                     False, "담당자3"),
-    ("3메모",          22, "",                                                                     False, "담당자3"),
-    ("4담당자명",      14, "4번 담당자 이름",                                                     False, "담당자4"),
-    ("4전화번호",      16, "",                                                                     False, "담당자4"),
-    ("4이메일",        22, "",                                                                     False, "담당자4"),
-    ("4부서",          14, "",                                                                     False, "담당자4"),
-    ("4메모",          22, "",                                                                     False, "담당자4"),
-    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 시스템 UI에서 입력)",                  False, "담당자5"),
-    ("5전화번호",      16, "",                                                                     False, "담당자5"),
-    ("5이메일",        22, "",                                                                     False, "담당자5"),
-    ("5부서",          14, "",                                                                     False, "담당자5"),
-    ("5메모",          22, "",                                                                     False, "담당자5"),
+    # (이름, 폭, 설명, 필수, 그룹, key)  — v5H226z147: 기존 시스템 거래처 항목 반영
+    ("거래처코드",     12, "비우면 자동 부여(C-0001). 기존 거래처 식별용",                       False, "기본", "code"),
+    ("고객사명",       22, "정식 명칭. 동일명 존재 시 정보 업데이트 (중복 추가 없음)",          True,  "기본", "name"),
+    ("사업자등록번호", 16, "예: 211-87-12345 (대시 포함/없이 모두 OK)",                          True,  "기본", "biz_no"),
+    ("대표자명",       12, "예: 홍길동",                                                          True,  "기본", "ceo_name"),
+    ("업태",           16, "예: 제조업, 도소매",                                                  False, "기본", "business_type"),
+    ("업종",           16, "예: 반도체검사장비",                                                  False, "기본", "business_item"),
+    ("우편번호",       10, "예: 17707",                                                           False, "기본", "zipcode"),
+    ("주소",           30, "기본주소. 예: 경기도 평택시 ...",                                     True,  "기본", "address"),
+    ("상세주소",       22, "동 / 층 / 호 등",                                                     False, "기본", "address_detail"),
+    ("대표전화",       16, "예: 031-555-1234",                                                    False, "기본", "phone"),
+    ("팩스번호",       16, "예: 031-555-1235",                                                    False, "기본", "fax"),
+    ("종사업장번호",   12, "예: 0001 (없으면 비움)",                                              False, "기본", "sub_biz_no"),
+    ("활성",            8, "활성 / 비활성 (빈 칸은 활성)",                                        False, "기본", "is_active"),
+    ("비고",           24, "자유 메모",                                                            False, "기본", "note"),
+    ("1담당자명",      14, "1번 담당자 이름 (이 칸이 비면 슬롯 무시. 1번이 자동 주담당 ★)",   False, "담당자1", "c1_name"),
+    ("1전화번호",      16, "예: 010-1234-5678 / 031-555-1234",                                  False, "담당자1", "c1_phone"),
+    ("1이메일",        22, "예: contact@example.com (형식 자동 검증)",                          False, "담당자1", "c1_email"),
+    ("1부서",          14, "예: 구매2팀, 관리팀, 제조기술",                                       False, "담당자1", "c1_dept"),
+    ("1메모",          22, "자유 메모 (예: 25일 마감담당, 야간 연락처)",                         False, "담당자1", "c1_note"),
+    ("2담당자명",      14, "2번 담당자 이름",                                                     False, "담당자2", "c2_name"),
+    ("2전화번호",      16, "",                                                                     False, "담당자2", "c2_phone"),
+    ("2이메일",        22, "",                                                                     False, "담당자2", "c2_email"),
+    ("2부서",          14, "",                                                                     False, "담당자2", "c2_dept"),
+    ("2메모",          22, "",                                                                     False, "담당자2", "c2_note"),
+    ("3담당자명",      14, "3번 담당자 이름",                                                     False, "담당자3", "c3_name"),
+    ("3전화번호",      16, "",                                                                     False, "담당자3", "c3_phone"),
+    ("3이메일",        22, "",                                                                     False, "담당자3", "c3_email"),
+    ("3부서",          14, "",                                                                     False, "담당자3", "c3_dept"),
+    ("3메모",          22, "",                                                                     False, "담당자3", "c3_note"),
+    ("4담당자명",      14, "4번 담당자 이름",                                                     False, "담당자4", "c4_name"),
+    ("4전화번호",      16, "",                                                                     False, "담당자4", "c4_phone"),
+    ("4이메일",        22, "",                                                                     False, "담당자4", "c4_email"),
+    ("4부서",          14, "",                                                                     False, "담당자4", "c4_dept"),
+    ("4메모",          22, "",                                                                     False, "담당자4", "c4_note"),
+    ("5담당자명",      14, "5번 담당자 이름 (6명 이상은 시스템 UI에서 입력)",                  False, "담당자5", "c5_name"),
+    ("5전화번호",      16, "",                                                                     False, "담당자5", "c5_phone"),
+    ("5이메일",        22, "",                                                                     False, "담당자5", "c5_email"),
+    ("5부서",          14, "",                                                                     False, "담당자5", "c5_dept"),
+    ("5메모",          22, "",                                                                     False, "담당자5", "c5_note"),
 ]
 
 CUST_DATA_SHEET_NAME = "고객사"
@@ -8373,12 +8704,13 @@ def _cust_xlsx_build_guide(ws):
     ws.row_dimensions[1].height = 32
 
     ws.merge_cells("A2:D2")
-    ws["A2"] = f"버전: v5H226z122   ·   기본 6 + 담당자 5명 × 5필드 = {len(_CUST_XLSX_COLS)}컬럼"
+    ws["A2"] = f"버전: v5H226z147   ·   기본 14 + 담당자 5명 × 5필드 = {len(_CUST_XLSX_COLS)}컬럼"
     ws["A2"].font = sub
 
     sections = [
-        ("1. 필수 입력", [
-            "• 고객사명 — 이 칸이 비면 그 행은 등록되지 않습니다.",
+        ("1. 필수 입력 (빨강 헤더)", [
+            "• 고객사명 · 사업자등록번호 · 대표자명 · 주소 — 비면 그 행은 등록되지 않습니다.",
+            "• 거래처코드 — 비워두면 시스템이 자동 부여(C-0001). 직접 적어도 됨.",
             "  동일명 존재 시: 빈 칸이 아닌 필드만 업데이트 (기존 데이터 보호)",
         ]),
         ("2. 작성 순서", [
@@ -8433,7 +8765,7 @@ def _cust_xlsx_build_guide(ws):
         cc.alignment = Alignment(horizontal="center"); cc.border = bd
     row += 1
     req_font = Font(bold=True, color="B91C1C", size=10.5)
-    for idx, (hname, _w, desc, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+    for idx, (hname, _w, desc, req, _g, _k) in enumerate(_CUST_XLSX_COLS, 1):
         ws.cell(row=row, column=1, value=idx).font = body
         ws.cell(row=row, column=1).alignment = Alignment(horizontal="center")
         ws.cell(row=row, column=2, value=hname).font = body
@@ -8461,7 +8793,7 @@ def _cust_xlsx_build_data_headers(ws):
     req_fill = PatternFill("solid", fgColor="B91C1C")
     thin = Side(style="thin", color="DDDDDD")
     bd = Border(left=thin, right=thin, top=thin, bottom=thin)
-    for i, (h, w, _d, req, _g) in enumerate(_CUST_XLSX_COLS, 1):
+    for i, (h, w, _d, req, _g, _k) in enumerate(_CUST_XLSX_COLS, 1):
         cell = ws.cell(row=1, column=i, value=h)
         cell.font = head_font
         cell.fill = req_fill if req else head_fill
@@ -8486,7 +8818,9 @@ async def customers_export_xlsx(req: Request):
 
     with db_session() as c:
         rows = c.execute(
-            """SELECT cu.id, cu.name, cu.biz_no, cu.ceo_name, cu.address,
+            """SELECT cu.id, cu.code, cu.name, cu.biz_no, cu.ceo_name,
+                      cu.business_type, cu.business_item, cu.zipcode,
+                      cu.address, cu.address_detail, cu.phone, cu.fax, cu.sub_biz_no,
                       cu.is_active, cu.note
                FROM customers cu
                ORDER BY cu.tier_score DESC, cu.name"""
@@ -8509,22 +8843,24 @@ async def customers_export_xlsx(req: Request):
     _cust_xlsx_build_data_headers(ws_data)
 
     for r_idx, r in enumerate(rows, 2):  # row 2부터 데이터
-        contact_cells = []
-        for cc in r["_contacts"]:
-            contact_cells.extend([
-                str(cc.get("name") or ""),
-                str(cc.get("mobile") or cc.get("phone") or ""),
-                str(cc.get("email") or ""),
-                str(cc.get("department") or ""),
-                str(cc.get("note") or ""),
-            ])
-        while len(contact_cells) < 25:
-            contact_cells.append("")
-        vals = [
-            r["name"], r["biz_no"], r["ceo_name"], r["address"],
-            "활성" if (r["is_active"] or 0) != 0 else "비활성", r["note"],
-            *contact_cells[:25],
-        ]
+        # v5H226z147: key 기반 값 — _CUST_XLSX_COLS 와 1:1 일치
+        kv = {
+            "code": r.get("code") or "", "name": r.get("name") or "",
+            "biz_no": r.get("biz_no") or "", "ceo_name": r.get("ceo_name") or "",
+            "business_type": r.get("business_type") or "", "business_item": r.get("business_item") or "",
+            "zipcode": r.get("zipcode") or "", "address": r.get("address") or "",
+            "address_detail": r.get("address_detail") or "", "phone": r.get("phone") or "",
+            "fax": r.get("fax") or "", "sub_biz_no": r.get("sub_biz_no") or "",
+            "is_active": "활성" if (r.get("is_active") or 0) != 0 else "비활성",
+            "note": r.get("note") or "",
+        }
+        for i, cc in enumerate(r["_contacts"][:5], 1):
+            kv[f"c{i}_name"] = str(cc.get("name") or "")
+            kv[f"c{i}_phone"] = str(cc.get("mobile") or cc.get("phone") or "")
+            kv[f"c{i}_email"] = str(cc.get("email") or "")
+            kv[f"c{i}_dept"] = str(cc.get("department") or "")
+            kv[f"c{i}_note"] = str(cc.get("note") or "")
+        vals = [kv.get(_k, "") for (_h, _w, _d, _r, _g, _k) in _CUST_XLSX_COLS]
         for c_idx, v in enumerate(vals, 1):
             ws_data.cell(row=r_idx, column=c_idx, value=v)
 
@@ -9031,9 +9367,11 @@ async def qc_export_xlsx(req: Request):
         [{"name": "QC검사보고서", "headers": headers, "rows": data}], "QC검사보고서")
 
 
-@app.get("/projects/export.xlsx")
-async def projects_export_xlsx(req: Request):
-    """v5H72: 프로젝트 엑셀 — 수주번호/단계/사업부라벨/누적공수/PM 등 풍부한 정보."""
+# v5H226z218 (대표 지시): 구 프로젝트 엑셀(전체 덤프) 라우트 비활성화 →
+#   '보여지는 형태'(사업부 책갈피·상태) + 상단 제목 export 로 대체 (아래 projects_export_xlsx).
+#   아래 레거시 함수는 데코레이터 제거로 라우트 미등록 (참고용 보존, 호출되지 않음).
+async def _projects_export_xlsx_legacy(req: Request):
+    """[비활성] v5H72 구버전 — 풍부한 전체 덤프. 라우트 없음(보존만)."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     with db_session() as c:
@@ -9264,6 +9602,73 @@ async def contacts_export_csv(req: Request):
                              headers=headers)
 
 
+@app.get("/contacts/outlook.csv")
+async def contacts_outlook_csv(req: Request):
+    """아웃룩 가져오기용 CSV (영문 헤더 자동 매핑)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        data = _contacts.export_outlook_csv_bytes(c)
+    from urllib.parse import quote
+    fn = "연락처_Outlook.csv"
+    headers = {"Content-Disposition":
+               f"attachment; filename=contacts_outlook.csv; filename*=UTF-8''{quote(fn)}"}
+    return StreamingResponse(io.BytesIO(data),
+                             media_type="text/csv; charset=utf-8-sig", headers=headers)
+
+
+@app.get("/contacts/vcards.vcf")
+async def contacts_vcards_all(req: Request):
+    """전체 연락처 vCard 묶음 (.vcf) — 휴대폰·메일·아웃룩 일괄 가져오기."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        text = _contacts.vcards_all(c)
+    from urllib.parse import quote
+    fn = "전사연락처.vcf"
+    headers = {"Content-Disposition":
+               f"attachment; filename=contacts.vcf; filename*=UTF-8''{quote(fn)}"}
+    return StreamingResponse(io.BytesIO(text.encode("utf-8")),
+                             media_type="text/vcard; charset=utf-8", headers=headers)
+
+
+@app.get("/contacts/{cid:int}/vcard")
+async def contacts_vcard(req: Request, cid: int):
+    """단일 연락처 vCard(.vcf) — 휴대폰/아웃룩에서 열면 바로 추가."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+    if not contact:
+        return JSONResponse({"error": "not found"}, 404)
+    text = _contacts.to_vcard(contact)
+    from urllib.parse import quote
+    fn = f"{(contact.get('name') or 'contact')}.vcf"
+    headers = {"Content-Disposition":
+               f"attachment; filename=contact_{cid}.vcf; filename*=UTF-8''{quote(fn)}"}
+    return StreamingResponse(io.BytesIO(text.encode("utf-8")),
+                             media_type="text/vcard; charset=utf-8", headers=headers)
+
+
+@app.get("/contacts/{cid:int}/qr")
+async def contacts_qr(req: Request, cid: int):
+    """단일 연락처 vCard QR PNG — 휴대폰 카메라로 스캔 → 즉시 연락처 추가."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+    if not contact:
+        return JSONResponse({"error": "not found"}, 404)
+    png = _contacts.vcard_qr_png(contact)
+    if png is None:
+        return JSONResponse({"error": "qrcode 미설치"}, 500)
+    return Response(content=png, media_type="image/png")
+
+
 @app.post("/contacts/parse-card")
 async def contacts_parse_card(req: Request, file: UploadFile = File(...)):
     """명함 사진/스캔 업로드 → OCR 텍스트 추출 → 필드 자동 채움(JSON).
@@ -9459,6 +9864,112 @@ async def contacts_delete(req: Request, cid: int):
     return JSONResponse({"ok": True})
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  메일 발송 — 직원 본인 하이웍스 계정 (A1) — v5H228
+# ═══════════════════════════════════════════════════════════════════════════
+from . import mail_send as _mail
+
+
+@app.get("/mail/settings")
+async def mail_settings(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        cur_email = _mail.get_email(c, u["id"])
+        configured = _mail.has_creds(c, u["id"])
+    return ctx(req, "mail_settings.html", user=u,
+               mail_ready=_mail.mail_available(),
+               cur_email=cur_email, configured=configured,
+               saved=req.query_params.get("saved"))
+
+
+@app.post("/mail/settings")
+async def mail_settings_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _mail.mail_available():
+        return JSONResponse({"ok": False, "message": "메일 암호화 키(KNK_MAIL_KEY)가 서버에 설정되지 않았습니다."}, 400)
+    form = await req.form()
+    email = (form.get("smtp_email") or "").strip()
+    password = (form.get("smtp_password") or "").strip()
+    if not _mail.is_valid_email(email):
+        return JSONResponse({"ok": False, "message": "메일주소가 올바르지 않습니다."}, 400)
+    with db_session() as c:
+        _mail.save_creds(c, u["id"], email, password)  # password 빈 값이면 기존 유지
+    return RedirectResponse("/mail/settings?saved=1", 303)
+
+
+@app.post("/mail/settings/delete")
+async def mail_settings_delete(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        _mail.delete_creds(c, u["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.post("/mail/test")
+async def mail_test(req: Request):
+    """본인 계정 설정 검증 — 자기 자신에게 테스트 메일 발송."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        creds = _mail.get_creds(c, u["id"])
+    if not creds:
+        return JSONResponse({"ok": False, "message": "먼저 메일주소·비밀번호를 저장하세요."})
+    ok, msg = _mail.send_mail(
+        creds["email"], creds["password"], creds["email"],
+        "[HAIST WORKS] 메일 발송 테스트",
+        "이 메일이 보이면 메일 발송 설정이 정상입니다.\n\n— HAIST WORKS",
+        from_name=u.get("name") or "",
+    )
+    return JSONResponse({"ok": ok, "message": msg})
+
+
+@app.get("/contacts/{cid:int}/mail")
+async def contact_mail_form(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+        if not contact:
+            return RedirectResponse("/contacts", 303)
+        configured = _mail.has_creds(c, u["id"])
+        my_email = _mail.get_email(c, u["id"])
+    if not _mail.mail_available() or not configured:
+        # 본인 메일 미설정 → 설정 화면으로 안내
+        return ctx(req, "contact_mail.html", user=u, contact=contact,
+                   need_setup=True, mail_ready=_mail.mail_available())
+    return ctx(req, "contact_mail.html", user=u, contact=contact,
+               need_setup=False, mail_ready=True, my_email=my_email)
+
+
+@app.post("/contacts/{cid:int}/mail")
+async def contact_mail_send(req: Request, cid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    to_email = (form.get("to_email") or "").strip()
+    subject = (form.get("subject") or "").strip()
+    body = (form.get("body") or "")
+    cc = (form.get("cc") or "").strip()
+    with db_session() as c:
+        creds = _mail.get_creds(c, u["id"])
+    if not creds:
+        return JSONResponse({"ok": False, "message": "본인 메일 계정이 설정되지 않았습니다. 메일 설정에서 등록하세요."}, 400)
+    if not _mail.is_valid_email(to_email):
+        return JSONResponse({"ok": False, "message": "받는 메일주소가 올바르지 않습니다."}, 400)
+    ok, msg = _mail.send_mail(creds["email"], creds["password"], to_email,
+                              subject, body, from_name=u.get("name") or "", cc=cc)
+    return JSONResponse({"ok": ok, "message": msg})
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56/v5H66: 폼에서 contact_*_N 패턴으로 다중 담당자 수집.
     v5H66: 'note' (특징) 필드 추가, 'role' 은 hidden 으로 '기타' 기본."""
@@ -9485,6 +9996,21 @@ def _customer_contacts_from_form(form) -> list[dict]:
     return out
 
 
+def _gen_customer_code(c) -> str:
+    """v5H226z147: 거래처코드 자동 생성 'C-0001'. 기존 코드의 최대 숫자 +1.
+    c = 열린 DB 커넥션/커서. 중복 방지 위해 생성 직후 사용(같은 트랜잭션)."""
+    import re as _re
+    mx = 0
+    try:
+        for r in c.execute("SELECT code FROM customers WHERE code IS NOT NULL AND TRIM(code)<>''"):
+            m = _re.search(r"(\d+)\s*$", str(r[0] if not hasattr(r, "keys") else r["code"]))
+            if m:
+                mx = max(mx, int(m.group(1)))
+    except Exception:
+        pass
+    return f"C-{mx + 1:04d}"
+
+
 @app.get("/customers/new", response_class=HTMLResponse)
 async def customers_new_form(req: Request):
     """v5H52/v5H56: 고객사 신규 등록 폼 (다중 담당자 지원)."""
@@ -9502,19 +10028,46 @@ async def customers_new_submit(req: Request):
         return RedirectResponse("/login", 303)
     form = await req.form()
     name = (form.get("name") or "").strip()
+    biz_no = (form.get("biz_no") or "").strip()
+    ceo_name = (form.get("ceo_name") or "").strip()
+    address = (form.get("address") or "").strip()
+    # v5H226z147 (대표 지시): 기존 시스템처럼 필수항목 강제
+    # v5H226z203 (대표 지시): 해외 고객사 — 사업자번호 없음 → 고객사명·국가만 필수
+    _is_overseas = 1 if (form.get("is_overseas") or "").strip() in ("1", "on", "true", "yes") else 0
+    _country = (form.get("country") or "").strip()
     if not name:
         return RedirectResponse("/customers/new?error=name_required", status_code=303)
+    import urllib.parse as _up
+    if _is_overseas:
+        if not _country:
+            return RedirectResponse(
+                f"/customers/new?error=required&fields={_up.quote('국가')}", status_code=303)
+    else:
+        _missing = [lbl for lbl, v in (("사업자번호", biz_no), ("대표자명", ceo_name), ("주소", address)) if not v]
+        if _missing:
+            return RedirectResponse(
+                f"/customers/new?error=required&fields={_up.quote(','.join(_missing))}", status_code=303)
     # v5H58: 등급은 자동 산정 (사용자 입력 무시) — 신규는 일단 '신규' 로 시작
     fields = {
         "name": name,
         "tier": "신규",
-        "biz_no": (form.get("biz_no") or "").strip(),
-        "ceo_name": (form.get("ceo_name") or "").strip(),
+        "biz_no": biz_no,
+        "ceo_name": ceo_name,
         "phone": (form.get("phone") or "").strip(),
         "email": (form.get("email") or "").strip(),
-        "address": (form.get("address") or "").strip(),
+        "address": address,
         "is_active": int(form.get("is_active") or 1),
         "note": (form.get("note") or "").strip(),
+        # v5H226z147: 추가 사업장 항목
+        "business_type": (form.get("business_type") or "").strip(),
+        "business_item": (form.get("business_item") or "").strip(),
+        "zipcode": (form.get("zipcode") or "").strip(),
+        "address_detail": (form.get("address_detail") or "").strip(),
+        "fax": (form.get("fax") or "").strip(),
+        "sub_biz_no": (form.get("sub_biz_no") or "").strip(),
+        # v5H226z203: 해외 고객사 구분 + 국가
+        "is_overseas": _is_overseas,
+        "country": _country,
     }
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
@@ -9522,6 +10075,7 @@ async def customers_new_submit(req: Request):
         if existing:
             return RedirectResponse(
                 f"/customers?error=duplicate&id={existing['id']}", status_code=303)
+        fields["code"] = _gen_customer_code(c)   # 거래처코드 자동 부여
         cols = ",".join(fields.keys())
         ph = ",".join(["?"] * len(fields))
         c.execute(f"INSERT INTO customers({cols}) VALUES({ph})", tuple(fields.values()))
@@ -9587,16 +10141,39 @@ async def customers_edit_submit(req: Request, cid: int):
             "address": form.get("address", ""),
             "is_active": new_is_active,
             "note": form.get("note", ""),
+            # v5H226z147: 추가 사업장 항목
+            "business_type": (form.get("business_type") or "").strip(),
+            "business_item": (form.get("business_item") or "").strip(),
+            "zipcode": (form.get("zipcode") or "").strip(),
+            "address_detail": (form.get("address_detail") or "").strip(),
+            "fax": (form.get("fax") or "").strip(),
+            "sub_biz_no": (form.get("sub_biz_no") or "").strip(),
+            # v5H226z203: 해외 고객사 구분 + 국가
+            "is_overseas": 1 if (form.get("is_overseas") or "").strip() in ("1", "on", "true", "yes") else 0,
+            "country": (form.get("country") or "").strip(),
         }
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
             "UPDATE customers SET name=?, biz_no=?, ceo_name=?, "
-            "phone=?, email=?, address=?, is_active=?, note=? "
+            "phone=?, email=?, address=?, is_active=?, note=?, "
+            "business_type=?, business_item=?, zipcode=?, address_detail=?, fax=?, sub_biz_no=?, "
+            "is_overseas=?, country=? "
             "WHERE id=?",
             (new_data["name"], new_data["biz_no"], new_data["ceo_name"],
              new_data["phone"], new_data["email"], new_data["address"],
-             new_data["is_active"], new_data["note"], cid)
+             new_data["is_active"], new_data["note"],
+             new_data["business_type"], new_data["business_item"], new_data["zipcode"],
+             new_data["address_detail"], new_data["fax"], new_data["sub_biz_no"],
+             new_data["is_overseas"], new_data["country"], cid)
         )
+        # v5H226z147: 레거시 거래처(코드 없음)에 코드 보충
+        try:
+            _cur = c.execute("SELECT code FROM customers WHERE id=?", (cid,)).fetchone()
+            _curcode = (_cur["code"] if _cur and hasattr(_cur, "keys") else (_cur[0] if _cur else None))
+            if not _curcode or not str(_curcode).strip():
+                c.execute("UPDATE customers SET code=? WHERE id=?", (_gen_customer_code(c), cid))
+        except Exception:
+            pass
         # v5H112: name 변경 시 자식(projects) 동기화
         if old_name and old_name != name:
             try:
@@ -12081,7 +12658,7 @@ async def parts_delete_submit(request: Request, pid: int):
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                              stage: str = "", status: str = "",
-                             project_type: str = ""):
+                             project_type: str = "", view: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -12116,12 +12693,12 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
             for cr in _co_rows:
                 _co_biz = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
                 # 사업부 필터 적용 (T/M)
-                if biz_div and biz_div in ("T", "M") and _co_biz != biz_div:
+                if biz_div and biz_div in ("T", "M", "L") and _co_biz != biz_div:
                     continue
                 _st_logi = _co_status_map.get(cr.get("status") or "DRAFT", "초기협의")
                 if status and _st_logi != status:
                     continue
-                _name_disp = (cr.get("customer_name") or "고객사 미정") + " 소모품 발주 (" + (cr.get("co_no") or f"#{cr.get('id')}") + ")"
+                _name_disp = (cr.get("customer_name") or "고객사 미정") + " 소모품 수주 (" + (cr.get("co_no") or f"#{cr.get('id')}") + ")"
                 rows.append({
                     "_kind": "consumable",
                     "id": cr.get("id"),
@@ -12141,13 +12718,296 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
             print(f"[v5H218] 소모품 병합 실패: {_e}")
     # 정렬: 발주일 desc → 관리코드 desc
     rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
+
+    # v5H226z155 (2026-06-02 대표 지시): 책갈피(탭) — 의미 그룹 5개로 빠른 전환.
+    #   전체 / 미확정(관리번호 없음) / 진행중 / 납품완료 / 보류·취소
+    def _is_unconfirmed(r):
+        mc = str(r.get("mgmt_code") or "").strip()
+        return mc in ("", "—", "None", "none")
+    def _st(r):
+        return (r.get("status") or "").strip()
+    view_counts = {
+        "all":         len(rows),
+        "unconfirmed": sum(1 for r in rows if _is_unconfirmed(r)),
+        "ongoing":     sum(1 for r in rows if _st(r) == "진행중"),
+        "done":        sum(1 for r in rows if _st(r) == "납품완료"),
+        "hold":        sum(1 for r in rows if _st(r) in ("보류", "취소")),
+    }
+    # 책갈피는 클라이언트에서 즉시 필터(이동 없음 → 전체화면 유지)되도록 각 행에 그룹 태그 부여.
+    for r in rows:
+        g = ["all"]
+        if _is_unconfirmed(r):
+            g.append("unconfirmed")
+        s = _st(r)
+        if s == "진행중":
+            g.append("ongoing")
+        elif s == "납품완료":
+            g.append("done")
+        elif s in ("보류", "취소"):
+            g.append("hold")
+        r["_grp"] = " ".join(g)
+
+    # v5H226z217 (대표 지시): 사업부별 책갈피 — 행마다 사업부 키(_div) + 탭 카운트.
+    #   C 소모품 / E 기타(OTHER) / T·M·L 은 biz_div. (관리번호 prefix 규칙과 동일)
+    def _div_key(r):
+        pt = (r.get("project_type") or "").upper()
+        if r.get("_kind") == "consumable" or pt == "CONSUMABLE":
+            return "C"
+        if pt == "OTHER":
+            return "E"
+        bd = (r.get("biz_div") or "").upper()
+        return bd if bd in ("T", "M", "L") else ""
+    for r in rows:
+        r["_div"] = _div_key(r)
+    div_counts = {"all": len(rows)}
+    for _k in ("T", "M", "L", "E", "C"):
+        div_counts[_k] = sum(1 for r in rows if r["_div"] == _k)
+
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
-               project_type=project_type,
+               project_type=project_type, view=view, view_counts=view_counts,
+               div_counts=div_counts,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PROJECT_TYPES=_logi.PROJECT_TYPES,
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS)
+
+
+# v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 읽기전용.
+#   설계: _기획/작업일정표_운영보드_설계.md v1.0. 월별 달력 그리드, 관리코드 1줄,
+#   발주일~납기일 일정 막대 + 납품일(●), 오늘 열 강조, 헤더/좌측 고정. 전사(프로젝트+소모품).
+@app.get("/sales/schedule", response_class=HTMLResponse)
+async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home", 303)
+    import calendar as _cal
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    today = _dt.now().date()
+    try:
+        _y, _m = (int(ym[:4]), int(ym[5:7])) if (ym and len(ym) >= 7) else (today.year, today.month)
+        if not (1 <= _m <= 12):
+            raise ValueError
+    except Exception:
+        _y, _m = today.year, today.month
+    last_day = _cal.monthrange(_y, _m)[1]
+    mstart, mend = _date(_y, _m, 1), _date(_y, _m, last_day)
+    days = list(range(1, last_day + 1))
+    today_day = today.day if (today.year == _y and today.month == _m) else None
+    _prev = mstart - _td(days=1)
+    _next = mend + _td(days=1)
+    prev_ym, next_ym = f"{_prev.year:04d}-{_prev.month:02d}", f"{_next.year:04d}-{_next.month:02d}"
+
+    def _pd(s):
+        try:
+            return _dt.strptime(str(s)[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    def _mk_row(info, od, dd, status, kind):
+        """info=표시필드 dict, od/dd=발주·납기, status, kind. 달 겹침·막대 계산 후 dict 반환."""
+        s, e = (od or dd), (dd or od)
+        if not s and not e:
+            return None
+        s, e = (s or e), (e or s)
+        if e < s:
+            s, e = e, s
+        if e < mstart or s > mend:
+            return None
+        info["bar_s"] = max(s, mstart).day
+        info["bar_e"] = min(e, mend).day
+        info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
+        info["is_delay"] = bool(dd and dd < today and status not in ("납품완료", "취소", "보류"))
+        info["status"] = status or ""
+        info["kind"] = kind
+        return info
+
+    # 수주번호(SO)·납품위치 맵 — 프로젝트별 대표 수주번호(orders.order_no)+ship_to 1개
+    _so_map = {}
+    try:
+        with db_session() as _c:
+            _ocols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
+            _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            for _r2 in _c.execute(
+                f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id"):
+                if _r2[0] and _r2[0] not in _so_map:
+                    _so_map[_r2[0]] = (_r2[1] or "", _r2[2] or "")
+    except Exception:
+        pass
+
+    rows = []
+    for p in (dict(r) for r in _logi.projects_list_logi()):
+        if (p.get("project_type") or "").upper() == "CONSUMABLE":
+            continue  # 소모품은 아래 co_list 로 (중복 방지)
+        _so, _ship = _so_map.get(p.get("id"), ("", ""))
+        info = {
+            "code": p.get("mgmt_code") or "—",
+            "so_no": _so,
+            "name": p.get("name") or "",
+            "model": p.get("model_name") or "",
+            "equip": p.get("equip_name") or "",
+            "note": p.get("logi_note") or "",
+            "qty": p.get("unit_qty") or "",
+            "trade": "수출" if int(p.get("is_export") or 0) else "내수",
+            "po_type": p.get("po_type") or "",
+            "customer": p.get("customer_name") or "—",
+            # v5H226z258 (대표 지시): 부서·담당자 = 고객사 담당자 부서·이름
+            "dept": p.get("cc_dept") or "",
+            "owner": p.get("cc_name") or "",
+            "ship_to": _ship,
+        }
+        _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+        if _r and not (cust and cust not in (_r["customer"] or "")):
+            rows.append(_r)
+    # 소모품 일정 (전사 포함)
+    try:
+        from . import consumables as _co_mod
+        _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
+                   "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+        for cr in _co_mod.co_list(status="", q="", limit=1000):
+            info = {
+                "code": cr.get("mgmt_code") or "—",
+                "so_no": cr.get("co_no") or "",
+                "name": "소모품", "model": "", "equip": "",
+                "note": "", "qty": "",
+                "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
+                "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                "dept": "", "owner": "", "ship_to": "",
+            }
+            _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
+                         _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
+            if _r and not (cust and cust not in (_r["customer"] or "")):
+                rows.append(_r)
+    except Exception:
+        pass
+    # 정렬: 납품일(있는 것 먼저, 빠른 순) → 관리코드
+    rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
+    summary = {
+        "deliver_today": sum(1 for r in rows if r["dday"] == today_day and today_day),
+        "delay": sum(1 for r in rows if r["is_delay"]),
+        "total": len(rows),
+    }
+    return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
+               month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
+               prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
+               days=days, today_day=today_day, rows=rows, summary=summary, cust=cust)
+
+
+@app.get("/projects/export.xlsx")
+async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
+                               view: str = "", status: str = ""):
+    """v5H226z218 (대표 지시): 프로젝트 목록 엑셀 — 보여지는 형태(사업부 책갈피·상태) 그대로.
+    상단 제목(사업부·기간·건수) + 상황에 맞는 파일명."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home", 303)
+    _div = (div or "").strip().upper()
+    _biz = _div if _div in ("T", "M", "L") else ""
+    _ptype = {"E": "OTHER", "C": "CONSUMABLE"}.get(_div, "")
+    rows = [dict(r) for r in _logi.projects_list_logi(q=q, biz_div=_biz, stage="",
+                                                      status=status, project_type=_ptype)]
+    # 소모품 병합 — v5H226z254 (대표 지시): '전체' 또는 '소모품' 탭일 때만.
+    #   소모품 co 는 진행사업부(biz_div)가 T/M 일 수 있어, 검사기/자동화 탭(_div=T/M/L)에서
+    #   biz_div 필터만으로는 끼어들던 문제 → 목록 책갈피(_div=C)와 동일하게 _div 기준으로 제한.
+    if _div in ("", "C"):
+        try:
+            from . import consumables as _co_mod
+            _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
+                       "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+            for cr in _co_mod.co_list(status="", q=q, limit=1000):
+                _cb = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
+                if _biz and _cb != _biz:
+                    continue
+                _stl = _co_map.get(cr.get("status") or "DRAFT", "초기협의")
+                if status and _stl != status:
+                    continue
+                rows.append({"_kind": "consumable", "mgmt_code": cr.get("mgmt_code") or "—",
+                             "name": (cr.get("customer_name") or "고객사 미정") + " 소모품 수주 (" + (cr.get("co_no") or f"#{cr.get('id')}") + ")",
+                             "customer_name": cr.get("customer_name") or "—", "biz_div": _cb or None,
+                             "project_type": "CONSUMABLE", "status": _stl,
+                             "order_amount": cr.get("total_amount") or 0, "order_date": cr.get("order_date") or "",
+                             "equip_name": "", "model_name": "", "shipment_form": ""})
+        except Exception:
+            pass
+    # 상태 책갈피(view) 필터 — 목록과 동일
+    def _unconf(r):
+        return str(r.get("mgmt_code") or "").strip() in ("", "—", "None", "none")
+    if view == "unconfirmed":
+        rows = [r for r in rows if _unconf(r)]
+    elif view == "ongoing":
+        rows = [r for r in rows if (r.get("status") or "") == "진행중"]
+    elif view == "done":
+        rows = [r for r in rows if (r.get("status") or "") == "납품완료"]
+    elif view == "hold":
+        rows = [r for r in rows if (r.get("status") or "") in ("보류", "취소")]
+    rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
+
+    _div_label = {"T": "검사기사업부", "M": "자동화사업부", "L": "라이프밸류사업부",
+                  "E": "기타", "C": "소모품"}.get(_div, "전체 사업부")
+    _view_label = {"unconfirmed": "미확정", "ongoing": "진행중", "done": "납품완료", "hold": "보류·취소"}.get(view, "전체")
+    _status_label = status or _view_label
+    _dates = [str(r.get("order_date") or "") for r in rows if (r.get("order_date") or "").strip()]
+    _period = (min(_dates) + " ~ " + max(_dates)) if _dates else "전체 기간"
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    import io
+    from urllib.parse import quote
+    wb = Workbook(); ws = wb.active; ws.title = _div_label[:31]
+    # v5H226z226 (대표 지시): 컬럼 순서 = 관리코드·프로젝트명·장비명·모델명·고객사·출고형태·상태·수주액·발주일
+    headers = ["관리코드", "프로젝트명", "장비명", "모델명", "고객사", "출고형태", "상태", "수주액(원)", "발주일"]
+    ncol = len(headers)
+    knk = PatternFill("solid", fgColor="A5282C"); white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    # row1 제목
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncol)
+    t1 = ws.cell(row=1, column=1, value=f"프로젝트 목록 — {_div_label}")
+    t1.font = Font(size=15, bold=True, color="A5282C"); t1.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[1].height = 26
+    # row2 부제 (사업부·상태·기간·건수·생성일)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=ncol)
+    t2 = ws.cell(row=2, column=1,
+                 value=f"사업부: {_div_label}   ·   상태: {_status_label}   ·   기간(발주일): {_period}   ·   건수: {len(rows)}건   ·   생성일: {date.today().isoformat()}")
+    t2.font = Font(size=10, color="555555"); t2.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 18
+    # row4 헤더
+    hrow = 4
+    for ci, htext in enumerate(headers, 1):
+        cell = ws.cell(row=hrow, column=ci, value=htext)
+        cell.font = white; cell.fill = knk
+        cell.alignment = Alignment(horizontal="center", vertical="center"); cell.border = border
+    _sf_lbl = {"ASSEMBLY": "ASS'Y", "PARTS": "부품", "ETC": "기타"}
+    for r in rows:
+        _sf = (r.get("shipment_form") or "").upper()
+        ws.append([
+            r.get("mgmt_code") or "—",
+            r.get("name") or r.get("project_name") or "—",
+            r.get("equip_name") or "—",
+            r.get("model_name") or "—",
+            r.get("customer_name") or "—",
+            _sf_lbl.get(_sf, "—") if _sf else "—",
+            r.get("status") or "—",
+            r.get("order_amount") or 0,
+            r.get("order_date") or "—",
+        ])
+    widths = [12, 32, 22, 18, 18, 9, 9, 15, 12]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    for rr in range(hrow + 1, hrow + 1 + len(rows)):
+        ws.cell(row=rr, column=8).number_format = '#,##0'
+    ws.freeze_panes = f"A{hrow + 1}"
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    _fn_div = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품"}.get(_div, "전체")
+    _fn_view = "" if view in ("", "all") else f"_{_view_label}"
+    fname = f"프로젝트_{_fn_div}{_fn_view}_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
 
 
 @app.get("/projects/bulk-template.xlsx")
@@ -12323,7 +13183,7 @@ async def projects_new_form(request: Request,
     if _t not in ("NEW_EQUIP", "OTHER", "CONSUMABLE"):
         _t = "OTHER" if _t == "SERVICE" else "NEW_EQUIP"
     _bd = (biz_div or "").strip().upper()
-    if _bd not in ("T", "M"):
+    if _bd not in ("T", "M", "L"):
         _bd = ""
     # 폼이 project.* 로 prefill 을 읽으므로 가벼운 placeholder 객체 전달
     _preset = {
@@ -12354,6 +13214,12 @@ async def projects_new_submit(request: Request):
     form = await request.form()
     # 템플릿/대체 필드명 둘 다 허용 (호환)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
+    # v5H226z212 (대표 지시): 프로젝트명 필수 해제 — 프로젝트 단위가 아닌 경우(장비명·모델명만으로 진행) 多.
+    #   비면 장비명 → (부품 품명) → (기타 품명) 순으로 대체. 모두 비면 아래에서 안내.
+    if not project_name:
+        project_name = ((form.get("equip_name") or "").strip()
+                        or (form.get("part_name") or "").strip()
+                        or (form.get("etc_name") or "").strip())
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
     # v5H192: 필수 필드 종합 검증 (비고 제외) — 빈 항목이 있으면 즉시 안내
@@ -12374,7 +13240,7 @@ async def projects_new_submit(request: Request):
     if not project_name:
         return _err_redirect("name_required")
     # v5H218: 진행 사업부는 항상 T 또는 M 이어야 함 (K 기타는 chooser 에서 K 로 들어와도 폼에서 T/M 으로 보정)
-    if biz_div not in ("T", "M"):
+    if biz_div not in ("T", "M", "L"):
         return _err_redirect("biz_div_required")
     if not customer:
         return _err_redirect("customer_required")
@@ -12466,10 +13332,75 @@ async def projects_new_submit(request: Request):
     # parent_project_id 는 CONSUMABLE/SERVICE 일 때만 의미 있음 (그 외엔 무시)
     if _ptype not in ("CONSUMABLE", "SERVICE"):
         _parent_id = None
+    # v5H226z148/z164 (대표 지시): 관리코드 직접 입력 + 비-신규 추가발주 연결.
+    #   · 신규: 비우면 자동 발급 / 입력 시 8자리 형식 + 중복(있으면 거부).
+    #   · 비-신규(추가/개조/A/S/기타): 기존 관리번호 필수 → 새 프로젝트 대신 그 프로젝트에
+    #     '추가 발주'(동일 관리번호 + 신규 SO)로 연결. 고객사 불일치 시 차단.
+    mgmt_code_in = (form.get("mgmt_code") or "").strip().upper()
+    _is_followup = bool(po_type_v and po_type_v != "신규")
+    if mgmt_code_in:
+        import re as _re2
+        if not _re2.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt_code_in):
+            return _err_redirect("mgmt_code_format", f"code={mgmt_code_in}")
+        with db_session() as _cc2:
+            _existing = _cc2.execute(
+                "SELECT id, name, customer_name FROM projects WHERE mgmt_code=? LIMIT 1",
+                (mgmt_code_in,)).fetchone()
+        if _is_followup:
+            if not _existing:
+                return _err_redirect("mgmt_not_found", f"code={mgmt_code_in}")
+            # v5H226z202 (대표 지시): 한 프로젝트에 발주처(구매대행사) 여러 곳 가능 → 불일치 차단 제거.
+            #   이 발주의 고객사(발주처)를 그 SO 의 customer_id 로 기록(없으면 프로젝트 고객 상속).
+            _fu_cust_id = None
+            if customer and customer.strip():
+                with db_session() as _ccx:
+                    _crx = _ccx.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (customer.strip(),)).fetchone()
+                _fu_cust_id = _crx[0] if _crx else None
+            # 호기 확정 단가(첫 유효값) → 1대 단가, 호기 수 → qty (없으면 예상 단가/수량 폴백)
+            _fu_units = form.getlist("unit_amount[]")
+            _fu_price = 0.0
+            for _ua in _fu_units:
+                try:
+                    _v = float((_ua or "0").replace(",", ""))
+                except ValueError:
+                    _v = 0
+                if _v > 0:
+                    _fu_price = _v
+                    break
+            if _fu_price <= 0:
+                _fu_price = unit_price if unit_price > 0 else 0.0
+            _fu_qty = len([1 for _x in _fu_units if (_x or "").strip()]) or unit_qty
+            _fu_sotype = {"NEW_EQUIP": "EQUIPMENT", "CONSUMABLE": "CONSUMABLE",
+                          "SERVICE": "SERVICE", "OTHER": "OTHER"}.get(_ptype, "EQUIPMENT")
+            with db_session() as _cc3:
+                _pwf.add_followup_order(
+                    _cc3, _existing["id"], order_date=order_date_v,
+                    total_amount=_fu_price, due_date=due_date_v,
+                    created_by=_u.get("id"), po_number=form.get("customer_po", ""),
+                    note=form.get("note", ""), qty=_fu_qty,
+                    so_type=_fu_sotype, currency=_ccy_v, ship_to="",
+                    order_customer_id=_fu_cust_id)
+            return RedirectResponse(f"/project/{_existing['id']}?followup=1", status_code=303)
+        else:
+            if _existing:
+                return _err_redirect("mgmt_code_dup", f"code={mgmt_code_in}")
+    elif _is_followup:
+        return _err_redirect("mgmt_required_followup")
+    # v5H226z220 (대표 지시): 장비명·모델명 필수 (소모품 제외 — 장비 없음 / 신규 등록만, 추가발주는 위에서 처리)
+    if _ptype != "CONSUMABLE":
+        if not (form.get("equip_name") or "").strip():
+            return _err_redirect("equip_required")
+        if not (form.get("model") or "").strip():
+            return _err_redirect("model_required")
     new_pid, _new_code = _logi.projects_create_logi({
         "_changed_by": _u.get("id"),
+        # v5H226z194 (대표 지시): 등록 시 관리번호 항상 자동 발급 (제안 단계 포함). 상태는 사용자 선택 유지.
+        "force_code": True,
+        "mgmt_code": mgmt_code_in,   # 비면 자동 발급 / 있으면 그 코드 사용
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
+        # v5H226z211 (대표 지시): 장비명 — 관리번호=장비 단위
+        "equip_name": form.get("equip_name", ""),
         "stage": stage_val,
         "po_type": form.get("po_type", "신규") or "신규",
         "status": form.get("status", "초기협의") or "초기협의",
@@ -12490,7 +13421,103 @@ async def projects_new_submit(request: Request):
         "note": form.get("note", ""),
         "project_type": _ptype,
         "parent_project_id": _parent_id,
+        # v5H226z166: 고객사 담당자 (이름·부서·직책·연락처·메일·성향)
+        "cc_name": form.get("cc_name", ""), "cc_dept": form.get("cc_dept", ""),
+        "cc_position": form.get("cc_position", ""), "cc_phone": form.get("cc_phone", ""),
+        "cc_email": form.get("cc_email", ""), "cc_note": form.get("cc_note", ""),
+        # v5H226z195: 2단계 발주(법인 경유) — 2차고객사·최종 고객 매출(참고)
+        "two_tier_order": form.get("two_tier_order", ""),
+        "secondary_customer": form.get("secondary_customer", ""),
+        "final_amount": form.get("final_amount", ""),
     })
+    # v5H226z209 (2026-06-04 대표 지시·2단계): 품목(project_items) 저장.
+    #   · item1 = 폼 기본 필드(출고형태·모델·수량·단가) — 대표 품목.
+    #   · 추가 품목 = 폼 repeater(pi_* 배열) — 출고형태별 칸(장비명/품명·모델명).
+    #   추가 품목은 수주(SO)로도 전개해 매출에 반영(z204 규칙: 장비=호기 N줄 / 부품·기타=동일단가×수량 1줄).
+    #   품목 저장 실패는 등록 자체를 막지 않음(상세에서 보정 가능).
+    _z209_extra_oids = []   # 추가 품목으로 발행한 SO id (아래 item1 자동발행 가드에서 제외)
+    if new_pid:
+        try:
+            with db_session() as _cpi:
+                # item1 (대표 품목) — 출고형태별 (z211):
+                #   ASS'Y → 장비 자체(장비명+장비모델) / 부품 → 부품(품명+부품모델, 1식·상세 별도) / 기타 → 기타품명
+                _sf1 = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
+                if _sf1 == "PARTS":
+                    _it_name = (form.get("part_name") or "").strip() or "부품 1식"
+                    _it_model = (form.get("part_model") or "").strip()
+                    _it_qty, _it_price, _it_amt = 1, 0.0, 0.0       # 부품은 1식 — 상세·금액은 별도(PACKING LIST)
+                    _it_note = "[등록] 부품 1식 (상세 별도)"
+                elif _sf1 == "ETC":
+                    _it_name = (form.get("etc_name") or "").strip() or project_name
+                    _it_model = ""
+                    _it_qty, _it_price, _it_amt = unit_qty, unit_price, amt
+                    _it_note = "[등록] 기타 품목"
+                else:  # ASSEMBLY
+                    _it_name = (form.get("equip_name") or "").strip() or project_name
+                    _it_model = form.get("model", "")
+                    _it_qty, _it_price, _it_amt = unit_qty, unit_price, amt
+                    _it_note = "[등록] 장비(대표 품목)"
+                _logi.project_item_create(_cpi, int(new_pid), {
+                    "shipment_form": _sf1,
+                    "item_name": _it_name, "model_name": _it_model,
+                    "qty": _it_qty, "unit_price": _it_price, "amount": _it_amt,
+                    "currency": _ccy_v, "is_export": form.get("is_export", "0"),
+                    "order_date": form.get("order_date", ""), "due_date": form.get("due_date", ""),
+                    "secondary_customer": form.get("secondary_customer", ""),
+                    "final_amount": form.get("final_amount", ""),
+                    "note": _it_note,
+                })
+                # 추가 품목 (repeater) — 같은 인덱스 배열
+                _pi_sf    = form.getlist("pi_sf[]")
+                _pi_name  = form.getlist("pi_name[]")
+                _pi_model = form.getlist("pi_model[]")
+                _pi_qty   = form.getlist("pi_qty[]")
+                _pi_price = form.getlist("pi_price[]")
+                for _i in range(len(_pi_name)):
+                    _nm = (_pi_name[_i] or "").strip()
+                    _md = ((_pi_model[_i] if _i < len(_pi_model) else "") or "").strip()
+                    if not _nm and not _md:
+                        continue  # 빈 행 스킵
+                    _sf = (_pi_sf[_i] if _i < len(_pi_sf) else "ASSEMBLY")
+                    try:
+                        _q = int(float(((_pi_qty[_i] if _i < len(_pi_qty) else "1") or "1").replace(",", "")))
+                    except ValueError:
+                        _q = 1
+                    if _q < 1:
+                        _q = 1
+                    try:
+                        _pr = float(((_pi_price[_i] if _i < len(_pi_price) else "0") or "0").replace(",", ""))
+                    except ValueError:
+                        _pr = 0.0
+                    _pi_id = _logi.project_item_create(_cpi, int(new_pid), {
+                        "shipment_form": _sf, "item_name": _nm or _md, "model_name": _md,
+                        "qty": _q, "unit_price": _pr, "amount": _pr * _q,
+                        "currency": _ccy_v, "is_export": form.get("is_export", "0"),
+                        "note": "[등록] 추가 품목",
+                    })
+                    # 추가 품목 → 수주(SO) 전개 (출고형태별 규칙)
+                    _sfu = (_sf or "ASSEMBLY").strip().upper()
+                    if _sfu == "PARTS":
+                        _so_t, _exp = "CONSUMABLE", False
+                    elif _sfu == "ETC":
+                        _so_t, _exp = "OTHER", False
+                    else:
+                        _so_t, _exp = "EQUIPMENT", True
+                    try:
+                        _r = _pwf.add_followup_order(
+                            _cpi, int(new_pid), order_date=form.get("order_date", ""),
+                            total_amount=_pr, due_date=form.get("due_date", ""),
+                            created_by=_u.get("id") or 0, po_number=form.get("customer_po", ""),
+                            note=f"[추가품목] {_nm}{(' / 모델: ' + _md) if _md else ''}",
+                            qty=_q, so_type=_so_t, currency=_ccy_v, ship_to="",
+                            expand_units=_exp, line_label=(_md or _nm))
+                        if _r.get("ok") and _r.get("order_id"):
+                            _logi.project_item_update(_cpi, _pi_id, {"order_id": _r["order_id"]})
+                            _z209_extra_oids.append(int(_r["order_id"]))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     if confirm_now and new_pid:
         # v5H81: 호기 라인 — (납기, 납품지) 그룹화 키 포함
         # v5H92: 통화(currency) 도 라인별로 받음 (KRW/USD)
@@ -12566,13 +13593,23 @@ async def projects_new_submit(request: Request):
     # v5H226z: 출고 형태 PARTS 면 자동 SO 빈 SO + so_type=PARTS_EXPORT
     _ship_form_new = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
     _is_parts_new = (_ship_form_new == "PARTS")
-    if not confirm_now and new_pid and status_val in _logi.WON_STATUSES and _ptype in ("NEW_EQUIP", "CONSUMABLE"):
+    # v5H226z194 (대표 지시): 등록 시 수주번호(SO) '항상' 발급 (제안 단계 포함). 상태(초기협의 등)는 그대로 유지.
+    if not confirm_now and new_pid and _ptype in ("NEW_EQUIP", "CONSUMABLE", "OTHER"):
         try:
             with db_session() as c:
-                # 이미 SO 가 있으면 발행 안 함 (재진입 방지)
-                exists = c.execute(
-                    "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (new_pid,)
-                ).fetchone()
+                # 이미 SO 가 있으면 발행 안 함 (재진입 방지).
+                # v5H226z209: 단, 방금 '추가 품목'으로 발행한 SO(_z209_extra_oids)는 제외 —
+                #   그것 때문에 item1(대표) 자동 SO 발행이 건너뛰어지지 않도록.
+                if _z209_extra_oids:
+                    _ph209 = ",".join("?" * len(_z209_extra_oids))
+                    exists = c.execute(
+                        f"SELECT 1 FROM orders WHERE project_id=? AND id NOT IN ({_ph209}) LIMIT 1",
+                        (new_pid, *_z209_extra_oids)
+                    ).fetchone()
+                else:
+                    exists = c.execute(
+                        "SELECT 1 FROM orders WHERE project_id=? LIMIT 1", (new_pid,)
+                    ).fetchone()
                 if not exists:
                     # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
                     # v5H223: CONSUMABLE 은 빈 SO (라인 후속 추가)
@@ -12626,7 +13663,7 @@ PROJ_IMPORT_STATUSES = {
 }
 
 
-def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
+def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False) -> list[dict]:
     """업로드된 엑셀을 파싱해 row dict 리스트 반환.
     각 dict: {sheet, row_no, biz_div, name, customer_name, ..., _errors: [...]}.
     빈 프로젝트명 행 / 예제 row(4) 자동 스킵."""
@@ -12639,16 +13676,62 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
     sheet_div_map = {
         "T_검사기": "T",
         "M_자동화": "M",
+        "L_라이프밸류": "L",
+        "E_기타": "E",
+        "C_소모품": "C",
     }
     # 등록된 고객사 캐시 (대소문자 무시 비교용은 안 함 — 정확 매칭)
     customer_set = set()
+    code_set = set()   # v5H226z171: 기존 관리코드(중복 검증용) + 파일 내 중복 감지
+    _code_to_pid = {}  # v5H226z241: 관리코드→프로젝트 id (소모품 '연결 관리코드'→부모 해석)
     try:
         with db_session() as _cc:
             for r in _cc.execute("SELECT name FROM customers"):
                 if r and r[0]:
                     customer_set.add(r[0])
+            for r in _cc.execute("SELECT id, mgmt_code FROM projects WHERE mgmt_code IS NOT NULL AND mgmt_code != ''"):
+                if r and r[1]:
+                    _c = str(r[1]).strip().upper()
+                    code_set.add(_c)
+                    _code_to_pid[_c] = r[0]
     except Exception:
         pass
+    _file_codes = set()  # 같은 파일 내 중복 감지
+
+    # v5H226z238 (대표 지시): 고객사 80% 유사도 자동 매칭.
+    #   엑셀 고객사명을 등록 고객사와 비교 → 최고 유사도 ≥ 0.8 이면 그 고객사로 연결,
+    #   < 0.8 이면 에러(행 차단). 한글 상호 특성상 (주)/㈜/주식회사/공백 등은 정규화 후 비교.
+    import re as _re_cust
+    from difflib import SequenceMatcher as _SM
+    _cust_list = list(customer_set)
+
+    def _norm_cust(s: str) -> str:
+        s = (s or "").lower()
+        # 법인격·괄호·기호·공백 제거 (㈜ ㈎ 등 + (주)(유)(有) + 주식회사/유한회사)
+        s = _re_cust.sub(r"주식회사|유한회사|\(주\)|\(유\)|\(有\)|㈜|㈲|株式会社", "", s)
+        s = _re_cust.sub(r"[\s\(\)\[\]\.,\-_/&'\"·｜|]", "", s)
+        return s.strip()
+
+    def _match_customer(name: str):
+        """반환: (matched_name|None, score 0~1)."""
+        n = _norm_cust(name)
+        if not n:
+            return (None, 0.0)
+        best_name, best_score = None, 0.0
+        for cand in _cust_list:
+            cn = _norm_cust(cand)
+            if not cn:
+                continue
+            if cn == n:
+                return (cand, 1.0)
+            # 한쪽이 다른쪽을 포함(2자 이상)하면 강한 매칭으로 가중
+            if len(n) >= 2 and len(cn) >= 2 and (n in cn or cn in n):
+                _sc = 0.9 + 0.1 * (min(len(n), len(cn)) / max(len(n), len(cn)))
+            else:
+                _sc = _SM(None, n, cn).ratio()
+            if _sc > best_score:
+                best_name, best_score = cand, _sc
+        return (best_name, best_score)
 
     def _to_str(v) -> str:
         if v is None:
@@ -12676,11 +13759,58 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
                     continue
         return s  # 파싱 실패 시 원문 (검증에서 잡음)
 
+    # v5H226z232 (대표 지시): 새 출고형태별 평면 양식 — 사업부=컬럼, 출고형태 고정. (부품은 별도 Step)
+    _NEW_FLAT = {"ASSY장비": "ASSEMBLY", "기타": "ETC"}
     for sh_name in wb.sheetnames:
-        if sh_name not in sheet_div_map:
-            continue  # 안내 시트 등 스킵
-        biz_div = sheet_div_map[sh_name]
+        _is_consumable = False   # v5H226z240: 소모품 시트(사업부 C 고정·품명 식별·관리번호/추가발주 없음)
+        if sh_name in sheet_div_map:
+            biz_div = sheet_div_map[sh_name]; _biz_from_col = False; _fixed_sf = None
+        elif sh_name in _NEW_FLAT:
+            biz_div = ""; _biz_from_col = True; _fixed_sf = _NEW_FLAT[sh_name]
+        elif sh_name == "소모품":
+            # v5H226z240 (대표 지시): 소모품 — 사업부 C 고정, 식별자=품명, 관리번호·추가발주 미사용
+            biz_div = "C"; _biz_from_col = False; _fixed_sf = None; _is_consumable = True
+        else:
+            continue  # 작성안내 등 스킵
+        _is_new_flat = (sh_name in _NEW_FLAT) or _is_consumable
         ws = wb[sh_name]
+        # v5H226z172: 헤더명 기반 매핑 — 컬럼 순서·필수표시(*)·괄호(품명)와 무관하게 견고. row3=헤더, row5+=데이터
+        import re as _re_h
+        def _norm_h(s):
+            s = _re_h.sub(r"\([^)]*\)", "", str(s or ""))   # 괄호 내용 제거
+            return _re_h.sub(r"[\s*]", "", s).strip()
+        _HF = {"관리코드": "mgmt_code", "프로젝트명": "name", "고객사명": "customer",
+               # v5H226z232: 새 평면 양식 — 사업부(컬럼)·장비명·기타품명·최종금액
+               "사업부": "biz_div_col", "장비명": "equip_name", "기타품명": "etc_name", "최종금액": "final_amount",
+               "품명": "cons_name",   # v5H226z240: 소모품 품명(식별자)
+               # v5H226z241: 소모품 — 연결 관리코드(부모 장비)·영업담당자·고객사담당자
+               "연결관리코드": "link_code", "영업담당자": "sales", "고객사담당자": "cc_name",
+               "모델명": "model", "수량": "qty", "단가": "price", "금액": "amount", "상태": "status",
+               "PO유형": "po_type", "출고형태": "shipment_form",
+               "통화": "currency", "거래구분": "trade",
+               # v5H226z260 (대표 지시): 용어 표준 — '납기일'→'납품일'. 양식은 '납품일'로 통일하되
+               #   기존 '납기일' 파일도 계속 업로드되도록 둘 다 due_date 로 인식(왕복 호환).
+               "발주일": "order_date", "납기일": "due_date", "납품일": "due_date", "납품처": "ship_to",
+               "PM": "pm", "영업담당": "sales", "비고": "note",
+               # v5H226z197 (대표 지시): 2단계 발주 양식 — 1차/2차 고객사 + 1차 단가/금액 + 2차 금액(최종, VND)
+               #   'VND' 가 괄호 안/밖 어느 쪽이든 동일하게 인식 (괄호는 정규화에서 제거되므로 둘 다 등록)
+               "1차고객사": "customer", "2차고객사": "secondary_customer",
+               "1차고객사납품단가": "price", "1차고객사납품금액": "amount",
+               "2차고객사납품단가": "secondary_price", "2차고객사납품단가VND": "secondary_price",
+               "2차고객사납품금액": "final_amount", "2차고객사납품금액VND": "final_amount"}
+        colmap = {}
+        try:
+            _hdr = next(ws.iter_rows(min_row=3, max_row=3, values_only=True))
+        except StopIteration:
+            _hdr = ()
+        for _ci, _hv in enumerate(_hdr or ()):
+            _f = _HF.get(_norm_h(_hv))
+            if _f and _f not in colmap:
+                colmap[_f] = _ci
+        if "name" not in colmap and not _is_new_flat:   # 헤더 인식 실패 → 구 위치기반 폴백(구 양식만)
+            colmap = {"name": 0, "mgmt_code": 1, "po_type": 2, "customer": 3, "model": 4,
+                      "trade": 5, "order_date": 6, "due_date": 7, "price": 8, "qty": 9,
+                      "currency": 10, "status": 11, "pm": 12, "sales": 13, "ship_to": 14, "note": 15}
         # 데이터 row 5+ (row1=제목, row2=안내, row3=헤더, row4=예제)
         row_no = 0
         for r in ws.iter_rows(min_row=5, values_only=True):
@@ -12688,26 +13818,63 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             actual_row = row_no + 4  # 사용자에게 표시할 엑셀 행번호
             if not r or all((c is None or str(c).strip() == "") for c in r):
                 continue
-            # 16개 컬럼 패딩
-            cells = list(r) + [None] * (16 - len(r)) if len(r) < 16 else list(r[:16])
-            name = _to_str(cells[0])
+            cells = list(r)
+            def _gf(field):
+                _i = colmap.get(field)
+                return _to_str(cells[_i]) if (_i is not None and _i < len(cells)) else ""
+            def _rf(field):
+                _i = colmap.get(field)
+                return cells[_i] if (_i is not None and _i < len(cells)) else None
+            mgmt_code = _gf("mgmt_code").upper()
+            equip_name = _gf("equip_name")
+            etc_name = _gf("etc_name")
+            cons_name = _gf("cons_name")   # v5H226z240: 소모품 품명
+            # v5H226z232/240: 프로젝트명 비면 장비명/기타품명/품명으로 대체 (식별자 없으면 스킵)
+            name = _gf("name") or equip_name or etc_name or cons_name
             if not name:
-                continue  # 프로젝트명 빈 행 스킵
-            mgmt_code = _to_str(cells[1])
-            po_type = _to_str(cells[2]) or "신규"
-            customer = _to_str(cells[3])
-            model = _to_str(cells[4])
-            trade_raw = _to_str(cells[5])
-            order_date = _to_date(cells[6])
-            due_date = _to_date(cells[7])
-            unit_price_raw = _to_str(cells[8])
-            unit_qty_raw = _to_str(cells[9])
-            currency = _to_str(cells[10]).upper() or "KRW"
-            status = _to_str(cells[11]) or "초기협의"
-            pm = _to_str(cells[12])
-            sales = _to_str(cells[13])
-            ship_to = _to_str(cells[14])
-            note = _to_str(cells[15])
+                continue
+            # v5H226z232: 새 평면 양식은 사업부가 컬럼 — 비면 관리코드(4번째 글자)로 판단
+            if _biz_from_col:
+                biz_div = _gf("biz_div_col").strip().upper()
+                if biz_div not in ("T", "M", "L", "E", "C"):
+                    import re as _re_bc
+                    if _re_bc.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt_code):
+                        biz_div = mgmt_code[3]
+            po_type = _gf("po_type") or "신규"
+            customer = _gf("customer")
+            model = _gf("model")
+            trade_raw = _gf("trade")
+            order_date = _to_date(_rf("order_date"))
+            due_date = _to_date(_rf("due_date"))
+            unit_price_raw = _gf("price")
+            unit_qty_raw = _gf("qty")
+            currency = _gf("currency").upper() or "KRW"
+            status = _gf("status") or "초기협의"
+            pm = _gf("pm")
+            sales = _gf("sales")
+            ship_to = _gf("ship_to")
+            note = _gf("note")
+            cc_name = _gf("cc_name")          # v5H226z241: 고객사담당자
+            link_code = _gf("link_code").upper().strip()  # v5H226z241: 연결 관리코드(부모 장비)
+            # v5H226z197: 2단계 발주 — 2차고객사·최종매출 / 명시 금액 / 출고형태
+            secondary_customer = _gf("secondary_customer")
+            amount_raw = _gf("amount")          # '1차 고객사 납품 금액' (있으면 명시값 우선)
+            final_amount_raw = _gf("final_amount")  # '2차 고객사 납품 금액 VND' (최종, 참고)
+            _sf_raw = _gf("shipment_form").strip()
+            if ("부품" in _sf_raw) or (_sf_raw.replace(" ", "").upper() == "PARTS"):
+                shipment_form = "PARTS"
+            elif ("기타" in _sf_raw) or (_sf_raw.replace(" ", "").upper() == "ETC"):
+                shipment_form = "ETC"
+            else:
+                shipment_form = "ASSEMBLY"      # ASS'Y / 완제품 / 빈값
+            if _fixed_sf:                        # v5H226z232: 새 평면 양식은 출고형태 고정
+                shipment_form = _fixed_sf
+            # v5H226z232: 기타는 모델명 칸이 없음 → 기타품명을 품명(모델명 슬롯)으로 보존
+            if shipment_form == "ETC" and etc_name and not model:
+                model = etc_name
+            # v5H226z240: 소모품 품명 — 모델명 비면 품명으로 보존(목록 모델명 칸 표시)
+            if _is_consumable and cons_name and not model:
+                model = cons_name
             errors = []
             # 거래구분
             is_export = 1 if trade_raw in ("수출", "export", "1") else 0
@@ -12726,9 +13893,15 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             except ValueError:
                 unit_qty = 1
                 errors.append(f"수량 형식 오류: '{unit_qty_raw}'")
-            if unit_qty < 1 or unit_qty > 100:
-                errors.append(f"수량 범위(1~100) 오류: {unit_qty}")
-                unit_qty = max(1, min(100, unit_qty))
+            # v5H226z204 (대표 지시): 부품·소모품·기타는 '낱개 수량'이라 100 초과가 정상.
+            #   부품류(출고형태 부품/기타 · 사업부 C 소모품/E 기타)는 동일단가×수량을 1줄로 저장하므로
+            #   상한을 9,999 까지 허용. 장비(호기 N줄 분할)는 기존 1~100 유지(282대 같은 오타 방지).
+            _is_part_qty = (shipment_form in ("PARTS", "ETC")) or (biz_div in ("E", "C"))
+            _qty_cap = 9999 if _is_part_qty else 100
+            if unit_qty < 1 or unit_qty > _qty_cap:
+                _kind = "부품/소모품 수량" if _is_part_qty else "장비 호기수"
+                errors.append(f"{_kind} 범위(1~{_qty_cap}) 오류: {unit_qty}")
+                unit_qty = max(1, min(_qty_cap, unit_qty))
             # 통화
             if currency not in PROJ_IMPORT_CURRENCIES:
                 errors.append(f"통화 화이트리스트 위반: '{currency}' (KRW/USD/VND)")
@@ -12737,17 +13910,91 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             if status not in PROJ_IMPORT_STATUSES:
                 errors.append(f"상태 화이트리스트 위반: '{status}'")
                 status = "초기협의"
-            # 고객사
+            # 고객사 — v5H226z238 (대표 지시): 80% 유사도 자동 매칭.
+            #   · 정확/≥80% : 등록 고객사로 연결(등록 고객사명으로 치환 → customer_id 매핑)
+            #   · <80%      : 에러(행 차단)  · 빈칸: 통과(고객사 없음)
             cust_warn = ""
-            if customer and customer not in customer_set:
-                cust_warn = f"미등록 고객사 (텍스트로 저장): '{customer}'"
-                errors.append(cust_warn)
+            if customer:
+                if customer in customer_set:
+                    pass  # 정확 일치 — 그대로
+                else:
+                    _mc_name, _mc_score = _match_customer(customer)
+                    if _mc_name and _mc_score >= 0.8:
+                        cust_warn = (f"고객사 자동매칭: '{customer}' → '{_mc_name}'"
+                                     f" ({int(round(_mc_score * 100))}%)")
+                        customer = _mc_name   # 등록 고객사명으로 치환 → 연결
+                        errors.append(cust_warn)  # 경고만(등록 가능) — 미리보기에 매칭결과 노출
+                    else:
+                        _best = (f" (가장 가까운: '{_mc_name}' {int(round(_mc_score*100))}%)"
+                                 if _mc_name else "")
+                        errors.append(
+                            f"고객사 매칭 실패(80% 미만): '{customer}'{_best}"
+                            " — 고객사를 먼저 등록하거나 이름을 정확히 입력하세요")
             # 날짜 파싱 검증 (YYYY-MM-DD 패턴)
             for dn, dv in (("발주일", order_date), ("납기일", due_date)):
                 if dv:
                     parts = dv.split("-")
                     if not (len(parts) == 3 and all(p.isdigit() for p in parts)):
                         errors.append(f"{dn} 날짜 파싱 실패: '{dv}'")
+            # v5H226z171: 관리코드 — 있으면 형식·중복 검증(완료분 등 기존 코드 보존). 비면 자동 발급.
+            # v5H226z201 (대표 지시): 기존 관리코드 + PO유형(추가/개조/A·S/기타) = '추가발주'
+            #   → 중복에러 대신 그 프로젝트에 새 수주번호(SO) 추가 (관리번호 동일, 부품/금액만 새 SO).
+            _is_followup_po = bool(po_type and po_type != "신규")
+            _followup = False
+            _auto_merge = False   # v5H226z206: 같은 파일 동일 관리번호 '신규' 재입력 → 자동 병합
+            _pending_fu = False   # v5H226z205: 같은 파일 신규코드 참조 가능 → 사후 판정 보류
+            if mgmt_code:
+                import re as _re_mc
+                if not _re_mc.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt_code):
+                    errors.append(f"관리코드 형식 오류(8자리 일련3+T/M/L/E/C+YYMM): '{mgmt_code}'")
+                elif _is_followup_po:
+                    # 추가발주: 기존(등록된) 관리번호가 있어야 함
+                    if mgmt_code in code_set:
+                        _followup = True   # 정상 — 기존(DB) 프로젝트에 SO 추가
+                    else:
+                        # v5H226z205 (대표 지시): 같은 파일에 '신규'로 등록되는 관리번호일 수 있음.
+                        #   _file_codes 는 파일 전체 스캔 후에야 완성되므로 여기선 보류 → 루프 종료 후 판정.
+                        _pending_fu = True
+                else:
+                    # 신규: 중복이면 에러
+                    if mgmt_code in code_set:
+                        errors.append(f"관리코드 중복(이미 등록됨): '{mgmt_code}' — 추가 부품이면 PO유형을 '추가/개조' 로")
+                    elif mgmt_code in _file_codes:
+                        # v5H226z206 (대표 지시): 같은 파일에서 동일 관리번호를 '신규'로 다시 입력하는 경우
+                        #   (과거 데이터 일괄 이관에서 한 프로젝트에 품목이 여러 줄) → 막지 말고 자동 병합.
+                        #   첫 줄 = 프로젝트 생성, 이 줄 = 같은 관리번호 프로젝트에 품목(SO) 자동 추가.
+                        #   (오타 방지 가드는 'DB에 이미 등록된 코드(code_set)'에는 그대로 유지)
+                        _followup = True
+                        _auto_merge = True
+                    else:
+                        _file_codes.add(mgmt_code)
+            elif _is_followup_po:
+                errors.append(f"추가발주(PO유형 '{po_type}')는 기존 관리번호 입력 필수")
+            # v5H226z197: 명시 금액(있으면 우선) + 최종(2차) 매출 파싱
+            try:
+                _amt_explicit = float(str(amount_raw).replace(",", "")) if str(amount_raw).strip() else 0.0
+            except ValueError:
+                _amt_explicit = 0.0
+            amount = _amt_explicit if _amt_explicit > 0 else (unit_price * unit_qty)
+            try:
+                final_amount = (float(str(final_amount_raw).replace(",", ""))
+                                if str(final_amount_raw).strip() else None)
+            except ValueError:
+                final_amount = None
+            two_tier_order = 1 if (secondary_customer or (final_amount and final_amount > 0)) else 0
+            # v5H226z241 (대표 지시): 소모품 '연결 관리코드' → 부모 장비(parent_project_id) 해석.
+            #   있으면 연결, 없는 코드면 경고(등록은 됨) + 연결코드를 비고에 보존.
+            link_pid = None
+            link_warn = ""
+            if link_code:
+                link_pid = _code_to_pid.get(link_code)
+                if not link_pid:
+                    link_warn = f"연결 관리코드 미발견(미연결, 보존): '{link_code}'"
+                    errors.append(link_warn)
+                    if note:
+                        note = f"{note} / 연결코드: {link_code}"
+                    else:
+                        note = f"연결코드: {link_code}"
             out.append({
                 "sheet": sh_name,
                 "biz_div": biz_div,
@@ -12757,22 +14004,84 @@ def _proj_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
                 "po_type": po_type,
                 "customer_name": customer,
                 "model_name": model,
+                "equip_name": equip_name,   # v5H226z232: 장비명
+                "cc_name": cc_name,         # v5H226z241: 고객사담당자
+                "link_code": link_code,     # v5H226z241: 연결 관리코드(원문)
+                "parent_project_id": link_pid,  # v5H226z241: 해석된 부모 장비 id
                 "is_export": is_export,
                 "trade_label": "수출" if is_export else "내수",
                 "order_date": order_date,
                 "due_date": due_date,
                 "unit_price": unit_price,
                 "unit_qty": unit_qty,
-                "amount": unit_price * unit_qty,
+                "amount": amount,
                 "currency": currency,
                 "status": status,
                 "pm_name": pm,
                 "sales_name": sales,
                 "ship_to": ship_to,
                 "note": note,
+                # v5H226z196/197: 출고형태 + 2단계 발주(2차고객사·최종매출)
+                "shipment_form": shipment_form,
+                "two_tier_order": two_tier_order,
+                "secondary_customer": secondary_customer,
+                "final_amount": final_amount,
+                # v5H226z201: 추가발주(기존 관리번호에 SO 추가) 여부
+                "_followup": _followup,
+                # v5H226z206: 같은 파일 동일 관리번호 '신규' 재입력 자동 병합 여부 (미리보기 뱃지용)
+                "_auto_merge": _auto_merge,
+                # v5H226z205: 파일 전체 스캔 후 신규코드 참조 판정용 (사후 처리에서 제거)
+                "_pending_fu": _pending_fu,
+                "_cust_warn": cust_warn,
                 "_errors": errors,
-                "_is_warning_only": (len(errors) == 1 and errors[0] == cust_warn),
+                # v5H226z241: 경고(고객사매칭·연결코드 미발견)만 있으면 등록 가능
+                "_is_warning_only": (len(errors) > 0 and all(
+                    e in (cust_warn, link_warn) for e in errors)),
             })
+    # v5H226z205 (대표 지시): 같은 파일에 '신규'로 등록되는 관리번호를 '추가발주' 행이 참조하는 경우 허용.
+    #   파일 전체를 스캔한 뒤에야 신규 코드 집합(_file_codes)이 완성되므로 여기서 사후 판정.
+    _known_codes = set(code_set) | set(_file_codes)
+    # v5H226z233 (대표 지시): '고아 추가발주' 자동 승격 — 일괄이관 모드(migrate_mode)에서만.
+    #   PO유형이 '추가'인데 짝(신규)이 DB·파일에 모두 없는 관리번호 그룹은,
+    #   같은 관리번호에서 발주일이 가장 빠른 1줄을 '신규'로 승격(프로젝트 생성)하고
+    #   나머지는 그 관리번호의 추가발주로 묶는다. (과거 데이터 일괄 이관 편의)
+    #   동률·빈 발주일은 맨 뒤로, 같은 날짜는 행번호 순(안정) → 사실상 첫 줄 승격.
+    #   v5H226z234 (대표 지시): 평상시(하나씩 등록)엔 차단 유지 → migrate_mode 체크 시에만 승격.
+    _promoted = set()
+    if migrate_mode:
+        _orphan = {}
+        for _row in out:
+            if _row.get("_pending_fu"):
+                _mc = (_row.get("mgmt_code_input") or "").strip().upper()
+                if _mc and _mc not in _known_codes:
+                    _orphan.setdefault(_mc, []).append(_row)
+        for _mc, _rows in _orphan.items():
+            def _od_key(_r):
+                _d = (_r.get("order_date") or "").strip()
+                # 정상 날짜(YYYY-MM-DD)는 앞쪽(0), 빈칸/형식오류는 뒤쪽(1)
+                _ok = bool(_d) and len(_d.split("-")) == 3 and all(p.isdigit() for p in _d.split("-"))
+                return (0, _d) if _ok else (1, ""), (_r.get("row_no") or 0)
+            _head = sorted(_rows, key=_od_key)[0]
+            _head["_promoted_new"] = True   # 신규로 승격(미리보기 뱃지)
+            _head["po_type"] = "신규"       # 새 프로젝트 생성 → PO유형도 신규로 보정
+            _promoted.add(_mc)
+        _known_codes |= _promoted
+    for _row in out:
+        _pending = _row.pop("_pending_fu", False)
+        _cw = _row.pop("_cust_warn", "")
+        if _pending:
+            _mc = (_row.get("mgmt_code_input") or "").strip().upper()
+            if _row.get("_promoted_new"):
+                _row["_followup"] = False   # 승격된 신규 — 프로젝트 생성(추가발주 아님)
+            elif _mc in _known_codes:
+                _row["_followup"] = True    # 같은 파일 신규/승격 or 기존 DB 코드 → 추가발주 정상
+            else:
+                _row["_errors"].append(
+                    f"추가발주(PO유형 '{_row.get('po_type')}')인데 기존 관리번호 없음: "
+                    f"'{_mc}' — 같은 파일에 '신규'로도 없음. 먼저 신규로 등록 필요"
+                    " (과거 데이터 일괄이관이면 '📦 일괄이관 모드' 체크 후 업로드)")
+            _row["_is_warning_only"] = (
+                len(_row["_errors"]) == 1 and bool(_cw) and _row["_errors"][0] == _cw)
     return out
 
 
@@ -12788,24 +14097,60 @@ async def projects_import_template(request: Request):
     p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_양식.xlsx"
     if not p.exists():
         return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    # v5H226z173: 캐시 방지 — 양식이 갱신돼도 브라우저가 옛 파일을 안 주도록 (M/T만 보이던 문제)
     return FileResponse(
         str(p),
-        filename="KNK_프로젝트_일괄등록_양식.xlsx",
+        filename="KNK_프로젝트_일괄등록_양식_v199.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"},
+    )
+
+
+@app.get("/projects/import-template/{kind}")
+async def projects_import_template_kind(request: Request, kind: str):
+    """v5H226z228 (대표 지시): 출고형태별 일괄등록 양식 — ASS'Y / 부품 / 기타 3종 다운로드."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    _map = {
+        "assy":  ("ASSY_일괄등록_양식.xlsx",  "KNK_일괄등록_ASSY(장비)_양식.xlsx"),
+        "parts": ("부품_일괄등록_양식.xlsx",  "KNK_일괄등록_부품_양식.xlsx"),
+        "etc":   ("기타_일괄등록_양식.xlsx",  "KNK_일괄등록_기타_양식.xlsx"),
+        # v5H226z240 (대표 지시): 소모품 — 사업부 C 고정·품명 식별·관리번호/추가발주 없음
+        "consumable": ("소모품_일괄등록_양식.xlsx", "KNK_일괄등록_소모품_양식.xlsx"),
+    }
+    if kind not in _map:
+        return JSONResponse({"error": "알 수 없는 양식 종류"}, 404)
+    from pathlib import Path as _Path
+    src, dl = _map[kind]
+    p = _Path(__file__).parent / "static" / "templates" / src
+    if not p.exists():
+        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    return FileResponse(
+        str(p), filename=dl,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"},
     )
 
 
 @app.post("/projects/import-xlsx")
-async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
-    """엑셀 업로드 → 파싱 → 미리보기 JSON 반환 (v5H152)."""
+async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
+                               migrate_mode: str = Form("")):
+    """엑셀 업로드 → 파싱 → 미리보기 JSON 반환 (v5H152).
+    v5H226z234: migrate_mode(과거 데이터 일괄이관 모드) 체크 시에만 고아 추가발주 신규 승격."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    _migrate = str(migrate_mode).strip().lower() in ("1", "true", "on", "yes", "y")
     try:
         body = await xlsx.read()
-        rows = _proj_import_parse_xlsx(body)
+        rows = _proj_import_parse_xlsx(body, migrate_mode=_migrate)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"파싱 실패: {e}"}, 400)
     valid_count = sum(1 for r in rows if not r["_errors"])
@@ -12836,15 +14181,25 @@ async def projects_import_confirm(request: Request):
     rows = body.get("rows") or []
     if not isinstance(rows, list) or not rows:
         return JSONResponse({"ok": False, "error": "no_rows"}, 400)
+    # v5H226z205 (대표 지시): 같은 파일에 '신규' + '추가발주'가 함께 있으면, 신규(프로젝트 생성)를
+    #   먼저 처리해야 추가발주가 그 관리번호를 찾을 수 있다. _followup=False(신규)를 앞으로 안정정렬.
+    rows = sorted(rows, key=lambda _r: 1 if _r.get("_followup") else 0)
     created = []
     failed = []
+    _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     for r in rows:
         try:
             # 미등록 고객사 경고만 있는 행도 통과 (텍스트로 저장)
-            biz_div = (r.get("biz_div") or "").upper()
-            if biz_div not in ("T", "M"):
+            biz_div = (r.get("biz_div") or "").strip().upper()
+            # v5H226z230 (대표 지시): 사업부 열이 비어 있으면 관리번호(4번째 글자=T/M/L/E/C)로 판단해 채움
+            if biz_div not in ("T", "M", "L", "E", "C"):
+                import re as _re_bd
+                _mc = (r.get("mgmt_code_input") or "").strip().upper()
+                if _re_bd.fullmatch(r"\d{3}[TMLEC]\d{4}", _mc):
+                    biz_div = _mc[3]
+            if biz_div not in ("T", "M", "L", "E", "C"):
                 failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
-                               "error": f"biz_div 미상: {biz_div}"})
+                               "error": "사업부 미상 — 사업부 열이 비었고 관리번호로도 판단 불가(관리번호 형식 확인)"})
                 continue
             name = (r.get("name") or "").strip()
             if not name:
@@ -12853,13 +14208,98 @@ async def projects_import_confirm(request: Request):
                 continue
             unit_price = float(r.get("unit_price") or 0)
             unit_qty = int(r.get("unit_qty") or 1)
-            amt = unit_price * unit_qty
+            # v5H226z197: 명시 '금액'(1차 발주금액) 우선, 없으면 단가×수량
+            amt = float(r.get("amount") or 0) or (unit_price * unit_qty)
+            # v5H226z201 (대표 지시): 추가발주 — 기존 관리번호에 새 SO 추가 (중복 프로젝트 안 만듦)
+            if r.get("_followup"):
+                _mc = (r.get("mgmt_code_input") or "").strip().upper()
+                with db_session() as c:
+                    _ex = c.execute(
+                        "SELECT id, name, customer_name, project_type FROM projects WHERE mgmt_code=? LIMIT 1",
+                        (_mc,)).fetchone()
+                if not _ex:
+                    failed.append({"row_no": r.get("row_no"), "name": name,
+                                   "error": f"추가발주 대상 관리번호 없음: {_mc}"})
+                    continue
+                # v5H226z202 (대표 지시): 한 프로젝트에 발주처 여러 곳 가능 → 불일치 차단 제거.
+                #   이 행의 1차 고객사(발주처)를 그 SO 의 customer_id 로 기록(없으면 프로젝트 고객).
+                _row_cust = (r.get("customer_name") or "").strip()
+                _ord_cust_id = None
+                if _row_cust:
+                    with db_session() as c:
+                        _cr = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (_row_cust,)).fetchone()
+                    _ord_cust_id = _cr["id"] if _cr else None
+                _fu_price = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                _model = (r.get("model_name") or "").strip()
+                # v5H226z237 (대표 지시): 비고는 엑셀값만 — 자동 '[추가발주] 모델…' 라벨 제거.
+                #   (추가발주 여부는 별도 SO·호기로 이미 구분됨 / 비면 빈칸 그대로)
+                _note = (r.get("note") or "").strip()
+                _sotype = {"NEW_EQUIP": "EQUIPMENT", "CONSUMABLE": "CONSUMABLE",
+                           "OTHER": "OTHER", "SERVICE": "SERVICE"}.get(
+                               (_ex["project_type"] or "NEW_EQUIP").upper(), "EQUIPMENT")
+                # v5H226z204 (대표 지시): 부품/소모품/기타 행은 '낱개 수량'이므로
+                #   호기 N줄 분할 대신 동일단가×수량을 1줄(qty=N)로 저장한다.
+                #   - 부품 판정: 출고형태 부품/기타 OR 대상 프로젝트 유형이 소모품/기타/서비스
+                #   - 장비 프로젝트에 부품을 추가하는 경우 so_type 은 CONSUMABLE 로 기록(호기 번호 오염 방지)
+                _row_is_part = ((r.get("shipment_form") or "") in ("PARTS", "ETC")
+                                or _sotype in ("CONSUMABLE", "OTHER", "SERVICE"))
+                _expand = not _row_is_part
+                _so_eff = _sotype if _expand else ("CONSUMABLE" if _sotype == "EQUIPMENT" else _sotype)
+                _line_lbl = _model or (name or "부품")
+                try:
+                    with db_session() as c:
+                        _res = _pwf.add_followup_order(
+                            c, int(_ex["id"]), order_date=r.get("order_date") or "",
+                            total_amount=_fu_price, due_date=r.get("due_date") or "",
+                            created_by=u.get("id") or 0, po_number="",
+                            note=_note, qty=unit_qty, so_type=_so_eff,
+                            currency=(r.get("currency") or "KRW").upper(),
+                            ship_to=r.get("ship_to") or "",
+                            order_customer_id=_ord_cust_id,
+                            expand_units=_expand, line_label=_line_lbl)
+                    if not _res.get("ok", True):
+                        failed.append({"row_no": r.get("row_no"), "name": name,
+                                       "error": f"추가발주 실패: {_res.get('message','')}"})
+                        continue
+                    # v5H226z237 (대표 지시): 호기 상태 = 엑셀 상태 반영 (미설정 시 화면 기본값 '진행중'으로 보이던 문제)
+                    _fu_ust = (r.get("status") or "").strip()
+                    if _fu_ust not in ("진행중", "납품완료", "취소", "보류"):
+                        _fu_ust = "진행중"
+                    _fu_oid = _res.get("order_id")
+                    if _fu_oid:
+                        try:
+                            with db_session() as c:
+                                c.execute("UPDATE order_items SET unit_status=? WHERE order_id=?",
+                                          (_fu_ust, _fu_oid))
+                        except Exception:
+                            pass
+                    created.append({"row_no": r.get("row_no"), "name": name,
+                                    "mgmt_code": _mc, "followup": True,
+                                    "so_no": _res.get("so_no")})
+                except Exception as _e:
+                    failed.append({"row_no": r.get("row_no"), "name": name,
+                                   "error": f"추가발주 오류: {str(_e)[:120]}"})
+                continue
+            # v5H226z241 (대표 지시): 소모품(C)은 호기/SO를 안 만들어 자동 코드발급 경로가 없음 →
+            #   관리코드가 비면 여기서 C 코드를 직접 발급(있으면 입력값 보존). 장비처럼 관리코드 사용.
+            _mc_eff = (r.get("mgmt_code_input") or "").strip().upper()
+            if biz_div == "C" and not _mc_eff:
+                try:
+                    _mc_eff = _logi.generate_mgmt_code("C")
+                except Exception:
+                    _mc_eff = ""
             new_pid, new_code = _logi.projects_create_logi({
                 "_changed_by": u.get("id"),
+                # v5H226z194: 일괄등록도 관리번호·수주번호 항상 발급
+                "force_code": True,
                 "biz_div": biz_div,
+                # v5H226z171/241: 양식의 관리코드 그대로 보존 (비면 자동 발급, 소모품은 위에서 C 발급)
+                "mgmt_code": _mc_eff,
                 "project_name": name,
                 "customer": r.get("customer_name") or "",
                 "model": r.get("model_name") or "",
+                # v5H226z232 (대표 지시): 장비명 — 일괄등록도 저장
+                "equip_name": r.get("equip_name") or "",
                 "stage": "수주확정" if (r.get("status") in _logi.WON_STATUSES) else "제안작성",
                 "po_type": r.get("po_type") or "신규",
                 "status": r.get("status") or "초기협의",
@@ -12874,12 +14314,23 @@ async def projects_import_confirm(request: Request):
                 "pm": r.get("pm_name") or "",
                 "sales": r.get("sales_name") or "",
                 "note": r.get("note") or "",
-                "project_type": "NEW_EQUIP",  # 양식이 검사기/자동화 전용
-                "parent_project_id": None,
+                # v5H226z241: 고객사담당자
+                "cc_name": r.get("cc_name") or "",
+                # v5H226z172: 시트별 유형 — E→기타(OTHER), C→소모품(CONSUMABLE), T/M/L→신규장비
+                "project_type": {"E": "OTHER", "C": "CONSUMABLE"}.get(biz_div, "NEW_EQUIP"),
+                # v5H226z241: 소모품 연결 관리코드 → 부모 장비 (해석된 id, 없으면 None)
+                "parent_project_id": r.get("parent_project_id"),
+                # v5H226z196/197: 출고형태 + 2단계 발주(2차고객사·최종 고객 매출 참고)
+                "shipment_form": r.get("shipment_form") or "ASSEMBLY",
+                "two_tier_order": r.get("two_tier_order") or 0,
+                "secondary_customer": r.get("secondary_customer") or "",
+                "final_amount": (r.get("final_amount") if r.get("final_amount") is not None else ""),
             })
             # 상태가 won 이면 자동 SO 발행 (단일 호기, 사용자 폴백 경로 모방)
             status_v = r.get("status") or ""
-            if new_pid and status_v in _logi.WON_STATUSES:
+            # v5H226z240 (대표 지시): 소모품(사업부 C)은 관리번호·호기·수주(SO) 미사용 →
+            #   자동 SO 생성 건너뜀. 프로젝트 레코드(품명·금액·상태·납기·비고)만 단순 저장.
+            if new_pid and status_v in _logi.WON_STATUSES and biz_div != "C":
                 try:
                     with db_session() as c:
                         exists = c.execute(
@@ -12888,13 +14339,28 @@ async def projects_import_confirm(request: Request):
                         ).fetchone()
                         if not exists:
                             per = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
-                            units_list = [{
-                                "label": _logi.project_unit_label("NEW_EQUIP", i + 1),
-                                "amount": per,
-                                "due_date": r.get("due_date") or "",
-                                "ship_to": r.get("ship_to") or "",
-                                "note": "",
-                            } for i in range(max(1, unit_qty))]
+                            # v5H226z204 (대표 지시): 부품/소모품/기타는 호기 N줄 분할 대신 1줄(수량=N).
+                            _ptype_new = {"E": "OTHER", "C": "CONSUMABLE"}.get(biz_div, "NEW_EQUIP")
+                            _new_is_part = (_ptype_new in ("OTHER", "CONSUMABLE")
+                                            or (r.get("shipment_form") or "") in ("PARTS", "ETC"))
+                            if _new_is_part:
+                                # 동일단가 × 수량 = 1줄 (라인금액=총액, qty=N)
+                                units_list = [{
+                                    "label": (r.get("model_name") or name or "부품"),
+                                    "amount": per * max(1, unit_qty),
+                                    "qty": max(1, unit_qty),
+                                    "due_date": r.get("due_date") or "",
+                                    "ship_to": r.get("ship_to") or "",
+                                    "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
+                                }]
+                            else:
+                                units_list = [{
+                                    "label": _logi.project_unit_label("NEW_EQUIP", i + 1),
+                                    "amount": per,
+                                    "due_date": r.get("due_date") or "",
+                                    "ship_to": r.get("ship_to") or "",
+                                    "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
+                                } for i in range(max(1, unit_qty))]
                             _pwf.confirm_order_multi(
                                 c, int(new_pid),
                                 units=units_list,
@@ -12904,11 +14370,53 @@ async def projects_import_confirm(request: Request):
                             )
                 except Exception:
                     pass  # SO 실패는 등록 자체는 성공으로 (편집 화면에서 자가치유)
+                # v5H226z235 (대표 지시): 과거 데이터 일괄등록 시 라이프사이클 상태 보존.
+                #   자동 수주확정(confirm_order_multi)이 projects.status 를 '수주확정'으로 덮어쓰므로,
+                #   SO·납기는 그대로 두고 사용자가 고른 상태(진행중/납품완료)를 프로젝트에 다시 적용한다.
+                #   (대표 결정: 프로젝트 상태만 보존 — 발주(호기)는 CONFIRMED 유지)
+                if status_v in PROJ_IMPORT_STATUSES:
+                    try:
+                        with db_session() as c:
+                            c.execute("UPDATE projects SET status=? WHERE id=?",
+                                      (status_v, new_pid))
+                            # v5H226z237 (대표 지시): 호기 상태도 엑셀값 반영 (NULL→화면 기본 '진행중' 대신)
+                            _new_ust = status_v if status_v in ("진행중", "납품완료", "취소", "보류") else "진행중"
+                            c.execute("UPDATE order_items SET unit_status=? "
+                                      "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
+                                      (_new_ust, new_pid))
+                    except Exception:
+                        pass
+            if new_pid:
+                _created_pids.add(int(new_pid))
             created.append({"row_no": r.get("row_no"), "id": new_pid,
                             "mgmt_code": new_code, "name": name})
         except Exception as e:
             failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
                            "error": str(e)})
+    # v5H226z239 (대표 지시): 일괄등록으로 생성된 프로젝트는 '예상매출=확정 수주액'으로 보정.
+    #   호기 N개를 이관하면 예상이 1호기 금액에 갇혀 목록의 '예상 (+%)' 표기가 왜곡되던 문제 해소.
+    #   ※ 목록 order_amount 는 상세 진입 시 자가치유(=SUM(orders.total_amount))로 재계산되므로,
+    #     저장 order_amount 가 아니라 '호기 합계'로 order_amount·expected_amount 를 함께 맞춘다.
+    #     (그래야 나중에 상세를 열어 치유돼도 예상=확정 유지. 기존 DB 프로젝트엔 미적용 — 생성분만.)
+    if _created_pids:
+        try:
+            with db_session() as c:
+                for pid in _created_pids:
+                    _row = c.execute(
+                        "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                        (pid,)).fetchone()
+                    _tot = float(_row[0] or 0) if _row else 0.0
+                    if _tot > 0:
+                        c.execute(
+                            "UPDATE projects SET order_amount=?, expected_amount=? WHERE id=?",
+                            (_tot, _tot, pid))
+                    else:
+                        # SO 없는 경우(제안 단계 등) — 예상을 저장 order_amount 에 맞춤
+                        c.execute(
+                            "UPDATE projects SET expected_amount=order_amount WHERE id=?",
+                            (pid,))
+        except Exception:
+            pass
     return JSONResponse({
         "ok": True,
         "created_count": len(created),
@@ -12916,6 +14424,137 @@ async def projects_import_confirm(request: Request):
         "created": created,
         "failed": failed,
     })
+
+
+# ==========================================================
+# v5H226z216 (2026-06-05 대표 지시): A/S 관리(수리 접수·처리) 화면 — 라이프밸류 전용 2단계.
+#   목록(/as) · 접수 등록(/as/new) · 상세(/as/{id}) · 상태변경 · 수리 처리
+# ==========================================================
+def _as_users_picker():
+    """담당자 선택용 사용자 목록."""
+    for _sql in ("SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name",
+                 "SELECT id, name FROM users ORDER BY name"):
+        try:
+            with db_session() as c:
+                return [dict(r) for r in c.execute(_sql).fetchall()]
+        except Exception:
+            continue
+    return []
+
+
+@app.get("/as", response_class=HTMLResponse)
+async def as_list_page(request: Request, status: str = "", q: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = _logi.as_ticket_list(c, status=status, q=q)
+        counts = {st: c.execute("SELECT COUNT(*) FROM as_tickets WHERE status=?", (st,)).fetchone()[0]
+                  for st in _logi.AS_STATUSES}
+        total = c.execute("SELECT COUNT(*) FROM as_tickets").fetchone()[0]
+    return ctx(request, "as_list.html", user=u, active_tab="sales",
+               rows=rows, status_sel=status, q=q,
+               AS_STATUSES=_logi.AS_STATUSES, counts=counts, total=total)
+
+
+@app.get("/as/new", response_class=HTMLResponse)
+async def as_new_form(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    return ctx(request, "as_form.html", user=u, active_tab="sales",
+               users=_as_users_picker(), today=date.today().isoformat(),
+               err=request.query_params.get("error", ""))
+
+
+@app.post("/as/new")
+async def as_new_submit(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    cust_name = (form.get("customer_name") or "").strip()
+    if not cust_name:
+        return RedirectResponse("/as/new?error=customer_required", 303)
+    _aid = (form.get("assignee_id") or "").strip()
+    data = {
+        "received_date": form.get("received_date", ""),
+        "customer_name": cust_name,
+        "customer_phone": form.get("customer_phone", ""),
+        "customer_address": form.get("customer_address", ""),
+        "product_name": form.get("product_name", ""),
+        "model_name": form.get("model_name", ""),
+        "purchase_date": form.get("purchase_date", ""),
+        "symptom": form.get("symptom", ""),
+        "inbound_tracking": form.get("inbound_tracking", ""),
+        "is_paid": form.get("is_paid", ""),
+        "repair_fee": form.get("repair_fee", ""),
+        "assignee_id": int(_aid) if _aid.isdigit() else None,
+        "note": form.get("note", ""),
+        "biz_div": "L",
+        "created_by": u.get("id"),
+    }
+    with db_session() as c:
+        res = _logi.as_ticket_create(c, data)
+    return RedirectResponse(f"/as/{res['id']}", 303)
+
+
+@app.get("/as/{as_id}", response_class=HTMLResponse)
+async def as_detail_page(request: Request, as_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        t = _logi.as_ticket_get(c, as_id)
+    if not t:
+        return RedirectResponse("/as?error=notfound", 303)
+    return ctx(request, "as_detail.html", user=u, active_tab="sales",
+               t=t, AS_STATUSES=_logi.AS_STATUSES, users=_as_users_picker())
+
+
+@app.post("/as/{as_id}/status")
+async def as_status_submit(request: Request, as_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    to_status = (form.get("status") or "").strip()
+    note = (form.get("note") or "").strip()
+    with db_session() as c:
+        _logi.as_status_change(c, as_id, to_status, changed_by=u.get("id"), note=note)
+    return RedirectResponse(f"/as/{as_id}", 303)
+
+
+@app.post("/as/{as_id}/edit")
+async def as_edit_submit(request: Request, as_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    data = {"is_paid": form.get("is_paid", "")}   # 체크박스 — 미체크 시 무상(0)
+    for k in ("customer_name", "customer_phone", "customer_address", "product_name", "model_name",
+              "purchase_date", "symptom", "inbound_tracking", "outbound_tracking", "shipped_date",
+              "repair_fee", "repair_note", "note"):
+        if k in form:
+            data[k] = form.get(k)
+    _aid = (form.get("assignee_id") or "").strip()
+    if _aid.isdigit():
+        data["assignee_id"] = int(_aid)
+    with db_session() as c:
+        _logi.as_ticket_update(c, as_id, data)
+    return RedirectResponse(f"/as/{as_id}", 303)
 
 
 # ==========================================================
@@ -12974,14 +14613,27 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
         if not r or all((c is None or str(c).strip() == "") for c in r):
             continue
         cells = list(r) + [None] * (EXPECTED_COLS - len(r)) if len(r) < EXPECTED_COLS else list(r[:EXPECTED_COLS])
-        name = _to_str(cells[0])
+        # v5H226z147: key 기반 매핑 (_CUST_XLSX_COLS 순서와 1:1)
+        rowmap = {}
+        for ci, (_h, _w, _d, _rq, _g, key) in enumerate(_CUST_XLSX_COLS):
+            rowmap[key] = _to_str(cells[ci]) if ci < len(cells) else ""
+
+        name = rowmap.get("name", "")
         if not name:
             continue
-        biz_no_raw = _to_str(cells[1])
-        ceo = _to_str(cells[2])
-        address = _to_str(cells[3])
-        active_raw = _to_str(cells[4])
-        note = _to_str(cells[5])
+        code = rowmap.get("code", "")
+        biz_no_raw = rowmap.get("biz_no", "")
+        ceo = rowmap.get("ceo_name", "")
+        business_type = rowmap.get("business_type", "")
+        business_item = rowmap.get("business_item", "")
+        zipcode = rowmap.get("zipcode", "")
+        address = rowmap.get("address", "")
+        address_detail = rowmap.get("address_detail", "")
+        phone = rowmap.get("phone", "")
+        fax = rowmap.get("fax", "")
+        sub_biz_no = rowmap.get("sub_biz_no", "")
+        active_raw = rowmap.get("is_active", "")
+        note = rowmap.get("note", "")
 
         if active_raw == "" or active_raw in ("1", "활성", "Y", "y", "True", "true"):
             is_active = 1
@@ -12991,22 +14643,27 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
             is_active = 1
 
         contacts = []
-        for i in range(5):
-            base = 6 + i * 5
-            cname = _to_str(cells[base + 0])
-            cphone = _to_str(cells[base + 1])
-            cemail = _to_str(cells[base + 2])
-            cdept = _to_str(cells[base + 3])
-            cnote = _to_str(cells[base + 4])
+        for i in range(1, 6):
+            cname = rowmap.get(f"c{i}_name", "")
             if not cname:
                 continue
             contacts.append({
-                "name": cname, "mobile": cphone, "email": cemail,
-                "department": cdept, "note": cnote,
-                "is_primary": 1 if i == 0 else 0,
+                "name": cname,
+                "mobile": rowmap.get(f"c{i}_phone", ""),
+                "email": rowmap.get(f"c{i}_email", ""),
+                "department": rowmap.get(f"c{i}_dept", ""),
+                "note": rowmap.get(f"c{i}_note", ""),
+                "is_primary": 1 if i == 1 else 0,
             })
 
         errors, warnings = [], []
+        # v5H226z147: 필수 강제 (대표 지시) — 사업자번호·대표자·주소
+        if not biz_no_raw:
+            errors.append("사업자번호 누락(필수)")
+        if not ceo:
+            errors.append("대표자명 누락(필수)")
+        if not address:
+            errors.append("주소 누락(필수)")
         biz_no_norm = _re.sub(r"\D", "", biz_no_raw) if biz_no_raw else ""
         biz_no_display = biz_no_raw
         if biz_no_raw:
@@ -13029,9 +14686,13 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
 
         out.append({
             "row_no": actual_row,
+            "code": code,
             "name": name, "biz_no": biz_no_display, "biz_no_norm": biz_no_norm,
             "ceo_name": ceo, "address": address,
-            "phone": "", "note": note, "is_active": is_active,
+            "business_type": business_type, "business_item": business_item,
+            "zipcode": zipcode, "address_detail": address_detail,
+            "fax": fax, "sub_biz_no": sub_biz_no,
+            "phone": phone, "note": note, "is_active": is_active,
             "contacts": contacts,
             "manager_name": (contacts[0]["name"] if contacts else ""),
             "email": "", "tier": "",
@@ -13172,6 +14833,14 @@ async def customers_import_confirm(request: Request):
                 tier = (r.get("tier") or "").strip().upper()
                 is_active = int(r.get("is_active") if r.get("is_active") is not None else 1)
                 note = (r.get("note") or "").strip()
+                # v5H226z147: 추가 사업장 항목
+                code = (r.get("code") or "").strip()
+                business_type = (r.get("business_type") or "").strip()
+                business_item = (r.get("business_item") or "").strip()
+                zipcode = (r.get("zipcode") or "").strip()
+                address_detail = (r.get("address_detail") or "").strip()
+                fax = (r.get("fax") or "").strip()
+                sub_biz_no = (r.get("sub_biz_no") or "").strip()
 
                 existing = c.execute(
                     "SELECT id FROM customers WHERE name=?", (name,)
@@ -13184,6 +14853,9 @@ async def customers_import_confirm(request: Request):
                         ("manager_name", manager), ("phone", phone),
                         ("email", email), ("address", address),
                         ("note", note),
+                        ("business_type", business_type), ("business_item", business_item),
+                        ("zipcode", zipcode), ("address_detail", address_detail),
+                        ("fax", fax), ("sub_biz_no", sub_biz_no),
                     ):
                         if v:
                             sets.append(f"{col}=?")
@@ -13224,6 +14896,10 @@ async def customers_import_confirm(request: Request):
                         "manager_name": manager, "phone": phone,
                         "email": email, "address": address,
                         "is_active": is_active, "note": note,
+                        "business_type": business_type, "business_item": business_item,
+                        "zipcode": zipcode, "address_detail": address_detail,
+                        "fax": fax, "sub_biz_no": sub_biz_no,
+                        "code": code or _gen_customer_code(c),   # 비면 자동 부여
                     }
                     cols = ",".join(fields.keys())
                     ph = ",".join(["?"] * len(fields))
@@ -13336,16 +15012,11 @@ async def projects_edit_submit(request: Request, pid: int):
     if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
     form = await request.form()
-    # v5H192: 잠금 해제 검증 — 폼에 unlock_verified=1 + password 가 함께 와야 수정 허용
+    # v5H226z150 (2026-06-02 대표 지시): SSO 단일 로그인 전환으로 본인 WORKS 비밀번호가
+    #   없어 비밀번호 검증 폐기 → '잠금 해제(확인창) 통과' 만 요구. 변경은 이력에 기록됨.
+    #   TODO(향후): 여기에 '잠금해제 권한 부여자만' 전용 권한 체크 추가 예정 (현재는 can_use_sales).
     if (form.get("unlock_verified") or "") != "1":
-        return RedirectResponse(f"/projects/{pid}/edit?error=password_required", status_code=303)
-    _pw = (form.get("password") or "").strip()
-    if not _pw:
-        return RedirectResponse(f"/projects/{pid}/edit?error=password_required", status_code=303)
-    with db_session() as _pwc:
-        _row = _pwc.execute("SELECT password FROM users WHERE id=?", (_u.get("id"),)).fetchone()
-    if not _row or not verify_pw(_pw, _row["password"]):
-        return RedirectResponse(f"/projects/{pid}/edit?error=password_invalid", status_code=303)
+        return RedirectResponse(f"/projects/{pid}/edit?error=unlock_required", status_code=303)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
@@ -13414,6 +15085,8 @@ async def projects_edit_submit(request: Request, pid: int):
         "_changed_by": _u.get("id"),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
+        # v5H226z211 (대표 지시): 장비명 — 관리번호=장비 단위
+        "equip_name": form.get("equip_name", ""),
         # v5H214: stage 는 status 에서 자동 매핑
         "stage": stage_from_status(status_val),
         "po_type": form.get("po_type", "신규") or "신규",
@@ -13438,6 +15111,14 @@ async def projects_edit_submit(request: Request, pid: int):
         "note": form.get("note", ""),
         "project_type": _ptype,
         "parent_project_id": _parent_id,
+        # v5H226z166: 고객사 담당자
+        "cc_name": form.get("cc_name", ""), "cc_dept": form.get("cc_dept", ""),
+        "cc_position": form.get("cc_position", ""), "cc_phone": form.get("cc_phone", ""),
+        "cc_email": form.get("cc_email", ""), "cc_note": form.get("cc_note", ""),
+        # v5H226z195: 2단계 발주(법인 경유)
+        "two_tier_order": form.get("two_tier_order", ""),
+        "secondary_customer": form.get("secondary_customer", ""),
+        "final_amount": form.get("final_amount", ""),
     })
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
@@ -13506,6 +15187,9 @@ async def projects_delete_submit(request: Request, pid: int):
             _co_mod.co_delete(pid)
         else:
             _logi.projects_delete_logi(pid)
+    except PermissionError as e:
+        # v5H226z176: 관리코드(수주확정) 부여 건 — 정책상 삭제 불가
+        return JSONResponse({"ok": False, "error": "삭제 불가", "message": str(e)}, 403)
     except Exception as e:
         import traceback
         err_msg = str(e)
@@ -15676,7 +17360,7 @@ async def admin_permissions_report_users(req: Request):
     with db_session() as c:
         try:
             rows = c.execute(
-                "SELECT u.id, u.name, u.role, t.name AS team_name, "
+                "SELECT u.id, u.name, u.name_vi, u.role, t.name AS team_name, "
                 "       (SELECT COUNT(*) FROM delegation_tokens dt "
                 "          WHERE dt.to_user=u.id AND dt.status='ACTIVE') AS active_tokens, "
                 "       (SELECT COUNT(*) FROM delegation_tokens dt "
@@ -16523,7 +18207,8 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                               co.currency AS currency,
                               NULL AS project_id, co.mgmt_code AS mgmt_code,
                               NULL AS project_name, NULL AS biz_div,
-                              NULL AS model_name, NULL AS po_type
+                              NULL AS model_name, NULL AS po_type,
+                              1 AS is_co
                        FROM consumable_orders co
                        LEFT JOIN customers cu ON cu.id=co.customer_id
                        ORDER BY co.id DESC LIMIT 200"""
@@ -20284,7 +21969,7 @@ async def wo_new_form(req: Request):
             "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
         users_options = [dict(r) for r in c.execute(
-            "SELECT id, name FROM users WHERE is_active=1 ORDER BY name LIMIT 200"
+            "SELECT id, name, name_vi FROM users WHERE is_active=1 ORDER BY name LIMIT 200"
         ).fetchall()]
     return ctx(req, "wo_form.html", user=u, active="work_orders",
                orders=orders, projects=projects,
@@ -20531,6 +22216,47 @@ async def api_projects_search(request: Request, q: str = ""):
     return JSONResponse({"ok": True, "rows": rows})
 
 
+@app.get("/api/projects/by-mgmt")
+async def api_project_by_mgmt(request: Request, code: str = ""):
+    """v5H226z166: 관리번호로 기존 프로젝트 + 고객사 담당자 조회 ('확인' 버튼 자동입력용)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    code = (code or "").strip().upper()
+    if not code:
+        return JSONResponse({"ok": True, "found": False})
+    with db_session() as c:
+        row = c.execute(
+            "SELECT id, name, customer_name, cc_name, cc_dept, cc_position, "
+            "cc_phone, cc_email, cc_note FROM projects WHERE mgmt_code=? LIMIT 1",
+            (code,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": True, "found": False})
+        d = dict(row)
+        # 담당자가 프로젝트에 없으면(레거시) 고객사 주소록 주담당으로 폴백
+        if not (d.get("cc_name") or "").strip() and d.get("customer_name"):
+            cc = c.execute(
+                "SELECT cc.name, cc.department, cc.position, cc.phone, cc.mobile, "
+                "cc.email, cc.note FROM customer_contacts cc "
+                "JOIN customers cu ON cc.customer_id=cu.id "
+                "WHERE cu.name=? ORDER BY cc.is_primary DESC, cc.id LIMIT 1",
+                (d["customer_name"],)).fetchone()
+            if cc:
+                d["cc_name"] = cc["name"] or ""
+                d["cc_dept"] = cc["department"] or ""
+                d["cc_position"] = cc["position"] or ""
+                d["cc_phone"] = cc["phone"] or cc["mobile"] or ""
+                d["cc_email"] = cc["email"] or ""
+                d["cc_note"] = cc["note"] or ""
+    return JSONResponse({"ok": True, "found": True, "project": {
+        "id": d["id"], "name": d.get("name") or "",
+        "customer_name": d.get("customer_name") or "",
+        "cc_name": d.get("cc_name") or "", "cc_dept": d.get("cc_dept") or "",
+        "cc_position": d.get("cc_position") or "", "cc_phone": d.get("cc_phone") or "",
+        "cc_email": d.get("cc_email") or "", "cc_note": d.get("cc_note") or "",
+    }})
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # v5H142 (2026-05-05) — 소모품 발주 전용 도메인 (대표 직접 요청)
@@ -20588,7 +22314,7 @@ async def consumables_upload_xlsx(request: Request,
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     # v5H218: 진행 사업부 필수 (T/M)
-    if biz_div not in ("T", "M"):
+    if biz_div not in ("T", "M", "L"):
         return JSONResponse({"ok": False, "error": "biz_div_required",
                               "message": "진행 사업부(검사기/자동화)를 선택해주세요"}, 400)
     co_id, co_no = _co.co_create(
@@ -20603,10 +22329,16 @@ async def consumables_upload_xlsx(request: Request,
         f.write(raw)
     img_dir = _co.co_image_dir(co_id)
     parsed = _co.parse_consumable_xlsx(tmp_path, image_out_dir=img_dir)
+    # v5H226z252 (대표 지시): 장비 자동매칭은 '같은 고객사'로 스코프 — 다른 회사 모델 오연결 방지.
+    _match_cust_id = None
+    if customer_name:
+        with db_session() as c:
+            _cr = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (customer_name,)).fetchone()
+            _match_cust_id = _cr["id"] if _cr else None
     enriched = []
     for ln in parsed["lines"]:
         part_match = _co.match_part_by_name(ln.get("part_name", ""))
-        proj_match = _co.match_project_by_model(ln.get("model_use", ""))
+        proj_match = _co.match_project_by_model(ln.get("model_use", ""), _match_cust_id)
         imgs_v = parsed["images"].get(ln["line_no"], [])
         if not isinstance(imgs_v, list):
             imgs_v = []
@@ -20790,14 +22522,17 @@ async def consumables_notify(request: Request, co_id: int):
     total = co.get("total_amount") or 0
     curr = co.get("currency") or "KRW"
     co_no = co.get("co_no") or f"CO-{co_id}"
+    mgmt = co.get("mgmt_code") or "—"   # v5H226z251: 요청 시 관리코드 동반
     cust = co.get("customer_name") or "—"
     if curr == "KRW":
         amt_txt = f"{total:,.0f}원"
     else:
         amt_txt = f"{curr} {total:,.2f}"
-    title = f"📦 소모품 발주 [{co_no}] 등록됨"
-    body = (f"고객사: {cust} · 라인 {line_count}건 · 합계 {amt_txt}\n"
-            f"등록자: {u.get('name') or u.get('username') or '—'}\n"
+    # v5H226z251 (대표 지시): 외부 협력사·타부서 요청 시 관리코드 + 수주번호를 함께 전달
+    title = f"📦 소모품 수주 [{co_no}] 요청"
+    body = (f"관리코드: {mgmt} · 수주번호: {co_no}\n"
+            f"고객사: {cust} · 라인 {line_count}건 · 합계 {amt_txt}\n"
+            f"요청자: {u.get('name') or u.get('username') or '—'}\n"
             f"검토 부탁드립니다.")
     link = f"/consumables/{co_id}"
     sender_id = u.get("id")
