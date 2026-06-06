@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>작업 일정표 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z256: 작업 일정표(전사 일정 운영 보드) / z264: 전체화면·인쇄·너비조정·숨기기·셀메모 */
+.sched-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
+.sched-nav { display:flex; align-items:center; gap:6px; }
+.sched-nav a, .sched-nav .cur { padding:6px 12px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-weight:700; text-decoration:none; color:var(--ink); background:var(--paper-2); }
+.sched-nav .cur { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched-sum { display:flex; gap:10px; font-size:13px; }
+.sched-sum .pill { padding:5px 12px; border-radius:20px; font-weight:700; }
+.sched-sum .s-deliver { background:#dcfce7; color:#15803d; }
+.sched-sum .s-delay { background:#fee2e2; color:#b91c1c; }
+.sched-sum .s-total { background:#eef2ff; color:#3730a3; }
+.legend { font-size:11.5px; color:var(--qv-ink-3); display:flex; gap:14px; align-items:center; }
+.legend i { width:14px; height:11px; display:inline-block; border-radius:2px; vertical-align:middle; margin-right:4px; }
+
+/* z264 도구 막대 */
+.sched-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
+.sched-tools button, .sched-tools .tool-btn { padding:6px 12px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
+.sched-tools button:hover, .sched-tools .tool-btn:hover { background:#fff; border-color:var(--knk-red); }
+.cols-menu { position:relative; display:inline-block; }
+.cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:160px; }
+.cols-pop.show { display:block; }
+.cols-pop label { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+.cols-pop label:hover { background:#fdf3f3; }
+.sched-hint { font-size:11px; color:var(--qv-ink-3); }
+
+.sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
+  overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
+/* z264 의사-전체화면 (네이티브 Fullscreen API 실패 시 대체) */
+.sched-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; max-height:100vh; border-radius:0; }
+table.sched { border-collapse:separate; border-spacing:0; font-size:12px; white-space:nowrap; table-layout:fixed; }
+.sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }
+.sched thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red);
+  font-size:10.5px; font-weight:700; text-align:center; height:34px; }
+/* 좌측 정보 컬럼 — 앞 3개(관리번호·수주번호·프로젝트명)만 가로스크롤 시 고정. left 오프셋은 JS가 계산 */
+.sched { --l2:86px; --l3:176px; }
+.sched .c-info { background:var(--paper-3); padding:0 8px; text-align:left; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sched thead .c-info { background:var(--paper-2); padding:0; }
+.sched .c1{ position:sticky; left:0;          z-index:4; }
+.sched .c2{ position:sticky; left:var(--l2);  z-index:4; }
+.sched .c3{ position:sticky; left:var(--l3);  z-index:4; border-right:2px solid var(--knk-red); }
+.sched thead .c1, .sched thead .c2, .sched thead .c3 { z-index:8; }
+.sched .cw-model{ font-family:Consolas,monospace; font-size:11px; }
+.sched .cw-note { color:var(--qv-ink-3); }
+.sched .cw-qty, .sched .cw-trade, .sched .cw-po { text-align:center; }
+.sched .cw-ship { border-right:2px solid var(--knk-red); }
+.sched td.c1 a { color:var(--knk-red); font-weight:700; text-decoration:none; }
+/* 날짜 칸 */
+.sched .day { text-align:center; color:#15803d; font-weight:800; }
+.sched .day.wk { background:#faf6ee; }
+.sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
+.sched thead .day.today { background:#fde68a; }
+.sched .day.bar { background:#cfe0f5; cursor:pointer; }            /* 일정 막대 — 클릭 시 메모 */
+.sched .day.bar.delay { background:#fcd9d9; }
+.sched .day.deliver { background:#16a34a; color:#fff; }
+.sched .day.deliver.delay { background:#b91c1c; }
+.sched .day.has-memo::after { content:"📝"; font-size:9px; }
+.sched tbody tr:hover td { background:#fffdf5; }
+.sched tbody tr:hover .c-info { background:#fffdf5; }
+.row-delay .c1 a { color:#b91c1c; }
+.empty { padding:40px; text-align:center; color:var(--qv-ink-3); }
+
+/* z264 헤더 래퍼 + 너비조정 핸들 */
+.th-wrap { position:relative; height:100%; display:flex; align-items:center; justify-content:center; padding:0 8px; }
+.sched thead .c-info .th-wrap { justify-content:flex-start; }
+.col-resizer { position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
+
+/* z264 편집 가능한 칸 */
+.sched td.editable { cursor:text; }
+.sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
+.cell-input { width:100%; box-sizing:border-box; border:1px solid #2563eb; border-radius:3px; font:inherit; font-size:12px; padding:1px 6px; height:26px; }
+
+/* z264 막대 메모 팝업 */
+.memo-pop { position:fixed; z-index:10000; background:#fff; border:1px solid #2563eb; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.2); padding:10px; width:260px; display:none; }
+.memo-pop.show { display:block; }
+.memo-pop textarea { width:100%; box-sizing:border-box; height:70px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:12px; padding:6px; resize:vertical; }
+.memo-pop .mp-head { font-size:11px; color:var(--qv-ink-3); margin-bottom:5px; font-weight:700; }
+.memo-pop .mp-btns { display:flex; gap:6px; justify-content:flex-end; margin-top:7px; }
+.memo-pop button { padding:5px 12px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
+.memo-pop .mp-save { background:#2563eb; color:#fff; border-color:#2563eb; }
+#schedToast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:8px 16px; border-radius:8px; font-size:12.5px; z-index:10001; opacity:0; transition:opacity .2s; pointer-events:none; }
+#schedToast.show { opacity:.95; }
+
+/* z264 인쇄 — 보드만 인쇄(사이드바·도구 숨김), 전체 펼침 */
+@media print {
+  @page { size: landscape; margin: 8mm; }
+  body * { visibility: hidden; }
+  .sched-wrap, .sched-wrap * { visibility: visible; }
+  .sched-wrap { position:absolute; left:0; top:0; margin:0; border:none; max-height:none; overflow:visible; width:auto; }
+  .col-resizer { display:none; }
+  .sched th, .sched td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sched .c1, .sched .c2, .sched .c3, .sched thead th { position:static; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div>
+      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>작업 일정표</b></div>
+      <h1 class="page-title" data-dn="title"><em>작업 일정표</em> <span style="font-size:14px;color:var(--qv-ink-3);font-weight:500;">— 전사 일정 운영 보드</span></h1>
+    </div>
+  </div>
+
+  <div class="sched-top">
+    <div class="sched-nav">
+      <a href="?ym={{ prev_ym }}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
+      <span class="cur">📅 {{ month_label }}</span>
+      <a href="?ym={{ next_ym }}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
+      {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}" title="이번 달">오늘</a>{% endif %}
+    </div>
+    <div class="sched-sum">
+      <span class="pill s-total">전체 {{ summary.total }}</span>
+      <span class="pill s-deliver">오늘 납품 {{ summary.deliver_today }}</span>
+      <span class="pill s-delay">지연 {{ summary.delay }}</span>
+    </div>
+    <div class="legend">
+      <span><i style="background:#cfe0f5;"></i>일정</span>
+      <span><i style="background:#16a34a;"></i>납품일</span>
+      <span><i style="background:#fcd9d9;"></i>지연</span>
+    </div>
+  </div>
+
+  <div class="sched-tools">
+    <button type="button" onclick="schedFullscreen()">⛶ 전체화면 보기</button>
+    <button type="button" onclick="schedPrint()">🖨 화면 인쇄</button>
+    <div class="cols-menu">
+      <button type="button" class="tool-btn" onclick="toggleColsMenu(event)">☷ 칸 표시/숨기기 ▾</button>
+      <div class="cols-pop" id="colsPop"></div>
+    </div>
+    <button type="button" onclick="resetCols()">↺ 너비·숨김 초기화</button>
+    <span class="sched-hint">칸 경계를 끌어 너비 조정 · 기타사항·부서·담당자·납품위치 칸 클릭해 입력 · 일정 막대 클릭해 메모</span>
+  </div>
+
+  <div class="sched-wrap" id="schedWrap">
+    {% if rows %}
+    <table class="sched" id="schedTable">
+      <colgroup id="schedCols">
+        <col data-col="code"><col data-col="so_no"><col data-col="name">
+        <col data-col="model"><col data-col="equip"><col data-col="note">
+        <col data-col="qty"><col data-col="trade"><col data-col="po">
+        <col data-col="cust"><col data-col="dept"><col data-col="owner"><col data-col="ship">
+        {% for d in days %}<col class="cgd" style="width:24px">{% endfor %}
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="c-info c1" data-col="code"><div class="th-wrap">관리번호<span class="col-resizer" data-col="code"></span></div></th>
+          <th class="c-info c2" data-col="so_no"><div class="th-wrap">수주번호<span class="col-resizer" data-col="so_no"></span></div></th>
+          <th class="c-info c3" data-col="name"><div class="th-wrap">프로젝트명<span class="col-resizer" data-col="name"></span></div></th>
+          <th class="c-info cw-model" data-col="model"><div class="th-wrap">모델명<span class="col-resizer" data-col="model"></span></div></th>
+          <th class="c-info cw-equip" data-col="equip"><div class="th-wrap">장비명<span class="col-resizer" data-col="equip"></span></div></th>
+          <th class="c-info cw-note" data-col="note"><div class="th-wrap">기타사항<span class="col-resizer" data-col="note"></span></div></th>
+          <th class="c-info cw-qty" data-col="qty"><div class="th-wrap">수량<span class="col-resizer" data-col="qty"></span></div></th>
+          <th class="c-info cw-trade" data-col="trade"><div class="th-wrap">거래구분<span class="col-resizer" data-col="trade"></span></div></th>
+          <th class="c-info cw-po" data-col="po"><div class="th-wrap">PO유형<span class="col-resizer" data-col="po"></span></div></th>
+          <th class="c-info cw-cust" data-col="cust"><div class="th-wrap">고객사<span class="col-resizer" data-col="cust"></span></div></th>
+          <th class="c-info cw-dept" data-col="dept"><div class="th-wrap">부서<span class="col-resizer" data-col="dept"></span></div></th>
+          <th class="c-info cw-owner" data-col="owner"><div class="th-wrap">담당자<span class="col-resizer" data-col="owner"></span></div></th>
+          <th class="c-info cw-ship" data-col="ship"><div class="th-wrap">납품위치<span class="col-resizer" data-col="ship"></span></div></th>
+          {% for d in days %}
+          <th class="day{% if d == today_day %} today{% endif %}">{{ d }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="{% if r.is_delay %}row-delay{% endif %}"
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}">
+          <td class="c-info c1" data-col="code">{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> {% endif %}<a href="#">{{ r.code }}</a></td>
+          <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
+          <td class="c-info c3" data-col="name" title="{{ r.name }}">{{ r.name or '—' }}</td>
+          <td class="c-info cw-model" data-col="model" title="{{ r.model }}">{{ r.model or '—' }}</td>
+          <td class="c-info cw-equip" data-col="equip" title="{{ r.equip }}">{{ r.equip or '—' }}</td>
+          <td class="c-info cw-note editable{% if r.note %} filled{% endif %}" data-col="note" data-edit="note" title="{{ r.note }}">{{ r.note or '＋' }}</td>
+          <td class="c-info cw-qty" data-col="qty">{{ r.qty }}</td>
+          <td class="c-info cw-trade" data-col="trade">{{ r.trade }}</td>
+          <td class="c-info cw-po" data-col="po">{{ r.po_type or '—' }}</td>
+          <td class="c-info cw-cust" data-col="cust" title="{{ r.customer }}">{{ r.customer }}</td>
+          <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
+          <td class="c-info cw-owner editable{% if r.owner %} filled{% endif %}" data-col="owner" data-edit="owner">{{ r.owner or '＋' }}</td>
+          <td class="c-info cw-ship editable{% if r.ship_to %} filled{% endif %}" data-col="ship" data-edit="ship_to" title="{{ r.ship_to }}">{{ r.ship_to or '＋' }}</td>
+          {% for d in days %}
+          {% set in_bar = (r.bar_s <= d <= r.bar_e) %}
+          {% set is_del = (r.dday == d) %}
+          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if in_bar and d == r.bar_s and r.memo %} has-memo{% endif %}"
+              {% if in_bar %}title="{{ r.memo }}"{% endif %}>{% if is_del %}●{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">📅 {{ month_label }}에 표시할 일정이 없습니다. (발주일·납기일이 이 달과 겹치는 건이 없음)</div>
+    {% endif %}
+  </div>
+</main>
+</div>
+
+<!-- z264 막대 메모 팝업 -->
+<div class="memo-pop" id="memoPop">
+  <div class="mp-head" id="memoHead">진행 메모</div>
+  <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
+  <div class="mp-btns">
+    <button type="button" onclick="closeMemo()">취소</button>
+    <button type="button" class="mp-save" onclick="saveMemo()">저장</button>
+  </div>
+</div>
+<div id="schedToast"></div>
+
+<script>
+// ===== z264: 작업 일정표 인터랙션 =====
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty','trade','po','cust','dept','owner','ship'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',trade:'거래구분',po:'PO유형',cust:'고객사',dept:'부서',owner:'담당자',ship:'납품위치'};
+const COL_DEFAULTS = {code:86,so_no:90,name:140,model:100,equip:130,note:120,qty:40,trade:50,po:54,cust:108,dept:60,owner:64,ship:96};
+let COLS = {};   // {key:{width,hidden}}
+try { COLS = JSON.parse('{{ col_prefs|safe }}') || {}; } catch(e){ COLS = {}; }
+
+function colState(k){ const c = COLS[k]||{}; return {width: c.width||COL_DEFAULTS[k], hidden: !!c.hidden}; }
+
+function applyCols(){
+  const cg = document.getElementById('schedCols');
+  if(!cg) return;
+  COL_KEYS.forEach(k=>{
+    const st = colState(k);
+    const col = cg.querySelector('col[data-col="'+k+'"]');
+    if(col){ col.style.width = (st.hidden?0:st.width)+'px'; }
+    document.querySelectorAll('[data-col="'+k+'"]').forEach(el=>{
+      if(el.tagName==='COL') return;
+      el.style.display = st.hidden ? 'none' : '';
+    });
+  });
+  // sticky 좌측 오프셋 재계산
+  const w0 = colState('code').hidden?0:colState('code').width;
+  const w1 = colState('so_no').hidden?0:colState('so_no').width;
+  const t = document.getElementById('schedTable');
+  if(t){ t.style.setProperty('--l2', w0+'px'); t.style.setProperty('--l3', (w0+w1)+'px'); }
+}
+
+let _saveTimer=null;
+function saveCols(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    fetch('/sales/schedule/cols',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({config:COLS})}).catch(()=>{});
+  },400);
+}
+
+// ---- 칸 표시/숨기기 메뉴 ----
+function buildColsMenu(){
+  const pop=document.getElementById('colsPop');
+  if(!pop) return;
+  pop.innerHTML = COL_KEYS.map(k=>
+    '<label><input type="checkbox" data-ck="'+k+'" '+(colState(k).hidden?'':'checked')+'> '+COL_LABELS[k]+'</label>'
+  ).join('');
+  pop.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change',()=>{
+      const k=inp.dataset.ck;
+      COLS[k]=COLS[k]||{}; COLS[k].hidden=!inp.checked;
+      applyCols(); saveCols();
+    });
+  });
+}
+function toggleColsMenu(e){ e.stopPropagation(); document.getElementById('colsPop').classList.toggle('show'); }
+document.addEventListener('click',(e)=>{ if(!e.target.closest('.cols-menu')){ const p=document.getElementById('colsPop'); if(p) p.classList.remove('show'); }});
+
+function resetCols(){ COLS={}; applyCols(); buildColsMenu(); saveCols(); toast('너비·숨김을 초기화했습니다'); }
+
+// ---- 너비 조정(드래그) ----
+let _rz=null;
+document.querySelectorAll('.col-resizer').forEach(h=>{
+  h.addEventListener('mousedown',(e)=>{
+    e.preventDefault(); e.stopPropagation();
+    const k=h.dataset.col;
+    _rz={k, x:e.clientX, w:colState(k).width};
+    document.body.style.cursor='col-resize';
+  });
+});
+document.addEventListener('mousemove',(e)=>{
+  if(!_rz) return;
+  const dw = e.clientX - _rz.x;
+  let nw = Math.max(28, Math.min(600, _rz.w + dw));
+  COLS[_rz.k]=COLS[_rz.k]||{}; COLS[_rz.k].width=nw; COLS[_rz.k].hidden=false;
+  applyCols();
+});
+document.addEventListener('mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); }});
+
+// ---- 전체화면 ----
+function schedFullscreen(){
+  const w=document.getElementById('schedWrap');
+  if(!document.fullscreenElement && w.requestFullscreen){
+    w.requestFullscreen().catch(()=>{ w.classList.toggle('fs'); });
+  } else if(document.fullscreenElement){
+    document.exitFullscreen();
+  } else {
+    w.classList.toggle('fs');
+  }
+}
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') document.getElementById('schedWrap').classList.remove('fs'); });
+
+function schedPrint(){ window.print(); }
+
+// ---- 셀 인라인 편집 (기타사항·부서·담당자·납품위치 → 원본 저장) ----
+let _editing=null;
+const _tbody = document.querySelector('#schedTable tbody');
+if(_tbody){
+  _tbody.addEventListener('click',(e)=>{
+    const td=e.target.closest('td.editable');
+    if(td){ startEdit(td); return; }
+    const bar=e.target.closest('td.bar');
+    if(bar){ openMemo(bar.closest('tr')); }
+  });
+}
+function startEdit(td){
+  if(_editing) return;
+  const tr=td.closest('tr');
+  const cur = td.classList.contains('filled') ? td.textContent.trim() : '';
+  const inp=document.createElement('input');
+  inp.className='cell-input'; inp.value=cur;
+  _editing={td};
+  td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const finish=(save)=>{
+    if(done) return; done=true;
+    const val=inp.value.trim();
+    if(!save){ td.textContent = cur || '＋'; td.classList.toggle('filled', !!cur); _editing=null; return; }
+    const payload={kind:tr.dataset.kind, ref_id:tr.dataset.ref, field:td.dataset.edit, value:val};
+    fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(r=>r.json()).then(j=>{
+        _editing=null;
+        if(j.ok){
+          td.textContent = val || '＋';
+          td.classList.toggle('filled', !!val);
+          td.title = val;
+          toast('저장됨');
+        } else {
+          td.textContent = cur || '＋'; td.classList.toggle('filled', !!cur);
+          toast('⚠ '+(j.error||'저장 실패'));
+        }
+      }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
+  };
+  inp.addEventListener('blur',()=>finish(true));
+  inp.addEventListener('keydown',(ev)=>{
+    if(ev.key==='Enter'){ ev.preventDefault(); inp.blur(); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); finish(false); }
+  });
+}
+
+// ---- 진행기간 막대 메모 (보드 전용) ----
+let _memoTr=null;
+function openMemo(tr){
+  _memoTr=tr;
+  const pop=document.getElementById('memoPop');
+  document.getElementById('memoText').value = tr.dataset.memo || '';
+  const code = (tr.querySelector('.c1 a')||{}).textContent || '';
+  document.getElementById('memoHead').textContent = '진행 메모 — '+code.trim();
+  pop.classList.add('show');
+  pop.style.left = Math.max(10, (window.innerWidth-280)/2)+'px';
+  pop.style.top = '120px';
+  document.getElementById('memoText').focus();
+}
+function closeMemo(){ document.getElementById('memoPop').classList.remove('show'); _memoTr=null; }
+function saveMemo(){
+  if(!_memoTr) return;
+  const memo=document.getElementById('memoText').value;
+  const tr=_memoTr;
+  const payload={kind:tr.dataset.kind, ref_id:tr.dataset.ref, memo:memo};
+  fetch('/sales/schedule/memo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(j=>{
+      if(j.ok){
+        tr.dataset.memo = j.memo||'';
+        const bars=tr.querySelectorAll('td.bar');
+        bars.forEach((b,i)=>{ b.title=j.memo||''; b.classList.toggle('has-memo', i===0 && !!j.memo); });
+        toast('메모 저장됨'); closeMemo();
+      } else { toast('⚠ '+(j.error||'저장 실패')); }
+    }).catch(()=>toast('⚠ 통신 오류'));
+}
+
+// ---- 토스트 ----
+let _toastT=null;
+function toast(msg){
+  const t=document.getElementById('schedToast'); if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// 초기화
+applyCols(); buildColsMenu();
+</script>
+</body>
+</html>

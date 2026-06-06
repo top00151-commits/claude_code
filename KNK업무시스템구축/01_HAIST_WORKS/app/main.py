@@ -12846,12 +12846,16 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     except Exception:
         pass
 
+    # v5H226z264 (대표 지시): 진행기간 막대 '보드 전용 메모' 맵 (원본 무수정)
+    _smemos = _logi.schedule_memos_map()
+
     rows = []
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue  # 소모품은 아래 co_list 로 (중복 방지)
         _so, _ship = _so_map.get(p.get("id"), ("", ""))
         info = {
+            "ref_id": p.get("id"),                         # v5H226z264: 셀 편집/메모용
             "code": p.get("mgmt_code") or "—",
             "so_no": _so,
             "name": p.get("name") or "",
@@ -12866,6 +12870,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "dept": p.get("cc_dept") or "",
             "owner": p.get("cc_name") or "",
             "ship_to": _ship,
+            "memo": _smemos.get(("project", p.get("id")), ""),
         }
         _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
         if _r and not (cust and cust not in (_r["customer"] or "")):
@@ -12877,13 +12882,16 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                    "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
+                "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
                 "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "",
                 "name": "소모품", "model": "", "equip": "",
-                "note": "", "qty": "",
+                "note": cr.get("note") or "", "qty": "",
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
-                "dept": "", "owner": "", "ship_to": "",
+                "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
+                "ship_to": cr.get("ship_to") or "",
+                "memo": _smemos.get(("consumable", cr.get("id")), ""),
             }
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
@@ -12898,10 +12906,87 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         "delay": sum(1 for r in rows if r["is_delay"]),
         "total": len(rows),
     }
+    # v5H226z264: 칸 너비·숨김 '내 계정' 설정 (JSON 문자열 — 템플릿 JS 에서 파싱)
+    _col_prefs = _logi.view_prefs_get(u.get("id"), "schedule_board_cols") or "{}"
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
-               days=days, today_day=today_day, rows=rows, summary=summary, cust=cust)
+               days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
+               col_prefs=_col_prefs)
+
+
+# v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
+#   연결성 원칙: 화이트리스트 필드만(_SCHED_CELL_MAP) · id·종류 검증 · 권한 가드.
+@app.post("/sales/schedule/cell")
+async def schedule_board_cell(request: Request):
+    """정보칸(기타사항·부서·담당자·납품위치) 원본 수정 — 혼합 정책의 '원본 반영' 부분."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    kind = (b.get("kind") or "").strip()
+    ref_id = b.get("ref_id")
+    field = (b.get("field") or "").strip()
+    value = b.get("value") or ""
+    if field not in ("note", "dept", "owner", "ship_to"):
+        return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
+    try:
+        ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": ok, "error": msg, "value": (value or "").strip()})
+
+
+@app.post("/sales/schedule/memo")
+async def schedule_board_memo(request: Request):
+    """진행기간 막대 '보드 전용 메모' 저장 — 원본 데이터 무수정."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    kind = (b.get("kind") or "").strip()
+    ref_id = b.get("ref_id")
+    memo = b.get("memo") or ""
+    try:
+        ok = _logi.schedule_memo_set(kind, int(ref_id), memo, u.get("id"))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": ok, "memo": (memo or "").strip()})
+
+
+@app.post("/sales/schedule/cols")
+async def schedule_board_cols(request: Request):
+    """칸 너비·숨김 설정을 '내 계정'에 저장 (JSON)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    import json as _json
+    cfg = b.get("config")
+    try:
+        cfg_str = _json.dumps(cfg)[:8000] if cfg is not None else "{}"
+    except Exception:
+        cfg_str = "{}"
+    try:
+        _logi.view_prefs_set(u.get("id"), "schedule_board_cols", cfg_str)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/projects/export.xlsx")

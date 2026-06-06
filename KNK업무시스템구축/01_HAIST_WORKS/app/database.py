@@ -2440,6 +2440,12 @@ def init_db():
             if "biz_div" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")
                 print("[v5H218] consumable_orders.biz_div 컬럼 추가됨")
+            # v5H226z264 (대표 지시): 작업 일정표 셀 메모(혼합) — 소모품도 부서·담당자·납품위치를
+            #   원본에 저장할 수 있게 컬럼 추가(프로젝트의 cc_dept/cc_name/ship_to 와 대응). 추가형·무손실.
+            for _coladd in ("cc_dept", "cc_name", "ship_to"):
+                if _coladd not in cocols:
+                    c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_coladd} TEXT")
+                    print(f"[v5H226z264] consumable_orders.{_coladd} 컬럼 추가됨")
             # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
             # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
             try:
@@ -2573,6 +2579,29 @@ def init_db():
                 print(f"[v5H226z262] 소모품 유일성 마이그레이션 스킵: {_e}")
         except Exception:
             pass
+
+        # v5H226z264 (대표 지시): 작업 일정표 보드 — ① 진행기간 막대 '보드 전용 메모'(원본 무수정)
+        #   ② 칸 너비·숨김을 '내 계정'에 저장. 둘 다 추가형·무손실.
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS schedule_board_memos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ref_kind   TEXT NOT NULL,          -- 'project' | 'consumable'
+                ref_id     INTEGER NOT NULL,
+                memo       TEXT,
+                updated_by INTEGER,
+                updated_at TEXT,
+                UNIQUE(ref_kind, ref_id)
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS user_view_prefs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id   INTEGER NOT NULL,
+                view_key  TEXT NOT NULL,           -- 예: 'schedule_board_cols'
+                config    TEXT,                    -- JSON
+                updated_at TEXT,
+                UNIQUE(user_id, view_key)
+            )""")
+        except Exception as _e:
+            print(f"[v5H226z264] 일정표 보드 표 생성 스킵: {_e}")
 
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
@@ -11144,6 +11173,108 @@ def _next_fta_cert_no() -> str:
         except Exception:
             nxt = 1
     return f"{prefix}{nxt:04d}"
+
+
+# =====================================================
+# 작업 일정표(운영 보드) 헬퍼 — v5H226z264 (대표 지시)
+#   · 진행기간 막대 '보드 전용 메모'(원본 무수정)
+#   · 칸 너비·숨김 '내 계정' 저장
+#   · 셀(기타사항·부서·담당자·납품위치) 원본 수정 — 화이트리스트만(임의 SQL 차단)
+# =====================================================
+def schedule_memos_map() -> dict:
+    """{(ref_kind, ref_id): memo} — 일정표 진행기간 막대 메모 전체."""
+    out = {}
+    try:
+        with db_session() as c:
+            for r in c.execute("SELECT ref_kind, ref_id, memo FROM schedule_board_memos"):
+                out[(r[0], int(r[1]))] = r[2] or ""
+    except Exception:
+        pass
+    return out
+
+
+def schedule_memo_set(ref_kind: str, ref_id: int, memo: str, user_id=None) -> bool:
+    """진행기간 막대 보드메모 upsert (원본 데이터 무수정)."""
+    if ref_kind not in ("project", "consumable") or not ref_id:
+        return False
+    from datetime import datetime as _dt
+    now = _dt.now().isoformat(timespec="seconds")
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO schedule_board_memos (ref_kind, ref_id, memo, updated_by, updated_at)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(ref_kind, ref_id) DO UPDATE SET
+                 memo=excluded.memo, updated_by=excluded.updated_by, updated_at=excluded.updated_at""",
+            (ref_kind, int(ref_id), (memo or "").strip(), user_id, now))
+    return True
+
+
+def view_prefs_get(user_id: int, view_key: str) -> str:
+    """사용자별 화면 설정(JSON 문자열) 조회. 없으면 ''."""
+    if not user_id or not view_key:
+        return ""
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT config FROM user_view_prefs WHERE user_id=? AND view_key=?",
+                          (int(user_id), view_key)).fetchone()
+            return (r[0] or "") if r else ""
+    except Exception:
+        return ""
+
+
+def view_prefs_set(user_id: int, view_key: str, config: str) -> bool:
+    """사용자별 화면 설정(JSON 문자열) upsert."""
+    if not user_id or not view_key:
+        return False
+    from datetime import datetime as _dt
+    now = _dt.now().isoformat(timespec="seconds")
+    with db_session() as c:
+        c.execute(
+            """INSERT INTO user_view_prefs (user_id, view_key, config, updated_at)
+               VALUES (?,?,?,?)
+               ON CONFLICT(user_id, view_key) DO UPDATE SET
+                 config=excluded.config, updated_at=excluded.updated_at""",
+            (int(user_id), view_key, config or "", now))
+    return True
+
+
+# 일정표 셀 → 원본 컬럼 매핑 (화이트리스트 — 이 외 필드/테이블은 절대 수정 안 함)
+_SCHED_CELL_MAP = {
+    "project":    {"note": "logi_note", "dept": "cc_dept", "owner": "cc_name"},
+    "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to"},
+}
+
+
+def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> tuple[bool, str]:
+    """일정표 정보칸(기타사항·부서·담당자·납품위치) 원본 수정.
+    화이트리스트(_SCHED_CELL_MAP) 필드만 허용. 반환 (성공, 메시지).
+    납품위치(ship_to)는 프로젝트의 경우 '대표 SO(orders 최신)'의 ship_to 를 수정."""
+    if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
+        return (False, "허용되지 않은 대상/필드")
+    val = (value or "").strip()
+    # 프로젝트 납품위치 = 대표 SO(orders 최신 id)의 ship_to 수정 (별도 처리)
+    if ref_kind == "project" and field == "ship_to":
+        with db_session() as c:
+            _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            if "ship_to" not in _ocols:
+                return (False, "orders.ship_to 컬럼 없음")
+            r = c.execute("SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                          (int(ref_id),)).fetchone()
+            if not r:
+                return (False, "이 프로젝트에 수주(SO)가 없어 납품위치를 저장할 수 없습니다")
+            c.execute("UPDATE orders SET ship_to=? WHERE id=?", (val, int(r[0])))
+        return (True, "")
+    col = _SCHED_CELL_MAP[ref_kind].get(field)
+    if not col:
+        return (False, "허용되지 않은 필드")
+    table = "projects" if ref_kind == "project" else "consumable_orders"
+    with db_session() as c:
+        # 컬럼 존재 확인(추가형 마이그레이션 전 환경 방어)
+        _cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
+        if col not in _cols:
+            return (False, f"{table}.{col} 컬럼 없음")
+        c.execute(f"UPDATE {table} SET {col}=? WHERE id=?", (val, int(ref_id)))
+    return (True, "")
 
 
 def create_fta_certificate(
