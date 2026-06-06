@@ -279,6 +279,8 @@ if (window.__schedCleanup) { try { window.__schedCleanup(); } catch(e){} }
 var __docL = [];
 function _on(t, ty, fn){ t.addEventListener(ty, fn); __docL.push([t, ty, fn]); }
 window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].removeEventListener(h[1], h[2]); }catch(e){} }); __docL = []; };
+// v5H226z273: HTML 이스케이프 헬퍼 — 단계 패널 renderStages 등에서 사용(z270에서 정의 누락이 'esc is not defined' 유발).
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265: 작업 일정표 — 비율(채움) 컬럼 모델 =====
 const COL_KEYS = ['code','so_no','name','model','equip','note','qty','trade','po','cust','dept','owner','ship','stage'];
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',trade:'거래구분',po:'PO유형',cust:'고객사',dept:'부서',owner:'담당자',ship:'납품위치',stage:'단계'};
