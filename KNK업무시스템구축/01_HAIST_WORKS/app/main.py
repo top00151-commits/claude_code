@@ -12781,8 +12781,10 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_sales(u):
-        return RedirectResponse("/home", 303)
+    # v5H226z270 (대표 지시): 작업 일정표는 '전사 운영 보드' — 관련부서 담당자(생산·검증·출하)도
+    #   단계를 직접 클릭해 기록해야 하므로 보드 보기는 로그인한 전 직원 허용.
+    #   단, 매출 금액·세금계산서는 can_view_sales 통과자에게만(아래 _can_money 로 서버 차단).
+    _can_money = bool(can_view_sales(u))
     import calendar as _cal
     from datetime import date as _date, datetime as _dt, timedelta as _td
     today = _dt.now().date()
@@ -12848,6 +12850,22 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
 
     # v5H226z264 (대표 지시): 진행기간 막대 '보드 전용 메모' 맵 (원본 무수정)
     _smemos = _logi.schedule_memos_map()
+    # v5H226z270 (대표 지시): 단계 파이프라인 요약 맵 (보드 '단계 칸')
+    _stage_map = _logi.stage_board_map()
+    _empty_st = {"done": set(), "prog": {}, "ship_date": ""}
+
+    def _st_summary(_st):
+        """보드 단계 칸 — 현재(가장 진척된) 단계 라벨 + 진행 세부 완료수. 금액권한 반영."""
+        _cur = ""
+        for _s in _logi.STAGE_SPEC:
+            if _s.get("sales_only") and not _can_money:
+                continue
+            if _s["key"] == "progress":
+                if _st.get("prog"):
+                    _cur = "진행"
+            elif _s["key"] in _st.get("done", ()):
+                _cur = _s["label"]
+        return _cur, len(_st.get("prog", {}))
 
     rows = []
     for p in (dict(r) for r in _logi.projects_list_logi()):
@@ -12871,7 +12889,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "owner": p.get("cc_name") or "",
             "ship_to": _ship,
             "memo": _smemos.get(("project", p.get("id")), ""),
+            "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
+        info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
         _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
         if _r and not (cust and cust not in (_r["customer"] or "")):
             rows.append(_r)
@@ -12892,7 +12912,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
                 "ship_to": cr.get("ship_to") or "",
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
+                "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
+            info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
             if _r and not (cust and cust not in (_r["customer"] or "")):
@@ -12912,7 +12934,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
-               col_prefs=_col_prefs)
+               col_prefs=_col_prefs, can_money=_can_money, stage_spec=_logi.STAGE_SPEC)
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
@@ -12987,6 +13009,73 @@ async def schedule_board_cols(request: Request):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
+
+
+# v5H226z270 (대표 지시): 작업 일정표 단계 파이프라인 — 패널 조회 + 단계 저장.
+#   누구나 클릭(로그인만) · 누른 사람 기록 · 단계 화이트리스트 · tax_invoice(금액)는 can_view_sales 만.
+def _sched_user_name(u: dict) -> str:
+    return (u.get("name") or u.get("username") or u.get("login_id") or "").strip()
+
+
+@app.get("/sales/schedule/stages")
+async def schedule_board_stages(request: Request, kind: str = "", ref_id: int = 0):
+    """단계 패널용 — 단계 정의(spec) + 이 건의 기록(rows). tax_invoice 는 권한 통과자만 포함."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if kind not in ("project", "consumable") or not ref_id:
+        return JSONResponse({"ok": False, "error": "bad_ref"}, 400)
+    can_money = bool(can_view_sales(u))
+    # spec 구성 — 금액(sales_only) 단계는 권한 없으면 제외(데이터 자체 미전송)
+    spec = []
+    for s in _logi.STAGE_SPEC:
+        if s.get("sales_only") and not can_money:
+            continue
+        spec.append({"key": s["key"], "label": s["label"], "owner": s["owner"],
+                     "group": s["group"], "subs": s.get("subs", []),
+                     "sales_only": bool(s.get("sales_only"))})
+    rows = _logi.stage_rows_for(kind, int(ref_id))
+    out_rows = {}
+    for (sk, sub), v in rows.items():
+        if sk == "tax_invoice" and not can_money:
+            continue  # 금액 데이터 미전송
+        out_rows[f"{sk}|{sub}"] = v
+    return JSONResponse({"ok": True, "spec": spec, "rows": out_rows, "can_money": can_money})
+
+
+@app.post("/sales/schedule/stage")
+async def schedule_board_stage_set(request: Request):
+    """단계 기록 저장(upsert). 누구나 가능, tax_invoice 만 can_view_sales."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    kind = (b.get("kind") or "").strip()
+    ref_id = b.get("ref_id")
+    stage_key = (b.get("stage_key") or "").strip()
+    sub_key = (b.get("sub_key") or "").strip()
+    if stage_key == "tax_invoice" and not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    import json as _json
+    extra = b.get("extra")
+    extra_s = ""
+    if extra is not None:
+        try:
+            extra_s = _json.dumps(extra)[:2000]
+        except Exception:
+            extra_s = ""
+    try:
+        ok, msg = _logi.stage_set(
+            kind, int(ref_id), stage_key, sub_key,
+            done=bool(b.get("done", True)), on_date=(b.get("on_date") or ""),
+            memo=(b.get("memo") or ""), extra=extra_s,
+            user_id=u.get("id"), user_name=_sched_user_name(u))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": ok, "error": msg, "by_name": _sched_user_name(u)})
 
 
 @app.get("/projects/export.xlsx")

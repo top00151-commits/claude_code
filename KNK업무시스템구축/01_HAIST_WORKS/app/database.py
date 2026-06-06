@@ -2603,6 +2603,27 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z264] 일정표 보드 표 생성 스킵: {_e}")
 
+        # v5H226z270 (대표 지시): 작업 일정표 = 업무 원장 허브 — 단계 파이프라인 기록표.
+        #   각 프로젝트/소모품의 단계별 진행을 '누가·언제' 와 함께 적재(추적). 단계는 STAGE_SPEC 화이트리스트.
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS project_stage_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ref_kind   TEXT NOT NULL,          -- 'project' | 'consumable'
+                ref_id     INTEGER NOT NULL,
+                stage_key  TEXT NOT NULL,          -- input,quote,order,prod_request,progress,verify,label,pack,ship,tax_invoice
+                sub_key    TEXT NOT NULL DEFAULT '', -- progress 세부: design,circuit,program,wiring,assembly,test (외엔 '')
+                done       INTEGER DEFAULT 0,
+                on_date    TEXT,                   -- 단계 일자(출하일·완료일 등)
+                by_user    INTEGER,
+                by_name    TEXT,                   -- 누른 사람 이름(표시용 스냅샷)
+                memo       TEXT,
+                extra      TEXT,                   -- JSON (출하:수량/국내수출 · 세금계산서:금액 등)
+                updated_at TEXT,
+                UNIQUE(ref_kind, ref_id, stage_key, sub_key)
+            )""")
+        except Exception as _e:
+            print(f"[v5H226z270] 단계 기록표 생성 스킵: {_e}")
+
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
         #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
@@ -11275,6 +11296,103 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
             return (False, f"{table}.{col} 컬럼 없음")
         c.execute(f"UPDATE {table} SET {col}=? WHERE id=?", (val, int(ref_id)))
     return (True, "")
+
+
+# =====================================================
+# 작업 일정표 = 업무 원장 허브 — 단계 파이프라인 — v5H226z270 (대표 지시)
+#   설계: _기획/작업일정표_원장허브_설계_v1.md
+#   원칙: 누구나 클릭(담당은 안내) · 누른 사람/시각 기록 · 단계 화이트리스트 · 금액류 권한
+# =====================================================
+# 단계 정의(순서·라벨·담당안내·그룹). progress 는 동시진행 6 세부.
+STAGE_SPEC = [
+    {"key": "input",        "label": "입력",          "owner": "기술영업",      "group": "영업"},
+    {"key": "quote",        "label": "견적·제안 전달", "owner": "기술영업",      "group": "영업"},
+    {"key": "order",        "label": "수주",          "owner": "기술영업",      "group": "영업"},
+    {"key": "prod_request", "label": "제작요청",      "owner": "기술영업→전부서", "group": "생산"},
+    {"key": "progress",     "label": "진행",          "owner": "생산",          "group": "생산",
+     "subs": [("design", "설계"), ("circuit", "회로"), ("program", "프로그램"),
+              ("wiring", "전장"), ("assembly", "조립"), ("test", "테스트")]},
+    {"key": "verify",       "label": "검증",          "owner": "생산",          "group": "생산"},
+    {"key": "label",        "label": "라벨/명판",     "owner": "기술영업",      "group": "생산"},
+    {"key": "pack",         "label": "포장",          "owner": "생산",          "group": "생산"},
+    {"key": "ship",         "label": "출하",          "owner": "기술영업",      "group": "생산"},
+    {"key": "tax_invoice",  "label": "세금계산서",    "owner": "영업·회계",     "group": "매출",
+     "sales_only": True},   # 금액·세금계산서 = 권한(영업·관리)만
+]
+# 화이트리스트 (검증용)
+STAGE_KEYS = {s["key"] for s in STAGE_SPEC}
+STAGE_SUBS = {s["key"]: {k for k, _ in s.get("subs", [])} for s in STAGE_SPEC}
+
+
+def stage_rows_for(ref_kind: str, ref_id: int) -> dict:
+    """한 건의 단계 기록 → {(stage_key, sub_key): dict}."""
+    out = {}
+    if ref_kind not in ("project", "consumable") or not ref_id:
+        return out
+    try:
+        with db_session() as c:
+            for r in c.execute(
+                "SELECT stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, updated_at "
+                "FROM project_stage_log WHERE ref_kind=? AND ref_id=?", (ref_kind, int(ref_id))):
+                out[(r[0], r[1] or "")] = {
+                    "done": bool(r[2]), "on_date": r[3] or "", "by_user": r[4],
+                    "by_name": r[5] or "", "memo": r[6] or "", "extra": r[7] or "",
+                    "updated_at": r[8] or ""}
+    except Exception:
+        pass
+    return out
+
+
+def stage_set(ref_kind: str, ref_id: int, stage_key: str, sub_key: str = "",
+              done=True, on_date: str = "", memo: str = "", extra: str = "",
+              user_id=None, user_name: str = "") -> tuple[bool, str]:
+    """단계 기록 upsert. 단계/세부는 화이트리스트만. 반환 (성공, 메시지)."""
+    if ref_kind not in ("project", "consumable") or not ref_id:
+        return (False, "대상 오류")
+    if stage_key not in STAGE_KEYS:
+        return (False, "허용되지 않은 단계")
+    sub = (sub_key or "").strip()
+    if sub and sub not in STAGE_SUBS.get(stage_key, set()):
+        return (False, "허용되지 않은 세부단계")
+    from datetime import datetime as _dt
+    now = _dt.now().isoformat(timespec="seconds")
+    try:
+        with db_session() as c:
+            c.execute(
+                """INSERT INTO project_stage_log
+                   (ref_kind, ref_id, stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(ref_kind, ref_id, stage_key, sub_key) DO UPDATE SET
+                     done=excluded.done, on_date=excluded.on_date, by_user=excluded.by_user,
+                     by_name=excluded.by_name, memo=excluded.memo, extra=excluded.extra,
+                     updated_at=excluded.updated_at""",
+                (ref_kind, int(ref_id), stage_key, sub, 1 if done else 0, (on_date or "").strip(),
+                 user_id, (user_name or "").strip(), (memo or "").strip(), (extra or "").strip(), now))
+        return (True, "")
+    except Exception as e:
+        return (False, str(e)[:160])
+
+
+def stage_board_map() -> dict:
+    """보드 단계 칸용 요약 — {(ref_kind, ref_id): {done:set(stage_key), prog:{sub:bool}, ship_date:str}}.
+    완료된 단계 key 집합 + progress 세부 + 출하일(있으면)만 가볍게."""
+    out = {}
+    try:
+        with db_session() as c:
+            for r in c.execute(
+                "SELECT ref_kind, ref_id, stage_key, sub_key, done, on_date "
+                "FROM project_stage_log WHERE done=1"):
+                k = (r[0], int(r[1]))
+                d = out.setdefault(k, {"done": set(), "prog": {}, "ship_date": ""})
+                if r[2] == "progress" and r[3]:
+                    d["prog"][r[3]] = True
+                else:
+                    d["done"].add(r[2])
+                if r[2] == "ship" and r[5]:
+                    d["ship_date"] = r[5]
+    except Exception:
+        pass
+    return out
 
 
 def create_fta_certificate(
