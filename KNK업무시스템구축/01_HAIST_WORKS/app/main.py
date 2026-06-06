@@ -13724,9 +13724,14 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False) -> li
                 continue
             if cn == n:
                 return (cand, 1.0)
-            # 한쪽이 다른쪽을 포함(2자 이상)하면 강한 매칭으로 가중
-            if len(n) >= 2 and len(cn) >= 2 and (n in cn or cn in n):
-                _sc = 0.9 + 0.1 * (min(len(n), len(cn)) / max(len(n), len(cn)))
+            # v5H226z262 (대표 지시·연결성 감사): 근본원인 = '한쪽이 다른쪽을 포함'만으로 0.9+ 가중하면
+            #   '삼성'(등록) 이 '삼성디스플레이'(입력) 를 0.9+ 로 삼켜 잘못된 고객사에 연결됨.
+            #   재발방지: 부분포함 가중은 '길이가 충분히 비슷할 때(진짜 표기변형)'만 적용한다.
+            #   짧은 등록명이 긴 입력명을 삼키는 경우(min/max < 0.7)는 일반 유사도(difflib)로 떨어뜨려
+            #   임계 0.8 미만이 되게 한다 → 자동연결 안 됨(에러/수동).
+            _len_ratio = min(len(n), len(cn)) / max(len(n), len(cn))
+            if len(n) >= 2 and len(cn) >= 2 and (n in cn or cn in n) and _len_ratio >= 0.7:
+                _sc = 0.9 + 0.1 * _len_ratio
             else:
                 _sc = _SM(None, n, cn).ratio()
             if _sc > best_score:
@@ -14186,6 +14191,7 @@ async def projects_import_confirm(request: Request):
     rows = sorted(rows, key=lambda _r: 1 if _r.get("_followup") else 0)
     created = []
     failed = []
+    so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     for r in rows:
         try:
@@ -14368,8 +14374,21 @@ async def projects_import_confirm(request: Request):
                                 created_by=u.get("id") or 0,
                                 po_number="",
                             )
-                except Exception:
-                    pass  # SO 실패는 등록 자체는 성공으로 (편집 화면에서 자가치유)
+                except Exception as _so_e:
+                    # v5H226z262 (대표 지시·연결성 감사): 근본원인 = SO 생성 실패를 'except: pass'로
+                    #   조용히 삼켜 → 프로젝트만 생기고 수주·호기·금액이 무음 누락(화면엔 '성공').
+                    #   재발방지: 실패를 수집·로그로 표면화한다. (프로젝트는 유지·편집화면 자가치유 가능하나
+                    #   더는 조용하지 않게 — 사용자가 어느 건이 SO 누락인지 알 수 있게.)
+                    so_warnings.append({"row_no": r.get("row_no"), "name": name,
+                                        "mgmt_code": new_code,
+                                        "error": f"수주·호기 생성 실패(매출/납기 누락 가능): {str(_so_e)[:160]}"})
+                    try:
+                        import logging as _lg
+                        _lg.getLogger("knk").warning(
+                            "[일괄등록 SO 실패] pid=%s code=%s row=%s : %s",
+                            new_pid, new_code, r.get("row_no"), _so_e)
+                    except Exception:
+                        pass
                 # v5H226z235 (대표 지시): 과거 데이터 일괄등록 시 라이프사이클 상태 보존.
                 #   자동 수주확정(confirm_order_multi)이 projects.status 를 '수주확정'으로 덮어쓰므로,
                 #   SO·납기는 그대로 두고 사용자가 고른 상태(진행중/납품완료)를 프로젝트에 다시 적용한다.
@@ -14423,6 +14442,9 @@ async def projects_import_confirm(request: Request):
         "failed_count": len(failed),
         "created": created,
         "failed": failed,
+        # v5H226z262: SO(수주·호기) 생성 실패 목록 — 비어있지 않으면 화면에서 경고 노출 필요
+        "so_warning_count": len(so_warnings),
+        "so_warnings": so_warnings,
     })
 
 

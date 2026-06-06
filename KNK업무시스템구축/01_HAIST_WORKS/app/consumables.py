@@ -32,28 +32,38 @@ CO_STATUS_LABELS = {
 }
 
 
-def generate_co_no(today=None) -> str:
-    """CO-YYMMNN — 같은 달 내 일련번호 (NN, 01부터)."""
+def generate_co_no(biz_div: str = "M", today=None) -> str:
+    """v5H226z248 (대표 지시): 소모품 발주번호 = 기존 수주번호와 동일 형식 [사업부]-[YYMMDD].
+    같은 날 첫 건은 접미 없음, 두 번째부터 -1, -2 순차. (예: M-260602, M-260602-1)
+    수주번호(orders.order_no)와 충돌 방지를 위해 orders + consumable_orders 양쪽을 스캔."""
+    bd = (biz_div or "M").strip().upper()
+    if bd not in ("T", "M", "L"):
+        bd = "M"
     d = today or datetime.now()
-    ym = d.strftime("%y%m")
-    pat = f"CO-{ym}%"
+    yymmdd = d.strftime("%y%m%d")
+    base = f"{bd}-{yymmdd}"
+    nums = []
     with db_session() as c:
-        rows = c.execute(
-            "SELECT co_no FROM consumable_orders WHERE co_no LIKE ?", (pat,)
-        ).fetchall()
-    mx = 0
-    for r in rows:
-        no = (r[0] or "")
-        try:
-            n = int(no.split("-")[-1][4:])  # CO-YYMMNN → NN 부분
-        except Exception:
+        for tbl, col in (("orders", "order_no"), ("consumable_orders", "co_no")):
             try:
-                n = int(no[-2:])
+                for r in c.execute(
+                    f"SELECT {col} FROM {tbl} WHERE {col}=? OR {col} LIKE ?",
+                    (base, base + "-%")
+                ):
+                    if r[0]:
+                        nums.append(r[0])
             except Exception:
-                n = 0
-        if n > mx:
-            mx = n
-    return f"CO-{ym}{mx+1:02d}"
+                pass
+    if not nums:
+        return base  # 같은 날 첫 건 → 접미 없음
+    max_n = 0
+    for on in nums:
+        if on == base:
+            continue
+        m = re.match(rf"^{re.escape(base)}-(\d+)$", on)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"{base}-{max_n + 1}"
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -258,47 +268,60 @@ def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 85,
 # 자동 매칭
 # ────────────────────────────────────────────────────────────────────
 def match_part_by_name(name: str) -> dict | None:
-    """parts.part_name 으로 LIKE 매칭. 신뢰도(level: exact/partial/none) 표시."""
+    """parts.part_name 정확일치(+공백/대소문자 정규화)만 자동연결.
+    v5H226z262 (대표 지시·연결성 감사): 근본원인 = '첫 단어 LIKE'가 고객사·규격 스코프 없이
+      흔한 토큰('CABLE'/'SCREW'/'M3')으로 '아무 자재 1건'에 part_id 를 조용히 붙이던 것.
+      재발방지 원칙: **자동연결은 명확한 단일 후보(정확일치)일 때만**. 애매하면 연결하지 않고
+      미매칭으로 둬 사용자가 수동 연결하게 한다. (틀린 연결보다 미연결이 안전)
+    """
     if not name or not str(name).strip():
         return None
     nm = str(name).strip()
+    # 정규화 키(앞뒤·중복 공백 제거 + 대문자) — '동일 품명'의 표기차만 흡수, 다른 품목은 매칭 안 함
+    import re as _re_p
+    nm_key = _re_p.sub(r"\s+", " ", nm).strip().upper()
     with db_session() as c:
-        # 1. exact
-        r = c.execute(
+        rows = c.execute(
             "SELECT id, part_no, part_name, std_price, unit FROM parts "
-            "WHERE part_name=? AND COALESCE(is_active,1)=1 LIMIT 1", (nm,)
-        ).fetchone()
-        if r:
-            d = dict(r); d["match_level"] = "exact"; return d
-        # 2. LIKE — 첫 단어
-        first_word = nm.split()[0]
-        r = c.execute(
-            "SELECT id, part_no, part_name, std_price, unit FROM parts "
-            "WHERE part_name LIKE ? AND COALESCE(is_active,1)=1 LIMIT 1",
-            (f"%{first_word}%",)
-        ).fetchone()
-        if r:
-            d = dict(r); d["match_level"] = "partial"; return d
+            "WHERE UPPER(TRIM(part_name))=? AND COALESCE(is_active,1)=1", (nm_key,)
+        ).fetchall()
+        # 정확일치가 '정확히 1건'일 때만 자동연결 (동명 자재 2건 이상이면 애매 → 미매칭)
+        if len(rows) == 1:
+            d = dict(rows[0]); d["match_level"] = "exact"; return d
     return None
 
 
-def match_project_by_model(model_use: str) -> dict | None:
-    """projects.model_name (또는 name) LIKE 매칭. NEW_EQUIP 만 후보."""
+def match_project_by_model(model_use: str, customer_id: int | None = None) -> dict | None:
+    """projects.model_name (또는 name) 토큰 매칭. NEW_EQUIP 만 후보.
+    v5H226z252: '같은 고객사'로 스코프 — 다른 회사 모델로 오연결되던 문제 수정.
+    v5H226z262 (대표 지시·연결성 감사): 근본원인 = 같은 고객사가 동일 모델을 여러 호기 보유하면
+      'ORDER BY id DESC'가 무조건 '가장 최근 등록 호기'에 붙이던 것(실제 어느 호기용인지 무관).
+      재발방지 원칙: **후보가 정확히 1건일 때만 자동연결**. 2건 이상(애매)이면 연결하지 않고
+      미매칭으로 둬 사용자가 어느 호기인지 직접 고르게 한다.
+      · customer_id 없으면 자동연결 안 함 / 토큰 2자 미만 매칭 안 함(과매칭 방지)
+    """
     if not model_use or not str(model_use).strip():
         return None
+    if not customer_id:
+        return None  # 고객사 모르면 자동연결 안 함(오연결 방지) → 수동 연결 버튼 사용
     mu = str(model_use).strip()
     # 첫 모델 토큰 (예: 'SM-A576B CTC AUTO' → 'SM-A576B')
-    token = mu.split()[0]
+    token = mu.split()[0].strip()
+    if len(token) < 2:
+        return None
     with db_session() as c:
-        r = c.execute(
+        # 같은 고객사·같은 토큰 후보를 2건까지 조회 → 정확히 1건일 때만 연결(애매하면 보류)
+        rows = c.execute(
             "SELECT id, mgmt_code, name, model_name FROM projects "
             "WHERE COALESCE(project_type,'NEW_EQUIP')='NEW_EQUIP' "
+            "  AND customer_id = ? "
             "  AND (model_name LIKE ? OR name LIKE ?) "
-            "ORDER BY id DESC LIMIT 1",
-            (f"%{token}%", f"%{token}%")
-        ).fetchone()
-        if r:
-            d = dict(r); d["match_level"] = "model_token"; return d
+            "ORDER BY id DESC LIMIT 2",
+            (customer_id, f"%{token}%", f"%{token}%")
+        ).fetchall()
+        if len(rows) == 1:
+            d = dict(rows[0]); d["match_level"] = "model_token"; return d
+        # len==0 → 미매칭 / len>=2 → 애매(여러 호기) → 자동연결 보류(수동 연결 유도)
     return None
 
 
@@ -311,12 +334,14 @@ def co_create(customer_name: str = "", biz_div: str = "",
               created_by: int | None = None) -> tuple[int, str]:
     """v5H216: 소모품 묶음 생성 시 'S' prefix 관리번호 자동 발급.
     v5H218: biz_div(T/M) 추가 — 진행 사업부 별 매출 집계용."""
-    co_no = generate_co_no()
+    # v5H226z248: 발주번호 = 수주번호 형식 [사업부]-[YYMMDD]. 날짜는 발주일 기준(수주번호 관례).
+    _co_ref = None
     try:
-        from .database import generate_mgmt_code
-        mgmt_code = generate_mgmt_code("S")
+        if order_date:
+            _co_ref = datetime.strptime(str(order_date)[:10], "%Y-%m-%d")
     except Exception:
-        mgmt_code = None
+        _co_ref = None
+    # 고객사·사업부는 1회 계산 (재시도와 무관)
     cust_id = None
     if customer_name:
         with db_session() as c:
@@ -325,44 +350,61 @@ def co_create(customer_name: str = "", biz_div: str = "",
             if r:
                 cust_id = r[0]
     _bd = (biz_div or "").strip().upper()
-    if _bd not in ("T", "M"):
+    if _bd not in ("T", "M", "L"):
         _bd = None  # 미선택 허용 (백워드 호환); UI 에서는 검증 강제
-    with db_session() as c:
-        cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
-        # v5H218: biz_div 컬럼 동적 감지 — startup 마이그레이션이 추가한 후엔 always present
-        _has_mgmt = "mgmt_code" in cocols
-        _has_biz = "biz_div" in cocols
-        if _has_mgmt and _has_biz:
-            cur = c.execute(
-                """INSERT INTO consumable_orders
-                   (co_no, mgmt_code, biz_div, customer_id, customer_name, order_date, due_date,
-                    currency, note, source_file, created_by)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (co_no, mgmt_code, _bd, cust_id, customer_name, order_date or "", due_date or "",
-                 (currency or "KRW").upper(), note or "", source_file or "",
-                 created_by)
-            )
-        elif _has_mgmt:
-            cur = c.execute(
-                """INSERT INTO consumable_orders
-                   (co_no, mgmt_code, customer_id, customer_name, order_date, due_date,
-                    currency, note, source_file, created_by)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (co_no, mgmt_code, cust_id, customer_name, order_date or "", due_date or "",
-                 (currency or "KRW").upper(), note or "", source_file or "",
-                 created_by)
-            )
-        else:
-            cur = c.execute(
-                """INSERT INTO consumable_orders
-                   (co_no, customer_id, customer_name, order_date, due_date,
-                    currency, note, source_file, created_by)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
-                (co_no, cust_id, customer_name, order_date or "", due_date or "",
-                 (currency or "KRW").upper(), note or "", source_file or "",
-                 created_by)
-            )
-        return int(cur.lastrowid), co_no
+    # v5H226z262 (대표 지시·연결성 감사): co_no/mgmt_code UNIQUE 충돌(동시 업로드 race) 시
+    #   재발급 후 재시도. 부분 UNIQUE 인덱스(uq_consumable_co_no/mgmt)가 충돌을 IntegrityError 로
+    #   드러내면, generate_* 가 (직전에 커밋된 경쟁 행을 보고) 다음 번호를 발급 → 충돌 해소.
+    import sqlite3 as _sqlite
+    _last_err = None
+    for _attempt in range(6):
+        co_no = generate_co_no(biz_div, _co_ref)
+        # v5H226z244: 소모품 묶음 생성(업로드) 즉시 C 관리코드 부여 — 프로젝트 C소모품 경로와 동일 체계.
+        try:
+            from .database import generate_mgmt_code
+            mgmt_code = generate_mgmt_code("C")
+        except Exception:
+            mgmt_code = None
+        try:
+            with db_session() as c:
+                cocols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+                _has_mgmt = "mgmt_code" in cocols
+                _has_biz = "biz_div" in cocols
+                if _has_mgmt and _has_biz:
+                    cur = c.execute(
+                        """INSERT INTO consumable_orders
+                           (co_no, mgmt_code, biz_div, customer_id, customer_name, order_date, due_date,
+                            currency, note, source_file, created_by)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                        (co_no, mgmt_code, _bd, cust_id, customer_name, order_date or "", due_date or "",
+                         (currency or "KRW").upper(), note or "", source_file or "",
+                         created_by)
+                    )
+                elif _has_mgmt:
+                    cur = c.execute(
+                        """INSERT INTO consumable_orders
+                           (co_no, mgmt_code, customer_id, customer_name, order_date, due_date,
+                            currency, note, source_file, created_by)
+                           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (co_no, mgmt_code, cust_id, customer_name, order_date or "", due_date or "",
+                         (currency or "KRW").upper(), note or "", source_file or "",
+                         created_by)
+                    )
+                else:
+                    cur = c.execute(
+                        """INSERT INTO consumable_orders
+                           (co_no, customer_id, customer_name, order_date, due_date,
+                            currency, note, source_file, created_by)
+                           VALUES (?,?,?,?,?,?,?,?,?)""",
+                        (co_no, cust_id, customer_name, order_date or "", due_date or "",
+                         (currency or "KRW").upper(), note or "", source_file or "",
+                         created_by)
+                    )
+                return int(cur.lastrowid), co_no
+        except _sqlite.IntegrityError as _ie:
+            _last_err = _ie  # co_no/mgmt_code UNIQUE 충돌 → 재발급 후 재시도
+            continue
+    raise RuntimeError(f"소모품 수주번호/관리코드 발급 충돌 — 재시도 초과: {_last_err}")
 
 
 def coi_bulk_insert(co_id: int, items: list[dict]) -> int:

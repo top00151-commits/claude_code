@@ -295,6 +295,15 @@ CREATE INDEX IF NOT EXISTS idx_scontact_company ON shared_contacts(company);
 CREATE INDEX IF NOT EXISTS idx_scontact_email   ON shared_contacts(email);
 CREATE INDEX IF NOT EXISTS idx_scontact_mobile  ON shared_contacts(mobile);
 
+-- v5H228 (2026-05-31 대표 지시) — 직원 본인 하이웍스 계정 SMTP 발송용 자격증명
+-- 비밀번호는 Fernet 으로 암호화 보관(KNK_MAIL_KEY). 하이웍스 "앱 비밀번호" 사용 권장.
+CREATE TABLE IF NOT EXISTS user_mail_creds (
+    user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    smtp_email        TEXT,
+    smtp_password_enc TEXT,
+    updated_at        TEXT DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT,
@@ -465,6 +474,61 @@ CREATE TABLE IF NOT EXISTS parts (
 CREATE INDEX IF NOT EXISTS idx_parts_part_no ON parts(part_no);
 CREATE INDEX IF NOT EXISTS idx_parts_biz_div ON parts(biz_div);
 CREATE INDEX IF NOT EXISTS idx_parts_category ON parts(category);
+
+-- v5H226z129 (2026-05-31): 자재 카탈로그 즐겨찾기 (사용자별 부품 북마크)
+--   누락된 테이블 — catalog_page 가 사용하는데 정의가 없어 NAS 에서 'no such table' 오류 발생.
+CREATE TABLE IF NOT EXISTS catalog_favorites (
+    user_id     INTEGER NOT NULL,
+    part_id     INTEGER NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (user_id, part_id)
+);
+CREATE INDEX IF NOT EXISTS idx_catfav_user ON catalog_favorites(user_id);
+
+-- v5H226z130 (2026-05-31): 자재 요청서 (카탈로그 장바구니 → 요청 제출 + 신규자재 검토)
+--   누락 테이블 보충 — main.py material_request_* 라우트가 사용하는데 NAS DB 에 미생성.
+CREATE TABLE IF NOT EXISTS material_requests (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_no        TEXT,
+    request_type      TEXT DEFAULT 'bom',
+    title             TEXT,
+    project_id        INTEGER,
+    requester_id      INTEGER,
+    requester_team_id INTEGER,
+    status            TEXT DEFAULT '제출',
+    total_items       INTEGER DEFAULT 0,
+    new_item_count    INTEGER DEFAULT 0,
+    note              TEXT,
+    created_at        TEXT DEFAULT (datetime('now','localtime')),
+    updated_at        TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_matreq_requester ON material_requests(requester_id);
+CREATE INDEX IF NOT EXISTS idx_matreq_status ON material_requests(status);
+
+CREATE TABLE IF NOT EXISTS material_request_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id          INTEGER NOT NULL,
+    line_no             INTEGER,
+    part_id             INTEGER,
+    quantity            REAL DEFAULT 0,
+    unit                TEXT DEFAULT 'EA',
+    is_new_review       INTEGER DEFAULT 0,
+    review_status       TEXT DEFAULT 'pending',
+    requested_part_no   TEXT,
+    requested_part_name TEXT,
+    requested_spec      TEXT,
+    requested_maker     TEXT,
+    request_reason      TEXT,
+    registered_part_id  INTEGER,
+    review_note         TEXT,
+    quote_supplier_id   INTEGER,
+    quoted_price        REAL,
+    quoted_lead_days    INTEGER,
+    created_at          TEXT DEFAULT (datetime('now','localtime')),
+    updated_at          TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_matreqitem_req ON material_request_items(request_id);
+CREATE INDEX IF NOT EXISTS idx_matreqitem_newrev ON material_request_items(is_new_review, review_status);
 
 -- 공급사 마스터 (발주 대상 거래처)
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -1120,6 +1184,89 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_part ON order_items(part_id);
+
+-- v5H226z208 (2026-06-04 대표 지시): 프로젝트 품목 (새 규칙 — 관리번호=프로젝트, 그 아래 품목 N개)
+--   제안 단계부터 품목을 보관(수주 SO 와 독립). 출고형태별 칸 규칙:
+--     ASSEMBLY(ASS'Y) → 장비명(item_name)+모델명(model_name)
+--     PARTS(부품)      → 품명(item_name)+모델명(model_name)
+--     ETC(기타)        → 품명(item_name) (모델명 없음)
+--   수주확정 시 이 품목이 전개된 SO 를 order_id 로 연결(NULL=제안단계·미전개).
+CREATE TABLE IF NOT EXISTS project_items (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id         INTEGER NOT NULL REFERENCES projects(id),
+    seq                INTEGER DEFAULT 1,                 -- 품목 순번(표시 순서)
+    shipment_form      TEXT DEFAULT 'ASSEMBLY',           -- ASSEMBLY/PARTS/ETC
+    item_name          TEXT,                              -- 장비명(ASS'Y) 또는 품명(부품/기타)
+    model_name         TEXT,                              -- 모델명 (ASS'Y·부품; 기타는 비움)
+    qty                INTEGER DEFAULT 1,                 -- 수량(대수/낱개)
+    unit_price         REAL DEFAULT 0,
+    amount             REAL DEFAULT 0,                    -- 명시 금액 또는 단가×수량
+    currency           TEXT DEFAULT 'KRW',
+    is_export          INTEGER DEFAULT 0,                 -- 0=내수,1=수출
+    order_customer_id  INTEGER REFERENCES customers(id),  -- 발주처(구매대행사 등)
+    secondary_customer TEXT,                              -- 2차 고객사(최종)
+    final_amount       REAL,                              -- 최종 고객 매출(참고)
+    order_date         TEXT,
+    due_date           TEXT,
+    ship_to            TEXT,
+    note               TEXT,
+    order_id           INTEGER REFERENCES orders(id),     -- 수주확정 시 전개된 SO (NULL=제안단계)
+    created_at         TEXT DEFAULT (datetime('now','localtime')),
+    updated_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_project_items_project ON project_items(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_items_order ON project_items(order_id);
+
+-- v5H226z215 (2026-06-05 대표 지시): A/S 관리(수리 접수·처리) — 라이프밸류 전용 신설 기능.
+--   고객이 제품을 택배로 보냄 → 수리 → 재발송 (RMA). 흐름: 접수 → 수리중 → 발송완료 (+보류/반송)
+CREATE TABLE IF NOT EXISTS as_tickets (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    as_no             TEXT UNIQUE,                          -- 접수번호 AS-YYMMDD-NNN
+    received_date     TEXT,                                 -- 접수일 (YYYY-MM-DD)
+    biz_div           TEXT DEFAULT 'L',                     -- 사업부 (라이프밸류 L 중심)
+    -- 고객 (개인/회사) — customers 연결 또는 자유 입력
+    customer_id       INTEGER REFERENCES customers(id),
+    customer_name     TEXT,
+    customer_phone    TEXT,
+    customer_address  TEXT,
+    -- 제품
+    product_id        INTEGER,                              -- B2C 제품 마스터 연결(향후, NULL 허용)
+    product_name      TEXT,
+    model_name        TEXT,
+    purchase_date     TEXT,                                 -- 구매일 (보증 판단)
+    symptom           TEXT,                                 -- 증상(고장 내용)
+    -- 택배 송장
+    inbound_tracking  TEXT,                                 -- 받은 택배 송장(고객→본사)
+    outbound_tracking TEXT,                                 -- 보낸 택배 송장(본사→고객)
+    shipped_date      TEXT,                                 -- 발송일
+    -- 수리
+    is_paid           INTEGER DEFAULT 0,                    -- 0=무상, 1=유상
+    repair_fee        REAL DEFAULT 0,                       -- 수리비(유상 시)
+    repair_note       TEXT,                                 -- 수리 내역(작업·교체 부품)
+    -- 상태/담당
+    status            TEXT DEFAULT '접수'
+                      CHECK(status IN ('접수','수리중','발송완료','보류','반송')),
+    assignee_id       INTEGER REFERENCES users(id),         -- 담당자
+    note              TEXT,
+    created_by        INTEGER REFERENCES users(id),
+    created_at        TEXT DEFAULT (datetime('now','localtime')),
+    updated_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_as_tickets_status ON as_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_as_tickets_customer ON as_tickets(customer_id);
+CREATE INDEX IF NOT EXISTS idx_as_tickets_received ON as_tickets(received_date);
+
+-- A/S 상태 이력 (접수→수리중→발송완료 등 변경 추적)
+CREATE TABLE IF NOT EXISTS as_status_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    as_id       INTEGER NOT NULL REFERENCES as_tickets(id),
+    from_status TEXT,
+    to_status   TEXT,
+    changed_by  INTEGER REFERENCES users(id),
+    note        TEXT,
+    changed_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_as_status_history_as ON as_status_history(as_id);
 
 -- 생산지시 (시안 §3 work_orders 별칭 production_orders — 탭 3 WO)
 CREATE TABLE IF NOT EXISTS production_orders (
@@ -1897,6 +2044,17 @@ def init_db():
             ("tier_score",      "ALTER TABLE customers ADD COLUMN tier_score INTEGER DEFAULT 0"),
             ("tier_computed_at","ALTER TABLE customers ADD COLUMN tier_computed_at TEXT"),
             ("tier_breakdown",  "ALTER TABLE customers ADD COLUMN tier_breakdown TEXT"),
+            # v5H226z147 (2026-06-02 대표 지시): 기존 시스템 거래처 항목 반영
+            ("code",            "ALTER TABLE customers ADD COLUMN code TEXT"),            # 거래처코드(자동 C-0001)
+            ("business_type",   "ALTER TABLE customers ADD COLUMN business_type TEXT"),  # 업태
+            ("business_item",   "ALTER TABLE customers ADD COLUMN business_item TEXT"),  # 업종(종목)
+            ("zipcode",         "ALTER TABLE customers ADD COLUMN zipcode TEXT"),        # 우편번호
+            ("address_detail",  "ALTER TABLE customers ADD COLUMN address_detail TEXT"), # 상세주소
+            ("fax",             "ALTER TABLE customers ADD COLUMN fax TEXT"),            # 팩스번호
+            ("sub_biz_no",      "ALTER TABLE customers ADD COLUMN sub_biz_no TEXT"),     # 종사업장번호
+            # v5H226z203 (2026-06-04 대표 지시): 해외 고객사 — 사업자번호 없는 해외 거래처 지원
+            ("is_overseas",     "ALTER TABLE customers ADD COLUMN is_overseas INTEGER DEFAULT 0"),  # 1=해외
+            ("country",         "ALTER TABLE customers ADD COLUMN country TEXT"),        # 국가(해외 시)
         ]:
             if col not in cucols:
                 try:
@@ -2166,6 +2324,26 @@ def init_db():
             ("quotation_memo",     "TEXT"),
             # v5H226z (2026-05-08): 출고 형태 — ASSEMBLY(완제품, 호기)/PARTS(부품, PACKING LIST)
             ("shipment_form",      "TEXT DEFAULT 'ASSEMBLY'"),
+            # v5H226z161 (2026-06-02 대표 지시): 수주 전 '예상 매출' 별도 보존.
+            #   order_amount(확정, SO 합계로 자가치유)와 분리 → 예상 vs 확정 비교용. 자가치유가 건드리지 않음.
+            ("expected_amount",    "REAL"),
+            # v5H226z166 (2026-06-02 대표 지시): 고객사 담당자(프로젝트별) — 고객사 주소록(customer_contacts)과 양방향 연동
+            ("cc_name",       "TEXT"),   # 담당자명
+            ("cc_dept",       "TEXT"),   # 부서
+            ("cc_position",   "TEXT"),   # 직책
+            ("cc_phone",      "TEXT"),   # 연락처
+            ("cc_email",      "TEXT"),   # 메일
+            ("cc_note",       "TEXT"),   # 성향(메모)
+            # v5H226z195 (2026-06-04 대표 지시): 2단계 발주(법인 경유) — 최종 고객 매출 참고관리.
+            #   본사 매출 = 1차고객사(베트남법인) 발주액(=order_amount, 합계 포함).
+            #   2차고객사(최종, 삼성 등) + 최종 고객 매출(참고, 합계 제외) 별도 보존.
+            ("two_tier_order",     "INTEGER DEFAULT 0"),  # 1=2단계 발주(법인 경유)
+            ("secondary_customer", "TEXT"),               # 2차 고객사(최종 고객)
+            ("final_amount",       "REAL"),               # 최종 고객 매출(참고 — 합계 제외)
+            # v5H226z211 (2026-06-05 대표 지시): 장비명 — 관리번호=장비 단위.
+            #   같은 프로젝트명이라도 장비명이 다르면 관리번호가 다를 수 있음(프로젝트명 비유일).
+            #   model_name=장비 모델명. 부품/기타는 이 장비에 딸린 납품물(project_items).
+            ("equip_name",         "TEXT"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -2178,6 +2356,78 @@ def init_db():
             c.execute("CREATE INDEX IF NOT EXISTS idx_projects_parent ON projects(parent_project_id)")
         except Exception:
             pass
+
+        # v5H226z208 (2026-06-04 대표 지시): project_items 백필 — 새 규칙(관리번호=프로젝트, 품목 N개).
+        #   기존 데이터를 품목으로 무손실 표현. 이미 품목이 있는 프로젝트는 건너뜀(멱등).
+        #   - 수주(SO) 있는 프로젝트: SO 별로 품목 1건(수량/단가/발주처/출고형태 매핑) + order_id 연결
+        #   - 제안단계(수주 없음): 대표 모델로 품목 1건
+        try:
+            _ocols = {r2[1] for r2 in c.execute("PRAGMA table_info(orders)").fetchall()}
+            _has_sotype = "so_type" in _ocols
+            _has_ocur   = "currency" in _ocols
+            _has_oship  = "ship_to" in _ocols
+            _has_olabel = "unit_label" in _ocols
+            _has_oqty   = "unit_qty" in _ocols
+            def _sf_from_so_type(st, proj_sf):
+                st = (st or "").upper()
+                if st == "EQUIPMENT": return "ASSEMBLY"
+                if st in ("CONSUMABLE", "PARTS_EXPORT"): return "PARTS"
+                if st == "OTHER": return "ETC"
+                return (proj_sf or "ASSEMBLY").upper()
+            _bf_made = 0
+            for prow in c.execute("SELECT * FROM projects").fetchall():
+                p = dict(prow)
+                pid = p["id"]
+                if c.execute("SELECT COUNT(*) FROM project_items WHERE project_id=?", (pid,)).fetchone()[0]:
+                    continue
+                proj_sf = p.get("shipment_form") or "ASSEMBLY"
+                ords = c.execute("SELECT * FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()
+                if ords:
+                    _seq = 0
+                    for orow in ords:
+                        o = dict(orow); _seq += 1
+                        _oqty = int(o.get("unit_qty") or 1) if _has_oqty else 1
+                        _amt  = float(o.get("total_amount") or 0)
+                        _up   = (_amt / _oqty) if _oqty else _amt
+                        _sf   = _sf_from_so_type(o.get("so_type") if _has_sotype else "", proj_sf)
+                        _iname = (o.get("unit_label") if _has_olabel else None) or p.get("model_name") or p.get("name")
+                        c.execute(
+                            "INSERT INTO project_items(project_id, seq, shipment_form, item_name, model_name, "
+                            "qty, unit_price, amount, currency, is_export, order_customer_id, "
+                            "secondary_customer, final_amount, order_date, due_date, ship_to, note, order_id) "
+                            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (pid, _seq, _sf, _iname, p.get("model_name"),
+                             _oqty, _up, _amt,
+                             (o.get("currency") if _has_ocur else None) or p.get("currency") or "KRW",
+                             int(p.get("is_export") or 0), o.get("customer_id"),
+                             p.get("secondary_customer"), p.get("final_amount"),
+                             o.get("order_date"), o.get("due_date"),
+                             (o.get("ship_to") if _has_oship else None),
+                             "[백필] 기존 수주 기준", o["id"]))
+                        _bf_made += 1
+                else:
+                    _amt = float(p.get("order_amount") or 0) or float(p.get("expected_amount") or 0)
+                    _qty = int(p.get("unit_qty") or 1)
+                    _up  = p.get("unit_price")
+                    if _up is None:
+                        _up = (_amt / _qty) if _qty else _amt
+                    c.execute(
+                        "INSERT INTO project_items(project_id, seq, shipment_form, item_name, model_name, "
+                        "qty, unit_price, amount, currency, is_export, secondary_customer, final_amount, "
+                        "order_date, due_date, note) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (pid, 1, (proj_sf or "ASSEMBLY").upper(),
+                         p.get("model_name") or p.get("name"), p.get("model_name"),
+                         _qty, _up, _amt, p.get("currency") or "KRW",
+                         int(p.get("is_export") or 0),
+                         p.get("secondary_customer"), p.get("final_amount"),
+                         p.get("order_date"), p.get("due_date"),
+                         "[백필] 제안단계 대표품목"))
+                    _bf_made += 1
+            if _bf_made:
+                print(f"[v5H226z208] project_items 백필 {_bf_made}건 생성")
+        except Exception as _e:
+            print(f"[v5H226z208] project_items 백필 스킵: {_e}")
 
         # v5H216 (2026-05-08): consumable_orders 에 mgmt_code 컬럼 추가 + 백필
         # 소모품 발주 묶음에도 'S' prefix 관리번호 부여 (예: 001S2605)
@@ -2291,6 +2541,36 @@ def init_db():
                     print(f"[v5H216] 소모품 묶음 mgmt_code 백필: {_backfilled}건")
             except Exception as _e:
                 print(f"[v5H216] 백필 실패: {_e}")
+            # v5H226z262 (대표 지시·연결성 감사): 소모품 식별자 유일성 보장.
+            #   근본원인 = projects.mgmt_code 는 UNIQUE 인데 consumable_orders.co_no/mgmt_code 는 무제약 →
+            #   동시 업로드 race 시 같은 수주번호·관리코드가 '오류 없이' 중복 저장됨(추적·집계 오염).
+            #   조치 = 부분 UNIQUE 인덱스로 DB 차원 차단. 기존 중복이 있으면 인덱스 생성이 실패하므로,
+            #   먼저 중복을 탐지·로그(수동 정리 유도)하고 인덱스 생성은 try 로 감싸 startup 크래시 방지.
+            try:
+                for _c_lbl, _c_col in (("수주번호", "co_no"), ("관리코드", "mgmt_code")):
+                    if _c_col not in cocols and _c_col != "co_no":
+                        continue
+                    _dups = c.execute(
+                        f"SELECT {_c_col} AS v, COUNT(*) AS n FROM consumable_orders "
+                        f"WHERE {_c_col} IS NOT NULL AND {_c_col} != '' "
+                        f"GROUP BY {_c_col} HAVING COUNT(*) > 1"
+                    ).fetchall()
+                    if _dups:
+                        print(f"[v5H226z262] ⚠ 소모품 {_c_lbl} 중복 {len(_dups)}종 감지(수동 정리 필요):")
+                        for _dd in _dups:
+                            print(f"    · {_dd['v']} × {_dd['n']}건")
+                for _idx_sql in (
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_consumable_co_no "
+                    "ON consumable_orders(co_no) WHERE co_no IS NOT NULL AND co_no != ''",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_consumable_mgmt "
+                    "ON consumable_orders(mgmt_code) WHERE mgmt_code IS NOT NULL AND mgmt_code != ''",
+                ):
+                    try:
+                        c.execute(_idx_sql)
+                    except Exception as _e_idx:
+                        print(f"[v5H226z262] 소모품 UNIQUE 인덱스 생성 보류(기존 중복 존재 — 정리 후 재시도): {_e_idx}")
+            except Exception as _e:
+                print(f"[v5H226z262] 소모품 유일성 마이그레이션 스킵: {_e}")
         except Exception:
             pass
 
@@ -2915,6 +3195,13 @@ def seed_sample_tasks(days_back: int = 14):
     """지난 N일치 현실적인 Task 샘플 시드"""
     random.seed(42)  # 재현 가능
     with db_session() as c:
+        # v5H226z135: 운영 모드(데모 초기화 후) — 데모 샘플 task 재생성 차단
+        try:
+            _r = c.execute("SELECT value FROM app_settings WHERE key='demo_seed_off'").fetchone()
+            if _r and str(_r[0]) == '1':
+                return 0
+        except Exception:
+            pass
         # 이미 tasks 있으면 skip
         cnt = c.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
         if cnt > 5:
@@ -4572,8 +4859,8 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
     v5H216: S(소모품) 추가.
     v5H222: S 도 projects 테이블에서 검색 (CONSUMABLE 신규 등록은 projects 도메인으로 통일).
             consumable_orders 도 함께 스캔(legacy 데이터와 sequence 충돌 방지)."""
-    if biz_div not in ("T", "M", "E", "C"):
-        raise ValueError(f"biz_div must be T, M, E, or C (got: {biz_div})")
+    if biz_div not in ("T", "M", "L", "E", "C"):
+        raise ValueError(f"biz_div must be T, M, L, E, or C (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
@@ -4607,10 +4894,11 @@ def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
            "FROM projects p WHERE 1=1")
     params: list = []
     if q:
+        # v5H226z217: 장비명(equip_name)도 검색 대상 추가
         sql += (" AND (p.mgmt_code LIKE ? OR p.name LIKE ? OR p.customer_name LIKE ? "
-                "OR p.model_name LIKE ? OR p.pm_name LIKE ? OR p.sales_name LIKE ?)")
+                "OR p.model_name LIKE ? OR p.equip_name LIKE ? OR p.pm_name LIKE ? OR p.sales_name LIKE ?)")
         like = f"%{q}%"
-        params += [like] * 6
+        params += [like] * 7
     if biz_div:
         sql += " AND p.biz_div = ?"
         params.append(biz_div)
@@ -4652,6 +4940,20 @@ def _project_insert_or_update_values(data: dict) -> dict:
                      else "KRW"),
         "is_export": 1 if str(data.get("is_export") or data.get("trade_type") or "").lower() in ("1","true","수출","export") else 0,
         "order_amount": float(data.get("order_amount") or 0),
+        # v5H226z161: 예상 매출(수주 전) — 명시값 우선, 없으면 헤더 order_amount 와 동일. order_amount(확정)와 분리 보존.
+        "expected_amount": float(str(data.get("expected_amount")).replace(",", "")) if str(data.get("expected_amount") or "").strip() not in ("",) else float(data.get("order_amount") or 0),
+        # v5H226z166: 고객사 담당자
+        "cc_name":     (data.get("cc_name") or "").strip() or None,
+        "cc_dept":     (data.get("cc_dept") or "").strip() or None,
+        "cc_position": (data.get("cc_position") or "").strip() or None,
+        "cc_phone":    (data.get("cc_phone") or "").strip() or None,
+        "cc_email":    (data.get("cc_email") or "").strip() or None,
+        "cc_note":     (data.get("cc_note") or "").strip() or None,
+        # v5H226z195: 2단계 발주(법인 경유) — 2차고객사·최종 고객 매출(참고)
+        "two_tier_order": 1 if str(data.get("two_tier_order") or "").lower() in ("1", "true", "on", "yes") else 0,
+        "secondary_customer": (data.get("secondary_customer") or "").strip() or None,
+        "final_amount": (float(str(data.get("final_amount")).replace(",", ""))
+                         if str(data.get("final_amount") or "").strip() not in ("",) else None),
         # v5H132: 단가/수량 — 폼에서 받지 않으면 None/1 폴백 (백워드 호환)
         "unit_qty": max(1, min(100, int(float(data.get("unit_qty") or 1)))) if str(data.get("unit_qty") or "").strip() else 1,
         "unit_price": (float(data.get("unit_price")) if str(data.get("unit_price") or "").strip() not in ("", "0") else None),
@@ -4687,13 +4989,43 @@ def _project_insert_or_update_values(data: dict) -> dict:
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용). 빈 문자열은 None 으로.
         "proposal_date":  (data.get("proposal_date") or "").strip() or None,
         "quotation_date": (data.get("quotation_date") or "").strip() or None,
-        # v5H226z: 출고 형태 — ASSEMBLY(default) / PARTS(정식 PACKING LIST)
+        # v5H226z: 출고 형태 — ASSEMBLY(default) / PARTS(정식 PACKING LIST) / ETC(기타, z196)
         "shipment_form": (
             (data.get("shipment_form") or "ASSEMBLY").strip().upper()
-            if (data.get("shipment_form") or "ASSEMBLY").strip().upper() in ("ASSEMBLY", "PARTS")
+            if (data.get("shipment_form") or "ASSEMBLY").strip().upper() in ("ASSEMBLY", "PARTS", "ETC")
             else "ASSEMBLY"
         ),
+        # v5H226z211: 장비명 — 관리번호=장비 단위 (프로젝트명 비유일)
+        "equip_name": (data.get("equip_name") or "").strip() or None,
     }
+
+
+def _sync_project_contact_to_customer(c, customer_id, name, dept, position, phone, email, note):
+    """v5H226z166 (대표 지시): 프로젝트의 고객사 담당자를 customer_contacts(고객사 주소록)에
+    upsert (이름 기준). 양방향 연동 — 프로젝트에 적으면 고객사 상세에도 자동 등록."""
+    if not customer_id or not (name or "").strip():
+        return
+    name = name.strip()
+    try:
+        row = c.execute(
+            "SELECT id FROM customer_contacts WHERE customer_id=? AND name=? LIMIT 1",
+            (customer_id, name)).fetchone()
+        if row:
+            c.execute(
+                "UPDATE customer_contacts SET department=COALESCE(?,department), "
+                "position=COALESCE(?,position), phone=COALESCE(?,phone), "
+                "email=COALESCE(?,email), note=COALESCE(?,note) WHERE id=?",
+                (dept or None, position or None, phone or None, email or None,
+                 note or None, row["id"]))
+        else:
+            c.execute(
+                "INSERT INTO customer_contacts(customer_id, role, department, name, "
+                "position, phone, mobile, email, is_primary, note) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (customer_id, "기타", dept or None, name, position or None,
+                 phone or None, None, email or None, 1, note or None))
+    except Exception as _e:
+        print(f"[z166] customer_contact 동기화 실패: {_e}")
 
 
 def projects_create_logi(data: dict) -> tuple[int, str | None]:
@@ -4707,16 +5039,21 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
     # v5H150 (2026-05-05): OTHER 도 관리번호 발급 — prefix 'K' (대표 지시)
     # v5H223 (2026-05-08): CONSUMABLE 도 다른 3종과 동일하게 status 기반 발급 (수주확정 시점)
     _ptype_in = (vals.get("project_type") or "NEW_EQUIP").upper()
-    needs_code = (
-        (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
-        and (
-            (vals["biz_div"] in ("T", "M") and _ptype_in in ("NEW_EQUIP", "CONSUMABLE"))
-            or _ptype_in == "OTHER"
-        )
+    _valid_for_code = (
+        (vals["biz_div"] in ("T", "M", "L") and _ptype_in in ("NEW_EQUIP", "CONSUMABLE"))
+        or _ptype_in == "OTHER"
     )
-    # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격
+    needs_code = (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES) and _valid_for_code
+    # v5H226z194 (2026-06-04 대표 지시): 등록 시 관리번호 '항상' 발급. force_code 면 단계 무관 발급
+    #   (제안 단계여도 코드 부여 — 단, 상태/단계는 사용자 선택 그대로 유지, 수주확정으로 승격 안 함).
+    _force_code = bool(data.get("force_code"))
+    gen_code = needs_code or (_force_code and _valid_for_code)
+    # status 가 won 인데 stage 가 제안 단계면 stage 도 '수주확정' 으로 승격 (force_code 단독은 단계 안 바꿈)
     if needs_code and vals["stage"] not in NEEDS_CODE_STAGES:
         vals["stage"] = "수주확정"
+    # v5H226z148 (2026-06-02 대표 지시): 기존(진행 중) 프로젝트 등록 시 실제 관리코드 직접 지정.
+    #   비우면 종전대로 자동 발급. 지정하면 그 코드를 그대로 사용(중복 시 즉시 오류).
+    _provided_code = (data.get("mgmt_code") or "").strip().upper()
     last_err = None
     for _attempt in range(5):
         # v5H225: 유형별 prefix — OTHER→E (Etc.), CONSUMABLE→C (Consumable), NEW_EQUIP→biz_div(T/M)
@@ -4726,7 +5063,12 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
             _code_prefix = "C"
         else:
             _code_prefix = vals["biz_div"]
-        code = generate_mgmt_code(_code_prefix) if needs_code else None
+        if _provided_code:
+            code = _provided_code            # 사용자가 기존 관리코드 지정 → 그대로 사용
+        elif gen_code:
+            code = generate_mgmt_code(_code_prefix)
+        else:
+            code = None
         try:
             with db_session() as c:
                 # v5H89b: customer_name → customer_id 자동 매핑 (orders FK 연결용)
@@ -4742,17 +5084,24 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                     INSERT INTO projects
                     (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
                      stage, po_type, status, customer_po, currency, order_amount,
+                     expected_amount,
+                     cc_name, cc_dept, cc_position, cc_phone, cc_email, cc_note,
+                     two_tier_order, secondary_customer, final_amount,
                      order_date, due_date, pm_name, sales_name, logi_note,
                      is_export, unit_qty, unit_price,
                      project_type, parent_project_id,
                      fx_rate, amount_krw,
                      proposal_date, quotation_date,
-                     shipment_form,
+                     shipment_form, equip_name,
                      created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
+                      vals["expected_amount"],
+                      vals["cc_name"], vals["cc_dept"], vals["cc_position"],
+                      vals["cc_phone"], vals["cc_email"], vals["cc_note"],
+                      vals["two_tier_order"], vals["secondary_customer"], vals["final_amount"],
                       vals["order_date"], vals["due_date"], vals["pm_name"],
                       vals["sales_name"], vals["logi_note"], vals["is_export"],
                       vals.get("unit_qty") or 1, vals.get("unit_price"),
@@ -4760,7 +5109,7 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals.get("parent_project_id"),
                       vals.get("fx_rate"), vals.get("amount_krw"),
                       vals.get("proposal_date"), vals.get("quotation_date"),
-                      vals.get("shipment_form") or "ASSEMBLY",
+                      vals.get("shipment_form") or "ASSEMBLY", vals.get("equip_name"),
                       now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
@@ -4807,11 +5156,21 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                         log_project_change(c, new_id, data.get("_changed_by"),
                                            _label, _ov, _nv,
                                            note="등록 시 초기값")
+                # v5H226z166: 고객사 담당자 → 주소록 동기화
+                _sync_project_contact_to_customer(
+                    c, cust_id, vals.get("cc_name"), vals.get("cc_dept"),
+                    vals.get("cc_position"), vals.get("cc_phone"),
+                    vals.get("cc_email"), vals.get("cc_note"))
                 return new_id, code
         except _sq.IntegrityError as e:
             last_err = e
             if "mgmt_code" not in str(e):
                 raise  # 다른 컬럼 UNIQUE 위반은 재시도 무의미
+            if _provided_code:
+                # 사용자가 지정한 코드 충돌 — 재시도해도 같은 코드라 무의미. 즉시 명확한 오류.
+                raise ValueError(
+                    f"관리코드 '{_provided_code}' 는 이미 등록돼 있습니다. "
+                    "다른 코드를 입력하거나, 비워서 자동 발급하세요.")
             continue  # mgmt_code 충돌만 재채번
     raise RuntimeError(f"projects_create_logi: mgmt_code 채번 5회 충돌 — {last_err}")
 
@@ -4961,7 +5320,7 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
     needs_code = (
         (vals["stage"] in NEEDS_CODE_STAGES or vals["status"] in WON_STATUSES)
         and (
-            (vals["biz_div"] in ("T", "M") and _ptype_up in ("NEW_EQUIP", "CONSUMABLE"))
+            (vals["biz_div"] in ("T", "M", "L") and _ptype_up in ("NEW_EQUIP", "CONSUMABLE"))
             or _ptype_up == "OTHER"
         )
     )
@@ -4990,18 +5349,25 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
             UPDATE projects
             SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
                 stage=?, po_type=?, status=?, customer_po=?, currency=?,
-                order_amount=?, order_date=?, due_date=?,
+                order_amount=?, expected_amount=?,
+                cc_name=?, cc_dept=?, cc_position=?, cc_phone=?, cc_email=?, cc_note=?,
+                two_tier_order=?, secondary_customer=?, final_amount=?,
+                order_date=?, due_date=?,
                 pm_name=?, sales_name=?, logi_note=?, is_export=?,
                 unit_qty=?, unit_price=?,
                 project_type=?, parent_project_id=?,
                 fx_rate=?, amount_krw=?,
                 proposal_date=?, quotation_date=?,
-                shipment_form=?,
+                shipment_form=?, equip_name=?,
                 updated_at=?
             WHERE id=?
         """, (new_code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
               vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
               vals["customer_po"], vals["currency"], vals["order_amount"],
+              vals["expected_amount"],
+              vals["cc_name"], vals["cc_dept"], vals["cc_position"],
+              vals["cc_phone"], vals["cc_email"], vals["cc_note"],
+              vals["two_tier_order"], vals["secondary_customer"], vals["final_amount"],
               vals["order_date"], vals["due_date"], vals["pm_name"],
               vals["sales_name"], vals["logi_note"], vals["is_export"],
               vals.get("unit_qty") or 1, vals.get("unit_price"),
@@ -5009,16 +5375,255 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
               vals.get("parent_project_id"),
               vals.get("fx_rate"), vals.get("amount_krw"),
               vals.get("proposal_date"), vals.get("quotation_date"),
-              vals.get("shipment_form") or "ASSEMBLY",
+              vals.get("shipment_form") or "ASSEMBLY", vals.get("equip_name"),
               _logi_now(), pid))
         # v5H101: 변경 이력 적재 (UPDATE 성공 후)
         for label, ov, nv in _pending_logs:
             log_project_change(c, pid, _changed_by, label, ov, nv, "")
+        # v5H226z166: 고객사 담당자 → 주소록 동기화
+        _sync_project_contact_to_customer(
+            c, cust_id, vals.get("cc_name"), vals.get("cc_dept"),
+            vals.get("cc_position"), vals.get("cc_phone"),
+            vals.get("cc_email"), vals.get("cc_note"))
     return new_code
 
 
-def projects_delete_logi(pid: int) -> None:
+# ==========================================================
+# v5H226z208 (2026-06-04 대표 지시): 프로젝트 품목(project_items) CRUD 헬퍼
+#   새 규칙 — 관리번호=프로젝트, 그 아래 품목 N개(출고형태별 칸 규칙).
+#   ASSEMBLY(ASS'Y)→장비명+모델명 / PARTS(부품)→품명+모델명 / ETC(기타)→품명(모델명 없음)
+# ==========================================================
+PROJECT_ITEM_SHIPMENT_FORMS = ("ASSEMBLY", "PARTS", "ETC")
+
+
+def _pi_norm_sf(sf):
+    sf = (sf or "").strip().upper()
+    if sf in ("PARTS", "부품"):
+        return "PARTS"
+    if sf in ("ETC", "기타"):
+        return "ETC"
+    return "ASSEMBLY"
+
+
+def project_items_list(c, project_id):
+    """프로젝트의 품목 목록 (seq, id 순)."""
+    rows = c.execute(
+        "SELECT * FROM project_items WHERE project_id=? ORDER BY seq, id", (project_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def project_item_create(c, project_id, data: dict) -> int:
+    """품목 1건 생성. 반환: 새 품목 id.
+    data: shipment_form,item_name,model_name,qty,unit_price,amount,currency,is_export,
+          order_customer_id,secondary_customer,final_amount,order_date,due_date,ship_to,note,order_id,seq"""
+    sf = _pi_norm_sf(data.get("shipment_form"))
+    qty = int(data.get("qty") or 1)
+    if qty < 1:
+        qty = 1
+    up = float(data.get("unit_price") or 0)
+    _amt = data.get("amount")
+    amt = float(_amt) if (_amt not in (None, "")) else (up * qty)
+    model = (data.get("model_name") or "") if sf != "ETC" else ""   # 기타(ETC)는 모델명 없음
+    seq = data.get("seq")
+    if not seq:
+        seq = (c.execute("SELECT COALESCE(MAX(seq),0)+1 FROM project_items WHERE project_id=?",
+                         (project_id,)).fetchone()[0]) or 1
+    cur = c.execute(
+        "INSERT INTO project_items(project_id, seq, shipment_form, item_name, model_name, "
+        "qty, unit_price, amount, currency, is_export, order_customer_id, "
+        "secondary_customer, final_amount, order_date, due_date, ship_to, note, order_id, updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))",
+        (project_id, seq, sf, (data.get("item_name") or "").strip(), model,
+         qty, up, amt, (data.get("currency") or "KRW").upper(),
+         int(data.get("is_export") or 0), data.get("order_customer_id"),
+         data.get("secondary_customer"), data.get("final_amount"),
+         data.get("order_date"), data.get("due_date"), data.get("ship_to"),
+         data.get("note"), data.get("order_id")))
+    return cur.lastrowid
+
+
+def project_item_update(c, item_id, data: dict) -> None:
+    """품목 수정 (전달된 필드만)."""
+    allow = {"shipment_form", "item_name", "model_name", "qty", "unit_price", "amount",
+             "currency", "is_export", "order_customer_id", "secondary_customer",
+             "final_amount", "order_date", "due_date", "ship_to", "note", "order_id", "seq"}
+    d = dict(data)
+    if "shipment_form" in d:
+        d["shipment_form"] = _pi_norm_sf(d.get("shipment_form"))
+        if d["shipment_form"] == "ETC":
+            d["model_name"] = ""   # 기타는 모델명 없음
+    # 수량·단가만 바뀌고 금액 미지정 시 금액 자동 재계산 (단가×수량) — 스테일 방지
+    if ("qty" in d or "unit_price" in d) and "amount" not in d:
+        _cur = c.execute("SELECT qty, unit_price FROM project_items WHERE id=?", (item_id,)).fetchone()
+        if _cur:
+            _q = int(d.get("qty", _cur["qty"]) or 1)
+            _up = float(d.get("unit_price", _cur["unit_price"]) or 0)
+            d["amount"] = _up * _q
+    sets, vals = [], []
+    for k, v in d.items():
+        if k in allow:
+            sets.append(f"{k}=?")
+            vals.append(v)
+    if not sets:
+        return
+    sets.append("updated_at=datetime('now','localtime')")
+    vals.append(item_id)
+    c.execute(f"UPDATE project_items SET {','.join(sets)} WHERE id=?", vals)
+
+
+def project_item_delete(c, item_id) -> None:
+    c.execute("DELETE FROM project_items WHERE id=?", (item_id,))
+
+
+# ==========================================================
+# v5H226z215 (2026-06-05 대표 지시): A/S 관리(수리 접수·처리) 헬퍼 — 라이프밸류 전용 신설.
+#   흐름: 접수 → 수리중 → 발송완료 (+보류/반송). RMA(고객 택배→수리→재발송).
+# ==========================================================
+AS_STATUSES = ("접수", "수리중", "발송완료", "보류", "반송")
+
+
+def generate_as_no(c, ref_date=None) -> str:
+    """A/S 접수번호 — AS-YYMMDD-NNN (당일 시퀀스)."""
+    d = ref_date or _date.today()
+    base = f"AS-{d.strftime('%y%m%d')}-"
+    rows = c.execute("SELECT as_no FROM as_tickets WHERE as_no LIKE ?", (base + "%",)).fetchall()
+    max_seq = 0
+    for r in rows:
+        an = (r["as_no"] if hasattr(r, "keys") else r[0]) or ""
+        tail = an.rsplit("-", 1)
+        if len(tail) == 2 and tail[1].isdigit():
+            max_seq = max(max_seq, int(tail[1]))
+    return f"{base}{max_seq + 1:03d}"
+
+
+def _as_paid(v) -> int:
+    return 1 if str(v or "").strip() in ("1", "on", "true", "yes", "유상") else 0
+
+
+def _as_fee(v) -> float:
+    try:
+        return float(str(v or "0").replace(",", "") or 0)
+    except ValueError:
+        return 0.0
+
+
+def as_ticket_create(c, data: dict) -> dict:
+    """A/S 접수 1건 생성. 반환: {id, as_no}."""
+    as_no = generate_as_no(c)
+    rd = (data.get("received_date") or "").strip() or _date.today().isoformat()
+    status = (data.get("status") or "접수").strip()
+    if status not in AS_STATUSES:
+        status = "접수"
+    cur = c.execute(
+        "INSERT INTO as_tickets(as_no, received_date, biz_div, customer_id, customer_name, "
+        "customer_phone, customer_address, product_id, product_name, model_name, purchase_date, "
+        "symptom, inbound_tracking, outbound_tracking, shipped_date, is_paid, repair_fee, "
+        "repair_note, status, assignee_id, note, created_by, updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))",
+        (as_no, rd, (data.get("biz_div") or "L"),
+         data.get("customer_id"), (data.get("customer_name") or "").strip(),
+         (data.get("customer_phone") or "").strip(), (data.get("customer_address") or "").strip(),
+         data.get("product_id"), (data.get("product_name") or "").strip(),
+         (data.get("model_name") or "").strip(), (data.get("purchase_date") or "").strip() or None,
+         (data.get("symptom") or "").strip(),
+         (data.get("inbound_tracking") or "").strip(), (data.get("outbound_tracking") or "").strip(),
+         (data.get("shipped_date") or "").strip() or None,
+         _as_paid(data.get("is_paid")), _as_fee(data.get("repair_fee")),
+         (data.get("repair_note") or "").strip(),
+         status, data.get("assignee_id"), (data.get("note") or "").strip(),
+         data.get("created_by")))
+    as_id = cur.lastrowid
+    try:
+        c.execute("INSERT INTO as_status_history(as_id, from_status, to_status, changed_by, note) "
+                  "VALUES(?,?,?,?,?)", (as_id, None, status, data.get("created_by"), "접수 등록"))
+    except Exception:
+        pass
+    return {"id": as_id, "as_no": as_no}
+
+
+def as_ticket_list(c, status: str = "", q: str = ""):
+    """A/S 접수 목록 (상태 필터 + 검색)."""
+    sql = ("SELECT t.*, (SELECT name FROM customers WHERE customers.id=t.customer_id) AS cust_link, "
+           "(SELECT name FROM users WHERE users.id=t.assignee_id) AS assignee_name "
+           "FROM as_tickets t WHERE 1=1")
+    params: list = []
+    if status and status in AS_STATUSES:
+        sql += " AND t.status=?"
+        params.append(status)
+    if q:
+        sql += (" AND (t.as_no LIKE ? OR t.customer_name LIKE ? OR t.product_name LIKE ? "
+                "OR t.model_name LIKE ? OR t.customer_phone LIKE ?)")
+        like = f"%{q}%"
+        params += [like] * 5
+    sql += " ORDER BY t.id DESC"
+    return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
+def as_ticket_get(c, as_id):
+    """A/S 접수 1건 + 상태 이력."""
+    r = c.execute(
+        "SELECT t.*, (SELECT name FROM customers WHERE customers.id=t.customer_id) AS cust_link, "
+        "(SELECT name FROM users WHERE users.id=t.assignee_id) AS assignee_name "
+        "FROM as_tickets t WHERE t.id=?", (as_id,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["history"] = [dict(h) for h in c.execute(
+        "SELECT h.*, (SELECT name FROM users WHERE users.id=h.changed_by) AS changer "
+        "FROM as_status_history h WHERE h.as_id=? ORDER BY h.id", (as_id,)).fetchall()]
+    return d
+
+
+def as_ticket_update(c, as_id, data: dict) -> None:
+    """A/S 접수 수정 (전달된 필드만). 상태 변경은 as_status_change 로."""
+    allow = {"received_date", "biz_div", "customer_id", "customer_name", "customer_phone",
+             "customer_address", "product_id", "product_name", "model_name", "purchase_date",
+             "symptom", "inbound_tracking", "outbound_tracking", "shipped_date", "is_paid",
+             "repair_fee", "repair_note", "assignee_id", "note"}
+    sets, vals = [], []
+    for k, v in data.items():
+        if k not in allow:
+            continue
+        if k == "is_paid":
+            v = _as_paid(v)
+        elif k == "repair_fee":
+            v = _as_fee(v)
+        sets.append(f"{k}=?")
+        vals.append(v)
+    if not sets:
+        return
+    sets.append("updated_at=datetime('now','localtime')")
+    vals.append(as_id)
+    c.execute(f"UPDATE as_tickets SET {','.join(sets)} WHERE id=?", vals)
+
+
+def as_status_change(c, as_id, to_status: str, changed_by=None, note: str = "") -> dict:
+    """A/S 상태 변경 + 이력 기록. '발송완료'로 가면 발송일 자동 기록(비어있으면)."""
+    if to_status not in AS_STATUSES:
+        return {"ok": False, "message": f"잘못된 상태: {to_status}"}
+    cur = c.execute("SELECT status FROM as_tickets WHERE id=?", (as_id,)).fetchone()
+    if not cur:
+        return {"ok": False, "message": "접수 건을 찾을 수 없음"}
+    from_status = cur["status"]
+    if from_status == to_status:
+        return {"ok": True, "message": "변경 없음", "status": to_status}
+    if to_status == "발송완료":
+        c.execute("UPDATE as_tickets SET status=?, "
+                  "shipped_date=COALESCE(NULLIF(shipped_date,''),?), "
+                  "updated_at=datetime('now','localtime') WHERE id=?",
+                  (to_status, _date.today().isoformat(), as_id))
+    else:
+        c.execute("UPDATE as_tickets SET status=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (to_status, as_id))
+    c.execute("INSERT INTO as_status_history(as_id, from_status, to_status, changed_by, note) "
+              "VALUES(?,?,?,?,?)", (as_id, from_status, to_status, changed_by, note or ""))
+    return {"ok": True, "status": to_status, "from": from_status}
+
+
+def projects_delete_logi(pid: int, force: bool = False) -> None:
     """v5H73b: FK 자식 row 일괄 정리 후 프로젝트 삭제 (FOREIGN KEY 충돌 방지).
+    v5H226z193: force=True 면 관리코드(z176) 삭제 잠금을 우회 — '데모 사업부별 초기화' 전용.
 
     projects 를 참조하는 테이블:
       orders, purchase_orders, tasks, project_phases, project_milestones,
@@ -5027,6 +5632,18 @@ def projects_delete_logi(pid: int) -> None:
       change_impacts (간접)
     각각 SET NULL 또는 DELETE 처리."""
     with db_session() as c:
+        # v5H226z176 (2026-06-03 대표 지시): 관리코드(수주확정) 부여 건 삭제 차단.
+        #   관리코드는 수주확정 시점에만 발급되는 정식 사업번호 → 매출·납품·수금 이력이
+        #   엮인 실거래 기록. 삭제 대신 상태를 '취소'로 변경해야 함. (데이터층 최종 안전망)
+        try:
+            _mrow = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
+        except Exception:
+            _mrow = None
+        _mc = (_mrow[0] if _mrow else None)
+        if _mc and str(_mc).strip() and not force:
+            raise PermissionError(
+                f"수주확정 건(관리코드 {str(_mc).strip()})은 삭제할 수 없습니다. "
+                f"매출·납품·수금 이력 보호를 위해, 상세화면에서 상태를 '취소'로 변경하세요.")
         # 1. 자식 row가 자체 자식을 가진 것들 — 먼저 손자부터 정리
         # 1-a) orders 의 자식: order_items, invoices, receipts_payment,
         #      shipments, order_status_history
@@ -5044,6 +5661,10 @@ def projects_delete_logi(pid: int) -> None:
                 try: c.execute(sql, (oid,))
                 except Exception: pass
         try: c.execute("DELETE FROM orders WHERE project_id=?", (pid,))
+        except Exception: pass
+
+        # v5H226z208: 프로젝트 품목 정리 (orders 삭제 후 — order_id FK 보유)
+        try: c.execute("DELETE FROM project_items WHERE project_id=?", (pid,))
         except Exception: pass
 
         # 1-b) purchase_orders 자식: po_items
@@ -5124,30 +5745,38 @@ def projects_delete_logi(pid: int) -> None:
             try: c.execute(sql, (pid,))
             except Exception: pass
 
-        # 1-i) v5H98: 안전망 — project_id 컬럼이 있는 모든 테이블 동적 정리
-        #   누락된 child 테이블 (예: 추후 추가된 progress / WO / 분석 등) 까지 자동 cleanup
-        #   먼저 SET NULL 시도(이력 보존), 실패하면 DELETE
+        # 1-i) v5H226z259 (대표 보고): 안전망 — projects 를 '참조하는 모든 컬럼' 동적 정리.
+        #   기존엔 project_id 컬럼만 정리했으나, 이름이 다른 FK 참조
+        #   (consumable_order_items.linked_project_id=소모품→장비 연결, projects.parent_project_id 등)는
+        #   못 잡아 본체 삭제 시 FK 충돌→삭제 실패. FK 목록 기준으로 모든 참조 컬럼을 SET NULL(또는 DELETE).
         try:
             all_tables = [r[0] for r in c.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'sqlite_%' AND name <> 'projects'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             ).fetchall()]
             for tname in all_tables:
+                ref_cols = []
+                try:
+                    for _fk in c.execute(f"PRAGMA foreign_key_list({tname})").fetchall():
+                        # _fk: (id, seq, table, from, to, on_update, on_delete, match)
+                        if _fk[2] == "projects" and _fk[3]:
+                            ref_cols.append(_fk[3])
+                except Exception:
+                    pass
+                # FK 선언이 없어도 관례적 project_id 컬럼 보강
                 try:
                     cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
                 except Exception:
-                    continue
-                if "project_id" not in cols:
-                    continue
-                # 먼저 SET NULL (해당 row 가 살아 있으면 됨)
-                try:
-                    c.execute(f"UPDATE {tname} SET project_id=NULL WHERE project_id=?", (pid,))
-                except Exception:
-                    # NULL 허용 안 하면 row 자체 삭제
+                    cols = []
+                if tname != "projects" and "project_id" in cols and "project_id" not in ref_cols:
+                    ref_cols.append("project_id")
+                for _col in set(ref_cols):
                     try:
-                        c.execute(f"DELETE FROM {tname} WHERE project_id=?", (pid,))
+                        c.execute(f"UPDATE {tname} SET {_col}=NULL WHERE {_col}=?", (pid,))
                     except Exception:
-                        pass
+                        try:
+                            c.execute(f"DELETE FROM {tname} WHERE {_col}=?", (pid,))
+                        except Exception:
+                            pass
         except Exception:
             pass
 
@@ -9687,7 +10316,7 @@ def ensure_phases_for_project(project_id: int):
     with db_session() as c:
         # 사업부 가져오기
         proj = c.execute("SELECT biz_div FROM projects WHERE id=?", (project_id,)).fetchone()
-        biz_div = proj["biz_div"] if proj and proj["biz_div"] in ("T", "M") else "T"
+        biz_div = proj["biz_div"] if proj and proj["biz_div"] in ("T", "M", "L") else "T"
         # 기존 phase 확인
         exist = {r["phase_code"] for r in c.execute(
             "SELECT phase_code FROM project_phases WHERE project_id=?", (project_id,)
@@ -11536,6 +12165,13 @@ def seed_recent_tasks_topup() -> int:
     today = _date.today()
     week_ago = (today - _td(days=6)).isoformat()
     with db_session() as c:
+        # v5H226z135: 운영 모드(데모 초기화 후) — 데모 task 재생성 차단
+        try:
+            _r = c.execute("SELECT value FROM app_settings WHERE key='demo_seed_off'").fetchone()
+            if _r and str(_r[0]) == '1':
+                return 0
+        except Exception:
+            pass
         n = c.execute(
             "SELECT COUNT(*) FROM tasks WHERE work_date>=?", (week_ago,)
         ).fetchone()[0]
@@ -11765,4 +12401,354 @@ def get_part_project_usage(part_id: int, limit: int = 50) -> list:
             (int(part_id), int(limit))
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# =====================================================
+# v5H226z136 (2026-05-31): 데모/시드 데이터 초기화 (앱 내 — admin/ceo 전용)
+#   미리보기(reset_demo_preview) → 확인 → 실행(reset_demo_apply).
+#   보존: 구조·마스터·실직원/대표. 비움: 트랜잭션·데모. 재시드 차단 플래그 설정.
+# =====================================================
+RESET_KEEP_TABLES = {
+    "teams", "app_settings",
+    "permissions", "permission_groups", "group_permissions", "user_groups",
+    "countries_master", "payment_terms", "exchange_rates",
+    "workflow_nodes_master", "workflow_template_nodes", "workflow_templates",
+    "boards", "shared_contacts", "user_mail_creds",
+    "sqlite_sequence", "users",
+}
+# 데모/시드 사용자: 사번 없음 + ceo 아님 (실직원·대표 절대 보존)
+_RESET_DEMO_USER_WHERE = "(employee_no IS NULL OR TRIM(employee_no)='') AND COALESCE(role,'') <> 'ceo'"
+
+# v5H226z192 (대표 지시): 데모 기간 '항목(그룹)별' 선택 초기화.
+#   그룹 단위로 골라서 비움(조건부 삭제 없음). 사용자/설정/마스터/주소록은 그대로 보존.
+#   '업체별' = 협력사 그룹. 전체 초기화(reset_demo_*)는 별개로 그대로 유지.
+RESET_GROUPS = [
+    {"key": "customers", "label": "🤝 고객사", "desc": "고객사·담당자·고객 이력",
+     "tables": ["customers", "customer_contacts", "customer_history"]},
+    {"key": "sales", "label": "📊 매출·영업", "desc": "프로젝트·수주·견적·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA)",
+     "tables": ["projects", "project_history", "project_milestones", "project_phases", "project_retros",
+                "project_forecasts", "project_burndown_snapshots", "project_workflow",
+                "project_workflow_edges", "project_workflow_nodes", "project_workflow_node_checkpoints",
+                "quotations", "quotation_items", "quotation_history",
+                "orders", "order_items", "order_status_history", "production_orders", "ic_invoice_pairs",
+                "invoices", "receipts", "receipts_payment", "shipments",
+                "export_orders", "commercial_invoices", "packing_lists", "packing_items",
+                "bills_of_lading", "customs_declarations", "fta_certificates", "fta_certificate_items"]},
+    {"key": "suppliers", "label": "🏭 협력사(업체)", "desc": "협력사(공급업체)",
+     "tables": ["suppliers"]},
+    {"key": "materials", "label": "🔩 자재·구매", "desc": "부품·단가·발주·자재요청·재고·실사·원가시뮬",
+     "tables": ["parts", "part_prices", "part_attachments", "price_change_history", "catalog_favorites",
+                "purchase_orders", "po_items", "po_item_project_links",
+                "material_requests", "material_request_items",
+                "stock_movements", "stock_adjustments", "stock_audits", "stock_audit_items",
+                "cost_simulations", "rate_alerts"]},
+    {"key": "consumables", "label": "📦 소모품", "desc": "소모품 발주",
+     "tables": ["consumable_orders", "consumable_order_items"]},
+    {"key": "quality", "label": "✅ 품질·이슈·변경", "desc": "QC·QMS·시정/예방·작업지시·변경·이슈",
+     "tables": ["qc_inspection_reports", "qc_inspection_items", "qc_inspections", "qc_disposition",
+                "corrective_actions", "preventive_actions", "qms_audit_log", "audit_attachments",
+                "work_orders", "work_order_items",
+                "changes", "change_impacts", "change_reads",
+                "issues", "issues_out", "issue_logs"]},
+    {"key": "tasks", "label": "📝 업무·게시판·티켓", "desc": "일일업무·태스크·게시판·티켓·알림·활동",
+     "tables": ["tasks", "task_comments", "task_delegations", "task_reactions", "activities",
+                "team_summaries", "team_history",
+                "board_posts", "board_comments", "comment_mentions",
+                "tickets", "ticket_comments", "notifications"]},
+]
+
+
+def reset_groups_preview() -> list:
+    """그룹별로 '지워질 행 수' 미리보기 (변경 없음)."""
+    out = []
+    with db_session() as c:
+        existing = set(r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+        for g in RESET_GROUPS:
+            tabs = [t for t in g["tables"] if t in existing and t not in RESET_KEEP_TABLES]
+            total = 0
+            per = []
+            for t in tabs:
+                try:
+                    n = c.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                except Exception:
+                    n = 0
+                total += n
+                if n:
+                    per.append({"table": t, "count": n})
+            per.sort(key=lambda x: -x["count"])
+            out.append({"key": g["key"], "label": g["label"], "desc": g["desc"],
+                        "tables": per, "table_count": len(tabs), "total_rows": total})
+    return out
+
+
+def reset_groups_apply(group_keys, actor_name: str = "") -> dict:
+    """선택한 그룹만 비움. DB 백업 먼저 → 그룹 테이블 DELETE. 사용자/설정/마스터 보존.
+    반환: {ok, backup, cleared:{label:행수}, groups:[label], error?}"""
+    import shutil, datetime as _dt
+    keys = set(group_keys or [])
+    sel = [g for g in RESET_GROUPS if g["key"] in keys]
+    if not sel:
+        return {"ok": False, "error": "선택된 항목이 없습니다. 하나 이상 선택하세요."}
+    backup = ""
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_resetgrp_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    try:
+        cleared = {}
+        with db_session() as c:
+            try:
+                c.execute("PRAGMA foreign_keys=OFF")
+            except Exception:
+                pass
+            existing = set(r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+            for g in sel:
+                cnt = 0
+                for t in g["tables"]:
+                    if t not in existing or t in RESET_KEEP_TABLES:
+                        continue
+                    try:
+                        n = c.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                    except Exception:
+                        n = 0
+                    try:
+                        c.execute(f'DELETE FROM "{t}"')
+                        c.execute("DELETE FROM sqlite_sequence WHERE name=?", (t,))
+                        cnt += n
+                    except Exception:
+                        pass
+                cleared[g["label"]] = cnt
+            try:
+                c.execute(
+                    "INSERT INTO app_settings(key, value) VALUES('demo_reset_at', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')} by {actor_name} "
+                     f"(항목초기화: {', '.join(g['key'] for g in sel)})",),
+                )
+            except Exception:
+                pass
+        return {"ok": True, "backup": backup, "cleared": cleared,
+                "groups": [g["label"] for g in sel]}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "backup": backup}
+
+
+# v5H226z193 (대표 지시): 매출·영업 '사업부별' 초기화 (자동화 M만 등).
+#   해당 사업부 프로젝트 + 딸린 수주·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA) 연쇄삭제.
+#   견적(quotations)은 project 직접연결 컬럼이 없어(현 데이터 orders.quote_id 전부 NULL) 사업부 귀속 불가 → 제외.
+#   PO·작업지시·이슈·변경·업무·재고 등 타 그룹 데이터는 projects_delete_logi 가 SET NULL(보존·언링크).
+SALES_DIVISIONS = [
+    {"key": "M", "label": "🤖 자동화 (M)",     "where": "biz_div='M'"},
+    {"key": "T", "label": "🔬 검사기 (T)",     "where": "biz_div='T'"},
+    {"key": "L", "label": "💄 라이프밸류 (L)", "where": "biz_div='L'"},
+    {"key": "E", "label": "🌐 기타 (E)",       "where": "(biz_div='E' OR project_type='OTHER')"},
+    {"key": "C", "label": "📦 소모품 (C)",     "where": "(biz_div='C' OR project_type='CONSUMABLE')"},
+]
+
+
+def reset_sales_division_preview() -> list:
+    """사업부별 프로젝트/수주 수 미리보기 (변경 없음)."""
+    out = []
+    with db_session() as c:
+        for d in SALES_DIVISIONS:
+            try:
+                n = c.execute(f"SELECT COUNT(*) FROM projects WHERE {d['where']}").fetchone()[0]
+            except Exception:
+                n = 0
+            try:
+                o = c.execute(
+                    f"SELECT COUNT(*) FROM orders WHERE project_id IN "
+                    f"(SELECT id FROM projects WHERE {d['where']})").fetchone()[0]
+            except Exception:
+                o = 0
+            out.append({"key": d["key"], "label": d["label"], "projects": n, "orders": o})
+    return out
+
+
+def reset_sales_division_apply(divisions, actor_name: str = "") -> dict:
+    """선택 사업부의 매출 데이터 초기화. 자동 백업 → 수출체인 삭제 → 프로젝트별 연쇄삭제(force).
+    반환: {ok, backup, deleted_projects, export_deleted, failed, divisions, error?}"""
+    import shutil, datetime as _dt
+    sel = [d for d in SALES_DIVISIONS if d["key"] in set(divisions or [])]
+    if not sel:
+        return {"ok": False, "error": "선택된 사업부가 없습니다."}
+    where = " OR ".join(f"({d['where']})" for d in sel)
+    backup = ""
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_resetdiv_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+
+    def _inq(n):
+        return ",".join("?" * n)
+    try:
+        # ── phase 1: 대상 pid 수집 + 수출 체인 삭제(수출은 order_id 로 연결 → orders 삭제 전에 처리)
+        pids = []
+        exp_deleted = 0
+        with db_session() as c:
+            try:
+                c.execute("PRAGMA foreign_keys=OFF")
+            except Exception:
+                pass
+            pids = [r[0] for r in c.execute(f"SELECT id FROM projects WHERE {where}").fetchall()]
+            if pids:
+                oids = [r[0] for r in c.execute(
+                    f"SELECT id FROM orders WHERE project_id IN ({_inq(len(pids))})", pids).fetchall()]
+                if oids:
+                    eoids = [r[0] for r in c.execute(
+                        f"SELECT id FROM export_orders WHERE order_id IN ({_inq(len(oids))})", oids).fetchall()]
+                    if eoids:
+                        eq = _inq(len(eoids))
+                        pl_ids = [r[0] for r in c.execute(
+                            f"SELECT id FROM packing_lists WHERE export_order_id IN ({eq})", eoids).fetchall()]
+                        cert_ids = [r[0] for r in c.execute(
+                            f"SELECT id FROM fta_certificates WHERE export_order_id IN ({eq})", eoids).fetchall()]
+                        if pl_ids:
+                            try: c.execute(f"DELETE FROM packing_items WHERE pl_id IN ({_inq(len(pl_ids))})", pl_ids)
+                            except Exception: pass
+                        if cert_ids:
+                            try: c.execute(f"DELETE FROM fta_certificate_items WHERE cert_id IN ({_inq(len(cert_ids))})", cert_ids)
+                            except Exception: pass
+                        for t in ["commercial_invoices", "packing_lists", "bills_of_lading",
+                                  "customs_declarations", "fta_certificates"]:
+                            try: c.execute(f'DELETE FROM "{t}" WHERE export_order_id IN ({eq})', eoids)
+                            except Exception: pass
+                        try:
+                            c.execute(f"DELETE FROM export_orders WHERE id IN ({eq})", eoids)
+                            exp_deleted = len(eoids)
+                        except Exception:
+                            pass
+        if not pids:
+            return {"ok": True, "backup": backup, "deleted_projects": 0, "export_deleted": 0,
+                    "failed": 0, "divisions": [d["label"] for d in sel], "note": "해당 사업부 프로젝트가 없습니다."}
+
+        # ── phase 2: 프로젝트별 연쇄삭제 (force=관리코드 잠금 우회). 수주·납품·수금·생산 등 함께 삭제.
+        deleted = 0
+        failed = 0
+        for pid in pids:
+            try:
+                projects_delete_logi(pid, force=True)
+                deleted += 1
+            except Exception:
+                failed += 1
+
+        try:
+            with db_session() as c:
+                c.execute(
+                    "INSERT INTO app_settings(key, value) VALUES('demo_reset_at', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')} by {actor_name} "
+                     f"(사업부매출초기화: {','.join(d['key'] for d in sel)})",),
+                )
+        except Exception:
+            pass
+        return {"ok": True, "backup": backup, "deleted_projects": deleted, "export_deleted": exp_deleted,
+                "failed": failed, "divisions": [d["label"] for d in sel]}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "backup": backup}
+
+
+def _reset_clear_tables(c):
+    tabs = [r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()]
+    return sorted(t for t in tabs if t not in RESET_KEEP_TABLES)
+
+
+def _users_has_empno(c):
+    try:
+        return any(r[1] == "employee_no" for r in c.execute("PRAGMA table_info(users)").fetchall())
+    except Exception:
+        return False
+
+
+def reset_demo_preview() -> dict:
+    """무엇이 지워질지 미리보기 (변경 없음)."""
+    with db_session() as c:
+        clear = _reset_clear_tables(c)
+        rows = []
+        total = 0
+        for t in clear:
+            try:
+                n = c.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+            except Exception:
+                n = 0
+            total += n
+            if n:
+                rows.append({"table": t, "count": n})
+        rows.sort(key=lambda x: -x["count"])
+        has_empno = _users_has_empno(c)
+        demo_users = []
+        if has_empno:
+            demo_users = [dict(r) for r in c.execute(
+                f"SELECT id, name, login_id, role, employee_no FROM users "
+                f"WHERE {_RESET_DEMO_USER_WHERE} ORDER BY id"
+            ).fetchall()]
+            keep_users = c.execute(f"SELECT COUNT(*) FROM users WHERE NOT ({_RESET_DEMO_USER_WHERE})").fetchone()[0]
+        else:
+            keep_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        return {
+            "tables": rows, "total_rows": total, "clear_table_count": len(clear),
+            "demo_users": demo_users, "keep_users": keep_users,
+            "has_empno": has_empno,
+            "keep_tables": sorted(RESET_KEEP_TABLES - {"sqlite_sequence"}),
+        }
+
+
+def reset_demo_apply(actor_name: str = "") -> dict:
+    """실제 초기화. DB 파일 백업 먼저 → 비움 → 데모사용자 삭제 → demo_seed_off=1.
+    반환: {ok, backup, deleted_users, cleared_tables, error?}"""
+    import shutil, datetime as _dt
+    backup = ""
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_reset_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+
+    try:
+        with db_session() as c:
+            try:
+                c.execute("PRAGMA foreign_keys=OFF")
+            except Exception:
+                pass
+            clear = _reset_clear_tables(c)
+            for t in clear:
+                try:
+                    c.execute(f'DELETE FROM "{t}"')
+                    c.execute("DELETE FROM sqlite_sequence WHERE name=?", (t,))
+                except Exception:
+                    pass
+            udel = 0
+            if _users_has_empno(c):
+                cur = c.execute(f"DELETE FROM users WHERE {_RESET_DEMO_USER_WHERE}")
+                udel = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+            c.execute(
+                "INSERT INTO app_settings(key, value) VALUES('demo_seed_off','1') "
+                "ON CONFLICT(key) DO UPDATE SET value='1'"
+            )
+            try:
+                c.execute(
+                    "INSERT INTO app_settings(key, value) VALUES('demo_reset_at', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')} by {actor_name}",),
+                )
+            except Exception:
+                pass
+        return {"ok": True, "backup": backup, "deleted_users": udel, "cleared_tables": len(clear)}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "backup": backup}
 

@@ -6,7 +6,8 @@
 .pc-wrap { max-width: 1100px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
 .pc-intro { font-size: 13.5px; color: var(--mute); line-height: 1.65; margin: var(--space-3) 0 var(--space-5); }
 .pc-intro b { color: var(--ink); }
-.pc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.pc-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+@media (max-width: 1180px) { .pc-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 980px) { .pc-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .pc-grid { grid-template-columns: 1fr; } }
 .pc-card {
@@ -45,6 +46,9 @@
 .pc-card.other::before { background: #7d6cb1; }
 .pc-card.other .hint { background: rgba(125, 108, 177, 0.08); color: #4a3d80; }
 .pc-card.other .go { color: #4a3d80; }
+.pc-card.lifevalue::before { background: #db2777; }
+.pc-card.lifevalue .hint { background: rgba(219, 39, 119, 0.08); color: #9d174d; }
+.pc-card.lifevalue .go { color: #9d174d; }
 </style></head>
 <body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -52,15 +56,21 @@
 <main class="main">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/sales">매출·영업</a> · <b>프로젝트 등록</b></div>
+      <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>등록</b></div>
       <h1 class="page-title">프로젝트 <em>등록</em> — 유형 선택</h1>
     </div>
   </div>
 
+  {# v5H226z151: 목록과 동일한 [전체 목록] / [등록] 탭 (등록 활성) #}
+  <div style="display:flex;gap:4px;margin:0 var(--content-pad) var(--space-4);border-bottom:2px solid var(--qv-line);">
+    <a href="/projects" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📋 전체 목록</a>
+    <span style="padding:9px 20px;font-size:14px;font-weight:800;color:var(--knk-red);border-bottom:3px solid var(--knk-red);margin-bottom:-2px;">🆕 등록</span>
+  </div>
+
   <div class="pc-wrap">
     <p class="pc-intro">
-      등록할 항목의 <b>유형</b>을 먼저 선택하세요. 4종 모두 <b>관리코드</b>(예:
-      <span style="font-family:Consolas,monospace;">001T2605 / 001M2605 / 001E2605 / 001C2605</span>)가
+      등록할 항목의 <b>유형</b>을 먼저 선택하세요. 5종 모두 <b>관리코드</b>(예:
+      <span style="font-family:Consolas,monospace;">001T2605 / 001M2605 / 001L2605 / 001E2605 / 001C2605</span>)가
       자동 발급되며, <b>수주확정</b> 시점에 수주번호도 자동 발행됩니다.
       <span style="color:#8a7842;">· E 기타 / C 소모품은 진행 사업부(검사기/자동화)를 함께 선택하세요.</span>
       <span style="color:#8a7842;">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(T·M 전용).</span>
@@ -85,6 +95,15 @@
         <span class="go">선택 →</span>
       </a>
 
+      <a class="pc-card lifevalue" href="/projects/new?type=NEW_EQUIP&biz_div=L">
+        <div class="ic">💄</div>
+        <div class="code">LIFEVALUE</div>
+        <h3>L 라이프밸류</h3>
+        <div class="desc">자체상품 · ODM 개인용/미용기기 (샵 납품)</div>
+        <div class="hint">관리코드(예: 001L2605) 자동 발급 + 수주번호 자동 발행</div>
+        <span class="go">선택 →</span>
+      </a>
+
       <a class="pc-card other" href="/projects/new?type=OTHER">
         <div class="ic">🌐</div>
         <div class="code">ETC.</div>
@@ -94,39 +113,50 @@
         <span class="go">선택 →</span>
       </a>
 
-      <a class="pc-card consumable" href="/projects/new?type=CONSUMABLE">
+      {# v5H226z245 (대표 지시): 소모품 시작을 프로젝트 등록에서 → '소모품 수주'(업로드) 화면으로 연결.
+         (카드 설명이 이미 업로드 흐름인데 링크만 수기 폼이던 불일치 수정) #}
+      <a class="pc-card consumable" href="/consumables/new">
         <div class="ic">📦</div>
         <div class="code">CONSUMABLE</div>
         <h3>C 소모품</h3>
         <div class="desc">묶음 단위 관리코드 자동 발급 (예: 001C2605)</div>
-        <div class="hint">엑셀 업로드 → 라인 일괄 등록 → 라인별 장비 매칭</div>
-        <span class="go">선택 →</span>
+        <div class="hint">고객사 소모품 파일 업로드 → 라인 일괄 등록 → 라인별 장비 매칭</div>
+        <span class="go">소모품 수주 →</span>
       </a>
     </div>
 
-    <div style="margin-top:24px;padding:20px 24px;background:#f5f5f5;border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
-      <div style="font-size:15px;color:#444;font-weight:700;">
-        📋 등록된 항목 조회
-      </div>
-      <div style="display:flex;gap:10px;">
-        <a href="/projects" style="padding:14px 28px;background:#fff;border:2px solid #b07a18;border-radius:10px;font-size:16px;font-weight:800;color:#7c4a03;text-decoration:none;display:inline-flex;align-items:center;gap:10px;box-shadow:0 2px 6px rgba(176,122,24,0.12);transition:all .15s;" onmouseover="this.style.background='#fef9e6';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(176,122,24,0.20)'" onmouseout="this.style.background='#fff';this.style.transform='';this.style.boxShadow='0 2px 6px rgba(176,122,24,0.12)'">
-          <span style="font-size:22px;">📊</span>
-          <span>프로젝트 목록 <span style="font-size:13px;font-weight:600;color:#8a7842;">(T·M·E·C 통합)</span></span>
-        </a>
-      </div>
-    </div>
+    {# v5H226z152 (대표 지시): '등록된 항목 조회 / 프로젝트 목록' 블록 제거 — 상단 [전체 목록] 탭과 중복 #}
 
     <!-- v5H152: 프로젝트 엑셀 일괄 등록 -->
     <div style="margin-top:14px;padding:16px 20px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-      <div style="font-size:13px;color:#555;line-height:1.55;">
-        📥 <b>엑셀 일괄 등록</b> · T 검사기 / M 자동화 다수 건을 한 번에 등록
-        <div style="font-size:11.5px;color:#8a7842;margin-top:4px;">양식 다운로드 → 입력 → 업로드 → 미리보기 확인 → 확정</div>
+      {# v5H226z247 (대표 지시): 무엇을 업로드할 수 있는지 명확히 — 출고형태 3종 + 소모품 제외 안내 #}
+      <div style="font-size:13px;color:#555;line-height:1.6;max-width:560px;">
+        📥 <b>엑셀 일괄 등록</b> — <b>장비</b>(검사기·자동화)를 <b>출고형태별 양식</b>으로 다수 건 한 번에 등록
+        <div style="font-size:11.5px;color:#8a7842;margin-top:6px;line-height:1.7;">
+          <b>올릴 수 있는 항목(아래 3종 양식 중 선택):</b><br>
+          · <b style="color:#1d4ed8;">ASS'Y</b> — 완제품·장비 (한 줄 = 1대)<br>
+          · <b style="color:#b45309;">부품</b> — 한 장비에 딸린 부품 리스트 <b>(1 장비 = 1 파일)</b><br>
+          · <b style="color:#6d28d9;">기타</b> — 검사기/자동화 외 기타 출고 품목<br>
+          <span style="color:#15803d;font-weight:700;">※ 소모품은 여기가 아니라 위 [📦 C 소모품] 카드에서 올립니다.</span><br>
+          <span style="color:#9a8a5a;">흐름: 양식 다운로드 → 입력 → 업로드 → 미리보기 → 확정 · 관리코드는 자동 부여</span>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;">
-        <a href="/projects/import-template" style="padding:8px 16px;background:#fff;border:1px solid #d6cdb6;border-radius:6px;font-size:13px;font-weight:600;color:#333;text-decoration:none;">📥 양식 다운로드</a>
-        <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 16px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        {# v5H226z228 (대표 지시): 출고형태별 3종 양식 다운로드 #}
+        <a href="/projects/import-template/assy" style="padding:8px 14px;background:#e0edff;border:1px solid #b9d2ff;border-radius:6px;font-size:13px;font-weight:700;color:#1d4ed8;text-decoration:none;">📥 ASS'Y 양식</a>
+        <a href="/projects/import-template/parts" style="padding:8px 14px;background:#fff3e0;border:1px solid #f0d9a8;border-radius:6px;font-size:13px;font-weight:700;color:#b45309;text-decoration:none;">📥 부품 양식</a>
+        <a href="/projects/import-template/etc" style="padding:8px 14px;background:#f3f0ff;border:1px solid #d8d0f0;border-radius:6px;font-size:13px;font-weight:700;color:#6d28d9;text-decoration:none;">📥 기타 양식</a>
+        {# v5H226z242 (대표 지시): 소모품은 '소모품 수주' 메뉴(/consumables)에서 고객사 파일(드림텍 형식) 직접 업로드 → 프로젝트용 소모품 양식 버튼 숨김 #}
+        {# <a href="/projects/import-template/consumable" ...>📥 소모품 양식</a> #}
+        <span style="width:1px;height:22px;background:#e6dcc0;margin:0 2px;"></span>
+        <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 14px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
         <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
       </div>
+      {# v5H226z234 (대표 지시): 과거 데이터 일괄이관 모드 — 평상시 OFF, 전체 이관 때만 체크 #}
+      <label style="display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:6px 10px;background:#fff8ed;border:1px dashed #e0b96a;border-radius:6px;font-size:12.5px;color:#8a6a1a;cursor:pointer;">
+        <input type="checkbox" id="importMigrateMode" style="width:15px;height:15px;cursor:pointer;">
+        <span>📦 <b>과거 데이터 일괄이관 모드</b> — '추가발주'인데 신규 원본이 없으면 <b>발주일 가장 빠른 1줄을 신규로 자동 승격</b> (평상시엔 끄세요)</span>
+      </label>
     </div>
   </div>
 
@@ -145,9 +175,14 @@
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">행</th>
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">사업부</th>
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">프로젝트명</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">고객사</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">모델명<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(품명)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">1차 고객사<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(본사 매출)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">2차 고객사<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(최종)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">PO유형</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">출고형태</th>
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">상태</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">단가×수량=금액</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">금액(본사)<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">단가×수량</span></th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">최종매출<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(참고)</span></th>
               <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">검증</th>
             </tr>
           </thead>
@@ -167,6 +202,9 @@
     if (!file) return;
     const fd = new FormData();
     fd.append('xlsx', file);
+    // v5H226z234: 과거 데이터 일괄이관 모드 (고아 추가발주 신규 자동승격) — 체크 시에만 ON
+    const _mig = document.getElementById('importMigrateMode');
+    fd.append('migrate_mode', (_mig && _mig.checked) ? '1' : '0');
     let r;
     try {
       r = await fetch('/projects/import-xlsx', {method:'POST', body: fd});
@@ -182,7 +220,16 @@
   }
   function renderImportPreview(j) {
     const sum = document.getElementById('importPreviewSummary');
-    sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
+    // v5H226z231: 인식된 행이 0건이면 빈 화면 대신 원인 안내
+    if (!j.total) {
+      sum.innerHTML = '<div style="color:#b91c1c;font-weight:700;">⚠ 인식된 데이터가 없습니다 (0건).</div>'
+        + '<div style="font-size:12px;color:#7c4a03;margin-top:4px;line-height:1.6;">'
+        + '· 데이터 시트 이름이 <b>T_검사기 / M_자동화 / L_라이프밸류 / E_기타 / C_소모품</b> 중 하나여야 인식됩니다.<br>'
+        + '· <b>새 3종 양식(ASS\'Y·부품·기타)</b>은 업로드 인식이 <b>준비 중</b>입니다 — 지금은 <b>기존 통합 양식</b>으로 올려주세요.<br>'
+        + '· 헤더 행(3행)과 데이터 행(5행~)이 비어있지 않은지 확인하세요.</div>';
+    } else {
+      sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
+    }
     const tb = document.querySelector('#importPreviewTable tbody');
     tb.innerHTML = '';
     j.rows.forEach((r, idx) => {
@@ -190,14 +237,35 @@
       const hasErr = r._errors && r._errors.length > 0;
       tr.style.background = hasErr ? '#fff0f0' : (idx % 2 ? '#fafaf5' : '#fff');
       const fmt = (n) => Number(n||0).toLocaleString();
-      const errHtml = hasErr ? r._errors.map(e => '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>').join('') : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>';
+      const errHtml = hasErr
+        ? r._errors.map(e => '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>').join('')
+        : (r._promoted_new
+            ? '<span style="color:#b45309;font-size:11px;font-weight:700;">★ 신규 승격</span><div style="font-size:10px;color:#888;">발주일 최선두 → ' + escapeHtml(r.mgmt_code_input||'') + ' 프로젝트 생성</div>'
+            : (r._auto_merge
+            ? '<span style="color:#7c3aed;font-size:11px;font-weight:700;">↪ 같은 관리번호 합침</span><div style="font-size:10px;color:#888;">' + escapeHtml(r.mgmt_code_input||'') + ' 같은 프로젝트에 품목 추가</div>'
+            : (r._followup
+                ? '<span style="color:#1d4ed8;font-size:11px;font-weight:700;">↪ 추가발주</span><div style="font-size:10px;color:#888;">기존 ' + escapeHtml(r.mgmt_code_input||'') + ' 에 SO 추가</div>'
+                : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>')));
+      // 출고형태 코드 → 라벨
+      const sfMap = { 'ASSEMBLY': "ASS'Y", 'PARTS': '부품', 'ETC': '기타' };
+      const sfLabel = sfMap[r.shipment_form] || "ASS'Y";
+      // 2차 고객사 / 최종매출 (2단계 발주면 강조)
+      const sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:#bbb;">-</span>';
+      const finA = (r.final_amount && Number(r.final_amount) > 0)
+        ? '<b style="color:#1d4ed8;">' + fmt(r.final_amount) + '</b> <span style="color:#999;font-size:10px;">VND</span>'
+        : '<span style="color:#bbb;">-</span>';
       tr.innerHTML =
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + r.row_no + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;"><b>' + r.biz_div + '</b></td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.name) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.model_name ? escapeHtml(r.model_name) : '<span style="color:#bbb;">-</span>') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.customer_name || '-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sec + (r.two_tier_order ? ' <span style="font-size:9px;color:#1d4ed8;background:#eff6ff;padding:0 4px;border-radius:3px;">2단계</span>' : '') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.po_type ? escapeHtml(r.po_type) : '<span style="color:#bbb;">신규</span>') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sfLabel + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmt(r.unit_price) + ' × ' + r.unit_qty + ' = <b>' + fmt(r.amount) + '</b> ' + r.currency + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + finA + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + '</td>';
       tb.appendChild(tr);
     });
@@ -243,6 +311,11 @@
     let msg = '등록 완료: ' + j.created_count + '건';
     if (j.failed_count > 0) {
       msg += '\n실패 ' + j.failed_count + '건:\n' + j.failed.map(f => '  · 행 ' + f.row_no + ' (' + (f.name||'') + '): ' + f.error).join('\n');
+    }
+    // v5H226z262: 수주·호기(SO) 생성 실패 경고 — 프로젝트는 등록됐으나 매출/납기가 누락된 건 표면화
+    if (j.so_warning_count > 0) {
+      msg += '\n\n⚠ 수주·호기 생성 실패 ' + j.so_warning_count + '건 (프로젝트는 등록됨, 매출/납기 누락 가능 — 해당 프로젝트 상세를 열어 확인하세요):\n'
+        + j.so_warnings.map(w => '  · 행 ' + w.row_no + ' [' + (w.mgmt_code||'') + '] ' + (w.name||'') + ': ' + w.error).join('\n');
     }
     alert(msg);
     closeImportPreview();
