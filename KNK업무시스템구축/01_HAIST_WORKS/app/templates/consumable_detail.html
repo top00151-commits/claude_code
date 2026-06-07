@@ -50,10 +50,10 @@ a { text-decoration: none; color: inherit; }
 .s-pill { padding: 4px 10px; border-radius: 99px; font-size: 11px; cursor: pointer; border: 1px solid var(--qv-line); background: var(--qv-surface-2); }
 .s-pill.active { background: var(--qv-ink); color: white; border-color: transparent; }
 table.items { width: 100%; border-collapse: collapse; font-size: 13px; }
-table.items th, table.items td { padding: 8px 10px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: middle; }
+table.items th, table.items td { padding: 5px 10px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: middle; }  /* v5H226z296: 행 높이 축소 */
 table.items th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); }
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* v5H226z295: 와이드 2:1 */
-table.items input { padding: 4px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; }
+table.items input { padding: 3px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; }  /* v5H226z296 */
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
 .modal-bg.show { display: flex; }
@@ -169,10 +169,15 @@ tfoot td { background: #fafafa; font-weight: 700; }
               {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
             </td>
             <td>
-              <input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" />
-              <input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" style="margin-top:4px;" />
-              {% if it.equip_name %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;">장비: {{ it.equip_name }}</div>{% endif %}
-              {% if it.part_no %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;">자재: {{ it.part_no }}</div>{% endif %}
+              {# v5H226z296(대표 지시): 3줄 → 2줄. 모델 줄에 장비명, 품명 줄에 자재번호를 작게 인라인 #}
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" style="flex:1;min-width:0;" />
+                {% if it.equip_name %}<span style="font-size:10px;color:var(--qv-ink-3);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;" title="장비명: {{ it.equip_name }}">🔧 {{ it.equip_name }}</span>{% endif %}
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" style="flex:1;min-width:0;" />
+                {% if it.part_no %}<span style="font-size:10px;color:var(--qv-ink-3);white-space:nowrap;" title="자재번호">📦 {{ it.part_no }}</span>{% endif %}
+              </div>
             </td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
