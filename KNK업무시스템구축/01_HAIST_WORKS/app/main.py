@@ -13407,6 +13407,22 @@ async def projects_new_form(request: Request,
                customers=_logi.customers_for_picker())
 
 
+@app.get("/projects/quick", response_class=HTMLResponse)
+async def projects_quick_form(request: Request, embed: str = ""):
+    """v5H226z276 (대표 지시): '엑셀처럼' 한 화면 평면 등록 폼 — 보드 칸들을 한 번에 채워 등록.
+    POST 는 기존 /projects/new 재사용(필드명 동일). 검사기/자동화/라이프밸류/기타 (소모품은 별도 업로드)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
+    return ctx(request, "project_quick_form.html",
+               user=u, active="sales_projects", embed=_embed,
+               can_money=bool(can_view_sales(u)),
+               customers=_logi.customers_for_picker())
+
+
 @app.post("/projects/new")
 async def projects_new_submit(request: Request):
     """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
@@ -13438,10 +13454,16 @@ async def projects_new_submit(request: Request):
     if biz_div:
         _back_qs += f"&biz_div={biz_div}"
     # v5H226z274: embed(모달) 모드면 검증실패 재렌더도 embed 유지
-    if str(form.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y"):
+    _embed_q = str(form.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y")
+    if _embed_q:
         _back_qs += "&embed=1"
+    # v5H226z276: 간편(quick) 폼에서 온 검증실패는 간편 폼으로 되돌림(전체폼으로 튕기지 않게)
+    _is_quick = str(form.get("quick") or "").strip().lower() in ("1", "true", "on", "yes", "y")
     def _err_redirect(code: str, extra: str = "") -> RedirectResponse:
-        url = f"/projects/new?{_back_qs}&error={code}"
+        if _is_quick:
+            url = f"/projects/quick?error={code}" + ("&embed=1" if _embed_q else "")
+        else:
+            url = f"/projects/new?{_back_qs}&error={code}"
         if extra:
             url += "&" + extra
         return RedirectResponse(url, status_code=303)

@@ -647,7 +647,7 @@ _on(document,'keydown',(e)=>{ if(e.key==='Escape' && document.getElementById('st
 function openRegModal(){
   const m=document.getElementById('regModal'), f=document.getElementById('regFrame');
   if(!m||!f) return;
-  f.src='/projects/new?embed=1';
+  f.src='/projects/quick?embed=1';   // z276: 엑셀처럼 한 화면 평면 폼
   m.classList.add('show');
 }
 function closeRegModal(){

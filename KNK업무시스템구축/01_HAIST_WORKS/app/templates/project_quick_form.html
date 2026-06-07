@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>신규 등록 (간편) · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z276: '엑셀처럼' 한 화면 평면 등록 폼 */
+.qf-wrap { max-width: 1080px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.qf-intro { font-size: 12.5px; color: var(--qv-ink-3); margin: 6px 0 14px; }
+.qf-card { background:#fff; border:1px solid var(--qv-line); border-radius:12px; padding:18px 20px; }
+.qf-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px 14px; }
+.qf-f { display:flex; flex-direction:column; }
+.qf-f.span2 { grid-column: span 2; }
+.qf-f label { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:3px; }
+.qf-f label .req { color:var(--knk-red); }
+.qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid var(--qv-line); border-radius:7px; font:inherit; font-size:13px; background:var(--qv-surface-2,#f7f8fa); box-sizing:border-box; }
+.qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:#2563eb; background:#fff; }
+.qf-sec { grid-column:1/-1; font-size:11px; font-weight:800; color:var(--knk-red); letter-spacing:.08em; margin:8px 0 -2px; }
+.qf-code { font-family:Consolas,monospace; font-weight:800; color:#1e40af; background:#eef2ff; padding:8px 10px; border-radius:7px; font-size:13px; }
+.qf-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+.qf-btns button, .qf-btns a { padding:10px 22px; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; border:1px solid var(--qv-line); text-decoration:none; }
+.qf-save { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.qf-cancel { background:#fff; color:var(--qv-ink-2); }
+.qf-links { font-size:12px; color:var(--qv-ink-3); margin-top:10px; }
+.qf-links a { color:#1d4ed8; font-weight:700; text-decoration:none; margin-right:14px; }
+.qf-err { display:none; background:#fee2e2; color:#991b1b; padding:9px 14px; border-radius:8px; font-size:13px; margin-bottom:10px; }
+.qf-err.show { display:block; }
+@media (max-width:820px){ .qf-grid{ grid-template-columns: repeat(2,1fr);} .qf-f.span2{grid-column:span 2;} }
+</style></head>
+<body>
+{% if embed %}<style>/* 모달 임베드 — 메뉴·상단바 숨기고 폼만 */
+.top,.sidebar,.victor-dock,#victorDock{display:none!important;}
+.app{display:block!important;min-width:0!important;height:auto!important;}
+.main{height:auto!important;overflow:visible!important;}
+html,body{background:#fff!important;overflow:auto!important;}
+.page-head .crumbs{display:none!important;}</style>{% endif %}
+<div class="app">{% set active_tab = 'sales' %}
+{% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>간편 등록</b></div>
+    <h1 class="page-title">신규 <em>등록</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">— 엑셀 한 줄처럼 채우세요</span></h1>
+  </div></div>
+
+  <div class="qf-wrap">
+    <div class="qf-card">
+      <div class="qf-err" id="qfErr"></div>
+      <form id="quickForm" method="post" action="/projects/new">
+        {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
+        <input type="hidden" name="quick" value="1">
+        <input type="hidden" name="biz_div" id="qBizDiv" value="T">
+        <input type="hidden" name="project_type" id="qPtype" value="NEW_EQUIP">
+        <input type="hidden" name="status" value="진행중">
+        <input type="hidden" name="currency" value="KRW">
+        <input type="hidden" name="confirm_now" value="1">
+        {# 호기 1줄 — 납품위치·금액·납품일 을 수주에 싣기 위해 (submit 시 JS 동기화) #}
+        <input type="hidden" name="unit_label[]" value="">
+        <input type="hidden" name="unit_amount[]" id="qUnitAmount" value="">
+        <input type="hidden" name="unit_due[]" id="qUnitDue" value="">
+        <input type="hidden" name="unit_ship[]" id="qUnitShip" value="">
+        <input type="hidden" name="unit_currency[]" value="KRW">
+
+        <div class="qf-grid">
+          <div class="qf-sec">기본</div>
+          <div class="qf-f"><label>사업부 <span class="req">*</span></label>
+            <select id="qBiz" onchange="qSetBiz()">
+              <option value="T">🔬 검사기</option>
+              <option value="M">⚙ 자동화</option>
+              <option value="L">💄 라이프밸류</option>
+            </select>
+          </div>
+          <div class="qf-f"><label>관리번호</label><div class="qf-code">자동 발급</div></div>
+          <div class="qf-f"><label>고객사 <span class="req">*</span></label>
+            <input list="qCustList" name="customer_name" placeholder="고객사명" autocomplete="off">
+            <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
+          </div>
+          <div class="qf-f"><label>거래구분</label>
+            <select name="is_export"><option value="0">내수</option><option value="1">수출</option></select>
+          </div>
+
+          <div class="qf-f span2"><label>프로젝트명 <span class="req">*</span></label>
+            <input name="name" placeholder="예: 압착 자동화설비 1호기"></div>
+          <div class="qf-f"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명"></div>
+          <div class="qf-f"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
+
+          <div class="qf-f"><label>PO유형</label>
+            <select name="po_type"><option value="신규">신규</option><option value="추가">추가</option></select>
+          </div>
+          <div class="qf-f"><label>수량</label><input type="number" name="unit_qty" value="1" min="1"></div>
+          <div class="qf-f"><label>발주일</label><input type="date" name="order_date" id="qOrderDate"></div>
+          <div class="qf-f"><label>납품일</label><input type="date" name="due_date" id="qDueDate"></div>
+
+          <div class="qf-sec">고객사 담당 · 납품</div>
+          <div class="qf-f"><label>부서</label><input name="cc_dept" placeholder="고객사 담당 부서"></div>
+          <div class="qf-f"><label>담당자</label><input name="cc_name" placeholder="고객사 담당자"></div>
+          <div class="qf-f span2"><label>납품위치</label><input id="qShip" placeholder="납품 위치"></div>
+
+          {% if can_money %}
+          <div class="qf-sec">금액 (영업·관리)</div>
+          <div class="qf-f"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" class="knk-money" placeholder="0"></div>
+          <div class="qf-f"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0"></div>
+          {% endif %}
+
+          <div class="qf-f span2" style="grid-column:1/-1;"><label>비고</label>
+            <input name="note" placeholder="기타 메모"></div>
+        </div>
+
+        <div class="qf-btns">
+          {% if embed %}<a class="qf-cancel" href="javascript:void(0)" onclick="try{parent.postMessage({knkRegClose:true},'*')}catch(e){}">취소</a>
+          {% else %}<a class="qf-cancel" href="/projects">취소</a>{% endif %}
+          <button type="submit" class="qf-save">＋ 등록</button>
+        </div>
+      </form>
+      <div class="qf-links">
+        <a href="/projects/new{% if embed %}?embed=1{% endif %}">상세 등록(품목 여러 개)</a>
+        <a href="/consumables/new{% if embed %}?embed=1{% endif %}">📦 소모품 등록</a>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+<script>
+function qSetBiz(){
+  var v=document.getElementById('qBiz').value;
+  document.getElementById('qBizDiv').value=v;
+  document.getElementById('qPtype').value='NEW_EQUIP';  // 검사기/자동화/라이프밸류
+}
+document.getElementById('quickForm').addEventListener('submit',function(e){
+  var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
+  var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
+  var err=document.getElementById('qfErr');
+  if(!name||!cust||!model||!equip){ e.preventDefault();
+    err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); return; }
+  // 호기 1줄 동기화 (납품위치·금액·납품일 → 수주에 반영)
+  var amt=document.getElementById('qAmount');
+  document.getElementById('qUnitAmount').value=amt?amt.value.replace(/,/g,''):'';
+  document.getElementById('qUnitDue').value=document.getElementById('qDueDate').value||'';
+  document.getElementById('qUnitShip').value=document.getElementById('qShip').value||'';
+});
+// 서버 검증 오류(고객사 미등록 등) 표시 + 고객사 prefill
+(function(){
+  var p=new URLSearchParams(location.search), er=p.get('error');
+  if(er){
+    var msg={customer_not_registered:'등록된 고객사가 아닙니다. 고객사를 먼저 등록하거나 목록에서 선택하세요.',
+      name_required:'프로젝트명이 필요합니다.', biz_div_required:'사업부를 선택하세요.',
+      customer_required:'고객사를 입력하세요.'}[er] || ('오류: '+er);
+    var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show');
+    var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
+  }
+})();
+qSetBiz();
+if(window.knkScanMoney) knkScanMoney();
+</script>
+</body>
+</html>
