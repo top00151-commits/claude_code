@@ -647,8 +647,10 @@ CREATE TABLE IF NOT EXISTS consumable_order_items (
     amount             REAL DEFAULT 0,
     linked_project_id  INTEGER REFERENCES projects(id), -- 관리번호 연결(선택)
     note               TEXT,
-    image_path         TEXT,                         -- 압축본 경로
-    image_thumb_path   TEXT                          -- 썸네일 경로
+    image_path         TEXT,                         -- 압축본 경로(사진/PICTURE)
+    image_thumb_path   TEXT,                         -- 썸네일 경로(사진/PICTURE)
+    image_loc_path     TEXT,                         -- v5H226z286: 사진위치(PICTURE LOCATION) 압축본
+    image_loc_thumb_path TEXT                        -- v5H226z286: 사진위치 썸네일
 );
 CREATE INDEX IF NOT EXISTS idx_coi_co ON consumable_order_items(co_id);
 CREATE INDEX IF NOT EXISTS idx_coi_proj ON consumable_order_items(linked_project_id);
@@ -2450,6 +2452,12 @@ def init_db():
             if "is_export" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN is_export INTEGER DEFAULT 0")
                 print("[v5H226z285] consumable_orders.is_export 컬럼 추가됨")
+            # v5H226z286 (대표 지시): 엑셀의 사진 칸 2개 모두 반영 — 라인에 '사진위치' 이미지 컬럼 추가.
+            _coicols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
+            for _lc in ("image_loc_path", "image_loc_thumb_path"):
+                if _lc not in _coicols:
+                    c.execute(f"ALTER TABLE consumable_order_items ADD COLUMN {_lc} TEXT")
+                    print(f"[v5H226z286] consumable_order_items.{_lc} 컬럼 추가됨")
             # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
             # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
             try:

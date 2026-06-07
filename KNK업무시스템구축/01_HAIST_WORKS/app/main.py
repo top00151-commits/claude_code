@@ -22677,6 +22677,7 @@ async def consumables_upload_xlsx(request: Request,
                 "thumb_url": _co.co_image_url(co_id, im["thumb"]),
                 "full_url": _co.co_image_url(co_id, im["full"]),
                 "thumb_file": im["thumb"], "full_file": im["full"],
+                "category": im.get("category", "photo"),   # v5H226z286: photo(사진) / loc(사진위치)
                 "orig_size": im.get("orig_size", 0),
                 "compressed_size": im.get("compressed", 0),
             } for im in imgs_v],
@@ -22727,6 +22728,11 @@ async def consumables_import_confirmed(request: Request, co_id: int):
                             if it.get("image_full_file") else None),
             "image_thumb_path": (_co.co_image_url(co_id, it["image_thumb_file"])
                                   if it.get("image_thumb_file") else None),
+            # v5H226z286: 사진위치(PICTURE LOCATION) 이미지
+            "image_loc_path": (_co.co_image_url(co_id, it["image_loc_full_file"])
+                                if it.get("image_loc_full_file") else None),
+            "image_loc_thumb_path": (_co.co_image_url(co_id, it["image_loc_thumb_file"])
+                                      if it.get("image_loc_thumb_file") else None),
             "note": it.get("note") or "",
         })
     n = _co.coi_bulk_insert(co_id, items_out)

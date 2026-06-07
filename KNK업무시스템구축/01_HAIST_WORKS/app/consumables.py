@@ -238,6 +238,8 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
             if _t is not None and getattr(_t, "row", None) is not None and (_t.row + 3) > _ymax:
                 _ymax = _t.row + 3
         _P = _row_y_prefix(ws, _ymax)
+        # v5H226z286 (대표 지시): 엑셀의 두 사진 칸 구분 — 사진(PICTURE)=품목사진 / 사진위치(LOCATION)=참고.
+        _photo_col, _loc_col = _find_photo_cols(ws, hdr_row)
         try:
             for idx, img in enumerate(getattr(ws, "_images", []) or []):
                 try:
@@ -251,6 +253,15 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
                                     else _find_nearest_line(lines, getattr(getattr(a, "_from", None), "row", 0) + 1))
                     if matched_line is None:
                         continue
+                    # 이미지가 어느 열(사진/사진위치)에 있는지로 분류
+                    _frm = getattr(a, "_from", None)
+                    _col = (_frm.col + 1) if (_frm is not None and getattr(_frm, "col", None) is not None) else None
+                    _cat = "photo"
+                    if _col is not None and _loc_col is not None:
+                        if _photo_col is not None:
+                            _cat = "loc" if abs(_col - _loc_col) < abs(_col - _photo_col) else "photo"
+                        elif _col == _loc_col:
+                            _cat = "loc"
                     fn = f"line_{matched_line['line_no']:03d}_{idx+1}.jpg"
                     fn_thumb = f"line_{matched_line['line_no']:03d}_{idx+1}_thumb.jpg"
                     full = os.path.join(image_out_dir, fn)
@@ -261,7 +272,7 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
                     with open(thumb, "wb") as f:
                         f.write(thumb_bytes)
                     img_map.setdefault(matched_line["line_no"], []).append({
-                        "full": fn, "thumb": fn_thumb,
+                        "full": fn, "thumb": fn_thumb, "category": _cat,
                         "orig_size": len(raw), "compressed": len(big_bytes),
                         "info": info,
                     })
@@ -269,6 +280,10 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
                     img_map.setdefault("_errors", []).append(f"img{idx}: {e}")
         except Exception as e:
             img_map["_errors"] = [str(e)]
+        # 사진(품목) 우선 정렬 → 미리보기 대표 사진 = 품목 사진
+        for _k, _v in img_map.items():
+            if isinstance(_v, list):
+                _v.sort(key=lambda x: 0 if x.get("category") == "photo" else 1)
     meta = read_order_meta(ws, hdr_row, col_map)   # v5H226z285: 통화·거래구분
     return {"lines": lines, "images": img_map,
             "header_row": hdr_row, "col_map": col_map, "meta": meta,
@@ -331,6 +346,25 @@ def _line_for_center(lines, center_y, P):
         R = ln["row"]
         return (P[R - 1] + P[R]) / 2.0 if R < len(P) else P[-1]
     return min(lines, key=lambda ln: abs(_mid(ln) - center_y))
+
+
+def _find_photo_cols(ws, header_row):
+    """헤더에서 '사진(PICTURE)' 열과 '사진위치(PICTURE LOCATION)' 열 식별.
+    (photo_col, loc_col) — 1-indexed, 없으면 None. LOCATION/위치 포함=위치, 아니면 사진."""
+    photo_col, loc_col = None, None
+    maxc = min(ws.max_column, 30)
+    for c in range(1, maxc + 1):
+        v = _norm(ws.cell(header_row, c).value)
+        if not v:
+            continue
+        if not (("사진" in v) or ("PICTURE" in v) or ("PHOTO" in v) or ("이미지" in v) or ("IMAGE" in v)):
+            continue
+        if ("LOCATION" in v) or ("위치" in v):
+            if loc_col is None:
+                loc_col = c
+        elif photo_col is None:
+            photo_col = c
+    return photo_col, loc_col
 
 
 def _to_num(v):
@@ -551,24 +585,49 @@ def coi_bulk_insert(co_id: int, items: list[dict]) -> int:
             qty = float(it.get("qty") or 0)
             up = float(it.get("unit_price") or 0)
             amt = round(qty * up, 2)
-            c.execute(
-                """INSERT INTO consumable_order_items
-                   (co_id, line_no, model_use, part_id, part_name, spec,
-                    qty, unit, unit_price, amount,
-                    linked_project_id, note, image_path, image_thumb_path)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (int(co_id), int(it.get("line_no") or 0),
-                 (it.get("model_use") or "").strip(),
-                 (int(it["part_id"]) if it.get("part_id") else None),
-                 (it.get("part_name") or "").strip(),
-                 (it.get("spec") or "").strip(),
-                 qty, (it.get("unit") or "EA").strip(),
-                 up, amt,
-                 (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
-                 (it.get("note") or "").strip(),
-                 (it.get("image_path") or None),
-                 (it.get("image_thumb_path") or None))
-            )
+            # v5H226z286: 사진위치(image_loc_*) 컬럼 유무에 따라 INSERT 구성(추가형 마이그레이션 방어)
+            _has_loc = "image_loc_path" in {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
+            if _has_loc:
+                c.execute(
+                    """INSERT INTO consumable_order_items
+                       (co_id, line_no, model_use, part_id, part_name, spec,
+                        qty, unit, unit_price, amount,
+                        linked_project_id, note, image_path, image_thumb_path,
+                        image_loc_path, image_loc_thumb_path)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (int(co_id), int(it.get("line_no") or 0),
+                     (it.get("model_use") or "").strip(),
+                     (int(it["part_id"]) if it.get("part_id") else None),
+                     (it.get("part_name") or "").strip(),
+                     (it.get("spec") or "").strip(),
+                     qty, (it.get("unit") or "EA").strip(),
+                     up, amt,
+                     (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
+                     (it.get("note") or "").strip(),
+                     (it.get("image_path") or None),
+                     (it.get("image_thumb_path") or None),
+                     (it.get("image_loc_path") or None),
+                     (it.get("image_loc_thumb_path") or None))
+                )
+            else:
+                c.execute(
+                    """INSERT INTO consumable_order_items
+                       (co_id, line_no, model_use, part_id, part_name, spec,
+                        qty, unit, unit_price, amount,
+                        linked_project_id, note, image_path, image_thumb_path)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (int(co_id), int(it.get("line_no") or 0),
+                     (it.get("model_use") or "").strip(),
+                     (int(it["part_id"]) if it.get("part_id") else None),
+                     (it.get("part_name") or "").strip(),
+                     (it.get("spec") or "").strip(),
+                     qty, (it.get("unit") or "EA").strip(),
+                     up, amt,
+                     (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
+                     (it.get("note") or "").strip(),
+                     (it.get("image_path") or None),
+                     (it.get("image_thumb_path") or None))
+                )
             n += 1
     recompute_co_total(co_id)
     return n
