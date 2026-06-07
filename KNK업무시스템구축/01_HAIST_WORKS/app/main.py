@@ -12887,6 +12887,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
             "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객)
+            "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
             # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
             "cust2": p.get("secondary_customer") or "",          # 고객사2(최종 고객)
             # v5H226z258 (대표 지시): 부서·담당자 = 고객사 담당자 부서·이름
@@ -12922,6 +12923,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                "cust_ok": bool(cr.get("customer_id")),          # v5H226z294: 등록 고객사 연결 여부
                 # v5H226z287: 엑셀 정보란 반영으로 소모품도 고객사2·연락처·영업담당자 표시
                 "cust2": cr.get("secondary_customer") or "", "contact": cr.get("cc_phone") or "",
                 "sales_owner": cr.get("sales_name") or "",
@@ -22647,6 +22649,8 @@ async def consumables_upload_xlsx(request: Request,
     _meta_exp = _meta.get("is_export")
     _eff_cust = _meta.get("customer") or customer_name   # 엑셀 고객사 우선
     _match_cust_id = None
+    # v5H226z294 (대표 지시): (주)/주식회사 차이 무시하고 상호로 등록 고객사 매칭 → 정식명칭으로 등록
+    _cust_match = _co.match_customer_by_name(_eff_cust) if _eff_cust else None
     try:
         with db_session() as _mc:
             _cocols = {r2[1] for r2 in _mc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
@@ -22656,14 +22660,13 @@ async def consumables_upload_xlsx(request: Request,
                 if val not in (None, "") and col in _cocols:
                     _sets.append(f"{col}=?"); _vals.append(val)
 
-            # 고객사: 이름 + customers 검색 → customer_id 연결(자동매칭 스코프에도 사용)
-            if _meta.get("customer"):
+            # 고객사: 상호 매칭되면 등록 정식명칭+id, 아니면 엑셀명 그대로(미연결 → 보드 적색)
+            if _cust_match:
+                _match_cust_id = _cust_match["id"]
+                _put("customer_id", _cust_match["id"])
+                _put("customer_name", _cust_match["name"])
+            elif _meta.get("customer"):
                 _put("customer_name", _meta["customer"])
-            _cr = _mc.execute("SELECT id FROM customers WHERE name=? LIMIT 1",
-                              (_eff_cust,)).fetchone() if _eff_cust else None
-            if _cr:
-                _match_cust_id = _cr[0]
-                _put("customer_id", _cr[0])
             _put("order_date", _meta.get("order_date"))
             _put("due_date", _meta.get("due_date"))
             _put("ship_to", _meta.get("ship_to"))

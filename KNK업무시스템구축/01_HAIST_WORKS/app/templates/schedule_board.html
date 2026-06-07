@@ -62,6 +62,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched thead .cw-price, .sched thead .cw-amount { text-align:center; padding:0; }
 .sched .cw-ord, .sched .cw-due { text-align:center; }                 /* z282: 발주일·납품일 가운데 */
 .sched .cw-stage { border-right:2px solid var(--knk-red); }           /* z282: 정보/달력 구분선(ship→stage 이동) */
+/* z294: 등록 고객사에 연결 안 된 고객사 — 확인 필요(적색) */
+.sched td.cust-unmatched { color:#b91c1c !important; font-weight:800; background:#fef2f2 !important; }
+.sched tbody tr:hover td.cust-unmatched { background:#fde2e2 !important; }
 .sched td.c1 a { color:var(--knk-red); font-weight:700; text-decoration:none; }
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
@@ -273,7 +276,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% endif %}
           <td class="c-info cw-trade" data-col="trade">{{ r.trade }}</td>
           <td class="c-info cw-po" data-col="po">{{ r.po_type or '—' }}</td>
-          <td class="c-info cw-cust" data-col="cust" title="{{ r.customer }}">{{ r.customer }}</td>
+          <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}" data-col="cust" title="{{ r.customer }}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}">{{ r.customer }}</td>
           <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}</td>
           <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
           <td class="c-info cw-owner editable{% if r.owner %} filled{% endif %}" data-col="owner" data-edit="owner">{{ r.owner or '＋' }}</td>

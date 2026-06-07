@@ -564,6 +564,36 @@ def match_project_by_mgmt(mgmt_code: str) -> dict | None:
     return None
 
 
+def _norm_company(s: str) -> str:
+    """상호 정규화 — 법인격((주)/㈜/주식회사/유한회사 등)·괄호·기호·공백 제거 후 소문자."""
+    s = (s or "").lower()
+    s = re.sub(r"주식회사|유한회사|유한책임회사|\(주\)|\(유\)|\(有\)|㈜|㈲|株式会社", "", s)
+    s = re.sub(r"[\s\(\)\[\]\.,\-_/&'\"·｜|]", "", s)
+    return s.strip()
+
+
+def match_customer_by_name(name: str) -> dict | None:
+    """v5H226z294 (대표 지시): 엑셀 고객사명 → 등록 고객사 매칭.
+    (주)/㈜/주식회사/공백 차이는 무시하고 '상호'로 비교. 원문 정확일치 우선,
+    아니면 정규화 상호가 '정확히 1건' 일치할 때만 연결(애매하면 None — 연결성 안전 원칙).
+    반환: {'id', 'name'(등록 정식명칭)} 또는 None."""
+    if not name or not str(name).strip():
+        return None
+    raw = str(name).strip()
+    n = _norm_company(raw)
+    if len(n) < 2:
+        return None
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute("SELECT id, name FROM customers").fetchall()]
+    for r in rows:                                   # 1) 원문 정확 일치 우선
+        if (r["name"] or "").strip() == raw:
+            return {"id": r["id"], "name": r["name"]}
+    matches = [r for r in rows if _norm_company(r["name"]) == n]   # 2) 정규화 상호 일치
+    if len(matches) == 1:                            # 정확히 1건일 때만(애매하면 미연결)
+        return {"id": matches[0]["id"], "name": matches[0]["name"]}
+    return None
+
+
 # ────────────────────────────────────────────────────────────────────
 # CRUD
 # ────────────────────────────────────────────────────────────────────
