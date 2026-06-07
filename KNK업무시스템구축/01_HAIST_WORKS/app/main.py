@@ -22625,12 +22625,11 @@ async def consumables_create_direct(request: Request,
                                   currency="KRW", source_file="직접등록",
                                   created_by=u.get("id"))
     if cid:
-        try:
-            with db_session() as c:
-                c.execute("UPDATE consumable_orders SET customer_id=?, customer_name=? WHERE id=?",
-                          (cid, cust_name, co_id))
-        except Exception:
-            pass
+        # v5H226z310 (적대검토·연결성 절대준수): 사용자가 명시 선택한 고객사(명확한 단일후보)를 직접 set.
+        #   실패를 except:pass 로 숨기지 않는다 — 동명 고객사 등에서 co_create 의 이름매칭이 빗나가도 이 값이 정답.
+        with db_session() as c:
+            c.execute("UPDATE consumable_orders SET customer_id=?, customer_name=? WHERE id=?",
+                      (cid, cust_name, co_id))
     return RedirectResponse(f"/consumables/{co_id}", 303)
 
 
@@ -23002,6 +23001,9 @@ async def consumables_item_photo(request: Request, co_id: int, iid: int,
     if not item or int(item.get("co_id") or 0) != int(co_id):
         return JSONResponse({"ok": False, "error": "라인을 찾을 수 없습니다"}, 404)
     cat = "loc" if (category or "") == "loc" else "photo"
+    # v5H226z310 (적대검토): content-type 1차 필터(기존 task 사진 업로드 라우트와 검증 수위 일치)
+    if file.content_type and not file.content_type.startswith("image/"):
+        return JSONResponse({"ok": False, "error": "이미지 파일만 업로드할 수 있습니다"}, 400)
     raw = await file.read()
     if not raw:
         return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 400)
@@ -23023,8 +23025,18 @@ async def consumables_item_photo(request: Request, co_id: int, iid: int,
         return JSONResponse({"ok": False, "error": "저장 실패"}, 500)
     full_url = _co.co_image_url(co_id, full_name)
     thumb_url = _co.co_image_url(co_id, thumb_name)
-    _co.coi_set_image(iid, cat, full_url, thumb_url, by_id=u.get("id"),
-                      by_name=(u.get("name") or u.get("login_id") or ""))
+    saved = _co.coi_set_image(iid, cat, full_url, thumb_url, by_id=u.get("id"),
+                              by_name=(u.get("name") or u.get("login_id") or ""))
+    if not saved:
+        # v5H226z310 (적대검토): DB 미반영이면 저장한 파일 정리 + 실패 표면화(성공 위장 금지)
+        for _n in (full_name, thumb_name):
+            try:
+                os.remove(os.path.join(img_dir, _n))
+            except Exception:
+                pass
+        return JSONResponse({"ok": False, "error": "DB 반영 실패"}, 500)
+    # 참고(적대검토): 파일명이 결정적(line{iid}_{cat})이라 향후 '사진 교체' 기능 추가 시
+    #   반환 URL에 캐시버스터(?v=)를 붙여 브라우저 캐시를 무효화할 것.
     return JSONResponse({"ok": True, "category": cat,
                          "thumb_url": thumb_url, "full_url": full_url})
 

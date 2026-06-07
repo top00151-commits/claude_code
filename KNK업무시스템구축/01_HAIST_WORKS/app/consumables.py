@@ -449,7 +449,12 @@ def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 92,
     """원본 bytes → (압축본 jpeg bytes, 썸네일 jpeg bytes, info dict)
     v5H226z295(대표 지시): 화질 향상 — 긴변 1920px JPEG q=92, 썸네일 320×160(2:1 와이드) q=92."""
     from PIL import Image, ImageOps
+    # v5H226z310 (적대검토): 압축폭탄(decompression bomb) 방어 — 디코드(exif_transpose/resize) 전에
+    #   픽셀 수 상한 검사. 작은 용량이라도 거대 비트맵으로 풀리면 OOM. 120MP=고해상 폰사진까지 허용.
+    Image.MAX_IMAGE_PIXELS = 120_000_000
     im = Image.open(BytesIO(raw))
+    if (im.width or 0) * (im.height or 0) > 120_000_000:
+        raise ValueError("이미지 픽셀 수가 너무 큽니다(최대 120MP)")
     im = ImageOps.exif_transpose(im)
     orig_size = im.size
     if im.mode in ("RGBA", "LA"):
@@ -978,9 +983,10 @@ def coi_set_image(item_id: int, category: str, image_path: str,
             sets.append(f"{full_col}=?"); vals.append(image_path)
         if thumb_col in cols_avail:
             sets.append(f"{thumb_col}=?"); vals.append(image_thumb_path)
-        if sets:
-            vals.append(int(item_id))
-            c.execute(f"UPDATE consumable_order_items SET {', '.join(sets)} WHERE id=?", vals)
+        if not sets:
+            return None   # v5H226z310 (적대검토): image 컬럼 미존재 등으로 미반영이면 성공으로 보고 안 함
+        vals.append(int(item_id))
+        c.execute(f"UPDATE consumable_order_items SET {', '.join(sets)} WHERE id=?", vals)
     co_log_change(co_id, item_id, "line", f"image_{cat}",
                   ("사진(PICTURE)" if cat == "photo" else "사진위치(LOCATION)"),
                   "", "첨부됨", by_id, by_name)

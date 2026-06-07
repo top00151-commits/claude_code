@@ -67,6 +67,10 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
       </div>
     </div>
 
+    {# v5H226z310 (적대검토): 직접 등록 실패(사업부 미선택) 표면화 #}
+    {% if request.query_params.get('err') == 'biz_div' %}
+    <div style="margin:0 32px 10px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:13px;font-weight:700;">⚠ 사업부를 선택해야 직접 등록할 수 있습니다.</div>
+    {% endif %}
     {% set total_cnt = rows|length %}
     {% set d_cnt = rows|selectattr('status','equalto','DRAFT')|list|length %}
     {% set q_cnt = rows|selectattr('status','equalto','QUOTED')|list|length %}
