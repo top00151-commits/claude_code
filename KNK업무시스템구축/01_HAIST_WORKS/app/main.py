@@ -22583,11 +22583,13 @@ async def consumables_new_form(request: Request, embed: str = ""):
 
 @app.get("/consumables/import-template")
 async def consumables_import_template(request: Request):
-    """v5H226z281 (대표 지시): 소모품 수주 양식 다운로드 — KNK(우리회사) 표준 양식.
-    고객사에 이 양식을 주고 맞춰 작성 요청. [소모품] 시트 4행 헤더(NO·MODEL USE(적용 모델)·
-    품명(SUPPLIER NAME)·규격(SPEC)·수량(Q'TY)·단위(UNIT)·요청일(ORDER DATE)·사진·비고)는
-    파서(parse_consumable_xlsx)가 자동 인식 → 회신 파일 그대로 업로드 가능. 단가·납기는 업로드 후 화면 입력.
-    (z261 드림텍 형식 → z281 KNK 표준으로 교체)"""
+    """v5H226z283 (대표 지시): 소모품 수주 양식 다운로드 — KNK 표준 양식(대표 최종본 반영).
+    고객사에 이 양식을 주고 맞춰 작성 요청. 상단 1~9행=정보란(1·2차 고객사·납품위치·발주일·납품일·
+    고객사 담당자/연락처 // 관리번호·수주번호 자동·프로젝트명='소모품'·모델명=월·장비명='소모품 XX종' 규칙).
+    [소모품] 시트 10행 헤더(NO·연결 관리번호·MODEL USE·품명(SUPPLIER NAME)·규격(SPEC)·수량(Q'TY)·
+    단위(UNIT)·요청일(ORDER DATE)·사진 위치·사진·비고)는 파서가 자동 인식(detect_header 스캔 12행).
+    회신 파일 그대로 업로드 가능. 단가·납기는 업로드 후 화면 입력.
+    (z261 드림텍 → z281 KNK표준 → z283 대표 최종본: 헤더 4행→10행·정보란 확장·예시/사진 제거)"""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)

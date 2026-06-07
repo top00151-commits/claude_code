@@ -91,8 +91,10 @@ def _norm(s) -> str:
     return re.sub(r"\s+", "", str(s)).upper()
 
 
-def detect_header(ws, max_scan_rows: int = 8) -> tuple[int, dict]:
+def detect_header(ws, max_scan_rows: int = 12) -> tuple[int, dict]:
     """헤더 row 자동 감지. (header_row, col_map) 반환.
+    v5H226z283: KNK 표준 소모품 양식은 상단 정보란(1~9행) 아래 10행이 헤더 → 스캔 8→12행.
+    '가장 키 많은 행'을 헤더로 택하므로 상단 라벨(발주일·모델명 메모 등)에 오탐하지 않음.
     col_map = {'no': col_idx, 'part_name': col_idx, ...}  (1-indexed col).
     한 컬럼은 1개 키에만 매핑 (충돌 방지)."""
     best_row = 0
@@ -131,7 +133,7 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
     lines = []
     if hdr_row == 0 or "part_name" not in col_map:
         return {"lines": [], "images": {}, "header_row": 0, "col_map": {},
-                "error": "헤더를 찾지 못했습니다 (NO/MODEL/품명/수량 컬럼이 1~8행 안에 있어야 합니다)"}
+                "error": "헤더를 찾지 못했습니다 (NO/MODEL/품명/수량 컬럼이 1~12행 안에 있어야 합니다)"}
     pn_col = col_map["part_name"]
     line_no_seq = 0
     for r in range(hdr_row + 1, ws.max_row + 1):
