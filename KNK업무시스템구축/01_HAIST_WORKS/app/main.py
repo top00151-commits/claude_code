@@ -12886,11 +12886,17 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "currency": (p.get("currency") or "KRW"),  # v5H226z278: 통화
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
-            "customer": p.get("customer_name") or "—",
+            "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객)
+            # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
+            "cust2": p.get("secondary_customer") or "",          # 고객사2(최종 고객)
             # v5H226z258 (대표 지시): 부서·담당자 = 고객사 담당자 부서·이름
             "dept": p.get("cc_dept") or "",
             "owner": p.get("cc_name") or "",
+            "contact": p.get("cc_phone") or "",                  # 고객사 담당자 연락처
             "ship_to": _ship,
+            "order_date": str(p.get("order_date") or "")[:10],   # 발주일
+            "due_date": str(p.get("due_date") or "")[:10],       # 납품일
+            "sales_owner": p.get("sales_name") or "",            # 영업담당자(우리 회사)
             "memo": _smemos.get(("project", p.get("id")), ""),
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
@@ -12913,8 +12919,12 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                # v5H226z282: 소모품은 고객사2·연락처·영업담당자 필드가 없어 빈 칸(발주일·납품일은 표시)
+                "cust2": "", "contact": "", "sales_owner": "",
                 "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
                 "ship_to": cr.get("ship_to") or "",
+                "order_date": str(cr.get("order_date") or "")[:10],
+                "due_date": str(cr.get("due_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
@@ -12973,7 +12983,8 @@ async def schedule_board_cell(request: Request):
     ref_id = b.get("ref_id")
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
-    if field not in ("note", "dept", "owner", "ship_to", "qty", "price", "amount"):
+    if field not in ("note", "dept", "owner", "ship_to", "qty", "price", "amount",
+                     "cust2", "contact", "sales_owner", "order_date", "due_date"):  # v5H226z282
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
     if field in ("price", "amount") and not can_view_sales(u):

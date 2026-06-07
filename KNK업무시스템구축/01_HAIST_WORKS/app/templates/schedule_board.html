@@ -60,7 +60,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .cw-qty, .sched .cw-trade, .sched .cw-po { text-align:center; }
 .sched .cw-price, .sched .cw-amount { text-align:right; padding:0 8px; font-variant-numeric:tabular-nums; }
 .sched thead .cw-price, .sched thead .cw-amount { text-align:center; padding:0; }
-.sched .cw-ship { border-right:2px solid var(--knk-red); }
+.sched .cw-ord, .sched .cw-due { text-align:center; }                 /* z282: 발주일·납품일 가운데 */
+.sched .cw-stage { border-right:2px solid var(--knk-red); }           /* z282: 정보/달력 구분선(ship→stage 이동) */
 .sched td.c1 a { color:var(--knk-red); font-weight:700; text-decoration:none; }
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
@@ -219,9 +220,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         <col data-col="code"><col data-col="so_no"><col data-col="name">
         <col data-col="model"><col data-col="equip"><col data-col="note">
         <col data-col="qty">{% if can_money %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po">
-        <col data-col="cust"><col data-col="dept"><col data-col="owner"><col data-col="ship">
+        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">
         <col data-col="stage">
         {% for d in days %}<col class="cgd" data-day="{{ d }}">{% endfor %}
+        <col data-col="sales_owner">
       </colgroup>
       <thead>
         <tr>
@@ -238,14 +240,19 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% endif %}
           <th class="c-info cw-trade" data-col="trade"><div class="th-wrap">거래구분<span class="col-resizer" data-col="trade"></span></div></th>
           <th class="c-info cw-po" data-col="po"><div class="th-wrap">PO유형<span class="col-resizer" data-col="po"></span></div></th>
-          <th class="c-info cw-cust" data-col="cust"><div class="th-wrap">고객사<span class="col-resizer" data-col="cust"></span></div></th>
+          <th class="c-info cw-cust" data-col="cust"><div class="th-wrap">고객사1<span class="col-resizer" data-col="cust"></span></div></th>
+          <th class="c-info cw-cust2" data-col="cust2"><div class="th-wrap">고객사2<span class="col-resizer" data-col="cust2"></span></div></th>
           <th class="c-info cw-dept" data-col="dept"><div class="th-wrap">부서<span class="col-resizer" data-col="dept"></span></div></th>
           <th class="c-info cw-owner" data-col="owner"><div class="th-wrap">담당자<span class="col-resizer" data-col="owner"></span></div></th>
+          <th class="c-info cw-contact" data-col="contact"><div class="th-wrap">연락처<span class="col-resizer" data-col="contact"></span></div></th>
           <th class="c-info cw-ship" data-col="ship"><div class="th-wrap">납품위치<span class="col-resizer" data-col="ship"></span></div></th>
+          <th class="c-info cw-ord" data-col="order_date"><div class="th-wrap">발주일<span class="col-resizer" data-col="order_date"></span></div></th>
+          <th class="c-info cw-due" data-col="due_date"><div class="th-wrap">납품일<span class="col-resizer" data-col="due_date"></span></div></th>
           <th class="c-info cw-stage" data-col="stage"><div class="th-wrap">단계<span class="col-resizer" data-col="stage"></span></div></th>
           {% for d in days %}
           <th class="day{% if d == today_day %} today{% endif %}" data-day="{{ d }}">{{ d }}</th>
           {% endfor %}
+          <th class="c-info cw-sales" data-col="sales_owner"><div class="th-wrap">영업담당자<span class="col-resizer" data-col="sales_owner"></span></div></th>
         </tr>
       </thead>
       <tbody>
@@ -267,9 +274,13 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="c-info cw-trade" data-col="trade">{{ r.trade }}</td>
           <td class="c-info cw-po" data-col="po">{{ r.po_type or '—' }}</td>
           <td class="c-info cw-cust" data-col="cust" title="{{ r.customer }}">{{ r.customer }}</td>
+          <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}</td>
           <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
           <td class="c-info cw-owner editable{% if r.owner %} filled{% endif %}" data-col="owner" data-edit="owner">{{ r.owner or '＋' }}</td>
+          <td class="c-info cw-contact{% if r.kind != 'consumable' %} editable{% if r.contact %} filled{% endif %}{% endif %}" data-col="contact"{% if r.kind != 'consumable' %} data-edit="contact"{% endif %}>{{ r.contact or ('＋' if r.kind != 'consumable' else '') }}</td>
           <td class="c-info cw-ship editable{% if r.ship_to %} filled{% endif %}" data-col="ship" data-edit="ship_to" title="{{ r.ship_to }}">{{ r.ship_to or '＋' }}</td>
+          <td class="c-info cw-ord editable{% if r.order_date %} filled{% endif %}" data-col="order_date" data-edit="order_date">{{ r.order_date or '＋' }}</td>
+          <td class="c-info cw-due editable{% if r.due_date %} filled{% endif %}" data-col="due_date" data-edit="due_date">{{ r.due_date or '＋' }}</td>
           <td class="c-info cw-stage stage-cell" data-col="stage" data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" title="클릭 → 단계 기록">
             {% if r.st_cur %}<span class="stg-badge">{{ r.st_cur }}</span>{% else %}<span class="stg-badge stg-none">시작 전</span>{% endif %}
             <span class="stg-prog">{% for s in stage_spec %}{% if s.key == 'progress' %}{% for sk, sl in s.subs %}<i class="stg-dot{% if r.st.prog.get(sk) %} on{% endif %}" title="{{ sl }}"></i>{% endfor %}{% endif %}{% endfor %}</span>
@@ -280,6 +291,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if in_bar and d == r.bar_s and r.memo %} has-memo{% endif %}"
               data-day="{{ d }}"{% if in_bar %} title="{{ r.memo }}"{% endif %}>{% if is_del %}●{% endif %}</td>
           {% endfor %}
+          <td class="c-info cw-sales{% if r.kind != 'consumable' %} editable{% if r.sales_owner %} filled{% endif %}{% endif %}" data-col="sales_owner"{% if r.kind != 'consumable' %} data-edit="sales_owner"{% endif %} title="{{ r.sales_owner }}">{{ r.sales_owner or ('＋' if r.kind != 'consumable' else '') }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -327,10 +339,11 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 // v5H226z273: HTML 이스케이프 헬퍼 — 단계 패널 renderStages 등에서 사용(z270에서 정의 누락이 'esc is not defined' 유발).
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','cust','dept','owner','ship','stage'];
-const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',cust:'고객사',dept:'부서',owner:'담당자',ship:'납품위치',stage:'단계'};
+// z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','cust','cust2','dept','owner','contact','ship','order_date','due_date','stage','sales_owner'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
-const COL_DEFAULTS = {code:90,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,cust:130,dept:72,owner:78,ship:120,stage:150};
+const COL_DEFAULTS = {code:90,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};

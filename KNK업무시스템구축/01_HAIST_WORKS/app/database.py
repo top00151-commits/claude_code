@@ -11263,8 +11263,14 @@ def view_prefs_set(user_id: int, view_key: str, config: str) -> bool:
 # v5H226z277 (대표 지시): 수량·단가·금액 추가. price/amount 는 라우트에서 can_view_sales 권한 게이트.
 _SCHED_CELL_MAP = {
     "project":    {"note": "logi_note", "dept": "cc_dept", "owner": "cc_name",
-                   "qty": "unit_qty", "price": "unit_price"},
-    "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to"},
+                   "qty": "unit_qty", "price": "unit_price",
+                   # v5H226z282 (대표 지시): 고객사2·연락처·영업담당자·발주일·납품일 편집
+                   "cust2": "secondary_customer", "contact": "cc_phone",
+                   "sales_owner": "sales_name",
+                   "order_date": "order_date", "due_date": "due_date"},
+    "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to",
+                   # 소모품은 고객사2·연락처·영업담당자 컬럼이 없어 발주일·납품일만
+                   "order_date": "order_date", "due_date": "due_date"},
 }
 _SCHED_NUM_FIELDS = {"qty", "price", "amount"}  # 숫자 필드 (콤마 제거 후 저장)
 
