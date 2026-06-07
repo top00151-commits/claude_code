@@ -10,6 +10,13 @@
 .sched-nav { display:flex; align-items:center; gap:6px; }
 .sched-nav a, .sched-nav .cur { padding:6px 12px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-weight:700; text-decoration:none; color:var(--ink); background:var(--paper-2); }
 .sched-nav .cur { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+/* z275: 사업부 탭 */
+.sched-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
+.sched-tabs .sbm { padding:6px 14px; border:1px solid var(--line); border-radius:18px; font-size:13px; font-weight:700; text-decoration:none; color:var(--qv-ink-2); background:var(--paper-2); }
+.sched-tabs .sbm b { color:var(--qv-ink-3); font-weight:800; margin-left:3px; }
+.sched-tabs .sbm:hover { border-color:var(--knk-red); color:var(--knk-red); }
+.sched-tabs .sbm.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched-tabs .sbm.on b { color:#fff; }
 .sched-sum { display:flex; gap:10px; font-size:13px; }
 .sched-sum .pill { padding:5px 12px; border-radius:20px; font-weight:700; }
 .sched-sum .s-deliver { background:#dcfce7; color:#15803d; }
@@ -161,10 +168,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
   <div class="sched-top">
     <div class="sched-nav">
-      <a href="?ym={{ prev_ym }}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
+      <a href="?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
       <span class="cur">📅 {{ month_label }}</span>
-      <a href="?ym={{ next_ym }}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
-      {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}" title="이번 달">오늘</a>{% endif %}
+      <a href="?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
+      {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
     </div>
     <div class="sched-sum">
       <span class="pill s-total">전체 {{ summary.total }}</span>
@@ -176,6 +183,17 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span><i style="background:#16a34a;"></i>납품일</span>
       <span><i style="background:#fcd9d9;"></i>지연</span>
     </div>
+  </div>
+
+  {# v5H226z275 (대표 지시): 사업부별 탭 — 프로젝트 목록 책갈피와 동일(전체/검사기/자동화/라이프밸류/기타/소모품) #}
+  <div class="sched-tabs">
+    {% set _q = ('&cust=' ~ cust) if cust else '' %}
+    <a class="sbm{% if not biz %} on{% endif %}" href="?ym={{ ym }}{{ _q }}">🗂 전체 <b>{{ div_counts.all }}</b></a>
+    <a class="sbm{% if biz=='T' %} on{% endif %}" href="?ym={{ ym }}&biz=T{{ _q }}">🔬 검사기 <b>{{ div_counts.T }}</b></a>
+    <a class="sbm{% if biz=='M' %} on{% endif %}" href="?ym={{ ym }}&biz=M{{ _q }}">⚙ 자동화 <b>{{ div_counts.M }}</b></a>
+    <a class="sbm{% if biz=='L' %} on{% endif %}" href="?ym={{ ym }}&biz=L{{ _q }}">💄 라이프밸류 <b>{{ div_counts.L }}</b></a>
+    <a class="sbm{% if biz=='E' %} on{% endif %}" href="?ym={{ ym }}&biz=E{{ _q }}">🗂 기타 <b>{{ div_counts.E }}</b></a>
+    <a class="sbm{% if biz=='C' %} on{% endif %}" href="?ym={{ ym }}&biz=C{{ _q }}">🧴 소모품 <b>{{ div_counts.C }}</b></a>
   </div>
 
   <div class="sched-tools">

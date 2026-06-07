@@ -12923,6 +12923,19 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         pass
     # 정렬: 납품일(있는 것 먼저, 빠른 순) → 관리코드
     rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
+    # v5H226z275 (대표 지시): 사업부별 탭 — 각 행 사업부(관리번호 4번째 글자) + 탭별 건수 + biz 필터
+    for r in rows:
+        _rc = r.get("code") or ""
+        r["div"] = _rc[3] if (len(_rc) >= 4 and _rc[3] in "TMLEC") else ("C" if r.get("kind") == "consumable" else "")
+    div_counts = {"all": len(rows), "T": 0, "M": 0, "L": 0, "E": 0, "C": 0}
+    for r in rows:
+        if r["div"] in div_counts:
+            div_counts[r["div"]] += 1
+    _biz = (biz or "").strip().upper()
+    if _biz in ("T", "M", "L", "E", "C"):
+        rows = [r for r in rows if r["div"] == _biz]
+    else:
+        _biz = ""
     summary = {
         "deliver_today": sum(1 for r in rows if r["dday"] == today_day and today_day),
         "delay": sum(1 for r in rows if r["is_delay"]),
@@ -12934,7 +12947,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
-               col_prefs=_col_prefs, can_money=_can_money, stage_spec=_logi.STAGE_SPEC)
+               col_prefs=_col_prefs, can_money=_can_money, stage_spec=_logi.STAGE_SPEC,
+               biz=_biz, div_counts=div_counts)
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
