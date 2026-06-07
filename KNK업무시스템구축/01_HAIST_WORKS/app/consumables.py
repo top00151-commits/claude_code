@@ -819,6 +819,44 @@ def mgmt_line_matches(line: dict, proj: dict) -> bool:
     return bool(line_tok & proj_tok)
 
 
+def _sim(a, b) -> float:
+    """정규화(대문자·공백/기호 제거) 후 문자열 유사도 0~1 (difflib)."""
+    from difflib import SequenceMatcher
+    na = re.sub(r"[\s\(\)\[\]\.,\-_/]", "", (a or "").upper())
+    nb = re.sub(r"[\s\(\)\[\]\.,\-_/]", "", (b or "").upper())
+    if not na or not nb:
+        return 0.0
+    return SequenceMatcher(None, na, nb).ratio()
+
+
+def suggest_mgmt_for_line(line_model, line_equip, customer_id, threshold: float = 0.9):
+    """v5H226z302 (대표 지시): 예상(추천) 관리번호 — 세 조건 모두 충족할 때만.
+    ① 같은 1차 고객사  ② 모델명 90%↑ 일치  ③ 장비명 90%↑ 일치.
+    여러 후보면 (모델·장비 평균 유사도) 최고 1건 반환 {.., score} 또는 None."""
+    if not customer_id:
+        return None
+    if not str(line_model or "").strip() or not str(line_equip or "").strip():
+        return None  # 모델·장비 둘 다 있어야 비교 가능
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, mgmt_code, name, model_name, equip_name FROM projects "
+            "WHERE customer_id=? AND COALESCE(project_type,'NEW_EQUIP')='NEW_EQUIP'",
+            (int(customer_id),)
+        ).fetchall()]
+    best, best_score = None, 0.0
+    for r in rows:
+        sm = _sim(line_model, r.get("model_name"))
+        se = _sim(line_equip, r.get("equip_name"))
+        if sm >= threshold and se >= threshold:
+            score = (sm + se) / 2.0
+            if score > best_score:
+                best, best_score = r, score
+    if best:
+        best["score"] = round(best_score, 3)
+        best["match_level"] = "model_equip_90"
+    return best
+
+
 def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: str = "") -> tuple:
     """소모품수주(헤더) 정보란 1필드 수정 + 이력. 반환 (성공, 새값, 옛값, 고객사연결여부).
     고객사 변경 시 (주)/주식회사 무시 상호 매칭으로 정식명칭·customer_id 갱신."""

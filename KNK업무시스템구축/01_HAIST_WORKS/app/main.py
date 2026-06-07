@@ -22782,7 +22782,9 @@ async def consumables_detail(request: Request, co_id: int):
         if not _it.get("part_id"):
             _it["suggest_part"] = _co.match_part_by_name(_it.get("part_name", ""))
         if not _it.get("linked_project_id"):
-            _it["suggest_mgmt"] = _co.match_project_by_model(_it.get("model_use", ""), co.get("customer_id"))
+            # v5H226z302 (대표 지시): 추천 = 같은 1차 고객사 + 모델명 90%↑ + 장비명 90%↑ (모두 충족)
+            _it["suggest_mgmt"] = _co.suggest_mgmt_for_line(
+                _it.get("model_use", ""), _it.get("equip_name", ""), co.get("customer_id"))
     # v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달용 팀 목록(활성 인원 있는 팀)
     _teams = []
     try:

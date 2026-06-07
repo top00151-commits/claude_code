@@ -232,7 +232,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
                 {% if it.linked_project_name %}<div style="font-size:10px;color:var(--qv-ink-3);">{{ it.linked_project_name }}</div>{% endif %}
                 <a onclick="unlinkMgmt({{ it.id }})" style="font-size:10px;color:#b91c1c;cursor:pointer;">✕ 해제</a>
               {% else %}
-                {% if it.suggest_mgmt %}<button type="button" class="btn-suggest" onclick="linkMgmt({{ it.id }},'{{ it.suggest_mgmt.mgmt_code }}',1)" title="모델 자동매칭 추천">🔗 {{ it.suggest_mgmt.mgmt_code }} 연결</button>{% endif %}
+                {% if it.suggest_mgmt %}<button type="button" class="btn-suggest" onclick="linkMgmt({{ it.id }},'{{ it.suggest_mgmt.mgmt_code }}',1)" title="추천: 같은 고객사 · 모델명/장비명 90%↑ 일치 ({{ it.suggest_mgmt.name }})">🔗 {{ it.suggest_mgmt.mgmt_code }} 연결</button>{% endif %}
                 <input class="mgmt-input" data-iid="{{ it.id }}" placeholder="🔢 관리번호 입력" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
               {% endif %}
             </td>
