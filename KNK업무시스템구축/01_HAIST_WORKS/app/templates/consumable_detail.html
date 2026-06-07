@@ -44,18 +44,18 @@ a { text-decoration: none; color: inherit; }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
 /* v5H226z306(대표 지시): 정보란 재배치 — 의미 묶음 + 칸 테두리(엑셀형) + 읽기전용 칸 구분 */
 .header-grid { display: block; }
-/* v5H226z307(대표 지시): 정보란 높이 ~50% 축소 — 구조 유지, 여백·라벨·입력칸 높이만 압축 */
-.info-sect { border:1px solid var(--qv-line); border-radius:7px; overflow:hidden; margin-bottom:4px; }
+/* v5H226z308(대표 지시): 정보란 A안 — 묶음 라벨 좌측 칩 + 칸마다 '라벨 값' 한 줄 → 묶음당 1줄(전체 4줄) */
+.info-sect { display:flex; align-items:stretch; border:1px solid var(--qv-line); border-radius:7px; overflow:hidden; margin-bottom:4px; }
 .info-sect:last-child { margin-bottom:0; }
-.info-sect .sect-label { font-size:10px; font-weight:700; color:var(--qv-ink-3); letter-spacing:.02em; background:var(--qv-surface-2,#f6f5f3); padding:1px 12px; border-bottom:1px solid var(--qv-line); }
-.info-row { display:grid; gap:1px; background:var(--qv-line); }   /* 1px gap = 칸 구분선 */
+.info-sect .sect-label { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:46px; font-size:10px; font-weight:700; color:var(--qv-ink-3); background:var(--qv-surface-2,#efeee9); padding:0 4px; border-right:1px solid var(--qv-line); text-align:center; line-height:1.1; }
+.info-row { flex:1; min-width:0; display:grid; gap:1px; background:var(--qv-line); }   /* 1px gap = 칸 구분선 */
 .info-row.c3 { grid-template-columns:repeat(3,1fr); }
 .info-row.c4 { grid-template-columns:repeat(4,1fr); }
-.h-cell { background:#fff; padding:2px 12px; min-width:0; }
+.h-cell { display:flex; align-items:center; gap:6px; background:#fff; padding:3px 10px; min-width:0; }
 .h-cell.ro { background:var(--qv-surface-2,#faf9f7); }   /* 읽기전용 칸 옅은 배경 */
-.h-cell .lbl { font-size: 9.5px; color: var(--qv-ink-3); font-weight: 600; margin-bottom:0; line-height:1.15; }
-.h-cell .val { font-size: 13px; font-weight: 700; line-height:1.25; }
-.h-cell .val.amount { color: var(--knk-red); font-size: 14.5px; }
+.h-cell .lbl { flex-shrink:0; font-size:9.5px; color:var(--qv-ink-3); font-weight:600; margin:0; white-space:nowrap; }
+.h-cell .val { flex:1; min-width:0; font-size:12.5px; font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.h-cell .val.amount { color: var(--knk-red); font-size: 13px; }
 @media (max-width:900px){ .info-row.c3, .info-row.c4 { grid-template-columns:repeat(2,1fr); } }
 .status-pills { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .s-pill { padding: 4px 10px; border-radius: 99px; font-size: 11px; cursor: pointer; border: 1px solid var(--qv-line); background: var(--qv-surface-2); }
@@ -70,13 +70,14 @@ table.items th { background: var(--paper-2); color: var(--knk-red); font-size: 1
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 table.items th.amount { text-align: center; }
 /* v5H226z305(대표 지시): 셀 속 입력칸 테두리 제거 → 엑셀처럼 칸 안에 글자만. 클릭/편집 시에만 강조 */
-table.items input { padding: 3px 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
+/* v5H226z308(대표 지시): 라인 입력칸 여백을 작업일정표 셀(.cell-input padding:1px 6px)과 동일하게 — 여백 축소 */
+table.items input { padding: 1px 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
 table.items input:hover { border-color: var(--qv-line); background:#fff; }
 table.items input:focus { outline: none; border-color: var(--knk-red); background:#fff; box-shadow: 0 0 0 1px var(--knk-red) inset; }
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* z295 와이드 2:1 — overflow:hidden 미적용(클리핑 방지) */
 table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover */
 /* v5H226z298: 정보란 인라인 편집 + 책갈피 탭 + 변경 이력 */
-.header-grid .ef { width:100%; box-sizing:border-box; padding:1px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
+.header-grid .ef { flex:1 1 0; width:auto; min-width:0; box-sizing:border-box; padding:1px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
 .header-grid .ef:hover { border-color:var(--qv-line); background:#fff; }
 .header-grid .ef:focus { outline:none; border-color:#2563eb; background:#fff; }
 .header-grid .ef.cust-bad { color:#b91c1c; background:#fef2f2; }
@@ -174,9 +175,9 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
         </div>
         {# ② 고객 정보 — v5H226z298: 업로드 후 수정 가능(작업일정표와 양방향 동기화)+이력 #}
         <div class="info-sect">
-          <div class="sect-label">고객 정보</div>
+          <div class="sect-label">고객</div>
           <div class="info-row c4">
-            <div class="h-cell"><div class="lbl">고객사 <span style="font-size:9px;color:var(--qv-ink-3);">(1차·등록)</span></div>
+            <div class="h-cell"><div class="lbl">고객사</div>
               <select class="ef{% if not co.customer_id %} cust-bad{% endif %}" data-field="customer_id" title="등록된 고객사 중에서 선택">
                 {% if not co.customer_id %}<option value="" selected>⚠ 미등록: {{ co.customer_name or '(없음)' }} — 선택하세요</option>{% endif %}
                 {% for cu in customers %}<option value="{{ cu.id }}"{% if co.customer_id == cu.id %} selected{% endif %}>{{ cu.name }}</option>{% endfor %}
@@ -188,7 +189,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
         </div>
         {# ③ 거래 조건 #}
         <div class="info-sect">
-          <div class="sect-label">거래 조건</div>
+          <div class="sect-label">거래</div>
           <div class="info-row c4">
             <div class="h-cell"><div class="lbl">발주일</div><input type="date" class="ef" data-field="order_date" value="{{ (co.order_date or '')[:10] }}"></div>
             <div class="h-cell"><div class="lbl">납기</div><input type="date" class="ef" data-field="due_date" value="{{ (co.due_date or '')[:10] }}"></div>
@@ -200,7 +201,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
         </div>
         {# ④ 제품 · 납품 · 영업 #}
         <div class="info-sect">
-          <div class="sect-label">제품 · 납품 · 영업</div>
+          <div class="sect-label">제품</div>
           <div class="info-row c4">
             <div class="h-cell"><div class="lbl">모델명</div><input class="ef" data-field="model_name" value="{{ co.model_name|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">장비명</div><input class="ef" data-field="equip_name" value="{{ co.equip_name|e }}" placeholder="—"></div>
