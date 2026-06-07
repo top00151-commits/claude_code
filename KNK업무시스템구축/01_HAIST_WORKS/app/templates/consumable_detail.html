@@ -70,6 +70,12 @@ table.hist th { background:#f8f8f8; color:var(--qv-ink-3); font-weight:600; whit
 .btn-suggest { display:inline-block; margin-bottom:3px; padding:2px 8px; font-size:10.5px; font-weight:700; color:#065f46; background:#d1fae5; border:1px solid #6ee7b7; border-radius:10px; cursor:pointer; }
 .btn-suggest:hover { background:#a7f3d0; }
 .part-opt:hover { background:#eef6ff; }
+/* v5H226z303: 라인 표 칸 너비 조정(작업일정표처럼) — 고정 px + 드래그 */
+table.items { table-layout: fixed; }
+table.items th { position: relative; }
+table.items th .col-rz { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; user-select:none; z-index:5; }
+table.items th .col-rz:hover { background:rgba(176,16,16,.28); }
+.items-hint { font-size:11px; color:var(--qv-ink-3); margin:0 0 6px; }
 .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
 .modal-bg.show { display: flex; }
 .modal-bg img { max-width: 90vw; max-height: 90vh; }
@@ -167,8 +173,9 @@ tfoot td { background: #fafafa; font-weight: 700; }
 
     <div class="card tab-pane" id="tab-lines" style="border-top-left-radius:0;">
       {% if items %}
-      <div style="overflow-x:auto;">  {# v5H226z297: 컬럼 늘어 넘치면 좌우 스크롤 #}
-      <table class="items" style="min-width:1520px;">
+      <div class="items-hint">💡 칸 경계를 끌어 너비를 조정할 수 있어요 (이 브라우저에 저장). 넘치면 아래 좌우 스크롤 · <a onclick="resetItemCols()" style="color:#1d4ed8;cursor:pointer;">↺ 초기화</a></div>
+      <div style="overflow-x:auto;">  {# v5H226z297/z303: 좌우 스크롤 + 칸 너비 조정 #}
+      <table class="items">
         <thead><tr>
           <th style="width:40px;">No</th>
           <th style="width:90px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
@@ -430,6 +437,39 @@ document.querySelectorAll('.s-pill').forEach(pill => {
     if (data.ok) location.reload();
   });
 });
+
+// v5H226z303(대표 지시): 라인 표 칸 너비 조정(작업일정표처럼) — 고정 px + 경계 드래그, 브라우저 저장
+const ITEMS_COLW_KEY = 'co_items_colw_v1';
+const ITEMS_COLW_DEFAULTS = [40,90,90,120,120,150,150,70,55,100,110,170,160,56];
+(function(){
+  const table = document.querySelector('table.items');
+  if(!table) return;
+  const ths = table.querySelectorAll('thead th');
+  const N = ths.length;
+  let widths;
+  try{ widths = JSON.parse(localStorage.getItem(ITEMS_COLW_KEY)); }catch(e){ widths=null; }
+  if(!Array.isArray(widths) || widths.length!==N) widths = ITEMS_COLW_DEFAULTS.slice(0,N);
+  while(widths.length<N) widths.push(100);
+  let cg = table.querySelector('colgroup.itm-cg');
+  if(!cg){ cg=document.createElement('colgroup'); cg.className='itm-cg'; for(let i=0;i<N;i++) cg.appendChild(document.createElement('col')); table.insertBefore(cg, table.firstChild); }
+  const cols = cg.querySelectorAll('col');
+  function applyCols(){ let tot=0; for(let i=0;i<N;i++){ cols[i].style.width=widths[i]+'px'; tot+=widths[i]; } table.style.width=tot+'px'; }
+  function saveCols(){ try{ localStorage.setItem(ITEMS_COLW_KEY, JSON.stringify(widths)); }catch(e){} }
+  applyCols();
+  ths.forEach((th,i)=>{
+    if(i===N-1) return;  // 마지막(삭제) 칸은 핸들 생략
+    const h=document.createElement('span'); h.className='col-rz'; th.appendChild(h);
+    h.addEventListener('mousedown',(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      const startX=e.clientX, startW=widths[i];
+      document.body.style.cursor='col-resize';
+      function mm(ev){ let w=startW+(ev.clientX-startX); w=Math.max(40,Math.min(700,w)); widths[i]=w; applyCols(); }
+      function mu(){ document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); document.body.style.cursor=''; saveCols(); }
+      document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu);
+    });
+  });
+  window.resetItemCols = function(){ try{ localStorage.removeItem(ITEMS_COLW_KEY); }catch(e){} location.reload(); };
+})();
 </script>
 </body>
 </html>
