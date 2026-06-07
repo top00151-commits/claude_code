@@ -49,14 +49,14 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="biz_div" id="qBizDiv" value="T">
         <input type="hidden" name="project_type" id="qPtype" value="NEW_EQUIP">
         <input type="hidden" name="status" value="진행중">
-        <input type="hidden" name="currency" value="KRW">
+        {% if not can_money %}<input type="hidden" name="currency" value="KRW">{% endif %}
         <input type="hidden" name="confirm_now" value="1">
         {# 호기 1줄 — 납품위치·금액·납품일 을 수주에 싣기 위해 (submit 시 JS 동기화) #}
         <input type="hidden" name="unit_label[]" value="">
         <input type="hidden" name="unit_amount[]" id="qUnitAmount" value="">
         <input type="hidden" name="unit_due[]" id="qUnitDue" value="">
         <input type="hidden" name="unit_ship[]" id="qUnitShip" value="">
-        <input type="hidden" name="unit_currency[]" value="KRW">
+        <input type="hidden" name="unit_currency[]" id="qUnitCur" value="KRW">
 
         <div class="qf-grid">
           <div class="qf-sec">기본</div>
@@ -95,8 +95,20 @@ html,body{background:#fff!important;overflow:auto!important;}
 
           {% if can_money %}
           <div class="qf-sec">금액 (영업·관리)</div>
+          <div class="qf-f"><label>통화</label>
+            <select name="currency" id="qCurrency" onchange="qToggleFx()">
+              <option value="KRW">₩ KRW (원)</option>
+              <option value="USD">$ USD (달러)</option>
+              <option value="VND">₫ VND (동)</option>
+              <option value="JPY">¥ JPY (엔)</option>
+              <option value="CNY">¥ CNY (위안)</option>
+              <option value="EUR">€ EUR (유로)</option>
+            </select>
+          </div>
           <div class="qf-f"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" class="knk-money" placeholder="0"></div>
           <div class="qf-f"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0"></div>
+          <div class="qf-f" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위 = ? 원)</label>
+            <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350"></div>
           {% endif %}
 
           <div class="qf-f span2" style="grid-column:1/-1;"><label>비고</label>
@@ -123,17 +135,26 @@ function qSetBiz(){
   document.getElementById('qBizDiv').value=v;
   document.getElementById('qPtype').value='NEW_EQUIP';  // 검사기/자동화/라이프밸류
 }
+function qToggleFx(){
+  var sel=document.getElementById('qCurrency'); if(!sel) return;
+  var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
+}
 document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
   var err=document.getElementById('qfErr');
   if(!name||!cust||!model||!equip){ e.preventDefault();
     err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); return; }
-  // 호기 1줄 동기화 (납품위치·금액·납품일 → 수주에 반영)
+  var curSel=document.getElementById('qCurrency'), fx=document.getElementById('qFx');
+  if(curSel && curSel.value!=='KRW' && (!fx || !fx.value.trim())){ e.preventDefault();
+    err.textContent='외화('+curSel.value+')는 환율을 입력하세요.'; err.classList.add('show'); return; }
+  // 호기 1줄 동기화 (납품위치·금액·납품일·통화 → 수주에 반영)
   var amt=document.getElementById('qAmount');
   document.getElementById('qUnitAmount').value=amt?amt.value.replace(/,/g,''):'';
   document.getElementById('qUnitDue').value=document.getElementById('qDueDate').value||'';
   document.getElementById('qUnitShip').value=document.getElementById('qShip').value||'';
+  var curSel=document.getElementById('qCurrency');
+  if(curSel) document.getElementById('qUnitCur').value=curSel.value;
 });
 // 서버 검증 오류(고객사 미등록 등) 표시 + 고객사 prefill
 (function(){
@@ -141,12 +162,14 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   if(er){
     var msg={customer_not_registered:'등록된 고객사가 아닙니다. 고객사를 먼저 등록하거나 목록에서 선택하세요.',
       name_required:'프로젝트명이 필요합니다.', biz_div_required:'사업부를 선택하세요.',
-      customer_required:'고객사를 입력하세요.'}[er] || ('오류: '+er);
+      customer_required:'고객사를 입력하세요.', fx_rate_required:'외화는 환율을 입력하세요.',
+      equip_required:'장비명을 입력하세요.', model_required:'모델명을 입력하세요.'}[er] || ('오류: '+er);
     var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show');
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
   }
 })();
 qSetBiz();
+qToggleFx();
 if(window.knkScanMoney) knkScanMoney();
 </script>
 </body>

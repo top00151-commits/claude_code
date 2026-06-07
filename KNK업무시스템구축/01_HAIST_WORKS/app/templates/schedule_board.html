@@ -249,9 +249,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         </tr>
       </thead>
       <tbody>
+        {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'¥','EUR':'€'} %}
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}">
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}">
           <td class="c-info c1" data-col="code">{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> {% endif %}<a href="#">{{ r.code }}</a></td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           <td class="c-info c3" data-col="name" title="{{ r.name }}">{{ r.name or '—' }}</td>
@@ -260,8 +261,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="c-info cw-note editable{% if r.note %} filled{% endif %}" data-col="note" data-edit="note" title="{{ r.note }}">{{ r.note or '＋' }}</td>
           <td class="c-info cw-qty{% if r.kind != 'consumable' %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if r.kind != 'consumable' %} data-edit="qty"{% endif %}>{{ r.qty if r.qty else ('＋' if r.kind != 'consumable' else '') }}</td>
           {% if can_money %}
-          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{{ "{:,.0f}".format(r.price|float) if r.price else ('＋' if r.kind != 'consumable' else '') }}</td>
-          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{{ "{:,.0f}".format(r.amount|float) if r.amount else ('＋' if r.kind != 'consumable' else '') }}</td>
+          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.price|float) }}{% else %}{{ '＋' if r.kind != 'consumable' else '' }}{% endif %}</td>
+          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.amount|float) }}{% else %}{{ '＋' if r.kind != 'consumable' else '' }}{% endif %}</td>
           {% endif %}
           <td class="c-info cw-trade" data-col="trade">{{ r.trade }}</td>
           <td class="c-info cw-po" data-col="po">{{ r.po_type or '—' }}</td>
@@ -482,7 +483,9 @@ if(_tbody){
 function startEdit(td){
   if(_editing) return;
   const tr=td.closest('tr');
-  const cur = td.classList.contains('filled') ? td.textContent.trim() : '';
+  let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
+  // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
+  if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
   const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur;
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
@@ -495,8 +498,10 @@ function startEdit(td){
       .then(r=>r.json()).then(j=>{
         _editing=null;
         if(j.ok){
-          var f=td.dataset.edit, isNum=(f==='qty'||f==='price'||f==='amount');
-          var disp=isNum?fmtMoney(val):val;
+          var f=td.dataset.edit, disp;
+          if(f==='qty') disp=fmtMoney(val);
+          else if(f==='price'||f==='amount'){ var fm=fmtMoney(val); disp=fm?curSym(tr.dataset.cur)+fm:''; }
+          else disp=val;
           td.textContent=disp||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨');
           if(f==='qty'||f==='price') recalcAmount(tr);  // z277: 수량·단가 → 금액 자동(수량×단가)
         }
@@ -506,17 +511,19 @@ function startEdit(td){
   inp.addEventListener('blur',()=>finish(true));
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
-// z277: 천단위 콤마 / 금액 자동계산(수량×단가)
-function fmtMoney(v){ var n=parseFloat(String(v).replace(/[,\s]/g,'')); return isNaN(n)||n===0?'':n.toLocaleString(); }
+// z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
+function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }
+var _MONEY_STRIP=/[₩$₫¥€,\s＋]/g;
+function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); return isNaN(n)||n===0?'':n.toLocaleString(); }
 function recalcAmount(tr){
   var qtyTd=tr.querySelector('td[data-edit="qty"]'), priceTd=tr.querySelector('td[data-edit="price"]'), amtTd=tr.querySelector('td[data-edit="amount"]');
   if(!priceTd||!amtTd) return;   // 단가/금액 칸 없으면(권한없음) skip
-  var qty=parseFloat((qtyTd?qtyTd.textContent:'').replace(/[,\s＋]/g,''))||0;
-  var price=parseFloat((priceTd.textContent||'').replace(/[,\s＋]/g,''))||0;
-  var amt=qty*price;
+  var qty=parseFloat((qtyTd?qtyTd.textContent:'').replace(_MONEY_STRIP,''))||0;
+  var price=parseFloat((priceTd.textContent||'').replace(_MONEY_STRIP,''))||0;
+  var amt=qty*price, sym=curSym(tr.dataset.cur);
   fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'amount',value:String(amt)})})
-    .then(r=>r.json()).then(j=>{ if(j.ok){ amtTd.textContent=amt?amt.toLocaleString():'＋'; amtTd.classList.toggle('filled',!!amt); amtTd.title=String(amt); }});
+    .then(r=>r.json()).then(j=>{ if(j.ok){ amtTd.textContent=amt?sym+amt.toLocaleString():'＋'; amtTd.classList.toggle('filled',!!amt); amtTd.title=String(amt); }});
 }
 
 // ---- 진행기간 막대 메모 ----
