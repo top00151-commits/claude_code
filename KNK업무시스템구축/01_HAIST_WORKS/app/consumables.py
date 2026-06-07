@@ -80,9 +80,78 @@ HEADER_KEYS = [
     ("no",         ["NO", "번호", "순번"]),
     ("supplier",   ["업체", "VENDOR"]),
     ("spec",       ["SPEC", "규격", "BOM"]),
+    # v5H226z285: 단가·금액 (머리글이 '단가 (KRW)' 처럼 통화 포함 수식이어도 '단가'/'금액'으로 인식)
+    ("price",      ["단가", "UNITPRICE"]),
+    ("amount",     ["금액", "AMOUNT"]),
     # MODEL 단독은 우선순위 낮춤 (MODELUSE 가 못 잡혔을 때만)
     ("model_use",  ["MODEL"]),
 ]
+
+# v5H226z285: 통화 화이트리스트 + 정규화 (정보란 '통화' 값/머리글 '(KRW)' 에서 추출)
+_CCY_WHITELIST = {"KRW", "USD", "VND", "JPY", "CNY", "EUR"}
+_CCY_ALIAS = {"₩": "KRW", "원": "KRW", "$": "USD", "달러": "USD", "USD": "USD",
+              "₫": "VND", "동": "VND", "¥": "JPY", "엔": "JPY", "JPY": "JPY",
+              "€": "EUR", "유로": "EUR", "위안": "CNY", "CNY": "CNY", "RMB": "CNY"}
+
+
+def _norm_ccy(v):
+    """통화 표기 → 코드(KRW 등). 못 알아보면 None."""
+    if v is None:
+        return None
+    s = str(v).strip().upper()
+    if s in _CCY_WHITELIST:
+        return s
+    if s in _CCY_ALIAS:
+        return _CCY_ALIAS[s]
+    m = re.search(r"[A-Z]{3}", s)
+    if m and m.group(0) in _CCY_WHITELIST:
+        return m.group(0)
+    for k, code in _CCY_ALIAS.items():
+        if k in s:
+            return code
+    return None
+
+
+def _right_value(ws, r, c, maxc):
+    """(r,c) 오른쪽으로 첫 '비어있지 않은' 셀 값 (라벨 옆 값 읽기)."""
+    for cc in range(c + 1, maxc + 1):
+        v = ws.cell(r, cc).value
+        if v is not None and str(v).strip() != "":
+            return v
+    return None
+
+
+def read_order_meta(ws, header_row, col_map=None):
+    """헤더 위 정보란에서 주문 단위 정보(통화·거래구분) 읽기 — 라벨 기반(셀 위치 무관).
+    통화: '통화' 라벨 옆 값 → 코드. 못 찾으면 단가/금액 머리글 '단가 (KRW)' 괄호에서 보조 추출.
+    거래구분: '거래구분' 라벨 옆 값에 '수출' 포함 시 is_export=1, 아니면 0."""
+    meta = {"currency": None, "is_export": None}
+    maxc = min(ws.max_column, 30)
+    for r in range(1, max(1, header_row)):
+        for c in range(1, maxc + 1):
+            v = ws.cell(r, c).value
+            if v is None:
+                continue
+            t = str(v).strip()
+            tn = re.sub(r"\s+", "", t).upper()
+            if meta["currency"] is None and tn in ("통화", "CURRENCY", "통화구분"):
+                cc = _norm_ccy(_right_value(ws, r, c, maxc))
+                if cc:
+                    meta["currency"] = cc
+            elif meta["is_export"] is None and "거래구분" in t:
+                rv = _right_value(ws, r, c, maxc)
+                if rv is not None:
+                    s = str(rv)
+                    meta["is_export"] = 1 if ("수출" in s or "EXPORT" in s.upper()) else 0
+    # 보조: 단가/금액 머리글의 '(KRW)' 에서 통화 추출
+    if meta["currency"] is None and col_map:
+        for key in ("price", "amount"):
+            if key in col_map:
+                cc = _norm_ccy(ws.cell(header_row, col_map[key]).value)
+                if cc:
+                    meta["currency"] = cc
+                    break
+    return meta
 
 
 def _norm(s) -> str:
@@ -91,9 +160,9 @@ def _norm(s) -> str:
     return re.sub(r"\s+", "", str(s)).upper()
 
 
-def detect_header(ws, max_scan_rows: int = 12) -> tuple[int, dict]:
+def detect_header(ws, max_scan_rows: int = 16) -> tuple[int, dict]:
     """헤더 row 자동 감지. (header_row, col_map) 반환.
-    v5H226z283: KNK 표준 소모품 양식은 상단 정보란(1~9행) 아래 10행이 헤더 → 스캔 8→12행.
+    v5H226z283/z285: KNK 표준 양식은 정보란(통화·거래구분 추가로 확장) 아래에 헤더 → 스캔 16행.
     '가장 키 많은 행'을 헤더로 택하므로 상단 라벨(발주일·모델명 메모 등)에 오탐하지 않음.
     col_map = {'no': col_idx, 'part_name': col_idx, ...}  (1-indexed col).
     한 컬럼은 1개 키에만 매핑 (충돌 방지)."""
@@ -133,7 +202,7 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
     lines = []
     if hdr_row == 0 or "part_name" not in col_map:
         return {"lines": [], "images": {}, "header_row": 0, "col_map": {},
-                "error": "헤더를 찾지 못했습니다 (NO/MODEL/품명/수량 컬럼이 1~12행 안에 있어야 합니다)"}
+                "error": "헤더를 찾지 못했습니다 (NO/MODEL/품명/수량 컬럼이 1~16행 안에 있어야 합니다)"}
     pn_col = col_map["part_name"]
     line_no_seq = 0
     for r in range(hdr_row + 1, ws.max_row + 1):
@@ -150,7 +219,12 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
             "qty":       _to_num(ws.cell(r, col_map["qty"]).value) if "qty" in col_map else 0,
             "unit":      str(ws.cell(r, col_map["unit"]).value or "EA").strip() if "unit" in col_map else "EA",
             "order_date": _date_str(ws.cell(r, col_map["order_date"]).value) if "order_date" in col_map else "",
+            "unit_price": _to_num(ws.cell(r, col_map["price"]).value) if "price" in col_map else 0,
+            "amount":     _to_num(ws.cell(r, col_map["amount"]).value) if "amount" in col_map else 0,
         }
+        # v5H226z285: 금액 비고 단가·수량 있으면 금액=단가×수량 (수식 캐시 없을 때 보강)
+        if not rec["amount"] and rec.get("unit_price") and rec.get("qty"):
+            rec["amount"] = rec["unit_price"] * rec["qty"]
         lines.append(rec)
     # 이미지 추출 + 압축
     img_map: dict = {}
@@ -195,8 +269,9 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
                     img_map.setdefault("_errors", []).append(f"img{idx}: {e}")
         except Exception as e:
             img_map["_errors"] = [str(e)]
+    meta = read_order_meta(ws, hdr_row, col_map)   # v5H226z285: 통화·거래구분
     return {"lines": lines, "images": img_map,
-            "header_row": hdr_row, "col_map": col_map,
+            "header_row": hdr_row, "col_map": col_map, "meta": meta,
             "image_count": sum(len(v) for k, v in img_map.items() if isinstance(v, list) and k != "_errors")}
 
 

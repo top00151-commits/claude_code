@@ -156,8 +156,8 @@ html,body{background:#fff!important;overflow:auto!important;}
           <thead><tr>
             <th>No</th><th>이미지</th><th>모델</th><th>품명</th><th>규격</th>
             <th style="width:60px;">수량</th><th style="width:50px;">단위</th>
-            <th style="width:100px;">요청일</th>
-            <th style="width:90px;">단가</th>
+            <th style="width:96px;" id="thPrice">단가</th>
+            <th style="width:108px;" id="thAmount">금액</th>
             <th>자재매칭</th><th>관리번호</th>
           </tr></thead>
           <tbody id="previewBody"></tbody>
@@ -174,6 +174,8 @@ html,body{background:#fff!important;overflow:auto!important;}
 <script>
 let _co_id = null;
 let _lines = [];
+let _ccy = 'KRW';   // v5H226z285: 양식에서 읽은 통화
+function fmtAmt(n){ n = Number(n) || 0; return n ? n.toLocaleString() : '—'; }
 
 document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -193,8 +195,10 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     }
     _co_id = data.co_id;
     _lines = data.lines || [];
+    _ccy = data.currency || 'KRW';
+    const _tr = (data.is_export ? '수출' : '내수');
     msg.className = 'ok';
-    msg.textContent = `✅ ${data.co_no} 헤더 생성 · 라인 ${_lines.length}건 · 이미지 ${data.image_count}장 (헤더 row=${data.header_row})`;
+    msg.textContent = `✅ ${data.co_no} · 라인 ${_lines.length}건 · 이미지 ${data.image_count}장 · 통화 ${_ccy} · ${_tr} (헤더 row=${data.header_row})`;
     renderPreview();
     document.getElementById('previewCard').style.display = 'block';
     document.getElementById('previewCard').scrollIntoView({behavior:'smooth'});
@@ -225,13 +229,17 @@ function renderPreview() {
       <td><input data-idx="${idx}" data-k="spec" value="${esc(ln.spec)}" /></td>
       <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
       <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
-      <td><input data-idx="${idx}" data-k="order_date" value="${esc(ln.order_date||'')}" /></td>
       <td><input data-idx="${idx}" data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="${ln.unit_price||0}" /></td>
+      <td class="amt-cell" data-idx="${idx}" style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">${fmtAmt((Number(ln.qty)||0)*(Number(ln.unit_price)||0))}</td>
       <td>${partBadge}<input type="hidden" data-idx="${idx}" data-k="part_id" value="${ln.part_match?ln.part_match.id:''}" /></td>
       <td>${projBadge}<input type="hidden" data-idx="${idx}" data-k="linked_project_id" value="${ln.project_match?ln.project_match.id:''}" /></td>
     `;
     tbody.appendChild(tr);
   });
+  // v5H226z285: 단가·금액 머리글에 통화 표기
+  var _thp = document.getElementById('thPrice'), _tha = document.getElementById('thAmount');
+  if (_thp) _thp.textContent = '단가 (' + _ccy + ')';
+  if (_tha) _tha.textContent = '금액 (' + _ccy + ')';
   // bind change to update _lines
   tbody.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('change', () => {
@@ -242,6 +250,11 @@ function renderPreview() {
       if (k === 'qty' || k === 'unit_price') v = parseFloat((v||'').replace(/,/g,'')) || 0;
       if (k === 'part_id' || k === 'linked_project_id') v = v ? parseInt(v) : null;
       _lines[i][k] = v;
+      // v5H226z285: 수량·단가 변경 시 금액 자동 재계산
+      if (k === 'qty' || k === 'unit_price') {
+        const cell = tbody.querySelector('td.amt-cell[data-idx="' + i + '"]');
+        if (cell) cell.textContent = fmtAmt((Number(_lines[i].qty)||0) * (Number(_lines[i].unit_price)||0));
+      }
     });
   });
   // v5H226z86 — 동적 추가된 금액 입력칸에 천단위 콤마 포맷터 부착

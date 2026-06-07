@@ -2446,6 +2446,10 @@ def init_db():
                 if _coladd not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_coladd} TEXT")
                     print(f"[v5H226z264] consumable_orders.{_coladd} 컬럼 추가됨")
+            # v5H226z285 (대표 지시): 소모품 양식에 '거래구분(내수/수출)' 추가 — 업로드 시 반영.
+            if "is_export" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN is_export INTEGER DEFAULT 0")
+                print("[v5H226z285] consumable_orders.is_export 컬럼 추가됨")
             # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
             # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
             try:

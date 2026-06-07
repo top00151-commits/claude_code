@@ -22600,7 +22600,7 @@ async def consumables_import_template(request: Request):
     if not p.exists():
         return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
     return FileResponse(
-        str(p), filename="KNK_소모품수주_양식.xlsx",
+        str(p), filename="KNK 소모품 등록 양식.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
                  "Pragma": "no-cache", "Expires": "0"},
@@ -22637,6 +22637,25 @@ async def consumables_upload_xlsx(request: Request,
         f.write(raw)
     img_dir = _co.co_image_dir(co_id)
     parsed = _co.parse_consumable_xlsx(tmp_path, image_out_dir=img_dir)
+    # v5H226z285 (대표 지시): 양식 정보란의 통화·거래구분을 읽어 소모품수주에 반영(웹폼 값 override).
+    _meta = parsed.get("meta") or {}
+    _meta_ccy = _meta.get("currency")
+    _meta_exp = _meta.get("is_export")
+    if _meta_ccy or (_meta_exp is not None):
+        try:
+            with db_session() as _mc:
+                _cocols = {r2[1] for r2 in _mc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+                _sets, _vals = [], []
+                if _meta_ccy:
+                    _sets.append("currency=?"); _vals.append(_meta_ccy)
+                if _meta_exp is not None and "is_export" in _cocols:
+                    _sets.append("is_export=?"); _vals.append(int(_meta_exp))
+                if _sets:
+                    _vals.append(co_id)
+                    _mc.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
+        except Exception:
+            pass
+    _eff_ccy = (_meta_ccy or currency or "KRW")
     # v5H226z252 (대표 지시): 장비 자동매칭은 '같은 고객사'로 스코프 — 다른 회사 모델 오연결 방지.
     _match_cust_id = None
     if customer_name:
@@ -22673,6 +22692,8 @@ async def consumables_upload_xlsx(request: Request,
         "header_row": parsed.get("header_row"),
         "col_map": parsed.get("col_map"),
         "lines": enriched,
+        "currency": _eff_ccy,                                  # v5H226z285: 양식에서 읽은 통화
+        "is_export": _meta_exp,                                # 거래구분(1=수출/0=내수)
         "image_count": parsed.get("image_count", 0),
         "error": parsed.get("error"),
     })
