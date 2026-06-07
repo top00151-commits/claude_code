@@ -1,46 +1,190 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" translate="no" data-theme="light">
 <head>
   <meta charset="UTF-8">
+  <!-- 브라우저 자동번역 차단 — 앱 자체 다국어 처리 (대표 지시 2026-05-25) -->
+  <meta name="google" content="notranslate">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>KNK 메신저 로그인</title>
+  <title>사람을 잇고, 일을 잇고, 미래를 잇다.</title>
   <link rel="manifest" href="{{ base_path }}/manifest.json">
   <meta name="theme-color" content="#A5282C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="KNK 메신저">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
+  <meta name="apple-mobile-web-app-title" content="KNK 이음">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}?v={{ asset_version }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
+  <style>
+    /* 앱 시작 스플래시(광고) — 관리자 설정 기반. 켤 때 표시 후 페이드아웃. PC·휴대폰 공통 (대표 지시 2026-06-06) */
+    #appSplash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#ffffff;transition:opacity .4s ease;overflow:hidden}
+    #appSplash.hide{opacity:0;pointer-events:none}
+    #appSplash .sp-inner{text-align:center;padding:24px;max-width:92vw}
+    #appSplash .sp-logo{width:min(58vw,200px);height:auto;display:block;margin:0 auto 18px}
+    #appSplash .sp-title{font-size:26px;font-weight:800;letter-spacing:.5px}
+    #appSplash .sp-tag{margin-top:8px;font-size:13.5px;font-weight:500;line-height:1.5}
+    #appSplash .sp-full{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  </style>
 </head>
 <body class="login-body">
+  {% if splash and splash.enabled %}
+  <!-- 앱 시작 스플래시(광고) — 관리자 설정 기반. 표시시간 뒤 페이드아웃 (대표 지시 2026-06-06) -->
+  <div id="appSplash" aria-hidden="true" data-dur="{{ splash.duration_ms }}" data-ui-lang="{{ me_ui_lang|default('', true) }}" style="background:{{ splash.bg_color }}">
+    {% if splash.mode == 'full' %}
+      <img class="sp-full" src="{{ splash.image_url }}" alt="">
+    {% else %}
+      <div class="sp-inner">
+        <img class="sp-logo" src="{{ splash.image_url }}" alt="KNK">
+        {% if splash.title %}<div class="sp-title" style="color:{{ splash.title_color }};font-size:{{ splash.title_size }}px" data-ko="{{ splash.title_i18n.ko }}" data-en="{{ splash.title_i18n.en }}" data-vi="{{ splash.title_i18n.vi }}" data-zh="{{ splash.title_i18n.zh }}">{{ splash.title }}</div>{% endif %}
+        {% if splash.tagline %}<div class="sp-tag" style="color:{{ splash.tagline_color }};font-size:{{ splash.tagline_size }}px" data-ko="{{ splash.tagline_i18n.ko }}" data-en="{{ splash.tagline_i18n.en }}" data-vi="{{ splash.tagline_i18n.vi }}" data-zh="{{ splash.tagline_i18n.zh }}">{{ splash.tagline }}</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <script>
+    (function(){
+      var s = document.getElementById("appSplash");
+      if (!s) return;
+      // 보는 사람 선택 언어로 제목/슬로건 표시 (영어 입력은 모든 칸이 영문) (대표 지시 2026-06-06)
+      try {
+        var lang = localStorage.getItem("knkmsg.lang") || s.getAttribute("data-ui-lang") || "ko";
+        if (["ko","en","vi","zh"].indexOf(lang) < 0) lang = "ko";
+        var els = s.querySelectorAll("[data-" + lang + "]");
+        for (var i = 0; i < els.length; i++) { var t = els[i].getAttribute("data-" + lang); if (t) els[i].textContent = t; }
+      } catch (e) {}
+      function hide(){ s.classList.add("hide"); setTimeout(function(){ try { s.style.display = "none"; } catch(e){} }, 450); }
+      var d = parseInt(s.getAttribute("data-dur"), 10); if (!(d > 0)) d = 1000;
+      setTimeout(hide, d);   // 설정한 시간만큼 표시 후 사라짐
+    })();
+  </script>
+  {% endif %}
   <main class="login-card">
-    <div class="brand-mark">KNK</div>
-    <h1 class="brand">KNK 메신저</h1>
-    <p class="brand-sub">사내 업무 전용</p>
+    <div class="login-lang" id="loginLang" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;">
+      <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+      <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
+      <button type="button" class="lang-btn" data-lang="en">English</button>
+      <button type="button" class="lang-btn" data-lang="zh">中文</button>
+    </div>
+    <img class="brand-logo" id="brandMark" src="{{ url_for('static', filename='icons/logo.png') }}?v={{ asset_version }}" alt="KNK" title="프로그램 개요 보기">
+    <p class="brand-slogan">Human &amp; AI create the Best</p>
+    <h1 class="brand" data-i18n="login.brand">사람을 잇고, 일을 잇고, 미래를 잇다.</h1>
+    <p class="brand-sub" data-i18n="login.brandSub">사내 업무 전용</p>
     <form method="post" class="login-form" id="loginForm">
-      <label>아이디
+      <label><span data-i18n="login.idLabel">아이디</span>
         <input id="loginUsername" name="username" autocomplete="username" required>
       </label>
-      <label>비밀번호
+      <label><span data-i18n="login.pwLabel">비밀번호</span>
         <div class="pw-wrap">
           <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
-          <button type="button" class="pw-toggle" data-pw-toggle-for="loginPassword" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+          <button type="button" class="pw-toggle" data-pw-toggle-for="loginPassword" title="비밀번호 보기/숨기기" data-i18n-title="login.pwToggle" aria-label="비밀번호 보기">👁</button>
         </div>
       </label>
       <label class="checkbox-row">
         <input type="checkbox" id="rememberId" checked>
-        <span>아이디 기억하기</span>
+        <span data-i18n="login.rememberId">아이디 기억하기</span>
       </label>
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
       {% if notice %}<div class="error" style="background:#FEF3C7;color:#92400E;border-color:#FCD34D;">{{ notice }}</div>{% endif %}
-      <button type="submit">로그인</button>
-      <p class="hint" style="margin-top:8px;font-size:11px;color:#9ca3af;">한번 로그인하면 로그아웃 누르기 전까지 자동 로그인 유지됩니다 (90일).</p>
+      <button type="submit" data-i18n="login.submit">로그인</button>
+      <p class="hint" style="margin-top:8px;font-size:11px;color:#9ca3af;" data-i18n="login.autoHint">한번 로그인하면 로그아웃 누르기 전까지 자동 로그인 유지됩니다 (90일).</p>
     </form>
-    <p class="hint" style="font-size:11px;color:#9ca3af;">신규 직원 등록은 관리자에게 문의 — 초기 비밀번호는 본인 휴대폰 번호</p>
+    <!-- 내 사번 찾기 — 직원이 사번 모를 때 자체 확인 (대표 지시 2026-05-27) -->
+    <p class="hint" style="font-size:12px;margin-top:6px;text-align:center;">
+      <a href="#" id="findMyIdLink" style="color:#A5282C;text-decoration:underline;font-weight:600;cursor:pointer;" data-i18n="login.findMyId.link">🔍 내 사번(아이디) 찾기</a>
+    </p>
+    <p class="hint" style="font-size:11px;color:#9ca3af;" data-i18n="login.newUserHint">신규 직원 등록은 관리자에게 문의하세요.</p>
+
+    <!-- ===== 로그인 아이디 안내 (본사/베트남) — 접기/펼치기 (대표 지시 2026-05-26) ===== -->
+    <div class="login-policy login-idguide">
+      <details class="lp-details">
+        <summary class="lp-header">
+          <span class="lp-icon">🌐</span>
+          <span data-i18n="login.idGuide.title">로그인 아이디 안내</span>
+          <span class="lp-arrow" aria-hidden="true">▼</span>
+        </summary>
+        <div class="lp-idguide-body">
+          <div class="lp-idguide-section">
+            <div class="lp-idguide-head" data-i18n="login.idGuide.kor.head">🇰🇷 본사 (KOR)</div>
+            <div class="lp-idguide-row"><span class="lp-idguide-dot">•</span><span data-i18n="login.idGuide.kor.id">아이디 = 회사 이메일</span></div>
+            <div class="lp-idguide-ex" data-i18n="login.idGuide.kor.idEx">예: name@knknara.co.kr</div>
+            <div class="lp-idguide-row"><span class="lp-idguide-dot">•</span><span data-i18n="login.idGuide.kor.pw">초기 비밀번호 = 본인 휴대폰 번호 (숫자만)</span></div>
+          </div>
+          <div class="lp-idguide-section">
+            <div class="lp-idguide-head" data-i18n="login.idGuide.vn.head">🇻🇳 베트남법인 (VN)</div>
+            <div class="lp-idguide-row"><span class="lp-idguide-dot">•</span><span data-i18n="login.idGuide.vn.id">아이디 = 등록된 영문이름 (자동 생성)</span></div>
+            <div class="lp-idguide-ex" data-i18n="login.idGuide.vn.idEx">예: nguyenvana@knkvn.local</div>
+            <div class="lp-idguide-row"><span class="lp-idguide-dot">•</span><span data-i18n="login.idGuide.vn.pw">초기 비밀번호 = 9999</span></div>
+          </div>
+          <p class="lp-idguide-note" data-i18n="login.idGuide.firstLoginNote">⚠ 첫 로그인 시 비밀번호 변경 화면이 자동으로 나타납니다.</p>
+          <p class="lp-idguide-ask" data-i18n="login.idGuide.askAdmin">아이디·비밀번호를 모르겠으면 관리자에게 문의하세요.</p>
+        </div>
+      </details>
+    </div>
+
+    <!-- ===== 보안·이용 정책 고지 (접기/펼치기 — 기본 접힘) ===== -->
+    <div class="login-policy">
+      <details class="lp-details">
+        <summary class="lp-header">
+          <span class="lp-icon">🔒</span>
+          <span data-i18n="login.policyTitle">보안 및 이용 정책</span>
+          <span class="lp-arrow" aria-hidden="true">▼</span>
+        </summary>
+        <ul class="lp-list">
+          <li><span class="lp-badge lp-red">금지</span>대화 내용·자료의 <b>유출·누설·복사·무단 배포</b> — 민·형사상 법적 책임</li>
+          <li><span class="lp-badge lp-red">금지</span>업무 외 목적(개인 홍보, 광고, 타사 영업 등) <b>무단 사용</b></li>
+          <li><span class="lp-badge lp-red">금지</span>타인 계정 도용 · <b>계정 공유</b> · 비밀번호 제3자 제공</li>
+          <li><span class="lp-badge lp-org">주의</span><b>폭언·비방·성희롱·차별적 발언</b> — 사규 및 관련 법령 적용</li>
+          <li><span class="lp-badge lp-org">주의</span>허위 사실 유포 · 타인 명예 훼손 · <b>개인정보 무단 수집</b></li>
+        </ul>
+      </details>
+      <p class="lp-footer">로그인 시 위 정책에 동의한 것으로 간주됩니다 · 자세한 내용은 위 <b>“보안 및 이용 정책”</b>을 눌러 확인 · 위반 시 사규에 따라 처리.</p>
+    </div>
 
   </main>
 
+  <!-- ===== 내 사번(아이디) 찾기 팝업 (대표 지시 2026-05-27) ===== -->
+  <div class="about-overlay" id="findIdOverlay" hidden>
+    <div class="about-card findid-card" role="dialog" aria-modal="true" aria-label="내 사번 찾기">
+      <button type="button" class="about-close" id="findIdClose" aria-label="닫기">✕</button>
+      <h2 class="about-title" style="margin-bottom:6px;">🔍 <span data-i18n="login.findMyId.title">내 사번(아이디) 찾기</span></h2>
+      <p class="about-tagline" style="margin-bottom:14px;" data-i18n="login.findMyId.tagline">이름을 입력하면 사번과 부서가 표시됩니다.</p>
+
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <input type="text" id="findIdName" placeholder="이름 (예: 홍길동)" data-i18n-placeholder="login.findMyId.namePh" autocomplete="off"
+               style="flex:1;padding:9px 11px;border:1.5px solid #d1d5db;border-radius:7px;font-size:14px;">
+        <button type="button" id="findIdSubmit" data-i18n="login.findMyId.search"
+                style="padding:9px 16px;background:#A5282C;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:13px;">
+          찾기
+        </button>
+      </div>
+
+      <div id="findIdResult" style="margin-top:10px;"></div>
+
+      <p style="margin-top:14px;font-size:11px;color:#9ca3af;line-height:1.4;" data-i18n="login.findMyId.privacyNote">
+        ⚠ 본인 정보 확인 외 다른 용도로 사용 금지. 남용 시 자동 차단됩니다.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== 프로그램 개요 팝업 (KNK 로고 클릭) ===== -->
+  <div class="about-overlay" id="aboutOverlay" hidden>
+    <div class="about-card" role="dialog" aria-modal="true" aria-label="프로그램 개요">
+      <button type="button" class="about-close" id="aboutClose" aria-label="닫기">✕</button>
+      <img class="about-logo" src="{{ url_for('static', filename='icons/logo.png') }}?v={{ asset_version }}" alt="KNK">
+      <h2 class="about-title">KNK 이음</h2>
+      <p class="about-tagline">사내 업무 전용 메신저</p>
+      <dl class="about-list">
+        <dt>버전</dt><dd>v1 (베타)</dd>
+        <dt>제작 시기</dt><dd>2026년 5월</dd>
+        <dt>제작</dt><dd>㈜케이엔케이(KNK) 자체 개발</dd>
+        <dt>서버</dt><dd>사내 자체 서버(Synology NAS) 호스팅 · 외부 클라우드 미사용</dd>
+        <dt>주요 기능</dt><dd>실시간 채팅 · 프로젝트방 · 요청(업무지시) 관리 · 파일·사진 공유 · AI 자동번역(한·영·베트남어) · 푸시 알림</dd>
+        <dt>기술</dt><dd>설치형 웹앱(PWA) · Python Flask · SQLite · Socket.IO 실시간</dd>
+        <dt>문의</dt><dd>관리자(대표이사)</dd>
+      </dl>
+    </div>
+  </div>
+
+  <script>window.__BASE__ = "{{ base_path }}";</script>
+  <script src="{{ url_for('static', filename='js/i18n.js') }}?v={{ asset_version }}"></script>
   <script>
     // ID 자동 기억 — localStorage 에 마지막 username 보관
     (function() {
@@ -48,8 +192,10 @@
       const p = document.getElementById("loginPassword");
       const c = document.getElementById("rememberId");
       const f = document.getElementById("loginForm");
+      // 초대 링크(?staff=1)로 들어온 경우 — 새 직원/공용기기 대비, 저장된 아이디를 안 채우고 빈 칸으로 시작. (대표 지시 2026-06-01)
+      const _viaInvite = /[?&]staff=1(\b|&|$)/.test(location.search);
       try {
-        const saved = localStorage.getItem("knkmsg.lastUser");
+        const saved = _viaInvite ? null : localStorage.getItem("knkmsg.lastUser");
         if (saved) {
           u.value = saved;
           // ID 가 미리 채워졌으면 비번 입력칸에 즉시 포커스
@@ -70,6 +216,66 @@
       });
     })();
 
+    // ===== 로그인 후 뒤로가기 시 로그인 화면 재노출 방지 (대표 지시 2026-05-24) =====
+    //  서버 폼 POST(302 redirect)는 히스토리에 [로그인, 채팅] 을 남겨, 휴대폰 뒤로가기 시
+    //  로그인 화면으로 빠져나간다. 폼을 fetch 로 보내고 성공 시 location.replace 로 이동해
+    //  히스토리에서 '로그인' 을 치환 → 채팅 루트에서 뒤로가기 = 앱(화면) 닫힘 (로그아웃 아님).
+    (function () {
+      var form = document.getElementById("loginForm");
+      if (!form || !window.fetch) return;   // fetch 미지원 환경은 기존 폼 제출로 동작
+      var submitting = false;
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (submitting) return;
+        submitting = true;
+        var btn = form.querySelector('button[type="submit"]');
+        var origLabel = btn ? btn.textContent : "";
+        if (btn) { btn.disabled = true; btn.textContent = (window.KNK_t ? window.KNK_t("login.submitting") : "로그인 중…"); }
+        function _reset() {
+          submitting = false;
+          if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+        }
+        fetch(form.action || location.href, {
+          method: "POST",
+          body: new FormData(form),
+          credentials: "same-origin",
+          redirect: "follow",
+          headers: { "X-Requested-With": "fetch" },
+        }).then(function (r) {
+          if ((r.redirected || /\/chat\b/.test(r.url || "")) && r.url) {
+            // 로그인 성공 → 로그인 페이지를 히스토리에서 치환 (뒤로가기로 못 돌아옴)
+            location.replace(r.url);
+            return;
+          }
+          // 실패(아이디·비번 오류) — 반환된 로그인 HTML 에서 에러 문구 추출해 표시
+          return r.text().then(function (html) { _showLoginError(html); _reset(); });
+        }).catch(function () {
+          // 네트워크 오류 등 → 기존 폼 제출로 폴백
+          _reset();
+          try { form.submit(); } catch (e2) {}
+        });
+      });
+
+      function _showLoginError(html) {
+        var msg = (window.KNK_t ? window.KNK_t("login.error.generic") : "아이디 또는 비밀번호가 올바르지 않습니다.");
+        try {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var el = doc.querySelector(".error");
+          if (el && el.textContent.trim()) msg = el.textContent.trim();
+        } catch (e) {}
+        var box = form.querySelector(".error.js-login-error");
+        if (!box) {
+          box = document.createElement("div");
+          box.className = "error js-login-error";
+          var sb = form.querySelector('button[type="submit"]');
+          form.insertBefore(box, sb);
+        }
+        box.textContent = msg;
+        var pw = document.getElementById("loginPassword");
+        if (pw) { pw.value = ""; pw.focus(); }
+      }
+    })();
+
     // ===== 비밀번호 보기/숨기기 토글 (👁) =====
     document.querySelectorAll(".pw-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -84,9 +290,197 @@
       });
     });
 
+    // ===== 프로그램 개요 팝업 — KNK 로고 클릭 =====
+    (function () {
+      var logo = document.getElementById("brandMark");
+      var overlay = document.getElementById("aboutOverlay");
+      var closeBtn = document.getElementById("aboutClose");
+      if (!logo || !overlay) return;
+      function openAbout() { overlay.hidden = false; }
+      function closeAbout() { overlay.hidden = true; }
+      logo.addEventListener("click", openAbout);
+      if (closeBtn) closeBtn.addEventListener("click", closeAbout);
+      overlay.addEventListener("click", function (e) { if (e.target === overlay) closeAbout(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) closeAbout(); });
+    })();
+
+    // ===== 내 사번(아이디) 찾기 팝업 (대표 지시 2026-05-27) =====
+    (function () {
+      var link = document.getElementById("findMyIdLink");
+      var overlay = document.getElementById("findIdOverlay");
+      var closeBtn = document.getElementById("findIdClose");
+      var input = document.getElementById("findIdName");
+      var submitBtn = document.getElementById("findIdSubmit");
+      var resultBox = document.getElementById("findIdResult");
+      if (!link || !overlay) return;
+
+      function t(key, fallback) {
+        try { return (window.KNK_t ? window.KNK_t(key) : null) || fallback; }
+        catch (e) { return fallback; }
+      }
+
+      function openFind() {
+        overlay.hidden = false;
+        resultBox.innerHTML = "";
+        input.value = "";
+        setTimeout(function () { input.focus(); }, 80);
+      }
+      function closeFind() { overlay.hidden = true; }
+
+      link.addEventListener("click", function (e) {
+        e.preventDefault();
+        openFind();
+      });
+      if (closeBtn) closeBtn.addEventListener("click", closeFind);
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeFind();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !overlay.hidden) closeFind();
+      });
+
+      function renderError(message) {
+        resultBox.innerHTML = '<div style="padding:12px;background:#FEF2F2;border:1.5px solid #FCA5A5;border-radius:8px;color:#991b1b;font-size:13px;">'
+          + escapeHtml(message) + '</div>';
+      }
+
+      function renderResults(results) {
+        if (!results || !results.length) {
+          renderError(t("login.findMyId.notFound", "해당 이름의 직원을 찾을 수 없습니다. 관리자에게 문의하세요."));
+          return;
+        }
+
+        var html = '';
+        var multi = results.length > 1;
+        if (multi) {
+          html += '<p style="font-size:12px;color:#6b7280;margin-bottom:8px;">'
+            + escapeHtml(t("login.findMyId.multiHint", "동명이인이 ") )
+            + results.length
+            + escapeHtml(t("login.findMyId.multiHint2", "명 있습니다. 본인을 확인하세요."))
+            + '</p>';
+        }
+
+        results.forEach(function (r) {
+          var modeBadge;
+          if (r.mode === "vn") {
+            modeBadge = '<span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;">🇻🇳 ' + escapeHtml(t("login.findMyId.vn", "베트남")) + '</span>';
+          } else if (r.mode === "kor") {
+            modeBadge = '<span style="background:#DBEAFE;color:#1e40af;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;">🇰🇷 ' + escapeHtml(t("login.findMyId.kor", "본사")) + '</span>';
+          } else {
+            modeBadge = '';  // unknown — 표시 안 함, 본인이 알아서 확인
+          }
+
+          html += '<div style="margin-bottom:10px;padding:11px 13px;border:2px solid #A5282C;border-radius:9px;background:#FFFBFB;">';
+          html +=   '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">';
+          html +=     '<strong style="font-size:15px;color:#1f2937;">' + escapeHtml(r.primary_name || r.display_name) + '</strong>';
+          html +=     modeBadge;
+          html +=     (r.title ? '<span style="font-size:11px;color:#6b7280;">' + escapeHtml(r.title) + '</span>' : '');
+          html +=   '</div>';
+
+          // 입력한 언어의 이름을 주(主)로 크게, 나머지 언어 이름은 작게 표시 (대표 지시 2026-05-29)
+          if (r.other_names && r.other_names.length) {
+            html += '<div style="font-size:11.5px;color:#9ca3af;margin-bottom:4px;">'
+                  + r.other_names.map(function (nm) { return escapeHtml(nm); }).join(' · ')
+                  + '</div>';
+          }
+
+          if (r.department) {
+            html += '<div style="font-size:12px;color:#6b7280;margin-bottom:4px;">'
+                  + escapeHtml(t("login.findMyId.dept", "소속")) + ': ' + escapeHtml(r.department) + '</div>';
+          }
+
+          html +=   '<div style="margin-top:6px;padding:7px 10px;background:#fff;border-radius:6px;border:1px solid #e5e7eb;">';
+          html +=     '<div style="font-size:12px;color:#A5282C;font-weight:700;margin-bottom:3px;">'
+                    + escapeHtml(t("login.findMyId.loginId", "로그인 아이디")) + '</div>';
+          html +=     '<div style="font-family:monospace;font-size:16px;font-weight:800;color:#1f2937;letter-spacing:0.5px;">'
+                    + escapeHtml(r.username) + '</div>';
+          html +=   '</div>';
+
+          html +=   '<div style="margin-top:6px;padding:7px 10px;background:#fff;border-radius:6px;border:1px solid #e5e7eb;">';
+          html +=     '<div style="font-size:12px;color:#A5282C;font-weight:700;margin-bottom:3px;">'
+                    + escapeHtml(t("login.findMyId.initPw", "초기 비밀번호")) + '</div>';
+          html +=     '<div style="font-size:13px;color:#1f2937;">' + escapeHtml(r.pw_hint) + '</div>';
+          html +=   '</div>';
+
+          html +=   '<button type="button" class="findId-useThis" data-username="' + escapeHtml(r.username) + '"';
+          html +=     ' style="margin-top:9px;width:100%;padding:8px;background:#A5282C;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">';
+          html +=     escapeHtml(t("login.findMyId.useThis", "이 아이디로 로그인하기")) + ' →';
+          html +=   '</button>';
+          html += '</div>';
+        });
+
+        resultBox.innerHTML = html;
+
+        // 클릭 시 로그인 폼에 자동 채우고 모달 닫기
+        resultBox.querySelectorAll(".findId-useThis").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var uname = btn.getAttribute("data-username") || "";
+            var loginInput = document.getElementById("loginUsername");
+            var pwInput = document.getElementById("loginPassword");
+            if (loginInput) loginInput.value = uname;
+            closeFind();
+            if (pwInput) setTimeout(function () { pwInput.focus(); }, 100);
+          });
+        });
+      }
+
+      function escapeHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function doLookup() {
+        var name = (input.value || "").trim();
+        if (name.length < 2) {
+          renderError(t("login.findMyId.tooShort", "이름을 2자 이상 입력해 주세요."));
+          return;
+        }
+        resultBox.innerHTML = '<div style="padding:12px;color:#6b7280;font-size:13px;text-align:center;">' + escapeHtml(t("login.findMyId.searching", "찾는 중…")) + '</div>';
+        submitBtn.disabled = true;
+        var base = window.__BASE__ || "";
+        fetch(base + "/api/lookup_employee", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ name: name })
+        }).then(function (r) {
+          return r.json().then(function (data) {
+            submitBtn.disabled = false;
+            if (r.status === 429) {
+              renderError(data.message || t("login.findMyId.blocked", "잠시 후 다시 시도해 주세요. (시도가 너무 많습니다)"));
+              return;
+            }
+            if (r.status >= 400) {
+              renderError(data.message || t("login.findMyId.error", "오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
+              return;
+            }
+            if (data.results && data.results.length > 0) {
+              renderResults(data.results);
+            } else {
+              renderError(data.message || t("login.findMyId.notFound", "해당 이름의 직원을 찾을 수 없습니다. 관리자에게 문의하세요."));
+            }
+          });
+        }).catch(function () {
+          submitBtn.disabled = false;
+          renderError(t("login.findMyId.network", "네트워크 오류. 잠시 후 다시 시도해 주세요."));
+        });
+      }
+
+      submitBtn.addEventListener("click", doLookup);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); doLookup(); }
+      });
+    })();
+
     // ===== PWA 설치 안내 — 삭제됨 (대표 지시 2026-05-19) =====
     // 옛 dismissed 마커가 있으면 정리 (모든 사용자 1회성 클린업)
     try { localStorage.removeItem("knkmsg.pwaDismissed"); } catch(e) {}
   </script>
+  <!-- 카톡 등 인앱 브라우저 — 로그인 전에 '기본 브라우저로 열기' 안내 (대표 지시 2026-05-30) -->
+  <script src="{{ url_for('static', filename='js/inapp_guide.js') }}?v={{ asset_version }}"></script>
 </body>
 </html>

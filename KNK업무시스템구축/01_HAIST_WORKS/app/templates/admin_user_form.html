@@ -21,7 +21,7 @@
     <div>
       <div class="crumbs"><a href="/admin">관리자</a> · <b>{% if target_user %}사용자 수정{% else %}사용자 추가{% endif %}</b></div>
       <div class="page-meta">USER {{ '편집' if target_user else '신규' }}</div>
-      <h1 class="page-title">👤 사용자 <em>{% if target_user %}{{ target_user.name }}{% else %}추가{% endif %}</em></h1>
+      <h1 class="page-title">👤 사용자 <em>{% if target_user %}{{ vname(target_user) }}{% else %}추가{% endif %}</em></h1>
     </div>
   </div>
 
@@ -32,8 +32,8 @@
         <input type="text" name="name" required value="{{ target_user.name|default('') }}" placeholder="홍길동">
       </div>
       <div class="fld">
-        <label>로그인 ID <span class="req">*</span></label>
-        <input type="text" name="login_id" required value="{{ target_user.login_id|default('') }}" placeholder="hong.gildong">
+        <label>사번 (로그인 ID) <span class="req">*</span></label>
+        <input type="text" name="login_id" required value="{% if target_user %}{{ target_user.employee_no|default(target_user.login_id|default('')) }}{% endif %}" placeholder="예: 5 / VN001">
       </div>
       <div class="fld">
         <label>{% if target_user %}새 비밀번호 (변경 시만){% else %}초기 비밀번호 <span class="req">*</span>{% endif %}</label>
@@ -72,6 +72,21 @@
         </select>
       </div>
     </div>
+
+    {# v5H226z141: 센터 진입 권한 — 권한자가 직접 부여(향후 모든 직원 대상) #}
+    <div style="border-top:1px solid var(--line); padding-top:14px; margin-top:4px;">
+      <label style="font-size:13px;color:var(--ink);font-weight:800;">🔑 센터 진입 권한 <span style="font-weight:500;color:var(--mute);">(체크 시 해당 센터 사용 가능)</span></label>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px 24px;margin-top:10px;">
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_view_sales" {% if target_user and target_user.can_view_sales %}checked{% endif %}> 📈 매출·영업 <b>보기</b></label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_sales" {% if target_user and target_user.can_use_sales %}checked{% endif %}> 📈 매출·영업 <b>등록·편집</b></label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_view_logistics" {% if target_user and target_user.can_view_logistics %}checked{% endif %}> 📦 자재·구매 <b>보기</b></label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_logistics" {% if target_user and target_user.can_use_logistics %}checked{% endif %}> 📦 자재·구매 <b>등록·편집</b></label>
+      </div>
+      <div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.6;">
+        ※ 대표·임원·팀장과 영업/검사기/품질팀(team 1·2·3)은 매출·영업이 <b>기본 허용</b>됩니다.<br>그 외 직원에게 센터를 열어주려면 여기서 체크하세요.
+      </div>
+    </div>
+
     <div class="actions">
       <button type="submit" class="btn btn-primary">💾 {% if target_user %}수정 저장{% else %}추가{% endif %}</button>
       <a href="/admin" class="btn btn-secondary">취소</a>

@@ -241,7 +241,7 @@ body.knk-debug .knk-debug-toggle { display: none; }
     //   사용: 드래그 = 위치 이동 / 더블클릭 = 위치 초기화 / 단순 클릭 = 기존 동작
     //   z93 수정: <a href> navigation 강제 차단 (시간 기반 + 4단계 차단)
     // ============================================================
-    var DRAG_SELECTORS = ['#knkBackBtn', '.knk-debug-toggle', '.knk-debug-panel'];
+    var DRAG_SELECTORS = ['.knk-debug-panel'];  /* v5H226z188: #knkBackBtn(이제 제목 옆 인라인)·.knk-debug-toggle(삭제됨) 제외 */
     var POS_KEY_PREFIX = 'knk-icon-pos-';
     var DRAG_THRESHOLD = 4;       // px — 이 이하 움직임은 클릭으로 간주
     var CLICK_BLOCK_MS = 350;     // ms — 드래그 종료 후 이 시간 안의 click 모두 차단
@@ -415,9 +415,9 @@ body.knk-debug .knk-debug-toggle { display: none; }
 })();
 </script>
 
-{# 토글 버튼 (debug=0 일 때 화면에 노출) #}
+{# v5H226z187 (대표 지시): 화면 우측하단 '🔍 영역 보기' 플로팅 버튼 삭제.
+   영역 보기 기능은 편집 시 필요하면 단축키 Ctrl+Shift+D 또는 URL ?debug=1 로 켤 수 있음(버튼만 제거). #}
 {% set _qs = request.query_params if request is defined else {} %}
-<a class="knk-debug-toggle" href="?debug=1" title="디버그 모드: 영역명·크기 표시 (Ctrl+Shift+D)">🔍 영역 보기</a>
 
 <div class="knk-debug-panel">
   <h4>🔍 디버그 모드 ON</h4>

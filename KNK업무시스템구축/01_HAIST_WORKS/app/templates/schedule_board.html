@@ -42,8 +42,8 @@
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
 .sched-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; max-height:100vh; border-radius:0; }
-/* 비율 채움: 표가 항상 컨테이너 폭 100% */
-table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:100%; }
+/* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */
+table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:max-content; }
 .sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }
 .sched thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red);
   font-size:10.5px; font-weight:700; text-align:center; height:34px; }
@@ -209,7 +209,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <span class="tool-grp">날짜 너비 <span class="step" onclick="stepDateW(-1)">－</span><span class="step" onclick="stepDateW(1)">＋</span></span>
     <span class="tool-grp">날짜 표시 <input type="number" id="dayFrom" min="1" max="{{ days|length }}" onchange="setDayRange()"> ~ <input type="number" id="dayTo" min="1" max="{{ days|length }}" onchange="setDayRange()"> 일</span>
     <button type="button" onclick="resetCols()">↺ 초기화</button>
-    <span class="sched-hint">칸 경계를 끌어 너비 조정(숨기면 남은 칸이 비율대로 넓어짐) · 정보칸 클릭해 입력 · 일정 막대 클릭해 메모</span>
+    <span class="sched-hint">칸 경계를 끌어 너비 조정(그 칸만 바뀌고 다른 칸은 그대로) · 표가 넓으면 아래 좌우 스크롤 · 정보칸 클릭해 입력 · 일정 막대 클릭해 메모</span>
   </div>
 
   <div class="sched-wrap" id="schedWrap">
@@ -326,12 +326,12 @@ function _on(t, ty, fn){ t.addEventListener(ty, fn); __docL.push([t, ty, fn]); }
 window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].removeEventListener(h[1], h[2]); }catch(e){} }); __docL = []; };
 // v5H226z273: HTML 이스케이프 헬퍼 — 단계 패널 renderStages 등에서 사용(z270에서 정의 누락이 'esc is not defined' 유발).
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-// ===== z265: 작업 일정표 — 비율(채움) 컬럼 모델 =====
+// ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','cust','dept','owner','ship','stage'];
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',cust:'고객사',dept:'부서',owner:'담당자',ship:'납품위치',stage:'단계'};
-// 가중치(상대 비율). 폭(px)이 아니라 '비율'이며 실제 px = 가중치/Σ × 표 폭.
-const COL_DEFAULTS = {code:90,so_no:90,name:150,model:110,equip:130,note:120,qty:42,price:80,amount:96,trade:54,po:54,cust:120,dept:64,owner:68,ship:104,stage:150};
-const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 가중치(균일)
+// z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
+const COL_DEFAULTS = {code:90,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,cust:130,dept:72,owner:78,ship:120,stage:150};
+const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
 try { COLS = JSON.parse('{{ col_prefs|safe }}') || {}; } catch(e){ COLS = {}; }
@@ -341,6 +341,7 @@ function dateW(){ return COLS._dateW || DATE_W_DEFAULT; }
 function dayFrom(){ let v=parseInt(COLS._dayFrom); return (v>=1&&v<=LAST_DAY)?v:1; }
 function dayTo(){ let v=parseInt(COLS._dayTo); return (v>=1&&v<=LAST_DAY)?v:LAST_DAY; }
 
+// z279: 표 전체 폭 = 보이는 칸들의 px 합. (인쇄 시엔 print CSS의 width:100%!important 가 눌러서 한 페이지에 맞춤)
 function sumWeights(){
   let s=0;
   COL_KEYS.forEach(k=>{ if(!colState(k).hidden) s+=colState(k).w; });
@@ -349,19 +350,27 @@ function sumWeights(){
   return s || 1;
 }
 
-// 폭만 갱신(드래그 중 빠른 경로) — col 의 % 만 바꾸고 셀 display 는 건드리지 않음
+// 폭만 갱신(드래그 중 빠른 경로) — 각 col 에 px 직접 지정. 다른 칸은 손대지 않음.
 function applyWidths(){
   const cg=document.getElementById('schedCols'); if(!cg) return;
-  const sum=sumWeights(), df=dayFrom(), dt=dayTo(), dw=dateW();
+  const df=dayFrom(), dt=dayTo(), dw=dateW();
+  let total=0;
   COL_KEYS.forEach(k=>{
     const st=colState(k);
+    const w=st.hidden?0:st.w;
     const col=cg.querySelector('col[data-col="'+k+'"]');
-    if(col) col.style.width = (st.hidden?0:(st.w/sum*100))+'%';
+    if(col) col.style.width = w+'px';
+    total+=w;
   });
   cg.querySelectorAll('col.cgd').forEach(col=>{
     const d=+col.dataset.day, hide=(d<df||d>dt);
-    col.style.width = (hide?0:(dw/sum*100))+'%';
+    const w=hide?0:dw;
+    col.style.width = w+'px';
+    total+=w;
   });
+  // 표 폭을 px 합으로 명시 → 컨테이너보다 넓으면 좌우 스크롤바 등장
+  const t=document.getElementById('schedTable');
+  if(t) t.style.width = total+'px';
   updateSticky();
 }
 // 표시/숨김(체크박스·날짜범위 변경 시) — 셀 display 토글
@@ -430,29 +439,22 @@ function setDayRange(){
 
 function resetCols(){ COLS={}; applyCols(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜를 초기화했습니다'); }
 
-// ---- 너비 조정(드래그) — 그 칸을 정확히 그 폭으로, 나머지는 비율대로 양보 ----
+// ---- 너비 조정(드래그) — z279: 그 칸만 px 로 직접 지정. 다른 칸은 1px도 안 움직임 ----
 let _rz=null;
 document.querySelectorAll('.col-resizer').forEach(h=>{
   h.addEventListener('mousedown',(e)=>{
     e.preventDefault(); e.stopPropagation();
-    _rz={k:h.dataset.col, x:e.clientX};
+    const st=colState(h.dataset.col);
+    _rz={k:h.dataset.col, x:e.clientX, w:st.w};
     document.body.style.cursor='col-resize';
   });
 });
 _on(document,'mousemove',(e)=>{
   if(!_rz) return;
-  const t=document.getElementById('schedTable');
-  const W=t.getBoundingClientRect().width;
-  const th=t.querySelector('thead th[data-col="'+_rz.k+'"]');
-  if(!th){ return; }
-  const curPx=th.getBoundingClientRect().width;
-  const targetPx=Math.max(16, Math.min(W-40, curPx + (e.clientX-_rz.x)));
-  const sum=sumWeights(), wk=colState(_rz.k).w, Sother=sum-wk;
-  // wk_new/(wk_new+Sother) * W = targetPx  →  wk_new = targetPx*Sother/(W-targetPx)
-  let wknew = targetPx*Sother/Math.max(1,(W-targetPx));
-  if(!isFinite(wknew)||wknew<3) wknew=3;
-  COLS[_rz.k]=COLS[_rz.k]||{}; COLS[_rz.k].w=wknew; COLS[_rz.k].hidden=false;
-  _rz.x=e.clientX;
+  // 시작 폭 + 마우스 이동량 = 새 폭(px). 최소 28px.
+  let neww = _rz.w + (e.clientX - _rz.x);
+  neww = Math.max(28, Math.min(900, neww));
+  COLS[_rz.k]=COLS[_rz.k]||{}; COLS[_rz.k].w=neww; COLS[_rz.k].hidden=false;
   applyWidths();
 });
 _on(document,'mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); }});

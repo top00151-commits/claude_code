@@ -57,7 +57,13 @@ param(
     [string]$VictorMessage = $null,
     # VAPID 키 재생성 + 옛 push 구독 모두 삭제 — 키 손상 시 사용.
     # 사용자는 다음 번 PWA 열 때 새 키로 자동 재구독.
-    [switch]$RegenerateVapid
+    [switch]$RegenerateVapid,
+    # 읽기 전용 진단 — 업로드·재시작 없이 서버 상태(메모리·OOM·디스크·supervisord/gunicorn 로그·설정)만 수집. (대표 지시 2026-05-25 장애 원인조사)
+    [switch]$Diag,
+    # 내부 보강 — supervisor 설정에서 nginx autostart=false→true. 실행 중 서비스 무중단(파일만 수정, reread/update 안 함). (대표 지시 2026-05-25)
+    [switch]$HardenNginx,
+    # 읽기 전용 — 특정 사용자(이름 일부)의 접속 세션·푸시 등록 현황 조회 (상태표시 진단용, 변경 없음). (대표 지시 2026-05-25)
+    [string]$DbUser = $null
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,6 +71,14 @@ $ErrorActionPreference = "Stop"
 function Fail($m) { Write-Host "[FAIL] $m" -ForegroundColor Red; exit 1 }
 function Info($m) { Write-Host "[*] $m" -ForegroundColor Cyan }
 function Ok($m)   { Write-Host "[OK] $m" -ForegroundColor Green }
+
+# Git bash(MSYS2)가 /opt/... 를 "C:/Program Files/Git/opt/..." 로 자동변환하는 현상 보정
+# NasHost, NasPath 에서 Windows 드라이브 경로가 검출되면 원래 Unix 경로로 복원한다.
+if ($NasPath -match '^[A-Za-z]:[/\\]') {
+    # "C:/Program Files/Git/opt/knk_messenger" → "/opt/knk_messenger"
+    $NasPath = '/' + ($NasPath -replace '^[A-Za-z]:[/\\].*?[Gg]it[/\\]', '' -replace '\\', '/')
+    Write-Host "[info] NasPath git-bash 경로 변환 보정: $NasPath" -ForegroundColor DarkYellow
+}
 
 if (-not $NasHost) { Fail "KNK_NAS_HOST 환경변수 또는 -NasHost 인자 필요" }
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
@@ -120,13 +134,33 @@ $Items = @(
     "generate_icons.py",
     "generate_vapid.py",
     "seed_from_xlsx.py",
-    "backup.py"
+    "backup.py",
+    "consent_doc.py"
 )
 $Existing = $Items | Where-Object { Test-Path $_ }
 
-$TarArgs = @("-czf", $Tarball, "--exclude=__pycache__", "--exclude=*.pyc") + $Existing
-& tar @TarArgs 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Fail "tar 압축 실패" }
+# Git for Windows tar.exe 는 Windows 드라이브 경로를 네트워크 주소로 오인 → Python tarfile 사용
+# Python은 Windows/bash 양쪽에서 경로를 올바르게 처리함
+$PyItems = ($Existing | ForEach-Object { "'$($_ -replace "'","\'")'" }) -join ","
+$PyScript = @"
+import tarfile, os, sys, fnmatch
+out = sys.argv[1]
+items = [x for x in sys.argv[2:]]
+def excl(ti):
+    if '__pycache__' in ti.name: return None
+    if ti.name.endswith('.pyc'): return None
+    return ti
+with tarfile.open(out, 'w:gz') as tf:
+    for item in items:
+        if os.path.exists(item):
+            tf.add(item, filter=excl)
+print('OK', out)
+"@
+$PyResult = & python -c $PyScript $Tarball @Existing 2>&1
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Tarball)) {
+    Write-Host "Python output: $PyResult" -ForegroundColor Yellow
+    Fail "tarball 생성 실패 (python tarfile)"
+}
 
 $TarSize = [math]::Round((Get-Item $Tarball).Length / 1KB, 1)
 Ok "  archive: $TarSize KB"
@@ -136,7 +170,7 @@ Info "2/4 Uploading + extracting to NAS..."
 
 # Synology 컨테이너의 sshd 가 로그인 시 stderr 메시지를 찍어 scp 깨짐 — base64 stream 우회
 # .NET 직접 base64 encoding (UTF8 BOM 없음) — certutil 방식은 PowerShell 5.1 의 Set-Content 가 BOM 흘림
-$b64File = "$Tarball.b64"
+$b64File = Join-Path $env:TEMP "knk_synology_$Stamp.tar.gz.b64"
 $rawBytes = [System.IO.File]::ReadAllBytes($Tarball)
 $b64Str = [Convert]::ToBase64String($rawBytes)
 [System.IO.File]::WriteAllText($b64File, $b64Str, [System.Text.UTF8Encoding]::new($false))
@@ -199,6 +233,101 @@ function Invoke-Ssh {
     return $proc.ExitCode
 }
 
+# ============================================================
+# 읽기 전용 진단 모드 (-Diag) — 서버 변경 없이 장애 원인 단서만 수집 후 종료
+#   (대표 지시 2026-05-25: supervisord 다운 장애 원인 철저 규명)
+# ============================================================
+if ($Diag) {
+    Info "DIAG (read-only) — 서버 상태 수집 중..."
+    $diagCmd = @'
+echo ===UPTIME===; uptime 2>&1; awk '{print "proc_uptime_sec="$1}' /proc/uptime 2>&1
+echo ===PID1===; cat /proc/1/comm 2>&1; tr "\0" " " < /proc/1/cmdline 2>&1; echo
+echo ===MEM_MB===; free -m 2>&1
+echo ===CGROUP_MEM===; for f in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory/memory.limit_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.failcnt; do [ -e "$f" ] && echo "$f:" && cat "$f" 2>&1; done
+echo ===OOM_DMESG===; dmesg 2>/dev/null | grep -iE 'oom|killed process|out of memory' | tail -20 || echo '(dmesg 권한없음/없음)'
+echo ===DISK===; df -h 2>&1
+echo ===PROCS===; ps aux 2>&1 | grep -E 'supervisor|gunicorn|nginx|python' | grep -v grep
+echo ===SUPERVISORD_TAIL===; tail -80 /var/log/supervisor/supervisord.log 2>&1 || echo '(no supervisord.log)'
+echo ===SUPERVISOR_CONF===; cat /etc/supervisor/supervisord.conf 2>&1
+echo ===SUPERVISOR_CONFD===; cat /etc/supervisor/conf.d/*.conf 2>&1
+echo ===GUNICORN_ERR_TAIL===; tail -80 /opt/knk_messenger/logs/gunicorn.err.log 2>&1 || echo '(no err log)'
+echo ===GUNICORN_OUT_TAIL===; tail -40 /opt/knk_messenger/logs/gunicorn.log 2>&1 || echo '(no out log)'
+echo ===RUN_GUNICORN_SH===; cat /opt/knk_messenger/run_gunicorn.sh 2>&1
+echo ===DIAG_DONE===
+'@
+    Invoke-Ssh -Cmd $diagCmd | Out-Null
+    Write-Host $_LastSshOut
+    if ($_LastSshErr) { Write-Host "--- stderr ---" -ForegroundColor DarkYellow; Write-Host $_LastSshErr -ForegroundColor DarkGray }
+    if ($askpassFile -and (Test-Path $askpassFile)) { Remove-Item $askpassFile -ErrorAction SilentlyContinue }
+    Ok "DIAG 완료"
+    exit 0
+}
+
+# ============================================================
+# 내부 보강 모드 (-HardenNginx) — nginx autostart=false→true (무중단: 파일만 수정)
+#   실행 중인 nginx 는 건드리지 않고, 다음 supervisord 기동부터 nginx 가 자동 시작되게 한다.
+#   → supervisord 가 죽었다 살아날 때 nginx 까지 자동 복구 (수동 start 불필요). (대표 지시 2026-05-25)
+# ============================================================
+if ($HardenNginx) {
+    Info "HARDEN — nginx autostart=true (무중단: 설정 파일만 수정, reread/update 안 함)"
+    $hc = @'
+CONF=/etc/supervisor/conf.d/knk-messenger.conf
+echo ===BEFORE===; grep -n autostart $CONF
+cp $CONF ${CONF}.bak.$(date +%s) && echo BACKUP_OK
+sed -i 's/^autostart=false/autostart=true/' $CONF
+echo ===AFTER===; grep -n autostart $CONF
+echo ===HEALTHZ===; curl -fsS --max-time 8 http://127.0.0.1:5050/healthz && echo HEALTHZ_OK || echo HEALTHZ_FAIL
+echo ===STATUS===; supervisorctl status 2>&1
+echo HARDEN_DONE
+'@
+    Invoke-Ssh -Cmd $hc | Out-Null
+    Write-Host $_LastSshOut
+    if ($_LastSshErr) { Write-Host "--- stderr ---" -ForegroundColor DarkYellow; Write-Host $_LastSshErr -ForegroundColor DarkGray }
+    if ($askpassFile -and (Test-Path $askpassFile)) { Remove-Item $askpassFile -ErrorAction SilentlyContinue }
+    Ok "HARDEN 완료"
+    exit 0
+}
+
+# ============================================================
+# 읽기 전용 — 사용자 접속/푸시 진단 (-DbUser "<이름일부>")
+#   서버 DB(messenger.db)를 read-only(mode=ro)로 열어 active_sessions·push_subscriptions 조회.
+#   민감정보(토큰·암호키·푸시 endpoint)는 SELECT 하지 않음. (대표 지시 2026-05-25)
+# ============================================================
+if ($DbUser) {
+    Info "DBUSER (read-only) — '$DbUser' 접속/푸시 현황 조회 중..."
+    $pyTmp = Join-Path $env:TEMP "knk_dbuser_$([guid]::NewGuid().ToString('N')).py"
+    $nameLit = $DbUser.Replace('\','\\').Replace('"','\"')
+    $pyContent = @"
+import sqlite3
+NAME = "$nameLit"
+db = sqlite3.connect("file:/opt/knk_messenger/data/messenger.db?mode=ro", uri=True)
+db.row_factory = sqlite3.Row
+us = db.execute("SELECT id,username,display_name,role,COALESCE(is_guest,0) g FROM users WHERE display_name LIKE ?", ('%'+NAME+'%',)).fetchall()
+print("=== matched users:", len(us), "===")
+for u in us:
+    print("  id=%s username=%s name=%s role=%s guest=%s" % (u['id'], u['username'], u['display_name'], u['role'], u['g']))
+for u in us:
+    print("\n=== %s (id=%s) ===" % (u['display_name'], u['id']))
+    sess = db.execute("SELECT device_type,ip,substr(user_agent,1,45) ua,created_at FROM active_sessions WHERE user_id=?", (u['id'],)).fetchall()
+    print("  active_sessions:", len(sess))
+    for s in sess:
+        print("    [%s] ip=%s created=%s ua=%s" % (s['device_type'], s['ip'], s['created_at'], s['ua']))
+    push = db.execute("SELECT substr(user_agent,1,55) ua,created_at,last_used FROM push_subscriptions WHERE user_id=?", (u['id'],)).fetchall()
+    print("  push_subscriptions:", len(push))
+    for p in push:
+        print("    created=%s last_used=%s ua=%s" % (p['created_at'], p['last_used'], p['ua']))
+print("\n=== DBUSER_DONE ===")
+"@
+    [IO.File]::WriteAllText($pyTmp, $pyContent, (New-Object System.Text.UTF8Encoding $false))
+    Invoke-Ssh -Cmd "python3 -" -StdinFile $pyTmp | Out-Null
+    Write-Host $_LastSshOut
+    if ($_LastSshErr) { Write-Host "--- stderr ---" -ForegroundColor DarkYellow; Write-Host $_LastSshErr -ForegroundColor DarkGray }
+    Remove-Item $pyTmp -ErrorAction SilentlyContinue
+    if ($askpassFile -and (Test-Path $askpassFile)) { Remove-Item $askpassFile -ErrorAction SilentlyContinue }
+    Ok "DBUSER 완료"
+    exit 0
+}
+
 # 업로드 — base64 stream 을 stdin 으로 전달
 $b64Len = (Get-Item $b64File).Length
 Info "  b64 size (local): $b64Len bytes"
@@ -236,7 +365,7 @@ Ok "  extracted to $NasPath"
 # --- 2.1) 배포 검증 — app.py 가 실제로 갱신됐는지 + 환경 진단 ---
 # (과거 대용량 파일 무음 sync 실패 사례 → 마커 grep 으로 확인)
 Info "2.1/4 Verifying deployed app.py + diagnostics..."
-$diagCmd = "cd '$NasPath' && echo DIAG_START && echo healthz=`$(grep -c healthz app.py) && echo basepath_code=`$(grep -c KNK_MSG_BASE_PATH app.py) && echo size=`$(wc -c < app.py) && ls -la app.py wsgi.py static/js/app.js && echo '--- supervisor conf ---' && grep -rhE 'command=|environment=|dotenv|\.env' /etc/supervisor/conf.d/ 2>/dev/null && echo '--- status ---' && supervisorctl status && echo DIAG_END"
+$diagCmd = "cd '$NasPath' && echo DIAG_START && echo healthz=`$(grep -c healthz app.py) && echo basepath_code=`$(grep -c KNK_MSG_BASE_PATH app.py) && echo size=`$(wc -c < app.py) && ls -la app.py wsgi.py static/js/app.js && echo loginhtml_size=`$(wc -c < templates/login.html) && echo logincss_policy=`$(grep -c login-policy static/css/style.css) && echo env_openai_linelen=`$(grep -E '^[[:space:]]*OPENAI_API_KEY[[:space:]]*=' .env 2>/dev/null | head -1 | wc -c) && echo '--- supervisor conf ---' && grep -rhE 'command=|environment=|dotenv|\.env' /etc/supervisor/conf.d/ 2>/dev/null | sed -E 's/([A-Za-z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PASSWD))=[^,]*/\1=***MASKED***/g' && echo '--- status ---' && supervisorctl status && echo DIAG_END"
 Invoke-Ssh -Cmd $diagCmd | Out-Null
 Write-Host $_LastSshOut -ForegroundColor Gray
 $healthzCount = 0
@@ -274,14 +403,48 @@ if ($SkipRestart) {
 
 # --- 3) supervisord 로 재시작 ---
 Info "3/4 Restarting knk-messenger (supervisorctl)..."
-$code = Invoke-Ssh -Cmd "supervisorctl restart knk-messenger"
-if ($code -ne 0) {
-    Write-Host "stderr: $_LastSshErr" -ForegroundColor Yellow
-    Fail "supervisorctl restart 실패. SSH 직접 디버깅 필요. code=$code"
-}
-Ok "  restarted"
+# supervisord 데몬 자체가 중단됐을 경우 먼저 시작 후 재시도
+# PID 기록 → restart 후 PID 변경 여부로 성공 판단
+$pidBefore = -1
+$pidCmd = "supervisorctl status knk-messenger 2>&1"
+Invoke-Ssh -Cmd $pidCmd | Out-Null
+if ($_LastSshOut -match "pid\s+(\d+)") { $pidBefore = [int]$matches[1] }
+Write-Host "  before restart PID: $pidBefore" -ForegroundColor DarkCyan
 
+# 1차: supervisorctl stop → start (별개 명령, 더 안정적)
+$restartCmd = "supervisorctl stop knk-messenger 2>&1; sleep 2; supervisorctl start knk-messenger 2>&1"
+$code = Invoke-Ssh -Cmd $restartCmd
+Write-Host $_LastSshOut -ForegroundColor Gray
+
+# 2차 확인: PID 바뀌었는지 체크
 Start-Sleep -Seconds 4
+Invoke-Ssh -Cmd $pidCmd | Out-Null
+$pidAfter = -1
+if ($_LastSshOut -match "pid\s+(\d+)") { $pidAfter = [int]$matches[1] }
+Write-Host "  after restart PID: $pidAfter" -ForegroundColor DarkCyan
+
+if ($pidAfter -eq $pidBefore -and $pidBefore -gt 0) {
+    Write-Host "[warn] PID unchanged ($pidBefore) — supervisorctl stop/start 미작동. kill -9 강제 재시작..." -ForegroundColor Yellow
+    $forceKill = "kill -9 $pidBefore 2>&1; sleep 4; supervisorctl start knk-messenger 2>&1 || supervisord -c /etc/supervisor/supervisord.conf 2>/dev/null; sleep 2; supervisorctl start knk-messenger 2>&1 || true"
+    Invoke-Ssh -Cmd $forceKill | Out-Null
+    Write-Host $_LastSshOut -ForegroundColor Gray
+    Start-Sleep -Seconds 5
+    Invoke-Ssh -Cmd $pidCmd | Out-Null
+    Write-Host "  after kill-9 PID: $_LastSshOut" -ForegroundColor DarkCyan
+}
+
+# supervisord 데몬 자체가 내려간 경우 (supervisorctl status 가 'refused connection' → PID 파싱 실패로 -1)
+#   → supervisord 가 죽으면 자식(gunicorn)을 재시작해주지 못해 앱이 영구 다운(502)됨.
+#   supervisord 를 새로 기동하면 autostart 로 knk-messenger 가 다시 뜬다. (데몬을 kill 하지 않아 컨테이너 안전)
+#   (대표 지시 2026-05-25 긴급 복구: supervisor.sock refused 장애 대응)
+if ($pidBefore -le 0) {
+    Write-Host "[warn] supervisorctl 응답 없음(supervisord 데몬 다운 추정) — supervisord 재기동 복구 시도..." -ForegroundColor Yellow
+    $recoverCmd = "supervisord -c /etc/supervisor/supervisord.conf 2>&1; sleep 6; supervisorctl start knk-messenger 2>&1; supervisorctl start knk-nginx 2>&1; sleep 2; supervisorctl status 2>&1"
+    Invoke-Ssh -Cmd $recoverCmd | Out-Null
+    Write-Host $_LastSshOut -ForegroundColor Gray
+}
+
+Ok "  restart 시도 완료"
 
 # --- 4) 헬스체크 ---
 # 컨테이너 sshd 로그인 배너가 stdout 을 오염시키므로 마커로 감싸 정확히 추출

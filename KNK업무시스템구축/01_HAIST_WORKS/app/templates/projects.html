@@ -13,6 +13,13 @@ body {
   --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
 @media (max-width:1100px){ .page-title{font-size:22px;} }
+/* v5H226z224 (대표 지시): 칸 간격 최소화 + 짧은 값 칸은 한 줄(줄바꿈 방지)로 폭 확보 */
+.tbl th, .tbl td { padding: 8px 6px; }
+/* v5H226z227 (대표 지시): 컬럼 헤더 텍스트 전부 중앙정렬 — 우선순위↑ + !important 로 styles.html 의 left/num right 확실히 override */
+.tbl th { white-space: nowrap; }
+.tbl-wrap .tbl thead th, .tbl-wrap .tbl thead th.num, .tbl-wrap .tbl thead th.center { text-align: center !important; }
+.tbl .pill { white-space: nowrap; }
+.tbl td.num, .tbl td.center { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -22,239 +29,169 @@ body {
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
-      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>프로젝트 관리코드</b></div>
-      <h1 class="page-title" data-dn="title">프로젝트 <em>관리코드</em></h1>
+      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>프로젝트</b></div>
+      <h1 class="page-title" data-dn="title"><em>프로젝트</em></h1>
     </div>
-    <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/projects/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/projects/new">＋ 프로젝트 등록</a></div>
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn btn-secondary" id="projFsBtn" onclick="projToggleFullscreen()" title="전체화면으로 보기 (Esc로 복귀)">⛶ 전체화면</button>
+      <a class="btn btn-secondary" href="/projects/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a>
+    </div>
+  </div>
+
+  {# v5H226z151 (2026-06-02 대표 지시): 목록이 진입점 — [전체 목록] / [등록] 탭 #}
+  <div style="display:flex;gap:4px;margin:0 var(--content-pad) var(--space-4);border-bottom:2px solid var(--qv-line);" data-dn="proj-tabs">
+    <span style="padding:9px 20px;font-size:14px;font-weight:800;color:var(--knk-red);border-bottom:3px solid var(--knk-red);margin-bottom:-2px;">📋 전체 목록</span>
+    <a href="/projects/new" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">🆕 등록</a>
+  </div>
+
+  {# v5H226z155 (대표 지시): 책갈피(탭) + 전체화면 보기 #}
+  <style>
+  .proj-bm { display:flex; gap:6px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
+  .proj-bm .bm { padding:7px 15px; border:1px solid var(--qv-line); border-radius:20px; font-size:13px;
+                 font-weight:700; color:var(--qv-ink-3); text-decoration:none; background:var(--qv-surface-2);
+                 display:inline-flex; align-items:center; gap:6px; transition:all .12s; white-space:nowrap; }
+  .proj-bm .bm:hover { border-color:var(--knk-red); color:var(--knk-red); }
+  .proj-bm .bm b { font-variant-numeric:tabular-nums; color:var(--qv-ink-2); font-size:12px; }
+  .proj-bm .bm.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+  .proj-bm .bm.on b { color:#fff; }
+  .proj-fs-bar { display:none; }
+  #projFsWrap:fullscreen { background:var(--qv-surface, #fff); overflow-y:auto; padding:18px 8px 40px; }
+  #projFsWrap:fullscreen .proj-fs-bar { display:flex; gap:8px; align-items:center; justify-content:flex-end;
+       position:sticky; top:6px; margin:0 var(--content-pad) 8px 0; z-index:30; }
+  .proj-fs-btn { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;
+       text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+       border:1px solid var(--qv-line); background:var(--qv-surface-2); color:var(--qv-ink-2); }
+  .proj-fs-btn.exit { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+  /* v5H226z218 (대표 지시): 큰창(전체화면) — 한 번에 더 많이 보이게 밀도↑ + 안내문 숨김 */
+  #projFsWrap:fullscreen { padding:10px 14px 40px; }
+  #projFsWrap:fullscreen .tbl th, #projFsWrap:fullscreen .tbl td { padding:5px 6px !important; font-size:12px !important; white-space:nowrap; }
+  #projFsWrap:fullscreen .tbl .pill { font-size:10.5px !important; padding:1px 7px !important; }
+  #projFsWrap:fullscreen .proj-intro-note { display:none !important; }
+  #projFsWrap:-webkit-full-screen .tbl th, #projFsWrap:-webkit-full-screen .tbl td { padding:5px 9px !important; font-size:12px !important; }
+  #projFsWrap:-webkit-full-screen .proj-intro-note { display:none !important; }
+  /* v5H226z255 (대표 지시): 프로젝트 목록 — 헤더행 고정 + 데이터행만 스크롤 (일반·전체화면 공통).
+     표 래퍼를 자체 스크롤 영역으로(높이 제한) + thead sticky → 헤더는 고정, 데이터만 이동. */
+  #projFsWrap .tbl-wrap.tbl-sticky { overflow:auto; max-height:calc(100vh - 320px); }
+  #projFsWrap .tbl-wrap.tbl-sticky .tbl thead th {
+    position:sticky; top:0; z-index:6; background:var(--paper-2);
+  }
+  #projFsWrap:fullscreen .tbl-wrap.tbl-sticky,
+  #projFsWrap:-webkit-full-screen .tbl-wrap.tbl-sticky { max-height:calc(100vh - 96px); }
+  </style>
+
+  <div id="projFsWrap">
+  <div class="proj-fs-bar">
+    <a class="proj-fs-btn" href="/projects/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
+    <button type="button" class="proj-fs-btn exit" onclick="projToggleFullscreen()">⛶ 전체화면 종료 (Esc)</button>
+  </div>
+
+  {# v5H226z217 (대표 지시): 사업부별 책갈피 — 탭으로 사업부 선택 (이동 없이 즉시 필터) #}
+  <div class="proj-bm proj-bm-div" data-dn="proj-bm-div" style="margin-bottom:8px;">
+    <a href="#" data-div="all" onclick="projDivFilter('all');return false;" class="bm on">🗂 전체 <b>{{ div_counts.all }}</b></a>
+    <a href="#" data-div="T"   onclick="projDivFilter('T');return false;"   class="bm">🔬 검사기 <b>{{ div_counts.T }}</b></a>
+    <a href="#" data-div="M"   onclick="projDivFilter('M');return false;"   class="bm">⚙ 자동화 <b>{{ div_counts.M }}</b></a>
+    <a href="#" data-div="L"   onclick="projDivFilter('L');return false;"   class="bm">💄 라이프밸류 <b>{{ div_counts.L }}</b></a>
+    <a href="#" data-div="E"   onclick="projDivFilter('E');return false;"   class="bm">🗂 기타 <b>{{ div_counts.E }}</b></a>
+    <a href="#" data-div="C"   onclick="projDivFilter('C');return false;"   class="bm">🧴 소모품 <b>{{ div_counts.C }}</b></a>
+  </div>
+
+  {# v5H226z156: 책갈피는 이동 없이 JS 즉시 필터 → 전체화면 유지 (대표 지시) #}
+  <div class="proj-bm" data-dn="proj-bm">
+    <a href="#" data-bm="all"         onclick="projFilter('all');return false;"         class="bm {% if not view %}on{% endif %}">📂 전체 <b>{{ view_counts.all }}</b></a>
+    <a href="#" data-bm="unconfirmed" onclick="projFilter('unconfirmed');return false;" class="bm {% if view=='unconfirmed' %}on{% endif %}">🆕 미확정 <b>{{ view_counts.unconfirmed }}</b></a>
+    <a href="#" data-bm="ongoing"     onclick="projFilter('ongoing');return false;"     class="bm {% if view=='ongoing' %}on{% endif %}">🟡 진행중 <b>{{ view_counts.ongoing }}</b></a>
+    <a href="#" data-bm="done"        onclick="projFilter('done');return false;"        class="bm {% if view=='done' %}on{% endif %}">🟢 납품완료 <b>{{ view_counts.done }}</b></a>
+    <a href="#" data-bm="hold"        onclick="projFilter('hold');return false;"        class="bm {% if view=='hold' %}on{% endif %}">⚫ 보류·취소 <b>{{ view_counts.hold }}</b></a>
   </div>
 
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
-    <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
-    <select name="biz_div" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
-      <option value="">사업부 전체</option>
-      <option value="T" {% if biz_div=='T' %}selected{% endif %}>검사기사업부</option>
-      <option value="M" {% if biz_div=='M' %}selected{% endif %}>자동화사업부</option>
-    </select>
-    {# v5H99: 단계 필터 제거 — 상태로 통합 (사용자 가시 정보는 상태만) #}
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 / 장비·모델 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
+    {# v5H226z217 (대표 지시): 사업부·유형 드롭다운 제거 → 위 사업부 책갈피로 대체. 상태만 유지. #}
     <select name="status" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
       <option value="">상태 전체</option>
       {% for s in STATUSES %}<option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
-    </select>
-    {# v5H137: 프로젝트 유형 필터 #}
-    <select name="project_type" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
-      <option value="">유형 전체</option>
-      {% for code in (PROJECT_TYPES or []) %}
-      <option value="{{ code }}" {% if project_type==code %}selected{% endif %}>{{ (PROJECT_TYPE_LABELS or {}).get(code, code) }}</option>
-      {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">🔍 검색</button>
     {% if q or biz_div or status or project_type %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
   {# v5H226o: 페이지 안내 — 모든 단계의 프로젝트가 섞여 있어 수주액/발주일 등은 변경될 수 있음 #}
-  <div style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef9e6;border:1px solid #f0d97a;border-left:4px solid #d4b75a;border-radius:6px;font-size:12.5px;line-height:1.65;color:#5a4a00;">
+  <div class="proj-intro-note" style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef9e6;border:1px solid #f0d97a;border-left:4px solid #d4b75a;border-radius:6px;font-size:12.5px;line-height:1.65;color:#5a4a00;">
     ⓘ 이 목록은 <b>초기협의·제안서전달·견적발행·수주예정·수주확정·진행중·납품완료·취소·보류</b> 모든 단계의 프로젝트를 함께 보여줍니다.
     <span style="color:#7c4a03;">수주확정 전 항목의 <b>수주액·발주일·납기·단가</b>는 견적/제안 단계 임시값으로 추후 변경될 수 있습니다.</span>
-    <span style="color:#7c4a03;">관리코드 <code style="font-family:Consolas,monospace;background:#fff;padding:1px 5px;border-radius:3px;">None</code> 은 수주확정 전이라 아직 발급 안 된 상태입니다.</span>
+    <span style="color:#7c4a03;">이제는 <b>등록 시 관리코드·수주번호(SO)가 항상 자동 발급</b>됩니다 (제안 단계 포함). 관리코드 없이는 등록되지 않습니다.</span>
     행 클릭 시 해당 프로젝트 상세 화면으로 이동합니다.
   </div>
 
-  {# v5H179: 다건 선택 삭제 툴바 — 체크박스 1개라도 선택되면 노출 #}
-  {% if can_sales_del %}
-  <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:20;margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fff7e0;border:1px solid var(--qv-line-3);border-radius:8px;align-items:center;gap:14px;">
-    <span style="font-size:13px;font-weight:700;color:var(--qv-ink-2);">
-      ☑ 선택됨: <span id="bulkCount">0</span>건
-    </span>
-    <button type="button" id="bulkDelBtn" style="padding:6px 14px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🗑 선택 삭제</button>
-    <button type="button" id="bulkClearBtn" style="padding:6px 12px;background:#fff;border:1px solid var(--qv-line);color:var(--qv-ink-3);border-radius:6px;font-size:12.5px;cursor:pointer;">선택 해제</button>
-  </div>
-  {% endif %}
+  {# v5H226z177: 다건 선택 삭제 툴바 제거 (대표 지시 — 프로젝트 목록 삭제 기능 제거) #}
   <div class="tbl-wrap tbl-sticky">
     {% if projects %}
     <table class="tbl">
       <thead>
         <tr>
-          {% if can_sales_del %}<th style="width:36px;text-align:center;"><input type="checkbox" id="chkAll" title="전체 선택" style="cursor:pointer;"></th>{% endif %}
+          {# v5H226z226 (대표 지시): 컬럼 순서 = 관리코드·프로젝트명·장비명·모델명·고객사·출고형태·상태·수주액·발주일 #}
           <th>관리코드</th>
           <th>프로젝트명</th>
+          <th>장비명</th>
+          <th>모델명</th>
           <th>고객사</th>
-          <th class="center">진행 사업부</th>
-          <th class="center">유형</th>
-          <th class="center" title="🟡 진행중 / 🟢 납품완료 / 🔴 취소 / ⚫ 보류 — 숫자는 호기 수">상태 <span style="font-weight:400;font-size:10.5px;color:var(--qv-ink-3);white-space:nowrap;">🟡진행중 🟢완료 🔴취소 ⚫보류</span></th>
+          <th class="center">출고형태</th>
+          <th class="center">상태</th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
-          <th style="width:50px;">삭제</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="projTbody">
       {% for p in projects %}
         {# v5H217: _kind 에 따라 라우팅 분기 — 소모품은 /consumables/{id}, 그 외는 /project/{id} #}
         {% set _is_co = (p._kind == 'consumable') %}
         {% set _link = '/consumables/' ~ p.id if _is_co else '/project/' ~ p.id %}
-        <tr>
-          {% if can_sales_del %}
-            <td style="text-align:center;"><input type="checkbox" class="chkRow" value="{{ p.id }}" data-name="{{ p.name|default(p.project_name|default('-')) }}" data-kind="{{ p._kind|default('project') }}" style="cursor:pointer;"></td>
-          {% endif %}
+        <tr data-grp="{{ p._grp|default('all') }}" data-div="{{ p._div|default('') }}">
+          {# v5H226z177: 프로젝트 삭제 기능(체크박스·🗑·일괄삭제) 목록에서 제거 (대표 지시) #}
           {# v5H226z52: 프로젝트 mgmt_code amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
           <td><a href="{{ _link }}" class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</a></td>
           <td><a href="{{ _link }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
+          {# v5H226z226 (대표 지시): 장비명·모델명을 고객사 앞으로 #}
+          {% set _bd_lb = (p.equip_name and p.biz_div == 'L') %}
+          <td>{{ p.equip_name|default('—') }}{% if _bd_lb %} <span style="font-size:10px;color:var(--qv-ink-3);">(기기)</span>{% endif %}</td>
+          <td style="font-family:Consolas,monospace;font-size:12px;">{{ p.model_name|default('—') }}</td>
           <td>{{ p.customer_name|default('—') }}</td>
-          {# v5H218: 진행 사업부(T/M) — 매출 집계 분류 #}
-          <td class="center"><span class="pill pill-muted">{% if p.biz_div == 'T' %}검사기사업부{% elif p.biz_div == 'M' %}자동화사업부{% else %}<span style="color:var(--knk-red);">미분류</span>{% endif %}</span></td>
-          {# 유형 — T 검사기·M 자동화·E 기타·C 소모품 #}
           <td class="center">
-            {% if p._kind == 'consumable' or p.project_type == 'CONSUMABLE' %}
-              <span class="pill pill-progress">C 소모품</span>
-            {% elif p.project_type == 'OTHER' %}
-              <span class="pill pill-warn">E 기타</span>
-            {% elif p.biz_div == 'T' %}
-              <span class="pill" style="background:#dbeafe;color:#1e40af;">T 검사기</span>
-            {% elif p.biz_div == 'M' %}
-              <span class="pill" style="background:#fce7f3;color:#9d174d;">M 자동화</span>
-            {% else %}
-              {% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}
-            {% endif %}
+            {% set _sf = (p.shipment_form or '')|upper %}
+            {# v5H226z240: 소모품(유형 CONSUMABLE/사업부 C)은 출고형태 대신 '소모품' 표시 #}
+            {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span class="pill" style="background:#e7f6ec;color:#15803d;">소모품</span>
+            {% elif _sf == 'PARTS' %}<span class="pill pill-warn">부품</span>
+            {% elif _sf == 'ETC' %}<span class="pill pill-muted">기타</span>
+            {% elif _sf == 'ASSEMBLY' %}<span class="pill" style="background:#e0edff;color:#1d4ed8;">ASS'Y</span>
+            {% else %}<span style="color:var(--qv-ink-3);">—</span>{% endif %}
           </td>
-          {# v5H200: 호기 종합 상태 (A안) — 분포 칩 항상 노출 (취소·보류 0건도) #}
+          {# v5H226z219 (대표 지시): 텍스트 알약만 — 신호등(분포 점) 삭제 #}
           <td class="center">
             {% set _ds = p._disp_status if p._disp_status else None %}
             {% if _ds and _ds.total > 0 %}
               <span class="pill {% if _ds.tone == 'done' %}pill-done{% elif _ds.tone == 'danger' %}pill-danger{% elif _ds.tone == 'warn' %}pill-warn{% else %}pill-progress{% endif %}" style="font-size:11.5px;font-weight:700;">{{ _ds.label }}</span>
-              <div style="margin-top:3px;display:inline-flex;flex-wrap:wrap;gap:2px;font-size:9.5px;font-weight:700;justify-content:center;">
-                {% if _ds.dist['진행중'] > 0 %}<span style="padding:1px 4px;border-radius:2px;background:#fef3c7;color:#7c4a03;">🟡{{ _ds.dist['진행중'] }}</span>{% endif %}
-                {% if _ds.dist['납품완료'] > 0 %}<span style="padding:1px 4px;border-radius:2px;background:#dcfce7;color:#15803d;">🟢{{ _ds.dist['납품완료'] }}</span>{% endif %}
-                <span style="padding:1px 4px;border-radius:2px;background:{% if _ds.dist['취소'] > 0 %}#fee2e2;color:#991b1b{% else %}#f5f5f1;color:#cbd5e1{% endif %};" title="취소">🔴{{ _ds.dist['취소'] }}</span>
-                <span style="padding:1px 4px;border-radius:2px;background:{% if _ds.dist['보류'] > 0 %}#e5e7eb;color:#374151{% else %}#f5f5f1;color:#cbd5e1{% endif %};" title="보류">⚫{{ _ds.dist['보류'] }}</span>
-              </div>
             {% elif p.status %}
               <span class="pill {% if p.status in ('납품완료','완료','종료') %}pill-done{% elif p.status in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>
             {% else %}—{% endif %}
           </td>
-          <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
-          <td class="center" style="font-size:12px;color:var(--qv-ink-3);">{{ p.order_date|default('—') }}</td>
-          <td style="text-align:center;">
-            {% if can_sales_del %}
-            <button type="button" onclick='deleteProject({{ p.id }}, {{ (p.name or p.project_name or "-")|tojson }}, {{ (p._kind or "project")|tojson }})' title="프로젝트 삭제 (영업팀 권한)" style="background:transparent;border:1px solid var(--qv-line);color:var(--qv-ink-3);border-radius:4px;padding:3px 7px;cursor:pointer;font-size:13px;">🗑</button>
-            {% else %}
-            <span style="color:var(--qv-line);font-size:13px;" title="삭제 권한 없음 (영업팀 등록권한자만)">🔒</span>
+          <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}
+            {# v5H226z161: 확정(관리코드 있음) + 예상과 다르면 예상·차이% 표시 #}
+            {% set _exp = p.expected_amount or 0 %}
+            {% if p.mgmt_code and _exp and (p.order_amount or 0)|round != _exp|round %}
+              {% set _d = (p.order_amount or 0) - _exp %}
+              <div style="font-size:10px;font-weight:600;color:{% if _d >= 0 %}#16a34a{% else %}#dc2626{% endif %};">예상 {{ '{:,.0f}'.format(_exp) }} ({% if _d >= 0 %}+{% endif %}{{ '%.0f'|format(_d * 100 / _exp) }}%)</div>
             {% endif %}
           </td>
+          <td class="center" style="font-size:12px;color:var(--qv-ink-3);">{{ p.order_date|default('—') }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
     {% include "_v5_partials/password_confirm.html" %}
-    {% if can_sales_del %}
-    <script>
-    // v5H179: 다건 선택 삭제 — 체크박스 토글 + 비밀번호 재인증 + 일괄 호출
-    (function(){
-      const bar = document.getElementById('bulkBar');
-      const cnt = document.getElementById('bulkCount');
-      const chkAll = document.getElementById('chkAll');
-      const rows = document.querySelectorAll('.chkRow');
-      const delBtn = document.getElementById('bulkDelBtn');
-      const clearBtn = document.getElementById('bulkClearBtn');
-      function refresh(){
-        const checked = Array.from(rows).filter(c => c.checked);
-        const n = checked.length;
-        cnt.textContent = n;
-        bar.style.display = n > 0 ? 'flex' : 'none';
-        if (chkAll) {
-          chkAll.checked = (n === rows.length && rows.length > 0);
-          chkAll.indeterminate = (n > 0 && n < rows.length);
-        }
-        return checked;
-      }
-      rows.forEach(c => c.addEventListener('change', refresh));
-      if (chkAll) {
-        chkAll.addEventListener('change', () => {
-          rows.forEach(c => c.checked = chkAll.checked);
-          refresh();
-        });
-      }
-      if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-          rows.forEach(c => c.checked = false);
-          refresh();
-        });
-      }
-      if (delBtn) {
-        delBtn.addEventListener('click', async () => {
-          const checked = refresh();
-          if (!checked.length) return;
-          const names = checked.slice(0, 5).map(c => c.dataset.name);
-          const more = checked.length > 5 ? ` 외 ${checked.length - 5}건` : '';
-          await window.knkConfirmWithPassword({
-            title: `⚠ 프로젝트 ${checked.length}건 일괄 삭제`,
-            message: `삭제 대상:\n  · ${names.join('\n  · ')}${more}\n\n` +
-                     `· 연관된 수주(SO) · 업무 카드도 영향받습니다.\n` +
-                     `· 관리번호도 삭제되어 되돌릴 수 없습니다.\n` +
-                     `· 본인 비밀번호로 재확인 후 진행됩니다.`,
-            confirmLabel: `⚠ ${checked.length}건 삭제`,
-            onConfirm: async () => {
-              const fd = new FormData();
-              checked.forEach(c => {
-                if ((c.dataset.kind || 'project') === 'consumable') {
-                  fd.append('co_ids[]', c.value);
-                } else {
-                  fd.append('ids[]', c.value);
-                }
-              });
-              const r = await fetch('/projects/bulk-delete', {method:'POST', body:fd});
-              const j = await r.json().catch(() => ({}));
-              if (r.ok && j.ok) {
-                let msg = `✓ ${j.deleted}건 삭제 완료`;
-                if (j.failed) msg += `\n⚠ ${j.failed}건 실패 (FK 제약 등)`;
-                alert(msg);
-                location.reload();
-              } else {
-                throw new Error(j.message || j.error || ('HTTP ' + r.status));
-              }
-            }
-          });
-        });
-      }
-    })();
-    </script>
-    {% endif %}
-    <script>
-    // v5H73: 본인 비밀번호 재인증 후 삭제 (간단·안전)
-    async function deleteProject(pid, name, kind) {
-      kind = kind || 'project';
-      const _label = (kind === 'consumable') ? '소모품 발주' : '프로젝트';
-      await window.knkConfirmWithPassword({
-        title: '⚠ ' + _label + ' 삭제',
-        message: _label + ': ' + name + '\n\n' +
-                 '· 연관된 라인·이미지·이력도 함께 삭제됩니다.\n' +
-                 '· 관리번호도 삭제되어 되돌릴 수 없습니다.\n' +
-                 '· 본인 비밀번호로 재확인 후 진행됩니다.',
-        confirmLabel: '⚠ ' + _label + ' 삭제',
-        onConfirm: async () => {
-          const _fd = new FormData();
-          _fd.append('kind', kind);
-          const r = await fetch('/projects/' + pid + '/delete', {method:'POST', body:_fd});
-          if (r.status === 403) {
-            const j = await r.json().catch(() => ({}));
-            alert('⚠ 권한 없음\n\n' + (j.message || ''));
-            throw new Error('권한 없음');
-          }
-          let j = null;
-          try { j = await r.json(); } catch(_) {}
-          if (r.ok && (!j || j.ok)) {
-            alert('✓ 프로젝트 [' + name + '] 삭제 완료');
-            location.reload();
-          } else if (r.ok || r.redirected) {
-            // 호환: 옛 RedirectResponse 시점
-            alert('✓ 프로젝트 [' + name + '] 삭제 완료');
-            location.reload();
-          } else {
-            const msg = (j && j.message) ? j.message : ('HTTP ' + r.status);
-            throw new Error(msg);
-          }
-        }
-      });
-    }
-    </script>
+    {# v5H226z177: 일괄삭제·단건삭제 JS 제거 (대표 지시 — 프로젝트 목록 삭제 기능 제거).
+       백엔드 /projects/bulk-delete · /projects/{id}/delete 엔드포인트는 보존(타 경로 호환),
+       관리코드 보유 건은 데이터층(projects_delete_logi)에서 계속 차단됨. #}
     {% else %}
     <div class="empty">
       <div class="ico">📊</div>
@@ -264,7 +201,88 @@ body {
     {% endif %}
   </div>
 
+  </div>{# /projFsWrap #}
+
   <div style="height: var(--space-7);"></div>
+
+  <script>
+  // v5H226z156/z217: 책갈피 이중 필터 — 상태 그룹(data-grp) + 사업부(data-div). 이동 없이 즉시 적용.
+  window.__projGrp = 'all';
+  window.__projDiv = 'all';
+  function applyProjFilter(){
+    var grp = window.__projGrp || 'all', dv = window.__projDiv || 'all';
+    var tb = document.getElementById('projTbody');
+    if (tb){
+      tb.querySelectorAll('tr').forEach(function(tr){
+        var g = (tr.getAttribute('data-grp') || 'all').split(' ');
+        var d = (tr.getAttribute('data-div') || '');
+        var okGrp = (grp === 'all' || g.indexOf(grp) >= 0);
+        var okDiv = (dv === 'all' || d === dv);
+        tr.style.display = (okGrp && okDiv) ? '' : 'none';
+      });
+    }
+    updateExportLinks();
+  }
+  // v5H226z218 (대표 지시): 엑셀 다운로드가 '보여지는 형태'(사업부 책갈피·상태)를 그대로 반영
+  function updateExportLinks(){
+    var dv = window.__projDiv || 'all', gp = window.__projGrp || 'all';
+    var qEl = document.querySelector('form [name=q]'), stEl = document.querySelector('form [name=status]');
+    var p = [];
+    if (dv && dv !== 'all') p.push('div=' + encodeURIComponent(dv));
+    if (gp && gp !== 'all') p.push('view=' + encodeURIComponent(gp));
+    if (qEl && qEl.value) p.push('q=' + encodeURIComponent(qEl.value));
+    if (stEl && stEl.value) p.push('status=' + encodeURIComponent(stEl.value));
+    var qs = p.length ? ('?' + p.join('&')) : '';
+    document.querySelectorAll('a[href^="/projects/export.xlsx"]').forEach(function(a){
+      a.href = '/projects/export.xlsx' + qs;
+    });
+  }
+  window.projFilter = function(grp){
+    window.__projGrp = grp || 'all';
+    document.querySelectorAll('.proj-bm:not(.proj-bm-div) .bm').forEach(function(a){
+      a.classList.toggle('on', a.getAttribute('data-bm') === window.__projGrp);
+    });
+    var hv = document.querySelector('form [name=view]');
+    if (hv) hv.value = (window.__projGrp === 'all') ? '' : window.__projGrp;
+    applyProjFilter();
+  };
+  window.projDivFilter = function(dv){
+    window.__projDiv = dv || 'all';
+    document.querySelectorAll('.proj-bm-div .bm').forEach(function(a){
+      a.classList.toggle('on', a.getAttribute('data-div') === window.__projDiv);
+    });
+    applyProjFilter();
+  };
+  (function(){
+    var hv = document.querySelector('form [name=view]');
+    window.projFilter((hv && hv.value) ? hv.value : 'all');
+    window.projDivFilter('all');
+  })();
+
+  // v5H226z155: 프로젝트 목록 전체화면(Fullscreen API) 토글 — Esc 로 복귀
+  window.projToggleFullscreen = function(){
+    var el = document.getElementById('projFsWrap');
+    if (!el) return;
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!fsEl){
+      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (req) { try { req.call(el); } catch(e){} }
+    } else {
+      var ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+      if (ex) { try { ex.call(document); } catch(e){} }
+    }
+  };
+  (function(){
+    function syncFsBtn(){
+      var btn = document.getElementById('projFsBtn');
+      if (!btn) return;
+      var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      btn.textContent = on ? '⛶ 전체화면 종료' : '⛶ 전체화면';
+    }
+    document.addEventListener('fullscreenchange', syncFsBtn);
+    document.addEventListener('webkitfullscreenchange', syncFsBtn);
+  })();
+  </script>
 </main>
 </div>
 </body>

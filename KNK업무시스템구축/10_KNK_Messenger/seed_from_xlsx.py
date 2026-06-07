@@ -127,7 +127,7 @@ if matches:
                 )
         cur.execute(
             "INSERT INTO messages (room_id, user_id, content, kind, created_at) VALUES (?,?,?,?,?)",
-            (rid, 1, "기술영업팀 채널 — 베타 시범 운영 시작합니다. 기존 메신저와 병행하면서 묻혀있던 요청·자료를 여기로 모아보시죠.", "system", now),
+            (rid, 1, "기술영업팀 채널 — 베타 시범 운영 시작합니다. 카톡과 병행하면서 묻혀있던 요청·자료를 여기로 모아보시죠.", "system", now),
         )
         print(f"\n[채널] 기술영업팀 채널 생성 (room_id={rid}), 멤버 {len(matches) + 1}명")
     else:

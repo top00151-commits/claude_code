@@ -1,0 +1,17 @@
+생산라인 직급 2종 추가 — 반장·조장 (대표 지시 2026-06-07)
+
+베트남법인 생산라인 직급 2종이 누락되어 추가:
+- 반장 = Line Supervisor (vi: Trưởng chuyền) — 라인 전체 총괄
+- 조장 = Section Leader (vi: Tổ trưởng) — 라인 내 특정 파트(조) 책임
+
+반영 4곳:
+1) chat.html — 베트남법인 직급 드롭다운(주임~사원 사이)에 옵션 추가. value(한글) 보존.
+2) i18n.js — title.lineSupervisor / title.sectionLeader (ko/vi/en).
+3) app.js _TITLE_I18N — 한글 직급→키 매핑 추가 → 사용자목록·1:1·검색·메뉴에서 언어별 표시.
+4) app.py KNK_GLOSSARY — AI 메시지 번역 용어집에 ko↔vi 2항 추가.
+
+본사 드롭다운은 매니저/프로 사무직 체계라 제외(필요 시 추가).
+
+검증: app.py py_compile OK · app.js 5681/5681 · i18n.js 126/126 · chat.html jinja OK. sw v281 -> v282.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>

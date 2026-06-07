@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>{% if invite and invite.guest_company %}{{ invite.guest_company }} · KNK{% else %}KNK 이음 — 고객사 전용{% endif %}</title>
+  <!-- 고객사 전용 PWA — 설치 시 앱 이름=고객사명·KNK, 아이콘=고객사 자동생성, 재실행 시 고객사 로그인(/g/토큰)으로 (대표 지시 2026-05-31) -->
+  <link rel="manifest" href="{{ base_path }}/g/{{ token }}/manifest.json">
+  <meta name="theme-color" content="#A5282C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="{% if invite and invite.guest_company %}{{ invite.guest_company }}{% else %}KNK{% endif %}">
+  <link rel="apple-touch-icon" href="{{ base_path }}/g/{{ token }}/icon-180.png?v={{ asset_version }}">
+  <style>
+    :root { --brand:#A5282C; --brand-d:#7E1D20; --ink:#1F2937; --muted:#6B7280; --line:#EFE0E0; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                   "Noto Sans KR", "Malgun Gothic", sans-serif;
+      background:
+        radial-gradient(1000px 420px at 50% -8%, rgba(255,255,255,0.15), transparent 60%),
+        linear-gradient(160deg, #A5282C 0%, #7E1D20 48%, #4D1013 100%);
+      min-height: 100vh; min-height: 100dvh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 14px; color: var(--ink); -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background:#fff; border-radius:18px;
+      box-shadow:0 20px 56px rgba(0,0,0,0.32), 0 2px 8px rgba(0,0,0,0.10);
+      max-width: 380px; width:100%; overflow:hidden;
+    }
+    /* 언어 토글 */
+    .langbar { display:flex; gap:0; border-bottom:1px solid var(--line); background:#FAFAFA; }
+    .langbar button {
+      flex:1; border:0; background:transparent; cursor:pointer;
+      padding:9px 4px; font-size:12px; font-weight:600; color:var(--muted);
+      font-family:inherit; border-bottom:2px solid transparent;
+    }
+    .langbar button.on { color:var(--brand); border-bottom-color:var(--brand); background:#fff; }
+    /* 상단 KNK 브랜드(작게) */
+    .knk-bar {
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:11px 15px; background:linear-gradient(180deg,#fff,#FFF8F8); border-bottom:1px solid var(--line);
+    }
+    .knk-bar .kb-logo { height:15px; width:auto; opacity:0.8; flex-shrink:0; }      /* KNK 로고 — 왼쪽, 작게·차분하게 */
+    .knk-bar .kb-center { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--ink); letter-spacing:-0.2px; }  /* 고객사 전용 — 중심·강조 */
+    .knk-bar .kb-right { font-size:11px; color:var(--muted); font-weight:600; flex-shrink:0; white-space:nowrap; }  /* KNK 메신저 — 오른쪽, 작게·연하게 */
+    /* 본문 */
+    .body { padding:20px 22px 22px; }
+    /* 고객사 hero */
+    .hero { text-align:center; margin-bottom:14px; }
+    .hero .company {
+      font-size:21px; font-weight:800; color:var(--brand); letter-spacing:-0.4px;
+      line-height:1.15; word-break:break-all;
+    }
+    .hero .welcome { font-size:14px; font-weight:700; color:var(--ink); margin-top:6px; }
+    .hero .company-logo { display:block; max-height:48px; max-width:180px; width:auto; margin:0 auto 7px; object-fit:contain; }
+    .hero .company.sm { font-size:14px; color:var(--muted); font-weight:700; margin-top:3px; }   /* 로고 있을 때 회사명은 작게 */
+    /* 초대 카드 */
+    .invite-info { background:#FBF4F4; border:1px solid var(--line); border-radius:13px; padding:13px 15px; margin-bottom:16px; }
+    .invite-info .line { font-size:13px; color:var(--ink); line-height:1.6; }
+    .invite-info .line + .line { margin-top:3px; }
+    .invite-info .line b { color:var(--brand); }
+    .invite-info .k { color:var(--muted); font-size:12px; }
+    label { display:block; font-size:13px; font-weight:700; color:var(--ink); margin-bottom:8px; }
+    .hint { font-size:11px; color:var(--muted); font-weight:400; }
+    .phone-wrap { position:relative; }
+    .phone-wrap .ico { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:16px; opacity:.55; pointer-events:none; }
+    input[type="tel"] {
+      width:100%; padding:13px 13px 13px 40px; font-size:16px;
+      border:2px solid #E9D9D9; border-radius:11px; outline:none;
+      transition:border-color .15s, box-shadow .15s; font-family:inherit; background:#fff;
+    }
+    input[type="tel"]:focus { border-color:var(--brand); box-shadow:0 0 0 3px rgba(165,40,44,0.12); }
+    .phone-assure { font-size:10.5px; color:var(--muted); margin-top:7px; line-height:1.45; }
+    .btn-primary {
+      width:100%; padding:14px; font-size:15px; font-weight:800; color:#fff;
+      background:linear-gradient(180deg,#B23034,#A5282C); border:none; border-radius:11px;
+      cursor:pointer; margin-top:14px; box-shadow:0 6px 16px rgba(165,40,44,0.30);
+      transition:transform .08s, background .15s; font-family:inherit;
+    }
+    .btn-primary:hover { background:linear-gradient(180deg,#A5282C,#8B1F23); }
+    .btn-primary:active { transform:translateY(1px); }
+    .btn-primary:disabled { background:#C9ADAE; box-shadow:none; cursor:not-allowed; }
+    .benefits { margin-top:14px; text-align:center; background:#FAFAFA; border:1px solid #EFEFEF; border-radius:11px; padding:11px 12px; }
+    .benefits-title { font-size:12px; font-weight:700; color:var(--ink); }
+    .benefits-list { font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.5; }
+    .error { color:#B42318; font-size:13px; margin-top:10px; padding:12px 14px; background:#FEF3F2; border:1px solid #FECDCA; border-radius:10px; text-align:center; line-height:1.55; }
+    .footer-note { text-align:center; font-size:11px; color:var(--brand); font-weight:700; margin-top:14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="langbar">
+      <button type="button" data-lang="ko" onclick="setLang('ko')">한국어</button>
+      <button type="button" data-lang="vi" onclick="setLang('vi')">Tiếng Việt</button>
+      <button type="button" data-lang="en" onclick="setLang('en')">English</button>
+      <button type="button" data-lang="zh" onclick="setLang('zh')">中文</button>
+    </div>
+
+    <div class="knk-bar">
+      <img class="kb-logo" src="{{ url_for('static', filename='icons/logo.png') }}?v={{ asset_version }}" alt="KNK" onerror="this.style.display='none'">
+      <span class="kb-center" data-i18n="sub">고객사 전용</span>
+      <span class="kb-right">KNK 이음</span>
+    </div>
+
+    <div class="body">
+    {% if not invite %}
+      <div class="error">
+        ⚠️ <span data-i18n="errInvalid">유효하지 않은 초대 링크입니다.</span><br>
+        <span data-i18n="errAsk">담당자에게 새 링크를 요청해 주세요.</span>
+      </div>
+    {% elif revoked %}
+      <div class="error">
+        ⚠️ <span data-i18n="errRevoked">이 초대는 회수되었습니다.</span><br>
+        <span data-i18n="errAsk">담당자에게 새 링크를 요청해 주세요.</span>
+      </div>
+    {% elif expired %}
+      <div class="error">
+        ⚠️ <span data-i18n="errExpired">이 초대는 만료되었습니다.</span><br>
+        <span data-i18n="errAsk">담당자에게 새 링크를 요청해 주세요.</span>
+      </div>
+    {% else %}
+      <div class="hero">
+        {% if invite.guest_company_logo %}<img class="company-logo" src="{{ invite.guest_company_logo }}" alt="{{ invite.guest_company }}">{% endif %}
+        <div class="company{% if invite.guest_company_logo %} sm{% endif %}">{{ invite.guest_company }}</div>
+        <div class="welcome" data-i18n="welcome">환영합니다 👋</div>
+      </div>
+
+      <div class="invite-info">
+        {% if invite.inviter_name %}
+        <div class="line">🤝 KNK <b>{{ invite.inviter_name }}{% if invite.inviter_title %} {{ invite.inviter_title }}{% endif %}</b><span data-i18n="invitedBy"> 님이 초대하셨습니다</span></div>
+        {% endif %}
+        <div class="line">📍 <b>{{ room_name }}</b></div>
+        <div class="line">👤 {{ invite.guest_name }}{% if invite.guest_title %} <span class="k">{{ invite.guest_title }}</span>{% endif %}<span data-i18n="nim"> 님</span></div>
+      </div>
+
+      <form id="guestAuthForm">
+        <label for="guestPhoneInput">
+          <span data-i18n="phoneLabel">휴대폰 번호 확인</span>
+          <span class="hint">— <span data-i18n="phoneHint">초대 시 등록된 번호와 일치해야 입장</span></span>
+        </label>
+        <div class="phone-wrap">
+          <span class="ico">📱</span>
+          <input type="tel" id="guestPhoneInput" placeholder="010-1234-5678" autocomplete="tel" inputmode="numeric" required>
+        </div>
+        <div class="phone-assure" data-i18n="phoneAssure">🔒 본인 확인용입니다. 별도 저장·마케팅에 사용하지 않습니다.</div>
+        <div id="guestAuthError" class="error" style="display:none;"></div>
+        <button type="submit" class="btn-primary" id="guestAuthBtn" data-i18n="enter">입장하기</button>
+      </form>
+
+      <div class="benefits">
+        <div class="benefits-title" data-i18n="benefitsTitle">✅ 설치·가입 없이 바로 이용하실 수 있어요</div>
+        <div class="benefits-list" data-i18n="benefitsList">🌐 실시간 자동 번역 · 📎 파일 공유 · 💬 대화 기록</div>
+      </div>
+
+      <div class="footer-note" data-i18n="secure">🔒 KNK 고객사 전용 보안 채널</div>
+    {% endif %}
+    </div>
+  </div>
+
+<script>
+  // ── 다국어 (자동 감지 + 토글) ──
+  const I18N = {
+    ko: {
+      sub:"고객사 전용", welcome:"환영합니다 👋", invitedBy:" 님이 초대하셨습니다", nim:" 님",
+      phoneLabel:"휴대폰 번호 확인", phoneHint:"초대 시 등록된 번호와 일치해야 입장",
+      phoneAssure:"🔒 본인 확인용입니다. 별도 저장·마케팅에 사용하지 않습니다.",
+      enter:"입장하기", entering:"⏳ 입장 중...",
+      benefitsTitle:"✅ 설치·가입 없이 바로 이용하실 수 있어요",
+      benefitsList:"🌐 실시간 자동 번역 · 📎 파일 공유 · 💬 대화 기록",
+      secure:"🔒 KNK 고객사 전용 보안 채널",
+      errInvalid:"유효하지 않은 초대 링크입니다.", errRevoked:"이 초대는 회수되었습니다.",
+      errExpired:"이 초대는 만료되었습니다.", errAsk:"담당자에게 새 링크를 요청해 주세요.",
+      needPhone:"휴대폰 번호를 입력하세요.", failEnter:"입장 실패", errGeneric:"입장 중 오류 발생. 다시 시도하세요."
+    },
+    vi: {
+      sub:"Dành riêng cho khách hàng", welcome:"Chào mừng quý khách 👋", invitedBy:" đã mời bạn", nim:"",
+      phoneLabel:"Xác nhận số điện thoại", phoneHint:"Phải khớp số đã đăng ký khi mời",
+      phoneAssure:"🔒 Chỉ để xác minh. Không lưu trữ / không dùng cho marketing.",
+      enter:"Vào phòng", entering:"⏳ Đang vào...",
+      benefitsTitle:"✅ Dùng ngay — không cần cài đặt / đăng ký",
+      benefitsList:"🌐 Dịch tự động · 📎 Chia sẻ tệp · 💬 Lưu hội thoại",
+      secure:"🔒 Kênh bảo mật riêng cho khách hàng KNK",
+      errInvalid:"Liên kết mời không hợp lệ.", errRevoked:"Lời mời này đã bị thu hồi.",
+      errExpired:"Lời mời này đã hết hạn.", errAsk:"Vui lòng yêu cầu liên kết mới từ người phụ trách.",
+      needPhone:"Vui lòng nhập số điện thoại.", failEnter:"Vào phòng thất bại", errGeneric:"Có lỗi xảy ra. Vui lòng thử lại."
+    },
+    en: {
+      sub:"For Our Valued Clients", welcome:"Welcome 👋", invitedBy:" invited you", nim:"",
+      phoneLabel:"Verify your phone number", phoneHint:"Must match the number registered at invitation",
+      phoneAssure:"🔒 For verification only. Never stored or used for marketing.",
+      enter:"Enter", entering:"⏳ Entering...",
+      benefitsTitle:"✅ Start right away — no install or sign-up",
+      benefitsList:"🌐 Live auto-translation · 📎 File sharing · 💬 Chat history",
+      secure:"🔒 KNK secure channel for clients",
+      errInvalid:"Invalid invitation link.", errRevoked:"This invitation has been revoked.",
+      errExpired:"This invitation has expired.", errAsk:"Please request a new link from your contact.",
+      needPhone:"Please enter your phone number.", failEnter:"Failed to enter", errGeneric:"An error occurred. Please try again."
+    },
+    zh: {
+      sub:"客户专属", welcome:"欢迎您 👋", invitedBy:" 邀请了您", nim:"",
+      phoneLabel:"验证手机号码", phoneHint:"需与邀请时登记的号码一致才能进入",
+      phoneAssure:"🔒 仅用于本人验证。不另行存储·不用于营销。",
+      enter:"进入", entering:"⏳ 正在进入...",
+      benefitsTitle:"✅ 无需安装·注册，立即使用",
+      benefitsList:"🌐 实时自动翻译 · 📎 文件共享 · 💬 对话记录",
+      secure:"🔒 KNK 客户专属安全频道",
+      errInvalid:"邀请链接无效。", errRevoked:"此邀请已被撤回。",
+      errExpired:"此邀请已过期。", errAsk:"请向负责人索取新链接。",
+      needPhone:"请输入手机号码。", failEnter:"进入失败", errGeneric:"进入时发生错误。请重试。"
+    }
+  };
+  let LANG = "ko";
+  function t(k) { return (I18N[LANG] && I18N[LANG][k]) || I18N.ko[k] || ""; }
+  function setLang(lang) {
+    if (!I18N[lang]) lang = "ko";
+    LANG = lang;
+    try { localStorage.setItem("knk_guest_lang", lang); } catch (e) {}
+    document.documentElement.lang = lang;
+    document.querySelectorAll(".langbar button").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
+    document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  }
+  (function () {
+    let lang = null;
+    // 초대 발행 시 담당자가 고른 고객사 언어가 기본값 (대표 지시 2026-05-31). 고객은 아래 토글로 변경 가능.
+    const _inviteLang = "{{ invite.guest_lang if invite and invite.guest_lang else '' }}";
+    if (_inviteLang && I18N[_inviteLang]) { lang = _inviteLang; }
+    if (!lang) { try { lang = localStorage.getItem("knk_guest_lang"); } catch (e) {} }
+    if (!I18N[lang]) {
+      const n = (navigator.language || "").toLowerCase();
+      lang = n.indexOf("vi") === 0 ? "vi" : (n.indexOf("zh") === 0 ? "zh" : (n.indexOf("en") === 0 ? "en" : "ko"));
+    }
+    setLang(lang);
+  })();
+
+  // ── 입장 인증 ──
+  (function() {
+    const BASE = "{{ base_path }}";
+    const TOKEN = "{{ token }}";
+    const form = document.getElementById("guestAuthForm");
+    if (!form) return;
+    const $err = document.getElementById("guestAuthError");
+    const $btn = document.getElementById("guestAuthBtn");
+    const $phone = document.getElementById("guestPhoneInput");
+    function showErr(msg) { $err.textContent = "❌ " + msg; $err.style.display = "block"; }
+    function hideErr() { $err.style.display = "none"; }
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideErr();
+      const phone = $phone.value.trim();
+      if (!phone) { showErr(t("needPhone")); return; }
+      $btn.disabled = true;
+      $btn.textContent = t("entering");
+      try {
+        const r = await fetch(`${BASE}/api/guest_invites/${encodeURIComponent(TOKEN)}/auth`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, lang: LANG }),
+        }).then(x => x.json());
+        if (r && r.ok) {
+          window.location.href = `${BASE}/chat?room=${encodeURIComponent(r.room_id)}`;
+        } else {
+          showErr((r && r.error) || t("failEnter"));
+          $btn.disabled = false; $btn.textContent = t("enter");
+        }
+      } catch (err) {
+        showErr(t("errGeneric"));
+        $btn.disabled = false; $btn.textContent = t("enter");
+      }
+    });
+  })();
+</script>
+<!-- 카톡 등 인앱 브라우저 — 전화번호 입력 전에 '기본 브라우저로 열기' 안내 (대표 지시 2026-05-30) -->
+<script src="{{ url_for('static', filename='js/inapp_guide.js') }}?v={{ asset_version }}"></script>
+</body>
+</html>

@@ -290,7 +290,7 @@ app/
 | 2026-04-29 | Phase 1.4 — database.py TOC 헤더 표준화 | 13 PART · 25 § |
 | 2026-04-29 | Phase 1.5 — 죽은 코드 점검 | 코드 내부 DEPRECATED 0건 / TODO 1건 (안전) |
 | 2026-04-29 | Phase 1.5 — `_LEGACY_v1_logistics_backup/` 외부 이동 | `_ARCHIVE_2026-04-29/` 폴더 생성 / 대표 결재 옵션 가 |
-| 2026-04-29 | Phase 1.6 — 폴더 정리 (옵션 2) | 옛 archive 2개 + 카카오워크 가이드 archive로 / 4-25~4-27 발주응답 83개 `_HISTORY_~2026-04-27/` 분리 / admin_settings.html 폴더명 정정 |
+| 2026-04-29 | Phase 1.6 — 폴더 정리 (옵션 2) | 옛 archive 2개 + 외부 메신저 가이드 archive로 / 4-25~4-27 발주응답 83개 `_HISTORY_~2026-04-27/` 분리 / admin_settings.html 폴더명 정정 |
 | 향후 | Phase 2 — routes/ 폴더 분할 | 대표 결재 후 |
 
 ---

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 238 72" width="238" height="72">
+  <!-- HAIST WORKS 실제 로고(KNK 마크)에서 KN|||K 부분만 크롭. 원본: 01_HAIST_WORKS/static/logo.svg (자사 자산). -->
+  <!-- 빨강(#A5282C) 그대로 — 빨강 WORKS 알약 위에서는 흰색 칩 배경 위에 올려 표시(CSS). -->
+  <polygon fill="#A5282C" points="0,6 16,6 16,30 42,6 62,6 32,34 64,66 43,66 16,36 16,66 0,66"/>
+  <polygon fill="#A5282C" points="70,6 86,6 116,50 116,6 132,6 132,66 116,66 86,22 86,66 70,66"/>
+  <rect fill="#A5282C" x="142" y="6" width="4.5" height="60" rx="1"/>
+  <rect fill="#A5282C" x="151" y="6" width="4.5" height="60" rx="1"/>
+  <rect fill="#A5282C" x="160" y="6" width="4.5" height="60" rx="1"/>
+  <polygon fill="#A5282C" points="174,6 190,6 190,30 216,6 236,6 206,34 238,66 217,66 190,36 190,66 174,66"/>
+</svg>

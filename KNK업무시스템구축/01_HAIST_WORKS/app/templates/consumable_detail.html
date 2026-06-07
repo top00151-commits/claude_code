@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{{ co.co_no }} · 소모품 발주 상세 · KNK HAIST WORKS</title>
-{# v5H145 (2026-05-05) — 소모품 발주 상세: [📤 관련부서 통보] 버튼 추가 #}
+<title>{{ co.co_no }} · 소모품 수주 상세 · KNK HAIST WORKS</title>
+{# v5H145 (2026-05-05) — 소모품 수주 상세: [📤 관련부서 통보] 버튼 추가 #}
 <link href="/static/css/v5_tokens.css?v=20260505v5H145" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
@@ -57,7 +57,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
       <div>
-        <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 발주</a> · <b>{{ co.mgmt_code or co.co_no }}</b></div>
+        <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>{{ co.mgmt_code or co.co_no }}</b></div>
         {# v5H226z73: 헤더 mgmt_code 빨강 monospace → .mgmt-pill lg 잉크 알약 #}
         <h1 class="page-title" data-dn="title">{% if co.mgmt_code %}<span class="mgmt-pill lg">{{ co.mgmt_code }}</span> {% endif %}{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
       </div>
@@ -75,7 +75,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
     <div class="card">
       <div class="header-grid">
         <div class="h-cell"><div class="lbl">관리코드</div><div class="val" style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
-        <div class="h-cell"><div class="lbl">발주번호</div><div class="val">{{ co.co_no }}</div></div>
+        <div class="h-cell"><div class="lbl">수주번호</div><div class="val">{{ co.co_no }}</div></div>
         <div class="h-cell"><div class="lbl">고객사</div><div class="val">{{ co.customer_name or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">발주일</div><div class="val">{{ co.order_date or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">납기</div><div class="val">{{ co.due_date or '—' }}</div></div>
@@ -203,7 +203,7 @@ async function delLine(iid) {
 async function sendNotify() {
   const btn = document.getElementById('notifyBtn');
   const msg = document.getElementById('notifyMsg');
-  if (!confirm('자재구매팀·생산팀에 이 소모품 발주를 통보하시겠습니까?')) return;
+  if (!confirm('자재구매팀·생산팀에 이 소모품 수주를 통보하시겠습니까?')) return;
   btn.disabled = true; btn.textContent = '⏳ 발송 중...';
   try {
     const r = await fetch(`/consumables/${CO_ID}/notify`, {method:'POST'});

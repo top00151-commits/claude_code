@@ -1,14 +1,20 @@
 @echo off
-REM === Anthropic API 키 등록 (1회 설정) ===
-REM LAST UPDATE: 2026-05-11 - 신규 작성, .env 파일 자동 작성
+REM === Anthropic (Claude) API 키 등록 (1회 설정) ===
+REM LAST UPDATE: 2026-05-27 - 공급자(KNK_MSG_TRANSLATE_PROVIDER=anthropic) 자동 설정
+REM      현재 기본 공급자는 OpenAI(ChatGPT). 이 BAT 는 Anthropic 결제 활성 후 사용.
+REM      OpenAI(ChatGPT) 키 등록 -^> OpenAI키설정.bat
 chcp 65001 > nul
 setlocal
 cd /d "%~dp0"
 
 echo.
 echo ===============================================
-echo   KNK 메신저 - 번역 기능 활성화 (1회 설정)
+echo   KNK 메신저 - 번역 기능 활성화 (Anthropic / Claude)
 echo ===============================================
+echo.
+echo  ※ 기본 공급자는 OpenAI(ChatGPT) 입니다.
+echo     이 BAT 는 Anthropic 결제가 활성화된 뒤 사용하세요.
+echo     OpenAI(ChatGPT) 키 등록은 -^> OpenAI키설정.bat
 echo.
 echo  Claude AI 번역을 사용하려면 Anthropic API 키가 필요합니다.
 echo.
@@ -38,14 +44,16 @@ if errorlevel 1 (
   if /I not "%YN%"=="Y" exit /b 1
 )
 
-REM .env 파일 작성 (기존 ANTHROPIC_API_KEY 줄은 제거하고 새로 추가)
+REM .env 파일 작성 (기존 ANTHROPIC_API_KEY / KNK_MSG_TRANSLATE_PROVIDER 줄은 제거하고 새로 추가)
 if exist ".env" (
-  REM 기존 ANTHROPIC_API_KEY 라인 제거
-  findstr /V /B /C:"ANTHROPIC_API_KEY=" ".env" > ".env.tmp"
-  move /Y ".env.tmp" ".env" > nul
+  findstr /V /B /C:"ANTHROPIC_API_KEY=" ".env" > ".env.tmp1"
+  findstr /V /B /C:"KNK_MSG_TRANSLATE_PROVIDER=" ".env.tmp1" > ".env.tmp2"
+  move /Y ".env.tmp2" ".env" > nul
+  del ".env.tmp1" 2>nul
 )
 
 echo ANTHROPIC_API_KEY=%APIKEY%>> ".env"
+echo KNK_MSG_TRANSLATE_PROVIDER=anthropic>> ".env"
 
 echo.
 echo ===============================================

@@ -21,7 +21,7 @@ body {
       <h1 class="page-title" data-dn="title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="mgmt-pill lg">{{ quote.quote_no }}</span> <em>{{ quote.customer_name }}</em></h1>
       <div style="font-size:13px; color:var(--mute); margin-top:6px;">
         Ver {{ quote.version|default(1) }} · 유효기한 {{ quote.valid_until|default('-') }} ·
-        <span class="pill {% if quote.status == 'CONFIRMED' %}pill-done{% elif quote.status == 'DRAFT' %}pill-warn{% else %}pill-progress{% endif %}">{{ quote.status }}</span>
+        <span class="pill {% if quote.status == 'CONFIRMED' %}pill-done{% elif quote.status == 'DRAFT' %}pill-warn{% else %}pill-progress{% endif %}">{{ quote.status|status_kr }}</span>
       </div>
     </div>
     <div style="display:flex; gap:8px;">
@@ -75,7 +75,7 @@ body {
         <tbody>
           <tr><th style="width:160px;">견적번호</th><td><b>{{ quote.quote_no }}</b></td></tr>
           <tr><th>고객사</th><td>{{ quote.customer_name }}</td></tr>
-          <tr><th>버전 / 상태</th><td>Ver {{ quote.version }} · {{ quote.status }}</td></tr>
+          <tr><th>버전 / 상태</th><td>Ver {{ quote.version }} · {{ quote.status|status_kr('inline') }}</td></tr>
           <tr><th>유효기한</th><td>{{ quote.valid_until|default('-') }}</td></tr>
           <tr><th>작성자</th><td>{{ quote.created_by_name|default('-') }}</td></tr>
           <tr><th>작성 일시</th><td style="font-family:monospace;">{{ quote.created_at|default('-') }}</td></tr>

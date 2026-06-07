@@ -44,13 +44,13 @@
 
 ### 1.1 한 문장 결론
 
-> **KNK에 맞는 정답은 "하이브리드 자체 구축 + 선택적 SaaS 연동 + Claude AI 에이전트 레이어"다. 패키지 ERP 전면 도입은 73% 실패 확률이고, 풀 SaaS(Notion/Monday 만으로 운영)는 5천행 벽·이중 입력 문제로 KNK 규모(135명·관리코드 450+)에 부적합하다.**
+> **KNK에 맞는 정답은 "하이브리드 자체 구축 + 선택적 SaaS 연동 + Claude AI 에이전트 레이어"다. 패키지 ERP 전면 도입은 73% 실패 확률이고, 풀 SaaS(외부 협업툴/Monday 만으로 운영)는 5천행 벽·이중 입력 문제로 KNK 규모(135명·관리코드 450+)에 부적합하다.**
 
 ### 1.2 3가지 핵심 발견
 
 | # | 발견 | 근거 | 시사점 |
 |---|---|---|---|
-| 1 | **설문 1·2순위(진행률·변경 Inform·요청 티켓)는 상용 도구로 80% 해결 가능하지만 Excel/ERP 이중 입력이 발생** | 구매·관리팀 설문 + Notion 제조업 사례(15~20분/주문 수작업) | 기존 도구(외부 ERP 외부 그룹웨어·KNK PMS·카톡)를 **유지하면서** 그 위에 얇은 통합 레이어(`HAIST WORKS`)를 깔아야 함 |
+| 1 | **설문 1·2순위(진행률·변경 Inform·요청 티켓)는 상용 도구로 80% 해결 가능하지만 Excel/ERP 이중 입력이 발생** | 구매·관리팀 설문 + 외부 협업툴 제조업 사례(15~20분/주문 수작업) | 기존 도구(외부 ERP 외부 그룹웨어·KNK PMS·외부 메신저)를 **유지하면서** 그 위에 얇은 통합 레이어(`HAIST WORKS`)를 깔아야 함 |
 | 2 | **AI 2026 트렌드 = Agentic (자율 에이전트) + MCP (데이터 연결 표준)**. Microsoft는 이미 "제품 변경 관리 에이전트" 상용화 — 승인 기간 몇 주→며칠, BOM 종속성 누락 80% 감소 | Microsoft Industry Blog 2025.12 · Anthropic Managed Agents 2026.01 · MODEX 2026 | **설문 1순위 ②(변경 Inform)는 AI 에이전트의 가장 적합한 적용 영역**. KNK의 제조2 사고(변경 통보 누락)를 정확히 해결 |
 | 3 | **KNK의 `baby`(엑셀) + `web`(FastAPI)은 이미 2026 모범 패턴과 정확히 일치** — FastAPI로 12개 마이크로서비스, Claude API로 PDF→구조화 데이터, 제조업 맞춤 ERP는 "20영업일 안에 1주차 결과" 가능 | FastAPI 2026 production guide · Syntora Claude manufacturing | **지금 방향이 맞다**. 상용 ERP로 갈아타는 건 비용·위험·KNK 표준(관리코드 8자리 `001T2604`) 손실 측면에서 불합리 |
 
@@ -58,8 +58,8 @@
 
 | 질문 | 답 | 근거 요약 |
 |---|---|---|
-| **SAP B1 / Odoo / 더존으로 전면 교체?** | ❌ 하지 마라 | SAP SME 실패율 73%, Lidl $500M 손실, Revlon 공장 중단. KNK 규모로는 과잉 투자 |
-| **Notion만으로 통합?** | ❌ 불가능 | 10,000행 성능 저하, 복잡 자동화 한계, 관리코드 450+ 수용 불안 |
+| **SAP B1 / Odoo / 외부 ERP으로 전면 교체?** | ❌ 하지 마라 | SAP SME 실패율 73%, Lidl $500M 손실, Revlon 공장 중단. KNK 규모로는 과잉 투자 |
+| **외부 협업툴만으로 통합?** | ❌ 불가능 | 10,000행 성능 저하, 복잡 자동화 한계, 관리코드 450+ 수용 불안 |
 | **Airtable + Monday 조합으로 대체?** | 🟡 부분 | Airtable 50K 레코드 한도, 한국 세관·외부 ERP·외부 그룹웨어 연동 부재 |
 | **MRPeasy / OpenBOM 구매?** | 🟡 검토 가치 있음 | 4·5단계 입고·재고 + BOM 영역만 한정 도입 가능. 단 $79/user 비용 |
 | **Claude Managed Agents / MCP 도입?** | ✅ **즉시 도입 권장** | 설문 1순위 ②(변경 Inform)에 정확히 매칭. 비용은 API 사용량만 (사용자당 월 $10~30 예상) |
@@ -73,7 +73,7 @@
   ★ baby V2 영업 보완 마무리 (수금·매출예측·KNKVN)
 
 [Month 2 — 5월]
-  ★ 요청 티켓 (카톡 보조) + 진행률 대시보드 모바일
+  ★ 요청 티켓 (외부 메신저 보조) + 진행률 대시보드 모바일
   ★ AI 에이전트 레이어 골격 (Claude API + RAG BOM 검색)
 
 [Month 3 — 6월]
@@ -108,7 +108,7 @@
 | **KNK 데일리허브 v2** (`knk_v2`) | FastAPI + SQLite + i18n 3언어 | 135명 사용 중 (8080포트) |
 | **HAIST_WORKS 웹** | FastAPI + SQLite, 8커밋 ~17,000줄 | 구축 중 (8081포트) |
 | **HAIST_WORKS_baby** | 엑셀 V1·V2 (영업 중심 재설계) | V1 완료, V2 진행 중 |
-| **카카오톡** | 일상 커뮤니케이션 | 전사 사용 (대체 불가) |
+| **외부 메신저** | 일상 커뮤니케이션 | 전사 사용 (대체 불가) |
 | **외부 ERP/외부 그룹웨어** | 근태·전자결재·급여 | 운영 중 (파트너 API 존재) |
 | **Altium / SolidWorks** | 회로·기구 CAD | 설계팀 사용 |
 | **Git** | SW팀 코드 저장소 | SW팀 사용 |
@@ -117,7 +117,7 @@
 
 | 순위 | 고통 | 언급 부서 수 | 사고 사례 |
 |---|---|---|---|
-| 1 | 카톡·구두 요청 기록 누락 | 10팀 | 출고 누락 월 2~3회 |
+| 1 | 외부 메신저·구두 요청 기록 누락 | 10팀 | 출고 누락 월 2~3회 |
 | 2 | 진행률 통합 대시보드 부재 | 8팀 | 매일 아침 15분 일정 미팅 |
 | 3 | 상류→하류 변경 Inform 지연 | 6팀 | **제조2 실사고 — 잘못된 도면 가공** |
 | 4 | 핵심 파일 팀장 PC | 5팀 | 부재 시 업무 마비 |
@@ -135,7 +135,7 @@
 **근거**:
 - 구매(정성진): "수불 ERP·엑셀 이중 입력"
 - 관리(박지은): "데이터 구조 통합·업무 기준 강제화 후 자동화 → 차츰 확대"
-- Notion 제조업 실패 사례: "15~20분/주문 × 30~40주문/주 = 주 8~10시간 수작업"
+- 외부 협업툴 제조업 실패 사례: "15~20분/주문 × 30~40주문/주 = 주 8~10시간 수작업"
 - SAP 실패 통계 2025: "poor data migration"이 실패 원인 Top 3
 
 **적용**:
@@ -146,28 +146,28 @@
 ### 원칙 2. 기존 도구 연동 우선 (Integrate, Don't Replace)
 
 **근거**:
-- 설문: Git·Altium·SolidWorks·외부 ERP·카톡 모두 교체 요구 0건
-- 구매(정성진): "카톡 출고 요청 기록" — 카톡 대체가 아니라 티켓화
+- 설문: Git·Altium·SolidWorks·외부 ERP·외부 메신저 모두 교체 요구 0건
+- 구매(정성진): "외부 메신저 출고 요청 기록" — 외부 메신저 대체가 아니라 티켓화
 - 2026 MCP 트렌드: "Claude now has directory with 75+ connectors" — 연동이 표준
 - BOM-ERP 통합 연구: "common database를 통한 중복 제거"
 
 **적용**:
 - CAD 도구 메타데이터만 수집 (파일 변경 시 BOM 자동 감지)
 - Git commit 메타데이터만 수집 (SW 표준 라이브러리 탐색)
-- 카톡은 그대로, 중요 요청만 티켓 변환
+- 외부 메신저은 그대로, 중요 요청만 티켓 변환
 
-### 원칙 3. 카톡 대체 아닌 보조 (Chat Augmentation, Not Replacement)
+### 원칙 3. 외부 메신저 대체 아닌 보조 (Chat Augmentation, Not Replacement)
 
 **근거**:
-- 카카오톡 한국 M/S 90%, 전사 표준 커뮤니케이션 도구
-- Kakao Work / Slack 모두 한국 제조업 도입률 미미
+- 외부 메신저 한국 M/S 90%, 전사 표준 커뮤니케이션 도구
+- 외부 메신저 Work / 외부 메신저 모두 한국 제조업 도입률 미미
 - Zendesk 연동 사례: "Support teams collaborate behind the scenes on tickets while messaging continues"
-- n8n KakaoTalk API: Kakao Send-to-Me API로 알림 자동화 가능
+- n8n 외부 메신저 API: 외부 메신저 Send-to-Me API로 알림 자동화 가능
 
 **적용**:
-- 카톡에서 "!티켓 자재요청 [내용]" → 웹 티켓 자동 생성
-- 웹 티켓 상태 변경 → 카톡 요청자에게 푸시
-- 일상 잡담은 그대로 카톡
+- 외부 메신저에서 "!티켓 자재요청 [내용]" → 웹 티켓 자동 생성
+- 웹 티켓 상태 변경 → 외부 메신저 요청자에게 푸시
+- 일상 잡담은 그대로 외부 메신저
 
 ### 원칙 4. 읽기 자동, 쓰기 최소 (Auto-Read, Minimal-Write)
 
@@ -201,12 +201,12 @@
 
 각 도구마다 **강점 · 한계 · KNK 적합도 · 흡수할 기능**을 정리. 적합도는 ⭐⭐⭐⭐⭐ (핵심 채택) / ⭐⭐⭐⭐ (선택적) / ⭐⭐⭐ (참고) / ⭐⭐ (부분 기능만) / ⭐ (부적합).
 
-### 4.1 Notion — ⭐⭐⭐ (참고용·제한적)
+### 4.1 외부 협업툴 — ⭐⭐⭐ (참고용·제한적)
 
 **강점**:
 - 위키·노트·데이터베이스 올인원, 무료 티어 강함
-- Notion AI (GPT-5/Claude Opus/o3 내장, Business plan 포함)
-- Notion 3.0 에이전트 — DB 변화 감지·응답 초안·페이지 업데이트 자동화
+- 외부 협업툴 AI (GPT-5/Claude Opus/o3 내장, Business plan 포함)
+- 외부 협업툴 3.0 에이전트 — DB 변화 감지·응답 초안·페이지 업데이트 자동화
 - 한국어 번역 품질 우수
 
 **한계 (KNK 규모에서 치명적)**:
@@ -219,7 +219,7 @@
 **KNK 적합도 판정**: ⭐⭐⭐
 - **도입 영역**: 위키 · 사용자 가이드 · 회의록 · SOP 문서 (데이터 아닌 텍스트)
 - **절대 하지 말 것**: 관리코드 마스터, BOM, 발주, 진척
-- **Notion AI의 Q&A 기능**: KNK 자체 구축한 RAG로 대체 가능 (Claude API + pgvector)
+- **외부 협업툴 AI의 Q&A 기능**: KNK 자체 구축한 RAG로 대체 가능 (Claude API + pgvector)
 
 **흡수할 기능 (KNK 자체 구축 시 참고)**:
 - 페이지 사이드바 네비게이션 패턴
@@ -231,7 +231,7 @@
 
 **강점**:
 - 관계형 DB + 스프레드시트 UI 하이브리드
-- 자동화 오류율 8% (Notion 대비 1/3)
+- 자동화 오류율 8% (외부 협업툴 대비 1/3)
 - API 응답 2~3배 빠름 (Zapier/Make 연동 우수)
 - **AI 필드** — 자동 카테고리, 감성 분석, 요약, 콘텐츠 생성 (자동 트리거)
 - 50,000 레코드/base (유료), Enterprise 500K — **KNK 규모 수용 가능**
@@ -294,7 +294,7 @@
 **한계**:
 - **비쌈**: $79/user/월 (Odoo $24 · SAP B1 $149 중간)
 - 한국어 지원 제한
-- 카톡·외부 ERP 연동 부재
+- 외부 메신저·외부 ERP 연동 부재
 - KNK 표준 관리코드(`001T2604`) 강제화 어려움 (MRPeasy 내부 코드 체계 존재)
 
 **KNK 적합도 판정**: ⭐⭐⭐⭐ (한정 영역)
@@ -384,32 +384,32 @@
 - Where Used 추적
 - 30일 link 만료 → 영구 링크로 전환
 
-### 4.8 Slack / Kakao Work — ⭐⭐ (카톡 대체 불가)
+### 4.8 외부 메신저 / 외부 메신저 Work — ⭐⭐ (외부 메신저 대체 불가)
 
-**Slack 강점**:
+**외부 메신저 강점**:
 - 글로벌 표준, 1000+ 앱 통합
-- Slack AI — 스레드 요약, 검색
+- 외부 메신저 AI — 스레드 요약, 검색
 - 티켓 연동 탁월 (Zendesk 공식 통합)
 
-**Kakao Work 강점**:
-- 카카오톡 UI 계승 — 한국인 친숙도 최고
+**외부 메신저 Work 강점**:
+- 외부 메신저 UI 계승 — 한국인 친숙도 최고
 - 한국 보안·암호화
 - 조직도 내장
 
 **공통 한계 (KNK 관점)**:
-- **카톡 이미 쓰는데 중복** — 전사 전환 저항 예상
-- Slack은 해외 툴 (관리팀 우려)
-- Kakao Work도 별도 ID 발급 필요 (카톡과 다른 앱)
+- **외부 메신저 이미 쓰는데 중복** — 전사 전환 저항 예상
+- 외부 메신저은 해외 툴 (관리팀 우려)
+- 외부 메신저 Work도 별도 ID 발급 필요 (외부 메신저과 다른 앱)
 - 설문에서 어느 부서도 요청하지 않음
 
 **KNK 적합도 판정**: ⭐⭐
-- **결론**: **도입 불필요** — 카톡 + 웹 티켓 시스템으로 대체
-- **대안**: n8n + Kakao Send-to-Me API로 카톡 알림 발송
+- **결론**: **도입 불필요** — 외부 메신저 + 웹 티켓 시스템으로 대체
+- **대안**: n8n + 외부 메신저 Send-to-Me API로 외부 메신저 알림 발송
 
 **흡수할 기능**:
-- Slack의 채널·스레드 구조 → 웹 티켓 코멘트 구조
-- Slack의 `/command` 단축 → 웹 검색 UI
-- Zendesk-Slack 통합 흐름 → 카톡-HAIST WORKS 통합
+- 외부 메신저의 채널·스레드 구조 → 웹 티켓 코멘트 구조
+- 외부 메신저의 `/command` 단축 → 웹 검색 UI
+- Zendesk-외부 메신저 통합 흐름 → 외부 메신저-HAIST WORKS 통합
 
 ### 4.9 SAP Business One / Odoo — 한국 ERP 대안 ⭐⭐
 
@@ -422,9 +422,9 @@
 - **강점**: 모듈화, 오픈소스 커뮤니티, 저렴
 - **한계**: 모듈 조합에 따라 파편화, 공식 지원 제한
 
-**더존 / 영림원** (한국):
-- **더존 ERP**: 중소기업 1위, 전국 지원망 — 단 스마트A 2023.12 단종, 2025년 말 유지보수 종료
-- **영림원 K-System Ace**: 제조·건설 특화 커스터마이징 깊이 우수
+**외부 ERP / 외부 ERP** (한국):
+- **외부 ERP ERP**: 중소기업 1위, 전국 지원망 — 단 스마트A 2023.12 단종, 2025년 말 유지보수 종료
+- **외부 ERP K-System Ace**: 제조·건설 특화 커스터마이징 깊이 우수
 
 **KNK 적합도 판정**: ⭐⭐ (재무·급여만 외부 ERP로 기존 운영)
 - **결론**: **전면 도입 금지** — 73% 실패 확률 + 관리코드 표준 손실
@@ -434,14 +434,14 @@
 - Odoo의 모듈화 개념 (web 사이드바 모듈 구조)
 - SAP의 MRP 계획 알고리즘 (재주문점 · 안전재고)
 
-### 4.10 외부 ERP / 외부 그룹웨어 (더존) — ⭐⭐⭐⭐⭐ (필수 유지)
+### 4.10 외부 ERP / 외부 그룹웨어 (외부 ERP) — ⭐⭐⭐⭐⭐ (필수 유지)
 
 **강점 (KNK에게 완벽)**:
 - **한국 기업용 그룹웨어 M/S 1위**
 - 근태·전자결재·급여·지출결의 완비
 - **파트너 API 공식 제공** — HTTP REST
 - 파트너 솔루션 근태·출입 연동 가능
-- 전자결재 + 전표 처리 자동화 (더존 DNA)
+- 전자결재 + 전표 처리 자동화 (외부 ERP DNA)
 
 **한계**:
 - 사용자 경험 구식
@@ -463,14 +463,14 @@
 
 | 도구 | 월 비용(1인) | KNK 적합 영역 | 도입 판정 |
 |---|---|---|---|
-| Notion | Free~$18 | 위키·SOP | 🟡 부분 도입 (텍스트만) |
+| 외부 협업툴 | Free~$18 | 위키·SOP | 🟡 부분 도입 (텍스트만) |
 | Airtable | $20 | 이슈DB·증빙 | 🟢 자체 구축 대체 가능 |
 | Monday.com | $9 | 단기 프로젝트 | 🔴 불필요 |
 | MRPeasy | $79 | 입고·재고 후보 | 🟡 자체 구축 비교 필요 |
 | OpenBOM | $25 | BOM 통합 | 🟢 **도입 검토** (연 650만) |
 | Aras Innovator | 파트너 | — | 🔴 오버킬 |
 | SolidWorks PDM | ~$1.5K 1회 | 도면 버전 | 🟢 **도입 검토** (설계 5명) |
-| Slack/Kakao Work | $7~13 | — | 🔴 불필요 (카톡 유지) |
+| 외부 메신저/외부 메신저 Work | $7~13 | — | 🔴 불필요 (외부 메신저 유지) |
 | SAP B1/Odoo | $24~149 | — | 🔴 과도한 교체 |
 | 외부 ERP/외부 그룹웨어 | 기존 | 근태·전자결재 | 🟢 **필수 유지** |
 
@@ -502,7 +502,7 @@
 **KNK 적용 가능성**:
 - **변경 Inform 에이전트**: 변경 등록 → BOM 종속성 자동 분석 → 영향 부서 자동 알림 (설문 1순위 ② 정확히 매칭)
 - **일일 요약 에이전트**: 매일 아침 8시 자동 요약 (이슈·지연·진행) — 대표/팀장용
-- **티켓 분류 에이전트**: 카톡 메시지 → 카테고리 분류 → 담당 부서 할당
+- **티켓 분류 에이전트**: 외부 메신저 메시지 → 카테고리 분류 → 담당 부서 할당
 - **문서 검색 에이전트** (RAG): "이 증상 이전에 겪은 적 있나?" → 이슈 DB 자동 검색
 
 ### 5.2 MCP (Model Context Protocol) — AI와 기업 데이터 연결 표준
@@ -603,7 +603,7 @@
 
 **n8n KNK 활용 예시**:
 - baby 엑셀 변경 → web DB 자동 sync (5분 cron)
-- 카톡 메시지 webhook → 티켓 자동 생성
+- 외부 메신저 메시지 webhook → 티켓 자동 생성
 - 외부 ERP 근태 데이터 → 대시보드 자동 갱신
 - Altium BOM 내보내기 → OpenBOM API 자동 업로드
 
@@ -677,7 +677,7 @@
 
 1. ✅ **점진적 모듈 추가** (변경 Inform → 티켓 → 대시보드 → BOM 순)
 2. ✅ **KNK 표준 유지** (관리코드·수주번호 손대지 않기)
-3. ✅ **기존 도구 연동 (MCP)** (baby·외부 ERP·카톡 그대로)
+3. ✅ **기존 도구 연동 (MCP)** (baby·외부 ERP·외부 메신저 그대로)
 4. ✅ **부서별 사용 가이드 작성** (가공팀 "정체 설명" 원칙)
 5. ✅ **AI는 초안 생성, 최종은 인간 승인** (Human-in-the-loop)
 
@@ -690,9 +690,9 @@
 
 | 업체 | 포지션 | 2026 상황 |
 |---|---|---|
-| **더존** | 중소기업 1위, 회계·재무 강함 | 스마트A 2023.12 단종 → 2025.12 유지보수 종료. 고객 교체 고민 중 |
-| **영림원** | 제조·건설 특화 (K-System Ace) | 깊은 커스터마이징 제공 |
-| **외부 ERP** | 더존 계열, 근태·전자결재 | KNK 이미 사용 중 |
+| **외부 ERP** | 중소기업 1위, 회계·재무 강함 | 스마트A 2023.12 단종 → 2025.12 유지보수 종료. 고객 교체 고민 중 |
+| **외부 ERP** | 제조·건설 특화 (K-System Ace) | 깊은 커스터마이징 제공 |
+| **외부 ERP** | 외부 ERP 계열, 근태·전자결재 | KNK 이미 사용 중 |
 | **외부 그룹웨어** | 그룹웨어 시장 점유율 1위 | KNK 이미 사용 중 |
 | **SAP** | 대기업·중견 | K-스타트업은 B1 도입 많음 |
 | **Odoo** | 오픈소스, 한국 파트너 증가 | 가격 경쟁력 우수 |
@@ -764,7 +764,7 @@ OECD + 독일 SME 연구 종합:
 일반적 관찰 (구체 데이터 미공개이므로 업계 공통 추정):
 - **3DEngg / Siemens Opcenter** 사용 기업: 중견 이상 (KNK 규모 상회)
 - **Critical Manufacturing MES** 사용 기업: 반도체 후공정 라인 특화
-- 대부분 중소 검사기 제조업체: **엑셀 + 노션 조합** 또는 **내부 개발 웹앱**
+- 대부분 중소 검사기 제조업체: **엑셀 + 외부 협업툴 조합** 또는 **내부 개발 웹앱**
 - 업계 공통 고통: BOM 변경 전파 지연, 도면 버전, AS 이력 분산 — **KNK 설문과 동일**
 
 **결론**: KNK의 고통은 업계 공통. 해결 방식(자체 구축 하이브리드)은 중소 제조업의 모범 답안과 일치.
@@ -778,8 +778,8 @@ OECD + 독일 SME 연구 종합:
 
 | 접근 | 초기 투자 | 연 운영비 | 위험 | 장점 | 단점 |
 |---|---|---|---|---|---|
-| **A. 상용 패키지 전면 도입** (SAP B1/Odoo/영림원) | 1~3억 | 5천만~1억 | 🔴 73% 실패 | "완전 ERP" 기대 | KNK 표준 손실, 5~12개월 구축, 직원 교체 |
-| **B. 풀 SaaS 조합** (Notion+Airtable+Monday+OpenBOM) | 0 | 3천만+ | 🟡 락인·5K행 한계·이중 입력 | 빠른 시작 | 한국 특화 연동 부재·성능·락인 |
+| **A. 상용 패키지 전면 도입** (SAP B1/Odoo/외부 ERP) | 1~3억 | 5천만~1억 | 🔴 73% 실패 | "완전 ERP" 기대 | KNK 표준 손실, 5~12개월 구축, 직원 교체 |
+| **B. 풀 SaaS 조합** (외부 협업툴+Airtable+Monday+OpenBOM) | 0 | 3천만+ | 🟡 락인·5K행 한계·이중 입력 | 빠른 시작 | 한국 특화 연동 부재·성능·락인 |
 | **C. 하이브리드 자체 구축 + 선택적 SaaS + AI** | 0 (내부 시간) | 2천만 이하 (API·일부 SaaS) | 🟢 KNK 표준 유지·점진적 | **KNK 완벽 맞춤** · AI 직접 활용 · 무한 확장 | 내부 개발 필요 (현재 확보) |
 
 ### 9.2 C안 (하이브리드) 경제성 추정
@@ -801,7 +801,7 @@ OECD + 독일 SME 연구 종합:
 - 실 부담 **1,300만원 수준**
 
 **연간 효과 (보수적)**:
-- 카톡 요청 누락 월 2~3건 × 부서 10 × 건당 10만원 = **월 300만원 절감**
+- 외부 메신저 요청 누락 월 2~3건 × 부서 10 × 건당 10만원 = **월 300만원 절감**
 - 제조2 재작업 방지 (연 1~2회 × 500만원) = **500~1,000만원**
 - 영업 매출 가시화 → 수주 전환율 5% 상승 = **억 단위**
 - **ROI 10배 이상**
@@ -815,9 +815,9 @@ OECD + 독일 SME 연구 종합:
 - Hershey·Haribo·Revlon 실패 재연 가능성
 
 **B안 (SaaS 조합) 치명적 결함**:
-- Notion 10,000행 저하 + Airtable 50K 한도 + Monday 관계형 약함
+- 외부 협업툴 10,000행 저하 + Airtable 50K 한도 + Monday 관계형 약함
 - 다수 라이선스 월 지출: 135명 × $50~100 = 월 **1,400만원**
-- 한국 특화 부재 (외부 ERP·카톡·세관·국세청)
+- 한국 특화 부재 (외부 ERP·외부 메신저·세관·국세청)
 - AI 통합 파편화 (각 도구별 별도 AI)
 
 ### 9.4 C안 확신 근거
@@ -845,7 +845,7 @@ OECD + 독일 SME 연구 종합:
 
 | 부서 | 1위 고통 | 기능 대응 | baby | web | AI | 외부 도구 |
 |---|---|---|---|---|---|---|
-| **구매** | 카톡 누락 + 이중 입력 | 요청 티켓 + ERP read-only | 🟢 입력 owner | 🟢 티켓 UI | 🟢 카테고리 분류 AI | — |
+| **구매** | 외부 메신저 누락 + 이중 입력 | 요청 티켓 + ERP read-only | 🟢 입력 owner | 🟢 티켓 UI | 🟢 카테고리 분류 AI | — |
 | **관리** | 증빙 제출 지연 + 법인카드 | 증빙 포털 + 자동 라우팅 | — | 🟢 포털 UI | 🟢 영수증 OCR→분류 | 외부 ERP |
 | **영업** | 진척율 가시화·Set Up | 모델별 진척 모바일 + KNKVN 뷰 | 🟢 V2 진행 | 🟢 모바일 import | 🟢 이메일→수주 요약 | — |
 | **전장** | 기구 변경 대기 1~3일 | **변경 Inform** + 영향 분석 | — | 🟢 등록 UI | 🟢 **영향 판단 에이전트** | — |
@@ -864,7 +864,7 @@ OECD + 독일 SME 연구 종합:
 |---|---|---|---|---|
 | 🔴 1순위 ① | 진행률 대시보드 (baby import) | 🟢 낮음 | 🟡 요약 AI | 1주 |
 | 🔴 1순위 ② | **변경 Inform + AI 영향 분석** | 🟡 중간 | 🟢 **핵심 AI** | 2주 |
-| 🟠 2순위 ③ | 요청 티켓 (카톡 보조) + AI 분류 | 🟢 낮음 | 🟡 분류 AI | 1주 |
+| 🟠 2순위 ③ | 요청 티켓 (외부 메신저 보조) + AI 분류 | 🟢 낮음 | 🟡 분류 AI | 1주 |
 | 🟠 2순위 ④ | 개인 PC → 공용 NAS 이전 | 🟢 정책 | ⚪ 없음 | 1주 |
 | 🟠 2순위 ⑤ | 전사 근태 (외부 ERP 연동) | 🟢 낮음 | ⚪ 없음 | 3일 |
 | 🟡 3순위 ⑥ | BOM 통합 마스터 | 🔴 높음 | 🟢 RAG 검색 | 4주 |
@@ -885,7 +885,7 @@ OECD + 독일 SME 연구 종합:
 1. BOM 조회 → 영향 받는 상위 어셈블리·모델 리스트 자동 생성
 2. 어셈블리 담당 부서(전장·SW·제조·가공·구매) 자동 판별
 3. 과거 유사 변경 검색 → "2025-12 유사 변경 시 SW 코드도 수정됨" 알림
-4. 변경 전/후 비교 요약 생성 → 카톡·메일 자동 발송
+4. 변경 전/후 비교 요약 생성 → 외부 메신저·메일 자동 발송
 5. 승인 라우팅 초안 제시
 
 **기술**:
@@ -903,15 +903,15 @@ OECD + 독일 SME 연구 종합:
 2. 지연 공정 자동 탐지 (기준일 초과)
 3. 어제 등록된 티켓·변경·이슈 요약
 4. 대표·팀장별 개인화 요약 생성
-5. 카톡·메일 발송
+5. 외부 메신저·메일 발송
 
 **기술**: n8n cron + Claude API (요약) + 역할별 프롬프트
 
 **효과**: 설문 매일 아침 1위 요구 충족, 미팅 시간 15분→0분
 
-#### 시나리오 3. 카톡 티켓 자동 변환
+#### 시나리오 3. 외부 메신저 티켓 자동 변환
 
-**트리거**: 카톡 채널에서 메시지에 `!티켓` 접두어
+**트리거**: 외부 메신저 채널에서 메시지에 `!티켓` 접두어
 
 **AI 작업**:
 1. 메시지 내용 분석 → 카테고리 자동 분류 (자재요청·긴급가공·MODIFY·AS·검수)
@@ -920,9 +920,9 @@ OECD + 독일 SME 연구 종합:
 4. 티켓 초안 생성 (제목·설명·첨부)
 5. web 티켓 DB 저장 + 담당자 알림
 
-**기술**: Kakao webhook → FastAPI → Claude API 분류 → DB
+**기술**: 외부 메신저 webhook → FastAPI → Claude API 분류 → DB
 
-**효과**: 10팀 카톡 누락 해결, 기록 자동화
+**효과**: 10팀 외부 메신저 누락 해결, 기록 자동화
 
 #### 시나리오 4. 이슈·AS 유사 사례 검색 (RAG)
 
@@ -1008,15 +1008,15 @@ OECD + 독일 SME 연구 종합:
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    사용자 (135명)                             │
-│  카톡 · 웹 브라우저 (PC/모바일) · 이메일                       │
+│  외부 메신저 · 웹 브라우저 (PC/모바일) · 이메일                       │
 └────────────────────┬─────────────────────────────────────────┘
                      │
       ┌──────────────┴──────────────┐
       │                             │
       ▼                             ▼
 ┌──────────────┐            ┌──────────────────┐
-│ 카톡 Bot      │            │ HAIST WORKS 웹   │
-│ (n8n + Kakao)│◀──────────▶│ (FastAPI, 8081)  │
+│ 외부 메신저 Bot      │            │ HAIST WORKS 웹   │
+│ (n8n + 외부 메신저)│◀──────────▶│ (FastAPI, 8081)  │
 └──────┬───────┘            └─────┬────────────┘
        │                          │
        │       ┌──────────────────┼──────────────┐
@@ -1126,8 +1126,8 @@ OECD + 독일 SME 연구 종합:
    - 트리거: n8n cron 매일 08:00
 
 3. **ticket-classifier-agent**
-   - 시스템 프롬프트: "카톡 메시지를 KNK 티켓 카테고리로 분류"
-   - 트리거: Kakao webhook
+   - 시스템 프롬프트: "외부 메신저 메시지를 KNK 티켓 카테고리로 분류"
+   - 트리거: 외부 메신저 webhook
 
 4. **rag-qa-agent**
    - 시스템 프롬프트: "너는 KNK 시스템 질의응답 어시스턴트"
@@ -1144,7 +1144,7 @@ OECD + 독일 SME 연구 종합:
 | 프론트 | **Jinja2 + Vanilla JS** (HTMX 선택) | 기존 데일리허브 패턴 일치 |
 | AI | **Anthropic Claude API** (Opus 4.7 1M context) | 김정락 대표 이미 페어코딩 사용 |
 | MCP | **FastMCP (Python)** | 표준 프로토콜, Claude 공식 |
-| 자동화 | **n8n self-hosted** | 무료·확장성, Kakao API 연동 우수 |
+| 자동화 | **n8n self-hosted** | 무료·확장성, 외부 메신저 API 연동 우수 |
 | 모바일 | **PWA** (Progressive Web App) | 네이티브 앱 개발 없이 모바일 대응 |
 | 파일저장 | **로컬 NAS** + S3 호환 (MinIO 옵션) | 도면·증빙 용량 고려 |
 | 인증 | **기존 데일리허브 세션** | 단일 로그인 |
@@ -1319,7 +1319,7 @@ async def analyze_change_impact(change: ChangeDraft):
 - [ ] MCP 서버 `knk-web-mcp` 골격 (Tool: create_change, list_affected)
 - [ ] Claude API 연동 (영향 분석 프롬프트)
 - [ ] UI: `/changes/new` 폼 + 자동 분석 결과 표시
-- [ ] 알림: 영향 부서 카톡 발송 (n8n + Kakao API)
+- [ ] 알림: 영향 부서 외부 메신저 발송 (n8n + 외부 메신저 API)
 
 **완료 조건**: 전장·제조2에서 시범 운영 → 1건 이상 성공
 
@@ -1334,14 +1334,14 @@ async def analyze_change_impact(change: ChangeDraft):
 - [ ] RAG Q&A 엔드포인트 `/api/ask`
 - [ ] 영업·개발혁신 시범
 
-### Week 3 (5/4~5/10) — 요청 티켓 + 카톡 연동
+### Week 3 (5/4~5/10) — 요청 티켓 + 외부 메신저 연동
 
-**목표**: 10팀 공통 카톡 누락 해결
+**목표**: 10팀 공통 외부 메신저 누락 해결
 
 **작업**:
 - [ ] DB: `tickets` 테이블
 - [ ] UI: 티켓 생성/조회/상태변경
-- [ ] Kakao webhook 수신 엔드포인트
+- [ ] 외부 메신저 webhook 수신 엔드포인트
 - [ ] AI 분류 에이전트 (카테고리·긴급도)
 - [ ] 카테고리: 자재요청 · 긴급가공 · MODIFY · 검수 · AS
 
@@ -1365,7 +1365,7 @@ async def analyze_change_impact(change: ChangeDraft):
 - [ ] Claude 요약 프롬프트 (대표/팀장별 개인화)
 - [ ] `knk-외부 그룹웨어-mcp` 서버 구축
 - [ ] 근태 대시보드 (오늘 휴가·출장·재택)
-- [ ] 카톡·메일 자동 발송
+- [ ] 외부 메신저·메일 자동 발송
 
 ### Week 6 (5/25~5/31) — 이슈·AS DB + RAG 검색
 
@@ -1460,7 +1460,7 @@ async def analyze_change_impact(change: ChangeDraft):
 
 | 지표 | 기준 (0월) | 6월 목표 | 12월 목표 |
 |---|---|---|---|
-| 카톡 누락 월 건수 | 20~30 | <5 | <1 |
+| 외부 메신저 누락 월 건수 | 20~30 | <5 | <1 |
 | 변경 Inform 사고 | 월 1~2 | 0 | 0 |
 | 매일 아침 미팅 시간 | 15분×13팀=195분 | 5분×13팀=65분 | 0분 |
 | 이슈 재발률 | 측정 불가 | 20% 감소 | 50% 감소 |
@@ -1482,9 +1482,9 @@ async def analyze_change_impact(change: ChangeDraft):
 | 2 | **관리코드 표준 손실** | 450+ 이력 끊김 | 절대 대체 금지, MCP로 read-only만 |
 | 3 | **Claude API 비용 폭증** | 월 $10K+ 가능 | prompt caching 필수, 배치 요약 |
 | 4 | **AI 환각 (hallucination)** | 잘못된 변경 전파 | Human-in-the-loop + 영향 분석은 초안만 |
-| 5 | **5천행 Notion 벽** | 성능 저하 | Notion은 위키만, 데이터는 PG |
+| 5 | **5천행 외부 협업툴 벽** | 성능 저하 | 외부 협업툴은 위키만, 데이터는 PG |
 | 6 | **SaaS 락인** | 이전 비용 수천만 | 데이터 owner는 KNK DB, SaaS는 참조만 |
-| 7 | **카톡 대체 저항** | 전사 보이콧 | 카톡 유지, 티켓은 선택적 |
+| 7 | **외부 메신저 대체 저항** | 전사 보이콧 | 외부 메신저 유지, 티켓은 선택적 |
 | 8 | **외부 ERP 중복 개발** | 이중 투자 | 근태·결재·급여는 외부 ERP 위임 |
 | 9 | **직원 교육 부족** | 사용 저조 | 부서별 사용 가이드 .md + 스크린샷 |
 | 10 | **김정락 대표 번아웃** | 추진력 상실 | AI 페어코딩으로 시간 절약, 단계적 위임 |
@@ -1526,7 +1526,7 @@ Week 1 변경 Inform + AI 영향 분석 에이전트 구축 시작해줘.
 2. `knk-web-mcp` 서버 골격 (create_change 도구)
 3. Claude API 연동 (영향 분석 프롬프트)
 4. `/changes/new` 폼 + 자동 분석 결과 UI
-5. 카톡 알림 (n8n webhook)
+5. 외부 메신저 알림 (n8n webhook)
 ```
 
 **필수 참조**:
@@ -1538,7 +1538,7 @@ Week 1 변경 Inform + AI 영향 분석 에이전트 구축 시작해줘.
 **금지 사항**:
 - baby 엑셀에 쓰기 시도 금지 (read-only MCP만)
 - 4·5단계 입고/재고 선착수 금지 (우선순위 후순위)
-- 카톡 대체 시도 금지 (티켓은 선택적)
+- 외부 메신저 대체 시도 금지 (티켓은 선택적)
 
 ### 15.2 HAIST_WORKS_baby 세션 (엑셀 작업)
 
@@ -1585,24 +1585,24 @@ baby V2 영업 보완 마무리해줘.
 
 | # | 주제 | 핵심 소스 |
 |---|---|---|
-| 1 | Notion SME manufacturing limits | ones.com · hackceleration.com · Notion Help Center |
+| 1 | 외부 협업툴 SME manufacturing limits | ones.com · hackceleration.com · 외부 협업툴 Help Center |
 | 2 | Monday vs Airtable manufacturing | thedigitalprojectmanager.com · tadabase.io · capterra |
 | 3 | MRPeasy SME case study | mrpeasy.com blog · capterra reviews · bytegrid case |
 | 4 | OpenBOM vs Aras PLM | selecthub.com · g2.com · trustradius |
-| 5 | Slack/Kakao Work enterprise | kedglobal.com · slack.com blog · koreatechtoday |
+| 5 | 외부 메신저/외부 메신저 Work enterprise | kedglobal.com · slack.com blog · koreatechtoday |
 | 6 | AI agent enterprise 2026 MCP | anthropic.com · venturebeat · thenewstack · intuitionlabs |
 | 7 | Microsoft Copilot manufacturing | aufaittechnologies · 2wtech · microsoft.com |
 | 8 | RAG manufacturing BOM docs | docsie.io · nstarxinc · mdpi GraphRAG research |
-| 9 | Notion AI Airtable AI 2026 | tech-insider.org · productivetemply · max-productive |
+| 9 | 외부 협업툴 AI Airtable AI 2026 | tech-insider.org · productivetemply · max-productive |
 | 10 | AI ECN change management 2026 | microsoft.com industry blog · autodesk · varseno |
 | 11 | SAP ERP failure manufacturing | panorama-consulting · cio.com · godlan stats |
 | 12 | Digital transformation SME hidden champion | jsbs.scholasticahq · oecd.org · springer · scirp |
 | 13 | AI manufacturing predictive QC ROI | pravaahconsulting · standardbots · alphabold · masterofcode |
 | 14 | Odoo vs SAP B1 SME | odoo.com · infraxio · navabrindsol · tatvamasilabs |
-| 15 | 한국 SME ERP 실패 더존 영림원 | korea-erp.com · thelec.kr · clien 커뮤니티 |
+| 15 | 한국 SME ERP 실패 외부 ERP 외부 ERP | korea-erp.com · thelec.kr · clien 커뮤니티 |
 | 16 | 반도체 검사기 PLM ERP | deskera · infosys · critical manufacturing · siemens |
 | 17 | AI agent framework LangChain CrewAI | intuz · fungies · turing · o-mega · lindy |
-| 18 | KakaoTalk work ticket 자동화 | wikidocs n8n · sendbird · 360smsapp |
+| 18 | 외부 메신저 work ticket 자동화 | wikidocs n8n · sendbird · 360smsapp |
 | 19 | 외부 ERP 외부 그룹웨어 API | developers.외부 그룹웨어.com · 외부 그룹웨어.com · 외부 ERP.com · foxcg |
 | 20 | n8n Zapier Make 워크플로우 | digidop · zapier blog · cipherprojects · goodspeed |
 | 21 | FastAPI enterprise production | fastlaunchapi · dev.to · flatlogic · syntora.io |

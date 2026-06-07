@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>소모품 발주 목록 · KNK HAIST WORKS</title>
-{# v5H142 (2026-05-05) — 소모품 발주 목록 (대표 직접 요청) #}
+<title>소모품 수주 목록 · KNK HAIST WORKS</title>
+{# v5H142 (2026-05-05) — 소모품 수주 목록 (대표 직접 요청) #}
 <link href="/static/css/v5_tokens.css?v=20260505v5H142" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
 <style>
@@ -57,11 +57,11 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
       <div>
-        <div class="crumbs" data-dn="crumb"><a href="/logistics">자재구매센터</a> · <b>소모품 발주</b></div>
+        <div class="crumbs" data-dn="crumb"><a href="/logistics">자재구매센터</a> · <b>소모품 수주</b></div>
         <h1 class="page-title" data-dn="title">소모품 <em>발주</em></h1>
       </div>
       <div>
-        <a class="btn-primary" href="/consumables/new">＋ 새 소모품 발주</a>
+        <a class="btn-primary" href="/consumables/new">＋ 새 소모품 수주</a>
       </div>
     </div>
 
@@ -98,7 +98,7 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
 
     <form class="toolbar" method="get" action="/consumables">
       <input type="hidden" name="status" value="{{ status }}">
-      <input class="search" type="search" name="q" value="{{ q }}" placeholder="발주번호 / 고객사 / 비고…" />
+      <input class="search" type="search" name="q" value="{{ q }}" placeholder="수주번호 / 고객사 / 비고…" />
       <button type="submit" class="btn-secondary">검색</button>
     </form>
 
@@ -108,7 +108,7 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
         <div class="month-title">📅 {{ ym }}</div>
         <table class="list">
           <thead><tr>
-            <th>관리코드</th><th>발주번호</th><th>고객사</th><th>상태</th>
+            <th>관리코드</th><th>수주번호</th><th>고객사</th><th>상태</th>
             <th class="amount">합계</th><th>발주일</th><th>비고</th>
           </tr></thead>
           <tbody>
@@ -132,8 +132,8 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
       {% endfor %}
     {% else %}
       <div class="empty-state">
-        <div style="font-size:18px;margin-bottom:8px;">📦 등록된 소모품 발주가 없습니다</div>
-        <div>오른쪽 위 <b>＋ 새 소모품 발주</b> 버튼으로 엑셀을 업로드하거나 수동 등록하세요.</div>
+        <div style="font-size:18px;margin-bottom:8px;">📦 등록된 소모품 수주가 없습니다</div>
+        <div>오른쪽 위 <b>＋ 새 소모품 수주</b> 버튼으로 엑셀을 업로드하거나 수동 등록하세요.</div>
       </div>
     {% endif %}
   </main>

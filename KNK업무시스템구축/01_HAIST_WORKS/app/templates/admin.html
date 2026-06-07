@@ -125,7 +125,10 @@ tbody tr:hover td { background: var(--amber-glow); }
       <div class="table-wrap">
         <div class="table-head">
           <h3>사용자 ({{ users|length }})</h3>
-          <div class="actions"><a class="btn btn-primary" href="/admin/users/new">＋ 사용자 추가</a></div>
+          <div class="actions" style="display:flex;gap:8px;align-items:center;">
+            <a class="btn btn-secondary" href="/admin/sync-employees" title="메신저에 등록된 전 직원 정보(사번·이름(한/영/베)·부서·메일·연락처)를 가져옵니다 — 미리보기 후 반영">🔄 메신저 직원 동기화</a>
+            <a class="btn btn-primary" href="/admin/users/new">＋ 사용자 추가</a>
+          </div>
         </div>
         <table>
           <thead>
@@ -143,7 +146,7 @@ tbody tr:hover td { background: var(--amber-glow); }
           {% for u in users %}
             <tr>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ u.id }}</td>
-              <td><b>{{ u.name }}</b>{% if u.rank %} {{ u.rank }}{% endif %}</td>
+              <td><b>{{ vname(u) }}</b>{% if u.rank %} {{ u.rank }}{% endif %}</td>
               <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.login_id }}{% if u.email %}<br>{{ u.email }}{% endif %}</td>
               <td>{{ u.team_name|default('—') }}</td>
               <td style="text-align:center;">

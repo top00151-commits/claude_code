@@ -1,0 +1,19 @@
+# Windows batch files MUST use CRLF line endings.
+# (cmd.exe fails to parse LF-only files - splits commands incorrectly)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell scripts: CRLF (Windows native)
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+
+# Shell scripts on Linux: LF (NAS deployment)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Python/web files: LF (consistent across platforms)
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf

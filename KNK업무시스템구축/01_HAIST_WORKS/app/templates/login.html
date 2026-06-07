@@ -103,56 +103,31 @@ body {
     </div>
     <div class="welcome-mid">
       <h1>오늘도, <em>따뜻하게</em><br>일을 시작합니다</h1>
-      <p>케이엔케이 통합 업무 플랫폼.<br>빅터 AI 가 오늘의 견적·발주·재고 알림을 준비해두었습니다.</p>
+      <p>케이엔케이 통합 업무 플랫폼.<br>사내 메신저로 로그인하면 자동으로 연결됩니다.</p>
     </div>
     <div class="welcome-bottom">
-      <div class="stat"><div class="stat-num">23</div><div class="stat-label">견적 진행</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:16px;">견적·영업</div><div class="stat-label">SALES</div></div>
       <div class="stat-divider"></div>
-      <div class="stat"><div class="stat-num">8</div><div class="stat-label">발주 대기</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:16px;">자재·구매</div><div class="stat-label">LOGISTICS</div></div>
       <div class="stat-divider"></div>
-      <div class="stat"><div class="stat-num">3</div><div class="stat-label">재고 경고</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:16px;">품질·이슈</div><div class="stat-label">QUALITY</div></div>
     </div>
   </div>
 
   <div class="form-side">
-    <div class="form-label-up">SIGN IN{% if admin_mode %} — ADMIN{% endif %}</div>
-    <h2>반갑습니다</h2>
-    {% if admin_mode %}
-    <p class="sub" style="color:#a5282c;font-weight:600;">⚠ 관리자 백도어 모드<br>일반 사용자는 <a href="/sso/login" style="color:#a5282c;text-decoration:underline;">메신저 SSO 로그인</a>을 이용하세요.</p>
-    {% else %}
-    <p class="sub">사번 또는 이메일로 로그인해주세요.<br>처음이시라면 시스템 관리자에게 문의 부탁드립니다.</p>
-    {% endif %}
+    <div class="form-label-up">ENTER</div>
+    <h2>메신저에서 들어오세요</h2>
+    <p class="sub">HAIST WORKS 는 사내 메신저를 통해 입장합니다.<br>메신저에 로그인한 뒤 상단의 <b>“🔗 WORKS 열기”</b> 버튼을 눌러주세요.</p>
 
-    {% if notice %}
-    <div class="error-banner" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;">{{ notice }}</div>
-    {% endif %}
     {% if error %}
     <div class="error-banner">⚠ {{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/login" autocomplete="on">
-      <div class="field">
-        <label for="login_id">사번 / 이메일</label>
-        <input type="text" id="login_id" name="login_id" placeholder="사번 (예: 5, VN001) 또는 이메일" autofocus required />
-      </div>
-      <div class="field">
-        <label for="password">비밀번호</label>
-        <input type="password" id="password" name="password" placeholder="비밀번호 입력" required />
-      </div>
+    <a href="{{ messenger_url }}" class="btn-primary" style="text-decoration:none;text-align:center;display:block;">메신저 열기 →</a>
 
-      <div class="field-row">
-        <label class="check">
-          <input type="checkbox" name="remember" value="1" /> 이 기기에서 로그인 유지
-        </label>
-        <a class="link" href="javascript:alert('비밀번호 찾기는 시스템 관리자에게 문의 부탁드립니다.\n\nhelpdesk@knk.co.kr')">비밀번호 찾기 →</a>
-      </div>
-
-      <button type="submit" class="btn-primary">로그인 →</button>
-    </form>
-
-    <div class="divider">또는</div>
-
-    <button type="button" class="btn-secondary" onclick="alert('SSO 통합 로그인은 다음 사이클에 추가됩니다.')">🔒 SSO 통합 로그인 (사내 인증)</button>
+    <p class="sub" style="margin-top:18px;font-size:13px;line-height:1.7;">
+      “권한이 없다”는 안내가 나오면, 메신저 관리자에게 <b>WORKS 사용 권한</b>을 요청해주세요.
+    </p>
 
     <div class="footer">
       ㈜케이엔케이 · HAIST Innovation<br>

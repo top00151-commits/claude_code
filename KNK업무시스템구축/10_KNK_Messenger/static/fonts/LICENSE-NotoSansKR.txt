@@ -1,0 +1,12 @@
+NotoSansKR.ttf — Noto Sans KR (Korean)
+=======================================
+
+용도: 고객사 전용 앱 아이콘(/g/<token>/icon-*.png) 동적 생성 시 한글·라틴(베트남어)·한자(중국어) 렌더링용 서버측 폰트.
+      NAS Linux 컨테이너에 시스템 한글 폰트가 없어 글자가 안 그려지던 문제를 해결하기 위해 앱에 동봉.
+
+라이선스: SIL Open Font License, Version 1.1 (OFL-1.1)
+  - 저작권: Copyright The Noto Project Authors (https://github.com/notofonts/noto-cjk)
+  - OFL 전문: https://openfontlicense.org/  (또는 https://scripts.sil.org/OFL)
+  - OFL 은 소프트웨어와 함께 폰트의 번들·재배포를 허용합니다(폰트 단독 판매 금지, 본 라이선스 동봉 조건).
+
+비고: 이 파일은 Google Noto Sans KR 와 동일한 OFL 폰트이며, 본 앱(KNK 메신저) 내부 이미지 생성에만 사용됩니다.

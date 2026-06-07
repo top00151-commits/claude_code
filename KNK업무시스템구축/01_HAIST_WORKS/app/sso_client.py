@@ -41,9 +41,17 @@ import jwt as pyjwt
 
 
 # ── 설정 (환경변수로 override 가능) ──────────────────────────
+# v5H226z118 (2026-05-31): 두 base 분리
+#   - PUBLIC: 브라우저 redirect 용 (반드시 외부 도메인)
+#   - INTERNAL: 서버측 API 호출용 (NAT loopback 회피 시 localhost)
 MESSENGER_BASE = os.environ.get(
     "KNK_MESSENGER_SSO_BASE",
     "https://haist.knknara.co.kr/msg",
+).rstrip("/")
+# 서버 내부 호출용 base. 미설정 시 PUBLIC 과 동일 (NAT loopback 가능 환경)
+MESSENGER_INTERNAL_BASE = os.environ.get(
+    "KNK_MESSENGER_SSO_INTERNAL_BASE",
+    MESSENGER_BASE,
 ).rstrip("/")
 SSO_AUDIENCE = os.environ.get("KNK_SSO_AUDIENCE", "haist-works")
 SSO_ISSUER   = os.environ.get(
@@ -74,7 +82,7 @@ def get_public_key(force_refresh: bool = False) -> Optional[str]:
         return _PUBKEY_CACHE["pem"]
     try:
         r = httpx.get(
-            f"{MESSENGER_BASE}/api/sso/public-key",
+            f"{MESSENGER_INTERNAL_BASE}/api/sso/public-key",
             timeout=_HTTP_TIMEOUT_SEC,
             follow_redirects=True,
         )
@@ -155,7 +163,7 @@ def fetch_userinfo(token: str) -> Optional[dict]:
         return None
     try:
         r = httpx.get(
-            f"{MESSENGER_BASE}/api/sso/userinfo",
+            f"{MESSENGER_INTERNAL_BASE}/api/sso/userinfo",
             headers={"Authorization": f"Bearer {token}"},
             timeout=_HTTP_TIMEOUT_SEC,
         )
@@ -199,10 +207,26 @@ def build_login_url(redirect_uri: str) -> str:
 
 
 # ── 사용자 upsert 헬퍼 (Q1=A 자동 upsert) ───────────────────
+def _resolve_team_id(c, dept):
+    """v5H226z140: 메신저 dept(부서명/코드) → HAIST WORKS teams.id 매핑.
+    매칭 실패 시 None (기존 team_id 유지). 권한이 team_id 기반이라 중요."""
+    if not dept:
+        return None
+    try:
+        r = c.execute(
+            "SELECT id FROM teams WHERE name=? OR code=? OR name LIKE ? ORDER BY id LIMIT 1",
+            (dept, dept, f"%{dept}%"),
+        ).fetchone()
+        return r["id"] if r else None
+    except Exception:
+        return None
+
+
 def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     """JWT payload (또는 userinfo) 로 HAIST WORKS users 테이블 upsert.
 
-    매칭: employee_no UNIQUE → 있으면 UPDATE / 없으면 INSERT
+    매칭: ① employee_no → ② (없으면) 이름 같고 사번 없는 레거시/시드 계정 병합 → ③ INSERT
+    team_id 는 dept 로 매핑해 설정(권한 동작).
 
     Returns:
         users.id (내부 PK) 또는 None (실패)
@@ -220,9 +244,12 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     pos     = (payload.get("position") or payload.get("rank") or "").strip() or None
     entity  = (payload.get("entity") or "").strip() or None
     email   = (payload.get("email") or "").strip() or None
+    phone   = (payload.get("phone") or "").strip() or None
     is_admin = bool(payload.get("is_admin", False))
 
-    # 기존 사용자 조회 (employee_no UNIQUE)
+    team_id = _resolve_team_id(c, dept)   # 부서 → team_id (권한 동작용)
+
+    # ① 사번으로 매칭
     try:
         row = c.execute(
             "SELECT id, role FROM users WHERE employee_no = ?",
@@ -233,44 +260,66 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
         print("[SSO] employee_no 컬럼 없음 — z109 마이그레이션 필요")
         return None
 
+    # ② 사번 매칭 실패 → 이름 같고 사번 없는 레거시/시드 계정 병합 (중복 방지)
+    if not row:
+        try:
+            legacy = c.execute(
+                "SELECT id, role FROM users "
+                "WHERE name = ? AND (employee_no IS NULL OR TRIM(employee_no)='') "
+                "ORDER BY id LIMIT 1",
+                (name_kr,),
+            ).fetchone()
+        except Exception:
+            legacy = None
+        if legacy:
+            try:
+                c.execute("UPDATE users SET employee_no=?, login_id=? WHERE id=?",
+                          (emp_no, emp_no, legacy["id"]))
+                print(f"[SSO] 레거시 계정 병합: {name_kr} → 사번 {emp_no} (id={legacy['id']})")
+            except Exception as _e:
+                print(f"[SSO] 병합 실패: {_e}")
+            row = legacy
+
     if row:
-        # 기존 사용자 — 정보 갱신 (role 은 보존, password 미변경)
+        # 기존/병합 사용자 — 정보 갱신 (role·password 보존, team_id 는 매핑될 때만)
         c.execute(
             """UPDATE users SET
                  name = COALESCE(?, name),
                  email = COALESCE(?, email),
+                 phone = COALESCE(?, phone),
                  name_en = COALESCE(?, name_en),
                  name_vi = COALESCE(?, name_vi),
                  dept_code = COALESCE(?, dept_code),
+                 team_id = COALESCE(?, team_id),
                  rank = COALESCE(?, rank),
                  entity = COALESCE(?, entity),
                  is_active = 1
                WHERE id = ?""",
-            (name_kr, email, name_en, name_vi, dept, pos, entity, row["id"]),
+            (name_kr, email, phone, name_en, name_vi, dept, team_id, pos, entity, row["id"]),
         )
         return row["id"]
     else:
-        # 신규 사용자 — 메신저에서 처음 보는 사번
-        # password 는 사용 안 함 (자체 로그인은 admin 백도어만)
-        # 그래도 NOT NULL 제약이 있으니 sentinel 값 저장
-        sentinel_pw = "sso_only_no_local_password"
+        # ③ 신규 사용자 — 메신저에서 처음 보는 사번
+        sentinel_pw = "sso_only_no_local_password"  # 자체 로그인 미사용 (NOT NULL 충족용)
         try:
             cur = c.execute(
                 """INSERT INTO users (
-                     name, login_id, password, email, employee_no, entity,
-                     name_en, name_vi, dept_code, rank, role, is_active,
+                     name, login_id, password, email, phone, employee_no, entity,
+                     name_en, name_vi, dept_code, team_id, rank, role, is_active,
                      password_version, lang
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)""",
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)""",
                 (
                     name_kr,
                     emp_no,        # login_id = 사번
                     sentinel_pw,
                     email,
+                    phone,
                     emp_no,        # employee_no
                     entity,
                     name_en,
                     name_vi,
                     dept,
+                    team_id,       # 부서 매핑된 팀
                     pos,
                     "admin" if is_admin else "member",
                     "vi" if entity == "VN" else "ko",
@@ -280,3 +329,187 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
         except Exception as e:
             print(f"[SSO] upsert INSERT failed: {e}")
             return None
+
+
+# =====================================================
+# v5H226z142 (2026-05-31): 메신저 직원 명부 동기화
+#   메신저 'GET /api/sso/directory' 호출 → 전 직원 upsert (사번·다국어이름·부서·메일·연락처)
+#   발주: _TO_메신저세션/2026-05-31_직원명부API_발주.md
+#   메신저 API 완료 전엔 통신오류 반환(휴면) — 완료되면 즉시 동작.
+# =====================================================
+SSO_SERVICE_KEY = os.environ.get("KNK_SSO_SERVICE_KEY", "")  # 서버↔서버 공유키
+
+
+def sync_directory_from_messenger(c) -> dict:
+    """메신저 직원 명부를 가져와 전 직원 upsert.
+    반환: {ok, synced, total} 또는 {ok:False, error}"""
+    if not SSO_SERVICE_KEY:
+        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 에 등록 필요"}
+    url = f"{MESSENGER_INTERNAL_BASE}/api/sso/directory"
+    try:
+        r = httpx.get(url, headers={"X-SSO-Service-Key": SSO_SERVICE_KEY}, timeout=20.0)
+    except Exception as e:
+        return {"ok": False, "error": f"메신저 연결 실패: {e} (명부 API 준비 전일 수 있음)"}
+    if r.status_code == 403:
+        return {"ok": False, "error": "서비스키 거부(403) — 양쪽 KNK_SSO_SERVICE_KEY 확인"}
+    if r.status_code == 404:
+        return {"ok": False, "error": "명부 API(/api/sso/directory) 없음 — 메신저 준비 전"}
+    if r.status_code != 200:
+        return {"ok": False, "error": f"예상치 못한 status {r.status_code}"}
+    try:
+        users = (r.json() or {}).get("users") or []
+    except Exception as e:
+        return {"ok": False, "error": f"응답 파싱 실패: {e}"}
+
+    synced = 0
+    for u in users:
+        try:
+            payload = {
+                "sub": u.get("employee_no"),
+                "name_kr": u.get("name_kr"),
+                "name_en": u.get("name_en"),
+                "name_vi": u.get("name_vi"),
+                "dept": u.get("dept"),
+                "position": u.get("position"),
+                "entity": u.get("entity"),
+                "email": u.get("email"),
+                "phone": u.get("phone"),
+                "is_admin": u.get("is_admin"),
+            }
+            if upsert_user_from_payload(c, payload):
+                synced += 1
+        except Exception as _e:
+            print(f"[SSO] 명부 동기화 항목 실패: {_e}")
+    return {"ok": True, "synced": synced, "total": len(users)}
+
+
+# =====================================================
+# v5H226z143 (2026-06-01): 메신저 직원 → WORKS **DB 직접** 1회 동기화
+#   대표 지시(2026-06-01): API/공유키 방식 보류. WORKS·메신저가 같은 컨테이너에
+#   떠 있으므로 메신저 DB 를 직접 읽어 전 직원을 WORKS 에 동일 등록.
+#   기존 upsert_user_from_payload 재사용(사번매칭·이름병합·team_id매핑·COALESCE).
+#   미리보기(dry-run)는 호출측에서 rollback 으로 처리.
+# =====================================================
+import sqlite3 as _sqlite3
+
+MESSENGER_DB_PATH = os.environ.get(
+    "KNK_MESSENGER_DB", "/opt/knk_messenger/data/messenger.db")
+
+
+def _messenger_row_to_payload(r) -> dict:
+    """메신저 users 행 → upsert_user_from_payload 가 받는 payload dict."""
+    keys = r.keys()
+    g = lambda k: (r[k] if k in keys else None)
+    ent = (g("entity") or "").strip().upper()
+    name_vn = (g("display_name_vn") or "").strip()
+    if ent not in ("KOR", "VN"):
+        ent = "VN" if name_vn else "KOR"   # entity 미지정 추정
+    emp_no = ""
+    if g("employee_no") and str(g("employee_no")).strip():
+        emp_no = str(g("employee_no")).strip()
+    elif g("username") and str(g("username")).strip():
+        emp_no = str(g("username")).strip()   # 사번 없으면 username (사번=로그인ID 정책)
+    name = (g("display_name") or "").strip() or (g("username") or "").strip()
+    return {
+        "sub": emp_no,
+        "employee_no": emp_no,
+        "name_kr": name,
+        "name_en": (g("display_name_en") or "").strip() or None,
+        "name_vi": name_vn or None,
+        "dept": (g("department") or "").strip() or None,
+        "position": (g("title") or "").strip() or None,
+        "entity": ent,
+        "email": (g("email") or "").strip() or None,
+        "phone": (g("phone") or "").strip() or None,
+        "is_admin": False,
+    }
+
+
+def _read_messenger_users(msg_db: str):
+    """메신저 DB users (게스트 제외) 읽기. 컬럼 호환 위해 SELECT * 사용."""
+    conn = _sqlite3.connect(f"file:{msg_db}?mode=ro", uri=True)
+    conn.row_factory = _sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM users WHERE COALESCE(is_guest,0)=0 "
+            "ORDER BY (employee_no IS NULL) ASC"
+        ).fetchall()
+    finally:
+        conn.close()
+    return rows
+
+
+def sync_employees_from_messenger_db(c, msg_db: str = None) -> dict:
+    """메신저 DB 직접 동기화. c=WORKS DB 커서(트랜잭션은 호출측 제어).
+
+    dry-run/apply 구분은 호출측 commit/rollback 으로. 여기선 upsert 만 수행.
+    반환: {ok, total, updated, inserted, skipped, works_only[], sample_new[], sample_upd[]}
+          또는 {ok:False, error}
+    """
+    msg_db = msg_db or MESSENGER_DB_PATH
+    if not os.path.exists(msg_db):
+        return {"ok": False, "error": f"메신저 DB 를 찾을 수 없습니다: {msg_db} "
+                "(같은 컨테이너 경로 확인 — 환경변수 KNK_MESSENGER_DB 로 지정 가능)"}
+    try:
+        rows = _read_messenger_users(msg_db)
+    except Exception as e:
+        return {"ok": False, "error": f"메신저 DB 읽기 실패: {e}"}
+
+    updated = inserted = skipped = 0
+    sample_new, sample_upd = [], []
+    msg_names = set()
+    for r in rows:
+        payload = _messenger_row_to_payload(r)
+        emp_no, name = payload["employee_no"], payload["name_kr"]
+        if name:
+            msg_names.add(name)
+        if not emp_no:
+            skipped += 1
+            continue
+        # 신규/갱신 분류: upsert 전에 매칭 존재여부 확인
+        exists = None
+        try:
+            exists = c.execute(
+                "SELECT id FROM users WHERE employee_no=?", (emp_no,)).fetchone()
+            if not exists and name:
+                exists = c.execute(
+                    "SELECT id FROM users WHERE name=? AND "
+                    "(employee_no IS NULL OR TRIM(employee_no)='') LIMIT 1",
+                    (name,)).fetchone()
+        except Exception:
+            exists = None
+        try:
+            rid = upsert_user_from_payload(c, payload)
+        except Exception as _e:
+            print(f"[SYNC] {name} 실패: {_e}")
+            rid = None
+        if rid is None:
+            skipped += 1
+            continue
+        if exists:
+            updated += 1
+            if len(sample_upd) < 15:
+                sample_upd.append(f"[{emp_no}] {name}")
+        else:
+            inserted += 1
+            if len(sample_new) < 15:
+                sample_new.append(f"[{emp_no}] {name}")
+
+    # WORKS 에만 있고 메신저엔 없는 사람 (수동 판단용 — 자동 삭제/비활성 안 함)
+    works_only = []
+    if msg_names:
+        try:
+            ph = ",".join("?" * len(msg_names))
+            works_only = [
+                {"name": x["name"], "login_id": x["login_id"]}
+                for x in c.execute(
+                    f"SELECT name, login_id FROM users WHERE name NOT IN ({ph}) "
+                    "ORDER BY name", tuple(msg_names)).fetchall()
+            ]
+        except Exception:
+            works_only = []
+
+    return {"ok": True, "total": len(rows), "updated": updated,
+            "inserted": inserted, "skipped": skipped,
+            "works_only": works_only, "sample_new": sample_new,
+            "sample_upd": sample_upd, "msg_db": msg_db}

@@ -128,12 +128,16 @@ body {
       <div class="section-card">
         <h3>회사 정보</h3>
         <dl class="def">
+          <dt>거래처코드</dt><dd style="font-family:monospace;">{{ cu.code|default('—') }}</dd>
           <dt>고객사명</dt><dd><b>{{ cu.name }}</b></dd>
           <dt>사업자번호</dt><dd style="font-family:monospace;">{{ cu.biz_no|default(cu.business_no|default('—')) }}</dd>
           <dt>대표</dt><dd>{{ cu.ceo_name|default('—') }}</dd>
+          {% if cu.sub_biz_no %}<dt>종사업장</dt><dd style="font-family:monospace;">{{ cu.sub_biz_no }}</dd>{% endif %}
+          <dt>업태 / 업종</dt><dd style="font-size:12px;">{{ cu.business_type|default('—') }} / {{ cu.business_item|default('—') }}</dd>
           <dt>대표 전화</dt><dd>{{ cu.phone|default('—') }}</dd>
+          {% if cu.fax %}<dt>팩스</dt><dd>{{ cu.fax }}</dd>{% endif %}
           <dt>대표 이메일</dt><dd style="font-size:12px;">{{ cu.email|default('—') }}</dd>
-          <dt>주소</dt><dd style="font-size:12px;">{{ cu.address|default('—') }}</dd>
+          <dt>주소</dt><dd style="font-size:12px;">{% if cu.zipcode %}({{ cu.zipcode }}) {% endif %}{{ cu.address|default('—') }}{% if cu.address_detail %} {{ cu.address_detail }}{% endif %}</dd>
         </dl>
         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--qv-line);">
           <a href="/customers/{{ cu.id }}/edit" class="btn btn-secondary" style="width:100%; justify-content:center;">✏ 수정</a>

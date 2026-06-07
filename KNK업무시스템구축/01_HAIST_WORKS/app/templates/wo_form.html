@@ -427,7 +427,7 @@
                     <select name="assigned_to">
                       <option value="">— 선택 안함 —</option>
                       {% for u in users_options|default([]) %}
-                      <option value="{{ u.id }}">{{ u.name }}</option>
+                      <option value="{{ u.id }}">{{ vname(u) }}</option>
                       {% endfor %}
                     </select>
                   </div>

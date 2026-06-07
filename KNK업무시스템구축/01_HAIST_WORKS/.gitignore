@@ -1,53 +1,51 @@
-# HAIST WORKS .gitignore — v5H226z75
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
 
-# 🔴 보안 (절대 커밋 금지)
+# 데이터 / 업로드 (절대 git 에 올리지 말 것)
+data/
+uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.backup*
+*.db.before*
+*.db.rollback*
+data/_credentials_*.csv
+
+# 환경변수 / 비밀
 .env
 .env.local
 .env.production
 .env.synology
-*.secret
-*_secret.*
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.coverage
-
-# 가상환경
-venv/
-.venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
+*.pem
+*.key
 
 # 로그
+logs/
 *.log
-server.log
 
-# 임시
-*.tmp
+# 백업·임시
 *.bak
+*.z122bak
+*.swp
+*.tmp
+*~
 
 # OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# 데이터 (개발 PC의 로컬 DB / 업로드)
-# - 운영 NAS에서는 별도 볼륨 마운트로 관리
-# - 개발 환경에서는 git 추적 제외 권장 (선택)
-# data/*.db
-# data/*.db-journal
-# uploads/*
+# IDE
+.vscode/
+.idea/
 
-# 백업
-data/backups/*.db
-data/backups/*.tar.gz
+# OCR
+data/tessdata/
+
+# 디자인 핸드오프 (대용량)
+HAIST WORKS디자인변경/

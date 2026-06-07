@@ -1,20 +1,51 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" translate="no" data-theme="{{ me_ui_theme or 'light' }}">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>KNK 메신저</title>
+  <!-- 브라우저(크롬·삼성) 자동번역 차단 — 앱이 자체 다국어 처리하므로 OS 번역이 화면을 망가뜨리지 않도록 (대표 지시 2026-05-25) -->
+  <meta name="google" content="notranslate">
+  <!-- 두 손가락 핀치 줌(확대/축소) 허용 — maximum/minimum-scale·user-scalable=no 제거 (대표 지시 2026-06-07).
+       입력창 자동 확대는 input{font-size:16px} 로 별도 방지하므로 user-scalable 풀어도 안전. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>사람을 잇고, 일을 잇고, 미래를 잇다.</title>
+  {% if me_is_guest and me_guest_token %}
+  <!-- 고객사(게스트) — 어디서 설치하든 고객사 앱(이름·아이콘)으로 깔리게: 대화방 페이지도 고객사 manifest/아이콘 사용 (대표 지시 2026-05-31) -->
+  <link rel="manifest" href="{{ base_path }}/g/{{ me_guest_token }}/manifest.json">
+  <link rel="apple-touch-icon" href="{{ base_path }}/g/{{ me_guest_token }}/icon-180.png?v={{ asset_version }}">
+  {% else %}
   <link rel="manifest" href="{{ base_path }}/manifest.json">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}?v={{ asset_version }}">
+  {% endif %}
   <meta name="theme-color" content="#A5282C">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="KNK 메신저">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
+  <meta name="apple-mobile-web-app-title" content="{% if me_is_guest and me_guest_company %}{{ me_guest_company }}{% else %}KNK 이음{% endif %}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}?v={{ asset_version }}">
   <!-- 전 기기 이모지 통일용 자체호스팅 글꼴 (Noto Color Emoji, OFL) — 대표 지시 2026-05-20 미리보기 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/noto-color-emoji.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
+  {% if me_is_guest %}
+  <!-- ★ 외부 고객(게스트) — 사용 못하는 기능 아이콘을 서버 출력 단계에서 강제 숨김.
+       JS 가드(window._meIsGuest)에 더해, HTML 자체에 인라인으로 박아 캐시·스크립트 타이밍과 무관하게
+       항상 안 보이게 한다 (대표 지시 2026-05-30, 단말 캐시로 가드 미적용되던 사고 차단).
+       대상: 방만들기·대시보드·다이제스트·AI요약·프로젝트이력·다운로드·고객초대·정보수정 -->
+  <style id="guestHideRules">
+    #newRoomBtn,
+    #dashboardLink,
+    #digestBtn,
+    #aiSummaryBtn,
+    #projectHistoryBtn,
+    #exportBtn,
+    #guestInviteBtn,
+    #itemEditBtn,
+    #headMoreMenu button[data-act="ai_summary"],
+    #headMoreMenu button[data-act="project_history"],
+    #headMoreMenu button[data-act="export"],
+    #headMoreMenu button[data-act="guest_invite"],
+    #headMoreMenu button[data-act="edit"] { display: none !important; }
+  </style>
+  {% endif %}
   <!-- 단독창(solo) 모드 — ?solo=1 쿼리가 있으면 사이드바 즉시 숨김 (깜빡임 방지). -->
   <script>
     (function() {
@@ -25,21 +56,69 @@
       } catch(e) {}
     })();
   </script>
+  <style>
+    /* 앱 시작 스플래시(광고) — 관리자 설정 기반. 켤 때 표시 후 페이드아웃. PC·휴대폰 공통 (대표 지시 2026-06-06) */
+    #appSplash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#ffffff;transition:opacity .4s ease;overflow:hidden}
+    #appSplash.hide{opacity:0;pointer-events:none}
+    #appSplash .sp-inner{text-align:center;padding:24px;max-width:92vw}
+    #appSplash .sp-logo{width:min(58vw,200px);height:auto;display:block;margin:0 auto 18px}
+    #appSplash .sp-title{font-size:26px;font-weight:800;letter-spacing:.5px}
+    #appSplash .sp-tag{margin-top:8px;font-size:13.5px;font-weight:500;line-height:1.5}
+    #appSplash .sp-full{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  </style>
 </head>
 <body class="chat-body">
+  {% if splash and splash.enabled %}
+  <!-- 앱 시작 스플래시(광고) — 관리자 설정 기반. 표시시간 뒤 페이드아웃 (대표 지시 2026-06-06) -->
+  <div id="appSplash" aria-hidden="true" data-dur="{{ splash.duration_ms }}" data-ui-lang="{{ me_ui_lang|default('', true) }}" style="background:{{ splash.bg_color }}">
+    {% if splash.mode == 'full' %}
+      <img class="sp-full" src="{{ splash.image_url }}" alt="">
+    {% else %}
+      <div class="sp-inner">
+        <img class="sp-logo" src="{{ splash.image_url }}" alt="KNK">
+        {% if splash.title %}<div class="sp-title" style="color:{{ splash.title_color }};font-size:{{ splash.title_size }}px" data-ko="{{ splash.title_i18n.ko }}" data-en="{{ splash.title_i18n.en }}" data-vi="{{ splash.title_i18n.vi }}" data-zh="{{ splash.title_i18n.zh }}">{{ splash.title }}</div>{% endif %}
+        {% if splash.tagline %}<div class="sp-tag" style="color:{{ splash.tagline_color }};font-size:{{ splash.tagline_size }}px" data-ko="{{ splash.tagline_i18n.ko }}" data-en="{{ splash.tagline_i18n.en }}" data-vi="{{ splash.tagline_i18n.vi }}" data-zh="{{ splash.tagline_i18n.zh }}">{{ splash.tagline }}</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <script>
+    (function(){
+      var s = document.getElementById("appSplash");
+      if (!s) return;
+      // 보는 사람 선택 언어로 제목/슬로건 표시 (영어 입력은 모든 칸이 영문) (대표 지시 2026-06-06)
+      try {
+        var lang = localStorage.getItem("knkmsg.lang") || s.getAttribute("data-ui-lang") || "ko";
+        if (["ko","en","vi","zh"].indexOf(lang) < 0) lang = "ko";
+        var els = s.querySelectorAll("[data-" + lang + "]");
+        for (var i = 0; i < els.length; i++) { var t = els[i].getAttribute("data-" + lang); if (t) els[i].textContent = t; }
+      } catch (e) {}
+      function hide(){ s.classList.add("hide"); setTimeout(function(){ try { s.style.display = "none"; } catch(e){} }, 450); }
+      var d = parseInt(s.getAttribute("data-dur"), 10); if (!(d > 0)) d = 1000;
+      setTimeout(hide, d);   // 설정한 시간만큼 표시 후 사라짐
+    })();
+  </script>
+  {% endif %}
+  <!-- 휴대폰 최상단 아주 작은 브랜드 띠 — KNK 이음 + 슬로건 (대표 지시 2026-06-07). CSS 로 모바일에서만 노출 -->
+  <div class="mobile-top-brand" aria-hidden="true"><span class="mtb-name" data-i18n="brand.name">KNK 이음</span><span class="mtb-sep">ㅡ</span><span class="mtb-tag" data-i18n="brand.slogan">사람을 잇고 · 일을 잇고 · 미래를 잇다.</span></div>
   <div id="app" class="chat-app"
        data-me-id="{{ me['id'] }}"
+       data-me-dept="{{ me['department'] or '' }}"
        data-me-name="{{ me['display_name'] }}"
        data-me-role="{{ me['role'] }}"
        data-me-owner="{{ '1' if me_is_owner else '' }}"
        data-me-teamlead="{{ '1' if me_is_team_lead else '' }}"
+       data-me-cancreatechannel="{{ '1' if me_can_create_channel else '' }}"
+       data-me-guest="{{ '1' if me_is_guest else '' }}"
+       data-me-guest-room="{{ me_guest_room_id or '' }}"
+       data-me-guest-company="{{ me_guest_company or '' }}"
+       data-me-guest-token="{{ me_guest_token or '' }}"
        data-me-color="{{ me['avatar_color'] }}">
 
     <aside class="sidebar" id="sidebar">
       <header class="sidebar-head">
         <!-- 1행: 본인 정보 + 로그아웃(우측 상단) — 대표 지시 2026-05-20 -->
         <div class="sidebar-head-top-row">
-          <div class="me" id="meInfoArea" style="cursor:pointer;" title="클릭해서 내 상태 변경">
+          <div class="me" id="meInfoArea" style="cursor:pointer;" title="클릭해서 내 상태 변경" data-i18n-title="me.statusTip">
             <div class="avatar" id="meHeaderAvatar" style="background: {{ me['avatar_color'] }}; position:relative;">
               {% if me['avatar_url'] %}<img class="avatar-img" src="{{ me['avatar_url'] }}" alt="" onerror="this.style.display='none';">{% else %}{{ me['display_name'][0] }}{% endif %}<span class="status-dot status-online" id="myStatusDot"></span>
             </div>
@@ -54,36 +133,49 @@
               </div>
             </div>
           </div>
-          <a href="{{ base_path }}/logout" class="logout sidebar-logout" title="로그아웃">↩&#xFE0E;</a>
+          <!-- 강제 새로고침 — 로그아웃 왼쪽, 로그아웃과 같은 라인 아이콘 알약 (대표 지시 2026-06-07) -->
+          <button id="hardReloadBtn" type="button" class="sidebar-refresh" title="강제 새로고침 (캐시 비우기) — 화면이 이상할 때 클릭" data-i18n-title="title.hardReload"><span class="refresh-ico">↻&#xFE0E;</span></button>
+          <a href="{{ base_path }}/logout" class="logout sidebar-logout" title="로그아웃" data-i18n-title="title.logout"><span class="logout-ico">↩&#xFE0E;</span><span class="logout-txt" data-i18n="title.logout">로그아웃</span></a>
         </div>
-        <!-- 2행: 왼쪽 "대화방 만들기" 버튼 / 오른쪽 아이콘 액션바 (대표 지시 2026-05-20) -->
+        <!-- 2행: 오른쪽 아이콘 액션바. "대화방 만들기" 는 아래 방목록 콤보 줄로 이동(대표 지시 2026-06-06). newRoomBtn 은 JS 호환 위해 숨김 유지 -->
         <div class="sidebar-head-actions-row">
-          <button id="newRoomBtn" title="새 대화방 만들기"><span class="nrb-ico">✏️</span><span class="nrb-text">대화방만들기</span></button>
+          <button id="newRoomBtn" hidden style="display:none" title="새 대화방 만들기" data-i18n-title="title.newRoom"><span class="nrb-ico">✏️</span><span class="nrb-text" data-i18n="btn.newRoom">대화방만들기</span></button>
           <div class="head-actions">
-            <button id="newUserBtn" title="🆔 직원 등록 (관리자 전용)" hidden>🆔</button>
-            <a href="{{ base_path }}/dashboard" title="📊 프로젝트 대시보드">📊</a>
-            <button id="digestBtn" title="🌅 오늘 할 일 다이제스트">🌅</button>
-            <button id="hardReloadBtn" title="🔄 강제 새로고침 (캐시 비우기) — 화면이 이상할 때 클릭">🔄</button>
-            <button id="notifySettingsBtn" title="🔔 알림 설정 (소리·진동·화면)">🔔</button>
+            {% if me_works_access %}
+            <!-- 🔗 HAIST WORKS 열기 — 권한 있는 직원만 노출. 클릭 시 자동 로그인(SSO). (대표 지시 2026-05-31) -->
+            <button id="worksOpenBtn" type="button" title="HAIST WORKS 열기 — 자동 로그인됩니다" data-i18n-title="works.openTip" data-works-url="{{ works_landing_url }}" style="display:inline-flex !important;align-items:center;justify-content:center;width:auto !important;height:auto !important;background:radial-gradient(ellipse closest-side at 50% 50%, #aab0ba 0%, #cfd3da 50%, #eef0f3 100%);color:#1f2937;border:0;border-radius:7px !important;padding:5px 11px;font-size:calc(12px + var(--fs-add-ui));font-weight:700;letter-spacing:0;cursor:pointer;white-space:nowrap;flex:0 0 auto;margin-right:2px;"><span aria-hidden="true" style="margin-right:4px;">🌟</span>WORKS<span aria-hidden="true" style="margin-left:4px;">🧭</span></button>
+            {% endif %}
+            <!-- 헤더 직원 등록 버튼은 설정 → 🛠 관리자 탭으로 이동 (대표 지시 2026-05-26) — JS 트리거용으로만 남김 -->
+            <button id="newUserBtn" title="🆔 직원 등록 (관리자 전용)" data-i18n-title="title.newUser" hidden style="display:none">🆔</button>
+            <a id="dashboardLink" href="{{ base_path }}/dashboard" title="📊 프로젝트 대시보드" data-i18n-title="title.dashboard">📊</a>
+            <button id="digestBtn" title="🌅 오늘 할 일 다이제스트" data-i18n-title="title.digest">🌅</button>
+            <!-- 🔄 강제 새로고침은 1행 로그아웃 왼쪽으로 이동 (대표 지시 2026-06-07) -->
+            <button id="notifySettingsBtn" title="⚙ 설정 (알림·보안·관리자)" data-i18n-title="title.settings">⚙️</button>
           </div>
         </div>
       </header>
       <div class="search-box" style="position:relative;">
-        <input id="globalSearch" type="search" placeholder="🔍 검색 (from:이름 in:방 has:file before:날짜)">
-        <button type="button" id="searchHelpBtn" title="검색 필터 도움말" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:14px;color:var(--text-soft);padding:4px 6px;">ⓘ</button>
+        <input id="globalSearch" type="search" readonly onfocus="this.removeAttribute('readonly')" placeholder="🔍 이름·방·내용 검색" data-i18n-ph="ph.search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="knk-search-q">
+        <button type="button" id="searchHelpBtn" title="검색 필터 도움말" data-i18n-title="title.searchHelp" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:calc(14px + var(--fs-add-ui));color:var(--text-soft);padding:4px 6px;">ⓘ</button>
       </div>
       <!-- 사이드바 탭 — 방 목록 / 사용자 목록 토글 -->
       <nav class="sidebar-tabs" id="sidebarTabs">
-        <button class="sb-tab active" data-tab="rooms" type="button">📋 방</button>
-        <button class="sb-tab" data-tab="users" type="button">👥 사용자</button>
+        <button class="sb-tab active" data-tab="rooms" type="button" data-i18n="tab.rooms">📋 업무대화방</button>
+        <button class="sb-tab" data-tab="users" type="button">
+          <span data-i18n="tab.users">👥 사용자</span>
+          <span class="sb-tab-count" id="usersTabCount" hidden></span>
+          <!-- 사용자 탭 재클릭 시 한국 ↔ 베트남 순환 표시 (대표 지시 2026-06-06) -->
+          <span class="sb-tab-corp" id="usersTabCorp" hidden></span>
+        </button>
       </nav>
       <nav class="filter-bar" id="filterBar">
-        <button class="chip active" data-filter="all" type="button">전체</button>
-        <button class="chip" data-filter="item" type="button">프로젝트</button>
-        <button class="chip" data-filter="direct" type="button">1:1</button>
-        <button class="chip" data-filter="group" type="button">그룹</button>
-        <button class="chip" data-filter="channel" type="button">채널</button>
-        <button class="chip my-tasks" data-filter="my-tasks" type="button">📌 내 요청</button>
+        <button class="chip active" data-filter="all" type="button"><span class="chip-label" data-i18n="filter.all">전체</span> <span class="chip-count" data-count-for="all"></span></button>
+        <button class="chip" data-filter="item" type="button"><span class="chip-label" data-i18n="filter.item">프로젝트</span> <span class="chip-countrow"><span class="chip-type-ico">🏭</span><span class="chip-count" data-count-for="item"></span></span></button>
+        <button class="chip" data-filter="direct" type="button"><span class="chip-label" data-i18n="filter.direct">1:1</span> <span class="chip-countrow"><span class="chip-type-ico">👤</span><span class="chip-count" data-count-for="direct"></span></span></button>
+        <button class="chip" data-filter="group" type="button"><span class="chip-label" data-i18n="filter.group">그룹</span> <span class="chip-countrow"><span class="chip-type-ico">👥</span><span class="chip-count" data-count-for="group"></span></span></button>
+        <button class="chip" data-filter="channel" type="button"><span class="chip-label" data-i18n="filter.channel">채널</span> <span class="chip-countrow"><span class="chip-type-ico">📢</span><span class="chip-count" data-count-for="channel"></span></span></button>
+        <button class="chip my-tasks" data-filter="my-tasks" type="button"><span class="chip-label" data-i18n="filter.myTasks">내 요청</span> <span class="chip-countrow"><span class="chip-type-ico">📌</span><span class="chip-badge" id="myTasksBadge" hidden></span></span></button>
+        <button class="chip mentions-chip" data-filter="mentions" type="button" title="내게 온 @멘션 모아보기"><span class="chip-label" data-i18n="filter.mentions">멘션</span> <span class="chip-countrow"><span class="chip-type-ico">@</span><span class="chip-badge" id="mentionsBadge" hidden></span></span></button>
       </nav>
       <ul id="roomList" class="room-list"></ul>
       <!-- 사용자 목록 (사용자 탭 활성 시 노출) — 직원 등록은 헤더로 이동 (2026-05-20) -->
@@ -91,65 +183,132 @@
       <div id="userList" class="user-list" hidden></div>
       <div id="searchResults" class="search-results" hidden></div>
       <div id="myTasks" class="my-tasks-panel" hidden></div>
+      <div id="mentionsPanel" class="my-tasks-panel" hidden></div>
+      <!-- 하단 콤보 바 — 검색·만들기 줄 '아래 배치' 미리보기(대표 전용)일 때만 채워짐. 평소 비어서 숨김 (대표 지시 2026-06-06) -->
+      <ul id="comboBar" class="room-list" hidden></ul>
+      <!-- 하단 바 접기/펼치기 손잡이 — 아래 배치 미리보기일 때만 노출 (대표 지시 2026-06-06) -->
+      <button id="bottomBarHandle" type="button" style="display:none"><span id="bottomBarHandleLabel">접기 ▾</span></button>
     </aside>
+
+    <!-- 좌/우 분리선 드래그 핸들 — 오른쪽으로만 최대 +110px (대화방 제목 잘릴 때 펼쳐 확인). 대표 지시 2026-05-22·2026-05-26 -->
+    <div id="sidebarResizer" title="드래그해서 사이드바 넓히기 (대화방 제목 확인용, 최대 110px) · 더블클릭=원래대로" data-i18n-title="sidebar.resizeTip"></div>
+    <!-- 대화창 접기/펼치기 — 분리선(정보창 오른쪽 끝) 위 길쭉한 화살표 탭 (데스크탑). 클릭=오른쪽 대화창 접기/펼치기 (대표 지시 2026-06-02) -->
+    <button id="chatCollapseBtn" class="chat-collapse-btn" type="button" title="대화창 접기 — 방 목록을 넓게 봅니다" data-i18n-title="hb.collapse.tip">❮</button>
 
     <section class="chat-pane" id="chatPane">
       <header class="chat-head" id="chatHead">
-        <button class="back" id="backBtn" type="button" aria-label="뒤로">←</button>
+        <button class="back" id="backBtn" type="button" aria-label="뒤로" data-i18n-aria="hb.back">←</button>
         <div class="title-block">
           <div class="title" id="chatTitle">대화를 선택하세요</div>
           <div class="item-meta" id="itemMeta" hidden></div>
         </div>
         <!-- 데스크탑: 헤더에 직접 노출. 모바일: 더보기(⋮) 메뉴 안으로 이동 -->
         <div class="head-actions" id="headActions">
-          <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록">📌<span class="head-badge" id="requestsBadge" hidden></span></button>
-          <button class="head-btn" id="aiSummaryBtn" type="button" hidden title="🧠 AI 요약 (최근 80개 메시지)">🧠</button>
-          <button class="head-btn" id="projectHistoryBtn" type="button" hidden title="📚 프로젝트 이력 (프로젝트 방) — 하루 1회 자동 + 수동 즉시 갱신">📚</button>
-          <button class="head-btn" id="starredBtn" type="button" hidden title="중요 결정 모음 (별표)">★</button>
-          <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리">🖼️</button>
-          <button class="head-btn" id="exportBtn" type="button" hidden title="프로젝트 이력 Excel 다운로드">📥</button>
-          <button class="head-btn" id="itemEditBtn" type="button" hidden title="프로젝트 정보 수정">⚙</button>
-          <button class="head-btn" id="roomSettingsBtn" type="button" hidden title="방 설정 (멤버·이름·권한)">🛠️</button>
+          <button class="head-btn head-notice" id="noticeHeadBtn" type="button" hidden title="공지사항" data-i18n-title="notice.title">📢<span class="hb-lbl" data-i18n="hb.notice">공지</span><span class="head-badge" id="noticeHeadBadge" hidden></span></button>
+          <button class="head-btn" id="requestsBtn" type="button" hidden title="요청 목록" data-i18n-title="hb.requests.tip">📌<span class="hb-lbl" data-i18n="hb.requests">요청</span><span class="head-badge" id="requestsBadge" hidden></span></button>
+          <button class="head-btn" id="roomThreadsBtn" type="button" hidden title="🧵 이 방의 내 스레드 (내가 답글 + 내 글에 답글)" data-i18n-title="hb.threads.tip">🧵<span class="hb-lbl" data-i18n="hb.threads">스레드</span></button>
+          <button class="head-btn" id="roomSearchBtn" type="button" hidden title="🔍 이 대화방에서 검색" data-i18n-title="hb.search.tip">🔍<span class="hb-lbl" data-i18n="hb.search">검색</span></button>
+          <button class="head-btn" id="aiSummaryBtn" type="button" hidden title="AI 요약 — 빠른 읽기 (임시, 저장 안 됨)" data-i18n-title="hb.summary.tip"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span><span class="hb-lbl" data-i18n="hb.summary">요약</span></button>
+          <button class="head-btn" id="projectHistoryBtn" type="button" hidden title="📚 프로젝트 이력 — 공식 진행 기록 (자동 누적 · WORKS 전송용)" data-i18n-title="hb.history.tip">📚<span class="hb-lbl" data-i18n="hb.history">이력</span></button>
+          <button class="head-btn" id="starredBtn" type="button" hidden title="중요 결정 모음 (별표)" data-i18n-title="hb.starred.tip">★<span class="hb-lbl" data-i18n="hb.starred">중요</span></button>
+          <button class="head-btn" id="galleryBtn" type="button" hidden title="사진·파일 갤러리" data-i18n-title="hb.gallery.tip">🖼️<span class="hb-lbl" data-i18n="hb.gallery">사진</span></button>
+          <button class="head-btn" id="exportBtn" type="button" hidden title="프로젝트 이력 Excel 다운로드" data-i18n-title="hb.export.tip">📥<span class="hb-lbl" data-i18n="hb.export">엑셀</span></button>
+          <button class="head-btn" id="guestInviteBtn" type="button" hidden title="🤝 고객사 초대 (방장·PM·관리자)" data-i18n-title="hb.invite.tip">🤝<span class="hb-lbl" data-i18n="hb.invite">초대</span></button>
+          <button class="head-btn" id="itemEditBtn" type="button" hidden title="📑 프로젝트 정보 수정 (방장·PM·관리자)" data-i18n-title="hb.info.tip">📑<span class="hb-lbl" data-i18n="hb.info">정보</span></button>
+          <button class="head-btn" id="roomSettingsBtn" type="button" hidden title="방 설정 (멤버·이름·권한)" data-i18n-title="hb.settings.tip">🛠️<span class="hb-lbl" data-i18n="hb.settings">방설정</span></button>
         </div>
         <!-- 나가기 — 데스크탑: 방 이름 줄 우측 상단. 모바일: 더보기 메뉴에서 처리 (대표 지시 2026-05-20) -->
-        <button class="head-btn head-leave" id="leaveRoomBtn" type="button" hidden title="이 방 나가기">🚪</button>
+        <button class="head-btn head-leave" id="leaveRoomBtn" type="button" hidden title="이 방 나가기" data-i18n-title="hb.leave.tip">🚪<span class="hb-lbl" data-i18n="hb.leave">나가기</span></button>
         <!-- 모바일에서만 보이는 더보기 버튼 -->
-        <button class="head-btn head-more" id="headMoreBtn" type="button" hidden aria-label="더보기">⋮</button>
+        <button class="head-btn head-more" id="headMoreBtn" type="button" hidden aria-label="더보기" data-i18n-aria="hb.more">⋮</button>
       </header>
+
+      <!-- 🔍 대화 검색 바 (카톡식: 입력 → 일치 메시지로 이동 + 위/아래 + 개수) 대표 지시 2026-06-06 -->
+      <div class="chat-search-bar" id="chatSearchBar" hidden>
+        <span class="csb-ico">🔍</span>
+        <input type="text" id="chatSearchInput" class="csb-input" placeholder="이 대화방에서 검색" data-i18n-ph="search.ph" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <span class="csb-count" id="chatSearchCount"></span>
+        <button type="button" class="csb-nav" id="chatSearchPrev" title="이전(위)" data-i18n-title="search.prev">↑</button>
+        <button type="button" class="csb-nav" id="chatSearchNext" title="다음(아래)" data-i18n-title="search.next">↓</button>
+        <button type="button" class="csb-close" id="chatSearchClose" title="닫기" data-i18n-title="btn.close">✕</button>
+      </div>
 
       <!-- 모바일 더보기 메뉴 (popup) -->
       <div class="head-more-menu" id="headMoreMenu" hidden>
-        <button type="button" data-act="requests">📌 요청 목록 <span class="hmm-badge" id="hmmRequestsBadge" hidden></span></button>
-        <button type="button" data-act="ai_summary">🧠 AI 요약 (최근 메시지)</button>
-        <button type="button" data-act="project_history">📚 프로젝트 이력</button>
-        <button type="button" data-act="starred">★ 중요 결정</button>
-        <button type="button" data-act="gallery">🖼️ 사진·파일 갤러리</button>
-        <button type="button" data-act="export">📥 Excel 다운로드</button>
-        <button type="button" data-act="edit">⚙ 프로젝트 정보 수정</button>
-        <button type="button" data-act="settings">🛠️ 방 설정 (멤버·이름)</button>
-        <button type="button" data-act="leave">🚪 이 방 나가기</button>
+        <button type="button" data-act="notice"><span class="hmm-text"><span class="hmm-t">📢 <span data-i18n="notice.title">공지사항</span></span><span class="hmm-d">이 방의 공지를 보고, 새 공지를 등록합니다</span></span><span class="hmm-badge" id="hmmNoticeBadge" hidden></span></button>
+        <button type="button" data-act="requests"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.requests.t">📌 요청 목록</span><span class="hmm-d" data-i18n="hmm.requests.d">이 방의 업무 요청을 보고 진행 상태를 관리</span></span><span class="hmm-badge" id="hmmRequestsBadge" hidden></span></button>
+        <button type="button" data-act="room_threads"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.threads.t">🧵 이 방의 내 스레드</span><span class="hmm-d" data-i18n="hmm.threads.d">내가 답글 단 글 + 내 글에 달린 답글 모음</span></span></button>
+        <button type="button" data-act="room_search"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.search.t">🔍 대화 검색</span><span class="hmm-d" data-i18n="hmm.search.d">이 방의 예전 대화를 단어로 찾기</span></span></button>
+        <button type="button" data-act="ai_summary"><span class="hmm-text"><span class="hmm-t"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}" style="margin-right:6px;">AI</span><span data-i18n="hmm.summary.t">AI 요약</span></span><span class="hmm-d" data-i18n="hmm.summary.d">긴 대화를 AI가 짧게 요약 (빠른 읽기·임시)</span></span></button>
+        <button type="button" data-act="project_history"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.history.t">📚 프로젝트 이력</span><span class="hmm-d" data-i18n="hmm.history.d">방의 공식 진행 기록 (자동 누적·WORKS 전송용)</span></span></button>
+        <button type="button" data-act="starred"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.starred.t">★ 중요 결정</span><span class="hmm-d" data-i18n="hmm.starred.d">별표(★) 표시한 중요한 메시지 모아보기</span></span></button>
+        <button type="button" data-act="gallery"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.gallery.t">🖼️ 사진·파일 갤러리</span><span class="hmm-d" data-i18n="hmm.gallery.d">이 방에 올라온 사진·파일을 모아서 보기</span></span></button>
+        <button type="button" data-act="export"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.export.t">📥 Excel 다운로드</span><span class="hmm-d" data-i18n="hmm.export.d">프로젝트 이력을 엑셀 파일로 내려받기</span></span></button>
+        <button type="button" data-act="guest_invite"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.invite.t">🤝 고객사 초대</span><span class="hmm-d" data-i18n="hmm.invite.d">외부 고객을 이 방에 초대 (링크·QR 발급)</span></span></button>
+        <button type="button" data-act="edit"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.info.t">📑 프로젝트 정보 수정</span><span class="hmm-d" data-i18n="hmm.info.d">회사명·관리번호·진행 상태 등 수정</span></span></button>
+        <button type="button" data-act="settings"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.settings.t">🛠️ 방 설정</span><span class="hmm-d" data-i18n="hmm.settings.d">멤버·방 이름·초대 권한 관리</span></span></button>
+        <button type="button" data-act="leave"><span class="hmm-text"><span class="hmm-t" data-i18n="hmm.leave.t">🚪 이 방 나가기</span><span class="hmm-d" data-i18n="hmm.leave.d">이 방에서 나갑니다</span></span></button>
       </div>
+
+      <!-- 📢 방 공지사항 막대 — 평소 최신 1건 고정 / 펼치면 과거 전부 / 접으면 알약 (대표 지시 2026-05-29) -->
+      <div class="notice-bar" id="noticeBar" hidden>
+        <div class="notice-body" id="noticeBody">
+          <div class="notice-head">
+            <span class="notice-head-title">📢 <span data-i18n="notice.title">공지사항</span></span>
+            <div class="notice-head-actions">
+              <button type="button" class="notice-act notice-add" id="noticeAddBtn" data-i18n-title="notice.addTitle" title="공지 등록">＋ <span data-i18n="notice.add">등록</span></button>
+              <button type="button" class="notice-act" id="noticeExpandBtn" data-i18n-title="notice.expandTitle" title="지난 공지 펼치기/접기"><span id="noticeExpandLabel" data-i18n="notice.expand">지난 공지</span> <span class="notice-more-count" id="noticeMoreCount"></span> <span id="noticeExpandCaret">▾</span></button>
+              <button type="button" class="notice-act notice-collapse" id="noticeCollapseBtn" data-i18n-title="notice.collapseTitle" title="공지 접기(숨기기)" aria-label="접기">✕</button>
+            </div>
+          </div>
+          <ul class="notice-list" id="noticeList"></ul>
+        </div>
+      </div>
+
+      <!-- 공지 등록 다이얼로그 -->
+      <div class="modal" id="noticeAddDialog" data-modal>
+        <div class="modal-content" style="max-width:440px;">
+          <h3>📢 <span data-i18n="notice.addTitle">공지 등록</span></h3>
+          <p class="dialog-hint" data-i18n="notice.addHint">이 방 참여자 모두에게 보이는 공지입니다.</p>
+          <textarea id="noticeAddInput" rows="4" maxlength="2000" placeholder="공지 내용을 입력하세요" data-i18n-ph="notice.placeholder" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:calc(14px + var(--fs-add-ui));font-family:inherit;background:var(--surface);color:var(--text);resize:vertical;"></textarea>
+          <div class="dialog-actions">
+            <button type="button" data-close data-i18n="notice.cancel">취소</button>
+            <button type="button" id="noticeAddSubmit" class="primary-btn" data-i18n="notice.submit">등록</button>
+          </div>
+        </div>
+      </div>
+
       <ol class="messages" id="messages"></ol>
       <!-- 컴포저 영역 wrapper — 모바일에서 position:fixed 로 viewport 하단 고정 (키보드 추적) -->
       <div class="composer-area" id="composerArea">
         <!-- 전송 시점 자동 번역 토글 (방별 기억) -->
         <div class="composer-langbar" id="composerLangbar" hidden>
-          <span class="cl-label">번역:</span>
-          <button type="button" class="cl-chip" data-lang="" data-active="1" title="번역 없이 전송">OFF</button>
-          <button type="button" class="cl-chip" data-lang="vi" title="한국어/입력 → 베트남어 함께 전송">🇻🇳 베트남어</button>
-          <button type="button" class="cl-chip" data-lang="en" title="한국어/입력 → 영어 함께 전송">🇺🇸 영어</button>
-          <button type="button" class="cl-chip" data-lang="ko" title="베트남어/입력 → 한국어 함께 전송">🇰🇷 한국어</button>
-          <span class="cl-hint" id="composerLangHint"></span>
+          <span class="cl-trlabel"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}" title="AI 번역" data-i18n-title="comp.aiTrans.tip">AI</span><span class="cl-label" data-i18n="composer.translateLabel">번역</span></span>
+          <button type="button" class="cl-chip" data-lang="" data-active="1" title="번역 없이 전송" data-i18n-title="comp.transOff.tip">OFF</button>
+          <button type="button" class="cl-chip" data-lang="ko" title="베트남어/입력 → 한국어 함께 전송" data-i18n="composer.langKo" data-i18n-title="comp.langKo.tip">🇰🇷 KR</button>
+          <button type="button" class="cl-chip" data-lang="vi" title="한국어/입력 → 베트남어 함께 전송" data-i18n="composer.langVi" data-i18n-title="comp.langVi.tip">🇻🇳 VN</button>
+          <button type="button" class="cl-chip" data-lang="en" title="한국어/입력 → 영어 함께 전송" data-i18n="composer.langEn" data-i18n-title="comp.langEn.tip">🇺🇸 US</button>
+          <button type="button" class="cl-chip" data-lang="zh" title="한국어/입력 → 중국어 함께 전송 (기본 간체, 상대가 번체면 번체)" data-i18n="composer.langZh" data-i18n-title="comp.langZh.tip">🇨🇳 CN</button>
+          <div class="cl-row2">
+            <span class="cl-hint" id="composerLangHint"></span>
+            <button type="button" class="cl-chip cl-back" id="langbarBackBtn" title="이전(방 목록)으로 — 입력 중 가까이서 뒤로가기" data-i18n="composer.back" data-i18n-title="comp.back.tip">← 뒤로</button>
+          </div>
         </div>
+        <!-- 📎 첨부 대기 — 선택한 파일을 담아두고 보내기/Enter 로 전송 (대표 지시 2026-05-29) -->
+        <div class="pending-attach" id="pendingAttach" hidden></div>
+        <!-- 묶음 메시지 미리보기 — 붙여넣은 글+그림을 순서대로 확인·빼기 후 전송 (대표 지시 2026-06-06) -->
+        <div class="mp-preview" id="mpPreview" hidden></div>
         <form class="composer" id="composer" autocomplete="off">
           <!-- 위 툴바 — 좌측: 첨부 / AI 작성도움 · 우측: 전송 -->
           <div class="composer-toolbar">
-            <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부">📎</button>
-            <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="✨ 작성 도움 (정중하게·짧게·전문가 톤)" style="font-size:16px;">✨</button>
-            <button class="attach-btn" id="emojiBtn" type="button" disabled title="이모지 삽입" style="font-size:16px;">😀</button>
-            <button class="attach-btn" id="stickerBtn" type="button" disabled title="스티커 보내기" style="font-size:16px;">🐶</button>
+            <button class="attach-btn" id="attachBtn" type="button" disabled title="파일/사진 첨부" data-i18n-title="comp.attach.tip">📎</button>
+            <button class="attach-btn" id="captureBtn" type="button" disabled hidden title="화면 캡처해서 첨부 (보이는 화면 그대로 사진으로)" data-i18n-title="comp.capture.tip" style="font-size:calc(15px + var(--fs-add-ui));">📷</button>
+            <button class="attach-btn" id="multiShareBtn" type="button" disabled title="여러 방(사람들)에게 같은 내용 보내기" data-i18n-title="comp.multiShare.tip" style="font-size:calc(15px + var(--fs-add-ui));">👥</button>
+            <button class="attach-btn" id="aiRewriteBtn" type="button" disabled title="AI 작성 도움 (정중하게·짧게·전문가 톤)" data-i18n-title="comp.aiRewrite.tip"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span></button>
+            <button class="attach-btn" id="emojiBtn" type="button" disabled title="이모지 삽입" data-i18n-title="comp.emoji.tip" style="font-size:calc(16px + var(--fs-add-ui));">😀</button>
+            <button class="attach-btn" id="stickerBtn" type="button" disabled title="스티커 보내기" data-i18n-title="comp.sticker.tip" style="font-size:calc(16px + var(--fs-add-ui));">🐶</button>
             <span class="composer-spacer"></span>
-            <button id="sendBtn" type="submit" disabled aria-label="전송">
+            <button id="sendBtn" type="submit" disabled aria-label="전송" data-i18n-aria="comp.send">
               <svg class="send-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
                 <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
               </svg>
@@ -159,18 +318,34 @@
           <div class="emoji-picker" id="emojiPicker" hidden>
             <div class="ep-tabs" id="epTabs"></div>
             <div class="ep-grid" id="epGrid"></div>
-            <input type="text" class="ep-search" id="epSearch" placeholder="검색 (예: 웃음, 손, 별)" autocomplete="off">
+            <input type="text" class="ep-search" id="epSearch" readonly onfocus="this.removeAttribute('readonly')" placeholder="검색 (예: 웃음, 손, 별)" data-i18n-ph="emoji.searchPh" autocomplete="off">
           </div>
           <!-- 이모지 자동완성 추천 바 — 입력 중 단어가 키워드와 맞으면 떠서 클릭 시 이모지로 교체 -->
           <div class="emoji-suggest" id="emojiSuggest" hidden></div>
-          <!-- 스티커 패널 — 입력창 위에 떠 있는 그리드. 클릭 시 스티커를 메시지로 전송. -->
+          <!-- 스티커 패널 — 입력창 위에 떠 있는 그리드. 클릭 시 미리보기 → 보내기 -->
           <div class="sticker-picker" id="stickerPicker" hidden>
-            <div class="sp-head">스티커</div>
+            <!-- 그리드 화면 -->
+            <div class="sp-head" id="spHeadGrid" data-i18n="sticker.title">스티커</div>
             <div class="sp-grid" id="spGrid"></div>
+            <!-- 미리보기 화면 (스티커 선택 시 전환) -->
+            <div class="sp-preview" id="spPreview" hidden>
+              <div class="sp-prev-topbar">
+                <button type="button" class="sp-prev-back" id="spPrevBack" data-i18n="composer.back">← 뒤로</button>
+                <span class="sp-prev-title" data-i18n="sticker.preview">미리보기</span>
+              </div>
+              <div class="sp-prev-imgwrap">
+                <img class="sp-prev-img" id="spPrevImg" src="" alt="" loading="eager">
+              </div>
+              <div class="sp-prev-label" id="spPrevLabel"></div>
+              <div class="sp-prev-actions">
+                <button type="button" class="sp-prev-cancel" id="spPrevCancel" data-i18n="btn.cancel">취소</button>
+                <button type="button" class="sp-prev-send" id="spPrevSend" data-i18n="sticker.send">보내기 ▶</button>
+              </div>
+            </div>
           </div>
-          <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.dwg,.dxf,.step,.stp,.stl">
+          <input id="fileInput" type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.7z,.rar,.dwg,.dxf,.step,.stp,.stl,.mp4,.mov,.avi,.mkv,.mp3,.wav,.html,.htm,.md,.markdown,.json,.yaml,.yml,.log">
           <!-- 아래 입력 박스 -->
-          <textarea id="msgInput" placeholder="메시지 입력..." disabled rows="2"></textarea>
+          <textarea id="msgInput" placeholder="메시지 입력..." data-i18n-ph="ph.msgInput" disabled rows="2"></textarea>
         </form>
       </div>
     </section>
@@ -181,14 +356,14 @@
     <div class="modal" id="attachPreviewDialog" data-modal>
       <div class="modal-content" style="max-width:560px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3 style="margin:0 0 8px;font-size:16px;">첨부 미리보기</h3>
+        <h3 style="margin:0 0 8px;font-size:calc(16px + var(--fs-add-ui));" data-i18n="ap.preview">첨부 미리보기</h3>
         <p class="dialog-hint" id="apSummary">파일 0개</p>
         <div class="ap-grid" id="apGrid"></div>
-        <p class="dialog-hint" id="apOthersHint" hidden style="color:#9ca3af;margin-top:8px;">※ 사진이 아닌 파일은 항상 개별 전송됩니다.</p>
+        <p class="dialog-hint" id="apOthersHint" hidden style="color:var(--text-soft);margin-top:8px;" data-i18n="ap.othersHint">※ 사진이 아닌 파일은 항상 개별 전송됩니다.</p>
         <div class="dialog-actions" style="flex-wrap:wrap;gap:6px;">
-          <button type="button" data-close>취소</button>
-          <button type="button" id="apIndividual">개별로 보내기</button>
-          <button type="button" id="apAlbum" class="primary-btn">📷 앨범으로 묶기</button>
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
+          <button type="button" id="apIndividual" data-i18n="ap.individual">개별로 보내기</button>
+          <button type="button" id="apAlbum" class="primary-btn" data-i18n="ap.album">📷 앨범으로 묶기</button>
         </div>
       </div>
     </div>
@@ -198,33 +373,33 @@
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <form id="newRoomForm">
           <div class="dialog-tabs">
-            <button type="button" class="tab active" data-tab="item">프로젝트</button>
-            <button type="button" class="tab" data-tab="dm">1:1 / 그룹</button>
-            <button type="button" class="tab" data-tab="channel">📢 채널</button>
+            <button type="button" class="tab active" data-tab="item" data-i18n="dlg.newRoom.tabItem">프로젝트</button>
+            <button type="button" class="tab" data-tab="dm" data-i18n="dlg.newRoom.tabDm">1:1 / 그룹</button>
+            <button type="button" class="tab" data-tab="channel" data-i18n="dlg.newRoom.tabChannel">📢 채널</button>
           </div>
 
           <div class="tab-pane active" data-tab-pane="item">
-            <p class="dialog-hint">고객사 × 모델 단위로 방을 만듭니다. 모든 메시지·사진·파일이 이 프로젝트에 자동으로 묶여 정리됩니다.</p>
+            <p class="dialog-hint" data-i18n="dlg.newRoom.itemHint">고객사 × 모델 단위로 방을 만듭니다. 모든 메시지·사진·파일이 이 프로젝트에 자동으로 묶여 정리됩니다.</p>
             <div class="form-grid">
-              <label>고객사 <input id="itemCustomer" placeholder="예: 삼성전자"></label>
-              <label style="position:relative;">관리번호 <input id="itemCode" placeholder="예: 003M2501" autocomplete="off">
+              <label><span data-i18n="label.customer">고객사</span> <input id="itemCustomer" placeholder="예: 삼성전자" data-i18n-ph="ph.customerEx"></label>
+              <label style="position:relative;"><span data-i18n="label.mgmtNo">관리번호</span> <input id="itemCode" placeholder="예: 003M2501" autocomplete="off" data-i18n-ph="ph.mgmtNoEx">
                 <div id="itemCodeSuggest" class="code-suggest" hidden></div>
               </label>
-              <label class="full">프로젝트명 * <input id="itemName" placeholder="예: Watch Molding 자동화"></label>
-              <label>상태
+              <label class="full"><span data-i18n="label.projectName">프로젝트명 *</span> <input id="itemName" placeholder="예: Watch Molding 자동화" data-i18n-ph="ph.projectNameEx"></label>
+              <label><span data-i18n="label.status">상태</span>
                 <select id="itemStatus">
-                  <option value="active">진행중</option>
-                  <option value="hold">보류</option>
-                  <option value="done">완료</option>
-                  <option value="cancelled">취소</option>
+                  <option value="active" data-i18n="opt.status.active">진행중</option>
+                  <option value="hold" data-i18n="opt.status.hold">보류</option>
+                  <option value="done" data-i18n="opt.status.done">완료</option>
+                  <option value="cancelled" data-i18n="opt.status.cancelled">취소</option>
                 </select>
               </label>
-              <label>납기 (선택) <input id="itemDue" type="date"></label>
+              <label><span data-i18n="label.dueOpt">납기 (선택)</span> <input id="itemDue" type="text" class="knk-date" readonly placeholder="날짜 선택" data-i18n-ph="ph.dateSelect"></label>
             </div>
             <div class="member-section">
-              <div class="member-section-label">참여자 선택</div>
+              <div class="member-section-label" data-i18n="label.memberSelect">참여자 선택</div>
               <div class="user-picker-search-wrap">
-                <input type="text" id="itemUserSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+                <input type="text" id="itemUserSearch" readonly onfocus="this.removeAttribute('readonly')" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off" data-i18n-ph="ph.userSearch">
                 <span class="user-picker-count" id="itemUserPickerCount"></span>
               </div>
               <div id="itemUserPicker" class="user-picker"></div>
@@ -232,36 +407,44 @@
           </div>
 
           <div class="tab-pane" data-tab-pane="dm">
-            <p class="dialog-hint">사람을 선택하세요. 1명 → 1:1 / 2명 이상 → 그룹채팅.</p>
+            <p class="dialog-hint" data-i18n="dlg.newRoom.dmHint">사람을 선택하세요. 1명 → 1:1 / 2명 이상 → 그룹채팅.</p>
             <div class="user-picker-search-wrap">
-              <input type="text" id="userSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+              <input type="text" id="userSearch" readonly onfocus="this.removeAttribute('readonly')" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off" data-i18n-ph="ph.userSearch">
               <span class="user-picker-count" id="userPickerCount"></span>
             </div>
             <div id="userPicker" class="user-picker"></div>
-            <label class="group-name-label">그룹 이름 (선택) <input id="roomName" placeholder="예: 영업팀, 프로젝트A 등"></label>
-            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#374151">
+            <label class="group-name-label"><span data-i18n="label.groupNameOpt">그룹 이름 (선택)</span> <input id="roomName" placeholder="예: 영업팀, 프로젝트A 등" data-i18n-ph="ph.groupNameEx"></label>
+            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:calc(13px + var(--fs-add-ui));color:var(--text-soft)">
               <input id="roomNameLock" type="checkbox">
-              <span>이름 고정 (방장만 이름 변경 가능. 미체크 시 각자 별명 가능)</span>
+              <span data-i18n="label.nameLockGroup">이름 고정 (방장만 이름 변경 가능. 미체크 시 각자 별명 가능)</span>
             </label>
           </div>
 
           <div class="tab-pane" data-tab-pane="channel">
-            <p class="dialog-hint">📢 공지·정보 공유용 <b>채널</b>을 만듭니다. 참여할 사람을 고르고 채널 이름을 입력하세요. (사이드바 '채널' 탭에 표시)</p>
+            <p class="dialog-hint" data-i18n="dlg.newRoom.channelHint">📢 공지·정보 공유용 <b>채널</b>을 만듭니다. 참여할 사람을 고르고 채널 이름을 입력하세요. (사이드바 '채널' 탭에 표시)</p>
+
+            <!-- 🚀 부서 퀵 만들기 (대표 지시 2026-05-28) — 부서 칩 클릭 시 채널명+멤버 자동 채움 -->
+            <details id="deptQuickWrap" style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);">
+              <summary style="cursor:pointer;padding:8px 12px;font-size:calc(13px + var(--fs-add-ui));font-weight:700;color:var(--text);user-select:none;" data-i18n="dlg.newRoom.deptQuickTitle">🚀 부서 퀵 만들기 (클릭한 부서원 자동 포함)</summary>
+              <div id="deptQuickGrid" style="padding:8px 10px 12px;display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;"></div>
+              <div id="deptQuickPicked" style="padding:0 12px 10px;font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);"></div>
+            </details>
+
             <div class="user-picker-search-wrap">
-              <input type="text" id="channelUserSearch" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off">
+              <input type="text" id="channelUserSearch" readonly onfocus="this.removeAttribute('readonly')" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off" data-i18n-ph="ph.userSearch">
               <span class="user-picker-count" id="channelUserPickerCount"></span>
             </div>
             <div id="channelUserPicker" class="user-picker"></div>
-            <label class="group-name-label">채널 이름 * <input id="channelName" placeholder="예: 안전공지, 영업팀 채널"></label>
-            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#374151">
+            <label class="group-name-label"><span data-i18n="label.channelName">채널 이름 *</span> <input id="channelName" placeholder="예: 안전공지, 영업팀 채널" data-i18n-ph="ph.channelNameEx"></label>
+            <label class="name-lock-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:calc(13px + var(--fs-add-ui));color:var(--text-soft)">
               <input id="channelNameLock" type="checkbox" checked>
-              <span>이름 고정 (만든 사람만 채널 이름 변경)</span>
+              <span data-i18n="label.nameLockChannel">이름 고정 (만든 사람만 채널 이름 변경)</span>
             </label>
           </div>
 
           <div class="dialog-actions">
-            <button type="button" id="cancelNewRoom" data-close>취소</button>
-            <button type="submit" id="createRoom">만들기</button>
+            <button type="button" id="cancelNewRoom" data-close data-i18n="btn.cancel">취소</button>
+            <button type="submit" id="createRoom" data-i18n="btn.create">만들기</button>
           </div>
         </form>
       </div>
@@ -271,28 +454,28 @@
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <form id="itemEditForm">
-          <h3>프로젝트 정보 수정</h3>
+          <h3 data-i18n="dlg.itemEdit.title">프로젝트 정보 수정</h3>
           <div class="form-grid">
-            <label>고객사 <input id="editCustomer"></label>
-            <label>관리번호 <input id="editCode"></label>
-            <label class="full">프로젝트명 <input id="editName"></label>
-            <label>상태
+            <label><span data-i18n="label.customer">고객사</span> <input id="editCustomer"></label>
+            <label><span data-i18n="label.mgmtNo">관리번호</span> <input id="editCode"></label>
+            <label class="full"><span data-i18n="label.projectNamePlain">프로젝트명</span> <input id="editName"></label>
+            <label><span data-i18n="label.status">상태</span>
               <select id="editStatus">
-                <option value="active">진행중</option>
-                <option value="hold">보류</option>
-                <option value="done">완료</option>
-                <option value="cancelled">취소</option>
+                <option value="active" data-i18n="opt.status.active">진행중</option>
+                <option value="hold" data-i18n="opt.status.hold">보류</option>
+                <option value="done" data-i18n="opt.status.done">완료</option>
+                <option value="cancelled" data-i18n="opt.status.cancelled">취소</option>
               </select>
             </label>
-            <label>납기 <input id="editDue" type="date"></label>
+            <label><span data-i18n="label.due">납기</span> <input id="editDue" type="text" class="knk-date" readonly placeholder="날짜 선택" data-i18n-ph="ph.dateSelect"></label>
             <label class="full keep-forever-label">
               <input id="editKeepForever" type="checkbox">
-              <span>📌 영구 보존 — 자동삭제 정책 무시 (감사·법무·중요 사례)</span>
+              <span data-i18n="label.keepForever">📌 영구 보존 — 자동삭제 정책 무시 (감사·법무·중요 사례)</span>
             </label>
           </div>
           <div class="dialog-actions">
-            <button type="button" id="cancelEdit" data-close>취소</button>
-            <button type="submit" id="saveEdit">저장</button>
+            <button type="button" id="cancelEdit" data-close data-i18n="btn.cancel">취소</button>
+            <button type="submit" id="saveEdit" data-i18n="btn.save">저장</button>
           </div>
         </form>
       </div>
@@ -302,7 +485,7 @@
     <div class="modal" id="roomSettingsDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>⚙ 방 설정</h3>
+        <h3 data-i18n="dlg.roomSettings.title">⚙ 방 설정</h3>
 
         <section class="rs-section">
           <h4 id="rsRoomTypeLabel">방 이름</h4>
@@ -311,19 +494,20 @@
           </div>
         </section>
 
-        <section class="rs-section">
-          <h4>멤버 (<span id="rsMemberCount">0</span>명)</h4>
+        <section class="rs-section" id="rsMemberSection">
+          <h4><span data-i18n="rs.members">멤버</span> (<span id="rsMemberCount">0</span>)</h4>
+          <div id="rsMemberTabs" class="rs-mtabs" style="display:none;"></div>
           <div id="rsMemberList" class="rs-member-list">
             <!-- JS 가 멤버 + 역할 + 액션 버튼 렌더 -->
           </div>
           <div id="rsInviteArea" style="margin-top:12px;display:none;">
-            <button type="button" id="rsInviteBtn" class="secondary-btn">👥 멤버 초대</button>
+            <button type="button" id="rsInviteBtn" class="secondary-btn" data-i18n="rs.invite">👥 멤버 초대</button>
           </div>
         </section>
 
         <!-- 메시지 자동 삭제 정책 (WhatsApp 식 — 방장만 변경 가능) -->
         <section class="rs-section" id="rsRetentionSection" style="display:none;">
-          <h4>⏱ 메시지 자동 삭제</h4>
+          <h4 data-i18n="rs.retention">⏱ 메시지 자동 삭제</h4>
           <div id="rsRetentionArea">
             <!-- JS 가 권한·현재값에 따라 렌더 -->
           </div>
@@ -331,7 +515,7 @@
 
         <!-- 초대 권한 정책 — 방장만 변경 가능 -->
         <section class="rs-section" id="rsInvitePolicySection" style="display:none;">
-          <h4>👥 멤버 초대 권한</h4>
+          <h4 data-i18n="rs.invitePolicy">👥 멤버 초대 권한</h4>
           <div id="rsInvitePolicyArea">
             <!-- JS 가 권한·현재값에 따라 렌더 -->
           </div>
@@ -339,13 +523,13 @@
 
         <!-- 채널 삭제 (관리자 전용, 자동채널 제외) — 대표 지시 2026-05-21 -->
         <section class="rs-section" id="rsChannelDeleteSection" style="display:none;">
-          <h4 style="color:#991B1B;">⚠ 채널 삭제</h4>
-          <div style="font-size:11px;color:var(--text-soft);line-height:1.5;margin-bottom:8px;">이 채널과 모든 대화·첨부가 영구 삭제됩니다. 되돌릴 수 없습니다.</div>
-          <button type="button" id="rsChannelDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:12px;font-weight:600;">🗑 이 채널 삭제</button>
+          <h4 style="color:#991B1B;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span data-i18n="rs.channelDelete">⚠ 채널 삭제</span><span style="font-size:calc(9px + var(--fs-add-ui));background:#FEE2E2;color:#991B1B;padding:1px 7px;border-radius:999px;font-weight:700;">🔒 관리자·만든 사람</span></h4>
+          <div style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);line-height:1.5;margin-bottom:8px;" data-i18n="rs.channelDeleteDesc">이 채널과 모든 대화·첨부가 영구 삭제됩니다. 되돌릴 수 없습니다.</div>
+          <button type="button" id="rsChannelDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:calc(12px + var(--fs-add-ui));font-weight:600;" data-i18n="rs.channelDeleteBtn">🗑 이 채널 삭제</button>
         </section>
 
         <div class="dialog-actions">
-          <button type="button" data-close>닫기</button>
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
         </div>
       </div>
     </div>
@@ -353,95 +537,160 @@
     <!-- 멤버 초대 다이얼로그 -->
     <!-- ➕ 직원 등록 다이얼로그 (관리자만) -->
     <div class="modal" id="newUserDialog" data-modal>
-      <div class="modal-content" style="max-width:520px;">
+      <div class="modal-content" style="max-width:520px;min-height:640px;display:flex;flex-direction:column;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>➕ 직원 등록</h3>
+        <h3 data-i18n="nu.title">➕ 직원 등록</h3>
         <div class="dialog-tabs" style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border);">
-          <button type="button" class="tab nu-tab active" data-nu-tab="single">👤 1명 등록</button>
-          <button type="button" class="tab nu-tab" data-nu-tab="bulk">📊 엑셀 일괄 등록</button>
+          <button type="button" class="tab nu-tab active" data-nu-tab="single" data-i18n="nu.tabSingle">👤 1명 등록</button>
+          <button type="button" class="tab nu-tab" data-nu-tab="bulk" data-i18n="nu.tabBulk">📊 엑셀 일괄 등록</button>
         </div>
         <div id="nuPaneSingle">
-        <p class="dialog-hint">신규 직원을 등록합니다. <b>회사 이메일</b>이 로그인 ID 가 되고, <b>휴대폰 번호 (숫자만)</b>가 초기 비밀번호가 됩니다. 직원은 첫 로그인 시 비밀번호를 바꾸도록 안내받습니다.</p>
+        <!-- 본사/베트남 서브탭 (엑셀 일괄 양식과 동일한 구조 — 대표 지시 2026-05-26) -->
+        <div class="dialog-tabs" style="display:flex;gap:0;margin-bottom:10px;border-bottom:1px solid var(--border);">
+          <button type="button" class="tab nu-sub-tab active" data-nu-sub="kor" style="flex:1;padding:8px 10px;font-size:calc(12.5px + var(--fs-add-ui));" data-i18n="nu.subKor">🇰🇷 본사 (KOR)</button>
+          <button type="button" class="tab nu-sub-tab" data-nu-sub="vn" style="flex:1;padding:8px 10px;font-size:calc(12.5px + var(--fs-add-ui));" data-i18n="nu.subVn">🇻🇳 베트남법인 (VN)</button>
+        </div>
+
+        <!-- ── 본사 폼 ── -->
+        <div id="nuSubKor">
+        <p class="dialog-hint" data-i18n-html="nu.korHint">본사 직원을 등록합니다. <b>사번</b>이 로그인 ID 가 되고, <b>휴대폰 번호 (숫자만)</b>가 초기 비밀번호가 됩니다. 직원은 첫 로그인 시 비밀번호를 바꾸도록 안내받습니다.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <label style="font-size:12px;color:var(--text-soft);">이름 <span style="color:#dc2626;">*</span></label>
-          <input type="text" id="nuDisplayName" maxlength="40" placeholder="예: 홍길동" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">회사 이메일 (= 로그인 ID) <span style="color:#dc2626;">*</span></label>
-          <input type="email" id="nuEmail" maxlength="100" placeholder="예: hong@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">휴대폰 번호 (= 초기 비밀번호) <span style="color:#dc2626;">*</span></label>
-          <input type="tel" id="nuPhone" maxlength="30" placeholder="예: 010-1234-5678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">사번</label>
-          <input type="text" id="nuEmployeeNo" maxlength="30" placeholder="예: K2401" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.empNoKor">사번 (= 로그인 ID)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuKEmployeeNo" maxlength="30" placeholder="예: 5, 67, K2401" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.nameKor">이름 (한글)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuKDisplayName" maxlength="40" placeholder="예: 홍길동" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.phoneKor">휴대폰 번호 (= 초기 비밀번호)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="tel" id="nuKPhone" maxlength="30" placeholder="예: 010-1234-5678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="nu.f.emailKorOpt">회사 이메일 (선택)</label>
+          <input type="email" id="nuKEmail" maxlength="100" placeholder="예: hong@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
           <div style="display:flex;gap:8px;">
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--text-soft);">직급</label>
-              <input type="text" id="nuTitle" maxlength="40" placeholder="예: 사원·대리·과장" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.title">직급</label>
+              <select id="nuKTitle" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+                <option value="" data-i18n="nu.opt.select">(선택)</option>
+                <option value="대표이사" data-i18n="title.ceo">대표이사</option>
+                <option value="전무이사" data-i18n="title.smd">전무이사</option>
+                <option value="상무이사" data-i18n="title.md">상무이사</option>
+                <option value="이사" data-i18n="title.director">이사</option>
+                <option value="이사(팀장)" data-i18n="title.directorTL">이사(팀장)</option>
+                <option value="매니저" data-i18n="title.manager">매니저</option>
+                <option value="매니저(팀장)" data-i18n="title.managerTL">매니저(팀장)</option>
+                <option value="프로" data-i18n="title.pro">프로</option>
+                <option value="프로(팀장)" data-i18n="title.proTL">프로(팀장)</option>
+                <option value="반장" data-i18n="title.lineSupervisor">반장</option>
+                <option value="사원" data-i18n="title.staff">사원</option>
+              </select>
             </div>
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--text-soft);">부서</label>
-              <select id="nuDept" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-                <option value="">(선택)</option>
-                <optgroup label="── 임원 ──">
-                  <option value="총괄">00 총괄</option>
-                </optgroup>
-                <optgroup label="── 한국 ──">
-                  <option value="기술영업팀">01 기술영업팀</option>
-                  <option value="검사기팀">02 검사기팀</option>
-                  <option value="품질팀">03 품질팀</option>
-                  <option value="설계팀(자동화)">04 설계팀(자동화)</option>
-                  <option value="설계팀(검사기)">04 설계팀(검사기)</option>
-                  <option value="소프트웨어팀">05 소프트웨어팀</option>
-                  <option value="전장설계팀">06 전장설계팀</option>
-                  <option value="제조기술1팀">07 제조기술1팀</option>
-                  <option value="제조기술2팀">08 제조기술2팀</option>
-                  <option value="가공팀">09 가공팀</option>
-                  <option value="구매팀">10 구매팀</option>
-                  <option value="관리팀">11 관리팀</option>
-                  <option value="개발혁신팀">13 개발혁신팀</option>
-                  <option value="라이프밸류팀">14 라이프밸류팀</option>
-                </optgroup>
-                <optgroup label="── 베트남법인 ──">
-                  <option value="12-VN01 기술팀">12-VN01 기술팀</option>
-                  <option value="12-VN02 조립팀">12-VN02 조립팀</option>
-                  <option value="12-VN03 전장팀">12-VN03 전장팀</option>
-                  <option value="12-VN04 설계팀">12-VN04 설계팀</option>
-                  <option value="12-VN05 소프트웨어팀">12-VN05 소프트웨어팀</option>
-                  <option value="12-VN06 가공팀">12-VN06 가공팀</option>
-                  <option value="12-VN07 품질팀">12-VN07 품질팀</option>
-                  <option value="12-VN08 구매팀">12-VN08 구매팀</option>
-                  <option value="12-VN09 관리팀">12-VN09 관리팀</option>
-                </optgroup>
+              <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="ui.dept">부서</span> <span style="color:#dc2626;">*</span></label>
+              <select id="nuKDept" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+                <option value="" data-i18n="nu.opt.select">(선택)</option>
+                <option value="01_KOR/00_총괄" data-i18n="dept.k00">00_총괄</option>
+                <option value="01_KOR/01_기술영업팀" data-i18n="dept.k01">01_기술영업팀</option>
+                <option value="01_KOR/02_검사기팀" data-i18n="dept.k02">02_검사기팀</option>
+                <option value="01_KOR/03_품질팀" data-i18n="dept.k03">03_품질팀</option>
+                <option value="01_KOR/04_설계팀" data-i18n="dept.k04">04_설계팀</option>
+                <option value="01_KOR/05_소프트웨어팀" data-i18n="dept.k05">05_소프트웨어팀</option>
+                <option value="01_KOR/06_전장설계팀" data-i18n="dept.k06">06_전장설계팀</option>
+                <option value="01_KOR/07_제조기술1팀" data-i18n="dept.k07">07_제조기술1팀</option>
+                <option value="01_KOR/08_제조기술2팀" data-i18n="dept.k08">08_제조기술2팀</option>
+                <option value="01_KOR/09_가공팀" data-i18n="dept.k09">09_가공팀</option>
+                <option value="01_KOR/10_구매팀" data-i18n="dept.k10">10_구매팀</option>
+                <option value="01_KOR/11_관리팀" data-i18n="dept.k11">11_관리팀</option>
+                <option value="01_KOR/12_개발혁신팀" data-i18n="dept.k12">12_개발혁신팀</option>
+                <option value="01_KOR/21_라이프밸류팀" data-i18n="dept.k21">21_라이프밸류팀</option>
               </select>
             </div>
           </div>
-          <label class="rs-checkbox" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
-            <input type="checkbox" id="nuRoleCeo">
-            <span>👑 관리자 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화·삭제 가능)</span>
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="nu.f.nameEnKorOpt">이름 (영문) — 선택</label>
+          <input type="text" id="nuKDisplayNameEn" maxlength="60" placeholder="예: Hong Gil-Dong" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label class="rs-checkbox" style="font-size:calc(12px + var(--fs-add-ui));display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
+            <input type="checkbox" id="nuKRoleCeo">
+            <span data-i18n="nu.roleCeoGrant">👑 관리자 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화·삭제 가능)</span>
           </label>
         </div>
-        <div class="dialog-actions">
-          <button type="button" data-close>취소</button>
-          <button type="button" id="nuSaveBtn" class="primary-btn">➕ 직원 등록</button>
+        </div><!-- /nuSubKor -->
+
+        <!-- ── 베트남 폼 ── -->
+        <div id="nuSubVn" hidden>
+        <p class="dialog-hint" data-i18n-html="nu.vnHint">베트남법인 직원을 등록합니다. <b>사번 (앞에 'VN' 자동 부착)</b>이 로그인 ID 가 되고, 초기 비밀번호는 <b>9999</b> 공통입니다.</p>
+        <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.empNoVn">사번 (= 로그인 ID, 'VN' 자동)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuVEmployeeNo" maxlength="20" placeholder="예: 1 → VN1 / 100 → VN100" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.nameVnPron">이름 (한국식 발음)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuVDisplayName" maxlength="40" placeholder="예: 응우옌 반 아" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="nu.f.nameVnLocal">이름 (베트남어)</label>
+          <input type="text" id="nuVDisplayNameVn" maxlength="60" placeholder="예: Nguyễn Văn A" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="nu.f.nameVnEn">이름 (영문)</span> <span style="color:#dc2626;">*</span></label>
+          <input type="text" id="nuVDisplayNameEn" maxlength="60" placeholder="예: Nguyen Van A" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="nu.f.phoneVnOpt">휴대폰 (선택)</label>
+          <input type="tel" id="nuVPhone" maxlength="30" placeholder="예: 0901-234-5678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="nu.f.emailVnOpt">회사 이메일 (선택 — 사용하는 직원만)</label>
+          <input type="email" id="nuVEmail" maxlength="100" placeholder="예: nguyenvana@knkvn.com" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;">
+              <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.title">직급</label>
+              <select id="nuVTitle" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+                <option value="" data-i18n="nu.opt.select">(선택)</option>
+                <option value="법인장" data-i18n="title.corpHead">법인장</option>
+                <option value="부장" data-i18n="title.gm">부장</option>
+                <option value="차장" data-i18n="title.dgm">차장</option>
+                <option value="과장" data-i18n="title.mgr2">과장</option>
+                <option value="대리" data-i18n="title.amgr">대리</option>
+                <option value="주임" data-i18n="title.supervisor">주임</option>
+                <option value="반장" data-i18n="title.lineSupervisor">반장</option>
+                <option value="조장" data-i18n="title.sectionLeader">조장</option>
+                <option value="사원" data-i18n="title.staff">사원</option>
+              </select>
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);"><span data-i18n="ui.dept">부서</span> <span style="color:#dc2626;">*</span></label>
+              <select id="nuVDept" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+                <option value="" data-i18n="nu.opt.select">(선택)</option>
+                <option value="02_VN/00_총괄" data-i18n="dept.v00">00_총괄</option>
+                <option value="02_VN/01_기술팀" data-i18n="dept.v01">01_기술팀</option>
+                <option value="02_VN/02_설계팀" data-i18n="dept.v02">02_설계팀</option>
+                <option value="02_VN/03_소프트웨어팀" data-i18n="dept.v03">03_소프트웨어팀</option>
+                <option value="02_VN/04_가공팀" data-i18n="dept.v04">04_가공팀</option>
+                <option value="02_VN/05_조립팀" data-i18n="dept.v05">05_조립팀</option>
+                <option value="02_VN/06_전장팀" data-i18n="dept.v06">06_전장팀</option>
+                <option value="02_VN/07_품질팀" data-i18n="dept.v07">07_품질팀</option>
+                <option value="02_VN/08_관리팀" data-i18n="dept.v08">08_관리팀</option>
+                <option value="02_VN/09_구매팀" data-i18n="dept.v09">09_구매팀</option>
+              </select>
+            </div>
+          </div>
+          <label class="rs-checkbox" style="font-size:calc(12px + var(--fs-add-ui));display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
+            <input type="checkbox" id="nuVRoleCeo">
+            <span data-i18n="nu.roleCeoGrant">👑 관리자 권한 부여 (다른 사람 정보 수정·등록·계정 비활성화·삭제 가능)</span>
+          </label>
         </div>
-        <div id="nuResult" style="margin-top:10px;font-size:12.5px;color:var(--text);"></div>
+        </div><!-- /nuSubVn -->
+
+        <div class="dialog-actions">
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
+          <button type="button" id="nuSaveBtn" class="primary-btn" data-i18n="nu.saveBtn">➕ 직원 등록</button>
+        </div>
+        <div id="nuResult" style="margin-top:10px;font-size:calc(12.5px + var(--fs-add-ui));color:var(--text);"></div>
         </div><!-- /nuPaneSingle -->
         <div id="nuPaneBulk" hidden>
-          <p class="dialog-hint">엑셀로 여러 명을 한꺼번에 등록합니다. 양식을 먼저 다운로드해서 채운 뒤 업로드하세요.</p>
+          <p class="dialog-hint" data-i18n="nu.bulkHint">엑셀로 여러 명을 한꺼번에 등록합니다. 양식을 먼저 다운로드해서 채운 뒤 업로드하세요.</p>
           <div style="display:flex;flex-direction:column;gap:12px;">
             <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px;">
-              <div style="font-weight:700;font-size:13.5px;color:#1E40AF;margin-bottom:6px;">📋 1단계 — 양식 다운로드</div>
-              <div style="font-size:12px;color:#1E3A8A;line-height:1.6;margin-bottom:10px;">엑셀 양식에는 헤더·예시 3줄·드롭다운(권한·부서)·안내 시트가 포함되어 있습니다.</div>
-              <button type="button" id="nuTplDownloadBtn" class="secondary-btn">📥 KNK_직원등록_양식.xlsx 다운로드</button>
+              <div style="font-weight:700;font-size:calc(13.5px + var(--fs-add-ui));color:#1E40AF;margin-bottom:6px;" data-i18n="nu.bulkStep1">📋 1단계 — 양식 다운로드</div>
+              <div style="font-size:calc(12px + var(--fs-add-ui));color:#1E3A8A;line-height:1.6;margin-bottom:10px;" data-i18n="nu.bulkStep1Desc">엑셀 양식에는 헤더·예시 3줄·드롭다운(권한·부서)·안내 시트가 포함되어 있습니다.</div>
+              <button type="button" id="nuTplDownloadBtn" class="secondary-btn" data-i18n="nu.bulkDownloadBtn">📥 KNK_직원등록_양식.xlsx 다운로드</button>
             </div>
-            <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:14px;">
-              <div style="font-weight:700;font-size:13.5px;color:#92400E;margin-bottom:6px;">📤 2단계 — 작성한 엑셀 업로드</div>
-              <div style="font-size:12px;color:#78350F;line-height:1.6;margin-bottom:10px;">
+            <div style="background:#FFFBEB;color:#1F2937;border:1px solid #FDE68A;border-radius:8px;padding:14px;">
+              <div style="font-weight:700;font-size:calc(13.5px + var(--fs-add-ui));color:#92400E;margin-bottom:6px;" data-i18n="nu.bulkStep2">📤 2단계 — 작성한 엑셀 업로드</div>
+              <div style="font-size:calc(12px + var(--fs-add-ui));color:#78350F;line-height:1.6;margin-bottom:10px;" data-i18n-html="nu.bulkStep2Desc">
                 양식의 헤더는 그대로 두고 4행부터 직원 정보 입력 (예시 3줄은 자동 무시).<br>
-                <b>필수 필드</b>: 이름·이메일·휴대폰. <b>중복 이메일</b>은 자동 스킵.
+                <b>필수 필드</b>: 이름·이메일·휴대폰. <b>이미 있는 이메일은 정보가 자동 갱신</b>(직급·부서·영문명 등 — 비밀번호·권한은 보존), 새 이메일은 추가됩니다. 빈 칸은 기존값 유지.
               </div>
-              <input type="file" id="nuBulkFile" accept=".xlsx,.xlsm" style="display:block;margin-bottom:8px;font-size:12px;">
-              <button type="button" id="nuBulkUploadBtn" class="primary-btn">📤 업로드 + 일괄 등록</button>
+              <input type="file" id="nuBulkFile" accept=".xlsx,.xlsm" style="display:block;margin-bottom:8px;font-size:calc(12px + var(--fs-add-ui));">
+              <button type="button" id="nuBulkUploadBtn" class="primary-btn" data-i18n="nu.bulkUploadBtn">📤 업로드 + 일괄 등록</button>
             </div>
-            <div id="nuBulkResult" style="font-size:12.5px;"></div>
+            <div id="nuBulkResult" style="font-size:calc(12.5px + var(--fs-add-ui));"></div>
           </div>
         </div>
       </div>
@@ -450,28 +699,28 @@
     <!-- 🔐 비밀번호 변경 강제 다이얼로그 (첫 로그인 시) -->
     <div class="modal" id="changePwDialog" data-modal>
       <div class="modal-content" style="max-width:420px;">
-        <h3>🔐 비밀번호 변경 필요</h3>
-        <p class="dialog-hint" id="cpwHint">처음 로그인하셨습니다. 보안을 위해 비밀번호를 본인만 아는 값으로 변경해 주세요.</p>
+        <h3 data-i18n="cpw.title">🔐 비밀번호 변경 필요</h3>
+        <p class="dialog-hint" id="cpwHint" data-i18n="cpw.hint">처음 로그인하셨습니다. 보안을 위해 비밀번호를 본인만 아는 값으로 변경해 주세요.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <label style="font-size:12px;color:var(--text-soft);">현재 비밀번호 (= 본인 휴대폰 번호 숫자)</label>
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="cpw.curLabel">현재 비밀번호 (= 본인 휴대폰 번호 숫자)</label>
           <div class="pw-wrap">
-            <input type="password" id="cpwCurrent" placeholder="예: 01012345678" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
-            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwCurrent" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+            <input type="text" id="cpwCurrent" class="knk-masked" autocomplete="off" placeholder="예: 01012345678" data-i18n-ph="cpw.curPh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwCurrent" title="비밀번호 보기/숨기기" data-i18n-title="pw.toggleTip" aria-label="비밀번호 보기" data-i18n-aria="pw.toggleAria">👁</button>
           </div>
-          <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 (6자 이상)</label>
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="cpw.newLabel">새 비밀번호 (6자 이상)</label>
           <div class="pw-wrap">
-            <input type="password" id="cpwNew" placeholder="새 비밀번호" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
-            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+            <input type="text" id="cpwNew" class="knk-masked" autocomplete="off" placeholder="새 비밀번호" data-i18n-ph="cpw.newPh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew" title="비밀번호 보기/숨기기" data-i18n-title="pw.toggleTip" aria-label="비밀번호 보기" data-i18n-aria="pw.toggleAria">👁</button>
           </div>
-          <label style="font-size:12px;color:var(--text-soft);">새 비밀번호 확인</label>
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="cpw.new2Label">새 비밀번호 확인</label>
           <div class="pw-wrap">
-            <input type="password" id="cpwNew2" placeholder="새 비밀번호 다시 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
-            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew2" title="비밀번호 보기/숨기기" aria-label="비밀번호 보기">👁</button>
+            <input type="text" id="cpwNew2" class="knk-masked" autocomplete="off" placeholder="새 비밀번호 다시 입력" data-i18n-ph="cpw.new2Ph" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));width:100%;">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="cpwNew2" title="비밀번호 보기/숨기기" data-i18n-title="pw.toggleTip" aria-label="비밀번호 보기" data-i18n-aria="pw.toggleAria">👁</button>
           </div>
-          <div id="cpwError" style="font-size:12px;color:#dc2626;display:none;"></div>
+          <div id="cpwError" style="font-size:calc(12px + var(--fs-add-ui));color:#dc2626;display:none;"></div>
         </div>
         <div class="dialog-actions">
-          <button type="button" id="cpwSaveBtn" class="primary-btn" style="width:100%;">🔐 비밀번호 저장 후 시작</button>
+          <button type="button" id="cpwSaveBtn" class="primary-btn" style="width:100%;" data-i18n="cpw.save">🔐 비밀번호 저장 후 시작</button>
         </div>
       </div>
     </div>
@@ -481,83 +730,81 @@
       <div class="modal-content" style="max-width:420px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <h3>👤 <span id="uiName">사용자 정보</span></h3>
-        <p class="dialog-hint" id="uiHint">본인은 직급·부서를 직접 수정할 수 있습니다. 관리자는 모든 사람 수정 가능.</p>
+        <p class="dialog-hint" id="uiHint" data-i18n="ui.hint">본인은 직급·부서를 직접 수정할 수 있습니다. 관리자는 모든 사람 수정 가능.</p>
         <div class="rs-form" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <label style="font-size:12px;color:var(--text-soft);">사번</label>
-          <input type="text" id="uiEmployeeNo" maxlength="30" placeholder="예: K2401" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">직급</label>
-          <input type="text" id="uiTitle" maxlength="40" placeholder="예: 대표이사 / 부장 / 과장 / 사원 / 프로" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">부서</label>
-          <select id="uiDeptSelect" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.empNo">사번</label>
+          <input type="text" id="uiEmployeeNo" maxlength="30" placeholder="예: K2401" data-i18n-ph="ui.empNoPh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.title">직급</label>
+          <input type="text" id="uiTitle" maxlength="40" placeholder="예: 대표이사 / 부장 / 과장 / 사원 / 프로" data-i18n-ph="ui.titlePh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.dept">부서</label>
+          <select id="uiDeptSelect" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
             <option value="">(선택)</option>
-            <optgroup label="── 임원 ──">
-              <option value="총괄">00 총괄</option>
+            <optgroup label="── 본사 (01_KOR) ──">
+              <option value="01_KOR/00_총괄">01_KOR/00_총괄</option>
+              <option value="01_KOR/01_기술영업팀">01_KOR/01_기술영업팀</option>
+              <option value="01_KOR/02_검사기팀">01_KOR/02_검사기팀</option>
+              <option value="01_KOR/03_품질팀">01_KOR/03_품질팀</option>
+              <option value="01_KOR/04_설계팀">01_KOR/04_설계팀</option>
+              <option value="01_KOR/05_소프트웨어팀">01_KOR/05_소프트웨어팀</option>
+              <option value="01_KOR/06_전장설계팀">01_KOR/06_전장설계팀</option>
+              <option value="01_KOR/07_제조기술1팀">01_KOR/07_제조기술1팀</option>
+              <option value="01_KOR/08_제조기술2팀">01_KOR/08_제조기술2팀</option>
+              <option value="01_KOR/09_가공팀">01_KOR/09_가공팀</option>
+              <option value="01_KOR/10_구매팀">01_KOR/10_구매팀</option>
+              <option value="01_KOR/11_관리팀">01_KOR/11_관리팀</option>
+              <option value="01_KOR/12_개발혁신팀">01_KOR/12_개발혁신팀</option>
+              <option value="01_KOR/21_라이프밸류팀">01_KOR/21_라이프밸류팀</option>
             </optgroup>
-            <optgroup label="── 한국 ──">
-              <option value="기술영업팀">01 기술영업팀</option>
-              <option value="검사기팀">02 검사기팀</option>
-              <option value="품질팀">03 품질팀</option>
-              <option value="설계팀(자동화)">04 설계팀(자동화)</option>
-              <option value="설계팀(검사기)">04 설계팀(검사기)</option>
-              <option value="소프트웨어팀">05 소프트웨어팀</option>
-              <option value="전장설계팀">06 전장설계팀</option>
-              <option value="제조기술1팀">07 제조기술1팀</option>
-              <option value="제조기술2팀">08 제조기술2팀</option>
-              <option value="가공팀">09 가공팀</option>
-              <option value="구매팀">10 구매팀</option>
-              <option value="관리팀">11 관리팀</option>
-              <option value="개발혁신팀">13 개발혁신팀</option>
-              <option value="라이프밸류팀">14 라이프밸류팀</option>
+            <optgroup label="── 베트남법인 (02_VN) ──">
+              <option value="02_VN/00_총괄">02_VN/00_총괄</option>
+              <option value="02_VN/01_기술팀">02_VN/01_기술팀</option>
+              <option value="02_VN/02_설계팀">02_VN/02_설계팀</option>
+              <option value="02_VN/03_소프트웨어팀">02_VN/03_소프트웨어팀</option>
+              <option value="02_VN/04_가공팀">02_VN/04_가공팀</option>
+              <option value="02_VN/05_조립팀">02_VN/05_조립팀</option>
+              <option value="02_VN/06_전장팀">02_VN/06_전장팀</option>
+              <option value="02_VN/07_품질팀">02_VN/07_품질팀</option>
+              <option value="02_VN/08_관리팀">02_VN/08_관리팀</option>
+              <option value="02_VN/09_구매팀">02_VN/09_구매팀</option>
             </optgroup>
-            <optgroup label="── 베트남법인 ──">
-              <option value="12-VN01 기술팀">12-VN01 기술팀</option>
-              <option value="12-VN02 조립팀">12-VN02 조립팀</option>
-              <option value="12-VN03 전장팀">12-VN03 전장팀</option>
-              <option value="12-VN04 설계팀">12-VN04 설계팀</option>
-              <option value="12-VN05 소프트웨어팀">12-VN05 소프트웨어팀</option>
-              <option value="12-VN06 가공팀">12-VN06 가공팀</option>
-              <option value="12-VN07 품질팀">12-VN07 품질팀</option>
-              <option value="12-VN08 구매팀">12-VN08 구매팀</option>
-              <option value="12-VN09 관리팀">12-VN09 관리팀</option>
-            </optgroup>
-            <option value="기타">기타 (직접 입력)</option>
+            <option value="기타" data-i18n="ui.deptOther">기타 (직접 입력)</option>
           </select>
-          <input type="text" id="uiDeptCustom" maxlength="40" placeholder="기타 부서 입력" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;display:none;">
-          <label style="font-size:12px;color:var(--text-soft);">회사 이메일</label>
-          <input type="email" id="uiEmail" maxlength="100" placeholder="예: name@knknara.co.kr" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <label style="font-size:12px;color:var(--text-soft);">전화번호</label>
-          <input type="tel" id="uiPhone" maxlength="30" placeholder="예: 010-1234-5678 또는 02-555-1234" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <input type="text" id="uiDeptCustom" maxlength="40" placeholder="기타 부서 입력" data-i18n-ph="ui.deptCustomPh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));display:none;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.email">회사 이메일</label>
+          <input type="email" id="uiEmail" maxlength="100" placeholder="예: name@knknara.co.kr" data-i18n-ph="ui.emailPh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.phone">전화번호</label>
+          <input type="tel" id="uiPhone" maxlength="30" placeholder="예: 010-1234-5678 또는 02-555-1234" data-i18n-ph="ui.phonePh" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));">
           <div id="uiCeoFields" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">
-            <label style="font-size:12px;color:var(--text-soft);">표시명 (관리자만 변경)</label>
-            <input type="text" id="uiDisplayName" maxlength="40" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:100%;">
+            <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);" data-i18n="ui.displayName">표시명 (관리자만 변경)</label>
+            <input type="text" id="uiDisplayName" maxlength="40" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));width:100%;">
             <div id="uiRoleRow">
-              <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">권한 <span style="color:#9CA3AF;font-size:11px;">(관리자 선정·해지는 최고관리자만 가능)</span></label>
-              <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;">
-                <input type="checkbox" id="uiRoleCeo"> <span>👑 <b>관리자 권한</b> — 직원 등록·정보 수정·계정 비활성화·삭제 가능</span>
+              <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);margin-top:10px;display:block;">권한 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));">(관리자 선정·해지는 최고관리자만 가능)</span></label>
+              <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;background:#FEF3C7;color:#1F2937;border:1px solid #F59E0B;border-radius:6px;">
+                <input type="checkbox" id="uiRoleCeo"> <span data-i18n-html="ui.roleCeoChk">👑 <b>관리자 권한</b> — 직원 등록·정보 수정·계정 비활성화·삭제 가능</span>
               </label>
             </div>
-            <label style="font-size:12px;color:var(--text-soft);margin-top:10px;display:block;">계정 활성/비활성 (퇴사 시 1차 처리)</label>
+            <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);margin-top:10px;display:block;" data-i18n="ui.activeLabel">계정 활성/비활성 (퇴사 시 1차 처리)</label>
             <label class="rs-checkbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="uiActive"> <span>활성 (체크 해제 시 로그인 차단 — 데이터 보존)</span>
+              <input type="checkbox" id="uiActive"> <span data-i18n="ui.activeChk">활성 (체크 해제 시 로그인 차단 — 데이터 보존)</span>
             </label>
             <div style="margin-top:12px;">
-              <button type="button" id="uiResetPwBtn" class="secondary-btn" style="font-size:12px;">📱 전화번호로 비밀번호 초기화</button>
-              <div style="font-size:11px;color:var(--text-soft);margin-top:4px;line-height:1.5;">비밀번호를 이 사용자의 <b>전화번호(숫자만)</b>로 초기화합니다. 사용자는 첫 로그인 시 새 비밀번호를 설정하게 됩니다.</div>
+              <button type="button" id="uiResetPwBtn" class="secondary-btn" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n="ui.resetPw">📱 전화번호로 비밀번호 초기화</button>
+              <div style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-top:4px;line-height:1.5;" data-i18n-html="ui.resetPwHint">비밀번호를 이 사용자의 <b>전화번호(숫자만)</b>로 초기화합니다. 사용자는 첫 로그인 시 새 비밀번호를 설정하게 됩니다.</div>
             </div>
             <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #FCA5A5;">
-              <div style="font-size:12px;color:#991B1B;font-weight:600;margin-bottom:6px;">⚠ 위험 구역 — 계정 완전 삭제</div>
-              <div style="font-size:11px;color:var(--text-soft);line-height:1.5;margin-bottom:8px;">
+              <div style="font-size:calc(12px + var(--fs-add-ui));color:#991B1B;font-weight:600;margin-bottom:6px;" data-i18n="ui.dangerZone">⚠ 위험 구역 — 계정 완전 삭제</div>
+              <div style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);line-height:1.5;margin-bottom:8px;">
                 이 사용자의 계정을 영구 삭제합니다. 메시지·이력은 <b>"(삭제된 사용자)"</b> 로 표시되며 데이터 자체는 보존됩니다 (감사 추적용).<br>
                 되돌릴 수 없으므로 일반적으로는 <b>비활성화</b>를 먼저 사용하세요.
               </div>
-              <button type="button" id="uiDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:12px;font-weight:600;">🗑 이 계정 완전 삭제</button>
+              <button type="button" id="uiDeleteBtn" class="rs-act-btn rs-danger" style="background:#FEE2E2;border-color:#F87171;color:#991B1B;padding:6px 12px;font-size:calc(12px + var(--fs-add-ui));font-weight:600;" data-i18n="ui.deleteAcct">🗑 이 계정 완전 삭제</button>
             </div>
           </div>
         </div>
         <div class="dialog-actions">
-          <button type="button" data-close>취소</button>
-          <button type="button" id="uiChangePwBtn" class="secondary-btn" hidden>🔐 비밀번호 변경</button>
-          <button type="button" id="uiSaveBtn" class="primary-btn">저장</button>
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
+          <button type="button" id="uiChangePwBtn" class="secondary-btn" hidden data-i18n="ui.changePw">🔐 비밀번호 변경</button>
+          <button type="button" id="uiSaveBtn" class="primary-btn" data-i18n="btn.save">저장</button>
         </div>
       </div>
     </div>
@@ -567,17 +814,159 @@
       <div class="modal-content big-dialog">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <header class="big-dialog-head">
-          <h3>📚 프로젝트 이력</h3>
+          <h3 data-i18n="hist.title">📚 프로젝트 이력</h3>
           <div id="phRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
         </header>
-        <p class="dialog-hint">매일 자동 + 수동 즉시 갱신. 마지막 이력 이후 새 메시지를 AI 가 요약하고 첨부파일 목록을 첨부합니다. 향후 HAIST WORKS 프로젝트 이력으로 자동 전송됩니다.</p>
+        <div class="ph-intro">
+          <span class="ph-intro-badge">공식 기록</span>
+          <span class="dialog-hint" style="margin:0;" data-i18n="hist.desc">마지막 이력 이후 새 메시지를 AI가 요약해 <b>프로젝트 진행 기록</b>으로 누적합니다(첨부파일 목록 포함). 매일 자동 + 아래 ‘지금 갱신’으로 즉시 생성. → HAIST WORKS 프로젝트 이력으로 전송됩니다. <i>(그때그때 빠른 읽기는 ‘AI 요약’을 쓰세요)</i></span>
+        </div>
         <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <button type="button" id="phGenerateBtn" class="primary-btn">✨ 지금 갱신 (마지막 이후 새 메시지 요약)</button>
-          <button type="button" id="phCopyAllBtn" class="secondary-btn">📋 전체 복사</button>
+          <button type="button" id="phGenerateBtn" class="primary-btn" style="display:inline-flex;align-items:center;gap:6px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span><span data-i18n="hist.generate">지금 갱신 (마지막 이후 새 메시지 요약)</span></button>
+          <button type="button" id="phCopyAllBtn" class="secondary-btn" data-i18n="hist.copyAll">📋 전체 복사</button>
         </div>
         <div id="phList" style="overflow-y:auto;max-height:65vh;padding-right:4px;"></div>
         <div class="dialog-actions">
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🧵 이 방의 스레드 다이얼로그 (대표 지시 2026-05-27) -->
+    <div class="modal" id="roomThreadsDialog" data-modal>
+      <div class="modal-content" style="max-width:560px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3 data-i18n="thread.title">🧵 스레드</h3>
+        <div id="roomThreadsRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
+        <div class="gtabs" id="roomThreadsTabs" style="margin-top:10px;">
+          <button type="button" class="gtab active" data-thr-tab="my" data-i18n="thread.tabMy">내 스레드</button>
+          <button type="button" class="gtab" data-thr-tab="all" data-i18n="thread.tabAll">방 전체</button>
+        </div>
+        <div id="roomThreadsBody" style="margin-top:10px;height:55vh;min-height:55vh;max-height:55vh;overflow-y:auto;">
+          <div style="text-align:center;color:var(--text-soft);padding:20px;">⏳ 불러오는 중...</div>
+        </div>
+        <div class="dialog-actions">
           <button type="button" data-close>닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🤝 고객사 게스트 초대 다이얼로그 (대표 지시 2026-05-28) -->
+    <div class="modal" id="guestInviteDialog" data-modal>
+      <div class="modal-content" style="max-width:520px;">
+        <button type="button" class="close-x modal-close-x" data-close>✕</button>
+        <h3 data-i18n="guest.title">🤝 고객사 초대</h3>
+        <div id="guestInviteRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
+        <!-- 책갈피 탭 — 게스트 입력 / 활성 목록 (대표 지시 2026-05-30) -->
+        <div class="gi-tabs">
+          <button type="button" class="gi-tab active" data-gi-tab="invite" data-i18n="guest.tabInvite">✏️ 게스트 초대</button>
+          <button type="button" class="gi-tab" data-gi-tab="list"><span data-i18n="guest.tabList">📋 활성 목록</span><span id="giListCount" class="gi-count"></span></button>
+        </div>
+        <!-- 탭1: 게스트 초대 입력 -->
+        <div id="guestPaneInvite" class="gi-pane">
+        <p class="dialog-hint" data-i18n="guest.desc">QR 코드를 발행해 외부 담당자를 이 대화방에 초대합니다. 휴대폰 번호 매칭으로 인증되며, 외부 사용자는 메시지·번역·파일·스레드만 사용 가능합니다 (AI·이력·다른 방 차단).</p>
+        <!-- 초대 권한 안내 (대표 지시 2026-05-30) -->
+        <div style="font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:2px 0 4px;line-height:1.6;" data-i18n-html="guest.permInfo">
+          <b>🔑 초대 권한</b> · <b>1:1 방</b>: 참여자 누구나 · <b>그룹·프로젝트 방</b>: 방장·PM·관리자 · <b>채널·메모방</b>: 초대 불가
+        </div>
+        <!-- 현재 방에서 초대 불가일 때 (채널 등) — 발행 비활성 + 사유 -->
+        <div id="guestInviteNoPerm" hidden style="font-size:calc(12px + var(--fs-add-ui));color:#fff;background:#b91c1c;border-radius:8px;padding:8px 10px;margin:4px 0;line-height:1.5;"></div>
+
+        <!-- 입력 폼 -->
+        <div id="guestInviteForm" class="gi-form-grid">
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.name">고객명 *</span>
+            <input type="text" id="guestName" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-name-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: 김철수" data-i18n-ph="guest.namePh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.company">회사명 *</span>
+            <input type="text" id="guestCompany" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-company-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: ㈜고객사" data-i18n-ph="guest.companyPh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.dept">부서명 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.optional">(선택)</span></span>
+            <input type="text" id="guestDept" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-dept-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: 구매팀" data-i18n-ph="guest.deptPh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.titleField">직책 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.titleNote">(선택)</span></span>
+            <input type="text" id="guestTitle" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-title-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: 부장, 대리, 과장" data-i18n-ph="guest.titlePh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.duty">담당업무 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.optional">(선택)</span></span>
+            <input type="text" id="guestDuty" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-duty-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: 자재 구매 담당" data-i18n-ph="guest.dutyPh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.email">이메일 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.optional">(선택)</span></span>
+            <input type="email" id="guestEmail" readonly onfocus="this.removeAttribute('readonly')" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-email-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="예: hong@company.com" data-i18n-ph="guest.emailPh" autocomplete="off">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.phone">전화번호 * <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.phoneNote">(본인 확인용)</span></span>
+            <input type="tel" id="guestPhone" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-phone-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));" placeholder="010-1234-5678" data-i18n-ph="guest.phonePh">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.expires">만료 기간</span>
+            <select id="guestExpires" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:calc(13px + var(--fs-add-ui));">
+              <option value="1" data-i18n="guest.exp1">1일</option>
+              <option value="3" data-i18n="guest.exp3">3일</option>
+              <option value="7" selected data-i18n="guest.exp7">7일 (기본)</option>
+              <option value="30" data-i18n="guest.exp30">30일</option>
+              <option value="0" data-i18n="guest.expNone">무제한</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span><span data-i18n="guest.langLabel">고객사 언어</span> <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.langSub">(초대 메시지·입장 화면)</span></span>
+            <select id="guestLang" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:calc(13px + var(--fs-add-ui));">
+              <option value="ko" selected>한국어</option>
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+            </select>
+          </label>
+          <label class="gi-full" style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span data-i18n="guest.note">참고사항 <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.optional">(선택)</span></span>
+            <textarea id="guestNote" rows="2" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="gi-note-nofill" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:calc(13px + var(--fs-add-ui));resize:vertical;" placeholder="예: 납품 일정 협의 건" data-i18n-ph="guest.notePh"></textarea>
+          </label>
+          <!-- 고객사 로고(선택) — 입장 페이지에 표시. 없으면 회사명. (대표 지시 2026-05-31) -->
+          <label class="gi-full" style="display:flex;flex-direction:column;gap:3px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">
+            <span><span data-i18n="guest.logoLabel">고객사 로고</span> <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="guest.logoSub">(선택 · 입장 화면에 표시)</span></span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div id="guestLogoPreview" style="width:46px;height:46px;border-radius:8px;border:1px solid var(--border);background:#fff;display:grid;place-items:center;font-size:9px;color:#9ca3af;text-align:center;line-height:1.1;overflow:hidden;flex-shrink:0;" data-i18n-html="guest.logoNone">로고<br>없음</div>
+              <input type="file" id="guestLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;">
+              <button type="button" id="guestLogoBtn" class="secondary-btn" style="padding:6px 12px;font-size:calc(12px + var(--fs-add-ui));" data-i18n="guest.logoSelect">📷 로고 선택</button>
+              <button type="button" id="guestLogoClearBtn" class="secondary-btn" style="padding:6px 10px;font-size:calc(12px + var(--fs-add-ui));display:none;" data-i18n="guest.logoClear">제거</button>
+            </div>
+          </label>
+        </div>
+
+        <!-- 발행 결과 (성공 시 표시) — 여백 슬림(스크롤 방지, 대표 지시 2026-05-30) -->
+        <div id="guestInviteResult" hidden style="margin-top:10px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+          <div id="guestResultTitle" style="font-size:calc(12.5px + var(--fs-add-ui));color:var(--text);font-weight:700;text-align:center;margin-bottom:6px;"></div>
+          <div style="display:flex;justify-content:center;margin-bottom:6px;">
+            <div id="guestQrBox" style="padding:8px;background:#fff;border-radius:8px;"></div>
+          </div>
+          <div style="font-size:calc(12px + var(--fs-add-ui));color:var(--text);font-weight:600;text-align:center;margin-bottom:2px;" id="guestResultPerson">—</div>
+          <div style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);text-align:center;margin-bottom:7px;" id="guestResultExpiry"></div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="guestResultUrl" readonly style="flex:1;padding:6px 8px;font-size:calc(11px + var(--fs-add-ui));border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:monospace;">
+            <button type="button" id="guestCopyUrlBtn" class="secondary-btn" style="padding:6px 12px;font-size:calc(12px + var(--fs-add-ui));" data-i18n="btn.copy">📋 복사</button>
+          </div>
+          <!-- 혜택 중심 카톡 초대메시지 한 번에 복사 (대표 지시 2026-05-31) -->
+          <button type="button" id="guestCopyMsgBtn" class="primary-btn" style="width:100%;margin-top:8px;padding:9px;font-size:calc(12.5px + var(--fs-add-ui));font-weight:700;" data-i18n="guest.copyInviteMsg">💬 카톡 초대메시지 복사</button>
+          <div style="display:flex;justify-content:center;margin-top:7px;">
+            <button type="button" id="guestResultBackBtn" class="secondary-btn" style="padding:6px 14px;font-size:calc(12px + var(--fs-add-ui));" data-i18n="guest.backToList">← 목록으로</button>
+          </div>
+        </div>
+        </div><!-- /guestPaneInvite -->
+
+        <!-- 탭2: 활성 초대 목록 (이 탭만 전체 공간 + 내부 스크롤) -->
+        <div id="guestPaneList" class="gi-pane" hidden>
+          <div id="guestInviteList" style="overflow-y:auto;">
+            <div class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);text-align:center;padding:10px;" data-i18n="guest.loading">불러오는 중...</div>
+          </div>
+        </div>
+
+        <div class="dialog-actions" style="margin-top:14px;">
+          <button type="button" id="guestInviteCreateBtn" class="primary-btn" data-i18n="guest.create">✨ QR 코드 발행</button>
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
         </div>
       </div>
     </div>
@@ -586,23 +975,27 @@
     <div class="modal" id="aiSummaryDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>🧠 AI 요약</h3>
+        <h3 data-i18n="aiSummary.title">🧠 AI 요약</h3>
         <div id="aiSummaryRoomName" class="dialog-hint" style="font-weight:600;color:var(--text);"></div>
-        <div id="aiSummaryRangeBar" style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
-          <button type="button" class="secondary-btn ai-range-btn" data-limit="40">최근 40개</button>
-          <button type="button" class="secondary-btn ai-range-btn" data-limit="80">최근 80개</button>
-          <button type="button" class="secondary-btn ai-range-btn" data-limit="200">최근 200개</button>
-          <button type="button" class="secondary-btn ai-range-btn" data-since="today">오늘</button>
-          <button type="button" class="secondary-btn ai-range-btn" data-since="yesterday">어제</button>
-          <button type="button" class="secondary-btn ai-range-btn" data-since="week">최근 7일</button>
+        <div class="ai-range-hint"><span data-i18n="aiSummary.rangeHint">요약 범위를 골라주세요</span> <span data-i18n="aiSummary.rangeHintSub">(숫자 = 최근 대화 개수 · 오늘·어제·최근 7일 = 기간)</span></div>
+        <div id="aiSummaryRangeBar">
+          <span class="ai-range-rowlabel" data-i18n="aiSummary.rowCount">📊 개수</span>
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="40" data-i18n="aiSummary.range.40" title="가장 최근 메시지 40개를 요약 (가볍고 빠름)">최근 40개</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="80" data-i18n="aiSummary.range.80" title="가장 최근 메시지 80개를 요약 (기본값)">최근 80개</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-limit="200" data-i18n="aiSummary.range.200" title="가장 최근 메시지 200개를 요약 (길게 정리)">최근 200개</button>
+          <span class="ai-range-rowlabel" data-i18n="aiSummary.rowPeriod">📅 기간</span>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="today" data-i18n="aiSummary.range.today" title="오늘(0시 이후) 올라온 대화를 요약">오늘</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="yesterday" data-i18n="aiSummary.range.yesterday" title="어제부터 지금까지 대화를 요약">어제</button>
+          <button type="button" class="secondary-btn ai-range-btn" data-since="week" data-i18n="aiSummary.range.week" title="최근 7일간 대화를 요약">최근 7일</button>
         </div>
-        <div id="aiSummaryBody" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:14px;min-height:120px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;color:#1F2937;">
+        <div id="aiSummaryBody" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;height:min(46vh,360px);overflow-y:auto;font-size:calc(13.5px + var(--fs-add-ui));line-height:1.7;white-space:pre-wrap;word-break:break-word;color:var(--text);">
           버튼을 눌러 요약을 생성하세요.
         </div>
-        <div id="aiSummaryMeta" style="font-size:11px;color:var(--text-soft);margin-top:8px;"></div>
+        <div id="aiSummaryMeta" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-top:8px;"></div>
         <div class="dialog-actions">
-          <button type="button" id="aiSummaryRegenBtn" class="secondary-btn">🔄 다시 생성</button>
-          <button type="button" id="aiSummaryCopyBtn" class="secondary-btn">📋 복사</button>
+          <button type="button" id="aiSummaryGenBtn" class="primary-btn" data-i18n="aiSummary.genBtn">🧠 요약하기</button>
+          <button type="button" id="aiSummaryRegenBtn" class="secondary-btn" data-i18n="aiSummary.regenBtn">🔄 다시 생성</button>
+          <button type="button" id="aiSummaryCopyBtn" class="secondary-btn" data-i18n="btn.copy">📋 복사</button>
           <button type="button" data-close>닫기</button>
         </div>
       </div>
@@ -610,21 +1003,21 @@
 
     <!-- ✨ 작성 도움 톤 선택 팝업 (인라인) -->
     <div id="aiRewriteMenu" class="msg-context-menu" style="display:none;position:fixed;z-index:9999;min-width:180px;">
-      <div class="mcm-section-label">작성 도움 — 톤 선택</div>
+      <div class="mcm-section-label" data-i18n="aiRewrite.menuLabel">작성 도움 — 톤 선택</div>
       <button type="button" class="mcm-item" data-tone="formal">
-        <span class="mcm-icon">📑</span><span>정중하게 (존댓말)</span>
+        <span class="mcm-icon">📑</span><span data-i18n="aiRewrite.formal">정중하게 (존댓말)</span>
       </button>
       <button type="button" class="mcm-item" data-tone="short">
-        <span class="mcm-icon">✂️</span><span>짧게 (1~2 문장)</span>
+        <span class="mcm-icon">✂️</span><span data-i18n="aiRewrite.short">짧게 (1~2 문장)</span>
       </button>
       <button type="button" class="mcm-item" data-tone="professional">
-        <span class="mcm-icon">💼</span><span>전문가 톤 (보고서)</span>
+        <span class="mcm-icon">💼</span><span data-i18n="aiRewrite.professional">전문가 톤 (보고서)</span>
       </button>
       <button type="button" class="mcm-item" data-tone="polite">
-        <span class="mcm-icon">🤝</span><span>외부 거래처 정중</span>
+        <span class="mcm-icon">🤝</span><span data-i18n="aiRewrite.polite">외부 거래처 정중</span>
       </button>
       <button type="button" class="mcm-item" data-tone="casual">
-        <span class="mcm-icon">💬</span><span>동료 간 가볍게</span>
+        <span class="mcm-icon">💬</span><span data-i18n="aiRewrite.casual">동료 간 가볍게</span>
       </button>
     </div>
 
@@ -632,70 +1025,43 @@
     <div class="modal" id="statusDialog" data-modal>
       <div class="modal-content" style="max-width:480px;">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>🟢 내 상태</h3>
+        <h3 data-i18n="dlg.status.title">🟢 내 상태</h3>
         <p class="dialog-hint" style="margin-bottom:10px;">
-          다른 사람에게 표시되는 내 상태입니다. 자리비움·휴가일 때 답이 늦어질 수 있음을 미리 알려둘 수 있어요.<br>
-          <span style="color:var(--accent);font-size:11px;">💡 카드를 <b>더블클릭</b> 하면 즉시 적용됩니다.</span>
+          <span data-i18n="dlg.status.hint">다른 사람에게 표시되는 내 상태입니다. 회의·외근·휴가일 때 답이 늦어질 수 있음을 미리 알려둘 수 있어요.</span><br>
+          <span style="color:var(--accent);font-size:calc(11px + var(--fs-add-ui));" data-i18n-html="dlg.status.dblclick">💡 카드를 <b>더블클릭</b> 하면 즉시 적용됩니다.</span>
         </p>
+        <div style="margin-bottom:10px;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);display:block;margin-bottom:3px;" data-i18n="label.statusCustom">사용자 정의 문구 (선택)</label>
+          <input type="text" id="statusCustomText" maxlength="80" placeholder="예: HAIST WORKS 운영 중" style="width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:calc(13px + var(--fs-add-ui));box-sizing:border-box;" data-i18n-ph="ph.statusCustomEx">
+        </div>
         <div id="statusOptionsArea" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;"></div>
+        <!-- 상태 기한(회의·외근=시각 / 출장·휴가=종료일)은 각 상태 카드 안 입력칸에서 직접 입력 — app.js 카드 렌더 (대표 지시 2026-06-07) -->
         <!-- 글씨 크기 (앱 전체) — 대표 지시 2026-05-20 -->
         <div style="margin-top:4px;margin-bottom:6px;">
-          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:4px;">글씨 크기 <span style="color:#9CA3AF;font-size:11px;">(앱 전체 · 이 기기에 저장)</span></label>
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);display:block;margin-bottom:4px;"><span data-i18n="label.fontSize">글씨 크기</span> <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="label.fontSizeNote">(앱 전체 · 이 기기에 저장)</span></label>
           <div id="fontSizeOptions">
-            <button type="button" class="fs-opt" data-fs="0">더작게</button>
-            <button type="button" class="fs-opt" data-fs="1">작게</button>
-            <button type="button" class="fs-opt" data-fs="2">표준</button>
-            <button type="button" class="fs-opt" data-fs="3">크게</button>
-            <button type="button" class="fs-opt" data-fs="4">더크게</button>
+            <button type="button" class="fs-opt" data-fs="0" data-i18n="fs.0">더작게</button>
+            <button type="button" class="fs-opt" data-fs="1" data-i18n="fs.1">작게</button>
+            <button type="button" class="fs-opt" data-fs="2" data-i18n="fs.2">표준</button>
+            <button type="button" class="fs-opt" data-fs="3" data-i18n="fs.3">크게</button>
+            <button type="button" class="fs-opt" data-fs="4" data-i18n="fs.4">더크게</button>
+            <button type="button" class="fs-opt" data-fs="5" data-i18n="fs.5">아주크게</button>
           </div>
         </div>
-        <div style="margin-top:8px;">
-          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:3px;">사용자 정의 문구 (선택)</label>
-          <input type="text" id="statusCustomText" maxlength="80" placeholder="예: HAIST WORKS 운영 중" style="width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;">
-        </div>
-        <div style="margin-top:8px;">
-          <label style="font-size:12px;color:var(--text-soft);display:block;margin-bottom:3px;">
-            자동 해제 시각 (선택)
-            <span style="font-weight:normal;color:#9CA3AF;font-size:10.5px;">— 이 시각이 지나면 자동으로 기본('💻 컴퓨터'/'📱 휴대폰') 으로 복귀 (예: 회의 종료 시각)</span>
-          </label>
-          <input type="datetime-local" id="statusUntilAt" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-        </div>
-        <details class="status-calendar-collapsible" style="margin-top:12px;">
-          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text);padding:6px 0;">
-            📅 일정 추가 (자동 회의 중 전환)
-          </summary>
-          <div style="padding-top:8px;">
-            <p style="font-size:11px;color:var(--text-soft);margin:0 0 8px;">일정을 등록하면 시작 시각에 자동으로 '🤝 회의 중' 으로 바뀌고, 종료 시각에 자동 해제됩니다.</p>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;">
-              <div style="flex:1;min-width:140px;">
-                <label style="font-size:11px;color:var(--text-soft);">제목</label>
-                <input type="text" id="calTitle" maxlength="80" placeholder="회의 / 외근" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;">
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--text-soft);">시작</label>
-                <input type="datetime-local" id="calStart" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--text-soft);">종료</label>
-                <input type="datetime-local" id="calEnd" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--text-soft);">종류</label>
-                <select id="calKind" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
-                  <option value="meeting">🤝 회의</option>
-                  <option value="external">🚗 외근</option>
-                  <option value="busy">🔴 바쁨</option>
-                </select>
-              </div>
-              <button type="button" id="calAddBtn" class="primary-btn" style="height:32px;">＋ 추가</button>
-            </div>
-            <div id="calEventList" style="margin-top:8px;max-height:120px;overflow-y:auto;"></div>
+        <!-- 화면 테마 (대표 지시 2026-05-28) -->
+        <div style="margin-top:8px;margin-bottom:6px;">
+          <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);display:block;margin-bottom:4px;"><span data-i18n="label.theme">화면 테마</span> <span style="color:var(--text-soft);font-size:calc(11px + var(--fs-add-ui));" data-i18n="label.themeNote">(모든 기기 동기화)</span></label>
+          <div id="themeOptions">
+            <button type="button" class="theme-opt" data-theme-id="light"><span class="theme-swatch"></span><span data-i18n="theme.light">🌞 라이트</span></button>
+            <button type="button" class="theme-opt" data-theme-id="dark"><span class="theme-swatch"></span><span data-i18n="theme.dark">🌙 다크</span></button>
+            <button type="button" class="theme-opt" data-theme-id="sage"><span class="theme-swatch"></span><span data-i18n="theme.sage">🌿 세이지</span></button>
+            <button type="button" class="theme-opt" data-theme-id="cream"><span class="theme-swatch"></span><span data-i18n="theme.cream">🍦 크림</span></button>
+            <button type="button" class="theme-opt" data-theme-id="sky"><span class="theme-swatch"></span><span data-i18n="theme.sky">☁️ 스카이</span></button>
           </div>
-        </details>
+        </div>
         <div class="dialog-actions">
-          <button type="button" data-close>취소</button>
-          <button type="button" id="statusChangePwBtn" class="secondary-btn">🔐 비밀번호 변경</button>
-          <button type="button" id="statusSaveBtn" class="primary-btn">저장</button>
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
+          <button type="button" id="statusSaveBtn" class="primary-btn" data-i18n="btn.save">저장</button>
         </div>
       </div>
     </div>
@@ -704,19 +1070,19 @@
     <div class="modal" id="searchHelpDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>🔍 검색 필터</h3>
-        <p class="dialog-hint">검색어와 함께 다음 필터를 조합할 수 있습니다 (공백으로 구분).</p>
-        <div style="font-size:13px;line-height:1.8;">
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">from:김정락</code> — 발신자 이름</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">in:영업</code> — 방 이름 (in:#영업 도 가능)</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:file</code> — 첨부파일 있는 메시지만</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:image</code> — 이미지 메시지만</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">has:link</code> — http(s) 링크 포함 메시지만</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">before:2026-05-01</code> — 이 날짜 이전</div>
-          <div><code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;">after:2026-04-01</code> — 이 날짜 이후</div>
+        <h3 data-i18n="searchHelp.title">🔍 검색 필터</h3>
+        <p class="dialog-hint" data-i18n="searchHelp.hint">검색어와 함께 다음 필터를 조합할 수 있습니다 (공백으로 구분).</p>
+        <div style="font-size:calc(13px + var(--fs-add-ui));line-height:1.8;">
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">from:김정락</code> — 발신자 이름</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">in:영업</code> — 방 이름 (in:#영업 도 가능)</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">has:file</code> — 첨부파일 있는 메시지만</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">has:image</code> — 이미지 메시지만</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">has:link</code> — http(s) 링크 포함 메시지만</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">before:2026-05-01</code> — 이 날짜 이전</div>
+          <div><code style="background:var(--bg);color:var(--text);padding:2px 6px;border-radius:3px;">after:2026-04-01</code> — 이 날짜 이후</div>
         </div>
-        <h4 style="margin-top:18px;font-size:13px;">예시</h4>
-        <div style="font-size:12.5px;color:var(--text-soft);line-height:1.7;">
+        <h4 style="margin-top:18px;font-size:calc(13px + var(--fs-add-ui));">예시</h4>
+        <div style="font-size:calc(12.5px + var(--fs-add-ui));color:var(--text-soft);line-height:1.7;">
           <div><code>발주 from:김정락 has:file</code> → 대표가 보낸 첨부 있는 "발주" 메시지</div>
           <div><code>견적 before:2026-05-01 after:2026-04-01</code> → 4월 한 달간 "견적" 메시지</div>
           <div><code>in:삼성전자 has:image</code> → 삼성전자 방의 이미지 메시지</div>
@@ -730,12 +1096,16 @@
     <div class="modal" id="inviteDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>👥 멤버 초대</h3>
-        <p class="dialog-hint">초대할 사람을 선택하세요. 이미 멤버는 자동 제외됩니다.</p>
+        <h3 data-i18n="rs.invite">👥 멤버 초대</h3>
+        <p class="dialog-hint" data-i18n="dlg.invite.hint">초대할 사람을 선택하세요. 이미 멤버는 자동 제외됩니다.</p>
+        <div class="user-picker-search-wrap">
+          <input type="text" id="inviteSearch" readonly onfocus="this.removeAttribute('readonly')" class="user-picker-search" placeholder="🔍 이름·직급·부서로 검색" autocomplete="off" data-i18n-ph="ph.userSearch">
+          <span class="user-picker-count" id="invitePickerCount"></span>
+        </div>
         <div id="invitePicker" class="user-picker"></div>
         <div class="dialog-actions">
-          <button type="button" data-close>취소</button>
-          <button type="button" id="confirmInvite">초대</button>
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
+          <button type="button" id="confirmInvite" data-i18n="btn.invite">초대</button>
         </div>
       </div>
     </div>
@@ -745,15 +1115,15 @@
         <header class="big-dialog-head">
           <h3 id="galleryTitle">사진·파일 갤러리</h3>
           <div class="gallery-tabs">
-            <button type="button" class="gtab active" data-gtab="image">🖼 사진</button>
-            <button type="button" class="gtab" data-gtab="file">📎 파일</button>
-            <button type="button" class="gtab" data-gtab="timeline">📋 타임라인</button>
+            <button type="button" class="gtab active" data-gtab="image" data-i18n="gallery.tabImage">🖼 사진</button>
+            <button type="button" class="gtab" data-gtab="file" data-i18n="gallery.tabFile">📎 파일</button>
+            <button type="button" class="gtab" data-gtab="timeline" data-i18n="gallery.tabTimeline">📋 타임라인</button>
           </div>
           <button type="button" class="close-x" id="closeGallery" data-close title="닫기 (ESC)">✕</button>
         </header>
         <div class="gallery-content" id="galleryContent"></div>
         <div class="requests-actions">
-          <button type="button" class="secondary-btn" data-close>✕ 닫기</button>
+          <button type="button" class="secondary-btn" data-close data-i18n="btn.closeX">✕ 닫기</button>
         </div>
       </div>
     </div>
@@ -761,12 +1131,13 @@
     <div class="modal" id="digestDialog" data-modal>
       <div class="modal-content big-dialog">
         <header class="big-dialog-head">
-          <h3>🌅 오늘 할 일 — KNK 다이제스트</h3>
+          <h3 data-i18n="digest.title">🌅 오늘 할 일 — KNK 다이제스트</h3>
           <button type="button" class="close-x" id="closeDigest" data-close title="닫기 (ESC)">✕</button>
         </header>
         <div class="gallery-content" id="digestContent"></div>
         <div class="requests-actions">
-          <button type="button" class="secondary-btn" data-close>✕ 닫기</button>
+          <button type="button" class="secondary-btn" id="digestDismissToday" title="오늘은 로그인/재실행해도 자동으로 안 뜹니다 (날짜가 바뀌면 다시 뜸)" data-i18n="digest.dismissToday">🚫 오늘 더 이상 열지 않기</button>
+          <button type="button" class="secondary-btn" data-close data-i18n="btn.closeX">✕ 닫기</button>
         </div>
       </div>
     </div>
@@ -775,78 +1146,535 @@
     <div class="modal" id="notifySettingsDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>🔔 알림 설정</h3>
-        <p class="dialog-hint">새 메시지 도착 시 어떤 알림을 받을지 선택하세요. 휴대폰·PC 동일 적용.</p>
+        <h3 data-i18n="set.title">⚙ 설정</h3>
+
+        <!-- 화면 언어 전환 (한/베/영) — 항상 보임 (대표 지시 2026-05-25, 베트남 법인) -->
+        <div class="lang-switch-row" id="langSwitchRow">
+          <span class="lang-switch-label" data-i18n="settings.lang.title">언어 / Language</span>
+          <div class="lang-switch-btns">
+            <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+            <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
+            <button type="button" class="lang-btn" data-lang="en">English</button>
+            {# 中文 — 직원·고객 모두 노출 (대표 지시 2026-06-01, 어제 '고객사 전용' 한정 해제) #}
+            <button type="button" class="lang-btn" data-lang="zh">中文</button>
+          </div>
+        </div>
+
+        <div class="dialog-tabs" id="settingsTabs">
+          <button type="button" class="tab active" data-tab="notify" data-i18n="set.tab.notify">🔔 알림</button>
+          <button type="button" class="tab" data-tab="security" data-i18n="set.tab.security">🔒 보안</button>
+          <button type="button" class="tab" data-tab="help" data-i18n="set.tab.help">❓ 사용법</button>
+          <button type="button" class="tab" data-tab="admin" id="settingsTabAdmin" data-i18n="set.tab.admin" hidden>🛠 관리자</button>
+        </div>
+
+        <!-- ░░ 탭: 알림 (소리·화면 알림·푸시 진단) ░░ -->
+        <div class="tab-pane active" data-tab-pane="notify">
+        <p class="dialog-hint" data-i18n="set.notify.hint">새 메시지 도착 시 어떤 알림을 받을지 선택하세요. 휴대폰·PC 동일 적용.</p>
 
         <section class="ns-section">
-          <h4>🔊 소리</h4>
+          <h4 data-i18n="set.sound">🔊 소리</h4>
           <label class="ns-row">
             <input type="checkbox" id="nsSound">
-            <span class="ns-label">새 메시지 소리 알림</span>
+            <span class="ns-label" data-i18n="set.sound.enable">새 메시지 소리 알림</span>
           </label>
           <div class="ns-row ns-indent">
-            <span class="ns-sub">음량</span>
+            <span class="ns-sub" data-i18n="set.volume">음량</span>
             <input type="range" id="nsVolume" min="0" max="100" value="50">
             <span class="ns-pct" id="nsVolumePct">50%</span>
           </div>
           <div class="ns-row ns-indent">
-            <span class="ns-sub">사운드 종류</span>
+            <span class="ns-sub" data-i18n="set.soundType">사운드 종류</span>
             <select id="nsSoundType">
-              <option value="ding">딩 (기본 — 빠른 종소리)</option>
-              <option value="chime">차임 (두 음 — 부드러움)</option>
-              <option value="soft">소프트 (약한 울림)</option>
+              <option value="ding" data-i18n="opt.sound.ding">딩 (기본 — 빠른 종소리)</option>
+              <option value="chime" data-i18n="opt.sound.chime">차임 (두 음 — 부드러움)</option>
+              <option value="soft" data-i18n="opt.sound.soft">소프트 (약한 울림)</option>
             </select>
-            <button type="button" id="nsSoundPreview" class="ns-preview-btn">▶ 미리듣기</button>
+            <button type="button" id="nsSoundPreview" class="ns-preview-btn" data-i18n="btn.preview">▶ 미리듣기</button>
           </div>
           <label class="ns-row">
             <input type="checkbox" id="nsCurrentRoomSound">
-            <span class="ns-label">현재 보고 있는 방에서도 소리 알림</span>
+            <span class="ns-label" data-i18n="set.currentRoomSound">현재 보고 있는 방에서도 소리 알림</span>
           </label>
         </section>
 
         <section class="ns-section">
-          <h4>🖥 화면 알림</h4>
+          <h4 data-i18n="set.screen">🖥 화면 알림</h4>
           <label class="ns-row">
             <input type="checkbox" id="nsSystem">
-            <span class="ns-label">시스템 알림 (OS 알림 토스트 — 모바일 잠금화면 포함)</span>
+            <span class="ns-label" data-i18n="set.system">새 메시지 알림 받기 (보낸사람+대화방+내용 표시 - 휴대폰 잠금화면·컴퓨터 팝업 )</span>
           </label>
           <label class="ns-row">
-            <input type="checkbox" id="nsTitleBlink">
-            <span class="ns-label">탭/제목 깜빡임 (탭에 "🔔 새 메시지")</span>
-          </label>
-          <label class="ns-row">
-            <input type="checkbox" id="nsInlineToast">
-            <span class="ns-label">화면 안 토스트 (우상단 미리보기 5초)</span>
-          </label>
-          <label class="ns-row">
-            <input type="checkbox" id="nsSidebarBlink">
-            <span class="ns-label">사이드바 방 항목 깜빡임</span>
+            <input type="checkbox" id="nsHidePreview">
+            <span class="ns-label" data-i18n="set.hidePreview">🔒 팝업 알림 내용 숨기기 (보낸사람+대화방+내용 없이  "KNK message" 만 표시)</span>
           </label>
         </section>
 
         <details class="ns-section ns-collapse" id="nsPushDiagnose">
-          <summary style="cursor:pointer;list-style:none;margin:0 0 12px;font-size:14px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;">
+          <summary style="cursor:pointer;list-style:none;margin:0 0 12px;font-size:calc(14px + var(--fs-add-ui));color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px;">
             <span class="ns-collapse-arrow">▶</span>
-            📱 휴대폰 푸시 알림 진단 <span style="font-size:11px;color:var(--text-soft);font-weight:400;">(필요할 때만 펼치기)</span>
+            <span data-i18n="set.push.title">📱 휴대폰 푸시 알림 진단</span> <span style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);font-weight:400;" data-i18n="set.push.optional">(필요할 때만 펼치기)</span>
           </summary>
-          <p class="dialog-hint" style="font-size:12px;">앱이 닫혀있어도 OS 알림이 도착하려면 푸시 구독이 필요합니다. 휴대폰에서 알림 안 오면 여기서 진단·재구독.</p>
-          <div id="nsPushStatus" style="padding:8px 10px;background:#F9FAFB;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:12px;line-height:1.5;overflow-wrap:anywhere;">진단 중...</div>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n="set.push.hint">앱이 닫혀있어도 OS 알림이 도착하려면 푸시 구독이 필요합니다. 휴대폰에서 알림 안 오면 여기서 진단·재구독.</p>
+          <div id="nsPushStatus" style="padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:calc(12px + var(--fs-add-ui));line-height:1.5;overflow-wrap:anywhere;" data-i18n="set.push.diagnosing">진단 중...</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" id="nsPushTestBtn" class="ns-preview-btn">📨 테스트 알림 보내기</button>
-            <button type="button" id="nsPushSimBtn" class="ns-preview-btn" style="border-color:#A5282C;color:#A5282C;">💬 실제 수신 시뮬레이션</button>
-            <button type="button" id="nsPushResubBtn" class="ns-preview-btn" style="border-color:#6b7280;color:#374151;">🔄 푸시 재구독</button>
+            <button type="button" id="nsPushTestBtn" class="ns-preview-btn" data-i18n="set.push.test">📨 테스트 알림 보내기</button>
+            <button type="button" id="nsPushSimBtn" class="ns-preview-btn" style="border-color:#A5282C;color:#A5282C;" data-i18n="set.push.sim">💬 실제 수신 시뮬레이션</button>
+            <button type="button" id="nsPushResubBtn" class="ns-preview-btn" style="border-color:var(--text-soft);color:var(--text);" data-i18n="set.push.resub">🔄 푸시 재구독</button>
           </div>
-          <p class="dialog-hint" style="font-size:11px;margin-top:4px;color:#9CA3AF;">
+          <p class="dialog-hint" style="font-size:calc(11px + var(--fs-add-ui));margin-top:4px;color:var(--text-soft);">
             · <b>테스트 알림</b>: 푸시 인프라 자체 확인 (항상 발송)<br>
             · <b>실제 수신 시뮬레이션</b>: 다른 사람이 보낸 것처럼 — PC 켜져있으면 스킵(정상), 휴대폰만 두면 알림<br>
             · <b>휴대폰에서 로그아웃(↩)</b> 하면 폰·PC 전부 로그아웃 + <b>오프라인</b> / <b>PC 로그아웃</b>은 PC만 (휴대폰 유지)
           </p>
-          <div id="nsPushResult" style="margin-top:8px;font-size:12px;color:var(--text-soft);overflow-wrap:anywhere;"></div>
+          <div id="nsPushResult" style="margin-top:8px;font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);overflow-wrap:anywhere;"></div>
         </details>
+        </div><!-- /tab-pane notify -->
+
+        <!-- ░░ 탭: 보안 (비밀번호·화면 잠금 — 개인·비공개 설정) ░░ -->
+        <div class="tab-pane" data-tab-pane="security">
+        <section class="ns-section">
+          <h4 data-i18n="set.sec.pw">🔑 비밀번호 변경</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n="set.sec.pwHint">내 로그인 비밀번호를 변경합니다. (6자 이상 · 본인만 · 남에게 노출 안 됨)</p>
+          <button type="button" id="secChangePwBtn" class="ns-preview-btn" data-i18n="set.sec.pwBtn">🔐 비밀번호 변경</button>
+        </section>
+        <section class="ns-section">
+          <h4 data-i18n="set.sec.lock">🔒 화면 잠금 (자리 비움 보안)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n="set.sec.lockHint">자리를 비우면 화면을 가려 옆 사람이 못 보게 하고, 비밀번호 또는 지문·얼굴로 다시 엽니다. (이 기기에만 적용 · 로그인은 유지됩니다)</p>
+          <div class="ns-row ns-indent">
+            <span class="ns-sub" data-i18n="set.sec.autolock">자동 잠금</span>
+            <select id="lkTimeout">
+              <option value="0" data-i18n="opt.lock.0">미적용 (사용 안 함)</option>
+              <option value="3" data-i18n="opt.lock.3">3분 후</option>
+              <option value="5" data-i18n="opt.lock.5">5분 후</option>
+              <option value="10" data-i18n="opt.lock.10">10분 후</option>
+            </select>
+          </div>
+          <div class="ns-row" id="lkBioRow">
+            <span class="ns-label" data-i18n="set.sec.bio">지문·얼굴로 잠금 해제</span>
+            <button type="button" id="lkBioToggle" class="ns-preview-btn" data-i18n="set.sec.bioRegister">등록</button>
+          </div>
+          <div id="lkBioStatus" class="dialog-hint" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-top:2px;"></div>
+          <button type="button" id="lkTestBtn" class="ns-preview-btn" style="margin-top:8px;" data-i18n="set.sec.lockTest">🔒 지금 잠가보기 (테스트)</button>
+        </section>
+        </div><!-- /tab-pane security -->
+
+        {# 🐞 신고 폼 제거 — '메신저 문제점' 전용 채널에서 자유롭게 적는 방식으로 전환 (대표 지시 2026-06-03) #}
+
+        <!-- ░░ 탭: 관리자 — 서브탭으로 그룹화 (대표 지시 2026-05-27) ░░ -->
+        <div class="tab-pane" data-tab-pane="admin">
+
+        <!-- 서브탭 navigation — 직원 / 권한 / 운영 (대표 지시 2026-05-31 재편) -->
+        <!-- 스크롤해도 위에 고정되는 헤더(대표 지시 2026-06-06) — 데이터 행만 스크롤 -->
+        <div class="admin-subtabs-sticky">
+        <div class="admin-subtabs" id="adminSubtabs">
+          <button type="button" class="admin-subtab active" data-subtab="staff" id="adminSubtabStaff"><span class="ast-name" data-i18n="adm.tab.staff">👥 직원</span><span class="ast-gate ast-gate-admin" data-i18n="adm.gateAdmin">🔒 관리자 전용</span></button>
+          <button type="button" class="admin-subtab" data-subtab="perm" id="adminSubtabPerm"><span class="ast-name" data-i18n="adm.tab.perm">🔐 권한</span><span class="ast-gate ast-gate-admin" data-i18n="adm.gateAdmin">🔒 관리자 전용</span></button>
+          <button type="button" class="admin-subtab" data-subtab="ops" id="adminSubtabMaint"><span class="ast-name" data-i18n="adm.tab.ops">🔧 유지보수</span><span class="ast-gate ast-gate-super" data-i18n="adm.gateSuper">🔒 최고관리자 전용</span></button>
+        </div>
+        </div>
+
+        <!-- 데이터만 스크롤되는 영역 — 서브탭(직원/권한/유지보수) 헤더는 이 박스 '밖'이라 스크롤 범위에서 제외 (대표 지시 2026-06-06) -->
+        <div class="admin-scroll">
+
+        <!-- 👥 직원 서브탭 -->
+        <div class="admin-subpane" data-subpane="staff">
+        <div class="admin-gate-note gate-admin" data-i18n-html="adm.gateNoteAdmin">🔒 <b>관리자 전용</b> 구역이에요 — 일반 직원에게는 보이지 않아요.</div>
+
+        <!-- 🆔 직원 등록 (헤더에서 관리자 탭으로 이동 — 대표 지시 2026-05-26) -->
+        <section class="ns-section" id="newUserSection" hidden>
+          <h4 data-i18n="set.adm.newUser">🆔 직원 등록 (관리자)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n="adm.newUserHint">신규 직원을 추가하거나 엑셀로 일괄 등록합니다. 사번이 로그인 ID가 됩니다.</p>
+          <button type="button" id="newUserOpenBtn" class="ns-preview-btn" data-i18n="set.adm.newUserBtn">🆔 직원 등록 창 열기</button>
+        </section>
+
+        <section class="ns-section" id="notifOffSection" hidden>
+          <h4 data-i18n="set.adm.notifOff">🔔 알림 미설정 직원 (관리자)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n-html="adm.notifOffHint">아래 직원은 <b>알림(푸시)이 꺼져</b> 있어 실시간 알림을 못 받습니다. (회사 정책: 알림 필수 — 직접 독려해 주세요)</p>
+          <button type="button" id="notifOffRefreshBtn" class="ns-preview-btn" data-i18n="btn.refresh">🔄 새로고침</button>
+          <div id="notifOffSummary" class="dialog-hint" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-top:6px;"></div>
+          <button type="button" id="notifOffToggle" class="ns-preview-btn" style="margin-top:6px;display:none;" data-i18n="adm.notifOffToggle">▾ 명단 펼치기</button>
+          <div id="notifOffList" style="margin-top:6px;display:none;flex-direction:column;gap:4px;"></div>
+        </section>
+
+        <!-- 👥 직원 초대 (관리자) — 상단 '초대' 탭에서 이동. 직원 등록 후 초대하는 흐름 → 관리자만 (대표 지시 2026-06-03) -->
+        <section class="ns-section" id="empInviteSection">
+          <h4 data-i18n="adm.empInvite">👥 직원 초대 (관리자)</h4>
+          <div class="emp-invite">
+            <p class="help-p emp-invite-hint" data-i18n="invite.emp.hint">우리 직원에게 아래 링크를 보내세요. 본인 사번으로 로그인합니다.</p>
+            <div class="emp-invite-langs" id="empInviteLangs">
+              <button type="button" class="ei-lang" data-eilang="ko">한국어</button>
+              <button type="button" class="ei-lang" data-eilang="vi">Tiếng Việt</button>
+              <button type="button" class="ei-lang" data-eilang="en">English</button>
+              <button type="button" class="ei-lang" data-eilang="zh">中文</button>
+            </div>
+            <div class="emp-invite-qr" id="empInviteQr"></div>
+            <div class="emp-invite-url" id="empInviteUrl"></div>
+            <div class="emp-invite-actions">
+              <button type="button" class="primary-btn" id="empInviteCopyMsg" data-i18n="invite.emp.copyMsg">💬 메시지 복사 (카톡 붙여넣기)</button>
+              <button type="button" class="secondary-btn" id="empInviteCopyLink" data-i18n="invite.emp.copyLink">🔗 링크만 복사</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 📋 사용동의 현황 (관리자 전용) — 유지보수→직원(관리자) 탭으로 이동 (대표 지시 2026-06-06) -->
+        <section class="ns-section" id="consentSection" hidden>
+          <h4><span data-i18n="adm.consent">📋 사용동의 현황</span> <span style="font-weight:400;color:var(--text-soft);font-size:calc(12px + var(--fs-add-ui));" data-i18n="adm.adminOnlyParen">(관리자 전용)</span></h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n-html="adm.consentHint">직원들의 이용·정보보호 동의 여부. <b>미동의자가 위에 빨갛게</b> 표시됩니다. (현재 동의서 기준)</p>
+          <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;align-items:center;">
+            <button type="button" id="consentRefreshBtn" class="ns-preview-btn" style="padding:4px 10px;font-size:calc(12px + var(--fs-add-ui));" data-i18n="btn.refresh">🔄 새로고침</button>
+            <button type="button" id="consentExportBtn" class="ns-preview-btn" style="padding:4px 10px;font-size:calc(12px + var(--fs-add-ui));background:#A5282C;color:#fff;border-color:#A5282C;" data-i18n="adm.excel">📊 엑셀</button>
+          </div>
+          <div id="consentSummary" style="margin-top:6px;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:calc(12px + var(--fs-add-ui));">불러오는 중…</div>
+          <!-- 본사/베트남법인 책갈피 (대표 지시 2026-06-05) -->
+          <div id="consentCorpTabs" style="display:flex;gap:6px;margin-top:8px;">
+            <button type="button" class="consent-corp-tab" data-corp="hq" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--accent);border-radius:6px;cursor:pointer;font-weight:700;background:var(--accent);color:#fff;"><span data-i18n="corp.hqFlag">🇰🇷 본사</span> <span data-ccorp-count="hq"></span></button>
+            <button type="button" class="consent-corp-tab" data-corp="vn" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700;background:var(--surface);color:var(--text);"><span data-i18n="corp.vnFlag">🇻🇳 베트남법인</span> <span data-ccorp-count="vn"></span></button>
+          </div>
+          <div style="margin-top:8px;max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+            <table style="width:100%;border-collapse:collapse;font-size:calc(11.5px + var(--fs-add-ui));">
+              <thead style="position:sticky;top:0;background:var(--bg);color:var(--text);z-index:2;">
+                <tr>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);" data-i18n="adm.th.name">이름</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);" data-i18n="ui.dept">부서</th>
+                  <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);" data-i18n="adm.th.consent">동의</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);" data-i18n="adm.th.consentAt">동의일시</th>
+                </tr>
+              </thead>
+              <tbody id="consentTbody">
+                <tr><td colspan="4" style="padding:12px;text-align:center;color:var(--text-soft);">불러오는 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        </div><!-- /staff subpane -->
+
+        <!-- 🔐 권한 서브탭 (대표 지시 2026-05-31 신설) — 채널·WORKS·AI 요약을 한 표로 통합 -->
+        <div class="admin-subpane" data-subpane="perm" hidden>
+        <div class="admin-gate-note gate-admin" data-i18n-html="adm.gateNoteAdmin">🔒 <b>관리자 전용</b> 구역이에요 — 일반 직원에게는 보이지 않아요.</div>
+
+        <section class="ns-section">
+          <h4 data-i18n="adm.permManage">🔐 권한 관리</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));" data-i18n-html="adm.permHint">직원별 <b>채널 생성 · WORKS · AI 요약</b> 권한을 한 곳에서 켜고 끕니다. 직급(대표·임원·팀장·법인장)·관리자는 채널을 항상 만들 수 있어 🔒 로 표시됩니다.</p>
+
+          <!-- (시스템 설정 토글 4종 — AI번역ON/OFF·상태표시·AI모델·WORKS — 은 🔧유지보수 탭으로 이동. 대표 지시 2026-06-03) -->
+
+          <!-- 통합 권한 표: 한 직원 = 한 줄, [채널][WORKS][AI요약] -->
+          <div style="margin-top:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div style="font-weight:600;color:var(--text);" data-i18n="adm.permByEmp">👥 직원별 권한</div>
+              <span id="permCount" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);"></span>
+            </div>
+            <!-- 🇰🇷/🇻🇳 법인 책갈피 (대표 지시 2026-05-31) — 본사 / 베트남법인 분리 -->
+            <div class="perm-corp-tabs" id="permCorpTabs">
+              <button type="button" class="perm-corp-tab active" data-corp="hq" data-i18n="corp.hqFlag">🇰🇷 본사</button>
+              <button type="button" class="perm-corp-tab" data-corp="vn" data-i18n="corp.vnFlag">🇻🇳 베트남법인</button>
+            </div>
+            <input type="text" id="permSearch" readonly onfocus="this.removeAttribute('readonly')" placeholder="🔍 이름·직급·부서 검색" data-i18n-ph="adm.permSearchPh" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:calc(13px + var(--fs-add-ui));font-family:inherit;margin-bottom:6px;">
+            <div class="perm-table-wrap">
+              <div class="perm-head">
+                <span data-i18n="adm.empCol">직원</span>
+                <span class="perm-cell-h" data-i18n="adm.channelCol">채널</span>
+                <span class="perm-cell-h">WORKS</span>
+                <span class="perm-cell-h" data-i18n="adm.aiSummaryCol">AI요약</span>
+              </div>
+              <div class="perm-scroll">
+                <div id="permList"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        </div><!-- /perm subpane -->
+
+        <!-- 🔧 유지보수 서브탭 (대표 지시 2026-06-03 재편) — 대표님·운영 담당자만. 운영자 지정·사용현황·버그관리·시스템설정 -->
+        <div class="admin-subpane" data-subpane="ops" hidden>
+        <div class="admin-gate-note gate-super">🔒 <b>최고관리자 전용</b> 구역이에요 — 일반 관리자에게도 보이지 않아요.</div>
+
+        <!-- 👤 운영 담당자 지정 (대표님=유지보수 owner 만) 대표 지시 2026-06-03 -->
+        <section class="ns-section" id="opsAdminSection" hidden>
+          <h4>👤 운영 담당자 지정 <span style="font-weight:400;color:var(--text-soft);font-size:calc(12px + var(--fs-add-ui));">(대표님만)</span></h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">‘운영’을 켠 직원은 <b>이 유지보수 화면(사용 현황·버그 관리·시스템 설정)을 대표님과 똑같이</b> 보고 다룹니다. 신중히 지정하세요.</p>
+          <input type="text" id="opsAdminSearch" readonly onfocus="this.removeAttribute('readonly')" placeholder="🔍 이름·부서 검색" autocomplete="off" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:calc(13px + var(--fs-add-ui));font-family:inherit;margin:6px 0;">
+          <!-- 본사/베트남법인 책갈피 (대표 지시 2026-06-05) -->
+          <div id="opsCorpTabs" style="display:flex;gap:6px;margin:6px 0;">
+            <button type="button" class="ops-corp-tab" data-corp="hq" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--accent);border-radius:6px;cursor:pointer;font-weight:700;background:var(--accent);color:#fff;">🇰🇷 본사 <span data-ocorp-count="hq"></span></button>
+            <button type="button" class="ops-corp-tab" data-corp="vn" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700;background:var(--surface);color:var(--text);">🇻🇳 베트남법인 <span data-ocorp-count="vn"></span></button>
+          </div>
+          <div id="opsAdminList" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface);">
+            <div style="padding:14px;text-align:center;color:var(--text-soft);">불러오는 중…</div>
+          </div>
+        </section>
+
+        <!-- 🔧 시스템 설정 (대표 지시 2026-06-03 — 🔐권한에서 이동) — 번역ON/OFF·상태표시·AI모델·WORKS -->
+        <section class="ns-section" id="sysConfigSection" hidden>
+          <h4>🔧 시스템 설정 <span style="font-weight:400;color:var(--text-soft);font-size:calc(12px + var(--fs-add-ui));">(유지보수)</span></h4>
+
+          <!-- 🌐 전사 번역 ON/OFF -->
+          <div style="margin-top:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span><span data-i18n="aiPerm.translateTitle">AI 번역 (전사)</span></div>
+              <div style="font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);margin-top:2px;" data-i18n="aiPerm.translateHint">OFF 시 모든 직원이 번역을 사용할 수 없습니다.</div>
+            </div>
+            <label class="ai-toggle">
+              <input type="checkbox" id="aiTranslateToggle">
+              <span class="ai-toggle-track"><span class="ai-toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <!-- 🟢 상태 표시 — 기기·회사망 상세 on/off (대표 지시 2026-06-01) -->
+          <div style="margin-top:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;">🟢 <span data-i18n="presDetail.title">상태 표시 — 기기·회사망</span></div>
+              <div style="font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);margin-top:2px;" data-i18n="presDetail.hint">끄면(기본) 접속 시 🟢 녹색만 보이고 컴퓨터/휴대폰·(회사) 표시를 숨깁니다. 켜면 기존처럼 기기·회사망을 표시합니다.</div>
+            </div>
+            <label class="ai-toggle">
+              <input type="checkbox" id="presenceDetailToggle">
+              <span class="ai-toggle-track"><span class="ai-toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <!-- 🤖 AI 모델 — 화면에서 변경 + 연결 테스트 (대표 지시 2026-06-01, 가이드 §3) -->
+          <div style="margin-top:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+            <div style="font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span><span data-i18n="aiModel.title">AI 모델</span></div>
+            <div style="font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);margin-top:2px;" data-i18n="aiModel.hint">번역·요약에 쓰는 OpenAI 모델입니다. 바꾼 뒤 꼭 '연결 테스트'로 정상 작동을 확인하세요. (예: gpt-4o-mini, gpt-5.4-mini)</div>
+            <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+              <input type="text" id="aiModelInput" placeholder="gpt-4o-mini" autocomplete="off" spellcheck="false" style="flex:1;min-width:150px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:calc(13px + var(--fs-add-ui));font-family:inherit;">
+              <button type="button" id="aiModelTestBtn" class="ns-preview-btn" data-i18n="aiModel.test">🔌 연결 테스트</button>
+              <button type="button" id="aiModelSaveBtn" class="primary-btn" data-i18n="aiModel.save">저장</button>
+            </div>
+            <div id="aiModelResult" style="margin-top:6px;font-size:calc(12px + var(--fs-add-ui));min-height:1.2em;"></div>
+          </div>
+
+          <!-- 📤 프로젝트 이력 → WORKS 자동전송 (대표 지시 2026-06-01, 01 협의 발주) -->
+          <div style="margin-top:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;">📤 <span data-i18n="worksHist.title">프로젝트 이력 → WORKS 자동전송</span></div>
+              <div style="font-size:calc(11.5px + var(--fs-add-ui));color:var(--text-soft);margin-top:2px;" data-i18n="worksHist.hint">프로젝트 이력 스냅샷을 HAIST WORKS 로 자동 전송합니다. (WORKS 수신 주소가 서버에 설정돼야 실제 동작 — 01세션 연동 후)</div>
+              <div id="worksHistStatus" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-top:3px;"></div>
+            </div>
+            <label class="ai-toggle">
+              <input type="checkbox" id="worksHistToggle">
+              <span class="ai-toggle-track"><span class="ai-toggle-thumb"></span></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="ns-section" id="officeNetSection" hidden>
+          <h4 data-i18n="set.adm.office">🏢 회사 네트워크 (관리자)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">회사 인터넷(WiFi·유선)에 접속하면 사용자 상태에 "🏢 회사"가 표시됩니다. <b>회사에서</b> 아래 버튼을 누르면 그 회사망이 등록됩니다. (여러 사무실·회선이면 각각 등록)</p>
+          <div id="officeNetCurrent" class="dialog-hint" style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-bottom:6px;"></div>
+          <button type="button" id="officeNetAddBtn" class="ns-preview-btn" data-i18n="set.adm.officeBtn">📍 현재 네트워크를 회사망으로 등록</button>
+          <div id="officeNetList" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;"></div>
+        </section>
+
+        <!-- 🖼️ 시작화면(광고) — 대표(사번5)만 편집. 앱 켤 때 뜨는 화면 (대표 지시 2026-06-06) -->
+        <section class="ns-section" id="splashAdminSection" hidden>
+          <h4>🖼️ 시작화면(광고)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">앱을 켤 때 잠깐 뜨는 화면입니다. 회사 로고·문구를 바꾸거나, 광고 이미지를 통째로 올릴 수 있어요. PC·휴대폰·고객사 모두에게 보입니다.<br><b>제목·슬로건은 저장 시 자동으로 한·영·베·중 번역</b>되어, 보는 사람 언어로 표시됩니다. (영어로 입력하면 번역 없이 영문 그대로)</p>
+          <label class="spl-row" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="splEnabled"> <b>시작화면 켜기</b></label>
+          <div class="spl-row" style="margin:6px 0;">표시 방식:&nbsp;
+            <label style="margin-right:10px;"><input type="radio" name="splMode" value="logo"> 로고형(로고+글자)</label>
+            <label><input type="radio" name="splMode" value="full"> 전체 이미지(광고)</label>
+          </div>
+          <div id="splLogoFields" style="display:flex;flex-direction:column;gap:8px;margin:6px 0;">
+            <label>제목 <input type="text" id="splTitle" maxlength="80" placeholder="예: KNK Eum" style="width:100%;"></label>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+              <label>제목 크기 <input type="number" id="splTitleSize" min="12" max="64" step="1" style="width:64px;"> px</label>
+              <label>제목색 <input type="color" id="splTitleColor"></label>
+            </div>
+            <label>슬로건 <input type="text" id="splTagline" maxlength="160" placeholder="예: 사람을 잇고, 일을 잇고, 미래를 잇다." style="width:100%;"></label>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+              <label>슬로건 크기 <input type="number" id="splTagSize" min="9" max="40" step="1" style="width:64px;"> px</label>
+              <label>슬로건색 <input type="color" id="splTagColor"></label>
+            </div>
+            <label>배경색 <input type="color" id="splBg"></label>
+          </div>
+          <label class="spl-row" style="display:block;margin:6px 0;">표시 시간(초) <input type="number" id="splDur" min="0.5" max="10" step="0.5" style="width:72px;"></label>
+          <div class="spl-row" style="margin:6px 0;">
+            <div style="margin-bottom:4px;">이미지 (로고 또는 광고 포스터):</div>
+            <input type="file" id="splImageFile" accept="image/*">
+            <button type="button" id="splImageUploadBtn" class="ns-preview-btn">⬆ 업로드</button>
+            <button type="button" id="splImageClearBtn" class="ns-preview-btn">기본 로고로</button>
+            <div style="margin-top:6px;"><img id="splImagePreview" alt="" style="max-width:180px;max-height:110px;border:1px solid var(--border);border-radius:6px;display:none;"></div>
+          </div>
+          <div id="splMsg" class="dialog-hint" style="min-height:16px;color:var(--accent);"></div>
+          <div class="spl-row" style="display:flex;gap:8px;margin-top:8px;">
+            <button type="button" id="splPreviewBtn" class="ns-preview-btn">👁 미리보기</button>
+            <button type="button" id="splSaveBtn" class="primary-btn">저장</button>
+          </div>
+        </section>
+
+        <!-- 🤖 AI 번역 사용량 (유지보수) — 대표 지시 2026-06-06 재이동(직원→유지보수) -->
+        <section class="ns-section" id="aiUsageSection" hidden>
+          <h4>🤖 AI 번역 사용량 (유지보수)</h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">사용자별 호출 횟수·토큰·비용을 확인합니다. 비용 큰 순서.</p>
+
+          <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;align-items:center;">
+            <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">기간:</label>
+            <select id="aiUsagePeriod" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:calc(12px + var(--fs-add-ui));background:var(--surface);color:var(--text);">
+              <option value="this_month" selected>이번 달</option>
+              <option value="last_month">지난 달</option>
+              <option value="last_7days">최근 7일</option>
+              <option value="all">전체</option>
+            </select>
+            <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);margin-left:8px;">부서:</label>
+            <select id="aiUsageDept" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:calc(12px + var(--fs-add-ui));min-width:80px;background:var(--surface);color:var(--text);">
+              <option value="all" selected>전체</option>
+            </select>
+            <button type="button" id="aiUsageRefreshBtn" class="ns-preview-btn" style="padding:4px 10px;font-size:calc(12px + var(--fs-add-ui));">🔄 새로고침</button>
+            <button type="button" id="aiUsageExportBtn" class="ns-preview-btn" style="padding:4px 10px;font-size:calc(12px + var(--fs-add-ui));background:#A5282C;color:#fff;border-color:#A5282C;">📊 엑셀</button>
+          </div>
+
+          <!-- 합계 박스 -->
+          <div id="aiUsageSummary" style="margin-top:6px;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;">
+            <div style="font-size:calc(11px + var(--fs-add-ui));color:var(--text-soft);margin-bottom:3px;">불러오는 중…</div>
+          </div>
+
+          <!-- 본사/베트남법인 책갈피 (대표 지시 2026-06-05) -->
+          <div id="aiUsageCorpTabs" style="display:flex;gap:6px;margin-top:8px;">
+            <button type="button" class="ai-usage-corp-tab" data-corp="hq" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--accent);border-radius:6px;cursor:pointer;font-weight:700;background:var(--accent);color:#fff;">🇰🇷 본사 <span data-corp-count="hq"></span></button>
+            <button type="button" class="ai-usage-corp-tab" data-corp="vn" style="flex:1;padding:6px 8px;font-size:calc(12px + var(--fs-add-ui));border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700;background:var(--surface);color:var(--text);">🇻🇳 베트남법인 <span data-corp-count="vn"></span></button>
+          </div>
+
+          <!-- 사용자별 표 -->
+          <div id="aiUsageTableWrap" style="margin-top:8px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+            <table id="aiUsageTable" style="width:100%;border-collapse:collapse;font-size:calc(11.5px + var(--fs-add-ui));">
+              <thead style="position:sticky;top:0;background:var(--bg);color:var(--text);z-index:2;">
+                <tr>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">이름</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">소속</th>
+                  <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);">호출</th>
+                  <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);">토큰</th>
+                  <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);">비용 (USD)</th>
+                </tr>
+              </thead>
+              <tbody id="aiUsageTbody">
+                <tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text-soft);">불러오는 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 📊 사용 현황 (유지보수관리자 전용 — 김정락) 대표 지시 2026-06-03 -->
+        <section class="ns-section" id="usageSection" hidden>
+          <h4>📊 사용 현황 <span style="font-weight:400;color:var(--text-soft);font-size:calc(12px + var(--fs-add-ui));">(유지보수관리자 전용)</span></h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">직원들이 이 메신저를 얼마나·무엇으로 쓰는지 — 채택률·기능별·부서별. <b>대화 내용은 보지 않고 횟수만</b> 집계합니다.</p>
+          <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;align-items:center;">
+            <label style="font-size:calc(12px + var(--fs-add-ui));color:var(--text-soft);">기간:</label>
+            <select id="usagePeriod" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:calc(12px + var(--fs-add-ui));background:var(--surface);color:var(--text);">
+              <option value="this_month" selected>이번 달</option>
+              <option value="last_month">지난 달</option>
+              <option value="last_7days">최근 7일</option>
+              <option value="last_30days">최근 30일</option>
+              <option value="all">전체</option>
+            </select>
+            <button type="button" id="usageRefreshBtn" class="ns-preview-btn" style="padding:4px 10px;font-size:calc(12px + var(--fs-add-ui));">🔄 새로고침</button>
+          </div>
+          <div id="usageBody">
+            <div style="padding:14px;text-align:center;color:var(--text-soft);">불러오는 중…</div>
+          </div>
+        </section>
+
+        <!-- 🌐 방 이름 자동 번역 (유지보수관리자 전용) 대표 지시 2026-06-05 -->
+        <section class="ns-section" id="roomTransSection" hidden>
+          <h4>🌐 방 이름 자동 번역 <span style="font-weight:400;color:var(--text-soft);font-size:calc(12px + var(--fs-add-ui));">(관리자 전용)</span></h4>
+          <p class="dialog-hint" style="font-size:calc(12px + var(--fs-add-ui));">채널·프로젝트·그룹 방 이름을 보는 사람 언어(🇰🇷한·🇻🇳베·🇬🇧영)로 자동 번역해 표시합니다. <b>앞으로 만들거나 이름 바꾸는 방은 자동</b>이고, 아래 버튼은 <b>지금 있는 기존 방들을 한 번에</b> 번역합니다. (중국어는 중국 고객이 있는 방만)</p>
+          <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;align-items:center;">
+            <button type="button" id="roomTransRunBtn" class="ns-preview-btn" style="padding:5px 12px;font-size:calc(12px + var(--fs-add-ui));background:#A5282C;color:#fff;border-color:#A5282C;">🌐 기존 방 이름 일괄 번역</button>
+          </div>
+          <div id="roomTransStatus" style="margin-top:6px;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:calc(12px + var(--fs-add-ui));">버튼을 누르면 기존 방들을 번역합니다. (방당 약 1~2초)</div>
+        </section>
+
+        {# 🐞 버그 관리(폼 기반) 제거 — '메신저 문제점' 채널에서 직접 확인하는 방식으로 전환 (대표 지시 2026-06-03) #}
+
+        </div><!-- /ops subpane -->
+
+        </div><!-- /admin-scroll (데이터 스크롤 영역 끝) -->
+
+        </div><!-- /tab-pane admin -->
+
+        <!-- ░░ 탭: 사용법 (퀵 매뉴얼) ░░ -->
+        <div class="tab-pane" data-tab-pane="help">
+          <p class="dialog-hint" data-i18n="help.intro">KNK 이음 빠른 사용법입니다. 더 궁금하면 관리자(대표)에게 문의하세요.</p>
+          <section class="ns-section">
+            <h4 data-i18n="help.status.h">🟢 내 상태</h4>
+            <p class="help-p" data-i18n-html="help.status.p1">왼쪽 위 내 상태 배지를 눌러 변경(회의 중·외근·휴가 등). <b>🟢 출근</b>을 누르면 접속 기기에 따라 💻컴퓨터/📱휴대폰 자동 표시. 로그아웃하면 ⚫오프라인. (회의·외근·휴가 등은 직접 선택, 끝나면 🟢출근으로 되돌리세요.)</p>
+            <p class="help-p" data-i18n-html="help.status.p2"><b>🏠 퇴근</b>을 누르면 업무 종료 표시가 켜져, 메신저를 끄고 퇴근해도 동료에게 🏠퇴근으로 보입니다. 다음에 <b>컴퓨터로</b> 메신저에 다시 접속하거나 <b>회사 인터넷망(사무실)</b>에 접속하면 자동으로 컴퓨터/휴대폰으로 돌아옵니다. (집에서 휴대폰으로만 잠깐 확인하는 동안은 퇴근이 유지됩니다.)</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.theme.h">🎨 화면 테마</h4>
+            <p class="help-p" data-i18n-html="help.theme.p">왼쪽 위 <b>내 상태</b> 창에서 화면 테마(밝음·다크·세이지·크림·스카이)를 고를 수 있어요. 어두운 곳에서는 <b>다크</b>가 눈이 편합니다. 선택은 기기에 저장됩니다.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.chat.h">💬 대화 시작</h4>
+            <p class="help-p" data-i18n-html="help.chat.p">「✏️ 대화방만들기」로 프로젝트·그룹·채널을 만듭니다. <b>1:1 대화</b>는 <b>사용자</b> 탭에서 이름을 누르면 시작돼요.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.channel.h">📢 채널</h4>
+            <p class="help-p" data-i18n-html="help.channel.p"><b>채널</b>은 공지·부서/전사 공유용 대화방입니다. <b>관리자·대표이사·임원(전무·상무·이사)·팀장·법인장</b>, 또는 <b>관리자가 채널 생성을 허용한 직원</b>이 만들 수 있고, 만들 때 <b>등록된 직원 누구나</b> 초대할 수 있습니다(부서 제한 없음). 「✏️ 대화방만들기」 → <b>채널</b> 탭에서 만들고, 만든 사람·관리자가 나중에 멤버를 더 초대하거나 채널을 삭제할 수 있어요. (KNK WORLD·본사·베트남 채널은 자동 채널이라 나갈 수 없습니다.)</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.guest.h">🤝 고객사 초대</h4>
+            <p class="help-p" data-i18n-html="help.guest.p">외부 <b>고객사 담당자</b>를 대화방에 초대할 수 있어요. 방장·PM·관리자가 <b>그룹·프로젝트</b> 방에서 「🤝 고객사 초대」로 <b>QR코드</b>를 만들어 전달하면, 고객이 휴대폰으로 접속해 참여합니다. 고객은 <b>그 방만</b> 보이고 <b>대화·번역</b>만 사용합니다. 고객이 있는 방은 목록에서 이름 앞에 <b>(고객)</b>으로 표시돼요. (채널에서는 초대할 수 없습니다.)</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.message.h">✉️ 메시지</h4>
+            <p class="help-p" data-i18n-html="help.message.p">입력창에 쓰고 전송. 메시지를 <b>길게 누르면</b>(PC는 우클릭) 답장·귓속말·전달·삭제. 📎로 파일·사진 첨부. 한국어·영어·베트남어 <b>자동 번역</b> 지원. <b>@이름</b>으로 부르면 상대에게 알림이 갑니다. 메시지 옆 <b>숫자</b>는 아직 <b>안 읽은 인원</b> 수이고, 누르면 누가 읽고 안 읽었는지 명단을 볼 수 있어요.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.thread.h">🧵 스레드(주제별 묶음)</h4>
+            <p class="help-p" data-i18n-html="help.thread.p">특정 메시지를 <b>주제별로 묶어</b> 따로 대화할 수 있어요. 메시지를 길게 눌러 답글을 달면 스레드가 시작됩니다. 헤더의 <b>🧵</b>를 누르면 <b>내 스레드</b>와 <b>방 전체 스레드</b>를 모아 보고, 항목을 누르면 해당 대화로 바로 이동합니다. 스레드는 <b>엑셀로 저장</b>하거나, 오래되어 대화가 끝난 건 방장·PM·관리자가 정리(연장·백업·삭제)할 수 있어요.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.find.h">🔎 찾기</h4>
+            <p class="help-p" data-i18n-html="help.find.p">상단 칩으로 전체·프로젝트·1:1·그룹·채널·📌 내 요청·@ 멘션을 골라봅니다. 검색창에서 이름·방·날짜로 검색.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.request.h">📌 요청(업무지시)</h4>
+            <p class="help-p" data-i18n-html="help.request.p">대화방에서 요청을 만들어 담당자를 지정. 진행 전 → 진행중 → (보류) → 완료로 관리. 내게 온 요청은 <b>📌 내 요청</b>에서 모아봅니다.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.notify.h">🔔 알림</h4>
+            <p class="help-p" data-i18n-html="help.notify.p">⚙ 설정 → 알림에서 소리·화면 알림을 설정. <b>휴대폰 알림(푸시)은 꼭 켜세요</b> — 앱을 꺼둬도 새 메시지를 받습니다. (회사 정책: 알림 필수)</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.security.h">🔒 보안</h4>
+            <p class="help-p" data-i18n-html="help.security.p">⚙ 설정 → 보안에서 <b>비밀번호 변경</b>과 <b>화면 잠금</b>(자리 비울 때 가림 · 지문·얼굴로 해제)을 설정합니다.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.mobile.h">📱 모바일 팁</h4>
+            <p class="help-p" data-i18n-html="help.mobile.p">메시지·이름을 <b>길게 누르면</b> 메뉴가 뜹니다. 메뉴가 떴을 때 <b>뒤로가기</b>를 누르면 메뉴만 닫히고, 한 번 더 누르면 이전 화면으로 갑니다.</p>
+          </section>
+          <section class="ns-section">
+            <h4 data-i18n="help.help.h">❓ 도움</h4>
+            <p class="help-p" data-i18n-html="help.help.p">비밀번호를 잊었거나 이름·사번·전화·이메일을 바꿔야 하면 <b>관리자(대표)</b>에게 문의하세요. 인사 정보는 회사에서 관리합니다.</p>
+          </section>
+        </div><!-- /tab-pane help -->
+        {# 👥 직원 초대 — 상단 탭에서 관리자→직원 으로 이동(대표 지시 2026-06-03). 아래 staff subpane 참조 #}
 
         <div class="dialog-actions">
-          <button type="button" data-close>닫기</button>
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 🔒 화면 잠금 (자리 비움 자동 잠금) — 로그인 유지, 내용만 가림 -->
+    <div class="lock-overlay" id="lockOverlay" hidden>
+      <div class="lock-box">
+        <img class="lock-logo" src="{{ url_for('static', filename='icons/logo.png') }}?v={{ asset_version }}" alt="KNK">
+        <div class="lock-title" data-i18n="lock.title">🔒 화면이 잠겼습니다</div>
+        <div class="lock-sub" data-i18n="lock.sub">자리 비움 보안 — 비밀번호 또는 지문·얼굴로 잠금을 해제하세요.</div>
+        <button type="button" class="lock-bio-btn" id="lockBioBtn" data-i18n="lock.bioBtn" hidden>🔓 지문·얼굴로 잠금 해제</button>
+        <form class="lock-pw-form" id="lockPwForm" autocomplete="off">
+          <div class="pw-wrap">
+            <input type="text" id="lockPwInput" class="knk-masked" inputmode="text" placeholder="비밀번호 입력" autocomplete="off" data-i18n-ph="lock.pwPlaceholder">
+            <button type="button" class="pw-toggle" data-pw-toggle-for="lockPwInput" title="비밀번호 보기/숨기기" data-i18n-title="login.pwToggle" aria-label="비밀번호 보기">👁</button>
+          </div>
+          <button type="submit" data-i18n="lock.unlock">잠금 해제</button>
+        </form>
+        <div class="lock-err" id="lockErr" hidden></div>
+        <button type="button" class="lock-logout" id="lockLogoutBtn" data-i18n="lock.logout">로그아웃</button>
       </div>
     </div>
 
@@ -854,37 +1682,45 @@
       <div class="lb-toolbar">
         <span class="lb-counter" id="lbCounter">1 / 1</span>
         <div class="lb-actions">
-          <button type="button" id="lbSaveOne" class="lb-btn" title="이 사진만 저장">💾 이 사진 저장</button>
-          <button type="button" id="lbSaveAll" class="lb-btn" hidden title="앨범 전체를 ZIP 으로 저장">📦 전체 저장 (ZIP)</button>
+          <!-- 확대·축소 (대표 지시 2026-05-27) — 휠·핀치·더블클릭도 지원 -->
+          <button type="button" id="lbZoomOut" class="lb-btn lb-zoom-btn" title="축소 (마우스 휠 ↓ / 핀치)">🔍-</button>
+          <span id="lbZoomLevel" class="lb-zoom-level" title="현재 배율">100%</span>
+          <button type="button" id="lbZoomIn" class="lb-btn lb-zoom-btn" title="확대 (마우스 휠 ↑ / 핀치 / 더블클릭)">🔍+</button>
+          <button type="button" id="lbZoomReset" class="lb-btn lb-zoom-btn" title="원본 크기로 (1배)">↺</button>
+          <button type="button" id="lbSaveOne" class="lb-btn" title="이 사진만 저장">💾<span class="lb-text-full"> 이 사진 저장</span></button>
+          <button type="button" id="lbSaveAll" class="lb-btn" hidden title="앨범 전체를 ZIP 으로 저장">📦<span class="lb-text-full"> 전체 저장 (ZIP)</span></button>
           <button type="button" id="closeLightbox" class="lb-btn lb-close" data-close title="닫기 (Esc)">✕</button>
         </div>
       </div>
       <button type="button" id="lbPrev" class="lb-nav lb-prev" aria-label="이전 사진" hidden>‹</button>
       <button type="button" id="lbNext" class="lb-nav lb-next" aria-label="다음 사진" hidden>›</button>
-      <div class="lb-stage">
-        <img id="lightboxImg" src="" alt="">
+      <div class="lb-stage" id="lbStage">
+        <img id="lightboxImg" src="" alt="" draggable="false">
       </div>
       <div class="lb-bottom">
         <div class="lightbox-meta" id="lightboxMeta"></div>
       </div>
     </div>
 
+    <!-- 멘션함은 사이드바 인라인 패널(#mentionsPanel)로 표시 — 모달 제거 (대표 지시 2026-05-24) -->
+
     <div class="modal" id="requestsDialog" data-modal>
       <div class="modal-content big-dialog">
         <header class="big-dialog-head">
-          <h3>📌 요청 목록 (<span id="requestsCount">0</span>건)</h3>
+          <h3><span data-i18n="req.list.title">📌 요청 목록</span> (<span id="requestsCount">0</span>)<span id="reqScopeLabel" style="font-size:calc(13px + var(--fs-add-ui));color:var(--text-soft);font-weight:500"></span></h3>
           <div class="gallery-tabs">
-            <button type="button" class="gtab active" data-rtab="open">열림</button>
-            <button type="button" class="gtab" data-rtab="in_progress">진행중</button>
-            <button type="button" class="gtab" data-rtab="done">완료</button>
-            <button type="button" class="gtab" data-rtab="all">전체</button>
+            <button type="button" class="gtab active" data-rtab="open" data-i18n="req.tab.open">열림</button>
+            <button type="button" class="gtab" data-rtab="in_progress" data-i18n="req.tab.inProgress">진행중</button>
+            <button type="button" class="gtab" data-rtab="on_hold" data-i18n="req.tab.onHold">보류</button>
+            <button type="button" class="gtab" data-rtab="done" data-i18n="req.tab.done">완료</button>
+            <button type="button" class="gtab" data-rtab="all" data-i18n="req.tab.all">전체</button>
           </div>
           <button type="button" class="close-x" id="closeRequests" data-close title="닫기 (ESC)">✕</button>
         </header>
         <div class="requests-list" id="requestsList"></div>
         <div class="requests-actions">
-          <button type="button" class="secondary-btn" data-close>✕ 닫기</button>
-          <button type="button" id="newRequestBtn" class="primary-btn">＋ 새 요청 등록</button>
+          <button type="button" class="secondary-btn" data-close data-i18n="btn.closeX">✕ 닫기</button>
+          <button type="button" id="newRequestBtn" class="primary-btn" data-i18n="req.new.btn">＋ 새 요청 등록</button>
         </div>
       </div>
     </div>
@@ -893,29 +1729,37 @@
     <div class="modal" id="leaveRoomDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>🚪 이 방을 나가시겠어요?</h3>
+        <h3 data-i18n="leave.title">🚪 이 방을 나가시겠어요?</h3>
         <p class="dialog-hint" id="leaveRoomHint">
-          나가시면 이 대화가 사이드바에서 사라지고, 새 메시지를 받지 않습니다.<br>
+          <span data-i18n="leave.hint1">나가시면 이 대화가 사이드바에서 사라지고, 새 메시지를 받지 않습니다.</span><br>
           다른 멤버에게는 "[<span id="leaveMyName"></span>] 님이 나갔습니다" 시스템 메시지가 표시됩니다.
         </p>
         <div class="leave-options">
           <button type="button" id="leaveWithExportBtn" class="leave-option export">
             <div class="leave-option-icon">📥</div>
             <div class="leave-option-text">
-              <div class="leave-option-title">내용 정리해서 저장 후 나가기</div>
-              <div class="leave-option-desc">Excel 5시트 보고서로 다운로드 (메시지·요청·첨부·멤버 다 포함) → 그 다음 나가기</div>
+              <div class="leave-option-title" data-i18n="leave.export.title">내용 정리해서 저장 후 나가기</div>
+              <div class="leave-option-desc" data-i18n="leave.export.desc">Excel 5시트 보고서로 다운로드 (메시지·요청·첨부·멤버 다 포함) → 그 다음 나가기</div>
             </div>
           </button>
           <button type="button" id="leaveJustBtn" class="leave-option just">
             <div class="leave-option-icon">🚪</div>
             <div class="leave-option-text">
-              <div class="leave-option-title">그냥 나가기</div>
-              <div class="leave-option-desc">정리 없이 즉시 나가기. 서버에는 대화가 그대로 남아있음 (다른 멤버들은 계속 사용)</div>
+              <div class="leave-option-title" data-i18n="leave.just.title">그냥 나가기</div>
+              <div class="leave-option-desc" data-i18n="leave.just.desc">정리 없이 즉시 나가기. 서버에는 대화가 그대로 남아있음 (다른 멤버들은 계속 사용)</div>
+            </div>
+          </button>
+          <!-- 🗑 대화 완전 삭제 — 소유자(대표 본인) + 1:1 방에서만 표시 (대표 지시 2026-06-05). app.js 에서 hidden 토글. -->
+          <button type="button" id="leavePurgeBtn" class="leave-option" hidden style="border:1.5px solid #dc2626;background:#fef2f2;">
+            <div class="leave-option-icon">🗑️</div>
+            <div class="leave-option-text">
+              <div class="leave-option-title" style="color:#dc2626;font-weight:700;">대화 완전 삭제하고 나가기</div>
+              <div class="leave-option-desc">이 1:1 대화의 모든 메시지·첨부를 영구 삭제합니다. 상대 화면에서도 사라지고, 복구할 수 없습니다. (대표님 전용 · 테스트 정리용)</div>
             </div>
           </button>
         </div>
         <div class="dialog-actions">
-          <button type="button" data-close>취소</button>
+          <button type="button" data-close data-i18n="btn.cancel">취소</button>
         </div>
       </div>
     </div>
@@ -924,11 +1768,11 @@
     <div class="modal" id="versionsDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>📂 파일 버전 이력</h3>
-        <p class="dialog-hint">동일한 파일명으로 업로드된 모든 버전. 최신이 위쪽.</p>
+        <h3 data-i18n="versions.title">📂 파일 버전 이력</h3>
+        <p class="dialog-hint" data-i18n="versions.hint">동일한 파일명으로 업로드된 모든 버전. 최신이 위쪽.</p>
         <div id="versionsList" style="max-height:60vh;overflow-y:auto;"></div>
         <div class="dialog-actions">
-          <button type="button" data-close>닫기</button>
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
         </div>
       </div>
     </div>
@@ -937,11 +1781,11 @@
     <div class="modal" id="starredDialog" data-modal>
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
-        <h3>★ 중요 결정 모음</h3>
-        <p class="dialog-hint">이 방에서 본인이 별표한 메시지. 합의·이정표·인수인계 정리용.</p>
+        <h3 data-i18n="starred.title">★ 중요 결정 모음</h3>
+        <p class="dialog-hint" data-i18n="starred.hint">이 방에서 본인이 별표한 메시지. 합의·이정표·인수인계 정리용.</p>
         <div id="starredList" style="max-height:60vh;overflow-y:auto;"></div>
         <div class="dialog-actions">
-          <button type="button" data-close>닫기</button>
+          <button type="button" data-close data-i18n="btn.close">닫기</button>
         </div>
       </div>
     </div>
@@ -950,30 +1794,47 @@
       <div class="modal-content">
         <button type="button" class="close-x modal-close-x" data-close>✕</button>
         <form id="newRequestForm">
-          <h3>📌 새 요청 등록</h3>
+          <h3 data-i18n="req.new.title">📌 새 요청 등록</h3>
           <p class="dialog-hint" id="newReqSourceHint" hidden></p>
           <div class="form-grid">
-            <label class="full">제목 * <input id="reqTitle" placeholder="예: 도면 수정 후 재공유 부탁드립니다"></label>
-            <label class="full">상세 (선택) <textarea id="reqDescription" rows="3" placeholder="배경·요건"></textarea></label>
-            <label>담당자
-              <select id="reqAssignedTo">
-                <option value="">(미지정)</option>
-              </select>
+            <label class="full"><span data-i18n="label.reqTitle">제목 *</span> <input id="reqTitle" placeholder="예: 도면 수정 후 재공유 부탁드립니다" data-i18n-ph="ph.reqTitle"></label>
+            <label class="full"><span data-i18n="label.reqDesc">상세 (선택)</span> <textarea id="reqDescription" rows="3" placeholder="배경·요건" data-i18n-ph="ph.reqDesc"></textarea></label>
+            <label class="full"><span data-i18n="label.reqAssignee">담당자</span> <span style="color:var(--text-soft);font-weight:400" data-i18n="label.reqAssigneeNote">— 이 방 멤버 중에서 선택</span>
+              <div class="assignee-picker" id="reqAssigneePicker">
+                <input type="text" id="reqAssigneeSearch" readonly onfocus="this.removeAttribute('readonly')" placeholder="이름·직급·부서로 검색 (비우면 미지정)" autocomplete="off" data-i18n-ph="ph.reqAssignee">
+                <input type="hidden" id="reqAssignedTo" value="">
+                <div class="assignee-dropdown" id="reqAssigneeDropdown" hidden></div>
+              </div>
             </label>
-            <label>마감일 <input id="reqDueDate" type="date"></label>
-            <label>우선순위
+            <label><span data-i18n="label.reqDue">마감일</span> <input id="reqDueDate" type="text" class="knk-date" readonly placeholder="날짜 선택" data-i18n-ph="ph.dateSelect"></label>
+            <label><span data-i18n="label.reqPriority">우선순위</span>
               <select id="reqPriority">
-                <option value="normal">보통</option>
-                <option value="high">높음</option>
-                <option value="low">낮음</option>
+                <option value="normal" data-i18n="opt.priority.normal">보통</option>
+                <option value="high" data-i18n="opt.priority.high">높음</option>
+                <option value="low" data-i18n="opt.priority.low">낮음</option>
               </select>
             </label>
           </div>
           <div class="dialog-actions">
-            <button type="button" id="cancelNewRequest" data-close>취소</button>
-            <button type="submit" id="saveNewRequest">등록</button>
+            <button type="button" id="cancelNewRequest" data-close data-i18n="btn.cancel">취소</button>
+            <button type="submit" id="saveNewRequest" data-i18n="btn.register">등록</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사내 메신저 이용·보안 동의서 게이트 (대표 지시 2026-06-03) — 첫 로그인+약100일마다, 게스트 제외 -->
+  <div id="consentGate" class="consent-gate" hidden>
+    <div class="consent-card" role="dialog" aria-modal="true" aria-labelledby="consentTitle">
+      <div class="consent-head"><h2 id="consentTitle"></h2></div>
+      <div id="consentBody" class="consent-body"></div>
+      <div class="consent-foot">
+        <div id="consentScrollHint" class="consent-scroll-hint"></div>
+        <div class="consent-actions">
+          <button type="button" id="consentDeclineBtn" class="consent-decline"></button>
+          <button type="button" id="consentAgreeBtn" class="consent-agree" disabled></button>
+        </div>
       </div>
     </div>
   </div>
@@ -981,8 +1842,18 @@
   <script>
     window.__BASE__ = "{{ base_path }}";
     window.KNK_RETENTION_MONTHS = {{ retention_months }};
+    window.KNK_VERSION = "{{ asset_version }}";
+    window.KNK_LANG = "{{ me_ui_lang }}";   // 서버가 결정한 사용자 화면 언어 (법인 기준 자동 or 본인 설정)
+    window._presenceDetail = {{ 'true' if presence_detail else 'false' }};   // 상태표시 상세(기기·회사망) on/off — 관리자 설정 (대표 지시 2026-06-01)
+    window.__IS_MAINTENANCE__ = {{ '1' if me_is_maintenance else '0' }};   // 유지보수관리자(김정락) — 버그관리·사용현황 열람 전용 (대표 지시 2026-06-03)
+    window.__ASSET_VER__ = "{{ asset_version }}";   // 앱(정적자산) 버전 — 버그신고 기술정보용
+    window.__IS_MAINT_OWNER__ = {{ '1' if me_is_maint_owner else '0' }};   // 운영 담당자 지정 권한(대표님=사번5) (대표 지시 2026-06-03)
+    window.__BUG_ROOM_ID__ = {{ bug_room_id or 0 }};   // (신고)메신저 문제점 채널 — 참여자·읽음 표시 숨김용 (대표 지시 2026-06-03)
   </script>
+  <script src="{{ url_for('static', filename='js/i18n.js') }}?v={{ asset_version }}"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- QR 코드 생성 (게스트 초대용, 대표 지시 2026-05-28) — 약 10KB -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
   <script>
     if ("serviceWorker" in navigator) {

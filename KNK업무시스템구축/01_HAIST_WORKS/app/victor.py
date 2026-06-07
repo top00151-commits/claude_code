@@ -902,6 +902,52 @@ INTENTS = [
 # =====================================================
 # 메인 진입점
 # =====================================================
+def h_ai_assist(user, db_session_func, query: str):
+    """v5H226z126 (2026-05-31) — 빅터 AI(LLM) 폴백, Phase 1.
+    규칙으로 못 푼 질문을 실제 AI로 응답. **읽기·안내·작성 보조만**(실행 없음).
+    데이터 안전: 민감 DB를 통째로 보내지 않음 — 질문 + 사용자 이름/역할 + 기능 목록만 전송.
+    AI 비활성(키 미설정) 시 None 반환 → 호출부가 기존 도움말로 폴백."""
+    try:
+        from . import ai_client
+    except Exception:
+        return None
+    try:
+        if not ai_client.ai_available():
+            return None
+    except Exception:
+        return None
+    uname = (user.get("name") if isinstance(user, dict) else None) or "사용자"
+    urole = (user.get("role") if isinstance(user, dict) else None) or "member"
+    system = (
+        "당신은 ㈜케이엔케이(KNK)의 사내 통합 업무 플랫폼 'HAIST WORKS'의 AI 비서 '빅터'입니다. "
+        "한국어로 친절하고 간결하게 답합니다.\n"
+        "다룰 수 있는 영역: 매출·영업(견적/수주/프로젝트/고객사), 자재·구매·재고, "
+        "품질·이슈·변경관리, 일일업무·할일·일정·전자결재·휴가, 연락처(주소록), 메일.\n"
+        "규칙:\n"
+        "1) 실제 회사 수치(매출액·재고수량 등)는 추측하지 말 것. 필요하면 '어느 메뉴에서 볼 수 있는지' 안내한다.\n"
+        "2) 모르면 모른다고 솔직히 말한다.\n"
+        "3) 비밀번호·개인정보를 묻거나 만들어내지 않는다.\n"
+        "4) 등록·발송 같은 실제 작업은 직접 수행하지 말고 '하는 방법'을 단계로 안내한다(현재 읽기·안내·초안 단계).\n"
+        "5) 답변은 핵심 위주 8줄 이내. 요청 시 메일·보고 초안을 작성해준다.\n"
+        f"현재 사용자: {uname} ({urole})."
+    )
+    try:
+        ok, ans = ai_client.ai_chat(query, system=system, max_tokens=700, temperature=0.4)
+    except Exception:
+        return None
+    if not ok or not ans or not ans.strip():
+        return None
+    return {
+        "type": "ai",
+        "title": "🤖 빅터 AI",
+        "text": ans.strip(),
+        "links": [_link("홈 →", "/home", "primary")],
+        "intent": "ai",
+        "query": query,
+        "ai": True,
+    }
+
+
 def ask(query: str, user: dict | None, db_session_func) -> dict:
     """사용자 질문을 받아 응답 dict를 반환.
 
@@ -960,7 +1006,15 @@ def ask(query: str, user: dict | None, db_session_func) -> dict:
                     "query": q,
                 }
 
-    # 2) 매칭 실패 → 도움말 안내
+    # 2) 매칭 실패 → 빅터 AI(LLM) 폴백 시도 (Phase 1: 읽기·안내·작성 보조)
+    try:
+        ai_res = h_ai_assist(user, db_session_func, q)
+        if ai_res:
+            return ai_res
+    except Exception:
+        pass  # AI 실패해도 아래 도움말로 안전 폴백
+
+    # 3) AI 비활성/실패 → 기존 도움말 안내
     result = h_help(user, db_session_func)
     result["intent"] = "unmatched"
     result["query"] = q

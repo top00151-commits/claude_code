@@ -18,6 +18,14 @@
 
 ---
 
+## DB 경로 (자동 감지)
+
+스크립트는 기본으로 `/opt/knk_haist/data/knk.db` 를 사용합니다.
+다른 경로 사용 시:
+```bash
+KNK_DB_PATH=/opt/knk_haist/data/<your.db> bash deploy/apply_migrations.sh
+```
+
 ## 적용 방법 (NAS 컨테이너 안)
 
 ### 1단계 — 상태 확인 (변경 0)

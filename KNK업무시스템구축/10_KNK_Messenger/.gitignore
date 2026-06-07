@@ -16,6 +16,14 @@ Thumbs.db
 # 비밀키
 *.pem
 secret.key
+keys/
+
+# SSO 작업 스크래치 (정찰 덤프·리포트·백업·PII 엑셀 — 개인정보/내부데이터)
+sso_work/recon_excel.txt
+sso_work/recon_guide.txt
+sso_work/*_report*.txt
+sso_work/*.db
+sso_work/*.xlsx
 
 # IDE
 .vscode/
@@ -27,3 +35,4 @@ uploads/
 # 직원 명단 (개인정보 — 휴대폰·이메일 포함, git 절대 금지)
 KNK_직원등록.xlsx
 _excel_mapping.json
+_temp_openai.txt

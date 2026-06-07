@@ -17,6 +17,10 @@ holidays>=0.40
 # v5H226z108n20 (2026-05-28) — 자재 QR 코드 SVG 생성
 qrcode
 
+# v5H226z145 (2026-06-02) — 엑셀 내보내기/일괄 업로드 (고객사·연락처·자재 등)
+# 감사팀 allowed_assets 포함(MIT). 미설치 시 "No module named 'openpyxl'" → 필수.
+openpyxl>=3.1
+
 # v5H226z117 (2026-05-31) — SSO Phase 2: 메신저 JWT(RS256) 토큰 검증
 # cryptography 는 RS256 디코딩에 필요 (PyJWT extras로 자동 설치)
 PyJWT[crypto]>=2.8.0

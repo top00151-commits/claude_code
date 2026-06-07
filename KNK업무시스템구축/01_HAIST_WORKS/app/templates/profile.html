@@ -45,7 +45,7 @@
   <div class="profile-hero" data-dn="profile-hero">
     <div class="avatar-lg">{{ user.name[0] if user.name else '?' }}</div>
     <div style="position:relative;z-index:1;">
-      <h1>{{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}</h1>
+      <h1>{{ vname(user) }}{% if user.rank %} {{ user.rank }}{% endif %}</h1>
       <p>{{ user.role|default('member')|upper }} · {{ user.team_name|default('—') }} · {{ user.login_id }}</p>
       <p>{% if user.email %}📧 {{ user.email }}{% endif %}{% if user.phone %} · 📞 {{ user.phone }}{% endif %}</p>
     </div>
@@ -84,7 +84,7 @@
       </h2>
       <form method="post" action="/me">
         <div class="field-row">
-          <div class="field"><label>이름</label><input type="text" value="{{ user.name }}" disabled style="background:var(--qv-surface-3);"></div>
+          <div class="field"><label>이름</label><input type="text" value="{{ vname(user) }}" disabled style="background:var(--qv-surface-3);"></div>
           <div class="field"><label>사번</label><input type="text" value="{{ user.login_id }}" disabled style="background:var(--qv-surface-3);"></div>
         </div>
         <div class="field-row">

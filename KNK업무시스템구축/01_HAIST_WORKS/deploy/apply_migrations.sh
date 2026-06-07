@@ -27,17 +27,20 @@
 
 set -e
 WORKS_DIR=/opt/knk_haist
-DB="$WORKS_DIR/data/main.db"
+# DB 경로 — 환경변수 override 우선, 기본은 knk.db (NAS 실제 파일명)
+DB="${KNK_DB_PATH:-$WORKS_DIR/data/knk.db}"
 MIG_DIR="$WORKS_DIR/migrations"
 BAK_DIR="$WORKS_DIR/data/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BAK_FILE="$BAK_DIR/main.db.bak_z109z110z115_$TIMESTAMP"
+BAK_FILE="$BAK_DIR/$(basename "$DB").bak_z109z110z115_$TIMESTAMP"
 
 MODE="apply"  # apply / dry-run / check
-case "${1:-apply}" in
-  --dry-run|-n)  MODE="dry-run" ;;
-  --check|-c)    MODE="check" ;;
-  --apply|"")    MODE="apply" ;;
+# v5H226z117-fix (2026-05-31): 인자 없이 호출 = apply (case 매칭 버그 수정)
+ARG="${1:-}"
+case "$ARG" in
+  --dry-run|-n)             MODE="dry-run" ;;
+  --check|-c)               MODE="check" ;;
+  --apply|-a|"")            MODE="apply" ;;
   *) echo "Usage: $0 [--apply|--dry-run|--check]"; exit 1 ;;
 esac
 

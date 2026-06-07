@@ -202,14 +202,16 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       </h1>
     </div>
     <div style="display:flex;gap:8px;">
-      {% if not p.mgmt_code %}
-      <button class="btn btn-primary" onclick="confirmOrderDirect()" style="background:var(--success);">✓ 수주 확정 (관리번호 발급)</button>
+      {# v5H226z149: 확정 여부는 'SO(수주번호) 발행 여부'로 판단 (코드 유무 아님).
+         z148로 관리코드를 먼저 입력한 진행중 프로젝트도 여기서 수주확정 가능. #}
+      {% if not project_orders %}
+      <button class="btn btn-primary" onclick="confirmOrderDirect()" style="background:var(--success);">✓ 수주 확정 {% if p.mgmt_code %}(진행중 전환){% else %}(관리번호 발급){% endif %}</button>
       {% else %}
       {# v5H142: NEW_EQUIP 부모일 때만 3종 발주 버튼 노출 (장비/소모품/정비).
          CONSUMABLE/SERVICE/OTHER 부모는 그 유형의 추가 발주 1개만 노출 (기존 동작 유지). #}
       {% if (p.project_type or 'NEW_EQUIP')|upper == 'NEW_EQUIP' %}
       <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 검사기 발주</button>
-      <button class="btn btn-primary" onclick="openFollowupOrder('CONSUMABLE')" style="background:#065f46;">＋ 소모품 발주</button>
+      <button class="btn btn-primary" onclick="openFollowupOrder('CONSUMABLE')" style="background:#065f46;">＋ 소모품 수주</button>
       <button class="btn btn-primary" onclick="openFollowupOrder('SERVICE')" style="background:#1e3a8a;">＋ 수리·정비</button>
       {% else %}
       <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
@@ -221,7 +223,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   </div>
 
   {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
-  {% if not p.mgmt_code %}
+  {# v5H226z149: 모달도 SO 발행 여부 기준 (버튼과 동일) #}
+  {% if not project_orders %}
   {# (수주확정은 confirmOrderDirect() 가 직접 처리) #}
   {% else %}
   <!-- v5H68: 추가 발주 모달 (관리번호 유지, SO만 신규) -->
@@ -281,7 +284,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
   <script>
   // v5H196: 수주 확정 — 모달 없이 등록값 기준 즉시 발행
   async function confirmOrderDirect() {
-    if (!confirm('프로젝트 등록값으로 수주를 확정합니다.\n\n· 수량 {{ p.unit_qty|default(1) }}대 → {{ p.unit_qty|default(1) }}개 호기 라인 자동 생성\n· 관리번호({{ p.biz_div|default("T") }}+년월) + 수주번호(SO) 동시 발급\n\n진행하시겠습니까?')) return;
+    if (!confirm('프로젝트 등록값으로 수주를 확정합니다.\n\n· 수량 {{ p.unit_qty|default(1) }}대 → {{ p.unit_qty|default(1) }}개 호기 라인 자동 생성\n· {% if p.mgmt_code %}기존 관리번호 {{ p.mgmt_code }} 유지{% else %}관리번호({{ p.biz_div|default("T") }}+년월) 발급{% endif %} + 수주번호(SO) 발급\n· 상태가 진행중으로 전환됩니다\n\n진행하시겠습니까?')) return;
     try {
       const r = await fetch('/projects/{{ p.id }}/confirm-order', {method:'POST', body:new FormData()});
       const j = await r.json();
@@ -302,8 +305,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       EQUIPMENT:  { title: '＋ 추가 검사기 발주 (관리번호 {{ p.mgmt_code }})',
                     hint:  '추가 검사기 발주 — <b>1대 단가 × 수량</b>. N대 입력 시 N개 호기 라인 자동 생성.',
                     unitL: '1대 단가 (원) *', qtyL: '수량 (대) *' },
-      CONSUMABLE: { title: '＋ 소모품 발주 (관리번호 {{ p.mgmt_code }})',
-                    hint:  '소모품 발주 — 자재명은 PO 비고에 메모 권장. <b>소모품-N차</b> 라벨 자동.',
+      CONSUMABLE: { title: '＋ 소모품 수주 (관리번호 {{ p.mgmt_code }})',
+                    hint:  '소모품 수주 — 자재명은 PO 비고에 메모 권장. <b>소모품-N차</b> 라벨 자동.',
                     unitL: '단가 (원) *', qtyL: '수량 *' },
       SERVICE:    { title: '＋ 수리·정비 등록 (관리번호 {{ p.mgmt_code }})',
                     hint:  '수리·정비 — <b>정비-N차</b> 라벨 자동 부여 (회차 독립 카운트).',
@@ -428,7 +431,20 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
     {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
     {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
-    <div class="kpi-card"><div class="kpi-label">수주액 <span style="font-size:10px;color:var(--mute);">({{ _kpi_ccy }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label">{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({{ _kpi_ccy }})</span></div><div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    {# v5H226z161 (대표 지시): 예상 매출(수주 전) + 확정 대비 차이 #}
+    {% set _expected = p.expected_amount or 0 %}
+    {% if _expected or project_orders %}
+    <div class="kpi-card"><div class="kpi-label">예상 매출 <span style="font-size:10px;color:var(--mute);">(수주 전)</span></div>
+      <div class="kpi-num">{% if _expected %}{{ '{:,.0f}'.format(_expected) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>
+      {% if project_orders and _expected %}
+        {% set _diff = _so_total - _expected %}
+        <div style="font-size:10.5px;font-weight:700;margin-top:3px;color:{% if _diff >= 0 %}var(--success){% else %}var(--knk-red){% endif %};" title="확정 {{ '{:,.0f}'.format(_so_total) }} − 예상 {{ '{:,.0f}'.format(_expected) }}">확정 대비 {% if _diff >= 0 %}+{% endif %}{{ '{:,.0f}'.format(_diff) }} ({% if _diff >= 0 %}+{% endif %}{{ '%.1f'|format(_diff * 100 / _expected) }}%)</div>
+      {% elif not project_orders %}
+        <div style="font-size:10px;color:var(--mute);margin-top:3px;">확정 전 — 수주 시 비교</div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
   {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
@@ -821,6 +837,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {% if _editable %}<input type="text" class="so-meta-edit" data-field="ship_to" data-orig="{{ so.ship_to or '' }}" value="{{ so.ship_to or '' }}" placeholder="(미지정)" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:130px;">{% endif %}
                 </span>
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
+                {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
+                {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;">{{ so.so_customer }}</span></span>{% endif %}
                 <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
               </div>
               <div class="so-actions">
@@ -937,8 +955,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
                   {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
-                  <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
-                  <th style="width:90px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
+                  {# v5H226z207: 날짜 칸이 좁아 월·일이 잘리던 문제 — 컬럼/입력칸 너비 확대 #}
+                  <th style="width:126px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>발주일</th>
+                  <th style="width:126px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>납기일</th>
                   {% if _is_parts %}<th style="width:120px;" data-pgroup="somet">입고일정</th>{% endif %}
                   {# v5H226z93: 납품처 컬럼 너비 96→140px (시노펙스 동탄 7자 + 여유) #}
                   {% if not _is_parts %}<th style="width:140px;">납품처</th>{% endif %}
@@ -1107,11 +1126,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   {# v5H226z83: 발주일/납기일 td 중앙 정렬 #}
                   <td class="center">
                     <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   <td class="center">
                     <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
-                    {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 5px;width:86px;">{% endif %}
+                    {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   {% if _is_parts %}
                   <td style="font-size:11.5px;">
@@ -1730,13 +1749,13 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
         {% endif %}
       </div>
 
-      {# v5H142 (2026-05-05): 소모품 발주 도메인(consumable_orders) 라인 #}
+      {# v5H142 (2026-05-05): 소모품 수주 도메인(consumable_orders) 라인 #}
       {% if consumable_orders and consumable_orders.rows %}
       <div class="section-card">
-        <h3>📦 소모품 발주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--amber-deep);font-size:13px;">전체보기</a>)</h3>
+        <h3>📦 소모품 수주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--amber-deep);font-size:13px;">전체보기</a>)</h3>
         <div style="overflow-x:auto;"><table style="width:100%;font-size:12.5px;border-collapse:collapse;">
           <thead><tr style="border-bottom:2px solid var(--line);">
-            <th style="text-align:left;padding:6px;">발주번호</th>
+            <th style="text-align:left;padding:6px;">수주번호</th>
             <th style="text-align:left;padding:6px;">사진</th>
             <th style="text-align:left;padding:6px;">품명</th>
             <th class="num" style="text-align:right;padding:6px;">수량</th>
@@ -1794,8 +1813,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           </dd>
           {# v5H185: 우측 패널은 정보 확인만. 수정은 상단 타이틀 옆 ✏️ + SO 영역 툴바에서. #}
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
-          <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}</dd>
-          <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
+          <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>
+          {% if p.two_tier_order %}
+          <dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>
+          {% endif %}
+          <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
           <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
           {% if parent_project %}
@@ -1886,6 +1908,16 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             </div>
             {% endif %}
           </dd>
+          {# v5H226z195 (대표 지시): 2단계 발주 — 최종 고객 매출(참고·합계제외) + 차액 #}
+          {% if p.two_tier_order %}
+          <dt>최종 고객 매출<br><span style="font-size:9px;color:#94a3b8;font-weight:400;">(참고 · 합계 제외)</span></dt>
+          <dd style="font-weight:700;color:#1d4ed8;">
+            {% if p.final_amount %}{{ '{:,.0f}'.format(p.final_amount) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
+            {% if p.final_amount and _displayed_amt %}
+            <div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ '{:,.0f}'.format(p.final_amount - _displayed_amt) }}</b> {{ p.currency or 'KRW' }}</div>
+            {% endif %}
+          </dd>
+          {% endif %}
         </dl>
       </div>
 

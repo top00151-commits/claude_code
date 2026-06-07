@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메신저 직원 동기화 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.se-wrap { max-width: 980px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.se-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:10px;
+           padding:14px 16px; font-size:13.5px; line-height:1.7; margin: var(--space-3) 0 var(--space-5); }
+.se-info b { color:#1e3a8a; }
+.se-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+.se-card h3 { margin:0 0 10px; font-size:14px; font-weight:800; color:#1e293b; }
+.se-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+.se-stat { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; text-align:center; }
+.se-stat .n { font-size:12px; color:#64748b; margin-bottom:4px; }
+.se-stat .v { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
+.se-stat.upd .v { color:#2563eb; } .se-stat.new .v { color:#16a34a; }
+.se-stat.skip .v { color:#94a3b8; } .se-stat.only .v { color:#b45309; }
+.se-sample { font-size:12.5px; color:#475569; line-height:1.9; word-break:keep-all; }
+.se-sample .tag { display:inline-block; background:#f1f5f9; border-radius:6px; padding:1px 7px; margin:2px 3px 2px 0; }
+.se-confirm { background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:16px 18px; }
+.se-confirm input { width:240px; padding:9px 12px; border:1px solid #d6cdb6; border-radius:8px; font-size:14px; }
+.se-btn { padding:10px 20px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; }
+.se-btn.go { background:#2563eb; color:#fff; }
+.se-btn.go:disabled { background:#bfdbfe; cursor:not-allowed; }
+.se-done { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.8; }
+.se-err  { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:12px; }
+.se-only-list { font-size:12.5px; color:#7c5807; line-height:1.9; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>메신저 직원 동기화</b></div>
+      <h1 class="page-title">메신저 직원 <em>동기화</em></h1>
+    </div>
+  </div>
+
+  <div class="se-wrap">
+    {% if done and done.ok %}
+      <div class="se-done">
+        ✅ <b>동기화 완료</b><br>
+        · 정보 갱신(기존 직원): <b>{{ done.updated }}</b>명<br>
+        · 신규 추가(WORKS 새로): <b>{{ done.inserted }}</b>명<br>
+        {% if done.skipped %}· 건너뜀(사번 없음/오류): {{ done.skipped }}명<br>{% endif %}
+        · 메신저 직원 총 {{ done.total }}명 처리<br>
+        {% if done.backup %}· 백업: <code>{{ done.backup }}</code> (문제 시 원복 가능)<br>{% endif %}
+        부서→팀 매핑·다국어 이름·사번·메일·연락처가 채워졌습니다.
+      </div>
+    {% endif %}
+
+    <div class="se-info">
+      🔄 메신저에 등록된 <b>전 직원</b>(사번·이름(한/영/베)·부서·직급·메일·연락처)을 WORKS 로 가져옵니다.<br>
+      · <b>기존 직원</b>은 빈 칸만 채우고 기존 값은 보존합니다(역할·비밀번호 유지).<br>
+      · <b>부서명 → 팀(team_id)</b> 자동 매핑으로 센터 진입권한이 정상 동작합니다.<br>
+      · 실행 전 <b>WORKS DB 자동 백업</b> · 아래는 <b>미리보기</b>라 누르기 전까지 아무 것도 바뀌지 않습니다.
+    </div>
+
+    {% if error %}<div class="se-err">⚠ {{ error }}</div>{% endif %}
+
+    {% if not preview.ok %}
+      <div class="se-err">
+        ⚠ 미리보기 실패: {{ preview.error }}<br>
+        <span style="font-size:12px;">메신저 DB 경로는 환경변수 <code>KNK_MESSENGER_DB</code> 로 지정할 수 있습니다(기본 <code>/opt/knk_messenger/data/messenger.db</code>). 로컬 PC 에는 메신저 DB 가 없어 NAS(운영)에서만 동작합니다.</span>
+      </div>
+    {% else %}
+      <div class="se-card">
+        <h3>📊 미리보기 (메신저 직원 {{ preview.total }}명 기준 · DB 변경 없음)</h3>
+        <div class="se-stats">
+          <div class="se-stat upd"><div class="n">정보 갱신(기존)</div><div class="v">{{ preview.updated }}</div></div>
+          <div class="se-stat new"><div class="n">신규 추가</div><div class="v">{{ preview.inserted }}</div></div>
+          <div class="se-stat skip"><div class="n">건너뜀</div><div class="v">{{ preview.skipped }}</div></div>
+          <div class="se-stat only"><div class="n">WORKS 전용*</div><div class="v">{{ preview.works_only|length }}</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:11.5px;color:#94a3b8;">* WORKS 에만 있고 메신저엔 없는 사람 — <b>자동 삭제하지 않습니다</b>(아래 목록, 수동 판단).</div>
+      </div>
+
+      {% if preview.sample_new %}
+      <div class="se-card">
+        <h3>🟢 신규 추가 예시 (최대 15)</h3>
+        <div class="se-sample">{% for s in preview.sample_new %}<span class="tag">{{ s }}</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+
+      {% if preview.sample_upd %}
+      <div class="se-card">
+        <h3>🔵 정보 갱신 예시 (최대 15)</h3>
+        <div class="se-sample">{% for s in preview.sample_upd %}<span class="tag">{{ s }}</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+
+      {% if preview.works_only %}
+      <div class="se-card">
+        <h3>🟠 WORKS 에만 있는 사용자 ({{ preview.works_only|length }}명) — 메신저 미등재</h3>
+        <div class="se-only-list">
+          {% for w in preview.works_only %}<span class="tag">{{ w.name }}({{ w.login_id or '-' }})</span>{% endfor %}
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#b45309;">↑ 퇴사/유지 판단은 수동입니다. 동기화는 이들을 <b>건드리지 않습니다</b>.</div>
+      </div>
+      {% endif %}
+
+      {% if not (done and done.ok) %}
+      <form method="post" action="/admin/sync-employees" class="se-confirm"
+            onsubmit="return confirm('메신저 직원 정보를 WORKS 에 반영할까요? (실행 전 자동 백업)');">
+        <h3 style="margin:0 0 10px;font-size:14px;font-weight:800;color:#1e3a8a;">반영하려면 아래에 <code>직원동기화</code> 를 입력하세요</h3>
+        <input type="text" name="confirm" id="seConfirm" placeholder="직원동기화" autocomplete="off"
+               oninput="document.getElementById('seBtn').disabled = (this.value.trim() !== '직원동기화');">
+        <button type="submit" id="seBtn" class="se-btn go" disabled style="margin-left:10px;">🔄 직원 동기화 실행</button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</main>
+</div>
+</body></html>

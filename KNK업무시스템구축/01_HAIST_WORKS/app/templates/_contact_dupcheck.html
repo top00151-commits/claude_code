@@ -1,0 +1,26 @@
+{# 연락처 등록/수정 전 중복 감지 공용 JS — form onsubmit="return knkContactSubmit(event, this)" #}
+<script>
+async function knkContactSubmit(ev, form){
+  ev.preventDefault();
+  const nameEl = form.querySelector('[name=name]');
+  const name = (nameEl && nameEl.value || '').trim();
+  if(!name){ alert('이름은 필수입니다.'); if(nameEl) nameEl.focus(); return false; }
+  try{
+    const fd = new FormData();
+    const g = n => { const el = form.querySelector('[name='+n+']'); return el ? (el.value||'') : ''; };
+    fd.append('mobile', g('mobile'));
+    fd.append('email',  g('email'));
+    fd.append('phone',  g('phone'));
+    fd.append('exclude_id', g('exclude_id'));
+    const r = await fetch('/contacts/check-dup', {method:'POST', body:fd});
+    const j = await r.json();
+    if(j.ok && j.duplicates && j.duplicates.length){
+      const list = j.duplicates.slice(0,5).map(d =>
+        `· ${d.name}${d.company ? ' ('+d.company+')' : ''} ${d.mobile||d.email||''}`).join('\n');
+      if(!confirm(`⚠ 같은 번호/이메일의 연락처가 이미 있습니다:\n\n${list}\n\n그래도 새로 등록할까요?`)) return false;
+    }
+  }catch(e){ /* 중복체크 실패해도 등록은 진행 */ }
+  form.submit();
+  return false;
+}
+</script>

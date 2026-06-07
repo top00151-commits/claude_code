@@ -1,0 +1,53 @@
+{# 연락처 입력 필드 공용 partial — contact(없으면 None) / customers 컨텍스트 사용.
+   contact_form.html · contacts_scan.html · contacts_signature.html 3곳에서 재사용. #}
+<div class="frow">
+  <div class="fld">
+    <label>이름 <span class="req">*</span></label>
+    <input type="text" name="name" id="f_name" required value="{{ contact.name|default('') if contact else '' }}" placeholder="홍길동">
+  </div>
+  <div class="fld">
+    <label>직책 / 직위</label>
+    <input type="text" name="position" id="f_position" value="{{ contact.position|default('') if contact else '' }}" placeholder="부장">
+  </div>
+  <div class="fld">
+    <label>회사명</label>
+    <input type="text" name="company" id="f_company" value="{{ contact.company|default('') if contact else '' }}" placeholder="㈜케이엔케이">
+  </div>
+  <div class="fld">
+    <label>부서</label>
+    <input type="text" name="department" id="f_department" value="{{ contact.department|default('') if contact else '' }}" placeholder="구매팀">
+  </div>
+  <div class="fld">
+    <label>휴대폰</label>
+    <input type="text" name="mobile" id="f_mobile" value="{{ contact.mobile|default('') if contact else '' }}" placeholder="010-1234-5678">
+  </div>
+  <div class="fld">
+    <label>회사 전화</label>
+    <input type="text" name="phone" id="f_phone" value="{{ contact.phone|default('') if contact else '' }}" placeholder="02-1234-5678">
+  </div>
+  <div class="fld">
+    <label>팩스</label>
+    <input type="text" name="fax" id="f_fax" value="{{ contact.fax|default('') if contact else '' }}" placeholder="02-1234-5679">
+  </div>
+  <div class="fld">
+    <label>이메일</label>
+    <input type="email" name="email" id="f_email" value="{{ contact.email|default('') if contact else '' }}" placeholder="hong@example.com">
+  </div>
+  <div class="fld full">
+    <label>주소</label>
+    <input type="text" name="address" id="f_address" value="{{ contact.address|default('') if contact else '' }}" placeholder="경기도 ...">
+  </div>
+  <div class="fld full">
+    <label>거래처 연결 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 선택</span></label>
+    <select name="customer_id" id="f_customer_id">
+      <option value="">(연결 안 함)</option>
+      {% for cu in customers %}
+      <option value="{{ cu.id }}" {% if contact and contact.customer_id == cu.id %}selected{% endif %}>{{ cu.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="fld full">
+    <label>비고 / 메모</label>
+    <textarea name="note" id="f_note" placeholder="만난 경위 / 특이사항">{{ contact.note|default('') if contact else '' }}</textarea>
+  </div>
+</div>

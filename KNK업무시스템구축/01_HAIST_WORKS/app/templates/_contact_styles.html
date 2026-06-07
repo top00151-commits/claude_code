@@ -1,0 +1,28 @@
+{# 연락처 폼 공용 스타일 — customer_form 토큰 계열 재사용 #}
+<style>
+.form-card { background:var(--paper-3, #fff); border:1px solid var(--line); border-radius:var(--radius-lg);
+             padding:var(--space-5); margin: 0 var(--content-pad); box-shadow:var(--shadow-sm); }
+.form-card + .form-card { margin-top: var(--space-4); }
+.form-card h2 { font-size:15px; font-weight:700; margin-bottom: var(--space-3); color:var(--ink);
+                display:flex; align-items:center; gap:8px; padding-bottom: 10px;
+                border-bottom: 2px solid var(--knk-red); }
+.frow { display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-4); margin-bottom: var(--space-3); }
+.fld { display:flex; flex-direction:column; gap:6px; }
+.fld.full { grid-column: 1 / -1; }
+.fld label { font-size:12px; color:var(--mute); font-weight:600; letter-spacing:.04em; }
+.fld input, .fld select, .fld textarea {
+    padding: 9px 12px; border:1px solid var(--line); border-radius: var(--radius-md);
+    font-size:14px; background: var(--paper); color: var(--ink); font-family: inherit; }
+.fld input:focus, .fld select:focus, .fld textarea:focus { outline:2px solid var(--knk-red); border-color: var(--knk-red); }
+.fld textarea { min-height: 70px; resize:vertical; }
+.req { color: var(--knk-red); font-weight:700; }
+.actions { display:flex; gap:10px; }
+@media (min-width:1280px){ .frow{grid-template-columns:repeat(3,1fr);} }
+@media (max-width:760px){ .frow{grid-template-columns:1fr;} }
+.dropzone { border:1.5px dashed var(--knk-red); border-radius:10px; padding:22px; background:#fff;
+            text-align:center; cursor:pointer; transition:.12s; }
+.dropzone.over { background:#fff8e7; transform:scale(1.01); }
+.hint { font-size:12px; color:var(--mute); line-height:1.6; }
+.step-badge { display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center;
+              border-radius:50%; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; margin-right:6px; }
+</style>

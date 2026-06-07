@@ -43,7 +43,7 @@ body {
           <td class="center"><span class="pill pill-progress">{{ o.currency|default('USD') }}</span></td>
           <td style="font-size:12px;">{{ o.incoterms|default('—') }}</td>
           <td style="font-size:12px;color:var(--mute);">{{ o.destination|default('—') }}</td>
-          <td class="center"><span class="pill {% if o.status == 'CLEARED' %}pill-done{% elif o.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}">{{ o.status|default('—') }}</span></td>
+          <td class="center"><span class="pill {% if o.status == 'CLEARED' %}pill-done{% elif o.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}">{{ o.status|status_kr }}</span></td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ o.order_date|default('—') }}</td>
         </tr>
       {% endfor %}

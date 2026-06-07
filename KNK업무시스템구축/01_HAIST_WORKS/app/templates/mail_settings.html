@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 설정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_contact_styles.html" %}
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/contacts">연락처(주소록)</a> · <b>메일 설정</b></div>
+      <h1 class="page-title">✉ 내 <em>메일 발송</em> 설정</h1>
+    </div>
+  </div>
+
+  {% if not mail_ready %}
+  <div class="form-card" style="border-color:var(--amber);">
+    <div style="font-size:13px; color:var(--amber-deep); line-height:1.7;">
+      ⚠ 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 아직 설정되지 않아 메일 발송 기능을 켤 수 없습니다.<br>
+      <span style="color:var(--mute);">(전산 담당자: <code>.env</code> 에 <code>KNK_MAIL_KEY</code> 등록 필요 — 가이드 참조)</span>
+    </div>
+  </div>
+  {% else %}
+
+  {% if saved %}
+  <div class="form-card" style="border-color:#6ee7b7; background:#ecfdf5;">
+    <div style="color:#065f46; font-size:13.5px;">✅ 저장되었습니다. 아래 <b>테스트 발송</b>으로 확인해 보세요.</div>
+  </div>
+  {% endif %}
+
+  <form class="form-card" method="POST" action="/mail/settings" autocomplete="off">
+    <h2>📧 본인 외부 그룹웨어 메일 계정</h2>
+    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:#1e40af; line-height:1.7;">
+      💡 <b>안내</b><br>
+      ① 외부 그룹웨어에서 <b>[메일 &gt; 환경설정 &gt; 기본설정]</b>의 <b>POP3/SMTP "사용"</b>을 켜주세요.<br>
+      ② 비밀번호는 보안을 위해 <b>"앱 비밀번호"(별도 발급)</b> 사용을 권장합니다. (2단계 인증 계정은 필수)<br>
+      ③ 입력한 비밀번호는 <b>암호화되어 저장</b>되며, 본인 명의로만 발송에 사용됩니다.
+    </div>
+    <div class="frow">
+      <div class="fld">
+        <label>메일주소 <span class="req">*</span></label>
+        <input type="email" name="smtp_email" required value="{{ cur_email }}" placeholder="hong@회사도메인">
+      </div>
+      <div class="fld">
+        <label>비밀번호(앱 비밀번호 권장) {% if configured %}<span style="font-size:10px;color:var(--mute);">— 변경 시에만 입력</span>{% else %}<span class="req">*</span>{% endif %}</label>
+        <input type="password" name="smtp_password" {% if not configured %}required{% endif %} placeholder="{% if configured %}그대로 두면 기존 비번 유지{% else %}앱 비밀번호 입력{% endif %}">
+      </div>
+    </div>
+    <div class="actions" style="margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--line);">
+      <button type="submit" class="btn btn-primary">💾 저장</button>
+      {% if configured %}
+      <button type="button" class="btn btn-secondary" onclick="testMail()">📤 나에게 테스트 발송</button>
+      <button type="button" class="btn btn-secondary" style="color:var(--knk-red);" onclick="delCreds()">🗑 설정 삭제</button>
+      {% endif %}
+      <a href="/contacts" class="btn btn-secondary">연락처로</a>
+      <span id="mailMsg" style="font-size:12.5px; margin-left:8px;"></span>
+    </div>
+  </form>
+  {% endif %}
+</main></div>
+<script>
+async function testMail(){
+  const m=document.getElementById('mailMsg'); m.innerHTML='<span style="color:var(--mute);">📤 테스트 발송 중...</span>';
+  try{ const r=await fetch('/mail/test',{method:'POST'}); const j=await r.json();
+    m.innerHTML = j.ok ? '<span style="color:var(--success);font-weight:700;">✅ '+j.message+' — 받은편지함 확인</span>'
+                       : '<span style="color:var(--knk-red);">⚠ '+(j.message||'실패')+'</span>';
+  }catch(e){ m.innerHTML='<span style="color:var(--knk-red);">네트워크 오류</span>'; }
+}
+async function delCreds(){
+  if(!confirm('저장된 메일 계정 설정을 삭제할까요?')) return;
+  const r=await fetch('/mail/settings/delete',{method:'POST'}); const j=await r.json();
+  if(j.ok) location.href='/mail/settings'; else alert('삭제 실패');
+}
+</script>
+{% include "_v5_partials/knk_inputs.html" ignore missing %}
+</body></html>

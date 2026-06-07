@@ -23,7 +23,7 @@
     <div class="gantt-row">
       <div><b>{{ PHASE_CODE_TO_LABEL.get(p.code, p.code) }}</b><div style="font-size:11px;color:var(--mute);">{{ p.start_date|default('—') }} ~ {{ p.end_date|default('—') }}</div></div>
       <div class="gantt-bar"><div class="gantt-fill {% if p.status == 'DONE' %}done{% elif p.status == 'DELAY' %}delay{% endif %}" style="left:{{ p.bar_left|default(0) }}%;width:{{ p.bar_width|default(20) }}%;"></div></div>
-      <div style="text-align:right;"><span class="pill {% if p.status == 'DONE' %}pill-done{% elif p.status == 'DELAY' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status|default('—') }}</span></div>
+      <div style="text-align:right;"><span class="pill {% if p.status == 'DONE' %}pill-done{% elif p.status == 'DELAY' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status|status_kr }}</span></div>
     </div>
     {% else %}<div style="padding:30px;text-align:center;color:var(--mute);">단계 정보 없음</div>{% endfor %}
 

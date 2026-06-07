@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ t.as_no }} · A/S · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .ad-wrap { max-width: 1040px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+  .ad-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap:16px; }
+  @media (max-width: 880px){ .ad-grid { grid-template-columns:1fr; } }
+  .ad-card { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+  .ad-card h3 { margin:0 0 14px; font-size:14.5px; font-weight:800; color:var(--qv-ink); padding-bottom:8px; border-bottom:1px solid var(--qv-line); }
+  .badge { display:inline-block; padding:3px 12px; border-radius:20px; font-size:12.5px; font-weight:800; }
+  .b-접수{background:#e0edff;color:#1d4ed8;} .b-수리중{background:#fff0d6;color:#b45309;}
+  .b-발송완료{background:#d8f3df;color:#15803d;} .b-보류{background:#eee;color:#666;} .b-반송{background:#fde2e2;color:#b91c1c;}
+  .ad-status-btns { display:flex; gap:7px; flex-wrap:wrap; }
+  .ad-status-btns button { padding:8px 15px; font-size:13px; font-weight:700; border:1px solid var(--qv-line);
+    border-radius:8px; background:var(--qv-surface-2); color:var(--qv-ink-2); cursor:pointer; }
+  .ad-status-btns button.cur { background:var(--qv-ink-2); color:#fff; border-color:var(--qv-ink-2); cursor:default; }
+  .ad-status-btns button:not(.cur):hover { border-color:var(--knk-red); color:var(--knk-red); }
+  .kv { display:grid; grid-template-columns: 96px 1fr; gap:7px 12px; font-size:13.5px; }
+  .kv .k { color:var(--qv-ink-3); font-weight:600; }
+  .kv .v { color:var(--qv-ink); }
+  .af-field { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+  .af-field label { font-size:12px; font-weight:600; color:var(--qv-ink-2); }
+  .af-field input, .af-field textarea {
+    padding:9px 12px; font-size:13.5px; font-family:inherit; color:var(--qv-ink);
+    background:var(--qv-surface-2); border:1px solid var(--qv-line); border-radius:8px; }
+  .af-field textarea { min-height:70px; resize:vertical; line-height:1.5; }
+  .af2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .btn-save { padding:10px 22px; font-size:13.5px; font-weight:800; border:0; border-radius:9px; background:var(--knk-red); color:#fff; cursor:pointer; }
+  .tl { list-style:none; margin:0; padding:0; }
+  .tl li { position:relative; padding:0 0 14px 18px; border-left:2px solid var(--qv-line); }
+  .tl li:last-child { border-left-color:transparent; }
+  .tl li::before { content:""; position:absolute; left:-6px; top:3px; width:10px; height:10px; border-radius:50%; background:var(--knk-red); }
+  .tl .t-st { font-weight:800; font-size:13px; color:var(--qv-ink); }
+  .tl .t-meta { font-size:11.5px; color:var(--qv-ink-3); }
+  .paid-toggle { display:inline-flex; align-items:center; gap:7px; font-size:13.5px; cursor:pointer; }
+  .back-link { font-size:13px; color:var(--qv-ink-3); text-decoration:none; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/as">A/S 관리</a> · <b>{{ t.as_no }}</b></div>
+      <h1 class="page-title">🛠 <em>{{ t.as_no }}</em> <span class="badge b-{{ t.status }}" style="vertical-align:middle;margin-left:6px;">{{ t.status }}</span></h1>
+    </div>
+    <div><a href="/as" class="back-link">← 목록</a></div>
+  </div>
+
+  <div class="ad-wrap">
+    {# 상태 진행 #}
+    <div class="ad-card">
+      <h3>진행 상태</h3>
+      <form method="post" action="/as/{{ t.id }}/status" id="stForm">
+        <input type="hidden" name="status" id="stVal">
+        <div class="ad-status-btns">
+          {% for st in AS_STATUSES %}
+          <button type="button" class="{% if t.status == st %}cur{% endif %}"
+                  {% if t.status != st %}onclick="document.getElementById('stVal').value='{{ st }}';document.getElementById('stForm').submit();"{% endif %}>
+            {% if t.status == st %}● {% endif %}{{ st }}
+          </button>
+          {% endfor %}
+        </div>
+        <div style="font-size:11.5px;color:var(--qv-ink-3);margin-top:8px;">버튼을 누르면 상태가 즉시 바뀌고 이력에 기록됩니다. '발송완료' 시 발송일이 자동 기록됩니다.</div>
+      </form>
+    </div>
+
+    <div class="ad-grid">
+      <div>
+        {# 고객 / 제품 / 증상 #}
+        <div class="ad-card">
+          <h3>👤 고객 · 📦 제품</h3>
+          <div class="kv">
+            <div class="k">고객명</div><div class="v"><b>{{ t.customer_name or '—' }}</b></div>
+            <div class="k">연락처</div><div class="v">{{ t.customer_phone or '—' }}</div>
+            <div class="k">주소</div><div class="v">{{ t.customer_address or '—' }}</div>
+            <div class="k">제품</div><div class="v">{{ t.product_name or '—' }}{% if t.model_name %} / {{ t.model_name }}{% endif %}</div>
+            <div class="k">구매일</div><div class="v">{{ t.purchase_date or '—' }}</div>
+            <div class="k">접수일</div><div class="v">{{ t.received_date or '—' }}</div>
+            <div class="k">받은송장</div><div class="v">{{ t.inbound_tracking or '—' }}</div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="font-size:12px;font-weight:600;color:var(--qv-ink-3);margin-bottom:4px;">증상</div>
+            <div style="font-size:13.5px;color:var(--qv-ink);white-space:pre-wrap;background:var(--qv-surface-2);border-radius:8px;padding:10px 12px;min-height:30px;">{{ t.symptom or '—' }}</div>
+          </div>
+        </div>
+
+        {# 수리 처리 #}
+        <div class="ad-card">
+          <h3>🔧 수리 처리</h3>
+          <form method="post" action="/as/{{ t.id }}/edit">
+            <div class="af2">
+              <div class="af-field">
+                <label>유·무상</label>
+                <label class="paid-toggle"><input type="checkbox" name="is_paid" value="1" {% if t.is_paid %}checked{% endif %}> 유상</label>
+              </div>
+              <div class="af-field">
+                <label>수리비 (원)</label>
+                <input type="text" name="repair_fee" inputmode="numeric" value="{{ '{:,.0f}'.format(t.repair_fee) if t.repair_fee else '' }}" placeholder="예: 30,000">
+              </div>
+            </div>
+            <div class="af-field">
+              <label>수리 내역 (작업 내용 · 교체 부품)</label>
+              <textarea name="repair_note" placeholder="수리한 내용, 교체한 부품 등을 적어주세요">{{ t.repair_note or '' }}</textarea>
+            </div>
+            <div class="af2">
+              <div class="af-field">
+                <label>보낸 택배 송장 (본사→고객)</label>
+                <input type="text" name="outbound_tracking" value="{{ t.outbound_tracking or '' }}" placeholder="예: CJ987654321">
+              </div>
+              <div class="af-field">
+                <label>발송일</label>
+                <input type="date" name="shipped_date" class="knk-cal" value="{{ t.shipped_date or '' }}">
+              </div>
+            </div>
+            <div class="af-field">
+              <label>담당자</label>
+              <select name="assignee_id" style="padding:9px 12px;font-size:13.5px;border:1px solid var(--qv-line);border-radius:8px;background:var(--qv-surface-2);">
+                <option value="">— 선택 —</option>
+                {% for usr in users %}<option value="{{ usr.id }}" {% if t.assignee_id == usr.id %}selected{% endif %}>{{ usr.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div style="text-align:right;margin-top:6px;"><button type="submit" class="btn-save">💾 저장</button></div>
+          </form>
+        </div>
+      </div>
+
+      {# 상태 이력 #}
+      <div>
+        <div class="ad-card">
+          <h3>📜 상태 이력</h3>
+          {% if t.history %}
+          <ul class="tl">
+            {% for h in t.history %}
+            <li>
+              <div class="t-st">{% if h.from_status %}{{ h.from_status }} → {% endif %}{{ h.to_status }}</div>
+              <div class="t-meta">{{ h.changed_at }} · {{ h.changer or '시스템' }}{% if h.note %} · {{ h.note }}{% endif %}</div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div style="color:var(--qv-ink-3);font-size:13px;">이력이 없습니다.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% include "_v5_partials/knk_datepicker.html" %}
+</body></html>

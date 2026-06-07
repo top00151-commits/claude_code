@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>AI 모델 설정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.ai-wrap { max-width: 820px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.ai-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+.ai-card h3 { margin:0 0 12px; font-size:14px; font-weight:800; color:#1e293b; }
+.ai-row { display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px dashed #f1e8d4; }
+.ai-row .k { color:#64748b; } .ai-row .v { font-weight:700; color:#1e293b; font-family:ui-monospace,Consolas,monospace; }
+.ai-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:800; }
+.ai-badge.on { background:#dbeafe; color:#1e40af; } .ai-badge.off { background:#fee2e2; color:#991b1b; }
+.ai-field { margin-bottom:14px; }
+.ai-field label { display:block; font-size:12.5px; font-weight:700; color:#334155; margin-bottom:5px; }
+.ai-field input, .ai-field select { width:100%; max-width:420px; padding:9px 12px; border:1px solid #d6cdb6; border-radius:8px; font-size:14px; font-family:inherit; }
+.ai-hint { font-size:11.5px; color:#8a7842; margin-top:4px; }
+.ai-btn { padding:9px 18px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; }
+.ai-btn.primary { background:#b07a18; color:#fff; }
+.ai-btn.test { background:#1e40af; color:#fff; }
+.ai-saved { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+.ai-warn { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; border-radius:8px; padding:10px 14px; font-size:12.5px; line-height:1.7; margin-bottom:14px; }
+#aiTestResult { margin-top:10px; font-size:13px; }
+.ai-ok { color:#065f46; font-weight:700; } .ai-bad { color:#991b1b; font-weight:700; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>AI 모델 설정</b></div>
+      <h1 class="page-title">AI 모델 <em>설정</em></h1>
+    </div>
+  </div>
+
+  <div class="ai-wrap">
+    {% if saved %}<div class="ai-saved">✅ 저장됐습니다. 아래 <b>연결 테스트</b>로 모델이 실제 작동하는지 꼭 확인하세요.</div>{% endif %}
+
+    <div class="ai-card">
+      <h3>현재 적용 상태</h3>
+      <div class="ai-row"><span class="k">AI 사용 가능</span><span class="v">
+        {% if info.available %}<span class="ai-badge on">● 사용 가능</span>{% else %}<span class="ai-badge off">● 비활성(키 없음)</span>{% endif %}</span></div>
+      <div class="ai-row"><span class="k">공급사(provider)</span><span class="v">{{ info.provider }}</span></div>
+      <div class="ai-row"><span class="k">현재 모델</span><span class="v">{{ info.model or '—' }}</span></div>
+      <div class="ai-row"><span class="k">기본 모델</span><span class="v">OpenAI: {{ info.default_openai }} / Claude: {{ info.default_claude }}</span></div>
+      {% if info.env_model or info.env_provider %}
+      <div class="ai-row"><span class="k">환경변수 고정</span><span class="v">{{ info.env_provider or '-' }} / {{ info.env_model or '-' }}</span></div>
+      {% endif %}
+    </div>
+
+    {% if info.env_model %}
+    <div class="ai-warn">⚠ 현재 <b>환경변수 KNK_AI_MODEL={{ info.env_model }}</b> 이 설정돼 있어, 아래 설정보다 <b>환경변수가 우선</b>합니다. 화면 설정을 적용하려면 NAS .env 의 KNK_AI_MODEL 을 비워야 합니다.</div>
+    {% endif %}
+
+    <form method="post" action="/admin/ai-settings" class="ai-card">
+      <h3>모델 변경</h3>
+      <div class="ai-field">
+        <label>공급사</label>
+        <select name="ai_provider">
+          <option value="" {% if not info.set_provider %}selected{% endif %}>자동 (키로 감지)</option>
+          <option value="openai" {% if info.set_provider=='openai' %}selected{% endif %}>OpenAI</option>
+          <option value="claude" {% if info.set_provider=='claude' %}selected{% endif %}>Claude (Anthropic)</option>
+        </select>
+        <div class="ai-hint">키가 설정된 공급사여야 작동합니다. '자동'은 등록된 키로 결정.</div>
+      </div>
+      <div class="ai-field">
+        <label>모델명</label>
+        <input type="text" name="ai_model" value="{{ info.set_model }}" placeholder="예: gpt-4o-mini / gpt-4o / claude-sonnet-4-5" autocomplete="off">
+        <div class="ai-hint">비우면 공급사 기본 모델 사용. <b>공급사 공식 모델명과 정확히 일치</b>해야 합니다(틀리면 AI가 작동 안 함).</div>
+      </div>
+      <button type="submit" class="ai-btn primary">💾 저장</button>
+    </form>
+
+    <div class="ai-card">
+      <h3>연결 테스트</h3>
+      <div class="ai-hint" style="margin-bottom:10px;">현재 설정된 모델로 실제 호출해 작동 여부를 확인합니다. (잘못된 모델명이면 여기서 오류가 뜹니다)</div>
+      <button type="button" class="ai-btn test" onclick="aiTest(this)">🔌 연결 테스트</button>
+      <div id="aiTestResult"></div>
+    </div>
+  </div>
+
+  <script>
+  async function aiTest(btn){
+    var box = document.getElementById('aiTestResult');
+    btn.disabled = true; box.innerHTML = '테스트 중…';
+    try {
+      var r = await fetch('/admin/ai-settings/test', {method:'POST'});
+      var j = await r.json();
+      if (j.ok) {
+        box.innerHTML = '<span class="ai-ok">✅ 정상</span> · 공급사 <b>'+(j.provider||'')+'</b> · 모델 <b>'+(j.model||'')+'</b> · 응답: '+(j.answer||'').replace(/[<>]/g,'');
+      } else {
+        box.innerHTML = '<span class="ai-bad">❌ 실패</span> · '+(j.error||'').replace(/[<>]/g,'')+'<br><span style="color:#8a7842;font-size:12px;">모델명이 공급사 공식 이름과 다르거나, 키/권한 문제일 수 있습니다.</span>';
+      }
+    } catch(e){ box.innerHTML = '<span class="ai-bad">❌ 네트워크 오류</span> '+(e.message||''); }
+    btn.disabled = false;
+  }
+  </script>
+</main>
+</div>
+</body></html>

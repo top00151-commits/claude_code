@@ -1,0 +1,146 @@
+{# v5H226z134 (2026-05-31): 부분 전환(SPA식 내비게이션)
+   링크 클릭 시 문서 전체를 새로 로드하지 않고 본문(.main)만 교체 →
+   상단바·사이드바·빅터창은 그대로 유지 → 전환 깜빡임 완전 제거.
+   안전장치: 예외·오류·파일응답·로그인리다이렉트·수정자클릭 등은 전체이동으로 폴백.
+   끄기: URL ?nospa=1  또는  localStorage knk_nospa=1  또는  window.KNK_NO_SPA=true #}
+<script>
+(function(){
+  if (window.__knkSpaInit) return; window.__knkSpaInit = true;
+
+  // 킬스위치 — 문제 시 즉시 비활성(전체이동) 가능
+  try {
+    var qp = new URLSearchParams(location.search);
+    if (qp.get('nospa') === '1') localStorage.setItem('knk_nospa','1');
+    if (qp.get('nospa') === '0') localStorage.removeItem('knk_nospa');
+    if (localStorage.getItem('knk_nospa') === '1') window.KNK_NO_SPA = true;
+  } catch(e){}
+
+  function sameOrigin(href){
+    try { return new URL(href, location.href).origin === location.origin; } catch(e){ return false; }
+  }
+  function eligible(a, e){
+    if (window.KNK_NO_SPA) return false;
+    if (e.defaultPrevented) return false;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false; // 새탭/수정자
+    if (a.target && a.target !== '' && a.target !== '_self') return false;
+    if (a.hasAttribute('download') || a.hasAttribute('data-no-swap')) return false;
+    var href = a.getAttribute('href') || '';
+    if (!href || href[0] === '#') return false;
+    if (/^(javascript|mailto|tel|data|blob):/i.test(href)) return false;
+    if (!sameOrigin(href)) return false;
+    // 파일 다운로드/이미지 응답 가능성 큰 경로 → 전체이동
+    if (/\.(xlsx|xls|csv|vcf|pdf|zip|png|jpe?g|gif|webp|svg)(\?|$)/i.test(href)) return false;
+    if (a.closest('#victorDock')) return false; // 빅터 dock 내부 링크는 자체 처리
+    return true;
+  }
+
+  function freshScript(old){
+    var s = document.createElement('script');
+    for (var i=0;i<old.attributes.length;i++){ s.setAttribute(old.attributes[i].name, old.attributes[i].value); }
+    s.textContent = old.textContent;
+    return s;
+  }
+  // 본문 '내부' 스크립트: 이미 라이브 DOM → in-place 교체로 실행
+  function reExecInPlace(scripts){
+    scripts.forEach(function(old){ if (old.parentNode) old.parentNode.replaceChild(freshScript(old), old); });
+  }
+  // 본문 '이후' 페이지 스크립트(파싱된 죽은 문서) → 라이브 body 에 새로 추가해 실행
+  function appendPageScripts(scripts){
+    // 이전 페이지에서 추가한 것 제거(누적 방지)
+    document.querySelectorAll('script[data-knk-page-script]').forEach(function(n){ n.remove(); });
+    scripts.forEach(function(old){
+      var s = freshScript(old);
+      s.setAttribute('data-knk-page-script','1');
+      document.body.appendChild(s);
+    });
+  }
+
+  function reinit(){
+    try { window.knkScanMoney && window.knkScanMoney(); } catch(e){}
+    try { window.KNK_enhanceRowLinks && window.KNK_enhanceRowLinks(document); } catch(e){}
+    try { document.dispatchEvent(new CustomEvent('knk:navigated')); } catch(e){}
+    // dragdrop 는 MutationObserver 로 자동 초기화됨
+  }
+
+  // 페이지 고유 스타일(head 의 <style>/<link>) 동기화 — FOUC 방지.
+  // 본문(.main) 안의 style 은 swap 으로 함께 오므로 제외. 공용(이미 동일) 은 skip.
+  function syncPageStyles(doc){
+    document.head.querySelectorAll('[data-knk-page-style]').forEach(function(n){ n.remove(); });
+    var newMain = doc.querySelector('.main');
+    var existing = {};
+    document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach(function(n){ existing[n.outerHTML] = 1; });
+    doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(function(n){
+      if (newMain && newMain.contains(n)) return;   // 본문 내부 → swap 으로 따라옴
+      if (existing[n.outerHTML]) return;            // 공용/중복
+      var clone = n.cloneNode(true);
+      clone.setAttribute('data-knk-page-style','1');
+      document.head.appendChild(clone);
+    });
+  }
+
+  function fullNav(url){ window.location.assign(url); }
+
+  function apply(html, url, push){
+    var doc;
+    try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch(e){ return fullNav(url); }
+    var newMain = doc.querySelector('.main');
+    var curMain = document.querySelector('.main');
+    if (!newMain || !curMain) return fullNav(url);
+
+    // 본문 '이후'의 페이지 스크립트(셸 스크립트는 본문 '앞'이라 제외) 미리 수집
+    var afterScripts = Array.prototype.filter.call(doc.querySelectorAll('script'), function(s){
+      var pos = newMain.compareDocumentPosition(s);
+      return (pos & Node.DOCUMENT_POSITION_FOLLOWING) && !(pos & Node.DOCUMENT_POSITION_CONTAINED_BY);
+    });
+
+    var doSwap = function(){
+      try {
+        syncPageStyles(doc);            // 페이지 고유 스타일 먼저 주입(FOUC 방지)
+        document.adoptNode(newMain);
+        curMain.replaceWith(newMain);
+        // 사이드바 active·뱃지 / 상단 워크스페이스 탭 active 갱신 (스크립트 없음)
+        var ns = doc.querySelector('.sidebar'),  cs = document.querySelector('.sidebar');
+        if (ns && cs) cs.innerHTML = ns.innerHTML;
+        var nt = doc.querySelector('.top-tabs'), ct = document.querySelector('.top-tabs');
+        if (nt && ct) ct.innerHTML = nt.innerHTML;
+        if (doc.title) document.title = doc.title;
+        // 본문 내부 스크립트 in-place 재실행 + 본문 이후 스크립트 재실행
+        reExecInPlace(Array.prototype.slice.call(newMain.querySelectorAll('script')));
+        appendPageScripts(afterScripts);
+        reinit();
+        try { newMain.scrollTop = 0; } catch(e){}
+        window.scrollTo(0, 0);
+      } catch(err) {
+        // 스왑 도중 문제 → 전체이동(안전)
+        fullNav(url);
+      }
+    };
+
+    if (document.startViewTransition) { document.startViewTransition(doSwap); }
+    else { doSwap(); }
+    if (push) { try { history.pushState({ knkSpa: true }, '', url); } catch(e){} }
+  }
+
+  function navigate(url, push){
+    fetch(url, { headers: { 'X-KNK-Partial': '1' }, credentials: 'same-origin' })
+      .then(function(r){
+        var ct = r.headers.get('content-type') || '';
+        if (!r.ok || ct.indexOf('text/html') === -1) { fullNav(url); return null; }
+        if (r.redirected && /\/login(\?|$)/.test(r.url)) { fullNav(r.url); return null; } // 인증만료 등
+        return r.text();
+      })
+      .then(function(html){ if (html != null) apply(html, url, push); })
+      .catch(function(){ fullNav(url); });
+  }
+
+  document.addEventListener('click', function(e){
+    if (!e.target || !e.target.closest) return;
+    var a = e.target.closest('a[href]');
+    if (!a || !eligible(a, e)) return;
+    e.preventDefault();
+    navigate(a.href, true);
+  });
+
+  window.addEventListener('popstate', function(){ navigate(location.href, false); });
+})();
+</script>

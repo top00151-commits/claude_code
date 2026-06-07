@@ -31,7 +31,7 @@ body {
           <td><b>{{ o.customer_name|default('—') }}</b></td>
           <td>{{ o.product_name|default('—') }}</td>
           <td class="num">{{ '{:,.0f}'.format(o.qty|default(0)) }}</td>
-          <td class="center"><span class="pill {% if o.status == 'IN_PRODUCTION' %}pill-progress{% elif o.status == 'CONFIRMED' %}pill-warn{% else %}pill-muted{% endif %}">{{ o.status|default('—') }}</span></td>
+          <td class="center"><span class="pill {% if o.status == 'IN_PRODUCTION' %}pill-progress{% elif o.status == 'CONFIRMED' %}pill-warn{% else %}pill-muted{% endif %}">{{ o.status|status_kr }}</span></td>
           <td style="font-family:monospace;font-size:11px;color:{% if o.due_overdue %}var(--knk-red){% else %}var(--mute){% endif %};">{{ o.due_date|default('—') }}</td>
           <td class="center">
             {% if o.status == 'CONFIRMED' %}

@@ -35,7 +35,7 @@
           {% if phase.start_date %}🟢 {{ phase.start_date }}{% endif %}
           {% if phase.end_date %} → {{ phase.end_date }}{% endif %}
         </div>
-        <div><span class="pill {% if phase.status == 'DONE' %}pill-done{% elif phase.status == 'DELAY' %}pill-danger{% elif phase.status == 'PROGRESS' %}pill-progress{% else %}pill-muted{% endif %}">{{ phase.status|default('—') }}</span></div>
+        <div><span class="pill {% if phase.status == 'DONE' %}pill-done{% elif phase.status == 'DELAY' %}pill-danger{% elif phase.status == 'PROGRESS' %}pill-progress{% else %}pill-muted{% endif %}">{{ phase.status|status_kr }}</span></div>
       </div>
       {% else %}<div class="card empty"><div class="ico">📊</div><div class="ttl">단계 정보 없음</div></div>{% endfor %}
     </div>

@@ -104,7 +104,7 @@ body {
             <thead><tr><th>송장번호</th><th>발행일</th><th class="num">금액(VAT포함)</th><th>상태</th></tr></thead>
             <tbody>
             {% for inv in invoices %}
-            <tr><td style="font-family:monospace;font-size:12px;">{{ inv.invoice_no }}</td><td>{{ inv.issue_date|default('-') }}</td><td class="num">{{ '{:,.0f}'.format(inv.total_amount or 0) }}</td><td><span class="pill pill-done">{{ inv.status }}</span></td></tr>
+            <tr><td style="font-family:monospace;font-size:12px;">{{ inv.invoice_no }}</td><td>{{ inv.issue_date|default('-') }}</td><td class="num">{{ '{:,.0f}'.format(inv.total_amount or 0) }}</td><td><span class="pill pill-done">{{ inv.status|status_kr }}</span></td></tr>
             {% endfor %}
             </tbody>
           </table>

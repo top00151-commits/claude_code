@@ -27,7 +27,7 @@ body {
   <div class="page-head" data-dn="page-head">
     <div><div class="crumbs" data-dn="crumb"><a href="/export">수출</a> · <b>{{ eo.export_no|default('#' ~ eo.id) }}</b></div>
     {# v5H226z64: 헤더 export_no 잉크 알약 #}
-    <h1 class="page-title" data-dn="title">🚢 <span class="mgmt-pill lg">{{ eo.export_no|default('#' ~ eo.id) }}</span> {% if eo.status %}<span class="pill {% if eo.status == 'CLEARED' %}pill-done{% elif eo.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}" style="font-size:13px;">{{ eo.status }}</span>{% endif %}</h1></div>
+    <h1 class="page-title" data-dn="title">🚢 <span class="mgmt-pill lg">{{ eo.export_no|default('#' ~ eo.id) }}</span> {% if eo.status %}<span class="pill {% if eo.status == 'CLEARED' %}pill-done{% elif eo.status == 'DRAFT' %}pill-muted{% else %}pill-progress{% endif %}" style="font-size:13px;">{{ eo.status|status_kr }}</span>{% endif %}</h1></div>
     <div style="display:flex;gap:8px;">
       <a class="btn btn-secondary" href="/export">↩ 목록</a>
     </div>
@@ -73,7 +73,7 @@ body {
               <td style="font-family:monospace;font-weight:700;">{{ c.invoice_no or ('#'~c.id) }}</td>
               <td>{{ c.issue_date or '—' }}</td>
               <td class="num" style="font-weight:700;">{{ c.currency or 'USD' }} {{ '{:,.2f}'.format(c.total_amount or 0) }}</td>
-              <td><span class="pill {% if c.status=='ISSUED' %}pill-done{% elif c.status=='CANCELLED' %}pill-muted{% else %}pill-progress{% endif %}">{{ c.status or 'DRAFT' }}</span></td>
+              <td><span class="pill {% if c.status=='ISSUED' %}pill-done{% elif c.status=='CANCELLED' %}pill-muted{% else %}pill-progress{% endif %}">{{ (c.status or 'DRAFT')|status_kr }}</span></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -148,7 +148,7 @@ body {
               <td>{{ b.vessel or '—' }}</td>
               <td>{{ b.departure_date or '—' }}</td>
               <td>{{ b.arrival_date or '—' }}</td>
-              <td><span class="pill {% if b.status=='DELIVERED' %}pill-done{% elif b.status in ('DRAFT','CANCELLED') %}pill-muted{% else %}pill-progress{% endif %}">{{ b.status or 'DRAFT' }}</span></td>
+              <td><span class="pill {% if b.status=='DELIVERED' %}pill-done{% elif b.status in ('DRAFT','CANCELLED') %}pill-muted{% else %}pill-progress{% endif %}">{{ (b.status or 'DRAFT')|status_kr }}</span></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -174,7 +174,7 @@ body {
               <td>{{ d.fta_origin or '—' }}</td>
               <td class="num">{{ '{:,.2f}'.format(d.declared_value or 0) }}</td>
               <td>{{ d.cleared_at or '—' }}</td>
-              <td><span class="pill {% if d.status=='CLEARED' %}pill-done{% elif d.status in ('DRAFT','CANCELLED','REJECTED') %}pill-muted{% else %}pill-progress{% endif %}">{{ d.status or 'DRAFT' }}</span></td>
+              <td><span class="pill {% if d.status=='CLEARED' %}pill-done{% elif d.status in ('DRAFT','CANCELLED','REJECTED') %}pill-muted{% else %}pill-progress{% endif %}">{{ (d.status or 'DRAFT')|status_kr }}</span></td>
             </tr>
             {% endfor %}
             </tbody>

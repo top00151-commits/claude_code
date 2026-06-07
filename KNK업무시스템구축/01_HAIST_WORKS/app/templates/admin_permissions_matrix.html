@@ -28,7 +28,7 @@
       <tbody>
       {% for u_ in users %}
         <tr>
-          <td class="user-col">{{ u_.name }}{% if u_.role %} <span style="font-size:10px;color:var(--mute);">{{ u_.role }}</span>{% endif %}</td>
+          <td class="user-col">{{ vname(u_) }}{% if u_.role %} <span style="font-size:10px;color:var(--mute);">{{ u_.role }}</span>{% endif %}</td>
           {% for p in permissions %}
             {% set has = matrix.get((u_.id, p.id)) if matrix else None %}
             <td class="{% if has %}cell-yes{% else %}cell-no{% endif %}">{% if has %}✓{% else %}—{% endif %}</td>

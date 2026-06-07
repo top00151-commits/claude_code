@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>A/S 접수 등록 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .af-wrap { max-width: 900px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+  .af-sec { background:var(--qv-surface); border:1px solid var(--qv-line); border-radius:14px;
+            padding:18px 20px; margin-bottom:16px; }
+  .af-sec h3 { margin:0 0 14px; font-size:15px; font-weight:800; color:var(--qv-ink);
+               padding-bottom:8px; border-bottom:1px solid var(--qv-line); }
+  .af-row { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:13px; }
+  .af-row:last-child { margin-bottom:0; }
+  .af-row.solo { grid-template-columns:1fr; }
+  .af-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .af-field.full { grid-column:1/-1; }
+  .af-field label { font-size:12.5px; font-weight:600; color:var(--qv-ink); }
+  .af-field label .req { color:var(--knk-red); margin-left:2px; }
+  .af-field input, .af-field textarea, .af-field select {
+    padding:10px 13px; font-size:14px; font-family:inherit; color:var(--qv-ink);
+    background:var(--qv-surface-2); border:1px solid var(--qv-line); border-radius:9px; }
+  .af-field textarea { min-height:78px; resize:vertical; line-height:1.5; }
+  .af-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
+  .btn-save { padding:11px 26px; font-size:14px; font-weight:800; border:0; border-radius:10px;
+              background:var(--knk-red); color:#fff; cursor:pointer; }
+  .btn-cancel { padding:11px 22px; font-size:14px; font-weight:700; border:1px solid var(--qv-line);
+                border-radius:10px; background:var(--qv-surface-2); color:var(--qv-ink-2); text-decoration:none; }
+  .af-err { background:#fde2e2; color:#b91c1c; padding:10px 14px; border-radius:9px; font-size:13px;
+            font-weight:600; margin-bottom:14px; }
+  .paid-toggle { display:inline-flex; align-items:center; gap:8px; font-size:14px; cursor:pointer; padding:8px 0; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/as">A/S 관리</a> · <b>접수 등록</b></div>
+      <h1 class="page-title">🛠 A/S 접수 <em>등록</em></h1>
+    </div>
+  </div>
+
+  <form class="af-wrap" method="post" action="/as/new">
+    {% if err == 'customer_required' %}
+    <div class="af-err">⚠ 고객명을 입력해주세요.</div>
+    {% endif %}
+
+    <div class="af-sec">
+      <h3>👤 고객</h3>
+      <div class="af-row">
+        <div class="af-field">
+          <label>고객명<span class="req">*</span></label>
+          <input type="text" name="customer_name" required autofocus placeholder="예: 홍길동 / ○○회사">
+        </div>
+        <div class="af-field">
+          <label>연락처</label>
+          <input type="text" name="customer_phone" placeholder="예: 010-1234-5678">
+        </div>
+      </div>
+      <div class="af-row solo">
+        <div class="af-field full">
+          <label>주소 <span style="font-size:11px;color:var(--qv-ink-3);">(반송 시)</span></label>
+          <input type="text" name="customer_address" placeholder="예: 서울시 …">
+        </div>
+      </div>
+    </div>
+
+    <div class="af-sec">
+      <h3>📦 제품 / 증상</h3>
+      <div class="af-row">
+        <div class="af-field">
+          <label>제품명</label>
+          <input type="text" name="product_name" placeholder="예: LMS 케어기기">
+        </div>
+        <div class="af-field">
+          <label>모델명</label>
+          <input type="text" name="model_name" placeholder="예: LV-CARE-01">
+        </div>
+      </div>
+      <div class="af-row">
+        <div class="af-field">
+          <label>구매일 <span style="font-size:11px;color:var(--qv-ink-3);">(보증 판단)</span></label>
+          <input type="date" name="purchase_date" class="knk-cal">
+        </div>
+        <div class="af-field">
+          <label>접수일</label>
+          <input type="date" name="received_date" class="knk-cal" value="{{ today }}">
+        </div>
+      </div>
+      <div class="af-row solo">
+        <div class="af-field full">
+          <label>증상 (고장 내용)</label>
+          <textarea name="symptom" placeholder="고객이 말한 증상·고장 내용을 적어주세요"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="af-sec">
+      <h3>🚚 택배 / 비용 / 담당</h3>
+      <div class="af-row">
+        <div class="af-field">
+          <label>받은 택배 송장 <span style="font-size:11px;color:var(--qv-ink-3);">(고객→본사)</span></label>
+          <input type="text" name="inbound_tracking" placeholder="예: CJ123456789">
+        </div>
+        <div class="af-field">
+          <label>담당자</label>
+          <select name="assignee_id">
+            <option value="">— 선택 —</option>
+            {% for usr in users %}<option value="{{ usr.id }}">{{ usr.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="af-row">
+        <div class="af-field">
+          <label>유·무상</label>
+          <label class="paid-toggle"><input type="checkbox" name="is_paid" value="1"> 유상 (체크 안 하면 무상)</label>
+        </div>
+        <div class="af-field">
+          <label>수리비 <span style="font-size:11px;color:var(--qv-ink-3);">(유상 시)</span></label>
+          <input type="text" name="repair_fee" inputmode="numeric" placeholder="예: 30,000">
+        </div>
+      </div>
+      <div class="af-row solo">
+        <div class="af-field full">
+          <label>비고</label>
+          <input type="text" name="note" placeholder="기타 메모">
+        </div>
+      </div>
+    </div>
+
+    <div class="af-actions">
+      <a href="/as" class="btn-cancel">취소</a>
+      <button type="submit" class="btn-save">접수 등록</button>
+    </div>
+  </form>
+</main>
+{% include "_v5_partials/knk_datepicker.html" %}
+</body></html>

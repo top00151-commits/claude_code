@@ -57,17 +57,24 @@ body {
 @media (max-width:1100px) { .kpi-slim { flex-wrap:wrap !important; }
                             .kpi-slim .c { flex:1 1 30% !important; } }
 
-/* 좌우 2단 그리드 */
-.split { display:grid; grid-template-columns: 460px 1fr; gap:10px;
+/* 좌우 2단 그리드 — v5H226z125: 가운데 드래그 핸들로 좌우 폭 조절(기본 430px = 460−30) */
+.split { display:grid; grid-template-columns: var(--so-left-w, 430px) 7px 1fr; gap:6px;
          margin: 0 var(--content-pad) 32px;
          height: calc(100vh - 230px); min-height: 480px; }
 .col-left { display:flex; flex-direction:column; gap:8px; min-height:0; }
+/* 좌우 드래그 스플리터 */
+.split-resizer { cursor:col-resize; display:flex; align-items:center; justify-content:center;
+                 user-select:none; touch-action:none; }
+.split-resizer::before { content:''; width:4px; height:44px; border-radius:3px;
+                         background:#d8cba8; transition:background .15s, height .15s; }
+.split-resizer:hover::before, .split-resizer.dragging::before { background:#b07a18; height:90px; }
 /* 우측: 컨테이너는 스크롤 안 함. 자식 .list-scroll 만 스크롤 */
 .col-right { background:#fff; border:1px solid #f1e8d4; border-radius:8px;
              display:flex; flex-direction:column; overflow:hidden;
              min-height:0; min-width:0; }
 .list-scroll { flex:1; overflow-y:auto; overflow-x:auto; min-height:0; min-width:0; }
 @media (max-width:1100px) { .split { grid-template-columns:1fr; height:auto; min-height:0; }
+                            .split-resizer { display:none; }
                             .list-scroll { max-height:600px; } }
 
 /* 캘린더 */
@@ -298,6 +305,9 @@ body {
       </div>
     </div>
 
+    {# v5H226z125: 좌우 폭 조절 드래그 핸들 (더블클릭=기본폭 복귀) #}
+    <div class="split-resizer" id="soSplitResizer" title="좌우 폭 조절 — 드래그 / 더블클릭=기본"></div>
+
     {# 우측: 수주번호 리스트 #}
     <div class="col-right" data-dn="split-right" data-dn-tone="purple">
       <div class="list-hd" data-dn="list-hd">
@@ -325,8 +335,9 @@ body {
         </tr></thead>
         <tbody>
         {% for o in items %}
-        <tr onclick="location.href='/sales/orders/{{ o.id }}'">
-          <td>{% if o.mgmt_code %}<a class="mgmt-tag" href="/project/{{ o.project_id }}" onclick="event.stopPropagation();">{{ o.mgmt_code }}</a>{% else %}—{% endif %}</td>
+        {# v5H226z253 (대표 지시): 소모품(co) 행은 /consumables/{id} 로 — orders.id 충돌·/project/None 크래시 수정 #}
+        <tr onclick="location.href='{% if o.is_co %}/consumables/{{ o.id }}{% else %}/sales/orders/{{ o.id }}{% endif %}'">
+          <td>{% if o.mgmt_code %}<a class="mgmt-tag" href="{% if o.is_co %}/consumables/{{ o.id }}{% elif o.project_id %}/project/{{ o.project_id }}{% else %}/sales/orders/{{ o.id }}{% endif %}" onclick="event.stopPropagation();">{{ o.mgmt_code }}</a>{% else %}—{% endif %}</td>
           <td class="so-no">{{ o.order_no|default('#' ~ o.id) }}</td>
           <td>
             <div class="pname">{{ o.project_name|default('—') }}</div>
@@ -359,4 +370,55 @@ body {
       </div>
     </div>
   </div>
+
+<script>
+/* v5H226z125 (2026-05-31): 좌우 패널 폭 드래그 조절 (대표 지시).
+   핸들을 좌우로 끌면 좌측(달력/예정) 폭 조절 → 저장(localStorage). 더블클릭=기본 430px. */
+(function () {
+  var split = document.querySelector('.split');
+  var rez = document.getElementById('soSplitResizer');
+  if (!split || !rez) return;
+  var KEY = 'knk_so_left_w', DEFAULT_W = 430, MIN_W = 280, RIGHT_MIN = 360;
+  function applyWidth(w) { split.style.setProperty('--so-left-w', w + 'px'); }
+  // 저장값 복원
+  var saved = parseInt(localStorage.getItem(KEY) || '', 10);
+  if (saved && saved >= MIN_W && saved <= 1000) applyWidth(saved);
+  var dragging = false;
+  function onMove(e) {
+    if (!dragging) return;
+    var rect = split.getBoundingClientRect();
+    var x = (e.touches ? e.touches[0].clientX : e.clientX);
+    var w = x - rect.left;
+    if (w < MIN_W) w = MIN_W;
+    if (w > rect.width - RIGHT_MIN) w = rect.width - RIGHT_MIN;
+    applyWidth(Math.round(w));
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false; rez.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    var n = parseInt(split.style.getPropertyValue('--so-left-w'), 10);
+    if (n) localStorage.setItem(KEY, n);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  }
+  function start(e) {
+    dragging = true; rez.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    if (e.cancelable) e.preventDefault();
+  }
+  rez.addEventListener('mousedown', start);
+  rez.addEventListener('touchstart', start, { passive: false });
+  rez.addEventListener('dblclick', function () {
+    applyWidth(DEFAULT_W); localStorage.setItem(KEY, DEFAULT_W);
+  });
+})();
+</script>
 </main></div></body></html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 보내기 · {{ contact.name }} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_contact_styles.html" %}
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/contacts">연락처</a> · <a href="/contacts/{{ contact.id }}">{{ contact.name }}</a> · <b>메일 보내기</b></div>
+      <h1 class="page-title">✉ <em>{{ contact.name }}</em> 에게 메일</h1>
+    </div>
+  </div>
+
+  {% if need_setup %}
+  <div class="form-card" style="border-color:var(--amber);">
+    <h2>📧 먼저 본인 메일 계정을 등록하세요</h2>
+    <div style="font-size:13px; color:var(--ink-2,#334155); line-height:1.7; margin-bottom:12px;">
+      메일은 <b>로그인한 본인 계정</b>으로 발송됩니다. 처음 한 번 본인 메일주소·비밀번호를 등록해야 합니다.
+      {% if not mail_ready %}<br><span style="color:var(--amber-deep);">⚠ 단, 현재 서버에 메일 암호화 키가 미설정 상태입니다(전산담당자 확인 필요).</span>{% endif %}
+    </div>
+    <a href="/mail/settings" class="btn btn-primary">메일 설정으로 이동</a>
+    <a href="/contacts/{{ contact.id }}" class="btn btn-secondary">취소</a>
+  </div>
+  {% else %}
+  <form class="form-card" id="mailForm" onsubmit="return sendMail(event)">
+    <h2>📧 메일 작성 <span style="font-size:12px;font-weight:500;color:var(--mute);">— 보내는사람: {{ my_email }}</span></h2>
+    <div class="frow">
+      <div class="fld full">
+        <label>받는사람 <span class="req">*</span></label>
+        <input type="email" name="to_email" required value="{{ contact.email|default('') }}" placeholder="받는 메일주소">
+      </div>
+      <div class="fld full">
+        <label>참조(Cc) <span style="font-size:10px;color:var(--mute);">— 선택</span></label>
+        <input type="text" name="cc" placeholder="여러 명은 쉼표로 구분">
+      </div>
+      <div class="fld full">
+        <label>제목 <span class="req">*</span></label>
+        <input type="text" name="subject" required placeholder="제목">
+      </div>
+      <div class="fld full">
+        <label>내용</label>
+        <textarea name="body" style="min-height:220px;" placeholder="내용을 입력하세요"></textarea>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--line);">
+      <button type="submit" class="btn btn-primary" id="sendBtn">📨 보내기</button>
+      <a href="/contacts/{{ contact.id }}" class="btn btn-secondary">취소</a>
+      <a href="/mail/settings" class="btn btn-secondary">메일 설정</a>
+      <span id="sendMsg" style="font-size:12.5px; margin-left:8px;"></span>
+    </div>
+  </form>
+  {% endif %}
+</main></div>
+<script>
+async function sendMail(ev){
+  ev.preventDefault();
+  const f=ev.target, btn=document.getElementById('sendBtn'), m=document.getElementById('sendMsg');
+  if(!f.to_email.value.trim()||!f.subject.value.trim()){ alert('받는사람과 제목은 필수입니다.'); return false; }
+  btn.disabled=true; m.innerHTML='<span style="color:var(--mute);">📨 발송 중...</span>';
+  try{
+    const fd=new FormData(f);
+    const r=await fetch('/contacts/{{ contact.id }}/mail',{method:'POST', body:fd});
+    const j=await r.json();
+    if(j.ok){ m.innerHTML='<span style="color:var(--success);font-weight:700;">✅ '+j.message+'</span>';
+      setTimeout(()=>location.href='/contacts/{{ contact.id }}', 900); }
+    else { m.innerHTML='<span style="color:var(--knk-red);">⚠ '+(j.message||'발송 실패')+'</span>'; btn.disabled=false; }
+  }catch(e){ m.innerHTML='<span style="color:var(--knk-red);">네트워크 오류</span>'; btn.disabled=false; }
+  return false;
+}
+</script>
+{% include "_v5_partials/knk_inputs.html" ignore missing %}
+</body></html>

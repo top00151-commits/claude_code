@@ -28,7 +28,7 @@ def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
     같은 (사업부, 년월) 내 시퀀스 자동 증가.
     c: sqlite3.Connection (db_session 안에서)
     """
-    if not biz_div or biz_div not in ("T", "M"):
+    if not biz_div or biz_div not in ("T", "M", "L"):
         biz_div = "T"  # 기본 검사기
     d = ref_date or date.today()
     yymm = d.strftime("%y%m")
@@ -62,15 +62,24 @@ def generate_so_no(c, biz_div: str = "T",
       세 번째     → T-260505-2
     (이전 v5H69 는 두 번째를 -2 로 부여해 -1 이 누락 — 대표 지적 수정)
     """
-    if not biz_div or biz_div not in ("T", "M"):
+    if not biz_div or biz_div not in ("T", "M", "L"):
         biz_div = "T"
     d = ref_date or date.today()
     yymmdd = d.strftime("%y%m%d")
     base = f"{biz_div}-{yymmdd}"
-    rows = c.execute(
+    rows = list(c.execute(
         "SELECT order_no FROM orders WHERE order_no = ? OR order_no LIKE ?",
         (base, base + "-%")
-    ).fetchall()
+    ).fetchall())
+    # v5H226z248 (대표 지시): 소모품 발주번호도 동일 형식 사용 → consumable_orders.co_no 도
+    #   함께 스캔해 수주번호와 충돌 방지 (양방향).
+    try:
+        rows += list(c.execute(
+            "SELECT co_no FROM consumable_orders WHERE co_no = ? OR co_no LIKE ?",
+            (base, base + "-%")
+        ).fetchall())
+    except Exception:
+        pass
     if not rows:
         return base  # 첫 건 → 접미 없음
     # 접미 N 의 최대값. base 단독은 접미 없음(0) 으로 간주 → 다음은 -1
@@ -189,7 +198,10 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         unit_label_pattern: str | None = None,
                         so_type: str | None = None,
                         currency: str = "",
-                        ship_to: str = "") -> dict:
+                        ship_to: str = "",
+                        order_customer_id: int | None = None,
+                        expand_units: bool = True,
+                        line_label: str | None = None) -> dict:
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -199,6 +211,10 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     v5H142: so_type 파라미터 추가 (EQUIPMENT/CONSUMABLE/SERVICE/OTHER).
       - 라벨/연속번호 카운트가 so_type 별로 분리.
       - 백워드 호환: so_type 미전달 → EQUIPMENT (기존 동작 동일)
+    v5H226z204 (대표 지시): expand_units 파라미터 추가 (기본 True = 기존 동작).
+      - True  : 장비 — qty 만큼 호기 라인 N줄 분할 (1호기..N호기). 상한 100대.
+      - False : 부품/소모품 — 동일단가 × 수량 을 **1줄**(order_items.qty=N)로 저장.
+                282칸 안 만들고 한 줄. 상한 9,999. line_label 로 품목명 라벨 지정 가능.
 
     Returns: {ok, mgmt_code (기존), so_no (신규), order_id, qty, ...}
     """
@@ -209,8 +225,12 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         qty = 1
     if qty < 1:
         qty = 1
-    if qty > 100:
-        return {"ok": False, "message": "한 번에 100대 초과 불가 (qty ≤ 100)"}
+    if expand_units:
+        if qty > 100:
+            return {"ok": False, "message": "장비 호기는 한 번에 100대 초과 불가 (qty ≤ 100) — 부품/소모품이면 출고형태를 '부품/기타'로 등록하세요."}
+    else:
+        if qty > 9999:
+            return {"ok": False, "message": "수량 9,999 초과 불가 (qty ≤ 9999)"}
     proj = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     if not proj:
         return {"ok": False, "message": "프로젝트를 찾을 수 없음"}
@@ -220,6 +240,10 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         return {"ok": False,
                 "message": "관리번호가 발급되지 않은 프로젝트입니다. 먼저 '수주 확정'을 실행하세요."}
     customer_id = proj.get("customer_id")
+    # v5H226z202 (대표 지시): 한 프로젝트에 발주처(구매대행사) 여러 곳 가능 →
+    #   호출자가 발주처를 지정하면 그 SO의 customer_id 로 사용(프로젝트 고객 상속 대신).
+    if order_customer_id is not None:
+        customer_id = order_customer_id
     biz_div = proj.get("biz_div") or "T"
 
     if order_date:
@@ -299,8 +323,17 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                 _pattern = PROJECT_TYPE_UNIT_LABEL[_pt]
             except Exception:
                 _pattern = "{n}호기"
-    labels_bulk = [_pattern.format(n=base_no + i) for i in range(qty)]
-    auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
+    # v5H226z204: 부품/소모품(expand_units=False)은 N줄 분할 대신 1줄(수량=N).
+    #   라벨은 호출자가 준 품목명(line_label) 우선, 없으면 패턴 1개.
+    if not expand_units:
+        _single_lbl = (line_label or "").strip() or _pattern.format(n=base_no)
+        if qty > 1:
+            auto_label = f"{_single_lbl} ×{qty}"
+        else:
+            auto_label = _single_lbl
+    else:
+        labels_bulk = [_pattern.format(n=base_no + i) for i in range(qty)]
+        auto_label = labels_bulk[0] if qty == 1 else f"{labels_bulk[0]}~{labels_bulk[-1]}"
     # v5H178: 통화 — 호출자 지정값이 있으면 그것, 없으면 프로젝트 헤더 통화
     eff_currency = (currency or "").strip().upper() or (proj.get("currency") or "KRW").upper()
     if eff_currency not in ("KRW","USD","VND","JPY","CNY","EUR"):
@@ -337,31 +370,52 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     except Exception:
         _oi_cols = set()
     _oi_has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols and "currency" in _oi_cols)
-    for _lbl in labels_bulk:
+    if not expand_units:
+        # 부품/소모품 — 1줄 (qty=N, 라인금액 = 단가 × N = so_total)
         try:
             if _oi_has_extra:
                 c.execute(
                     "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                    "unit_label, line_note, currency) VALUES(?,1,?,?,?,?,?)",
-                    (order_id, unit_price, unit_price, _lbl, note or None, eff_currency)
+                    "unit_label, line_note, currency) VALUES(?,?,?,?,?,?,?)",
+                    (order_id, qty, unit_price, so_total, auto_label, note or None, eff_currency)
                 )
             else:
                 c.execute(
                     "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                    "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-                    (order_id, unit_price, unit_price, _lbl, note or None)
+                    "unit_label, line_note) VALUES(?,?,?,?,?,?)",
+                    (order_id, qty, unit_price, so_total, auto_label, note or None)
                 )
         except Exception:
             pass
+    else:
+        # 장비 — 호기 라인 N개 INSERT (각 라인 동일 단가, qty=1)
+        # v5H178: order_items.currency 도 SO 와 동일하게 저장 (override 아니라 명시 — 표시 일관성)
+        for _lbl in labels_bulk:
+            try:
+                if _oi_has_extra:
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note, currency) VALUES(?,1,?,?,?,?,?)",
+                        (order_id, unit_price, unit_price, _lbl, note or None, eff_currency)
+                    )
+                else:
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                        (order_id, unit_price, unit_price, _lbl, note or None)
+                    )
+            except Exception:
+                pass
 
     # 상태 이력
+    _unit_word = "대" if expand_units else "개"   # 장비=대 / 부품·소모품=개
     try:
         if qty == 1:
             hist_msg = (f"추가 발주 (관리번호 {mgmt_code} · {auto_label} "
                         f"/ {unit_price:,.0f}원)")
         else:
             hist_msg = (f"추가 발주 (관리번호 {mgmt_code} · {auto_label} · "
-                        f"{qty}대 × 단가 {unit_price:,.0f}원 = {so_total:,.0f}원)")
+                        f"{qty}{_unit_word} × 단가 {unit_price:,.0f}원 = {so_total:,.0f}원)")
         if po_number:
             hist_msg += f" / 고객 PO {po_number}"
         c.execute(
@@ -375,7 +429,7 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     if qty == 1:
         msg = f"추가 수주번호 {so_no} 발행 완료 ({auto_label} / 관리번호 {mgmt_code} 유지)"
     else:
-        msg = (f"추가 수주번호 {so_no} 발행 완료 ({auto_label} · {qty}대 / "
+        msg = (f"추가 수주번호 {so_no} 발행 완료 ({auto_label} · {qty}{_unit_word} / "
                f"단가 {unit_price:,.0f} × {qty} = {so_total:,.0f}원 / "
                f"관리번호 {mgmt_code} 유지)")
     return {
@@ -472,10 +526,27 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             (mgmt_code, mgmt_code, order_date, total, project_id)
         )
     else:
-        c.execute(
-            "UPDATE projects SET order_amount=COALESCE(order_amount,0)+? WHERE id=?",
-            (total, project_id)
-        )
+        # v5H226z149: 코드가 이미 있는 경우 — '기존 SO 유무'로 분기 (코드 유무로 판단하면
+        #   z148(관리코드 선입력) 프로젝트의 '첫 수주확정'이 추가발주로 오인돼 금액이 2배가 됨).
+        try:
+            _row = c.execute(
+                "SELECT COUNT(*) FROM orders WHERE project_id=?", (project_id,)).fetchone()
+            _has_so = int(_row[0]) if _row else 0
+        except Exception:
+            _has_so = 0
+        if _has_so:
+            # 이미 SO 가 있는 프로젝트에 추가 확정 → 금액 누적 (기존 동작 보존)
+            c.execute(
+                "UPDATE projects SET order_amount=COALESCE(order_amount,0)+? WHERE id=?",
+                (total, project_id)
+            )
+        else:
+            # 첫 수주확정 (관리코드만 미리 부여됨) → 신규 확정과 동일 처리: 금액 SET + 상태 승격
+            c.execute(
+                "UPDATE projects SET status='수주확정', stage='수주', "
+                "order_date=COALESCE(order_date,?), order_amount=? WHERE id=?",
+                (order_date, total, project_id)
+            )
 
     # v5H223: units 가 비어있고 CONSUMABLE 인 경우 — 빈 SO 1건 발행 (라인은 후속 추가)
     # v5H226z: shipment_form='PARTS' (정식 PACKING LIST) 도 빈 SO 1건 발행
@@ -536,7 +607,9 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     issued_groups = []
     for (g_due, g_ship, g_cur), g_units in groups.items():
         g_total = sum(float(u.get("amount") or 0) for u in g_units)
-        g_qty = len(g_units)
+        # v5H226z204: unit 에 qty(>1) 가 있으면 낱개 수량(부품/소모품) — 호기수가 아닌 piece 합산.
+        #   장비(qty 키 없음) 는 1 로 처리 → 기존 동작과 100% 동일.
+        g_qty = sum(int(u.get("qty") or 1) for u in g_units)
         labels_concat = " · ".join(
             ((u.get("label") or "").strip() or f"{i+1}호기")
             for i, u in enumerate(g_units)
@@ -609,6 +682,9 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         for i, u in enumerate(g_units):
             lbl = (u.get("label") or "").strip() or f"{i+1}호기"
             amt = float(u.get("amount") or 0)
+            # v5H226z204: 부품/소모품 라인은 qty=N(낱개), 단가=라인금액/N. 장비는 qty=1.
+            _u_qty = int(u.get("qty") or 1)
+            _u_unit_price = (amt / _u_qty) if _u_qty > 1 else amt
             note_u = (u.get("note") or "").strip()
             u_due = (u.get("due_date") or "").strip()
             u_ship = (u.get("ship_to") or "").strip()
@@ -625,14 +701,14 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                         "INSERT INTO order_items(order_id, qty, unit_price, amount, "
                         "unit_label, line_note, order_date, due_date, ship_to, currency) "
                         "VALUES(?,?,?,?,?,?,?,?,?,?)",
-                        (oid, 1, amt, amt, lbl, note_u,
+                        (oid, _u_qty, _u_unit_price, amt, lbl, note_u,
                          ov_ord, ov_due, ov_ship, ov_cur)
                     )
                 else:
                     c.execute(
                         "INSERT INTO order_items(order_id, qty, unit_price, amount, "
                         "unit_label, line_note) VALUES(?,?,?,?,?,?)",
-                        (oid, 1, amt, amt, lbl, note_u)
+                        (oid, _u_qty, _u_unit_price, amt, lbl, note_u)
                     )
             except Exception:
                 pass
@@ -838,9 +914,12 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
+    # v5H226z202 (대표 지시): 수주(SO)별 발주처 표시 — customer_id + 고객사명(서브쿼리)
     rows = c.execute(
         f"SELECT id, order_no, order_date, due_date, total_amount, status, "
-        f"created_at{extra_sql} FROM orders WHERE project_id=? "
+        f"created_at, customer_id, "
+        f"(SELECT name FROM customers WHERE customers.id = orders.customer_id) AS so_customer"
+        f"{extra_sql} FROM orders WHERE project_id=? "
         f"ORDER BY order_date DESC, id DESC",
         (project_id,)
     ).fetchall()

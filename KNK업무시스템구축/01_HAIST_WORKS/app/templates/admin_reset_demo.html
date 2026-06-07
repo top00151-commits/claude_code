@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>데모 데이터 초기화 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.rd-wrap { max-width: 980px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.rd-warn { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:10px;
+           padding:14px 16px; font-size:13.5px; line-height:1.7; margin: var(--space-3) 0 var(--space-5); }
+.rd-warn b { color:#7f1d1d; }
+.rd-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+.rd-card h3 { margin:0 0 10px; font-size:14px; font-weight:800; color:#1e293b; }
+.rd-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:6px 18px; }
+.rd-row { display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; border-bottom:1px dashed #f1e8d4; }
+.rd-row .n { color:#475569; } .rd-row .c { font-weight:700; color:#991b1b; font-variant-numeric:tabular-nums; }
+.rd-keep { font-size:12px; color:#16a34a; line-height:1.8; }
+.rd-users { font-size:12.5px; }
+.rd-users .u { padding:4px 0; border-bottom:1px dashed #f1e8d4; }
+.rd-confirm { background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:16px 18px; }
+.rd-confirm input { width:240px; padding:9px 12px; border:1px solid #d6cdb6; border-radius:8px; font-size:14px; }
+.rd-btn { padding:10px 20px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; }
+.rd-btn.danger { background:#dc2626; color:#fff; }
+.rd-btn.danger:disabled { background:#fca5a5; cursor:not-allowed; }
+.rd-done { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.8; }
+.rd-err  { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:12px; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>데모 데이터 초기화</b></div>
+      <h1 class="page-title">데모 데이터 <em>초기화</em></h1>
+    </div>
+  </div>
+
+  <div class="rd-wrap">
+    {% if done %}
+      {% if done.ok %}
+      <div class="rd-done">
+        ✅ <b>초기화 완료</b><br>
+        · 비운 테이블: {{ done.cleared_tables }}개<br>
+        · 삭제된 데모 사용자: {{ done.deleted_users }}명<br>
+        · 백업 위치: <code>{{ done.backup }}</code><br>
+        · 데모 재생성 차단(demo_seed_off) 설정됨 — 재시작해도 데모 안 생깁니다.<br>
+        문제 시 백업으로 원복 가능합니다.
+      </div>
+      {% else %}
+      <div class="rd-err">⚠ 초기화 실패: {{ done.error }}{% if done.backup %}<br>백업: {{ done.backup }}{% endif %}</div>
+      {% endif %}
+    {% endif %}
+
+    {# v5H226z192 (대표 지시): 항목(그룹)별 선택 초기화 결과 #}
+    {% if group_done %}
+      {% if group_done.ok %}
+      <div class="rd-done">
+        ✅ <b>선택 항목 초기화 완료</b><br>
+        {% for label, cnt in group_done.cleared.items() %}· {{ label }} — {{ '{:,}'.format(cnt) }}행 삭제<br>{% endfor %}
+        · 백업 위치: <code>{{ group_done.backup }}</code><br>
+        사용자·권한·설정·마스터·전사 주소록은 <b>보존</b>됐습니다. 문제 시 백업으로 원복 가능합니다.
+      </div>
+      {% else %}
+      <div class="rd-err">⚠ 항목 초기화 실패: {{ group_done.error }}{% if group_done.backup %}<br>백업: {{ group_done.backup }}{% endif %}</div>
+      {% endif %}
+    {% endif %}
+
+    {# v5H226z193: 사업부별 매출 초기화 결과 #}
+    {% if sales_div_done %}
+      {% if sales_div_done.ok %}
+      <div class="rd-done">
+        ✅ <b>사업부별 매출 초기화 완료</b> — {{ sales_div_done.divisions|join(', ') }}<br>
+        · 삭제된 프로젝트: {{ sales_div_done.deleted_projects }}개{% if sales_div_done.failed %} (실패 {{ sales_div_done.failed }}){% endif %}<br>
+        · 삭제된 수출 건: {{ sales_div_done.export_deleted }}<br>
+        {% if sales_div_done.note %}· {{ sales_div_done.note }}<br>{% endif %}
+        · 백업 위치: <code>{{ sales_div_done.backup }}</code><br>
+        딸린 수주·납품·수금·생산·수출이 함께 삭제됐고, 고객사·협력사·자재·품질·업무 데이터는 보존(언링크)됩니다.
+      </div>
+      {% else %}
+      <div class="rd-err">⚠ 사업부별 초기화 실패: {{ sales_div_done.error }}{% if sales_div_done.backup %}<br>백업: {{ sales_div_done.backup }}{% endif %}</div>
+      {% endif %}
+    {% endif %}
+
+    {% if error %}<div class="rd-err">⚠ {{ error }}</div>{% endif %}
+
+    {# v5H226z192: 항목(그룹)별 선택 초기화 — 데모 기간용 #}
+    <div class="rd-card" style="border:2px solid #fcd34d;background:#fffdf5;">
+      <h3>🧩 항목별 선택 초기화 <span style="font-weight:600;color:#64748b;font-size:12px;">— 데모 기간용: 체크한 항목만 비웁니다</span></h3>
+      <div style="font-size:12.5px;color:#475569;margin-bottom:12px;line-height:1.6;">
+        내가 입력한 데이터를 항목별로 골라 초기화합니다. <b>사용자·권한·설정·마스터·전사 주소록은 보존</b>되고, 실행 전 <b>자동 백업</b>됩니다.<br>
+        <span style="color:#b45309;">※ 서로 연관된 항목(예: 고객사 ↔ 매출·영업)은 함께 비우길 권장합니다. (0행 항목은 비활성)</span>
+      </div>
+      <form method="post" action="/admin/reset-demo-groups" id="grpForm" onsubmit="return knkGrpSubmit(this);">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px;">
+          {% for g in groups_preview %}
+          <label style="display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border:1px solid #e5e7eb;border-radius:9px;cursor:pointer;background:#fff;{% if not g.total_rows %}opacity:.5;{% endif %}">
+            <input type="checkbox" name="groups" value="{{ g.key }}" class="grpChk" {% if not g.total_rows %}disabled{% endif %}
+                   style="margin-top:3px;width:17px;height:17px;cursor:pointer;flex:none;accent-color:#dc2626;">
+            <span style="min-width:0;">
+              <b style="font-size:13.5px;">{{ g.label }}</b>
+              <span style="color:#991b1b;font-weight:700;font-size:12.5px;"> · {{ '{:,}'.format(g.total_rows) }}행</span><br>
+              <span style="font-size:11.5px;color:#64748b;line-height:1.5;">{{ g.desc }}</span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #e5e7eb;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:800;color:#7f1d1d;">실행하려면 <code>데이터초기화</code> 입력:</span>
+          <input type="text" name="confirm" id="grpConfirm" placeholder="데이터초기화" autocomplete="off"
+                 oninput="knkGrpToggle()" style="width:180px;padding:8px 11px;border:1px solid #d6cdb6;border-radius:8px;font-size:14px;">
+          <button type="submit" id="grpBtn" class="rd-btn danger" disabled>🧩 선택 항목 초기화</button>
+        </div>
+      </form>
+    </div>
+    <script>
+      function knkGrpToggle(){
+        var any = document.querySelectorAll('.grpChk:checked').length > 0;
+        var ok = (document.getElementById('grpConfirm').value.trim() === '데이터초기화');
+        document.getElementById('grpBtn').disabled = !(any && ok);
+      }
+      document.querySelectorAll('.grpChk').forEach(function(c){ c.addEventListener('change', knkGrpToggle); });
+      function knkGrpSubmit(){
+        var picked = Array.from(document.querySelectorAll('.grpChk:checked'))
+          .map(function(c){ return c.parentNode.querySelector('b').textContent.trim(); });
+        if (!picked.length) return false;
+        return confirm('다음 항목을 초기화합니다 (백업 자동 생성):\n\n· ' + picked.join('\n· ') + '\n\n계속할까요?');
+      }
+    </script>
+
+    {# v5H226z193: 매출·영업 — 사업부별 초기화 (자동화 M만 등) #}
+    <div class="rd-card" style="border:2px solid #93c5fd;background:#f5faff;">
+      <h3>📊 매출·영업 — 사업부별 초기화 <span style="font-weight:600;color:#64748b;font-size:12px;">— 예: 자동화(M)만 골라서</span></h3>
+      <div style="font-size:12.5px;color:#475569;margin-bottom:12px;line-height:1.6;">
+        고른 사업부의 <b>프로젝트 + 딸린 수주·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA)</b> 을 함께 삭제합니다.<br>
+        <span style="color:#1d4ed8;">· 고객사·협력사·자재·품질·업무 데이터는 <b>보존</b>(프로젝트 연결만 해제).</span><br>
+        <span style="color:#b45309;">· 견적서는 사업부 귀속 정보가 없어 제외됩니다(필요하면 위 ‘매출·영업’ 그룹으로 전체 삭제). 0개 사업부는 비활성.</span>
+      </div>
+      <form method="post" action="/admin/reset-demo-sales-division" id="divForm" onsubmit="return knkDivSubmit();">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          {% for d in sales_div_preview %}
+          <label style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid #dbeafe;border-radius:9px;cursor:pointer;background:#fff;{% if not d.projects %}opacity:.5;{% endif %}">
+            <input type="checkbox" name="divisions" value="{{ d.key }}" class="divChk" {% if not d.projects %}disabled{% endif %}
+                   style="width:17px;height:17px;cursor:pointer;accent-color:#2563eb;">
+            <span><b style="font-size:13.5px;">{{ d.label }}</b>
+              <span style="color:#1d4ed8;font-weight:700;font-size:12px;"> · 프로젝트 {{ d.projects }} · 수주 {{ d.orders }}</span></span>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #dbeafe;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:800;color:#7f1d1d;">실행하려면 <code>데이터초기화</code> 입력:</span>
+          <input type="text" name="confirm" id="divConfirm" placeholder="데이터초기화" autocomplete="off"
+                 oninput="knkDivToggle()" style="width:180px;padding:8px 11px;border:1px solid #d6cdb6;border-radius:8px;font-size:14px;">
+          <button type="submit" id="divBtn" class="rd-btn danger" disabled>📊 사업부별 매출 초기화</button>
+        </div>
+      </form>
+    </div>
+    <script>
+      function knkDivToggle(){
+        var any = document.querySelectorAll('.divChk:checked').length > 0;
+        var ok = (document.getElementById('divConfirm').value.trim() === '데이터초기화');
+        document.getElementById('divBtn').disabled = !(any && ok);
+      }
+      document.querySelectorAll('.divChk').forEach(function(c){ c.addEventListener('change', knkDivToggle); });
+      function knkDivSubmit(){
+        var picked = Array.from(document.querySelectorAll('.divChk:checked'))
+          .map(function(c){ return c.parentNode.querySelector('b').textContent.trim(); });
+        if (!picked.length) return false;
+        return confirm('다음 사업부의 매출 데이터를 초기화합니다 (프로젝트+수주+납품+수금+수출, 백업 자동 생성):\n\n· '
+          + picked.join('\n· ') + '\n\n계속할까요?');
+      }
+    </script>
+
+    <div style="font-size:12px;color:#94a3b8;text-align:center;margin:18px 0 14px;">─── 또는, 데모/시드 데이터 <b>전체</b> 초기화 (아래) ───</div>
+
+    <div class="rd-warn">
+      ⚠ <b>되돌리기 어려운 작업입니다.</b> 아래 데이터가 <b>영구 삭제</b>됩니다(실행 전 자동 백업).<br>
+      운영 시작 전 <b>데모/시드 데이터</b>를 지워 실제 데이터와 혼선을 막는 용도입니다.<br>
+      <b>실제 직원·대표 계정 · 팀 · 권한 · 설정 · 전사 주소록은 보존</b>됩니다.
+    </div>
+
+    <div class="rd-card">
+      <h3>🗑 비워질 데이터 (총 {{ '{:,}'.format(preview.total_rows) }} 행 / {{ preview.clear_table_count }} 테이블)</h3>
+      {% if preview.tables %}
+      <div class="rd-grid">
+        {% for t in preview.tables %}
+        <div class="rd-row"><span class="n">{{ t.table }}</span><span class="c">{{ '{:,}'.format(t.count) }}</span></div>
+        {% endfor %}
+      </div>
+      {% else %}<div style="color:#16a34a;font-size:13px;">비울 데이터가 없습니다 (이미 깨끗).</div>{% endif %}
+    </div>
+
+    <div class="rd-card">
+      <h3>👤 삭제될 데모/시드 사용자 ({{ preview.demo_users|length }}명) · 보존 {{ preview.keep_users }}명</h3>
+      {% if not preview.has_empno %}
+      <div style="color:#b45309;font-size:13px;">사번(employee_no) 컬럼이 없어 사용자는 삭제하지 않습니다.</div>
+      {% elif preview.demo_users %}
+      <div class="rd-users">
+        {% for u in preview.demo_users %}
+        <div class="u">#{{ u.id }} · <b>{{ u.name }}</b> · login={{ u.login_id or '-' }} · 역할={{ u.role or '-' }} · 사번={{ u.employee_no or '없음' }}</div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#991b1b;">↑ 이 목록에 <b>실제 직원·대표님이 없는지</b> 꼭 확인하세요. (사번 보유자·대표는 자동 보존)</div>
+      {% else %}<div style="color:#16a34a;font-size:13px;">삭제할 데모 사용자 없음.</div>{% endif %}
+    </div>
+
+    <div class="rd-card">
+      <h3>🟢 보존되는 항목</h3>
+      <div class="rd-keep">
+        실제 직원·대표 계정(사번 보유)<br>
+        테이블: {{ preview.keep_tables|join(', ') }}
+      </div>
+    </div>
+
+    <form method="post" action="/admin/reset-demo" class="rd-confirm"
+          onsubmit="return confirm('정말 초기화하시겠습니까? 되돌리기 어렵습니다. (백업은 자동 생성)');">
+      <h3 style="margin:0 0 10px;font-size:14px;font-weight:800;color:#7f1d1d;">실행하려면 아래에 <code>데이터초기화</code> 를 입력하세요</h3>
+      <input type="text" name="confirm" id="rdConfirm" placeholder="데이터초기화" autocomplete="off"
+             oninput="document.getElementById('rdBtn').disabled = (this.value.trim() !== '데이터초기화');">
+      <button type="submit" id="rdBtn" class="rd-btn danger" disabled style="margin-left:10px;">🗑 데모 데이터 초기화 실행</button>
+    </form>
+  </div>
+</main>
+</div>
+</body></html>

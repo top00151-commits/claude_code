@@ -58,9 +58,23 @@ _client: Optional[Any] = None
 _client_signature: Optional[str] = None  # (provider, key 끝8자) — 변경 시 재생성
 
 
+def _setting(key: str) -> str:
+    """app_settings 에서 값 읽기 (없거나 오류 시 ''). v5H226z138 — 앱 내 AI 설정."""
+    try:
+        from .database import db_session
+        with db_session() as c:
+            r = c.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+            return ((r[0] if r else "") or "").strip()
+    except Exception:
+        return ""
+
+
 def get_provider() -> str:
-    """현재 사용할 공급사 결정. claude | openai | '' (비활성)."""
+    """현재 사용할 공급사 결정. claude | openai | '' (비활성).
+    우선순위: 환경변수 KNK_AI_PROVIDER → 앱설정 ai_provider → 키 자동감지."""
     p = (os.environ.get("KNK_AI_PROVIDER") or "").strip().lower()
+    if not p:
+        p = _setting("ai_provider").lower()
     if p in ("claude", "anthropic"):
         return "claude"
     if p in ("openai", "gpt"):
@@ -83,7 +97,10 @@ def _sdk_ok(provider: str) -> bool:
 
 
 def default_model(provider: str = "") -> str:
+    """모델 결정. 우선순위: 환경변수 KNK_AI_MODEL → 앱설정 ai_model → 공급사 기본."""
     override = (os.environ.get("KNK_AI_MODEL") or "").strip()
+    if not override:
+        override = _setting("ai_model")
     if override:
         return override
     provider = provider or get_provider()
@@ -138,6 +155,31 @@ def _get_client(provider: str):
     return _client
 
 
+def _openai_create(client, mdl, messages, max_tokens, temperature):
+    """OpenAI 호출 — 구·신형 모델 파라미터 차이 자동 대응. (v5H226z139)
+    신형(GPT-5 / o 계열)은 max_tokens 대신 'max_completion_tokens', temperature 미지원 가능.
+    파라미터 오류일 때만 변형 재시도하고, 그 외 오류(키·모델없음)는 즉시 전달."""
+    variants = [
+        {"max_tokens": max_tokens, "temperature": temperature},          # 구형 표준
+        {"max_completion_tokens": max_tokens, "temperature": temperature},  # 신형
+        {"max_completion_tokens": max_tokens},                            # 신형 + temperature 미지원
+        {"max_tokens": max_tokens},                                       # 구형 + temperature 미지원
+    ]
+    last = None
+    for v in variants:
+        try:
+            return client.chat.completions.create(model=mdl, messages=messages, **v)
+        except Exception as e:
+            last = e
+            m = str(e).lower()
+            is_param = ("unsupported_parameter" in m or "not supported" in m
+                        or "max_completion_tokens" in m or "max_tokens" in m
+                        or "temperature" in m)
+            if not is_param:
+                raise   # 파라미터 문제 아님 → 그대로 전달
+    raise last
+
+
 def ai_chat(
     user_text: str,
     system: str = "",
@@ -183,13 +225,65 @@ def ai_chat(
             if system:
                 msgs.append({"role": "system", "content": system})
             msgs.append({"role": "user", "content": user_text})
-            resp = client.chat.completions.create(
-                model=mdl, messages=msgs,
-                max_tokens=max_tokens, temperature=temperature,
-            )
+            resp = _openai_create(client, mdl, msgs, max_tokens, temperature)
             return (True, (resp.choices[0].message.content or "").strip())
     except Exception as e:
         return (False, f"AI 호출 오류({provider}): {e}")
+
+
+def ai_vision(
+    image_b64: str,
+    mime: str,
+    user_text: str,
+    system: str = "",
+    *,
+    max_tokens: int = 700,
+    model: str = "",
+    temperature: float = 0.0,
+) -> tuple[bool, str]:
+    """
+    v5H227c — 멀티모달(비전) 단발 호출. 이미지(base64)+지시문 → 응답 텍스트.
+    명함 사진 직접 판독 등에 사용. 반환 (성공여부, 응답 또는 오류메시지).
+    호출부는 ai_available() 로 먼저 확인할 것. 기본 모델(gpt-4o-mini / claude-sonnet)은
+    모두 비전 지원. 키/SDK 없으면 (False, 사유) 반환 → 호출부가 폴백.
+    """
+    provider = get_provider()
+    if not provider:
+        return (False, "AI 비활성 (공급사·키 미설정)")
+    client = _get_client(provider)
+    if client is None:
+        return (False, f"AI 비활성 ({provider} 키 미등록 또는 SDK 미설치)")
+    mdl = model or default_model(provider)
+    try:
+        if provider == "claude":
+            content = [
+                {"type": "image", "source": {
+                    "type": "base64", "media_type": mime, "data": image_b64}},
+                {"type": "text", "text": user_text},
+            ]
+            kwargs: dict[str, Any] = {
+                "model": mdl, "max_tokens": max_tokens, "temperature": temperature,
+                "messages": [{"role": "user", "content": content}],
+            }
+            if system:
+                kwargs["system"] = system
+            resp = client.messages.create(**kwargs)
+            parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
+            return (True, "".join(parts).strip())
+        else:  # openai
+            content = [
+                {"type": "text", "text": user_text},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+            ]
+            msgs = []
+            if system:
+                msgs.append({"role": "system", "content": system})
+            msgs.append({"role": "user", "content": content})
+            resp = _openai_create(client, mdl, msgs, max_tokens, temperature)
+            return (True, (resp.choices[0].message.content or "").strip())
+    except Exception as e:
+        return (False, f"AI 비전 호출 오류({provider}): {e}")
 
 
 def ai_translate(text: str, target: str = "vi") -> tuple[bool, str]:

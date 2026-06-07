@@ -117,23 +117,58 @@ body { overflow: hidden !important; }
     <div class="form-card">
       <h2>📋 회사 정보</h2>
       <div class="frow">
+        {# v5H226z203 (대표 지시): 해외 고객사 — 사업자번호 없는 해외 거래처. 체크 시 사업자번호/대표자/주소 선택, 국가 필수 #}
+        <div class="fld full">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#1e40af;">
+            <input type="checkbox" name="is_overseas" id="cf_overseas" value="1" {% if customer and customer.is_overseas %}checked{% endif %} style="width:17px;height:17px;accent-color:#1e40af;cursor:pointer;vertical-align:middle;">
+            🌐 해외 고객사 <span style="font-weight:500;color:var(--mute);font-size:12px;">(사업자번호 없음 — 고객사명·국가만 필수)</span>
+          </label>
+        </div>
+        <div class="fld" id="cf_country_wrap" style="display:none;">
+          <label>국가 <span class="req">*</span></label>
+          <input type="text" name="country" id="cf_country" value="{{ customer.country|default('') }}" placeholder="예: Vietnam / USA / China">
+        </div>
         {# v5H226z116: 고객사명 span 2 (행 1: 고객사명·사업자번호·대표자명) #}
+        <div class="fld">
+          <label>거래처코드 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 자동</span></label>
+          {% if customer and customer.code %}
+          <input type="text" value="{{ customer.code }}" disabled style="background:var(--paper-2);">
+          {% else %}
+          <div style="padding:5px 10px;border:1px dashed var(--line);border-radius:var(--radius-md);background:var(--paper-2);color:var(--mute);font-size:12px;">등록 시 자동 부여</div>
+          {% endif %}
+        </div>
         <div class="fld span-2">
           <label>고객사명 <span class="req">*</span></label>
           <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
         </div>
         <div class="fld">
-          <label>사업자번호</label>
-          <input type="text" name="biz_no" value="{{ customer.biz_no|default('') }}" placeholder="123-45-67890">
+          <label>사업자번호 <span class="req" id="cf_biz_req">*</span></label>
+          <input type="text" name="biz_no" id="cf_biz_no" required value="{{ customer.biz_no|default('') }}" placeholder="123-45-67890">
         </div>
         <div class="fld">
-          <label>대표자명</label>
-          <input type="text" name="ceo_name" value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
+          <label>대표자명 <span class="req" id="cf_ceo_req">*</span></label>
+          <input type="text" name="ceo_name" id="cf_ceo" required value="{{ customer.ceo_name|default('') }}" placeholder="홍길동">
+        </div>
+        <div class="fld">
+          <label>종사업장번호</label>
+          <input type="text" name="sub_biz_no" value="{{ customer.sub_biz_no|default('') }}" placeholder="0001">
+        </div>
+        <div class="fld">
+          <label>업태</label>
+          <input type="text" name="business_type" value="{{ customer.business_type|default('') }}" placeholder="예: 제조업">
+        </div>
+        <div class="fld">
+          <label>업종</label>
+          <input type="text" name="business_item" value="{{ customer.business_item|default('') }}" placeholder="예: 반도체검사장비">
         </div>
         {# 행 2: 대표 전화 · 대표 이메일 · 활성 상태 · 등급 #}
         <div class="fld">
           <label>대표 전화</label>
           <input type="text" name="phone" value="{{ customer.phone|default('') }}" placeholder="031-1234-5678">
+        </div>
+        <div class="fld">
+          <label>팩스번호</label>
+          <input type="text" name="fax" value="{{ customer.fax|default('') }}" placeholder="031-1234-5679">
         </div>
         <div class="fld">
           <label>대표 이메일</label>
@@ -163,9 +198,17 @@ body { overflow: hidden !important; }
           </div>
           {% endif %}
         </div>
+        <div class="fld">
+          <label>우편번호</label>
+          <input type="text" name="zipcode" value="{{ customer.zipcode|default('') }}" placeholder="17707">
+        </div>
+        <div class="fld span-2">
+          <label>주소 <span class="req" id="cf_addr_req">*</span></label>
+          <input type="text" name="address" id="cf_address" required value="{{ customer.address|default('') }}" placeholder="경기도 평택시 ...">
+        </div>
         <div class="fld full">
-          <label>주소</label>
-          <input type="text" name="address" value="{{ customer.address|default('') }}" placeholder="경기도 ...">
+          <label>상세주소</label>
+          <input type="text" name="address_detail" value="{{ customer.address_detail|default('') }}" placeholder="동 / 층 / 호 등">
         </div>
         <div class="fld full">
           <label>비고</label>
@@ -212,6 +255,20 @@ body { overflow: hidden !important; }
               <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
             </tr>
             {% endfor %}
+          {% else %}
+            {# v5H226z147: 신규 등록은 기존 시스템처럼 담당자 1명(이름·이메일) 필수 #}
+            <tr data-idx="1">
+              <input type="hidden" name="contact_role_1" value="기타">
+              <td><input type="text" name="contact_dept_1" placeholder="구매2팀"></td>
+              <td><input type="text" name="contact_name_1" required placeholder="홍길동"></td>
+              <td><input type="text" name="contact_position_1" placeholder="과장"></td>
+              <td><input type="text" name="contact_phone_1" placeholder="02-1234-5678"></td>
+              <td><input type="text" name="contact_mobile_1" placeholder="010-1234-5678"></td>
+              <td><input type="email" name="contact_email_1" required placeholder="hong@example.com"></td>
+              <td style="text-align:center;"><input type="checkbox" name="contact_primary_1" value="1" checked></td>
+              <td><input type="text" name="contact_note_1" placeholder="예: 최종 결재 / 야간 연락처 / 정산 담당"></td>
+              <td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">✕</button></td>
+            </tr>
           {% endif %}
           <!-- JS로 신규 행 추가 -->
         </tbody>
@@ -464,6 +521,29 @@ async function parseBizDoc() {
     btn.disabled = false;
   }
 }
+
+// v5H226z203 (대표 지시): 해외 고객사 토글 — 사업자번호/대표자/주소 선택, 국가 필수
+(function(){
+  var ov = document.getElementById('cf_overseas');
+  if (!ov) return;
+  var bizNo = document.getElementById('cf_biz_no'), ceo = document.getElementById('cf_ceo'),
+      addr = document.getElementById('cf_address'), country = document.getElementById('cf_country'),
+      countryWrap = document.getElementById('cf_country_wrap'),
+      bizReq = document.getElementById('cf_biz_req'), ceoReq = document.getElementById('cf_ceo_req'),
+      addrReq = document.getElementById('cf_addr_req');
+  function sync(){
+    var on = ov.checked;
+    if (bizNo) { bizNo.required = !on; bizNo.placeholder = on ? '현지 Tax ID (선택)' : '123-45-67890'; }
+    if (ceo)  ceo.required = !on;
+    if (addr) addr.required = !on;
+    if (bizReq)  bizReq.style.display  = on ? 'none' : '';
+    if (ceoReq)  ceoReq.style.display  = on ? 'none' : '';
+    if (addrReq) addrReq.style.display = on ? 'none' : '';
+    if (countryWrap) countryWrap.style.display = on ? '' : 'none';
+    if (country) country.required = on;
+  }
+  ov.addEventListener('change', sync); sync();
+})();
 </script>
 {% include "_v5_partials/knk_inputs.html" ignore missing %}
 </body></html>

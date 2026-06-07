@@ -156,12 +156,15 @@ def _copy_kor_to_system(app_kor_path: str) -> tuple[bool, str]:
         return False, f"복사 실패: {e}"
 
 
-def download_korean_traineddata() -> dict:
+def download_korean_traineddata(force_best: bool = False) -> dict:
     """한국어 traineddata 자동 다운로드 (사용자 명시적 트리거).
     GitHub tessdata_best 에서 ~28MB. 앱 내부 tessdata 폴더에 저장.
-    이미 있으면 skip. 반환: {ok, message, path, size}"""
+    이미 있으면 skip. 반환: {ok, message, path, size}
+
+    v5H227 force_best=True: 기존 파일이 있어도 무시하고 tessdata_best(최고품질) 재다운로드.
+      Tesseract 설치 시 깔린 표준/경량 kor 을 최고품질로 업그레이드할 때 사용."""
     target = os.path.join(_APP_TESSDATA_DIR, "kor.traineddata")
-    if os.path.isfile(target) and os.path.getsize(target) > 1_000_000:
+    if not force_best and os.path.isfile(target) and os.path.getsize(target) > 1_000_000:
         # 이미 다운로드됨 → 시스템 디렉터리에도 복사 시도 (관리자 권한 있으면)
         ok, msg = _copy_kor_to_system(target)
         return {"ok": True,
@@ -259,7 +262,7 @@ def _tess_env() -> dict:
     return env
 
 
-def _preprocess_image(img):
+def _preprocess_image(img, for_card: bool = False):
     """v5H65: OCR 정확도 향상을 위한 이미지 전처리 — 근본 원인 해결.
     파이프라인 (OpenCV 우선, 없으면 PIL fallback):
       1. 그레이스케일
@@ -268,6 +271,9 @@ def _preprocess_image(img):
       4. deskew (기울기 자동 보정 — 비뚤게 찍은 사진)
       5. binarization (Otsu adaptive — 그림자/조명 보정)
     이게 OCR 자체 정확도를 90%+ 끌어올리는 핵심.
+
+    v5H227 for_card=True (명함 전용): 어두운 배경(검정/남색 명함)에 밝은 글씨인
+      경우 자동 감지해 역상(invert) → Tesseract 가 어두운 글씨로 인식하게 함.
     """
     # OpenCV 우선 (deskew + Otsu 가능)
     try:
@@ -321,6 +327,14 @@ def _preprocess_image(img):
         except Exception:
             pass
 
+        # 5. (명함 전용) 어두운 배경 자동 역상 — 검정/남색 명함의 밝은 글씨 대응
+        if for_card:
+            try:
+                if float(np.mean(gray)) < 110:   # 전체가 어두우면 밝은 글씨 명함으로 판단
+                    gray = cv2.bitwise_not(gray)
+            except Exception:
+                pass
+
         # OpenCV ndarray → PIL Image
         return Image.fromarray(gray)
     except ImportError:
@@ -338,6 +352,15 @@ def _preprocess_image(img):
             img = img.resize((int(w*scale), int(h*scale)), Image.LANCZOS)
         img = ImageOps.autocontrast(img, cutoff=2)
         img = img.filter(ImageFilter.SHARPEN)
+        if for_card:
+            try:
+                hist = img.histogram()
+                total = sum(hist) or 1
+                mean = sum(i * hist[i] for i in range(256)) / total
+                if mean < 110:
+                    img = ImageOps.invert(img)
+            except Exception:
+                pass
         return img
     except Exception:
         return img
@@ -458,6 +481,69 @@ def extract_text(file_path: str, original_name: str = "") -> tuple[str, str]:
             return "", f"error:OCR 실패 ({str(e)[:80]})"
 
     return "", "error:지원하지 않는 파일 형식 (PDF/JPG/PNG 만 가능)"
+
+
+# =====================================================
+# v5H227 — 명함 전용 다중-PSM OCR
+# 명함은 사업자등록증과 달리 텍스트 블록이 흩어져 있어 단일 PSM(6)으로는 부족.
+# 여러 PSM 으로 읽어 결과를 모두 반환 → 호출부(contacts)가 항목 추출이 가장 잘 된 것 채택.
+#   PSM 3  = 완전 자동 분할 (일반 명함)
+#   PSM 4  = 가변 크기 단일 컬럼 (세로 정렬 명함)
+#   PSM 11 = 희소 텍스트 (로고/여백 많은 명함)
+#   PSM 6  = 단일 균일 블록 (조밀한 명함 — 기존 기본값)
+# =====================================================
+def extract_card_texts(file_path: str, original_name: str = "",
+                       psms=(3, 11, 4, 6)) -> tuple[list, str]:
+    """명함 이미지/PDF → 여러 PSM OCR 결과 리스트. 반환: ([(psm, text), ...], mode).
+    mode 가 'error:...' 이면 리스트는 빈 값. 전처리는 for_card=True(역상 감지) 적용."""
+    name = (original_name or file_path).lower()
+    is_pdf = name.endswith(".pdf")
+    is_image = name.endswith((".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"))
+    if not has_tesseract():
+        return [], "error:tesseract_not_found"
+    if not has_korean():
+        return [], "error:korean_lang_not_found"
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return [], "error:pytesseract 또는 PIL 미설치"
+
+    # 입력 → 전처리된 PIL 이미지 1장 (명함은 보통 단일 이미지/단일 페이지)
+    try:
+        if is_image:
+            base = Image.open(file_path)
+        elif is_pdf:
+            try:
+                from pdf2image import convert_from_path
+                pages = convert_from_path(file_path, dpi=300)
+            except Exception as e:
+                return [], f"error:poppler_not_found ({str(e)[:80]})"
+            if not pages:
+                return [], "error:PDF 페이지 없음"
+            base = pages[0]
+        else:
+            return [], "error:지원하지 않는 파일 형식 (PDF/JPG/PNG 만 가능)"
+        proc = _preprocess_image(base, for_card=True)
+    except Exception as e:
+        return [], f"error:이미지 전처리 실패 ({str(e)[:80]})"
+
+    out = []
+    seen = set()
+    for psm in psms:
+        try:
+            cfg = _tess_config(psm=psm)
+            txt = pytesseract.image_to_string(proc, lang="kor+eng", config=cfg).strip()
+        except Exception:
+            txt = ""
+        # 동일 결과 중복 제거
+        key = re.sub(r"\s+", "", txt)
+        if txt and key not in seen:
+            seen.add(key)
+            out.append((psm, txt))
+    if not out:
+        return [], "error:OCR 결과 없음"
+    return out, ("image-ocr" if is_image else "pdf-ocr")
 
 
 # =====================================================

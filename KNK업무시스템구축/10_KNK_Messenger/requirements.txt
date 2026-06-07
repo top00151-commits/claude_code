@@ -9,5 +9,13 @@ pywebpush>=1.14
 cryptography>=42.0
 openpyxl>=3.1
 Pillow>=10.0
-# --- AI 번역 (Claude Haiku) ---
+# --- 사번 SSO: JWT RS256 발급·검증 (메신저 = Identity Provider) 2026-05-29 발주 ---
+PyJWT[crypto]>=2.8.0
+# --- 공휴일 달력 데이터 생성용 (런타임 미사용) ---
+#  static/holidays_kr_vn.json 을 사전 생성할 때만 로컬에서 설치: py -m pip install holidays
+#  생성: py deploy/gen_holidays.py  (서버/컨테이너엔 설치 불필요)
+# holidays>=0.97
+# --- AI 번역·요약·이력정리 (공급자 전환 가능) ---
+# 기본 = OpenAI (ChatGPT). Anthropic 키 확보 시 TRANSLATE_PROVIDER=anthropic 으로 전환.
+openai>=1.40
 anthropic>=0.40

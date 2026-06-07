@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>화면 캡처 — 이음</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'Noto Sans KR', system-ui, -apple-system, sans-serif; background: #1f2430; color: #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+  .bar { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; padding: 10px 12px; background: #171b24; border-bottom: 1px solid #2b3140; flex-wrap: wrap; }
+  .bar button { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  #grabBtn { background: #2563eb; color: #fff; }
+  #sendSelBtn { background: #16a34a; color: #fff; }
+  #sendAllBtn { background: #374151; color: #e5e7eb; }
+  #regrabBtn { background: #374151; color: #e5e7eb; }
+  .bar button:disabled { opacity: .4; cursor: default; }
+  .hint { font-size: 12px; color: #9ca3af; margin-left: auto; max-width: 100%; }
+  .stage { flex: 1 1 auto; position: relative; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
+  #wrap { position: relative; display: inline-block; }
+  #shot { display: block; max-width: 100%; height: auto; user-select: none; -webkit-user-drag: none; cursor: crosshair; }
+  #sel { position: absolute; border: 2px dashed #22d3ee; background: rgba(34,211,238,.16); display: none; pointer-events: none; }
+  .empty { color: #9ca3af; text-align: center; margin: auto; font-size: 15px; line-height: 1.9; padding: 20px; }
+  .empty b { color: #e5e7eb; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button id="grabBtn">🖥 화면 잡기</button>
+    <button id="sendSelBtn" disabled>✅ 이 부분 보내기</button>
+    <button id="sendAllBtn" disabled>전체 보내기</button>
+    <button id="regrabBtn" disabled>↻ 다시 잡기</button>
+    <span class="hint" id="hint">먼저 [화면 잡기]로 보낼 화면을 고르세요.</span>
+  </div>
+  <div class="stage" id="stage">
+    <div class="empty" id="empty">🖥 <b>[화면 잡기]</b>를 눌러 Claude 창(또는 화면)을 선택하세요.<br>잡은 화면에서 <b>원하는 부분만 마우스로 드래그</b>해 보낼 수 있어요.<br><span style="font-size:12.5px">(선택 없이 [전체 보내기]도 가능)</span></div>
+    <div id="wrap" style="display:none"><canvas id="shot"></canvas><div id="sel"></div></div>
+  </div>
+<script>
+(function () {
+  var canvas = document.getElementById('shot'),
+      sel = document.getElementById('sel'),
+      wrap = document.getElementById('wrap'),
+      empty = document.getElementById('empty'),
+      hint = document.getElementById('hint'),
+      grabBtn = document.getElementById('grabBtn'),
+      sendSelBtn = document.getElementById('sendSelBtn'),
+      sendAllBtn = document.getElementById('sendAllBtn'),
+      regrabBtn = document.getElementById('regrabBtn');
+  var hasShot = false, dragging = false, sx = 0, sy = 0, selRect = null;
+
+  function stamp() {
+    var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
+  function sendBlob(blob) {
+    if (!blob) { alert('이미지를 만들지 못했어요. 다시 시도해 주세요.'); return; }
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: 'knk-capture-image', blob: blob, name: '캡처_' + stamp() + '.png' }, window.location.origin);
+      } else {
+        alert('채팅 창을 찾을 수 없어요. 채팅을 연 상태에서 다시 시도해 주세요.');
+        return;
+      }
+    } catch (e) { alert('채팅 창으로 전달 실패: ' + e); return; }
+    window.close();
+  }
+
+  async function grab() {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia)) {
+      alert('이 브라우저는 화면 캡처를 지원하지 않습니다.'); return;
+    }
+    var stream = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      var track = stream.getVideoTracks()[0];
+      var bmp = null;
+      try { if (window.ImageCapture && track) { bmp = await new ImageCapture(track).grabFrame(); } } catch (e) { bmp = null; }
+      if (bmp) {
+        canvas.width = bmp.width; canvas.height = bmp.height;
+        canvas.getContext('2d').drawImage(bmp, 0, 0);
+      } else {
+        await new Promise(function (res) {
+          var v = document.createElement('video'); v.muted = true; v.playsInline = true; v.srcObject = stream;
+          v.onloadedmetadata = function () {
+            v.play().then(function () {
+              setTimeout(function () {
+                canvas.width = v.videoWidth || 1280; canvas.height = v.videoHeight || 720;
+                canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+                try { v.pause(); } catch (_) {}
+                res();
+              }, 240);
+            }).catch(function () { res(); });
+          };
+        });
+      }
+      hasShot = true; selRect = null; sel.style.display = 'none';
+      empty.style.display = 'none'; wrap.style.display = 'inline-block';
+      sendAllBtn.disabled = false; regrabBtn.disabled = false; sendSelBtn.disabled = true;
+      hint.textContent = '보낼 부분을 마우스로 드래그 → [이 부분 보내기]. (전체는 [전체 보내기])';
+    } catch (err) {
+      if (err && err.name !== 'NotAllowedError' && err.name !== 'AbortError') { alert('캡처 실패: ' + (err.message || err.name)); }
+    } finally {
+      try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+    }
+  }
+
+  function pxScale() {
+    var r = canvas.getBoundingClientRect();
+    return r.width ? (canvas.width / r.width) : 1;
+  }
+  canvas.addEventListener('mousedown', function (e) {
+    if (!hasShot) return;
+    dragging = true;
+    var r = canvas.getBoundingClientRect();
+    sx = e.clientX - r.left; sy = e.clientY - r.top;
+    sel.style.display = 'block'; sel.style.left = sx + 'px'; sel.style.top = sy + 'px'; sel.style.width = '0px'; sel.style.height = '0px';
+    selRect = null; sendSelBtn.disabled = true;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    var r = canvas.getBoundingClientRect();
+    var cx = Math.max(0, Math.min(e.clientX - r.left, r.width)),
+        cy = Math.max(0, Math.min(e.clientY - r.top, r.height));
+    var x = Math.min(sx, cx), y = Math.min(sy, cy), w = Math.abs(cx - sx), h = Math.abs(cy - sy);
+    sel.style.left = x + 'px'; sel.style.top = y + 'px'; sel.style.width = w + 'px'; sel.style.height = h + 'px';
+    selRect = { x: x, y: y, w: w, h: h };
+    sendSelBtn.disabled = (w < 6 || h < 6);
+  });
+  window.addEventListener('mouseup', function () { dragging = false; });
+
+  grabBtn.addEventListener('click', grab);
+  regrabBtn.addEventListener('click', grab);
+  sendAllBtn.addEventListener('click', function () {
+    if (!hasShot) return;
+    canvas.toBlob(function (b) { sendBlob(b); }, 'image/png');
+  });
+  sendSelBtn.addEventListener('click', function () {
+    if (!hasShot || !selRect) return;
+    var s = pxScale();
+    var px = Math.round(selRect.x * s), py = Math.round(selRect.y * s),
+        pw = Math.round(selRect.w * s), ph = Math.round(selRect.h * s);
+    if (pw < 2 || ph < 2) return;
+    var c2 = document.createElement('canvas'); c2.width = pw; c2.height = ph;
+    c2.getContext('2d').drawImage(canvas, px, py, pw, ph, 0, 0, pw, ph);
+    c2.toBlob(function (b) { sendBlob(b); }, 'image/png');
+  });
+})();
+</script>
+</body>
+</html>

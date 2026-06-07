@@ -15,16 +15,16 @@
 } %}
 {% set _kr = _so_status_kr.get(status, '') %}
 <span class="so-pill so-pill-{{ (status or 'unknown')|lower }}">
-  <span class="en">{{ status or '—' }}</span>
-  {% if _kr %}<span class="kr">{{ _kr }}</span>{% endif %}
+  {% if _kr %}<span class="kr">{{ _kr }}</span><span class="en">{{ status }}</span>
+  {% else %}<span class="kr">{{ status or '—' }}</span>{% endif %}
 </span>
 <style>
 .so-pill { display:inline-flex; flex-direction:column; align-items:center;
            padding:4px 10px; border-radius:8px; font-size:.78em; line-height:1.15;
            font-weight:700; letter-spacing:.02em; text-align:center;
            background:#e5e7eb; color:#374151; }
-.so-pill .en { font-size:.95em; }
-.so-pill .kr { font-size:.85em; opacity:.85; font-weight:600; margin-top:1px; }
+.so-pill .kr { font-size:.98em; font-weight:700; }
+.so-pill .en { font-size:.78em; opacity:.55; font-weight:600; margin-top:1px; letter-spacing:.02em; }
 .so-pill-confirmed     { background:#fef0c7; color:#7c2d12; }
 .so-pill-in_production { background:#fef3c7; color:#7c4a03; }
 .so-pill-ready_to_ship { background:#fed7aa; color:#7c2d12; }
