@@ -104,7 +104,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
 /* v5H226z309(대표 지시): 라인 직접 추가 버튼 + 사진 첨부 컨트롤 */
 .btn-addline { padding:7px 16px; border:1px solid var(--knk-red); border-radius:8px; background:var(--knk-red); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
 .btn-addline:hover { filter:brightness(.95); }
-.photo-add { display:inline-flex; align-items:center; justify-content:center; width:36px; height:24px; border:1px dashed var(--qv-line); border-radius:5px; cursor:pointer; font-size:13px; background:#fafafa; }
+.photo-add { display:inline-flex; align-items:center; justify-content:center; width:42px; height:26px; padding:0; border:1px dashed var(--qv-line); border-radius:5px; cursor:pointer; font-size:14px; line-height:1; background:#fafafa; color:inherit; font-family:inherit; appearance:none; -webkit-appearance:none; }
 .photo-add:hover { border-color:var(--knk-red); background:#fff5f5; }
 /* v5H226z305(대표 지시): 라인 표 툴바 — 작업일정표 메뉴 이식(날짜 컨트롤 제외) */
 .co-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
@@ -281,14 +281,14 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
                 <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" target="_blank">
                   <img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" />
                 </a>
-              {% else %}<label class="photo-add" title="사진위치 첨부">📷<input type="file" accept="image/*" data-iid="{{ it.id }}" data-cat="loc" onchange="uploadLinePhoto(this)" style="display:none;"></label>{% endif %}
+              {% else %}<button type="button" class="photo-add" title="사진위치 첨부" onclick="pickLinePhoto(this,{{ it.id }},'loc')">📷</button>{% endif %}
             </td>
             <td class="photo-cell">
               {% if it.image_thumb_path %}
                 <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank">
                   <img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" />
                 </a>
-              {% else %}<label class="photo-add" title="사진 첨부">📷<input type="file" accept="image/*" data-iid="{{ it.id }}" data-cat="photo" onchange="uploadLinePhoto(this)" style="display:none;"></label>{% endif %}
+              {% else %}<button type="button" class="photo-add" title="사진 첨부" onclick="pickLinePhoto(this,{{ it.id }},'photo')">📷</button>{% endif %}
             </td>
             {# v5H226z297(대표 지시): 모델·장비명·품명·규격 별도 컬럼으로 펼침(전부 편집) #}
             <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" /></td>
@@ -371,6 +371,8 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
   </main>
 </div>
 
+<!-- v5H226z311 (대표 지시): 라인 사진 첨부용 파일 input — 페이지에 1개만, 화면 밖에 숨김(셀 안 드롭존 렌더 방지) -->
+<input type="file" id="linePhotoInput" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;left:-9999px;pointer-events:none;">
 <script>
 const CO_ID = {{ co.id }};
 const CURR = "{{ co.currency or 'KRW' }}";
@@ -381,20 +383,32 @@ function addLine(){
     .then(r=>r.json()).then(j=>{ if(j.ok){ location.reload(); } else { alert('라인 추가 실패: '+(j.error||'')); } })
     .catch(()=>alert('통신 오류'));
 }
-// v5H226z309 (대표 지시): 라인 사진 직접 업로드(첨부) — 압축 후 셀을 썸네일로 교체
-function uploadLinePhoto(input){
-  const f = input.files && input.files[0]; if(!f) return;
-  const iid = input.dataset.iid, cat = input.dataset.cat;
-  const cell = input.closest('td');
-  const fd = new FormData(); fd.append('file', f); fd.append('category', cat);
-  if(cell) cell.style.opacity = '.5';
-  fetch(`/consumables/${CO_ID}/items/${iid}/photo`, {method:'POST', body:fd})
-    .then(r=>r.json()).then(j=>{
-      if(j.ok){
-        if(cell){ cell.innerHTML = '<a href="'+j.full_url+'" target="_blank"><img src="'+j.thumb_url+'" alt="사진"></a>'; cell.style.opacity=''; }
-      } else { alert('업로드 실패: '+(j.error||'')); if(cell) cell.style.opacity=''; input.value=''; }
-    }).catch(()=>{ alert('통신 오류'); if(cell) cell.style.opacity=''; });
+// v5H226z311 (대표 지시): 라인 사진 첨부 — 셀엔 작은 📷 버튼만, 파일 input 은 페이지에 1개만 숨겨두고 JS로 호출.
+//   (브라우저별 file input 의 '클릭/드래그' 드롭존 렌더가 칸 안에서 거대하게 펼쳐지던 문제 해결)
+let _pendingPhoto = null;
+function pickLinePhoto(btn, iid, cat){
+  _pendingPhoto = { iid: iid, cat: cat, cell: (btn && btn.closest('td')) || null };
+  const inp = document.getElementById('linePhotoInput');
+  if(inp){ inp.value=''; inp.click(); }
 }
+(function(){
+  const inp = document.getElementById('linePhotoInput');
+  if(!inp) return;
+  inp.addEventListener('change', function(){
+    const f = inp.files && inp.files[0];
+    if(!f || !_pendingPhoto){ inp.value=''; return; }
+    const iid = _pendingPhoto.iid, cat = _pendingPhoto.cat, cell = _pendingPhoto.cell;
+    const fd = new FormData(); fd.append('file', f); fd.append('category', cat);
+    if(cell) cell.style.opacity = '.5';
+    fetch(`/consumables/${CO_ID}/items/${iid}/photo`, {method:'POST', body:fd})
+      .then(r=>r.json()).then(j=>{
+        if(j.ok){
+          if(cell){ cell.innerHTML = '<a href="'+j.full_url+'" target="_blank"><img src="'+j.thumb_url+'" alt="사진"></a>'; cell.style.opacity=''; }
+        } else { alert('업로드 실패: '+(j.error||'')); if(cell) cell.style.opacity=''; }
+        _pendingPhoto = null; inp.value='';
+      }).catch(()=>{ alert('통신 오류'); if(cell) cell.style.opacity=''; _pendingPhoto=null; inp.value=''; });
+  });
+})();
 
 // v5H226z298: 책갈피 탭 전환
 function showTab(name){
