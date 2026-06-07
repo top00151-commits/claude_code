@@ -2452,6 +2452,11 @@ def init_db():
             if "is_export" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN is_export INTEGER DEFAULT 0")
                 print("[v5H226z285] consumable_orders.is_export 컬럼 추가됨")
+            # v5H226z287 (대표 지시): 엑셀 정보란 전체 반영 — 2차고객사·연락처·모델명·장비명·영업담당자.
+            for _coladd in ("secondary_customer", "cc_phone", "model_name", "equip_name", "sales_name"):
+                if _coladd not in cocols:
+                    c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_coladd} TEXT")
+                    print(f"[v5H226z287] consumable_orders.{_coladd} 컬럼 추가됨")
             # v5H226z286 (대표 지시): 엑셀의 사진 칸 2개 모두 반영 — 라인에 '사진위치' 이미지 컬럼 추가.
             _coicols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
             for _lc in ("image_loc_path", "image_loc_thumb_path"):

@@ -12914,13 +12914,15 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
                 "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "",
-                "name": "소모품", "model": "", "equip": "",
+                "name": "소모품",
+                "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 "note": cr.get("note") or "", "qty": "", "price": 0, "amount": 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
-                # v5H226z282: 소모품은 고객사2·연락처·영업담당자 필드가 없어 빈 칸(발주일·납품일은 표시)
-                "cust2": "", "contact": "", "sales_owner": "",
+                # v5H226z287: 엑셀 정보란 반영으로 소모품도 고객사2·연락처·영업담당자 표시
+                "cust2": cr.get("secondary_customer") or "", "contact": cr.get("cc_phone") or "",
+                "sales_owner": cr.get("sales_name") or "",
                 "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
                 "ship_to": cr.get("ship_to") or "",
                 "order_date": str(cr.get("order_date") or "")[:10],
@@ -22637,35 +22639,54 @@ async def consumables_upload_xlsx(request: Request,
         f.write(raw)
     img_dir = _co.co_image_dir(co_id)
     parsed = _co.parse_consumable_xlsx(tmp_path, image_out_dir=img_dir)
-    # v5H226z285 (대표 지시): 양식 정보란의 통화·거래구분을 읽어 소모품수주에 반영(웹폼 값 override).
+    # v5H226z287 (대표 지시): 양식 정보란(좌·우) 전체를 소모품수주에 반영. 관리번호·수주번호만 자동.
     _meta = parsed.get("meta") or {}
     _meta_ccy = _meta.get("currency")
     _meta_exp = _meta.get("is_export")
-    if _meta_ccy or (_meta_exp is not None):
-        try:
-            with db_session() as _mc:
-                _cocols = {r2[1] for r2 in _mc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
-                _sets, _vals = [], []
-                if _meta_ccy:
-                    _sets.append("currency=?"); _vals.append(_meta_ccy)
-                if _meta_exp is not None and "is_export" in _cocols:
-                    _sets.append("is_export=?"); _vals.append(int(_meta_exp))
-                if _sets:
-                    _vals.append(co_id)
-                    _mc.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
-        except Exception:
-            pass
-    _eff_ccy = (_meta_ccy or currency or "KRW")
-    # v5H226z252 (대표 지시): 장비 자동매칭은 '같은 고객사'로 스코프 — 다른 회사 모델 오연결 방지.
+    _eff_cust = _meta.get("customer") or customer_name   # 엑셀 고객사 우선
     _match_cust_id = None
-    if customer_name:
-        with db_session() as c:
-            _cr = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (customer_name,)).fetchone()
-            _match_cust_id = _cr["id"] if _cr else None
+    try:
+        with db_session() as _mc:
+            _cocols = {r2[1] for r2 in _mc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+            _sets, _vals = [], []
+
+            def _put(col, val):
+                if val not in (None, "") and col in _cocols:
+                    _sets.append(f"{col}=?"); _vals.append(val)
+
+            # 고객사: 이름 + customers 검색 → customer_id 연결(자동매칭 스코프에도 사용)
+            if _meta.get("customer"):
+                _put("customer_name", _meta["customer"])
+            _cr = _mc.execute("SELECT id FROM customers WHERE name=? LIMIT 1",
+                              (_eff_cust,)).fetchone() if _eff_cust else None
+            if _cr:
+                _match_cust_id = _cr[0]
+                _put("customer_id", _cr[0])
+            _put("order_date", _meta.get("order_date"))
+            _put("due_date", _meta.get("due_date"))
+            _put("ship_to", _meta.get("ship_to"))
+            _put("cc_name", _meta.get("cc_name"))
+            _put("cc_phone", _meta.get("cc_phone"))
+            _put("secondary_customer", _meta.get("customer2"))
+            _put("model_name", _meta.get("model_name"))
+            _put("equip_name", _meta.get("equip_name"))
+            _put("sales_name", _meta.get("sales_name"))
+            if _meta_ccy:
+                _put("currency", _meta_ccy)
+            if _meta_exp is not None and "is_export" in _cocols:
+                _sets.append("is_export=?"); _vals.append(int(_meta_exp))
+            if _sets:
+                _vals.append(co_id)
+                _mc.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
+    except Exception:
+        pass
+    _eff_ccy = (_meta_ccy or currency or "KRW")
     enriched = []
     for ln in parsed["lines"]:
         part_match = _co.match_part_by_name(ln.get("part_name", ""))
-        proj_match = _co.match_project_by_model(ln.get("model_use", ""), _match_cust_id)
+        # v5H226z287: 연결관리번호(사용자 입력) 우선 → 없으면 모델 자동매칭
+        proj_match = _co.match_project_by_mgmt(ln.get("link_mgmt", "")) \
+            or _co.match_project_by_model(ln.get("model_use", ""), _match_cust_id)
         imgs_v = parsed["images"].get(ln["line_no"], [])
         if not isinstance(imgs_v, list):
             imgs_v = []

@@ -77,6 +77,8 @@ HEADER_KEYS = [
     ("model_use",  ["MODELUSE", "모델"]),
     ("qty",        ["Q'TY", "QTY", "수량", "QUANTITY"]),
     ("unit",       ["UNIT", "단위"]),
+    # v5H226z287: 연결 관리번호(라인별) — '번호'보다 먼저 둬야 '연결관리번호'가 NO 로 안 잡힘
+    ("link_mgmt",  ["연결관리번호", "연결관리"]),
     ("no",         ["NO", "번호", "순번"]),
     ("supplier",   ["업체", "VENDOR"]),
     ("spec",       ["SPEC", "규격", "BOM"]),
@@ -112,37 +114,82 @@ def _norm_ccy(v):
     return None
 
 
-def _right_value(ws, r, c, maxc):
-    """(r,c) 오른쪽으로 첫 '비어있지 않은' 셀 값 (라벨 옆 값 읽기)."""
-    for cc in range(c + 1, maxc + 1):
+_INFO_LABEL_HINTS = ("고객사", "담당자", "연락처", "통화", "거래구분", "납품위치", "납품처",
+                     "발주일", "납품일", "납기", "모델명", "장비명", "관리번호", "수주번호",
+                     "프로젝트명", "KNK")
+
+
+def _right_value(ws, r, c, maxc, span=4):
+    """라벨(r,c) 바로 오른쪽(최대 span칸) 첫 비어있지 않은 값 — 라벨 옆 값 읽기.
+    v5H226z287: 옆 칸이 비어 있으면 '멀리 있는 다른 블록 라벨'을 값으로 오인하지 않게 거리 제한 +
+    값이 또 다른 라벨이면 무시(값 없음으로 처리)."""
+    end = min(maxc, c + span)
+    for cc in range(c + 1, end + 1):
         v = ws.cell(r, cc).value
-        if v is not None and str(v).strip() != "":
-            return v
+        if v is None or str(v).strip() == "":
+            continue
+        sn = re.sub(r"\s+", "", str(v).strip())
+        if any(lb in sn for lb in _INFO_LABEL_HINTS):
+            return None
+        return v
     return None
 
 
 def read_order_meta(ws, header_row, col_map=None):
-    """헤더 위 정보란에서 주문 단위 정보(통화·거래구분) 읽기 — 라벨 기반(셀 위치 무관).
-    통화: '통화' 라벨 옆 값 → 코드. 못 찾으면 단가/금액 머리글 '단가 (KRW)' 괄호에서 보조 추출.
-    거래구분: '거래구분' 라벨 옆 값에 '수출' 포함 시 is_export=1, 아니면 0."""
-    meta = {"currency": None, "is_export": None}
+    """헤더 위 정보란(좌·우)에서 주문 단위 정보를 라벨 기반으로 모두 읽기 — 셀 위치 무관.
+    관리번호·수주번호는 시스템 자동 부여(읽지 않음). 프로젝트명='소모품'은 무시.
+    더 구체적인 라벨(연락처·2차 고객사·KNK 담당자)을 먼저 평가해 오인식 방지."""
+    meta = {"currency": None, "is_export": None, "customer": None, "customer2": None,
+            "ship_to": None, "order_date": None, "due_date": None,
+            "cc_name": None, "cc_phone": None, "model_name": None,
+            "equip_name": None, "sales_name": None}
     maxc = min(ws.max_column, 30)
+
+    def _sv(x):
+        if x is None:
+            return None
+        s = str(x).strip()
+        return s or None
+
     for r in range(1, max(1, header_row)):
         for c in range(1, maxc + 1):
             v = ws.cell(r, c).value
             if v is None:
                 continue
-            t = str(v).strip()
-            tn = re.sub(r"\s+", "", t).upper()
-            if meta["currency"] is None and tn in ("통화", "CURRENCY", "통화구분"):
-                cc = _norm_ccy(_right_value(ws, r, c, maxc))
+            tn = re.sub(r"\s+", "", str(v).strip())   # 공백 제거(한글 라벨 비교)
+            tU = tn.upper()
+
+            def rv():
+                return _right_value(ws, r, c, maxc)
+
+            if meta["currency"] is None and (tn in ("통화", "통화구분") or tU == "CURRENCY"):
+                cc = _norm_ccy(rv())
                 if cc:
                     meta["currency"] = cc
-            elif meta["is_export"] is None and "거래구분" in t:
-                rv = _right_value(ws, r, c, maxc)
-                if rv is not None:
-                    s = str(rv)
-                    meta["is_export"] = 1 if ("수출" in s or "EXPORT" in s.upper()) else 0
+            elif meta["is_export"] is None and "거래구분" in tn:
+                x = rv()
+                if x is not None:
+                    meta["is_export"] = 1 if ("수출" in str(x) or "EXPORT" in str(x).upper()) else 0
+            elif meta["cc_phone"] is None and "연락처" in tn:                 # 고객사 담당자 연락처
+                meta["cc_phone"] = _sv(rv())
+            elif meta["sales_name"] is None and "담당자" in tn and ("KNK" in tU or "케이엔케이" in tn):
+                meta["sales_name"] = _sv(rv())                                # KNK 담당자(영업)
+            elif meta["cc_name"] is None and "담당자" in tn:                  # 고객사 담당자
+                meta["cc_name"] = _sv(rv())
+            elif meta["customer2"] is None and "2차" in tn and "고객사" in tn:
+                meta["customer2"] = _sv(rv())
+            elif meta["customer"] is None and "고객사" in tn:                 # 1차 고객사 / 고객사
+                meta["customer"] = _sv(rv())
+            elif meta["ship_to"] is None and tn in ("납품위치", "납품처"):
+                meta["ship_to"] = _sv(rv())
+            elif meta["order_date"] is None and tn == "발주일":
+                meta["order_date"] = _date_str(rv())
+            elif meta["due_date"] is None and tn in ("납품일", "납기", "납기일"):
+                meta["due_date"] = _date_str(rv())
+            elif meta["model_name"] is None and tn == "모델명":
+                meta["model_name"] = _sv(rv())
+            elif meta["equip_name"] is None and tn == "장비명":
+                meta["equip_name"] = _sv(rv())
     # 보조: 단가/금액 머리글의 '(KRW)' 에서 통화 추출
     if meta["currency"] is None and col_map:
         for key in ("price", "amount"):
@@ -221,6 +268,8 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
             "order_date": _date_str(ws.cell(r, col_map["order_date"]).value) if "order_date" in col_map else "",
             "unit_price": _to_num(ws.cell(r, col_map["price"]).value) if "price" in col_map else 0,
             "amount":     _to_num(ws.cell(r, col_map["amount"]).value) if "amount" in col_map else 0,
+            # v5H226z287: 연결 관리번호(사용자가 직접 적은 호기/프로젝트 관리번호)
+            "link_mgmt":  str(ws.cell(r, col_map["link_mgmt"]).value or "").strip() if "link_mgmt" in col_map else "",
         }
         # v5H226z285: 금액 비고 단가·수량 있으면 금액=단가×수량 (수식 캐시 없을 때 보강)
         if not rec["amount"] and rec.get("unit_price") and rec.get("qty"):
@@ -490,6 +539,22 @@ def match_project_by_model(model_use: str, customer_id: int | None = None) -> di
         if len(rows) == 1:
             d = dict(rows[0]); d["match_level"] = "model_token"; return d
         # len==0 → 미매칭 / len>=2 → 애매(여러 호기) → 자동연결 보류(수동 연결 유도)
+    return None
+
+
+def match_project_by_mgmt(mgmt_code: str) -> dict | None:
+    """v5H226z287 (대표 지시): 사용자가 엑셀 '연결 관리번호'에 적은 관리코드로 프로젝트 직접 연결.
+    정확일치 1건일 때만 (명시적 입력이므로 모델 추정보다 우선)."""
+    if not mgmt_code or not str(mgmt_code).strip():
+        return None
+    mc = str(mgmt_code).strip().upper()
+    with db_session() as c:
+        r = c.execute(
+            "SELECT id, mgmt_code, name, model_name FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1",
+            (mc,)
+        ).fetchone()
+        if r:
+            d = dict(r); d["match_level"] = "mgmt_code"; return d
     return None
 
 

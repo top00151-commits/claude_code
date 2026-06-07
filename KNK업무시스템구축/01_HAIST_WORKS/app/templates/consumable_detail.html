@@ -79,6 +79,13 @@ tfoot td { background: #fafafa; font-weight: 700; }
         <div class="h-cell"><div class="lbl">고객사</div><div class="val">{{ co.customer_name or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">발주일</div><div class="val">{{ co.order_date or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">납기</div><div class="val">{{ co.due_date or '—' }}</div></div>
+        {# v5H226z287: 엑셀 정보란 전체 반영 #}
+        <div class="h-cell"><div class="lbl">2차 고객사</div><div class="val">{{ co.secondary_customer or '—' }}</div></div>
+        <div class="h-cell"><div class="lbl">납품위치</div><div class="val">{{ co.ship_to or '—' }}</div></div>
+        <div class="h-cell"><div class="lbl">고객 담당자</div><div class="val">{{ co.cc_name or '—' }}{% if co.cc_phone %} · {{ co.cc_phone }}{% endif %}</div></div>
+        <div class="h-cell"><div class="lbl">통화 / 거래</div><div class="val">{{ co.currency or 'KRW' }} · {{ '수출' if co.is_export else '내수' }}</div></div>
+        <div class="h-cell"><div class="lbl">모델명 / 장비명</div><div class="val">{{ co.model_name or '—' }}{% if co.equip_name %} / {{ co.equip_name }}{% endif %}</div></div>
+        <div class="h-cell"><div class="lbl">영업담당자</div><div class="val">{{ co.sales_name or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">합계</div>
           <div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div>
         </div>
