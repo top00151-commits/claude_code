@@ -260,7 +260,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
             data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}">
-          <td class="c-info c1" data-col="code">{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> {% endif %}<a href="#">{{ r.code }}</a></td>
+          <td class="c-info c1" data-col="code">{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           <td class="c-info c3" data-col="name" title="{{ r.name }}">{{ r.name or '—' }}</td>
           <td class="c-info cw-model" data-col="model" title="{{ r.model }}">{{ r.model or '—' }}</td>
