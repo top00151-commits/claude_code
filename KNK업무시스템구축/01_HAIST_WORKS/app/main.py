@@ -12916,8 +12916,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "so_no": cr.get("co_no") or "",
                 "name": "소모품",
                 "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
-                # v5H226z290: 소모품 금액 = 라인 합계(total_amount). 수량·단가는 라인별이라 행에선 공란.
-                "note": cr.get("note") or "", "qty": "", "price": 0, "amount": cr.get("total_amount") or 0,
+                # v5H226z291 (대표 지시): 소모품은 보드에 한 줄로 표현 → 수량=1·단가=금액(총액)·금액=총액 (공란 금지)
+                "note": cr.get("note") or "", "qty": 1,
+                "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
