@@ -22790,9 +22790,17 @@ async def consumables_detail(request: Request, co_id: int):
     except Exception:
         _teams = []
     _history = _co.co_history_list(co_id)   # v5H226z298: 변경 이력 탭
+    # v5H226z299 (대표 지시): 1차 고객사는 등록 고객사 중에서만 선택 — 드롭다운 목록
+    _customers = []
+    try:
+        with db_session() as _cc:
+            _customers = [dict(r) for r in _cc.execute(
+                "SELECT id, name FROM customers ORDER BY name").fetchall()]
+    except Exception:
+        _customers = []
     return ctx(request, "consumable_detail.html",
                user=u, active="consumables",
-               co=co, items=items, teams=_teams, history=_history,
+               co=co, items=items, teams=_teams, history=_history, customers=_customers,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
                STATUSES=_co.CO_STATUSES)
 

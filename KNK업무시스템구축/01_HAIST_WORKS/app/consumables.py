@@ -805,6 +805,19 @@ def co_history_list(co_id, limit: int = 300) -> list[dict]:
 def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: str = "") -> tuple:
     """소모품수주(헤더) 정보란 1필드 수정 + 이력. 반환 (성공, 새값, 옛값, 고객사연결여부).
     고객사 변경 시 (주)/주식회사 무시 상호 매칭으로 정식명칭·customer_id 갱신."""
+    # v5H226z299 (대표 지시): 1차 고객사는 '등록된 고객사'만 — id 선택으로 customer_id + 정식명칭 동시 설정
+    if field == "customer_id":
+        new_id = int(value) if str(value).strip().lstrip("-").isdigit() and int(value) > 0 else None
+        with db_session() as c:
+            row = c.execute("SELECT customer_name FROM consumable_orders WHERE id=?", (int(co_id),)).fetchone()
+            old_name = (row[0] if row else "") or ""
+            cust = c.execute("SELECT name FROM customers WHERE id=?", (new_id,)).fetchone() if new_id else None
+            new_name = (cust[0] if cust else old_name)
+            c.execute("UPDATE consumable_orders SET customer_id=?, customer_name=? WHERE id=?",
+                      (new_id, new_name, int(co_id)))
+        if str(old_name) != str(new_name):
+            co_log_change(co_id, None, "order", "customer_name", "고객사", old_name, new_name, by_id, by_name)
+        return (True, new_name, old_name, bool(new_id))
     if field not in _ORDER_FIELD_LABELS:
         return (False, None, None, None)
     if field == "is_export":
