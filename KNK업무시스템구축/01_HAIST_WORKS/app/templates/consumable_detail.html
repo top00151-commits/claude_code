@@ -55,6 +55,17 @@ table.items th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); 
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* v5H226z295: 와이드 2:1 */
 table.items input { padding: 3px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; }  /* v5H226z296 */
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+/* v5H226z298: 정보란 인라인 편집 + 책갈피 탭 + 변경 이력 */
+.header-grid .ef { width:100%; box-sizing:border-box; padding:3px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:13.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
+.header-grid .ef:hover { border-color:var(--qv-line); background:#fff; }
+.header-grid .ef:focus { outline:none; border-color:#2563eb; background:#fff; }
+.header-grid .ef.cust-bad { color:#b91c1c; background:#fef2f2; }
+.co-tabs { display:flex; gap:6px; margin:18px 0 0; }
+.co-tab { padding:8px 16px; border:1px solid var(--qv-line); border-bottom:none; border-radius:8px 8px 0 0; background:#f4f4f5; color:var(--qv-ink-2); font-weight:700; font-size:13px; cursor:pointer; }
+.co-tab.active { background:#fff; color:var(--knk-red); box-shadow:0 -2px 0 var(--knk-red) inset; }
+table.hist { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.hist th, table.hist td { padding:6px 10px; border-bottom:1px solid var(--qv-line); text-align:left; vertical-align:top; }
+table.hist th { background:#f8f8f8; color:var(--qv-ink-3); font-weight:600; white-space:nowrap; }
 .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
 .modal-bg.show { display: flex; }
 .modal-bg img { max-width: 90vw; max-height: 90vh; }
@@ -104,16 +115,22 @@ tfoot td { background: #fafafa; font-weight: 700; }
       <div class="header-grid">
         <div class="h-cell"><div class="lbl">관리코드</div><div class="val" style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
         <div class="h-cell"><div class="lbl">수주번호</div><div class="val">{{ co.co_no }}</div></div>
-        <div class="h-cell"><div class="lbl">고객사</div><div class="val">{{ co.customer_name or '—' }}</div></div>
-        <div class="h-cell"><div class="lbl">발주일</div><div class="val">{{ co.order_date or '—' }}</div></div>
-        <div class="h-cell"><div class="lbl">납기</div><div class="val">{{ co.due_date or '—' }}</div></div>
-        {# v5H226z287: 엑셀 정보란 전체 반영 #}
-        <div class="h-cell"><div class="lbl">2차 고객사</div><div class="val">{{ co.secondary_customer or '—' }}</div></div>
-        <div class="h-cell"><div class="lbl">납품위치</div><div class="val">{{ co.ship_to or '—' }}</div></div>
-        <div class="h-cell"><div class="lbl">고객 담당자</div><div class="val">{{ co.cc_name or '—' }}{% if co.cc_phone %} · {{ co.cc_phone }}{% endif %}</div></div>
-        <div class="h-cell"><div class="lbl">통화 / 거래</div><div class="val">{{ co.currency or 'KRW' }} · {{ '수출' if co.is_export else '내수' }}</div></div>
-        <div class="h-cell"><div class="lbl">모델명 / 장비명</div><div class="val">{{ co.model_name or '—' }}{% if co.equip_name %} / {{ co.equip_name }}{% endif %}</div></div>
-        <div class="h-cell"><div class="lbl">영업담당자</div><div class="val">{{ co.sales_name or '—' }}</div></div>
+        {# v5H226z298(대표 지시): 업로드 후에도 수정 가능 — 작업일정표와 같은 원본 수정(양방향 동기화)+이력 #}
+        <div class="h-cell"><div class="lbl">고객사</div><input class="ef{% if not co.customer_id %} cust-bad{% endif %}" data-field="customer_name" value="{{ co.customer_name|e }}" placeholder="고객사" title="{% if not co.customer_id %}등록 고객사 미연결 — 확인 필요{% endif %}"></div>
+        <div class="h-cell"><div class="lbl">발주일</div><input type="date" class="ef" data-field="order_date" value="{{ (co.order_date or '')[:10] }}"></div>
+        <div class="h-cell"><div class="lbl">납기</div><input type="date" class="ef" data-field="due_date" value="{{ (co.due_date or '')[:10] }}"></div>
+        <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ co.secondary_customer|e }}" placeholder="—"></div>
+        <div class="h-cell"><div class="lbl">납품위치</div><input class="ef" data-field="ship_to" value="{{ co.ship_to|e }}" placeholder="—"></div>
+        <div class="h-cell"><div class="lbl">고객 담당자 / 연락처</div>
+          <div style="display:flex;gap:4px;"><input class="ef" data-field="cc_name" value="{{ co.cc_name|e }}" placeholder="담당자" style="flex:1;min-width:0;"><input class="ef" data-field="cc_phone" value="{{ co.cc_phone|e }}" placeholder="연락처" style="flex:1;min-width:0;"></div></div>
+        <div class="h-cell"><div class="lbl">통화 / 거래</div>
+          <div style="display:flex;gap:4px;">
+            <select class="ef" data-field="currency" style="flex:1;min-width:0;">{% for c in ['KRW','USD','VND','JPY','CNY','EUR'] %}<option value="{{ c }}"{% if (co.currency or 'KRW')==c %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+            <select class="ef" data-field="is_export" style="flex:1;min-width:0;"><option value="내수"{% if not co.is_export %} selected{% endif %}>내수</option><option value="수출"{% if co.is_export %} selected{% endif %}>수출</option></select>
+          </div></div>
+        <div class="h-cell"><div class="lbl">모델명 / 장비명</div>
+          <div style="display:flex;gap:4px;"><input class="ef" data-field="model_name" value="{{ co.model_name|e }}" placeholder="모델명" style="flex:1;min-width:0;"><input class="ef" data-field="equip_name" value="{{ co.equip_name|e }}" placeholder="장비명" style="flex:1;min-width:0;"></div></div>
+        <div class="h-cell"><div class="lbl">영업담당자</div><input class="ef" data-field="sales_name" value="{{ co.sales_name|e }}" placeholder="—"></div>
         <div class="h-cell"><div class="lbl">합계</div>
           <div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div>
         </div>
@@ -134,8 +151,13 @@ tfoot td { background: #fafafa; font-weight: 700; }
       {% endif %}
     </div>
 
-    <div class="card">
-      <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;">라인 항목 ({{ items|length }})</h2>
+    {# v5H226z298(대표 지시): 책갈피 탭 — 라인 항목 / 변경 이력 #}
+    <div class="co-tabs">
+      <button type="button" class="co-tab active" data-tab="lines" onclick="showTab('lines')">📋 라인 항목 ({{ items|length }})</button>
+      <button type="button" class="co-tab" data-tab="history" onclick="showTab('history')">🕘 변경 이력 ({{ history|length }})</button>
+    </div>
+
+    <div class="card tab-pane" id="tab-lines" style="border-top-left-radius:0;">
       {% if items %}
       <div style="overflow-x:auto;">  {# v5H226z297: 컬럼 늘어 넘치면 좌우 스크롤 #}
       <table class="items" style="min-width:1340px;">
@@ -210,12 +232,58 @@ tfoot td { background: #fafafa; font-weight: 700; }
         <div style="padding:30px;text-align:center;color:var(--qv-ink-3);">라인이 없습니다.</div>
       {% endif %}
     </div>
+
+    {# v5H226z298: 변경 이력 탭 패널 #}
+    <div class="card tab-pane" id="tab-history" style="display:none;border-top-left-radius:0;">
+      <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;">🕘 변경 이력</h2>
+      {% if history %}
+      <div style="overflow-x:auto;">
+        <table class="hist">
+          <thead><tr><th style="width:140px;">시각</th><th style="width:90px;">변경자</th><th style="width:90px;">구분</th><th style="width:110px;">항목</th><th>이전 값</th><th>변경 값</th></tr></thead>
+          <tbody>
+          {% for h in history %}
+            <tr>
+              <td style="white-space:nowrap;color:var(--qv-ink-3);">{{ h.changed_at }}</td>
+              <td>{{ h.changed_by_name or '—' }}</td>
+              <td>{% if h.scope == 'line' %}라인 #{{ h.item_id }}{% else %}정보{% endif %}</td>
+              <td style="font-weight:600;">{{ h.label }}</td>
+              <td style="color:#9ca3af;">{{ h.old_value if h.old_value not in (None, '') else '—' }}</td>
+              <td style="color:#b91c1c;font-weight:600;">{{ h.new_value if h.new_value not in (None, '') else '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--qv-ink-3);">아직 변경 이력이 없습니다. (정보·라인을 수정하면 여기에 기록됩니다)</div>
+      {% endif %}
+    </div>
   </main>
 </div>
 
 <script>
 const CO_ID = {{ co.id }};
 const CURR = "{{ co.currency or 'KRW' }}";
+
+// v5H226z298: 책갈피 탭 전환
+function showTab(name){
+  document.querySelectorAll('.tab-pane').forEach(p=>{ p.style.display = (p.id==='tab-'+name)?'':'none'; });
+  document.querySelectorAll('.co-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+}
+// v5H226z298: 정보란(헤더) 인라인 편집 — 같은 원본 수정(작업일정표와 양방향 동기화) + 변경 이력 기록
+document.querySelectorAll('.header-grid .ef').forEach(el=>{
+  el.addEventListener('change', async ()=>{
+    const field = el.dataset.field, value = el.value;
+    try{
+      const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});
+      const d = await r.json();
+      if(d.ok){
+        el.style.background='#dcfce7'; setTimeout(()=>{ el.style.background=''; },700);
+        if(field==='customer_name'){ if(d.value!=null) el.value=d.value; el.classList.toggle('cust-bad', d.cust_ok===false); }
+      } else { el.style.background='#fee2e2'; alert('저장 실패: '+(d.error||'')); }
+    }catch(e){ el.style.background='#fee2e2'; }
+  });
+});
 
 document.querySelectorAll('table.items input').forEach(inp => {
   inp.addEventListener('change', async () => {

@@ -767,31 +767,106 @@ def coi_list(co_id: int) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def coi_update(item_id: int, fields: dict) -> None:
-    """라인 인라인 편집 — fields 의 키만 갱신."""
+# ── v5H226z298: 변경 이력(히스토리 탭) ──
+_ORDER_FIELD_LABELS = {
+    "customer_name": "고객사", "secondary_customer": "2차 고객사", "ship_to": "납품위치",
+    "order_date": "발주일", "due_date": "납기", "cc_name": "고객 담당자", "cc_phone": "연락처",
+    "currency": "통화", "is_export": "거래구분", "model_name": "모델명", "equip_name": "장비명",
+    "sales_name": "영업담당자", "note": "비고",
+}
+_LINE_FIELD_LABELS = {"model_use": "모델", "equip_name": "장비명", "part_name": "품명",
+                      "spec": "규격", "qty": "수량", "unit": "단위", "unit_price": "단가",
+                      "note": "비고", "linked_project_id": "관리번호 연결", "part_id": "자재 연결"}
+
+
+def co_log_change(co_id, item_id, scope, field, label, old_value, new_value, by_id=None, by_name=""):
+    """소모품수주 변경 1건 기록(이력 탭). 실패해도 본 작업은 진행."""
+    try:
+        with db_session() as c:
+            c.execute(
+                "INSERT INTO consumable_history(co_id, item_id, scope, field, label, "
+                "old_value, new_value, changed_by, changed_by_name) VALUES(?,?,?,?,?,?,?,?,?)",
+                (int(co_id), (int(item_id) if item_id else None), scope, field, label,
+                 ("" if old_value is None else str(old_value)),
+                 ("" if new_value is None else str(new_value)), by_id, by_name or "")
+            )
+    except Exception:
+        pass
+
+
+def co_history_list(co_id, limit: int = 300) -> list[dict]:
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM consumable_history WHERE co_id=? ORDER BY id DESC LIMIT ?",
+            (int(co_id), int(limit))
+        ).fetchall()]
+
+
+def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: str = "") -> tuple:
+    """소모품수주(헤더) 정보란 1필드 수정 + 이력. 반환 (성공, 새값, 옛값, 고객사연결여부).
+    고객사 변경 시 (주)/주식회사 무시 상호 매칭으로 정식명칭·customer_id 갱신."""
+    if field not in _ORDER_FIELD_LABELS:
+        return (False, None, None, None)
+    if field == "is_export":
+        new_v = 1 if str(value).strip() in ("수출", "1", "export", "EXPORT") else 0
+    elif field == "currency":
+        new_v = (str(value).strip().upper() or "KRW")
+    else:
+        new_v = (str(value).strip() if value is not None else "")
+    cust_id = None
+    cust_changed = (field == "customer_name")
+    cust_ok = None
+    if cust_changed:
+        m = match_customer_by_name(new_v)
+        if m:
+            cust_id = m["id"]; new_v = m["name"]; cust_ok = True
+        else:
+            cust_ok = False
+    with db_session() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+        if field not in cols:
+            return (False, None, None, None)
+        row = c.execute(f"SELECT {field} FROM consumable_orders WHERE id=?", (int(co_id),)).fetchone()
+        old_v = row[0] if row else None
+        c.execute(f"UPDATE consumable_orders SET {field}=? WHERE id=?", (new_v, int(co_id)))
+        if cust_changed:
+            c.execute("UPDATE consumable_orders SET customer_id=? WHERE id=?", (cust_id, int(co_id)))
+    if str(old_v if old_v is not None else "") != str(new_v if new_v is not None else ""):
+        co_log_change(co_id, None, "order", field, _ORDER_FIELD_LABELS[field], old_v, new_v, by_id, by_name)
+    return (True, new_v, old_v, cust_ok)
+
+
+def coi_update(item_id: int, fields: dict, by_id=None, by_name: str = "") -> None:
+    """라인 인라인 편집 — fields 의 키만 갱신 + 변경 이력 기록."""
     allowed = {"model_use", "equip_name", "part_name", "spec", "qty", "unit",
                "unit_price", "linked_project_id", "part_id", "note"}
     keys = [k for k in fields.keys() if k in allowed]
     if not keys:
         return
-    sets = ", ".join(f"{k}=?" for k in keys)
-    vals = [fields[k] for k in keys]
-    vals.append(int(item_id))
+    co_id = None
+    old = {}
     with db_session() as c:
+        cur = c.execute(
+            f"SELECT co_id, {', '.join(keys)} FROM consumable_order_items WHERE id=?",
+            (int(item_id),)
+        ).fetchone()
+        if not cur:
+            return
+        co_id = cur["co_id"]
+        old = {k: cur[k] for k in keys}
+        sets = ", ".join(f"{k}=?" for k in keys)
+        vals = [fields[k] for k in keys] + [int(item_id)]
         c.execute(f"UPDATE consumable_order_items SET {sets} WHERE id=?", vals)
-        # amount 재계산
         c.execute(
             "UPDATE consumable_order_items SET amount=ROUND(COALESCE(qty,0)*COALESCE(unit_price,0),2) WHERE id=?",
             (int(item_id),)
         )
-        # 헤더 합계
-        row = c.execute(
-            "SELECT co_id FROM consumable_order_items WHERE id=?", (int(item_id),)
-        ).fetchone()
-        if row:
-            co_id = row[0]
-    if row:
+    if co_id is not None:
         recompute_co_total(co_id)
+        for k in keys:
+            if str(old.get(k) if old.get(k) is not None else "") != str(fields[k] if fields[k] is not None else ""):
+                co_log_change(co_id, item_id, "line", k, _LINE_FIELD_LABELS.get(k, k),
+                              old.get(k), fields[k], by_id, by_name)
 
 
 def coi_delete(item_id: int) -> None:

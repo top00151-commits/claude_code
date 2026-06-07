@@ -22789,9 +22789,10 @@ async def consumables_detail(request: Request, co_id: int):
             ).fetchall()]
     except Exception:
         _teams = []
+    _history = _co.co_history_list(co_id)   # v5H226z298: 변경 이력 탭
     return ctx(request, "consumable_detail.html",
                user=u, active="consumables",
-               co=co, items=items, teams=_teams,
+               co=co, items=items, teams=_teams, history=_history,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
                STATUSES=_co.CO_STATUSES)
 
@@ -22818,9 +22819,31 @@ async def consumables_item_edit(request: Request, co_id: int, iid: int):
         if k in form:
             v = (form.get(k) or "").strip()
             fields[k] = int(v) if v.isdigit() else None
-    _co.coi_update(iid, fields)
+    _co.coi_update(iid, fields, by_id=u.get("id"), by_name=(u.get("name") or u.get("login_id") or ""))
     co = _co.co_get(co_id)
     return JSONResponse({"ok": True, "total_amount": (co or {}).get("total_amount", 0)})
+
+
+# v5H226z298 (대표 지시): 소모품수주 정보란(헤더) 인라인 수정 — 작업일정표와 같은 원본을 바꿔 양방향 동기화 + 이력.
+@app.post("/consumables/{co_id:int}/edit-field")
+async def consumables_edit_field(request: Request, co_id: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    field = (b.get("field") or "").strip()
+    value = b.get("value", "")
+    ok, new_v, _old, cust_ok = _co.co_update_order_field(
+        co_id, field, value, by_id=u.get("id"),
+        by_name=(u.get("name") or u.get("login_id") or ""))
+    if not ok:
+        return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
+    return JSONResponse({"ok": True, "value": new_v, "cust_ok": cust_ok})
 
 
 @app.post("/consumables/{co_id:int}/items/{iid:int}/link-project")

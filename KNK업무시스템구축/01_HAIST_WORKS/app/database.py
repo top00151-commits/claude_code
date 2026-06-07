@@ -657,6 +657,22 @@ CREATE INDEX IF NOT EXISTS idx_coi_co ON consumable_order_items(co_id);
 CREATE INDEX IF NOT EXISTS idx_coi_proj ON consumable_order_items(linked_project_id);
 CREATE INDEX IF NOT EXISTS idx_coi_part ON consumable_order_items(part_id);
 
+-- v5H226z298 (대표 지시): 소모품 수주 변경 이력(히스토리 탭) — 누가·언제·무엇을 어떻게 바꿨는지
+CREATE TABLE IF NOT EXISTS consumable_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    co_id           INTEGER NOT NULL,
+    item_id         INTEGER,                       -- 라인 변경이면 라인 id, 주문(헤더) 변경이면 NULL
+    scope           TEXT,                          -- 'order' | 'line'
+    field           TEXT,                          -- 컬럼명
+    label           TEXT,                          -- 표시용 항목명(예: 고객사)
+    old_value       TEXT,
+    new_value       TEXT,
+    changed_by      INTEGER,
+    changed_by_name TEXT,
+    changed_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cohist_co ON consumable_history(co_id, id);
+
 -- =====================================================
 -- STOCK MOVEMENTS — 입출고 원장 (수불부) (2026-04-20)
 -- 모든 재고 증감은 여기 기록 → parts.stock_qty는 합계 결과
