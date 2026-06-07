@@ -22805,7 +22805,7 @@ async def consumables_item_edit(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     form = await request.form()
     fields = {}
-    for k in ("model_use", "part_name", "spec", "unit", "note"):
+    for k in ("model_use", "equip_name", "part_name", "spec", "unit", "note"):  # v5H226z297: 장비명 편집
         if k in form:
             fields[k] = (form.get(k) or "").strip()
     for k in ("qty", "unit_price"):

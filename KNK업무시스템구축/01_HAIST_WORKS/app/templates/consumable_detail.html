@@ -137,12 +137,16 @@ tfoot td { background: #fafafa; font-weight: 700; }
     <div class="card">
       <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;">라인 항목 ({{ items|length }})</h2>
       {% if items %}
-      <table class="items">
+      <div style="overflow-x:auto;">  {# v5H226z297: 컬럼 늘어 넘치면 좌우 스크롤 #}
+      <table class="items" style="min-width:1340px;">
         <thead><tr>
           <th style="width:40px;">No</th>
           <th style="width:90px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
           <th style="width:80px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE)</span></th>
-          <th>모델 / 품명</th>
+          <th style="width:120px;">모델</th>
+          <th style="width:120px;">장비명</th>
+          <th style="width:150px;">품명</th>
+          <th style="width:150px;">규격</th>
           <th style="width:80px;">수량</th>
           <th style="width:60px;">단위</th>
           <th style="width:110px;">단가</th>
@@ -168,17 +172,11 @@ tfoot td { background: #fafafa; font-weight: 700; }
                 </a>
               {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
             </td>
-            <td>
-              {# v5H226z296(대표 지시): 3줄 → 2줄. 모델 줄에 장비명, 품명 줄에 자재번호를 작게 인라인 #}
-              <div style="display:flex;align-items:center;gap:6px;">
-                <input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" style="flex:1;min-width:0;" />
-                {% if it.equip_name %}<span style="font-size:10px;color:var(--qv-ink-3);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;" title="장비명: {{ it.equip_name }}">🔧 {{ it.equip_name }}</span>{% endif %}
-              </div>
-              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
-                <input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" style="flex:1;min-width:0;" />
-                {% if it.part_no %}<span style="font-size:10px;color:var(--qv-ink-3);white-space:nowrap;" title="자재번호">📦 {{ it.part_no }}</span>{% endif %}
-              </div>
-            </td>
+            {# v5H226z297(대표 지시): 모델·장비명·품명·규격 별도 컬럼으로 펼침(전부 편집) #}
+            <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" /></td>
+            <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
+            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" />{% if it.part_no %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;" title="자재번호">📦 {{ it.part_no }}</div>{% endif %}</td>
+            <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ it.unit_price or 0 }}" /></td>
@@ -201,12 +199,13 @@ tfoot td { background: #fafafa; font-weight: 700; }
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="7" style="text-align:right;">합계</td>
+            <td colspan="10" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
             <td colspan="2"></td>
           </tr>
         </tfoot>
       </table>
+      </div>
       {% else %}
         <div style="padding:30px;text-align:center;color:var(--qv-ink-3);">라인이 없습니다.</div>
       {% endif %}

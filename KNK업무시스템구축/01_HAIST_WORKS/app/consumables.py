@@ -769,7 +769,7 @@ def coi_list(co_id: int) -> list[dict]:
 
 def coi_update(item_id: int, fields: dict) -> None:
     """라인 인라인 편집 — fields 의 키만 갱신."""
-    allowed = {"model_use", "part_name", "spec", "qty", "unit",
+    allowed = {"model_use", "equip_name", "part_name", "spec", "qty", "unit",
                "unit_price", "linked_project_id", "part_id", "note"}
     keys = [k for k in fields.keys() if k in allowed]
     if not keys:
