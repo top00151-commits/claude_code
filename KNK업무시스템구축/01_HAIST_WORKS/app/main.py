@@ -22598,38 +22598,54 @@ async def consumables_new_form(request: Request, embed: str = ""):
 @app.post("/consumables/create-direct")
 async def consumables_create_direct(request: Request,
                                     biz_div: str = Form(""),
-                                    customer_id: str = Form("")):
-    """v5H226z309 (대표 지시): 엑셀 없이 시스템에서 직접(수기) 소모품 수주 등록 —
-    빈 발주 생성(관리번호·수주번호 자동) 후 상세 화면으로 이동해 정보·라인·사진을 직접 입력."""
+                                    customer_id: str = Form(""),
+                                    customer_name: str = Form(""),
+                                    order_date: str = Form(""),
+                                    due_date: str = Form(""),
+                                    currency: str = Form("KRW"),
+                                    note: str = Form(""),
+                                    mode: str = Form("")):
+    """v5H226z309/z312 (대표 지시): 엑셀 없이 시스템에서 직접(수기) 소모품 수주 등록 —
+    빈 발주 생성(관리번호·수주번호 자동) 후 상세 화면으로 이동해 정보·라인·사진을 직접 입력.
+    진입점 2곳: ①/consumables 목록 모달(customer_id, form POST→redirect) ②신규등록 모달의 업로드 폼
+    (customer_name 자유입력+발주일/납기/통화/비고, fetch mode=json→co_id 반환)."""
+    _json = (mode or "").strip().lower() == "json"
     u = get_user(request)
     if not u:
-        return RedirectResponse("/login", 303)
+        return JSONResponse({"ok": False, "error": "auth"}, 401) if _json else RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403) if _json else RedirectResponse("/home", 303)
     _bd = (biz_div or "").strip().upper()
     if _bd not in ("T", "M", "L"):
-        return RedirectResponse("/consumables?err=biz_div", 303)
-    # 고객사: 등록 고객사 id → 정식명칭 조회(1차 고객사는 등록 고객사 원칙)
+        return (JSONResponse({"ok": False, "error": "진행 사업부를 선택하세요"}, 400) if _json
+                else RedirectResponse("/consumables?err=biz_div", 303))
+    # 고객사: customer_id(목록 모달) 우선, 없으면 customer_name(업로드 폼 자유입력)으로 등록 고객사 매칭
     cust_name, cid = "", None
     if str(customer_id).strip().isdigit():
         cid = int(customer_id)
-        try:
-            with db_session() as c:
-                r = c.execute("SELECT name FROM customers WHERE id=?", (cid,)).fetchone()
-                cust_name = (r[0] if r else "")
-                if not r:
-                    cid = None
-        except Exception:
+        with db_session() as c:
+            r = c.execute("SELECT name FROM customers WHERE id=?", (cid,)).fetchone()
+        if r:
+            cust_name = r[0]
+        else:
             cid = None
+    elif (customer_name or "").strip():
+        cust_name = customer_name.strip()
+        with db_session() as c:
+            r = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (cust_name,)).fetchone()
+        if r:
+            cid = r[0]   # 자유입력이 등록 고객사와 정확히 일치하면 연결(아니면 미연결 — 상세에서 선택)
     co_id, _co_no = _co.co_create(customer_name=cust_name, biz_div=_bd,
-                                  currency="KRW", source_file="직접등록",
-                                  created_by=u.get("id"))
+                                  order_date=(order_date or ""), due_date=(due_date or ""),
+                                  currency=(currency or "KRW"), note=(note or ""),
+                                  source_file="직접등록", created_by=u.get("id"))
     if cid:
-        # v5H226z310 (적대검토·연결성 절대준수): 사용자가 명시 선택한 고객사(명확한 단일후보)를 직접 set.
-        #   실패를 except:pass 로 숨기지 않는다 — 동명 고객사 등에서 co_create 의 이름매칭이 빗나가도 이 값이 정답.
+        # v5H226z310 (적대검토·연결성 절대준수): 명시 선택/정확매칭된 고객사 직접 set, 실패 표면화(except:pass 금지)
         with db_session() as c:
             c.execute("UPDATE consumable_orders SET customer_id=?, customer_name=? WHERE id=?",
                       (cid, cust_name, co_id))
+    if _json:
+        return JSONResponse({"ok": True, "co_id": co_id})
     return RedirectResponse(f"/consumables/{co_id}", 303)
 
 

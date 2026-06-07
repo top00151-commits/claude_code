@@ -91,7 +91,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
 
     <div class="card">
-      <h2>① 발주 헤더 + 엑셀 업로드</h2>
+      <h2>① 발주 헤더 입력 <span style="font-size:12px;font-weight:500;color:var(--qv-ink-3);">(엑셀 업로드 또는 직접 등록)</span></h2>
       <form id="uploadForm">
         <div class="row">
           <div class="field"><label>진행 사업부 <span style="color:var(--knk-red);">*</span></label>
@@ -126,8 +126,10 @@ html,body{background:#fff!important;overflow:auto!important;}
         </div>
         <div class="btn-row">
           <button type="submit" class="btn-primary">📂 업로드 + 미리보기</button>
+          <button type="button" id="directBtn" class="btn-secondary" style="border-color:var(--knk-red);color:var(--knk-red);font-weight:700;">✏️ 직접 등록 (엑셀 없이)</button>
           <a class="btn-secondary" href="/consumables">취소</a>
         </div>
+        <div style="font-size:11px;color:var(--qv-ink-3);margin-top:6px;">📂 <b>업로드</b>: 엑셀 라인까지 한번에 · ✏️ <b>직접 등록</b>: 헤더만 만들고 상세에서 라인·사진을 직접 입력(엑셀 불필요)</div>
       </form>
       <div id="statusMsg"></div>
     </div>
@@ -177,6 +179,29 @@ html,body{background:#fff!important;overflow:auto!important;}
 
 <script>
 let _co_id = null;
+
+// v5H226z312 (대표 지시): 직접 등록(엑셀 없이) — 헤더 필드만으로 발주 생성 후 상세로 이동(업로드 흐름과 동일 네비)
+document.getElementById('directBtn').addEventListener('click', async () => {
+  const form = document.getElementById('uploadForm');
+  const bd = (form.biz_div.value || '').trim();
+  if (!bd) { alert('진행 사업부를 선택하세요.'); form.biz_div.focus(); return; }
+  const fd = new FormData();
+  fd.append('mode', 'json');
+  fd.append('biz_div', bd);
+  fd.append('customer_name', form.customer_name.value || '');
+  fd.append('order_date', form.order_date.value || '');
+  fd.append('due_date', form.due_date.value || '');
+  fd.append('currency', form.currency.value || 'KRW');
+  fd.append('note', form.note.value || '');
+  const btn = document.getElementById('directBtn');
+  btn.disabled = true; const _orig = btn.textContent; btn.textContent = '⏳ 생성 중…';
+  try {
+    const res = await fetch('/consumables/create-direct', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.ok) { location.href = '/consumables/' + data.co_id; }
+    else { alert('직접 등록 실패: ' + (data.error || '')); btn.disabled = false; btn.textContent = _orig; }
+  } catch (e) { alert('통신 오류'); btn.disabled = false; btn.textContent = _orig; }
+});
 let _lines = [];
 let _ccy = 'KRW';   // v5H226z285: 양식에서 읽은 통화
 function fmtAmt(n){ n = Number(n) || 0; return n ? n.toLocaleString() : '—'; }
