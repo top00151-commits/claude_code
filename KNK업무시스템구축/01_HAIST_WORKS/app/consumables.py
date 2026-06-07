@@ -156,16 +156,25 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
     img_map: dict = {}
     if image_out_dir:
         os.makedirs(image_out_dir, exist_ok=True)
+        # v5H226z284 (대표 지시): 행 높이 누적(EMU)으로 이미지 세로 '중심'이 속한 데이터 행에 매칭.
+        #   셀 크기·병합·붙인 위치가 달라도 '보이는 위치' 그대로 연결(기존 '앵커행+2'는 전 사진이 2줄 밀렸음).
+        _ymax = ws.max_row
+        for _im in (getattr(ws, "_images", []) or []):
+            _t = getattr(_im.anchor, "to", None) or getattr(_im.anchor, "_to", None)
+            if _t is not None and getattr(_t, "row", None) is not None and (_t.row + 3) > _ymax:
+                _ymax = _t.row + 3
+        _P = _row_y_prefix(ws, _ymax)
         try:
             for idx, img in enumerate(getattr(ws, "_images", []) or []):
                 try:
                     a = img.anchor
-                    row1 = a._from.row + 1   # 1-indexed
                     raw = img._data()
                     if not raw:
                         continue
-                    # 가장 가까운 라인의 row 와 매칭 (anchor row 가 라인 row 와 정확히 같지 않을 수 있음)
-                    matched_line = _find_nearest_line(lines, row1)
+                    # 이미지 세로 중심 → 해당 데이터 행. 못 구하면(절대앵커 등) 앵커 상단 행 최근접 폴백.
+                    _cy = _image_center_y(a, _P)
+                    matched_line = (_line_for_center(lines, _cy, _P) if _cy is not None
+                                    else _find_nearest_line(lines, getattr(getattr(a, "_from", None), "row", 0) + 1))
                     if matched_line is None:
                         continue
                     fn = f"line_{matched_line['line_no']:03d}_{idx+1}.jpg"
@@ -192,13 +201,61 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
 
 
 def _find_nearest_line(lines, anchor_row: int):
-    """anchor_row 와 가장 가까운(<=) line.row 찾기. 없으면 가장 가까운 라인."""
+    """anchor_row 와 가장 가까운(<=) line.row 찾기. 없으면 가장 가까운 라인. (절대앵커 폴백용)"""
     if not lines:
         return None
     candidates = [ln for ln in lines if ln["row"] <= anchor_row + 2]
     if candidates:
         return max(candidates, key=lambda ln: ln["row"])
     return min(lines, key=lambda ln: abs(ln["row"] - anchor_row))
+
+
+# ── v5H226z284: 이미지 기하학적 매칭(행 높이 기반) — 셀 크기·병합·오프셋 무관 ──
+def _row_y_prefix(ws, max_row: int) -> list:
+    """행별 세로 위치 누적(EMU). P[r] = 1..r행 높이 합(기본 15pt).
+    이미지 앵커의 row(0-index)+rowOff(EMU)로 절대 Y좌표를 계산하는 데 사용."""
+    DEFAULT_PT = 15.0
+    EMU_PER_PT = 12700.0
+    n = max(1, int(max_row)) + 2
+    P = [0.0] * (n + 1)
+    for r in range(1, n + 1):
+        try:
+            h = ws.row_dimensions[r].height
+        except Exception:
+            h = None
+        P[r] = P[r - 1] + (h if h else DEFAULT_PT) * EMU_PER_PT
+    return P
+
+
+def _image_center_y(anchor, P):
+    """이미지의 세로 '중심' Y(EMU). TwoCellAnchor=from~to 중점,
+    OneCellAnchor=from + 높이/2. 계산 불가 시 None."""
+    frm = getattr(anchor, "_from", None)
+    if frm is None or getattr(frm, "row", None) is None or frm.row + 1 >= len(P):
+        return None
+    top = P[frm.row] + (getattr(frm, "rowOff", 0) or 0)
+    to = getattr(anchor, "to", None) or getattr(anchor, "_to", None)
+    if to is not None and getattr(to, "row", None) is not None and to.row + 1 < len(P):
+        bot = P[to.row] + (getattr(to, "rowOff", 0) or 0)
+    else:
+        ext = getattr(anchor, "ext", None)
+        cy = getattr(ext, "height", 0) if ext is not None else 0
+        bot = top + (cy or 0)
+    return (top + bot) / 2.0
+
+
+def _line_for_center(lines, center_y, P):
+    """center_y(EMU)가 속한 데이터 행의 라인. 구간 밖이면 행 밴드 중심 최근접."""
+    if not lines or center_y is None:
+        return None
+    for ln in lines:
+        R = ln["row"]
+        if R < len(P) and P[R - 1] <= center_y < P[R]:
+            return ln
+    def _mid(ln):
+        R = ln["row"]
+        return (P[R - 1] + P[R]) / 2.0 if R < len(P) else P[-1]
+    return min(lines, key=lambda ln: abs(_mid(ln) - center_y))
 
 
 def _to_num(v):

@@ -154,8 +154,9 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="preview-wrap">
         <table class="preview">
           <thead><tr>
-            <th>No</th><th>이미지</th><th>모델</th><th>품명</th>
+            <th>No</th><th>이미지</th><th>모델</th><th>품명</th><th>규격</th>
             <th style="width:60px;">수량</th><th style="width:50px;">단위</th>
+            <th style="width:100px;">요청일</th>
             <th style="width:90px;">단가</th>
             <th>자재매칭</th><th>관리번호</th>
           </tr></thead>
@@ -221,8 +222,10 @@ function renderPreview() {
       <td>${imgCell}</td>
       <td><input data-idx="${idx}" data-k="model_use" value="${esc(ln.model_use)}" /></td>
       <td><input data-idx="${idx}" data-k="part_name" value="${esc(ln.part_name)}" /></td>
+      <td><input data-idx="${idx}" data-k="spec" value="${esc(ln.spec)}" /></td>
       <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
       <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
+      <td><input data-idx="${idx}" data-k="order_date" value="${esc(ln.order_date||'')}" /></td>
       <td><input data-idx="${idx}" data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="${ln.unit_price||0}" /></td>
       <td>${partBadge}<input type="hidden" data-idx="${idx}" data-k="part_id" value="${ln.part_match?ln.part_match.id:''}" /></td>
       <td>${projBadge}<input type="hidden" data-idx="${idx}" data-k="linked_project_id" value="${ln.project_match?ln.project_match.id:''}" /></td>
