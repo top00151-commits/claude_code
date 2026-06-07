@@ -22774,9 +22774,21 @@ async def consumables_detail(request: Request, co_id: int):
     if not co:
         return RedirectResponse("/consumables", 303)
     items = _co.coi_list(co_id)
+    # v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달용 팀 목록(활성 인원 있는 팀)
+    _teams = []
+    try:
+        with db_session() as _tc:
+            _teams = [dict(r) for r in _tc.execute(
+                "SELECT t.id, t.name, COUNT(u.id) AS member_count "
+                "FROM teams t LEFT JOIN users u ON u.team_id=t.id AND COALESCE(u.is_active,1)=1 "
+                "GROUP BY t.id, t.name HAVING member_count > 0 "
+                "ORDER BY t.display_order, t.id"
+            ).fetchall()]
+    except Exception:
+        _teams = []
     return ctx(request, "consumable_detail.html",
                user=u, active="consumables",
-               co=co, items=items,
+               co=co, items=items, teams=_teams,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
                STATUSES=_co.CO_STATUSES)
 
@@ -22895,17 +22907,31 @@ async def consumables_notify(request: Request, co_id: int):
             f"검토 부탁드립니다.")
     link = f"/consumables/{co_id}"
     sender_id = u.get("id")
+    # v5H226z292 (대표 지시): 통보 대상 = 사용자가 '선택한 부서(팀)'의 활성 구성원. 발신자 제외.
+    try:
+        _b = await request.json()
+    except Exception:
+        _b = {}
+    team_ids = [int(t) for t in (_b.get("team_ids") or []) if str(t).strip().lstrip("-").isdigit()]
+    if not team_ids:
+        return JSONResponse({"ok": False, "error": "no_team",
+                             "message": "통보할 부서를 1개 이상 선택하세요"}, 400)
     sent_to = 0
+    dept_count = 0
     try:
         with db_session() as c:
-            # 통보 대상: 자재구매(logistics) + admin/ceo. 발신자 본인은 제외.
+            ph = ",".join("?" * len(team_ids))
             rows = c.execute(
-                "SELECT id FROM users "
-                "WHERE (COALESCE(can_use_logistics,0)=1 OR role IN ('admin','ceo')) "
-                "  AND COALESCE(is_active,1)=1 "
-                "  AND id != ?",
-                (sender_id,)
+                f"SELECT id FROM users WHERE team_id IN ({ph}) "
+                f"AND COALESCE(is_active,1)=1 AND id != ?",
+                (*team_ids, sender_id)
             ).fetchall()
+            # 발송한 부서 수(구성원 있는 선택 팀)
+            dept_count = c.execute(
+                f"SELECT COUNT(DISTINCT team_id) FROM users WHERE team_id IN ({ph}) "
+                f"AND COALESCE(is_active,1)=1 AND id != ?",
+                (*team_ids, sender_id)
+            ).fetchone()[0]
             for r in rows:
                 uid = r[0] if not isinstance(r, dict) else r["id"]
                 c.execute(
@@ -22916,7 +22942,7 @@ async def consumables_notify(request: Request, co_id: int):
                 sent_to += 1
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"db_error: {e}"}, 500)
-    return JSONResponse({"ok": True, "sent_to": sent_to, "co_no": co_no})
+    return JSONResponse({"ok": True, "sent_to": sent_to, "dept_count": dept_count, "co_no": co_no})
 
 
 @app.post("/consumables/{co_id:int}/delete")

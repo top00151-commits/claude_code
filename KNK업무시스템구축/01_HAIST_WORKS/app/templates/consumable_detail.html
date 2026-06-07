@@ -30,6 +30,17 @@ a { text-decoration: none; color: inherit; }
 #notifyMsg { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-left: 8px; display:none; }
 #notifyMsg.ok { background:#d1fae5; color:#065f46; display:inline-block; }
 #notifyMsg.err { background:#fee2e2; color:#991b1b; display:inline-block; }
+/* v5H226z292: 관련부서 통보 — 부서 선택 모달 */
+.ntf-modal { position:fixed; inset:0; background:rgba(15,23,42,.42); z-index:10050; display:flex; align-items:center; justify-content:center; }
+.ntf-card { background:#fff; border-radius:12px; width:min(440px,93vw); max-height:84vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.32); }
+.ntf-head { padding:14px 18px; font-weight:700; font-size:15px; border-bottom:1px solid var(--qv-line); }
+.ntf-body { padding:8px 18px; overflow:auto; }
+.ntf-actions { font-size:12px; margin:4px 0 6px; }
+.ntf-actions a { color:#1d4ed8; text-decoration:none; font-weight:700; cursor:pointer; }
+.ntf-row { display:flex; align-items:center; gap:9px; padding:8px 4px; font-size:13.5px; border-bottom:1px solid #f1f0ec; cursor:pointer; }
+.ntf-row input { width:16px; height:16px; }
+.ntf-row .ntf-cnt { margin-left:auto; font-size:11px; color:var(--qv-ink-3); }
+.ntf-foot { padding:12px 18px; border-top:1px solid var(--qv-line); display:flex; gap:8px; justify-content:flex-end; }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
 .header-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 .h-cell .lbl { font-size: 11px; color: var(--qv-ink-3); font-weight: 600; }
@@ -69,6 +80,23 @@ tfoot td { background: #fafafa; font-weight: 700; }
         <form method="post" action="/consumables/{{ co.id }}/delete" onsubmit="return confirm('정말 이 발주를 삭제하시겠습니까? (라인 + 이미지 모두 삭제)');" style="display:inline;">
           <button class="btn-danger" type="submit">🗑 삭제</button>
         </form>
+      </div>
+    </div>
+
+    {# v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달 #}
+    <div id="notifyModal" class="ntf-modal" style="display:none;">
+      <div class="ntf-card">
+        <div class="ntf-head">📤 관련부서 통보 — 받을 부서를 선택하세요</div>
+        <div class="ntf-body">
+          <div class="ntf-actions"><a onclick="ntfAll(true)">전체 선택</a> · <a onclick="ntfAll(false)">전체 해제</a></div>
+          {% for t in teams %}
+          <label class="ntf-row"><input type="checkbox" class="ntf-ck" value="{{ t.id }}"{% if t.name == '구매팀' %} checked{% endif %}> {{ t.name }} <span class="ntf-cnt">{{ t.member_count }}명</span></label>
+          {% endfor %}
+        </div>
+        <div class="ntf-foot">
+          <button type="button" class="btn-secondary" onclick="closeNotify()">취소</button>
+          <button type="button" class="btn-notify" id="ntfSendBtn" onclick="doNotify()">📤 통보</button>
+        </div>
       </div>
     </div>
 
@@ -215,25 +243,34 @@ async function delLine(iid) {
   if (data.ok) location.reload();
 }
 
-// v5H145 — 관련부서 통보 발송
-async function sendNotify() {
-  const btn = document.getElementById('notifyBtn');
+// v5H226z292 — 관련부서 통보: 부서 선택 모달
+function sendNotify() { document.getElementById('notifyModal').style.display = 'flex'; }
+function closeNotify() { document.getElementById('notifyModal').style.display = 'none'; }
+function ntfAll(on) { document.querySelectorAll('.ntf-ck').forEach(c => c.checked = on); }
+async function doNotify() {
   const msg = document.getElementById('notifyMsg');
-  if (!confirm('자재구매팀·생산팀에 이 소모품 수주를 통보하시겠습니까?')) return;
-  btn.disabled = true; btn.textContent = '⏳ 발송 중...';
+  const sendBtn = document.getElementById('ntfSendBtn');
+  const ids = Array.from(document.querySelectorAll('.ntf-ck:checked')).map(c => parseInt(c.value));
+  if (!ids.length) { alert('통보할 부서를 1개 이상 선택하세요.'); return; }
+  sendBtn.disabled = true; sendBtn.textContent = '⏳ 발송 중...';
   try {
-    const r = await fetch(`/consumables/${CO_ID}/notify`, {method:'POST'});
+    const r = await fetch(`/consumables/${CO_ID}/notify`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({team_ids: ids})
+    });
     const d = await r.json();
     if (d.ok) {
-      msg.className = 'ok'; msg.textContent = `✅ ${d.sent_to||0}명에게 발송됨`;
-      btn.textContent = '✓ 통보 완료';
+      closeNotify();
+      msg.className = 'ok';
+      msg.textContent = `✅ ${d.dept_count||ids.length}개 부서 ${d.sent_to||0}명에게 통보 완료`;
+      const nb = document.getElementById('notifyBtn'); nb.textContent = '✓ 통보 완료';
     } else {
-      msg.className = 'err'; msg.textContent = '⚠ ' + (d.error||'발송 실패');
-      btn.disabled = false; btn.textContent = '📤 관련부서 통보';
+      msg.className = 'err'; msg.textContent = '⚠ ' + (d.message || d.error || '발송 실패');
     }
   } catch (e) {
     msg.className = 'err'; msg.textContent = '⚠ ' + e;
-    btn.disabled = false; btn.textContent = '📤 관련부서 통보';
+  } finally {
+    sendBtn.disabled = false; sendBtn.textContent = '📤 통보';
   }
 }
 
