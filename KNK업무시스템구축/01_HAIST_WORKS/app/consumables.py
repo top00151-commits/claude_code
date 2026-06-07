@@ -444,10 +444,10 @@ def _date_str(v):
 # ────────────────────────────────────────────────────────────────────
 # 이미지 압축 (Pillow)
 # ────────────────────────────────────────────────────────────────────
-def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 85,
-                          thumb_dim: int = 240) -> tuple[bytes, bytes, dict]:
+def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 92,
+                          thumb_dim: int = 320) -> tuple[bytes, bytes, dict]:
     """원본 bytes → (압축본 jpeg bytes, 썸네일 jpeg bytes, info dict)
-    화질 유지 + 용량 최소화 절충: 긴변 1920px JPEG q=85 progressive."""
+    v5H226z295(대표 지시): 화질 향상 — 긴변 1920px JPEG q=92, 썸네일 320×160(2:1 와이드) q=92."""
     from PIL import Image, ImageOps
     im = Image.open(BytesIO(raw))
     im = ImageOps.exif_transpose(im)
@@ -472,12 +472,12 @@ def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 85,
     out_big = BytesIO()
     big.save(out_big, "JPEG", quality=quality, optimize=True, progressive=True)
     big_bytes = out_big.getvalue()
-    # 썸네일 — v5H226z293(대표 지시): 모든 사진을 동일 크기·비율(4:3)로 가운데 잘라 균일화.
-    #   (원본은 big 에 비율 유지로 보관 → 클릭하면 잘림 없이 전체 표시)
-    thumb_w, thumb_h = thumb_dim, max(1, round(thumb_dim * 3 / 4))   # 240×180 (4:3)
+    # 썸네일 — v5H226z293/z295(대표 지시): 동일 크기·비율로 가운데 잘라 균일화 + 와이드.
+    #   320×160 (2:1 — 가로 넓고 세로 낮게). 원본은 big 에 비율 유지 보관 → 클릭 시 전체 표시.
+    thumb_w, thumb_h = thumb_dim, max(1, round(thumb_dim / 2))       # 320×160 (2:1)
     thumb = ImageOps.fit(im, (thumb_w, thumb_h), Image.LANCZOS, centering=(0.5, 0.5))
     out_thumb = BytesIO()
-    thumb.save(out_thumb, "JPEG", quality=80, optimize=True)
+    thumb.save(out_thumb, "JPEG", quality=92, optimize=True)
     thumb_bytes = out_thumb.getvalue()
     info = {
         "orig_dim": orig_size,
