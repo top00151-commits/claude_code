@@ -225,14 +225,15 @@ tfoot td { background: #fafafa; font-weight: 700; }
                 </div>
               {% endif %}
             </td>
+            {# v5H226z301(대표 지시): 관리번호 직접 입력+검증(모델/장비 다르면 알람·강제연결) + 모델 자동매칭 추천 #}
             <td>
-              {% if it.linked_mgmt_code %}
-                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:var(--qv-ink-2);font-weight:600;">{{ it.linked_mgmt_code }}</a>
-                <div style="font-size:10px;color:var(--qv-ink-3);">{{ it.linked_project_name }}</div>
-              {% elif it.linked_project_id %}
-                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="font-size:11px;color:var(--qv-ink-3);">PID {{ it.linked_project_id }}</a>
+              {% if it.linked_project_id %}
+                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:#1e40af;font-weight:700;">{{ it.linked_mgmt_code or ('PID ' ~ it.linked_project_id) }}</a>
+                {% if it.linked_project_name %}<div style="font-size:10px;color:var(--qv-ink-3);">{{ it.linked_project_name }}</div>{% endif %}
+                <a onclick="unlinkMgmt({{ it.id }})" style="font-size:10px;color:#b91c1c;cursor:pointer;">✕ 해제</a>
               {% else %}
-                <span style="color:#aaa;font-size:11px;">미연결</span>
+                {% if it.suggest_mgmt %}<button type="button" class="btn-suggest" onclick="linkMgmt({{ it.id }},'{{ it.suggest_mgmt.mgmt_code }}',1)" title="모델 자동매칭 추천">🔗 {{ it.suggest_mgmt.mgmt_code }} 연결</button>{% endif %}
+                <input class="mgmt-input" data-iid="{{ it.id }}" placeholder="🔢 관리번호 입력" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
               {% endif %}
             </td>
             <td>
@@ -357,6 +358,28 @@ async function linkPart(iid,pid){
 async function unlinkPart(iid){
   const fd=new FormData(); fd.append('part_id','');
   const r=await fetch(`/consumables/${CO_ID}/items/${iid}/match-part`,{method:'POST',body:fd});
+  const d=await r.json(); if(d.ok) location.reload();
+}
+
+// v5H226z301: 관리번호 입력 + 모델/장비 검증 → 다르면 알람·확인 후 연결
+document.querySelectorAll('.mgmt-input').forEach(inp=>{
+  let busy=false;
+  const go=async()=>{ const c=inp.value.trim(); if(!c||busy) return; busy=true; await linkMgmt(inp.dataset.iid,c,0); busy=false; };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); }});
+  inp.addEventListener('blur', go);
+});
+async function linkMgmt(iid, code, force){
+  try{
+    const r=await fetch(`/consumables/${CO_ID}/items/${iid}/link-by-mgmt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mgmt_code:code,force:force?1:0})});
+    const d=await r.json();
+    if(!d.ok){ alert(d.error||'오류'); return; }
+    if(d.linked){ location.reload(); return; }
+    if(d.warn){ if(confirm('⚠ '+d.message+'\n\n그래도 이 관리번호로 연결하시겠습니까?')) linkMgmt(iid, code, 1); return; }
+    if(d.message){ alert(d.message); }
+  }catch(e){ alert('통신 오류'); }
+}
+async function unlinkMgmt(iid){
+  const r=await fetch(`/consumables/${CO_ID}/items/${iid}/link-by-mgmt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mgmt_code:''})});
   const d=await r.json(); if(d.ok) location.reload();
 }
 

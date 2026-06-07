@@ -802,6 +802,23 @@ def co_history_list(co_id, limit: int = 300) -> list[dict]:
         ).fetchall()]
 
 
+def coi_get(item_id) -> dict | None:
+    """라인 1건 조회(관리번호 검증 등)."""
+    with db_session() as c:
+        r = c.execute("SELECT * FROM consumable_order_items WHERE id=?", (int(item_id),)).fetchone()
+        return dict(r) if r else None
+
+
+def mgmt_line_matches(line: dict, proj: dict) -> bool:
+    """v5H226z301 (대표 지시): 입력한 관리번호(프로젝트)의 모델/장비가 라인과 '맞는지'.
+    의미있는 토큰(2자+) 교집합이 있으면 맞음으로 본다(없으면 알람 후 강제연결 가능)."""
+    def _tok(s):
+        return {t for t in re.findall(r"[A-Za-z0-9가-힣]+", (s or "").upper()) if len(t) >= 2}
+    line_tok = _tok(line.get("model_use")) | _tok(line.get("equip_name"))
+    proj_tok = _tok(proj.get("model_name")) | _tok(proj.get("name"))
+    return bool(line_tok & proj_tok)
+
+
 def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: str = "") -> tuple:
     """소모품수주(헤더) 정보란 1필드 수정 + 이력. 반환 (성공, 새값, 옛값, 고객사연결여부).
     고객사 변경 시 (주)/주식회사 무시 상호 매칭으로 정식명칭·customer_id 갱신."""

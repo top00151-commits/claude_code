@@ -22777,10 +22777,12 @@ async def consumables_detail(request: Request, co_id: int):
     if not co:
         return RedirectResponse("/consumables", 303)
     items = _co.coi_list(co_id)
-    # v5H226z300 (대표 지시): 자재코드 — 미연결 라인에 '등록 자재 추천'(정확일치 1건) 붙이기
+    # v5H226z300/z301 (대표 지시): 미연결 라인에 '등록 자재 추천' + '관리번호(모델 자동매칭) 추천'
     for _it in items:
         if not _it.get("part_id"):
             _it["suggest_part"] = _co.match_part_by_name(_it.get("part_name", ""))
+        if not _it.get("linked_project_id"):
+            _it["suggest_mgmt"] = _co.match_project_by_model(_it.get("model_use", ""), co.get("customer_id"))
     # v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달용 팀 목록(활성 인원 있는 팀)
     _teams = []
     try:
@@ -22868,8 +22870,43 @@ async def consumables_item_link_project(request: Request, co_id: int, iid: int):
     form = await request.form()
     pid_raw = (form.get("project_id") or "").strip()
     pid = int(pid_raw) if pid_raw.isdigit() else None
-    _co.coi_update(iid, {"linked_project_id": pid})
+    _co.coi_update(iid, {"linked_project_id": pid}, by_id=u.get("id"), by_name=(u.get("name") or ""))
     return JSONResponse({"ok": True, "linked_project_id": pid})
+
+
+# v5H226z301 (대표 지시): 관리번호 직접 입력 + 모델/장비 검증. 다르면 알람(warn)·강제연결(force)로 연결.
+@app.post("/consumables/{co_id:int}/items/{iid:int}/link-by-mgmt")
+async def consumables_item_link_by_mgmt(request: Request, co_id: int, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    code = (b.get("mgmt_code") or "").strip()
+    force = bool(b.get("force"))
+    by_name = (u.get("name") or u.get("login_id") or "")
+    if not code:   # 해제
+        _co.coi_update(iid, {"linked_project_id": None}, by_id=u.get("id"), by_name=by_name)
+        return JSONResponse({"ok": True, "linked": False, "unlinked": True})
+    proj = _co.match_project_by_mgmt(code)
+    if not proj:
+        return JSONResponse({"ok": True, "linked": False,
+                             "message": f"관리번호 '{code}' 의 프로젝트를 찾을 수 없습니다."})
+    line = _co.coi_get(iid) or {}
+    matched = _co.mgmt_line_matches(line, proj)
+    if matched or force:
+        _co.coi_update(iid, {"linked_project_id": proj["id"]}, by_id=u.get("id"), by_name=by_name)
+        return JSONResponse({"ok": True, "linked": True,
+                             "mgmt_code": proj.get("mgmt_code"), "project_name": proj.get("name")})
+    return JSONResponse({"ok": True, "linked": False, "warn": True,
+        "message": (f"이 관리번호({proj.get('mgmt_code')})의 모델/장비"
+                    f"[{proj.get('model_name') or proj.get('name') or '-'}]가 "
+                    f"라인(모델 {line.get('model_use') or '-'} / 장비 {line.get('equip_name') or '-'})과 다릅니다."),
+        "project_name": proj.get("name")})
 
 
 @app.post("/consumables/{co_id:int}/items/{iid:int}/match-part")
