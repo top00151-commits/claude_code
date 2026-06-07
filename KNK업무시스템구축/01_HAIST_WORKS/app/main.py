@@ -22738,6 +22738,7 @@ async def consumables_import_confirmed(request: Request, co_id: int):
         items_out.append({
             "line_no": it.get("line_no") or 0,
             "model_use": it.get("model_use") or "",
+            "equip": it.get("equip") or "",                        # v5H226z288: 장비명
             "part_name": it.get("part_name") or "",
             "spec": it.get("spec") or "",
             "qty": it.get("qty") or 0,

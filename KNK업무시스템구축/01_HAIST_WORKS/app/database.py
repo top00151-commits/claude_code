@@ -650,7 +650,8 @@ CREATE TABLE IF NOT EXISTS consumable_order_items (
     image_path         TEXT,                         -- 압축본 경로(사진/PICTURE)
     image_thumb_path   TEXT,                         -- 썸네일 경로(사진/PICTURE)
     image_loc_path     TEXT,                         -- v5H226z286: 사진위치(PICTURE LOCATION) 압축본
-    image_loc_thumb_path TEXT                        -- v5H226z286: 사진위치 썸네일
+    image_loc_thumb_path TEXT,                       -- v5H226z286: 사진위치 썸네일
+    equip_name         TEXT                          -- v5H226z288: 장비명
 );
 CREATE INDEX IF NOT EXISTS idx_coi_co ON consumable_order_items(co_id);
 CREATE INDEX IF NOT EXISTS idx_coi_proj ON consumable_order_items(linked_project_id);
@@ -2463,6 +2464,10 @@ def init_db():
                 if _lc not in _coicols:
                     c.execute(f"ALTER TABLE consumable_order_items ADD COLUMN {_lc} TEXT")
                     print(f"[v5H226z286] consumable_order_items.{_lc} 컬럼 추가됨")
+            # v5H226z288 (대표 지시): 미리보기 엑셀 일치 — 라인 장비명 저장
+            if "equip_name" not in _coicols:
+                c.execute("ALTER TABLE consumable_order_items ADD COLUMN equip_name TEXT")
+                print("[v5H226z288] consumable_order_items.equip_name 컬럼 추가됨")
             # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
             # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
             try:

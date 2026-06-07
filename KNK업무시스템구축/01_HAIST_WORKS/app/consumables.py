@@ -75,6 +75,7 @@ HEADER_KEYS = [
     ("order_date", ["ORDERDATE", "발주일", "요청일"]),
     ("part_name",  ["SUPPLIERNAME", "품명", "PARTNAME", "ITEMNAME"]),
     ("model_use",  ["MODELUSE", "모델"]),
+    ("equip",      ["장비명", "EQUIP"]),                  # v5H226z288: 장비명(미리보기 엑셀 일치)
     ("qty",        ["Q'TY", "QTY", "수량", "QUANTITY"]),
     ("unit",       ["UNIT", "단위"]),
     # v5H226z287: 연결 관리번호(라인별) — '번호'보다 먼저 둬야 '연결관리번호'가 NO 로 안 잡힘
@@ -85,6 +86,7 @@ HEADER_KEYS = [
     # v5H226z285: 단가·금액 (머리글이 '단가 (KRW)' 처럼 통화 포함 수식이어도 '단가'/'금액'으로 인식)
     ("price",      ["단가", "UNITPRICE"]),
     ("amount",     ["금액", "AMOUNT"]),
+    ("note",       ["비고", "REMARK"]),                   # v5H226z288: 비고
     # MODEL 단독은 우선순위 낮춤 (MODELUSE 가 못 잡혔을 때만)
     ("model_use",  ["MODEL"]),
 ]
@@ -270,6 +272,9 @@ def parse_consumable_xlsx(file_path: str, image_out_dir: str | None = None) -> d
             "amount":     _to_num(ws.cell(r, col_map["amount"]).value) if "amount" in col_map else 0,
             # v5H226z287: 연결 관리번호(사용자가 직접 적은 호기/프로젝트 관리번호)
             "link_mgmt":  str(ws.cell(r, col_map["link_mgmt"]).value or "").strip() if "link_mgmt" in col_map else "",
+            # v5H226z288: 장비명·비고 (미리보기 엑셀 일치)
+            "equip":      str(ws.cell(r, col_map["equip"]).value or "").strip() if "equip" in col_map else "",
+            "note":       str(ws.cell(r, col_map["note"]).value or "").strip() if "note" in col_map else "",
         }
         # v5H226z285: 금액 비고 단가·수량 있으면 금액=단가×수량 (수식 캐시 없을 때 보강)
         if not rec["amount"] and rec.get("unit_price") and rec.get("qty"):
@@ -646,53 +651,36 @@ def coi_bulk_insert(co_id: int, items: list[dict]) -> int:
                                   image_path, image_thumb_path, note}, ...]"""
     n = 0
     with db_session() as c:
+        # v5H226z288: 존재하는 컬럼만 골라 동적 INSERT (추가형 마이그레이션 안전 — equip_name·image_loc_* 등)
+        cols_avail = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
         for it in items:
             qty = float(it.get("qty") or 0)
             up = float(it.get("unit_price") or 0)
             amt = round(qty * up, 2)
-            # v5H226z286: 사진위치(image_loc_*) 컬럼 유무에 따라 INSERT 구성(추가형 마이그레이션 방어)
-            _has_loc = "image_loc_path" in {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
-            if _has_loc:
-                c.execute(
-                    """INSERT INTO consumable_order_items
-                       (co_id, line_no, model_use, part_id, part_name, spec,
-                        qty, unit, unit_price, amount,
-                        linked_project_id, note, image_path, image_thumb_path,
-                        image_loc_path, image_loc_thumb_path)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (int(co_id), int(it.get("line_no") or 0),
-                     (it.get("model_use") or "").strip(),
-                     (int(it["part_id"]) if it.get("part_id") else None),
-                     (it.get("part_name") or "").strip(),
-                     (it.get("spec") or "").strip(),
-                     qty, (it.get("unit") or "EA").strip(),
-                     up, amt,
-                     (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
-                     (it.get("note") or "").strip(),
-                     (it.get("image_path") or None),
-                     (it.get("image_thumb_path") or None),
-                     (it.get("image_loc_path") or None),
-                     (it.get("image_loc_thumb_path") or None))
-                )
-            else:
-                c.execute(
-                    """INSERT INTO consumable_order_items
-                       (co_id, line_no, model_use, part_id, part_name, spec,
-                        qty, unit, unit_price, amount,
-                        linked_project_id, note, image_path, image_thumb_path)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (int(co_id), int(it.get("line_no") or 0),
-                     (it.get("model_use") or "").strip(),
-                     (int(it["part_id"]) if it.get("part_id") else None),
-                     (it.get("part_name") or "").strip(),
-                     (it.get("spec") or "").strip(),
-                     qty, (it.get("unit") or "EA").strip(),
-                     up, amt,
-                     (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
-                     (it.get("note") or "").strip(),
-                     (it.get("image_path") or None),
-                     (it.get("image_thumb_path") or None))
-                )
+            data = {
+                "co_id": int(co_id),
+                "line_no": int(it.get("line_no") or 0),
+                "model_use": (it.get("model_use") or "").strip(),
+                "equip_name": (it.get("equip") or "").strip(),
+                "part_id": (int(it["part_id"]) if it.get("part_id") else None),
+                "part_name": (it.get("part_name") or "").strip(),
+                "spec": (it.get("spec") or "").strip(),
+                "qty": qty,
+                "unit": (it.get("unit") or "EA").strip(),
+                "unit_price": up,
+                "amount": amt,
+                "linked_project_id": (int(it["linked_project_id"]) if it.get("linked_project_id") else None),
+                "note": (it.get("note") or "").strip(),
+                "image_path": (it.get("image_path") or None),
+                "image_thumb_path": (it.get("image_thumb_path") or None),
+                "image_loc_path": (it.get("image_loc_path") or None),
+                "image_loc_thumb_path": (it.get("image_loc_thumb_path") or None),
+            }
+            use = [(k, v) for k, v in data.items() if k in cols_avail]
+            cols = ", ".join(k for k, _ in use)
+            ph = ", ".join("?" for _ in use)
+            c.execute(f"INSERT INTO consumable_order_items ({cols}) VALUES ({ph})",
+                      [v for _, v in use])
             n += 1
     recompute_co_total(co_id)
     return n

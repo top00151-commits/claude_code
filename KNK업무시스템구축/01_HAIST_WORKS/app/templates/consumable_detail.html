@@ -143,6 +143,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
             <td>
               <input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" />
               <input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" style="margin-top:4px;" />
+              {% if it.equip_name %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;">장비: {{ it.equip_name }}</div>{% endif %}
               {% if it.part_no %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;">자재: {{ it.part_no }}</div>{% endif %}
             </td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>

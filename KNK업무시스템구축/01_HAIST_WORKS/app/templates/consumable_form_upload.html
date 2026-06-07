@@ -154,10 +154,13 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="preview-wrap">
         <table class="preview">
           <thead><tr>
-            <th>No</th><th>사진위치</th><th>사진</th><th>모델</th><th>품명</th><th>규격</th>
+            <th>No</th><th style="width:96px;">연결관리번호</th>
+            <th>모델</th><th>장비명</th><th>품명</th><th>규격</th>
+            <th>사진위치</th><th>사진</th>
             <th style="width:60px;">수량</th><th style="width:50px;">단위</th>
             <th style="width:96px;" id="thPrice">단가</th>
             <th style="width:108px;" id="thAmount">금액</th>
+            <th>비고</th>
             <th>자재매칭</th><th>관리번호</th>
           </tr></thead>
           <tbody id="previewBody"></tbody>
@@ -227,15 +230,18 @@ function renderPreview() {
       : `<span class="match-badge match-none">미연결</span>`;
     tr.innerHTML = `
       <td><b>${ln.line_no}</b></td>
-      <td>${locCell}</td>
-      <td>${photoCell}</td>
+      <td><input data-idx="${idx}" data-k="link_mgmt" value="${esc(ln.link_mgmt||'')}" placeholder="—" /></td>
       <td><input data-idx="${idx}" data-k="model_use" value="${esc(ln.model_use)}" /></td>
+      <td><input data-idx="${idx}" data-k="equip" value="${esc(ln.equip||'')}" /></td>
       <td><input data-idx="${idx}" data-k="part_name" value="${esc(ln.part_name)}" /></td>
       <td><input data-idx="${idx}" data-k="spec" value="${esc(ln.spec)}" /></td>
+      <td>${locCell}</td>
+      <td>${photoCell}</td>
       <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
       <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
       <td><input data-idx="${idx}" data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="${ln.unit_price||0}" /></td>
       <td class="amt-cell" data-idx="${idx}" style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">${fmtAmt((Number(ln.qty)||0)*(Number(ln.unit_price)||0))}</td>
+      <td><input data-idx="${idx}" data-k="note" value="${esc(ln.note||'')}" /></td>
       <td>${partBadge}<input type="hidden" data-idx="${idx}" data-k="part_id" value="${ln.part_match?ln.part_match.id:''}" /></td>
       <td>${projBadge}<input type="hidden" data-idx="${idx}" data-k="linked_project_id" value="${ln.project_match?ln.project_match.id:''}" /></td>
     `;
@@ -275,6 +281,7 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
   const items = _lines.map(ln => ({
     line_no: ln.line_no,
     model_use: ln.model_use,
+    equip: ln.equip || '',
     part_name: ln.part_name,
     spec: ln.spec || '',
     qty: ln.qty,
