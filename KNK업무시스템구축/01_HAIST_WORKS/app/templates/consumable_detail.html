@@ -66,6 +66,10 @@ table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; f
 table.hist { width:100%; border-collapse:collapse; font-size:12.5px; }
 table.hist th, table.hist td { padding:6px 10px; border-bottom:1px solid var(--qv-line); text-align:left; vertical-align:top; }
 table.hist th { background:#f8f8f8; color:var(--qv-ink-3); font-weight:600; white-space:nowrap; }
+/* v5H226z300: 자재코드 연결 — 추천 버튼 / 검색 결과 */
+.btn-suggest { display:inline-block; margin-bottom:3px; padding:2px 8px; font-size:10.5px; font-weight:700; color:#065f46; background:#d1fae5; border:1px solid #6ee7b7; border-radius:10px; cursor:pointer; }
+.btn-suggest:hover { background:#a7f3d0; }
+.part-opt:hover { background:#eef6ff; }
 .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
 .modal-bg.show { display: flex; }
 .modal-bg img { max-width: 90vw; max-height: 90vh; }
@@ -164,7 +168,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
     <div class="card tab-pane" id="tab-lines" style="border-top-left-radius:0;">
       {% if items %}
       <div style="overflow-x:auto;">  {# v5H226z297: 컬럼 늘어 넘치면 좌우 스크롤 #}
-      <table class="items" style="min-width:1340px;">
+      <table class="items" style="min-width:1520px;">
         <thead><tr>
           <th style="width:40px;">No</th>
           <th style="width:90px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
@@ -177,6 +181,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
           <th style="width:60px;">단위</th>
           <th style="width:110px;">단가</th>
           <th style="width:130px;" class="amount">합계</th>
+          <th style="width:170px;">자재코드</th>
           <th style="width:160px;">관리번호</th>
           <th style="width:50px;"></th>
         </tr></thead>
@@ -201,12 +206,25 @@ tfoot td { background: #fafafa; font-weight: 700; }
             {# v5H226z297(대표 지시): 모델·장비명·품명·규격 별도 컬럼으로 펼침(전부 편집) #}
             <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" /></td>
             <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
-            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" />{% if it.part_no %}<div style="font-size:10px;color:var(--qv-ink-3);margin-top:2px;" title="자재번호">📦 {{ it.part_no }}</div>{% endif %}</td>
+            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" /></td>
             <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ it.unit_price or 0 }}" /></td>
             <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+            {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
+            <td>
+              {% if it.part_id %}
+                <div style="font-weight:700;color:#1e40af;font-size:11.5px;">{{ it.part_no or ('자재#' ~ it.part_id) }}</div>
+                <a onclick="unlinkPart({{ it.id }})" style="font-size:10px;color:#b91c1c;cursor:pointer;">✕ 해제</a>
+              {% else %}
+                {% if it.suggest_part %}<button type="button" class="btn-suggest" onclick="linkPart({{ it.id }},{{ it.suggest_part.id }})" title="등록 자재 정확일치">🔗 {{ it.suggest_part.part_no }} 연결</button>{% endif %}
+                <div style="position:relative;">
+                  <input class="part-search" data-iid="{{ it.id }}" placeholder="🔍 자재 검색" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
+                  <div class="part-results" data-iid="{{ it.id }}" style="display:none;position:absolute;left:0;z-index:30;background:#fff;border:1px solid var(--qv-line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);max-height:220px;overflow:auto;width:250px;"></div>
+                </div>
+              {% endif %}
+            </td>
             <td>
               {% if it.linked_mgmt_code %}
                 <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:var(--qv-ink-2);font-weight:600;">{{ it.linked_mgmt_code }}</a>
@@ -227,7 +245,7 @@ tfoot td { background: #fafafa; font-weight: 700; }
           <tr>
             <td colspan="10" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
-            <td colspan="2"></td>
+            <td colspan="3"></td>
           </tr>
         </tfoot>
       </table>
@@ -311,6 +329,36 @@ document.querySelectorAll('table.items input').forEach(inp => {
     }
   });
 });
+
+// v5H226z300: 자재코드 — 검색 / 연결 / 해제
+document.querySelectorAll('.part-search').forEach(inp=>{
+  let t;
+  inp.addEventListener('input', ()=>{
+    clearTimeout(t);
+    const iid=inp.dataset.iid, q=inp.value.trim();
+    const box=document.querySelector('.part-results[data-iid="'+iid+'"]');
+    t=setTimeout(async ()=>{
+      try{
+        const r=await fetch('/api/parts/search?q='+encodeURIComponent(q)); const d=await r.json();
+        if(!d.ok||!(d.rows||[]).length){ box.innerHTML='<div style="padding:8px;font-size:11px;color:#999;">결과 없음</div>'; box.style.display='block'; return; }
+        box.innerHTML=d.rows.map(p=>`<div class="part-opt" data-pid="${p.id}" style="padding:6px 8px;font-size:11px;cursor:pointer;border-bottom:1px solid #f1f0ec;"><b>${(p.part_no||'')}</b> · ${(p.part_name||'')}</div>`).join('');
+        box.style.display='block';
+        box.querySelectorAll('.part-opt').forEach(o=>o.addEventListener('click',()=>linkPart(iid,o.dataset.pid)));
+      }catch(e){}
+    },250);
+  });
+  inp.addEventListener('blur', ()=>{ const box=document.querySelector('.part-results[data-iid="'+inp.dataset.iid+'"]'); setTimeout(()=>{box.style.display='none';},200); });
+});
+async function linkPart(iid,pid){
+  const fd=new FormData(); fd.append('part_id',pid);
+  const r=await fetch(`/consumables/${CO_ID}/items/${iid}/match-part`,{method:'POST',body:fd});
+  const d=await r.json(); if(d.ok) location.reload(); else alert('연결 실패');
+}
+async function unlinkPart(iid){
+  const fd=new FormData(); fd.append('part_id','');
+  const r=await fetch(`/consumables/${CO_ID}/items/${iid}/match-part`,{method:'POST',body:fd});
+  const d=await r.json(); if(d.ok) location.reload();
+}
 
 async function delLine(iid) {
   if (!confirm('이 라인을 삭제하시겠습니까?')) return;

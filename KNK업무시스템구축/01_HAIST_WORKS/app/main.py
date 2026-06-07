@@ -22777,6 +22777,10 @@ async def consumables_detail(request: Request, co_id: int):
     if not co:
         return RedirectResponse("/consumables", 303)
     items = _co.coi_list(co_id)
+    # v5H226z300 (대표 지시): 자재코드 — 미연결 라인에 '등록 자재 추천'(정확일치 1건) 붙이기
+    for _it in items:
+        if not _it.get("part_id"):
+            _it["suggest_part"] = _co.match_part_by_name(_it.get("part_name", ""))
     # v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달용 팀 목록(활성 인원 있는 팀)
     _teams = []
     try:
@@ -22878,7 +22882,7 @@ async def consumables_item_match_part(request: Request, co_id: int, iid: int):
     form = await request.form()
     pid_raw = (form.get("part_id") or "").strip()
     pid = int(pid_raw) if pid_raw.isdigit() else None
-    _co.coi_update(iid, {"part_id": pid})
+    _co.coi_update(iid, {"part_id": pid}, by_id=u.get("id"), by_name=(u.get("name") or u.get("login_id") or ""))
     return JSONResponse({"ok": True, "part_id": pid})
 
 
