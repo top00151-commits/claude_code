@@ -472,11 +472,12 @@ def compress_image_bytes(raw: bytes, max_dim: int = 1920, quality: int = 85,
     out_big = BytesIO()
     big.save(out_big, "JPEG", quality=quality, optimize=True, progressive=True)
     big_bytes = out_big.getvalue()
-    # 썸네일
-    thumb = im.copy()
-    thumb.thumbnail((thumb_dim, thumb_dim), Image.LANCZOS)
+    # 썸네일 — v5H226z293(대표 지시): 모든 사진을 동일 크기·비율(4:3)로 가운데 잘라 균일화.
+    #   (원본은 big 에 비율 유지로 보관 → 클릭하면 잘림 없이 전체 표시)
+    thumb_w, thumb_h = thumb_dim, max(1, round(thumb_dim * 3 / 4))   # 240×180 (4:3)
+    thumb = ImageOps.fit(im, (thumb_w, thumb_h), Image.LANCZOS, centering=(0.5, 0.5))
     out_thumb = BytesIO()
-    thumb.save(out_thumb, "JPEG", quality=78, optimize=True)
+    thumb.save(out_thumb, "JPEG", quality=80, optimize=True)
     thumb_bytes = out_thumb.getvalue()
     info = {
         "orig_dim": orig_size,

@@ -38,7 +38,7 @@ a { text-decoration: none; color: inherit; }
 table.preview { width: 100%; min-width: 1640px; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
 table.preview th, table.preview td { padding: 6px 8px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: top; }
 table.preview th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); position: sticky; top: 0; white-space: nowrap; }
-table.preview img { max-width: 80px; max-height: 60px; border-radius: 4px; cursor: pointer; }
+table.preview img { width: 80px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* v5H226z293: 동일 크기 */
 table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; }
 .match-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; margin-left: 4px; }
 .match-exact { background: #d1fae5; color: #065f46; }
@@ -157,7 +157,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <thead><tr>
             <th>No</th><th style="width:96px;">연결관리번호</th>
             <th>모델</th><th>장비명</th><th>품명</th><th>규격</th>
-            <th>사진위치</th><th>사진</th>
+            <th>사진(PICTURE LOCATION)</th><th>사진(PICTURE)</th>
             <th style="width:60px;">수량</th><th style="width:50px;">단위</th>
             <th style="width:96px;" id="thPrice">단가</th>
             <th style="width:108px;" id="thAmount">금액</th>
