@@ -12881,6 +12881,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "equip": p.get("equip_name") or "",
             "note": p.get("logi_note") or "",
             "qty": p.get("unit_qty") or "",
+            "price": p.get("unit_price") or 0,      # v5H226z277: 단가
+            "amount": p.get("order_amount") or 0,   # v5H226z277: 금액(수량×단가)
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
             "customer": p.get("customer_name") or "—",
@@ -12906,7 +12908,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "",
                 "name": "소모품", "model": "", "equip": "",
-                "note": cr.get("note") or "", "qty": "",
+                "note": cr.get("note") or "", "qty": "", "price": 0, "amount": 0,
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "customer": cr.get("customer_name") or "—",
                 "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
@@ -12969,8 +12971,11 @@ async def schedule_board_cell(request: Request):
     ref_id = b.get("ref_id")
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
-    if field not in ("note", "dept", "owner", "ship_to"):
+    if field not in ("note", "dept", "owner", "ship_to", "qty", "price", "amount"):
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
+    # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
+    if field in ("price", "amount") and not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:

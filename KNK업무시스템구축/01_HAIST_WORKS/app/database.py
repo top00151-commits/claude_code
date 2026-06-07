@@ -11260,10 +11260,13 @@ def view_prefs_set(user_id: int, view_key: str, config: str) -> bool:
 
 
 # 일정표 셀 → 원본 컬럼 매핑 (화이트리스트 — 이 외 필드/테이블은 절대 수정 안 함)
+# v5H226z277 (대표 지시): 수량·단가·금액 추가. price/amount 는 라우트에서 can_view_sales 권한 게이트.
 _SCHED_CELL_MAP = {
-    "project":    {"note": "logi_note", "dept": "cc_dept", "owner": "cc_name"},
+    "project":    {"note": "logi_note", "dept": "cc_dept", "owner": "cc_name",
+                   "qty": "unit_qty", "price": "unit_price"},
     "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to"},
 }
+_SCHED_NUM_FIELDS = {"qty", "price", "amount"}  # 숫자 필드 (콤마 제거 후 저장)
 
 
 def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> tuple[bool, str]:
@@ -11273,6 +11276,31 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
         return (False, "허용되지 않은 대상/필드")
     val = (value or "").strip()
+    # v5H226z277: 숫자 필드(수량·단가·금액)는 콤마 제거 후 숫자로
+    if field in _SCHED_NUM_FIELDS:
+        _raw = val.replace(",", "").strip()
+        try:
+            _num = float(_raw) if _raw else 0
+        except ValueError:
+            return (False, "숫자만 입력")
+        # 금액(project) = order_amount + expected_amount, 단일 SO면 그 SO total_amount 도 일치(상세 자가치유 대비)
+        if ref_kind == "project" and field == "amount":
+            with db_session() as c:
+                c.execute("UPDATE projects SET order_amount=?, expected_amount=? WHERE id=?",
+                          (_num, _num, int(ref_id)))
+                _so = c.execute("SELECT COUNT(*), MAX(id) FROM orders WHERE project_id=?",
+                                (int(ref_id),)).fetchone()
+                if _so and _so[0] == 1 and _so[1]:
+                    c.execute("UPDATE orders SET total_amount=? WHERE id=?", (_num, int(_so[1])))
+            return (True, "")
+        # 수량·단가는 화이트리스트 컬럼에 숫자 저장
+        _col = _SCHED_CELL_MAP[ref_kind].get(field)
+        if not _col:
+            return (False, "허용되지 않은 필드")
+        _store = int(_num) if field == "qty" else _num
+        with db_session() as c:
+            c.execute(f"UPDATE projects SET {_col}=? WHERE id=?", (_store, int(ref_id)))
+        return (True, "")
     # 프로젝트 납품위치 = 대표 SO(orders 최신 id)의 ship_to 수정 (별도 처리)
     if ref_kind == "project" and field == "ship_to":
         with db_session() as c:
