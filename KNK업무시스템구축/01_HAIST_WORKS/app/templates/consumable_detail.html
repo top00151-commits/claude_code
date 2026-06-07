@@ -49,12 +49,19 @@ a { text-decoration: none; color: inherit; }
 .status-pills { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .s-pill { padding: 4px 10px; border-radius: 99px; font-size: 11px; cursor: pointer; border: 1px solid var(--qv-line); background: var(--qv-surface-2); }
 .s-pill.active { background: var(--qv-ink); color: white; border-color: transparent; }
-table.items { width: 100%; border-collapse: collapse; font-size: 13px; }
-table.items th, table.items td { padding: 5px 10px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: middle; }  /* v5H226z296: 행 높이 축소 */
-table.items th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); }
-table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* v5H226z295: 와이드 2:1 */
-table.items input { padding: 3px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; }  /* v5H226z296 */
+/* v5H226z304(대표 지시): 라인 표 — 작업일정표(board) '시트 양식'(격자) 이식 */
+table.items { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+/* 칸 사이 세로 구분선(#eee5d4) + 가로 구분선(var(--line)) = board 격자 핵심 */
+table.items th, table.items td { padding: 0 8px; height: 30px; border-bottom: 1px solid var(--line); border-right: 1px solid #eee5d4; text-align: left; vertical-align: middle; }
+table.items th:last-child, table.items td:last-child { border-right: 0; }   /* 우측 외곽 중복선 제거 */
+/* 헤더: board 톤 — 베이지 배경 · KNK 레드 글자 · 작은 볼드 · 가운데. position:relative = z303 .col-rz 앵커(유지) */
+table.items th { background: var(--paper-2); color: var(--knk-red); font-size: 10.5px; font-weight: 700; text-align: center; height: 34px; position: relative; }
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+table.items th.amount { text-align: center; }
+table.items input { padding: 3px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+table.items input:focus { outline: none; border-color: var(--knk-red); }
+table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* z295 와이드 2:1 — overflow:hidden 미적용(클리핑 방지) */
+table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover */
 /* v5H226z298: 정보란 인라인 편집 + 책갈피 탭 + 변경 이력 */
 .header-grid .ef { width:100%; box-sizing:border-box; padding:3px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:13.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
 .header-grid .ef:hover { border-color:var(--qv-line); background:#fff; }
@@ -70,16 +77,14 @@ table.hist th { background:#f8f8f8; color:var(--qv-ink-3); font-weight:600; whit
 .btn-suggest { display:inline-block; margin-bottom:3px; padding:2px 8px; font-size:10.5px; font-weight:700; color:#065f46; background:#d1fae5; border:1px solid #6ee7b7; border-radius:10px; cursor:pointer; }
 .btn-suggest:hover { background:#a7f3d0; }
 .part-opt:hover { background:#eef6ff; }
-/* v5H226z303: 라인 표 칸 너비 조정(작업일정표처럼) — 고정 px + 드래그 */
-table.items { table-layout: fixed; }
-table.items th { position: relative; }
+/* v5H226z303/z304: 라인 표 칸 너비 조정 핸들(작업일정표처럼) — table-layout/th position 은 위 z304 블록에서 지정 */
 table.items th .col-rz { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; user-select:none; z-index:5; }
-table.items th .col-rz:hover { background:rgba(176,16,16,.28); }
+table.items th .col-rz:hover { background:rgba(176,16,16,.25); }   /* board(col-resizer)와 동일 */
 .items-hint { font-size:11px; color:var(--qv-ink-3); margin:0 0 6px; }
 .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 999; }
 .modal-bg.show { display: flex; }
 .modal-bg img { max-width: 90vw; max-height: 90vh; }
-tfoot td { background: #fafafa; font-weight: 700; }
+table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H226z304: 합계행 board 베이지 톤 + 스코프 한정 */
 </style>
 </head>
 <body>
