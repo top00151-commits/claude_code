@@ -22566,10 +22566,18 @@ async def consumables_list(request: Request, status: str = "", q: str = ""):
         ym = (r.get("order_date") or "")[:7] or "기타"
         groups.setdefault(ym, []).append(r)
     months = sorted(groups.keys(), reverse=True)
+    # v5H226z309 (대표 지시): 직접 등록 모달 — 등록 고객사 드롭다운
+    _customers = []
+    try:
+        with db_session() as _cc:
+            _customers = [dict(r) for r in _cc.execute(
+                "SELECT id, name FROM customers ORDER BY name").fetchall()]
+    except Exception:
+        _customers = []
     return ctx(request, "consumables.html",
                user=u, active="consumables",
                rows=rows, months=months, groups=groups,
-               status=status, q=q,
+               status=status, q=q, customers=_customers,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
                STATUSES=_co.CO_STATUSES)
 
@@ -22585,6 +22593,45 @@ async def consumables_new_form(request: Request, embed: str = ""):
     return ctx(request, "consumable_form_upload.html",
                user=u, active="consumables", embed=_embed,
                customers=_logi.customers_for_picker())
+
+
+@app.post("/consumables/create-direct")
+async def consumables_create_direct(request: Request,
+                                    biz_div: str = Form(""),
+                                    customer_id: str = Form("")):
+    """v5H226z309 (대표 지시): 엑셀 없이 시스템에서 직접(수기) 소모품 수주 등록 —
+    빈 발주 생성(관리번호·수주번호 자동) 후 상세 화면으로 이동해 정보·라인·사진을 직접 입력."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    _bd = (biz_div or "").strip().upper()
+    if _bd not in ("T", "M", "L"):
+        return RedirectResponse("/consumables?err=biz_div", 303)
+    # 고객사: 등록 고객사 id → 정식명칭 조회(1차 고객사는 등록 고객사 원칙)
+    cust_name, cid = "", None
+    if str(customer_id).strip().isdigit():
+        cid = int(customer_id)
+        try:
+            with db_session() as c:
+                r = c.execute("SELECT name FROM customers WHERE id=?", (cid,)).fetchone()
+                cust_name = (r[0] if r else "")
+                if not r:
+                    cid = None
+        except Exception:
+            cid = None
+    co_id, _co_no = _co.co_create(customer_name=cust_name, biz_div=_bd,
+                                  currency="KRW", source_file="직접등록",
+                                  created_by=u.get("id"))
+    if cid:
+        try:
+            with db_session() as c:
+                c.execute("UPDATE consumable_orders SET customer_id=?, customer_name=? WHERE id=?",
+                          (cid, cust_name, co_id))
+        except Exception:
+            pass
+    return RedirectResponse(f"/consumables/{co_id}", 303)
 
 
 @app.get("/consumables/import-template")
@@ -22923,6 +22970,63 @@ async def consumables_item_match_part(request: Request, co_id: int, iid: int):
     pid = int(pid_raw) if pid_raw.isdigit() else None
     _co.coi_update(iid, {"part_id": pid}, by_id=u.get("id"), by_name=(u.get("name") or u.get("login_id") or ""))
     return JSONResponse({"ok": True, "part_id": pid})
+
+
+@app.post("/consumables/{co_id:int}/items/add")
+async def consumables_item_add(request: Request, co_id: int):
+    """v5H226z309 (대표 지시): 상세 화면에서 라인 1줄 직접 추가(빈 줄). 추가 후 화면 새로고침해 인라인 입력."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co.co_get(co_id):
+        return JSONResponse({"ok": False, "error": "발주를 찾을 수 없습니다"}, 404)
+    iid = _co.coi_add_blank(co_id, by_id=u.get("id"),
+                            by_name=(u.get("name") or u.get("login_id") or ""))
+    return JSONResponse({"ok": True, "item_id": iid})
+
+
+@app.post("/consumables/{co_id:int}/items/{iid:int}/photo")
+async def consumables_item_photo(request: Request, co_id: int, iid: int,
+                                 file: UploadFile = File(...),
+                                 category: str = Form("photo")):
+    """v5H226z309 (대표 지시): 라인 1줄에 사진 직접 업로드(첨부). category: photo=사진 / loc=사진위치.
+    이미지 검증·압축(기존 compress_image_bytes 재사용) 후 저장. 파일명은 서버가 생성(업로드명 미신뢰)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    item = _co.coi_get(iid)
+    if not item or int(item.get("co_id") or 0) != int(co_id):
+        return JSONResponse({"ok": False, "error": "라인을 찾을 수 없습니다"}, 404)
+    cat = "loc" if (category or "") == "loc" else "photo"
+    raw = await file.read()
+    if not raw:
+        return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 400)
+    if len(raw) > 25 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다(최대 25MB)"}, 400)
+    try:
+        big, thumb, _info = _co.compress_image_bytes(raw)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "이미지 파일이 아니거나 처리할 수 없습니다"}, 400)
+    img_dir = _co.co_image_dir(co_id)
+    base = f"line{int(iid)}_{cat}"
+    full_name, thumb_name = f"{base}_full.jpg", f"{base}_thumb.jpg"
+    try:
+        with open(os.path.join(img_dir, full_name), "wb") as f:
+            f.write(big)
+        with open(os.path.join(img_dir, thumb_name), "wb") as f:
+            f.write(thumb)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "저장 실패"}, 500)
+    full_url = _co.co_image_url(co_id, full_name)
+    thumb_url = _co.co_image_url(co_id, thumb_name)
+    _co.coi_set_image(iid, cat, full_url, thumb_url, by_id=u.get("id"),
+                      by_name=(u.get("name") or u.get("login_id") or ""))
+    return JSONResponse({"ok": True, "category": cat,
+                         "thumb_url": thumb_url, "full_url": full_url})
 
 
 @app.post("/consumables/{co_id:int}/items/{iid:int}/delete")

@@ -60,8 +60,10 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
         <div class="crumbs" data-dn="crumb"><a href="/logistics">자재구매센터</a> · <b>소모품 수주</b></div>
         <h1 class="page-title" data-dn="title">소모품 <em>발주</em></h1>
       </div>
-      <div>
-        <a class="btn-primary" href="/consumables/new">＋ 새 소모품 수주</a>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {# v5H226z309 (대표 지시): 직접 등록(시스템 수기) + 엑셀 등록 2갈래 #}
+        <button class="btn-primary" type="button" onclick="openDirectReg()">✏️ 직접 등록</button>
+        <a href="/consumables/new" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:1px solid var(--qv-line);border-radius:8px;background:var(--qv-surface-2);color:var(--qv-ink-2);font-size:13px;font-weight:700;text-decoration:none;">📤 엑셀로 등록</a>
       </div>
     </div>
 
@@ -136,6 +138,38 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
         <div>오른쪽 위 <b>＋ 새 소모품 수주</b> 버튼으로 엑셀을 업로드하거나 수동 등록하세요.</div>
       </div>
     {% endif %}
+
+    {# v5H226z309 (대표 지시): 직접 등록 모달 — 사업부 + 등록 고객사 선택 → 빈 발주 생성 → 상세로 #}
+    <div id="directRegModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:14px;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
+        <div style="padding:16px 20px;font-size:15px;font-weight:800;border-bottom:1px solid var(--qv-line);">✏️ 소모품 직접 등록</div>
+        <form method="post" action="/consumables/create-direct">
+          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px;">
+            <label style="display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--qv-ink-2);">진행 사업부 <span style="color:#dc2626;">*</span>
+              <select name="biz_div" required style="padding:8px 10px;border:1px solid var(--qv-line);border-radius:8px;font-size:13px;">
+                <option value="">— 선택 —</option>
+                <option value="T">검사기사업부</option>
+                <option value="M">자동화사업부</option>
+              </select></label>
+            <label style="display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--qv-ink-2);">고객사 <span style="font-weight:500;color:var(--qv-ink-3);">(등록 고객사)</span>
+              <select name="customer_id" style="padding:8px 10px;border:1px solid var(--qv-line);border-radius:8px;font-size:13px;">
+                <option value="">— 나중에 선택 —</option>
+                {% for cu in customers %}<option value="{{ cu.id }}">{{ cu.name }}</option>{% endfor %}
+              </select></label>
+            <div style="font-size:11.5px;color:var(--qv-ink-3);">생성하면 상세 화면으로 이동합니다. 정보·라인·사진은 거기서 직접 입력하세요.</div>
+          </div>
+          <div style="padding:14px 20px;border-top:1px solid var(--qv-line);display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" onclick="closeDirectReg()" style="padding:9px 16px;border:1px solid var(--qv-line);border-radius:8px;background:#fff;font-size:13px;font-weight:700;cursor:pointer;">취소</button>
+            <button type="submit" class="btn-primary">생성 →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+      function openDirectReg(){ var m=document.getElementById('directRegModal'); if(m) m.style.display='flex'; }
+      function closeDirectReg(){ var m=document.getElementById('directRegModal'); if(m) m.style.display='none'; }
+      (function(){ var m=document.getElementById('directRegModal'); if(m) m.addEventListener('click', function(e){ if(e.target===m) closeDirectReg(); }); })();
+    </script>
   </main>
 </div>
 </body>

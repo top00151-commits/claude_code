@@ -101,6 +101,11 @@ table.items th .col-rz:hover { background:rgba(176,16,16,.25); }   /* board(col-
 table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H226z304: 합계행 board 베이지 톤 + 스코프 한정 */
 /* v5H226z305(대표 지시): 사진 2칸 — 사진(가로 90px)보다 좁아지지 않게 + 가운데 정렬, 여백 축소 */
 table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-align: center; }
+/* v5H226z309(대표 지시): 라인 직접 추가 버튼 + 사진 첨부 컨트롤 */
+.btn-addline { padding:7px 16px; border:1px solid var(--knk-red); border-radius:8px; background:var(--knk-red); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+.btn-addline:hover { filter:brightness(.95); }
+.photo-add { display:inline-flex; align-items:center; justify-content:center; width:36px; height:24px; border:1px dashed var(--qv-line); border-radius:5px; cursor:pointer; font-size:13px; background:#fafafa; }
+.photo-add:hover { border-color:var(--knk-red); background:#fff5f5; }
 /* v5H226z305(대표 지시): 라인 표 툴바 — 작업일정표 메뉴 이식(날짜 컨트롤 제외) */
 .co-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
 .co-tools button, .co-tools .tool-btn { padding:6px 12px; border:1px solid var(--qv-line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--qv-ink-1,#1f2937); cursor:pointer; }
@@ -233,6 +238,10 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
     </div>
 
     <div class="card tab-pane" id="tab-lines" style="border-top-left-radius:0;">
+      {# v5H226z309 (대표 지시): 라인 직접 추가(빈 줄 → 인라인 입력) — 라인 0건일 때도 항상 표시 #}
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <button type="button" class="btn-addline" onclick="addLine()">＋ 라인 추가</button>
+      </div>
       {% if items %}
       <div class="co-tools">
         <button type="button" onclick="coFullscreen()">⛶ 전체화면 보기</button>
@@ -271,14 +280,14 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
                 <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" target="_blank">
                   <img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" />
                 </a>
-              {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
+              {% else %}<label class="photo-add" title="사진위치 첨부">📷<input type="file" accept="image/*" data-iid="{{ it.id }}" data-cat="loc" onchange="uploadLinePhoto(this)" style="display:none;"></label>{% endif %}
             </td>
             <td class="photo-cell">
               {% if it.image_thumb_path %}
                 <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank">
                   <img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" />
                 </a>
-              {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
+              {% else %}<label class="photo-add" title="사진 첨부">📷<input type="file" accept="image/*" data-iid="{{ it.id }}" data-cat="photo" onchange="uploadLinePhoto(this)" style="display:none;"></label>{% endif %}
             </td>
             {# v5H226z297(대표 지시): 모델·장비명·품명·규격 별도 컬럼으로 펼침(전부 편집) #}
             <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" /></td>
@@ -329,7 +338,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
       </table>
       </div>
       {% else %}
-        <div style="padding:30px;text-align:center;color:var(--qv-ink-3);">라인이 없습니다.</div>
+        <div style="padding:24px;text-align:center;color:var(--qv-ink-3);">아직 라인이 없습니다. 위 <b>＋ 라인 추가</b>로 품목을 직접 입력하거나, 엑셀로 등록하세요.</div>
       {% endif %}
     </div>
 
@@ -364,6 +373,27 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
 <script>
 const CO_ID = {{ co.id }};
 const CURR = "{{ co.currency or 'KRW' }}";
+
+// v5H226z309 (대표 지시): 라인 직접 추가 — 빈 줄 1개 생성 후 새로고침해 인라인 입력
+function addLine(){
+  fetch(`/consumables/${CO_ID}/items/add`, {method:'POST'})
+    .then(r=>r.json()).then(j=>{ if(j.ok){ location.reload(); } else { alert('라인 추가 실패: '+(j.error||'')); } })
+    .catch(()=>alert('통신 오류'));
+}
+// v5H226z309 (대표 지시): 라인 사진 직접 업로드(첨부) — 압축 후 셀을 썸네일로 교체
+function uploadLinePhoto(input){
+  const f = input.files && input.files[0]; if(!f) return;
+  const iid = input.dataset.iid, cat = input.dataset.cat;
+  const cell = input.closest('td');
+  const fd = new FormData(); fd.append('file', f); fd.append('category', cat);
+  if(cell) cell.style.opacity = '.5';
+  fetch(`/consumables/${CO_ID}/items/${iid}/photo`, {method:'POST', body:fd})
+    .then(r=>r.json()).then(j=>{
+      if(j.ok){
+        if(cell){ cell.innerHTML = '<a href="'+j.full_url+'" target="_blank"><img src="'+j.thumb_url+'" alt="사진"></a>'; cell.style.opacity=''; }
+      } else { alert('업로드 실패: '+(j.error||'')); if(cell) cell.style.opacity=''; input.value=''; }
+    }).catch(()=>{ alert('통신 오류'); if(cell) cell.style.opacity=''; });
+}
 
 // v5H226z298: 책갈피 탭 전환
 function showTab(name){

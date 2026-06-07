@@ -937,6 +937,56 @@ def coi_update(item_id: int, fields: dict, by_id=None, by_name: str = "") -> Non
                               old.get(k), fields[k], by_id, by_name)
 
 
+def coi_add_blank(co_id: int, by_id=None, by_name: str = "") -> int:
+    """v5H226z309 (대표 지시): 상세 화면에서 라인 1줄 직접 추가(빈 줄) → 바로 인라인 입력.
+    line_no = 기존 최대+1. 존재하는 컬럼만 동적 INSERT(추가형 마이그 안전)."""
+    with db_session() as c:
+        cols_avail = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
+        row = c.execute("SELECT COALESCE(MAX(line_no),0) FROM consumable_order_items WHERE co_id=?",
+                        (int(co_id),)).fetchone()
+        next_no = int(row[0] or 0) + 1
+        data = {"co_id": int(co_id), "line_no": next_no, "model_use": "", "equip_name": "",
+                "part_name": "", "spec": "", "qty": 0, "unit": "EA", "unit_price": 0,
+                "amount": 0, "note": ""}
+        use = [(k, v) for k, v in data.items() if k in cols_avail]
+        cols = ", ".join(k for k, _ in use)
+        ph = ", ".join("?" for _ in use)
+        cur = c.execute(f"INSERT INTO consumable_order_items ({cols}) VALUES ({ph})",
+                        [v for _, v in use])
+        iid = int(cur.lastrowid)
+    recompute_co_total(co_id)
+    co_log_change(co_id, iid, "line", "add", "라인 추가", "", f"라인 {next_no}", by_id, by_name)
+    return iid
+
+
+def coi_set_image(item_id: int, category: str, image_path: str,
+                  image_thumb_path: str, by_id=None, by_name: str = "") -> int | None:
+    """v5H226z309 (대표 지시): 라인 1줄에 사진 첨부(직접 업로드). category: 'photo'=사진(PICTURE) /
+    'loc'=사진위치(PICTURE LOCATION). 존재하는 컬럼만 갱신. co_id 반환(없으면 None)."""
+    cat = "loc" if category == "loc" else "photo"
+    full_col, thumb_col = (("image_loc_path", "image_loc_thumb_path") if cat == "loc"
+                           else ("image_path", "image_thumb_path"))
+    co_id = None
+    with db_session() as c:
+        cols_avail = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
+        r = c.execute("SELECT co_id FROM consumable_order_items WHERE id=?", (int(item_id),)).fetchone()
+        if not r:
+            return None
+        co_id = r[0]
+        sets, vals = [], []
+        if full_col in cols_avail:
+            sets.append(f"{full_col}=?"); vals.append(image_path)
+        if thumb_col in cols_avail:
+            sets.append(f"{thumb_col}=?"); vals.append(image_thumb_path)
+        if sets:
+            vals.append(int(item_id))
+            c.execute(f"UPDATE consumable_order_items SET {', '.join(sets)} WHERE id=?", vals)
+    co_log_change(co_id, item_id, "line", f"image_{cat}",
+                  ("사진(PICTURE)" if cat == "photo" else "사진위치(LOCATION)"),
+                  "", "첨부됨", by_id, by_name)
+    return co_id
+
+
 def coi_delete(item_id: int) -> None:
     with db_session() as c:
         row = c.execute(
