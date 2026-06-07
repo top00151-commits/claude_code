@@ -58,8 +58,10 @@ table.items th:last-child, table.items td:last-child { border-right: 0; }   /* �
 table.items th { background: var(--paper-2); color: var(--knk-red); font-size: 10.5px; font-weight: 700; text-align: center; height: 34px; position: relative; }
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 table.items th.amount { text-align: center; }
-table.items input { padding: 3px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
-table.items input:focus { outline: none; border-color: var(--knk-red); }
+/* v5H226z305(대표 지시): 셀 속 입력칸 테두리 제거 → 엑셀처럼 칸 안에 글자만. 클릭/편집 시에만 강조 */
+table.items input { padding: 3px 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
+table.items input:hover { border-color: var(--qv-line); background:#fff; }
+table.items input:focus { outline: none; border-color: var(--knk-red); background:#fff; box-shadow: 0 0 0 1px var(--knk-red) inset; }
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* z295 와이드 2:1 — overflow:hidden 미적용(클리핑 방지) */
 table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover */
 /* v5H226z298: 정보란 인라인 편집 + 책갈피 탭 + 변경 이력 */
@@ -85,6 +87,27 @@ table.items th .col-rz:hover { background:rgba(176,16,16,.25); }   /* board(col-
 .modal-bg.show { display: flex; }
 .modal-bg img { max-width: 90vw; max-height: 90vh; }
 table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H226z304: 합계행 board 베이지 톤 + 스코프 한정 */
+/* v5H226z305(대표 지시): 사진 2칸 — 사진(가로 90px)보다 좁아지지 않게 + 가운데 정렬, 여백 축소 */
+table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-align: center; }
+/* v5H226z305(대표 지시): 라인 표 툴바 — 작업일정표 메뉴 이식(날짜 컨트롤 제외) */
+.co-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+.co-tools button, .co-tools .tool-btn { padding:6px 12px; border:1px solid var(--qv-line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--qv-ink-1,#1f2937); cursor:pointer; }
+.co-tools button:hover, .co-tools .tool-btn:hover { background:#fff; border-color:var(--knk-red); }
+.co-tools .cols-menu { position:relative; display:inline-block; }
+.co-tools .cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:#fff; border:1px solid var(--qv-line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:150px; }
+.co-tools .cols-pop.show { display:block; }
+.co-tools .cols-pop label { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+.co-tools .cols-pop label:hover { background:#fdf3f3; }
+.co-tools .co-hint { font-size:11px; color:var(--qv-ink-3); }
+/* 전체화면(표 영역만) */
+.co-items-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; background:#fff; padding:16px; max-height:100vh; overflow:auto; }
+.co-items-wrap:fullscreen { background:#fff; padding:16px; overflow:auto; }
+/* 화면 인쇄 — 표만(버튼으로 인쇄할 때만 적용) */
+@media print {
+  body.co-print-items * { visibility:hidden; }
+  body.co-print-items #coItemsWrap, body.co-print-items #coItemsWrap * { visibility:visible; }
+  body.co-print-items #coItemsWrap { position:absolute; left:0; top:0; width:100%; overflow:visible; }
+}
 </style>
 </head>
 <body>
@@ -178,13 +201,22 @@ table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H2
 
     <div class="card tab-pane" id="tab-lines" style="border-top-left-radius:0;">
       {% if items %}
-      <div class="items-hint">💡 칸 경계를 끌어 너비를 조정할 수 있어요 (이 브라우저에 저장). 넘치면 아래 좌우 스크롤 · <a onclick="resetItemCols()" style="color:#1d4ed8;cursor:pointer;">↺ 초기화</a></div>
-      <div style="overflow-x:auto;">  {# v5H226z297/z303: 좌우 스크롤 + 칸 너비 조정 #}
+      <div class="co-tools">
+        <button type="button" onclick="coFullscreen()">⛶ 전체화면 보기</button>
+        <button type="button" onclick="coPrint()">🖨 화면 인쇄</button>
+        <div class="cols-menu">
+          <button type="button" class="tool-btn" onclick="coToggleColsMenu(event)">☷ 칸 표시/숨기기 ▾</button>
+          <div class="cols-pop" id="coColsPop"></div>
+        </div>
+        <button type="button" onclick="coResetCols()">↺ 초기화</button>
+        <span class="co-hint">칸 경계를 끌어 너비 조정(그 칸만 바뀜) · 표가 넓으면 아래 좌우 스크롤</span>
+      </div>
+      <div id="coItemsWrap" class="co-items-wrap" style="overflow-x:auto;">  {# v5H226z297/z303/z305: 좌우 스크롤 + 칸 너비/표시 조정 + 툴바 #}
       <table class="items">
         <thead><tr>
           <th style="width:40px;">No</th>
-          <th style="width:90px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
-          <th style="width:80px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE)</span></th>
+          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
+          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE)</span></th>
           <th style="width:120px;">모델</th>
           <th style="width:120px;">장비명</th>
           <th style="width:150px;">품명</th>
@@ -201,14 +233,14 @@ table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H2
         {% for it in items %}
           <tr data-iid="{{ it.id }}">
             <td><b>{{ it.line_no }}</b></td>
-            <td>
+            <td class="photo-cell">
               {% if it.image_loc_thumb_path %}
                 <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" target="_blank">
                   <img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" />
                 </a>
               {% else %}<span style="color:#aaa;font-size:11px;">—</span>{% endif %}
             </td>
-            <td>
+            <td class="photo-cell">
               {% if it.image_thumb_path %}
                 <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank">
                   <img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" />
@@ -443,37 +475,94 @@ document.querySelectorAll('.s-pill').forEach(pill => {
   });
 });
 
-// v5H226z303(대표 지시): 라인 표 칸 너비 조정(작업일정표처럼) — 고정 px + 경계 드래그, 브라우저 저장
-const ITEMS_COLW_KEY = 'co_items_colw_v1';
-const ITEMS_COLW_DEFAULTS = [40,90,90,120,120,150,150,70,55,100,110,170,160,56];
+// v5H226z303/z305(대표 지시): 라인 표 — 칸 너비조정 + 칸 표시/숨기기 + 전체화면 + 화면인쇄 (작업일정표 메뉴 이식, 날짜 컨트롤 제외)
+const ITEMS_VIEW_KEY = 'co_items_view_v2';
+const ITEMS_COLW_OLDKEY = 'co_items_colw_v1';
+const ITEMS_COLW_DEFAULTS = [40,100,100,120,120,150,150,70,55,100,110,170,160,56];
+const ITEMS_COL_LABELS = ['No','사진(LOC)','사진(PIC)','모델','장비명','품명','규격','수량','단위','단가','합계','자재코드','관리번호','삭제'];
+const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 않게
 (function(){
   const table = document.querySelector('table.items');
   if(!table) return;
   const ths = table.querySelectorAll('thead th');
   const N = ths.length;
-  let widths;
-  try{ widths = JSON.parse(localStorage.getItem(ITEMS_COLW_KEY)); }catch(e){ widths=null; }
+  function colMin(i){ return (i===1 || i===2) ? ITEMS_PHOTO_MIN : 40; }
+
+  // 상태 로드: 신규키 → 구버전 폭키 → 기본값
+  let widths=null, hidden=null;
+  try{ const v=JSON.parse(localStorage.getItem(ITEMS_VIEW_KEY)); if(v){ widths=v.widths; hidden=v.hidden; } }catch(e){}
+  if(!Array.isArray(widths)){ try{ widths=JSON.parse(localStorage.getItem(ITEMS_COLW_OLDKEY)); }catch(e){ widths=null; } }
   if(!Array.isArray(widths) || widths.length!==N) widths = ITEMS_COLW_DEFAULTS.slice(0,N);
   while(widths.length<N) widths.push(100);
+  if(!Array.isArray(hidden) || hidden.length!==N) hidden = new Array(N).fill(false);
+  if(widths[1]<colMin(1)) widths[1]=colMin(1);   // 사진칸 최소폭 보정(저장된 옛값 대비)
+  if(widths[2]<colMin(2)) widths[2]=colMin(2);
+
   let cg = table.querySelector('colgroup.itm-cg');
   if(!cg){ cg=document.createElement('colgroup'); cg.className='itm-cg'; for(let i=0;i<N;i++) cg.appendChild(document.createElement('col')); table.insertBefore(cg, table.firstChild); }
   const cols = cg.querySelectorAll('col');
-  function applyCols(){ let tot=0; for(let i=0;i<N;i++){ cols[i].style.width=widths[i]+'px'; tot+=widths[i]; } table.style.width=tot+'px'; }
-  function saveCols(){ try{ localStorage.setItem(ITEMS_COLW_KEY, JSON.stringify(widths)); }catch(e){} }
-  applyCols();
+
+  function applyView(){
+    let tot=0;
+    for(let i=0;i<N;i++){ cols[i].style.width = (hidden[i]?0:widths[i])+'px'; if(!hidden[i]) tot+=widths[i]; }
+    // tfoot(병합셀)은 col 폭만으로 자동 정렬 → thead/tbody 셀만 표시 토글
+    table.querySelectorAll('thead tr, tbody tr').forEach(tr=>{
+      for(let i=0;i<tr.children.length && i<N;i++){ tr.children[i].style.display = hidden[i]?'none':''; }
+    });
+    table.style.width = tot+'px';
+  }
+  function save(){ try{ localStorage.setItem(ITEMS_VIEW_KEY, JSON.stringify({widths,hidden})); }catch(e){} }
+  applyView();
+
+  // 칸 경계 드래그(그 칸만, px) — 사진칸은 최소폭 제한
   ths.forEach((th,i)=>{
     if(i===N-1) return;  // 마지막(삭제) 칸은 핸들 생략
     const h=document.createElement('span'); h.className='col-rz'; th.appendChild(h);
     h.addEventListener('mousedown',(e)=>{
       e.preventDefault(); e.stopPropagation();
-      const startX=e.clientX, startW=widths[i];
+      const startX=e.clientX, startW=widths[i], mn=colMin(i);
       document.body.style.cursor='col-resize';
-      function mm(ev){ let w=startW+(ev.clientX-startX); w=Math.max(40,Math.min(700,w)); widths[i]=w; applyCols(); }
-      function mu(){ document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); document.body.style.cursor=''; saveCols(); }
+      function mm(ev){ let w=startW+(ev.clientX-startX); w=Math.max(mn,Math.min(700,w)); widths[i]=w; applyView(); }
+      function mu(){ document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); document.body.style.cursor=''; save(); }
       document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu);
     });
   });
-  window.resetItemCols = function(){ try{ localStorage.removeItem(ITEMS_COLW_KEY); }catch(e){} location.reload(); };
+
+  // 칸 표시/숨기기 메뉴
+  function buildColsMenu(){
+    const pop=document.getElementById('coColsPop'); if(!pop) return;
+    pop.innerHTML = ITEMS_COL_LABELS.slice(0,N).map((lab,i)=>
+      '<label><input type="checkbox" data-ci="'+i+'" '+(hidden[i]?'':'checked')+'> '+lab+'</label>'
+    ).join('');
+    pop.querySelectorAll('input').forEach(inp=>{
+      inp.addEventListener('change',()=>{ const i=+inp.dataset.ci; hidden[i]=!inp.checked; applyView(); save(); });
+    });
+  }
+  buildColsMenu();
+  window.coToggleColsMenu = function(e){ e.stopPropagation(); const p=document.getElementById('coColsPop'); if(p) p.classList.toggle('show'); };
+  document.addEventListener('click',(e)=>{ if(!e.target.closest('.cols-menu')){ const p=document.getElementById('coColsPop'); if(p) p.classList.remove('show'); } });
+
+  // 초기화(너비·숨김 원복)
+  window.coResetCols = function(){ widths=ITEMS_COLW_DEFAULTS.slice(0,N); hidden=new Array(N).fill(false); applyView(); buildColsMenu(); save(); };
+  window.resetItemCols = window.coResetCols;  // 구 링크 호환
+
+  // 전체화면(표 영역만)
+  window.coFullscreen = function(){
+    const w=document.getElementById('coItemsWrap'); if(!w) return;
+    if(!document.fullscreenElement && w.requestFullscreen){ w.requestFullscreen().catch(()=>{ w.classList.toggle('fs'); }); }
+    else if(document.fullscreenElement){ document.exitFullscreen(); }
+    else { w.classList.toggle('fs'); }
+  };
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ const w=document.getElementById('coItemsWrap'); if(w) w.classList.remove('fs'); } });
+
+  // 화면 인쇄(표만)
+  window.coPrint = function(){
+    document.body.classList.add('co-print-items');
+    const after=()=>{ document.body.classList.remove('co-print-items'); window.removeEventListener('afterprint',after); };
+    window.addEventListener('afterprint',after);
+    window.print();
+    setTimeout(()=>document.body.classList.remove('co-print-items'),1500);
+  };
 })();
 </script>
 </body>
