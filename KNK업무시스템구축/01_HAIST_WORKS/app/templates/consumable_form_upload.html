@@ -34,9 +34,10 @@ a { text-decoration: none; color: inherit; }
 .btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
 .btn-success { background: #059669; color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
-table.preview { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+/* v5H226z289: 15칸이라 가로폭 넘침 → 표 최소폭 부여 + .preview-wrap 좌우 스크롤(대표 지시) */
+table.preview { width: 100%; min-width: 1640px; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
 table.preview th, table.preview td { padding: 6px 8px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: top; }
-table.preview th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); position: sticky; top: 0; }
+table.preview th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); position: sticky; top: 0; white-space: nowrap; }
 table.preview img { max-width: 80px; max-height: 60px; border-radius: 4px; cursor: pointer; }
 table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; }
 .match-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; margin-left: 4px; }
