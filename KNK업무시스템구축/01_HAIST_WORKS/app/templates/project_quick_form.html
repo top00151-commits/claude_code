@@ -51,7 +51,9 @@ html,body{background:#fff!important;overflow:auto!important;}
 <main class="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>간편 등록</b></div>
-    <h1 class="page-title">신규 <em>등록</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">— 엑셀 한 줄처럼 채우세요</span></h1>
+    {# v5H226z323(대표 지시): 제목을 선택 유형에 맞게 — 색상 배지로 탭 전환 시 변화 체감 #}
+    {% set _tt = {'T':('🔬','검사기','#c2410c'),'M':('⚙','자동화','#1e40af'),'L':('💄','라이프밸류','#db2777')}.get(preset_biz, ('🔬','검사기','#c2410c')) %}
+    <h1 class="page-title"><span style="display:inline-block;background:{{ _tt[2] }};color:#fff;padding:4px 14px;border-radius:9px;font-size:19px;font-weight:800;vertical-align:middle;">{{ _tt[0] }} {{ preset_biz }} {{ _tt[1] }}</span> <em>등록</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">— 엑셀 한 줄처럼 채우세요</span></h1>
   </div></div>
 
   <div class="qf-wrap">
