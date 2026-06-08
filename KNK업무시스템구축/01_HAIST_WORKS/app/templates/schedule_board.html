@@ -170,6 +170,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .print-card { background:#fff; border-radius:12px; width:min(560px,92vw); max-height:86vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
 .pm-head { display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); font-weight:800; font-size:15px; }
 .pm-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
+/* z334(대표 지시): 팝업 헤더를 잡고 드래그 이동 (배경 딤은 그대로 유지=B안). 버튼은 클릭 유지 */
+.stage-card .sm-head, .print-card .pm-head, .reg-card .reg-head, .memo-pop .mp-head { cursor:move; user-select:none; }
+.stage-card .sm-head .sm-x, .print-card .pm-head button, .reg-card .reg-head button { cursor:pointer; }
 .pm-body { padding:14px 18px; overflow:auto; }
 .pm-sec { margin-bottom:16px; }
 .pm-sec:last-child { margin-bottom:0; }
@@ -650,6 +653,7 @@ function openPrintModal(){
   const f=document.getElementById('printDayFrom'), t=document.getElementById('printDayTo');
   if(f) f.value=dayFrom(); if(t) t.value=dayTo();   // 기본 = 현재 날짜 표시 구간
   const m=document.getElementById('printModal'); if(m) m.classList.add('show');
+  _resetCardPos('.print-card');   // z334: 다시 열 때는 중앙으로 복귀
 }
 function closePrintModal(){ const m=document.getElementById('printModal'); if(m) m.classList.remove('show'); }
 function printColsAll(on){ document.querySelectorAll('#printColsList input[data-pk]').forEach(i=>{ i.checked=on; }); }
@@ -763,6 +767,7 @@ function openStagePanel(kind, ref, tr){
   const _sb=document.getElementById('smBody');
   _sb.innerHTML='불러오는 중…';
   document.getElementById('stageModal').classList.add('show');
+  _resetCardPos('.stage-card');   // z334: 다시 열 때는 중앙으로 복귀(드래그 위치 초기화)
   // v5H226z272: 실제 상태/응답을 드러내도록 — r.json() 대신 text 받아 직접 파싱
   fetch('/sales/schedule/stages?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref), {credentials:'same-origin'})
     .then(r=>r.text().then(t=>({status:r.status, text:t})))
@@ -783,6 +788,31 @@ function closeStagePanel(){
   if(dirty) location.reload();
 }
 document.getElementById('stageModal').addEventListener('click',(e)=>{ if(e.target.id==='stageModal') closeStagePanel(); });
+
+// ===== z334(대표 지시): 팝업 헤더 드래그 이동 — 4종(단계·인쇄·메모·신규등록), 배경 딤은 그대로(B안) =====
+let _drag=null;
+function _startDrag(card, e){
+  if(e.target.closest('button,input,textarea,select,a')) return;   // 버튼/입력 위는 드래그 아님
+  const r=card.getBoundingClientRect();
+  card.style.position='fixed'; card.style.margin='0'; card.style.right='auto'; card.style.bottom='auto';
+  card.style.left=r.left+'px'; card.style.top=r.top+'px'; card.style.zIndex='99999';
+  const f=card.querySelector('iframe'); if(f) f.style.pointerEvents='none';   // 드래그 중 iframe이 마우스 가로채지 않게
+  _drag={card, ox:e.clientX-r.left, oy:e.clientY-r.top, w:r.width, iframe:f};
+  e.preventDefault();
+}
+_on(document,'mousemove',(e)=>{
+  if(!_drag) return;
+  let L=e.clientX-_drag.ox, T=e.clientY-_drag.oy;
+  L=Math.max(40-_drag.w, Math.min(window.innerWidth-60, L));   // 헤더 일부는 항상 화면 안에
+  T=Math.max(0, Math.min(window.innerHeight-40, T));
+  _drag.card.style.left=L+'px'; _drag.card.style.top=T+'px';
+});
+_on(document,'mouseup',()=>{ if(_drag&&_drag.iframe) _drag.iframe.style.pointerEvents=''; _drag=null; });
+function _resetCardPos(sel){ const c=document.querySelector(sel); if(c){ ['position','left','top','right','bottom','margin','zIndex'].forEach(p=>c.style[p]=''); } }
+[['.stage-card .sm-head','.stage-card'],['.print-card .pm-head','.print-card'],['.reg-card .reg-head','.reg-card'],['#memoHead','#memoPop']].forEach(pair=>{
+  const h=document.querySelector(pair[0]), card=document.querySelector(pair[1]);
+  if(h&&card){ _on(h,'mousedown',(e)=>_startDrag(card,e)); }
+});
 function _srow(k,sub){ return _stagePanel.rows[k+'|'+(sub||'')]||null; }
 
 function renderStages(){
@@ -882,6 +912,7 @@ function openRegModal(){
   if(!m||!f) return;
   f.src='/projects/quick?embed=1';   // z276: 엑셀처럼 한 화면 평면 폼
   m.classList.add('show');
+  _resetCardPos('.reg-card');   // z334: 다시 열 때는 중앙으로 복귀
 }
 function closeRegModal(){
   const m=document.getElementById('regModal'), f=document.getElementById('regFrame');
