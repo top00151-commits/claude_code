@@ -14302,8 +14302,9 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
         _gseq = {}
-        # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집 + 파일내 중복 감지
-        _manual_codes = set(); _auto_used = set(); _seen_manual = set()
+        # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집.
+        # v5H226z328 (대표 지시): _seen_new = 파일 내에서 '신규(프로젝트 생성)'로 잡힌 코드 — 이후 같은 코드는 추가발주.
+        _manual_codes = set(); _auto_used = set(); _seen_new = set()
         for _pr in range(2, (ws.max_row or 1) + 1):
             _pm = (_to_str(ws.cell(_pr, _cM).value).upper() if _cM else "")
             if _pm and _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", _pm):
@@ -14343,21 +14344,26 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 continue
             od = _to_date(_g(_cOd)); dd = _to_date(_g(_cDd))
             errors = []; warn = ""
+            _followup = False
             if mgmt:
                 if not _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt):
                     errors.append("관리번호 형식 오류 (예: 005T2601)"); biz = _tb
                 else:
                     biz = mgmt[3]
-                if mgmt in code_set:
-                    errors.append(f"이미 등록된 관리번호 — 건너뜀: {mgmt}")
-                elif mgmt in _seen_manual:
-                    errors.append(f"파일 내 중복 관리번호 — 건너뜀: {mgmt}")
-                _seen_manual.add(mgmt); _auto = False
+                # v5H226z328 (대표 지시): 같은 관리번호 = 같은 장비 → 추가발주(SO 추가). 건너뛰지 않음.
+                #   기존 DB에 있거나 파일 내 앞선 행이면 추가발주, 처음 보는 코드면 프로젝트 생성(신규).
+                if mgmt in code_set or mgmt in _seen_new:
+                    _followup = True
+                else:
+                    _seen_new.add(mgmt)
+                _auto = False
             else:
                 biz = _tb
                 if not od:
                     errors.append("관리번호 자동발급에는 발주일이 필요합니다")
                 mgmt = _gen_code(biz, od) if od else ""
+                if mgmt:
+                    _seen_new.add(mgmt)
                 _auto = True
             _mc_name, _mc_score = _match_customer(cust) if cust else (None, 0.0)
             if cust and _mc_score >= 0.8:
@@ -14399,7 +14405,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "status": "초기협의",                # 등록 후 사용자가 직접 변경(수주번호 미생성)
                 "shipment_form": "ASSEMBLY",
                 "two_tier_order": 1 if cust2 else 0,
-                "_followup": False, "_auto_mgmt": _auto, "_warn": warn,
+                "_followup": _followup, "_auto_mgmt": _auto, "_warn": warn,
                 "_errors": errors,
                 "_is_warning_only": (len(errors) == 0 and bool(warn)),
             })
