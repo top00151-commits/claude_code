@@ -43,8 +43,10 @@
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
 .sched-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; max-height:100vh; border-radius:0; }
 /* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */
-table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:max-content; }
+table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:0; }
 .sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }
+/* v5H226z314(대표 지시): 칸 숨김 = display:none(열 비활성→날짜칸 재분배) 대신 셀을 0폭으로 접되 그리드에 유지(열 활성 유지→재분배 차단). col width:0 과 함께 0px 붕괴. */
+.sched th.col-collapsed, .sched td.col-collapsed { padding:0 !important; border-right:0 !important; }
 .sched thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red);
   font-size:10.5px; font-weight:700; text-align:center; height:34px; }
 .sched { --l2:86px; --l3:176px; }
@@ -391,15 +393,16 @@ function applyWidths(){
 }
 // 표시/숨김(체크박스·날짜범위 변경 시) — 셀 display 토글
 function applyVisibility(){
+  // v5H226z314: display:none(열 비활성→재분배) 대신 .col-collapsed 로 0폭 접기(열 활성 유지). 폭은 applyWidths 의 col width:0 이 담당.
   COL_KEYS.forEach(k=>{
     const hidden=colState(k).hidden;
     document.querySelectorAll('[data-col="'+k+'"]').forEach(el=>{
-      if(el.tagName==='COL') return; el.style.display=hidden?'none':'';
+      if(el.tagName==='COL') return; el.classList.toggle('col-collapsed', hidden); el.style.display='';
     });
   });
   const df=dayFrom(), dt=dayTo();
   document.querySelectorAll('th[data-day],td[data-day]').forEach(el=>{
-    const d=+el.dataset.day; el.style.display=(d<df||d>dt)?'none':'';
+    const d=+el.dataset.day; el.classList.toggle('col-collapsed', (d<df||d>dt)); el.style.display='';
   });
 }
 function applyCols(){ applyVisibility(); applyWidths(); }
