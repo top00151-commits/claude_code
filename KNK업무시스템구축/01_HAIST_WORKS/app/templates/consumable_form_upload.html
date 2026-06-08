@@ -198,7 +198,12 @@ document.getElementById('directBtn').addEventListener('click', async () => {
   try {
     const res = await fetch('/consumables/create-direct', { method: 'POST', body: fd });
     const data = await res.json();
-    if (data.ok) { location.href = '/consumables/' + data.co_id; }
+    if (data.ok) {
+      // v5H226z313 (대표 지시): 작업일정표 등록 모달은 iframe — iframe 이동은 보드가 가로채 '모달만 닫힘'.
+      //   빈 발주는 상세에서 라인 입력이 필요하므로 최상위 창을 상세로 이동(가로채기 회피).
+      var _url = '/consumables/' + data.co_id;
+      try { (window.top || window).location.href = _url; } catch (e) { location.href = _url; }
+    }
     else { alert('직접 등록 실패: ' + (data.error || '')); btn.disabled = false; btn.textContent = _orig; }
   } catch (e) { alert('통신 오류'); btn.disabled = false; btn.textContent = _orig; }
 });
