@@ -164,8 +164,29 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 #schedToast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:8px 16px; border-radius:8px; font-size:12.5px; z-index:10001; opacity:0; transition:opacity .2s; pointer-events:none; }
 #schedToast.show { opacity:.95; }
 
+/* z333(대표 지시): 인쇄 옵션 모달 — 출력 컬럼·날짜 구간 선택 후 인쇄(회의 출력용) */
+.print-modal { display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.4); }
+.print-modal.show { display:flex; align-items:center; justify-content:center; }
+.print-card { background:#fff; border-radius:12px; width:min(560px,92vw); max-height:86vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
+.pm-head { display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); font-weight:800; font-size:15px; }
+.pm-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
+.pm-body { padding:14px 18px; overflow:auto; }
+.pm-sec { margin-bottom:16px; }
+.pm-sec:last-child { margin-bottom:0; }
+.pm-sec-t { font-weight:800; font-size:13px; margin-bottom:8px; color:var(--knk-red); display:flex; align-items:center; gap:6px; }
+.pm-mini { padding:2px 9px; font-size:11px; border:1px solid var(--line); border-radius:6px; background:var(--paper-2); cursor:pointer; font-weight:700; }
+.pm-mini:hover { border-color:var(--knk-red); }
+.pm-cols { display:grid; grid-template-columns:repeat(3,1fr); gap:3px 10px; }
+.pm-cols label { display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; padding:3px 4px; border-radius:5px; }
+.pm-cols label:hover { background:#fdf3f3; }
+.pm-days input { width:62px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; text-align:center; font-size:13px; }
+.pm-hint { font-size:11px; color:var(--qv-ink-3); margin-left:6px; }
+.pm-btns { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--line); }
+.pm-btns button { padding:8px 18px; border:1px solid var(--line); border-radius:8px; background:var(--paper-2); font-weight:700; cursor:pointer; font-size:13px; }
+.pm-btns .pm-go { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
 @media print {
   @page { size: landscape; margin: 7mm; }
+  .print-modal { display:none !important; }
   body * { visibility: hidden; }
   .sched-wrap, .sched-wrap * { visibility: visible; }
   .sched-wrap { position:absolute; left:0; top:0; margin:0; border:none; max-height:none; overflow:visible; width:100%; }
@@ -221,7 +242,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   <div class="sched-tools">
     <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border-color:var(--knk-red);">＋ 신규 등록</button>
     <button type="button" onclick="schedFullscreen()">⛶ 전체화면 보기</button>
-    <button type="button" onclick="schedPrint()">🖨 화면 인쇄</button>
+    <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)">🖨 인쇄(컬럼·구간 선택)</button>
     {# v5H226z316 (대표 지시): 엑셀 내보내기 + 일괄등록 양식 다운로드 #}
     <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'">📥 엑셀로 저장</button>
     <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'">📄 일괄등록 양식</button>
@@ -355,6 +376,33 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <div class="reg-card">
       <div class="reg-head"><span>＋ 신규 등록</span><button type="button" onclick="closeRegModal()">✕</button></div>
       <iframe id="regFrame" title="신규 등록"></iframe>
+    </div>
+  </div>
+  {# z333(대표 지시): 인쇄 옵션 — 출력 컬럼/날짜 구간 선택. .main 안에 둬 SPA(.main 교체) 시 함께 이동 #}
+  <div class="print-modal" id="printModal">
+    <div class="print-card">
+      <div class="pm-head"><span>🖨 인쇄 옵션 — 회의 출력</span><button type="button" onclick="closePrintModal()">✕</button></div>
+      <div class="pm-body">
+        <div class="pm-sec">
+          <div class="pm-sec-t">출력할 컬럼
+            <button type="button" class="pm-mini" onclick="printColsAll(true)">전체 선택</button>
+            <button type="button" class="pm-mini" onclick="printColsAll(false)">전체 해제</button>
+          </div>
+          <div class="pm-cols" id="printColsList"></div>
+        </div>
+        <div class="pm-sec">
+          <div class="pm-sec-t">날짜 구간 (간트 달력)</div>
+          <div class="pm-days">
+            <input type="number" id="printDayFrom" min="1" max="{{ days|length }}"> ~
+            <input type="number" id="printDayTo" min="1" max="{{ days|length }}"> 일
+            <span class="pm-hint">(이 달 1~{{ days|length }}일 중 선택)</span>
+          </div>
+        </div>
+      </div>
+      <div class="pm-btns">
+        <button type="button" onclick="closePrintModal()">취소</button>
+        <button type="button" class="pm-go" onclick="doPrint()">🖨 인쇄</button>
+      </div>
     </div>
   </div>
 </main>
@@ -592,6 +640,35 @@ _on(document,'keydown',(e)=>{ if(e.key==='Escape'){ document.getElementById('sch
 _on(window,'resize',()=>setTimeout(updateSticky,50));
 function schedPrint(){ window.print(); }
 
+// ===== z333(대표 지시): 인쇄 옵션 — 출력 컬럼 + 날짜 구간 선택 후 인쇄(회의 출력용) =====
+//   선택은 '인쇄용 임시 적용' → 인쇄 후 평소 화면·저장설정은 그대로 복원(화면 안 바꿈).
+function openPrintModal(){
+  const list=document.getElementById('printColsList');
+  if(list){   // 기본값 = '지금 화면에 보이는 컬럼'(대표 결정) → 숨김 아닌 칸만 체크
+    list.innerHTML = COL_KEYS.map(k=>'<label><input type="checkbox" data-pk="'+k+'" '+(colState(k).hidden?'':'checked')+'> '+COL_LABELS[k]+'</label>').join('');
+  }
+  const f=document.getElementById('printDayFrom'), t=document.getElementById('printDayTo');
+  if(f) f.value=dayFrom(); if(t) t.value=dayTo();   // 기본 = 현재 날짜 표시 구간
+  const m=document.getElementById('printModal'); if(m) m.classList.add('show');
+}
+function closePrintModal(){ const m=document.getElementById('printModal'); if(m) m.classList.remove('show'); }
+function printColsAll(on){ document.querySelectorAll('#printColsList input[data-pk]').forEach(i=>{ i.checked=on; }); }
+function doPrint(){
+  const snap=JSON.stringify(COLS);                  // 1) 현재 설정 스냅샷(복원용)
+  // 2) 선택한 컬럼/구간을 인쇄용으로 임시 적용 (기존 .col-collapsed 메커니즘 재사용)
+  document.querySelectorAll('#printColsList input[data-pk]').forEach(i=>{ const k=i.dataset.pk; COLS[k]=COLS[k]||{}; COLS[k].hidden=!i.checked; });
+  let pf=parseInt(document.getElementById('printDayFrom').value)||1;
+  let pt=parseInt(document.getElementById('printDayTo').value)||LAST_DAY;
+  pf=Math.max(1,Math.min(LAST_DAY,pf)); pt=Math.max(1,Math.min(LAST_DAY,pt)); if(pf>pt){const x=pf;pf=pt;pt=x;}
+  COLS._dayFrom=pf; COLS._dayTo=pt;
+  applyCols(); closePrintModal();
+  // 3) 인쇄 후 원래대로 복원 (저장 호출 안 함 → 평소 화면·서버설정 불변)
+  let done=false;
+  const restore=()=>{ if(done) return; done=true; COLS=JSON.parse(snap); applyCols(); syncDayInputs(); };
+  _on(window,'afterprint',restore);
+  setTimeout(()=>{ window.print(); setTimeout(restore, 800); }, 60);   // 레이아웃 반영 후 인쇄 + 폴백 복원
+}
+
 // ---- 셀 인라인 편집 ----
 let _editing=null;
 const _tbody=document.querySelector('#schedTable tbody');
@@ -826,7 +903,7 @@ document.getElementById('regModal').addEventListener('click',function(e){ if(e.t
 applyCols(); buildColsMenu(); syncDayInputs();
 _on(window,'load',()=>setTimeout(updateSticky,80));
 // v5H226z271: 인라인 onclick/onchange 핸들러용 전역 노출 (IIFE 내부 함수들)
-Object.assign(window, {schedFullscreen, schedPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal});
+Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal});
 })();
 </script>
 </body>
