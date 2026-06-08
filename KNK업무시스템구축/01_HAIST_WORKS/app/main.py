@@ -14681,16 +14681,47 @@ async def projects_import_template_biz(request: Request, biz: str):
     if not p.exists():
         return JSONResponse({"error": "통합 양식 파일을 찾을 수 없습니다"}, 404)
     try:
-        from openpyxl import load_workbook
+        # v5H226z325 (대표 지시 — 손상 경고 수정): 기존 파일에서 시트를 '삭제'하면 Excel이 손상으로 인식.
+        #   → 새 워크북을 처음부터 만들어(항상 유효) 안내+해당 시트의 값·서식만 복사한다.
+        from openpyxl import Workbook, load_workbook
+        from copy import copy as _copy
         import io as _io
-        wb = load_workbook(str(p))
-        keep = {"안내", _sheet}
-        for sn in list(wb.sheetnames):
-            if sn not in keep:
-                del wb[sn]
-        if _sheet in wb.sheetnames:
-            wb.active = wb.sheetnames.index(_sheet)
-        buf = _io.BytesIO(); wb.save(buf); buf.seek(0)
+        src = load_workbook(str(p))
+        if _sheet not in src.sheetnames:
+            return JSONResponse({"error": "양식 시트를 찾을 수 없습니다"}, 500)
+
+        def _cp(sws, dws):
+            for row in sws.iter_rows():
+                for cell in row:
+                    if cell.value is None and not cell.has_style:
+                        continue
+                    nc = dws.cell(row=cell.row, column=cell.column, value=cell.value)
+                    if cell.has_style:
+                        nc.font = _copy(cell.font); nc.fill = _copy(cell.fill)
+                        nc.border = _copy(cell.border); nc.alignment = _copy(cell.alignment)
+                        nc.number_format = cell.number_format
+            for _c, _dim in sws.column_dimensions.items():
+                if _dim.width:
+                    dws.column_dimensions[_c].width = _dim.width
+            for _r, _dim in sws.row_dimensions.items():
+                if _dim.height:
+                    dws.row_dimensions[_r].height = _dim.height
+            for _mc in list(sws.merged_cells.ranges):
+                try:
+                    dws.merge_cells(str(_mc))
+                except Exception:
+                    pass
+            try:
+                dws.freeze_panes = sws.freeze_panes
+            except Exception:
+                pass
+
+        new = Workbook()
+        new.remove(new.active)
+        _cp(src["안내"], new.create_sheet("안내"))
+        _cp(src[_sheet], new.create_sheet(_sheet))
+        new.active = 1
+        buf = _io.BytesIO(); new.save(buf); buf.seek(0)
     except Exception as e:
         return JSONResponse({"error": f"양식 생성 실패: {e}"}, 500)
     from urllib.parse import quote
