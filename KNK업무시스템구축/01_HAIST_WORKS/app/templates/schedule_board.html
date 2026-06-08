@@ -88,6 +88,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched thead .c-info .th-wrap { justify-content:flex-start; }
 .col-resizer { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
 .col-resizer:hover { background:rgba(176,16,16,.25); }
+/* z331: 헤더 제목 클릭 정렬 — 제목 클릭 시 오름↔내림 토글, 빈칸은 항상 아래. (폭조절 핸들 영역은 col-resize 유지) */
+.sched thead .c-info .th-wrap { cursor:pointer; user-select:none; }
+.sched thead .c-info .th-wrap:hover { color:#7f1d1d; }
+.sort-ind { margin-left:3px; font-size:9px; line-height:1; color:#c9b89a; }
+.th-wrap.sort-asc .sort-ind, .th-wrap.sort-desc .sort-ind { color:var(--knk-red); }
 
 .sched td.editable { cursor:text; }
 .sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
@@ -472,7 +477,7 @@ function setDayRange(){
 function resetCols(){ COLS={}; applyCols(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜를 초기화했습니다'); }
 
 // ---- 너비 조정(드래그) — z279: 그 칸만 px 로 직접 지정. 다른 칸은 1px도 안 움직임 ----
-let _rz=null;
+let _rz=null, _rzMoved=false;   // z331: _rzMoved=폭조절 드래그 직후 헤더 클릭정렬 억제용
 document.querySelectorAll('.col-resizer').forEach(h=>{
   h.addEventListener('mousedown',(e)=>{
     e.preventDefault(); e.stopPropagation();
@@ -483,13 +488,62 @@ document.querySelectorAll('.col-resizer').forEach(h=>{
 });
 _on(document,'mousemove',(e)=>{
   if(!_rz) return;
+  _rzMoved=true;                 // z331: 드래그 발생 → 직후 click 정렬 억제
   // 시작 폭 + 마우스 이동량 = 새 폭(px). 최소 28px.
   let neww = _rz.w + (e.clientX - _rz.x);
   neww = Math.max(28, Math.min(900, neww));
   COLS[_rz.k]=COLS[_rz.k]||{}; COLS[_rz.k].w=neww; COLS[_rz.k].hidden=false;
   applyWidths();
 });
-_on(document,'mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); }});
+_on(document,'mouseup',()=>{ if(_rz){ _rz=null; document.body.style.cursor=''; saveCols(); if(_rzMoved){ setTimeout(function(){_rzMoved=false;},0); } }});
+
+// ===== z331(대표 지시): 헤더 제목 클릭 정렬 — 화면에서만(비저장)·오름차순부터 토글 =====
+//   행(<tr>)을 통째로 재배치 → 간트 막대·셀 그대로 보존. 새로고침/월이동 시 서버 기본순서(발주일순)로 복귀.
+let _sortCol=null, _sortDir=1;                 // dir: 1=오름차순(▲), -1=내림차순(▼)
+const _SORT_NUM = {qty:1, price:1, amount:1};  // 숫자 정렬 컬럼 (나머지: 날짜=문자열, 텍스트=가나다)
+const _SORT_EMPTY = {'':1,'—':1,'＋':1,'-':1}; // 빈칸 표시값 → 방향 무관 항상 맨 아래
+function _cellSortVal(tr, col){
+  const td = tr.querySelector('td[data-col="'+col+'"]');
+  if(!td) return {e:true, n:0, s:''};
+  let raw;
+  if(col==='stage'){ const b=td.querySelector('.stg-badge'); raw=(b?b.textContent:td.textContent); }
+  else if(col==='code'){ const a=td.querySelector('a'); raw=(a?a.textContent:td.textContent); }
+  else { raw=td.textContent; }
+  raw=(raw||'').trim();
+  if(_SORT_EMPTY[raw]) return {e:true, n:0, s:''};
+  if(_SORT_NUM[col]){ const n=parseFloat(raw.replace(/[^0-9.\-]/g,'')); return {e:isNaN(n), n:(isNaN(n)?0:n), s:raw}; }
+  return {e:false, n:0, s:raw};
+}
+function sortByCol(col){
+  const tbody=document.querySelector('#schedTable tbody'); if(!tbody) return;
+  if(_sortCol===col){ _sortDir = -_sortDir; } else { _sortCol=col; _sortDir=1; }
+  const isNum=!!_SORT_NUM[col], dir=_sortDir;
+  const rows=Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((ra,rb)=>{
+    const a=_cellSortVal(ra,col), b=_cellSortVal(rb,col);
+    if(a.e&&b.e) return 0; if(a.e) return 1; if(b.e) return -1;   // 빈칸은 항상 아래
+    const c = isNum ? (a.n-b.n) : a.s.localeCompare(b.s,'ko',{numeric:true});
+    return dir*c;
+  });
+  rows.forEach(r=>tbody.appendChild(r));                          // DOM 재배치(안정 정렬)
+  // 화살표 표시 갱신
+  document.querySelectorAll('#schedTable thead .c-info .th-wrap').forEach(w=>{
+    w.classList.remove('sort-asc','sort-desc');
+    const si=w.querySelector('.sort-ind'); if(si) si.textContent='';
+  });
+  const aw=document.querySelector('#schedTable thead th[data-col="'+col+'"] .th-wrap');
+  if(aw){ aw.classList.add(dir>0?'sort-asc':'sort-desc'); const si=aw.querySelector('.sort-ind'); if(si) si.textContent=(dir>0?'▲':'▼'); }
+}
+// 각 정보 헤더에 정렬 화살표 자리 + 클릭 바인딩 (날짜 그리드 th(data-day)는 제외)
+document.querySelectorAll('#schedTable thead th.c-info[data-col]').forEach(th=>{
+  const w=th.querySelector('.th-wrap'); if(!w) return;
+  if(!w.querySelector('.sort-ind')){ const si=document.createElement('span'); si.className='sort-ind'; w.appendChild(si); }
+  _on(th,'click',(e)=>{
+    if(e.target.closest('.col-resizer')) return;   // 폭조절 핸들 클릭은 정렬 아님
+    if(_rzMoved){ _rzMoved=false; return; }          // 폭조절 드래그 직후 클릭 억제
+    sortByCol(th.dataset.col);
+  });
+});
 
 // ---- 전체화면 ----
 function schedFullscreen(){
