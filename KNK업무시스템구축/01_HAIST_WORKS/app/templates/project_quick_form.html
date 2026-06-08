@@ -103,11 +103,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f"><label>발주일</label><input type="date" name="order_date" id="qOrderDate"></div>
           <div class="qf-f"><label>납품일</label><input type="date" name="due_date" id="qDueDate"></div>
 
-          <div class="qf-sec">고객사 담당 · 납품</div>
-          <div class="qf-f"><label>부서</label><input name="cc_dept" placeholder="고객사 담당 부서"></div>
-          <div class="qf-f"><label>담당자</label><input name="cc_name" placeholder="고객사 담당자"></div>
-          <div class="qf-f span2"><label>납품위치</label><input id="qShip" placeholder="납품 위치"></div>
-
+          {# v5H226z321(대표 지시): 금액 ↔ 고객사 담당·납품 순서 교체 — 금액을 위로 #}
           {% if can_money %}
           <div class="qf-sec">금액 (영업·관리)</div>
           <div class="qf-f"><label>통화</label>
@@ -125,6 +121,11 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위 = ? 원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350"></div>
           {% endif %}
+
+          <div class="qf-sec">고객사 담당 · 납품</div>
+          <div class="qf-f"><label>부서</label><input name="cc_dept" placeholder="고객사 담당 부서"></div>
+          <div class="qf-f"><label>담당자</label><input name="cc_name" placeholder="고객사 담당자"></div>
+          <div class="qf-f span2"><label>납품위치</label><input id="qShip" placeholder="납품 위치"></div>
 
           <div class="qf-f span2" style="grid-column:1/-1;"><label>비고</label>
             <input name="note" placeholder="기타 메모"></div>
