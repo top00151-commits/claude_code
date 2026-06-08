@@ -12776,6 +12776,250 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
 # v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 읽기전용.
 #   설계: _기획/작업일정표_운영보드_설계.md v1.0. 월별 달력 그리드, 관리코드 1줄,
 #   발주일~납기일 일정 막대 + 납품일(●), 오늘 열 강조, 헤더/좌측 고정. 전사(프로젝트+소모품).
+# v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
+#   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
+def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
+    _can_money = bool(can_view_sales(u))
+    import calendar as _cal
+    from datetime import date as _date, datetime as _dt
+    today = _dt.now().date()
+    last_day = _cal.monthrange(_y, _m)[1]
+    mstart, mend = _date(_y, _m, 1), _date(_y, _m, last_day)
+    today_day = today.day if (today.year == _y and today.month == _m) else None
+
+    def _pd(s):
+        try:
+            return _dt.strptime(str(s)[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    def _mk_row(info, od, dd, status, kind):
+        s, e = (od or dd), (dd or od)
+        if not s and not e:
+            return None
+        s, e = (s or e), (e or s)
+        if e < s:
+            s, e = e, s
+        if e < mstart or s > mend:
+            return None
+        info["bar_s"] = max(s, mstart).day
+        info["bar_e"] = min(e, mend).day
+        info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
+        info["is_delay"] = bool(dd and dd < today and status not in ("납품완료", "취소", "보류"))
+        info["status"] = status or ""
+        info["kind"] = kind
+        return info
+
+    _so_map = {}
+    try:
+        with db_session() as _c:
+            _ocols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
+            _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            for _r2 in _c.execute(
+                    f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                _pid2 = _r2[0]
+                if not _pid2:
+                    continue
+                _ono2, _sto2 = (_r2[1] or ""), (_r2[2] or "")
+                if _pid2 not in _so_map:
+                    _so_map[_pid2] = [_ono2, _sto2]
+                elif not _so_map[_pid2][1] and _sto2:
+                    _so_map[_pid2][1] = _sto2
+    except Exception:
+        pass
+
+    _smemos = _logi.schedule_memos_map()
+    _stage_map = _logi.stage_board_map()
+    _empty_st = {"done": set(), "prog": {}, "ship_date": ""}
+
+    def _st_summary(_st):
+        _cur = ""
+        for _s in _logi.STAGE_SPEC:
+            if _s.get("sales_only") and not _can_money:
+                continue
+            if _s["key"] == "progress":
+                if _st.get("prog"):
+                    _cur = "진행"
+            elif _s["key"] in _st.get("done", ()):
+                _cur = _s["label"]
+        return _cur, len(_st.get("prog", {}))
+
+    rows = []
+    for p in (dict(r) for r in _logi.projects_list_logi()):
+        if (p.get("project_type") or "").upper() == "CONSUMABLE":
+            continue
+        _so, _ship = _so_map.get(p.get("id"), ("", ""))
+        info = {
+            "ref_id": p.get("id"), "code": p.get("mgmt_code") or "—", "so_no": _so,
+            "name": p.get("name") or "", "model": p.get("model_name") or "",
+            "equip": p.get("equip_name") or "", "note": p.get("logi_note") or "",
+            "qty": p.get("unit_qty") or "", "price": p.get("unit_price") or 0,
+            "amount": p.get("order_amount") or 0, "currency": (p.get("currency") or "KRW"),
+            "trade": "수출" if int(p.get("is_export") or 0) else "내수",
+            "po_type": p.get("po_type") or "", "customer": p.get("customer_name") or "—",
+            "cust_ok": bool(p.get("customer_id")), "cust2": p.get("secondary_customer") or "",
+            "dept": p.get("cc_dept") or "", "owner": p.get("cc_name") or "",
+            "contact": p.get("cc_phone") or "", "ship_to": _ship,
+            "order_date": str(p.get("order_date") or "")[:10],
+            "due_date": str(p.get("due_date") or "")[:10],
+            "sales_owner": p.get("sales_name") or "",
+            "memo": _smemos.get(("project", p.get("id")), ""),
+            "st": _stage_map.get(("project", p.get("id")), _empty_st),
+        }
+        info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
+        _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+        if _r and not (cust and cust not in (_r["customer"] or "")):
+            rows.append(_r)
+    try:
+        from . import consumables as _co_mod
+        _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
+                   "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+        for cr in _co_mod.co_list(status="", q="", limit=1000):
+            info = {
+                "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
+                "so_no": cr.get("co_no") or "", "name": "소모품",
+                "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
+                "note": cr.get("note") or "", "qty": 1,
+                "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
+                "currency": (cr.get("currency") or "KRW"),
+                "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
+                "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                "cust_ok": bool(cr.get("customer_id")), "cust2": cr.get("secondary_customer") or "",
+                "contact": cr.get("cc_phone") or "", "sales_owner": cr.get("sales_name") or "",
+                "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
+                "ship_to": cr.get("ship_to") or "",
+                "order_date": str(cr.get("order_date") or "")[:10],
+                "due_date": str(cr.get("due_date") or "")[:10],
+                "memo": _smemos.get(("consumable", cr.get("id")), ""),
+                "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
+            }
+            info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
+            _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
+                         _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
+            if _r and not (cust and cust not in (_r["customer"] or "")):
+                rows.append(_r)
+    except Exception:
+        pass
+    rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
+    for r in rows:
+        _rc = r.get("code") or ""
+        r["div"] = _rc[3] if (len(_rc) >= 4 and _rc[3] in "TMLEC") else ("C" if r.get("kind") == "consumable" else "")
+    div_counts = {"all": len(rows), "T": 0, "M": 0, "L": 0, "E": 0, "C": 0}
+    for r in rows:
+        if r["div"] in div_counts:
+            div_counts[r["div"]] += 1
+    _biz = (biz or "").strip().upper()
+    if _biz in ("T", "M", "L", "E", "C"):
+        rows = [r for r in rows if r["div"] == _biz]
+    else:
+        _biz = ""
+    return {"rows": rows, "div_counts": div_counts, "can_money": _can_money,
+            "today_day": today_day, "last_day": last_day, "biz": _biz}
+
+
+@app.get("/sales/schedule/export.xlsx")
+async def schedule_board_export(request: Request, ym: str = "", cust: str = "", biz: str = ""):
+    """v5H226z316 (대표 지시): 작업일정표를 엑셀로 저장 — 현재 월/사업부/고객사 필터 그대로 .xlsx.
+    금액 컬럼(단가·금액·통화)은 매출 조회 권한자에게만 포함."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from datetime import datetime as _dt
+    today = _dt.now().date()
+    try:
+        _y, _m = (int(ym[:4]), int(ym[5:7])) if (ym and len(ym) >= 7) else (today.year, today.month)
+        if not (1 <= _m <= 12):
+            raise ValueError
+    except Exception:
+        _y, _m = today.year, today.month
+    data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz)
+    rows, can_money = data["rows"], data["can_money"]
+    headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량"]
+    keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
+    if can_money:
+        headers += ["단가", "금액", "통화"]; keys += ["price", "amount", "currency"]
+    headers += ["거래구분", "PO유형", "고객사1", "고객사2", "부서", "담당자", "연락처",
+                "납품위치", "발주일", "납기", "단계", "영업담당자"]
+    keys += ["trade", "po_type", "customer", "cust2", "dept", "owner", "contact",
+             "ship_to", "order_date", "due_date", "st_cur", "sales_owner"]
+    out_rows = [[r.get(k, "") for k in keys] for r in rows]
+    sheets = [{"name": f"작업일정표 {_y}-{_m:02d}", "headers": headers, "rows": out_rows}]
+    return _make_xlsx_response(sheets, f"작업일정표_{_y}-{_m:02d}")
+
+
+@app.get("/sales/schedule/bulk-template.xlsx")
+async def schedule_bulk_template(request: Request):
+    """v5H226z316 (대표 지시): 예전 일정 '일괄 등록'용 빈 양식(.xlsx) 다운로드.
+    (업로드→일괄 생성은 다음 단계로 제공 — 본 라우트는 양식 다운로드만)"""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.worksheet.datavalidation import DataValidation
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "일괄등록"
+    headers = ["진행사업부*", "프로젝트명", "모델명", "장비명", "고객사*(등록)", "2차고객사",
+               "발주일(YYYY-MM-DD)", "납기(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",
+               "PO유형", "담당자", "연락처", "납품위치", "비고"]
+    ws.append(headers)
+    knk_fill = PatternFill("solid", fgColor="A5282C")
+    white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for ci, _ in enumerate(headers, 1):
+        c = ws.cell(1, ci)
+        c.font = white; c.fill = knk_fill
+        c.alignment = Alignment(horizontal="center", vertical="center"); c.border = border
+        ws.column_dimensions[c.column_letter].width = 16
+    ws.freeze_panes = "A2"
+    dv_biz = DataValidation(type="list", formula1='"검사기,자동화,라이프밸류"', allow_blank=False)
+    dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
+    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
+    for dv in (dv_biz, dv_trade, dv_ccy):
+        ws.add_data_validation(dv)
+    dv_biz.add("A2:A500"); dv_ccy.add("K2:K500"); dv_trade.add("L2:L500")
+    ws.append(["검사기", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
+               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "신규",
+               "홍길동", "010-0000-0000", "고객사 본사", "예시 행 — 삭제 후 작성하세요"])
+    for ci in range(1, len(headers) + 1):
+        ws.cell(2, ci).font = Font(color="999999", italic=True)
+    ws2 = wb.create_sheet("작성안내")
+    guide = [
+        ["항목", "설명"],
+        ["진행사업부 *", "필수. 검사기 / 자동화 / 라이프밸류 중 선택(드롭다운)"],
+        ["프로젝트명", "비우면 장비명으로 대체됩니다"],
+        ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
+        ["고객사 *(등록)", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
+        ["2차 고객사", "최종 고객(있을 때만)"],
+        ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30)"],
+        ["수량 / 단가", "숫자만 입력"],
+        ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
+        ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
+        ["* 표시", "필수 항목"],
+        ["주의", "2행의 '예시 행'은 삭제 후 작성하세요. 업로드→일괄 생성 기능은 다음 단계로 제공됩니다."],
+    ]
+    for r in guide:
+        ws2.append(r)
+    ws2.column_dimensions["A"].width = 20
+    ws2.column_dimensions["B"].width = 72
+    for ci in (1, 2):
+        cc = ws2.cell(1, ci); cc.font = white; cc.fill = knk_fill
+    import io
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    from urllib.parse import quote
+    fn = "작업일정표_일괄등록_양식.xlsx"
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}"})
+
+
 @app.get("/sales/schedule", response_class=HTMLResponse)
 async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""):
     u = get_user(request)

@@ -210,6 +210,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border-color:var(--knk-red);">＋ 신규 등록</button>
     <button type="button" onclick="schedFullscreen()">⛶ 전체화면 보기</button>
     <button type="button" onclick="schedPrint()">🖨 화면 인쇄</button>
+    {# v5H226z316 (대표 지시): 엑셀 내보내기 + 일괄등록 양식 다운로드 #}
+    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'">📥 엑셀로 저장</button>
+    <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'">📄 일괄등록 양식</button>
     <div class="cols-menu">
       <button type="button" class="tool-btn" onclick="toggleColsMenu(event)">☷ 칸 표시/숨기기 ▾</button>
       <div class="cols-pop" id="colsPop"></div>
