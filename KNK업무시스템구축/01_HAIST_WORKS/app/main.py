@@ -14662,6 +14662,45 @@ async def projects_import_template_kind(request: Request, kind: str):
     )
 
 
+@app.get("/projects/import-template/biz/{biz}")
+async def projects_import_template_biz(request: Request, biz: str):
+    """v5H226z324 (대표 지시): 탭별(사업부별) 전용 일괄등록 양식 — 통합 양식에서 해당 시트만 남겨 다운로드.
+    검사기(T)/자동화(M)/라이프밸류(L)/기타(E). 시트명 보존 → 기존 /projects/import-xlsx 파서가 그대로 인식."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    _bz = (biz or "").strip().upper()
+    _sheet = {"T": "T_검사기", "M": "M_자동화", "L": "L_라이프밸류", "E": "E_기타"}.get(_bz)
+    _label = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}.get(_bz)
+    if not _sheet:
+        return JSONResponse({"error": "알 수 없는 사업부"}, 404)
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_양식.xlsx"
+    if not p.exists():
+        return JSONResponse({"error": "통합 양식 파일을 찾을 수 없습니다"}, 404)
+    try:
+        from openpyxl import load_workbook
+        import io as _io
+        wb = load_workbook(str(p))
+        keep = {"안내", _sheet}
+        for sn in list(wb.sheetnames):
+            if sn not in keep:
+                del wb[sn]
+        if _sheet in wb.sheetnames:
+            wb.active = wb.sheetnames.index(_sheet)
+        buf = _io.BytesIO(); wb.save(buf); buf.seek(0)
+    except Exception as e:
+        return JSONResponse({"error": f"양식 생성 실패: {e}"}, 500)
+    from urllib.parse import quote
+    fn = f"KNK_일괄등록_{_label}_양식.xlsx"
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+
+
 @app.post("/projects/import-xlsx")
 async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
                                migrate_mode: str = Form("")):

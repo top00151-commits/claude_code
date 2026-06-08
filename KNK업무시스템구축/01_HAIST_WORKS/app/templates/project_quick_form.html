@@ -154,9 +154,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           <button type="submit" class="qf-save">＋ 등록</button>
         </div>
       </form>
-      <div class="qf-links">
-        <a href="/projects/new{% if embed %}?embed=1{% endif %}">📥 엑셀 일괄 등록 (여러 건)</a>
-      </div>
+      {# v5H226z324(대표 지시): 이 탭(사업부) 전용 일괄 등록 — 양식 다운로드 + 엑셀 업로드 #}
+      {% set bulk_biz = preset_biz %}{% set bulk_label = {'T':'검사기','M':'자동화','L':'라이프밸류'}.get(preset_biz,'검사기') %}
+      {% include "_v5_partials/bulk_import.html" %}
     </div>
   </div>
 </main>
