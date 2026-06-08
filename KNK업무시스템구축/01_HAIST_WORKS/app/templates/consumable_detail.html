@@ -115,6 +115,8 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
 .co-tools .cols-pop.show { display:block; }
 .co-tools .cols-pop label { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
 .co-tools .cols-pop label:hover { background:#fdf3f3; }
+.co-tools .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+.co-tools .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
 .co-tools .co-hint { font-size:11px; color:var(--qv-ink-3); }
 /* 전체화면(표 영역만) */
 .co-items-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; background:#fff; padding:16px; max-height:100vh; overflow:auto; }
@@ -607,11 +609,16 @@ const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 
   });
 
   // 칸 표시/숨기기 메뉴
+  function showAllItemCols(){  // v5H226z315 (대표 지시): 전체보기 — 숨긴 칸 모두 다시 표시
+    for(let i=0;i<N;i++) hidden[i]=false; applyView(); buildColsMenu(); save();
+  }
   function buildColsMenu(){
     const pop=document.getElementById('coColsPop'); if(!pop) return;
-    pop.innerHTML = ITEMS_COL_LABELS.slice(0,N).map((lab,i)=>
+    pop.innerHTML = '<button type="button" class="cols-allbtn" id="coColsAllBtn">✓ 전체보기 (모두 표시)</button>'
+      + ITEMS_COL_LABELS.slice(0,N).map((lab,i)=>
       '<label><input type="checkbox" data-ci="'+i+'" '+(hidden[i]?'':'checked')+'> '+lab+'</label>'
     ).join('');
+    const ab=pop.querySelector('#coColsAllBtn'); if(ab) ab.addEventListener('click', showAllItemCols);
     pop.querySelectorAll('input').forEach(inp=>{
       inp.addEventListener('change',()=>{ const i=+inp.dataset.ci; hidden[i]=!inp.checked; applyView(); save(); });
     });
