@@ -55,12 +55,14 @@ html,body{background:#fff!important;overflow:auto!important;}
   </div></div>
 
   <div class="qf-wrap">
+    {# v5H226z322(대표 지시): 등록 유형 탭(검사기/자동화/라이프밸류/기타/소모품) — 탭이 곧 사업부 #}
+    {% set reg_active = preset_biz %}{% include "_v5_partials/reg_tabs.html" %}
     <div class="qf-card">
       <div class="qf-err" id="qfErr"></div>
       <form id="quickForm" method="post" action="/projects/new">
         {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
         <input type="hidden" name="quick" value="1">
-        <input type="hidden" name="biz_div" id="qBizDiv" value="T">
+        <input type="hidden" name="biz_div" id="qBizDiv" value="{{ preset_biz|default('T') }}">
         <input type="hidden" name="project_type" id="qPtype" value="NEW_EQUIP">
         <input type="hidden" name="status" value="진행중">
         {% if not can_money %}<input type="hidden" name="currency" value="KRW">{% endif %}
@@ -73,16 +75,10 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="unit_currency[]" id="qUnitCur" value="KRW">
 
         <div class="qf-grid">
+          {# v5H226z322(대표 지시): 사업부는 상단 탭으로 대체 → 드롭다운 제거. 고객사 칸 확대 #}
           <div class="qf-sec">기본</div>
-          <div class="qf-f"><label>사업부 <span class="req">*</span></label>
-            <select id="qBiz" onchange="qSetBiz()">
-              <option value="T"{% if preset_biz=='T' %} selected{% endif %}>🔬 검사기</option>
-              <option value="M"{% if preset_biz=='M' %} selected{% endif %}>⚙ 자동화</option>
-              <option value="L"{% if preset_biz=='L' %} selected{% endif %}>💄 라이프밸류</option>
-            </select>
-          </div>
           <div class="qf-f"><label>관리번호</label><div class="qf-code">자동 발급</div></div>
-          <div class="qf-f"><label>고객사 <span class="req">*</span></label>
+          <div class="qf-f span2"><label>고객사 <span class="req">*</span></label>
             <input list="qCustList" name="customer_name" placeholder="고객사명" autocomplete="off">
             <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
           </div>
@@ -157,19 +153,13 @@ html,body{background:#fff!important;overflow:auto!important;}
         </div>
       </form>
       <div class="qf-links">
-        <a href="/projects/new{% if embed %}?embed=1{% endif %}">기타 유형 · 엑셀 일괄 등록</a>
-        <a href="/consumables/new{% if embed %}?embed=1{% endif %}">📦 소모품 등록</a>
+        <a href="/projects/new{% if embed %}?embed=1{% endif %}">📥 엑셀 일괄 등록 (여러 건)</a>
       </div>
     </div>
   </div>
 </main>
 </div>
 <script>
-function qSetBiz(){
-  var v=document.getElementById('qBiz').value;
-  document.getElementById('qBizDiv').value=v;
-  document.getElementById('qPtype').value='NEW_EQUIP';  // 검사기/자동화/라이프밸류
-}
 function qToggleFx(){
   var sel=document.getElementById('qCurrency'); if(!sel) return;
   var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
@@ -215,7 +205,6 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
   }
 })();
-qSetBiz();
 qToggleFx();
 qSyncShip();
 qSyncSec();

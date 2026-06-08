@@ -159,6 +159,8 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
   </div>
 
+  {# v5H226z322(대표 지시): 신규 등록 유형 탭 — 기타(OTHER). 수정 화면(project)엔 미표시 #}
+  {% if not project %}<div style="padding:0 var(--content-pad,32px);">{% set reg_active='OTHER' %}{% include "_v5_partials/reg_tabs.html" %}</div>{% endif %}
   <form method="post" action="{% if project %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}" class="pf-wrap">
     {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}{# v5H226z274: 모달 등록 #}
     {# 단계는 워크플로우(제안→수주확정→납품)가 자동 진행 — 폼에서는 숨김 #}

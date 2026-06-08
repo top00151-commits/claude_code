@@ -1,0 +1,15 @@
+{# v5H226z322 (대표 지시): 신규 등록 유형 탭 — 검사기/자동화/라이프밸류/기타/소모품.
+   reg_active in ('T','M','L','OTHER','CO'). embed 시 모달 iframe 안에서 전환. #}
+<div class="reg-tabs">
+  <a class="reg-tab{% if reg_active=='T' %} on{% endif %}" href="/projects/quick?biz_div=T{% if embed %}&embed=1{% endif %}">🔬 검사기</a>
+  <a class="reg-tab{% if reg_active=='M' %} on{% endif %}" href="/projects/quick?biz_div=M{% if embed %}&embed=1{% endif %}">⚙ 자동화</a>
+  <a class="reg-tab{% if reg_active=='L' %} on{% endif %}" href="/projects/quick?biz_div=L{% if embed %}&embed=1{% endif %}">💄 라이프밸류</a>
+  <a class="reg-tab{% if reg_active=='OTHER' %} on{% endif %}" href="/projects/new?type=OTHER{% if embed %}&embed=1{% endif %}">🗂 기타</a>
+  <a class="reg-tab co{% if reg_active=='CO' %} on{% endif %}" href="/consumables/new{% if embed %}?embed=1{% endif %}">📦 소모품</a>
+</div>
+<style>
+.reg-tabs { display:flex; gap:4px; flex-wrap:wrap; margin:4px 0 18px; border-bottom:2px solid var(--qv-line,#eef0f4); }
+.reg-tab { padding:9px 17px; font-size:13.5px; font-weight:700; color:var(--qv-ink-3,#64748b); text-decoration:none; border:1px solid transparent; border-bottom:none; border-radius:9px 9px 0 0; margin-bottom:-2px; white-space:nowrap; }
+.reg-tab:hover { color:var(--knk-red,#b01010); background:#faf7f7; }
+.reg-tab.on { color:var(--knk-red,#b01010); background:#fff; border-color:var(--qv-line,#eef0f4); border-bottom:2px solid #fff; }
+</style>
