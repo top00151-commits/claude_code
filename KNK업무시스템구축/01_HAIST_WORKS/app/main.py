@@ -12965,7 +12965,7 @@ async def schedule_bulk_template(request: Request):
     wb = Workbook()
     ws = wb.active
     ws.title = "일괄등록"
-    headers = ["진행사업부*", "프로젝트명", "모델명", "장비명", "고객사*(등록)", "2차고객사",
+    headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사*(등록)", "2차고객사",
                "발주일(YYYY-MM-DD)", "납기(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",
                "PO유형", "담당자", "연락처", "납품위치", "비고"]
     ws.append(headers)
@@ -12979,13 +12979,12 @@ async def schedule_bulk_template(request: Request):
         c.alignment = Alignment(horizontal="center", vertical="center"); c.border = border
         ws.column_dimensions[c.column_letter].width = 16
     ws.freeze_panes = "A2"
-    dv_biz = DataValidation(type="list", formula1='"검사기,자동화,라이프밸류"', allow_blank=False)
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
-    for dv in (dv_biz, dv_trade, dv_ccy):
+    for dv in (dv_trade, dv_ccy):
         ws.add_data_validation(dv)
-    dv_biz.add("A2:A500"); dv_ccy.add("K2:K500"); dv_trade.add("L2:L500")
-    ws.append(["검사기", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
+    dv_ccy.add("K2:K500"); dv_trade.add("L2:L500")
+    ws.append(["005T2601", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
                "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "신규",
                "홍길동", "010-0000-0000", "고객사 본사", "예시 행 — 삭제 후 작성하세요"])
     for ci in range(1, len(headers) + 1):
@@ -12993,7 +12992,7 @@ async def schedule_bulk_template(request: Request):
     ws2 = wb.create_sheet("작성안내")
     guide = [
         ["항목", "설명"],
-        ["진행사업부 *", "필수. 검사기 / 자동화 / 라이프밸류 중 선택(드롭다운)"],
+        ["관리번호 *", "필수. 이미 부여된 관리번호를 그대로 입력(자동 생성 안 함). 형식 [일련3][사업부 T/M/L/E/C][YYMM] — 예: 005T2601 = 2026년 1월·검사기. 사업부는 관리번호에서 자동 인식됩니다."],
         ["프로젝트명", "비우면 장비명으로 대체됩니다"],
         ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
         ["고객사 *(등록)", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
@@ -13002,8 +13001,10 @@ async def schedule_bulk_template(request: Request):
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
+        ["상태(납품완료·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
+        ["수주번호", "이 일괄등록에는 없음(추후 적용)."],
         ["* 표시", "필수 항목"],
-        ["주의", "2행의 '예시 행'은 삭제 후 작성하세요. 업로드→일괄 생성 기능은 다음 단계로 제공됩니다."],
+        ["주의", "2행의 '예시 행'은 삭제 후 작성하세요."],
     ]
     for r in guide:
         ws2.append(r)
