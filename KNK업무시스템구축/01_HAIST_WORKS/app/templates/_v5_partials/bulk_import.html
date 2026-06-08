@@ -111,7 +111,9 @@ function renderImportPreview(j) {
           ? '<span style="color:#7c3aed;font-size:11px;font-weight:700;">↪ 같은 관리번호 합침</span>'
           : (r._followup
               ? '<span style="color:#1d4ed8;font-size:11px;font-weight:700;">↪ 추가발주</span>'
-              : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>')));
+              : (r._warn
+                  ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⚠ ' + escapeHtml(r._warn) + '</span>'
+                  : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>'))));
     var sfMap = { 'ASSEMBLY': "ASS'Y", 'PARTS': '부품', 'ETC': '기타' };
     var sfLabel = sfMap[r.shipment_form] || "ASS'Y";
     var sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:#bbb;">-</span>';

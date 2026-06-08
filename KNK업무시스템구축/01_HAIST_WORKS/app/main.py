@@ -14302,6 +14302,12 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
         _gseq = {}
+        # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집 + 파일내 중복 감지
+        _manual_codes = set(); _auto_used = set(); _seen_manual = set()
+        for _pr in range(2, (ws.max_row or 1) + 1):
+            _pm = (_to_str(ws.cell(_pr, _cM).value).upper() if _cM else "")
+            if _pm and _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", _pm):
+                _manual_codes.add(_pm)
 
         def _gen_code(_biz, _od):
             if not _genc:
@@ -14312,10 +14318,13 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 _odd = None
             _base = _genc(_biz, today=_odd)            # 'NNN{biz}{YYMM}' (DB max+1)
             _ym = _base[4:]; _key = (_biz, _ym)
-            if _key not in _gseq:
-                _gseq[_key] = int(_base[:3]); return _base
-            _gseq[_key] += 1
-            return f"{_gseq[_key]:03d}{_biz}{_ym}"
+            _seq = (_gseq[_key] + 1) if _key in _gseq else int(_base[:3])
+            _cand = f"{_seq:03d}{_biz}{_ym}"
+            # DB 기존 + 같은 파일 수동코드 + 이미 자동발급한 코드와 충돌 시 다음 빈 번호로
+            while _cand in code_set or _cand in _manual_codes or _cand in _auto_used:
+                _seq += 1; _cand = f"{_seq:03d}{_biz}{_ym}"
+            _gseq[_key] = _seq; _auto_used.add(_cand)
+            return _cand
 
         _tb = (tab_biz or "").strip().upper()
         if _tb not in ("T", "M", "L", "E"):
@@ -14329,7 +14338,8 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             model = _to_str(_g(_cMo)); cust2 = _to_str(_g(_cC2)); note_v = _to_str(_g(_cNt))
             if not any([mgmt, name, equip, cust, model]):
                 continue
-            if ("예시" in note_v and "삭제" in note_v):      # 예시 행 스킵
+            # v5H226z327 (적대검토): 예시 행 스킵 다중화 — 비고만 지운 예시행도 프로젝트명 '예)' 신호로 스킵
+            if ("예시" in note_v and "삭제" in note_v) or name.startswith("예)"):
                 continue
             od = _to_date(_g(_cOd)); dd = _to_date(_g(_cDd))
             errors = []; warn = ""
@@ -14338,22 +14348,27 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                     errors.append("관리번호 형식 오류 (예: 005T2601)"); biz = _tb
                 else:
                     biz = mgmt[3]
-                if mgmt in code_set or mgmt in _file_codes:
-                    errors.append(f"이미 등록/중복된 관리번호 — 건너뜀: {mgmt}")
-                _file_codes.add(mgmt); _auto = False
+                if mgmt in code_set:
+                    errors.append(f"이미 등록된 관리번호 — 건너뜀: {mgmt}")
+                elif mgmt in _seen_manual:
+                    errors.append(f"파일 내 중복 관리번호 — 건너뜀: {mgmt}")
+                _seen_manual.add(mgmt); _auto = False
             else:
                 biz = _tb
                 if not od:
                     errors.append("관리번호 자동발급에는 발주일이 필요합니다")
                 mgmt = _gen_code(biz, od) if od else ""
-                _file_codes.add(mgmt); _auto = True
+                _auto = True
             _mc_name, _mc_score = _match_customer(cust) if cust else (None, 0.0)
             if cust and _mc_score >= 0.8:
                 customer_name = _mc_name
+                # v5H226z327 (적대검토·연결성 표면화): 정확일치가 아닌 퍼지 매칭은 미리보기에 노출(조용한 치환 방지)
+                if _mc_score < 1.0 and _norm_cust(cust) != _norm_cust(_mc_name):
+                    warn = f"고객사 자동매칭: '{cust}' → '{_mc_name}' ({int(round(_mc_score * 100))}%)"
             else:
                 customer_name = cust
                 if cust:
-                    warn = "미등록 고객사 (텍스트로 저장)"
+                    warn = "미등록 고객사 (텍스트로만 저장 · 미연결)"
             if not cust:
                 errors.append("고객사 누락")
             if not name and not equip:
@@ -15047,8 +15062,9 @@ async def projects_import_confirm(request: Request):
                 "pm": r.get("pm_name") or "",
                 "sales": r.get("sales_name") or "",
                 "note": r.get("note") or "",
-                # v5H226z241: 고객사담당자
+                # v5H226z241: 고객사담당자 / v5H226z327: 연락처도 전달(누락 수정)
                 "cc_name": r.get("cc_name") or "",
+                "cc_phone": r.get("cc_phone") or "",
                 # v5H226z172: 시트별 유형 — E→기타(OTHER), C→소모품(CONSUMABLE), T/M/L→신규장비
                 "project_type": {"E": "OTHER", "C": "CONSUMABLE"}.get(biz_div, "NEW_EQUIP"),
                 # v5H226z241: 소모품 연결 관리코드 → 부모 장비 (해석된 id, 없으면 None)
