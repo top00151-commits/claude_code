@@ -90,10 +90,11 @@ html,body{background:#fff!important;overflow:auto!important;}
             <select name="is_export"><option value="0">내수</option><option value="1">수출</option></select>
           </div>
 
-          <div class="qf-f span2"><label>프로젝트명 <span class="req">*</span></label>
+          {# v5H226z320(대표 지시): 모델명·장비명 입력칸이 너무 좁아 → 프로젝트명(전체)·모델명/장비명(각 절반)로 확대 #}
+          <div class="qf-f span2" style="grid-column:1/-1;"><label>프로젝트명 <span class="req">*</span></label>
             <input name="name" placeholder="예: 압착 자동화설비 1호기"></div>
-          <div class="qf-f"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명"></div>
-          <div class="qf-f"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
+          <div class="qf-f span2"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명"></div>
+          <div class="qf-f span2"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
 
           <div class="qf-f"><label>PO유형</label>
             <select name="po_type"><option value="신규">신규</option><option value="추가">추가</option></select>
