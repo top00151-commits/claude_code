@@ -14304,11 +14304,17 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _gseq = {}
         # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집.
         # v5H226z328 (대표 지시): _seen_new = 파일 내에서 '신규(프로젝트 생성)'로 잡힌 코드 — 이후 같은 코드는 추가발주.
-        _manual_codes = set(); _auto_used = set(); _seen_new = set()
+        # v5H226z329 (대표 지시): _code_counts = 파일 내 같은 관리번호 출현 횟수 → DB에 없던 새 코드가 2회+면 첫 행도 발주(SO)로 기록.
+        _manual_codes = set(); _auto_used = set(); _seen_new = set(); _code_counts = {}
         for _pr in range(2, (ws.max_row or 1) + 1):
             _pm = (_to_str(ws.cell(_pr, _cM).value).upper() if _cM else "")
+            _pn = (_to_str(ws.cell(_pr, _cN).value) if _cN else "")
+            _pnt = (_to_str(ws.cell(_pr, _cNt).value) if _cNt else "")
+            if ("예시" in _pnt and "삭제" in _pnt) or _pn.startswith("예)"):
+                continue   # 예시 행은 출현 카운트에서 제외(메인 루프와 동일 스킵 기준)
             if _pm and _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", _pm):
                 _manual_codes.add(_pm)
+                _code_counts[_pm] = _code_counts.get(_pm, 0) + 1
 
         def _gen_code(_biz, _od):
             if not _genc:
@@ -14344,7 +14350,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 continue
             od = _to_date(_g(_cOd)); dd = _to_date(_g(_cDd))
             errors = []; warn = ""
-            _followup = False
+            _followup = False; _force_first_so = False
             if mgmt:
                 if not _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt):
                     errors.append("관리번호 형식 오류 (예: 005T2601)"); biz = _tb
@@ -14356,6 +14362,10 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                     _followup = True
                 else:
                     _seen_new.add(mgmt)
+                    # v5H226z329 (대표 지시): DB에 없던 새 코드가 파일에 2회+면 첫 행도 발주(SO)로 기록(금액 합계 누락 방지).
+                    #   (단일 발주 새 코드는 헤더만 — 누락 없음·불필요한 수주번호 미생성)
+                    if _code_counts.get(mgmt, 0) >= 2:
+                        _force_first_so = True
                 _auto = False
             else:
                 biz = _tb
@@ -14405,7 +14415,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "status": "초기협의",                # 등록 후 사용자가 직접 변경(수주번호 미생성)
                 "shipment_form": "ASSEMBLY",
                 "two_tier_order": 1 if cust2 else 0,
-                "_followup": _followup, "_auto_mgmt": _auto, "_warn": warn,
+                "_followup": _followup, "_force_first_so": _force_first_so, "_auto_mgmt": _auto, "_warn": warn,
                 "_errors": errors,
                 "_is_warning_only": (len(errors) == 0 and bool(warn)),
             })
@@ -15085,7 +15095,9 @@ async def projects_import_confirm(request: Request):
             status_v = r.get("status") or ""
             # v5H226z240 (대표 지시): 소모품(사업부 C)은 관리번호·호기·수주(SO) 미사용 →
             #   자동 SO 생성 건너뜀. 프로젝트 레코드(품명·금액·상태·납기·비고)만 단순 저장.
-            if new_pid and status_v in _logi.WON_STATUSES and biz_div != "C":
+            # v5H226z329 (대표 지시): DB에 없던 새 관리번호가 파일에 2회+면 첫 행도 발주(SO)를 강제 발급(금액 합계 누락 방지).
+            #   초기협의여도 여기서 SO 생성 → 아래 상태복원(PROJ_IMPORT_STATUSES, 초기협의 포함)이 프로젝트 상태를 초기협의로 되돌림.
+            if new_pid and biz_div != "C" and (status_v in _logi.WON_STATUSES or r.get("_force_first_so")):
                 try:
                     with db_session() as c:
                         exists = c.execute(
