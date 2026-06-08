@@ -12997,12 +12997,12 @@ async def schedule_bulk_template(request: Request):
         ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
         ["고객사 *(등록)", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
         ["2차 고객사", "최종 고객(있을 때만)"],
-        ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30)"],
+        ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
         ["상태(납품완료·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
-        ["수주번호", "이 일괄등록에는 없음(추후 적용)."],
+        ["수주번호", "직접 입력 안 함 — 발주일이 있으면 그 발주년월 기준으로 자동 발행(SO-YYYYMM-####)됩니다. 발주일이 없으면 미발행."],
         ["* 표시", "필수 항목"],
         ["주의", "2행의 '예시 행'은 삭제 후 작성하세요."],
     ]
@@ -14950,6 +14950,7 @@ async def projects_import_confirm(request: Request):
     created = []
     failed = []
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
+    so_skipped = []    # v5H226z330: 발주일 없어 SO(수주번호) 미발행한 비소모품 신규행(정보성 안내) — 조용히 넘기지 않고 수집
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     for r in rows:
         try:
@@ -15097,7 +15098,17 @@ async def projects_import_confirm(request: Request):
             #   자동 SO 생성 건너뜀. 프로젝트 레코드(품명·금액·상태·납기·비고)만 단순 저장.
             # v5H226z329 (대표 지시): DB에 없던 새 관리번호가 파일에 2회+면 첫 행도 발주(SO)를 강제 발급(금액 합계 누락 방지).
             #   초기협의여도 여기서 SO 생성 → 아래 상태복원(PROJ_IMPORT_STATUSES, 초기협의 포함)이 프로젝트 상태를 초기협의로 되돌림.
-            if new_pid and biz_div != "C" and (status_v in _logi.WON_STATUSES or r.get("_force_first_so")):
+            # v5H226z330 (대표 지시): 단건 등록(z194)과 통일 — 일괄등록도 '발주일이 있으면' 상태·출현횟수
+            #   무관하게 비소모품 새 프로젝트에 수주번호(SO)를 발행한다(발행 기준일 = 그 행 발주일).
+            #   발주일이 없으면 SO 번호(SO-YYYYMM-####)의 기준 년월이 없어 미발행(헤더만) + 안내로 표면화.
+            #   (기존 WON_STATUSES / _force_first_so 케이스는 모두 '발주일 있음'에 포섭 — 발주일 있는 정상행 회귀 없음)
+            _row_has_od = bool((r.get("order_date") or "").strip())
+            if new_pid and biz_div != "C" and not _row_has_od:
+                # 발주일 없어 SO 미발행 — 조용히 넘기지 않고 수집(연결성 표면화 / 대표 결정: 미발행+안내)
+                so_skipped.append({"row_no": r.get("row_no"), "name": name,
+                                   "mgmt_code": new_code,
+                                   "reason": "발주일 없음 — 수주번호 미발행(헤더만 생성)"})
+            if new_pid and biz_div != "C" and _row_has_od:
                 try:
                     with db_session() as c:
                         exists = c.execute(
@@ -15206,6 +15217,9 @@ async def projects_import_confirm(request: Request):
         # v5H226z262: SO(수주·호기) 생성 실패 목록 — 비어있지 않으면 화면에서 경고 노출 필요
         "so_warning_count": len(so_warnings),
         "so_warnings": so_warnings,
+        # v5H226z330: 발주일 없어 수주번호(SO) 미발행한 행(정보성) — 화면에서 안내 노출
+        "so_skipped_count": len(so_skipped),
+        "so_skipped": so_skipped,
     })
 
 

@@ -114,6 +114,14 @@ function renderImportPreview(j) {
               : (r._warn
                   ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⚠ ' + escapeHtml(r._warn) + '</span>'
                   : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>'))));
+    // v5H226z330 (대표 지시): 수주번호(SO) 발행 예정 안내 — 확정 로직과 동일 조건
+    //   (추가발주/오류 아님 · 비소모품 · 발주일 있으면 발행, 없으면 미발행). 발행 기준일 = 발주일.
+    var soHint = '';
+    if (!hasErr && !r._followup && r.biz_div !== 'C') {
+      soHint = (r.order_date && String(r.order_date).trim())
+        ? '<div style="color:#1d4ed8;font-size:10px;margin-top:2px;">→ 수주번호 발행 (발주일 ' + escapeHtml(String(r.order_date)) + ')</div>'
+        : '<div style="color:#b45309;font-size:10px;margin-top:2px;">→ 발주일 없어 수주번호 미발행</div>';
+    }
     var sfMap = { 'ASSEMBLY': "ASS'Y", 'PARTS': '부품', 'ETC': '기타' };
     var sfLabel = sfMap[r.shipment_form] || "ASS'Y";
     var sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:#bbb;">-</span>';
@@ -133,7 +141,7 @@ function renderImportPreview(j) {
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmt(r.unit_price) + ' × ' + r.unit_qty + ' = <b>' + fmt(r.amount) + '</b> ' + r.currency + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + finA + '</td>' +
-      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + '</td>';
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + soHint + '</td>';
     tb.appendChild(tr);
   });
   var btn = document.getElementById('importConfirmBtn');
@@ -170,6 +178,10 @@ async function confirmImport() {
   }
   if (j.so_warning_count > 0) {
     msg += '\n\n⚠ 수주·호기 생성 실패 ' + j.so_warning_count + '건 (프로젝트는 등록됨)';
+  }
+  // v5H226z330: 발주일 없어 수주번호 미발행한 행 안내 (정보성)
+  if (j.so_skipped_count > 0) {
+    msg += '\n\nℹ 발주일 없어 수주번호 미발행 ' + j.so_skipped_count + '건 (헤더만 등록 · 발주일 입력 후 재발행 가능)';
   }
   alert(msg);
   closeImportPreview();
