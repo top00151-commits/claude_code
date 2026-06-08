@@ -167,7 +167,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 /* z333(대표 지시): 인쇄 옵션 모달 — 출력 컬럼·날짜 구간 선택 후 인쇄(회의 출력용) */
 .print-modal { display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.4); }
 .print-modal.show { display:flex; align-items:center; justify-content:center; }
-.print-card { background:#fff; border-radius:12px; width:min(560px,92vw); max-height:86vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
+.print-card { background:#fff; border-radius:12px; width:min(1040px,96vw); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
 .pm-head { display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); font-weight:800; font-size:15px; }
 .pm-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
 /* z334(대표 지시): 팝업 헤더를 잡고 드래그 이동 (배경 딤은 그대로 유지=B안). 버튼은 클릭 유지 */
@@ -187,13 +187,20 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .pm-btns { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--line); }
 .pm-btns button { padding:8px 18px; border:1px solid var(--line); border-radius:8px; background:var(--paper-2); font-weight:700; cursor:pointer; font-size:13px; }
 .pm-btns .pm-go { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+/* z335(대표 지시): 인쇄 실제 비율 미리보기 — A4 가로 한 페이지 폭 기준으로 표를 축소해 글자 크기까지 실제처럼 */
+.pp-frame { border:1px solid var(--line); border-radius:8px; background:#eceae3; padding:10px; max-height:48vh; overflow:auto; }
+.pp-scaler { position:relative; }
+.pp-page { background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.18); }
+.pp-page .col-resizer, .pp-page .sort-ind { display:none; }
+.pp-page .sched .c1, .pp-page .sched .c2, .pp-page .sched .c3, .pp-page .sched thead th { position:static; }
 @media print {
   @page { size: landscape; margin: 7mm; }
   .print-modal { display:none !important; }
   body * { visibility: hidden; }
   .sched-wrap, .sched-wrap * { visibility: visible; }
   .sched-wrap { position:absolute; left:0; top:0; margin:0; border:none; max-height:none; overflow:visible; width:100%; }
-  table.sched { width:100% !important; }   /* 비율 그대로 페이지 폭 100% */
+  table.sched { width:100% !important; }   /* 비율 그대로 페이지 폭 100% (가로 한 페이지 꽉 채우기) */
+  .sched tbody tr, .sched thead { break-inside:avoid; }   /* z335: 행이 페이지 경계에서 잘리지 않게 */
   .col-resizer { display:none; }
   .sched th, .sched td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sched .c1, .sched .c2, .sched .c3, .sched thead th { position:static; }
@@ -400,6 +407,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
             <input type="number" id="printDayTo" min="1" max="{{ days|length }}"> 일
             <span class="pm-hint">(이 달 1~{{ days|length }}일 중 선택)</span>
           </div>
+        </div>
+        <div class="pm-sec">
+          <div class="pm-sec-t">미리보기 (실제 출력 비율) <span class="pm-hint" id="printPagesNote"></span></div>
+          <div class="pp-frame" id="printPreview"></div>
         </div>
       </div>
       <div class="pm-btns">
@@ -654,9 +665,10 @@ function openPrintModal(){
   if(f) f.value=dayFrom(); if(t) t.value=dayTo();   // 기본 = 현재 날짜 표시 구간
   const m=document.getElementById('printModal'); if(m) m.classList.add('show');
   _resetCardPos('.print-card');   // z334: 다시 열 때는 중앙으로 복귀
+  setTimeout(renderPrintPreview, 30);   // z335: 실제 비율 미리보기
 }
 function closePrintModal(){ const m=document.getElementById('printModal'); if(m) m.classList.remove('show'); }
-function printColsAll(on){ document.querySelectorAll('#printColsList input[data-pk]').forEach(i=>{ i.checked=on; }); }
+function printColsAll(on){ document.querySelectorAll('#printColsList input[data-pk]').forEach(i=>{ i.checked=on; }); renderPrintPreview(); }
 function doPrint(){
   const snap=JSON.stringify(COLS);                  // 1) 현재 설정 스냅샷(복원용)
   // 2) 선택한 컬럼/구간을 인쇄용으로 임시 적용 (기존 .col-collapsed 메커니즘 재사용)
@@ -672,6 +684,53 @@ function doPrint(){
   _on(window,'afterprint',restore);
   setTimeout(()=>{ window.print(); setTimeout(restore, 800); }, 60);   // 레이아웃 반영 후 인쇄 + 폴백 복원
 }
+// z335(대표 지시): 인쇄 실제 비율 미리보기 — 선택 컬럼/날짜 구간으로 표를 A4 가로 한 페이지 폭에 맞춰 축소 렌더.
+//   글자 크기까지 실제 출력과 같은 비율 → 작으면 컬럼 빼서 즉시 커지는 게 보임. (화면·COLS 안 건드림: 표 클론)
+const PRINT_PAGE_W = 1069, PRINT_PAGE_H = 741;   // A4 가로 인쇄가능영역(283×196mm @96dpi)
+function renderPrintPreview(){
+  const frame=document.getElementById('printPreview'), src=document.getElementById('schedTable');
+  if(!frame) return;
+  if(!src){ frame.innerHTML='<div style="padding:18px;color:#888;font-size:12px;">표시할 일정이 없습니다.</div>'; return; }
+  const sel=new Set(Array.from(document.querySelectorAll('#printColsList input[data-pk]:checked')).map(i=>i.dataset.pk));
+  let pf=parseInt(document.getElementById('printDayFrom').value)||1, pt=parseInt(document.getElementById('printDayTo').value)||LAST_DAY;
+  pf=Math.max(1,Math.min(LAST_DAY,pf)); pt=Math.max(1,Math.min(LAST_DAY,pt)); if(pf>pt){const x=pf;pf=pt;pt=x;}
+  const clone=src.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.querySelectorAll('.col-resizer,.sort-ind').forEach(e=>e.remove());
+  // 선택 컬럼만 표시(나머지 0폭 접기) — 화면 숨김(.col-collapsed)과 동일 방식
+  clone.querySelectorAll('[data-col]').forEach(el=>{
+    const k=el.getAttribute('data-col'), hide=!sel.has(k);
+    if(el.tagName==='COL'){ el.style.width=(hide?0:colState(k).w)+'px'; }
+    else { el.classList.toggle('col-collapsed', hide); }
+  });
+  // 날짜 구간 밖 칸 접기
+  clone.querySelectorAll('[data-day]').forEach(el=>{
+    const d=parseInt(el.getAttribute('data-day')), hide=(d<pf||d>pt);
+    if(el.tagName==='COL'){ el.style.width=(hide?0:dateW())+'px'; }
+    else { el.classList.toggle('col-collapsed', hide); }
+  });
+  clone.style.width='100%'; clone.style.margin='0';
+  frame.innerHTML='';
+  const scaler=document.createElement('div'); scaler.className='pp-scaler';
+  const page=document.createElement('div'); page.className='pp-page'; page.style.width=PRINT_PAGE_W+'px';
+  page.appendChild(clone); scaler.appendChild(page); frame.appendChild(scaler);
+  const avail=Math.max(220, frame.clientWidth-22);
+  const scale=Math.min(1, avail/PRINT_PAGE_W);
+  page.style.transformOrigin='top left'; page.style.transform='scale('+scale+')';
+  const ph=page.offsetHeight||1;                       // 스케일 전 레이아웃 높이
+  scaler.style.width=(PRINT_PAGE_W*scale)+'px'; scaler.style.height=(ph*scale)+'px';
+  const pages=Math.max(1, Math.ceil(ph/PRINT_PAGE_H));
+  const note=document.getElementById('printPagesNote');
+  if(note){
+    const ncol=sel.size, nday=Math.max(0,pt-pf+1);
+    note.textContent='— 컬럼 '+ncol+'개 · 날짜 '+nday+'일 · 세로 약 '+pages+'장 (글자가 작으면 컬럼을 빼보세요)';
+  }
+}
+// 옵션 변경 시 미리보기 즉시 갱신 (부모 위임 → innerHTML 재생성에도 유지)
+(function(){
+  const list=document.getElementById('printColsList'); if(list) _on(list,'change', renderPrintPreview);
+  ['printDayFrom','printDayTo'].forEach(id=>{ const el=document.getElementById(id); if(el) _on(el,'input', renderPrintPreview); });
+})();
 
 // ---- 셀 인라인 편집 ----
 let _editing=null;
