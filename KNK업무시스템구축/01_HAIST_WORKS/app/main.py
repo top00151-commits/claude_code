@@ -14172,7 +14172,7 @@ PROJ_IMPORT_STATUSES = {
 }
 
 
-def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False) -> list[dict]:
+def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_biz: str = "") -> list[dict]:
     """업로드된 엑셀을 파싱해 row dict 리스트 반환.
     각 dict: {sheet, row_no, biz_div, name, customer_name, ..., _errors: [...]}.
     빈 프로젝트명 행 / 예제 row(4) 자동 스킵."""
@@ -14272,6 +14272,123 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False) -> li
                 except ValueError:
                     continue
         return s  # 파싱 실패 시 원문 (검증에서 잡음)
+
+    # v5H226z326 (대표 지시): 관리번호 기반 일괄등록 양식(시트 '일괄등록', 헤더1행·데이터2행+).
+    #   지난 데이터 일괄 업로드용 — 관리번호 있으면 그대로 사용, 없으면 '그 행의 발주일자'로 YYMM 산정해
+    #   자동 발급(사업부=업로드 탭). 중복 관리번호는 건너뜀(에러). 기존 import-confirm 재사용 가능한 행 형식.
+    if "일괄등록" in wb.sheetnames:
+        import re as _re_m
+        from datetime import datetime as _dt_m
+        try:
+            from .database import generate_mgmt_code as _genc
+        except Exception:
+            _genc = None
+        ws = wb["일괄등록"]
+        _hmap = {}
+        for _ci in range(1, (ws.max_column or 1) + 1):
+            _hv = ws.cell(1, _ci).value
+            if _hv:
+                _hmap[str(_hv).strip()] = _ci
+
+        def _col(*subs):
+            for _k, _ci in _hmap.items():
+                for _s in subs:
+                    if _s in _k:
+                        return _ci
+            return None
+
+        _cM = _col("관리번호"); _cN = _col("프로젝트명"); _cMo = _col("모델"); _cE = _col("장비")
+        _cC = _col("고객사"); _cC2 = _col("2차"); _cOd = _col("발주일"); _cDd = _col("납기")
+        _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
+        _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
+        _gseq = {}
+
+        def _gen_code(_biz, _od):
+            if not _genc:
+                return ""
+            try:
+                _odd = _dt_m.strptime((_od or "")[:10], "%Y-%m-%d").date() if _od else None
+            except Exception:
+                _odd = None
+            _base = _genc(_biz, today=_odd)            # 'NNN{biz}{YYMM}' (DB max+1)
+            _ym = _base[4:]; _key = (_biz, _ym)
+            if _key not in _gseq:
+                _gseq[_key] = int(_base[:3]); return _base
+            _gseq[_key] += 1
+            return f"{_gseq[_key]:03d}{_biz}{_ym}"
+
+        _tb = (tab_biz or "").strip().upper()
+        if _tb not in ("T", "M", "L", "E"):
+            _tb = "T"
+        _rows = []
+        for _r in range(2, (ws.max_row or 1) + 1):
+            def _g(_ci):
+                return ws.cell(_r, _ci).value if _ci else None
+            mgmt = _to_str(_g(_cM)).upper()
+            name = _to_str(_g(_cN)); equip = _to_str(_g(_cE)); cust = _to_str(_g(_cC))
+            model = _to_str(_g(_cMo)); cust2 = _to_str(_g(_cC2)); note_v = _to_str(_g(_cNt))
+            if not any([mgmt, name, equip, cust, model]):
+                continue
+            if ("예시" in note_v and "삭제" in note_v):      # 예시 행 스킵
+                continue
+            od = _to_date(_g(_cOd)); dd = _to_date(_g(_cDd))
+            errors = []; warn = ""
+            if mgmt:
+                if not _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt):
+                    errors.append("관리번호 형식 오류 (예: 005T2601)"); biz = _tb
+                else:
+                    biz = mgmt[3]
+                if mgmt in code_set or mgmt in _file_codes:
+                    errors.append(f"이미 등록/중복된 관리번호 — 건너뜀: {mgmt}")
+                _file_codes.add(mgmt); _auto = False
+            else:
+                biz = _tb
+                if not od:
+                    errors.append("관리번호 자동발급에는 발주일이 필요합니다")
+                mgmt = _gen_code(biz, od) if od else ""
+                _file_codes.add(mgmt); _auto = True
+            _mc_name, _mc_score = _match_customer(cust) if cust else (None, 0.0)
+            if cust and _mc_score >= 0.8:
+                customer_name = _mc_name
+            else:
+                customer_name = cust
+                if cust:
+                    warn = "미등록 고객사 (텍스트로 저장)"
+            if not cust:
+                errors.append("고객사 누락")
+            if not name and not equip:
+                errors.append("프로젝트명/장비명 누락")
+            try:
+                _qty = int(float(_to_str(_g(_cQ)) or 1))
+            except Exception:
+                _qty = 1
+            try:
+                _price = float((_to_str(_g(_cP)) or "0").replace(",", ""))
+            except Exception:
+                _price = 0.0
+            _trade = _to_str(_g(_cTr))
+            _rows.append({
+                "sheet": "일괄등록", "row_no": _r,
+                "mgmt_code_input": mgmt, "biz_div": biz,
+                "name": name or equip, "model_name": model, "equip_name": equip,
+                "customer_name": customer_name, "secondary_customer": cust2,
+                "order_date": od, "due_date": dd,
+                "unit_qty": _qty, "unit_price": _price, "amount": _price * max(1, _qty),
+                "currency": (_to_str(_g(_cCur)) or "KRW").upper(),
+                "is_export": 1 if "수출" in _trade else 0,
+                "po_type": _to_str(_g(_cPo)) or "신규",
+                "cc_name": _to_str(_g(_cCc)),
+                "cc_phone": _to_str(_g(_cPh)),
+                "ship_to": _to_str(_g(_cSh)),
+                "note": note_v,
+                "status": "초기협의",                # 등록 후 사용자가 직접 변경(수주번호 미생성)
+                "shipment_form": "ASSEMBLY",
+                "two_tier_order": 1 if cust2 else 0,
+                "_followup": False, "_auto_mgmt": _auto, "_warn": warn,
+                "_errors": errors,
+                "_is_warning_only": (len(errors) == 0 and bool(warn)),
+            })
+        return _rows
 
     # v5H226z232 (대표 지시): 새 출고형태별 평면 양식 — 사업부=컬럼, 출고형태 고정. (부품은 별도 Step)
     _NEW_FLAT = {"ASSY장비": "ASSEMBLY", "기타": "ETC"}
@@ -14732,11 +14849,31 @@ async def projects_import_template_biz(request: Request, biz: str):
                  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
 
+@app.get("/projects/import-template-mgmt")
+async def projects_import_template_mgmt(request: Request):
+    """v5H226z326 (대표 지시): 관리번호 기반 일괄등록 표준 양식(4개 탭 공통) 다운로드 — 정적 파일 그대로."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_관리번호양식.xlsx"
+    if not p.exists():
+        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
+    return FileResponse(
+        str(p), filename="KNK_프로젝트_일괄등록_양식.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
+
+
 @app.post("/projects/import-xlsx")
 async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
-                               migrate_mode: str = Form("")):
+                               migrate_mode: str = Form(""), biz: str = Form("")):
     """엑셀 업로드 → 파싱 → 미리보기 JSON 반환 (v5H152).
-    v5H226z234: migrate_mode(과거 데이터 일괄이관 모드) 체크 시에만 고아 추가발주 신규 승격."""
+    v5H226z234: migrate_mode(과거 데이터 일괄이관 모드) 체크 시에만 고아 추가발주 신규 승격.
+    v5H226z326: biz = 업로드 탭 사업부(관리번호 없는 행의 자동발급 사업부)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -14745,7 +14882,7 @@ async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
     _migrate = str(migrate_mode).strip().lower() in ("1", "true", "on", "yes", "y")
     try:
         body = await xlsx.read()
-        rows = _proj_import_parse_xlsx(body, migrate_mode=_migrate)
+        rows = _proj_import_parse_xlsx(body, migrate_mode=_migrate, tab_biz=biz)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"파싱 실패: {e}"}, 400)
     valid_count = sum(1 for r in rows if not r["_errors"])

@@ -1,15 +1,14 @@
 {# v5H226z324 (대표 지시): 탭별 일괄 등록(양식 다운로드 + 엑셀 업로드 → 미리보기 → 확정) — 공통 파셜.
    bulk_biz in ('T','M','L','E'), bulk_label = 검사기/자동화/라이프밸류/기타. /projects/import-xlsx 파서·확정 재사용. #}
 <details class="bulk-imp">
-  <summary>📥 엑셀로 여러 건 한번에 등록 ({{ bulk_label }}) — 양식 다운로드 · 업로드</summary>
+  <summary>📥 엑셀로 여러 건 한번에 등록 ({{ bulk_label }}) — 지난 데이터 일괄 등록</summary>
   <div class="bulk-imp-body">
     <div class="bulk-imp-row">
-      <a class="bi-btn dl" href="/projects/import-template/biz/{{ bulk_biz }}">📥 {{ bulk_label }} 양식 다운로드</a>
+      <a class="bi-btn dl" href="/projects/import-template-mgmt">📥 양식 다운로드</a>
       <button type="button" class="bi-btn up" onclick="document.getElementById('importXlsx').click()">📤 엑셀 업로드</button>
       <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
     </div>
-    <label class="bi-mig"><input type="checkbox" id="importMigrateMode"> 📦 과거 데이터 일괄이관 모드 — '추가발주'인데 신규 원본이 없으면 발주일 가장 빠른 1줄을 신규로 자동 승격 (평상시 끄세요)</label>
-    <div class="bi-hint">흐름: <b>{{ bulk_label }} 양식 다운로드</b> → 입력(4행 예시 삭제) → 업로드 → 미리보기 → 등록 확정 · 관리코드 자동 부여</div>
+    <div class="bi-hint"><b>관리번호</b> 있으면 그대로 사용, 없으면 <b>발주일자로 자동 발급</b>(사업부 = {{ bulk_label }}). 중복 관리번호는 건너뜀. · 흐름: 양식 다운로드 → 입력(2행 예시 삭제) → 업로드 → 미리보기 → 확정</div>
   </div>
 </details>
 <style>
@@ -42,6 +41,7 @@
           <tr>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">행</th>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">사업부</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">관리번호</th>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">프로젝트명</th>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">모델명</th>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">1차 고객사</th>
@@ -64,11 +64,13 @@
   </div>
 </div>
 <script>
+var BULK_BIZ = '{{ bulk_biz }}';   // v5H226z326: 관리번호 없는 행의 자동발급 사업부(업로드 탭)
 var _importRows = [];
 async function uploadProjectsXlsx(file) {
   if (!file) return;
   var fd = new FormData();
   fd.append('xlsx', file);
+  fd.append('biz', BULK_BIZ);
   var _mig = document.getElementById('importMigrateMode');
   fd.append('migrate_mode', (_mig && _mig.checked) ? '1' : '0');
   var r;
@@ -119,6 +121,7 @@ function renderImportPreview(j) {
     tr.innerHTML =
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + r.row_no + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;"><b>' + r.biz_div + '</b></td>' +
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;font-family:monospace;font-size:11px;">' + escapeHtml(r.mgmt_code_input||'-') + (r._auto_mgmt ? ' <span style="font-size:9px;color:#b45309;background:#fff3e0;padding:0 4px;border-radius:3px;">자동</span>' : '') + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.name) + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.model_name ? escapeHtml(r.model_name) : '<span style="color:#bbb;">-</span>') + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.customer_name || '-') + '</td>' +
