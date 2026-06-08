@@ -13659,6 +13659,11 @@ async def projects_new_form(request: Request,
     _bd = (biz_div or "").strip().upper()
     if _bd not in ("T", "M", "L"):
         _bd = ""
+    # v5H226z319 (대표 지시): NEW_EQUIP(검사기/자동화/라이프) 단건 등록은 간편 폼으로 통일 → 리다이렉트.
+    #   상세 폼(project_form.html)은 코드 보존, 라우팅만 변경. OTHER/CONSUMABLE 은 기존 상세 폼 유지.
+    if _t == "NEW_EQUIP":
+        _q = "/projects/quick?biz_div=" + (_bd or "T") + ("&embed=1" if _embed else "")
+        return RedirectResponse(_q, 303)
     # 폼이 project.* 로 prefill 을 읽으므로 가벼운 placeholder 객체 전달
     _preset = {
         "project_type": _t,
@@ -13677,17 +13682,22 @@ async def projects_new_form(request: Request,
 
 
 @app.get("/projects/quick", response_class=HTMLResponse)
-async def projects_quick_form(request: Request, embed: str = ""):
+async def projects_quick_form(request: Request, embed: str = "", biz_div: str = ""):
     """v5H226z276 (대표 지시): '엑셀처럼' 한 화면 평면 등록 폼 — 보드 칸들을 한 번에 채워 등록.
-    POST 는 기존 /projects/new 재사용(필드명 동일). 검사기/자동화/라이프밸류/기타 (소모품은 별도 업로드)."""
+    POST 는 기존 /projects/new 재사용(필드명 동일). 검사기/자동화/라이프밸류 (소모품은 별도 업로드).
+    v5H226z319 (대표 지시): 두 등록 폼 통일 — 고급 항목(출고형태·2차 고객사)을 접이식 상세 입력으로 흡수.
+    chooser·기존 상세 폼(NEW_EQUIP)이 이 폼으로 들어옴(biz_div 프리셋)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
+    _bd = (biz_div or "").strip().upper()
+    if _bd not in ("T", "M", "L"):
+        _bd = "T"
     return ctx(request, "project_quick_form.html",
-               user=u, active="sales_projects", embed=_embed,
+               user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
                can_money=bool(can_view_sales(u)),
                customers=_logi.customers_for_picker())
 
