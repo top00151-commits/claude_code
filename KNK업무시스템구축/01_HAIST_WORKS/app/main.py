@@ -12965,9 +12965,10 @@ async def schedule_bulk_template(request: Request):
     wb = Workbook()
     ws = wb.active
     ws.title = "일괄등록"
-    headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사*(등록)", "2차고객사",
+    # v5H226z341 (대표 지시): 고객사(등록)→고객사1, 2차고객사→고객사2, 납품위치 다음에 영업담당자(우리 회사) 추가
+    headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사1*", "고객사2",
                "발주일(YYYY-MM-DD)", "납기(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",
-               "PO유형", "담당자", "연락처", "납품위치", "비고"]
+               "PO유형", "담당자", "연락처", "납품위치", "영업담당자", "비고"]
     ws.append(headers)
     knk_fill = PatternFill("solid", fgColor="A5282C")
     white = Font(color="FFFFFF", bold=True)
@@ -12986,7 +12987,7 @@ async def schedule_bulk_template(request: Request):
     dv_ccy.add("K2:K500"); dv_trade.add("L2:L500")
     ws.append(["005T2601", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
                "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "신규",
-               "홍길동", "010-0000-0000", "고객사 본사", "예시 행 — 삭제 후 작성하세요"])
+               "홍길동", "010-0000-0000", "고객사 본사", "김영업(당사)", "예시 행 — 삭제 후 작성하세요"])
     for ci in range(1, len(headers) + 1):
         ws.cell(2, ci).font = Font(color="999999", italic=True)
     ws2 = wb.create_sheet("작성안내")
@@ -12995,12 +12996,13 @@ async def schedule_bulk_template(request: Request):
         ["관리번호 *", "필수. 이미 부여된 관리번호를 그대로 입력(자동 생성 안 함). 형식 [일련3][사업부 T/M/L/E/C][YYMM] — 예: 005T2601 = 2026년 1월·검사기. 사업부는 관리번호에서 자동 인식됩니다."],
         ["프로젝트명", "비우면 장비명으로 대체됩니다"],
         ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
-        ["고객사 *(등록)", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
-        ["2차 고객사", "최종 고객(있을 때만)"],
+        ["고객사1 *", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
+        ["고객사2", "2단계 발주 시 최종 고객(있을 때만)"],
         ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
+        ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원"],
         ["상태(납품완료·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
         ["수주번호", "직접 입력 안 함 — 발주일이 있으면 그 발주년월 기준으로 자동 발행(SO-YYYYMM-####)됩니다. 발주일이 없으면 미발행."],
         ["* 표시", "필수 항목"],
@@ -14298,9 +14300,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             return None
 
         _cM = _col("관리번호"); _cN = _col("프로젝트명"); _cMo = _col("모델"); _cE = _col("장비")
-        _cC = _col("고객사"); _cC2 = _col("2차"); _cOd = _col("발주일"); _cDd = _col("납기")
+        # v5H226z341: 고객사2(=옛 '2차고객사')·영업담당자 새 헤더 인식 + 옛 헤더 호환
+        _cC = _col("고객사"); _cC2 = _col("고객사2", "2차"); _cOd = _col("발주일"); _cDd = _col("납기")
         _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
+        _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
         _gseq = {}
         # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집.
         # v5H226z328 (대표 지시): _seen_new = 파일 내에서 '신규(프로젝트 생성)'로 잡힌 코드 — 이후 같은 코드는 추가발주.
@@ -14411,6 +14415,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "cc_name": _to_str(_g(_cCc)),
                 "cc_phone": _to_str(_g(_cPh)),
                 "ship_to": _to_str(_g(_cSh)),
+                "sales_name": _to_str(_g(_cSa)),   # v5H226z341: 영업담당자(우리 회사)
                 "note": note_v,
                 "status": "초기협의",                # 등록 후 사용자가 직접 변경(수주번호 미생성)
                 "shipment_form": "ASSEMBLY",
@@ -14459,7 +14464,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                "1차고객사": "customer", "2차고객사": "secondary_customer",
                "1차고객사납품단가": "price", "1차고객사납품금액": "amount",
                "2차고객사납품단가": "secondary_price", "2차고객사납품단가VND": "secondary_price",
-               "2차고객사납품금액": "final_amount", "2차고객사납품금액VND": "final_amount"}
+               "2차고객사납품금액": "final_amount", "2차고객사납품금액VND": "final_amount",
+               # v5H226z341 (대표 지시): '1차/2차 고객사' → '고객사1/고객사2' 통일. 옛 헤더도 호환 유지.
+               "고객사1": "customer", "고객사2": "secondary_customer",
+               "고객사1납품단가": "price", "고객사1납품금액": "amount",
+               "고객사2납품단가": "secondary_price", "고객사2납품금액": "final_amount"}
         colmap = {}
         try:
             _hdr = next(ws.iter_rows(min_row=3, max_row=3, values_only=True))
