@@ -10,9 +10,11 @@
 .qf-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:12px 14px; }
 .qf-f { display:flex; flex-direction:column; min-width:0; }
 .qf-f.span2 { grid-column: span 6; }
+.qf-f.c2 { grid-column: span 2; }
 .qf-f.c3 { grid-column: span 3; }
 .qf-f.c4 { grid-column: span 4; }
 .qf-f.c6 { grid-column: span 6; }
+.qf-f.c9 { grid-column: span 9; }
 .qf-f.c12 { grid-column: 1 / -1; }
 .qf-f label { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:3px; }
 .qf-f label .req { color:var(--knk-red); }
@@ -28,7 +30,7 @@
 .qf-links a { color:#1d4ed8; font-weight:700; text-decoration:none; margin-right:14px; }
 .qf-err { display:none; background:#fee2e2; color:#991b1b; padding:9px 14px; border-radius:8px; font-size:13px; margin-bottom:10px; }
 .qf-err.show { display:block; }
-@media (max-width:820px){ .qf-grid{ grid-template-columns: repeat(2,1fr);} .qf-f.c3,.qf-f.c4{grid-column:span 1;} .qf-f.c6,.qf-f.c12,.qf-f.span2{grid-column:span 2;} }
+@media (max-width:820px){ .qf-grid{ grid-template-columns: repeat(2,1fr);} .qf-f.c2,.qf-f.c3,.qf-f.c4{grid-column:span 1;} .qf-f.c6,.qf-f.c9,.qf-f.c12,.qf-f.span2{grid-column:span 2;} }
 /* v5H226z319(대표 지시): 두 등록 폼 통일 — 고급 항목(출고형태·2차고객사)을 접이식 상세 입력으로 흡수 */
 .qf-adv { margin-top:12px; border:1px dashed var(--qv-line); border-radius:9px; padding:0 12px; background:var(--qv-surface-2,#f7f8fa); }
 .qf-adv > summary { cursor:pointer; padding:11px 4px; font-size:12.5px; font-weight:800; color:var(--qv-ink-2); list-style:none; }
@@ -87,55 +89,58 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="qf-grid">
           <div class="qf-sec">기본</div>
 
+          {# v5H226z352(대표 지시): 칸 너비 = 내용 기준. 값 고정칸(자동발급·드롭다운·수량)=좁게, 자유입력칸=넓게.
+             1행 관리2·수주2·고객사1=4·고객사2=4  2행 프로젝트명6·거래2·PO2·형태2  3행 모델6·장비6
+             4행 수량2·통화3·단가3·금액4  6행 부서4·담당4·납품4  7행 영업3·비고9 (각 행 합=12) #}
           {# 1행 — 관리번호 · 수주번호 · 고객사1 · 고객사2 #}
-          <div class="qf-f c3"><label>관리번호</label><div class="qf-code">자동 발급</div></div>
-          <div class="qf-f c3"><label>수주번호</label><div class="qf-code" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div></div>
-          <div class="qf-f c3"><label>고객사1 <span class="req">*</span></label>
+          <div class="qf-f c2"><label>관리번호</label><div class="qf-code">자동 발급</div></div>
+          <div class="qf-f c2"><label>수주번호</label><div class="qf-code" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div></div>
+          <div class="qf-f c4"><label>고객사1 <span class="req">*</span></label>
             <input list="qCustList" name="customer_name" placeholder="고객사명" autocomplete="off">
             <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
           </div>
           {# v5H226z350: 2차거래 폐지 → 고객사2(최종 고객) 직접 입력칸 #}
-          <div class="qf-f c3"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객·선택)</span></label>
+          <div class="qf-f c4"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객·선택)</span></label>
             <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택)" autocomplete="off"></div>
 
-          {# 2행 — 프로젝트명 · 거래구분 · PO유형 · 형태(드롭다운) #}
-          <div class="qf-f c3"><label>프로젝트명 <span class="req">*</span></label>
+          {# 2행 — 프로젝트명(넓게) · 거래구분 · PO유형 · 형태(드롭다운) #}
+          <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
             <input name="name" placeholder="예: 압착 자동화설비 1호기"></div>
-          <div class="qf-f c3"><label>거래구분</label>
+          <div class="qf-f c2"><label>거래구분</label>
             <select name="is_export"><option value="0">내수</option><option value="1">수출</option></select>
           </div>
-          <div class="qf-f c3"><label>PO유형</label>
+          <div class="qf-f c2"><label>PO유형</label>
             {# v5H226z350: 하드코딩(신규/추가) → PO_TYPES(신규/추가/개조/수리/기타) #}
             <select name="po_type">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
           </div>
-          {# v5H226z351(대표 지시): 형태 라디오 → 드롭다운. 내부값(ASSEMBLY/PARTS/ETC) 유지 → 부품 상세·PACKING LIST 재사용 #}
-          <div class="qf-f c3"><label>형태 <span style="font-weight:400;color:var(--qv-ink-3);">(상품=부품 상세)</span></label>
-            <select name="shipment_form" id="qFormType" onchange="qSyncShip()">
-              <option value="ASSEMBLY">📦 제품 (완제품·호기)</option>
-              <option value="PARTS">🧰 상품 (부품 상세리스트)</option>
+          {# v5H226z351/z352(대표 지시): 형태 드롭다운 — 옵션 짧게(좁은 칸 맞춤). 내부값(ASSEMBLY/PARTS/ETC) 유지 #}
+          <div class="qf-f c2"><label>형태 <span style="font-weight:400;color:var(--qv-ink-3);">(상품=부품)</span></label>
+            <select name="shipment_form" id="qFormType" onchange="qSyncShip()" title="제품=완제품·호기 / 상품=부품 상세리스트(PACKING LIST) / 기타">
+              <option value="ASSEMBLY">📦 제품</option>
+              <option value="PARTS">🧰 상품</option>
               <option value="ETC">🗂 기타</option>
             </select>
           </div>
-          {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 형태 아래 한 줄 #}
+          {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 #}
           <div class="qf-f c4" id="qPartName" style="display:none;"><label>부품 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(대표 1식)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
           <div class="qf-f c4" id="qPartModel" style="display:none;"><label>부품 모델명</label><input name="part_model" placeholder="예: KNK-P-0000"></div>
           <div class="qf-f c6" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
 
-          {# 3행 — 모델명 · 장비명 · 수량 #}
-          <div class="qf-f c4"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명"></div>
-          <div class="qf-f c4"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
-          <div class="qf-f c4"><label>수량</label><input type="number" name="unit_qty" value="1" min="1"></div>
+          {# 3행 — 모델명 · 장비명 (둘 다 넓게). 수량은 모델·장비가 6칸씩 차지해 자동으로 4행으로 내려감 #}
+          <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명"></div>
+          <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
 
-          {# 4행 — 통화 · 단가 · 금액 (+환율) · 영업·관리 권한자만 #}
+          {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
+          <div class="qf-f c2"><label>수량</label><input type="number" name="unit_qty" value="1" min="1" placeholder="0000"></div>
           {% if can_money %}
-          <div class="qf-f c4"><label>통화 <span style="font-weight:400;color:var(--qv-ink-3);">(영업·관리)</span></label>
+          <div class="qf-f c3"><label>통화</label>
             <select name="currency" id="qCurrency" onchange="qToggleFx()">
               <option value="KRW">₩ KRW (원)</option><option value="USD">$ USD (달러)</option>
               <option value="VND">₫ VND (동)</option><option value="JPY">¥ JPY (엔)</option>
               <option value="CNY">¥ CNY (위안)</option><option value="EUR">€ EUR (유로)</option>
             </select>
           </div>
-          <div class="qf-f c4"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" class="knk-money" placeholder="0"></div>
+          <div class="qf-f c3"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" class="knk-money" placeholder="0"></div>
           <div class="qf-f c4"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0"></div>
           <div class="qf-f c4" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위=?원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350"></div>
@@ -150,9 +155,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c4"><label>담당자</label><input name="cc_name" placeholder="고객사 담당자"></div>
           <div class="qf-f c4"><label>납품위치</label><input id="qShip" placeholder="납품 위치"></div>
 
-          {# 7행 — 영업담당자(당사) · 비고 #}
-          <div class="qf-f c6"><label>영업담당자 <span style="font-weight:400;color:var(--qv-ink-3);">(당사)</span></label><input name="sales" placeholder="당사 영업담당자"></div>
-          <div class="qf-f c6"><label>비고</label><input name="note" placeholder="기타 메모"></div>
+          {# 7행 — 영업담당자(좁게·이름 3글자) · 비고(넓게) #}
+          <div class="qf-f c3"><label>영업담당자 <span style="font-weight:400;color:var(--qv-ink-3);">(당사)</span></label><input name="sales" placeholder="당사 영업담당자"></div>
+          <div class="qf-f c9"><label>비고</label><input name="note" placeholder="기타 메모"></div>
         </div>
         {# v5H226z350(대표 지시): '상세 입력' 접이식 영역 제거 — 출고형태→형태(본문), 2차거래→고객사2(본문)로 흡수 #}
 
