@@ -14236,31 +14236,54 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         s = _re_cust.sub(r"[\s\(\)\[\]\.,\-_/&'\"·｜|]", "", s)
         return s.strip()
 
+    # v5H226z344 (성능·504 방지): 후보 고객사 '정규화'는 업로드당 1회만 사전계산한다.
+    #   (기존: _match_customer 가 행마다 _cust_list 전체를 _norm_cust 재계산 → N행×M고객사 정규식 →
+    #    대용량 업로드에서 수십 초~분 → 게이트웨이 504. 매칭 로직·점수·임계는 그대로, 속도만 개선.)
+    _cust_norm = []          # [(원본명, 정규화명)] — 정규화 1회
+    _cust_norm_map = {}      # 정규화명 → 원본명 (정확 일치 O(1))
+    for _cand in _cust_list:
+        _cn0 = _norm_cust(_cand)
+        if not _cn0:
+            continue
+        _cust_norm.append((_cand, _cn0))
+        _cust_norm_map.setdefault(_cn0, _cand)
+
+    _match_cache = {}                    # v5H226z344: 같은 고객사명 반복 시 1회만 계산(대량 업로드 가속)
     def _match_customer(name: str):
-        """반환: (matched_name|None, score 0~1)."""
+        """반환: (matched_name|None, score 0~1). 정규화명 사전계산 + 결과 메모이즈(행마다 재계산 안 함)."""
         n = _norm_cust(name)
         if not n:
             return (None, 0.0)
+        _cached = _match_cache.get(n)
+        if _cached is not None:
+            return _cached
+        _exact = _cust_norm_map.get(n)   # 정확(정규화) 일치 — O(1)
+        if _exact is not None:
+            _match_cache[n] = (_exact, 1.0)
+            return _match_cache[n]
         best_name, best_score = None, 0.0
-        for cand in _cust_list:
-            cn = _norm_cust(cand)
-            if not cn:
-                continue
-            if cn == n:
-                return (cand, 1.0)
+        ln = len(n)
+        for cand, cn in _cust_norm:      # cn = 사전 정규화됨
+            lcn = len(cn)
             # v5H226z262 (대표 지시·연결성 감사): 근본원인 = '한쪽이 다른쪽을 포함'만으로 0.9+ 가중하면
             #   '삼성'(등록) 이 '삼성디스플레이'(입력) 를 0.9+ 로 삼켜 잘못된 고객사에 연결됨.
             #   재발방지: 부분포함 가중은 '길이가 충분히 비슷할 때(진짜 표기변형)'만 적용한다.
             #   짧은 등록명이 긴 입력명을 삼키는 경우(min/max < 0.7)는 일반 유사도(difflib)로 떨어뜨려
             #   임계 0.8 미만이 되게 한다 → 자동연결 안 됨(에러/수동).
-            _len_ratio = min(len(n), len(cn)) / max(len(n), len(cn))
-            if len(n) >= 2 and len(cn) >= 2 and (n in cn or cn in n) and _len_ratio >= 0.7:
+            _len_ratio = min(ln, lcn) / max(ln, lcn)
+            if ln >= 2 and lcn >= 2 and (n in cn or cn in n) and _len_ratio >= 0.7:
                 _sc = 0.9 + 0.1 * _len_ratio
             else:
-                _sc = _SM(None, n, cn).ratio()
+                # v5H226z344 (성능): 빠른 상한으로 가지치기 — ratio()<=quick_ratio()<=real_quick_ratio()
+                #   가 보장되므로, 상한이 현재 best 이하인 후보는 full ratio() 생략(최종 best 동일·속도만 개선).
+                _sm = _SM(None, n, cn)
+                if _sm.real_quick_ratio() <= best_score or _sm.quick_ratio() <= best_score:
+                    continue
+                _sc = _sm.ratio()
             if _sc > best_score:
                 best_name, best_score = cand, _sc
-        return (best_name, best_score)
+        _match_cache[n] = (best_name, best_score)
+        return _match_cache[n]
 
     def _to_str(v) -> str:
         if v is None:
@@ -14299,9 +14322,12 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         except Exception:
             _genc = None
         ws = wb["일괄등록"]
+        # v5H226z344 (성능·504 방지): read_only 워크북은 ws.cell(r,c) 무작위접근마다 시트를 처음부터
+        #   재파싱 → 행²(O(n²)) 폭증(30행 9초·300행 수백초 → 게이트웨이 504). 시트를 1회 '순차'로 읽어
+        #   리스트(_grid)에 담고 O(1) 인덱싱으로 전환. 컬럼 인덱스는 0-based.
+        _grid = list(ws.iter_rows(values_only=True))
         _hmap = {}
-        for _ci in range(1, (ws.max_column or 1) + 1):
-            _hv = ws.cell(1, _ci).value
+        for _ci, _hv in enumerate(_grid[0] if _grid else ()):
             if _hv:
                 _hmap[str(_hv).strip()] = _ci
 
@@ -14323,10 +14349,15 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         # v5H226z328 (대표 지시): _seen_new = 파일 내에서 '신규(프로젝트 생성)'로 잡힌 코드 — 이후 같은 코드는 추가발주.
         # v5H226z329 (대표 지시): _code_counts = 파일 내 같은 관리번호 출현 횟수 → DB에 없던 새 코드가 2회+면 첫 행도 발주(SO)로 기록.
         _manual_codes = set(); _auto_used = set(); _seen_new = set(); _code_counts = {}
-        for _pr in range(2, (ws.max_row or 1) + 1):
-            _pm = (_to_str(ws.cell(_pr, _cM).value).upper() if _cM else "")
-            _pn = (_to_str(ws.cell(_pr, _cN).value) if _cN else "")
-            _pnt = (_to_str(ws.cell(_pr, _cNt).value) if _cNt else "")
+        # v5H226z344 (성능·504): 이 사전스캔도 ws.cell 무작위접근(O(n²))이었음 → _grid 인덱싱으로 전환.
+        #   (0-based 인덱스라 'if _cM' 대신 _gv 가 'is not None' 으로 판정 — _cM 이 0(첫 컬럼)일 때 버그 방지.)
+        def _gv(_rv, _ci):
+            return _rv[_ci] if (_ci is not None and _ci < len(_rv)) else None
+        for _pridx in range(1, len(_grid)):
+            _prv = _grid[_pridx]
+            _pm = _to_str(_gv(_prv, _cM)).upper()
+            _pn = _to_str(_gv(_prv, _cN))
+            _pnt = _to_str(_gv(_prv, _cNt))
             if ("예시" in _pnt and "삭제" in _pnt) or _pn.startswith("예)"):
                 continue   # 예시 행은 출현 카운트에서 제외(메인 루프와 동일 스킵 기준)
             if _pm and _re_m.fullmatch(r"\d{3}[TMLEC]\d{4}", _pm):
@@ -14354,9 +14385,12 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         if _tb not in ("T", "M", "L", "E"):
             _tb = "T"
         _rows = []
-        for _r in range(2, (ws.max_row or 1) + 1):
+        for _ridx in range(1, len(_grid)):
+            _rowvals = _grid[_ridx]
+            _r = _ridx + 1   # 사용자 표시용 엑셀 행번호(헤더=1행)
             def _g(_ci):
-                return ws.cell(_r, _ci).value if _ci else None
+                # 0-based 인덱스. _ci 가 0 일 수 있으므로 'is not None' 으로 판정(기존 'if _ci' 버그 회피).
+                return _rowvals[_ci] if (_ci is not None and _ci < len(_rowvals)) else None
             mgmt = _to_str(_g(_cM)).upper()
             name = _to_str(_g(_cN)); equip = _to_str(_g(_cE)); cust = _to_str(_g(_cC))
             model = _to_str(_g(_cMo)); cust2 = _to_str(_g(_cC2)); note_v = _to_str(_g(_cNt))
