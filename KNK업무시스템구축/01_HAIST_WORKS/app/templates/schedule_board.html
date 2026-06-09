@@ -36,6 +36,12 @@
 .tbx-cur #sortNow { font-weight:800; color:var(--knk-red); }
 .sched-tools .tbx-reset { background:var(--paper-3); }
 .sched-tools .tbx-reset:hover { background:#fff; }
+/* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
+.sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:7px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 8px; }
+.sb-band > .band-tag { flex:0 0 auto; font-size:11px; font-weight:800; color:#fff; padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
+.band-filter { background:#eef3fa; border-color:#d4e2f2; }  .band-filter > .band-tag { background:#2f6aa8; }
+.band-action { background:#fbf0ed; border-color:#f1d9d3; }  .band-action > .band-tag { background:var(--knk-red,#b0271f); }
+.band-view   { background:#f4f5f7; border-color:#e3e5ea; }  .band-view   > .band-tag { background:#6b7280; }
 .tool-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12px; font-weight:700; }
 .tool-grp .step { padding:0 8px; line-height:22px; border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; font-weight:800; }
 .tool-grp input { width:38px; text-align:center; border:1px solid var(--line); border-radius:5px; font-size:12px; padding:3px 2px; }
@@ -251,8 +257,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     </div>
   </div>
 
-  {# v5H226z275 (대표 지시): 사업부별 탭 — 프로젝트 목록 책갈피와 동일(전체/검사기/자동화/라이프밸류/기타/소모품) #}
-  <div class="sched-tabs">
+  {# v5H226z275/z345 (대표 지시): 사업부별 탭 — 3개 행 시각 구분 띠(band) · 파랑=보기/필터 #}
+  <div class="sched-tabs sb-band band-filter">
+    <span class="band-tag">사업부</span>
     {% set _q = ('&cust=' ~ cust) if cust else '' %}
     <a class="sbm{% if not biz %} on{% endif %}" href="?ym={{ ym }}{{ _q }}">🗂 전체 <b>{{ div_counts.all }}</b></a>
     <a class="sbm{% if biz=='T' %} on{% endif %}" href="?ym={{ ym }}&biz=T{{ _q }}">🔬 검사기 <b>{{ div_counts.T }}</b></a>
@@ -262,7 +269,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <a class="sbm{% if biz=='C' %} on{% endif %}" href="?ym={{ ym }}&biz=C{{ _q }}">🧴 소모품 <b>{{ div_counts.C }}</b></a>
   </div>
 
-  <div class="sched-tools">
+  <div class="sched-tools sb-band band-action">
+    <span class="band-tag">작업</span>
     <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border-color:var(--knk-red);">＋ 신규 등록</button>
     <button type="button" onclick="schedFullscreen()">⛶ 전체화면 보기</button>
     <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)">🖨 인쇄(컬럼·구간 선택)</button>
@@ -271,7 +279,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'">📄 일괄등록 양식</button>
     {# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 — 발주일 있는데 수주번호 빈 비소모품 #}
     <button type="button" onclick="openSoBackfill()" title="발주일은 있는데 수주번호가 빈 항목에 발주일 기준으로 수주번호를 소급 발급 (미리보기 후 실행·자동 DB 백업)">🧾 수주번호 소급 발급</button>
-    {# z332(대표 지시): '표 보기'(칸·날짜) / '정렬' 두 그룹을 박스로 묶어 각 초기화 범위를 명확히 #}
+  </div>
+  {# z332→z345 (대표 지시): '표 설정' 띠(회색) — 표 보기/정렬 두 박스. 작업(빨강) 띠와 분리 #}
+  <div class="sched-tools sb-band band-view">
+    <span class="band-tag">표 설정</span>
     <div class="tool-box">
       <span class="tbx-label">표 보기</span>
       <div class="cols-menu">
