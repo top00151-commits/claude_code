@@ -13731,6 +13731,65 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
                customers=_logi.customers_for_picker())
 
 
+@app.get("/projects/{pid}/quick-edit", response_class=HTMLResponse)
+async def projects_quick_edit_form(request: Request, pid: int):
+    """v5H226z354 (대표 지시): 수정도 빠른 폼으로 통일 — 빠른 폼 '수정 모드'.
+    저장은 기존 POST /projects/{pid}/edit 재사용(검증·cascade·자가치유 그대로).
+    복잡 건(추가품목·호기별 금액·부모연결)은 화면의 '고급 편집(정식 폼)' 링크로 /projects/{pid}/edit 진입.
+    진입 시 SO 기준 자가치유는 정식 편집 폼과 동일하게 수행."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    # 진입 시 SO 기준 자가치유 (정식 편집 폼 projects_edit_form 과 동일 로직)
+    try:
+        with db_session() as c2:
+            sos = _pwf.get_project_orders(c2, pid)
+            if sos:
+                so_sum = sum(float(o.get("total_amount") or 0) for o in sos)
+                dues = [o.get("due_date") for o in sos if o.get("due_date")]
+                ords = [o.get("order_date") for o in sos if o.get("order_date")]
+                _heal = [("order_amount", so_sum)]
+                if dues:
+                    _heal.append(("due_date", max(dues)))
+                if ords:
+                    _heal.append(("order_date", min(ords)))
+                for _col, _val in _heal:
+                    try:
+                        c2.execute(f"UPDATE projects SET {_col}=? WHERE id=?", (_val, pid))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    p = _logi.projects_get_logi(pid)
+    if not p:
+        return RedirectResponse("/projects", status_code=303)
+    p = dict(p)
+    # 대표 SO(orders 최신)의 수주번호·납품위치 — 표시·편집용
+    _so_no, _ship_to = "", ""
+    try:
+        with db_session() as c3:
+            _ocols = {r[1] for r in c3.execute("PRAGMA table_info(orders)").fetchall()}
+            _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            _r = c3.execute(
+                f"SELECT order_no, {_ship_sql} FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                (pid,)).fetchone()
+            if _r:
+                _so_no = _r[0] or ""
+                _ship_to = (_r[1] if len(_r) > 1 else "") or ""
+    except Exception:
+        pass
+    _embed = str(request.query_params.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y")
+    return ctx(request, "project_quick_form.html",
+               user=u, active="sales_projects", embed=_embed,
+               preset_biz=(p.get("biz_div") or "T"),
+               can_money=bool(can_view_sales(u)),
+               PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
+               customers=_logi.customers_for_picker(),
+               project=p, so_no=_so_no, ship_to=_ship_to)
+
+
 @app.post("/projects/new")
 async def projects_new_submit(request: Request):
     """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
@@ -16049,8 +16108,11 @@ async def projects_edit_submit(request: Request, pid: int):
     # v5H226z150 (2026-06-02 대표 지시): SSO 단일 로그인 전환으로 본인 WORKS 비밀번호가
     #   없어 비밀번호 검증 폐기 → '잠금 해제(확인창) 통과' 만 요구. 변경은 이력에 기록됨.
     #   TODO(향후): 여기에 '잠금해제 권한 부여자만' 전용 권한 체크 추가 예정 (현재는 can_use_sales).
+    # v5H226z354 (대표 지시): 빠른 폼 수정 모드(quick=1)에서 온 오류는 빠른 폼으로 복귀(정식 폼으로 튕기지 않게)
+    _is_quick_edit = (form.get("quick") or "").strip().lower() in ("1", "true", "on", "yes")
+    _edit_base = f"/projects/{pid}/quick-edit" if _is_quick_edit else f"/projects/{pid}/edit"
     if (form.get("unlock_verified") or "") != "1":
-        return RedirectResponse(f"/projects/{pid}/edit?error=unlock_required", status_code=303)
+        return RedirectResponse(f"{_edit_base}?error=unlock_required", status_code=303)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
     customer = (form.get("customer_name") or form.get("customer") or "").strip()
     biz_div = (form.get("biz_div") or "").strip()
@@ -16068,9 +16130,9 @@ async def projects_edit_submit(request: Request, pid: int):
         _old_meta = {}
     # v5H192: 필수 필드 검증 (비고 제외)
     if not project_name:
-        return RedirectResponse(f"/projects/{pid}/edit?error=name_required", status_code=303)
+        return RedirectResponse(f"{_edit_base}?error=name_required", status_code=303)
     if not customer:
-        return RedirectResponse(f"/projects/{pid}/edit?error=customer_required", status_code=303)
+        return RedirectResponse(f"{_edit_base}?error=customer_required", status_code=303)
     if customer:
         with db_session() as _cc:
             _ok = _cc.execute(
@@ -16079,7 +16141,7 @@ async def projects_edit_submit(request: Request, pid: int):
         if not _ok:
             from urllib.parse import quote as _q
             return RedirectResponse(
-                f"/projects/{pid}/edit?error=customer_not_registered&cust={_q(customer)}",
+                f"{_edit_base}?error=customer_not_registered&cust={_q(customer)}",
                 status_code=303
             )
     raw_amt = (form.get("order_amount") or "0").strip().replace(",", "")
@@ -16154,6 +16216,22 @@ async def projects_edit_submit(request: Request, pid: int):
         "secondary_customer": form.get("secondary_customer", ""),
         "final_amount": form.get("final_amount", ""),
     })
+    # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
+    #   정식 폼은 호기별 unit_ship[] 을 쓰므로 top-level 'ship_to' 를 보내지 않음 → 빠른 폼에만 적용(필드 존재 시).
+    if _is_quick_edit and (form.get("ship_to") is not None):
+        _ship_v = (form.get("ship_to") or "").strip()
+        if _ship_v:
+            try:
+                with db_session() as _sc:
+                    _ocols = {r[1] for r in _sc.execute("PRAGMA table_info(orders)").fetchall()}
+                    if "ship_to" in _ocols:
+                        _so_r = _sc.execute(
+                            "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)
+                        ).fetchone()
+                        if _so_r:
+                            _sc.execute("UPDATE orders SET ship_to=? WHERE id=?", (_ship_v, _so_r[0]))
+            except Exception as _ship_err:
+                print(f"[v5H226z354] quick-edit ship_to err: {_ship_err}")
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
     # v5H142: NEW_EQUIP 만 자동 SO 발행
