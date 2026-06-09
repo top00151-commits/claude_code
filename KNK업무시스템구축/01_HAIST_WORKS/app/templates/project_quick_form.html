@@ -59,13 +59,14 @@ html,body{background:#fff!important;overflow:auto!important;}
   <div class="page-head"><div>
     <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>간편 {% if project is defined and project %}수정{% else %}등록{% endif %}</b></div>
     {# v5H226z323(대표 지시): 제목을 선택 유형에 맞게 — 색상 배지로 탭 전환 시 변화 체감 #}
-    {% set _tt = {'T':('🔬','검사기','#c2410c'),'M':('⚙','자동화','#1e40af'),'L':('💄','라이프밸류','#db2777')}.get(preset_biz, ('🔬','검사기','#c2410c')) %}
+    {# v5H226z355(대표 지시): 기타(E) 뱃지 추가 #}
+    {% set _tt = {'T':('🔬','검사기','#c2410c'),'M':('⚙','자동화','#1e40af'),'L':('💄','라이프밸류','#db2777'),'E':('🗂','기타','#6b7280')}.get(preset_biz, ('🔬','검사기','#c2410c')) %}
     <h1 class="page-title"><span style="display:inline-block;background:{{ _tt[2] }};color:#fff;padding:4px 14px;border-radius:9px;font-size:19px;font-weight:800;vertical-align:middle;">{{ _tt[0] }} {{ preset_biz }} {{ _tt[1] }}</span> <em>{% if project is defined and project %}수정{% else %}등록{% endif %}</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">{% if project is defined and project %}— 관리번호 {{ project.mgmt_code }} · 기본 정보 수정{% else %}— 엑셀 한 줄처럼 채우세요{% endif %}</span></h1>
   </div></div>
 
   <div class="qf-wrap">
     {# v5H226z322(대표 지시): 등록 유형 탭(검사기/자동화/라이프밸류/기타/소모품) — 탭이 곧 사업부. 수정 모드엔 숨김 #}
-    {% if not (project is defined and project) %}{% set reg_active = preset_biz %}{% include "_v5_partials/reg_tabs.html" %}{% endif %}
+    {% if not (project is defined and project) %}{% set reg_active = 'OTHER' if preset_biz == 'E' else preset_biz %}{% include "_v5_partials/reg_tabs.html" %}{% endif %}
     <div class="qf-card">
       <div class="qf-err" id="qfErr"></div>
       {# v5H226z354(대표 지시): 빠른 폼을 신규/수정 양용으로 — project 가 오면 '수정 모드'. 저장은 기존 /projects/{id}/edit 재사용 #}
@@ -74,7 +75,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
         <input type="hidden" name="quick" value="1">
         <input type="hidden" name="biz_div" id="qBizDiv" value="{{ project.biz_div if ed else preset_biz|default('T') }}">
-        <input type="hidden" name="project_type" id="qPtype" value="{{ project.project_type if ed else 'NEW_EQUIP' }}">
+        {# v5H226z355(대표 지시): 기타(E)는 유형=OTHER, 그 외(T/M/L)는 NEW_EQUIP. 수정 모드는 기존 유형 보존 #}
+        <input type="hidden" name="project_type" id="qPtype" value="{{ project.project_type if ed else ('OTHER' if preset_biz == 'E' else 'NEW_EQUIP') }}">
         {% if not can_money %}<input type="hidden" name="currency" value="KRW">{% endif %}
         {% if ed %}
         {# 수정 모드: 상태 보존(누락 시 초기협의로 덮어쓰기 방지) · 잠금해제 자동 통과 #}
@@ -207,7 +209,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       </form>
       {# v5H226z324(대표 지시): 이 탭(사업부) 전용 일괄 등록 — 양식 다운로드 + 엑셀 업로드. 수정 모드에선 숨김 #}
       {% if not ed %}
-      {% set bulk_biz = preset_biz %}{% set bulk_label = {'T':'검사기','M':'자동화','L':'라이프밸류'}.get(preset_biz,'검사기') %}
+      {% set bulk_biz = preset_biz %}{% set bulk_label = {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(preset_biz,'검사기') %}
       {% include "_v5_partials/bulk_import.html" %}
       {% endif %}
     </div>

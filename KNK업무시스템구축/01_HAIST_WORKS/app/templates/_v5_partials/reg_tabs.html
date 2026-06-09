@@ -4,7 +4,8 @@
   <a class="reg-tab{% if reg_active=='T' %} on{% endif %}" href="/projects/quick?biz_div=T{% if embed %}&embed=1{% endif %}">🔬 검사기</a>
   <a class="reg-tab{% if reg_active=='M' %} on{% endif %}" href="/projects/quick?biz_div=M{% if embed %}&embed=1{% endif %}">⚙ 자동화</a>
   <a class="reg-tab{% if reg_active=='L' %} on{% endif %}" href="/projects/quick?biz_div=L{% if embed %}&embed=1{% endif %}">💄 라이프밸류</a>
-  <a class="reg-tab{% if reg_active=='OTHER' %} on{% endif %}" href="/projects/new?type=OTHER{% if embed %}&embed=1{% endif %}">🗂 기타</a>
+  {# v5H226z355(대표 지시): 기타도 검사기/자동화/라이프와 동일하게 간편 폼으로(biz_div=E). 일괄등록 엑셀 포함. #}
+  <a class="reg-tab{% if reg_active=='OTHER' %} on{% endif %}" href="/projects/quick?biz_div=E{% if embed %}&embed=1{% endif %}">🗂 기타</a>
   <a class="reg-tab co{% if reg_active=='CO' %} on{% endif %}" href="/consumables/new{% if embed %}?embed=1{% endif %}">📦 소모품</a>
 </div>
 <style>

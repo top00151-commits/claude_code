@@ -217,9 +217,9 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
       {% endif %}
       {% endif %}
-      {# v5H226z354(대표 지시): 수정도 빠른 폼으로 통일 — NEW_EQUIP(검사기·자동화·라이프)는 빠른 폼 수정,
-         기타·소모품(OTHER/CONSUMABLE)은 추가품목·복잡 구조라 정식 폼 유지(안전). #}
-      <a class="btn btn-secondary" href="/projects/{{ p.id }}/{% if (p.project_type or 'NEW_EQUIP')|upper == 'NEW_EQUIP' %}quick-edit{% else %}edit{% endif %}">📂 수정</a>
+      {# v5H226z354/z355(대표 지시): 수정도 빠른 폼으로 통일 — NEW_EQUIP(검사기·자동화·라이프) + OTHER(기타)는 빠른 폼 수정,
+         소모품(CONSUMABLE)·수리(SERVICE)는 추가품목·복잡 구조라 정식 폼 유지(안전). 복잡 건은 빠른폼의 '고급 편집' 링크로. #}
+      <a class="btn btn-secondary" href="/projects/{{ p.id }}/{% if (p.project_type or 'NEW_EQUIP')|upper in ('NEW_EQUIP','OTHER') %}quick-edit{% else %}edit{% endif %}">📂 수정</a>
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>

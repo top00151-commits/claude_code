@@ -13688,9 +13688,13 @@ async def projects_new_form(request: Request,
     if _bd not in ("T", "M", "L"):
         _bd = ""
     # v5H226z319 (대표 지시): NEW_EQUIP(검사기/자동화/라이프) 단건 등록은 간편 폼으로 통일 → 리다이렉트.
-    #   상세 폼(project_form.html)은 코드 보존, 라우팅만 변경. OTHER/CONSUMABLE 은 기존 상세 폼 유지.
+    #   상세 폼(project_form.html)은 코드 보존, 라우팅만 변경.
+    # v5H226z355 (대표 지시): 기타(OTHER)도 동일하게 간편 폼으로(biz_div=E). 일괄등록 엑셀 포함. CONSUMABLE 만 정식 폼 유지.
     if _t == "NEW_EQUIP":
         _q = "/projects/quick?biz_div=" + (_bd or "T") + ("&embed=1" if _embed else "")
+        return RedirectResponse(_q, 303)
+    if _t == "OTHER":
+        _q = "/projects/quick?biz_div=E" + ("&embed=1" if _embed else "")
         return RedirectResponse(_q, 303)
     # 폼이 project.* 로 prefill 을 읽으므로 가벼운 placeholder 객체 전달
     _preset = {
@@ -13722,7 +13726,8 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
         return RedirectResponse("/home", 303)
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     _bd = (biz_div or "").strip().upper()
-    if _bd not in ("T", "M", "L"):
+    # v5H226z355 (대표 지시): 기타(E)도 간편 폼 허용 (검사기 T·자동화 M·라이프 L 와 동일 흐름)
+    if _bd not in ("T", "M", "L", "E"):
         _bd = "T"
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
