@@ -42,6 +42,8 @@
 .band-filter { background:#eef3fa; border-color:#d4e2f2; }  .band-filter > .band-tag { background:#2f6aa8; }
 .band-action { background:#fbf0ed; border-color:#f1d9d3; }  .band-action > .band-tag { background:var(--knk-red,#b0271f); }
 .band-view   { background:#f4f5f7; border-color:#e3e5ea; }  .band-view   > .band-tag { background:#6b7280; }
+/* v5H226z346 (대표 지시): 아이콘 작고 심플하게 — 작은 크기 + 회색(모노) 톤으로 덜 튀게 */
+.sb-band .ti { font-size:0.78em; opacity:0.62; filter:grayscale(1); margin-right:1px; }
 .tool-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12px; font-weight:700; }
 .tool-grp .step { padding:0 8px; line-height:22px; border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; font-weight:800; }
 .tool-grp input { width:38px; text-align:center; border:1px solid var(--line); border-radius:5px; font-size:12px; padding:3px 2px; }
@@ -261,24 +263,24 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   <div class="sched-tabs sb-band band-filter">
     <span class="band-tag">사업부</span>
     {% set _q = ('&cust=' ~ cust) if cust else '' %}
-    <a class="sbm{% if not biz %} on{% endif %}" href="?ym={{ ym }}{{ _q }}">🗂 전체 <b>{{ div_counts.all }}</b></a>
-    <a class="sbm{% if biz=='T' %} on{% endif %}" href="?ym={{ ym }}&biz=T{{ _q }}">🔬 검사기 <b>{{ div_counts.T }}</b></a>
-    <a class="sbm{% if biz=='M' %} on{% endif %}" href="?ym={{ ym }}&biz=M{{ _q }}">⚙ 자동화 <b>{{ div_counts.M }}</b></a>
-    <a class="sbm{% if biz=='L' %} on{% endif %}" href="?ym={{ ym }}&biz=L{{ _q }}">💄 라이프밸류 <b>{{ div_counts.L }}</b></a>
-    <a class="sbm{% if biz=='E' %} on{% endif %}" href="?ym={{ ym }}&biz=E{{ _q }}">🗂 기타 <b>{{ div_counts.E }}</b></a>
-    <a class="sbm{% if biz=='C' %} on{% endif %}" href="?ym={{ ym }}&biz=C{{ _q }}">🧴 소모품 <b>{{ div_counts.C }}</b></a>
+    <a class="sbm{% if not biz %} on{% endif %}" href="?ym={{ ym }}{{ _q }}"><span class="ti">🗂</span> 전체 <b>{{ div_counts.all }}</b></a>
+    <a class="sbm{% if biz=='T' %} on{% endif %}" href="?ym={{ ym }}&biz=T{{ _q }}"><span class="ti">🔬</span> 검사기 <b>{{ div_counts.T }}</b></a>
+    <a class="sbm{% if biz=='M' %} on{% endif %}" href="?ym={{ ym }}&biz=M{{ _q }}"><span class="ti">⚙</span> 자동화 <b>{{ div_counts.M }}</b></a>
+    <a class="sbm{% if biz=='L' %} on{% endif %}" href="?ym={{ ym }}&biz=L{{ _q }}"><span class="ti">💄</span> 라이프밸류 <b>{{ div_counts.L }}</b></a>
+    <a class="sbm{% if biz=='E' %} on{% endif %}" href="?ym={{ ym }}&biz=E{{ _q }}"><span class="ti">🗂</span> 기타 <b>{{ div_counts.E }}</b></a>
+    <a class="sbm{% if biz=='C' %} on{% endif %}" href="?ym={{ ym }}&biz=C{{ _q }}"><span class="ti">🧴</span> 소모품 <b>{{ div_counts.C }}</b></a>
   </div>
 
   <div class="sched-tools sb-band band-action">
     <span class="band-tag">작업</span>
-    <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border-color:var(--knk-red);">＋ 신규 등록</button>
-    <button type="button" onclick="schedFullscreen()">⛶ 전체화면 보기</button>
-    <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)">🖨 인쇄(컬럼·구간 선택)</button>
+    <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border-color:var(--knk-red);"><span class="ti">＋</span> 신규 등록</button>
+    <button type="button" onclick="schedFullscreen()"><span class="ti">⛶</span> 전체화면 보기</button>
+    <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)"><span class="ti">🖨</span> 인쇄(컬럼·구간 선택)</button>
     {# v5H226z316 (대표 지시): 엑셀 내보내기 + 일괄등록 양식 다운로드 #}
-    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'">📥 엑셀로 저장</button>
-    <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'">📄 일괄등록 양식</button>
+    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'"><span class="ti">📥</span> 엑셀로 저장</button>
+    <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'"><span class="ti">📄</span> 일괄등록 양식</button>
     {# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 — 발주일 있는데 수주번호 빈 비소모품 #}
-    <button type="button" onclick="openSoBackfill()" title="발주일은 있는데 수주번호가 빈 항목에 발주일 기준으로 수주번호를 소급 발급 (미리보기 후 실행·자동 DB 백업)">🧾 수주번호 소급 발급</button>
+    <button type="button" onclick="openSoBackfill()" title="발주일은 있는데 수주번호가 빈 항목에 발주일 기준으로 수주번호를 소급 발급 (미리보기 후 실행·자동 DB 백업)"><span class="ti">🧾</span> 수주번호 소급 발급</button>
   </div>
   {# z332→z345 (대표 지시): '표 설정' 띠(회색) — 표 보기/정렬 두 박스. 작업(빨강) 띠와 분리 #}
   <div class="sched-tools sb-band band-view">
@@ -286,17 +288,17 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <div class="tool-box">
       <span class="tbx-label">표 보기</span>
       <div class="cols-menu">
-        <button type="button" class="tool-btn" onclick="toggleColsMenu(event)">☷ 칸 표시/숨기기 ▾</button>
+        <button type="button" class="tool-btn" onclick="toggleColsMenu(event)"><span class="ti">☷</span> 칸 표시/숨기기 ▾</button>
         <div class="cols-pop" id="colsPop"></div>
       </div>
       <span class="tool-grp">날짜 너비 <span class="step" onclick="stepDateW(-1)">－</span><span class="step" onclick="stepDateW(1)">＋</span></span>
       <span class="tool-grp">날짜 표시 <input type="number" id="dayFrom" min="1" max="{{ days|length }}" onchange="setDayRange()"> ~ <input type="number" id="dayTo" min="1" max="{{ days|length }}" onchange="setDayRange()"> 일</span>
-      <button type="button" class="tbx-reset" onclick="resetCols()" title="칸 너비·숨김·날짜 표시를 처음 상태로 (정렬은 안 바뀜)">↺ 표 보기 초기화</button>
+      <button type="button" class="tbx-reset" onclick="resetCols()" title="칸 너비·숨김·날짜 표시를 처음 상태로 (정렬은 안 바뀜)"><span class="ti">↺</span> 표 보기 초기화</button>
     </div>
     <div class="tool-box">
       <span class="tbx-label">정렬</span>
       <span class="tbx-cur">현재: <span id="sortNow">기본(발주일순)</span></span>
-      <button type="button" class="tbx-reset" onclick="resetSort()" title="헤더 클릭 정렬을 기본 순서(발주일순)로 되돌림 (칸 너비는 그대로)">↕ 정렬 초기화</button>
+      <button type="button" class="tbx-reset" onclick="resetSort()" title="헤더 클릭 정렬을 기본 순서(발주일순)로 되돌림 (칸 너비는 그대로)"><span class="ti">↕</span> 정렬 초기화</button>
     </div>
     <span class="sched-hint">칸 경계를 끌어 너비 조정(그 칸만 바뀌고 다른 칸은 그대로) · 표가 넓으면 아래 좌우 스크롤 · 정보칸 클릭해 입력 · 일정 막대 클릭해 메모</span>
   </div>
