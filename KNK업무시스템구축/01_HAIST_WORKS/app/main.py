@@ -14950,7 +14950,7 @@ async def projects_import_confirm(request: Request):
     created = []
     failed = []
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
-    so_skipped = []    # v5H226z330: 발주일 없어 SO(수주번호) 미발행한 비소모품 신규행(정보성 안내) — 조용히 넘기지 않고 수집
+    so_skipped = []    # v5H226z330/z337: 발주일 없어 SO(수주번호) 미발행한 신규행(소모품 포함, 정보성 안내) — 조용히 넘기지 않고 수집
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     for r in rows:
         try:
@@ -15094,8 +15094,10 @@ async def projects_import_confirm(request: Request):
             })
             # 상태가 won 이면 자동 SO 발행 (단일 호기, 사용자 폴백 경로 모방)
             status_v = r.get("status") or ""
-            # v5H226z240 (대표 지시): 소모품(사업부 C)은 관리번호·호기·수주(SO) 미사용 →
-            #   자동 SO 생성 건너뜀. 프로젝트 레코드(품명·금액·상태·납기·비고)만 단순 저장.
+            # v5H226z240(구) → v5H226z337 (대표 확정): 소모품(사업부 C)도 수주번호(SO) 발행한다.
+            #   z240의 '소모품 SO 미사용'을 개정 — 소모품도 비소모품과 동일 규칙(발주일 있으면 발행, 없으면 미발행).
+            #   수주번호 앞글자 = 사업부 C → 'C-YYMMDD'. 관리번호는 이미 C 발급이라 변경 없음.
+            #   (소모품 1줄 = 부품 방식 수량 N 의 SO 1건 — 호기 N분할 안 함, 기존 _new_is_part 경로 그대로.)
             # v5H226z329 (대표 지시): DB에 없던 새 관리번호가 파일에 2회+면 첫 행도 발주(SO)를 강제 발급(금액 합계 누락 방지).
             #   초기협의여도 여기서 SO 생성 → 아래 상태복원(PROJ_IMPORT_STATUSES, 초기협의 포함)이 프로젝트 상태를 초기협의로 되돌림.
             # v5H226z330 (대표 지시): 단건 등록(z194)과 통일 — 일괄등록도 '발주일이 있으면' 상태·출현횟수
@@ -15103,12 +15105,13 @@ async def projects_import_confirm(request: Request):
             #   발주일이 없으면 SO 번호(SO-YYYYMM-####)의 기준 년월이 없어 미발행(헤더만) + 안내로 표면화.
             #   (기존 WON_STATUSES / _force_first_so 케이스는 모두 '발주일 있음'에 포섭 — 발주일 있는 정상행 회귀 없음)
             _row_has_od = bool((r.get("order_date") or "").strip())
-            if new_pid and biz_div != "C" and not _row_has_od:
+            if new_pid and not _row_has_od:
                 # 발주일 없어 SO 미발행 — 조용히 넘기지 않고 수집(연결성 표면화 / 대표 결정: 미발행+안내)
+                # v5H226z337: 소모품(C)도 포함 — 비소모품과 동일 규칙
                 so_skipped.append({"row_no": r.get("row_no"), "name": name,
                                    "mgmt_code": new_code,
                                    "reason": "발주일 없음 — 수주번호 미발행(헤더만 생성)"})
-            if new_pid and biz_div != "C" and _row_has_od:
+            if new_pid and _row_has_od:   # v5H226z337: 소모품(C) 포함 — 발주일 있으면 수주번호 발행
                 try:
                     with db_session() as c:
                         exists = c.execute(

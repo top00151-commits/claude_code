@@ -62,7 +62,9 @@ def generate_so_no(c, biz_div: str = "T",
       세 번째     → T-260505-2
     (이전 v5H69 는 두 번째를 -2 로 부여해 -1 이 누락 — 대표 지적 수정)
     """
-    if not biz_div or biz_div not in ("T", "M", "L"):
+    # v5H226z337 (대표 확정): 수주번호 앞글자 = 사업부 5종 — 검사기 T·자동화 M·라이프밸류 L·기타 E·소모품 C.
+    #   (기존 T/M/L 만 허용 → E·C 가 T 로 강제되던 것 수정. 소모품 수주번호도 'C-YYMMDD' 로, 기타는 'E-YYMMDD' 로 발행.)
+    if not biz_div or biz_div not in ("T", "M", "L", "E", "C"):
         biz_div = "T"
     d = ref_date or date.today()
     yymmdd = d.strftime("%y%m%d")

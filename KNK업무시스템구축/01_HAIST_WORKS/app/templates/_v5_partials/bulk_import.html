@@ -114,10 +114,10 @@ function renderImportPreview(j) {
               : (r._warn
                   ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⚠ ' + escapeHtml(r._warn) + '</span>'
                   : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>'))));
-    // v5H226z330 (대표 지시): 수주번호(SO) 발행 예정 안내 — 확정 로직과 동일 조건
-    //   (추가발주/오류 아님 · 비소모품 · 발주일 있으면 발행, 없으면 미발행). 발행 기준일 = 발주일.
+    // v5H226z330→z337 (대표 확정): 수주번호(SO) 발행 예정 안내 — 확정 로직과 동일 조건
+    //   (추가발주/오류 아님 · 소모품 포함 전 사업부 · 발주일 있으면 발행, 없으면 미발행). 발행 기준일 = 발주일.
     var soHint = '';
-    if (!hasErr && !r._followup && r.biz_div !== 'C') {
+    if (!hasErr && !r._followup) {
       soHint = (r.order_date && String(r.order_date).trim())
         ? '<div style="color:#1d4ed8;font-size:10px;margin-top:2px;">→ 수주번호 발행 (발주일 ' + escapeHtml(String(r.order_date)) + ')</div>'
         : '<div style="color:#b45309;font-size:10px;margin-top:2px;">→ 발주일 없어 수주번호 미발행</div>';
