@@ -12856,7 +12856,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "qty": p.get("unit_qty") or "", "price": p.get("unit_price") or 0,
             "amount": p.get("order_amount") or 0, "currency": (p.get("currency") or "KRW"),
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
-            "po_type": p.get("po_type") or "", "form_type": p.get("form_type") or "",
+            "po_type": p.get("po_type") or "",
+            "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
             "customer": p.get("customer_name") or "—",
             "cust_ok": bool(p.get("customer_id")), "cust2": p.get("secondary_customer") or "",
             "dept": p.get("cc_dept") or "", "owner": p.get("cc_name") or "",
@@ -13154,7 +13155,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "currency": (p.get("currency") or "KRW"),  # v5H226z278: 통화
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
-            "form_type": p.get("form_type") or "",               # v5H226z349: 형태(제품/상품/기타)
+            # v5H226z349/z350: 형태(제품/상품/기타) — 저장값 우선, 없으면 출고형태에서 역산(기존 데이터 표시)
+            "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
             "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객)
             "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
             # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
@@ -13725,6 +13727,7 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
                can_money=bool(can_view_sales(u)),
+               PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker())
 
 

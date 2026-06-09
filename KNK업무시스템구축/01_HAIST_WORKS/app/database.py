@@ -4245,9 +4245,29 @@ TRADE_TYPES = ("내수", "수출")
 # v5H226z349 (대표 지시): PO유형 'A/S' → '수리'로 이름변경. → 신규/추가/개조/수리/기타.
 #   기존 po_type='A/S' 데이터는 초기화 마이그레이션에서 '수리'로 일괄 변환(아래 ALTER 직후).
 PO_TYPES = ["신규", "추가", "개조", "수리", "기타"]
-# v5H226z349 (대표 지시): 형태(회계 성격) — 제품(자체 제작)/상품(매입 판매·다품목)/기타.
+# v5H226z349 (대표 지시): 형태 — 제품(완제품·자체 제작)/상품(다품목·부품 상세리스트·PACKING LIST)/기타.
 #   기존 '유형(project_type: 신규장비/소모품/수리/기타)'과는 별개 축. 작업일정표 컬럼·일괄등록 양식에서 사용.
 FORM_TYPES = ("제품", "상품", "기타")
+# v5H226z350 (대표 지시): 형태(form_type) ↔ 출고형태(shipment_form) 통합 매핑.
+#   제품=완제품(ASSEMBLY·호기) / 상품=부품 상세리스트(PARTS·PACKING LIST) / 기타=ETC.
+#   → 형태=상품 선택 시 기존 PARTS(부품 상세·PACKING LIST) 인프라 그대로 재사용.
+FORM_TO_SHIP = {"제품": "ASSEMBLY", "상품": "PARTS", "기타": "ETC"}
+SHIP_TO_FORM = {"ASSEMBLY": "제품", "PARTS": "상품", "ETC": "기타"}
+
+
+def resolve_form_ship(data: dict) -> tuple[str, str]:
+    """형태↔출고형태 짝 맞추기. 한쪽만 와도 다른 쪽을 채움.
+    우선순위: form_type(폼·일괄등록 신규) → 없으면 shipment_form(레거시)로 역산.
+    둘 다 없으면 ('', 'ASSEMBLY') — 형태는 빈값(표시 시 출고형태에서 역산)."""
+    ft = (data.get("form_type") or "").strip()
+    sf = (data.get("shipment_form") or "").strip().upper()
+    if ft in FORM_TYPES:
+        return ft, FORM_TO_SHIP[ft]
+    if sf in ("ASSEMBLY", "PARTS", "ETC"):
+        return SHIP_TO_FORM[sf], sf
+    return "", "ASSEMBLY"
+
+
 LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
 # v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
@@ -5049,8 +5069,10 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "cc_phone":    (data.get("cc_phone") or "").strip() or None,
         "cc_email":    (data.get("cc_email") or "").strip() or None,
         "cc_note":     (data.get("cc_note") or "").strip() or None,
-        # v5H226z195: 2단계 발주(법인 경유) — 2차고객사·최종 고객 매출(참고)
-        "two_tier_order": 1 if str(data.get("two_tier_order") or "").lower() in ("1", "true", "on", "yes") else 0,
+        # v5H226z195/z350: 2단계 발주 — 2차고객사·최종 고객 매출(참고).
+        #   z350: '2차거래' 체크박스 폐지 → 고객사2(secondary_customer) 입력 시 2단계 발주로 자동 판정.
+        "two_tier_order": 1 if (str(data.get("two_tier_order") or "").lower() in ("1", "true", "on", "yes")
+                                or (data.get("secondary_customer") or "").strip()) else 0,
         "secondary_customer": (data.get("secondary_customer") or "").strip() or None,
         "final_amount": (float(str(data.get("final_amount")).replace(",", ""))
                          if str(data.get("final_amount") or "").strip() not in ("",) else None),
@@ -5089,20 +5111,13 @@ def _project_insert_or_update_values(data: dict) -> dict:
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용). 빈 문자열은 None 으로.
         "proposal_date":  (data.get("proposal_date") or "").strip() or None,
         "quotation_date": (data.get("quotation_date") or "").strip() or None,
-        # v5H226z: 출고 형태 — ASSEMBLY(default) / PARTS(정식 PACKING LIST) / ETC(기타, z196)
-        "shipment_form": (
-            (data.get("shipment_form") or "ASSEMBLY").strip().upper()
-            if (data.get("shipment_form") or "ASSEMBLY").strip().upper() in ("ASSEMBLY", "PARTS", "ETC")
-            else "ASSEMBLY"
-        ),
+        # v5H226z350 (대표 지시): 출고 형태 = 형태(form_type)와 통합 — 한쪽만 와도 짝 맞춤.
+        #   제품→ASSEMBLY / 상품→PARTS(부품 상세·PACKING LIST) / 기타→ETC.
+        "shipment_form": resolve_form_ship(data)[1],
         # v5H226z211: 장비명 — 관리번호=장비 단위 (프로젝트명 비유일)
         "equip_name": (data.get("equip_name") or "").strip() or None,
-        # v5H226z349 (대표 지시): 형태(제품/상품/기타) — 유효값만 저장, 그 외 빈값.
-        "form_type": (
-            (data.get("form_type") or "").strip()
-            if (data.get("form_type") or "").strip() in FORM_TYPES
-            else ""
-        ),
+        # v5H226z349/z350 (대표 지시): 형태(제품/상품/기타) — 출고형태와 짝(둘 중 온 값으로 통합).
+        "form_type": resolve_form_ship(data)[0],
     }
 
 
@@ -11344,6 +11359,14 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     # v5H226z349 (대표 지시): 형태는 고정 선택지(제품/상품/기타)만 — 그 외 값 차단(빈값=해제 허용)
     if field == "form_type" and val and val not in FORM_TYPES:
         return (False, "형태는 제품/상품/기타 중에서만 선택")
+    # v5H226z350 (대표 지시): 형태 편집은 출고형태(shipment_form)와 동기화 — 상품→PARTS(부품 상세·PACKING LIST).
+    #   프로젝트만 해당(소모품은 form_type 편집 비대상).
+    if ref_kind == "project" and field == "form_type":
+        _sf = FORM_TO_SHIP.get(val, "ASSEMBLY") if val else "ASSEMBLY"
+        with db_session() as c:
+            c.execute("UPDATE projects SET form_type=?, shipment_form=? WHERE id=?",
+                      (val, _sf, int(ref_id)))
+        return (True, "")
     # v5H226z277: 숫자 필드(수량·단가·금액)는 콤마 제거 후 숫자로
     if field in _SCHED_NUM_FIELDS:
         _raw = val.replace(",", "").strip()

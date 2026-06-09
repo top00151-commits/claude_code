@@ -80,10 +80,13 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z322(대표 지시): 사업부는 상단 탭으로 대체 → 드롭다운 제거. 고객사 칸 확대 #}
           <div class="qf-sec">기본</div>
           <div class="qf-f"><label>관리번호</label><div class="qf-code">자동 발급</div></div>
-          <div class="qf-f span2"><label>고객사 <span class="req">*</span></label>
+          <div class="qf-f span2"><label>고객사1 <span class="req">*</span></label>
             <input list="qCustList" name="customer_name" placeholder="고객사명" autocomplete="off">
             <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
           </div>
+          {# v5H226z350(대표 지시): 2차거래 체크박스 폐지 → 고객사2(최종 고객) 직접 입력칸을 고객사1 옆에 #}
+          <div class="qf-f span2"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객 — 다를 때만, 선택)</span></label>
+            <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택)" autocomplete="off"></div>
           <div class="qf-f"><label>거래구분</label>
             <select name="is_export"><option value="0">내수</option><option value="1">수출</option></select>
           </div>
@@ -95,9 +98,23 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f span2"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)"></div>
 
           <div class="qf-f"><label>PO유형</label>
-            <select name="po_type"><option value="신규">신규</option><option value="추가">추가</option></select>
+            {# v5H226z350(대표 지시): 하드코딩(신규/추가) → PO_TYPES(신규/추가/개조/수리/기타) #}
+            <select name="po_type">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
           </div>
           <div class="qf-f"><label>수량</label><input type="number" name="unit_qty" value="1" min="1"></div>
+
+          {# v5H226z350(대표 지시): 형태(제품/상품/기타) — 기존 '출고형태'를 본문으로 이동·통합.
+             내부값은 ASSEMBLY/PARTS/ETC 유지(부품 상세·PACKING LIST 로직 재사용). 상품=PARTS=부품 상세리스트 #}
+          <div class="qf-f span2" style="grid-column:1/-1;"><label>형태 <span style="font-weight:400;color:var(--qv-ink-3);">(상품 = 여러 품목·부품 상세리스트 / PACKING LIST)</span></label>
+            <div class="qf-ship">
+              <label><input type="radio" name="shipment_form" value="ASSEMBLY" checked onchange="qSyncShip()"> 📦 제품 <span>완제품·호기</span></label>
+              <label><input type="radio" name="shipment_form" value="PARTS" onchange="qSyncShip()"> 🧰 상품 <span>부품 상세리스트</span></label>
+              <label><input type="radio" name="shipment_form" value="ETC" onchange="qSyncShip()"> 🗂 기타</label>
+            </div>
+          </div>
+          <div class="qf-f" id="qPartName" style="display:none;"><label>부품 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(대표 1식)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
+          <div class="qf-f" id="qPartModel" style="display:none;"><label>부품 모델명</label><input name="part_model" placeholder="예: KNK-P-0000"></div>
+          <div class="qf-f span2" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
           <div class="qf-f"><label>발주일</label><input type="date" name="order_date" id="qOrderDate"></div>
           <div class="qf-f"><label>납품일</label><input type="date" name="due_date" id="qDueDate"></div>
 
@@ -128,25 +145,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f span2" style="grid-column:1/-1;"><label>비고</label>
             <input name="note" placeholder="기타 메모"></div>
         </div>
-
-        {# v5H226z319(대표 지시): 고급 항목(출고형태·2차 고객사)을 접이식으로 — 평소 접힘, 부품수출·2차거래 때만 펼침 #}
-        <details class="qf-adv">
-          <summary>상세 입력 <span>(출고 형태 · 2차 고객사 — 부품 수출/2차 거래 때만)</span></summary>
-          <div class="qf-adv-grid">
-            <div class="qf-f span2"><label>출고 형태 <span style="font-weight:400;color:var(--qv-ink-3);">(베트남 부품 수출 시 PACKING LIST)</span></label>
-              <div class="qf-ship">
-                <label><input type="radio" name="shipment_form" value="ASSEMBLY" checked onchange="qSyncShip()"> 📦 ASS'Y <span>완제품·호기</span></label>
-                <label><input type="radio" name="shipment_form" value="PARTS" onchange="qSyncShip()"> 🧰 부품 <span>PACKING LIST</span></label>
-                <label><input type="radio" name="shipment_form" value="ETC" onchange="qSyncShip()"> 🗂 기타</label>
-              </div>
-            </div>
-            <div class="qf-f" id="qPartName" style="display:none;"><label>부품 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(대표 1식)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
-            <div class="qf-f" id="qPartModel" style="display:none;"><label>부품 모델명</label><input name="part_model" placeholder="예: KNK-P-0000"></div>
-            <div class="qf-f span2" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
-            <div class="qf-f span2" style="grid-column:1/-1;"><label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--qv-ink-2);"><input type="checkbox" id="qTwoTier" name="two_tier_order" value="1" onchange="qSyncSec()" style="width:15px;height:15px;"> 2차 거래 (최종 고객이 다름)</label></div>
-            <div class="qf-f span2" id="qSecCust" style="display:none;"><label>2차 고객사 (최종 고객)</label><input name="secondary_customer" placeholder="최종 고객사명"></div>
-          </div>
-        </details>
+        {# v5H226z350(대표 지시): '상세 입력' 접이식 영역 제거 — 출고형태→형태(본문), 2차거래→고객사2(본문)로 흡수 #}
 
         <div class="qf-btns">
           {% if embed %}<a class="qf-cancel" href="javascript:void(0)" onclick="try{parent.postMessage({knkRegClose:true},'*')}catch(e){}">취소</a>
@@ -166,17 +165,14 @@ function qToggleFx(){
   var sel=document.getElementById('qCurrency'); if(!sel) return;
   var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
 }
-// v5H226z319(대표 지시): 출고형태(부품/기타 칸) · 2차 거래(2차 고객사 칸) 토글
+// v5H226z350(대표 지시): 형태(제품/상품/기타) → 부품/기타 칸 토글. 상품(PARTS)=부품 품명·모델, 기타(ETC)=기타 품명.
+//   2차거래 토글(qSyncSec)은 폐지 — 고객사2가 본문 상시 입력칸이 됨.
 function qSyncShip(){
   var r=document.querySelector('input[name="shipment_form"]:checked'); var v=r?r.value:'ASSEMBLY';
   var pn=document.getElementById('qPartName'), pm=document.getElementById('qPartModel'), en=document.getElementById('qEtcName');
   if(pn) pn.style.display=(v==='PARTS')?'flex':'none';
   if(pm) pm.style.display=(v==='PARTS')?'flex':'none';
   if(en) en.style.display=(v==='ETC')?'flex':'none';
-}
-function qSyncSec(){
-  var c=document.getElementById('qTwoTier'), w=document.getElementById('qSecCust');
-  if(w) w.style.display=(c&&c.checked)?'flex':'none';
 }
 document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
@@ -209,7 +205,6 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
 })();
 qToggleFx();
 qSyncShip();
-qSyncSec();
 if(window.knkScanMoney) knkScanMoney();
 </script>
 </body>
